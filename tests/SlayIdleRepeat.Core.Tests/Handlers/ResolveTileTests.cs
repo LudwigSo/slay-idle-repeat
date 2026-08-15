@@ -10,10 +10,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>
-/// 🔒 M3-03, `03` §2 — <c>RESOLVE_TILE</c>, driven through the production dispatch table by
-/// <c>GameRules.Apply</c>.
-/// </summary>
+/// <summary>RESOLVE_TILE, driven through the production dispatch table by GameRules.Apply.</summary>
 public sealed class ResolveTileTests
 {
     private static CommandResult Resolve(WorldSlice state, GameContext? context = null) =>
@@ -32,7 +29,7 @@ public sealed class ResolveTileTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>🔒 P4 — a rejected command leaves the caller's own slice untouched.</summary>
+    /// <summary>A rejected command leaves the caller's own slice untouched.</summary>
     [Fact]
     public void A_rejection_leaves_the_run_untouched()
     {
@@ -55,7 +52,7 @@ public sealed class ResolveTileTests
 
     // ------------------------------------------------------------------ resolved and cleared
 
-    /// <summary>`03` §2's breather tile resolves to nothing and clears.</summary>
+    /// <summary>The breather tile resolves to nothing and clears.</summary>
     [Fact]
     public void An_empty_tile_resolves_to_nothing_and_clears()
     {
@@ -66,7 +63,7 @@ public sealed class ResolveTileTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
-    /// <summary>🔒 `03` §7a.3 — a treasure tile pays its drawn profile and clears.</summary>
+    /// <summary>A treasure tile pays its drawn profile and clears.</summary>
     [Fact]
     public void A_treasure_tile_pays_and_clears()
     {
@@ -78,10 +75,7 @@ public sealed class ResolveTileTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
-    /// <summary>
-    /// 🔒 …and every row it pays is a META wallet currency, never the run's own GOLD — `03` §7a.3's
-    /// profiles are Crowns, Enhance Stones and Merge Dust.
-    /// </summary>
+    /// <summary>…and every row it pays is a meta wallet currency, never the run's own GOLD.</summary>
     [Fact]
     public void A_treasure_tile_pays_no_run_gold()
     {
@@ -91,11 +85,7 @@ public sealed class ResolveTileTests
         result.Events.Cast<CurrencyChanged>().ShouldAllBe(e => e.Id != CurrencyId.GOLD);
     }
 
-    /// <summary>🔒 A zero column is SKIPPED rather than emitted as a zero-delta row.</summary>
-    /// <remarks>
-    /// ⚠️ Every one of `03` §7a.3's three profiles has at least one zero column, so whichever is
-    /// drawn, a resolver that emitted zero rows would produce three events instead of one or two.
-    /// </remarks>
+    /// <summary>A zero column is skipped rather than emitted as a zero-delta row.</summary>
     [Fact]
     public void A_zero_payout_column_emits_no_event()
     {
@@ -105,12 +95,11 @@ public sealed class ResolveTileTests
         result.Events.Count.ShouldBeLessThan(3, "no authored profile pays all three columns");
     }
 
-    /// <summary>🔒 `03` §7a.4 — a cache tile pays Beast Feed and clears.</summary>
+    /// <summary>A cache tile pays Beast Feed and clears.</summary>
     [Fact]
     public void A_cache_tile_pays_beast_feed_and_clears()
     {
-        // The shipped 0.06 egg rate is set to 0 so this test names the FEED branch rather than
-        // depending on which side of the boundary the fixture seed happens to fall.
+        // The shipped egg rate is set to 0 so this test names the feed branch deterministically.
         var noEggs = TileWorlds.ContextOver(
             InRunIncomeDocuments.With(eggChance: ContentValue.Number(0m)));
 
@@ -124,8 +113,8 @@ public sealed class ResolveTileTests
     }
 
     /// <summary>
-    /// 🔒 …and on the EGG branch it pays nothing at all, which is correct rather than a resolver that
-    /// forgot: a Pet Egg is a container, and containers are M4-02's.
+    /// …and on the egg branch it pays nothing at all: a Pet Egg is a container, deferred to a later
+    /// milestone.
     /// </summary>
     [Fact]
     public void A_cache_tile_that_rolls_an_egg_pays_nothing()
@@ -140,13 +129,10 @@ public sealed class ResolveTileTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
-    /// <summary>🔒 The cache's Beast Feed scales by <c>M(c)</c>.</summary>
+    /// <summary>The cache's Beast Feed scales by <c>M(c)</c>.</summary>
     /// <remarks>
-    /// ⚠️ The expectations are <c>round(25 · 1.35^(c-1))</c> — the AMOUNT scaled and then rounded,
-    /// not the amount times a rounded scalar. They read 46 and 204 rather than the tidier 50 and 200
-    /// precisely because <c>M(c)</c> is a real number: the tidy values were what the curve produced
-    /// while <c>ChapterScalarTuning</c> quantised the scalar itself, which flattened chapter 2 onto
-    /// chapter 1. See <c>InRunIncomeTuningTests.A_meta_amount_is_scaled_then_rounded</c>.
+    /// Expectations are round(25 · 1.35^(c-1)): the amount scaled then rounded, not the amount times
+    /// a rounded scalar — which is why they read 46 and 204 rather than the tidier 50 and 200.
     /// </remarks>
     [Theory]
     [InlineData(1, 25L)]
@@ -162,11 +148,8 @@ public sealed class ResolveTileTests
         result.Events.ShouldHaveSingleItem().ShouldBeOfType<CurrencyChanged>().Delta.ShouldBe(expected);
     }
 
-    /// <summary>🔒 `03` §7a.5 — a shrine resolves, heals if it drew a healing row, and clears.</summary>
-    /// <remarks>
-    /// It produces NO events by design: a shrine moves no currency, and an HP change has no domain
-    /// event in this game. The assertion is on the pending state and on the absence of events.
-    /// </remarks>
+    /// <summary>A shrine resolves, heals if it drew a healing row, and clears.</summary>
+    /// <remarks>Produces no events by design: a shrine moves no currency and HP has no domain event.</remarks>
     [Fact]
     public void A_shrine_tile_resolves_to_no_events_and_clears()
     {
@@ -177,7 +160,7 @@ public sealed class ResolveTileTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
-    /// <summary>🔒 `19` Part E — a curse tile pays a curse's reward and clears.</summary>
+    /// <summary>A curse tile pays a curse's reward and clears.</summary>
     [Fact]
     public void A_curse_tile_pays_a_reward_and_clears()
     {
@@ -190,10 +173,7 @@ public sealed class ResolveTileTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
-    /// <summary>
-    /// 🔒 …and the reward it pays is one of exactly four — the chapter-1 curses `CurseRewards` can
-    /// pay — whatever the seed.
-    /// </summary>
+    /// <summary>…and the reward it pays is one of the chapter-1 curses CurseRewards can pay, whatever the seed.</summary>
     [Theory]
     [InlineData(1UL)]
     [InlineData(7UL)]
@@ -210,10 +190,7 @@ public sealed class ResolveTileTests
             .ShouldContain((paid.Id, paid.Delta));
     }
 
-    /// <summary>
-    /// 🔒 A GOLD reward moves on the RUN and a wallet reward on the PLAYER — `10` §1's split, which a
-    /// resolver paying both through one aggregate would break.
-    /// </summary>
+    /// <summary>A GOLD reward moves on the run and a wallet reward on the player.</summary>
     [Fact]
     public void A_curse_reward_moves_on_the_right_aggregate()
     {
@@ -238,7 +215,7 @@ public sealed class ResolveTileTests
 
     // ------------------------------------------------------------------ advanced, not cleared
 
-    /// <summary>🔒 `03` §5 — an event tile draws a card and KEEPS the tile pending for EVENT_CHOOSE.</summary>
+    /// <summary>An event tile draws a card and keeps the tile pending for EVENT_CHOOSE.</summary>
     [Fact]
     public void An_event_tile_draws_a_card_and_stays_pending()
     {
@@ -253,8 +230,8 @@ public sealed class ResolveTileTests
     }
 
     /// <summary>
-    /// 🔒 …and resubmitting is REFUSED rather than re-drawing. That is the whole reason the card id
-    /// is persisted: a client that disliked its card must not be able to roll again.
+    /// …and resubmitting is refused rather than re-drawing: a client that disliked its card must not
+    /// be able to roll again.
     /// </summary>
     [Fact]
     public void Resubmitting_a_drawn_event_tile_is_rejected()
@@ -269,7 +246,7 @@ public sealed class ResolveTileTests
             .ShouldBe(drawn.Run!.ToSnapshot().PendingEventCardId, "the first card survives");
     }
 
-    /// <summary>🔒 The card draw is deterministic for a fixed seed.</summary>
+    /// <summary>The card draw is deterministic for a fixed seed.</summary>
     [Fact]
     public void The_event_card_draw_is_deterministic_for_a_fixed_seed()
     {
@@ -280,10 +257,7 @@ public sealed class ResolveTileTests
             .ShouldBe(second.NewState.Run!.ToSnapshot().PendingEventCardId);
     }
 
-    /// <summary>
-    /// 🔒 …and it draws only cards this run's chapter can see. A chapter-1 run never draws the
-    /// fixture card banded to chapter 5.
-    /// </summary>
+    /// <summary>…and it draws only cards this run's chapter can see: chapter 1 never draws a chapter-5 card.</summary>
     [Theory]
     [InlineData(1UL)]
     [InlineData(2UL)]
@@ -314,7 +288,7 @@ public sealed class ResolveTileTests
         drawn.ShouldContain(FixtureCards.LateOnly);
     }
 
-    /// <summary>🔒 `03` §2 — a campfire accepts and stays pending for CAMPFIRE_CHOOSE.</summary>
+    /// <summary>A campfire accepts and stays pending for CAMPFIRE_CHOOSE.</summary>
     [Fact]
     public void A_campfire_tile_stays_pending()
     {
@@ -325,7 +299,7 @@ public sealed class ResolveTileTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe((int)TileKind.Campfire);
     }
 
-    /// <summary>🔒 …and it draws NOTHING, so no `14` §8.1 counter moves.</summary>
+    /// <summary>…and it draws nothing, so no RNG stream counter moves.</summary>
     [Fact]
     public void A_campfire_tile_consumes_no_rng_draw()
     {
@@ -337,8 +311,8 @@ public sealed class ResolveTileTests
     // ------------------------------------------------------------------ acknowledged, not cleared
 
     /// <summary>
-    /// 🔒 The battle tiles are ACKNOWLEDGED and left pending — the seam M3-05's START_BATTLE and
-    /// M3-06's post-battle draft read. See <c>Handlers.ResolveTile</c>'s remarks.
+    /// The battle tiles are acknowledged and left pending — the seam START_BATTLE and the
+    /// post-battle draft both read.
     /// </summary>
     [Theory]
     [InlineData((int)TileKind.Enemy)]
@@ -351,8 +325,7 @@ public sealed class ResolveTileTests
         result.Accepted.ShouldBeTrue();
         result.Events.ShouldBeEmpty();
 
-        // 🔒 All three facts survive, because all three are what START_BATTLE needs to feed
-        // EnemyPowerFormula.Compute.
+        // All three facts survive: START_BATTLE needs them to feed EnemyPowerFormula.Compute.
         var snapshot = result.NewState.Run!.ToSnapshot();
         snapshot.PendingTileKind.ShouldBe(kind);
         snapshot.PendingTileLinearIndex.ShouldBe(19);
@@ -360,10 +333,9 @@ public sealed class ResolveTileTests
     }
 
     /// <summary>
-    /// The tiles that resolve through their OWN command are acknowledged and left pending for it.
-    /// Portal is deliberately not among these — Review M3's dead-end-tile fix wired it into
-    /// RESOLVE_TILE itself (see <see cref="A_portal_tile_resolves_the_jump_immediately"/>), since
-    /// `03` §2's Portal row names no command of its own to leave it pending for.
+    /// The tiles that resolve through their own command are acknowledged and left pending for it.
+    /// Portal is deliberately not among these — see
+    /// <see cref="A_portal_tile_resolves_the_jump_immediately"/>.
     /// </summary>
     [Theory]
     [InlineData((int)TileKind.Shop)]
@@ -379,10 +351,9 @@ public sealed class ResolveTileTests
     }
 
     /// <summary>
-    /// 🔒 Review M3 (dead-end tile fix) — the Portal tile now fully resolves within RESOLVE_TILE
-    /// itself, via <c>Rules.Board.BoardResolution</c>/<c>MovementEngine.AdvancePortal</c>: the run
-    /// either lands on a new node or pauses at a junction with a genuine pending fork, but is never
-    /// left stuck pending on the Portal tile it started from.
+    /// The Portal tile fully resolves within RESOLVE_TILE itself: the run either lands on a new node
+    /// or pauses at a junction with a genuine pending fork, but is never left stuck pending on the
+    /// Portal tile it started from.
     /// </summary>
     [Fact]
     public void A_portal_tile_resolves_the_jump_immediately()
@@ -399,19 +370,17 @@ public sealed class ResolveTileTests
 
     // ------------------------------------------------------------------ the vocabulary floor
 
-    /// <summary>
-    /// 🔒 Every one of `03` §2's fourteen kinds has a branch — none reaches the <c>default</c> arm.
-    /// </summary>
+    /// <summary>Every one of the fourteen tile kinds has a branch — none reaches the default arm.</summary>
     /// <remarks>
-    /// ⚠️ Stated over the enum itself rather than as a list of fourteen cases, so a fifteenth member
-    /// fails this test on the commit that adds it rather than the commit that first lands on one.
+    /// Stated over the enum itself rather than as a list of fourteen cases, so a fifteenth member
+    /// fails this test on the commit that adds it.
     /// </remarks>
     [Fact]
     public void Every_authored_tile_kind_has_a_branch()
     {
         var kinds = Enum.GetValues<TileKind>();
 
-        kinds.Length.ShouldBe(14, "03 §2 fixes fourteen tile kinds");
+        kinds.Length.ShouldBe(14, "fourteen tile kinds are authored");
 
         foreach (var kind in kinds)
         {
@@ -421,10 +390,7 @@ public sealed class ResolveTileTests
         }
     }
 
-    /// <summary>
-    /// 🔒 …and a kind OUTSIDE the fourteen throws rather than being silently accepted as a tile that
-    /// does nothing. This is the arm <c>Run.Rehydrate</c> deliberately cannot reach.
-    /// </summary>
+    /// <summary>…and a kind outside the fourteen throws rather than being silently accepted.</summary>
     [Fact]
     public void A_kind_outside_the_vocabulary_throws()
     {

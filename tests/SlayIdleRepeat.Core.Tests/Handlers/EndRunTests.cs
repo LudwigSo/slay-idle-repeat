@@ -7,8 +7,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
 /// <summary>
-/// 🔒 M3-13, `14` §2.3, `02` §5 — <c>END_RUN</c>: banks the run's rewards and closes it, for the two
-/// terminal states — Victory (Boss dead) and Death (HP 0).
+/// END_RUN banks the run's rewards and closes it, for the two terminal states — Victory (Boss dead)
+/// and Death (HP 0).
 /// </summary>
 public sealed class EndRunTests
 {
@@ -40,8 +40,8 @@ public sealed class EndRunTests
     // ------------------------------------------------------------------ Victory: CompletionMultiplier = 1.0
 
     /// <summary>
-    /// 🔒 Chapter 1, NORMAL: Victory bonus = 25 * 1.55^0 * 1.0 * 10 = 250 (02 §5.1a). Banked 100 +
-    /// 250 = 350, times CompletionMultiplier.VICTORY (1.0) = 350, exactly.
+    /// Chapter 1, NORMAL: Victory bonus = 25 * 1.55^0 * 1.0 * 10 = 250. Banked 100 + 250 = 350,
+    /// times CompletionMultiplier.VICTORY (1.0) = 350, exactly.
     /// </summary>
     [Fact]
     public void Victory_banks_the_run_bonus_and_pays_the_full_amount()
@@ -59,7 +59,7 @@ public sealed class EndRunTests
 
     // ------------------------------------------------------------------ Death: CompletionMultiplier by stage
 
-    /// <summary>Stage 3 death (or a death fighting the Boss itself) pays 60% — 02 §5.2.</summary>
+    /// <summary>Stage 3 death (or a death fighting the Boss itself) pays 60%.</summary>
     [Fact]
     public void A_stage_3_death_pays_sixty_percent()
     {
@@ -72,7 +72,7 @@ public sealed class EndRunTests
         (result.NewState.Player.LegendXp - before).ShouldBe(60);
     }
 
-    /// <summary>Stage 1 death pays 25% — 02 §5.2's floor: "death still pays, never zero".</summary>
+    /// <summary>Stage 1 death pays 25% — the floor: death still pays, never zero.</summary>
     [Fact]
     public void A_stage_1_death_pays_twentyfive_percent_never_zero()
     {
@@ -99,7 +99,7 @@ public sealed class EndRunTests
         (result.NewState.Player.LegendXp - before).ShouldBe(60);
     }
 
-    /// <summary>🔒 A run that has already ended cannot END_RUN a second time.</summary>
+    /// <summary>A run that has already ended cannot END_RUN a second time.</summary>
     [Fact]
     public void Ending_an_already_ended_run_is_rejected()
     {

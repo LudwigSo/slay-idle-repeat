@@ -11,10 +11,8 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// Strict means strict: RFC 8259 only — no comments, no trailing commas — so CI can never be more
 /// forgiving than the runtime loader. It also reports <see cref="ContentIssueCode.DuplicateKey"/>,
 /// which a plain deserialise cannot: the object model keeps the last duplicate and the earlier
-/// value simply disappears.
-/// <para>
-/// 🔒 JSON <c>null</c> becomes <see cref="ContentValue.Unauthorised"/>, never a default.
-/// </para>
+/// value simply disappears. JSON <c>null</c> becomes <see cref="ContentValue.Unauthorised"/>, never
+/// a default.
 /// </remarks>
 public static class JsonContentReader
 {
@@ -95,8 +93,7 @@ public static class JsonContentReader
             JsonTokenType.True => ContentValue.True,
             JsonTokenType.False => ContentValue.False,
 
-            // 🔒 The whole point. `game-data/README.md`: null means "the design docs do
-            // not authorise a value here". It is never zero and never a default.
+            // null means "the design docs do not authorise a value here" — never zero, never a default.
             JsonTokenType.Null => ContentValue.Unauthorised,
 
             JsonTokenType.Number => ReadNumber(ref reader, documentPath, pointer, issues),
@@ -116,8 +113,6 @@ public static class JsonContentReader
             "the number does not fit an exact decimal. Content numbers are held exactly so the " +
             "load path never rounds; a value needing binary floating point does not belong here."));
 
-        // Never a zero, even as a placeholder the issue above already short-circuits: a literal 0
-        // standing in for an unrepresentable value is the exact shape the null convention forbids.
         return ContentValue.Unauthorised;
     }
 

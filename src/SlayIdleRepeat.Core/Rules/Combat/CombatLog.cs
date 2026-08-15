@@ -4,102 +4,66 @@ using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
-/// <summary>
-/// 🔒 The combat log under construction — the <c>log(...)</c> every part of the simulator calls,
-/// and the only way a <see cref="SimulationResult"/> is made.
-/// </summary>
+/// <summary>The combat log under construction — the <c>log(...)</c> every part of the simulator calls, and the only way a <see cref="SimulationResult"/> is made.</summary>
 /// <remarks>
-/// <para>
-/// <b>The emission contract, stated once so the four tasks that emit into it cannot disagree.</b>
-/// M2-08 (tick loop), M2-09 (damage resolution), M2-10 (statuses) and M2-12 (boss phases and
-/// telegraphs) all append here.
-/// </para>
+/// <para>The emission contract, stated once so the several parts of the simulator that append into it cannot disagree.</para>
 /// <list type="number">
 ///   <item>
-///     🔒 <b>Append at the moment of the state change, never in a batch.</b> `05` §3.1 step 7:
-///     <em>"CombatEvents are appended at the moment each state change occurs, not batched (the log
-///     is the replay)"</em>. Collecting a tick's events and sorting them at the end of the tick
-///     produces a different order — and therefore a different <see cref="SimulationResult.LogHash"/>
-///     — from appending them as they happen, even though every event is present in both. Order is
-///     inside the hash.
+///     <b>Append at the moment of the state change, never in a batch.</b> Collecting a tick's events
+///     and sorting them at the end of the tick produces a different order — and therefore a different
+///     <see cref="SimulationResult.LogHash"/> — from appending them as they happen, even though every
+///     event is present in both. Order is inside the hash.
 ///   </item>
 ///   <item>
-///     <b>Ticks never go backwards.</b> <see cref="Append"/> refuses an event whose tick is below
-///     the previous one. This is what makes the log <b>seekable</b>: `05` §8 requires a speed
-///     toggle that <em>"simply consumes the log faster"</em> and a skip that is
-///     <em>"always available"</em>, and both need to find the events for a tick range without a
-///     scan — see <see cref="FirstIndexAtOrAfter"/>.
+///     <b>Ticks never go backwards.</b> <see cref="Append"/> refuses an event whose tick is below the
+///     previous one. This is what makes the log seekable: a speed toggle and a skip both need to find
+///     the events for a tick range without a scan — see <see cref="FirstIndexAtOrAfter"/>.
 ///   </item>
 ///   <item>
-///     <b>Every <see cref="CombatEvent.Value"/> is already rounded to 4 dp</b> (`05` §1.1). The log
-///     records what happened; it does not round on the way out. A value that arrives unrounded
-///     means an accumulation point upstream is missing its <c>Math.Round(x, 4)</c>, and rounding it
-///     here would hide exactly the drift the cross-platform determinism gate exists to find.
+///     <b>Every <see cref="CombatEvent.Value"/> is already rounded to 4 dp.</b> The log records what
+///     happened; it does not round on the way out. A value that arrives unrounded means an accumulation
+///     point upstream is missing its rounding, and rounding it here would hide exactly the drift the
+///     cross-platform determinism gate exists to find.
 ///   </item>
 ///   <item>
-///     <b>Order within one tick is the tick order of `05` §3.1</b> — statuses, expiries, periodics,
-///     attacks in fixed initiative order, pet abilities, deaths. The log inherits it by
-///     construction; nothing here re-imposes it, because a second ordering rule that disagreed with
-///     the tick loop's would be undetectable.
+///     <b>Order within one tick is the tick loop's own order</b> — statuses, expiries, periodics,
+///     attacks in fixed initiative order, pet abilities, deaths. The log inherits it by construction;
+///     nothing here re-imposes it.
 ///   </item>
 ///   <item>
-///     <b>The log is sealed by <see cref="Complete"/>.</b> After it, appending throws. `05` §8's
-///     skip is safe because <em>"the outcome is already determined"</em>; a log that could still
-///     grow after the result was formed would make that untrue.
+///     <b>The log is sealed by <see cref="Complete"/>.</b> After it, appending throws — a log that
+///     could still grow after the result was formed would make "the outcome is already determined" untrue.
 ///   </item>
 /// </list>
 /// <para>
-/// <b>What the log does <i>not</i> carry, deliberately.</b> Nothing in it refers to simulator
-/// state: no object references, no stat blocks, no effect instances — an actor is a
-/// <see cref="byte"/> and a content id is a <see cref="ushort"/>. That is what makes `05`'s
-/// headnote enforceable rather than aspirational: <em>"the visual battle is a replay of a
-/// pre-computed log, not a live simulation"</em>. A replayer holds the log, the battle's roster and
+/// <b>What the log does not carry, deliberately.</b> Nothing in it refers to simulator state: no
+/// object references, no stat blocks, no effect instances — an actor is a <see cref="byte"/> and a
+/// content id is a <see cref="ushort"/>. That is what makes the visual battle a replay of a
+/// pre-computed log rather than a live simulation: a replayer holds the log, the battle's roster and
 /// the content tables, and needs no part of the simulator.
 /// </para>
-/// <para>
-/// Not thread-safe, and it does not need to be: one battle is simulated by one caller (`05` §3's
-/// &lt; 5 ms budget is per fight, and the balance harness parallelises across fights, not within
-/// one).
-/// </para>
-/// <para>
-/// ⚠️ <b>This is a stateful builder under <c>Rules/</c>, which `30` §11.4 annotates as
-/// <em>"internal, static, stateless calculators"</em>.</b> Recorded rather than hidden. The
-/// accumulator has to live somewhere: `05` §3.1 step 7 requires events to be appended as they
-/// happen, across every step of a 1800-tick loop, so a stateless function would have to take and
-/// return the whole log on every call. It is per-battle, owned by exactly one caller, never shared
-/// and never static, so it carries none of the properties that annotation exists to protect — but
-/// it is a departure, and M2-08's simulator inherits the instance.
-/// </para>
+/// <para>Not thread-safe, and it does not need to be: one battle is simulated by one caller.</para>
+/// <para>A stateful builder, on <c>CombatLog</c>'s own precedent for the accumulator having to live somewhere: events are appended as they happen, across every step of a 1800-tick loop, so a stateless function would have to take and return the whole log on every call.</para>
 /// </remarks>
 internal sealed class CombatLog
 {
-    /// <summary>🔒 `05` §3 — the tick rate: <c>TICK = 0.05 s</c>.</summary>
-    /// <remarks>
-    /// 🔴 An alias for <see cref="BattleTicks.PerSecond"/>. This constant and
-    /// <c>TriggerSchedule.TicksPerSecond</c> were two independent statements of one `05` §3 fact,
-    /// each with its own tolerance and its own whole-tick predicate beside it; only the <c>20</c>
-    /// itself was ever pinned across them.
-    /// </remarks>
+    /// <summary>The tick rate: <c>TICK = 0.05 s</c>.</summary>
     public const int TicksPerSecond = BattleTicks.PerSecond;
 
-    /// <summary>🔒 `05` §3 — 90 s at 20 ticks/second. Ticks run <c>0..1799</c>.</summary>
+    /// <summary>90 s at 20 ticks/second. Ticks run <c>0..1799</c>.</summary>
     /// <remarks>
-    /// ⚠️ This is the <b>PvE</b> cap. `05` §3.3 gives a duel a 60 s cap (<c>pvpMaxFightSeconds</c>,
-    /// `11` §4.3) — 1200 ticks — which this class does not enforce, because it has no way to know
-    /// which kind of fight it is logging. M2-14 owns the duel and inherits that bound.
+    /// This is the PvE cap. A duel has a 60 s cap (1200 ticks) which this class does not enforce, since
+    /// it has no way to know which kind of fight it is logging — the duel entry point inherits that bound.
     /// </remarks>
     public const int MaxTicks = BattleTicks.MaxPerFight;
 
-    /// <summary>🔒 `17` §1 — the shortest wind-up a damaging mechanic may have.</summary>
+    /// <summary>The shortest wind-up a damaging mechanic may have.</summary>
     public const double MinTelegraphSeconds = 1.0;
 
-    /// <summary>🔒 `17` §1 — the longest.</summary>
+    /// <summary>The longest.</summary>
     public const double MaxTelegraphSeconds = 1.5;
 
-    /// <summary>
-    /// The <see cref="CombatEvent.DataId"/> that names no content — no status, no ability, no
-    /// effect.
-    /// </summary>
+    /// <summary>The <see cref="CombatEvent.DataId"/> that names no content — no status, no ability, no effect.</summary>
     public const ushort NoDataId = 0;
 
     /// <summary>The specification quoted in every refusal, so a failure says which rule it broke.</summary>
@@ -113,28 +77,25 @@ internal sealed class CombatLog
 
     /// <summary>The events appended so far, in emission order.</summary>
     /// <remarks>
-    /// A read-only view, not the list itself: a caller that could cast this back to
-    /// <c>List&lt;CombatEvent&gt;</c> could append past the seal <see cref="Complete"/> applies, or
-    /// reorder events that are already inside a computed <c>LogHash</c>.
+    /// A read-only view, not the list itself: a caller that could cast this back to a mutable list
+    /// could append past the seal <see cref="Complete"/> applies, or reorder events already inside a
+    /// computed <c>LogHash</c>.
     /// </remarks>
     public IReadOnlyList<CombatEvent> Events => _events.AsReadOnly();
 
     /// <summary>How many events have been appended.</summary>
     public int Count => _events.Count;
 
-    /// <summary>
-    /// Appends one event, at the moment the state change occurs.
-    /// </summary>
+    /// <summary>Appends one event, at the moment the state change occurs.</summary>
     /// <param name="entry">The event.</param>
     /// <exception cref="InvalidOperationException">
-    /// The log is sealed, the tick goes backwards or out of range, the value is not a rounded
-    /// finite number, or the event breaks a rule stated on <see cref="CombatEventType"/>.
+    /// The log is sealed, the tick goes backwards or out of range, the value is not a rounded finite
+    /// number, or the event breaks a rule stated on <see cref="CombatEventType"/>.
     /// </exception>
     public void Append(CombatEvent entry)
     {
-        // 🔒 The members with rules of their own are routed to the method that enforces them,
-        // rather than each caller being trusted to remember. Same reasoning as BattleEnd in
-        // AppendCore; checked HERE rather than there so the two helpers can still reach the core.
+        // Members with rules of their own are routed to the method that enforces them, rather than
+        // trusting every caller to remember.
         if (entry.Type is CombatEventType.Telegraph or CombatEventType.RunEffectQueued)
         {
             throw new InvalidOperationException(
@@ -148,10 +109,7 @@ internal sealed class CombatLog
         AppendCore(entry);
     }
 
-    /// <summary>
-    /// Every rule that governs <b>any</b> event, applied to one entry. The helpers that enforce a
-    /// member's own extra rules reach the log through here, having applied them.
-    /// </summary>
+    /// <summary>Every rule that governs any event, applied to one entry. The helpers that enforce a member's own extra rules reach the log through here, having applied them.</summary>
     private void AppendCore(CombatEvent entry)
     {
         if (_sealed)
@@ -179,8 +137,8 @@ internal sealed class CombatLog
                 "flushed out of order, which also changes LogHash.");
         }
 
-        // 🔒 The vocabulary is closed (`05` §7). An undefined value would hash as its ordinal and
-        // replay as nothing — a log the client and the server would agree on and neither could draw.
+        // The vocabulary is closed. An undefined value would hash as its ordinal and replay as
+        // nothing — a log the client and the server would agree on and neither could draw.
         if (!Enum.IsDefined(entry.Type))
         {
             throw new InvalidOperationException(
@@ -215,10 +173,8 @@ internal sealed class CombatLog
                     "all carry tick 0.");
             }
 
-            // 🔒 Both slots must be None. BattleStart names no actor, and if M2-08 emitted
-            // (Hero, None) while `11` §6's server-side re-run emitted (None, None), the two sides
-            // would compute different LogHashes for an identical fight and the duel would be
-            // discarded as tampering.
+            // Both slots must be None. BattleStart names no actor, and a client/server disagreement
+            // about that would make an identical fight hash differently and be discarded as tampering.
             if (entry.SourceId != CombatActor.None || entry.TargetId != CombatActor.None)
             {
                 throw new InvalidOperationException(
@@ -234,9 +190,7 @@ internal sealed class CombatLog
         _lastTick = entry.Tick;
     }
 
-    /// <summary>
-    /// Appends one event, spelled out. The overload the simulator's <c>log(...)</c> call sites use.
-    /// </summary>
+    /// <summary>Appends one event, spelled out. The overload the simulator's <c>log(...)</c> call sites use.</summary>
     /// <param name="tick">The tick the state change occurred on.</param>
     /// <param name="type">Which state change.</param>
     /// <param name="sourceId">Who caused it, or <see cref="CombatActor.None"/>.</param>
@@ -252,109 +206,80 @@ internal sealed class CombatLog
         ushort dataId = NoDataId) =>
         Append(new CombatEvent(tick, type, sourceId, targetId, value, dataId));
 
-    /// <summary>
-    /// 🔒 `18` §2.5 — records that a combat trigger emitted a run/board op. The simulator never
-    /// resolves it.
-    /// </summary>
+    /// <summary>Records that a combat trigger emitted a run/board op. The simulator never resolves it.</summary>
     /// <param name="tick">The tick the trigger fired on.</param>
-    /// <param name="sourceId">The actor whose effect fired — the Dicelord, for Scramble.</param>
+    /// <param name="sourceId">The actor whose effect fired.</param>
     /// <param name="effectIndex">
-    /// The <b>battle-local effect index</b>: the position of the firing effect's authored id in the
-    /// battle's effect table, which `18` §8 orders by ascending ordinal effect id. See the remarks
-    /// for why this, and not the id itself.
+    /// The battle-local effect index: the position of the firing effect's authored id in the battle's
+    /// effect table, ordered by ascending ordinal effect id. See the remarks for why this, and not the
+    /// id itself.
     /// </param>
-    /// <param name="argument">
-    /// The op's <b>one runtime-resolved argument</b>, rounded to 4 dp — for Scramble, which die
-    /// face the roll picked. <c>0</c> when the op has none and every argument is authored.
-    /// </param>
+    /// <param name="argument">The op's one runtime-resolved argument, rounded to 4 dp. <c>0</c> when the op has none and every argument is authored.</param>
     /// <remarks>
     /// <para>
-    /// `18` §2.5: <em>"a combat trigger may emit a run/board op — the sanctioned case is the
-    /// Dicelord's Scramble firing <c>MODIFY_DIE_FACE</c> from a <c>PERIODIC</c> trigger. The
-    /// simulator still never resolves it: it appends a <c>RunEffectQueued</c> event to the combat
-    /// log and the run controller applies the queued ops <b>in log order when the battle
-    /// resolves</b> — after the outcome is fixed, before <c>ON_BATTLE_END</c> effects are granted.
-    /// In a PvP duel the queue is discarded."</em>
+    /// A combat trigger may emit a run/board op — the sanctioned case is a die-face modifier fired from
+    /// a periodic trigger. The simulator still never resolves it: it appends a
+    /// <c>RunEffectQueued</c> event and the run controller applies the queued ops in log order when the
+    /// battle resolves, after the outcome is fixed and before <c>ON_BATTLE_END</c> effects are granted.
+    /// In a PvP duel the queue is discarded.
     /// </para>
     /// <para>
     /// <b>Why the payload is an index and one number.</b> A <see cref="CombatEvent"/> has one
-    /// <see cref="ushort"/> and one <see cref="double"/> to spend, and a queued op needs its
-    /// identity plus its arguments. Nearly all of that is <b>already authored</b>: `18` §2.5's ops
-    /// carry their <c>op</c>, <c>target</c>, <c>faceIndex</c>, <c>newFace</c>, <c>scope</c> and
-    /// <c>value</c> on the <c>EffectDefinition</c>. What the log has to add is only which effect
-    /// fired and what the simulator resolved at fire time. So
-    /// <see cref="CombatEvent.DataId"/> identifies the effect and <see cref="CombatEvent.Value"/>
-    /// carries the resolved argument, and <see cref="CombatEvent.TargetId"/> is
-    /// <see cref="CombatActor.None"/> because `18` §5's <c>RUN</c> target is not an actor.
+    /// <see cref="ushort"/> and one <see cref="double"/> to spend, and nearly everything else about a
+    /// queued op is already authored on the effect definition. So <see cref="CombatEvent.DataId"/>
+    /// identifies the effect and <see cref="CombatEvent.Value"/> carries the resolved argument, and
+    /// <see cref="CombatEvent.TargetId"/> is <see cref="CombatActor.None"/> because the run target is
+    /// not an actor.
     /// </para>
     /// <para>
-    /// <b>Why an index rather than the effect id.</b> `18` §8 makes effect ids <b>strings</b>, and
-    /// no string fits a <see cref="ushort"/>. The index is into the battle's effect table sorted by
-    /// ascending ordinal effect id — the same order `18` §8 already requires everything else to
-    /// use, so it introduces no new ordering rule and is identical on client and server.
+    /// <b>Why an index rather than the effect id.</b> Effect ids are strings, and no string fits a
+    /// <see cref="ushort"/>. The index is into the battle's effect table sorted by ascending ordinal
+    /// effect id — an order everything else already uses, so it introduces no new rule and is identical
+    /// on client and server.
     /// </para>
     /// <para>
-    /// ⚠️ <b>The obligation this creates on the consumer, stated plainly.</b> The index is only
-    /// meaningful against the same effect table. `05` §7 fixes <see cref="SimulationResult"/> at
-    /// five fields, so the table cannot travel with the result: <b>whoever drains the queue must
-    /// rebuild the battle's effect table from the same inputs, in the same order.</b> That is
-    /// already how `14` §2.4 has the client re-run the simulation and how `11` §6 has the server
-    /// re-run the duel, so it is not a new coupling — but it is a real one, and M3 owns it.
+    /// <b>The obligation this creates on the consumer.</b> The index is only meaningful against the
+    /// same effect table, which does not travel with the result — whoever drains the queue must rebuild
+    /// the battle's effect table from the same inputs, in the same order. That is already how the client
+    /// re-runs the simulation and how the server re-runs a duel.
     /// </para>
     /// <para>
-    /// ⚠️ <b>What does not fit, said rather than worked around.</b> One
-    /// <see cref="CombatEventType.RunEffectQueued"/> carries <b>at most one</b> runtime-resolved
-    /// scalar. An op needing two — a currency <i>kind</i> and an <i>amount</i> both decided at fire
-    /// time — cannot be expressed, and must not be smuggled through by packing two numbers into one
-    /// <see cref="double"/>. `18` §2.5's sanctioned case needs exactly one, and no other op in
-    /// `18` §2.5 is reachable from a combat trigger today. If one becomes reachable, the honest
-    /// fixes are, in order of preference: author the second argument on the effect; or emit
-    /// consecutive events and give the op a documented arity. Not a wider
-    /// <see cref="CombatEvent"/> — that is the wire contract.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>M2 emits these and nothing consumes them, and that is the finished state.</b>
-    /// `18` §2.5's consumer is the run controller, which does not exist: draining the queue is M3's
-    /// and discarding it in a duel is M2-14's. There is deliberately no placeholder consumer here.
+    /// <b>What does not fit.</b> One event carries at most one runtime-resolved scalar. An op needing
+    /// two cannot be expressed here and must not be smuggled through by packing two numbers into one
+    /// double. If one becomes reachable, the honest fixes are: author the second argument on the effect,
+    /// or emit consecutive events with a documented arity — not a wider <see cref="CombatEvent"/>.
     /// </para>
     /// </remarks>
     public void AppendRunEffectQueued(int tick, byte sourceId, ushort effectIndex, double argument = 0.0) =>
         AppendCore(new CombatEvent(
             tick, CombatEventType.RunEffectQueued, sourceId, CombatActor.None, argument, effectIndex));
 
-    /// <summary>
-    /// 🔒 `17` §1 / §11 — announces a damaging mechanic's wind-up, 1.0–1.5 s before it lands.
-    /// </summary>
+    /// <summary>Announces a damaging mechanic's wind-up, 1.0–1.5 s before it lands.</summary>
     /// <param name="tick">The tick the wind-up begins on.</param>
     /// <param name="sourceId">The actor winding up.</param>
     /// <param name="targetId">Who the mechanic will hit, or <see cref="CombatActor.None"/> for an AoE.</param>
     /// <param name="effectIndex">The battle-local effect index of the mechanic being announced.</param>
     /// <param name="leadSeconds">
-    /// How long the wind-up lasts, in seconds. 🔒 `17` §1 bounds this to
-    /// <see cref="MinTelegraphSeconds"/>..<see cref="MaxTelegraphSeconds"/> and this method
-    /// enforces it: <em>"the player cannot act on it — combat is automatic — but they must be able
-    /// to read what is happening, or the fight feels arbitrary"</em>. Too short is unreadable and
-    /// too long stops reading as a wind-up, so both ends are real.
+    /// How long the wind-up lasts, in seconds. Bounded to <see cref="MinTelegraphSeconds"/>..<see cref="MaxTelegraphSeconds"/>:
+    /// too short is unreadable and too long stops reading as a wind-up, since the player cannot act on
+    /// it but must be able to read what is happening.
     /// </param>
     /// <remarks>
     /// <para>
-    /// The wind-up is expressed in <b>seconds</b> rather than ticks because `17` §1 states the band
-    /// in seconds and the replayer scales it by the ×1/×2/×3 speed toggle (`05` §8); the tick it
-    /// lands on is <c>tick + leadSeconds × 20</c>, which the replayer computes and the simulator
-    /// does not restate.
+    /// The wind-up is expressed in seconds rather than ticks because the replayer scales it by the
+    /// speed toggle; the tick it lands on is <c>tick + leadSeconds × 20</c>, which the replayer computes.
     /// </para>
     /// <para>
-    /// 🔒 Which is exactly why the lead must be a <b>whole number of ticks</b>. The simulation is
-    /// fixed-tick (`05` §3), so the mechanic lands on an integer tick; a lead of <c>1.0001 s</c>
-    /// would put the announced landing at <c>tick + 20.002</c> — between two ticks, and therefore
-    /// on neither the event it announces nor any other. 1.0–1.5 s is 20–30 ticks.
+    /// The lead must be a whole number of ticks: the simulation is fixed-tick, so the mechanic lands on
+    /// an integer tick, and a lead of <c>1.0001 s</c> would put the announced landing between two ticks
+    /// — on neither the event it announces nor any other. 1.0–1.5 s is 20–30 ticks.
     /// </para>
     /// </remarks>
     public void AppendTelegraph(int tick, byte sourceId, byte targetId, ushort effectIndex, double leadSeconds)
     {
         // NaN first, and explicitly: `NaN < Min` and `NaN > Max` are BOTH false, so a NaN lead
         // would sail through the band check below and be caught downstream by the rounding guard,
-        // reporting the wrong rule (S2).
+        // reporting the wrong rule.
         if (double.IsNaN(leadSeconds) ||
             leadSeconds < MinTelegraphSeconds || leadSeconds > MaxTelegraphSeconds)
         {
@@ -365,11 +290,9 @@ internal sealed class CombatLog
                 "one that is too long stops reading as a wind-up at all.");
         }
 
-        // 🔒 The predicate and its tolerance are BattleTicks'; the wording is this class's, because
-        // steering S2 asks which rule fired and "a telegraph at tick N" is not something the
-        // primitive can say. Compared with a tolerance rather than for exact equality: `1.2 * 20` is
-        // not bit-exactly 24.0 for every value in `17` §1's band, while the defect being caught — a
-        // lead of 1.0001 s, so 20.002 ticks — misses by 2e-3.
+        // Compared with a tolerance rather than exact equality: `1.2 * 20` is not bit-exactly 24.0
+        // for every value in the band, while the defect being caught — a lead of 1.0001 s, so
+        // 20.002 ticks — misses by 2e-3.
         if (!BattleTicks.IsWhole(leadSeconds, out _))
         {
             throw new InvalidOperationException(
@@ -382,10 +305,7 @@ internal sealed class CombatLog
         AppendCore(new CombatEvent(tick, CombatEventType.Telegraph, sourceId, targetId, leadSeconds, effectIndex));
     }
 
-    /// <summary>
-    /// Seals the log with a <see cref="CombatEventType.BattleEnd"/> and returns the result,
-    /// <see cref="SimulationResult.LogHash"/> included.
-    /// </summary>
+    /// <summary>Seals the log with a <see cref="CombatEventType.BattleEnd"/> and returns the result, <see cref="SimulationResult.LogHash"/> included.</summary>
     /// <param name="heroWon">Whether the hero side won.</param>
     /// <param name="durationTicks">How many ticks the fight ran, <c>1..1800</c>.</param>
     /// <param name="heroHpRemaining">The hero's HP at the end, rounded to 4 dp.</param>
@@ -437,9 +357,8 @@ internal sealed class CombatLog
                 "subtraction upstream, not an outcome to record.");
         }
 
-        // 🔒 Build the finished log and hash it BEFORE mutating, so a refusal from the writer
-        // leaves the builder untouched and Complete stays retryable — the same discipline every
-        // guard above follows.
+        // Build the finished log and hash it BEFORE mutating, so a refusal from the writer leaves
+        // the builder untouched and Complete stays retryable.
         var log = _events.Append(new CombatEvent(
                 endTick, CombatEventType.BattleEnd, CombatActor.None, CombatActor.None, 0.0, NoDataId))
             .ToArray();
@@ -450,24 +369,19 @@ internal sealed class CombatLog
         _lastTick = endTick;
         _sealed = true;
 
-        // 🔒 Wrapped, not handed over raw. `05` §8's skip is safe because "the outcome is already
-        // determined"; a caller that could cast the result's Log back to CombatEvent[] and write
-        // through it could edit a replay after its LogHash was computed.
+        // Wrapped, not handed over raw: a caller that could cast the result's Log back to a mutable
+        // array could edit a replay after its LogHash was computed.
         return new SimulationResult(
             heroWon, durationTicks, heroHpRemaining, new ReadOnlyCollection<CombatEvent>(log), logHash);
     }
 
-    /// <summary>
-    /// 🔒 The index of the first event at or after <paramref name="tick"/>, or the log's length
-    /// when there is none — by binary search, which the non-decreasing tick order makes valid.
-    /// </summary>
+    /// <summary>The index of the first event at or after <paramref name="tick"/>, or the log's length when there is none — by binary search, which the non-decreasing tick order makes valid.</summary>
     /// <param name="log">A completed log.</param>
     /// <param name="tick">The tick to seek to.</param>
     /// <remarks>
-    /// This is what `05` §8's replay affordances rest on. The ×1/×2/×3 toggle
-    /// <em>"simply consumes the log faster"</em> — the same events, a different wall-clock rate —
-    /// and skip is <em>"always available"</em> because the outcome is already fixed. Both are
-    /// seeks, not simulations, and neither needs to scan from the start of the fight.
+    /// This is what replay affordances rest on. The speed toggle simply consumes the log faster — the
+    /// same events, a different wall-clock rate — and skip is always available because the outcome is
+    /// already fixed. Both are seeks, not simulations, and neither needs to scan from the start of the fight.
     /// </remarks>
     public static int FirstIndexAtOrAfter(IReadOnlyList<CombatEvent> log, int tick)
     {
@@ -496,15 +410,11 @@ internal sealed class CombatLog
     private static void RequireLoggableValue(CombatEvent entry) =>
         RequireRoundedFinite(entry.Value, $"the Value of a {entry.Type} at tick {entry.Tick}");
 
-    /// <summary>
-    /// 🔒 `05` §1.1 — a logged number is finite and already rounded to 4 decimal places.
-    /// </summary>
+    /// <summary>A logged number is finite and already rounded to 4 decimal places.</summary>
     /// <remarks>
-    /// Checked here as well as in <c>CanonicalStateWriter</c> on purpose, and it is not a duplicated
-    /// rule: the writer refuses the whole log and can only name the value, while this refuses the
-    /// one <see cref="CombatEvent"/> that carries it and names its type and tick. A determinism
-    /// failure that says <i>which event</i> is a bug report; one that says <i>some double in the
-    /// log</i> is a search.
+    /// Checked here as well as in <c>CanonicalStateWriter</c>, and it is not a duplicated rule: the
+    /// writer refuses the whole log and can only name the value, while this refuses the one
+    /// <see cref="CombatEvent"/> that carries it and names its type and tick.
     /// </remarks>
     private static void RequireRoundedFinite(double value, string what)
     {
@@ -535,7 +445,7 @@ internal sealed class CombatLog
         }
     }
 
-    // 🔒 The convention, not a second statement of it — see Primitives/InvariantText. This one is
-    //    the load-bearing case: its output reaches `11` §6's LogHash.
+    // The convention, not a second statement of it — see Primitives/InvariantText. This one is
+    // the load-bearing case: its output reaches the tamper check's LogHash.
     private static string Format(double value) => InvariantText.Text(value);
 }

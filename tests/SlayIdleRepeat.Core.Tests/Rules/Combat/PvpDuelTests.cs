@@ -11,66 +11,42 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 `05` §3.3 and `11` §4.3 — the Ghost Duel, run through the <b>same code path</b> as a PvE
-/// fight. Every rule here is asserted against a real <c>CombatSimulator.Simulate</c>, not against a
-/// hand-built evaluation context.
+/// The Ghost Duel, run through the same code path as a PvE fight. Every rule here is asserted
+/// against a real <c>CombatSimulator.Simulate</c>, not a hand-built evaluation context.
 /// </summary>
 /// <remarks>
-/// <c>PvpConditionTests</c> pins the same §3.3 rulings against a hand-built
-/// <see cref="EffectEvaluationContext"/>; this suite is the simulator's half — it says a running duel
-/// actually produces one.
-/// <para>
-/// 🔴 <see cref="Inverted"/> gives the <b>defending</b> side the lower indices, which no legitimate
-/// duel does. It is malformed on purpose: on a conventional roster slot 4 is exactly two actors
-/// already in attacker-first order, so the ordering rule is <b>unobservable</b> there and an
+/// <see cref="Inverted"/> gives the defending side the lower indices, which no legitimate duel does.
+/// It is malformed on purpose: on a conventional roster the ordering rule is unobservable, and an
 /// assertion would pass with the rule deleted — see
 /// <see cref="The_override_is_invisible_on_a_conventionally_indexed_duel"/>.
-/// </para>
 /// </remarks>
 public sealed class PvpDuelTests
 {
-    /// <summary>The attacking player's hero — `11` §5.1's <em>"only the attacker's rating"</em>.</summary>
     private const string Attacker = "HERO";
-
-    /// <summary>The attacking player's pet.</summary>
     private const string AttackerPet = "PET_0";
 
-    /// <summary>The Ghost — a full hero + pets snapshot on <see cref="BattleSide.ENEMY"/> (`05` §3.3).</summary>
+    /// <summary>The Ghost — a full hero + pets snapshot on <see cref="BattleSide.ENEMY"/>.</summary>
     private const string Defender = "HERO_DEFENDER";
 
-    /// <summary>The Ghost's pet.</summary>
     private const string DefenderPet = "GHOST_PET_0";
 
-    /// <summary>
-    /// `11` §4.3's duel cap, as the number the <b>content document</b> authors. Pinned against the
-    /// real <c>content/combat_caps.json</c> by <c>CombatCapsDataTests</c> in the <c>Application</c>
-    /// suite; here it is the input whose conversion is under test.
-    /// </summary>
     private const double DuelSeconds = 60.0;
-
-    /// <summary>`11` §4.3's duel cap in ticks — <see cref="DuelSeconds"/> at `05` §3's 20 Hz.</summary>
     private const int DuelTicks = 1200;
 
     /// <summary>
-    /// 🔴 A cap that is <b>not</b> a whole number of 1.0-ASPD cooldown cycles. `05` §3.1 slot 4 puts a
-    /// 1.0-ASPD actor's <c>attackCooldown</c> back on exactly <c>0.0</c> every 20 ticks, which is the
-    /// same reading as "never walked at all" — so an identity assertion on the cooldown is only an
-    /// identity away from a cycle boundary.
+    /// A cap that is not a whole number of 1.0-ASPD cooldown cycles: a 1.0-ASPD actor's
+    /// <c>attackCooldown</c> returns to exactly 0.0 every 20 ticks, the same reading as "never walked
+    /// at all", so an identity assertion on the cooldown must avoid a cycle boundary.
     /// </summary>
     private const int NotAWholeCooldownCycle = 13;
 
-    // ═══════════════════════════════════════════════════════════ initiative (`05` §3.3)
+    // ═══════════════════════════════════════════════════════════ initiative
 
     /// <summary>
-    /// 🔒 `05` §3.3 — <em>"Within a tick: the <b>attacker's side acts first</b> (hero, then pet
-    /// abilities), then the defender's side."</em> Slot 4's half.
+    /// Within a tick, the attacker's side acts first (hero, then pet abilities), then the defender's
+    /// side. Both actors swing in both shapes, so the swing list differs only in order — the PvE arm
+    /// is the negative control.
     /// </summary>
-    /// <remarks>
-    /// Both actors swing in both shapes, so the swing list is identical as a <em>set</em> and differs
-    /// only in order — nothing but the ordering rule can move it. The PvE arm is the negative control:
-    /// same actors, indices, seed and cap, differing only in <c>CombatRules.IsPvp</c>. The 3-tick cap
-    /// isolates the ordering switch from the duration switch.
-    /// </remarks>
     [Fact]
     public void The_attackers_side_swings_first_even_when_the_defender_holds_the_lower_index()
     {
@@ -91,15 +67,9 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.3's <em>"(hero, then pet abilities)"</em> — slot 5's half of the same rule. The
-    /// attacker's side's pet abilities advance before the defender's.
+    /// The attacker's side's pet abilities advance before the defender's — sides are ordered within
+    /// each existing slot rather than interleaving hero and pet slots across sides.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Errata, recorded rather than resolved: §3.3's parenthetical reads as though one side's hero
-    /// and pets both act before the other side's, which would interleave §3.1's slots 4 and 5. The
-    /// reading implemented leaves <b>both</b> 🔒 statements true — §3.1 keeps the slots, §3.3 orders
-    /// the <em>sides</em> within each. Interleaving would override a 🔒 order with a parenthetical.
-    /// </remarks>
     [Fact]
     public void The_attackers_side_pet_abilities_advance_before_the_defenders()
     {
@@ -121,15 +91,9 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔴 The finding this suite's probe technique rests on: on a <b>conventionally</b> indexed duel
-    /// roster, `05` §3.3's initiative rule and `05` §3.1's index order produce the <b>same</b>
-    /// sequence, so the override is invisible.
+    /// On a conventionally indexed duel roster, the initiative rule and the index order produce the
+    /// same sequence, so the override is invisible there — the reason <see cref="Inverted"/> exists.
     /// </summary>
-    /// <remarks>
-    /// A test rather than a comment: "simplifying" the ordering assertions onto a well-formed roster
-    /// would make them pass identically with the rule deleted. This one fails the moment the
-    /// coincidence stops holding.
-    /// </remarks>
     [Fact]
     public void The_override_is_invisible_on_a_conventionally_indexed_duel()
     {
@@ -140,20 +104,14 @@ public sealed class PvpDuelTests
         inADuel.ShouldBe(inPvE);
     }
 
-    // ═══════════════════════════════════════════════════════════ the draw order (`11` §6)
+    // ═══════════════════════════════════════════════════════════ the draw order
 
     /// <summary>
-    /// 🔒 `11` §6 — the tamper check compares <c>LogHash</c> client-vs-server, and initiative decides
-    /// <b>which side draws first</b>: `05` §4's steps 1, 4 and 5 (dodge, crit, block) each draw, so the
-    /// two <see cref="CombatRules"/> shapes consume the combat stream in a different order.
+    /// Initiative decides which side draws first: the dodge/crit/block draws each swing takes mean
+    /// the two <see cref="CombatRules"/> shapes consume the combat stream in a different order.
+    /// Literal draw indices rather than "they differ", since asserting inequality alone would be
+    /// satisfied by any change, including a non-deterministic one.
     /// </summary>
-    /// <remarks>
-    /// Literal draw indices rather than "they differ": asserting inequality alone would be satisfied by
-    /// any change, including one making the duel non-deterministic. The stream is
-    /// <c>Hash64(battleSeed, "combat", i)</c>, so the index a swing draws at <b>is</b> its value.
-    /// <see cref="DrawingAttackPipeline"/> stands in for the damage engine — what is asserted is the
-    /// stream position each swing begins at, a property of slot 4's order.
-    /// </remarks>
     [Fact]
     public void The_draw_order_is_pinned_under_both_CombatRules_shapes()
     {
@@ -167,14 +125,10 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 The consequence `11` §6 actually checks: the two shapes produce <b>different</b>
-    /// <c>LogHash</c>es over the same roster and the same <c>battleSeed</c>.
+    /// The two shapes produce different <c>LogHash</c>es over the same roster and seed. Why
+    /// initiative is not cosmetic: a server re-running an honest duel under the PvE order would
+    /// compute a hash the client never produced, and the tamper check would flag the player.
     /// </summary>
-    /// <remarks>
-    /// Why initiative is not cosmetic: a server re-running an honest duel under §3.1's PvE order would
-    /// compute a hash the client never produced, and `11` §6 would flag the player — the anti-cheat
-    /// firing on itself.
-    /// </remarks>
     [Fact]
     public void The_two_shapes_do_not_produce_the_same_LogHash()
     {
@@ -190,21 +144,17 @@ public sealed class PvpDuelTests
             "would let a client re-order the fight for free");
     }
 
-    // ═══════════════════════════════════════════════════════════ ON_KILL (`05` §3.3)
+    // ═══════════════════════════════════════════════════════════ ON_KILL
 
     /// <summary>
-    /// 🔒 `05` §3.3 — <c>ON_KILL</c> triggers <em>"never fire in duels. The only death in a duel ends
-    /// the fight."</em>
+    /// <c>ON_KILL</c> triggers never fire in duels — the only death in a duel ends the fight. A 2×2
+    /// because the rule is enforced twice — <c>CombatRules.OnKillTriggersFire</c> gates the loop, and
+    /// <c>TriggerInstance.Evaluate</c> refuses an <c>ON_KILL</c> carrying <c>IsPvp</c> — so a single
+    /// duel-vs-PvE probe would pass with either deleted.
     /// </summary>
-    /// <remarks>
-    /// A 2×2 because the rule is enforced twice — <c>CombatRules.OnKillTriggersFire</c> gates the loop,
-    /// and <c>TriggerInstance.Evaluate</c> refuses an <c>ON_KILL</c> carrying <c>IsPvp</c> before it
-    /// reaches the run counter. A single duel-vs-PvE probe would pass with <b>either</b> deleted; each
-    /// off-diagonal cell is the other guard alone.
-    /// </remarks>
     [Theory]
     [InlineData(true, false, true)]    // PvE — the control: the trigger really does fire.
-    [InlineData(false, true, false)]   // The duel, as `05` §3.3 configures it.
+    [InlineData(false, true, false)]   // The duel, as it is really configured.
     [InlineData(true, true, false)]    // IsPvp alone — TriggerInstance's guard.
     [InlineData(false, false, false)]  // OnKillTriggersFire alone — the loop's guard.
     public void ON_KILL_never_fires_in_a_duel(bool onKillTriggersFire, bool isPvp, bool expectedToFire)
@@ -249,22 +199,13 @@ public sealed class PvpDuelTests
         fired.ShouldBeEmpty("`05` §3.3 — the only death in a duel ends the fight");
     }
 
-    // ═══════════════════════════════════════════════════════════ duration (`11` §4.3)
+    // ═══════════════════════════════════════════════════════════ duration
 
     /// <summary>
-    /// 🔒 `11` §4.3 — <em>"Duration cap: <b>60 s of simulated time</b> … set as
-    /// <c>pvpMaxFightSeconds</c> in <c>data/combat_caps.json</c>."</em> The 1200 is <b>derived</b> from
-    /// the authored 60, never written down beside it.
+    /// The duel tick cap is derived from the authored duration in seconds, never a hardcoded 1200:
+    /// two inputs, because a single 60 s -> 1200 assertion is satisfied by a factory that ignores its
+    /// argument.
     /// </summary>
-    /// <remarks>
-    /// Two inputs, because a single 60 s → 1200 assertion is satisfied by a factory that ignores its
-    /// argument and returns 1200 — the hardcoding it exists to prevent.
-    /// <para>
-    /// ⚠️ It does <b>not</b> own the authored 60: <c>CombatCapsSnapshot</c> is hand-built, so reading
-    /// it here would compare a test literal against a test literal. The real document is pinned by
-    /// <c>CombatCapsDataTests</c> in the <c>Application</c> suite.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_duel_cap_is_pvpMaxFightSeconds_turned_into_ticks_by_the_clock()
     {
@@ -276,20 +217,16 @@ public sealed class PvpDuelTests
         duel.IsPvp.ShouldBeTrue("18 §4's IS_PVP");
         duel.ExactTieWinner.ShouldBe(BattleSide.ENEMY, "11 §4.3 — the lower-rated player takes a tie");
 
-        // 🔴 The second input: a factory returning a hardcoded 1200 passes every line above.
+        // The second input: a factory returning a hardcoded 1200 passes every line above.
         CombatRules.Duel(30.0, BattleSide.ENEMY).MaxTicks.ShouldBe(600);
         CombatRules.Duel(0.05, BattleSide.ENEMY).MaxTicks.ShouldBe(1);
 
-        // 🔒 The factory does not bypass the log's addressable range — a duration `11` §4.3 never
-        // authors is refused rather than silently truncated to CombatLog.MaxTicks.
+        // The factory does not bypass the log's addressable range.
         Should.Throw<ArgumentOutOfRangeException>(
             () => CombatRules.Duel(200.0, BattleSide.ENEMY).Validated());
     }
 
-    /// <summary>
-    /// 🔒 The cap as the loop enforces it: a duel nobody can win stops at tick 1200, where the same
-    /// standoff in PvE runs to `05` §3's 1800.
-    /// </summary>
+    /// <summary>A duel nobody can win stops at tick 1200, where the same standoff in PvE runs to 1800.</summary>
     [Fact]
     public void A_duel_that_nobody_can_win_stops_at_1200_ticks_and_a_PvE_fight_at_1800()
     {
@@ -301,21 +238,13 @@ public sealed class PvpDuelTests
             .DurationTicks.ShouldBe(CombatLog.MaxTicks, "05 §3's 90 s, which the duel overrides");
     }
 
-    // ═══════════════════════════════════════════════════════════ the tie (`11` §4.3)
+    // ═══════════════════════════════════════════════════════════ the tie
 
     /// <summary>
-    /// 🔒 `11` §4.3 — on timeout the higher remaining HP <b>fraction</b> wins; on an exact tie the
-    /// <b>lower-rated player</b> does.
+    /// On timeout the higher remaining HP fraction wins; on an exact tie the lower-rated player does.
+    /// The standings tie on the fraction, not the HP: 40/100 against 80/200. Two negative controls,
+    /// one per direction, since the underdog rule breaks ties but does not hand the fight outright.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The standings tie on the <em>fraction</em>, not the HP: <c>40/100</c> against <c>80/200</c>.
-    /// A rule comparing HP would not tie here at all and this would be asserting something else.
-    /// <para>
-    /// 🔒 Two negative controls, one per direction: the underdog rule breaks <em>ties</em>, it does not
-    /// hand the fight to the lower-rated player. A single non-tie arm leaves the mirrored defect —
-    /// "the attacker wins whenever it is the underdog" — alive.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void On_an_exact_tie_at_the_timeout_the_lower_rated_player_wins()
     {
@@ -327,25 +256,19 @@ public sealed class PvpDuelTests
         Standoff(Underdog(BattleSide.ENEMY), heroHp: 40, defenderHp: 80)
             .HeroWon.ShouldBeFalse();
 
-        // 🔒 Negative control, Ghost as underdog: the attacker is ahead and still wins.
+        // Negative control, Ghost as underdog: the attacker is ahead and still wins.
         Standoff(Underdog(BattleSide.ENEMY), heroHp: 50, defenderHp: 80)
             .HeroWon.ShouldBeTrue("0.50 beats 0.40 — the underdog bias breaks ties, it does not win them");
 
-        // 🔒 Negative control, attacker as underdog: the attacker is behind and still loses.
+        // Negative control, attacker as underdog: the attacker is behind and still loses.
         Standoff(Underdog(BattleSide.HERO), heroHp: 30, defenderHp: 80)
             .HeroWon.ShouldBeFalse("0.30 loses to 0.40 — naming a side the underdog does not win it the fight");
     }
 
     /// <summary>
-    /// ⚠️ PvE is untouched: `05` §3 authors no tie rule, and <c>BattleOutcomeTests</c> records the
-    /// errata that an exact tie is a loss for the hero because a 90 s standoff cleared nothing.
+    /// PvE is untouched by the tie-winner field: the one way to get it wrong that no duel test would
+    /// catch is to give it a default that changes PvE, so this is asserted here as well as there.
     /// </summary>
-    /// <remarks>
-    /// Asserted here as well as there because `11` §4.3's rule arrives as a <b>new field</b> on
-    /// <see cref="CombatRules"/>, and the one way to get it wrong that no duel test would catch is to
-    /// give it a default that changes PvE. <c>CombatRules.PvE</c> names no tie winner, so the
-    /// comparison stays strict.
-    /// </remarks>
     [Fact]
     public void A_PvE_timeout_tie_is_still_not_a_clear()
     {
@@ -355,15 +278,10 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 <em>"Is this a duel"</em> is <b>one</b> fact: a fight is a duel exactly when an underdog is
-    /// named, and <c>IsPvp</c> is derived rather than stored.
+    /// "Is this a duel" is one fact: a fight is a duel exactly when an underdog is named, and
+    /// <c>IsPvp</c> is derived rather than stored — a stored bool beside <c>ExactTieWinner</c> would
+    /// be two spellings of one bit, with an invalid pairing constructible.
     /// </summary>
-    /// <remarks>
-    /// A stored <c>bool IsPvp</c> beside <c>ExactTieWinner</c> was two spellings of one bit, and the
-    /// invalid pairing was constructible: <c>IsPvp: true</c> with no underdog ran a duel whose exact
-    /// ties fell back to PvE's attacker loss — the outcome <c>ExactTieWinner</c> exists to prevent.
-    /// 🔒 Asserted over a <c>with</c> expression too, the way that would bypass a constructor-only guard.
-    /// </remarks>
     [Fact]
     public void Naming_an_underdog_is_what_makes_a_fight_a_duel()
     {
@@ -377,9 +295,8 @@ public sealed class PvpDuelTests
         (CombatRules.PvE with { ExactTieWinner = BattleSide.HERO }).IsPvp.ShouldBeTrue();
         (Underdog(BattleSide.ENEMY) with { ExactTieWinner = null }).IsPvp.ShouldBeFalse();
 
-        // 🔒 And the flag is not settable on its own — there is no second storage to disagree with.
-        // NonPublic because `30` §11.2 keeps CombatRules internal; Core.Tests reaches it through the
-        // §11.3 InternalsVisibleTo grant, but reflection still needs telling.
+        // The flag is not settable on its own — there is no second storage to disagree with.
+        // NonPublic because CombatRules is internal to Core; reflection still needs telling.
         var flag = typeof(CombatRules).GetProperty(
             nameof(CombatRules.IsPvp),
             System.Reflection.BindingFlags.Instance |
@@ -391,18 +308,10 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.3's <em>"slight attacker edge"</em> as an <b>outcome</b> rather than a log order: when
-    /// both heroes can one-shot each other, the side that swings first wins.
+    /// The slight attacker edge as an outcome, not just a log order: when both heroes can one-shot
+    /// each other, the side that swings first wins — and under attacker-first initiative, two heroes
+    /// never trade fatal blows in the same tick.
     /// </summary>
-    /// <remarks>
-    /// Both shapes run the same roster, HP and damage; only the acting order differs, and it decides
-    /// the duel.
-    /// <para>
-    /// 🔴 It also records why <see cref="A_mutual_death_in_a_duel_is_an_attacker_loss"/> cannot be built
-    /// from basic attacks: the first lethal swing puts its target out of play inside the same slot 4,
-    /// so under attacker-first initiative two heroes never trade fatal blows.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_attackers_first_swing_wins_a_race_to_one_shot()
     {
@@ -414,16 +323,9 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// ⚠️ A <b>mutual</b> death is an attacker loss, whoever the underdog is. Errata: neither document
-    /// rules it, and it is the one path where §3.3's attacker edge reverses.
+    /// A mutual death is an attacker loss, whoever the underdog is — the one path where the attacker
+    /// edge reverses, since the underdog bias is scoped to the timeout, not a mutual kill.
     /// </summary>
-    /// <remarks>
-    /// §3.3 says only <em>"the only death in a duel ends the fight"</em> without saying whose, and `11`
-    /// §4.3's underdog bias is scoped to the <b>timeout</b>. The arm naming the attacker as underdog is
-    /// what makes this a claim about death ordering rather than the tie rule: if <c>Outcome</c> ever
-    /// read a mutual death as a 0.0/0.0 tie, that arm would flip. Both sides are taken to 0 in
-    /// <b>slot 1</b>, the shape the reachable mechanisms have.
-    /// </remarks>
     [Fact]
     public void A_mutual_death_in_a_duel_is_an_attacker_loss()
     {
@@ -436,19 +338,13 @@ public sealed class PvpDuelTests
         }
     }
 
-    // ═══════════════════════════════════════════════════════════ the run queue (`18` §2.5)
+    // ═══════════════════════════════════════════════════════════ the run queue
 
     /// <summary>
-    /// 🔒 `18` §2.5 — in a duel the <c>RunEffectQueued</c> queue is <b>discarded</b>. A duel has no run
-    /// to apply anything to.
+    /// In a duel the <c>RunEffectQueued</c> queue is discarded — a duel has no run to apply anything
+    /// to. The PvE arm is the floor: it proves the ops reach the queue at all, so the duel arm's
+    /// emptiness is a discard rather than an effect that never fired.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Both trigger moments, because <c>BattleSimulation</c> builds a <c>TriggerOccurrence</c> in
-    /// three places and each sets <c>IsPvp</c> itself. An <c>IsPvp</c> that failed to travel on one would
-    /// queue a run effect out of a duel silently, and `11` §6 would see a client and server disagreeing
-    /// about a log neither tampered with. The PvE arm is the floor: it proves the ops reach the queue
-    /// at all, so the duel arm's emptiness is a discard rather than an effect that never fired.
-    /// </remarks>
     [Fact]
     public void A_duel_discards_the_run_effect_queue()
     {
@@ -469,21 +365,10 @@ public sealed class PvpDuelTests
     // ═══════════════════════════════════════════════════════════ targeting and IS_PVP
 
     /// <summary>
-    /// 🔒 `05` §3.3 — <em>"Each hero targets <b>only the opposing hero</b>. Pets are untargetable and
-    /// unkillable on both sides."</em> Verified in a running duel.
+    /// Each hero targets only the opposing hero; pets are untargetable and unkillable on both sides.
+    /// In PvE this cannot fail (there is no opposing hero for a pet to target), so a duel is the only
+    /// shape where a wrongly admitted pet would actually swing.
     /// </summary>
-    /// <remarks>
-    /// 🔴 In PvE "no pet appears among the attackers" cannot fail — a pet in slot 4's order still never
-    /// swings, because the enemy-side selection finds no opposing hero for it. <b>A duel has one</b>, so
-    /// a wrongly admitted pet really would swing. Slot 4b decrements <c>attackCooldown</c> for
-    /// <b>every</b> actor it walks, so a pet still at <c>0</c> is proof it was never walked.
-    /// <para>
-    /// 🔴 The cap is 13 ticks and must not be a multiple of 20: a 1.0-ASPD actor's cooldown returns to
-    /// exactly <c>0.0</c> every 20 ticks, so at a cycle boundary a walked pet reads <c>0.0</c> too and
-    /// the assertion becomes a coincidence. Found by admitting pets on purpose and watching it pass; at
-    /// 13 ticks the walked reading is <c>0.35</c>.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void Each_hero_targets_only_the_opposing_hero_and_neither_sides_pets_are_ever_touched()
     {
@@ -521,15 +406,10 @@ public sealed class PvpDuelTests
     }
 
     /// <summary>
-    /// 🔒 `18` §9.3 — clauses with no duel meaning are <b>skipped</b> via <c>IS_PVP</c>, never
-    /// converted. Live in a running duel, through `18` §8's aggregation.
+    /// Clauses with no duel meaning are skipped via <c>IS_PVP</c>, never converted, live in a running
+    /// duel through aggregation. The PvE arm is the floor: without it, an effect that never applied in
+    /// either shape would read as a successful skip.
     /// </summary>
-    /// <remarks>
-    /// <c>PvpConditionTests</c> pins the evaluator's answer; this adds that a real fight builds a
-    /// context carrying <c>IsPvp</c>, so the skip happens to a stat. A <c>STAT_ADD_FLAT</c> rather than
-    /// a gold affix because a gold affix has no combat reading to observe. The PvE arm is the floor:
-    /// without it, an effect that never applied in <em>either</em> shape reads as a successful skip.
-    /// </remarks>
     [Fact]
     public void The_IS_PVP_skip_is_live_in_a_running_duel_and_not_only_in_the_evaluator()
     {
@@ -558,29 +438,16 @@ public sealed class PvpDuelTests
     // ═══════════════════════════════════════════════════════════ fixtures
 
     /// <summary>
-    /// 🔴 A fight's bounds with <b>everything except <see cref="CombatRules.IsPvp"/> held constant</b>,
-    /// so a two-shape probe isolates that one switch.
+    /// A fight's bounds with everything except <see cref="CombatRules.IsPvp"/> held constant, so a
+    /// two-shape probe isolates that one switch. The cap is deliberately not the duel's real 1200, so
+    /// an ordering claim cannot pass because of the duration switch instead.
     /// </summary>
-    /// <remarks>
-    /// <c>OnKillTriggersFire</c> is pinned <c>false</c> in both shapes rather than tracked against
-    /// <c>IsPvp</c>: a negative control that moves two switches is not a control.
-    /// <para>
-    /// ⚠️ <c>ExactTieWinner</c> is not a second switch — <c>IsPvp</c> is <em>derived</em> from it, so
-    /// naming a side is how this factory sets the flag under test. It is inert for every probe here, and
-    /// checkably so: <b>no</b> two-shape test in this file reads <c>HeroWon</c>, the only thing the tie
-    /// rule can reach.
-    /// </para>
-    /// <para>
-    /// The cap is deliberately not `11` §4.3's 1200: an ordering claim must not be able to pass because
-    /// of the duration switch. Duration is probed by its own tests.
-    /// </para>
-    /// </remarks>
     private static CombatRules DuelRules(int maxTicks, bool isPvp) =>
         new(maxTicks, OnKillTriggersFire: false, ExactTieWinner: isPvp ? BattleSide.ENEMY : null);
 
     /// <summary>
-    /// 🔴 The malformed roster — the <b>defending</b> side holds `05` §3.1 indices 0 and 1. See the
-    /// type remarks for why no ordering claim is observable without it.
+    /// The malformed roster — the defending side holds the low indices. See the type remarks for why
+    /// no ordering claim is observable without it.
     /// </summary>
     private static IReadOnlyList<ActorPlan> Inverted() =>
         new[]
@@ -591,7 +458,7 @@ public sealed class PvpDuelTests
             AttackingPet(3),
         };
 
-    /// <summary>The roster a real duel is built with — <c>CombatActor</c>'s layout (`05` §3.3).</summary>
+    /// <summary>The roster a real duel is built with — <c>CombatActor</c>'s layout.</summary>
     private static IReadOnlyList<ActorPlan> Conventional() =>
         new[]
         {
@@ -608,9 +475,8 @@ public sealed class PvpDuelTests
     private static ActorPlan AttackingPet(int index) => BattleTestBench.Pet(0) with { Index = index };
 
     /// <summary>
-    /// 🔒 The Ghost. A full hero — <c>Kind</c> <c>HERO</c> — on <see cref="BattleSide.ENEMY"/>, which is
-    /// what makes it the roster's killable enemy rather than a second hero-side hero
-    /// (<c>BattlePlan</c>).
+    /// The Ghost. A full hero on <see cref="BattleSide.ENEMY"/>, which is what makes it the roster's
+    /// killable enemy rather than a second hero-side hero.
     /// </summary>
     private static ActorPlan DefendingHero(
         int index, ActorStats? stats = null, params HeldEffect[] effects) =>
@@ -677,7 +543,7 @@ public sealed class PvpDuelTests
             .ToArray();
     }
 
-    /// <summary>Each swing's attacker and the stream position its first `05` §4 draw took.</summary>
+    /// <summary>Each swing's attacker and the stream position its first draw took.</summary>
     private static (string Attacker, ulong FirstDraw)[] DrawOrder(CombatRules rules)
     {
         DrawingAttackPipeline? pipeline = null;
@@ -697,7 +563,7 @@ public sealed class PvpDuelTests
         return pipeline.Draws.ToArray();
     }
 
-    /// <summary>`11` §4.3's duel bounds naming one side as the lower-rated player.</summary>
+    /// <summary>Duel bounds naming one side as the lower-rated player.</summary>
     private static CombatRules Underdog(BattleSide lowerRated) =>
         CombatRules.Duel(DuelSeconds, lowerRated);
 
@@ -719,16 +585,10 @@ public sealed class PvpDuelTests
             rules));
 
     /// <summary>
-    /// A duel nobody can hurt anybody in, with the standings set once — so the timeout decides it on
-    /// exactly the fractions named here.
+    /// A duel nobody can hurt anybody in, with the standings set once. The standings are read back
+    /// before the outcome is returned: with bars 100 and 200, a timeline that set nothing would leave
+    /// both sides at 1.0 — still an exact tie — and the fixture would silently never have run.
     /// </summary>
-    /// <remarks>
-    /// 🔴 <b>The standings are read back before the outcome is returned.</b> The bars are 100 and 200,
-    /// so a timeline that set <em>nothing</em> would leave both sides at <c>1.0</c> — still an exact
-    /// tie, and the tie arms would pass over a fixture that never ran. Asserting the two HP values is
-    /// also what makes the "40/100 against 80/200 is a tie on the FRACTION and not on the HP" claim an
-    /// observation rather than a remark.
-    /// </remarks>
     private static SimulationResult Standoff(CombatRules rules, double heroHp, double defenderHp)
     {
         BattleServices? services = null;
@@ -759,7 +619,7 @@ public sealed class PvpDuelTests
         return result;
     }
 
-    /// <summary>A fight whose two combat triggers each carry a `18` §2.5 run op.</summary>
+    /// <summary>A fight whose two combat triggers each carry a run op.</summary>
     private static SimulationResult QueueFight(CombatRules rules) =>
         CombatSimulator.Simulate(BattleTestBench.Plan(
             new[]
@@ -774,7 +634,7 @@ public sealed class PvpDuelTests
             services => BattleSeams.Strict with { Attack = new RecordingAttackPipeline(services, 1.0) },
             rules));
 
-    /// <summary>`17` §9's Dicelord Scramble shape — the sanctioned combat trigger carrying a run op.</summary>
+    /// <summary>Dicelord Scramble's shape — the sanctioned combat trigger carrying a run op.</summary>
     private static HeldEffect Scramble(string id, TriggerKind kind) =>
         new(new EffectDefinition
         {
@@ -785,7 +645,7 @@ public sealed class PvpDuelTests
 
     /// <summary>
     /// The effect ids behind a fight's <c>RunEffectQueued</c> entries, read out of the log through the
-    /// battle-local index <c>BattleSimulation</c> assigns them (`18` §8's ascending id order).
+    /// battle-local index <c>BattleSimulation</c> assigns them.
     /// </summary>
     private static string[] Queued(SimulationResult result)
     {
@@ -829,10 +689,8 @@ public sealed class PvpDuelTests
 /// decides on exactly the standings the test named.
 /// </summary>
 /// <remarks>
-/// ⚠️ Not <c>WoundedAtStart</c>, and not a duplicate of it: that fixture keys on the PvE id scheme
-/// (<c>HERO</c> plus <c>ENEMY_i</c>), and a duel's defending side is a <b>hero</b> with a hero's id.
-/// Widening it to take an id map would put a duel concept into `05` §3's fixture; two small doubles
-/// with one job each is the cheaper split.
+/// Not <c>WoundedAtStart</c>, and not a duplicate of it: that fixture keys on the PvE id scheme, and
+/// a duel's defending side is a hero with a hero's id.
 /// </remarks>
 internal sealed class DuelStandings : IStatusTimeline
 {
@@ -841,14 +699,8 @@ internal sealed class DuelStandings : IStatusTimeline
 
     /// <inheritdoc />
     /// <remarks>
-    /// 🔒 The integration edit M2-14 predicted in its own report, applied by the conductor at merge.
-    /// M2-10 appended <c>StatModifiers</c> as <see cref="IStatusTimeline"/>'s fifth member — six of
-    /// `05` §5's twelve statuses are stat modifiers and without it they reach `18` §8 step 1 never —
-    /// and patched every double that existed on ITS branch. This one did not, because M2-14 and
-    /// M2-10 ran in parallel. Empty is correct here and not a stub: these fixtures set HP directly to
-    /// stage `11` §4.3's tie cases and carry no statuses at all, so a non-empty return would be the
-    /// invention. (<c>[]</c> is the safe collection-expression form; <c>[value]</c> synthesises a
-    /// global-namespace type that Every_Core_type_lives_under_a_documented_namespace rejects.)
+    /// Empty is correct here and not a stub: these fixtures set HP directly to stage the tie cases
+    /// and carry no statuses at all.
     /// </remarks>
     public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 
@@ -889,17 +741,16 @@ internal sealed class DuelStandings : IStatusTimeline
 }
 
 /// <summary>
-/// <see cref="RecordingAttackPipeline"/> with `05` §4's three draws in front of it — steps 1 (dodge),
-/// 4 (crit) and 5 (block) — so slot 4's order becomes visible as a position in the combat stream.
+/// <see cref="RecordingAttackPipeline"/> with the three draws (dodge, crit, block) in front of it, so
+/// swing order becomes visible as a position in the combat stream.
 /// </summary>
 /// <remarks>
-/// ⚠️ <b>A decorator, not a second damage engine.</b> It stands in for M2-09 only in the one respect
-/// `11` §6 cares about here: that a swing <em>consumes draws</em>, and therefore that which side
-/// swings first decides which side's draws come first. Everything else is delegated.
+/// A decorator, not a second damage engine: it stands in for the real pipeline only in the one
+/// respect that matters here — that a swing consumes draws, so which side swings first decides which
+/// side's draws come first.
 /// </remarks>
 internal sealed class DrawingAttackPipeline : IAttackPipeline
 {
-    /// <summary>`05` §4's three drawing steps: dodge (1), crit (4) and block (5).</summary>
     private const int DrawsPerSwing = 3;
 
     private readonly BattleServices _services;

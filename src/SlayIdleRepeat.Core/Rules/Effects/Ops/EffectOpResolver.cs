@@ -4,38 +4,26 @@ using SlayIdleRepeat.Core.Rules.Effects.Values;
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 /// <summary>How one op resolution ended.</summary>
-/// <param name="Op">Which of `18` §2's 44 ops ran.</param>
+/// <param name="Op">Which op ran.</param>
 /// <param name="Amount">
-/// The op's own number, rounded to 4 dp. <c>0</c> for the ops that carry no magnitude
-/// (<c>REMOVE_STATUS</c>, <c>CLEAR_SUMMONS</c>) and for every queued §2.5 op.
+/// The op's own number, rounded to 4 dp. <c>0</c> for ops with no magnitude and for every queued op.
 /// <para>
-/// 🔴 <b>For five of the seven §2.2 ops this is what the op ASKED FOR, not what happened.</b>
-/// <c>HEAL</c> and <c>HEAL_LEECH</c> are clipped by `05` §4.3's
-/// <c>min(amount × HEAL%, MaxHP − HP)</c>; <c>SHIELD</c> is clamped by the pool cap and by
-/// <c>sourceCapPct</c> (`05` §4.1); <c>DAMAGE_TRUE</c> and <c>DAMAGE_MAXHP_PCT</c> still meet DR%,
-/// <c>DAMAGE_TAKEN_MULT</c>, wards and the actor's remaining HP downstream. All five seam members
-/// return <see langword="void"/>, so the engine — not the op — knows the outcome, and M2-09 emits
-/// the `05` §7 events for them. <c>DAMAGE</c> is the exception: it routes through
-/// <see cref="IAttackPipeline.ResolveAttack"/> and reports the real HP lost.
-/// </para>
-/// <para>
-/// ⚠️ A caller writing this straight into a <c>CombatEvent</c>'s value slot would log a 500 heal on
-/// a full-health actor. Read the engine's own number for the five.
+/// For five of the seven damage/heal ops this is what the op asked for, not what actually happened —
+/// <c>HEAL</c>/<c>HEAL_LEECH</c> are clipped by overheal, <c>SHIELD</c> by the pool cap, and
+/// <c>DAMAGE_TRUE</c>/<c>DAMAGE_MAXHP_PCT</c> still meet DR%, wards and remaining HP downstream.
+/// <c>DAMAGE</c> is the exception: it reports the real HP lost via
+/// <see cref="IAttackPipeline.ResolveAttack"/>.
 /// </para>
 /// </param>
 /// <param name="Disposition">Whether the simulator resolved it or handed it to the run controller.</param>
 /// <param name="Basis">
-/// 🔴 <c>DAMAGE</c> only — `05` §4 step 8's <em>on-damage basis</em>: the post-mitigation,
-/// post-floor hit <b>before</b> ward absorption, summed over the op's targets. <c>0</c> for every
-/// other op.
+/// <c>DAMAGE</c> only — the pre-absorption hit, summed over the op's targets. <c>0</c> for every other op.
 /// </param>
 /// <remarks>
-/// 🔴 <b><see cref="Amount"/> is NOT the number to feed <c>EffectOpContext.DamageDealt</c>.</b> For
-/// <c>DAMAGE</c> it is the HP actually lost (step 9, post-absorption), and `05` §4.1 is explicit
-/// that lifesteal and thorns read the <em>pre</em>-absorption figure — <em>"a lifesteal attacker
-/// still heals off a fully-warded hit"</em>. M2-04 wires the on-hit family and must pass
-/// <see cref="Basis"/> there; passing <see cref="Amount"/> would make every leech heal nothing off
-/// a shielded target, silently. The two fields exist so the wiring cannot be a guess.
+/// <see cref="Amount"/> is not the number to feed <c>EffectOpContext.DamageDealt</c>: for
+/// <c>DAMAGE</c> that's the post-absorption HP lost, but lifesteal and thorns must read the
+/// pre-absorption figure (<see cref="Basis"/>) — a lifesteal attacker still heals off a fully-warded
+/// hit. The two fields exist so the wiring can't be a guess.
 /// </remarks>
 internal readonly record struct EffectOpOutcome(
     EffectOp Op, double Amount, OpDisposition Disposition, double Basis = 0.0);
@@ -46,67 +34,40 @@ internal enum OpDisposition
     /// <summary>Resolved here and now, against the seams.</summary>
     RESOLVED = 1,
 
-    /// <summary>
-    /// 🔒 `18` §2.5 — appended to the run queue and <b>not</b> resolved. Not a failure and not a
-    /// no-op: the run controller applies it when the battle resolves.
-    /// </summary>
+    /// <summary>Appended to the run queue and not resolved — the run controller applies it when the battle resolves.</summary>
     QUEUED_FOR_RUN = 2,
 
-    /// <summary>
-    /// `18` §8 step 6 / step 9 — <c>STAT_CONVERT</c> / <c>STAT_CAP_OVERRIDE</c>, applied by the
-    /// aggregation only and never by a firing effect (see <see cref="EffectOpResolver"/>'s remarks).
-    /// 🔒 <b>M2-R1 narrowed this from all six §2.1 ops to these two</b> — the other four
-    /// (<c>STAT_ADD_FLAT</c>/<c>STAT_ADD_PCT</c>/<c>STAT_MULT</c>/<c>STAT_SET</c>) now resolve as
-    /// <see cref="RESOLVED"/> when a trigger fires them, through <c>ITriggeredStatSink</c>.
-    /// </summary>
+    /// <summary><c>STAT_CONVERT</c> / <c>STAT_CAP_OVERRIDE</c>, applied by aggregation only, never by a firing effect.</summary>
     AGGREGATED = 3,
 }
 
-/// <summary>
-/// 🔒 `18` §2 — the one place all 44 ops are routed, and the only thing in the DSL that knows which
-/// op does what.
-/// </summary>
+/// <summary>The one place all 44 ops are routed, and the only thing in the DSL that knows which op does what.</summary>
 /// <remarks>
 /// <para>
-/// `18`'s headnote is what this type exists to keep true: <em>"there is no per-perk, per-talent or
-/// per-boss code"</em>. Everything a perk, talent, affix, aura, curse or boss mechanic can do is one
-/// arm of the switch below, and adding a mechanic means adding an <c>op</c> — with its schema branch
-/// and its row in `18`, in one commit (§10) — not a branch on an id.
+/// Everything a perk, talent, affix, aura, curse or boss mechanic can do is one arm of the switch
+/// below — adding a mechanic means adding an op, not a branch on an id. The switch is total, and its
+/// default arm throws rather than being a silent safety net.
 /// </para>
 /// <para>
-/// 🔒 <b>The switch is total and its default arm cannot be the safety net.</b> C# requires a default
-/// arm on an enum switch (<c>CS8524</c>), so a forty-fifth op would fall into it and throw in
-/// whichever battle first authored one. <c>EffectOpResolverTests.Every_op_of_18_2_is_routed</c> is
-/// what catches it at build time by enumerating <see cref="EffectOps.All"/> — the same arrangement
-/// M2-01 records for <c>EffectOps.FamilyOf</c>.
-/// </para>
-/// <para>
-/// ⚠️ <b>Two ops route nowhere, and both are correct.</b> <c>STAT_CONVERT</c> and
-/// <c>STAT_CAP_OVERRIDE</c> are applied by `18` §8's aggregation at steps 6 and 9 only, never by a
-/// firing effect (<see cref="StatOps"/> holds their arithmetic, <c>Rules/Stats/StatOpBehaviour.cs</c>
-/// the plumbing) — their arithmetic needs a post-aggregation value neither a trigger nor this resolver
-/// has in hand. 🔒 <b>M2-R1 — the other four §2.1 ops are NOT the same anymore.</b> A fired
-/// <c>STAT_ADD_FLAT</c>/<c>STAT_ADD_PCT</c>/<c>STAT_MULT</c>/<c>STAT_SET</c> now resolves through
-/// <c>ITriggeredStatSink</c>, which holds it for `18` §8 step 1's other half — see that seam's
-/// remarks. Every §2.5 op is queued rather than resolved.
+/// Two ops route nowhere by design: <c>STAT_CONVERT</c> and <c>STAT_CAP_OVERRIDE</c> are applied by
+/// aggregation only, since their arithmetic needs a post-aggregation value neither a trigger nor this
+/// resolver has in hand. The other four basic stat ops resolve through <c>ITriggeredStatSink</c> when
+/// a trigger fires them. Every queued op is queued rather than resolved;
 /// <see cref="OpDisposition"/> is how the caller tells those apart from "it did nothing".
 /// </para>
 /// <para>
-/// ⚠️ <b>What this resolver does NOT do.</b> It does not evaluate the effect's condition (`18` §4 —
-/// M2-05, called by M2-02's resolver), it does not decide whether the trigger fired (§3 — M2-04), it
-/// does not apply duration or stacking (§6 — M2-06), and it does not order effects (§8 — M2-02
-/// through <see cref="EffectOrder"/>). It is handed an effect that has already been decided to fire.
+/// What this resolver does not do: evaluate the effect's condition, decide whether the trigger
+/// fired, apply duration or stacking, or order effects. It's handed an effect already decided to fire.
 /// </para>
 /// </remarks>
 internal static class EffectOpResolver
 {
-    /// <summary>Resolves one `18` §2 op.</summary>
+    /// <summary>Resolves one op.</summary>
     /// <param name="effect">The effect, already gated and triggered.</param>
     /// <param name="context">The firing context and the seams.</param>
     /// <exception cref="EffectContextException">
-    /// The effect is malformed for its op, a value mode has no basis, a `18` §5 token's subject is
-    /// absent, or a seam is unwired. The layer's one failure type — see
-    /// <see cref="EffectContextException"/>.
+    /// The effect is malformed for its op, a value mode has no basis, a target token's subject is
+    /// absent, or a seam is unwired.
     /// </exception>
     internal static EffectOpOutcome Resolve(EffectDefinition effect, EffectOpContext context)
     {
@@ -115,26 +76,21 @@ internal static class EffectOpResolver
 
         return effect.Op switch
         {
-            // ── §2.1's four basic stat ops · applied by 18 §8's aggregation when UNTRIGGERED
-            // (ALWAYS), and — M2-R1 — through ITriggeredStatSink when a `18` §3 trigger fires them.
-            // Reaching either path twice for the SAME activation cannot happen: an untriggered
-            // effect never reaches this resolver at all (BattleActor only registers a TRIGGERED
-            // effect as an instance; ALWAYS ones sit in StandingEffects and are read straight by
-            // StatAggregation), so an effect fires through exactly one of the two.
+            // The four basic stat ops, applied by aggregation when untriggered (ALWAYS), and
+            // through ITriggeredStatSink when a trigger fires them. An effect always takes exactly
+            // one of the two paths, never both, since an untriggered effect never reaches this
+            // resolver at all.
             EffectOp.STAT_ADD_FLAT or
             EffectOp.STAT_ADD_PCT or
             EffectOp.STAT_MULT or
             EffectOp.STAT_SET => FiredStat(effect, context),
 
-            // ── STAT_CONVERT / STAT_CAP_OVERRIDE · applied by 18 §8's aggregation ONLY, at steps 6
-            // and 9 — never by a firing effect. Their arithmetic reads a POST-aggregation value
-            // (§8's "reads post-step-5 values") that only StatAggregation has in hand, so there is
-            // nothing this resolver could hand ITriggeredStatSink even if a future author triggered
-            // one; no content does today.
+            // STAT_CONVERT / STAT_CAP_OVERRIDE: applied by aggregation only, never by a firing
+            // effect — their arithmetic needs a post-aggregation value only StatAggregation has.
             EffectOp.STAT_CONVERT or
             EffectOp.STAT_CAP_OVERRIDE => Aggregated(effect),
 
-            // ── §2.2 damage and healing (7) · routed by 05 §4.2.
+            // Damage and healing (7).
             EffectOp.DAMAGE => Damaged(effect, DamageAndHealingOps.Damage(effect, context)),
             EffectOp.DAMAGE_TRUE => Resolved(effect, DamageAndHealingOps.DamageTrue(effect, context)),
             EffectOp.DAMAGE_MAXHP_PCT => Resolved(effect, DamageAndHealingOps.DamageMaxHpPct(effect, context)),
@@ -143,7 +99,7 @@ internal static class EffectOpResolver
             EffectOp.SHIELD => Resolved(effect, DamageAndHealingOps.Shield(effect, context)),
             EffectOp.REFLECT => Resolved(effect, DamageAndHealingOps.Reflect(effect, context)),
 
-            // ── §2.3 status (6).
+            // Status (6).
             EffectOp.APPLY_STATUS => Resolved(effect, StatusOps.Apply(effect, context)),
             EffectOp.REMOVE_STATUS => Resolved(effect, StatusOps.Remove(effect, context)),
             EffectOp.EXTEND_STATUS => Resolved(effect, StatusOps.Extend(effect, context)),
@@ -151,7 +107,7 @@ internal static class EffectOpResolver
             EffectOp.STATUS_POWER_PCT => Resolved(effect, StatusOps.ScaleOutgoingPower(effect, context)),
             EffectOp.STATUS_DURATION_PCT => Resolved(effect, StatusOps.ScaleIncomingDuration(effect, context)),
 
-            // ── §2.4 combat-flow (12).
+            // Combat-flow (12).
             EffectOp.EXTRA_ATTACK => Resolved(effect, CombatFlowOps.ExtraAttack(effect, context)),
             EffectOp.ATTACK_MULT_NEXT => Resolved(effect, CombatFlowOps.AttackMultiplierCharges(effect, context)),
             EffectOp.FORCE_CRIT_NEXT => Resolved(effect, CombatFlowOps.ForcedCritCharges(effect, context)),
@@ -165,7 +121,7 @@ internal static class EffectOpResolver
             EffectOp.STAT_COPY => Resolved(effect, StatCopyOp.Resolve(effect, context)),
             EffectOp.RANDOM_OUTCOME => Resolved(effect, CombatFlowOps.RandomOutcome(effect, context)),
 
-            // ── §2.5 run and board (13) · queued, never resolved.
+            // Run and board (13), queued, never resolved.
             EffectOp.GRANT_CURRENCY or
             EffectOp.GRANT_ITEM or
             EffectOp.GRANT_PERK or
@@ -189,25 +145,14 @@ internal static class EffectOpResolver
         };
     }
 
-    /// <summary>
-    /// 🔒 M2-R1 — a `18` §2.1 basic stat op reached through a `18` §3 trigger firing it, rather than
-    /// through `18` §8's aggregation collecting it as an untriggered <c>ALWAYS</c> passive.
-    /// </summary>
+    /// <summary>A basic stat op reached through a trigger firing it, rather than aggregation collecting it as an untriggered passive.</summary>
     /// <remarks>
+    /// The value is read and rounded exactly like any other firing op. What's new is where the
+    /// number goes: into <see cref="ITriggeredStatSink"/>, held against the effect's own duration
+    /// until the next aggregation pass folds it in.
     /// <para>
-    /// The value is read exactly as every other firing op reads its value — `18` §1.1's
-    /// <c>effectiveValue = value × steps</c>, through <see cref="context"/>'s
-    /// <see cref="EffectOpContext.Evaluation"/> — and rounded once, at this accumulation point, per
-    /// `05` §1.1. What is new is where the number goes: not into a <c>CombatEvent</c> or an actor's HP,
-    /// but into <see cref="ITriggeredStatSink"/>, which holds it against the effect's own `18` §6
-    /// duration until <c>BattleSimulation.RefreshStats</c> next folds it into an aggregation pass.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Targets, not the holder.</b> `18` §5's token can name a set the holder is not a member of
-    /// — <c>BOSS_THORNMAW_P2_ROOT</c> is <c>STAT_ADD_PCT ASPD</c> targeted at <c>ALL_ENEMIES</c>, and
-    /// it is the hero's ASPD that must fall, not Thornmaw's. <see cref="OpTargets.Resolve"/> is the one
-    /// place `18` §5 is read for an op; using it here rather than a bespoke reading is what keeps this
-    /// arm from becoming a second target resolver.
+    /// Resolved through targets, not just the holder — a target token can name a set the holder
+    /// isn't a member of (e.g. a boss effect that debuffs the hero's ASPD).
     /// </para>
     /// </remarks>
     private static EffectOpOutcome FiredStat(EffectDefinition effect, EffectOpContext context)

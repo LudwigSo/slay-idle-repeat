@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
-/// <summary>
-/// 🔒 The firing predicate of every one of `18` §3's 23 trigger kinds, from a hand-cranked tick
-/// source.
-/// </summary>
+/// <summary>The firing predicate of every one of the 23 trigger kinds, from a hand-cranked tick source.</summary>
 /// <remarks>
 /// Every assertion is on a <see cref="TriggerOutcome"/> rather than a boolean: eleven of the twelve
 /// refusals mean "did not fire", and a <c>PK_FLURRY</c> held back by a spent <c>once</c> latch instead
@@ -19,17 +16,12 @@ public sealed class TriggerFiringTests
 {
     private const ulong BattleSeed = 0x5EED_1234_5678_9ABCUL;
 
-    /// <summary>
-    /// 🔒 Every kind that takes no narrowing parameter fires on its own moment — the floor under
-    /// every other test in this file (steering S3).
-    /// </summary>
+    /// <summary>Every kind that takes no narrowing parameter fires on its own moment — the floor under every other test in this file.</summary>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>Derived from <c>TriggerCatalogue.All</c>, not hand-listed</b> (steering S3). A
-    /// twenty-row <c>InlineData</c> block tied to <c>TriggerKind</c> by nothing would lose a kind's
-    /// firing coverage to a merge, or fail to gain it for a new kind, with every test in this file
-    /// still green — and <c>TriggerCatalogueTests</c>' 23-count check would not notice, because it
-    /// quantifies over the catalogue rather than over this theory.
+    /// Derived from <c>TriggerCatalogue.All</c>, not hand-listed. A hand-written <c>InlineData</c>
+    /// block tied to <c>TriggerKind</c> by nothing would lose a kind's firing coverage to a merge, or
+    /// fail to gain it for a new kind, with every test in this file still green.
     /// </para>
     /// <para>
     /// The three exclusions are named once, in <see cref="KindsWithTheirOwnTest"/>, and each has a
@@ -51,7 +43,7 @@ public sealed class TriggerFiringTests
     /// <remarks>
     /// <c>PERIODIC</c> has no moment at all — it fires on a schedule, through
     /// <c>TriggerRegistry.PeriodicDue</c>, and <c>PeriodicAnchoringTests</c> owns it. The other two
-    /// carry a constitutive parameter (`18` §3.1) and are driven by
+    /// carry a constitutive parameter and are driven by
     /// <see cref="ON_PHASE_ENTER_fires_only_on_its_own_phase"/> and the four <c>ON_LOW_HP</c> tests.
     /// </remarks>
     internal static readonly TriggerKind[] KindsWithTheirOwnTest =
@@ -61,7 +53,7 @@ public sealed class TriggerFiringTests
         TriggerKind.ON_LOW_HP,
     };
 
-    /// <summary>Every `18` §3 kind that a bare trigger can express, straight off the catalogue.</summary>
+    /// <summary>Every kind that a bare trigger can express, straight off the catalogue.</summary>
     public static TheoryData<TriggerKind> UnnarrowedKinds
     {
         get
@@ -77,10 +69,7 @@ public sealed class TriggerFiringTests
         }
     }
 
-    /// <summary>
-    /// 🔒 The floor under the theory above (steering S3): every one of `18` §11's 23 kinds is either
-    /// driven by it or named in <see cref="KindsWithTheirOwnTest"/>, and nothing else.
-    /// </summary>
+    /// <summary>The floor under the theory above: every one of the 23 kinds is either driven by it or named in <see cref="KindsWithTheirOwnTest"/>, and nothing else.</summary>
     /// <remarks>
     /// Without this the exclusion list is a place a kind can be parked to make a failure go away.
     /// Adding a name here is deliberate and has to come with the test that name promises.
@@ -110,7 +99,7 @@ public sealed class TriggerFiringTests
                 .ShouldBe(TriggerOutcome.WRONG_KIND);
     }
 
-    /// <summary>An instance whose `18` §6 <c>PHASE</c> scope ended does not fire.</summary>
+    /// <summary>An instance whose <c>PHASE</c> scope ended does not fire.</summary>
     [Fact]
     public void A_deactivated_instance_does_not_fire()
     {
@@ -124,16 +113,13 @@ public sealed class TriggerFiringTests
 
     // ------------------------------------------------------------------ onlyIfWon
 
-    /// <summary>
-    /// 🔒 `18` §3's <c>onlyIfWon</c>, and its absence. §7.5's <c>CP_BLOOD_PRICE</c> drawback writes
-    /// none and has to land on a loss.
-    /// </summary>
+    /// <summary><c>onlyIfWon</c>, and its absence — <c>CP_BLOOD_PRICE</c>'s drawback writes none and has to land on a loss.</summary>
     /// <remarks>
-    /// ⚠️ The expected outcome is spelled with <c>nameof</c> rather than passed as a
-    /// <see cref="TriggerOutcome"/>: the enum is <c>internal</c> to <c>SlayIdleRepeat.Core</c>
-    /// (`30` §11.2) and reaches this assembly through the `30` §11.3 <c>InternalsVisibleTo</c> grant,
-    /// which is not enough to put it in a <c>public</c> theory's signature. <c>nameof</c> keeps the
-    /// row compiler-checked against the member, so a renamed outcome is a build failure here too.
+    /// The expected outcome is spelled with <c>nameof</c> rather than passed as a
+    /// <see cref="TriggerOutcome"/>: the enum is <c>internal</c> to <c>SlayIdleRepeat.Core</c> and
+    /// reaches this assembly through an <c>InternalsVisibleTo</c> grant, which is not enough to put
+    /// it in a <c>public</c> theory's signature. <c>nameof</c> keeps the row compiler-checked against
+    /// the member, so a renamed outcome is a build failure here too.
     /// </remarks>
     [Theory]
     [InlineData(null, true, nameof(TriggerOutcome.FIRES))]
@@ -158,7 +144,7 @@ public sealed class TriggerFiringTests
 
     // ------------------------------------------------------------------ ON_PHASE_ENTER
 
-    /// <summary>`18` §3's <c>phase</c> — Thornmaw's phase-3 summon does not fire on phase 2's entry.</summary>
+    /// <summary>Thornmaw's phase-3 summon does not fire on phase 2's entry.</summary>
     [Theory]
     [InlineData(1, nameof(TriggerOutcome.PHASE_MISMATCH))]
     [InlineData(2, nameof(TriggerOutcome.PHASE_MISMATCH))]
@@ -180,10 +166,7 @@ public sealed class TriggerFiringTests
 
     // ------------------------------------------------------------------ ON_LOW_HP
 
-    /// <summary>
-    /// 🔒 `18` §3 — <em>"self HP crosses a threshold <b>downward</b>"</em>. A reading that is already
-    /// below the threshold is not a crossing; the transition is.
-    /// </summary>
+    /// <summary>Self HP crosses a threshold downward. A reading that is already below the threshold is not a crossing; the transition is.</summary>
     [Fact]
     public void ON_LOW_HP_fires_on_the_downward_crossing_and_not_on_the_readings_around_it()
     {
@@ -197,10 +180,7 @@ public sealed class TriggerFiringTests
         HpChange(registry, id, 0.20).ShouldBe(TriggerOutcome.THRESHOLD_NOT_CROSSED, "already below");
     }
 
-    /// <summary>
-    /// 🔒 The threshold <b>re-arms</b> when HP goes back above it — entailed by `18` §3 giving the
-    /// kind a <c>once</c> parameter at all.
-    /// </summary>
+    /// <summary>The threshold re-arms when HP goes back above it — entailed by the kind having a <c>once</c> parameter at all.</summary>
     /// <remarks>
     /// If a crossing could only ever happen once, <c>once</c> would say nothing. So the kind must be
     /// able to fire again, firing again requires crossing downward again, and crossing downward again
@@ -219,10 +199,7 @@ public sealed class TriggerFiringTests
         HpChange(registry, id, 0.10).ShouldBe(TriggerOutcome.FIRES, "and it crosses again");
     }
 
-    /// <summary>
-    /// 🔒 `17` §4's Rise Again, worked — the mechanic `17` §1.1 calls <c>ON_HP_THRESHOLD 1%</c>
-    /// (R9). <c>once: true</c> is what stops the Ossuary King rising twice.
-    /// </summary>
+    /// <summary>Rise Again, worked: <c>once: true</c> is what stops the Ossuary King rising twice.</summary>
     [Fact]
     public void Rise_Again_fires_once_and_a_second_crossing_is_ONCE_SPENT()
     {
@@ -237,10 +214,7 @@ public sealed class TriggerFiringTests
         HpChange(registry, id, 0.004).ShouldBe(TriggerOutcome.ONCE_SPENT);
     }
 
-    /// <summary>
-    /// 🔒 An <c>ON_LOW_HP</c> registered without the holder's HP reading is refused — a crossing
-    /// needs the reading before the change as well as the one after (steering S6).
-    /// </summary>
+    /// <summary>An <c>ON_LOW_HP</c> registered without the holder's HP reading is refused — a crossing needs the reading before the change as well as the one after.</summary>
     [Fact]
     public void An_ON_LOW_HP_without_a_starting_HP_reading_is_refused()
     {
@@ -274,7 +248,7 @@ public sealed class TriggerFiringTests
     }
 
     /// <summary>
-    /// 🔒 A re-granted <c>ON_LOW_HP</c> is <b>re-armed</b> from the holder's HP now, not left holding
+    /// A re-granted <c>ON_LOW_HP</c> is re-armed from the holder's HP now, not left holding
     /// the flag its last grant ended on.
     /// </summary>
     /// <remarks>
@@ -343,7 +317,7 @@ public sealed class TriggerFiringTests
 
     // ------------------------------------------------------------------ once
 
-    /// <summary>`18` §7.4 — <c>PK_UNBREAKABLE</c>'s <c>ON_LETHAL {once: true}</c>.</summary>
+    /// <summary><c>PK_UNBREAKABLE</c>'s <c>ON_LETHAL {once: true}</c>.</summary>
     [Fact]
     public void ON_LETHAL_with_once_fires_once_per_battle()
     {
@@ -377,10 +351,7 @@ public sealed class TriggerFiringTests
 
     // ------------------------------------------------------------------ cooldown
 
-    /// <summary>
-    /// 🔒 `17` §3's Gulgrot Spit — <c>ON_HIT_TAKEN (cd 6s)</c>. The cooldown is counted in ticks from
-    /// the firing.
-    /// </summary>
+    /// <summary>Gulgrot Spit's <c>ON_HIT_TAKEN (cd 6s)</c>: the cooldown is counted in ticks from the firing.</summary>
     [Fact]
     public void An_internal_cooldown_holds_the_trigger_for_its_span()
     {
@@ -401,10 +372,7 @@ public sealed class TriggerFiringTests
 
     // ------------------------------------------------------------------ chance
 
-    /// <summary>
-    /// 🔒 `18` §3's <c>chance</c> is drawn from the battle's combat stream (`14` §8.1), never from
-    /// an ambient source.
-    /// </summary>
+    /// <summary><c>chance</c> is drawn from the battle's combat stream, never from an ambient source.</summary>
     [Fact]
     public void A_chance_of_one_always_fires_and_a_chance_of_zero_never_does()
     {
@@ -431,7 +399,7 @@ public sealed class TriggerFiringTests
     }
 
     /// <summary>
-    /// 🔒 <b>The draw is last.</b> A trigger refused by a cheaper gate does not consume the battle's
+    /// The draw is last. A trigger refused by a cheaper gate does not consume the battle's
     /// stream — otherwise a perk that never fires would still shift every later dodge, crit and
     /// <c>RANDOM_ENEMY</c> in the fight.
     /// </summary>
@@ -460,10 +428,7 @@ public sealed class TriggerFiringTests
 
     // ------------------------------------------------------------------ run-layer filters
 
-    /// <summary>
-    /// 🔒 The six run-layer kinds' filters — declared and unit-tested here, fired by M3's run
-    /// controller (the M2 kickoff's A4).
-    /// </summary>
+    /// <summary>The six run-layer kinds' filters — declared and unit-tested here, fired by the run controller.</summary>
     [Theory]
     [InlineData(TriggerKind.ON_TILE_RESOLVED, "TILE_DICE_FORGE", "TILE_DICE_FORGE", nameof(TriggerOutcome.FIRES))]
     [InlineData(TriggerKind.ON_TILE_RESOLVED, "TILE_DICE_FORGE", "TILE_SHRINE", nameof(TriggerOutcome.FILTER_MISMATCH))]
@@ -526,7 +491,7 @@ public sealed class TriggerFiringTests
               .Message.ShouldContain("no effect instance is registered", Case.Sensitive);
     }
 
-    /// <summary>An effect with no trigger has nothing for this layer to fire (`18` §9.1, §7.7).</summary>
+    /// <summary>An effect with no trigger has nothing for this layer to fire.</summary>
     [Fact]
     public void An_effect_with_no_trigger_is_refused()
     {
@@ -554,16 +519,13 @@ public sealed class TriggerFiringTests
         Should.Throw<ArgumentException>(() => EffectInstanceId.Of(value));
     }
 
-    /// <summary>
-    /// 🔒 And the registry refuses one too — <c>EffectInstanceId.Of</c>'s guard is a convenience, not
-    /// a guarantee.
-    /// </summary>
+    /// <summary>And the registry refuses one too — <c>EffectInstanceId.Of</c>'s guard is a convenience, not a guarantee.</summary>
     /// <remarks>
     /// A <c>record struct</c>'s positional constructor is public and <c>default</c> carries a null
     /// value, so both reach <c>Register</c> around <c>Of</c>. <c>default</c> is a perfectly good
     /// dictionary key, so an unnamed instance would register cleanly and share one counter with every
-    /// other unnamed instance — the per-instance rule of `18` §3 failing in the direction that looks
-    /// like it works.
+    /// other unnamed instance — the per-instance rule failing in the direction that looks like it
+    /// works.
     /// </remarks>
     [Theory]
     [InlineData(null)]
@@ -583,15 +545,12 @@ public sealed class TriggerFiringTests
         failure.Message.ShouldContain("names no holding", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 A <c>cooldown</c> that is not a whole number of ticks is refused at <b>registration</b>,
-    /// not at the first firing.
-    /// </summary>
+    /// <summary>A <c>cooldown</c> that is not a whole number of ticks is refused at registration, not at the first firing.</summary>
     /// <remarks>
     /// The schema types <c>cooldown</c> as any non-negative number, so this is the only thing that
-    /// catches it — and an earlier draft converted it inside the firing path, so
+    /// catches it — an earlier draft converted it inside the firing path, so
     /// <c>{"kind":"ON_DODGE","cooldown":0.03}</c> passed the content build, passed registration, and
-    /// threw out of `05` §3.1 slot 4 on the first successful dodge of a live fight.
+    /// threw on the first successful dodge of a live fight.
     /// </remarks>
     [Fact]
     public void A_fractional_cooldown_is_refused_when_the_effect_is_registered()
@@ -609,7 +568,7 @@ public sealed class TriggerFiringTests
         failure.Message.ShouldContain("cooldown", Case.Sensitive);
     }
 
-    /// <summary>An <c>ON_LOW_HP</c> moment. The tick advances, as `05` §3.1's loop does.</summary>
+    /// <summary>An <c>ON_LOW_HP</c> moment. The tick advances, as the real loop does.</summary>
     private static TriggerOutcome HpChange(TriggerRegistry registry, EffectInstanceId id, double fraction)
     {
         var moment = new TriggerOccurrence

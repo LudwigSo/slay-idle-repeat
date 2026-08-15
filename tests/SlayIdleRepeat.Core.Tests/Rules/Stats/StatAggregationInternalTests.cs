@@ -8,9 +8,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
-/// 🔒 The <b>residue</b> of `18` §8 — what no public entry point can express and no
-/// <see cref="SimulationResult"/> can report. <see cref="StatAggregationTests"/> is where `18` §8 is
-/// actually pinned.
+/// The residue — what no public entry point can express and no <see cref="SimulationResult"/>
+/// can report. <see cref="StatAggregationTests"/> is where the resolution order itself is pinned.
 /// </summary>
 /// <remarks>
 /// Four things are left over: the argument contract (a fight builds all four arguments itself, so

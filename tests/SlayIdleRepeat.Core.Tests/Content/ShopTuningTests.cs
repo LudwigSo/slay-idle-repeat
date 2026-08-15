@@ -5,8 +5,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// `03` §7 — 🔒 every shop pricing number is read from <c>game-data/tuning/currencies.json</c>,
-/// never written as a C# constant. This is the reader.
+/// Every shop pricing number is read from <c>game-data/tuning/currencies.json</c>, never written as
+/// a C# constant. This is the reader.
 /// </summary>
 public sealed class ShopTuningTests
 {

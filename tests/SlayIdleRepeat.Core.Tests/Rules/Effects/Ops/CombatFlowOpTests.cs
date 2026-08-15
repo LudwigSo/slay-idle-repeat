@@ -7,12 +7,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
 /// <summary>
-/// 🔒 Ten of `18` §2.4's twelve combat-flow ops. <c>STAT_COPY</c> is <c>StatCopyOpTests</c> and
-/// `18` §10.1 E6's <c>RANDOM_OUTCOME</c> — the twelfth — is <c>RandomOutcomeOpTests</c>.
+/// Combat-flow ops other than <c>STAT_COPY</c> (see <c>StatCopyOpTests</c>) and <c>RANDOM_OUTCOME</c>
+/// (see <c>RandomOutcomeOpTests</c>).
 /// </summary>
 public sealed class CombatFlowOpTests
 {
-    /// <summary>`18` §7.3 — <c>PK_FLURRY</c>: one extra attack on the current target.</summary>
+    /// <summary><c>PK_FLURRY</c>: one extra attack on the current target.</summary>
     [Fact]
     public void EXTRA_ATTACK_takes_its_count_from_value_which_is_what_18_7_3_authors()
     {
@@ -50,8 +50,8 @@ public sealed class CombatFlowOpTests
     }
 
     /// <summary>
-    /// 🔒 `18` §10 E3 — <c>PK_OPENER</c>'s <em>"×3 first attack"</em> (`05` §4): the multiplier is
-    /// <c>value</c> and the N is the <c>charges</c> key M2-03 added. Holder-scoped.
+    /// <c>PK_OPENER</c>'s "×3 first attack": the multiplier is <c>value</c>, the count is
+    /// <c>charges</c>. Holder-scoped.
     /// </summary>
     [Fact]
     public void ATTACK_MULT_NEXT_grants_charges_of_its_value_onto_the_holder()
@@ -69,10 +69,7 @@ public sealed class CombatFlowOpTests
             "05 §4 consumes ATTACK_MULT_NEXT charges in ascending effect-id order, so both travel");
     }
 
-    /// <summary>
-    /// 🔒 Without the <c>charges</c> key the op cannot say how many attacks it covers, and `18` §2.4
-    /// gives it none. The refusal names the extension.
-    /// </summary>
+    /// <summary>Without <c>charges</c> the op cannot say how many attacks it covers, and is refused.</summary>
     [Theory]
     [InlineData(null)]
     [InlineData(0)]
@@ -91,7 +88,7 @@ public sealed class CombatFlowOpTests
         bench.Calls.ShouldBeEmpty();
     }
 
-    /// <summary>`18` §2.4 — <c>FORCE_CRIT_NEXT</c> carries the count and nothing else.</summary>
+    /// <summary><c>FORCE_CRIT_NEXT</c> carries the count and nothing else.</summary>
     [Fact]
     public void FORCE_CRIT_NEXT_grants_charges_and_carries_no_value_at_all()
     {
@@ -106,9 +103,9 @@ public sealed class CombatFlowOpTests
     }
 
     /// <summary>
-    /// 🔒 A value on <c>FORCE_CRIT_NEXT</c> is refused rather than ignored — <c>{"charges": 2,
-    /// "value": 3}</c> reads as "three attacks" to whoever wrote it, and dropping the 3 would ship
-    /// that misreading (steering S6).
+    /// A value on <c>FORCE_CRIT_NEXT</c> is refused rather than ignored — <c>{"charges": 2,
+    /// "value": 3}</c> reads as "three attacks" to whoever wrote it, and silently dropping the 3
+    /// would ship that misreading.
     /// </summary>
     [Fact]
     public void FORCE_CRIT_NEXT_refuses_a_value_rather_than_ignoring_it()
@@ -126,10 +123,7 @@ public sealed class CombatFlowOpTests
         bench.Calls.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// `18` §2.4 — <c>REDUCE_COOLDOWN</c> as a fraction, which is the unit `09` §4's <em>Relentless</em>
-    /// (<em>"−3% per rank to all pet ability cooldowns"</em>) states.
-    /// </summary>
+    /// <summary><c>REDUCE_COOLDOWN</c> is a fraction of the cooldown, not a flat amount.</summary>
     [Fact]
     public void REDUCE_COOLDOWN_is_a_fraction_of_the_cooldown()
     {
@@ -146,9 +140,8 @@ public sealed class CombatFlowOpTests
     }
 
     /// <summary>
-    /// 🔒 R7 / `18` §10 E4 — <c>PK_UNBREAKABLE</c> is <c>{"value": 1, "valueMode": "FLAT"}</c>, which
-    /// `06` words <em>"survive a lethal hit at 1 HP"</em>. Under §2.4's "HP fraction" reading the same
-    /// <c>1</c> would be <b>full health</b>.
+    /// <c>PK_UNBREAKABLE</c> is <c>{"value": 1, "valueMode": "FLAT"}</c> — "survive at 1 HP". Under
+    /// the default "HP fraction" reading the same <c>1</c> would mean full health instead.
     /// </summary>
     [Fact]
     public void SURVIVE_LETHAL_with_valueMode_FLAT_leaves_the_actor_at_1_HP_and_not_at_full_health()
@@ -167,7 +160,7 @@ public sealed class CombatFlowOpTests
             1.0, "FLAT 1 is 1 HP; as a fraction of 2400 Max HP it would be the full 2400");
     }
 
-    /// <summary>The default is §2.4's own wording — a fraction of Max HP.</summary>
+    /// <summary>With no <c>valueMode</c>, the value is a fraction of Max HP.</summary>
     [Fact]
     public void SURVIVE_LETHAL_with_no_valueMode_is_a_fraction_of_max_HP()
     {
@@ -181,10 +174,7 @@ public sealed class CombatFlowOpTests
         bench.OnlyAmount("ArmSurviveLethal").ShouldBe(600.0, "0.25 x 2400");
     }
 
-    /// <summary>
-    /// `18` §2.4 — <c>REVIVE</c> is fraction-only. E4 was deliberately <b>not</b> extended to it, so
-    /// a <c>FLAT</c> revive is refused rather than quietly meaning 1 HP.
-    /// </summary>
+    /// <summary><c>REVIVE</c> is a fraction of the reviver's max HP.</summary>
     [Fact]
     public void REVIVE_returns_at_a_fraction_of_max_HP()
     {
@@ -197,10 +187,7 @@ public sealed class CombatFlowOpTests
         bench.OnlyAmount("ArmRevive").ShouldBe(360.0);
     }
 
-    /// <summary>
-    /// 🔒 <c>REVIVE</c> admits no other mode. `18` §10's E4 was taken for <c>SURVIVE_LETHAL</c>
-    /// alone, so a <c>FLAT</c> revive is refused rather than quietly meaning 1 HP.
-    /// </summary>
+    /// <summary><c>REVIVE</c> admits no other <c>valueMode</c>; <c>FLAT</c> is refused rather than meaning 1 HP.</summary>
     [Fact]
     public void REVIVE_admits_no_value_mode_but_the_max_HP_fraction_18_2_4_words()
     {
@@ -233,7 +220,7 @@ public sealed class CombatFlowOpTests
               .Message.ShouldContain("0 is the state both ops exist to prevent", Case.Sensitive);
     }
 
-    /// <summary>`18` §7.8 — Thornmaw's periodic summon: two <c>SWARM</c>, at most three alive.</summary>
+    /// <summary>Thornmaw's periodic summon: two <c>SWARM</c>, at most three alive.</summary>
     [Fact]
     public void SUMMON_spawns_value_of_the_archetype_and_carries_maxAlive()
     {
@@ -251,10 +238,7 @@ public sealed class CombatFlowOpTests
         bench.Calls.ShouldBe(["Summon:SWARM(BOSS_THORNMAW, 2, BOSS_THORNMAW_P3_SWARM)", "maxAlive=3"], Case.Sensitive);
     }
 
-    /// <summary>
-    /// `18` §2.4 — <c>CLEAR_SUMMONS</c>'s <em>"(default <c>SELF</c>)"</em>, the one authored default
-    /// target in the DSL.
-    /// </summary>
+    /// <summary><c>CLEAR_SUMMONS</c> defaults its target to <c>SELF</c>.</summary>
     [Fact]
     public void CLEAR_SUMMONS_defaults_to_SELF_which_is_the_one_target_default_18_authors()
     {
@@ -269,8 +253,7 @@ public sealed class CombatFlowOpTests
     }
 
     /// <summary>
-    /// `05` §3.2 — <c>SET_TARGET_PRIORITY</c>'s scale: <c>0</c> default, <c>-1</c> deprioritised
-    /// (Sporequeen's sporelings), <c>+1</c> forced.
+    /// <c>SET_TARGET_PRIORITY</c>'s scale: <c>0</c> default, <c>-1</c> deprioritised, <c>+1</c> forced.
     /// </summary>
     [Theory]
     [InlineData(-1.0)]
@@ -288,7 +271,7 @@ public sealed class CombatFlowOpTests
         bench.OnlyAmount("SetTargetPriority").ShouldBe(priority);
     }
 
-    /// <summary>`18` §7.10 — <c>PK_STALWART</c>'s ×0.80 incoming.</summary>
+    /// <summary><c>PK_STALWART</c>'s ×0.80 incoming damage.</summary>
     [Fact]
     public void DAMAGE_TAKEN_MULT_adds_its_multiplier_to_the_05_4_step_6_product()
     {
@@ -308,15 +291,10 @@ public sealed class CombatFlowOpTests
     }
 
     /// <summary>
-    /// 🔒 At `05` §4 step 6 a negative multiplier turns every hit into a heal and <b>zero is
-    /// permanent invulnerability</b> — no document authorises either.
+    /// A negative multiplier would turn every hit into a heal, and zero would be permanent
+    /// invulnerability — both refused rather than admitted.
     /// </summary>
-    /// <remarks>
-    /// Zero is refused rather than admitted because it is reachable by accident: a
-    /// <c>valueScale</c> whose step count comes out 0 yields it (`18` §1.1), and
-    /// <c>AuthoredScaledValue</c>'s own refusal message names exactly this outcome — <em>"a
-    /// <c>DAMAGE_TAKEN_MULT</c> delete all incoming damage, both silently"</em>.
-    /// </remarks>
+    /// <remarks>Zero is reachable by accident via a <c>valueScale</c> whose step count comes out 0.</remarks>
     [Theory]
     [InlineData(-0.5)]
     [InlineData(0.0)]

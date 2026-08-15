@@ -4,35 +4,22 @@ using SlayIdleRepeat.Core.Rules.Effects.Conditions;
 namespace SlayIdleRepeat.Core.Rules.Effects.Values;
 
 /// <summary>
-/// 🔒 `18` §1.1 — an effect's <c>value</c> after <c>valueScale</c>:
-/// <c>effectiveValue = value × steps</c>, <c>steps = min( floor( fn / per ), cap )</c>.
+/// An effect's <c>value</c> after <c>valueScale</c>: <c>effectiveValue = value × steps</c>,
+/// <c>steps = min( floor( fn / per ), cap )</c>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>This type owns the wiring and nothing else.</b> The arithmetic is
-/// <see cref="ValueScale.StepsFor"/>'s and <see cref="ValueScale.EffectiveValue"/>'s; the state
-/// reading is <see cref="ConditionEvaluator.Read"/>'s. What was missing between them — and all that
-/// is added here — is the two lines that join them, in the one order `18` §1.1 authorises.
-/// </para>
-/// <para>
-/// 🔒 <b>The reading is rounded once, and not here.</b> <see cref="ConditionEvaluator.Read"/> rounds
-/// to four decimal places, which is the accumulation point `18` §1.1 requires <em>before</em> the
-/// division, and normalises a negative zero. Its result is handed on <b>unmodified</b>: this
-/// evaluator does not round it again and does not divide first. M2-05 pinned that contract by test,
-/// and its own remarks name this task as the one that has to honour it — a second rounding is a
-/// determinism defect, not belt-and-braces, because it would move the boundary between 44 and 45
-/// steps of <c>PK_BERSERK</c> on one platform and not the other (`14` §8.2).
-/// </para>
-/// <para>
-/// `18` §1.1 fixes <em>when</em> this runs, and it is the same moment conditions are evaluated: at
-/// every resolution pass for <c>ALWAYS</c> effects, at fire time for triggered ones. Nothing here
-/// caches, and nothing here holds state.
-/// </para>
+/// This type owns the wiring and nothing else — the arithmetic belongs to
+/// <see cref="ValueScale.StepsFor"/> and <see cref="ValueScale.EffectiveValue"/>, and the state
+/// reading to <see cref="ConditionEvaluator.Read"/>. That reading is rounded once, inside
+/// <c>Read</c>, and handed on here unmodified — a second rounding would be a determinism defect,
+/// since it can shift which step boundary a value falls on differently across platforms. Runs at
+/// the same moment conditions are evaluated: every resolution pass for <c>ALWAYS</c> effects, fire
+/// time for triggered ones. Nothing here caches or holds state.
 /// </remarks>
 internal static class ValueScaleEvaluator
 {
     /// <summary>
-    /// `18` §1.1's <c>steps = min( floor( fn / per ), cap )</c>, read against the given state.
+    /// <c>steps = min( floor( fn / per ), cap )</c>, read against the given state.
     /// </summary>
     /// <param name="scale">The effect's <c>valueScale</c>.</param>
     /// <param name="context">The state <c>fn</c> is read against.</param>
@@ -49,7 +36,7 @@ internal static class ValueScaleEvaluator
     }
 
     /// <summary>
-    /// The effect's value after `18` §1.1's scaling. <c>valueScale: null</c> — the default — means
+    /// The effect's value after scaling. <c>valueScale: null</c> — the default — means
     /// <c>effectiveValue = value</c>.
     /// </summary>
     /// <param name="effect">The effect.</param>
@@ -62,24 +49,17 @@ internal static class ValueScaleEvaluator
     {
         ArgumentNullException.ThrowIfNull(effect);
 
-        // 🔒 The unscaled path returns the authored value UNTOUCHED — not rounded, not normalised.
-        // `18` §1.1 says "valueScale: null (the default) means effectiveValue = value", and an
-        // evaluator that edited the number on the way past would be a rounding point `05` §1.1 does
-        // not list.
+        // The unscaled path returns the authored value untouched — not rounded, not normalised.
         return effect.ValueScale is { } scale
             ? scale.EffectiveValue(Value(effect), Reading(scale, context))
             : Value(effect);
     }
 
-    /// <summary>
-    /// 🔒 The single reading, taken through M2-05's evaluator and handed on unmodified.
-    /// </summary>
+    /// <summary>The single reading, taken through the condition evaluator and handed on unmodified.</summary>
     /// <remarks>
-    /// ⚠️ <see cref="ConditionArguments.Of(ValueScale)"/> rather than
-    /// <see cref="ConditionArguments.None"/>: `18` §1.1 offers <c>fn</c> <em>"any condition function
-    /// from §4"</em> and names <c>STATUS_STACKS</c> and <c>DIE_FACE_COUNT</c>, both of which take an
-    /// argument. M2-05 recorded that as a gap in §1.1 and left this seam to close it; M2-06 closed it
-    /// by `18` §10's route, and this is the line where the argument arrives.
+    /// Uses <see cref="ConditionArguments.Of(ValueScale)"/> rather than
+    /// <see cref="ConditionArguments.None"/>, since <c>fn</c> can be any condition function including
+    /// ones that take an argument (<c>STATUS_STACKS</c>, <c>DIE_FACE_COUNT</c>).
     /// </remarks>
     private static double Reading(ValueScale scale, EffectEvaluationContext context) =>
         ConditionEvaluator.Read(scale.Fn, ConditionArguments.Of(scale), context);
@@ -88,9 +68,9 @@ internal static class ValueScaleEvaluator
     /// The effect's authored magnitude, refused when there is none.
     /// </summary>
     /// <remarks>
-    /// 🔒 A hole, not a zero. `18` §1.1's formula is <c>value × steps</c>, so an absent value makes
-    /// every scaled effect a silent no-op however the state reads — the perk is in the build, its
-    /// condition passes, its scale counts steps, and it does nothing. Steering S6: fail loudly.
+    /// A hole, not a zero: an absent value would make every scaled effect a silent no-op however the
+    /// state reads — the perk is in the build, its condition passes, its scale counts steps, and it
+    /// does nothing.
     /// </remarks>
     private static double Value(EffectDefinition effect) =>
         effect.Value ?? throw new EffectContextException(

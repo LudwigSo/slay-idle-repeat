@@ -5,32 +5,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Events;
 
 /// <summary>
-/// `30` §7 — the public <c>DomainEvent</c> hierarchy. <c>Apply</c> returns events, and four features
-/// read the returned list: analytics, the append-only economy log, Feats and the client's replay.
+/// The public <c>DomainEvent</c> hierarchy. <c>Apply</c> returns events, and four features read the
+/// returned list: analytics, the append-only economy log, Feats and the client's replay. Every rule
+/// below is stated over a subject set of very few concrete events, so each is paired with a self-test
+/// driving the same predicate against a deliberately wrong shape.
 /// </summary>
-/// <remarks>
-/// ⚠️ <b>One of §7's six events exists.</b> The other five name payload types no milestone has authored,
-/// and inventing any would put a guessed type at the bottom of the dependency graph for three later
-/// milestones to build on. They are declared in the architecture suite's <c>GapRegister</c>, each keyed
-/// on the type whose arrival makes the deferral stale.
-/// <para>
-/// So every rule below is stated over a subject set of one concrete event and none may be trusted on
-/// that basis alone: each is paired with a self-test driving the same predicate against a deliberately
-/// wrong shape, and the subject set itself has a floor.
-/// </para>
-/// </remarks>
 public sealed class DomainEventTests
 {
     /// <summary>
-    /// 🔒 `30` §7 / `30` §11.2 — the base event is public and abstract, and carries
-    /// <c>int Sequence</c>.
+    /// The base event is public and abstract, and carries <c>int Sequence</c>. Abstract because the
+    /// list is a vocabulary of named happenings — a bare <c>DomainEvent</c> would be a log row with
+    /// no meaning and an animation frame with no instruction.
     /// </summary>
-    /// <remarks>
-    /// Public because all four consumers live outside <c>Core</c>. Abstract because the list is a
-    /// vocabulary of named happenings: a bare <c>DomainEvent</c> in the returned list would be an
-    /// analytics row with no event name, a log row with no meaning and an animation frame with no
-    /// instruction.
-    /// </remarks>
     [Fact]
     public void The_base_event_is_public_abstract_and_carries_Sequence()
     {
@@ -46,22 +32,17 @@ public sealed class DomainEventTests
         sequence.ShouldNotBeNull(DomainEventShape.Consequence);
         sequence.PropertyType.ShouldBe(typeof(int));
 
-        // Not `SetMethod is null`: a positional record's setter is a PUBLIC init accessor, so the
-        // obvious check reads as a violation. What must not exist is a real `set` — see
-        // The_immutability_rule_rejects_a_setter_and_accepts_an_init_accessor for that distinction.
+        // Not `SetMethod is null`: a positional record's setter is a public init accessor, so what
+        // must not exist is a real `set`.
         DomainEventShape.SettablePropertyViolations(typeof(DomainEvent)).ShouldBeEmpty(
             "Sequence is set at construction, by GameRules.Apply, and never after.");
     }
 
     /// <summary>
-    /// `30` §7 / `30` §11.4 — every event is a public sealed record living under
-    /// <c>SlayIdleRepeat.Core.Events</c>.
+    /// Every event is a public sealed record living under <c>SlayIdleRepeat.Core.Events</c>. Sealed
+    /// matters to the consumers: analytics maps a closed set of kinds, and a subclass of
+    /// <c>CurrencyChanged</c> would be a currency movement the mapping doesn't know it's looking at.
     /// </summary>
-    /// <remarks>
-    /// Sealed matters to the consumers, not to <c>Core</c>: analytics maps a closed set of kinds
-    /// to `14` §10.1's named events, and a subclass of <c>CurrencyChanged</c> would be a currency
-    /// movement that the mapping does not know it is looking at.
-    /// </remarks>
     [Fact]
     public void Every_domain_event_is_a_public_sealed_record_under_Core_Events()
     {
@@ -72,10 +53,8 @@ public sealed class DomainEventTests
 
         offenders.ShouldBeEmpty();
 
-        // The "record" half of the name, checked on the BASE, which is the only place it can fail:
-        // C# forbids a class from deriving from a record, so every subtype is a record for exactly
-        // as long as DomainEvent is one. Quantifying over ConcreteEvents instead would be a rule
-        // the compiler already guarantees — true of every possible value, and therefore no rule.
+        // Checked on the base, which is the only place it can fail: C# forbids a class from deriving
+        // from a record, so every subtype is a record for exactly as long as DomainEvent is one.
         DomainEventShape.IsRecord(typeof(DomainEvent)).ShouldBeTrue(
             "a record, not a class. Value equality is what lets the economy log (14 §7.1) compare two rows, " +
             "and the positional form is what SequenceParameterViolations reads 'the first constructor " +
@@ -91,11 +70,6 @@ public sealed class DomainEventTests
             "fails the build on a sub-namespace.");
     }
 
-    /// <summary>
-    /// 🔒 `30` §7 — every event takes <c>int Sequence</c> as its <b>first</b> constructor
-    /// parameter. See <see cref="DomainEventShape.Consequence"/> for what the number means and who
-    /// assigns it.
-    /// </summary>
     [Fact]
     public void Every_domain_event_takes_Sequence_as_its_first_constructor_parameter()
     {
@@ -106,8 +80,7 @@ public sealed class DomainEventTests
 
     /// <summary>
     /// The teeth of the rule above: it accepts the real event and rejects each of the three wrong
-    /// shapes — one per branch the predicate can take (`30` §7). A branch no fixture drives is a
-    /// branch that could return "no violation" for every input and never be noticed.
+    /// shapes, one per branch the predicate can take.
     /// </summary>
     [Fact]
     public void The_first_parameter_rule_recognises_a_compliant_event_and_three_that_are_not()
@@ -128,15 +101,10 @@ public sealed class DomainEventTests
     }
 
     /// <summary>
-    /// 🔒 `30` §3 / `30` §9 — no event stamps itself with a clock reading. Time enters the domain
-    /// as <c>GameContext.NowUtc</c>, and <c>IClockPort</c> must not appear in <c>Core</c> at all.
+    /// No event stamps itself with a clock reading. A separate rule bans the calls that produce a
+    /// clock reading inside Core, but cannot see a <c>DateTime</c> the event merely holds, filled by
+    /// a caller outside Core — which would then be persisted as though the domain had produced it.
     /// </summary>
-    /// <remarks>
-    /// <c>Domain_has_no_ambient_time_or_randomness</c> bans the <i>calls</i>. It cannot see a
-    /// <c>DateTime</c> the event merely <i>holds</i>, filled by a caller outside <c>Core</c> — and
-    /// that value would then be persisted into the `14` §7.1 economy log as though the domain had
-    /// produced it, and would move every <c>stateHash</c> that ever carried it.
-    /// </remarks>
     [Fact]
     public void No_domain_event_carries_a_clock_reading()
     {
@@ -146,10 +114,9 @@ public sealed class DomainEventTests
     }
 
     /// <summary>
-    /// The teeth of the rule above (`30` §3). A bare <c>DateTime</c> is the easy half; the half
-    /// that matters is a clock reading wrapped in a nullable, a collection or an array, because
-    /// that is how a real payload would carry one and because unwrapping it is the entire reason
-    /// <c>DomainEventShape.Flatten</c> exists.
+    /// The teeth of the rule above. A bare <c>DateTime</c> is the easy half; the half that matters
+    /// is a clock reading wrapped in a nullable, a collection or an array, since that is how a real
+    /// payload would carry one.
     /// </summary>
     [Fact]
     public void The_clock_rule_recognises_a_compliant_event_and_clock_readings_however_they_are_wrapped()
@@ -178,9 +145,9 @@ public sealed class DomainEventTests
     }
 
     /// <summary>
-    /// 🔒 `14` §7.1 / `14` §2.4 — no event exposes a settable property. The same list is an
-    /// append-only Postgres log, an analytics payload, a Feats counter input and the client's
-    /// animation script; a consumer that can rewrite it changes what the other three see.
+    /// No event exposes a settable property. The same list is an append-only log, an analytics
+    /// payload, a Feats counter input and the client's animation script; a consumer that can rewrite
+    /// it changes what the other three see.
     /// </summary>
     [Fact]
     public void No_domain_event_exposes_a_settable_property()
@@ -191,10 +158,9 @@ public sealed class DomainEventTests
     }
 
     /// <summary>
-    /// The teeth of the rule above (`14` §7.1). Note the halves: it must reject a <c>set</c> at
-    /// <b>any</b> accessibility, and it must <b>accept</b> an <c>init</c>, or it would forbid the
-    /// positional-record shape `30` §7 writes every event in and be unsatisfiable rather than
-    /// strict.
+    /// The teeth of the rule above: it must reject a <c>set</c> at any accessibility, and it must
+    /// accept an <c>init</c>, or it would forbid the positional-record shape every event is written
+    /// in and be unsatisfiable rather than strict.
     /// </summary>
     [Fact]
     public void The_immutability_rule_rejects_a_setter_at_any_accessibility_and_accepts_an_init_accessor()
@@ -214,21 +180,10 @@ public sealed class DomainEventTests
     }
 
     /// <summary>
-    /// `30` §11.4 — <c>Core/Events/</c> holds the event hierarchy and nothing else. A payload type,
-    /// helper or enum declared here would be the event carrying state rather than describing a change.
+    /// <c>Core/Events/</c> holds the event hierarchy and nothing else. A payload type, helper or enum
+    /// declared here would be the event carrying state rather than describing a change — a payload
+    /// has to be declared in the layer that owns it instead.
     /// </summary>
-    /// <remarks>
-    /// <c>Events</c> has no row in the architecture suite's forbidden-pair table, so almost nothing there
-    /// governs what an event may reference. This is the substitute: keep the namespace to
-    /// <c>DomainEvent</c> and its subtypes, so a payload has to be declared in the layer that owns it,
-    /// where the layering rows do apply.
-    /// <para>
-    /// ⚠️ A substitute, not the ruling: §11.4's chain omits <c>Commands</c> and <c>Events</c> altogether,
-    /// while §7 writes <c>GearGranted(…, GearInstance, …)</c> — and <c>GearInstance</c> is a <c>Model</c>
-    /// aggregate, so a row forbidding <c>Events → Model</c> would contradict §7 and block M4-03. The
-    /// binding ruling is due at the <b>M4 kickoff</b>.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void Core_Events_holds_the_event_hierarchy_and_nothing_else()
     {
@@ -243,14 +198,10 @@ public sealed class DomainEventTests
     }
 
     /// <summary>
-    /// 🔒 `30` §7 — the floor under every rule in this file (steering S3). The subject set is read
-    /// by namespace and by base type; a rename, an <c>internal</c>, or a nesting would empty it and
-    /// take all six rules above permanently green over nothing.
+    /// The floor under every rule in this file. The subject set is read by namespace and by base
+    /// type; a rename, an <c>internal</c>, or a nesting would empty it and take every rule above
+    /// permanently green over nothing.
     /// </summary>
-    /// <remarks>
-    /// Stated as a floor and as a named member rather than an equality, so authoring
-    /// <c>DiceRolled</c> in M3-04 is not a test edit — but losing <c>CurrencyChanged</c> is.
-    /// </remarks>
     [Fact]
     public void The_hierarchy_this_suite_governs_is_the_one_that_exists()
     {

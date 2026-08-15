@@ -1,9 +1,7 @@
 // The placeholder generator's CLI (M8-10). The library half is what matters — the batch, the
 // renderer and the report are all public so the suite drives them directly — and this entry point
 // exists because generating ~641 images is a thing a human runs once, in the foreground, and reads
-// the totals of. It is an Exe for the same reason every other tools/ project is.
-//
-// 🔒 It writes to artifacts/ and refuses to write anywhere else. See PlaceholderOutput.
+// the totals of.
 using System.Globalization;
 using SlayIdleRepeat.AssetManifest;
 using SlayIdleRepeat.AssetPipeline;
@@ -78,10 +76,8 @@ switch (command)
 
         var output = Path.Combine(root, PlaceholderOutput.ArtifactsDirectory, "placeholders");
 
-        // 🔒 Cleared first. A run that appended to a previous one's output leaves a directory that
-        // is not what this run's report describes — images from a filter that is no longer applied,
-        // or from a generator that has since changed. The guard runs before the delete, so a
-        // mistyped root cannot remove anything outside artifacts/.
+        // Cleared first, so a mistyped root cannot remove anything outside artifacts/, and a run
+        // never appends to a previous one's now-stale output.
         PlaceholderOutput.Clear(output);
 
         var batch = new PlaceholderBatch(new PlaceholderBatchOptions(
@@ -130,9 +126,8 @@ static string? SectionFilter(string[] args)
             "--section needs a `15` §E-section to filter to, e.g. --section E12.", nameof(args));
 }
 
-// 🔒 Asks PlaceholderBatch.SkipFor rather than deciding the same three-way split again. The
-// ordering — cut, then size, then pivot — is exactly what would misfile 95 rows if two copies of it
-// drifted (steering S12).
+// Asks PlaceholderBatch.SkipFor rather than deciding the same three-way split again, so the two
+// never drift apart.
 static string PlanReasonFor(ArtAsset asset) => PlaceholderBatch.SkipFor(asset)?.Reason switch
 {
     PlaceholderSkipReason.CutByRuling => "cut by a ruling",

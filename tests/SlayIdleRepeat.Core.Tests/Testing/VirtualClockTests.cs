@@ -5,9 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>
-/// 🔒 `30` §6 — <c>VirtualClock</c>: <em>"advanced explicitly. Nothing ever waits."</em>
-/// </summary>
+/// <summary><c>VirtualClock</c>: advanced explicitly, nothing ever waits.</summary>
 public sealed class VirtualClockTests
 {
     /// <summary>A clock reads exactly the instant it was started at, and nothing else.</summary>
@@ -17,14 +15,8 @@ public sealed class VirtualClockTests
         new VirtualClock(Harnesses.Start).NowUtc.ShouldBe(Harnesses.Start);
     }
 
-    /// <summary>
-    /// 🔒 An advance moves the clock by <b>exactly</b> the span asked for, and advances accumulate.
-    /// </summary>
-    /// <remarks>
-    /// The second half is the one worth having: a clock that <em>set</em> rather than added would
-    /// pass the first assertion and fail this one, and "energy regenerates by RULE" rests on the
-    /// clock's arithmetic being ordinary addition.
-    /// </remarks>
+    /// <summary>An advance moves the clock by exactly the span asked for, and advances accumulate —
+    /// a clock that set rather than added would pass a single-advance check but fail this one.</summary>
     [Fact]
     public void Advancing_moves_the_clock_by_exactly_the_span_and_advances_accumulate()
     {
@@ -53,19 +45,9 @@ public sealed class VirtualClockTests
         clock.NowUtc.ShouldBe(Harnesses.Start);
     }
 
-    /// <summary>
-    /// 🔒 The clock only goes forwards, and the refusal names the reason it still does.
-    /// </summary>
-    /// <remarks>
-    /// The message fragment is pinned, not only the type: <see cref="ArgumentOutOfRangeException"/> is
-    /// what four guards on this type throw, and each has a different fix.
-    /// <para>
-    /// ⚠️ Forward-only stands on `30` §6 writing the harness as <c>Advance(...)</c> rather than a setter:
-    /// skew is a thing composition roots produce, not a thing a harness manufactures. So the second
-    /// fragment pins <c>Rehydrate</c> — the `30` §11.3 path a test must use to build skewed state —
-    /// which is what a caller who hit this guard needs to be told.
-    /// </para>
-    /// </remarks>
+    /// <summary>The clock only goes forwards, and the refusal names the reason: the message fragment
+    /// is pinned, not only the exception type, since four guards on this type throw the same type
+    /// with different fixes.</summary>
     [Fact]
     public void A_negative_advance_is_refused_and_names_the_ruling_it_declines_to_make()
     {
@@ -89,18 +71,9 @@ public sealed class VirtualClockTests
             "would leave the simulation in a state no caller asked for.");
     }
 
-    /// <summary>
-    /// 🔒 <c>default(DateTimeOffset)</c> cannot be used as a start — closed rather than documented.
-    /// </summary>
-    /// <remarks>
-    /// It is <c>0001-01-01T00:00:00+00:00</c> and <b>passes</b> <c>GameContext</c>'s zero-offset guard,
-    /// so a clock or fixture that forgot to set <c>NowUtc</c> lands there silently.
-    /// <para>
-    /// 🔒 The first assertion re-establishes that premise from the framework rather than trusting this
-    /// test's memory of it: if <c>default</c> ever stopped carrying a zero offset, the guard below would
-    /// be catching a different thing than it was written for.
-    /// </para>
-    /// </remarks>
+    /// <summary><c>default(DateTimeOffset)</c> cannot be used as a start — closed rather than
+    /// documented, since it passes <c>GameContext</c>'s zero-offset guard and would otherwise let a
+    /// fixture that forgot to set <c>NowUtc</c> land there silently.</summary>
     [Fact]
     public void The_default_DateTimeOffset_cannot_be_used_as_a_start()
     {
@@ -117,14 +90,8 @@ public sealed class VirtualClockTests
         refusal.Message.ShouldContain("A7", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 The negative half: the first game day itself is accepted, so the guard above is a floor
-    /// rather than a refusal of everything.
-    /// </summary>
-    /// <remarks>
-    /// Without this, a guard that threw for every start would look like a stricter rule instead of a
-    /// broken one — the shape steering <b>S1</b> is about, pointed the other way.
-    /// </remarks>
+    /// <summary>The negative half: the first game day itself is accepted, so the guard above is a
+    /// floor rather than a refusal of everything.</summary>
     [Fact]
     public void The_first_game_day_itself_is_an_acceptable_start()
     {
@@ -135,13 +102,8 @@ public sealed class VirtualClockTests
             "one tick earlier is one tick before the first game day the calendar can answer.");
     }
 
-    /// <summary>🔒 A start stated in anything but UTC is refused where it was written.</summary>
-    /// <remarks>
-    /// <c>GameContext</c> refuses it too, and that is not a reason to leave it out: the failure a
-    /// caller gets from there names the first command they sent, not the line that built the clock,
-    /// and 05:00+02:00 against 05:00+00:00 is two different game days naming instants two hours
-    /// apart. The message fragment pins which of this type's four guards fired (S2).
-    /// </remarks>
+    /// <summary>A start stated in anything but UTC is refused where it was written, not left to
+    /// surface later from <c>GameContext</c> against the first command a caller sends.</summary>
     [Fact]
     public void A_start_with_a_non_zero_offset_is_refused()
     {
@@ -167,27 +129,18 @@ public sealed class VirtualClockTests
             () => clock.Advance(DateTimeOffset.MaxValue - Harnesses.Start + TimeSpan.FromTicks(1)));
 
         refusal.ParamName.ShouldBe("by");
-
-        // 🔒 The fragment, like the other three guards on this type: both overflow and the negative
-        // advance throw ArgumentOutOfRangeException(nameof(by)), and a positive span cannot reach
-        // the negative guard today — but "cannot today" is a property of the arithmetic, not of the
-        // assertion, and this file's policy is that every guard says which one fired (S2).
         refusal.Message.ShouldContain("end of representable time", Case.Sensitive);
 
         clock.NowUtc.ShouldBe(Harnesses.Start);
 
-        // …and the boundary itself is reachable, so the guard is not off by one in the direction
-        // that would quietly cost a caller the last representable tick.
+        // The boundary itself is reachable, so the guard is not off by one in the direction that
+        // would quietly cost a caller the last representable tick.
         clock.Advance(DateTimeOffset.MaxValue - Harnesses.Start);
         clock.NowUtc.ShouldBe(DateTimeOffset.MaxValue);
     }
 
-    /// <summary>Two clocks are independent: advancing one does not move the other.</summary>
-    /// <remarks>
-    /// `21` §9 sweeps 14 profiles, each its own simulation, and a clock that was shared static state
-    /// would make every one of those runs depend on the order the others ran in — which is the exact
-    /// failure "reproducible byte-for-byte" (`30` §6) rules out.
-    /// </remarks>
+    /// <summary>Two clocks are independent: advancing one does not move the other. A clock that was
+    /// shared static state would make simulations depend on the order others ran in.</summary>
     [Fact]
     public void Two_clocks_are_independent()
     {

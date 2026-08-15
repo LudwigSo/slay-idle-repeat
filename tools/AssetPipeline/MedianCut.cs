@@ -2,25 +2,20 @@ using SkiaSharp;
 
 namespace SlayIdleRepeat.AssetPipeline;
 
-/// <summary>
-/// The managed colour reduction `15` §B4 step 6 substitutes for pngquant.
-/// </summary>
+/// <summary>A managed median-cut colour reduction, used as a pngquant substitute.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 A median cut is <b>not</b> pngquant. pngquant scores its output with a perceptual metric,
-/// remaps with dithering and writes a PNG-8 palette; this reduces the colour count and hands the
-/// result straight back to a PNG-32 encoder, so the only saving is what zlib gets out of fewer
-/// distinct colours. <see cref="ExportStep"/> declares that as a deviation on every run.
+/// Not a drop-in pngquant: it reduces the colour count and hands the result back to a PNG-32
+/// encoder rather than writing a PNG-8 palette with dithering, so the only saving is what zlib
+/// gets out of fewer distinct colours. <see cref="ExportStep"/> declares that as a deviation.
 /// </para>
 /// <para>
-/// 🔒 <b>Alpha is never quantised.</b> Only the colour channels are reduced, and only for pixels
-/// that are visible at all — `15` §C's delivery format is straight alpha and a semi-transparent
-/// pixel must survive the export byte for byte.
+/// Alpha is never quantised — only colour channels, and only for visible pixels — so a
+/// semi-transparent pixel survives export byte for byte.
 /// </para>
 /// <para>
-/// Deterministic throughout: the colours are gathered in row-major order, boxes split on the widest
-/// channel at the population median, and ties break toward the lower packed colour. Nothing here
-/// iterates a hash table's own order.
+/// Deterministic throughout: colours are gathered in row-major order, boxes split on the widest
+/// channel at the population median, and ties break toward the lower packed colour.
 /// </para>
 /// </remarks>
 internal static class MedianCut

@@ -102,11 +102,7 @@ internal static class Cli
         return Pass;
     }
 
-    /// <summary>
-    /// Prints an empty record of one kind, for a generation session to fill in. 🔒 The placeholder
-    /// values are visibly not data (<c>&lt;…&gt;</c>): a template that emitted plausible-looking
-    /// defaults is a template that ships as a record nobody edited.
-    /// </summary>
+    /// <summary>Prints an empty record of one kind, for a generation session to fill in. Placeholder values are visibly not data.</summary>
     private static int Template(string[] args)
     {
         if (args.Length < 3)

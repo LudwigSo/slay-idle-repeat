@@ -9,8 +9,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 /// <summary>
-/// 🔒 `05` §9 guardrail 6 — the structural zero, the ranking, and the synthetic archetype sets that
-/// show the guardrail can both pass and fail.
+/// Guardrail 6: the structural zero, the ranking, and the synthetic archetype sets that show the
+/// guardrail can both pass and fail.
 /// </summary>
 [Collection(WallClockSensitive.Name)]
 public sealed class MarginalPowerGuardrailTests
@@ -18,10 +18,8 @@ public sealed class MarginalPowerGuardrailTests
     [Fact]
     public void HEAL_PCT_and_THORNS_move_PowerIndex_by_exactly_zero_in_every_archetype()
     {
-        // 🔴 THE load-bearing case, and it is deliberately NOT a statement about a step size. `29`
-        // §2.3's closed form has no term for either stat, so varying them over two enormously
-        // different values must leave PowerIndex bit-identical. If this ever fails, the model grew a
-        // term and guardrail 6's verdict needs re-deriving rather than re-reading.
+        // The closed form has no term for either stat, so varying them across enormously different
+        // values must leave PowerIndex bit-identical.
         foreach (var archetype in ShippedHarness.Runner.Calibration.Archetypes)
         {
             foreach (var stat in MarginalPowerGuardrail.StructurallyInvisibleStats)
@@ -39,8 +37,7 @@ public sealed class MarginalPowerGuardrailTests
     [Fact]
     public void The_negative_control_a_stat_the_model_DOES_see_moves_PowerIndex()
     {
-        // Without this, the case above would also pass for a PowerIndex that ignored its stat block
-        // entirely. Two stats, one from each factor of the geometric mean.
+        // Without this, the case above would also pass for a PowerIndex that ignored its stat block entirely.
         var stats = ShippedHarness.Runner.Calibration.Archetype("ARCH_CRIT").Stats;
 
         Power(stats.With(StatId.ATK, stats[StatId.ATK] * 2.0)).ShouldBeGreaterThan(Power(stats));
@@ -72,8 +69,8 @@ public sealed class MarginalPowerGuardrailTests
         var archetype = ShippedHarness.Runner.Calibration.Archetype("ARCH_CRIT");
         var ranking = MarginalPowerGuardrail.Rank(ShippedHarness.Content, archetype, level: 40);
 
-        // ARCH_CRIT holds LIFESTEAL, BLOCK, DR_PCT and THORNS at 0 — those rows are the labelled
-        // absolute probe; ATK at 150 is 1% of its own value.
+        // ARCH_CRIT holds LIFESTEAL at 0, so that row takes the labelled absolute probe; ATK at 150
+        // takes a relative one (1% of its own value).
         ranking.Entries.Single(e => e.Stat == StatId.LIFESTEAL).UsedAbsoluteProbe.ShouldBeTrue();
         ranking.Entries.Single(e => e.Stat == StatId.LIFESTEAL).Step
             .ShouldBe(MarginalPowerGuardrail.AbsoluteProbeForZero);
@@ -85,12 +82,8 @@ public sealed class MarginalPowerGuardrailTests
     [Fact]
     public void The_guardrail_FAILS_on_the_shipped_archetypes_naming_all_NINE_uncovered_stats()
     {
-        // 🔴 NINE, not two — and the difference is the finding. Asserting only that the summary
-        // mentions HEAL_PCT and THORNS is satisfied by a result that named two stats, or nine, or all
-        // fourteen; it cannot tell the structural zero (the two `29` §2.3 has no term for) apart from
-        // the seven the RELATIVE STEP additionally suppresses, which is a different defect with a
-        // different remedy. Seven_stats_can_never_reach_the_top_three_under_a_pure_relative_step below
-        // derives exactly that set, so this case pins the whole list rather than a sample of it.
+        // Nine, not two — the two structural zeros plus the seven the relative step additionally
+        // suppresses, which is a different defect. Pins the whole list rather than a sample of it.
         var result = MarginalPowerGuardrail.Evaluate(
             ShippedHarness.Content, ShippedHarness.Runner.Calibration.Archetypes, level: 40);
 
@@ -103,10 +96,8 @@ public sealed class MarginalPowerGuardrailTests
             Case.Sensitive,
             "the whole breach list, in StatIds.Combat order");
 
-        // 🔒 And WHICH cause the report reached. The two branches are not interchangeable: one says
-        // the verdict is step-independent, the other says the step is implicated and the ranking needs
-        // reading. On the shipped archetypes it must be the second, because DEF and friends are not
-        // stats `29` §2.3 is blind to — they are stats the +1% relative step cannot lift.
+        // The two cause branches are not interchangeable: DEF and friends are not stats the model is
+        // blind to — they are stats the +1% relative step cannot lift.
         result.Summary.ShouldContain(
             "the step definition is implicated", Case.Sensitive,
             "not the step-independent CAUSE branch, which would understate the finding");
@@ -116,14 +107,10 @@ public sealed class MarginalPowerGuardrailTests
     [Fact]
     public void A_synthetic_set_in_which_a_named_stat_IS_top_three_reports_it_as_covered()
     {
-        // 🔴 The discriminating control the steering asks for. DODGE is top-3 in NO shipped archetype;
-        // a synthetic archetype that puts it there must make the guardrail report it as covered, which
-        // shows the per-stat verdict tracks the ranking rather than being hard-coded.
-        //
-        // ⚠️ What actually puts DODGE in the top 3 is worth stating, because it is the harness step's
-        // distortion rather than anything about dodge: an archetype holding DODGE at 0 gets the
-        // labelled +0.01 ABSOLUTE probe, and 1/(1 - 0.01) beats the exactly +1% that a relative step
-        // buys on ATK. Every other stat here is held above 0 so that it takes the relative step.
+        // DODGE is top-3 in no shipped archetype; a synthetic archetype that puts it there must make
+        // the guardrail report it as covered, showing the per-stat verdict tracks the ranking rather
+        // than being hard-coded. What puts it there is the harness step's own distortion: held at 0 it
+        // gets the labelled absolute probe, which beats the relative step every other stat takes.
         var dodgy = new BuildArchetype("ARCH_SYNTHETIC_DODGE", NoZeroesExcept(StatId.DODGE));
 
         var ranking = MarginalPowerGuardrail.Rank(ShippedHarness.Content, dodgy, level: 40);
@@ -145,11 +132,8 @@ public sealed class MarginalPowerGuardrailTests
     [Fact]
     public void The_relative_step_gives_MAX_HP_ATK_and_ASPD_an_identical_marginal_power()
     {
-        // 🔴 A structural property of the +1% relative step, and the reason guardrail 6 is unpassable
-        // under it for more stats than the two the model cannot see. `29` §2.1's power is
-        // sqrt(EffectiveHP × DPS); MAX_HP, ATK and ASPD each enter exactly once and multiplicatively,
-        // so d ln P / d ln x = 1/2 for all three, whatever the statline says. They tie, exactly, in
-        // every archetype.
+        // Power is sqrt(EffectiveHP x DPS); MAX_HP, ATK and ASPD each enter exactly once and
+        // multiplicatively, so their elasticity is identical and they tie exactly in every archetype.
         foreach (var archetype in ShippedHarness.Runner.Calibration.Archetypes)
         {
             var ranking = MarginalPowerGuardrail.Rank(ShippedHarness.Content, archetype, level: 40);
@@ -168,21 +152,11 @@ public sealed class MarginalPowerGuardrailTests
     [Fact]
     public void Seven_stats_can_never_reach_the_top_three_under_a_pure_relative_step()
     {
-        // 🔴 The consequence, and a finding in its own right. `29` §2.1's power is
-        // sqrt(EffectiveHP × DPS), so d ln P / d ln x is half the elasticity of x in that product:
+        // MAX_HP, ATK and ASPD enter power multiplicatively (elasticity exactly 1); DEF, CRIT, CDMG,
+        // BLOCK, PEN, LIFESTEAL and DMG_PCT enter through a (1 ± w*x) term (elasticity strictly below
+        // 1 below their cap). So with no stat held at 0, those seven can never enter the top 3.
         //
-        //   MAX_HP, ATK, ASPD   enter multiplicatively            -> elasticity exactly 1
-        //   DEF, CRIT, CDMG,    enter through a term (1 ± w·x)    -> elasticity strictly below 1
-        //   BLOCK, PEN,         for every value below `05` §1's cap
-        //   LIFESTEAL, DMG_PCT
-        //
-        // So with no stat held at 0 — no labelled absolute probe anywhere — those seven are
-        // STRUCTURALLY unable to enter the top 3 of any archetype whatsoever. Guardrail 6 is therefore
-        // unpassable under this step for more stats than the two `29` §2.3 has no term for, and the
-        // report says so.
-        //
-        // Three very differently shaped statlines, because one would look like a coincidence of the
-        // numbers rather than a property of the formula.
+        // Three very differently shaped statlines, so this isn't a coincidence of one set of numbers.
         var neverTopThree = new[]
         {
             StatId.DEF, StatId.CRIT, StatId.CDMG, StatId.LIFESTEAL,
@@ -209,10 +183,9 @@ public sealed class MarginalPowerGuardrailTests
     [Fact]
     public void DR_PCT_is_the_one_ratio_stat_that_CAN_out_rank_them_and_only_near_its_cap()
     {
-        // The discriminating half of the case above — without it, "seven stats never reach the top 3"
-        // would also be satisfied by a ranking that ignored every ratio stat. DR_PCT's elasticity is
-        // DR/(1 - DR), which passes 1 at DR = 0.5 and reaches 1.5 at `05` §1's 0.6 cap. So it displaces
-        // one of the multiplicative three at 0.59 and does not at 0.2.
+        // Without this, "seven stats never reach the top 3" would also be satisfied by a ranking that
+        // ignored every ratio stat. DR_PCT's elasticity passes 1 at DR = 0.5, so it displaces one of
+        // the multiplicative three at 0.59 and does not at 0.2.
         var high = MarginalPowerGuardrail.Rank(
             ShippedHarness.Content,
             new BuildArchetype("ARCH_DR_HIGH", AllNonZero().With(StatId.DR_PCT, 0.59)),
@@ -232,10 +205,9 @@ public sealed class MarginalPowerGuardrailTests
     [Fact]
     public void A_stat_at_its_authored_cap_has_exactly_zero_marginal_power()
     {
-        // `05` §1.1's caps are applied before the power model reads a stat, so a build already at the
-        // 0.75 CRIT cap gains nothing from more crit — `29` §2.3 says so in as many words. The step
-        // therefore measures 0, which is a different zero from HEAL_PCT's and must not be confused
-        // with it: this one moves the moment the stat drops below the cap.
+        // Caps are applied before the power model reads a stat, so a build at the CRIT cap gains
+        // nothing from more crit. This zero is different from HEAL_PCT's: it moves once the stat
+        // drops below the cap.
         var atCap = AllNonZero().With(StatId.CRIT, 0.75).With(StatId.CDMG, 2.0);
         var belowCap = AllNonZero().With(StatId.CRIT, 0.5).With(StatId.CDMG, 2.0);
 
@@ -246,11 +218,10 @@ public sealed class MarginalPowerGuardrailTests
         Marginal(belowCap, StatId.CRIT).ShouldBeLessThan(Marginal(belowCap, StatId.ATK));
     }
 
-    /// <summary>A statline with every one of the fourteen strictly above zero.</summary>
-    /// <remarks>
-    /// Every value is under `05` §1's cap for its stat, so nothing is clamped away before the
-    /// derivative is taken and the ranking is about the formula rather than about the caps.
-    /// </remarks>
+    /// <summary>
+    /// A statline with every one of the fourteen strictly above zero and under its cap, so nothing
+    /// is clamped away and the ranking is about the formula rather than the caps.
+    /// </summary>
     private static StatLine AllNonZero() => StatLine.From(new Dictionary<StatId, double>
     {
         [StatId.MAX_HP] = 1000,
@@ -269,13 +240,7 @@ public sealed class MarginalPowerGuardrailTests
         [StatId.THORNS] = 0.2,
     });
 
-    /// <summary>
-    /// A second, very differently shaped statline — a wall with every ratio just under its cap.
-    /// </summary>
-    /// <remarks>
-    /// <c>DR_PCT</c> is held at 0.45 rather than at its 0.6 cap: above 0.5 its elasticity passes 1 and
-    /// it legitimately displaces one of the multiplicative three, which is its own case below.
-    /// </remarks>
+    /// <summary>A second, very differently shaped statline — a wall with every ratio just under its cap.</summary>
     private static StatLine AllNonZeroButBrittle() => AllNonZero()
         .With(StatId.MAX_HP, 40_000)
         .With(StatId.ATK, 3)

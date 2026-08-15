@@ -5,27 +5,21 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 One authored script: the <see cref="BossScript"/> and its own effect set, plus the three
-/// `17` §1.2 columns that are not part of the script itself.
+/// One authored script: the <see cref="BossScript"/> and its own effect set, plus the columns that
+/// are not part of the script itself.
 /// </summary>
 /// <param name="Script">The script, exactly as <see cref="BossEncounterBuilder.Build"/> takes it.</param>
 /// <param name="Effects">
-/// 🔒 The script's OWN effects, by `18` §8 id — the only scope a mechanic id or a
-/// <c>RANDOM_OUTCOME</c> row resolves in, and there is no wider one.
+/// The script's own effects, by id — the only scope a mechanic id or a <c>RANDOM_OUTCOME</c> row
+/// resolves in.
 /// </param>
-/// <param name="Chapter">`17` §1.2's Ch column, or <c>null</c> for the FTUE row.</param>
-/// <param name="FixedPower">`17` §1.2's <c>power = 900</c>, on the FTUE row only.</param>
-/// <param name="FixedLevel">`17` §1.2's <c>Level = 1</c>, on the FTUE row only.</param>
+/// <param name="Chapter">The chapter, or <c>null</c> for the FTUE row.</param>
+/// <param name="FixedPower">The fixed authored power, on the FTUE row only.</param>
+/// <param name="FixedLevel">The fixed authored level, on the FTUE row only.</param>
 /// <param name="TelegraphSeconds">
-/// 🔴 Every authored wind-up, as <c>(phase, effectId, lead)</c> — a <b>list keyed on the
-/// mechanic</b>, not a dictionary keyed on the effect.
-/// <para>
-/// T1 and T3 govern a <em>mechanic</em>, and one effect can be a mechanic of more than one block
-/// (one authored script names the same on-hit effect in all three of its blocks). Keyed by effect
-/// id, two blocks naming the same effect with different leads would collapse to one entry, last one
-/// winning — so a wind-up could vanish from every census over this without a single assertion
-/// moving.
-/// </para>
+/// Every authored wind-up, as <c>(phase, effectId, lead)</c> — a list keyed on the mechanic, not a
+/// dictionary keyed on the effect, because one effect can be a mechanic of more than one phase block
+/// with a different lead each time; a dictionary keyed by effect id would collapse those to one.
 /// </param>
 internal sealed record BossScriptEntry(
     BossScript Script,
@@ -36,37 +30,22 @@ internal sealed record BossScriptEntry(
     IReadOnlyList<(int Phase, string EffectId, double Lead)> TelegraphSeconds);
 
 /// <summary>
-/// 🔒 <c>content/bosses/bosses.json</c>, read — `17` §1.2's nine rows and `17` §2-9's mechanics.
+/// <c>content/bosses/bosses.json</c>, read.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The precedent this file follows point for point is
-/// <see cref="Enemies.EnemyCatalogue"/>: <c>internal</c>, one <c>Read</c> over a
-/// <see cref="ContentSnapshot"/>, every value through a typed reader, pointers written out per
-/// block so that <c>grep bosses.json</c> over <c>src/</c> finds every read of the file.
+/// Follows <see cref="Enemies.EnemyCatalogue"/>'s precedent: <c>internal</c>, one <c>Read</c> over a
+/// <see cref="ContentSnapshot"/>, every value through a typed reader, pointers written out per block.
 /// </para>
 /// <para>
-/// 🔒 <b>Nothing here has a default.</b> Every value goes through <see cref="ContentSnapshot"/>'s
-/// readers, which throw <see cref="MissingContentException"/> on an absent pointer and
-/// <see cref="UnauthorisedTunableException"/> on a <c>null</c>. `18` §1's optional keys — the ones
-/// `18` itself authors as absent on some effects — are read through
-/// <see cref="ContentSnapshot.IsAuthorised"/> and carried as <c>null</c>; a <c>null</c> there is the
-/// documents authorising no value, which is the one thing the content layer never coerces.
+/// Nothing here has a default: every value goes through <see cref="ContentSnapshot"/>'s readers,
+/// which throw <see cref="MissingContentException"/> on an absent pointer and
+/// <see cref="UnauthorisedTunableException"/> on a <c>null</c>. Optional keys are read through
+/// <see cref="ContentSnapshot.IsAuthorised"/> and carried as <c>null</c>.
 /// </para>
 /// <para>
-/// 🔴 <b>This type replaced a test-side <c>System.Text.Json</c> reader, and it fixes two divergences
-/// that reader recorded against itself.</b> (1) <c>JsonDocument</c> silently keeps the LAST of two
-/// duplicate keys; a <see cref="ContentValue"/> object refuses a duplicate outright, and the load
-/// path that builds one is required to detect the duplicate before it gets there. (2) that reader's
-/// <c>Optional</c> returned the element for an authored <c>null</c>, so a numeric read on one threw
-/// a serialisation error; here an authored <c>null</c> is
-/// <see cref="ContentValueKind.Unauthorised"/>, so an optional key reads as <c>null</c> and a
-/// required one throws <see cref="UnauthorisedTunableException"/> by name.
-/// </para>
-/// <para>
-/// 🔒 <b>Nothing here is boss code.</b> `17` §11's <em>"zero bespoke boss code"</em> is a claim about
-/// the engine: there is no per-boss branch here and no boss is named anywhere in this file — it is
-/// one loop over whatever rows the document declares.
+/// No per-boss branch here and no boss is named anywhere in this file — it is one loop over
+/// whatever rows the document declares.
 /// </para>
 /// </remarks>
 internal sealed record BossCatalogue(
@@ -79,29 +58,29 @@ internal sealed record BossCatalogue(
     /// <summary>The snapshot-relative path of the document.</summary>
     internal const string Document = "content/bosses/bosses.json";
 
-    /// <summary>`17` §1.2 — the baseline CRIT every boss shares.</summary>
+    /// <summary>The baseline CRIT every boss shares.</summary>
     internal const string CritPointer = Document + "#/secondaryStats/crit";
 
-    /// <summary>`17` §1.2 — the baseline CDMG, which R21's ×3 is computed from.</summary>
+    /// <summary>The baseline CDMG.</summary>
     internal const string CritDamagePointer = Document + "#/secondaryStats/critDamage";
 
-    /// <summary>`17` §1.2 — the baseline DODGE.</summary>
+    /// <summary>The baseline DODGE.</summary>
     internal const string DodgePointer = Document + "#/secondaryStats/dodge";
 
     /// <summary>
-    /// `17` §1.2 — the baseline LIFESTEAL. 🔒 Zero: the one boss that has lifesteal carries it as a
-    /// phase mechanic, <em>"never a base stat"</em>.
+    /// The baseline LIFESTEAL — always zero; the one boss that has lifesteal carries it as a phase
+    /// mechanic, never a base stat.
     /// </summary>
     internal const string LifestealPointer = Document + "#/secondaryStats/lifesteal";
 
-    /// <summary>`17` §1.2's table — the eight campaign rows and the FTUE row.</summary>
+    /// <summary>The table of campaign rows plus the FTUE row.</summary>
     internal const string ScriptsPointer = Document + "#/scripts";
 
-    /// <summary>One row of `17` §1.2's table.</summary>
+    /// <summary>One row of the table.</summary>
     internal static string ScriptPointer(int script) =>
         $"{ScriptsPointer}/{script.ToString(CultureInfo.InvariantCulture)}";
 
-    /// <summary>`17` §1.2's four coefficients for one row.</summary>
+    /// <summary>One row's four coefficients.</summary>
     internal static string CoefficientsPointer(int script) => ScriptPointer(script) + "/coefficients";
 
     /// <summary>One script's own effect set — the only scope an effect id resolves in.</summary>
@@ -111,7 +90,7 @@ internal sealed record BossCatalogue(
     internal static string EffectPointer(int script, int effect) =>
         $"{EffectsPointer(script)}/{effect.ToString(CultureInfo.InvariantCulture)}";
 
-    /// <summary>One script's three `17` §1 phase blocks.</summary>
+    /// <summary>One script's three phase blocks.</summary>
     internal static string PhasesPointer(int script) => ScriptPointer(script) + "/phases";
 
     /// <summary>One phase block.</summary>
@@ -122,7 +101,7 @@ internal sealed record BossCatalogue(
     internal static string MechanicsPointer(int script, int phase) =>
         PhasePointer(script, phase) + "/mechanics";
 
-    /// <summary>One mechanic — an effect id and `17` §1's wind-up.</summary>
+    /// <summary>One mechanic — an effect id and its wind-up.</summary>
     internal static string MechanicPointer(int script, int phase, int mechanic) =>
         $"{MechanicsPointer(script, phase)}/{mechanic.ToString(CultureInfo.InvariantCulture)}";
 
@@ -157,7 +136,7 @@ internal sealed record BossCatalogue(
             content.ReadDouble(LifestealPointer));
     }
 
-    /// <summary>One script by its `17` §1.2 id.</summary>
+    /// <summary>One script by its id.</summary>
     /// <exception cref="KeyNotFoundException">The catalogue holds no script with that id.</exception>
     internal BossScriptEntry Of(string bossId)
     {
@@ -196,9 +175,7 @@ internal sealed record BossCatalogue(
                 Id = content.ReadText(pointer + "/id"),
                 Coefficients = ReadCoefficients(content, script),
 
-                // 🔒 null where the boss authors no SUMMON. An adds fraction on a boss with no adds
-                // is data nothing reads, and a plausible-looking one is exactly the hole the null
-                // convention exists to keep greppable.
+                // null where the boss authors no SUMMON, rather than a plausible-looking default.
                 AddsPowerFraction = content.IsAuthorised(addsPointer)
                     ? content.ReadDouble(addsPointer)
                     : null,
@@ -206,9 +183,7 @@ internal sealed record BossCatalogue(
             },
             effects,
 
-            // 17 §1.2's Ch column is empty for the FTUE row, and its power and level are the fixed
-            // authored inputs that row carries instead. Three optional columns, three holes, none
-            // of them coerced to a chapter, a power or a level nobody authored.
+            // Chapter is empty for the FTUE row, which carries fixed power/level instead.
             content.IsAuthorised(chapterPointer) ? content.ReadInt32(chapterPointer) : null,
             content.IsAuthorised(fixedPowerPointer) ? content.ReadDouble(fixedPowerPointer) : null,
             content.IsAuthorised(fixedLevelPointer) ? content.ReadInt32(fixedLevelPointer) : null,
@@ -279,8 +254,8 @@ internal sealed record BossCatalogue(
     }
 
     /// <summary>
-    /// 🔒 Maps one authored effect. Every key the data uses is handled and an unknown one throws —
-    /// see <see cref="RequireKnownKeys"/> for why silence would be worse than a failure here.
+    /// Maps one authored effect. Every key is handled and an unknown one throws — see
+    /// <see cref="RequireKnownKeys"/>.
     /// </summary>
     private static EffectDefinition ReadEffect(ContentSnapshot content, int script, int index)
     {
@@ -406,10 +381,7 @@ internal sealed record BossCatalogue(
         return outcomes;
     }
 
-    /// <summary>
-    /// `18` §7.9's face selector: the <c>PLAYER_CHOICE</c> token, or a 1-6 index. The kind decides,
-    /// so a token nobody authored cannot become face 0.
-    /// </summary>
+    /// <summary>The face selector: the <c>PLAYER_CHOICE</c> token, or a 1-6 index.</summary>
     private static DieFaceIndex ReadFaceIndex(ContentSnapshot content, string pointer)
     {
         if (content.Read(pointer).Kind != ContentValueKind.Text)
@@ -430,18 +402,11 @@ internal sealed record BossCatalogue(
     }
 
     /// <summary>
-    /// 🔒 Refuses a key this reader does not map, at <b>every</b> level of the file.
+    /// Refuses a key this reader does not map, at every level of the file — a misspelled key (e.g.
+    /// <c>telegraphTicks</c> for <c>telegraphSeconds</c>) is read through
+    /// <see cref="ContentSnapshot.IsAuthorised"/> the same as an absent one, so it would otherwise be
+    /// dropped in silence rather than caught.
     /// </summary>
-    /// <remarks>
-    /// 🔴 <b>It covers the script, the phase block and the mechanic as well as the effect, and that
-    /// is the point.</b> Everything below is read through
-    /// <see cref="ContentSnapshot.IsAuthorised"/>, which answers <c>false</c> for a key that is
-    /// absent <em>and</em> for one that is misspelled — so a <c>telegraphTicks</c> where
-    /// <c>telegraphSeconds</c> was meant, or a new script-level field, would be dropped in silence
-    /// and every case stated over this catalogue would go on asserting over a script that is not the
-    /// one on disk. <c>bosses.json</c> is schema-governed, and this reader still refuses what it does
-    /// not understand: the schema says the data is well formed, not that this mapping is complete.
-    /// </remarks>
     /// <exception cref="ContentTypeMismatchException">A key is not one this reader maps.</exception>
     private static void RequireKnownKeys(
         ContentSnapshot content, string pointer, HashSet<string> known, string what)
@@ -534,13 +499,11 @@ internal sealed record BossCatalogue(
 
     // ------------------------------------------------------------------ the mapped key sets
     //
-    // ⚠️ Static AUTO-PROPERTIES, not static readonly fields: BossEngineRuleTests.
-    // The_boss_engine_holds_no_mutable_static_state fails a static field of a mutable type, and
-    // exempts the compiler-generated backing field of a get-only auto-property — which is
-    // BossBuiltIns.All's and BossTelegraphs.DamagingOps' shape, and the precedent this follows.
+    // Static auto-properties, not static readonly fields: a mutable-static-state test exempts the
+    // compiler-generated backing field of a get-only auto-property but not a plain static field.
     //
-    // ⚠️ A List<T> initialiser, not [ … ] and not new[] { … }: a collection expression synthesises a
-    // helper in the GLOBAL namespace, which AccessibilityBoundaryTests fails the build on.
+    // A List<T> initialiser, not [ … ]: a collection expression synthesises a helper in the global
+    // namespace, which the namespace-boundary test fails the build on.
 
     /// <summary>Every key <see cref="ReadEffect"/> maps.</summary>
     private static HashSet<string> KnownEffectKeys { get; } = new(

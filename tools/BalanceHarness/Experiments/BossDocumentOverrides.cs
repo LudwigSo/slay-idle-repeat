@@ -4,27 +4,12 @@ using System.Text.Json.Nodes;
 
 namespace SlayIdleRepeat.BalanceHarness.Experiments;
 
-/// <summary>
-/// 🔒 In-memory edits to <c>content/bosses/bosses.json</c> for the two `21` §3.2 experiments.
-/// </summary>
+/// <summary>In-memory edits to <c>content/bosses/bosses.json</c> for the two balance experiments.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Nothing here ever writes to <c>game-data/</c>.</b> Every method takes the shipped JSON text
-/// and returns a new string, which <c>GameDataLoader.LoadWith</c> substitutes into a snapshot in
-/// memory. `21` §3.3: an override never edits the canonical files — a run that answered
-/// <em>"what if the adds fraction were 0.25?"</em> by writing to the repository would leave a number
-/// nobody authored behind the moment it crashed, and the shipped answer would depend on whether the
-/// last run cleaned up after itself.
-/// </para>
-/// <para>
-/// 🔒 <b>An edit that matched nothing THROWS.</b> A silently-unmatched override produces a "variant"
-/// run that is byte-identical to the baseline, and an experiment whose two arms are the same run
-/// reports a difference of exactly zero — which reads like a finding and is a bug.
-/// </para>
-/// <para>
-/// <c>System.Text.Json.Nodes</c> is in the shared framework, so this adds no package reference and the
-/// Core-only pin of <c>ProjectFileTests.The_simulation_tools_reference_Core_only</c> is untouched.
-/// </para>
+/// Nothing here ever writes to <c>game-data/</c>: every method takes the shipped JSON text and returns
+/// a new string, which <c>GameDataLoader.LoadWith</c> substitutes into a snapshot in memory. An edit
+/// that matched nothing throws, rather than silently producing a "variant" run byte-identical to the
+/// baseline (which would report a difference of exactly zero and read like a finding).
 /// </remarks>
 public static class BossDocumentOverrides
 {
@@ -40,15 +25,10 @@ public static class BossDocumentOverrides
     }
 
     /// <summary>
-    /// 🔒 Removes one effect from one script — both its declaration in <c>effects</c> and every
-    /// <c>mechanics</c> entry naming it.
+    /// Removes one effect from one script — both its declaration in <c>effects</c> and every
+    /// <c>mechanics</c> entry naming it, since leaving either half orphaned makes
+    /// <c>BossEncounterBuilder</c> refuse the script outright.
     /// </summary>
-    /// <remarks>
-    /// Both halves, because the two are a matched pair: leaving the declaration would leave an effect
-    /// no phase names, and leaving the mechanic would leave a phase naming an effect that is not in
-    /// the script's own set — which <c>BossEncounterBuilder</c> refuses outright, so the experiment
-    /// would fail as a crash rather than as a measurement.
-    /// </remarks>
     /// <param name="json">The shipped document text.</param>
     /// <param name="scriptId">The script to edit, e.g. <c>BOSS_THORNMAW</c>.</param>
     /// <param name="effectId">The effect to remove, e.g. <c>BOSS_THORNMAW_P3_RAGE</c>.</param>
@@ -87,13 +67,9 @@ public static class BossDocumentOverrides
     }
 
     /// <summary>
-    /// 🔒 Sets <c>addsPowerFraction</c> on every script that already carries one.
+    /// Sets <c>addsPowerFraction</c> on every script that already carries one — never a script that
+    /// summons nothing, which would author a value design never stated.
     /// </summary>
-    /// <remarks>
-    /// Only on scripts that already carry the key: adding it to a script that summons nothing would be
-    /// authoring a value the design never stated, and `17` §1's 25-35% band is about the five
-    /// summoners.
-    /// </remarks>
     /// <exception cref="InvalidOperationException">No script carried the key.</exception>
     public static string WithAddsPowerFraction(string json, double fraction)
     {

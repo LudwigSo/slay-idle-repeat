@@ -9,12 +9,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `17` §1 / `05` §3.1 — <c>SYS_ENRAGE</c> is universal, unmodified, and <b>not a phase</b>: it
-/// anchors at battle start and no phase transition may ever touch it.
+/// <c>SYS_ENRAGE</c> is universal, unmodified, and not a phase: it anchors at battle start and no
+/// phase transition may ever touch it.
 /// </summary>
 /// <remarks>
-/// R8 anchors a <c>PERIODIC</c> when its effect becomes active, which for a plan effect is pre-tick
-/// 0a. That is what makes <c>startDelay: 70.0</c> mean <em>70 seconds of battle</em>. A phase entry
+/// A <c>PERIODIC</c> is anchored when its effect becomes active, which for a plan effect is
+/// pre-tick 0a. That is what makes <c>startDelay: 70.0</c> mean 70 seconds of battle. A phase entry
 /// that deactivated and reactivated it would re-anchor the clock and the boss would enrage 70 s
 /// after reaching 66% HP — a fight that runs to the 90 s timeout with nothing in the log to explain
 /// it.
@@ -27,9 +27,9 @@ public sealed class SysEnrageAnchoringTests
     // ════════════════════════════════════════════════════ 1 · the discriminating probe
 
     /// <summary>
-    /// 🔴 <b>The probe that must discriminate.</b> In <b>one</b> fight: the phase-2 mechanic's anchor
-    /// <em>does</em> move to the entry tick, and <c>SYS_ENRAGE</c>'s does <em>not</em> — so the case
-    /// proves the controller <b>distinguishes</b> the two rather than proving it touched nothing.
+    /// The probe that must discriminate. In one fight: the phase-2 mechanic's anchor does move to
+    /// the entry tick, and <c>SYS_ENRAGE</c>'s does not — so the case proves the controller
+    /// distinguishes the two rather than proving it touched nothing.
     /// </summary>
     [Fact]
     public void A_phase_entry_re_anchors_the_phase_block_and_leaves_SYS_ENRAGE_alone()
@@ -50,20 +50,17 @@ public sealed class SysEnrageAnchoringTests
             "after reaching 66% HP instead of 70 s into the fight");
         enrageAfter.IsActive.ShouldBeTrue("and it was never deactivated either");
 
-        // 🔴 The discriminator: the SAME transition DID move the phase block's clock.
+        // The discriminator: the same transition did move the phase block's clock.
         driver.At(101, Phase2Instance).AnchorTick.ShouldBe(
             100, "the control — a controller that touched nothing would fail here");
     }
 
-    /// <summary>
-    /// 🔒 …and it survives <b>two</b> entries inside one tick — the 70% → 20% burst, the case that would
-    /// re-anchor twice.
-    /// </summary>
+    /// <summary>And it survives two entries inside one tick — the 70% to 20% burst, the case that would re-anchor twice.</summary>
     /// <remarks>
-    /// 🔴 The controls are what make this a probe rather than a wish: asserting only that the enrage did
-    /// not move would pass on a controller that entered no phase at all. So the same fight asserts that
-    /// <b>two</b> further entries were logged, and that the phase-2 block's own clock <em>was</em> touched
-    /// by them.
+    /// The controls are what make this a probe rather than a wish: asserting only that the enrage
+    /// did not move would pass on a controller that entered no phase at all. So the same fight
+    /// asserts that two further entries were logged, and that the phase-2 block's own clock was
+    /// touched by them.
     /// </remarks>
     [Fact]
     public void SYS_ENRAGE_survives_a_burst_that_crosses_two_thresholds_in_one_tick()
@@ -74,7 +71,7 @@ public sealed class SysEnrageAnchoringTests
         run.Driver.At(81, EnrageInstance).NextFiringTick.ShouldBe(1400);
         run.Driver.At(81, EnrageInstance).IsActive.ShouldBeTrue();
 
-        // 🔴 The discriminators, in the SAME fight.
+        // The discriminators, in the same fight.
         var changes = BossTestBench.PhaseChanges(run.Result.Log);
 
         changes.Select(e => (e.Tick, e.Value)).ShouldBe(
@@ -87,10 +84,7 @@ public sealed class SysEnrageAnchoringTests
             "is untouched");
     }
 
-    /// <summary>
-    /// 🔒 It is not in the phase map <b>at all</b> — which is the structural reason a transition
-    /// cannot reach it, rather than a rule the controller has to remember.
-    /// </summary>
+    /// <summary>It is not in the phase map at all — the structural reason a transition cannot reach it, rather than a rule the controller has to remember.</summary>
     [Fact]
     public void SYS_ENRAGEs_instance_id_carries_no_phase_and_is_absent_from_the_phase_map()
     {
@@ -109,10 +103,7 @@ public sealed class SysEnrageAnchoringTests
 
     // ════════════════════════════════════════════════════ 2 · the built-in as data
 
-    /// <summary>
-    /// 🔒 `05` §3.1 / `17` §1 — <c>PERIODIC {interval: 1.0, startDelay: 70.0}</c> →
-    /// <c>STAT_MULT ATK ×1.08</c>, <c>BATTLE</c> scope, uncapped multiplicative stacking.
-    /// </summary>
+    /// <summary><c>PERIODIC {interval: 1.0, startDelay: 70.0}</c> to <c>STAT_MULT ATK x1.08</c>, <c>BATTLE</c> scope, uncapped multiplicative stacking.</summary>
     [Fact]
     public void The_built_in_enrage_is_the_effect_05_3_1_and_17_1_author()
     {
@@ -137,10 +128,7 @@ public sealed class SysEnrageAnchoringTests
         enrage.Stacking.MaxStacks.ShouldBeNull("05 §3.1: 'uncapped'");
     }
 
-    /// <summary>
-    /// 🔒 The first firing is at 70 s of battle time, which is `17` §1's <em>"a hard enrage at
-    /// 70 s"</em> — and it is <see cref="TriggerSchedule"/>'s arithmetic, not a second copy of it.
-    /// </summary>
+    /// <summary>The first firing is at 70 s of battle time, and it is <see cref="TriggerSchedule"/>'s arithmetic, not a second copy of it.</summary>
     [Fact]
     public void The_enrage_first_fires_on_the_tick_70_seconds_of_battle_time_lands_on()
     {
@@ -151,10 +139,8 @@ public sealed class SysEnrageAnchoringTests
     }
 
     /// <summary>
-    /// 🔴 <b>No Sporequeen exemption.</b> `17` §11 requires the enrage <em>"implemented once, applied
-    /// to all bosses"</em>, so it is attached by the builder rather than authored — and `17` §8's
-    /// note that Rot's ~66 s soft timer and the 70 s enrage <em>"must not interact confusingly"</em>
-    /// asks for a harness verification (M2-16a), not an engine opt-out.
+    /// No Sporequeen exemption: the enrage is implemented once, applied to all bosses, so it is
+    /// attached by the builder rather than authored.
     /// </summary>
     [Fact]
     public void The_enrage_is_a_built_in_rather_than_something_a_boss_script_can_author()
@@ -162,27 +148,24 @@ public sealed class SysEnrageAnchoringTests
         BossBuiltIns.All.Count.ShouldBe(3, "the floor under the membership assertion below");
         BossBuiltIns.All.Select(e => e.Id).ShouldContain(BossBuiltIns.EnrageId);
 
-        // The script shape M2-13 writes: mechanics are effect ids, and there is no per-boss enrage
-        // switch anywhere on it.
+        // The script shape: mechanics are effect ids, and there is no per-boss enrage switch
+        // anywhere on it.
         //
-        // ⚠️ AddsPowerFraction joined this list in M2-13, and it is NOT a counter-example: `17` §1
-        // gives a boss's adds a power band and M2-12 recorded that the authoring contract had no
-        // field to state it in, so the script had to gain one. It is a number `17` hands to content,
-        // which is the opposite of an engine behaviour a boss can opt out of. The membership
-        // assertion below is what keeps the distinction enforceable rather than remembered.
+        // AddsPowerFraction is on this shape too, and it is not a counter-example: it's a number
+        // the design hands to content — a power band for a boss's adds — which is the opposite of
+        // an engine behaviour a boss can opt out of.
         var shape = typeof(BossScript).GetProperties().Select(p => p.Name).ToArray();
 
-        // 🔴 The NAMED claims come first, and the exhaustive one is the backstop behind them.
-        // Written the other way round these three were unreachable: the exhaustive ShouldBe fails on
-        // ANY added property, so a hypothetical `EnrageExempt` tripped the generic "the shape moved"
+        // The named claims come first, and the exhaustive one is the backstop behind them. Written
+        // the other way round these three were unreachable: the exhaustive ShouldBe fails on any
+        // added property, so a hypothetical `EnrageExempt` tripped the generic "the shape moved"
         // assertion and never reached the assertion that says why that particular shape is forbidden.
-        // An assertion that cannot be the one that fires is not an assertion (steering S1/S2).
         foreach (var builtIn in BossBuiltIns.All)
         {
             shape.ShouldNotContain(
                 name => name.Contains(builtIn.Id, StringComparison.OrdinalIgnoreCase),
-                $"a script field named after '{builtIn.Id}' would be the per-boss opt-out `18` exists " +
-                "to prevent — 17 §11 implements it once, for all eight");
+                $"a script field named after '{builtIn.Id}' would be the per-boss opt-out the " +
+                "design exists to prevent — the enrage is implemented once, for all eight");
         }
 
         shape.ShouldNotContain(
@@ -216,7 +199,7 @@ public sealed class SysEnrageAnchoringTests
         },
         LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>(),
 
-        // No mechanic here authors a wind-up, so nothing is announced in any phase.
+        // No mechanic authors a wind-up here, so nothing is announced.
         AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
     };
 

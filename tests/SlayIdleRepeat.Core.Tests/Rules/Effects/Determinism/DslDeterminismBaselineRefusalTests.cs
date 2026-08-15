@@ -5,31 +5,21 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 
-/// <summary>
-/// 🔒 The three refusals that make the baseline un-regenerable-into-green, driven on purpose.
-/// </summary>
+/// <summary>The three refusals that make the baseline un-regenerable-into-green, driven on purpose.</summary>
 /// <remarks>
-/// The whole design rests on one property: <b>a regenerated table does not pass.</b> The writer stamps
+/// The whole design rests on one property: a regenerated table does not pass. The writer stamps
 /// <c>"unreviewed"</c> into every render and the reader throws on it, so a determinism break cannot be
 /// made green by re-running the writer — a human has to read the diff and write down why.
 /// <para>
-/// ⚠️ Until this file existed that property had no test: the refusals ran inside the reader's static
-/// initialiser, so the only document that ever reached them was the committed one, which passes — and
-/// the two tests that looked like coverage were asserting conditions the initialiser had already
-/// guaranteed. Both were removed.
-/// </para>
-/// <para>
-/// 🔒 Each case asserts <b>which</b> refusal fired by a fragment of its own message; a single
+/// Each case asserts which refusal fired by a fragment of its own message; a single
 /// <c>Should.Throw&lt;FormatException&gt;</c> would not tell the three apart. Every case is the
-/// <b>committed</b> table with one region edited rather than a hand-built fixture, which would drift
-/// from the real file's shape and then pass while the shipped document took a different path.
+/// committed table with one region edited rather than a hand-built fixture, which would drift from the
+/// real file's shape and then pass while the shipped document took a different path.
 /// </para>
 /// </remarks>
 public sealed class DslDeterminismBaselineRefusalTests
 {
-    /// <summary>
-    /// 🔒 The refusal <c>ContentValidator --write-baseline</c>'s reader performs, on this table.
-    /// </summary>
+    /// <summary>The refusal <c>ContentValidator --write-baseline</c>'s reader performs, on this table.</summary>
     [Fact]
     public void A_table_still_stamped_unreviewed_is_refused()
     {
@@ -50,14 +40,12 @@ public sealed class DslDeterminismBaselineRefusalTests
             "have to go and find it");
     }
 
-    /// <summary>A table marked reviewed by a reviewer who wrote nothing down is refused.</summary>
-    /// <remarks>
-    /// ⚠️ The <c>why</c> case is a replace-all, so it blanks the review's reason <em>and</em> all
-    /// twelve rows'. The review refusal is checked before the row refusal, so it is still the review
-    /// refusal that fires and the assertion below still discriminates — but the edit is broader than
-    /// the theory's name suggests, and <see cref="A_named_row_with_no_reason_is_refused"/> is the
-    /// case that isolates the row half.
-    /// </remarks>
+    /// <summary>
+    /// A table marked reviewed by a reviewer who wrote nothing down is refused. The <c>why</c> case is
+    /// a replace-all, so it blanks the review's reason and all twelve rows'; the review refusal is
+    /// checked first, so it still fires and the assertion below still discriminates. See
+    /// <see cref="A_named_row_with_no_reason_is_refused"/> for the case that isolates the row half.
+    /// </summary>
     [Theory]
     [InlineData("why")]
     [InlineData("reviewedOn")]
@@ -102,14 +90,12 @@ public sealed class DslDeterminismBaselineRefusalTests
             "the refusal names the offending rows, so the fix does not start with a search");
     }
 
-    // 🔴 There was a `The_committed_table_as_committed_is_accepted` positive control here, and it
-    //    could not fail: reaching DslDeterminismBaseline.RawText runs the static initialiser, which
-    //    is Validate(JsonDocument.Parse(RawText)), so by the time the test body ran the very same
-    //    document had already validated in the same process. It was removed rather than reworded.
-    //    The control it was meant to provide is inside each case above instead: every one asserts
-    //    that its edit actually changed the text (Mutate's ShouldContain, the theory's
-    //    ShouldNotBe, the row case's ShouldBeGreaterThan), so a refusal that fired for some
-    //    unrelated reason would show up as a harness failure rather than as a pass.
+    // There was a positive control here ("the committed table as committed is accepted"), and it
+    // could not fail: reaching DslDeterminismBaseline.RawText runs the static initialiser, which is
+    // Validate(JsonDocument.Parse(RawText)), so the same document had already validated in the same
+    // process. Removed; the control it was meant to provide is inside each case above instead — every
+    // one asserts that its edit actually changed the text, so a refusal that fired for an unrelated
+    // reason would show up as a harness failure rather than as a pass.
 
     private static string Mutate(string from, string to)
     {

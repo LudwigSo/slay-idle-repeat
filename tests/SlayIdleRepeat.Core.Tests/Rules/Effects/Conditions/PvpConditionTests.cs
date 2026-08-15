@@ -8,10 +8,9 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Conditions;
 
 /// <summary>
-/// 🔒 `05` §3.3's Ghost Duel rulings as the condition layer sees them: target conditions read the
-/// <b>opposing hero</b>, <c>TARGET_IS_ELITE</c>/<c>TARGET_IS_BOSS</c> are always false,
-/// <c>ENEMY_COUNT</c> is always 1, and `18` §9.3's no-duel-meaning clauses are <b>skipped</b> rather
-/// than converted.
+/// The Ghost Duel rulings as the condition layer sees them: target conditions read the opposing hero,
+/// <c>TARGET_IS_ELITE</c>/<c>TARGET_IS_BOSS</c> are always false, <c>ENEMY_COUNT</c> is always 1, and
+/// no-duel-meaning clauses are skipped rather than converted.
 /// </summary>
 /// <remarks>
 /// The duel itself is <c>PvpDuelTests</c>'. What is pinned here is that the conditions answer correctly
@@ -19,7 +18,7 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Conditions;
 /// </remarks>
 public sealed class PvpConditionTests
 {
-    /// <summary>`18` §4 — <c>IS_PVP</c>, <em>"the hook that lets a perk behave differently in a duel"</em>.</summary>
+    /// <summary><c>IS_PVP</c> is the hook that lets a perk behave differently in a duel.</summary>
     [Fact]
     public void IS_PVP_is_true_in_a_duel_and_false_in_a_run()
     {
@@ -33,15 +32,12 @@ public sealed class PvpConditionTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.3 — <em>"<c>TARGET_IS_ELITE</c> / <c>TARGET_IS_BOSS</c> are always false."</em>
+    /// <c>TARGET_IS_ELITE</c> / <c>TARGET_IS_BOSS</c> are always false in a duel — stated as a rule
+    /// rather than as a consequence of the roster, and implemented as one: the duel below deliberately
+    /// carries an opposing hero flagged as both elite and boss, something no legitimate ghost snapshot
+    /// would, so the assertion cannot be satisfied merely by a roster that happens to be built
+    /// correctly.
     /// </summary>
-    /// <remarks>
-    /// Stated by `05` §3.3 as a rule rather than as a consequence of the roster, and implemented as
-    /// one: the duel below deliberately carries an opposing hero flagged as both elite and boss —
-    /// something no legitimate ghost snapshot would — so the assertion cannot be satisfied merely by
-    /// a roster that happens to be built correctly. Steering S9: where a number or a rule in a
-    /// summary disagrees with the document, the document wins.
-    /// </remarks>
     [Fact]
     public void TARGET_IS_ELITE_and_TARGET_IS_BOSS_are_always_false_in_a_duel()
     {
@@ -59,11 +55,11 @@ public sealed class PvpConditionTests
             .ShouldBe(0);
     }
 
-    /// <summary>🔒 `05` §3.3 — <em>"<c>ENEMY_COUNT</c> is always 1."</em></summary>
-    /// <remarks>
-    /// Also implemented as the stated rule: the roster below is given a second opposing actor, which
-    /// a correct duel never has, so a count taken off the roster would read 2.
-    /// </remarks>
+    /// <summary>
+    /// <c>ENEMY_COUNT</c> is always 1 in a duel — implemented as the stated rule: the roster below is
+    /// given a second opposing actor, which a correct duel never has, so a count taken off the roster
+    /// would read 2.
+    /// </summary>
     [Fact]
     public void ENEMY_COUNT_is_always_one_in_a_duel()
     {
@@ -80,10 +76,7 @@ public sealed class PvpConditionTests
             .ShouldBe(1, "05 §3.3 states this as a rule of the duel, not as a count of the roster");
     }
 
-    /// <summary>
-    /// `05` §3.3 — <em>"Target-conditional effects read the opposing hero."</em> `18` §7.2's
-    /// <c>PK_EXECUTIONER</c> is the named example.
-    /// </summary>
+    /// <summary>Target-conditional effects read the opposing hero — <c>PK_EXECUTIONER</c> is the named example.</summary>
     [Fact]
     public void A_target_conditional_effect_reads_the_opposing_hero()
     {
@@ -105,11 +98,7 @@ public sealed class PvpConditionTests
         ConditionEvaluator.IsSatisfied(executioner, wounded).ShouldBeTrue();
     }
 
-    /// <summary>
-    /// The enemy tokens of `18` §5 in a duel select the opposing hero — one actor, never the
-    /// opposing pets (`05` §3.2: <em>"Pets cannot be targeted or killed"</em>, restated for duels in
-    /// §3.3).
-    /// </summary>
+    /// <summary>The enemy tokens in a duel select the opposing hero — one actor, never the opposing pets.</summary>
     [Theory]
     [InlineData(EffectTarget.ALL_ENEMIES)]
     [InlineData(EffectTarget.LOWEST_HP_ENEMY)]
@@ -122,14 +111,10 @@ public sealed class PvpConditionTests
     }
 
     /// <summary>
-    /// <c>OTHER_ENEMIES</c> in a duel is empty: `05` §3.3 leaves exactly one opposing actor, and it
-    /// is the attack's primary target, so <c>PK_CLEAVE</c>'s splash has nobody left to reach.
+    /// <c>OTHER_ENEMIES</c> in a duel is empty: a duel leaves exactly one opposing actor, and it is
+    /// the attack's primary target, so <c>PK_CLEAVE</c>'s splash has nobody left to reach. This falls
+    /// out of the two rules being implemented rather than needing a duel branch of its own.
     /// </summary>
-    /// <remarks>
-    /// The crossing of `18` §5's degradation with `05` §3.3's one-opposing-hero rule. Neither
-    /// document writes it out, and it falls out of both being implemented rather than needing a duel
-    /// branch — which is the claim worth pinning.
-    /// </remarks>
     [Fact]
     public void OTHER_ENEMIES_in_a_duel_is_empty()
     {
@@ -158,15 +143,11 @@ public sealed class PvpConditionTests
     }
 
     /// <summary>
-    /// 🔒 The three <c>ATTACKER_IS_*</c> functions are <b>not</b> switched off in a duel.
+    /// The three <c>ATTACKER_IS_*</c> functions are not switched off in a duel. The attacker trio is
+    /// already <c>false</c> against an opposing hero for the honest reason — a hero is neither elite,
+    /// boss nor summon — so no duel rule is needed. Pinned so a later "while we are here" edit cannot
+    /// add one silently.
     /// </summary>
-    /// <remarks>
-    /// `05` §3.3 names <c>TARGET_IS_ELITE</c>, <c>TARGET_IS_BOSS</c> and <c>ENEMY_COUNT</c> and stops
-    /// there. The attacker trio is already <c>false</c> against an opposing hero for the honest
-    /// reason — a hero is neither elite, boss nor summon — so no duel rule is needed, and inventing
-    /// one would be a rule the document does not author (steering S6). Pinned so that a later
-    /// "while we are here" edit cannot add one silently.
-    /// </remarks>
     [Fact]
     public void The_ATTACKER_IS_trio_still_reads_the_attacker_in_a_duel()
     {
@@ -182,9 +163,8 @@ public sealed class PvpConditionTests
         ConditionEvaluator.Read(ConditionFunction.ATTACKER_IS_SUMMON, ConditionArguments.None, struckByTheOpposingHero)
             .ShouldBe(0);
 
-        // 🔒 And they still READ the attacker rather than being hard-wired off: a duel context whose
-        // attacker genuinely carries a flag reports it. TARGET_IS_* above does not behave this way,
-        // and the difference is the point — 05 §3.3 rules those two and not these three.
+        // And they still READ the attacker rather than being hard-wired off: a duel context whose
+        // attacker genuinely carries a flag reports it. TARGET_IS_* above does not behave this way.
         var struckByAFlaggedActor = duel with { Attacker = opposing with { IsSummon = true } };
 
         ConditionEvaluator.Read(ConditionFunction.ATTACKER_IS_SUMMON, ConditionArguments.None, struckByAFlaggedActor)
@@ -192,15 +172,11 @@ public sealed class PvpConditionTests
     }
 
     /// <summary>
-    /// 🔒 `18` §9.3 — <em>"gear affixes like <c>+X% Gold Gain</c> still need to be neutralised in
-    /// duels — they are simply <b>skipped</b> rather than converted."</em>
+    /// Gear affixes like <c>+X% Gold Gain</c> still need to be neutralised in duels — they are simply
+    /// skipped rather than converted. The mechanism is content-side: the affix carries
+    /// <c>{"not":{"fn":"IS_PVP","op":"eq","value":true}}</c> and the evaluator answers <c>false</c>,
+    /// so the effect is filtered out during condition gating.
     /// </summary>
-    /// <remarks>
-    /// The mechanism is content-side: the affix carries <c>{"not":{"fn":"IS_PVP","op":"eq","value":
-    /// true}}</c> and the evaluator answers <c>false</c>, so the effect is filtered out at `18` §8
-    /// step 2. Nothing converts a gold bonus into a combat one, and nothing here needs to know what
-    /// the affix does.
-    /// </remarks>
     [Fact]
     public void The_IS_PVP_skip_neutralises_a_non_combat_affix_in_a_duel()
     {

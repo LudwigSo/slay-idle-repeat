@@ -1,8 +1,6 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 6: <em>"Alpha is clean — no white/black halo, no semi-transparent fringe"</em>.
-/// </summary>
+/// <summary>Checklist item 6: alpha is clean — no white/black halo, no semi-transparent fringe.</summary>
 /// <remarks>
 /// <para>
 /// Two claims, two thresholds, both uncalibrated:
@@ -11,16 +9,15 @@ namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 ///   <item><b>no semi-transparent fringe</b> — <see cref="FringeRatioMeasurement"/>: the share of
 ///   visible pixels whose alpha is neither 0 nor 255, against
 ///   <see cref="ThresholdKeys.HaloMaxFringeRatio"/>. Some partial alpha is a legitimate soft edge,
-///   which is exactly why the permitted amount is a number `15` never states.</item>
+///   which is why the permitted amount is a calibrated threshold rather than a fixed rule.</item>
 ///   <item><b>no white/black halo</b> — <see cref="FringeLuminanceDeviationMeasurement"/>: how far
 ///   the fringe pixels' luminance runs toward pure white or pure black relative to the opaque
 ///   pixels they border, against <see cref="ThresholdKeys.HaloMaxLuminanceDeviation"/>.</item>
 /// </list>
 /// <para>
-/// 🔒 This grades the output of `15` §B4 step 1, whose matte decontamination exists to remove
-/// exactly this. Keeping the measurement out of the step is deliberate: the step un-mixes the
-/// background it was told about, and this item asks whether anything is left, including halos the
-/// step never saw.
+/// Grades the pipeline's background-removal output rather than the step itself: the step un-mixes
+/// the background it was told about, and this item asks whether anything is left, including halos
+/// the step never saw.
 /// </para>
 /// </remarks>
 public sealed class AlphaCleanlinessCheck : IQaCheck
@@ -128,10 +125,9 @@ public sealed class AlphaCleanlinessCheck : IQaCheck
     /// borders.
     /// </summary>
     /// <remarks>
-    /// 🔒 Relative to the neighbours rather than to pure white or pure black in the absolute. A
-    /// legitimately pale asset is not a halo; a pale edge on a dark subject is exactly one, and it
-    /// is the difference that says which. A partial pixel with no fully opaque neighbour is not
-    /// measured — there is nothing it is a halo <em>of</em>.
+    /// Relative to the neighbours rather than to pure white or black in the absolute: a legitimately
+    /// pale asset is not a halo, but a pale edge on a dark subject is one. A partial pixel with no
+    /// fully opaque neighbour is not measured — there is nothing it is a halo <em>of</em>.
     /// </remarks>
     /// <param name="image">The processed image.</param>
     private static double FringeLuminanceDeviation(Raster image)

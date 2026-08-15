@@ -2,45 +2,30 @@ using System.Globalization;
 
 namespace SlayIdleRepeat.Core.Content;
 
-/// <summary>
-/// 🔒 The `07` §1.1 Legend Level <b>range</b>, read out of <c>tuning/progression.json</c>.
-/// </summary>
+/// <summary>The Legend Level <b>range</b>, read out of <c>tuning/progression.json</c>.</summary>
 /// <remarks>
 /// <para>
-/// `30` §11.5 puts <em>invariants</em> on the aggregate, and `07` §1.1 runs Legend Level 1..200.
-/// The <c>Player</c> aggregate therefore has to know those two numbers — and `21` §3.1 is explicit
-/// that <em>"a 📐 TUNABLE number that is not in this directory is a bug"</em>, so
-/// <c>private const int MaxLegendLevel = 200</c> on the aggregate would be the bug rather than the
-/// fix. They are authored at <c>#/legendLevel/min</c> and <c>#/legendLevel/max</c> and reach the
-/// aggregate through this type, exactly as the energy numbers reach it through
-/// <see cref="EnergyTuning"/>.
-/// </para>
-/// <para>
-/// ⚠️ <b>Deliberately two leaves and not the whole block.</b> <c>xpCoefficient</c>,
-/// <c>xpExponent</c> and <c>talentPointsPerLevel</c> are the level-up <em>curve</em>, and `30`
-/// §11.5 keeps computation off the aggregate: the curve is <b>M4-10</b>'s (`07` §1, "Legend Level
-/// curve + unlock-gate table, level-up grants"). Reading them here would put a number the
-/// aggregate never uses into a type whose only caller is an invariant check. `21` §12 also calls
-/// <c>xpExponent</c> "the highest-suspicion number in the whole economy"; it belongs where it is
-/// swept, not where a range is validated.
+/// Deliberately two leaves and not the whole block: <c>xpCoefficient</c>, <c>xpExponent</c> and
+/// <c>talentPointsPerLevel</c> are the level-up curve, owned by the level-up rule that computes
+/// with them — this type only validates the range, so it stays out of a computation it never uses.
 /// </para>
 /// <para>
 /// A hole is never a default: every read goes through <see cref="ContentSnapshot"/>'s typed
 /// readers, which throw <see cref="UnauthorisedTunableException"/> on a deliberate <c>null</c>
-/// rather than answering zero (S6).
+/// rather than answering zero.
 /// </para>
 /// </remarks>
 internal sealed class LegendTuning
 {
-    /// <summary>The document `07` §1.1's Legend Level block lives in.</summary>
+    /// <summary>The document the Legend Level block lives in.</summary>
     internal const string DocumentPath = "tuning/progression.json";
 
     private const string LegendLevelPointer = DocumentPath + "#/legendLevel";
 
-    /// <summary>`07` §1.1 — the Legend Level a player starts at. 1 as shipped.</summary>
+    /// <summary>The Legend Level a player starts at. 1 as shipped.</summary>
     internal const string MinimumReference = LegendLevelPointer + "/min";
 
-    /// <summary>`07` §1.1 — the highest Legend Level v1 reaches. 200 as shipped.</summary>
+    /// <summary>The highest Legend Level v1 reaches. 200 as shipped.</summary>
     internal const string MaximumReference = LegendLevelPointer + "/max";
 
     private LegendTuning(int minimum, int maximum)
@@ -49,17 +34,17 @@ internal sealed class LegendTuning
         Maximum = maximum;
     }
 
-    /// <summary>`07` §1.1 — the Legend Level a player starts at. 1 as shipped.</summary>
+    /// <summary>The Legend Level a player starts at. 1 as shipped.</summary>
     internal int Minimum { get; }
 
-    /// <summary>`07` §1.1 — the highest Legend Level v1 reaches. 200 as shipped.</summary>
+    /// <summary>The highest Legend Level v1 reaches. 200 as shipped.</summary>
     internal int Maximum { get; }
 
     /// <summary>
     /// Reads the Legend Level range. Throws rather than defaulting on anything missing,
     /// unauthorised, mistyped or nonsensical.
     /// </summary>
-    /// <param name="content">The version-stamped snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped snapshot the command is reading.</param>
     /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
     /// <exception cref="MissingContentException">The document or a pointer is not there.</exception>
     /// <exception cref="UnauthorisedTunableException">A pointer holds a deliberate <c>null</c>.</exception>
@@ -94,9 +79,8 @@ internal sealed class LegendTuning
     }
 
     /// <summary>
-    /// 🔒 Renders a number with <see cref="CultureInfo.InvariantCulture"/>, for the same reason
-    /// <see cref="EnergyTuning"/> does: a bare interpolation reads differently on a German laptop
-    /// than in the Linux container, which is two diagnostics for one data defect.
+    /// Renders a number with <see cref="CultureInfo.InvariantCulture"/> — a bare interpolation
+    /// reads differently on a German laptop than in the Linux container.
     /// </summary>
     private static string Render(int value) => value.ToString(CultureInfo.InvariantCulture);
 }

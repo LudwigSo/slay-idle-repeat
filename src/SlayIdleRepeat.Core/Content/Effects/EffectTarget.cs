@@ -1,14 +1,8 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>🔒 The 11 targets of `18` §5.</summary>
+/// <summary>The 11 targets.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>11.</b> `18` §11: <em>"11 targets = 9 + <c>OTHER_ENEMIES</c> + <c>OWNER</c>"</em>.
-/// </para>
-/// <para>
-/// 🔒 Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c>
-/// member.
-/// </para>
+/// Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c> member.
 /// </remarks>
 public enum EffectTarget
 {
@@ -31,7 +25,7 @@ public enum EffectTarget
     /// <summary>The living enemy with the lowest current HP.</summary>
     LOWEST_HP_ENEMY = 5,
 
-    /// <summary>The living enemy with the highest current HP — what a pet's targeted ability picks (`05` §3.2).</summary>
+    /// <summary>The living enemy with the highest current HP — what a pet's targeted ability picks.</summary>
     HIGHEST_HP_ENEMY = 6,
 
     /// <summary>A living enemy drawn from the deterministic RNG.</summary>

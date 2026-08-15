@@ -3,40 +3,37 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 
 /// <summary>
-/// 🔴 <b>R18 — `18` §10 step 4's <em>"add the op to the client/server parity test"</em>, made
-/// mechanical.</b> The eight vocabularies <see cref="BuildPermutationGenerator"/> draws from, written
-/// out as literals rather than read off the enums.
+/// The eight vocabularies <see cref="BuildPermutationGenerator"/> draws from, written out as literals
+/// rather than read off the enums.
 /// </summary>
 /// <remarks>
-/// 🔒 A generator that emitted <c>Enum.GetValues&lt;EffectOp&gt;()</c> could not be <em>wrong</em>, and
-/// could therefore not be tested. The floor only has teeth when the emitted set and the catalogue are
-/// two independent statements a test compares — dropping a single line below turns that comparison red.
+/// A generator that emitted <c>Enum.GetValues&lt;EffectOp&gt;()</c> could not be wrong, and could
+/// therefore not be tested. The floor only has teeth when the emitted set and the catalogue are two
+/// independent statements a test compares — dropping a single line below turns that comparison red.
 /// <para>
-/// ⚠️ These are emission <em>sets</em>, not coverage claims: membership says the generator <em>may</em>
-/// draw the token, while the coverage tests assert what the corpus actually emitted over all 10 000
-/// permutations. A token listed here but never reached would still fail.
+/// These are emission sets, not coverage claims: membership says the generator may draw the token,
+/// while the coverage tests assert what the corpus actually emitted over all 10 000 permutations. A
+/// token listed here but never reached would still fail.
 /// </para>
 /// <para>
-/// ⚠️ The <b>order</b> is part of the corpus definition: the generator anchors each axis by
+/// The order is part of the corpus definition: the generator anchors each axis by
 /// <c>list[index % list.Count]</c>, so inserting, removing or reordering a token shifts every
 /// subsequent permutation and moves every hash in the baseline. That is correct and worth knowing
-/// before the edit — a change to `18`'s vocabulary <b>is</b> a change to the baseline, not a
-/// determinism break, and the reviewer says so in <c>review.why</c>.
+/// before the edit — a vocabulary change is a change to the baseline, not a determinism break, and the
+/// reviewer says so in <c>review.why</c>.
 /// </para>
 /// <para>
-/// ⚠️ Every list is <c>new List&lt;T&gt; { … }</c> rather than a collection expression: Roslyn folds an
+/// Every list is <c>new List&lt;T&gt; { … }</c> rather than a collection expression: Roslyn folds an
 /// array literal of several constants into a <c>&lt;PrivateImplementationDetails&gt;</c> type in the
-/// <b>global</b> namespace, which is the shape <c>Every_Core_type_lives_under_a_documented_namespace</c>
-/// rejects. That rule's subject set is <c>Core</c> and not this assembly, but the day this vocabulary
-/// moves into a production helper is not the day to discover it.
+/// global namespace, which a namespace rule elsewhere in the repository rejects for production code.
 /// </para>
 /// </remarks>
 internal static class EffectVocabularyEmissionSets
 {
-    /// <summary>`18` §2's 44 ops, in `18` §2's five families.</summary>
+    /// <summary>The 44 ops, in five families.</summary>
     internal static IReadOnlyList<EffectOp> Ops { get; } = new List<EffectOp>
     {
-        // §2.1 stat (6)
+        // stat (6)
         EffectOp.STAT_ADD_FLAT,
         EffectOp.STAT_ADD_PCT,
         EffectOp.STAT_MULT,
@@ -44,7 +41,7 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.STAT_CONVERT,
         EffectOp.STAT_CAP_OVERRIDE,
 
-        // §2.2 damage and healing (7)
+        // damage and healing (7)
         EffectOp.DAMAGE,
         EffectOp.DAMAGE_TRUE,
         EffectOp.DAMAGE_MAXHP_PCT,
@@ -53,7 +50,7 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.SHIELD,
         EffectOp.REFLECT,
 
-        // §2.3 status (6)
+        // status (6)
         EffectOp.APPLY_STATUS,
         EffectOp.REMOVE_STATUS,
         EffectOp.EXTEND_STATUS,
@@ -61,7 +58,7 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.STATUS_POWER_PCT,
         EffectOp.STATUS_DURATION_PCT,
 
-        // §2.4 combat-flow (12)
+        // combat-flow (12)
         EffectOp.EXTRA_ATTACK,
         EffectOp.ATTACK_MULT_NEXT,
         EffectOp.FORCE_CRIT_NEXT,
@@ -75,7 +72,7 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.STAT_COPY,
         EffectOp.RANDOM_OUTCOME,
 
-        // §2.5 run and board (13)
+        // run and board (13)
         EffectOp.GRANT_CURRENCY,
         EffectOp.GRANT_ITEM,
         EffectOp.GRANT_PERK,
@@ -91,7 +88,7 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.CLEANSE_CURSE,
     };
 
-    /// <summary>`18` §3.1's 23 trigger kinds.</summary>
+    /// <summary>The 23 trigger kinds.</summary>
     internal static IReadOnlyList<TriggerKind> Triggers { get; } = new List<TriggerKind>
     {
         TriggerKind.ALWAYS,
@@ -119,7 +116,7 @@ internal static class EffectVocabularyEmissionSets
         TriggerKind.ON_RUN_END,
     };
 
-    /// <summary>`18` §4's 23 condition functions.</summary>
+    /// <summary>The 23 condition functions.</summary>
     internal static IReadOnlyList<ConditionFunction> Conditions { get; } = new List<ConditionFunction>
     {
         ConditionFunction.SELF_HP_PCT,
@@ -147,7 +144,7 @@ internal static class EffectVocabularyEmissionSets
         ConditionFunction.ATTACKER_IS_SUMMON,
     };
 
-    /// <summary>`18` §5's 11 targets.</summary>
+    /// <summary>The 11 targets.</summary>
     internal static IReadOnlyList<EffectTarget> Targets { get; } = new List<EffectTarget>
     {
         EffectTarget.SELF,
@@ -163,7 +160,7 @@ internal static class EffectVocabularyEmissionSets
         EffectTarget.RUN,
     };
 
-    /// <summary>`18` §2.1's 26 stats — the 14 combat stats and the 12 run and meta modifiers.</summary>
+    /// <summary>The 26 stats — the 14 combat stats and the 12 run and meta modifiers.</summary>
     internal static IReadOnlyList<StatId> Stats { get; } = new List<StatId>
     {
         StatId.MAX_HP,
@@ -194,7 +191,7 @@ internal static class EffectVocabularyEmissionSets
         StatId.STONE_PCT,
     };
 
-    /// <summary>`18` §6's 6 duration scopes, after `16` A7 added <c>PHASE</c>.</summary>
+    /// <summary>The 6 duration scopes.</summary>
     internal static IReadOnlyList<DurationScope> DurationScopes { get; } = new List<DurationScope>
     {
         DurationScope.INSTANT,
@@ -205,7 +202,7 @@ internal static class EffectVocabularyEmissionSets
         DurationScope.PERMANENT,
     };
 
-    /// <summary>`18` §6's 5 stacking modes.</summary>
+    /// <summary>The 5 stacking modes.</summary>
     internal static IReadOnlyList<StackingMode> StackingModes { get; } = new List<StackingMode>
     {
         StackingMode.ADDITIVE,
@@ -215,7 +212,7 @@ internal static class EffectVocabularyEmissionSets
         StackingMode.NONE,
     };
 
-    /// <summary>`18` §2.2's 8 value modes.</summary>
+    /// <summary>The 8 value modes.</summary>
     internal static IReadOnlyList<ValueMode> ValueModes { get; } = new List<ValueMode>
     {
         ValueMode.ATK_MULT,
@@ -228,21 +225,15 @@ internal static class EffectVocabularyEmissionSets
         ValueMode.OVERHEAL_AMOUNT,
     };
 
-    /// <summary>
-    /// 🔴 The extension keys `18` §10.1 records as taken during M2, as a closed vocabulary of its own.
-    /// </summary>
+    /// <summary>The extension keys taken during M2, as a closed vocabulary of its own.</summary>
     /// <remarks>
-    /// Five extensions landed under §10's procedure and <b>four</b> more keys arrived on the same rule
-    /// without a §10.1 row. All ten constants are named here — ten rather than nine because E2
-    /// contributes both of <c>STAT_CAP_OVERRIDE</c>'s <c>capKind</c>s, recorded as one row and being two
-    /// entirely different halves of step 9.
-    /// <para>
-    /// ⚠️ Unlike the eight enum-backed axes this list has <b>no closed enum behind it</b> — the extensions
-    /// are document rows — so nothing mechanical can be its independent authority. Two things stand in
-    /// for one: a count pinned with the arithmetic spelled out, and a <em>third</em> hand-written list of
-    /// the ten ids driven as <c>[InlineData]</c>. Deleting a constant therefore fails twice, where
-    /// comparing the emitted set with itself would have failed not at all.
-    /// </para>
+    /// Ten constants are named here — ten rather than nine because one contributes both of
+    /// <c>STAT_CAP_OVERRIDE</c>'s <c>capKind</c>s, recorded as one row and being two entirely different
+    /// halves of the cap step. Unlike the eight enum-backed axes this list has no closed enum behind
+    /// it, so nothing mechanical can be its independent authority: a count pinned with the arithmetic
+    /// spelled out, and a third hand-written list of the ten ids driven as <c>[InlineData]</c>, stand
+    /// in for one. Deleting a constant therefore fails twice, where comparing the emitted set with
+    /// itself would have failed not at all.
     /// </remarks>
     internal static IReadOnlyList<string> ExtensionKeys { get; } = new List<string>
     {
@@ -258,33 +249,33 @@ internal static class EffectVocabularyEmissionSets
         ValueScaleCategory,
     };
 
-    /// <summary>`18` §10.1 E1 — <c>STAT_CONVERT</c>'s destination stat.</summary>
+    /// <summary><c>STAT_CONVERT</c>'s destination stat.</summary>
     internal const string ToStatOnStatConvert = "E1 toStat on STAT_CONVERT";
 
-    /// <summary>`18` §10.1 E2 — <c>STAT_CAP_OVERRIDE</c>'s raise half.</summary>
+    /// <summary><c>STAT_CAP_OVERRIDE</c>'s raise half.</summary>
     internal const string CapKindStatMax = "E2 capKind STAT_MAX on STAT_CAP_OVERRIDE";
 
-    /// <summary>`18` §10.1 E2 — <c>STAT_CAP_OVERRIDE</c>'s redirect half, with its <c>toStat</c>.</summary>
+    /// <summary><c>STAT_CAP_OVERRIDE</c>'s redirect half, with its <c>toStat</c>.</summary>
     internal const string CapKindRedirectExcess = "E2 capKind REDIRECT_EXCESS + toStat on STAT_CAP_OVERRIDE";
 
-    /// <summary>`18` §10.1 E3 — the N of "the next N attacks".</summary>
+    /// <summary>The N of "the next N attacks".</summary>
     internal const string ChargesOnNextAttackOps = "E3 charges on ATTACK_MULT_NEXT / FORCE_CRIT_NEXT";
 
-    /// <summary>`18` §10.1 E4 — which unit <c>SURVIVE_LETHAL</c>'s value is in.</summary>
+    /// <summary>Which unit <c>SURVIVE_LETHAL</c>'s value is in.</summary>
     internal const string ValueModeOnSurviveLethal = "E4 valueMode on SURVIVE_LETHAL";
 
-    /// <summary>`18` §10.1 E5 — <c>REMOVE_STATUS</c>'s tag group.</summary>
+    /// <summary><c>REMOVE_STATUS</c>'s tag group.</summary>
     internal const string StatusTagOnRemoveStatus = "E5 statusTag on REMOVE_STATUS";
 
-    /// <summary>`18` §3.1 R11 (M2-04) — <c>ON_ATTACK</c>'s per-attack probability.</summary>
+    /// <summary><c>ON_ATTACK</c>'s per-attack probability.</summary>
     internal const string ChanceOnOnAttack = "R11 chance on the ON_ATTACK trigger";
 
-    /// <summary>M2-06 — <c>valueScale</c>'s <c>statusId</c> argument.</summary>
+    /// <summary><c>valueScale</c>'s <c>statusId</c> argument.</summary>
     internal const string ValueScaleStatusId = "M2-06 statusId argument on valueScale";
 
-    /// <summary>M2-06 — <c>valueScale</c>'s <c>faceKind</c> argument.</summary>
+    /// <summary><c>valueScale</c>'s <c>faceKind</c> argument.</summary>
     internal const string ValueScaleFaceKind = "M2-06 faceKind argument on valueScale";
 
-    /// <summary>M2-06 — <c>valueScale</c>'s <c>category</c> argument.</summary>
+    /// <summary><c>valueScale</c>'s <c>category</c> argument.</summary>
     internal const string ValueScaleCategory = "M2-06 category argument on valueScale";
 }

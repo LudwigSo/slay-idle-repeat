@@ -6,21 +6,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `30` §3 — the entitlement is <em>"a read-only value … <c>{ HasPlus, ExpiresAtUtc }</c>"</em>, and
-/// <em>"the domain may read <c>HasPlus</c> only to resolve ad-reward auto-grant caps — never to alter
-/// a stat, a rate or a drop."</em>
+/// <c>Entitlements</c> is a read-only value — <c>{ HasPlus, ExpiresAtUtc }</c> — and the domain may
+/// read <c>HasPlus</c> only to resolve ad-reward auto-grant caps, never to alter a stat, rate or drop.
+/// That "never alters a rate" half is enforced structurally by the architecture suite; what is pinned
+/// here is the shape those rules key on.
 /// </summary>
-/// <remarks>
-/// The "never alters a rate" half is enforced structurally by the architecture suite. What is pinned
-/// here is the shape those rules key on, and the one non-obvious consequence of them.
-/// </remarks>
 public sealed class EntitlementsTests
 {
-    /// <summary>
-    /// 🔒 `30` §3 — exactly <c>{ bool HasPlus, DateTimeOffset? ExpiresAtUtc }</c>. The expiry rides
-    /// on the value rather than being recomputed because `12` §2.2 makes Plus expiry a
-    /// time-dependent rule, and a rule that recomputed it would need a clock.
-    /// </summary>
+    /// <summary>Expiry rides on the value rather than being recomputed, since a recompute would need a clock.</summary>
     [Fact]
     public void Entitlements_carries_exactly_HasPlus_and_a_nullable_ExpiresAtUtc()
     {
@@ -42,7 +35,6 @@ public sealed class EntitlementsTests
         typeof(Entitlements).GetProperty(nameof(Entitlements.ExpiresAtUtc))!.PropertyType.ShouldBe(typeof(DateTimeOffset?));
     }
 
-    /// <summary>`30` §3 — read-only to the domain: sealed, no setter, no public field.</summary>
     [Fact]
     public void Entitlements_is_sealed_and_read_only()
     {
@@ -63,22 +55,12 @@ public sealed class EntitlementsTests
     }
 
     /// <summary>
-    /// 🔒 The whole public surface, pinned. <c>Entitlements</c> is a plain sealed class and deliberately
-    /// <b>not</b> a <c>record</c>: a record's synthesized <c>Equals</c> loads
-    /// <c>&lt;HasPlus&gt;k__BackingField</c> and then branches, which is exactly the shape
-    /// <c>IsolationTests.No_entitlement_branch_outside_a_composition_root</c> is written to catch.
+    /// <c>Entitlements</c> is deliberately not a <c>record</c>: a record's synthesized <c>Equals</c>
+    /// loads <c>HasPlus</c> and branches on it, which the architecture suite forbids inside Core.
     /// </summary>
-    /// <remarks>
-    /// Making it a record turns the architecture suite red, and the only ways back to green are widening
-    /// that rule's single licensed exemption or stopping the domain reading the entitlement at all.
-    /// ⚠️ Nothing compares two <c>Entitlements</c>, so reference equality suffices; if something ever
-    /// needs to, the comparison belongs at the composition root where the branch is allowed.
-    /// </remarks>
     [Fact]
     public void Entitlements_declares_no_equality_because_an_equality_would_branch_on_HasPlus()
     {
-        // Static as well as instance: a `public static Entitlements None` convenience would be a
-        // fifth member this rule is meant to see, and an instance-only filter would miss it.
         var declared = typeof(Entitlements)
             .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Select(m => m.Name)
@@ -92,7 +74,6 @@ public sealed class EntitlementsTests
             "No_entitlement_branch_outside_a_composition_root forbids inside Core (12 §3.2, 23 §7.2).");
     }
 
-    /// <summary>`30` §3 — the value keeps what the composition root resolved.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -107,10 +88,8 @@ public sealed class EntitlementsTests
     }
 
     /// <summary>
-    /// `30` §3 / `12` §2.2 — <c>ExpiresAtUtc</c> may be absent, and an absent expiry is not
-    /// coerced to anything. Whether a lapsed subscription still reports <c>HasPlus</c> is the
-    /// composition root's answer to give against its own <c>NowUtc</c>; this type stores what it
-    /// was told and re-derives nothing.
+    /// An absent expiry is not coerced to anything; whether a lapsed subscription still reports
+    /// <c>HasPlus</c> is the composition root's call, not this type's.
     /// </summary>
     [Fact]
     public void An_absent_expiry_stays_absent()

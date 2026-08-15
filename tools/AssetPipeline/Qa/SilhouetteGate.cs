@@ -2,18 +2,14 @@ using SkiaSharp;
 
 namespace SlayIdleRepeat.AssetPipeline.Qa;
 
-/// <summary>
-/// The four numbers `15` §A4's mechanical floor is made of.
-/// </summary>
+/// <summary>The four numbers the silhouette gate's mechanical floor is made of.</summary>
 /// <remarks>
-/// 🔒 Four numbers, four thresholds, and not one of them authorised by `15`. §A4 states a test and
-/// a bar (<em>"If you cannot tell which character it is"</em>) and no cutoffs at all, so all four
-/// live in <see cref="ThresholdSet"/> as null and <see cref="SilhouetteGate.Evaluate"/> throws
-/// naming whichever it reaches first.
+/// None of the four cutoffs is authorised anywhere; all four live in <see cref="ThresholdSet"/> as
+/// null and <see cref="SilhouetteGate.Evaluate"/> throws naming whichever it reaches first.
 /// </remarks>
 /// <param name="CoverageRatio">
 /// Share of the 64x64 frame the silhouette occupies, 0-1. A subject that shrank to nothing after
-/// the §B4 resize reads here.
+/// the resize reads here.
 /// </param>
 /// <param name="BoundingBoxFill">
 /// Share of its own bounding box the silhouette fills, 0-1. Separates a solid readable shape from a
@@ -35,12 +31,11 @@ public sealed record SilhouetteMeasurement(
     int ConnectedComponentCount,
     double Distinguishability);
 
-/// <summary>What the `15` §A4 gate concluded, and what it did not conclude.</summary>
+/// <summary>What the silhouette gate concluded, and what it did not conclude.</summary>
 /// <remarks>
-/// 🔒 <see cref="HumanGap"/> is non-nullable on purpose. It is carried on every result, including
-/// every passing one — the case where it would be most tempting to omit it and most misleading to.
-/// <see cref="MechanicalPass"/> means the silhouette cleared a floor somebody stated; it never
-/// means §A4 passed.
+/// <see cref="HumanGap"/> is non-nullable on purpose, carried on every result including passing
+/// ones: <see cref="MechanicalPass"/> means the silhouette cleared a floor somebody stated, never
+/// that the human acceptance test passed.
 /// </remarks>
 /// <param name="MechanicalPass">True when all four measurements are within their stated cutoffs.</param>
 /// <param name="Measurement">The four quantities, whatever the verdict.</param>
@@ -48,7 +43,7 @@ public sealed record SilhouetteMeasurement(
 /// <param name="Reason">
 /// Which measurement tripped and its value, or the empty string when none did.
 /// </param>
-/// <param name="HumanGap">`15` §A4's actual test, which this gate does not perform.</param>
+/// <param name="HumanGap">The actual acceptance test, which this gate does not perform.</param>
 public sealed record SilhouetteResult(
     bool MechanicalPass,
     SilhouetteMeasurement Measurement,
@@ -56,24 +51,18 @@ public sealed record SilhouetteResult(
     string Reason,
     string HumanGap);
 
-/// <summary>
-/// `15` §A4: <em>"fill it 100% black, scale to 64 px"</em> — and the mechanical floor under the
-/// sentence that follows it.
-/// </summary>
+/// <summary>Fills a silhouette 100% black, scales it to a fixed size, and floors it mechanically.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>This gate is not §A4.</b> §A4's acceptance test is
-/// <em>"If you cannot tell which character it is, regenerate it"</em>, and no code in this project
-/// decides that. What is mechanised is the fill-and-scale (which is stated exactly, and which this
-/// does exactly) plus four measurements that catch silhouettes nobody would need to squint at.
-/// Every <see cref="SilhouetteResult"/> carries the difference in writing.
+/// This gate is not the human acceptance test: no code here decides whether a character is
+/// recognisable. What is mechanised is the fill-and-scale plus four measurements that catch
+/// silhouettes nobody would need to squint at. Every <see cref="SilhouetteResult"/> says so.
 /// </para>
 /// <para>
-/// 🔒 <b>The gate throws where a check would not.</b> Asked for a cutoff nobody has stated,
-/// <see cref="Evaluate"/> raises <see cref="UncalibratedThresholdException"/> naming the key — it
-/// is a measuring instrument and an instrument with no scale is broken, not permissive. `15` Part F
-/// item 1 is the seam that turns that into a <see cref="QaVerdict.Uncalibrated"/> outcome so one
-/// hole does not abort a batch.
+/// Asked for a cutoff nobody has stated, <see cref="Evaluate"/> raises
+/// <see cref="UncalibratedThresholdException"/> naming the key — a measuring instrument with no
+/// scale is broken, not permissive. The checklist item calling this turns that into a
+/// <see cref="QaVerdict.Uncalibrated"/> outcome so one hole does not abort a batch.
 /// </para>
 /// </remarks>
 public static class SilhouetteGate
@@ -95,10 +84,8 @@ public static class SilhouetteGate
     /// to one already accepted in its category: nothing tells them apart.
     /// </summary>
     /// <remarks>
-    /// Not a threshold and not an S6 hole — it is the bottom of the scale the measurement is
-    /// normalised onto, the way 0 is the bottom of a ratio. What counts as <em>enough</em>
-    /// distinguishability is the hole, and it is
-    /// <see cref="ThresholdKeys.SilhouetteMinDistinguishability"/>.
+    /// Not itself a threshold — it is the bottom of the scale the measurement is normalised onto.
+    /// What counts as <em>enough</em> distinguishability is <see cref="ThresholdKeys.SilhouetteMinDistinguishability"/>.
     /// </remarks>
     public const double MinimumDistinguishability = 0d;
 
@@ -108,9 +95,7 @@ public static class SilhouetteGate
     /// </summary>
     public const double MaximumDistinguishability = 1d;
 
-    /// <summary>
-    /// `15` §A4's actual acceptance test, which this gate does not perform and every result says so.
-    /// </summary>
+    /// <summary>The actual acceptance test, which this gate does not perform and every result says so.</summary>
     public const string HumanGap =
         "`15` §A4's acceptance test is a human judgement: \"" +
         Doc15PartF.SilhouetteAcceptanceSentence +
@@ -122,14 +107,13 @@ public static class SilhouetteGate
     private const string SilhouetteDocReference = "15 §A4";
 
     /// <summary>
-    /// `15` §A4's mask: every pixel with a non-zero alpha becomes opaque black, everything else
+    /// The silhouette mask: every pixel with a non-zero alpha becomes opaque black, everything else
     /// becomes fully transparent, and the result is exactly
     /// <see cref="Doc15Authorised.SilhouetteMaskSize"/> square.
     /// </summary>
     /// <remarks>
-    /// 🔒 Fill first, scale second. §A4's own order is "fill it 100% black, scale to 64 px", and it
-    /// is the order that answers the question: scaling a coloured asset down and only then filling
-    /// it black would let a resampler's antialiasing decide the silhouette's edge.
+    /// Fill first, scale second: scaling a coloured asset down and only then filling it black would
+    /// let a resampler's antialiasing decide the silhouette's edge.
     /// </remarks>
     /// <param name="image">Any bitmap. Only its alpha channel is read.</param>
     /// <returns>A new 64x64 mask. The input is unchanged.</returns>
@@ -159,7 +143,7 @@ public static class SilhouetteGate
 
     /// <summary>Measures the four quantities of one rendered mask.</summary>
     /// <param name="mask">A 64x64 mask from <see cref="Render"/>. Any other size is a loud failure.</param>
-    /// <param name="category">The `15` §D1 category the registry is consulted for.</param>
+    /// <param name="category">The category the registry is consulted for.</param>
     /// <param name="registry">The silhouettes already accepted. May be empty.</param>
     public static SilhouetteMeasurement Measure(
         SKBitmap mask, string category, SilhouetteRegistry registry)
@@ -181,7 +165,7 @@ public static class SilhouetteGate
 
     /// <summary>Renders, measures, and grades against the four stated cutoffs.</summary>
     /// <param name="image">The processed asset.</param>
-    /// <param name="category">The `15` §D1 category the registry is consulted for.</param>
+    /// <param name="category">The category the registry is consulted for.</param>
     /// <param name="registry">The silhouettes already accepted. May be empty.</param>
     /// <param name="thresholds">
     /// The threshold set. Any of the four silhouette keys being null raises
@@ -198,9 +182,8 @@ public static class SilhouetteGate
         ArgumentNullException.ThrowIfNull(registry);
         ArgumentNullException.ThrowIfNull(thresholds);
 
-        // 🔒 All four before a single pixel is graded. An instrument with no scale is broken rather
-        // than permissive, and reading a cutoff only when a measurement happens to approach it would
-        // make which hole gets reported depend on the asset.
+        // All four thresholds are read before a single pixel is graded, so which hole gets reported
+        // does not depend on the asset.
         var minCoverage = thresholds.RequireNumber(ThresholdKeys.SilhouetteMinCoverageRatio);
         var minBoundingBoxFill = thresholds.RequireNumber(ThresholdKeys.SilhouetteMinBoundingBoxFill);
         var maxComponents = thresholds.RequireNumber(ThresholdKeys.SilhouetteMaxComponentCount);
@@ -224,9 +207,8 @@ public static class SilhouetteGate
     /// Which cutoff the silhouette missed and by how much, or the empty string when it missed none.
     /// </summary>
     /// <remarks>
-    /// 🔒 One measurement, not four. A reason reciting every cutoff would leave a reviewer holding a
-    /// rejected asset unable to tell which one to look at (steering rule S2), so the first miss is
-    /// the reported one and the other three travel as <see cref="SilhouetteResult.Measurements"/>.
+    /// Reports only the first miss so a reviewer knows which one to look at; the other three travel
+    /// as <see cref="SilhouetteResult.Measurements"/>.
     /// </remarks>
     /// <param name="measurement">The four quantities.</param>
     /// <param name="minCoverage">The stated minimum coverage ratio.</param>
@@ -283,9 +265,7 @@ public static class SilhouetteGate
             DistinguishabilityMeasurement, measurement.Distinguishability, "ratio", SilhouetteDocReference),
     ];
 
-    /// <summary>
-    /// The `15` §A4 mask as a pixel set, refusing anything that is not the size §A4 states.
-    /// </summary>
+    /// <summary>The mask as a pixel set, refusing anything not the expected size.</summary>
     /// <param name="mask">A mask from <see cref="Render"/>.</param>
     private static PixelMask MaskOf(SKBitmap mask)
     {
@@ -379,19 +359,16 @@ public static class SilhouetteGate
     }
 
     /// <summary>
-    /// The distance from the nearest already-accepted silhouette in the same `15` §D1 category, as
-    /// the Jaccard distance between the two masks: <c>1 - |A ∩ B| / |A ∪ B|</c>.
+    /// The distance from the nearest already-accepted silhouette in the same category, as the
+    /// Jaccard distance between the two masks: <c>1 - |A ∩ B| / |A ∪ B|</c>.
     /// </summary>
     /// <remarks>
-    /// 🔒 Jaccard rather than a pixel-difference count because it is already normalised onto the
-    /// 0-1 scale <see cref="SilhouetteMeasurement.Distinguishability"/> is defined on, and it reads
-    /// the two ends the way §A4's question does: identical masks share everything and score
-    /// <see cref="MinimumDistinguishability"/>; masks sharing no pixel score
-    /// <see cref="MaximumDistinguishability"/>. A raw pixel count would make a small silhouette look
-    /// distinguishable from everything simply by being small.
+    /// Jaccard rather than a pixel-difference count because it is already normalised onto the 0-1
+    /// scale <see cref="SilhouetteMeasurement.Distinguishability"/> is defined on; a raw pixel count
+    /// would make a small silhouette look distinguishable from everything simply by being small.
     /// </remarks>
     /// <param name="filled">The silhouette being measured.</param>
-    /// <param name="category">The `15` §D1 category to compare within.</param>
+    /// <param name="category">The category to compare within.</param>
     /// <param name="registry">The silhouettes already accepted.</param>
     private static double DistanceFromAccepted(
         PixelMask filled, string category, SilhouetteRegistry registry)
@@ -449,15 +426,10 @@ public static class SilhouetteGate
         return (Math.Min(from, sourceExtent - 1), Math.Clamp(to, from + 1, sourceExtent));
     }
 
-    /// <summary>
-    /// True when anything inside a footprint is visible — the scale half of §A4's "fill it 100%
-    /// black, scale to 64 px".
-    /// </summary>
+    /// <summary>True when anything inside a footprint is visible.</summary>
     /// <remarks>
-    /// 🔒 A union, not an average with a cutoff. §A4's own rule is that any ink is silhouette, and
-    /// applying it again after a box downscale is what that rule means at the smaller size. The
-    /// alternative — average the footprint's coverage and keep the pixel above some share — would be
-    /// a threshold `15` does not authorise, sitting where nobody would grep for it.
+    /// A union, not an average with a cutoff: any ink counts as silhouette, so a footprint that is
+    /// mostly transparent but has one opaque pixel still reads as filled after the downscale.
     /// </remarks>
     /// <param name="source">The source image.</param>
     /// <param name="left">The footprint's left edge, inclusive.</param>

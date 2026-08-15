@@ -5,12 +5,8 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>
-/// `19` Part E, O13 — <c>content/curses/curses.json</c> as the content pipeline sees it: the
-/// twelve-curse catalogue and the chapter-gating column the M3 kickoff resolved. The mechanical
-/// rules engine (no-stacking, paired-reward payout, <c>AD_SKIP_CURSE</c>, mount immunity) is
-/// M3-11's and is not asserted here.
-/// </summary>
+/// <summary>Tests <c>content/curses/curses.json</c>: the twelve-curse catalogue and its chapter-gating column.</summary>
+/// <remarks>The mechanical rules engine (no-stacking, paired-reward payout, mount immunity) is tested elsewhere, not here.</remarks>
 public sealed class CursesDataTests
 {
     private const string Document = "content/curses/curses.json";
@@ -37,11 +33,7 @@ public sealed class CursesDataTests
         Data().Read($"{Document}#/curses").Items.Count.ShouldBe(12);
     }
 
-    /// <summary>
-    /// O13, resolved at the M3 kickoff: the four Chapter-1 curses this task's scope actually needs
-    /// gated, and <c>CUR_HUNTED</c>'s Chapter-5-specific gate — pinned individually so a future edit
-    /// to any one gate is caught rather than only a change in the aggregate count.
-    /// </summary>
+    /// <summary>Each curse's chapter gate, pinned individually so an edit to any one gate is caught rather than only a change in the aggregate count.</summary>
     [Theory]
     [InlineData("CUR_SLIPPERY", 1)]
     [InlineData("CUR_MARKED", 1)]

@@ -11,39 +11,38 @@ using SlayIdleRepeat.Core.Rules.Stats;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 One authored boss fight through the REAL engine — the real <see cref="AttackPipeline"/> and
-/// <see cref="StatusTimeline"/>, the composition production and the balance harness use, <b>not</b>
+/// One authored boss fight through the real engine — the real <see cref="AttackPipeline"/> and
+/// <see cref="StatusTimeline"/>, the composition production and the balance harness use, not
 /// <see cref="BossTestBench"/>'s fakes.
 /// </summary>
 /// <remarks>
-/// 🔴 Neither existing bench serves: <see cref="Bosses.BossFight.Run"/> takes only an
-/// <see cref="ActorStats"/> hero and has no way to give it a held effect (no hero perk/gear/talent path
-/// is wired into a boss fight until M3+), while <see cref="BossTestBench"/> composes a pipeline that
-/// deals no damage and statuses that apply nothing — right for the phase-machinery suite, but unable to
-/// prove a real op resolves against the real engine.
+/// Neither existing bench serves: <see cref="Bosses.BossFight.Run"/> takes only an
+/// <see cref="ActorStats"/> hero and has no way to give it a held effect, while
+/// <see cref="BossTestBench"/> composes a pipeline that deals no damage and statuses that apply
+/// nothing — right for the phase-machinery suite, but unable to prove a real op resolves against
+/// the real engine.
 /// <para>
-/// 🔒 <b>The one hero-held effect this bench seeds.</b> <c>BOSS_COGITATOR_PRIME_P2_RECALIBRATE</c> is a
+/// The one hero-held effect this bench seeds: <c>BOSS_COGITATOR_PRIME_P2_RECALIBRATE</c> is a
 /// <c>STAT_COPY HIGHEST_PCT_BONUS</c> whose source is the hero, and
-/// <c>HighestPercentBonusStat</c> throws by design when the source carries no percent bucket — which
-/// only <c>STAT_COPY</c> writes. A hero built through today's production entry points never carries
-/// one, so Recalibrate would still fault for a reason this bench must not paper over by weakening that
-/// refusal. Instead the hero gets a single harmless <c>STAT_COPY</c> of <c>LIFESTEAL</c> (base
-/// <c>0.0</c>, so a real write of a real zero with no effect on balance) — the percent bucket a real
-/// build will one day populate, standing in honestly for a mechanism M2 has not built.
+/// <c>HighestPercentBonusStat</c> throws by design when the source carries no percent bucket —
+/// which only <c>STAT_COPY</c> writes. A hero built through today's production entry points never
+/// carries one, so Recalibrate would still fault for a reason this bench must not paper over by
+/// weakening that refusal. Instead the hero gets a single harmless <c>STAT_COPY</c> of
+/// <c>LIFESTEAL</c> (base <c>0.0</c>, so a real write of a real zero with no effect on balance) —
+/// the percent bucket a real build will one day populate.
 /// </para>
 /// </remarks>
 internal static class RealBossFight
 {
-    /// <summary>`14` §8.1 — an arbitrary but fixed battle seed, used across this bench's fights.</summary>
+    /// <summary>An arbitrary but fixed battle seed, used across this bench's fights.</summary>
     internal const ulong BattleSeed = 0xB055_C0DE_0000_0003UL;
 
     /// <summary>
-    /// A hero stat block strong enough to survive a full `05` §3 fight against any of the nine
-    /// authored bosses (at <see cref="BossPower"/>) and to bring one down through phase 3 well inside
-    /// the 90 s bound — calibrated empirically against the shipped
-    /// <c>content/bosses/bosses.json</c> (see the M2-R3 completion report for the numbers each boss
-    /// produced). Not a balanced build: DEF and Max HP are deliberately extreme so the fight's outcome
-    /// is never in doubt and every tick is about the boss's own mechanics, not a coin-flip loss.
+    /// A hero stat block strong enough to survive a full fight against any of the nine authored
+    /// bosses (at <see cref="BossPower"/>) and to bring one down through phase 3 well inside the
+    /// 90 s bound — calibrated empirically against the shipped <c>content/bosses/bosses.json</c>.
+    /// Not a balanced build: DEF and Max HP are deliberately extreme so the fight's outcome is
+    /// never in doubt and every tick is about the boss's own mechanics, not a coin-flip loss.
     /// </summary>
     internal static ActorStats Hero() => ActorStats.From(new Dictionary<StatId, double>
     {
@@ -63,10 +62,10 @@ internal static class RealBossFight
         [StatId.THORNS] = 0.0,
     });
 
-    /// <summary>`02` §4.3's boss-node power this bench fights at — moderate, not tuned to any par cell.</summary>
+    /// <summary>The boss-node power this bench fights at — moderate, not tuned to any par cell.</summary>
     internal const double BossPower = 10_000.0;
 
-    /// <summary>`05` §6.0's shared enemy/hero level this bench fights at.</summary>
+    /// <summary>The shared enemy/hero level this bench fights at.</summary>
     internal const int Level = 50;
 
     /// <summary>
@@ -87,15 +86,15 @@ internal static class RealBossFight
     });
 
     /// <summary>
-    /// Runs one authored boss to `05` §3's 1800-tick bound (or fewer, via <paramref name="maxTicks"/>)
-    /// through the real `05` §4 attack pipeline and the real `05` §5 status engine — the same
-    /// composition <see cref="Bosses.BossFight.Run"/> uses, plus the hero's one seeded held effect.
+    /// Runs one authored boss to the 1800-tick bound (or fewer, via <paramref name="maxTicks"/>)
+    /// through the real attack pipeline and the real status engine — the same composition
+    /// <see cref="Bosses.BossFight.Run"/> uses, plus the hero's one seeded held effect.
     /// </summary>
     /// <param name="bossId">A script id in <c>content/bosses/bosses.json</c>.</param>
     /// <param name="content">The loaded, schema-validated content snapshot.</param>
-    /// <param name="battleSeed">`14` §8.1's battle seed.</param>
-    /// <param name="maxTicks">`05` §3's bound, or fewer.</param>
-    /// <param name="firstClear">`17` §1's first-clear flag.</param>
+    /// <param name="battleSeed">The battle seed.</param>
+    /// <param name="maxTicks">The tick bound, or fewer.</param>
+    /// <param name="firstClear">The first-clear flag.</param>
     internal static SimulationResult Run(
         string bossId,
         ContentSnapshot content,
@@ -166,7 +165,7 @@ internal static class RealBossFight
         return CombatSimulator.Simulate(plan);
     }
 
-    /// <summary>Every script id `17` §1.2 authors, in <c>content/bosses/bosses.json</c> order.</summary>
+    /// <summary>Every authored script id, in <c>content/bosses/bosses.json</c> order.</summary>
     internal static IEnumerable<object[]> AllBossIds(ContentSnapshot content) =>
         BossCatalogue.Read(content).Scripts.Select(s => new object[] { s.Script.Id });
 }

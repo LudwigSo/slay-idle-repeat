@@ -5,19 +5,13 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>
-/// `06` §3 and §5 — <c>content/perks/perks.json</c> as the content pipeline sees it, and R35, the
-/// cross-file rule that validates its embedded effects against <c>schema/effect.schema.json</c>.
-/// On <c>BossesDataTests</c>' pattern: the transcription of tier scalings and category/rarity
-/// spread is asserted here through the pipeline's own reader, not re-derived.
-/// </summary>
+/// <summary>Tests <c>content/perks/perks.json</c> and R35, the rule that validates its embedded effects against <c>schema/effect.schema.json</c>.</summary>
 public sealed class PerksDataTests
 {
     private const string Document = "content/perks/perks.json";
 
     private static ContentSnapshot Data() => ContentLoader.Load(RepoData.Source()).Require();
 
-    /// <summary>Every new content type asserts its own pairing (`14` §6).</summary>
     [Fact]
     public void The_document_is_governed_by_its_own_schema()
     {
@@ -27,10 +21,7 @@ public sealed class PerksDataTests
         ContentLoader.VocabularySchemas.ShouldNotContain("schema/perk.schema.json");
     }
 
-    /// <summary>
-    /// 🔒 `18` §1 / M2-01 — the effect schema stays a vocabulary schema. It governs no file of its
-    /// own, and authoring perks did not make it one.
-    /// </summary>
+    /// <summary>The effect schema remains a vocabulary schema — it governs no file of its own, even now that perks embed effects.</summary>
     [Fact]
     public void The_effect_schema_is_still_a_vocabulary_schema_governing_no_file()
     {
@@ -40,7 +31,7 @@ public sealed class PerksDataTests
             "schema/effect.schema.json", "a schema is never a document of the snapshot");
     }
 
-    /// <summary>M3-07's coverage-driven selection: 46 of 06 §3's 82 standard-catalogue rows.</summary>
+    /// <summary>46 of the 82 standard-catalogue rows, a coverage-driven selection.</summary>
     [Fact]
     public void The_starter_catalogue_carries_46_rows()
     {
@@ -50,7 +41,7 @@ public sealed class PerksDataTests
         rows!.Items.Count.ShouldBe(46, "M3-07's coverage-driven selection off 06 §3's 82-row catalogue");
     }
 
-    /// <summary>06 §1.1 — every row carries exactly 3 tiers, numbered 1, 2, 3 in order.</summary>
+    /// <summary>Every row carries exactly 3 tiers, numbered 1, 2, 3 in order.</summary>
     [Fact]
     public void Every_row_carries_exactly_3_tiers_in_order()
     {
@@ -70,7 +61,7 @@ public sealed class PerksDataTests
         }
     }
 
-    /// <summary>06 §2 — every one of the 6 standard categories is represented (composition rule 2).</summary>
+    /// <summary>Every one of the 6 standard categories is represented.</summary>
     [Fact]
     public void All_6_standard_categories_are_represented()
     {
@@ -86,7 +77,7 @@ public sealed class PerksDataTests
             ignoreOrder: true);
     }
 
-    /// <summary>06 §4 — every one of the 4 rarities is represented (RarityWeights exercisability).</summary>
+    /// <summary>Every one of the 4 rarities is represented.</summary>
     [Fact]
     public void All_4_rarities_are_represented()
     {
@@ -102,10 +93,7 @@ public sealed class PerksDataTests
 
     // ─────────────────────────────────────────────────────── R35
 
-    /// <summary>
-    /// 🔒 R35, the floor (steering S3). Scoped to THIS document, not read off the process-wide
-    /// accumulator whole — see <c>BossesDataTests</c>' identical case for why.
-    /// </summary>
+    /// <summary>R35's floor, scoped to this document rather than read off the process-wide accumulator — see <c>BossesDataTests</c>' identical case for why.</summary>
     [Fact]
     public void R35_validated_every_embedded_effect_in_the_shipped_perk_catalogue()
     {
@@ -132,16 +120,12 @@ public sealed class PerksDataTests
         validated.Length.ShouldBe(embedded, "R35 reaches every embedded effect in the file, not a prefix of them");
     }
 
-    /// <summary>
-    /// 🔒 R35 bites — an embedded effect whose op-specific keys are wrong is refused, and the
-    /// finding names the document, the pointer and the rule. On <c>BossesDataTests</c>' pattern.
-    /// </summary>
+    /// <summary>R35 refuses an embedded effect whose op-specific keys are wrong, naming the document, pointer, and rule.</summary>
     /// <remarks>
-    /// The second case is the collision R35 itself had to be fixed for during M3-07: a
-    /// <c>condition</c> comparator is ALSO spelled <c>op</c>, and before that fix a well-formed
-    /// condition was found and validated as if it were the top-level effect. This case pins the
-    /// GENUINE negative instead — an op-specific key on the wrong op — so a regression in either
-    /// direction is caught.
+    /// The second case is the collision R35 had to be fixed for: a condition comparator is ALSO
+    /// spelled <c>op</c>, and before the fix a well-formed condition was found and validated as if
+    /// it were the top-level effect. This pins the genuine negative instead, so a regression in
+    /// either direction is caught.
     /// </remarks>
     [Theory]
     [InlineData(
@@ -167,11 +151,8 @@ public sealed class PerksDataTests
     }
 
     /// <summary>
-    /// 🔒 S1 negative control — a condition object is REFUSED at the top-level effect oneOf if it
-    /// is ever reached there directly (i.e. if R35's id+op signature regresses back to op-alone,
-    /// this would start passing every condition through as a "valid effect" instead of failing
-    /// loudly, and this case is the tripwire). A condition with an unknown comparator token is
-    /// refused wherever the condition schema itself is checked.
+    /// Negative control: a condition object is refused at the top-level effect oneOf if it's ever
+    /// reached there directly — the tripwire for R35's id+op signature regressing back to op-alone.
     /// </summary>
     [Fact]
     public void An_intentionally_malformed_condition_comparator_is_refused()

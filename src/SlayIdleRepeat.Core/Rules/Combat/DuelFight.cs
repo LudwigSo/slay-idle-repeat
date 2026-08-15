@@ -7,54 +7,32 @@ using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §3.3 / `11` §4.3 — two hero builds, composed into the Ghost Duel
-/// <see cref="CombatSimulator.SimulateDuel"/> exposes.
-/// </summary>
+/// <summary>Two hero builds, composed into the Ghost Duel <see cref="CombatSimulator.SimulateDuel"/> exposes.</summary>
 /// <remarks>
 /// <para>
-/// `05` §3.3 describes the duel as <em>"two hero-shaped sides"</em> and `11` §4.3 states its bounds
-/// — a duration cap converted from seconds by <c>CombatRules.Duel</c>, and an underdog side that
-/// wins an exact tie at the timeout. Both were implemented and pinned by <c>PvpDuelTests</c>
-/// against the <b>internal</b> <c>CombatSimulator.Simulate(BattlePlan)</c> only; nothing outside
-/// <c>Core</c> could run one. This type is the composition <see cref="CombatSimulator.SimulateDuel"/>
-/// delegates to, on <see cref="EncounterFight"/>'s and <c>BossFight</c>'s precedent.
+/// The defending side is a hero, on <see cref="BattleSide.ENEMY"/>: putting it at
+/// <c>FirstEnemy</c> satisfies <c>BattlePlan</c>'s "one killable enemy" rule rather than doubling the
+/// hero-side hero, while <c>Kind</c> stays <see cref="EffectActorKind.HERO"/> so hero-shaped conditions
+/// read it correctly.
 /// </para>
-/// <para>
-/// 🔒 <b>The defending side is a <em>hero</em>, on <see cref="BattleSide.ENEMY"/>.</b>
-/// <c>CombatActor</c> puts the defender at <c>FirstEnemy</c> so it satisfies <c>BattlePlan</c>'s
-/// "one killable enemy" rule rather than doubling the hero-side hero; <c>Kind</c> stays
-/// <see cref="EffectActorKind.HERO"/> so `18` §4's hero-shaped conditions read it correctly (`05`
-/// §3.3, <c>PvpDuelTests</c>).
-/// </para>
-/// <para>
-/// ⚠️ <b>No pets.</b> `05` §1's plain <c>Simulate</c> overload carries none either — pets are a gap
-/// this task does not close, and inventing a pet-bearing duel signature here would be exactly the
-/// kind of unauthorised widening steering S6 forbids.
-/// </para>
+/// <para>No pets: the plain <c>Simulate</c> overload carries none either, and pets are a gap this type does not close.</para>
 /// </remarks>
 internal static class DuelFight
 {
-    /// <summary>Runs one Ghost Duel to `11` §4.3's bound and returns `05` §7's replay.</summary>
-    /// <param name="battleSeed">`14` §8.1's battle seed. The <c>runSeed</c> never enters this layer.</param>
-    /// <param name="attacker">The attacking player's `05` §1 block, before `18` §8.</param>
+    /// <summary>Runs one Ghost Duel to its bound and returns the replay.</summary>
+    /// <param name="battleSeed">The battle seed. The run seed never enters this layer.</param>
+    /// <param name="attacker">The attacking player's stat block, before effect aggregation.</param>
     /// <param name="attackerLevel">The attacker's Legend Level.</param>
-    /// <param name="defender">The Ghost's `05` §1 block — the defending player's build as recorded.</param>
+    /// <param name="defender">The Ghost's stat block — the defending player's build as recorded.</param>
     /// <param name="defenderLevel">The Ghost's Legend Level.</param>
-    /// <param name="durationSeconds">
-    /// `11` §4.3's duel cap, in seconds — <c>content/combat_caps.json#/pvpMaxFightSeconds</c>, as the
-    /// caller read it. Converted to ticks by <c>CombatRules.Duel</c>.
-    /// </param>
-    /// <param name="attackerIsUnderdog">
-    /// `11` §4.3 — <em>"the lower-rated player wins"</em> an exact tie at the timeout. True names the
-    /// attacker the lower-rated side; false names the defender.
-    /// </param>
+    /// <param name="durationSeconds">The duel cap, in seconds, as the caller read it. Converted to ticks by <c>CombatRules.Duel</c>.</param>
+    /// <param name="attackerIsUnderdog">The lower-rated player wins an exact tie at the timeout. True names the attacker the lower-rated side; false names the defender.</param>
     /// <param name="content">The loaded, schema-validated content snapshot.</param>
-    /// <param name="attackerEffects">Extra `18` §1 effects the attacker holds for this duel. <c>null</c>/empty for none.</param>
-    /// <param name="defenderEffects">Extra `18` §1 effects the Ghost holds for this duel. <c>null</c>/empty for none.</param>
+    /// <param name="attackerEffects">Extra effects the attacker holds for this duel. <c>null</c>/empty for none.</param>
+    /// <param name="defenderEffects">Extra effects the Ghost holds for this duel. <c>null</c>/empty for none.</param>
     /// <exception cref="MissingContentException">A document or pointer the fight needs is absent.</exception>
     /// <exception cref="UnauthorisedTunableException">A constant the fight needs is <c>null</c> in the data.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="durationSeconds"/> is outside `05` §3's addressable tick range.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="durationSeconds"/> is outside the addressable tick range.</exception>
     internal static SimulationResult Run(
         ulong battleSeed,
         ActorStats attacker,

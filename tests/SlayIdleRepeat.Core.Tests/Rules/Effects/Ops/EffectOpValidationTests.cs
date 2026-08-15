@@ -11,16 +11,10 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 /// </summary>
 public sealed class EffectOpValidationTests
 {
-    /// <summary>
-    /// 🔒 S3's floor: <b>every</b> one of the 44 ops reaches a deliberate arm of the validator,
-    /// rather than its <c>default</c>.
-    /// </summary>
+    /// <summary>Every op reaches a deliberate arm of the validator, rather than its <c>default</c>.</summary>
     /// <remarks>
-    /// ⚠️ What this does <b>not</b> claim, said plainly: a forty-fifth op added as
-    /// <c>case NEW_OP: break;</c> would report no problems and pass here. Nothing short of a
-    /// per-op expected-shape table could catch that, and such a table would be a third statement of
-    /// the partition <c>effect.schema.json</c> and <see cref="EffectOpValidation"/> already make.
-    /// What is caught is the op that reaches no arm at all.
+    /// Does not claim more than that: a new op added as <c>case NEW_OP: break;</c> would still pass
+    /// here. Only the op that reaches no arm at all is caught.
     /// </remarks>
     [Fact]
     public void No_op_falls_through_to_the_validators_default_arm()
@@ -34,7 +28,7 @@ public sealed class EffectOpValidationTests
             var bare = new EffectDefinition { Id = "X", Op = op };
 
             // A bare effect either validates (the ops that need only the spine) or reports at least
-            // one problem. What must never happen is the default arm reporting "not one of 18 §2's 44".
+            // one problem. What must never happen is the default arm firing.
             if (EffectOpValidation.Problems(bare).Any(p => p.Contains("not one of 18 §2's 44", StringComparison.Ordinal)))
             {
                 uncovered.Add(op.ToString());
@@ -44,7 +38,7 @@ public sealed class EffectOpValidationTests
         uncovered.ShouldBeEmpty();
     }
 
-    /// <summary>Each of the five `18` §10 keys is refused on an op that does not own it.</summary>
+    /// <summary>Each op-specific key is refused on an op that does not own it.</summary>
     [Theory]
     [InlineData(EffectOp.STAT_ADD_PCT, "toStat")]
     [InlineData(EffectOp.DAMAGE, "charges")]
@@ -69,10 +63,7 @@ public sealed class EffectOpValidationTests
                           .ShouldContain(p => p.Contains($"carries '{key}'", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// <c>ALL_COMBAT</c> is admitted by the three aggregating stat ops and by nothing else — `18`
-    /// §9.1's ruling, which is why <c>CP_GLASS_HEART</c> is two effects.
-    /// </summary>
+    /// <summary><c>ALL_COMBAT</c> is admitted by the three aggregating stat ops and by nothing else.</summary>
     [Theory]
     [InlineData(EffectOp.STAT_ADD_FLAT, true)]
     [InlineData(EffectOp.STAT_ADD_PCT, true)]
@@ -102,18 +93,13 @@ public sealed class EffectOpValidationTests
                               "S2 — the selector rule fired, not one of the other six the op could break");
     }
 
-    /// <summary>
-    /// 🔒 The two op-specific keys the in-code validator and the schema had disagreed about.
-    /// </summary>
+    /// <summary>The two op-specific keys the in-code validator and the schema must agree on.</summary>
     /// <remarks>
-    /// The schema admits <c>valueMode</c> on nine ops and <c>statusId</c> on four; the code path
-    /// policed neither, so <c>{"op":"EXTRA_ATTACK","valueMode":"FLAT"}</c> was well-formed in code
-    /// and rejected by the schema — the two enforcement paths disagreeing about one effect.
+    /// The schema admits <c>valueMode</c> on nine ops and <c>statusId</c> on four; if the code path
+    /// polices neither, the two enforcement paths can disagree about the same effect.
     /// </remarks>
     [Theory]
-    // 🔒 REVIVE has an OpValueRules row — the mode it FALLS BACK to — and still takes no authored
-    //    valueMode key: 18 §10.1 records E4 as taken for SURVIVE_LETHAL alone, and the schema's
-    //    REVIVE branch omits it. The two enforcement paths had disagreed about exactly this.
+    // REVIVE has an internal fallback value mode but still takes no authored valueMode key.
     [InlineData(EffectOp.REVIVE, "valueMode")]
     [InlineData(EffectOp.EXTRA_ATTACK, "valueMode")]
     [InlineData(EffectOp.SUMMON, "valueMode")]
@@ -133,10 +119,7 @@ public sealed class EffectOpValidationTests
                           .ShouldContain(p => p.Contains($"carries '{key}'", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// 🔒 A <c>valueMode</c> the op's own `18` §2.2 row rules out is a problem at validation, not a
-    /// surprise at fire time.
-    /// </summary>
+    /// <summary>A <c>valueMode</c> the op does not admit is a problem at validation, not a surprise at fire time.</summary>
     [Theory]
     [InlineData(EffectOp.HEAL_LEECH, ValueMode.ATK_MULT)]
     [InlineData(EffectOp.DAMAGE, ValueMode.FLAT)]
@@ -147,7 +130,7 @@ public sealed class EffectOpValidationTests
                           .ShouldContain(p => p.Contains($"carries valueMode {mode}", StringComparison.Ordinal));
     }
 
-    /// <summary>The five keys `18` §10 added are each required where their op needs them.</summary>
+    /// <summary>Each op-specific key is required where its op needs it.</summary>
     [Fact]
     public void The_18_10_keys_are_required_on_the_ops_that_carry_them()
     {
@@ -168,7 +151,7 @@ public sealed class EffectOpValidationTests
     }
 
     /// <summary>
-    /// 🔒 Every exemplar the three op suites share is well-formed — so the seam, resolver and
+    /// Every exemplar the three op suites share is well-formed — so the seam, resolver and
     /// validation suites cannot disagree about what an authorable effect looks like.
     /// </summary>
     [Fact]
@@ -182,62 +165,56 @@ public sealed class EffectOpValidationTests
                  .ShouldBeEmpty();
     }
 
-    /// <summary>`18` §7's worked examples all validate, as authored.</summary>
+    /// <summary>A set of representative worked examples all validate, as authored.</summary>
     [Fact]
     public void The_worked_examples_of_18_7_are_well_formed()
     {
         var examples = new EffectDefinition[]
         {
-            // §7.1 PK_SHARP_EDGE
             new()
             {
                 Id = "PK_SHARP_EDGE_T1_ATK", Op = EffectOp.STAT_ADD_PCT,
                 Stat = StatSelector.Of(StatId.ATK), Value = 0.12, Target = EffectTarget.SELF,
             },
 
-            // §7.4 PK_UNBREAKABLE, with the valueMode 18 §10 E4 added
+            // With the valueMode SURVIVE_LETHAL's FLAT fallback added.
             new()
             {
                 Id = "PK_UNBREAKABLE_T1_SURVIVE", Op = EffectOp.SURVIVE_LETHAL,
                 Value = 1, ValueMode = ValueMode.FLAT,
             },
 
-            // §7.5 CP_BLOOD_PRICE's drawback
             new()
             {
                 Id = "CP_BLOOD_PRICE_COST", Op = EffectOp.DAMAGE_MAXHP_PCT, Value = 0.03,
                 Target = EffectTarget.SELF, Tags = ["drawback"],
             },
 
-            // §7.6 Avatar of War's cap override
             new()
             {
                 Id = "TAL_AVATAR_OF_WAR_CAP", Op = EffectOp.STAT_CAP_OVERRIDE,
                 Stat = StatSelector.Of(StatId.MAX_HP), Value = 0.80, CapKind = StatCapKind.HEAL_CEILING,
             },
 
-            // §7.8 Thornmaw's summon
             new()
             {
                 Id = "BOSS_THORNMAW_P3_SWARM", Op = EffectOp.SUMMON, Archetype = "SWARM",
                 Value = 2, MaxAlive = 3,
             },
 
-            // §7.9 TILE_DICE_FORGE
             new()
             {
                 Id = "TILE_DICE_FORGE_FACE", Op = EffectOp.MODIFY_DIE_FACE,
                 FaceIndex = DieFaceIndex.PlayerChoice, NewFace = new DieFaceSpec("Pip", 4),
             },
 
-            // §7.10 PK_CLEAVE
             new()
             {
                 Id = "PK_CLEAVE_T1", Op = EffectOp.DAMAGE, Value = 0.40, Target = EffectTarget.OTHER_ENEMIES,
             },
         };
 
-        // S3 — the floor under the loop: an empty fixture list would report success over nothing.
+        // The floor under the loop: an empty fixture list would report success over nothing.
         examples.Length.ShouldBe(7);
 
         examples.SelectMany(e => EffectOpValidation.Problems(e).Select(p => $"{e.Id}: {p}"))
@@ -265,7 +242,7 @@ public sealed class EffectOpValidationTests
             EffectOp.SUMMON => effect with { Archetype = "SWARM" },
             EffectOp.MODIFY_DIE_FACE => effect with { NewFace = new DieFaceSpec("Star") },
 
-            // 18 §10.1 E6 — no value at all, and two rows because one outcome is not a choice.
+            // RANDOM_OUTCOME carries no value at all; two rows because one outcome is not a choice.
             EffectOp.RANDOM_OUTCOME => effect with
             {
                 Value = null,

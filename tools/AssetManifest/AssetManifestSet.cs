@@ -1,16 +1,16 @@
 namespace SlayIdleRepeat.AssetManifest;
 
-/// <summary>`15` §E1's claimed total beside the transcribed one.</summary>
+/// <summary>The claimed total beside the transcribed one.</summary>
 public sealed record ArtTotals(
     int ClaimedBySummaryTable, int Transcribed, int Cut, int Active, int Derived);
 
-/// <summary>Doc 20's claimed totals beside the transcribed ones.</summary>
+/// <summary>The claimed totals beside the transcribed ones.</summary>
 public sealed record AudioTotals(
     int ClaimedMusic, int ClaimedSfx, int ClaimedCombined,
     int TranscribedMusic, int TranscribedSfx, int TranscribedCombined,
     int SfxWithoutDescriptor);
 
-/// <summary>The art register (`15` §E2–§E21).</summary>
+/// <summary>The art register.</summary>
 public sealed record ArtManifest(
     string Status,
     ArtTotals Totals,
@@ -21,7 +21,7 @@ public sealed record ArtManifest(
     IReadOnlyList<Discrepancy> Discrepancies,
     IReadOnlyList<ArtAsset> Assets);
 
-/// <summary>The audio register (`20` §3, §4).</summary>
+/// <summary>The audio register.</summary>
 public sealed record AudioManifest(
     string Status,
     AudioTotals Totals,
@@ -29,14 +29,7 @@ public sealed record AudioManifest(
     IReadOnlyList<Discrepancy> Discrepancies,
     IReadOnlyList<AudioAsset> Assets);
 
-/// <summary>
-/// Both manifests, with the lookups the three downstream consumers need.
-/// </summary>
-/// <remarks>
-/// M8-01a keys provenance records to <see cref="ArtAsset.Id"/> / <see cref="AudioAsset.Id"/>;
-/// M8-06 reads delivery size, pivot and atlas; M8-10 enumerates the rows to emit one placeholder
-/// per slot. All three want the same thing from this type: a stable, complete, queryable id list.
-/// </remarks>
+/// <summary>Both manifests, with id lookups over the combined asset list.</summary>
 public sealed class AssetManifestSet
 {
     private readonly Dictionary<string, ArtAsset> _artById;
@@ -48,9 +41,8 @@ public sealed class AssetManifestSet
         Art = art;
         Audio = audio;
 
-        // 🔒 Ordinal, and built with Add rather than ToDictionary's last-wins: a duplicate id is a
-        // defect the ManifestValidator reports, and a silently collapsed dictionary would hide it
-        // from every consumer that then reads a complete-looking register.
+        // TryAdd, not ToDictionary: a duplicate id is a defect ManifestValidator reports, and
+        // last-wins would silently hide it behind a complete-looking register.
         _artById = new Dictionary<string, ArtAsset>(StringComparer.Ordinal);
         foreach (var asset in art.Assets)
         {
@@ -63,16 +55,12 @@ public sealed class AssetManifestSet
             _audioById.TryAdd(asset.Id, asset);
         }
 
-        // Built once. M8-10 emits one placeholder per slot and M8-01a keys a provenance record to
-        // every id, so this list is walked repeatedly over 1,080 rows; recomputing it per access
-        // was allocating a fresh array each time.
+        // Built once and cached: this list is walked repeatedly over ~1,080 rows.
         _allIds = [.. art.Assets.Select(a => a.Id), .. audio.Assets.Select(a => a.Id)];
     }
 
-    /// <summary>The art register.</summary>
     public ArtManifest Art { get; }
 
-    /// <summary>The audio register.</summary>
     public AudioManifest Audio { get; }
 
     /// <summary>Every asset id in the register, art then audio, in manifest order.</summary>
@@ -87,7 +75,7 @@ public sealed class AssetManifestSet
     /// <summary>Every art row whose existence the docs implied by a count rather than naming it.</summary>
     public IEnumerable<ArtAsset> DerivedArt => Art.Assets.Where(a => a.Derived);
 
-    /// <summary>The art assets of one §E-section.</summary>
+    /// <summary>The art assets of one section.</summary>
     public IEnumerable<ArtAsset> ArtInSection(string section)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(section);
@@ -101,14 +89,13 @@ public sealed class AssetManifestSet
         return Audio.Assets.Where(a => string.Equals(a.Family, family, StringComparison.Ordinal));
     }
 
-    /// <summary>The uncut art assets packed into one atlas (`15` §D2).</summary>
+    /// <summary>The uncut art assets packed into one atlas.</summary>
     /// <remarks>
-    /// 🔒 Accepts either a declared §D2 id or the concrete reference a row carries, and resolves
-    /// <c>atlas_biome_{n}</c> through <see cref="Atlas.Covers"/>. Comparing by equality alone
-    /// returned nothing for the template — so a caller enumerating <c>Art.Atlases</c> and asking
-    /// for each one's members saw eight per-chapter atlases as empty.
+    /// Accepts either a declared atlas id or the concrete reference a row carries, resolving a
+    /// templated id like <c>atlas_biome_{n}</c> through <see cref="Atlas.Covers"/> — comparing by
+    /// equality alone left the per-chapter atlases looking empty.
     /// </remarks>
-    /// <param name="atlas">A §D2 atlas id, or the value an asset row carries in <c>atlas</c>.</param>
+    /// <param name="atlas">A declared atlas id, or the value an asset row carries in <c>atlas</c>.</param>
     public IEnumerable<ArtAsset> AtlasMembers(string atlas)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(atlas);
@@ -120,16 +107,11 @@ public sealed class AssetManifestSet
             : Art.Assets.Where(a => a.IsActive && a.Atlas is not null && declared.Covers(a.Atlas));
     }
 
-    /// <summary>An art asset by id, or null.</summary>
     public ArtAsset? FindArt(string id) => _artById.GetValueOrDefault(id);
 
-    /// <summary>An audio asset by id, or null.</summary>
     public AudioAsset? FindAudio(string id) => _audioById.GetValueOrDefault(id);
 
-    /// <summary>
-    /// An art asset by id, or a loud failure naming the id. The lookup a provenance record or a
-    /// placeholder generator wants: an unknown id is a bug in the caller, not an empty result.
-    /// </summary>
+    /// <summary>An art asset by id, or a loud failure: an unknown id is a bug in the caller.</summary>
     public ArtAsset RequireArt(string id) =>
         FindArt(id) ?? throw new KeyNotFoundException(
             $"No art asset '{id}' in the manifest. It holds {Art.Assets.Count} rows across " +

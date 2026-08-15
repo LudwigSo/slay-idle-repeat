@@ -7,16 +7,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>🔒 `30` §6 — <em>"A fixed seed. Reproducible byte-for-byte."</em></summary>
+/// <summary>A fixed seed reproduces byte-for-byte.</summary>
 /// <remarks>
-/// 🔒 Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not record equality:
-/// <c>PlayerSnapshot</c> carries three dictionaries and a record compares those by <b>reference</b>, so
-/// two snapshots describing the identical player are <em>never</em> equal and such a test would fail
-/// for a reason unrelated to determinism.
+/// Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not record equality:
+/// <c>PlayerSnapshot</c> carries three dictionaries a record compares by reference, so two snapshots
+/// describing the identical player would never be equal.
 /// <para>
-/// ⚠️ Nothing in M1 <em>draws</em> — the two daily draws are M4-09's — so the seed's effect on state is
-/// <b>zero</b> today. The test that says so is the honest one, and it is the tripwire that goes red on
-/// the commit M4-09 takes the draw.
+/// Nothing in M1 draws, so the seed's effect on state is zero today — these tests are the tripwire
+/// that goes red the day something starts drawing from it.
 /// </para>
 /// </remarks>
 public sealed class InMemoryGameDeterminismTests
@@ -24,17 +22,8 @@ public sealed class InMemoryGameDeterminismTests
     private const int Days = 180;
     private const int CommandsPerDay = 4;
 
-    /// <summary>
-    /// 🔒 Two fresh harnesses, same seed, same command sequence: identical state and an identical
-    /// event list.
-    /// </summary>
-    /// <remarks>
-    /// The event list is compared as a <b>sequence</b>, not as a set and not by count: `14` §7.1's
-    /// economy log and `14` §2.4's animation script both read the order, and a harness that produced
-    /// the right rows in the wrong order would satisfy any weaker comparison. Every M1 event is a
-    /// <c>CurrencyChanged</c>, which is a record over four value-typed components, so sequence
-    /// equality here is genuine value equality rather than reference identity.
-    /// </remarks>
+    /// <summary>Two fresh harnesses, same seed, same command sequence: identical state and an
+    /// identical event list, compared as a sequence rather than a set or a count.</summary>
     [Fact]
     public void Two_fresh_harnesses_with_one_seed_produce_identical_state_and_events()
     {
@@ -50,16 +39,10 @@ public sealed class InMemoryGameDeterminismTests
             "comparison above would hold over nothing (S3).");
     }
 
-    /// <summary>
-    /// 🔒 The same drive, twice inside <b>one process</b>: nothing static accumulates between runs.
-    /// </summary>
-    /// <remarks>
-    /// A different failure from the one above and worth its own test. Two harnesses built in one
-    /// process share every static in <c>Core</c> — <c>GameRules</c>' dispatch table above all, which
-    /// is built once in the static initialiser. A table that mutated, a cached tuning that held a
-    /// player's numbers, or a counter that lived on a static would make the second simulation of a
-    /// process differ from the first, and `21` §9 runs 14 profiles × 200 seeds in one process.
-    /// </remarks>
+    /// <summary>The same drive, twice inside one process: nothing static accumulates between runs.
+    /// Two harnesses in one process share every static in <c>Core</c> — <c>GameRules</c>' dispatch
+    /// table above all — so a mutated table or a cached, player-tainted tuning would make the second
+    /// simulation differ from the first.</summary>
     [Fact]
     public void The_same_drive_twice_in_one_process_gives_the_same_answer()
     {
@@ -73,20 +56,12 @@ public sealed class InMemoryGameDeterminismTests
         third.Events.ShouldBe(first.Events);
     }
 
-    /// <summary>
-    /// 🔒 Two harnesses in flight <b>at once</b>, interleaved, do not contaminate each other.
-    /// </summary>
-    /// <remarks>
-    /// The sequential test runs each simulation to completion and cannot see this; `21` §9's sweep is a
-    /// loop over profiles, and a harness holding shared mutable state would produce a result that
-    /// depended on the interleaving.
-    /// <para>
-    /// 🔴 It does <b>not</b> pin that the per-command seed counter is per player rather than global, and
-    /// structurally cannot: each harness holds one player, so a global counter produces byte-identical
-    /// sequences anyway, and nothing in M1 reads <c>CommandSeed</c> at all. Measured — deriving from the
-    /// global counter leaves every determinism test green. That becomes testable on M4-09's first draw.
-    /// </para>
-    /// </remarks>
+    /// <summary>Two harnesses in flight at once, interleaved, do not contaminate each other — a
+    /// case the sequential tests above cannot see, since each runs its simulation to completion
+    /// before the next starts.</summary>
+    /// <remarks>Does not pin that the per-command seed counter is per player rather than global —
+    /// each harness here holds one player, so a global counter would look identical. That only
+    /// becomes testable once something actually reads <c>CommandSeed</c>.</remarks>
     [Fact]
     public void Two_interleaved_harnesses_do_not_contaminate_each_other()
     {
@@ -119,21 +94,9 @@ public sealed class InMemoryGameDeterminismTests
             "into another's, which a static accumulator would.");
     }
 
-    /// <summary>
-    /// 🔒 Two <b>different</b> seeds produce the same state today — a statement with an expiry rather
-    /// than a weak assertion.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ Not a claim that the seed does not matter: a claim that <b>nothing in M1 draws</b>. The two
-    /// things that draw from the day's seed are M4-09's, and <c>BeginSession</c> deliberately takes the
-    /// seam and draws nothing.
-    /// <para>
-    /// 🔒 It is the tripwire on that deferral: the commit taking the first draw turns this red, which is
-    /// when someone must replace it with <em>different seeds produce different draws, the same seed
-    /// reproduces them</em>. Without it every test above keeps passing over a seed nobody could tell was
-    /// being ignored.
-    /// </para>
-    /// </remarks>
+    /// <summary>Two different seeds produce the same state today — not a claim that the seed does
+    /// not matter, but that nothing in M1 draws from it yet. This is the tripwire on that deferral:
+    /// the commit that takes the first draw should turn this red.</summary>
     [Fact]
     public void A_different_seed_changes_nothing_yet_and_this_test_expires_at_M4_09()
     {
@@ -155,16 +118,9 @@ public sealed class InMemoryGameDeterminismTests
         second.Events.ShouldBe(first.Events);
     }
 
-    /// <summary>
-    /// 🔒 The comparison itself has teeth: a drive that differs by <b>one command</b> produces a
-    /// different state hash.
-    /// </summary>
-    /// <remarks>
-    /// Without this every determinism assertion above could be satisfied by a
-    /// <c>HashMetaCommandState</c> that answered a constant, or by a <c>Run</c> that discarded its
-    /// simulation and hashed a fresh player. Steering <b>S1</b>: a comparison that cannot report a
-    /// difference is not a comparison.
-    /// </remarks>
+    /// <summary>The comparison itself has teeth: a drive that differs by one command produces a
+    /// different state hash — otherwise every determinism assertion above could pass against a
+    /// constant.</summary>
     [Fact]
     public void The_state_comparison_reports_a_difference_when_there_is_one()
     {
@@ -175,9 +131,7 @@ public sealed class InMemoryGameDeterminismTests
         shorter.Events.Count.ShouldBeLessThan(full.Events.Count);
     }
 
-    /// <summary>
-    /// One 180-day drive: the player's `14` §16.6 <c>stateHash</c> and the whole event list.
-    /// </summary>
+    /// <summary>One 180-day drive: the player's state hash and the whole event list.</summary>
     private static (string State, IReadOnlyList<DomainEvent> Events) Run(ulong seed, int days = Days)
     {
         var (game, player) = Harnesses.WithPlayer(seed: seed);

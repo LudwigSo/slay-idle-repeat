@@ -3,29 +3,24 @@ using SlayIdleRepeat.Core.Rules.Effects;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
-/// <summary>
-/// A battle stated literally: the actors, the clock and the run reading a `18` §4/§5 evaluation reads.
-/// </summary>
+/// <summary>A battle stated literally: the actors, the clock and the run reading an evaluation reads.</summary>
 /// <remarks>
 /// The rosters are the ones the design documents actually describe rather than abstract fixtures, so a
-/// failure says which clause broke.
-/// <para>
-/// ⚠️ Deliberately <b>not</b> in <c>SlayIdleRepeat.Core</c>: `30` §11.4 gives <c>Core/Testing/</c> to
-/// <c>InMemoryGame</c>, and a test fixture is not a shipped harness.
-/// </para>
+/// failure says which clause broke. Deliberately not in <c>SlayIdleRepeat.Core</c>: <c>Core/Testing/</c>
+/// is reserved for <c>InMemoryGame</c>, and a test fixture is not a shipped harness.
 /// </remarks>
 internal static class EffectTestBattle
 {
-    /// <summary>`05` §3's 90 s timeout — the horizon of an ordinary fight.</summary>
+    /// <summary>The 90 s timeout — the horizon of an ordinary fight.</summary>
     internal const double PveTimeoutSeconds = 90.0;
 
-    /// <summary>`05` §3.1's <c>SYS_ENRAGE</c> <c>startDelay</c> — bosses only.</summary>
+    /// <summary><c>SYS_ENRAGE</c>'s <c>startDelay</c> — bosses only.</summary>
     internal const double EnrageSeconds = 70.0;
 
-    /// <summary>`05` §3.3 / `11` §4.3's <c>pvpMaxFightSeconds</c>.</summary>
+    /// <summary><c>pvpMaxFightSeconds</c>.</summary>
     internal const double PvpTimeoutSeconds = 60.0;
 
-    /// <summary>The hero: side <see cref="BattleSide.HERO"/>, index 0 (`05` §3.1).</summary>
+    /// <summary>The hero: side <see cref="BattleSide.HERO"/>, index 0.</summary>
     internal static EffectTestActor Hero(double currentHp = 100, double maxHp = 100) =>
         new()
         {
@@ -37,7 +32,7 @@ internal static class EffectTestBattle
             MaxHp = maxHp,
         };
 
-    /// <summary>A pet — `05` §3.2's untargetable, unkillable ability module, in slot order.</summary>
+    /// <summary>A pet — an untargetable, unkillable ability module, in slot order.</summary>
     internal static EffectTestActor Pet(string id, int index, BattleSide side = BattleSide.HERO) =>
         new()
         {
@@ -47,7 +42,7 @@ internal static class EffectTestBattle
             Kind = EffectActorKind.PET,
         };
 
-    /// <summary>An enemy at the given `05` §3.1 index.</summary>
+    /// <summary>An enemy at the given index.</summary>
     internal static EffectTestActor Enemy(string id, int index, double currentHp = 100, double maxHp = 100) =>
         new()
         {
@@ -60,13 +55,9 @@ internal static class EffectTestBattle
         };
 
     /// <summary>
-    /// A run at the start of a run: stage 1 of chapter 1, nothing held.
+    /// A run at the start of a run: stage 1 of chapter 1, nothing held. <see cref="RunStateReading"/>
+    /// requires these two positional fields, so the fixture states them once, here.
     /// </summary>
-    /// <remarks>
-    /// <see cref="RunStateReading.StageIndex"/> and <see cref="RunStateReading.Chapter"/> are
-    /// <c>required</c> — the type refuses to invent a position — so the fixture states them once,
-    /// here, where the choice is visible, rather than every call site restating them.
-    /// </remarks>
     internal static RunStateReading Run() => new() { StageIndex = 1, Chapter = 1 };
 
     /// <summary>
@@ -84,10 +75,7 @@ internal static class EffectTestBattle
             Run = Run(),
         };
 
-    /// <summary>
-    /// `05` §3.3's duel: <em>"the same code path with two hero-shaped sides"</em>. Both heroes, one
-    /// pet each, the 60 s cap, no run.
-    /// </summary>
+    /// <summary>A duel: the same code path with two hero-shaped sides. Both heroes, one pet each, the 60 s cap, no run.</summary>
     internal static EffectEvaluationContext Duel()
     {
         var attacker = Hero() with { Id = "HERO_ATTACKER" };
@@ -106,7 +94,7 @@ internal static class EffectTestBattle
         };
     }
 
-    /// <summary>A combat stream in the shape `14` §8.1 fixes: the battle seed, handed in.</summary>
+    /// <summary>A combat RNG stream keyed on the given battle seed.</summary>
     internal static DeterministicRng CombatRng(ulong battleSeed) =>
         new(battleSeed, RngStreams.Combat);
 }
@@ -147,7 +135,7 @@ internal sealed record EffectTestActor : IEffectActorView
     /// <inheritdoc />
     public string? OwnerId { get; init; }
 
-    /// <summary>The `05` §5 statuses on this actor, by id.</summary>
+    /// <summary>The statuses on this actor, by id.</summary>
     public IReadOnlyDictionary<string, int> Statuses { get; init; } =
         new Dictionary<string, int>(StringComparer.Ordinal);
 

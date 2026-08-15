@@ -5,12 +5,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 
 /// <summary>
-/// 🔒 `18` §1.1 — <c>effectiveValue = value × steps</c>, <c>steps = min( floor( fn / per ), cap )</c>,
+/// <c>effectiveValue = value × steps</c>, <c>steps = min( floor( fn / per ), cap )</c>,
 /// with <c>fn</c> rounded to 4 decimal places <b>before</b> the division.
 /// </summary>
 public sealed class ValueScaleTests
 {
-    /// <summary>`18` §1.1's first worked row — <c>PK_BERSERK</c> Tier I, "+1% ATK per 1% missing HP, up to +45%".</summary>
+    /// <summary>PK_BERSERK Tier I: "+1% ATK per 1% missing HP, up to +45%".</summary>
     [Theory]
     [InlineData(0.00, 0, 0.00)]
     [InlineData(0.01, 1, 0.01)]
@@ -27,7 +27,7 @@ public sealed class ValueScaleTests
         scale.EffectiveValue(0.01, missingHpFraction).ShouldBe(expectedValue, 1e-9);
     }
 
-    /// <summary>`18` §1.1's second worked row — <c>PK_HOARD</c>, "+1% ATK per 100 Gold currently held", uncapped.</summary>
+    /// <summary>PK_HOARD: "+1% ATK per 100 Gold currently held", uncapped.</summary>
     [Theory]
     [InlineData(0, 0)]
     [InlineData(99, 0)]
@@ -48,9 +48,7 @@ public sealed class ValueScaleTests
     /// <remarks>
     /// <c>0.449994</c> is <c>0.4500</c> to four places, so rounding first gives <c>0.45 / 0.01 = 45</c>
     /// steps. Both plausible alternatives give <b>44</b>: dividing the raw value floors
-    /// <c>44.9994</c>, and rounding the quotient leaves it untouched. One step of ATK, and the reading
-    /// that produces it is exactly what a missing-HP fraction lands on. Run against both alternatives
-    /// and failed against both.
+    /// <c>44.9994</c>, and rounding the quotient leaves it untouched.
     /// </remarks>
     [Fact]
     public void The_reading_is_rounded_to_four_places_before_the_division_not_after_and_not_never()
@@ -71,7 +69,7 @@ public sealed class ValueScaleTests
             "18 §1.1 rounds fn to 4 dp BEFORE the division; both alternatives give 44");
     }
 
-    /// <summary>The cap clamps from above and never from below — `18` §1.1's <c>min(…, cap)</c>.</summary>
+    /// <summary>The cap clamps from above and never from below: <c>min(…, cap)</c>.</summary>
     [Fact]
     public void The_cap_is_a_maximum_not_a_target()
     {
@@ -103,7 +101,7 @@ public sealed class ValueScaleTests
     /// <para>
     /// ⚠️ The assertion has to be <c>double.IsNegative</c>: <c>(-0.0).Equals(0.0)</c> is <b>true</b>, so
     /// <c>ShouldBe(0)</c> cannot see the sign — which is why the defect survived the first round.
-    /// Reachable with `18`'s own numbers: Bog Air is <c>-0.35</c>, and zero steps is the ordinary
+    /// Reachable with real numbers: Bog Air is <c>-0.35</c>, and zero steps is the ordinary
     /// reading at full HP, at zero gold and under a cap of zero.
     /// </para>
     /// </remarks>
@@ -148,10 +146,9 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
-    /// `18` §1.1's <c>min(…, cap)</c> clamps from above only, so a negative reading yields negative
-    /// steps. No lower clamp is imposed — `16` R6: a bound the design has not authorised is not one
-    /// to invent — and this pins the behaviour so that adding one later is a deliberate change
-    /// rather than a silent one.
+    /// <c>min(…, cap)</c> clamps from above only, so a negative reading yields negative steps. No
+    /// lower clamp is imposed — a bound the design has not authorised is not one to invent — and
+    /// this pins the behaviour so that adding one later is a deliberate change rather than a silent one.
     /// </summary>
     [Fact]
     public void A_negative_reading_yields_negative_steps_because_18_states_no_lower_bound()
@@ -232,10 +229,7 @@ public sealed class ValueScaleTests
         thrown.Message.ShouldContain("GOLD_HELD", Case.Sensitive);
     }
 
-    /// <summary>
-    /// The product is rounded to four places too — `05` §1.1, `14` §8.2 and `18` §8 step 10 all
-    /// state the same rule, and an <c>effectiveValue</c> feeds straight into an accumulation.
-    /// </summary>
+    /// <summary>The product is rounded to four places too — an <c>effectiveValue</c> feeds straight into an accumulation.</summary>
     [Fact]
     public void The_effective_value_is_rounded_to_four_places()
     {
@@ -249,8 +243,8 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
-    /// `18` §1.1: <em>"<c>valueScale: null</c> (the default) means <c>effectiveValue = value</c>"</em>.
-    /// The absence is modelled as a null property, not as a scale of one step.
+    /// <c>valueScale: null</c> (the default) means <c>effectiveValue = value</c>: absence is modelled
+    /// as a null property, not as a scale of one step.
     /// </summary>
     [Fact]
     public void An_effect_with_no_value_scale_carries_null_rather_than_an_identity_scale()
@@ -267,8 +261,8 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
-    /// Any of `18` §4's 23 functions may drive a scale — <em>"any condition function from §4"</em>.
-    /// Steering S3: stated over the whole enum so that shrinking it cannot quietly shrink this.
+    /// Any of the 23 condition functions may drive a scale, stated over the whole enum so that
+    /// shrinking it cannot quietly shrink this.
     /// </summary>
     [Fact]
     public void Every_condition_function_can_drive_a_value_scale()

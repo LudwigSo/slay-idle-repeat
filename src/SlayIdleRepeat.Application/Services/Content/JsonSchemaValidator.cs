@@ -21,28 +21,23 @@ public sealed record PatternBinding(string Pattern, string MemberName, string Va
 /// </summary>
 /// <remarks>
 /// <para>
-/// Hand-written because it has to be: `23` §2.1 — architecture-tested — forbids
-/// <c>SlayIdleRepeat.Application</c> any <c>PackageReference</c> at all, so no third-party
-/// JSON-Schema library is available to the layer that owns validation.
+/// Hand-written because it has to be: an architecture rule forbids <c>SlayIdleRepeat.Application</c>
+/// any <c>PackageReference</c> at all, so no third-party JSON-Schema library is available to the
+/// layer that owns validation.
 /// </para>
 /// <para>
-/// 🔒 <b>Unknown keyword ⇒ hard failure, and the check is eager.</b>
-/// <see cref="CheckSchemaKeywords"/> sweeps the whole schema document before any instance is
-/// validated, so a keyword in a branch no data file happens to reach still fails the build. An
-/// instance-driven check would only ever meet the keywords today's 37 documents walk into: adding
-/// <c>allOf</c> to an unexercised <c>properties</c> entry, an empty array's <c>items</c>, or an
-/// unmatched <c>oneOf</c> branch would pass silently — which is exactly
-/// `game-data/README.md`'s <em>"a permissive schema is worse than no schema, because it
-/// manufactures confidence."</em>
+/// Unknown keyword ⇒ hard failure, and the check is eager: <see cref="CheckSchemaKeywords"/> sweeps
+/// the whole schema document before any instance is validated, so a keyword in a branch no data
+/// file happens to reach still fails the build. An instance-driven check would only ever meet the
+/// keywords today's documents walk into — an unexercised branch would pass silently, which is
+/// exactly the false confidence this validator exists to prevent.
 /// </para>
 /// <para>
-/// The same principle governs a known keyword's <em>value</em>. The sweep knows the shape each
+/// The same principle governs a known keyword's <em>value</em>: the sweep knows the shape each
 /// keyword position must have and reports <see cref="ContentIssueCode.UnsupportedSchemaKeyword"/>
-/// when it does not hold. Without that, a <em>known</em> keyword written wrong degrades to a no-op
-/// and the file reports clean: <c>"properties": []</c> applies no sub-schema at all,
-/// <c>"required": "id"</c> checks nothing, and draft-07's tuple <c>"items": [ … ]</c> is skipped.
-/// Silently skipping is how a bound stops biting without anybody noticing — and a permissive schema
-/// is worse than no schema, because it manufactures confidence.
+/// when it does not hold. Without that, a known keyword written wrong degrades to a no-op and the
+/// file reports clean — e.g. <c>"properties": []</c> applies no sub-schema at all, and draft-07's
+/// tuple <c>"items": [ … ]</c> is silently skipped.
 /// </para>
 /// </remarks>
 public static class JsonSchemaValidator
@@ -72,26 +67,10 @@ public static class JsonSchemaValidator
     private static readonly string[] SchemaListKeywords = ["oneOf"];
 
     /// <summary>
-    /// 🔒 The shape each keyword's <em>value</em> must have. A keyword whose name is known but whose
-    /// value is the wrong shape is the exact failure the eager sweep exists to close.
+    /// The shape each keyword's <em>value</em> must have. A keyword whose name is known but whose
+    /// value is the wrong shape degrades to a silent no-op without this check — e.g.
+    /// <c>"properties": []</c> applies no sub-schema and the file passes clean.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Every one of these degrades to a no-op rather than an error without the check, because the
-    /// value tree answers "not an object" and "not an array" by returning nothing rather than by
-    /// complaining. <c>"properties": []</c> applies no sub-schema and, with
-    /// <c>additionalProperties</c> absent, leaves the whole object unvalidated — the file passes
-    /// clean. <c>"required": "id"</c> iterates an empty <c>Items</c>. <c>"items": [ … ]</c>,
-    /// draft-07's tuple form, is skipped and only errors if the instance array happens to be
-    /// non-empty.
-    /// </para>
-    /// <para>
-    /// The numeric ones used to surface at <em>validation</em> time, as a
-    /// <c>ContentTypeMismatchException</c> out of <c>AsInt32</c>/<c>AsNumber</c> — a stack trace
-    /// instead of a located <see cref="ContentIssue"/>, and only if an instance walked that far.
-    /// Checking the shape here fixes both.
-    /// </para>
-    /// </remarks>
     private static readonly (string Keyword, KeywordShape Shape)[] KeywordShapes =
     [
         ("properties", KeywordShape.Object),
@@ -141,7 +120,7 @@ public static class JsonSchemaValidator
     /// </summary>
     public static IReadOnlySet<string> SupportedKeywords { get; } = new HashSet<string>(StringComparer.Ordinal)
     {
-        // Annotations — read by humans and by the 📐 audit, never asserted.
+        // Annotations — read by humans and by the tunable-marker audit, never asserted.
         "$schema", "$id", "$comment", "title", "description", "default", "examples", "deprecated",
 
         // Structure.
@@ -159,7 +138,7 @@ public static class JsonSchemaValidator
     };
 
     /// <summary>
-    /// 🔒 Sweeps a whole schema document for keywords this validator does not implement, before any
+    /// Sweeps a whole schema document for keywords this validator does not implement, before any
     /// instance is validated against it. Run once per schema, not once per data file.
     /// </summary>
     public static IReadOnlyList<ContentIssue> CheckSchemaKeywords(ContentValue schema, string schemaPath)
@@ -225,8 +204,8 @@ public static class JsonSchemaValidator
                 continue;
             }
 
-            // 🔒 Shape before recursion. A keyword whose value is the wrong shape is not something
-            // to walk into — and walking into it is what silently produced a no-op.
+            // Shape before recursion: a keyword whose value is the wrong shape is not something to
+            // walk into.
             if (!ShapeHolds(name, value!, schemaPath, childPointer, issues))
             {
                 continue;
@@ -329,10 +308,9 @@ public static class JsonSchemaValidator
     };
 
     /// <remarks>
-    /// 🔒 <c>\z</c> rather than <c>$</c>: .NET's <c>$</c> also matches immediately before a trailing
-    /// newline, ECMA-262's (which draft 2020-12 specifies) does not. Without this,
-    /// <c>"^AD_[A-Z0-9_]+$"</c> accepts <c>"AD_ENERGY\n"</c> and an id with a newline in it flows
-    /// into the snapshot and into the cross-file id spaces.
+    /// <c>\z</c> rather than <c>$</c>: .NET's <c>$</c> also matches immediately before a trailing
+    /// newline, which draft 2020-12's ECMA-262 semantics do not. Without this,
+    /// <c>"^AD_[A-Z0-9_]+$"</c> would accept <c>"AD_ENERGY\n"</c>.
     /// </remarks>
     private static Regex Compiled(string pattern) =>
         Patterns.GetOrAdd(pattern, p => new Regex(EndAnchored(p), RegexOptions.CultureInvariant, PatternTimeout));

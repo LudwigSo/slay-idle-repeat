@@ -2,20 +2,15 @@ using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Core.Tests.Content;
 
-/// <summary>
-/// Purpose-built `19` Part A-shaped event cards, one per thing the event resolver has to do.
-/// </summary>
+/// <summary>Purpose-built event-card-shaped fixtures, one per thing the event resolver has to do.</summary>
 /// <remarks>
-/// <para>
-/// ⚠️ <b>These are NOT the thirty authored cards, and their ids say so.</b> Every id here is
-/// <c>EVT_FIXTURE_*</c>, which no shipped card uses, for the reason <c>Worlds</c>' command fixtures
-/// avoid `14` §2.3's real wire names: a fixture borrowing a real card's id would read as a claim
-/// about that card, and a later content edit to it would break tests that were never about it.
-/// </para>
+/// These are NOT the thirty authored cards, and their ids say so: every id here is
+/// <c>EVT_FIXTURE_*</c>, which no shipped card uses — a fixture borrowing a real card's id would read
+/// as a claim about that card, and a later content edit to it would break tests that were never about it.
 /// <para>
 /// The shipped thirty are covered separately, against the real file, by
-/// <c>EventCatalogueRealDataTests</c> — this fixture is for pinning the <em>resolver</em>, where a
-/// card has to be shaped to isolate one op or one weight boundary.
+/// <c>EventCatalogueRealDataTests</c> — this fixture is for pinning the resolver, where a card has to
+/// be shaped to isolate one op or one weight boundary.
 /// </para>
 /// </remarks>
 internal static class FixtureCards
@@ -35,7 +30,7 @@ internal static class FixtureCards
     /// <summary>A card whose options heal and hurt by a share of Max HP.</summary>
     internal const string Vitals = "EVT_FIXTURE_VITALS";
 
-    /// <summary>A card whose one option pays a curse's `19` Part E reward.</summary>
+    /// <summary>A card whose one option pays a curse's reward.</summary>
     internal const string Curse = "EVT_FIXTURE_CURSE";
 
     /// <summary>A card whose one option does nothing at all — NONE and UNSUPPORTED.</summary>

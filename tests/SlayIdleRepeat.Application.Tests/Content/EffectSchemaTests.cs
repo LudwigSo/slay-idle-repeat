@@ -7,22 +7,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>
-/// 🔒 <c>game-data/schema/effect.schema.json</c> against `18` — the vocabulary schema every later
-/// M2 task keys on.
-/// </summary>
+/// <summary>Tests <c>schema/effect.schema.json</c>, the vocabulary schema for embedded effects.</summary>
 /// <remarks>
-/// <para>
-/// This schema governs no data file (an effect is always embedded in the thing that owns it), so
-/// the loader never validates an instance against it. That is exactly why these cases exist: a
-/// schema nothing exercises is a schema nobody has checked. Every worked example in `18` is
-/// validated here, and each of the three failure classes `18` §10 relies on — unknown op, unknown
-/// key, unknown enum member — has a case that proves the rejection.
-/// </para>
-/// <para>
-/// The parity cases are the other half. The C# enums and the schema enums are two statements of one
-/// vocabulary, and nothing but a test can make them agree.
-/// </para>
+/// This schema governs no data file, so the loader never validates an instance against it — these
+/// cases are what actually exercises it. The parity cases keep the C# enums and the schema enums,
+/// two statements of one vocabulary, in agreement.
 /// </remarks>
 public sealed class EffectSchemaTests
 {
@@ -34,26 +23,18 @@ public sealed class EffectSchemaTests
 
     // ---------------------------------------------------------------- the schema itself
 
-    /// <summary>
-    /// 🔒 M0-09's rule: an unimplemented keyword is a build failure, never a silent pass. The sweep
-    /// is eager and covers branches no instance reaches, which is the whole point for a schema with
-    /// thirteen op branches and fifteen trigger branches.
-    /// </summary>
+    /// <summary>An unimplemented schema keyword is a build failure, never a silent pass; the sweep covers branches no instance reaches.</summary>
     [Fact]
     public void The_schema_uses_only_keywords_the_validator_implements()
     {
         JsonSchemaValidator.CheckSchemaKeywords(Schema, SchemaPath).ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 The 44 ops are partitioned across the root's <c>oneOf</c> branches: every op in exactly
-    /// one branch, and no branch naming an op that is not declared.
-    /// </summary>
+    /// <summary>Every op appears in exactly one branch of the schema's root <c>oneOf</c>.</summary>
     /// <remarks>
-    /// A op in two branches would make every instance of it match two <c>oneOf</c> branches and
-    /// fail validation; an op in none would make it unauthorable while <c>EffectOp</c> still
-    /// declared it. Both are silent until a content file happens to use that op, which could be
-    /// three milestones from now.
+    /// An op in two branches fails validation for every instance (it matches two branches); an op
+    /// in none makes it unauthorable while <c>EffectOp</c> still declares it. Both are silent until
+    /// a content file happens to use that op.
     /// </remarks>
     [Fact]
     public void Every_op_appears_in_exactly_one_branch_of_the_schema()
@@ -136,10 +117,7 @@ public sealed class EffectSchemaTests
             "18 §4 writes the comparators in lower case, alone among the DSL's tokens");
     }
 
-    /// <summary>
-    /// 🔒 The <c>ALL_COMBAT</c> ruling, stated in the schema: it is admitted by the three
-    /// aggregating stat ops and by nothing else, and it is not a member of <c>stat</c>.
-    /// </summary>
+    /// <summary>ALL_COMBAT is admitted only by the three aggregating stat ops, and is not a member of <c>stat</c>.</summary>
     [Fact]
     public void ALL_COMBAT_is_a_selector_and_not_a_stat()
     {
@@ -193,11 +171,8 @@ public sealed class EffectSchemaTests
             """
         },
         {
-            // 🔴 The M2-06 extension, by 18 §10's route. 18 §1.1 offers fn "any condition function
-            // from §4" and names STATUS_STACKS and DIE_FACE_COUNT in its own list, but §4 types
-            // those "by status id" and "by face kind" and §1.1's table declared no field to carry
-            // one — so both were offered for something the vocabulary could not express. The three
-            // keys are conditionTerm's own, pointed at the same $defs. Erratum on §1.1.
+            // STATUS_STACKS/DIE_FACE_COUNT valueScale functions need an argument (statusId/faceKind)
+            // that was originally offered with no field to carry it; conditionTerm's keys fill the gap.
             "18 §1.1 — a valueScale over STATUS_STACKS, which needs an argument",
             """
             { "id": "PK_SUNDERER", "op": "STAT_ADD_PCT", "stat": "DMG_PCT", "value": 0.05,
@@ -236,8 +211,8 @@ public sealed class EffectSchemaTests
             """
         },
         {
-            // R7 / 18 §10 E4 — §7.4 now carries the valueMode. Without it "value": 1 read as a
-            // FRACTION of Max HP, i.e. full health, while 06 words the same perk "at 1 HP".
+            // Without valueMode, "value": 1 would read as a fraction of Max HP (full health)
+            // instead of a flat 1 HP.
             "18 §7.4 — PK_UNBREAKABLE, ON_LETHAL once, no target, FLAT 1 HP",
             """
             { "id": "PK_UNBREAKABLE_T1_SURVIVE", "op": "SURVIVE_LETHAL", "value": 1,
@@ -364,8 +339,7 @@ public sealed class EffectSchemaTests
             """
         },
 
-        // ---- the effects inside 18's MULTI-effect snippets, which the entries above only
-        // ---- represent by their first element. Several carry a shape nothing else exercises.
+        // ---- effects that appear inside multi-effect snippets, several with shapes nothing else exercises
         {
             "18 §7.1 — PK_SHARP_EDGE, the simplest effect in the document",
             """
@@ -433,8 +407,7 @@ public sealed class EffectSchemaTests
             """
         },
 
-        // ---- shapes the schema declares that no 18 example happens to write. Each was
-        // ---- unexercised until this block, so a typo in it validated nothing and broke nobody.
+        // ---- shapes the schema declares but no worked example writes; previously unexercised
         {
             "18 §4 — the worked 'all' combinator, the only combinator 18 writes outside §7.10",
             """
@@ -529,12 +502,9 @@ public sealed class EffectSchemaTests
         },
     };
 
-    // ---------------------------------------------------------------- 18 §10's three failure classes
+    // ---------------------------------------------------------------- three failure classes
 
-    /// <summary>
-    /// 🔒 `18` §10 step 1: <em>"write the design as JSON using a <b>new op name</b> and let the
-    /// schema validation fail."</em> That instruction is only true if it actually fails.
-    /// </summary>
+    /// <summary>An unknown op name must fail schema validation.</summary>
     [Fact]
     public void An_unknown_op_is_rejected()
     {
@@ -576,23 +546,13 @@ public sealed class EffectSchemaTests
 
     // ---------------------------------------------------------------- the closure the oneOf buys
 
-    /// <summary>
-    /// 🔒 The <c>ALL_COMBAT</c> ruling's teeth: it is rejected where one concrete stat is required.
-    /// `18` §9.1 is the proof it has to be — the ruling is TWO effects precisely because the group
-    /// selector cannot set <c>MAX_HP</c>.
-    /// </summary>
+    /// <summary>ALL_COMBAT is rejected where one concrete stat is required.</summary>
     /// <remarks>
-    /// Steering S2 — stated as a <b>single edit</b> rather than as a message match. A oneOf failure
-    /// reports the branch that failed by the smallest margin, and with 44 ops in seventeen branches
-    /// that is often a branch whose only complaint is the op discriminator, so matching on the word
-    /// <c>ALL_COMBAT</c> in the message would be asserting which branch happened to be closest.
-    /// Two documents differing in exactly one token, one accepted and one rejected, pins the rule
-    /// that fired without depending on the reporting.
-    /// </remarks>
-    /// <remarks>
-    /// ⚠️ The two extra rows carry the keys M2-03 made <b>required</b> under `18` §10 —
-    /// <c>toStat</c> on <c>STAT_CONVERT</c> and <c>capKind</c> on <c>STAT_CAP_OVERRIDE</c> — so that
-    /// the control really is valid and the stat token stays the only edit between the pair.
+    /// Asserted as a single-token edit between an accepted and a rejected document, rather than a
+    /// message match — a oneOf failure reports whichever branch missed by the smallest margin, so
+    /// matching on "ALL_COMBAT" in the message could pin the wrong branch. The extra required keys
+    /// per op (<c>toStat</c>, <c>capKind</c>) keep the control valid so the stat token stays the
+    /// only edit.
     /// </remarks>
     [Theory]
     [InlineData("STAT_SET", "")]
@@ -622,11 +582,7 @@ public sealed class EffectSchemaTests
         """).ShouldNotBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 `18` §10.1 <b>E6</b> — `17` §9's Dicelord <em>Roll of Fate</em>, both authored tables, as
-    /// the forty-fourth op's branch admits them: phase 1's <c>2/2/2</c> over three outcomes and
-    /// phase 2's <c>4/2</c> over two, one shape and no branch between them.
-    /// </summary>
+    /// <summary>The Dicelord's Roll of Fate, both authored tables: phase 1's 2/2/2 over three outcomes and phase 2's 4/2 over two.</summary>
     [Fact]
     public void The_Dicelords_Roll_of_Fate_validates_as_authored()
     {
@@ -647,18 +603,10 @@ public sealed class EffectSchemaTests
     }
 
     /// <summary>
-    /// Each row below is a <b>single edit</b> away from the minimal control this test states inline
-    /// (steering S2 — the same reasoning as
-    /// <see cref="ALL_COMBAT_is_rejected_where_one_concrete_stat_is_required"/>: a <c>oneOf</c>
-    /// failure reports whichever branch missed by least, so the edit is the claim).
+    /// Each row is a single-token edit away from a control asserted in the test body (not just
+    /// implied): without proving <c>{id, op, outcomes}</c> alone is valid, a rejection could equally
+    /// mean the schema requires the dropped trigger/target keys rather than rejecting the table.
     /// </summary>
-    /// <remarks>
-    /// 🔴 The control is asserted <b>in the test body</b>, not merely in the summary above. Every row
-    /// below drops the <c>trigger</c> and <c>target</c> the worked example carries; without proving
-    /// that <c>{id, op, outcomes}</c> alone <em>is</em> valid, each rejection would be equally
-    /// consistent with the schema requiring one of those two keys — and the theory would pass while
-    /// testing nothing about the table at all (steering S1).
-    /// </remarks>
     [Theory]
     // one outcome is not a choice — $defs/outcomes has minItems 2
     [InlineData("""
@@ -666,7 +614,7 @@ public sealed class EffectSchemaTests
         """)]
     // no table at all: 'outcomes' is required, and the table IS the op
     [InlineData("\"target\": \"SELF\"")]
-    // a negative weight — 14 §8.0 takes a finite, non-negative one
+    // a negative weight — must be finite and non-negative
     [InlineData("""
         "outcomes": [ { "effectId": "EFF_A", "weight": -1 }, { "effectId": "EFF_B", "weight": 2 } ]
         """)]
@@ -675,7 +623,7 @@ public sealed class EffectSchemaTests
         "outcomes": [ { "effectId": "EFF_A", "weight": 1, "chance": 0.5 },
                       { "effectId": "EFF_B", "weight": 2 } ]
         """)]
-    // two identical rows — uniqueItems. ⚠️ This catches the identical pair only; one effect named
+    // two identical rows — uniqueItems. This catches the identical pair only; one effect named
     // twice at DIFFERENT weights is EffectOpValidation's, which the $defs description records.
     [InlineData("""
         "outcomes": [ { "effectId": "EFF_A", "weight": 1 }, { "effectId": "EFF_A", "weight": 1 } ]
@@ -695,10 +643,9 @@ public sealed class EffectSchemaTests
     }
 
     /// <summary>
-    /// 🔒 <c>RANDOM_OUTCOME</c> carries no <c>value</c> and no <c>valueScale</c>: its own number is
-    /// the winning row's 1-based index, which nothing authors. The branch omits both keys, so
-    /// <c>additionalProperties: false</c> rejects them at validation rather than mid-battle — the
-    /// same device <c>FORCE_CRIT_NEXT</c>'s branch uses.
+    /// RANDOM_OUTCOME carries no value or valueScale — its number is the winning row's index, which
+    /// nothing authors — so the branch omits both keys and additionalProperties:false rejects them
+    /// at validation rather than mid-battle.
     /// </summary>
     [Theory]
     [InlineData("\"value\": 3")]
@@ -729,14 +676,11 @@ public sealed class EffectSchemaTests
     [InlineData("\"sourceCapPct\": 0.2")]
     [InlineData("\"statusId\": \"BURN\"")]
     [InlineData("\"newFace\": {\"kind\":\"Star\"}")]
-    // The three keys M2-03 added under 18 §10. Each belongs to a closed set of ops, and a schema
-    // that admitted them everywhere would let {"op":"STAT_ADD_PCT","charges":3} validate with the 3
-    // meaning nothing — which is the exact failure the seventeen-branch partition exists
-    // to prevent.
+    // Each of these keys belongs to a closed set of ops; admitting them everywhere would let
+    // {"op":"STAT_ADD_PCT","charges":3} validate with "charges" meaning nothing.
     [InlineData("\"toStat\": \"ATK\"")]
     [InlineData("\"charges\": 3")]
     [InlineData("\"statusTag\": \"control\"")]
-    // The key M2-12 added under 18 §10.1 E6, on the same footing as the other eight.
     [InlineData("\"outcomes\": [{\"effectId\":\"EFF_A\",\"weight\":1},{\"effectId\":\"EFF_B\",\"weight\":2}]")]
     public void An_op_specific_key_on_the_wrong_op_is_rejected(string extraKey)
     {
@@ -751,24 +695,11 @@ public sealed class EffectSchemaTests
 
     /// <summary>A trigger parameter on a kind that does not take it.</summary>
     /// <remarks>
-    /// <para>
-    /// Each row carries its own control: the same kind <b>with</b> everything it needs and
-    /// <b>without</b> the borrowed parameter. The parameter is the only edit between the two, so what
-    /// fired is the partition of `18` §3's 23 kinds into fourteen parameter shapes and not, say, a
-    /// typo in the kind.
-    /// </para>
-    /// <para>
-    /// 🔒 The <c>ON_KILL</c> / <c>chance</c> row is M2-04's, and it is the negative half of ruling
-    /// R11: <c>ON_ATTACK</c> gained <c>chance</c> and <c>ON_KILL</c> deliberately did not. Without
-    /// this row the two kinds could be quietly re-merged into one branch and every other assertion
-    /// in this file would still pass.
-    /// </para>
-    /// <para>
-    /// ⚠️ The control carries the kind's <b>constitutive</b> parameters (`18` §3.1) because three
-    /// kinds are no longer valid bare — <c>PERIODIC</c> without an <c>interval</c>,
-    /// <c>ON_LOW_HP</c> without a <c>threshold</c> and <c>ON_PHASE_ENTER</c> without a <c>phase</c>
-    /// state no rule and are refused by the schema rather than defaulted at read time.
-    /// </para>
+    /// Each row pairs a valid control (the kind with everything it needs) against the same kind
+    /// plus a borrowed parameter — the parameter is the only edit. The ON_KILL/chance row matters
+    /// specifically: ON_ATTACK takes chance and ON_KILL deliberately does not, so without this row
+    /// the two kinds could be silently re-merged into one branch. Controls for PERIODIC, ON_LOW_HP,
+    /// and ON_PHASE_ENTER carry their required parameter since those kinds are no longer valid bare.
     /// </remarks>
     [Theory]
     [InlineData("ALWAYS", "", "\"chance\":0.5")]
@@ -793,15 +724,11 @@ public sealed class EffectSchemaTests
         """).ShouldNotBeEmpty($"18 §3 does not give {parameter} to {kind}");
     }
 
-    /// <summary>
-    /// 🔒 `18` §3.1 — the three <b>constitutive</b> parameters are required by the schema, so a
-    /// trigger that states no rule fails the content build rather than a battle.
-    /// </summary>
+    /// <summary>The three constitutive trigger parameters are required by the schema, so a trigger stating no rule fails the content build rather than a battle.</summary>
     /// <remarks>
-    /// The complement of the theory above, and it is the pair that makes either meaningful: that one
-    /// proves a surplus key is refused, this proves a missing one is. `PERIODIC` with no `interval`
-    /// has no period, `ON_LOW_HP` with no `threshold` names no crossing, and `ON_PHASE_ENTER` with no
-    /// `phase` cannot say which entry it means — steering S6, the hole is not filled at read time.
+    /// PERIODIC with no interval has no period, ON_LOW_HP with no threshold names no crossing, and
+    /// ON_PHASE_ENTER with no phase cannot say which entry it means — the schema refuses rather than
+    /// defaulting these at read time.
     /// </remarks>
     [Theory]
     [InlineData("PERIODIC", "\"interval\":8.0")]
@@ -818,16 +745,7 @@ public sealed class EffectSchemaTests
         """).ShouldNotBeEmpty($"18 §3.1 — {kind} states no rule without {constitutive}");
     }
 
-    /// <summary>
-    /// 🔒 R11's positive half — <c>ON_ATTACK</c> takes <c>chance</c>, alone and alongside
-    /// <c>everyNth</c>.
-    /// </summary>
-    /// <remarks>
-    /// `18` §3 gave <c>ON_ATTACK</c> only <c>everyNth</c> while `06` authors per-attack random
-    /// perks, and <c>ON_HIT</c> and <c>ON_CRIT</c> already carry <c>chance</c> — so M2-04 extended it
-    /// by `18` §10's procedure: code, schema, document and this test, in one commit. Paired with the
-    /// <c>ON_KILL</c> / <c>chance</c> row above, which is the extension's boundary.
-    /// </remarks>
+    /// <summary>ON_ATTACK takes chance, alone and alongside everyNth.</summary>
     [Theory]
     [InlineData("{\"kind\":\"ON_ATTACK\",\"chance\":0.25}")]
     [InlineData("{\"kind\":\"ON_ATTACK\",\"everyNth\":5,\"chance\":0.25}")]
@@ -840,15 +758,12 @@ public sealed class EffectSchemaTests
         """).ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 <c>FORCE_CRIT_NEXT</c> carries no magnitude at all, and the <b>schema</b> is what says so.
-    /// </summary>
+    /// <summary>FORCE_CRIT_NEXT carries no magnitude at all — the schema enforces this.</summary>
     /// <remarks>
-    /// `18` §2.4 gives the op a count and nothing else: how hard a forced crit hits is the actor's
-    /// own CDMG (`05` §4 step 4), and <c>CombatFlowOps</c> refuses <c>{"charges": 2, "value": 3}</c>
-    /// because it reads as "three attacks" to whoever wrote it. Until M2-03's code review the merged
-    /// <c>ATTACK_MULT_NEXT</c>/<c>FORCE_CRIT_NEXT</c> branch admitted exactly that shape while its
-    /// own description denied it — so authored content would have passed CI and thrown mid-battle.
+    /// How hard a forced crit hits is the actor's own CDMG; <c>CombatFlowOps</c> refuses
+    /// <c>{"charges": 2, "value": 3}</c> because it reads as "three attacks" to whoever wrote it.
+    /// The merged ATTACK_MULT_NEXT/FORCE_CRIT_NEXT branch used to admit that shape while its own
+    /// description denied it, so authored content would have passed CI and thrown mid-battle.
     /// </remarks>
     [Theory]
     [InlineData("\"value\": 3")]
@@ -895,11 +810,7 @@ public sealed class EffectSchemaTests
         """).ShouldNotBeEmpty($"{id} is the only edit");
     }
 
-    /// <summary>
-    /// `18` §1.1 — <c>per</c> is the divisor and <c>cap</c> a maximum, so the schema refuses a
-    /// non-positive <c>per</c> and a negative <c>cap</c> exactly as <see cref="ValueScale"/> does.
-    /// Each row differs from the control in one token.
-    /// </summary>
+    /// <summary><c>per</c> is the divisor and <c>cap</c> a maximum, so the schema refuses a non-positive <c>per</c> and a negative <c>cap</c>, matching <see cref="ValueScale"/>.</summary>
     [Theory]
     [InlineData("\"fn\": \"GOLD_HELD\", \"per\": 0, \"cap\": 1")]
     [InlineData("\"fn\": \"GOLD_HELD\", \"per\": -100, \"cap\": 1")]
@@ -907,10 +818,8 @@ public sealed class EffectSchemaTests
     [InlineData("\"fn\": \"GOLD_HELD\", \"per\": 100, \"cap\": -1")]
     [InlineData("\"fn\": \"GOLD_HELD\", \"cap\": 1")]
 
-    // 🔴 The M2-06 argument keys are conditionTerm's own, and they are closed the same way: the
-    // enum member has to exist, and a key nobody agreed on is still a validation failure rather
-    // than a field that silently means nothing. Without these rows the extension would have
-    // widened the schema with nothing pinning where the new surface stops.
+    // These argument keys are closed the same way: the enum member has to exist, and an
+    // unrecognised key is a validation failure rather than a field that silently means nothing.
     [InlineData("\"fn\": \"STATUS_STACKS\", \"per\": 1, \"cap\": 1, \"statusId\": \"NOT_A_STATUS\"")]
     [InlineData("\"fn\": \"DIE_FACE_COUNT\", \"per\": 1, \"cap\": 1, \"faceKind\": \"Sparkle\"")]
     [InlineData("\"fn\": \"STATUS_STACKS\", \"per\": 1, \"cap\": 1, \"arg\": \"SUNDER\"")]
@@ -927,11 +836,7 @@ public sealed class EffectSchemaTests
         """).ShouldNotBeEmpty($"one token differs from the control: {brokenScale}");
     }
 
-    /// <summary>
-    /// `18` §4's comparison is <c>{"fn": …, "op": …, "value": …}</c> — all three. A comparison with
-    /// no operand compares the function against nothing and would gate on whatever the evaluator
-    /// decided an absent value meant.
-    /// </summary>
+    /// <summary>A comparison requires fn, op, and value all three — without an operand, it would gate on whatever the evaluator decided an absent value meant.</summary>
     [Fact]
     public void A_comparison_with_no_value_to_compare_against_is_rejected()
     {
@@ -946,7 +851,7 @@ public sealed class EffectSchemaTests
         """).ShouldNotBeEmpty("the operand is the only edit");
     }
 
-    /// <summary>`04` §1 gives the die six faces; the schema and <see cref="DieFaceIndex"/> agree on the bound.</summary>
+    /// <summary>The die has six faces; the schema and <see cref="DieFaceIndex"/> agree on the bound.</summary>
     [Theory]
     [InlineData("0")]
     [InlineData("7")]
@@ -965,9 +870,9 @@ public sealed class EffectSchemaTests
     }
 
     /// <summary>
-    /// The bounds `04` §1 fixes are stated in three places — the schema's <c>faceIndex</c>, the
-    /// schema's <c>dieFace.value</c> and <see cref="DieFaceIndex"/>'s constants. Nothing but this
-    /// makes them agree.
+    /// The die face bounds are stated in three places — the schema's <c>faceIndex</c>,
+    /// <c>dieFace.value</c>, and <see cref="DieFaceIndex"/>'s constants — and nothing but this
+    /// test makes them agree.
     /// </summary>
     [Fact]
     public void The_die_face_bounds_agree_between_the_schema_and_the_record()
@@ -983,10 +888,8 @@ public sealed class EffectSchemaTests
     [Fact]
     public void The_single_token_enums_agree_between_the_schema_and_the_C_sharp()
     {
-        // ⚠️ Ordered, like every other parity case above: `Members` sorts ordinally so that a
-        //    schema enum written in document order and a C# enum written in wire order still
-        //    compare. M2-01's version compared unordered because StatCapKind had one member;
-        //    M2-03's 18 §10 extension gave it three.
+        // Members sorts ordinally so a schema enum in document order and a C# enum in wire order
+        // still compare correctly.
         Members("capKind").ShouldBe(
             Enum.GetNames<StatCapKind>().OrderBy(n => n, StringComparer.Ordinal),
             Case.Sensitive,
@@ -1007,24 +910,13 @@ public sealed class EffectSchemaTests
         members!.Items.Select(i => i.AsText()).ShouldBe(Enum.GetNames<DieFaceScope>());
     }
 
-    /// <summary>
-    /// 🔒 The guard under <c>ContentLoader.VocabularySchemas</c> — the one exemption in the repo with
-    /// no mechanical expiry of its own.
-    /// </summary>
+    /// <summary>Guards effect.schema.json under <c>ContentLoader.VocabularySchemas</c> — the one exemption in the repo with no mechanical expiry of its own.</summary>
     /// <remarks>
-    /// <para>
-    /// <c>effect.schema.json</c> governs no file and never will, so the stale-exemption check that
-    /// protects <c>SchemasAwaitingContent</c> cannot fire for it. What can go wrong instead is
-    /// concrete and near: <see cref="JsonSchemaValidator"/> resolves same-document pointers only, so
-    /// the perk, pet, mount, curse and boss schemas M2-07 and M3 author cannot <c>$ref</c> this
-    /// file — the tempting alternative is to paste the 44-op enum, the fourteen-way trigger
-    /// partition and the recursive condition tree into each of them, at which point five copies
-    /// drift and `18` §10's "add the op to the JSON schema" becomes ambiguous about which.
-    /// </para>
-    /// <para>
-    /// This fails on the commit that does it, which is what S4 asks of a declared exception. The fix
-    /// at that point is a generator or a deliberate decision recorded here — not a quiet fifth copy.
-    /// </para>
+    /// <c>effect.schema.json</c> governs no file and never will, so the stale-exemption check can't
+    /// catch it another way. <see cref="JsonSchemaValidator"/> only resolves same-document pointers,
+    /// so other schemas cannot <c>$ref</c> this one — the risk is a schema pasting the op enum or
+    /// trigger partition inline instead, which then drifts. This test fails on the commit that does
+    /// that.
     /// </remarks>
     [Fact]
     public void No_other_schema_restates_the_effect_vocabulary()
@@ -1042,8 +934,8 @@ public sealed class EffectSchemaTests
             "closed set drift, and 18 §10's 'add the op to the JSON schema' stops naming one file. " +
             "Extract it or record the duplication deliberately in ContentLoader.VocabularySchemas.");
 
-        // S3 — the floor. The filter above is a substring scan over the schema set; if that set
-        // were empty or unreadable it would report success over nothing.
+        // The filter above is a substring scan over the schema set; if that set were empty or
+        // unreadable it would report success over nothing.
         RepoData.Documents.Count(d => d.Key.StartsWith("schema/", StringComparison.Ordinal))
             .ShouldBeGreaterThanOrEqualTo(20, "19 schemas from M0-10 plus effect.schema.json");
     }
@@ -1069,10 +961,7 @@ public sealed class EffectSchemaTests
     }
 
     /// <summary>The <c>minimum</c>/<c>maximum</c> pair at a <c>$defs</c> path, for the bound checks.</summary>
-    /// <remarks>
-    /// A numeric path segment indexes into a <c>oneOf</c>, so <c>faceIndex/oneOf/1</c> reaches the
-    /// integer branch of `18` §7.9's two forms.
-    /// </remarks>
+    /// <remarks>A numeric path segment indexes into a <c>oneOf</c>, so <c>faceIndex/oneOf/1</c> reaches the integer branch of the two forms.</remarks>
     private static (int Minimum, int Maximum) Bound(string definition, params object[] path)
     {
         Schema.TryGetMember("$defs", out var defs).ShouldBeTrue();
@@ -1117,11 +1006,8 @@ public sealed class EffectSchemaTests
     private static IEnumerable<string> BranchOps()
     {
         Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
-        // 13 at M2-01; 16 since M2-03's 18 §10 extension split ATTACK_MULT_NEXT out for `charges`,
-        // FORCE_CRIT_NEXT out again because it carries NO value, and SURVIVE_LETHAL out for
-        // `valueMode`; 17 since M2-12's 18 §10.1 E6 gave RANDOM_OUTCOME a branch for `outcomes`.
-        // The count is asserted, not merely implied by the partition below, so that a branch
-        // appearing or vanishing is a decision.
+        // The count is asserted, not merely implied by the partition below, so a branch appearing
+        // or vanishing is a decision.
         branches!.Items.Count.ShouldBe(17, "18 §2's 44 ops partition into seventeen key shapes");
 
         foreach (var branch in branches.Items)

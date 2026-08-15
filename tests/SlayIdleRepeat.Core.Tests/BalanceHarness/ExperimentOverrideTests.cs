@@ -9,7 +9,7 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 /// <summary>
-/// 🔒 `21` §3.2's two experiments — the overrides really change the fight, they never touch
+/// The two harness experiments: the overrides really change the fight, they never touch
 /// <c>game-data/</c>, and an override that matched nothing throws instead of quietly running the
 /// baseline twice.
 /// </summary>
@@ -24,8 +24,8 @@ public sealed class ExperimentOverrideTests
         var edited = BossDocumentOverrides.WithoutEffect(
             Shipped, BalanceExperiments.ThornmawScriptId, BalanceExperiments.ThornmawRageEffectId);
 
-        // Read back through the SHIPPED catalogue, not by string matching: the assertion is that the
-        // engine sees a different script, which is what the experiment depends on.
+        // Read back through the catalogue, not by string matching: asserts the engine sees a
+        // different script.
         var entry = BossCatalogue.Read(Override(edited)).Of(BalanceExperiments.ThornmawScriptId);
 
         entry.Effects.Keys.ShouldNotContain(BalanceExperiments.ThornmawRageEffectId);
@@ -33,8 +33,7 @@ public sealed class ExperimentOverrideTests
             .SelectMany(p => p.Mechanics)
             .ShouldNotContain(m => m.EffectId == BalanceExperiments.ThornmawRageEffectId);
 
-        // The negative control — the shipped document still carries both halves, so the case above is
-        // about the override and not about the effect never having been there.
+        // Negative control — the shipped document still carries both halves.
         var shipped = BossCatalogue.Read(ShippedHarness.Content)
             .Of(BalanceExperiments.ThornmawScriptId);
         shipped.Effects.Keys.ShouldContain(BalanceExperiments.ThornmawRageEffectId);
@@ -42,16 +41,14 @@ public sealed class ExperimentOverrideTests
             .SelectMany(p => p.Mechanics)
             .ShouldContain(m => m.EffectId == BalanceExperiments.ThornmawRageEffectId);
 
-        // And nothing else about Thornmaw changed: the other effects survive.
         entry.Effects.Count.ShouldBe(shipped.Effects.Count - 1);
     }
 
     [Fact]
     public void An_override_that_matches_nothing_throws_rather_than_running_the_baseline_twice()
     {
-        // 🔴 An A/B whose two arms are the same run reports a difference of exactly zero, which reads
-        // like a finding. Three shapes: an unknown effect, an unknown script, and a document with no
-        // summoners at all.
+        // An A/B whose two arms are the same run reports a difference of exactly zero, which reads
+        // like a finding — so a matchless override must throw instead.
         Should.Throw<InvalidOperationException>(() => BossDocumentOverrides.WithoutEffect(
             Shipped, BalanceExperiments.ThornmawScriptId, "BOSS_THORNMAW_P3_NOT_A_REAL_EFFECT"));
 
@@ -74,16 +71,13 @@ public sealed class ExperimentOverrideTests
         roster.Summoners.ShouldAllBe(b => b.AddsPowerFraction == 0.25);
         roster.All.Count(b => b.AddsPowerFraction is null).ShouldBe(4);
 
-        // Second probe at the other end of `17` §1's band, so a hard-coded 0.25 would not pass.
-        // 🔒 S3 — its OWN count floor, not the one asserted over `roster` above. This is a separate
-        // read, and ShouldAllBe passes on an empty collection: an override that dropped every summoner
-        // would satisfy "every summoner carries 0.35" over nothing at all.
+        // A second probe with its own count floor: ShouldAllBe passes on an empty collection, so an
+        // override that dropped every summoner would satisfy "every summoner carries 0.35" vacuously.
         var high = BossRoster.Read(Override(BossDocumentOverrides.WithAddsPowerFraction(Shipped, 0.35)));
         high.Summoners.Count.ShouldBe(5);
         high.Summoners.ShouldAllBe(b => b.AddsPowerFraction == 0.35);
 
-        // The shipped tree is untouched — `21` §3.3, an override never edits the canonical files.
-        // Floored for the same reason: a third read, and the assertion below is a "for all".
+        // The shipped tree is untouched — an override never edits the canonical files.
         var untouched = BossRoster.Read(ShippedHarness.Content);
         untouched.Summoners.Count.ShouldBe(5);
         untouched.Summoners.ShouldAllBe(b => b.AddsPowerFraction == 0.3);
@@ -100,10 +94,8 @@ public sealed class ExperimentOverrideTests
     [Fact]
     public void The_RAGE_removal_actually_changes_the_fight_once_phase_three_is_reached()
     {
-        // 🔴 The discriminating control for the experiment itself. `17` §1's phases are HP bands, so
-        // at par the hero dies in phase 1 and the A/B is identical for a reason that has nothing to do
-        // with the RAGE. Run at a multiple that reaches phase 3, the two arms must diverge — and at
-        // par they must NOT, which is the second shape and the one that names the cause.
+        // At par the hero dies in phase 1, so the A/B must be identical for a reason unrelated to
+        // RAGE; at a multiple that reaches phase 3, the two arms must diverge.
         var runner = ShippedHarness.Runner;
         var tank = runner.Calibration.Archetype("ARCH_TANK_THORNS");
         var withoutRage = Override(BossDocumentOverrides.WithoutEffect(
@@ -129,9 +121,6 @@ public sealed class ExperimentOverrideTests
     [Fact]
     public void The_boss_phase_reached_is_read_off_the_log_and_is_not_a_constant()
     {
-        // The probe for FightOutcome.MaxBossPhase itself: it must be 1 for a hero that dies early and
-        // 3 for one that grinds the boss down, or the two experiments' "it never fired" explanation
-        // would be unfalsifiable.
         var runner = ShippedHarness.Runner;
         var tank = runner.Calibration.Archetype("ARCH_TANK_THORNS");
 
@@ -143,9 +132,8 @@ public sealed class ExperimentOverrideTests
     [Fact]
     public void The_adds_fraction_changes_a_fight_where_the_summon_actually_fires()
     {
-        // 🔴 BOSS_OSSUARY_KING's court is ON_PHASE_ENTER phase 1, so it is the one summoner whose adds
-        // exist from tick 0 — which makes it the only script where the fraction can be shown to matter
-        // without first reaching a later phase.
+        // BOSS_OSSUARY_KING's court fires on phase 1 entry, so its adds exist from tick 0 — the only
+        // script where the fraction matters without first reaching a later phase.
         var runner = ShippedHarness.Runner;
         var archetype = runner.Calibration.Archetypes[0];
 
@@ -159,8 +147,7 @@ public sealed class ExperimentOverrideTests
         low.BossId.ShouldBe("BOSS_OSSUARY_KING");
         high.Fights.Select(f => f.LogHash).ShouldNotBe(low.Fights.Select(f => f.LogHash));
 
-        // Stronger adds kill the hero sooner. Directional, because the magnitude is what the
-        // experiment reports and is not this case's business.
+        // Directional only — magnitude is what the experiment reports, not this case.
         Median(high).ShouldBeLessThanOrEqualTo(Median(low));
     }
 

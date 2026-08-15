@@ -6,8 +6,8 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// `14` §6 — the version stamp. It has to be a hash of the content, it has to be the same hash
-/// everywhere, and it has to move when anything that could change an outcome changes.
+/// Tests the content version stamp: it must be a hash of the content, the same hash everywhere,
+/// and it must move when anything that could change an outcome changes.
 /// </summary>
 public sealed class ContentHashingTests
 {
@@ -140,14 +140,12 @@ public sealed class ContentHashingTests
         second.ShouldBe(first);
     }
 
-    // -------------------------------------- 🔒 the two decimal decisions, which had no test
+    // -------------------------------------- the two decimal decisions, which had no test
 
     /// <summary>
-    /// 🔒 <c>ContentValue</c> holds numbers as <see cref="decimal"/> so the load path never rounds.
-    /// Nothing asserted it: refactoring <c>_number</c> to <c>double</c> keeps every other test in
-    /// the repository green while <c>AsNumber()</c> starts answering
-    /// <c>0.30000000000000004</c> — and a tuning number that shifts in the last place shifts every
-    /// stamp with it.
+    /// ContentValue holds numbers as <see cref="decimal"/> so the load path never rounds. Nothing
+    /// else asserted this: swapping the backing field to <c>double</c> keeps every other test green
+    /// while <c>AsNumber()</c> starts answering 0.30000000000000004.
     /// </summary>
     [Fact]
     public void A_sum_of_two_shipped_style_rates_is_exact_because_the_load_path_never_rounds()
@@ -159,9 +157,8 @@ public sealed class ContentHashingTests
     }
 
     /// <summary>
-    /// 🔒 <em>"1.5 and 1.500 are one number."</em> Value equality, not representation equality —
-    /// the decision <c>ContentValue.Equals</c> and <c>GetHashCode</c> both state in comments and
-    /// neither had a case. The duplicate-id gate now groups on this, so it is load-bearing twice.
+    /// 1.5 and 1.500 are one number: value equality, not representation equality. The duplicate-id
+    /// gate groups on this too, so it is load-bearing twice.
     /// </summary>
     [Fact]
     public void The_same_number_written_at_two_scales_is_one_value_and_one_hash_code()

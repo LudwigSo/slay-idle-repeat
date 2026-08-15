@@ -6,7 +6,6 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
-/// <summary>🔒 `14` §6 / `03` §3 — <see cref="ChapterBoardTuning.Read"/>, over the chapter 1 test fixture.</summary>
 public sealed class ChapterBoardTuningTests
 {
     [Fact]

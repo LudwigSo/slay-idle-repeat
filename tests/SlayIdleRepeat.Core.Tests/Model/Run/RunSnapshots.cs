@@ -4,7 +4,7 @@ using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Tests.Model;
 
-// 🔒 Namespace SlayIdleRepeat.Core.Tests.Model, not ...Tests.Model.Run, and the files still sit
+// Namespace SlayIdleRepeat.Core.Tests.Model, not ...Tests.Model.Run, and the files still sit
 // under Model/Run/. Same reason the production aggregate does it: a child namespace named `Run`
 // shadows the type `Run` for everything inside SlayIdleRepeat.Core.Tests.Model, so a test written
 // here could not name the very class it is testing (CS0118).
@@ -14,12 +14,11 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 /// exactly one field so a test names the single thing it is about.
 /// </summary>
 /// <remarks>
-/// A test that built a whole snapshot inline would restate thirteen fields to change one, and the
-/// reader could not tell which of the thirteen it was asserting about.
+/// A test that built a whole snapshot inline would restate every field to change one, and the
+/// reader could not tell which one it was asserting about.
 /// <para>
-/// ⚠️ The baseline numbers are test values and carry <b>no design claim</b>: legal and unremarkable, not
-/// a starting state — no document authors one until <c>START_RUN</c>, and a fixture that looked like a
-/// starting run would be the S6 hole wearing a plausible value.
+/// The baseline numbers are test values and carry <b>no design claim</b>: legal and
+/// unremarkable, not a starting state.
 /// </para>
 /// </remarks>
 internal static class RunSnapshots
@@ -48,18 +47,18 @@ internal static class RunSnapshots
         new ReadOnlyDictionary<string, long>(
             entries.ToDictionary(e => e.Placement, e => e.Uses, StringComparer.Ordinal));
 
-    /// <summary>A <c>position → MG_* id</c> map of the shape M3-03c's field carries.</summary>
+    /// <summary>A <c>position → MG_* id</c> map of the shape the resolved-minigames field carries.</summary>
     internal static IReadOnlyDictionary<int, string> ResolvedMinigames(
         params (int Position, string MinigameId)[] entries) =>
         new ReadOnlyDictionary<int, string>(entries.ToDictionary(e => e.Position, e => e.MinigameId));
 
-    /// <summary>A <c>perk id → owned tier</c> map of the shape M3-06's field carries.</summary>
+    /// <summary>A <c>perk id → owned tier</c> map of the shape the owned-perk-tiers field carries.</summary>
     internal static IReadOnlyDictionary<string, int> OwnedPerkTiers(
         params (string PerkId, int Tier)[] entries) =>
         new ReadOnlyDictionary<string, int>(
             entries.ToDictionary(e => e.PerkId, e => e.Tier, StringComparer.Ordinal));
 
-    /// <summary>M3-06 — <c>RunSnapshot.DraftBattleKind</c>'s "no draft pending" sentinel.</summary>
+    /// <summary><c>RunSnapshot.DraftBattleKind</c>'s "no draft pending" sentinel.</summary>
     internal const int NoDraftBattleKind = -1;
 
     /// <summary>
@@ -164,23 +163,22 @@ internal static class RunSnapshots
             bossDefeated ?? false);
 
     /// <summary>
-    /// M3-03 — <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here for
-    /// the reason <c>StartRun</c> restates it: <c>Run</c>'s own constant is private, and this is a
-    /// fixture writing a snapshot.
+    /// <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here because
+    /// <c>Run</c>'s own constant is private, and this is a fixture writing a snapshot.
     /// </summary>
     internal const int NoPendingTile = -1;
 
-    /// <summary>M3-03 — <c>RunSnapshot.PendingEventCardId</c>'s "no card drawn" value.</summary>
+    /// <summary><c>RunSnapshot.PendingEventCardId</c>'s "no card drawn" value.</summary>
     internal const string NoPendingEventCard = "";
 
     /// <summary>
     /// The valid row standing on an unresolved tile of <paramref name="tileKind"/>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Takes the tile kind as an <c>int</c> rather than a <c>TileKind</c>, because
+    /// Takes the tile kind as an <c>int</c> rather than a <c>TileKind</c>, because
     /// <c>Rules.Board.TileKind</c> is <c>internal</c> to <c>Core</c> and reachable from the test
-    /// assembly only through the `30` §11.3 <c>InternalsVisibleTo</c> grant — the snapshot itself
-    /// stores an <c>int</c> for the same accessibility reason, so the fixture mirrors the row.
+    /// assembly only through <c>InternalsVisibleTo</c> — the snapshot itself stores an <c>int</c>
+    /// for the same accessibility reason, so the fixture mirrors the row.
     /// </remarks>
     internal static RunSnapshot OnPendingTile(
         int tileKind, int linearIndex = 7, int stage = 1, string? eventCardId = null) =>

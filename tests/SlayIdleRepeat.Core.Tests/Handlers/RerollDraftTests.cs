@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>🔒 M3-06, `14` §2.3 — <c>REROLL_DRAFT</c>, driven through the production dispatch table.</summary>
+/// <summary>REROLL_DRAFT, driven through the production dispatch table.</summary>
 public sealed class RerollDraftTests
 {
     /// <summary>The shipped reroll cost — <c>DraftEconomyTuning.RerollGoldCost</c>, as fixtured.</summary>
@@ -46,7 +46,7 @@ public sealed class RerollDraftTests
         result.NewState.Run!.DraftPending.ShouldBeTrue("a reroll redraws the offer, it does not close the draft");
     }
 
-    /// <summary>🔒 M3-06 — a reroll advances the draft stream, so a later PICK_PERK sees different options.</summary>
+    /// <summary>A reroll advances the draft stream, so a later PICK_PERK sees different options.</summary>
     [Fact]
     public void A_reroll_advances_the_draft_stream()
     {

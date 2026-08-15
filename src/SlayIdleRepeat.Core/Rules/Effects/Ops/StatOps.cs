@@ -3,8 +3,8 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 /// <summary>One <c>STAT_CONVERT</c>, read off the effect: take from one stat, give to another.</summary>
-/// <param name="From">`18` §2.1's stat A — the effect's <c>stat</c>.</param>
-/// <param name="To">`18` §2.1's stat B — the effect's <c>toStat</c>, added by M2-03 under §10.</param>
+/// <param name="From">Stat A — the effect's <c>stat</c>.</param>
+/// <param name="To">Stat B — the effect's <c>toStat</c>.</param>
 /// <param name="Fraction">The proportion of <paramref name="From"/> that moves.</param>
 internal readonly record struct StatConversion(StatId From, StatId To, double Fraction);
 
@@ -16,39 +16,18 @@ internal readonly record struct StatConversion(StatId From, StatId To, double Fr
 internal readonly record struct StatCapOverride(
     StatCapKind Kind, StatId Stat, StatId? ToStat, double Value);
 
-/// <summary>
-/// 🔒 `18` §2.1's two ops that M2-07's aggregation left open — <c>STAT_CONVERT</c> (§8 step 6) and
-/// <c>STAT_CAP_OVERRIDE</c> (§8 step 9) — as pure arithmetic over <see cref="StatId"/> and
-/// <see cref="double"/>.
-/// </summary>
+/// <summary>The two stat ops aggregation leaves open — <c>STAT_CONVERT</c> and <c>STAT_CAP_OVERRIDE</c> — as pure arithmetic over <see cref="StatId"/> and <see cref="double"/>.</summary>
 /// <remarks>
-/// <para>
-/// ⚠️ <b>Why the arithmetic is here and the plumbing is in <c>Rules/Stats/</c>.</b> R17 makes
-/// <c>Rules.Effects</c> the bottom of the intra-<c>Rules</c> layering, so nothing in this namespace
-/// may name <c>ActorStats</c>, <c>StatCaps</c> or <c>StatDelta</c> — all of which
-/// <c>IStatOpBehaviour</c>'s signature uses. The split is therefore: <b>op meaning here</b>, where
-/// the other forty-one ops live and where `18` §10 says a new op goes, and <b>M2-07's frozen-block
-/// discipline in <c>Rules/Stats/StatOpBehaviour.cs</c></b>, which is where that interface sits.
-/// (M2-02 moves the seams to <c>Rules/Effects/</c> in wave 4; the arithmetic does not move with them.)
-/// </para>
-/// <para>
-/// 🔒 <b>Both ops were unimplementable as authored, and both were fixed with keys, not values
-/// (R6).</b> <c>STAT_CONVERT</c> had one <c>stat</c> key for "stat A into stat B", and
-/// <c>STAT_CAP_OVERRIDE</c> had one <c>capKind</c> — <c>HEAL_CEILING</c> — which is not one of `05`
-/// §1's six stat caps at all. See <see cref="EffectDefinition.ToStat"/> and
-/// <see cref="StatCapKind"/> for the paperwork.
-/// </para>
+/// The arithmetic lives here rather than in <c>Rules/Stats/</c>: the intra-<c>Rules</c> layering
+/// keeps this namespace from naming <c>ActorStats</c>, <c>StatCaps</c> or <c>StatDelta</c>, all of
+/// which the frozen-block plumbing in <c>Rules/Stats/StatOpBehaviour.cs</c> uses. So op meaning lives
+/// here, alongside the other forty-one ops, and the frozen-block discipline lives one layer up.
 /// </remarks>
 internal static class StatOps
 {
-    /// <summary>
-    /// `18` §8 step 6 — the conversion an effect authors.
-    /// </summary>
+    /// <summary>The conversion an effect authors.</summary>
     /// <param name="effect">A <see cref="EffectOp.STAT_CONVERT"/>.</param>
-    /// <param name="fraction">
-    /// The effect's `18` §1.1-scaled value: the <em>proportion</em> of the source stat that moves.
-    /// <c>PK_TURTLE</c>'s <em>"convert 20% of DEF into ATK"</em> is <c>0.20</c>.
-    /// </param>
+    /// <param name="fraction">The effect's scaled value: the proportion of the source stat that moves.</param>
     /// <exception cref="EffectContextException">Either end of the conversion is unwritten or invalid.</exception>
     internal static StatConversion Conversion(EffectDefinition effect, double fraction)
     {
@@ -72,25 +51,20 @@ internal static class StatOps
                 "a live effect.");
         }
 
-        // 🔒 The fraction is NOT rounded here. `05` §1.1 rounds at accumulation points — results —
-        //    and an authored value is not one; `18` §8's other five steps pass EffectiveValue through
-        //    unrounded and round after the accumulation. Rounding twice moves the answer: an authored
-        //    0.123456 of a post-step-5 DEF of 1000 is 123.456, but 1000 x Round(0.123456) is 123.5.
+        // The fraction is not rounded here — rounding happens at accumulation points (results), not
+        // on an authored value. Rounding twice moves the answer: an authored 0.123456 of a post-step
+        // DEF of 1000 is 123.456, but 1000 x Round(0.123456) is 123.5.
         return new StatConversion(from, to, fraction);
     }
 
-    /// <summary>
-    /// The two signed deltas one conversion produces, given the source stat's <b>post-step-5</b>
-    /// value.
-    /// </summary>
+    /// <summary>The two signed deltas one conversion produces, given the source stat's post-aggregation value.</summary>
     /// <remarks>
-    /// 🔒 <b>A pair, never a mutation.</b> `18` §2.1 <em>converts</em> — the source loses what the
-    /// destination gains — and expressing it as two signed deltas is what lets the caller apply them
-    /// against a frozen block, so that `18` §8 step 6's <em>"reads post-step-5 values"</em> is
-    /// enforced by the pipeline rather than trusted (M2-07's <c>StatDelta</c> remarks say the same).
+    /// A pair, never a mutation: the source loses what the destination gains, and expressing it as
+    /// two signed deltas lets the caller apply them against a frozen block rather than trusting the
+    /// order of application.
     /// </remarks>
     /// <param name="conversion">The conversion.</param>
-    /// <param name="sourceValue">The source stat as it stood after `18` §8 step 5.</param>
+    /// <param name="sourceValue">The source stat as it stood after the earlier aggregation steps.</param>
     /// <param name="effectId">The effect id, for a rounding failure's message.</param>
     internal static (double FromDelta, double ToDelta) Deltas(
         StatConversion conversion, double sourceValue, string effectId)
@@ -100,9 +74,9 @@ internal static class StatOps
         return (-moved, moved);
     }
 
-    /// <summary>`18` §8 step 9 — the cap override an effect authors.</summary>
+    /// <summary>The cap override an effect authors.</summary>
     /// <param name="effect">A <see cref="EffectOp.STAT_CAP_OVERRIDE"/>.</param>
-    /// <param name="value">The effect's `18` §1.1-scaled value.</param>
+    /// <param name="value">The effect's scaled value.</param>
     /// <exception cref="EffectContextException">The override is missing a key its <c>capKind</c> needs.</exception>
     internal static StatCapOverride CapOverride(EffectDefinition effect, double value)
     {
@@ -117,10 +91,9 @@ internal static class StatOps
 
         var stat = SingleStat(effect, effect.Stat, "stat", "the capped");
 
-        // 🔒 Rounded for STAT_MAX and HEAL_CEILING, which are TERMINAL — the ceiling itself lands in
-        //    the cap table and 05 §1.1 requires a cap to be rounded (StatCaps.From refuses one that
-        //    is not). NOT for REDIRECT_EXCESS, whose value is a ratio that RedirectedAmount then
-        //    multiplies: pre-rounding a multiplicand is the double round W3 names.
+        // Rounded for STAT_MAX and HEAL_CEILING, since the ceiling itself lands in the cap table and
+        // a cap must be rounded. Not for REDIRECT_EXCESS, whose value is a ratio that
+        // RedirectedAmount multiplies later — pre-rounding a multiplicand would double-round.
         var rounded = kind == StatCapKind.REDIRECT_EXCESS
             ? value
             : OpRounding.Round(value, effect.Id, "cap override value");
@@ -137,12 +110,8 @@ internal static class StatOps
         }
         else if (effect.ToStat is not null)
         {
-            // 🔒 Refused, not ignored. Only REDIRECT_EXCESS has a destination; a toStat on a
-            //    STAT_MAX or a HEAL_CEILING is a key that silently means nothing, which is the one
-            //    thing effect.schema.json's closed key partition exists to prevent. ⚠️ The schema
-            //    cannot state this — JsonSchemaValidator implements no `not` and no if/then/else, so
-            //    a conditional-required rule is not expressible there. Recorded as a known limit of
-            //    the schema and closed here.
+            // Refused, not ignored: only REDIRECT_EXCESS has a destination, and the JSON schema
+            // can't express this conditional-required rule, so it's checked here instead.
             throw new EffectContextException(
                 effect.Id,
                 $"a {kind} override names a toStat",
@@ -169,38 +138,18 @@ internal static class StatOps
     /// overshot its ceiling.
     /// </summary>
     /// <param name="over">The uncapped value.</param>
-    /// <param name="ceiling">The ceiling `18` §8 step 9 applied, or <c>null</c> when the stat is uncapped.</param>
+    /// <param name="ceiling">The ceiling that was applied, or <c>null</c> when the stat is uncapped.</param>
     /// <param name="ratio">The effect's <c>value</c> — how much destination one unit of overshoot buys.</param>
     /// <param name="effectId">The effect id, for a rounding failure's message.</param>
-    /// <remarks>
-    /// 🔒 <b>Nothing here knows <c>Perfect Strike</c>'s "1:4".</b> `09` §4 states the ratio and M3's
-    /// talent catalogue authors it as the effect's <c>value</c>; which way round 1:4 reads is a
-    /// content decision, and steering S6 forbids this file having an opinion. An <b>uncapped</b>
-    /// stat redirects nothing — there is no overshoot to take.
-    /// </remarks>
+    /// <remarks>Nothing here knows any specific ratio — that's a content decision authored as the effect's <c>value</c>. An uncapped stat redirects nothing, since there's no overshoot to take.</remarks>
     internal static double RedirectedAmount(double over, double? ceiling, double ratio, string effectId) =>
         ceiling is { } cap && over > cap
             ? OpRounding.Round((over - cap) * ratio, effectId, "redirected excess")
             : 0.0;
 
-    /// <summary>
-    /// One concrete stat off a selector — never <c>ALL_COMBAT</c>, never <c>HIGHEST_PCT_BONUS</c>.
-    /// </summary>
-    /// <remarks>
-    /// `18` §9.1's own ruling is the precedent: <c>CP_GLASS_HEART</c> is authored as <em>two</em>
-    /// effects, a <c>STAT_MULT ALL_COMBAT</c> and a separate <c>STAT_SET MAX_HP</c>, <em>"precisely
-    /// because the group selector cannot express the second"</em>. A conversion or a cap over
-    /// fourteen stats at once has no stated meaning either.
-    /// </remarks>
-    /// <summary>
-    /// 🔒 M2-R1 — the single stat a §2.1 basic stat op names, for a FIRED activation. Delegates to the
-    /// same reading <see cref="Conversion"/> and <see cref="CapOverride"/> use, so the three stat ops
-    /// that must name exactly one stat cannot answer the question differently.
-    /// </summary>
-    /// <exception cref="EffectContextException">
-    /// The effect names no <c>stat</c>, or names a group selector (<c>ALL_COMBAT</c> or
-    /// <c>HIGHEST_PCT_BONUS</c>) — see <see cref="SingleStat"/>'s remarks on <c>CP_GLASS_HEART</c>.
-    /// </exception>
+    /// <summary>The single stat a basic stat op names, for a fired activation.</summary>
+    /// <remarks>Delegates to the same reading <see cref="Conversion"/> and <see cref="CapOverride"/> use, so the three stat ops that must name exactly one stat can't answer the question differently.</remarks>
+    /// <exception cref="EffectContextException">The effect names no <c>stat</c>, or names a group selector (<c>ALL_COMBAT</c> or <c>HIGHEST_PCT_BONUS</c>).</exception>
     internal static StatId SingleStatOf(EffectDefinition effect) =>
         SingleStat(effect, effect.Stat, "stat", "the");
 

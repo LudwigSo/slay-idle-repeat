@@ -2,57 +2,38 @@ using SlayIdleRepeat.Core.Rules.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §3.2 — who a swing lands on. The three selections the tick loop makes, and nothing else.
-/// </summary>
+/// <summary>Who a swing lands on. The three selections the tick loop makes, and nothing else.</summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>A different mechanism from `18` §5's target tokens, deliberately.</b>
-/// <see cref="IEffectActorView"/> is explicit: <em>"`05` §3.2's hero target selection is M2-08's, and
-/// is a different mechanism from <c>LOWEST_HP_ENEMY</c>/<c>HIGHEST_HP_ENEMY</c>"</em>. `18` §5's
-/// tokens are how an <em>effect</em> chooses a subject; this is how an <em>actor</em> chooses whom to
-/// swing at, and only this one reads <c>targetPriority</c>.
+/// A different mechanism from the DSL's target tokens, deliberately: those are how an
+/// <em>effect</em> chooses a subject, this is how an <em>actor</em> chooses whom to swing at, and only
+/// this one reads <c>targetPriority</c>.
 /// </para>
 /// <para>
-/// 🔒 <b>The two selections that scan the enemy list use <c>BattleRoster</c>'s predicate, not a
-/// restatement of it.</b> That type exists because "the living actors hostile to the holder" had
-/// already been written twice, and its remarks name this task as the fourth caller. It applies all
-/// three rules — holder-relative, living only, never a pet — and returns candidates in ascending
-/// `05` §3.1 index order, which is what makes every tie-break below total.
+/// The two selections that scan the enemy list use <c>BattleRoster</c>'s predicate, not a restatement
+/// of it: it applies all three rules — holder-relative, living only, never a pet — and returns
+/// candidates in ascending index order, which is what makes every tie-break below total.
 /// </para>
 /// <para>
-/// ⚠️ <b><see cref="ForEnemyAttack"/> is the exception, and deliberately.</b> `05` §3.2 gives it a
-/// one-actor answer — <em>"enemies always target the Hero"</em> — so it is a search for a single
-/// role rather than a scan of a set, and routing it through <c>BattleRoster</c> would build and sort
-/// a <c>List</c> of the hero side's members on every enemy swing to return one of them. It applies
-/// the same three rules inline; what it must never do is apply a <em>different</em> one, which is
-/// why the liveness and pet clauses are spelled out there rather than assumed.
+/// <see cref="ForEnemyAttack"/> is the exception, deliberately: enemies always target the Hero, so it
+/// is a search for a single role rather than a scan of a set. It applies the same three rules inline;
+/// what it must never do is apply a different one, which is why the liveness and pet clauses are
+/// spelled out there rather than assumed.
 /// </para>
 /// <para>
-/// 🔒 <b>Every selection ends at the index, and that is not an invention.</b> `05` §3.2 gives one
-/// tie-break for the hero (lowest current HP) and none for a pet ability, and two enemies at equal
-/// priority and equal HP are ordinary — a <c>SWARM</c> draw spawns three identical units (`05` §6.4).
-/// <see cref="IEffectActorView.Index"/> is the one actor ordering the design documents authorise, and
-/// `18` §5 already reuses it as its tie-break for the same reason: a tie-break that varied with
-/// roster construction would be a `14` §8.2 determinism break.
+/// Every selection ends at the index: two enemies at equal priority and equal HP are ordinary, and
+/// index is the one actor ordering that stays deterministic regardless of roster construction.
 /// </para>
 /// </remarks>
 internal static class TargetSelection
 {
-    /// <summary>
-    /// 🔒 `05` §3.2 — <em>"the hero targets the enemy with the highest <c>targetPriority</c>, breaking
-    /// ties by <b>lowest current HP</b>"</em>, and then by lowest index.
-    /// </summary>
+    /// <summary>The hero targets the enemy with the highest <c>targetPriority</c>, breaking ties by lowest current HP, then by lowest index.</summary>
     /// <param name="context">
     /// The evaluation context whose <c>Holder</c> is the attacker. Its side fixes which actors are
     /// hostile, so the same method serves an enemy attacking into a duel's defending side.
     /// </param>
     /// <returns>The target, or <c>null</c> when nothing hostile is alive.</returns>
-    /// <remarks>
-    /// <c>targetPriority</c> defaults to <c>0</c>; <c>-1</c> deprioritises — Sporequeen Vell's
-    /// sporelings (`17` §8), so the hero keeps hitting the queen while they are up — and <c>+1</c>
-    /// forces focus.
-    /// </remarks>
+    /// <remarks><c>targetPriority</c> defaults to <c>0</c>; <c>-1</c> deprioritises and <c>+1</c> forces focus.</remarks>
     internal static BattleActor? ForBasicAttack(EffectEvaluationContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
@@ -80,18 +61,13 @@ internal static class TargetSelection
              candidate.CurrentHp < incumbent.CurrentHp);
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.2 — a pet's <em>targeted ability</em> selects <em>"the enemy with the <b>highest
-    /// current HP</b> (so pet abilities chip the tanky one while the hero cleans up)"</em>, unless the
-    /// ability specifies its own target (`18` §5).
-    /// </summary>
+    /// <summary>A pet's targeted ability selects the enemy with the highest current HP, unless the ability specifies its own target.</summary>
     /// <param name="context">The evaluation context whose <c>Holder</c> is the pet.</param>
     /// <returns>The target, or <c>null</c> when nothing hostile is alive.</returns>
     /// <remarks>
-    /// 🔒 It reads no <c>targetPriority</c> at all. `05` §3.2 gives that field to the hero's selection
-    /// only, and applying it here would make Sporequeen's <c>-1</c> sporelings invisible to the pets
-    /// as well — which would defeat the mechanic's own purpose, since the sporelings exist to be
-    /// cleared by something other than the hero's swing.
+    /// It reads no <c>targetPriority</c> at all: that field belongs to the hero's selection only, and
+    /// applying it here would make a deprioritised enemy invisible to pets too — defeating the
+    /// mechanic's own purpose.
     /// </remarks>
     internal static BattleActor? ForPetAbility(EffectEvaluationContext context)
     {
@@ -112,17 +88,14 @@ internal static class TargetSelection
         return best;
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.2 — <em>"enemies always target the Hero."</em>
-    /// </summary>
+    /// <summary>Enemies always target the Hero.</summary>
     /// <param name="attacker">The enemy swinging.</param>
     /// <param name="actors">The whole roster, both sides.</param>
     /// <returns>The living hero on the opposing side, or <c>null</c> when it is dead.</returns>
     /// <remarks>
-    /// 🔒 <b>Stated as a search for the opposing <c>HERO</c>, not as "index 0".</b> `05` §3.3's duel
-    /// has a hero on each side and the defending one is at <c>CombatActor.FirstEnemy</c>, so an
-    /// enemy-side actor reading index 0 would swing at its own ally. Pets are excluded by the same
-    /// clause that excludes them everywhere: <em>"pets cannot be targeted or killed"</em>.
+    /// Stated as a search for the opposing hero, not as "index 0": a duel has a hero on each side and
+    /// the defending one is not at index 0, so an enemy-side actor reading index 0 would swing at its
+    /// own ally. Pets are excluded by the same clause that excludes them everywhere.
     /// </remarks>
     internal static BattleActor? ForEnemyAttack(BattleActor attacker, IReadOnlyList<BattleActor> actors)
     {
@@ -142,15 +115,6 @@ internal static class TargetSelection
         return null;
     }
 
-    /// <summary>
-    /// The roster's own actor type, which is the only implementation a battle ever holds — forwarded
-    /// to <see cref="BattleActor.Of"/>, which is where the cast and its diagnosis are stated.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 A foreign view in `05` §3.2's candidate list means two rosters exist, which is exactly how
-    /// <c>ENEMY_COUNT</c> and <c>ALL_ENEMIES</c> come to disagree about the same fight. This method
-    /// used to say so in its own words while <c>AttackPipeline.Actor</c> said it in different ones;
-    /// the sentence now lives in one place.
-    /// </remarks>
+    /// <summary>The roster's own actor type, which is the only implementation a battle ever holds — forwarded to <see cref="BattleActor.Of"/>.</summary>
     private static BattleActor AsBattleActor(IEffectActorView view) => BattleActor.Of(view);
 }

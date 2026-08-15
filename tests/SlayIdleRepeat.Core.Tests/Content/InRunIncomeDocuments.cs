@@ -3,100 +3,93 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// Hermetic fixtures for the four documents M3-03's tile resolvers read:
+/// Hermetic fixtures for the four documents the tile resolvers read:
 /// <c>tuning/currencies.json</c>'s <c>chapterScalars</c> and <c>inRunIncome</c> blocks,
 /// <c>content/curses/curses.json</c>, and <c>content/board_events/board_events.json</c>.
 /// </summary>
 /// <remarks>
+/// <c>Core.Tests</c> is hermetic, so this mirrors the shipped files rather than reading them — the
+/// same shape <see cref="CurrenciesDocuments"/> already uses.
 /// <para>
-/// 🔒 <c>Core.Tests</c> is hermetic, so this <em>mirrors</em> the shipped files rather than reading
-/// them — the same shape <see cref="CurrenciesDocuments"/> already uses, and for its reason. The
-/// shipped constants below are transcribed as of M3-03's read of the files.
-/// </para>
-/// <para>
-/// 🔒 <b>The mirror is not the whole guarantee, and the other half is deliberate.</b> A fixture that
-/// mirrors can drift from what ships, so each reader also has one test that loads the <b>real</b>
-/// <c>game-data</c> tree through <c>GameDataLoader</c> and pins the reader against it — the seam
-/// <c>GameDataLoaderTests</c> already established in this project. Neither is sufficient alone: the
-/// hermetic tests prove the rules are right about the numbers, the real-data tests prove those are
-/// the numbers we ship.
+/// The mirror is not the whole guarantee: a fixture that mirrors can drift from what ships, so each
+/// reader also has one test that loads the real <c>game-data</c> tree through
+/// <c>GameDataLoader</c> and pins the reader against it. The hermetic tests prove the rules are right
+/// about the numbers; the real-data tests prove those are the numbers we ship.
 /// </para>
 /// </remarks>
 internal static class InRunIncomeDocuments
 {
-    /// <summary>The document `03` §7a's scalars and in-run income blocks live in.</summary>
+    /// <summary>Where the chapter scalars and in-run income blocks live.</summary>
     internal const string CurrenciesPath = "tuning/currencies.json";
 
-    /// <summary>The document `19` Part E is transcribed into.</summary>
     internal const string CursesPath = "content/curses/curses.json";
 
-    /// <summary>The document `19` Part A is transcribed into.</summary>
     internal const string BoardEventsPath = "content/board_events/board_events.json";
 
-    /// <summary>🔒 M3-13 — the document `02` §6's AD_REVIVE numbers live in.</summary>
+    /// <summary>Where the AD_REVIVE numbers live.</summary>
     internal const string AdsPath = "tuning/ads.json";
 
-    /// <summary>🔒 M3-13, `02` §6 — the revive heal share of Max HP, as shipped.</summary>
+    /// <summary>The revive heal share of Max HP, as shipped.</summary>
     internal const decimal ShippedReviveHealPctMaxHp = 0.5m;
 
-    /// <summary>🔒 M3-13, `02` §6 — the revive invulnerability window in seconds, as shipped.</summary>
+    /// <summary>The revive invulnerability window in seconds, as shipped.</summary>
     internal const int ShippedReviveInvulnerabilitySeconds = 2;
 
-    /// <summary>`03` §7a — <c>G(c) = goldGrowth^(c-1)</c>'s base, as shipped.</summary>
+    /// <summary><c>G(c) = goldGrowth^(c-1)</c>'s base, as shipped.</summary>
     internal const decimal ShippedGoldGrowth = 1.55m;
 
-    /// <summary>`03` §7a — <c>M(c) = metaGrowth^(c-1)</c>'s base, as shipped.</summary>
+    /// <summary><c>M(c) = metaGrowth^(c-1)</c>'s base, as shipped.</summary>
     internal const decimal ShippedMetaGrowth = 1.35m;
 
-    /// <summary>`03` §7a — the only rounding mode authored, and the only one implemented.</summary>
+    /// <summary>The only rounding mode authored, and the only one implemented.</summary>
     internal const string ShippedRoundingMode = "NEAREST_INTEGER";
 
-    /// <summary>`03` §7a.4 — the chapter-1 cache payout, as shipped.</summary>
+    /// <summary>The chapter-1 cache payout, as shipped.</summary>
     internal const long ShippedBeastFeedBase = 25;
 
-    /// <summary>`03` §7a.4 — the flat Pet Egg rate, as shipped.</summary>
+    /// <summary>The flat Pet Egg rate, as shipped.</summary>
     internal const decimal ShippedEggChance = 0.06m;
 
-    /// <summary>`03` §7a.5 — how many distinct options a shrine offers, as shipped.</summary>
+    /// <summary>How many distinct options a shrine offers, as shipped.</summary>
     internal const int ShippedOptionsOffered = 2;
 
-    /// <summary>`03` §2 — the campfire rest's healed share of Max HP, as shipped.</summary>
+    /// <summary>The campfire rest's healed share of Max HP, as shipped.</summary>
     internal const decimal ShippedCampfireHeal = 0.4m;
 
-    /// <summary>🔒 M3-05, `03` §1.1 — the Stage Gate's healed share of Max HP, as shipped.</summary>
+    /// <summary>The Stage Gate's healed share of Max HP, as shipped.</summary>
     internal const decimal ShippedStageGateHeal = 0.15m;
 
-    /// <summary>🔒 M3-06, `06` §1 — the draft's skip Gold reward, as shipped.</summary>
+    /// <summary>The draft's skip Gold reward, as shipped.</summary>
     internal const long ShippedSkipGoldReward = 60;
 
-    /// <summary>🔒 M3-06 — the draft's reroll Gold cost, as shipped.</summary>
+    /// <summary>The draft's reroll Gold cost, as shipped.</summary>
     internal const long ShippedRerollGoldCost = 60;
 
-    /// <summary>🔒 M3-13, `03` §7a.1 — GoldPerKill's chapter-1 base, as shipped.</summary>
+    /// <summary>GoldPerKill's chapter-1 base, as shipped.</summary>
     internal const long ShippedGoldPerKillBase = 40;
 
-    /// <summary>🔒 M3-13, `03` §7a.1 — the Elite Gold multiplier, as shipped.</summary>
+    /// <summary>The Elite Gold multiplier, as shipped.</summary>
     internal const long ShippedGoldPerKillEliteMultiplier = 3;
 
-    /// <summary>🔒 M3-13, `03` §7a.1 — the Boss Gold multiplier, as shipped.</summary>
+    /// <summary>The Boss Gold multiplier, as shipped.</summary>
     internal const long ShippedGoldPerKillBossMultiplier = 10;
 
-    /// <summary>🔒 M3-13, `10` §2 — Normal-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
+    /// <summary>Normal-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
     internal const long ShippedBossKillNormalPerChapter = 15;
 
-    /// <summary>🔒 M3-13, `10` §2 — Heroic-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
+    /// <summary>Heroic-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
     internal const long ShippedBossKillHeroicPerChapter = 40;
 
-    /// <summary>🔒 M3-13, `10` §2 — Mythic-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
+    /// <summary>Mythic-tier Boss-kill Soul Shards per chapter, as shipped.</summary>
     internal const long ShippedBossKillMythicPerChapter = 100;
 
-    /// <summary>🔒 M3-13, `02` §5.3 — the first-clear grant range floor, as shipped.</summary>
+    /// <summary>The first-clear grant range floor, as shipped.</summary>
     internal const long ShippedFirstClearMin = 100;
 
-    /// <summary>🔒 M3-13, `02` §5.3 — the first-clear grant range ceiling, as shipped.</summary>
+    /// <summary>The first-clear grant range ceiling, as shipped.</summary>
     internal const long ShippedFirstClearMax = 800;
 
-    /// <summary>`03` §7a.3's three profiles, in the document's own order.</summary>
+    /// <summary>The three treasure profiles, in the document's own order.</summary>
     internal static readonly (string Id, decimal Weight, long Crowns, long Stones, long Dust)[]
         ShippedTreasureProfiles =
         {
@@ -105,9 +98,9 @@ internal static class InRunIncomeDocuments
             ("DUST_TROVE", 15m, 15, 0, 10),
         };
 
-    /// <summary>`03` §7a.5's pool of ten, in the document's own order.</summary>
+    /// <summary>The pool of ten shrine buffs, in the document's own order.</summary>
     /// <remarks>
-    /// ⚠️ <c>SHR_HP</c> (index 1) carries BOTH a stat raise and an immediate heal, and
+    /// <c>SHR_HP</c> (index 1) carries BOTH a stat raise and an immediate heal, and
     /// <c>SHR_HEAL</c> (index 9) carries only the heal, with <c>stat</c> and <c>magnitude</c>
     /// authored as deliberate <c>null</c>s. Those two rows are the reason this fixture carries all
     /// ten rather than a representative two.
@@ -127,14 +120,11 @@ internal static class InRunIncomeDocuments
             ("SHR_HEAL", null, null, 0.4m),
         };
 
-    /// <summary>
-    /// `19` Part E's twelve rows, in the document's own order — id, reward prose and chapter gate.
-    /// </summary>
+    /// <summary>The twelve curse rows, in the document's own order — id, reward prose, and chapter gate.</summary>
     /// <remarks>
     /// The <c>effect</c> column is filled with a placeholder rather than transcribed: nothing in
-    /// <c>Core</c> reads it (M3-11's engine will), so transcribing it here would imply something does.
-    /// The <c>reward</c> column IS transcribed, because <c>CurseRewards</c>' four-row table is
-    /// cross-checked against it.
+    /// <c>Core</c> reads it, so transcribing it here would imply something does. The <c>reward</c>
+    /// column IS transcribed, because <c>CurseRewards</c>' four-row table is cross-checked against it.
     /// </remarks>
     internal static readonly (string Id, string Reward, int AvailableFrom)[] ShippedCurses =
     {
@@ -170,10 +160,9 @@ internal static class InRunIncomeDocuments
     /// </param>
     /// <param name="roundingMode">For the refusal case — the one mode this reader implements.</param>
     /// <param name="campfireHeal">
-    /// ⚠️ Exists so the campfire's rest can be pinned as genuinely READ rather than hardcoded — the
-    /// same reason <paramref name="metaGrowth"/> exists. The heal was a C# constant until M3-03's
-    /// review moved it into <c>#/inRunIncome/campfire</c> (`21` §3.1), and a test that only ever saw
-    /// the shipped 0.4 could not tell the two apart.
+    /// Exists so the campfire's rest can be pinned as genuinely READ rather than hardcoded — the
+    /// same reason <paramref name="metaGrowth"/> exists: the heal used to be a C# constant, and a
+    /// test that only ever saw the shipped 0.4 could not tell the two apart.
     /// </param>
     /// <param name="cards">A purpose-built card list, for the event resolver's own tests.</param>
     internal static ContentSnapshot With(
@@ -203,11 +192,10 @@ internal static class InRunIncomeDocuments
         new(
             ContentVersion.FromHex(new string('a', ContentVersion.HexLength)),
             [
-                // 🔒 tuning/progression.json is here because GameRules.Apply CLONES the slice through
-                // Player.Rehydrate before a handler ever runs, and that reads 10 §6's Legend Level
-                // range. A context missing it fails inside Apply's clone rather than in the rule
-                // under test — which is a confusing failure for every test in this suite, none of
-                // which is about Legend Level.
+                // tuning/progression.json is here because GameRules.Apply CLONES the slice through
+                // Player.Rehydrate before a handler ever runs, and that reads the Legend Level range.
+                // A context missing it fails inside Apply's clone rather than in the rule under test —
+                // a confusing failure for every test in this suite, none of which is about Legend Level.
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
                 new ContentDocument(CurrenciesPath, Currencies(
                     eggChance, metaGrowth, goldGrowth, roundingMode, treasureProfiles, shrineBuffs,
@@ -219,10 +207,10 @@ internal static class InRunIncomeDocuments
                 new ContentDocument(BoardEventsPath, BoardEvents(cards)),
                 new ContentDocument(AdsPath, Ads(reviveHealPctMaxHp, reviveInvulnerabilitySeconds)),
 
-                // 🔒 Review M3 (dead-end tile fix): RESOLVE_TILE's Portal branch now calls
-                // Rules.Board.BoardResolution.Resolve, which reads a real content/chapters/ document
-                // via ChapterBoardTuning — every ResolveTileTests world needs one to exist, the same
-                // chapter-1 shape ChapterDocuments.ChapterOne already mirrors for Rules-level tests.
+                // RESOLVE_TILE's Portal branch calls Rules.Board.BoardResolution.Resolve, which reads
+                // a real content/chapters/ document via ChapterBoardTuning — every ResolveTileTests
+                // world needs one to exist, the same chapter-1 shape ChapterDocuments.ChapterOne
+                // already mirrors for Rules-level tests.
                 ChapterDocuments.Document(chapterId: 1, ChapterDocuments.ChapterOnePath),
             ]);
 

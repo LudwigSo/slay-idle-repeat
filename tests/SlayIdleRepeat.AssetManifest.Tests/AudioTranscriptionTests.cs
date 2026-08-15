@@ -4,13 +4,12 @@ using Xunit;
 namespace SlayIdleRepeat.AssetManifest.Tests;
 
 /// <summary>
-/// The audio register against doc `20`. 🔒 Every expected number below was counted from `20`'s own
-/// id lists, not copied from its stated totals — the point of the exercise was to check the claim,
-/// and doc 20's claims all survived it.
+/// The audio register against the design doc. Every expected number below was counted from the
+/// doc's own id lists, not copied from its stated totals — the point was to check the claim.
 /// </summary>
 public sealed class AudioTranscriptionTests
 {
-    /// <summary>`20` §4.1–§4.6 family headings vs the ids each family actually lists.</summary>
+    /// <summary>Doc family headings vs the ids each family actually lists.</summary>
     [Theory]
     [InlineData("dice", "20 §4.1", 11, 11)]
     [InlineData("board_movement", "20 §4.2", 12, 12)]
@@ -33,10 +32,7 @@ public sealed class AudioTranscriptionTests
         ManifestFiles.Shipped.AudioInFamily(familyId).Count().ShouldBe(listed);
     }
 
-    /// <summary>
-    /// 🔒 Doc 20's arithmetic checks out exactly — 11+12+26+8+18+19 = 94 SFX, plus 12 music = 106.
-    /// Unlike `15` §E20, nothing here needed recording as a discrepancy.
-    /// </summary>
+    /// <summary>The doc's arithmetic checks out exactly: 11+12+26+8+18+19 = 94 SFX, plus 12 music = 106. Nothing here needed recording as a discrepancy.</summary>
     [Fact]
     public void Doc_20_claims_94_SFX_and_106_total_and_both_are_correct()
     {
@@ -66,7 +62,7 @@ public sealed class AudioTranscriptionTests
         families.ShouldAllBe(f => f.ClaimedCount == f.TranscribedCount);
     }
 
-    /// <summary>`20` §3's twelve tracks, with the loop length the table states for each.</summary>
+    /// <summary>The twelve music tracks, with the loop length the doc states for each.</summary>
     [Theory]
     [InlineData("mus_home", "Home / Camp", 120)]
     [InlineData("mus_ch1_greenwood", "Chapter 1 board", 110)]
@@ -91,7 +87,7 @@ public sealed class AudioTranscriptionTests
         track.Format.ShouldBe("OGG Vorbis, q6, 44.1 kHz stereo", "20 §5");
     }
 
-    /// <summary>Every SFX carries `20` §5's source/shipping format.</summary>
+    /// <summary>Every SFX carries the doc's source/shipping format.</summary>
     [Fact]
     public void Every_sfx_carries_the_doc_20_section_5_format()
     {
@@ -102,11 +98,7 @@ public sealed class AudioTranscriptionTests
             a.Format == "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping");
     }
 
-    /// <summary>
-    /// 🔒 `20` §5's Ducking row names exactly four. `20` §1's prose names only two ("the crit and
-    /// level-up stingers"); the manifest follows §5, the more specific of the two, and records the
-    /// difference as DSC_DUCKING_SET rather than silently picking a side.
-    /// </summary>
+    /// <summary>The doc's table names four ducking SFX where its prose names only two; the manifest follows the more specific table and records the conflict as DSC_DUCKING_SET.</summary>
     [Fact]
     public void Exactly_the_four_SFX_in_doc_20_section_5_duck_the_music()
     {
@@ -134,10 +126,7 @@ public sealed class AudioTranscriptionTests
         ManifestFiles.Shipped.RequireAudio(id).DurationSeconds.ShouldBe(seconds);
     }
 
-    /// <summary>
-    /// 🔒 The other 86 SFX state no duration, and the manifest does not infer one from §1's
-    /// 60–400 ms band. A band is not a value.
-    /// </summary>
+    /// <summary>The other 86 SFX state no duration; the manifest does not infer one from the doc's stated band — a band is not a value.</summary>
     [Fact]
     public void SFX_without_a_stated_duration_carry_null_rather_than_the_section_1_band()
     {
@@ -147,10 +136,7 @@ public sealed class AudioTranscriptionTests
         sfx.Count(a => a.DurationSeconds is null).ShouldBe(86);
     }
 
-    /// <summary>
-    /// 🔒 `20` §1 caps celebratory stingers at 1.2 s; §4.3's victory fanfare is 1.5 s. Transcribed
-    /// as written and recorded, not clamped to the cap.
-    /// </summary>
+    /// <summary>The doc caps celebratory stingers at 1.2s, but the victory fanfare is 1.5s — transcribed as written, not clamped to the cap.</summary>
     [Fact]
     public void The_victory_stinger_exceeds_the_section_1_cap_and_that_is_recorded()
     {
@@ -163,11 +149,7 @@ public sealed class AudioTranscriptionTests
         record.Observed.ShouldContain("1.5", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 Eight SFX have no descriptor of their own because doc 20 attaches none — the id shares a
-    /// '·' segment with a neighbour, or the pair is written `a / b`. They stay null and greppable
-    /// rather than inheriting a neighbour's text, which would be a ruling, not a transcription.
-    /// </summary>
+    /// <summary>Eight SFX share a descriptor slot with a neighbour and get no descriptor of their own; they stay null rather than inheriting the neighbour's text, which would be a ruling, not a transcription.</summary>
     [Fact]
     public void The_eight_SFX_doc_20_never_describes_carry_a_null_descriptor()
     {
@@ -183,10 +165,7 @@ public sealed class AudioTranscriptionTests
         ManifestFiles.Shipped.Audio.Discrepancies.ShouldContain(d => d.Id == "DSC_SHARED_DESCRIPTORS");
     }
 
-    /// <summary>
-    /// 🔒 groupDescriptor is reserved for a human ruling that a descriptor covers a run of ids.
-    /// No such ruling exists, so it is null throughout — inventing one is not transcription.
-    /// </summary>
+    /// <summary>groupDescriptor is reserved for a human ruling that a descriptor covers a run of ids; none exists yet, so it is null throughout.</summary>
     [Fact]
     public void No_row_claims_a_group_descriptor_nobody_has_ruled()
     {

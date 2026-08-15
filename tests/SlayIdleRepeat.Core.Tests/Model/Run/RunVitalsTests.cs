@@ -7,9 +7,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `30` §11.5 / `14` §2.3 / `14` §16.3 — the run's three plain pieces of state and the mutators
-/// that write them: the hero's hit points, the board position, and the instant the run last accepted
-/// a command.
+/// The run's three plain pieces of state and the mutators that write them: the hero's hit points,
+/// the board position, and the instant the run last accepted a command.
 /// </summary>
 public sealed class RunVitalsTests
 {
@@ -19,16 +18,11 @@ public sealed class RunVitalsTests
     // ------------------------------------------------------------------ hit points
 
     /// <summary>
-    /// 🔒 <c>SetHitPoints</c> writes <b>both</b> halves in one call, which is the invariant rather
-    /// than an ergonomic choice.
+    /// <c>SetHitPoints</c> writes <b>both</b> halves in one call, which is the invariant rather
+    /// than an ergonomic choice: a caller that raised the maximum and forgot the current — or the
+    /// reverse — would leave the pair in a state neither individual write is illegal in, so no
+    /// aggregate-level invariant could catch it afterwards.
     /// </summary>
-    /// <remarks>
-    /// The same reasoning as <c>Player.AccrueEnergy</c> taking both halves of one accrual: a caller
-    /// that raised the maximum and forgot the current — or the reverse — would leave the pair in a
-    /// state neither individual write is illegal in, so no aggregate-level invariant could catch it
-    /// afterwards. `03` §7a.5's <c>SHR_HP</c> shrine raises the maximum <em>and</em> heals, which is
-    /// exactly one fact with two components.
-    /// </remarks>
     [Fact]
     public void SetHitPoints_writes_the_current_and_the_maximum_together()
     {
@@ -87,8 +81,8 @@ public sealed class RunVitalsTests
     }
 
     /// <summary>
-    /// 🔒 Overheal is refused, not clamped. `30` §11.5 keeps the arithmetic in the rule that computes
-    /// it; a silent clamp here would make a healing rule that over-delivered look correct.
+    /// Overheal is refused, not clamped: a silent clamp here would make a healing rule that
+    /// over-delivered look correct.
     /// </summary>
     [Fact]
     public void SetHitPoints_refuses_a_current_above_the_maximum_rather_than_clamping()
@@ -117,7 +111,6 @@ public sealed class RunVitalsTests
 
     // -------------------------------------------------------------------- position
 
-    /// <summary>`14` §2.3 — <c>MoveTo</c> records the new linear node index.</summary>
     [Fact]
     public void MoveTo_records_the_new_position()
     {
@@ -129,15 +122,13 @@ public sealed class RunVitalsTests
     }
 
     /// <summary>
-    /// ⚠️ A move to a <b>lower</b> index is accepted: this pins the <em>absence</em> of a monotonicity
+    /// A move to a <b>lower</b> index is accepted: this pins the <em>absence</em> of a monotonicity
     /// guard, not a claim that the board goes backwards.
     /// </summary>
     /// <remarks>
-    /// 🔒 The reason is the deferral, not the design — `03` §1 says <em>"movement is always forward"</em>,
-    /// so a forwards-only rule would refuse nothing the design authorises. It is unwritten because
-    /// which index may follow which is a property of the board graph and the aggregate holds no graph;
-    /// a direction rule here would be a partial invariant wearing the real one's name. Movement
-    /// legality is M3-01's and M3-02's.
+    /// Which index may follow which is a property of the board graph, and the aggregate holds no
+    /// graph — a direction rule here would be a partial invariant wearing the real one's name.
+    /// Movement legality belongs elsewhere.
     /// </remarks>
     [Fact]
     public void MoveTo_accepts_a_lower_index_because_movement_legality_is_M3_01s_not_the_aggregates()
@@ -150,13 +141,12 @@ public sealed class RunVitalsTests
     }
 
     /// <summary>
-    /// 🔒 `03` §1.1 — the <b>trailhead</b> at −1 is accepted: where every run stands before its first
-    /// roll, not an invalid position.
+    /// The <b>trailhead</b> at −1 is accepted: where every run stands before its first roll, not
+    /// an invalid position.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The case a floor of 0 would have got wrong. A run created by <c>START_RUN</c> and abandoned
-    /// before its first <c>ROLL_DICE</c> persists at −1 — exactly the state `14` §16.3's sliding TTL
-    /// exists to keep alive, so refusing it would make the commonest resumable run unstorable.
+    /// The case a floor of 0 would have got wrong. A run created and abandoned before its first
+    /// roll persists at −1, so refusing it would make the commonest resumable run unstorable.
     /// </remarks>
     [Fact]
     public void MoveTo_accepts_the_trailhead_because_that_is_where_every_run_starts()
@@ -186,14 +176,12 @@ public sealed class RunVitalsTests
     }
 
     /// <summary>
-    /// 🔒 ⚠️ A position no board could contain is <b>accepted</b>. `30` §11.5's <em>"a run's position is
-    /// a valid node"</em> is <b>deferred</b>, not approximated.
+    /// A position no board could contain is <b>accepted</b>: "a run's position is a valid node" is
+    /// <b>deferred</b>, not approximated.
     /// </summary>
     /// <remarks>
-    /// There is no board and no node identity until M3-01, so a range check invented here would be a
-    /// partial invariant wearing the real one's name and trusted as such downstream. The real
-    /// validation is the <c>Board</c> entry in the architecture suite's <c>GapRegister</c>, keyed on
-    /// <c>NodeId</c>, which fails the build the day node identity arrives.
+    /// There is no board and no node identity yet, so a range check invented here would be a
+    /// partial invariant wearing the real one's name and trusted as such downstream.
     /// </remarks>
     [Fact]
     public void MoveTo_accepts_a_position_no_board_could_contain_because_node_identity_is_M3_01s()
@@ -207,7 +195,7 @@ public sealed class RunVitalsTests
 
     // ------------------------------------------------------------------- MarkApplied
 
-    /// <summary>`14` §16.3 — the sliding TTL's anchor advances to the instant the command was applied.</summary>
+    /// <summary>The sliding TTL's anchor advances to the instant the command was applied.</summary>
     [Fact]
     public void MarkApplied_advances_the_run_TTL_anchor()
     {
@@ -220,7 +208,7 @@ public sealed class RunVitalsTests
     }
 
     /// <summary>
-    /// ⚠️ Equal is allowed: the server stamps <c>NowUtc</c> once per command and a client can send
+    /// Equal is allowed: the server stamps <c>NowUtc</c> once per command and a client can send
     /// two inside the same millisecond.
     /// </summary>
     [Fact]
@@ -234,8 +222,8 @@ public sealed class RunVitalsTests
     }
 
     /// <summary>
-    /// 🔒 Strictly-earlier is refused. `14` §16.3 measures the 48-hour run TTL <b>from</b> this
-    /// instant, so moving it backwards would extend a run past the point it expires.
+    /// Strictly-earlier is refused: the run TTL is measured <b>from</b> this instant, so moving it
+    /// backwards would extend a run past the point it expires.
     /// </summary>
     [Fact]
     public void MarkApplied_refuses_an_instant_that_goes_backwards()
@@ -268,13 +256,11 @@ public sealed class RunVitalsTests
     }
 
     /// <summary>
-    /// 🔒 The run's TTL anchor is its <b>own</b>, not <c>Player.LastAppliedAtUtc</c> under another name.
+    /// The run's TTL anchor is its <b>own</b>, not <c>Player.LastAppliedAtUtc</c> under another name.
     /// </summary>
     /// <remarks>
-    /// The player's anchor advances on meta commands too, so a run whose expiry were slid off it would
-    /// stay alive because its owner opened the shop. ⚠️ A <b>state</b> assertion over two live
-    /// aggregates, not a type-shape one: what it catches is the two anchors being backed by one store,
-    /// the only way in <c>Core</c> for advancing one to advance the other.
+    /// The player's anchor advances on meta commands too, so a run whose expiry were slid off it
+    /// would stay alive because its owner opened the shop.
     /// </remarks>
     [Fact]
     public void The_runs_TTL_anchor_is_the_runs_own_and_not_the_players()

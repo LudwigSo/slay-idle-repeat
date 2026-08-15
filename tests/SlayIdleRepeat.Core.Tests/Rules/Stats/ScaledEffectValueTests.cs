@@ -9,19 +9,20 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
-/// 🔒 <see cref="IEffectValueReader"/>'s strict default <em>refuses</em> a <c>valueScale</c>; this is the
-/// wiring that fills that seam, in the place `18` §8's aggregation actually reads values from.
+/// <see cref="IEffectValueReader"/>'s strict default refuses a <c>valueScale</c>; this is the
+/// wiring that fills that seam where aggregation actually reads values from.
 /// </summary>
 /// <remarks>
-/// ⚠️ The implementation lives in <c>Rules/Stats/</c> on purpose: R17 puts <c>Rules.Effects</c> at the
-/// bottom of the intra-<c>Rules</c> layering, so the <em>evaluator</em> is in <c>Rules/Effects/Values/</c>
-/// and the adapter binding it to the interface sits beside the interface it implements, naming downward.
+/// The implementation lives in <c>Rules/Stats/</c> on purpose: <c>Rules.Effects</c> sits at the
+/// bottom of the intra-<c>Rules</c> layering, so the evaluator lives in
+/// <c>Rules/Effects/Values/</c> and the adapter binding it to the interface sits beside the
+/// interface it implements, naming downward.
 /// </remarks>
 public sealed class ScaledEffectValueTests
 {
     /// <summary>
-    /// `18` §1.1's <c>PK_BERSERK</c> through the whole of `18` §8: a 300 ATK hero at 60% HP gets
-    /// +40% ATK, which is 420.
+    /// <c>PK_BERSERK</c> through the whole pipeline: a 300 ATK hero at 60% HP gets +40% ATK, which
+    /// is 420.
     /// </summary>
     [Fact]
     public void PK_BERSERK_reaches_the_aggregation_as_a_scaled_percent()
@@ -84,10 +85,9 @@ public sealed class ScaledEffectValueTests
     }
 
     /// <summary>
-    /// 🔒 M2-07's refusal of a non-<c>FLAT</c> <c>valueMode</c> on a stat op is <b>kept</b>. `18`
-    /// §2.2's modes are damage- and heal-relative and the only stat op in the document that carries
-    /// one is §9.1's <c>STAT_SET MAX_HP</c> with <c>FLAT</c>; what the other seven would mean against
-    /// a stat is written nowhere, and M2-06 owning the evaluator is not a licence to invent it.
+    /// The refusal of a non-<c>FLAT</c> <c>valueMode</c> on a stat op is kept: the only stat op
+    /// that carries a mode is <c>STAT_SET MAX_HP</c> with <c>FLAT</c>, and what the other seven
+    /// would mean against a stat is written nowhere.
     /// </summary>
     [Fact]
     public void A_non_FLAT_value_mode_on_a_stat_op_is_still_refused()

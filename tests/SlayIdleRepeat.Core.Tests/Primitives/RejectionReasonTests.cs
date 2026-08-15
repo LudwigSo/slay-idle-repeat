@@ -5,22 +5,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
 /// <summary>
-/// `14` §16.2 / `30` §2 — the <see cref="RejectionReason"/> catalogue, its permanent wire numbers, and
-/// the two-tier split that decides which values <c>Apply</c> may return.
+/// The <see cref="RejectionReason"/> catalogue, its permanent wire numbers, and the two-tier split
+/// that decides which values <c>Apply</c> may return.
 /// </summary>
 /// <remarks>
-/// 🔒 Every list is written out as literal names, not derived from the enum: deriving "the domain
+/// Every list is written out as literal names, not derived from the enum: deriving "the domain
 /// tier" from <c>TierOf</c> and then asserting <c>TierOf</c> against it is a test that cannot fail.
-/// <para>
-/// ⚠️ A failure here is not a test to fix — <em>"values may be appended, never renamed or reused"</em>.
-/// Appending one is a deliberate change to a wire contract and is meant to cost a deliberate edit.
-/// </para>
+/// A failure here is not a test to fix — values may be appended, never renamed or reused, so
+/// appending one is meant to cost a deliberate edit.
 /// </remarks>
 public sealed class RejectionReasonTests
 {
-    /// <summary>
-    /// The `14` §16.2 table, transcribed: every value, its permanent wire number, and its tier.
-    /// </summary>
+    /// <summary>The catalogue, transcribed: every value, its permanent wire number, and its tier.</summary>
     private static readonly (string Name, int Wire, RejectionReasonTier Tier)[] Catalogue =
     {
         ("MALFORMED_COMMAND", 1, RejectionReasonTier.Transport),
@@ -45,13 +41,7 @@ public sealed class RejectionReasonTests
         ("INVENTORY_FULL", 20, RejectionReasonTier.Domain),
     };
 
-    /// <summary>
-    /// 🔒 `30` §2, quoted: <i>"`Apply` returns only the domain-tier values (`ILLEGAL_STATE`,
-    /// `INSUFFICIENT_ENERGY`, `INSUFFICIENT_FUNDS`, `CAP_REACHED`, `COOLDOWN_ACTIVE`,
-    /// `NOT_OWNED`, `NOT_ENTITLED`, `INVENTORY_FULL`, `RUN_EXPIRED`, `RUN_ALREADY_ENDED`)"</i>.
-    /// Written in that sentence's order rather than the enum's, so it reads as the transcription
-    /// it is.
-    /// </summary>
+    /// <summary>The ten values <c>Apply</c> is allowed to return, in the spec's order rather than the enum's.</summary>
     private static readonly RejectionReason[] DomainTierPin =
     {
         RejectionReason.ILLEGAL_STATE,
@@ -66,10 +56,7 @@ public sealed class RejectionReasonTests
         RejectionReason.RUN_ALREADY_ENDED,
     };
 
-    /// <summary>
-    /// The other ten of `14` §16.2 — produced by the server host / Application layer, and never
-    /// reaching <c>GameRules.Apply</c> at all.
-    /// </summary>
+    /// <summary>The other ten — produced by the server host / Application layer, never reaching <c>GameRules.Apply</c>.</summary>
     private static readonly RejectionReason[] TransportTierPin =
     {
         RejectionReason.MALFORMED_COMMAND,
@@ -245,14 +232,9 @@ public sealed class RejectionReasonTests
     }
 
     /// <summary>
-    /// 🔒 The three published sets are immutable at runtime, not merely typed as if they were.
+    /// The three published sets are immutable at runtime, not merely typed as if they were:
+    /// <c>IReadOnlyList&lt;T&gt;</c> over a bare array states an intention it cannot enforce.
     /// </summary>
-    /// <remarks>
-    /// <c>IReadOnlyList&lt;T&gt;</c> over a bare array states an intention it cannot enforce: one cast
-    /// and one indexer write re-label a row of `14` §16.2 permanently, process-wide, with nothing to
-    /// notice. On <c>DomainTier</c> that inserts a transport-tier value into the list that decides
-    /// whether a transport-tier value is allowed.
-    /// </remarks>
     [Theory]
     [InlineData(nameof(RejectionReasons.All))]
     [InlineData(nameof(RejectionReasons.DomainTier))]
@@ -298,15 +280,11 @@ public sealed class RejectionReasonTests
     }
 
     /// <summary>
-    /// Both facts `14` §16.2 requires of the refusal — the offending value, and the table with no row
-    /// for it — asserted as two independent fragments.
+    /// Both facts the refusal must state — the offending value, and the table with no row for it —
+    /// asserted as two independent fragments rather than one ordered wildcard, because
+    /// <see cref="ArgumentOutOfRangeException"/> appends its own <c>"Actual value was 0."</c> after
+    /// the thrower's message.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Deliberately not one ordered wildcard: <see cref="ArgumentOutOfRangeException"/> appends its
-    /// own <c>"Actual value was 0."</c> <em>after</em> the thrower's message, so a pattern demanding
-    /// the value before the citation cannot be satisfied by the idiomatic constructor at all. Both
-    /// fragments are the claim; their order is not.
-    /// </remarks>
     private static void ShouldNameTheValueAndTheTable(
         ArgumentOutOfRangeException thrown, string value, string? valueMessage = null)
     {

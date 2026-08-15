@@ -5,32 +5,27 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 
 /// <summary>
-/// 🔒 The shared contract suite for <c>IEliteModifierHistory</c> — every implementation is run through
-/// it, including M4-01's and M3's, which do not exist yet.
+/// The shared contract suite for <c>IEliteModifierHistory</c> — every implementation is run
+/// through it, including future ones that do not exist yet.
 /// </summary>
 /// <remarks>
-/// 🔒 Steering S7: <em>"Add the <c>InMemory</c> fake AND the shared contract suite in the same change as
-/// the port."</em> Not a port, but it has the property that matters: several implementations written
-/// months apart by people who never read each other's.
-/// <para>
-/// <b>To implement it:</b> derive a test class from this one and override <see cref="Create"/>. Nothing
+/// To implement it: derive a test class from this one and override <see cref="Create"/>. Nothing
 /// may be overridden — a rule an implementation can opt out of is not a contract.
-/// </para>
 /// </remarks>
 public abstract class EliteModifierHistoryContract
 {
     /// <summary>Builds a fresh implementation, as a run that has fought no Elite yet.</summary>
     /// <remarks>
-    /// ⚠️ <c>private protected</c>, not <c>protected</c>: <c>IEliteModifierHistory</c> is
-    /// <c>internal</c> to <c>SlayIdleRepeat.Core</c> and reaches this assembly only through `30`
-    /// §11.3's <c>InternalsVisibleTo</c> grant, so a <c>protected</c> member of a <c>public</c> class
+    /// <c>private protected</c>, not <c>protected</c>: <c>IEliteModifierHistory</c> is
+    /// <c>internal</c> to <c>SlayIdleRepeat.Core</c> and reaches this assembly only through an
+    /// <c>InternalsVisibleTo</c> grant, so a <c>protected</c> member of a <c>public</c> class
     /// could not name it.
     /// </remarks>
     private protected abstract IEliteModifierHistory Create();
 
     /// <summary>
-    /// 🔒 A run that has fought no Elite reads <c>null</c> — a reading, not an error. The first
-    /// Elite of a run draws from all eight.
+    /// A run that has fought no Elite reads <c>null</c> — a reading, not an error. The first Elite
+    /// of a run draws from all eight.
     /// </summary>
     [Fact]
     public void A_run_that_has_fought_no_elite_has_no_previous_modifier() =>
@@ -48,9 +43,9 @@ public abstract class EliteModifierHistoryContract
     }
 
     /// <summary>
-    /// 🔒 <em>"the <b>immediately</b> preceding Elite"</em> — the seam holds one value, not a
-    /// history. An implementation that remembered every modifier of the run would exclude seven of
-    /// eight by the fourth Elite.
+    /// Only the immediately preceding Elite — the seam holds one value, not a history. An
+    /// implementation that remembered every modifier of the run would exclude seven of eight by
+    /// the fourth Elite.
     /// </summary>
     [Fact]
     public void Only_the_immediately_preceding_modifier_is_remembered()
@@ -77,8 +72,8 @@ public abstract class EliteModifierHistoryContract
     }
 
     /// <summary>
-    /// 🔒 An undeclared value is rejected. Recording one would exclude nothing on the next draw,
-    /// which is `05` §6.2's rule quietly switching itself off.
+    /// An undeclared value is rejected. Recording one would exclude nothing on the next draw,
+    /// which is the no-repeat rule quietly switching itself off.
     /// </summary>
     [Fact]
     public void An_undeclared_modifier_is_rejected_rather_than_recorded()
@@ -91,9 +86,9 @@ public abstract class EliteModifierHistoryContract
     }
 
     /// <summary>
-    /// 🔒 S3 — the floor under this contract's own subject set. Every rule above names members of
-    /// <c>EliteModifier</c>; `05` §6.2 declares eight, and a shrunken enum would leave these rules
-    /// asserting over a vocabulary the section does not describe.
+    /// The floor under this contract's own subject set: every rule above names members of
+    /// <c>EliteModifier</c>, and a shrunken enum would leave these rules asserting over a smaller
+    /// vocabulary than intended.
     /// </summary>
     [Fact]
     public void The_eight_modifiers_05_section_6_2_declares_are_all_present()

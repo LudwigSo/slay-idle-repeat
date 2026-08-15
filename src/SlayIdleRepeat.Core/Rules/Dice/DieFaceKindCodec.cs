@@ -3,24 +3,21 @@ using SlayIdleRepeat.Core.Content.Dice;
 namespace SlayIdleRepeat.Core.Rules.Dice;
 
 /// <summary>
-/// 🔒 The one place `18`'s wire-facing <c>DieFaceSpec.Kind</c> string is parsed into the real
+/// The one place the wire-facing <c>DieFaceSpec.Kind</c> string is parsed into the real
 /// <see cref="DieFaceKind"/> enum, and the one place a <see cref="DieFaceKind"/> is rendered back to
 /// that string.
 /// </summary>
 /// <remarks>
-/// <c>Content.Effects.DieFaceSpec.Kind</c> stays a string because it is a DSL wire shape
-/// (<c>game-data/schema/effect.schema.json</c> validates it as one of six literals, and JSON has no
-/// closed-enum literal). This type is the seam a <c>MODIFY_DIE_FACE</c> resolver crosses that shape
-/// at, exactly once, the same way <see cref="Content.Effects.DieFaceIndex"/> turns
-/// <c>faceIndex</c>'s wire token into a real value without <c>DieFaceSpec</c> itself needing to stop
-/// being JSON-shaped.
+/// <c>Content.Effects.DieFaceSpec.Kind</c> stays a string because it's a DSL wire shape, and this is
+/// the seam a resolver crosses it at exactly once — the same pattern <see cref="Content.Effects.DieFaceIndex"/>
+/// uses for <c>faceIndex</c>.
 /// </remarks>
 internal static class DieFaceKindCodec
 {
-    /// <summary>Parses `18`'s wire token into the real <see cref="DieFaceKind"/>.</summary>
+    /// <summary>Parses the wire token into the real <see cref="DieFaceKind"/>.</summary>
     /// <param name="kind">
-    /// One of `04` §1's six names, exactly as <c>game-data/schema/effect.schema.json</c> spells them:
-    /// <c>Pip</c>, <c>Star</c>, <c>Surge</c>, <c>Fortune</c>, <c>Void</c>, <c>Chain</c>.
+    /// One of the six names, exactly as the content schema spells them: <c>Pip</c>, <c>Star</c>,
+    /// <c>Surge</c>, <c>Fortune</c>, <c>Void</c>, <c>Chain</c>.
     /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="kind"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="kind"/> is not one of the six names.</exception>

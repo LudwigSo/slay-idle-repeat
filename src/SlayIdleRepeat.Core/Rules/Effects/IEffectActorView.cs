@@ -1,71 +1,45 @@
 namespace SlayIdleRepeat.Core.Rules.Effects;
 
-/// <summary>
-/// The read-only view of a combat actor that `18` §4's conditions and `18` §5's targets need — and
-/// nothing else.
-/// </summary>
+/// <summary>The read-only view of a combat actor that conditions and targets need — and nothing else.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Narrow on purpose.</b> Every member below is here because a named clause of `18` §4 or §5
-/// reads it. This is <em>not</em> the actor stat block (M2-07, <c>Rules/Stats/</c>) and must not grow
-/// into one: the DSL's condition and target layer has no business knowing an actor's ATK, its attack
-/// cooldown or its <c>targetPriority</c> (`05` §3.2's hero target selection is M2-08's, and is a
-/// different mechanism from <c>LOWEST_HP_ENEMY</c>/<c>HIGHEST_HP_ENEMY</c>).
+/// Narrow on purpose, and not the actor stat block: the condition/target layer has no business
+/// knowing an actor's ATK, attack cooldown or target priority (hero target selection is a separate
+/// mechanism from <c>LOWEST_HP_ENEMY</c>/<c>HIGHEST_HP_ENEMY</c>). The stat block is expected to
+/// implement this interface, not duplicate a second actor abstraction over the same roster — two
+/// views of one battle are two chances for <c>ENEMY_COUNT</c> and stat aggregation to disagree about
+/// who is alive.
 /// </para>
 /// <para>
-/// 🔒 <b>M2-07's actor stat block is expected to IMPLEMENT this, not to restate it.</b> Narrow is a
-/// statement about what this interface may <em>ask for</em>, not an invitation to build a second
-/// actor abstraction over the same roster: two views of one battle are two chances for
-/// <c>ENEMY_COUNT</c> and a stat aggregation to disagree about who is alive. ⚠️ Which direction that
-/// dependency should run — <c>Rules.Stats</c> naming <c>Rules.Effects</c> or the reverse — is a
-/// milestone-level decision, because `30` §11.4's layering table has a single <c>Rules</c> row and
-/// governs nothing <em>inside</em> it. Until it is taken deliberately, a cycle between the two can
-/// form with every architecture rule green.
-/// </para>
-/// <para>
-/// Read-only, because `18` §4 is explicit: <em>"Conditions gate an effect without changing when it is
-/// evaluated. All are pure functions of current state."</em> There is no mutating member here, and
-/// <c>ConditionPurityRuleTests</c> enforces mechanically that nothing under
-/// <c>Rules/Effects/Conditions/</c> mutates anything.
+/// Read-only, because conditions gate an effect without changing when it's evaluated — pure
+/// functions of current state — enforced mechanically by <c>ConditionPurityRuleTests</c>.
 /// </para>
 /// </remarks>
 internal interface IEffectActorView
 {
     /// <summary>The actor's stable identity, used in failure messages and to resolve <c>OWNER</c>.</summary>
     /// <remarks>
-    /// 🔒 <b>Unique within one battle roster.</b> <c>OWNER</c> resolves <see cref="OwnerId"/> by
-    /// matching it against this and takes the first hit, so two actors sharing an id would give a
-    /// sporeling the wrong summoner. That matters because `05` §6.4 spawns several units from one
-    /// archetype draw: a roster minting ids from content ids would hand three swarm units the same
-    /// string. Selection never keys on this — <see cref="Index"/> is what `05` §3.1 authorises as
-    /// unique — but <c>OWNER</c> has nothing else to match on.
+    /// Unique within one battle roster. <c>OWNER</c> matches <see cref="OwnerId"/> against this and
+    /// takes the first hit, so two actors sharing an id would give a summoned unit the wrong owner —
+    /// which matters because a single archetype draw can spawn several units at once.
     /// </remarks>
     string Id { get; }
 
-    /// <summary>
-    /// 🔒 `05` §3.1's fixed actor index — <em>"hero, pets in slot order, enemies by index"</em> — the
-    /// one actor ordering the design documents authorise.
-    /// </summary>
+    /// <summary>The actor's fixed index — hero, pets in slot order, enemies by index.</summary>
     /// <remarks>
-    /// It is on this interface rather than implied by roster position because it is load-bearing
-    /// beyond ordering: it is the tie-break for <c>LOWEST_HP_ENEMY</c> and <c>HIGHEST_HP_ENEMY</c>,
-    /// and the candidate order <c>RANDOM_ENEMY</c> draws over. `18` §5 authors no tie-break, and a
-    /// tie-break that varied with roster construction would be a `14` §8.2 determinism break, so the
-    /// index is reused rather than a new rule invented (steering S6).
+    /// Load-bearing beyond ordering: it's the tie-break for <c>LOWEST_HP_ENEMY</c> and
+    /// <c>HIGHEST_HP_ENEMY</c>, and the candidate order <c>RANDOM_ENEMY</c> draws over. A tie-break
+    /// that varied with roster construction would be a determinism break.
     /// </remarks>
     int Index { get; }
 
-    /// <summary>Which side the actor fights for. `18` §5's enemy tokens are relative to this.</summary>
+    /// <summary>Which side the actor fights for. The enemy tokens are relative to this.</summary>
     BattleSide Side { get; }
 
-    /// <summary>Hero, pet or enemy — the three roles `18` §5's tokens distinguish.</summary>
+    /// <summary>Hero, pet or enemy.</summary>
     EffectActorKind Kind { get; }
 
-    /// <summary>
-    /// Whether the actor is still in the fight. `05` §3.1 step 6: <em>"An actor whose HP reaches 0
-    /// stops acting and being targetable at that moment"</em> — so every `18` §5 enemy token and
-    /// <c>ENEMY_COUNT</c> read the living only.
-    /// </summary>
+    /// <summary>Whether the actor is still in the fight. Every enemy token and <c>ENEMY_COUNT</c> read the living only.</summary>
     bool IsAlive { get; }
 
     /// <summary>Current HP. Drives <c>SELF_HP_PCT</c>, <c>TARGET_HP_PCT</c> and the HP-ordered targets.</summary>
@@ -74,33 +48,23 @@ internal interface IEffectActorView
     /// <summary>Maximum HP — the denominator of <c>SELF_HP_PCT</c> and <c>TARGET_HP_PCT</c>.</summary>
     double MaxHp { get; }
 
-    /// <summary>`05` §6.2's elite modifier. Read by <c>TARGET_IS_ELITE</c> and <c>ATTACKER_IS_ELITE</c>.</summary>
+    /// <summary>Elite modifier. Read by <c>TARGET_IS_ELITE</c> and <c>ATTACKER_IS_ELITE</c>.</summary>
     bool IsElite { get; }
 
-    /// <summary>`05` §6.3's boss. Read by <c>TARGET_IS_BOSS</c> and <c>ATTACKER_IS_BOSS</c>.</summary>
+    /// <summary>Boss flag. Read by <c>TARGET_IS_BOSS</c> and <c>ATTACKER_IS_BOSS</c>.</summary>
     bool IsBoss { get; }
 
-    /// <summary>
-    /// Whether the actor was spawned by a <c>SUMMON</c> op (`18` §2.4). Read by
-    /// <c>ATTACKER_IS_SUMMON</c>, and the gate on <c>OWNER</c> — `18` §5: <em>"On an actor that is
-    /// not a summon, the effect is skipped."</em>
-    /// </summary>
+    /// <summary>Whether the actor was spawned by a <c>SUMMON</c> op. Also the gate on <c>OWNER</c>, which skips a non-summon.</summary>
     bool IsSummon { get; }
 
-    /// <summary>
-    /// The <see cref="Id"/> of this actor's summoner — <c>OWNER</c>'s subject. `18` §5's worked case
-    /// is <em>"a sporeling's owner is Sporequeen"</em>. <c>null</c> on an actor that was not summoned.
-    /// </summary>
+    /// <summary>The <see cref="Id"/> of this actor's summoner — <c>OWNER</c>'s subject. <c>null</c> on an actor that was not summoned.</summary>
     string? OwnerId { get; }
 
-    /// <summary>
-    /// How many stacks of the given `05` §5 status this actor carries; <c>0</c> when it carries none.
-    /// </summary>
+    /// <summary>How many stacks of the given status this actor carries; <c>0</c> when it carries none.</summary>
     /// <remarks>
-    /// The single reading behind both <c>STATUS_STACKS</c> and <c>HAS_STATUS</c> — the latter is
-    /// <c>stacks &gt; 0</c>. Two members would be two chances for an implementation to answer
-    /// <c>HAS_STATUS = true</c> at <c>STATUS_STACKS = 0</c>.
+    /// The single reading behind both <c>STATUS_STACKS</c> and <c>HAS_STATUS</c> (<c>stacks &gt; 0</c>),
+    /// so an implementation can't answer <c>HAS_STATUS = true</c> at <c>STATUS_STACKS = 0</c>.
     /// </remarks>
-    /// <param name="statusId">A status id from `05` §5. Compared ordinally.</param>
+    /// <param name="statusId">A status id. Compared ordinally.</param>
     int StatusStacks(string statusId);
 }

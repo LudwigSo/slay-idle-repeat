@@ -5,16 +5,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
-/// <summary>
-/// 🔒 The external check on `14` §8.0: <c>Hash64</c> is <b>XXH64</b>, not merely a
-/// self-consistent 64-bit hash.
-/// </summary>
+/// <summary>The external check: <c>Hash64</c> must be <b>XXH64</b>, not merely a self-consistent 64-bit hash.</summary>
 /// <remarks>
 /// Every expectation here comes from outside this repository — <c>XSUM_XXH64_testdata</c> in
 /// <c>cli/xsum_sanity_check.c</c> of <c>Cyan4973/xxHash</c>, the reference implementation's own
-/// known-answer tests. A hash that passes the reference-vector table but fails these is
-/// deterministic and wrong: it would diverge the day anyone cross-checked it against another
-/// language, and by then a season of runs would be pinned to it.
+/// known-answer tests.
 /// </remarks>
 public sealed class Hash64KnownAnswerTests
 {
@@ -60,9 +55,8 @@ public sealed class Hash64KnownAnswerTests
     }
 
     /// <summary>
-    /// The three short ASCII vectors that ship with almost every port of xxHash. These are the
-    /// raw UTF-8 bytes with no length prefix — the canonical <i>argument</i> encoding of §8.0
-    /// adds one, so these are deliberately not canonical-encoding rows.
+    /// The three short ASCII vectors that ship with almost every port of xxHash: raw UTF-8 bytes
+    /// with no length prefix, deliberately not canonical-encoding rows.
     /// </summary>
     [Theory]
     [MemberData(nameof(AsciiRows))]

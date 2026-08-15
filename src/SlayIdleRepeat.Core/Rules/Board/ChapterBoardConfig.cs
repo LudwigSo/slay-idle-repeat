@@ -28,20 +28,20 @@ internal sealed class ChapterBoardConfig
         ForkBiasMinusMultiplier = forkBiasMinusMultiplier;
     }
 
-    /// <summary>The chapter number, `14` §6.</summary>
+    /// <summary>The chapter number.</summary>
     public int ChapterId { get; }
 
-    /// <summary>`03` §1 — the three stage lengths, e.g. <c>[12, 14, 16]</c>.</summary>
+    /// <summary>The three stage lengths, e.g. <c>[12, 14, 16]</c>.</summary>
     public IReadOnlyList<int> StageLengths { get; }
 
     /// <summary>One elite count per stage, matching <see cref="StageLengths"/>.</summary>
     public IReadOnlyList<int> EliteCount { get; }
 
     /// <summary>
-    /// One tile-kind weight table per stage, matching <see cref="StageLengths"/>. Exactly as
-    /// authored — `03` §3's weighted draw consumes it verbatim, with no kind excluded, so a
-    /// content author who wants a mandatory-placement kind (e.g. <see cref="TileKind.Shop"/>) to
-    /// also be reachable by the weighted draw states it here and gets exactly that.
+    /// One tile-kind weight table per stage, matching <see cref="StageLengths"/>. Consumed
+    /// verbatim by the weighted draw, with no kind excluded, so a content author who wants a
+    /// mandatory-placement kind (e.g. <see cref="TileKind.Shop"/>) to also be reachable by the
+    /// weighted draw states it here and gets exactly that.
     /// </summary>
     public IReadOnlyList<IReadOnlyDictionary<TileKind, double>> TileWeights { get; }
 
@@ -49,30 +49,28 @@ internal sealed class ChapterBoardConfig
     public string BossId { get; }
 
     /// <summary>
-    /// `03` §3.1 — the multiplier <see cref="BoardGenerator"/> applies to a fork branch's boosted
-    /// tile kinds. Read from <c>tuning/currencies.json#/boardGeneration/forkBiasPlusMultiplier</c>
-    /// (`ChapterBoardTuning`) — the document names which kinds a label boosts but not by how much,
-    /// so the magnitude is authored content, not a Core constant.
+    /// The multiplier <see cref="BoardGenerator"/> applies to a fork branch's boosted tile kinds.
+    /// Read from content (<c>ChapterBoardTuning</c>) rather than a Core constant, since the
+    /// magnitude is authored, not derived.
     /// </summary>
     public double ForkBiasPlusMultiplier { get; }
 
-    /// <summary>`03` §3.1 — the same, for the one suppressed tile kind a label may name.</summary>
+    /// <summary>The same, for the one suppressed tile kind a label may name.</summary>
     public double ForkBiasMinusMultiplier { get; }
 
-    /// <summary>Builds a config, validating the shape `03` §3's generator needs.</summary>
+    /// <summary>Builds a config, validating the shape the generator needs.</summary>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// <paramref name="stageLengths"/> or <paramref name="eliteCount"/> or <paramref name="tileWeights"/>
-    /// does not have exactly 3 entries (`03` §1's fixed 3-stage shape); a stage length is not
-    /// positive; an elite count is negative or exceeds its stage length; a stage's weight table is
-    /// empty, states <see cref="TileKind.Boss"/> (never drawable — the boss is placed once, by
-    /// <see cref="BoardGenerator"/> itself, never by weighted draw), or has no positive weight;
-    /// <paramref name="bossId"/> is empty; <paramref name="forkBiasPlusMultiplier"/> is not greater
-    /// than 1; or <paramref name="forkBiasMinusMultiplier"/> is not in (0, 1).
+    /// does not have exactly 3 entries; a stage length is not positive; an elite count is negative
+    /// or exceeds its stage length; a stage's weight table is empty, states
+    /// <see cref="TileKind.Boss"/> (never drawable — placed once, structurally), or has no positive
+    /// weight; <paramref name="bossId"/> is empty; <paramref name="forkBiasPlusMultiplier"/> is not
+    /// greater than 1; or <paramref name="forkBiasMinusMultiplier"/> is not in (0, 1).
     /// </exception>
     /// <param name="forkBiasPlusMultiplier">
-    /// `03` §3.1's boost magnitude. Defaults to the shipped 2.5x so callers that do not care about
-    /// fork bias (most fixture/negative-path tests) need not restate it; the one production caller,
+    /// Defaults to the shipped 2.5x so callers that do not care about fork bias (most
+    /// fixture/negative-path tests) need not restate it; the one production caller,
     /// <see cref="ChapterBoardTuning.Read"/>, always passes an explicit, content-read value.
     /// </param>
     /// <param name="forkBiasMinusMultiplier">The same, for the shipped 0.2x suppression.</param>

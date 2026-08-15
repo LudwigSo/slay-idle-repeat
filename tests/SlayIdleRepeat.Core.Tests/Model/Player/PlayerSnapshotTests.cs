@@ -10,8 +10,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `30` §11.3 / `14` §16.6 — <c>ToSnapshot</c> and <c>Rehydrate</c> as a pair, and the
-/// properties the persistence and <c>stateHash</c> machinery depends on.
+/// <c>ToSnapshot</c> and <c>Rehydrate</c> as a pair, and the properties the persistence and
+/// <c>stateHash</c> machinery depends on.
 /// </summary>
 public sealed class PlayerSnapshotTests
 {
@@ -34,10 +34,7 @@ public sealed class PlayerSnapshotTests
         dailyCounters: PlayerSnapshots.Counters(("ad_caps", 3), ("dungeon_entries", 1)),
         weeklyCounters: PlayerSnapshots.Counters(("guild_quest_contributions", 12)));
 
-    /// <summary>
-    /// 🔒 A snapshot round-trips: rehydrate then snapshot again is the row you started with,
-    /// value for value.
-    /// </summary>
+    /// <summary>A snapshot round-trips: rehydrate then snapshot again is the row you started with, value for value.</summary>
     /// <remarks>
     /// Record equality compares the two dictionaries by reference, so this is asserted field by
     /// field rather than with a single <c>ShouldBe</c> — which would pass for two rows whose
@@ -66,10 +63,7 @@ public sealed class PlayerSnapshotTests
         round.WeeklyCounters.ShouldBe(Populated.WeeklyCounters);
     }
 
-    /// <summary>
-    /// 🔒 And the round trip is <c>stateHash</c>-stable, which is the property `14` §2.4's
-    /// client-mirror check actually depends on.
-    /// </summary>
+    /// <summary>And the round trip is <c>stateHash</c>-stable, which is the property the client-mirror check actually depends on.</summary>
     /// <remarks>
     /// Field-by-field equality is not the same claim: two rows can be equal field by field and
     /// still hash differently if a dictionary's iteration order leaked into the bytes, which is
@@ -84,10 +78,7 @@ public sealed class PlayerSnapshotTests
             .ShouldBe(CanonicalStateWriter.HashMetaCommandState(Populated));
     }
 
-    /// <summary>
-    /// 🔒 A wallet built in a different insertion order hashes identically — the writer imposes
-    /// ascending key order rather than trusting the container's.
-    /// </summary>
+    /// <summary>A wallet built in a different insertion order hashes identically — the writer imposes ascending key order rather than trusting the container's.</summary>
     [Fact]
     public void A_wallet_built_in_a_different_order_hashes_identically()
     {
@@ -101,10 +92,7 @@ public sealed class PlayerSnapshotTests
             .ShouldBe(CanonicalStateWriter.HashMetaCommandState(backwards));
     }
 
-    /// <summary>
-    /// 🔒 …and a materially different wallet hashes differently, so the test above is not just
-    /// observing that everything hashes the same.
-    /// </summary>
+    /// <summary>And a materially different wallet hashes differently, so the test above is not just observing that everything hashes the same.</summary>
     [Fact]
     public void A_different_balance_hashes_differently()
     {
@@ -115,15 +103,10 @@ public sealed class PlayerSnapshotTests
             .ShouldNotBe(CanonicalStateWriter.HashMetaCommandState(rich));
     }
 
-    /// <summary>
-    /// 🔒 Every field of <c>PlayerSnapshot</c> reaches the bytes: changing any one of them changes
-    /// the hash.
-    /// </summary>
+    /// <summary>Every field of <c>PlayerSnapshot</c> reaches the bytes: changing any one of them changes the hash.</summary>
     /// <remarks>
-    /// ⚠️ This is the assertion that would have caught the public-field defect on real state
-    /// rather than on a fixture. A field the writer silently skipped — which is what a public field
-    /// outside the primary constructor used to be — would show up here as two materially different
-    /// players sharing a <c>stateHash</c>, and nothing else in the suite is looking.
+    /// A field the writer silently skipped would show up here as two materially different players
+    /// sharing a <c>stateHash</c>, and nothing else in the suite is looking.
     /// </remarks>
     [Fact]
     public void Every_field_of_the_snapshot_reaches_the_hash()
@@ -131,18 +114,16 @@ public sealed class PlayerSnapshotTests
         var v = PlayerSnapshots.Valid;
         var atBeatTen = PlayerSnapshots.With(ftueBeatId: FtueBeat.B10);
 
-        // ⚠️ Stated as PAIRS rather than as fifteen variants against one baseline. The
-        // FtueCompletedAtUtc probe has to move FtueBeatId too — the seam refuses a completed
-        // tutorial anywhere but B10 — so measured against the shared baseline it would report a
-        // hash change even if FtueCompletedAtUtc contributed nothing at all.
+        // Stated as PAIRS rather than as variants against one baseline. The FtueCompletedAtUtc
+        // probe has to move FtueBeatId too — the seam refuses a completed tutorial anywhere but
+        // B10 — so measured against the shared baseline it would report a hash change even if
+        // FtueCompletedAtUtc contributed nothing at all.
         var probes = new (string Field, PlayerSnapshot A, PlayerSnapshot B)[]
         {
-            // 🔒 One PAST the current version, as an expression rather than the literal 2 it used to
-            // be. M1-09 bumped SchemaVersion to 2 and this probe silently became "the valid row
-            // against the valid row" — two identical snapshots, one hash, and the field reported as
-            // invisible to the writer when in fact nothing had been perturbed. It went red, which is
-            // the good outcome; the arithmetic is what stops the next bump from depending on that
-            // luck.
+            // One PAST the current version, as an expression rather than a literal: a hard-coded
+            // literal would silently become "the valid row against the valid row" at the next
+            // schema bump, reporting the field as invisible to the writer when nothing had
+            // actually been perturbed.
             (nameof(PlayerSnapshot.SchemaVersion), v,
                 PlayerSnapshots.With(schemaVersion: SnapshotSchema.SchemaVersion + 1)),
             (nameof(PlayerSnapshot.Id), v, PlayerSnapshots.With(id: new PlayerId("OTHER"))),
@@ -163,16 +144,13 @@ public sealed class PlayerSnapshotTests
             (nameof(PlayerSnapshot.WeeklyPeriodStartUtc), v, PlayerSnapshots.With(weeklyPeriodStartUtc: PlayerSnapshots.Monday.AddDays(7))),
             (nameof(PlayerSnapshot.WeeklyCounters), v, PlayerSnapshots.With(weeklyCounters: PlayerSnapshots.Counters(("ad_caps", 1)))),
 
-            // 🔒 M1-09, 19 Part G. Both halves are probed: two players on different calendar days
-            // must not share a stateHash, and neither must two on the same day of whom one has
-            // claimed it — the second is the one a bool is easy to leave out of an encoder, and
-            // 14 §2.4 has the CLIENT recompute this hash, so a claim invisible to it is a
-            // client/server disagreement the mirror check would report as agreement.
+            // Both halves are probed: two players on different calendar days must not share a
+            // stateHash, and neither must two on the same day of whom one has claimed it — the
+            // second is the one a bool is easy to leave out of an encoder.
             (nameof(PlayerSnapshot.LoginCalendarDay), v, PlayerSnapshots.With(loginCalendarDay: 2)),
             (nameof(PlayerSnapshot.LoginCalendarDayClaimed), v,
                 PlayerSnapshots.With(loginCalendarDayClaimed: true)),
 
-            // 🔒 M3-13's first-clear gate.
             (nameof(PlayerSnapshot.ClearedChapterTiers), v,
                 PlayerSnapshots.With(clearedChapterTiers: PlayerSnapshots.Counters(("1:NORMAL", 1)))),
         };
@@ -187,16 +165,15 @@ public sealed class PlayerSnapshotTests
             "a snapshot field that does not move the stateHash is state two players can differ in " +
             "while 14 §2.4's client-mirror check reports agreement.");
 
-        // 🔒 A floor on the probe set itself: one probe per constructor parameter, plus a second
-        // for the nested Energy record's other bank. A probe silently dropped — or a field added
-        // without one — would make the emptiness above quietly weaker, which is steering S3's
-        // failure mode inside a test rather than inside a rule.
+        // A floor on the probe set itself: one probe per constructor parameter, plus a second for
+        // the nested Energy record's other bank. A probe silently dropped — or a field added
+        // without one — would make the emptiness above quietly weaker.
         probes.Select(p => p.Field).Distinct(StringComparer.Ordinal).Count()
             .ShouldBe(typeof(PlayerSnapshot).GetConstructors().Single().GetParameters().Length + 1);
     }
 
     /// <summary>
-    /// 🔒 The snapshot is a <b>copy</b>: mutating the aggregate afterwards must not rewrite a row
+    /// The snapshot is a <b>copy</b>: mutating the aggregate afterwards must not rewrite a row
     /// already handed to a persistence adapter.
     /// </summary>
     [Fact]
@@ -245,10 +222,7 @@ public sealed class PlayerSnapshotTests
             .ToSnapshot().SchemaVersion.ShouldBe(SnapshotSchema.SchemaVersion);
     }
 
-    /// <summary>
-    /// 🔒 `14` §16.6 / `30` §11.3 — <c>SchemaVersion</c> is the first field of the record, so a
-    /// reader knows the layout before it reads anything laid out by it.
-    /// </summary>
+    /// <summary><c>SchemaVersion</c> is the first field of the record, so a reader knows the layout before it reads anything laid out by it.</summary>
     /// <remarks>
     /// <c>SnapshotFieldOrderPinTests</c> asserts this over the whole subject set; this is the same
     /// claim stated where a reader of <c>PlayerSnapshot</c> will look for it.
@@ -261,7 +235,7 @@ public sealed class PlayerSnapshotTests
     }
 
     /// <summary>
-    /// 🔒 The whole snapshot has a canonical encoding — every member is on `14` §16.6's closed
+    /// The whole snapshot has a canonical encoding — every member is on the writer's closed
     /// allowlist. A member that was not would refuse at the first <c>stateHash</c> of the game.
     /// </summary>
     [Fact]
@@ -273,7 +247,7 @@ public sealed class PlayerSnapshotTests
     }
 
     /// <summary>
-    /// 🔒 The counter key is a bare <c>string</c> rather than a wrapper id, and that is mechanical
+    /// The counter key is a bare <c>string</c> rather than a wrapper id, and that is mechanical
     /// rather than stylistic: <c>KeyOrderFor</c> defines an ascending order for strings and numeric
     /// ids <b>only</b>.
     /// </summary>

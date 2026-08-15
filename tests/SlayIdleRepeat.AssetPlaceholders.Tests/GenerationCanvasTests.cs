@@ -5,22 +5,16 @@ using Xunit;
 namespace SlayIdleRepeat.AssetPlaceholders.Tests;
 
 /// <summary>
-/// The <c>CON_DELIVERY_ASPECT</c> ruling, as arithmetic over every delivery size the shipped
-/// register actually holds.
+/// The CON_DELIVERY_ASPECT ruling, as arithmetic over every delivery size the shipped register holds.
 /// </summary>
 /// <remarks>
-/// 🔒 Quantified over the real register rather than over a list of sizes typed here, so a ninth
-/// delivery size arriving in `15` §C is covered the day it lands. Every case carries an S3 floor on
-/// how many distinct sizes it found: a register that stopped yielding sizes would otherwise make
-/// all four of these pass over nothing.
+/// Quantified over the real register rather than a hardcoded list, so a new delivery size is
+/// covered automatically; each case floors on how many sizes it found so an empty register can't
+/// pass silently.
 /// </remarks>
 public sealed class GenerationCanvasTests
 {
-    /// <summary>
-    /// How many distinct `15` §C delivery sizes the shipped register holds among its generatable
-    /// rows. 🔒 Measured, 2026-08-14: 96×96, 128×128, 192×192, 256×256, 512×384, 512×512, 640×640,
-    /// 1024×1024.
-    /// </summary>
+    /// <summary>Distinct delivery sizes among the register's generatable rows (measured 2026-08-14).</summary>
     private const int DistinctDeliverySizeFloor = 8;
 
     [Fact]
@@ -33,9 +27,8 @@ public sealed class GenerationCanvasTests
         {
             var canvas = GenerationCanvas.For(delivery);
 
-            // Cross-multiplied, which is exactly the comparison ResizeStep makes before it decides
-            // whether to emit CON_DELIVERY_ASPECT. Two divisions could agree by rounding where the
-            // step's integer arithmetic does not.
+            // Cross-multiplied, matching ResizeStep's own comparison: two divisions could agree by
+            // rounding where integer arithmetic would not.
             ((long)canvas.Width * delivery.Height).ShouldBe(
                 (long)canvas.Height * delivery.Width,
                 $"'{delivery}' generates on '{canvas}', which is a different aspect ratio — so " +
@@ -84,7 +77,6 @@ public sealed class GenerationCanvasTests
     [Fact]
     public void A_delivery_long_edge_of_1024_or_more_takes_doc_15_C_upscaled_canvas()
     {
-        // §C: "Generation resolution 1024×1024 (upscale to 2048 for bosses and backgrounds)".
         GenerationCanvas.For(new PixelSize(1024, 1024)).Width
             .ShouldBe(GenerationCanvas.UpscaledLongEdge);
         GenerationCanvas.For(new PixelSize(1080, 1440)).Height
@@ -104,10 +96,7 @@ public sealed class GenerationCanvasTests
         thrown.Message.ShouldContain("no aspect to generate at", Case.Sensitive);
     }
 
-    /// <summary>
-    /// Every distinct `15` §C delivery size among the register's generatable rows — the uncut ones
-    /// §C gives both a size and a pivot.
-    /// </summary>
+    /// <summary>Every distinct delivery size among the uncut rows that carry both a size and a pivot.</summary>
     private static IReadOnlyList<PixelSize> DeliverySizes() =>
     [
         .. PlaceholderFiles.Shipped.ActiveArt

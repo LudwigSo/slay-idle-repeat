@@ -7,22 +7,17 @@ using CoreBoard = SlayIdleRepeat.Core.Rules.Board.BoardGraph;
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
 /// <summary>
-/// 🔒 `03` §3 — <see cref="BoardGenerator.GenerateBoard"/>: mandatory placements, the weighted
-/// draw, constraints C1-C7 with their redraw/injection fallbacks, and the 1-2 forks per stage.
+/// Tests <see cref="BoardGenerator.GenerateBoard"/>: mandatory placements, the weighted draw,
+/// constraints C1-C7 with their redraw/injection fallbacks, and the 1-2 forks per stage.
 /// </summary>
 public sealed class BoardGeneratorTests
 {
-    // A spread of seeds so structural checks (C1-C6) are exercised across many independent draws
-    // rather than one lucky/unlucky sequence.
+    // Spread of seeds so structural checks run across many independent draws, not one lucky sequence.
     private static readonly ulong[] Seeds =
     {
         1UL, 2UL, 3UL, 42UL, 1337UL, 99999UL, 0xC0FFEEUL, 0xDEADBEEFUL, 123456789UL, 987654321UL,
         1111UL, 2222UL, 3333UL, 4444UL, 5555UL, 6666UL, 7777UL, 8888UL, 9999UL, 10101UL,
     };
-
-    // ------------------------------------------------------------------------------------
-    // Determinism
-    // ------------------------------------------------------------------------------------
 
     [Fact]
     public void The_same_seed_produces_a_byte_identical_board()
@@ -59,9 +54,7 @@ public sealed class BoardGeneratorTests
         Should.Throw<ArgumentNullException>(() => BoardGenerator.GenerateBoard(config, null!));
     }
 
-    // ------------------------------------------------------------------------------------
-    // Linear node index scheme — `03` §1.1, the load-bearing rule for EnemyPower(i).
-    // ------------------------------------------------------------------------------------
+    // The linear index scheme below is load-bearing for EnemyPower(i) elsewhere in Core.
 
     [Fact]
     public void Chapter_ones_stage_lengths_produce_linear_indices_0_to_41_and_boss_at_42()
@@ -79,8 +72,8 @@ public sealed class BoardGeneratorTests
     [Fact]
     public void A_branch_nodes_linear_index_equals_the_spine_nodes_index_at_the_same_forward_distance()
     {
-        // 03 §1.1: the k-th branch node from junction j has i = i(j) + k, and the branch rejoins
-        // at j + branchLen — so the parallel spine node always exists at that same index.
+        // The k-th branch node from junction j has i = i(j) + k, and the branch rejoins at
+        // j + branchLen — so the parallel spine node always exists at that same index.
         var config = BoardFixtures.ChapterOneConfig();
         var foundAny = false;
 
@@ -114,10 +107,8 @@ public sealed class BoardGeneratorTests
 
                     var next = board.OutgoingEdges(cursor).Single(e => e.Kind == EdgeKind.Continue);
 
-                    // 03 §1.1: the branch's last node (k = branchLen) has i(j) + branchLen — the
-                    // SAME linear index as the spine node it rejoins onto (the rejoin node IS
-                    // "j + branchLen"). Detect the rejoin by that shared index rather than by
-                    // walking further.
+                    // The branch's last node (k = branchLen) shares its linear index with the
+                    // spine node it rejoins onto; detect the rejoin by that shared index.
                     if (board.SpineNode(node.LinearIndex) == next.To)
                     {
                         break;
@@ -133,10 +124,6 @@ public sealed class BoardGeneratorTests
         foundAny.ShouldBeTrue("at least one of the sampled seeds must have produced a junction to check");
     }
 
-    // ------------------------------------------------------------------------------------
-    // C6: stage 1's first node is always TILE_ENEMY.
-    // ------------------------------------------------------------------------------------
-
     [Fact]
     public void C6_stage_one_first_node_is_always_enemy()
     {
@@ -148,10 +135,6 @@ public sealed class BoardGeneratorTests
             board.Node(board.SpineNode(0)).Tile.ShouldBe(TileKind.Enemy, $"seed {seed}");
         }
     }
-
-    // ------------------------------------------------------------------------------------
-    // C1: no 3 identical non-ENEMY tiles in a row.
-    // ------------------------------------------------------------------------------------
 
     [Fact]
     public void C1_no_three_identical_non_enemy_tiles_in_a_row_on_any_stage_spine()
@@ -177,10 +160,6 @@ public sealed class BoardGeneratorTests
         }
     }
 
-    // ------------------------------------------------------------------------------------
-    // C2: no 4 consecutive TILE_ENEMY.
-    // ------------------------------------------------------------------------------------
-
     [Fact]
     public void C2_no_four_consecutive_enemy_tiles_on_any_stage_spine()
     {
@@ -200,10 +179,6 @@ public sealed class BoardGeneratorTests
             }
         }
     }
-
-    // ------------------------------------------------------------------------------------
-    // C3: at least 1 healing opportunity (SHRINE/CAMPFIRE/SHOP) per 8-node window.
-    // ------------------------------------------------------------------------------------
 
     [Fact]
     public void C3_every_eight_node_window_has_a_healing_opportunity()
@@ -227,12 +202,6 @@ public sealed class BoardGeneratorTests
         }
     }
 
-    // ------------------------------------------------------------------------------------
-    // C4: TILE_PORTAL never in the last 4 nodes of a stage. Deterministic guard proof: a
-    // weight table with ONLY Portal available forces the redraw to exhaust and fall back to
-    // TILE_ENEMY inside the guarded zone (S1 — the guard must be provably able to fire).
-    // ------------------------------------------------------------------------------------
-
     [Fact]
     public void C4_portal_never_appears_in_the_last_four_nodes_of_a_stage()
     {
@@ -254,12 +223,9 @@ public sealed class BoardGeneratorTests
     [Fact]
     public void C4_when_only_portal_is_weighted_the_last_four_nodes_never_end_up_as_portal()
     {
-        // A table with ONLY Portal weighted means the weighted draw can never legitimately
-        // produce anything else — so a non-Portal tile surviving in the last 4 nodes can only
-        // come from the redraw-exhaustion fallback (03 §3: 8 redraws, then TILE_ENEMY), possibly
-        // further rewritten by a later constraint's own injection (e.g. C3). Either way, the
-        // guard this proves is C4 itself: it holds even when nothing else was ever going to be
-        // drawn there.
+        // With ONLY Portal weighted, the weighted draw can never legitimately produce anything
+        // else, so any non-Portal tile surviving in the last 4 nodes proves the redraw-exhaustion
+        // fallback (or a later constraint's injection) is what's actually enforcing C4 here.
         var onlyPortal = ChapterBoardConfig.From(
             chapterId: 77,
             stageLengths: new[] { 12, 12, 12 },
@@ -282,10 +248,6 @@ public sealed class BoardGeneratorTests
             }
         }
     }
-
-    // ------------------------------------------------------------------------------------
-    // C5: TILE_CURSE never immediately before TILE_ELITE or TILE_BOSS.
-    // ------------------------------------------------------------------------------------
 
     [Fact]
     public void C5_curse_never_immediately_precedes_elite_or_the_boss()
@@ -316,10 +278,6 @@ public sealed class BoardGeneratorTests
         }
     }
 
-    // ------------------------------------------------------------------------------------
-    // C7: >= 2 TILE_TREASURE and >= 1 TILE_CACHE across the whole run.
-    // ------------------------------------------------------------------------------------
-
     [Fact]
     public void C7_every_run_has_at_least_two_treasure_and_one_cache()
     {
@@ -341,9 +299,8 @@ public sealed class BoardGeneratorTests
     [Fact]
     public void C7_injects_the_exact_minimum_when_the_weighted_draw_cannot_produce_treasure_or_cache()
     {
-        // Zero-weight treasure/cache: the weighted draw can NEVER produce either kind, so any
-        // that appear must come from C7's injection fallback, and the count must be exactly the
-        // stated floor (S2 — pin the identity: injected, not coincidentally drawn, and exactly 2/1).
+        // Zero-weight treasure/cache means any that appear must come from C7's injection
+        // fallback, so the count should land exactly at the stated floor, not above it.
         var noTreasureNoCache = ChapterBoardConfig.From(
             chapterId: 78,
             stageLengths: new[] { 12, 12, 12 },
@@ -378,10 +335,6 @@ public sealed class BoardGeneratorTests
             [TileKind.DiceForge] = 2,
         };
     }
-
-    // ------------------------------------------------------------------------------------
-    // Forks.
-    // ------------------------------------------------------------------------------------
 
     [Fact]
     public void Every_stage_has_one_or_two_forks()
@@ -484,14 +437,9 @@ public sealed class BoardGeneratorTests
         checkedAny.ShouldBeTrue();
     }
 
-    // ------------------------------------------------------------------------------------
-    // Helpers.
-    // ------------------------------------------------------------------------------------
-
-    // GenerateBoard takes an already-opened DeterministicRng, not a seed (30 §11's
-    // DeterministicRng_is_constructed_only_inside_Core_Rng architecture rule forbids
-    // constructing one inside Rules/Board — the sanctioned caller is RunRngScope). Tests
-    // construct the stream directly, exactly like ChapterEnemyPoolTests does for RngStreams.Combat.
+    // GenerateBoard takes an already-opened DeterministicRng, not a seed: DeterministicRng may
+    // only be constructed inside Core.Rng, so tests build the stream directly here, as
+    // ChapterEnemyPoolTests does for RngStreams.Combat.
     private static CoreBoard Generate(ChapterBoardConfig config, ulong seed) =>
         BoardGenerator.GenerateBoard(config, new DeterministicRng(seed, RngStreams.Board));
 

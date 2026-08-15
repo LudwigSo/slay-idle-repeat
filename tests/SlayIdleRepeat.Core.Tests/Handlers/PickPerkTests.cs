@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>🔒 M3-06, `14` §2.3 — <c>PICK_PERK</c>, driven through the production dispatch table.</summary>
+/// <summary>PICK_PERK, driven through the production dispatch table.</summary>
 public sealed class PickPerkTests
 {
     private static CommandResult Pick(WorldSlice state, int optionIndex) =>
@@ -56,12 +56,12 @@ public sealed class PickPerkTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Run!.DraftedPerks.Tiers.Count.ShouldBe(1,
-            "06 §1.1 — taking one option grants or upgrades exactly one perk");
+            "taking one option grants or upgrades exactly one perk");
     }
 
     /// <summary>
-    /// 🔒 M3-06 — determinism: picking against the same committed draft-stream position offers the
-    /// same three options every time, so the same index always resolves to the same perk.
+    /// Determinism: picking against the same committed draft-stream position offers the same three
+    /// options every time, so the same index always resolves to the same perk.
     /// </summary>
     [Fact]
     public void The_same_option_index_resolves_the_same_perk_every_time()
@@ -75,12 +75,10 @@ public sealed class PickPerkTests
     }
 
     /// <summary>
-    /// 🔒 M3-06 — GameRules.Execute's DraftPending gate: nothing else is legal while a draft is
-    /// open. Uses ROLL_DICE rather than START_BATTLE deliberately: a run standing on no pending
-    /// tile would refuse START_BATTLE for its own reason regardless of the gate (StartBattle.Handle's
-    /// "no pending tile" check), which would make this pass even with the gate deleted — the exact
-    /// "several independent rules can emit the same reason" trap steering S1 warns against. ROLL_DICE
-    /// has nothing else in this fixture to refuse it, so ILLEGAL_STATE here can only be the gate.
+    /// GameRules.Execute's DraftPending gate: nothing else is legal while a draft is open. Uses
+    /// ROLL_DICE rather than START_BATTLE deliberately — START_BATTLE would refuse for its own reason
+    /// (no pending tile) even with the gate deleted, while ROLL_DICE has no other reason to refuse
+    /// here, so ILLEGAL_STATE can only be the gate.
     /// </summary>
     [Fact]
     public void DraftPending_refuses_every_other_run_command()

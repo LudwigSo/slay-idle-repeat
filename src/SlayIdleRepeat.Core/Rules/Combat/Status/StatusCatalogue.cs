@@ -6,118 +6,92 @@ using SlayIdleRepeat.Core.Rules.Effects;
 namespace SlayIdleRepeat.Core.Rules.Combat.Status;
 
 /// <summary>
-/// 🔒 `05` §5's <b>Type</b> column, verbatim — the four kinds of status the section names.
+/// The four kinds of status.
 /// </summary>
 /// <remarks>
-/// It is not a label. `05` §3.1's one-second cadence is driven by exactly two of these four
-/// (<see cref="DoT"/> and <see cref="HoT"/>), and the cadence rule then routes them differently:
-/// a DoT tick is <em>"a damage event, not an attack"</em> while a HoT tick <em>"routes through
-/// <c>Heal()</c> (§4.3)"</em>. A <see cref="Debuff"/> or a <see cref="Buff"/> has no cadence at all.
+/// Not a label: the one-second cadence is driven by exactly two of these four
+/// (<see cref="DoT"/> and <see cref="HoT"/>), which route differently — a DoT tick is a damage
+/// event, a HoT tick routes through <c>Heal()</c>. A <see cref="Debuff"/> or <see cref="Buff"/> has
+/// no cadence at all.
 /// </remarks>
 internal enum StatusKind
 {
-    /// <summary>`05` §5 — damage over time. <c>BURN</c>, <c>POISON</c>, <c>BLEED</c>.</summary>
+    /// <summary>Damage over time. <c>BURN</c>, <c>POISON</c>, <c>BLEED</c>.</summary>
     DoT = 1,
 
-    /// <summary>`05` §5 — a negative modifier. <c>FREEZE</c>, <c>STUN</c>, <c>WEAKEN</c>, <c>SUNDER</c>, <c>SPORE</c>.</summary>
+    /// <summary>A negative modifier. <c>FREEZE</c>, <c>STUN</c>, <c>WEAKEN</c>, <c>SUNDER</c>, <c>SPORE</c>.</summary>
     Debuff = 2,
 
-    /// <summary>`05` §5 — a positive modifier. <c>RAGE</c>, <c>WARD</c>, <c>HASTE</c>.</summary>
+    /// <summary>A positive modifier. <c>RAGE</c>, <c>WARD</c>, <c>HASTE</c>.</summary>
     Buff = 3,
 
-    /// <summary>`05` §5 — healing over time. <c>REGEN</c>, and only <c>REGEN</c>.</summary>
+    /// <summary>Healing over time. <c>REGEN</c>, and only <c>REGEN</c>.</summary>
     HoT = 4,
 }
 
 /// <summary>
-/// 🔒 `05` §5 — what a status's <c>X</c> is a fraction of.
+/// What a status's magnitude is a fraction of.
 /// </summary>
 /// <remarks>
-/// <para>
-/// One member per unit `05` §5 writes, and no more. It is the status-catalogue counterpart of
-/// <c>Rules.Combat.Enemies.PotencyBasis</c>, which types the same quantity for `05` §6.1a's on-hit
-/// rows — that section defers its stacking and its units to <em>"the status catalogue"</em>, which is
-/// this. <c>StatusCatalogueTests</c> pins the two vocabularies against each other rather than leaving
-/// two enums that must agree with nothing making them.
-/// </para>
-/// <para>
-/// 🔒 <b>The sign belongs to the authored number, not to the basis.</b> `05` §5 writes
-/// <c>WEAKEN</c> as <em>−X% ATK</em> and <c>RAGE</c> as <em>+X% ATK</em> against the same unit, and
-/// <c>content/enemies/enemies.json</c> already authors its potencies signed
-/// (<c>SUNDER −0.05</c>, <c>FREEZE −0.5</c>, <c>SPORE −0.1</c>, <c>BURN +0.3</c>). A basis that
-/// carried the sign would negate them twice.
-/// </para>
+/// The sign belongs to the authored number, not to the basis: <c>WEAKEN</c> and <c>RAGE</c> use the
+/// same unit with opposite signs, and content already authors potencies signed. A basis that carried
+/// the sign would negate them twice.
 /// </remarks>
 internal enum StatusPotencyBasis
 {
     /// <summary>
-    /// `05` §5 — <c>BURN</c>'s <em>"X% of attacker ATK per second"</em> and <c>BLEED</c>'s
-    /// <em>"X% of the applier's ATK"</em>. 🔒 Read off the <b>applier</b> at application and fixed
-    /// there, which is what makes `05` §3.1's <em>"DEF mitigation does not apply"</em> true.
+    /// A percentage of the applier's ATK per second. Read off the applier at application and fixed
+    /// there, which is what makes it bypass DEF mitigation.
     /// </summary>
     ApplierAtkPctPerSecond = 1,
 
-    /// <summary>
-    /// `05` §5 — <c>POISON</c>'s <em>"X% of target Max HP per second"</em> and <c>REGEN</c>'s
-    /// <em>"Heal X% Max HP per second"</em>.
-    /// </summary>
+    /// <summary>A percentage of the target's Max HP per second.</summary>
     TargetMaxHpPctPerSecond = 2,
 
     /// <summary>
-    /// `05` §5 — a signed percentage of one of the target's stats, which is how the section states
-    /// six of the twelve. <see cref="StatusDefinition.Stat"/> names which.
+    /// A signed percentage of one of the target's stats. <see cref="StatusDefinition.Stat"/> names which.
     /// </summary>
     TargetStatPct = 3,
 
-    /// <summary>
-    /// `05` §5 — <c>WARD</c>'s <em>"absorb shield, flat HP amount"</em>. 🔒 The pool itself is
-    /// `05` §4.1's and <b>M2-09</b>'s; this basis only says what the number means.
-    /// </summary>
+    /// <summary>A flat HP amount, e.g. <c>WARD</c>'s absorb shield.</summary>
     FlatHp = 4,
 
     /// <summary>
-    /// `05` §5 — <c>STUN</c>, which is <em>"cannot act for D s"</em> and carries no magnitude at
-    /// all. Named rather than left as a zero, because a zero potency is a real potency.
+    /// No magnitude at all, e.g. <c>STUN</c>. Named rather than left as a zero, since a zero potency
+    /// is a real potency.
     /// </summary>
     None = 5,
 }
 
 /// <summary>
-/// 🔒 One row of `05` §5's status table, with every parameter that section states and none it does not.
+/// One row of the status table, with every authored parameter.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The per-application <c>X</c> and <c>D</c> are deliberately absent.</b> `05` §5 writes them
-/// as <c>X</c> and <c>D</c> because they belong to the effect that applies the status — its
-/// <c>value</c> and its <c>duration</c> (`18` §1, §6). A copy here would be a second, disagreeing
-/// statement of every perk's numbers, and <c>StatusOps.Apply</c> already passes both through.
-/// </para>
+/// The per-application value and duration are deliberately absent: they belong to the applying
+/// effect, and a copy here would be a second, disagreeing statement of every perk's numbers.
 /// </remarks>
-/// <param name="Id">`05` §5 — the status id, one of the twelve.</param>
-/// <param name="Kind">`05` §5's Type column.</param>
-/// <param name="Basis">`05` §5 — what <c>X</c> is a fraction of.</param>
+/// <param name="Id">The status id, one of the twelve.</param>
+/// <param name="Kind">The Type column.</param>
+/// <param name="Basis">What the magnitude is a fraction of.</param>
 /// <param name="Stat">
-/// `05` §5 — the stat a <see cref="StatusPotencyBasis.TargetStatPct"/> status writes;
-/// <c>null</c> for every other basis, which names no stat.
+/// The stat a <see cref="StatusPotencyBasis.TargetStatPct"/> status writes; <c>null</c> for every
+/// other basis.
 /// </param>
 /// <param name="FixedPotency">
-/// 🔒 `05` §5 — the potency the section states as a <b>literal</b> rather than as <c>X</c>.
-/// <c>FREEZE</c> is the only such row (<em>"−50% ASPD"</em>), so the number is the status's and an
-/// effect that authored its own would be overriding a constant `05` §5 fixed. <c>null</c> everywhere
-/// else, where <c>X</c> is the effect's value.
+/// The potency stated as a literal rather than as the effect's value. <c>FREEZE</c> is the only such
+/// row; <c>null</c> everywhere else.
 /// </param>
 /// <param name="ScalesWithTargetMissingHp">
-/// 📐 `05` §5 — <c>BLEED</c> alone: <em>"each tick deals that amount × (1 + target's missing-HP
-/// fraction)"</em>. The coefficient is <see cref="StatusCatalogue.BleedMissingHpScaling"/>.
+/// <c>BLEED</c> alone: each tick scales by <c>(1 + target's missing-HP fraction)</c>. The
+/// coefficient is <see cref="StatusCatalogue.BleedMissingHpScaling"/>.
 /// </param>
 /// <param name="Stacking">
-/// `05` §5's stacking rule for the five statuses it states one for, and <c>null</c> for the seven it
-/// does not. 🔒 The <c>null</c> is a statement, not a hole: `05` §5 fixes no stacking for those
-/// seven, so `18` §6's per-effect block governs — see <see cref="StatusCatalogue.StackingFor"/>.
+/// The stacking rule for the five statuses that have one; <c>null</c> for the rest, where the
+/// per-effect block governs — see <see cref="StatusCatalogue.StackingFor"/>.
 /// </param>
 /// <param name="DecayCurve">
-/// 🔒 `05` §5 says <c>RAGE</c> <em>"decays over D s"</em> and states no curve; <c>null</c> means the
-/// documents authorise none. See <see cref="RequireDecayCurve"/>.
+/// <c>RAGE</c> decays over its duration but no curve is authored; <c>null</c> means none is
+/// authorised. See <see cref="RequireDecayCurve"/>.
 /// </param>
 internal sealed record StatusDefinition(
     string Id,
@@ -130,14 +104,8 @@ internal sealed record StatusDefinition(
     string? DecayCurve)
 {
     /// <summary>
-    /// 🔒 Whether `05` §3.1's one-second cadence drives this status — <b>the</b> question the
-    /// cadence engine asks of a row.
+    /// Whether the one-second cadence drives this status.
     /// </summary>
-    /// <remarks>
-    /// Exactly the two kinds `05` §3.1 names: <em>"every <c>DoT</c>/<c>HoT</c> instance whose cadence
-    /// boundary falls on this tick applies its tick"</em>. A <c>Debuff</c> or a <c>Buff</c> has no
-    /// per-second amount, so it has nothing for a cadence to land.
-    /// </remarks>
     internal bool Ticks => Kind is StatusKind.DoT or StatusKind.HoT;
 
     /// <summary>
@@ -152,26 +120,15 @@ internal sealed record StatusDefinition(
             "basis first, and substituting a stat here would silently debuff the wrong one.");
 
     /// <summary>
-    /// 🔒 <c>RAGE</c>'s decay curve, or a throw naming the hole.
+    /// <c>RAGE</c>'s decay curve, or a throw naming the hole.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>THE DEFERRAL IS REGISTERED, and this is the pointer to it.</b> `05` §5 states that
-    /// <c>RAGE</c> <em>"decays over <c>D</c> s"</em> and authors no curve — not linear, not stepped,
-    /// not exponential — and neither does any boss script, perk row or on-hit row in the content set.
-    /// Steering S6 forbids inventing one, so <c>RAGE</c> ships holding its full potency for its
-    /// duration, which is the only shape `18` §6 can express, and the missing decay is a <c>null</c>
-    /// in <c>content/statuses.json</c> rather than an invisible linear ramp.
-    /// <para>
-    /// The obligation is recorded where the repository's one expiring register can fire on it —
-    /// <c>SubjectSetFloorTests.Pending</c>, under the name <c>StatusDecayCurve</c> (steering S4).
-    /// Read that entry before changing this: the subject being tracked is <em>"something gives
-    /// <c>RAGE</c> its decay"</em>, not the string, so a milestone that picks another name should
-    /// <b>rename</b> the entry rather than delete it. This remark is the inbound path, on
-    /// <c>DurationScopes</c>' and <c>NoPetAbilities</c>' precedent: a note addressed to a future
-    /// milestone is worthless in a test file that milestone will never open.
-    /// </para>
+    /// No curve is authored anywhere in the content set, so <c>RAGE</c> ships holding its full
+    /// potency for its duration — the missing decay is a <c>null</c> rather than an invented,
+    /// invisible linear ramp. Tracked in <c>SubjectSetFloorTests.Pending</c> under
+    /// <c>StatusDecayCurve</c> until a milestone rules on it.
     /// </remarks>
-    /// <exception cref="InvalidOperationException">`05` §5 authorises no curve.</exception>
+    /// <exception cref="InvalidOperationException">No curve is authorised.</exception>
     internal string RequireDecayCurve() =>
         DecayCurve ?? throw new InvalidOperationException(
             $"05 §5 authorises no decay curve for {Id}. It says the status 'decays over D s' and " +
@@ -191,22 +148,11 @@ internal sealed record StatusDefinition(
 }
 
 /// <summary>
-/// 🔒 <c>content/statuses.json</c>, read — the whole of `05` §5.
+/// <c>content/statuses.json</c>, read.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The document holds every number `05` §5 states and nothing else: the stack ceilings it fixes for
-/// five of the twelve, the two constants it writes as literals (<c>FREEZE</c>'s ASPD reduction and
-/// <c>STUN</c>'s per-application cap and immunity window), and 📐 <c>BLEED</c>'s missing-HP scaling
-/// term. It sits under <c>content/</c> rather than <c>tuning/</c> on
-/// <c>combat_caps.json</c>'s precedent and for its reason.
-/// </para>
-/// <para>
-/// ⚠️ <b>The cadence itself is NOT in the data.</b> `05` §3.1 states it in ticks of `05` §3's 20 Hz
-/// clock, which is already <c>CombatLog.TicksPerSecond</c>; a second copy in a content file would be
-/// two numbers that must agree with nothing making them, which is the shape M2-07's mitigation-dial
-/// mirror rule exists to police. <see cref="StatusCadence"/> derives it.
-/// </para>
+/// The cadence itself is not in the data: it is derived by <see cref="StatusCadence"/> from the
+/// tick rate rather than duplicated as a second number that could drift from it.
 /// </remarks>
 internal sealed record StatusCatalogue(
     double BleedMissingHpScaling,
@@ -217,22 +163,22 @@ internal sealed record StatusCatalogue(
     /// <summary>The snapshot-relative path of the document.</summary>
     internal const string Document = "content/statuses.json";
 
-    /// <summary>🔒 `05` §5 fixes exactly twelve statuses. Asserted at load — see <see cref="Read"/>.</summary>
+    /// <summary>Exactly twelve statuses are fixed. Asserted at load — see <see cref="Read"/>.</summary>
     internal const int ExpectedStatusCount = 12;
 
-    /// <summary>🔒 `05` §5 — the twelve-row table itself, the pointer every row fault is stated against.</summary>
+    /// <summary>The twelve-row table itself, the pointer every row fault is stated against.</summary>
     internal const string StatusesPointer = Document + "#/statuses";
 
-    /// <summary>📐 `05` §5 — <c>BLEED</c>'s missing-HP scaling term.</summary>
+    /// <summary><c>BLEED</c>'s missing-HP scaling term.</summary>
     internal const string BleedMissingHpScalingPointer = Document + "#/bleedMissingHpScaling";
 
-    /// <summary>`05` §5 — <em>"Max 1.5 s per application"</em>.</summary>
+    /// <summary>The per-application STUN cap.</summary>
     internal const string StunMaxSecondsPointer = Document + "#/stun/maxSecondsPerApplication";
 
-    /// <summary>`05` §5 — <em>"with a 3 s immunity window after"</em>.</summary>
+    /// <summary>The STUN immunity window after.</summary>
     internal const string StunImmunityWindowPointer = Document + "#/stun/immunityWindowSeconds";
 
-    /// <summary>🔒 `05` §5 — <c>RAGE</c>'s unauthorised decay curve. See <see cref="StatusDefinition.RequireDecayCurve"/>.</summary>
+    /// <summary><c>RAGE</c>'s unauthorised decay curve. See <see cref="StatusDefinition.RequireDecayCurve"/>.</summary>
     internal const string RageDecayCurvePointer = Document + "#/statuses/8/decayCurve";
 
     private static readonly IReadOnlyDictionary<string, StatusKind> Kinds =
@@ -271,41 +217,26 @@ internal sealed record StatusCatalogue(
         };
 
     /// <summary>
-    /// 🔒 `18` §1's canonical stacking block — the one the document prints in <em>Anatomy of an
-    /// effect</em> — used when neither the applying effect nor `05` §5 states one.
+    /// The canonical stacking block, used when neither the applying effect nor the status states one.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// ⚠️ <b>A transcription, and it is not the FREEZE hole being filled.</b> Two different questions
-    /// are being kept apart here. <em>"What stack ceiling does `05` §5 authorise for <c>FREEZE</c>?"</em>
-    /// has no answer — `05` §6.1a's <c>CASTER</c> table asks for one, `05` §5 states none, and that
-    /// hole stays a <c>null</c> in <c>content/enemies/enemies.json</c> exactly where M2-11 left it
-    /// (steering S6). <em>"What stacking block does an effect use when it authors none?"</em> is a
-    /// different question, and `18` §1 answers it by printing one:
-    /// <c>{"mode": "ADDITIVE", "maxStacks": 1}</c>. That is the only stacking block the DSL document
-    /// writes for an effect with nothing special going on, and <c>EffectStackSet</c> already names it
-    /// <em>"`18` §1's canonical"</em>.
-    /// </para>
-    /// <para>
-    /// It is also the only reading under which the content set runs: `18` §7.8's Thornmaw phase-3
-    /// <c>RAGE</c> authors no <c>stacking</c> at all, and refusing here would throw on authored spec
-    /// content.
-    /// </para>
+    /// This is a different question from "what stack ceiling is authorised for FREEZE" (which has no
+    /// answer and stays <c>null</c> in enemy content): it is what an effect uses when it authors no
+    /// stacking block at all, which the DSL answers with <c>{"mode": "ADDITIVE", "maxStacks": 1}</c>.
     /// </remarks>
     internal static EffectStacking CanonicalStacking { get; } =
         new() { Mode = StackingMode.ADDITIVE, MaxStacks = 1 };
 
     /// <summary>
-    /// 🔒 The twelve, indexed by id — `05` §5's set, which is closed.
+    /// The twelve, indexed by id.
     /// </summary>
     internal IReadOnlyDictionary<string, StatusDefinition> ById { get; } =
         Statuses.ToDictionary(s => s.Id, StringComparer.Ordinal);
 
     /// <summary>One status by id.</summary>
     /// <exception cref="EffectContextException">
-    /// The id is outside `05` §5's twelve. <c>StatusOps</c> deliberately does not validate the id —
-    /// <c>effect.schema.json</c> encloses the set and this catalogue is the type that holds it — so
-    /// an effect built in code rather than loaded from JSON arrives here unchecked.
+    /// The id is outside the twelve. <c>StatusOps</c> deliberately does not validate the id, so an
+    /// effect built in code rather than loaded from JSON arrives here unchecked.
     /// </exception>
     internal StatusDefinition Of(string statusId) =>
         ById.TryGetValue(statusId, out var found)
@@ -319,15 +250,10 @@ internal sealed record StatusCatalogue(
                 "JSON, which is outside that enforcement.");
 
     /// <summary>
-    /// 🔒 The `18` §6 stacking block one application uses: the effect's, else `05` §5's, else
-    /// `18` §1's canonical one.
+    /// The stacking block one application uses: the effect's, else the status's, else the canonical one.
     /// </summary>
     /// <remarks>
-    /// The precedence is the documents': `18` §6 is a <em>per-effect</em> block and `05` §5 is the
-    /// <em>status's</em> rule, so an effect that authors one is being specific about its own
-    /// application and wins. Every on-hit row in <c>content/enemies/enemies.json</c> authors one that
-    /// already agrees with `05` §5, so the first two arms do not disagree anywhere in the content set
-    /// today — <c>StatusCatalogueTests</c> pins that.
+    /// A per-effect block is more specific than the status's own rule, so an effect that authors one wins.
     /// </remarks>
     /// <param name="statusId">The status being applied.</param>
     /// <param name="authored">The applying effect's own block, or <c>null</c>.</param>
@@ -340,10 +266,8 @@ internal sealed record StatusCatalogue(
     /// <exception cref="MissingContentException">A pointer is absent.</exception>
     /// <exception cref="UnauthorisedTunableException">A value is <c>null</c> where one is required.</exception>
     /// <exception cref="ContentTypeMismatchException">
-    /// A row is malformed, duplicated, or outside one of `05` §5's closed vocabularies, or the table
-    /// is not twelve rows. ⚠️ <c>ContentException</c>'s hierarchy rather than <c>FormatException</c>:
-    /// the content-load boundary catches <c>ContentException</c>, which is how the enemy and boss
-    /// catalogues state the same three fault classes, and the pointer names WHICH row failed.
+    /// A row is malformed, duplicated, or outside one of the closed vocabularies, or the table is
+    /// not twelve rows.
     /// </exception>
     internal static StatusCatalogue Read(ContentSnapshot content)
     {
@@ -367,9 +291,9 @@ internal sealed record StatusCatalogue(
             var pointer = RowPointer(index);
             var row = Row(list.Items[index], pointer);
 
-            // 🔒 Duplicate ids are refused BY NAME. ToDictionary's own failure is a bare
-            // ArgumentException naming neither the document nor the id, and the schema's uniqueItems
-            // compares whole objects — so two rows sharing an id with different bodies pass it.
+            // Refused by name here: ToDictionary's own failure names neither the document nor the
+            // id, and the schema's uniqueItems compares whole objects, so two rows sharing an id
+            // with different bodies would pass it.
             if (!seen.Add(row.Id))
             {
                 throw new ContentTypeMismatchException(
@@ -384,10 +308,8 @@ internal sealed record StatusCatalogue(
             statuses.Add(row);
         }
 
-        // 🔒 The twelve-row bound is asserted HERE and not only in the schema. Review found the type
-        // claiming 'its schema requires exactly twelve rows' while nothing at run time checked it —
-        // and a snapshot built without schema validation (every in-code fixture) would load a
-        // partial catalogue whose first symptom is Of() blaming its caller for the file's defect.
+        // Asserted here and not only in the schema: a snapshot built without schema validation
+        // (every in-code fixture) would otherwise load a partial catalogue silently.
         if (statuses.Count != ExpectedStatusCount)
         {
             throw new ContentTypeMismatchException(
@@ -406,7 +328,7 @@ internal sealed record StatusCatalogue(
             statuses);
     }
 
-    /// <summary>🔒 The content pointer of one `05` §5 row — what every fault below is stated against.</summary>
+    /// <summary>The content pointer of one row — what every fault below is stated against.</summary>
     private static string RowPointer(int index) =>
         $"{StatusesPointer}/{index.ToString(CultureInfo.InvariantCulture)}";
 
@@ -425,10 +347,8 @@ internal sealed record StatusCatalogue(
                 $"{pointer}/potencyBasis"),
             row.TryGetMember("stat", out var stat) && stat!.Kind == ContentValueKind.Text
 
-                // Through the same Lookup as type and potencyBasis, not Enum.Parse: review found
-                // that Enum.Parse threw a bare BCL ArgumentException naming no document and no row,
-                // and silently accepted any of the fourteen StatIds where the schema's $defs/statId
-                // admits four.
+                // Through the same Lookup as type and potencyBasis, not Enum.Parse: Enum.Parse would
+                // silently accept any of the fourteen StatIds where the schema admits four.
                 ? Lookup(Stats, stat.AsText(), "05 §5's four debuffable stats", id, $"{pointer}/stat")
                 : null,
             row.TryGetMember("fixedPotency", out var fixedPotency) &&
@@ -439,12 +359,8 @@ internal sealed record StatusCatalogue(
             scales!.Kind == ContentValueKind.Boolean && scales.AsBoolean(),
             Stacking(row, pointer),
 
-            // 🔒 The tree is walked rather than the value read through a pointer, and that is what
-            // keeps RAGE's authored null a null. ContentSnapshot.Read throws
-            // UnauthorisedTunableException on an unauthorised value, so reading decayCurve that way
-            // would fail at load and take every fight with it. Carrying the null is what makes
-            // StatusDefinition.RequireDecayCurve the one place that fails, by name, if anything
-            // ever tries to use it — `game-data/README.md`'s rule for exactly this shape.
+            // The tree is walked rather than the value read through a pointer, which is what keeps
+            // RAGE's authored null a null instead of throwing UnauthorisedTunableException at load.
             row.TryGetMember("decayCurve", out var decay) && decay!.Kind == ContentValueKind.Text
                 ? decay.AsText()
                 : null);

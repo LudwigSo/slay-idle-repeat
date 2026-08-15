@@ -7,14 +7,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §3.1 — the battle-start pre-tick and the strict eight-step tick order.
-/// </summary>
+/// <summary>The battle-start pre-tick and the strict eight-step tick order.</summary>
 public sealed class TickOrderTests
 {
     /// <summary>
-    /// 🔒 Pre-tick 0d — <em>"emit BattleStart"</em>, last, and at tick 0. Every 0b ward grant and
-    /// opening buff is already in the log before it.
+    /// <c>BattleStart</c> is emitted last of the pre-tick, at tick 0; every opening ward grant and
+    /// buff is already in the log before it.
     /// </summary>
     [Fact]
     public void The_pre_tick_emits_BattleStart_at_tick_0_naming_no_actor()
@@ -30,10 +28,7 @@ public sealed class TickOrderTests
         result.Log[^1].Type.ShouldBe(CombatEventType.BattleEnd);
     }
 
-    /// <summary>
-    /// 🔒 Pre-tick 0a — <em>"attackCooldown = 0 for all battle-opening actors (the first basic attack
-    /// lands on tick 0)"</em>.
-    /// </summary>
+    /// <summary>Every battle-opening actor's cooldown starts at 0, so the first basic attack lands on tick 0.</summary>
     [Fact]
     public void Every_opener_swings_on_tick_0()
     {
@@ -60,16 +55,12 @@ public sealed class TickOrderTests
     }
 
     /// <summary>
-    /// 🔒 Slot 4 — <em>"fixed initiative order (Hero, then enemies by index — pets never
-    /// basic-attack)"</em>, and the same order on every tick.
+    /// Fixed initiative order (hero, then enemies by index; pets never basic-attack), the same on
+    /// every tick. The pet assertion is on the cooldown, not the swing list: "no pet appears among
+    /// the attackers" cannot fail on its own, since PvE targeting finds no opposing hero for a pet to
+    /// swing at even if it were walked — a pet still at cooldown 0 after 1800 ticks is proof it was
+    /// never in the initiative order at all.
     /// </summary>
-    /// <remarks>
-    /// 🔴 The pet assertion is on the <i>cooldown</i>, not the swing list: "no pet appears among the
-    /// attackers" <b>cannot fail</b>, because a pet that <em>was</em> in the order still never swings —
-    /// the enemy-side selection finds no opposing hero for it. Slot 4b decrements
-    /// <c>attackCooldown</c> for <b>every</b> actor it walks, so a pet still at <c>0</c> after 1800 ticks
-    /// is proof it was never in the order.
-    /// </remarks>
     [Fact]
     public void Initiative_is_hero_then_enemies_by_index_and_never_a_pet()
     {
@@ -109,18 +100,13 @@ public sealed class TickOrderTests
         pipeline.Swings.ShouldAllBe(s => !s.Defender.StartsWith("PET", StringComparison.Ordinal));
         pipeline.Swings.Count.ShouldBeGreaterThan(0);
 
-        // 🔴 The identity: a pet was never walked by slot 4 at all, so nothing ever decremented its
-        // cooldown off pre-tick 0a's zero. See the remarks.
         // The count is asserted first so ShouldAllBe cannot pass over an empty collection.
         var pets = services.Actors.Where(a => a.Kind == EffectActorKind.PET).ToArray();
         pets.Length.ShouldBe(2);
         pets.ShouldAllBe(p => p.AttackCooldown == 0.0);
     }
 
-    /// <summary>
-    /// 🔒 Slots 1, 2 and 5 run once per actor per tick, in `05` §3.1's actor order — hero, pets in
-    /// slot order, enemies by index.
-    /// </summary>
+    /// <summary>Slots 1, 2 and 5 run once per actor per tick, in actor order — hero, pets, enemies by index.</summary>
     [Fact]
     public void Slots_1_2_and_5_run_once_per_actor_in_actor_order()
     {
@@ -153,9 +139,7 @@ public sealed class TickOrderTests
             .ShouldBe(new[] { "5:PET_0@0", "5:PET_1@0" });
     }
 
-    /// <summary>
-    /// 🔒 Slot 4a — <em>"if attackCooldown &lt;= 0 and actor.alive <b>and not stunned</b>"</em>.
-    /// </summary>
+    /// <summary>A stunned actor does not swing, even with cooldown ready.</summary>
     [Fact]
     public void A_stunned_actor_does_not_swing()
     {
@@ -183,8 +167,8 @@ public sealed class TickOrderTests
     }
 
     /// <summary>
-    /// 🔒 Slot 6 — <em>"an actor whose HP reaches 0 stops acting and being targetable at that moment
-    /// — only its death <i>resolution</i> waits for this slot"</em>, and the event is emitted there.
+    /// An actor whose HP reaches 0 stops acting and being targetable at that moment; only its death
+    /// resolution (and the emitted event) waits for the burial slot.
     /// </summary>
     [Fact]
     public void A_dead_enemy_stops_being_targetable_immediately_and_is_buried_at_slot_6()
@@ -194,8 +178,8 @@ public sealed class TickOrderTests
         var result = CombatSimulator.Simulate(BattleTestBench.Plan(
             new[]
             {
-                // The hero one-shots. ENEMY_0 dies inside slot 4 on tick 0; ENEMY_1 must then be the
-                // hero's target on the next swing, and ENEMY_0 must never swing back.
+                // The hero one-shots. ENEMY_0 dies on tick 0; ENEMY_1 must then be the hero's target
+                // on the next swing, and ENEMY_0 must never swing back.
                 BattleTestBench.Hero(BattleTestBench.Stats(maxHp: 10_000)),
                 BattleTestBench.Enemy(0, BattleTestBench.Stats(maxHp: 10)),
                 BattleTestBench.Enemy(1, BattleTestBench.Stats(maxHp: 10_000)),
@@ -209,11 +193,11 @@ public sealed class TickOrderTests
 
         pipeline.ShouldNotBeNull();
 
-        // ENEMY_0 died on tick 0 to the hero's swing, which is BEFORE its own place in initiative.
+        // ENEMY_0 died on tick 0 to the hero's swing, before its own place in initiative.
         pipeline.Swings.Where(s => s.Tick == 0).Select(s => s.Attacker)
             .ShouldBe(new[] { "HERO", "ENEMY_1" });
 
-        // And it was buried in the same tick's slot 6.
+        // And it was buried in the same tick's burial slot.
         var death = result.Log.First(e => e.Type == CombatEventType.ActorDeath);
         death.Tick.ShouldBe(0);
         death.TargetId.ShouldBe(CombatActor.Enemy(0));
@@ -222,10 +206,7 @@ public sealed class TickOrderTests
         pipeline.Swings.Where(s => s.Attacker == "HERO").Skip(1).First().Defender.ShouldBe("ENEMY_1");
     }
 
-    /// <summary>
-    /// 🔒 Slot 8 — <em>"if hero dead OR all enemies dead: break"</em>. The fight stops on the tick the
-    /// last enemy falls, not on the one after.
-    /// </summary>
+    /// <summary>The fight stops on the tick the last enemy falls, not on the one after.</summary>
     [Fact]
     public void The_loop_breaks_on_the_tick_the_last_enemy_falls()
     {
@@ -243,8 +224,8 @@ public sealed class TickOrderTests
     }
 
     /// <summary>
-    /// 🔒 Pre-tick 0c — <em>"the boss's phase 1 counts as entered"</em>, and the strict controller
-    /// refuses a boss rather than running one with its mechanics silently deleted.
+    /// The boss's phase 1 counts as entered at the pre-tick, and the strict controller refuses a
+    /// boss rather than running one with its mechanics silently deleted.
     /// </summary>
     [Fact]
     public void Pre_tick_0c_enters_the_bosss_phase_1_and_the_strict_default_refuses_a_boss()
@@ -282,8 +263,8 @@ public sealed class TickOrderTests
     }
 
     /// <summary>
-    /// 🔒 Pre-tick 0b's order — <em>"hero side first (hero, then pets in slot order), then enemies by
-    /// index; within one actor, ascending effect-id order"</em>.
+    /// <c>ON_BATTLE_START</c> fires hero side first (hero, then pets), then enemies by index, and
+    /// within one actor in ascending effect-id order.
     /// </summary>
     [Fact]
     public void ON_BATTLE_START_fires_hero_side_first_then_enemies_and_by_effect_id_within_an_actor()
@@ -309,7 +290,7 @@ public sealed class TickOrderTests
         fired.ShouldBe(new[] { "A_HERO_FIRST", "B_HERO_SECOND", "C_PET", "D_ENEMY" });
 
         // An APPLY_STATUS with an ON_BATTLE_START trigger: the only op whose seam this suite can
-        // observe without standing in for M2-09.
+        // observe without standing in for the real damage engine.
         static HeldEffect Opener(string id) => new(new EffectDefinition
         {
             Id = id,

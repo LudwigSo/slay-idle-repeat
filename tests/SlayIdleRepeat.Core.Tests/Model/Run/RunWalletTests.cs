@@ -9,21 +9,19 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `10` §1 / `30` §7 / §11.5 — the run's wallet: the one <c>RUN</c>-scoped currency it holds, the one
-/// seam that moves it, the event every movement produces, and the invariant that a balance never goes
-/// negative.
+/// The run's wallet: the one <c>RUN</c>-scoped currency it holds, the one seam that moves it, the
+/// event every movement produces, and the invariant that a balance never goes negative.
 /// </summary>
 /// <remarks>
-/// The mirror of <c>PlayerWalletTests</c>. Assumption <b>A3</b> splits `10` §1's eight currencies across
-/// two aggregates, and each refuses the other's by name rather than answering zero — a zero reads as
-/// "the run has none", which about the wrong aggregate is a lie rather than a balance.
+/// The mirror of <c>PlayerWalletTests</c>. The currencies split across two aggregates, and each
+/// refuses the other's by name rather than answering zero — a zero reads as "the run has none",
+/// which about the wrong aggregate is a lie rather than a balance.
 /// </remarks>
 public sealed class RunWalletTests
 {
     private static Run Rich(long gold = 0) =>
         Run.Rehydrate(RunSnapshots.With(gold: gold)).Value;
 
-    /// <summary>A credit moves the balance and produces the `30` §7 event that attributes it.</summary>
     [Fact]
     public void A_credit_moves_the_balance_and_emits_CurrencyChanged()
     {
@@ -34,17 +32,15 @@ public sealed class RunWalletTests
         run.Gold.ShouldBe(210);
         run.BalanceOf(CurrencyId.GOLD).ShouldBe(210);
 
-        // 🔒 No `moved.ShouldBeOfType<CurrencyChanged>()` here. CurrencyChanged is a sealed record
-        // and MoveCurrency's return type IS CurrencyChanged, so that assertion could only ever have
+        // No `moved.ShouldBeOfType<CurrencyChanged>()` here: CurrencyChanged is a sealed record and
+        // MoveCurrency's return type IS CurrencyChanged, so that assertion could only ever have
         // caught a null — which the three assertions below catch anyway, with a message that says
-        // what was wrong (steering S1: an assertion true of every possible value is not an
-        // assertion).
+        // what was wrong.
         moved.Id.ShouldBe(CurrencyId.GOLD);
         moved.Delta.ShouldBe(60);
         moved.Reason.ShouldBe("tile_kill_gold");
     }
 
-    /// <summary>A debit is the same seam with a negative delta, and it too is attributed.</summary>
     [Fact]
     public void A_debit_moves_the_balance_and_emits_CurrencyChanged()
     {
@@ -58,9 +54,8 @@ public sealed class RunWalletTests
     }
 
     /// <summary>
-    /// 🔒 The event leaves <c>Sequence</c> unstamped. <c>DomainEvent</c> is explicit that the ordinal
-    /// belongs to <c>GameRules.Apply</c> — a mutator cannot know its position in a list the command
-    /// has not finished building.
+    /// The event leaves <c>Sequence</c> unstamped: a mutator cannot know its position in a list the
+    /// command has not finished building, so the ordinal is assigned by <c>GameRules.Apply</c>.
     /// </summary>
     [Fact]
     public void The_emitted_event_leaves_its_sequence_for_Apply_to_stamp()
@@ -76,8 +71,8 @@ public sealed class RunWalletTests
     }
 
     /// <summary>
-    /// 🔒 `30` §11.5 — <em>"a currency never goes negative"</em>. The aggregate refuses rather than
-    /// clamping: a clamp would let a rule that debited without checking look like it succeeded.
+    /// A balance never goes negative. The aggregate refuses rather than clamping: a clamp would
+    /// let a rule that debited without checking look like it succeeded.
     /// </summary>
     [Fact]
     public void A_movement_that_would_go_negative_is_refused()
@@ -132,14 +127,13 @@ public sealed class RunWalletTests
     }
 
     /// <summary>
-    /// 🔒 Every player-scoped currency is refused here by name, and the message points at the
+    /// Every player-scoped currency is refused here by name, and the message points at the
     /// aggregate that does hold it — the mirror image of <c>Player</c>'s refusal of <c>GOLD</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Stated over the whole of <see cref="CurrencyId"/> minus <c>GOLD</c> rather than over a
-    /// transcribed list of seven, so a ninth currency appended to the enum is refused here on the
-    /// commit that adds it rather than silently becoming spendable out of a run's purse. The count is
-    /// asserted so the theory cannot quietly shrink to nothing (steering S3).
+    /// Stated over the whole of <see cref="CurrencyId"/> minus <c>GOLD</c> rather than over a
+    /// transcribed list, so a currency appended to the enum is refused here on the commit that
+    /// adds it rather than silently becoming spendable out of a run's purse.
     /// </remarks>
     [Fact]
     public void Every_player_scoped_currency_is_refused_and_the_message_points_at_Player()
@@ -183,10 +177,7 @@ public sealed class RunWalletTests
         run.Gold.ShouldBe(10, "a refused movement changes nothing");
     }
 
-    /// <summary>
-    /// 🔒 The reason is mandatory, because it is the attribution column of `21` §8.3's
-    /// <c>income_attribution.csv</c> — the report answering risk R10.
-    /// </summary>
+    /// <summary>The reason is mandatory: it is the attribution column downstream reports key on.</summary>
     [Fact]
     public void A_movement_with_no_reason_is_refused_by_the_event_itself()
     {
@@ -199,17 +190,16 @@ public sealed class RunWalletTests
     }
 
     /// <summary>
-    /// 🔒 <see cref="Run.MoveCurrency"/> is the <b>only</b> member outside the constructor that can
+    /// <see cref="Run.MoveCurrency"/> is the <b>only</b> member outside the constructor that can
     /// change the balance: there is no setter, no <c>SetGold</c>, no <c>AddGold</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ This is the type-shape half of the currency rule, and it is not a duplicate of
+    /// This is the type-shape half of the currency rule, and it is not a duplicate of
     /// <c>DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged</c>: that rule is an IL
     /// scan asking whether a write <em>emits</em>, and it would be perfectly happy with a second
     /// mutator that emitted too. What the design forbids is a <b>second seam</b>, because the
     /// argument for one write site is that a reader can find every Gold movement by finding one
-    /// method. The set is read off the type rather than transcribed, and floored, so the assertion
-    /// cannot pass by finding nothing.
+    /// method.
     /// </remarks>
     [Fact]
     public void MoveCurrency_is_the_only_member_that_can_change_the_balance()
@@ -236,10 +226,10 @@ public sealed class RunWalletTests
                    "MoveCurrency would be a second place a run's purse changes, and the reason " +
                    "MoveCurrency exists is that there is exactly one.");
 
-        // 🔒 …and the same over the OTHER name the balance goes by. A filter on "Gold" alone is
-        // blind to a second seam called AdjustWallet or SetWallet — which is the more likely name
-        // for one, because the field it would write is `_wallet`. The two filters together are the
-        // claim; either on its own leaves the obvious rename through.
+        // The same over the OTHER name the balance goes by. A filter on "Gold" alone is blind to a
+        // second seam called AdjustWallet or SetWallet — which is the more likely name for one,
+        // because the field it would write is `_wallet`. The two filters together are the claim;
+        // either on its own leaves the obvious rename through.
         members.Where(name => name.Contains("Wallet", StringComparison.OrdinalIgnoreCase))
                .ShouldBe(
                    new[] { "_wallet" },

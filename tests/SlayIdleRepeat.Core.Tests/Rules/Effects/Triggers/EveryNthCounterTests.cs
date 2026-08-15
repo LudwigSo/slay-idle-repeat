@@ -7,18 +7,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
 /// <summary>
-/// 🔒 `18` §3's <c>everyNth</c> sentence, which carries three separate facts:
-/// <em>"counters live on the <b>effect instance</b>: <c>ON_ATTACK</c> counters reset at battle
-/// start; <c>ON_KILL</c> counters <b>persist across battles for the run</b> (<c>PK_MIDAS</c>'s 'every
-/// 6th enemy killed'). Never fires in PvP (`05` §3.3)."</em>
+/// The everyNth counter rule: counters live on the effect instance; <c>ON_ATTACK</c> counters reset
+/// at battle start; <c>ON_KILL</c> counters persist across battles for the run; never fires in PvP.
 /// </summary>
 /// <remarks>
-/// One test per fact, plus the two that are easy to get subtly wrong: the counter counts
-/// <em>occurrences</em> rather than firings, and a duel kill does not count at all.
+/// One test per fact, plus the two easy to get subtly wrong: the counter counts occurrences rather
+/// than firings, and a duel kill does not count at all.
 /// </remarks>
 public sealed class EveryNthCounterTests
 {
-    /// <summary>`18` §7.3 — <c>PK_FLURRY</c> fires on the 5th, 10th, 15th attack and no other.</summary>
+    /// <summary><c>PK_FLURRY</c> fires on the 5th, 10th, 15th attack and no other.</summary>
     [Fact]
     public void An_everyNth_counter_fires_on_every_Nth_occurrence()
     {
@@ -41,14 +39,10 @@ public sealed class EveryNthCounterTests
         registry[id].OccasionCount.ShouldBe(16);
     }
 
-    /// <summary>
-    /// 🔒 <b>Fact one — per instance, not per actor and not global.</b> Two copies of one effect on
-    /// one actor count separately.
-    /// </summary>
+    /// <summary>Per instance, not per actor and not global: two copies of one effect on one actor count separately.</summary>
     /// <remarks>
-    /// Driven so that the two copies are out of step: the first copy sees ten attacks and the second
-    /// sees five. A per-actor counter would have both at fifteen and fire both; a global one would be
-    /// worse still.
+    /// Driven so the two copies are out of step: the first sees ten attacks, the second five. A
+    /// per-actor counter would have both at fifteen and fire both.
     /// </remarks>
     [Fact]
     public void Two_copies_of_one_effect_count_separately()
@@ -85,7 +79,7 @@ public sealed class EveryNthCounterTests
     }
 
     /// <summary>
-    /// 🔒 The per-instance rule has teeth: registering two copies under one id is refused, so a
+    /// The per-instance rule has teeth: registering two copies under one id is refused, so a
     /// caller cannot merge their counters by accident.
     /// </summary>
     [Fact]
@@ -103,10 +97,7 @@ public sealed class EveryNthCounterTests
         failure.Message.ShouldContain("count separately", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 <b>Fact two, first half — <c>ON_ATTACK</c> counters reset at battle start.</b> A new battle
-    /// is a new registry, so the reset is structural.
-    /// </summary>
+    /// <summary><c>ON_ATTACK</c> counters reset at battle start — a new battle is a new registry, so the reset is structural.</summary>
     [Fact]
     public void An_ON_ATTACK_counter_resets_at_battle_start()
     {
@@ -133,15 +124,10 @@ public sealed class EveryNthCounterTests
                  .ShouldBe(TriggerOutcome.EVERY_NTH_PENDING, "the 5th attack of battle one is not the 5th of battle two");
     }
 
-    /// <summary>
-    /// 🔒 <b>Fact two, second half — <c>ON_KILL</c> counters persist across battles for the run.</b>
-    /// <c>PK_MIDAS</c>'s <em>"every 6th enemy killed"</em> spans fights.
-    /// </summary>
+    /// <summary><c>ON_KILL</c> counters persist across battles for the run — <c>PK_MIDAS</c>'s "every 6th enemy killed" spans fights.</summary>
     /// <remarks>
     /// The seam is the whole mechanism: the run holds the <see cref="RunTriggerCounters"/> and hands
-    /// the same one to every battle. Persisting it is M3's and M1-05's — see
-    /// <see cref="IRunTriggerCounters"/> — and there is deliberately no placeholder run controller
-    /// here.
+    /// the same one to every battle.
     /// </remarks>
     [Fact]
     public void An_ON_KILL_counter_persists_across_battles_for_the_run()
@@ -173,15 +159,11 @@ public sealed class EveryNthCounterTests
         run.Read(id).ShouldBe(6);
     }
 
-    /// <summary>
-    /// 🔒 <b>Fact three — <c>ON_KILL</c> never fires in a duel</b> (`05` §3.3: <em>"The only death in
-    /// a duel ends the fight"</em>), <b>and a duel kill does not advance the run counter either</b>.
-    /// </summary>
+    /// <summary><c>ON_KILL</c> never fires in a duel, and a duel kill does not advance the run counter either.</summary>
     /// <remarks>
-    /// The second half is the one a "return false" implementation gets wrong. A duel is not part of a
+    /// The second half is the one a "return false" implementation gets wrong: a duel is not part of a
     /// run, so a player who could advance <c>PK_MIDAS</c> in the arena would walk into their next run
-    /// with the perk half-charged. M2-14 builds the duel; this is the predicate answering correctly
-    /// when told it is one.
+    /// with the perk half-charged.
     /// </remarks>
     [Fact]
     public void An_ON_KILL_never_fires_in_a_duel_and_does_not_count_there_either()
@@ -208,7 +190,7 @@ public sealed class EveryNthCounterTests
     }
 
     /// <summary>
-    /// 🔒 The counter counts <b>occurrences</b>, not firings: <c>PK_FLURRY</c> is "every 5th attack",
+    /// The counter counts occurrences, not firings: <c>PK_FLURRY</c> is "every 5th attack",
     /// not "every 5th attack that also passed a roll".
     /// </summary>
     /// <remarks>
@@ -240,7 +222,7 @@ public sealed class EveryNthCounterTests
     }
 
     /// <summary>
-    /// An instance that is not active does not count either: a `18` §6 <c>PHASE</c>-scoped effect
+    /// An instance that is not active does not count either: a <c>PHASE</c>-scoped effect
     /// that ended is not watching the fight.
     /// </summary>
     [Fact]

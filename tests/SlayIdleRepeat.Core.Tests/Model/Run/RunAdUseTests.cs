@@ -7,20 +7,20 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// `12` §4.3 — the per-run ad-use counters: <c>placement id → uses</c>, for the thirteen in-run
-/// placements whose <c>capWindow</c> is <c>RUN</c>.
+/// The per-run ad-use counters: <c>placement id → uses</c>, for the in-run placements whose
+/// <c>capWindow</c> is <c>RUN</c>.
 /// </summary>
 /// <remarks>
 /// The mechanism is <c>Player</c>'s <c>key → long</c> counter, reused rather than reinvented.
 /// <para>
-/// 🔒 The one deviation is the absence of a period anchor and a reset mutator: the run <b>is</b> the
+/// The one deviation is the absence of a period anchor and a reset mutator: the run <b>is</b> the
 /// period, so there is nothing to reset and a reset mutator would be a way to hand a player their
-/// seventeen impressions twice.
+/// impressions twice.
 /// </para>
 /// <para>
-/// ⚠️ The caps themselves are not enforced here — <c>CAP_REACHED</c> belongs to the handler that reads
-/// <c>ads.json</c>, and `30` §11.5 keeps that computation out of the aggregate, which holds the count
-/// and refuses a count that is not a count.
+/// The caps themselves are not enforced here — that belongs to the handler that reads the content
+/// tuning, which keeps that computation out of the aggregate; the aggregate holds the count and
+/// refuses a count that is not a count.
 /// </para>
 /// </remarks>
 public sealed class RunAdUseTests
@@ -54,13 +54,10 @@ public sealed class RunAdUseTests
     }
 
     /// <summary>
-    /// 🔒 <c>AD_REVIVE</c> is what carries `02` §6's once-per-run revive: it is one of the thirteen
-    /// in-run placements, so there is no separate <c>RevivesUsed</c> field to disagree with it.
+    /// <c>AD_REVIVE</c> is what carries the once-per-run revive: it is one of the in-run placements,
+    /// so there is no separate <c>RevivesUsed</c> field to disagree with it.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ The cap is <b>not</b> asserted — see the class remarks. What is asserted is the absence of
-    /// a second source of truth, which is the decision this milestone actually made.
-    /// </remarks>
+    /// <remarks>The cap is <b>not</b> asserted here — see the class remarks. What is asserted is the absence of a second source of truth.</remarks>
     [Fact]
     public void The_once_per_run_revive_is_counted_as_an_ad_placement_and_not_as_a_second_field()
     {
@@ -89,10 +86,10 @@ public sealed class RunAdUseTests
 
     /// <summary>A blank placement key is refused: a key names the placement it counts.</summary>
     /// <remarks>
-    /// ⚠️ The <b>parameter</b> is asserted, not just the exception type.
+    /// The <b>parameter</b> is asserted, not just the exception type.
     /// <see cref="ArgumentOutOfRangeException"/> derives from <see cref="ArgumentException"/>, so
     /// <c>Should.Throw&lt;ArgumentException&gt;</c> is also satisfied by the amount guard — and by
-    /// any other guard either method grows. The parameter name says which one fired (steering S2).
+    /// any other guard either method grows. The parameter name says which one fired.
     /// </remarks>
     [Theory]
     [InlineData("")]
@@ -142,7 +139,7 @@ public sealed class RunAdUseTests
     }
 
     /// <summary>
-    /// ⚠️ The exposed map is a <b>live view</b>, unlike <c>RngStreamPositions</c>: the counts are
+    /// The exposed map is a <b>live view</b>, unlike <c>RngStreamPositions</c>: the counts are
     /// mutated in place, so a caller holding the reference across a <c>CountAdUse</c> sees the new
     /// value. Read it, do not hold it.
     /// </summary>
@@ -163,15 +160,11 @@ public sealed class RunAdUseTests
             "increment — the opposite of RngStreamPositions, which is replaced wholesale.");
     }
 
-    /// <summary>
-    /// 🔒 There is <b>no reset mutator</b>, and there is not going to be one.
-    /// </summary>
+    /// <summary>There is <b>no reset mutator</b>, and there is not going to be one.</summary>
     /// <remarks>
-    /// `12` §4.3 makes the in-run caps per run, so the run <em>is</em> the period: there is no
-    /// boundary to cross and nothing to clear. A <c>ResetAdUses</c> would be a way to hand a player
-    /// their seventeen in-run impressions twice inside one run. Stated by reflection over the type
-    /// rather than by reading the source, and floored on a member the type does have so the
-    /// assertion cannot pass by looking at nothing (steering S3).
+    /// The in-run caps are per run, so the run <em>is</em> the period: there is no boundary to
+    /// cross and nothing to clear. A <c>ResetAdUses</c> would be a way to hand a player their
+    /// in-run impressions twice inside one run.
     /// </remarks>
     [Fact]
     public void There_is_no_reset_mutator_because_the_run_is_the_period()

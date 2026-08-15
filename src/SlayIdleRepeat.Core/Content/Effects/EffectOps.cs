@@ -1,28 +1,25 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
 /// <summary>
-/// The <see cref="EffectOp"/> vocabulary, read as a set: every op, and the `18` §2 family each one
-/// belongs to.
+/// The <see cref="EffectOp"/> vocabulary, read as a set: every op, and the family each one belongs to.
 /// </summary>
 /// <remarks>
-/// 🔒 <see cref="FamilyOf"/> names all 44 ops explicitly and throws on anything else. The default
-/// arm exists only because C# requires one for an enum (<c>CS8524</c>: an enum-typed value may hold
-/// an unnamed number), so it cannot be the thing that catches a forty-fifth op — a new member
-/// would fall into it and throw at run time, in whichever battle first authored one.
-/// <c>EffectOpsTests.Every_op_belongs_to_exactly_one_family</c> is what catches it, at build time,
-/// by enumerating <see cref="All"/>. That is the arm of `18` §10's "op, schema and document in the
-/// same commit" rule this repository can actually hold.
+/// <see cref="FamilyOf"/> names all 44 ops explicitly and throws on anything else. The default arm
+/// exists only because C# requires one for an enum, so it cannot be the thing that catches a
+/// forty-fifth op at build time — a new member would fall into it and throw at run time, in
+/// whichever battle first authored one. A test that enumerates <see cref="All"/> is what catches it
+/// at build time instead.
 /// </remarks>
 public static class EffectOps
 {
-    /// <summary>Every op `18` §2 declares, in declaration order.</summary>
+    /// <summary>Every op this DSL declares, in declaration order.</summary>
     /// <remarks>
-    /// Declaration order, not id order. `18` §8's ordering rule is over effect <em>ids</em>
+    /// Declaration order, not id order: ordering rules are over effect ids
     /// (<see cref="EffectOrder"/>); nothing in the game orders by op.
     /// </remarks>
     public static IReadOnlyList<EffectOp> All { get; } = Enum.GetValues<EffectOp>();
 
-    /// <summary>The `18` §2 family an op belongs to.</summary>
+    /// <summary>The family an op belongs to.</summary>
     public static EffectOpFamily FamilyOf(EffectOp op) => op switch
     {
         EffectOp.STAT_ADD_FLAT or
@@ -59,8 +56,8 @@ public static class EffectOps
         EffectOp.CLEAR_SUMMONS or
         EffectOp.STAT_COPY or
 
-        // 🔒 18 §10 E6 — declared at the END of EffectOp because the numbers are wire values, and
-        //    §2.4's all the same. This arm is the authority on the family; the position is not.
+        // Declared at the END of EffectOp because the numbers are wire values, and combat-flow all
+        //    the same. This arm is the authority on the family; the position is not.
         EffectOp.RANDOM_OUTCOME => EffectOpFamily.COMBAT_FLOW,
 
         EffectOp.GRANT_CURRENCY or
@@ -85,14 +82,13 @@ public static class EffectOps
     };
 
     /// <summary>
-    /// True for the `18` §2.5 ops the run controller resolves and the combat simulator never does.
+    /// True for the run-and-board ops the run controller resolves and the combat simulator never does.
     /// </summary>
     /// <remarks>
-    /// ⚠️ This is a property of the <b>op</b>, never of the trigger. `18` §2.5's combat-context
-    /// exception is explicit that a <em>combat</em> trigger may emit a run/board op — the Dicelord's
-    /// Scramble fires <see cref="EffectOp.MODIFY_DIE_FACE"/> from a <see cref="TriggerKind.PERIODIC"/>
-    /// trigger — and the simulator appends a <c>RunEffectQueued</c> event rather than resolving it.
-    /// A rule that forbade run ops on combat triggers would be wrong.
+    /// This is a property of the op, never of the trigger: a combat trigger may still emit a
+    /// run/board op — e.g. firing <see cref="EffectOp.MODIFY_DIE_FACE"/> from a
+    /// <see cref="TriggerKind.PERIODIC"/> trigger — and the simulator appends a queued-effect event
+    /// rather than resolving it. A rule that forbade run ops on combat triggers would be wrong.
     /// </remarks>
     public static bool IsRunAndBoard(EffectOp op) => FamilyOf(op) == EffectOpFamily.RUN_AND_BOARD;
 }

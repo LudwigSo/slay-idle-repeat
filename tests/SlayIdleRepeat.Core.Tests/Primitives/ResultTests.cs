@@ -6,18 +6,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
 /// <summary>
-/// `30` §11.3 — <see cref="Result{T}"/>, the return of <c>Rehydrate</c>: <i>"a corrupt row fails loudly
-/// at the seam rather than silently three rules later."</i>
+/// <see cref="Result{T}"/>, the return of <c>Rehydrate</c>: a corrupt row fails loudly at the seam
+/// rather than silently three rules later.
 /// </summary>
 /// <remarks>
-/// Every test here is about <b>loudness</b>: a <c>Result</c> that answered a failed read with
-/// <c>default</c> would carry the corrupt row three rules deeper and produce a
-/// <c>NullReferenceException</c> in a calculator.
-/// <para>
-/// 🔒 It is deliberately <b>not</b> the command-rejection channel — that is <c>CommandResult</c> +
+/// Deliberately not the command-rejection channel — that is <c>CommandResult</c> +
 /// <see cref="RejectionReason"/>. Conflating them would let a corrupt database row masquerade as a
 /// legal-move refusal.
-/// </para>
 /// </remarks>
 public sealed class ResultTests
 {
@@ -98,15 +93,10 @@ public sealed class ResultTests
     }
 
     /// <summary>
-    /// <c>Success(default(T))</c> for a value type is a success, not a null.
+    /// <c>Success(default(T))</c> for a value type is a success, not a null: the guard must be a
+    /// genuine null check rather than a <c>default(T)</c> comparison, which would refuse the
+    /// perfectly ordinary <c>Result&lt;int&gt;.Success(0)</c>.
     /// </summary>
-    /// <remarks>
-    /// The null guard on <c>Success</c> has to be a genuine null check
-    /// (<see cref="ArgumentNullException.ThrowIfNull(object?, string?)"/>, which sees a boxed
-    /// <c>0</c> and passes) rather than a <c>default(T)</c> comparison, which would refuse the
-    /// perfectly ordinary <c>Result&lt;int&gt;.Success(0)</c> — and refuse it only for the values a
-    /// rehydrated row is most likely to hold.
-    /// </remarks>
     [Fact]
     public void A_value_type_result_accepts_the_default_of_its_type()
     {

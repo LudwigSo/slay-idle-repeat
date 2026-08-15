@@ -7,21 +7,13 @@ using Xunit;
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
 /// <summary>
-/// `15` Part F item 8: <em>"No text, watermark or signature anywhere in the image"</em> — the
-/// deliberate deviation from what M8-06 was dispatched expecting.
+/// This item is <see cref="QaClassification.Human"/> because deciding it needs OCR, which is
+/// forbidden here. A mechanical corner-opacity proxy ships as evidence only: these cases pin that
+/// the proxy works, and it still cannot conclude the item.
 /// </summary>
-/// <remarks>
-/// 🔒 The item is <see cref="QaClassification.Human"/> because deciding it needs OCR, which needs a
-/// model or a native binary, and both are forbidden here. A mechanical corner-opacity proxy ships as
-/// <em>evidence</em>. These cases pin the exact thing assumption A5 is about: the proxy works, and
-/// it still cannot conclude the item.
-/// </remarks>
 public sealed class WatermarkCheckTests
 {
-    /// <summary>
-    /// 🔒 The proxy is real, not decorative: a signature stamped into a corner moves the
-    /// measurement, and moves it past the ceiling this suite states.
-    /// </summary>
+    /// <summary>The proxy is real, not decorative: a stamped corner moves the measurement past the stated ceiling.</summary>
     [Fact]
     public void Evaluate_measures_a_higher_corner_opacity_for_a_stamped_corner_than_a_clean_one()
     {
@@ -34,11 +26,7 @@ public sealed class WatermarkCheckTests
         dirty.ShouldBeGreaterThan(clean);
     }
 
-    /// <summary>
-    /// 🔒 <b>The A5 assertion.</b> The proxy fired and the verdict is still
-    /// <see cref="QaVerdict.HumanGapOnly"/>. Anything else would mean a batch could be accepted with
-    /// text across the middle of every asset in it, reported as "item 8 passed".
-    /// </summary>
+    /// <summary>The proxy firing must still yield <see cref="QaVerdict.HumanGapOnly"/>, or a batch could report "item 8 passed" with text mid-asset.</summary>
     [Fact]
     public void Evaluate_returns_HumanGapOnly_even_when_the_corner_proxy_fires()
     {
@@ -51,10 +39,7 @@ public sealed class WatermarkCheckTests
         outcome.Verdict.ShouldNotBe(QaVerdict.Fail);
     }
 
-    /// <summary>
-    /// 🔒 And the clean image is not a pass either. A human item that concluded "no watermark" from
-    /// four quiet corners would be exactly the heuristic-in-the-checklist's-clothes A5 forbids.
-    /// </summary>
+    /// <summary>The clean image is not a pass either: concluding "no watermark" from four quiet corners would be the proxy masquerading as the human check.</summary>
     [Fact]
     public void Evaluate_returns_HumanGapOnly_for_a_clean_image_rather_than_Pass()
     {
@@ -64,11 +49,7 @@ public sealed class WatermarkCheckTests
         outcome.Verdict.ShouldNotBe(QaVerdict.Pass);
     }
 
-    /// <summary>
-    /// 🔒 The gap says <em>why</em> the item is human, not merely that it is. "OCR needs a model or
-    /// a native binary" is the fact a future reader needs in order to know what would have to change
-    /// before this could be mechanised.
-    /// </summary>
+    /// <summary>The gap must say why the item is human, so a future reader knows what would have to change before it could be mechanised.</summary>
     [Fact]
     public void Evaluate_names_OCR_as_the_reason_the_item_cannot_be_mechanised()
     {

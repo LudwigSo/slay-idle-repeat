@@ -7,19 +7,15 @@ using SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 
-/// <summary>
-/// `05` §5's catalogue as a snapshot, and the doubles the status suite drives it through.
-/// </summary>
+/// <summary>The status catalogue as a snapshot, and the doubles the status suite drives it through.</summary>
 /// <remarks>
-/// 🔒 <b>The catalogue is built by reading a snapshot, not by constructing the record.</b> The
-/// document is the authority on `05` §5 and <c>StatusCatalogue.Read</c> is the only way into it, so a
-/// fixture that skipped the reader would leave every behaviour test passing over a shape the real
-/// file cannot produce. The shipped file's own numbers are asserted separately, in
-/// <c>SlayIdleRepeat.Application.Tests</c>, which is the assembly that can load it.
+/// The catalogue is built by reading a snapshot, not by constructing the record: the document is
+/// the authority and <c>StatusCatalogue.Read</c> is the only way into it, so a fixture that skipped
+/// the reader would leave every behaviour test passing over a shape the real file cannot produce.
 /// </remarks>
 internal static class StatusFixtures
 {
-    /// <summary>`05` §5's table, in the order the section prints it.</summary>
+    /// <summary>The status table, in the order the design doc prints it.</summary>
     internal static ContentSnapshot Snapshot(
         decimal bleedMissingHpScaling = 1.0m,
         decimal stunMaxSeconds = 1.5m,
@@ -56,13 +52,12 @@ internal static class StatusFixtures
     }
 
     /// <summary>
-    /// 🔒 <paramref name="other"/> with `05` §5's catalogue added — the snapshot shape the public
+    /// <paramref name="other"/> with the status catalogue added — the snapshot shape the public
     /// <c>CombatSimulator.Simulate</c> overload requires.
     /// </summary>
     /// <remarks>
-    /// That overload composes its own <c>StatusTimeline</c> (a fight it cannot apply a status in is not
-    /// a fight `14` §2.4's client can run), so it reads <b>two</b> documents and a fixture carrying only
-    /// <c>combat_caps.json</c> fails loudly at <c>StatusCatalogue.Read</c>.
+    /// That overload composes its own <c>StatusTimeline</c>, so it reads two documents and a
+    /// fixture carrying only <c>combat_caps.json</c> fails loudly at <c>StatusCatalogue.Read</c>.
     /// </remarks>
     internal static ContentSnapshot With(ContentSnapshot other)
     {
@@ -75,7 +70,7 @@ internal static class StatusFixtures
                  .Append(Snapshot().GetDocument(StatusCatalogue.Document)));
     }
 
-    /// <summary>`05` §5, read.</summary>
+    /// <summary>The status table, read.</summary>
     internal static StatusCatalogue Catalogue(
         decimal bleedMissingHpScaling = 1.0m,
         decimal stunMaxSeconds = 1.5m,
@@ -168,8 +163,7 @@ internal static class StatusFixtures
             new("potencyBasis", ContentValue.Text("TARGET_STAT_PCT")),
             new("stat", ContentValue.Text("ATK")),
 
-            // 🔒 `05` §5 says RAGE decays and states no curve. Unauthorised, exactly as the shipped
-            // file carries it.
+            // RAGE decays and states no curve. Unauthorised, exactly as the shipped file carries it.
             new("decayCurve", ContentValue.Unauthorised),
         ]);
 
@@ -198,14 +192,13 @@ internal static class StatusFixtures
 }
 
 /// <summary>
-/// A `05` §4 pipeline that records what a status tick asked of it, and applies the HP change the
-/// way `05` §4 step 9 does — write, then <c>AfterHpDecrease</c>.
+/// An attack pipeline that records what a status tick asked of it, and applies the HP change the
+/// same way production does — write, then <c>AfterHpDecrease</c>.
 /// </summary>
 /// <remarks>
-/// 🔒 It implements the real seam and nothing more, on <c>RecordingAttackPipeline</c>'s stated
-/// doctrine. What M2-10 can be held to is <em>which member it routes a tick through, with what
-/// number</em> — the mitigation, the wards and the floor are M2-09's and a double that re-implemented
-/// them would be a second damage engine to keep in step.
+/// It implements the real seam and nothing more. What the timeline can be held to is which member
+/// it routes a tick through, with what number — mitigation, wards and flooring belong to the real
+/// damage engine, and a double that re-implemented them would be a second one to keep in step.
 /// </remarks>
 internal class RecordingStatusPipeline : IAttackPipeline
 {
@@ -215,7 +208,7 @@ internal class RecordingStatusPipeline : IAttackPipeline
 
     /// <summary>
     /// Hook for a subclass that needs an attack to cost something the whole fight can see — the
-    /// determinism suite uses it to make `05` §4's dodge roll observable.
+    /// determinism suite uses it to make the dodge roll observable.
     /// </summary>
     internal virtual void OnAttack()
     {
@@ -231,22 +224,19 @@ internal class RecordingStatusPipeline : IAttackPipeline
     /// <summary>Every <c>GrantWard</c>, as <c>(tick, target, amount, id)</c>.</summary>
     internal List<(int Tick, string Target, double Amount, string SourceEffectId)> Wards { get; } = new();
 
-    /// <summary>Every resolved swing, as <c>(tick, attacker)</c> — `05` §3.1 slot 4's actual output.</summary>
+    /// <summary>Every resolved swing, as <c>(tick, attacker)</c>.</summary>
     internal List<(int Tick, string Attacker)> Swings { get; } = new();
 
-    /// <summary>How many times the pipeline ran `05` §3.1's phase check plus <c>ON_LOW_HP</c>.</summary>
+    /// <summary>How many times the pipeline ran the phase check plus <c>ON_LOW_HP</c>.</summary>
     internal int HpDecreaseNotifications { get; private set; }
 
     /// <inheritdoc />
     /// <remarks>
-    /// 🔴 <b>A basic attack deals nothing here, and that is deliberate — it was found by a test that
-    /// failed for the wrong reason.</b> The subject of this suite is the status engine, and slot 4
-    /// runs on every tick of every fight. A double that dealt even 1 damage a swing made the target's
-    /// HP a function of <em>how many swings had happened before the cadence boundary</em>: a
-    /// <c>BLEED</c> case written to read "at full health" measured 10.2 instead of 10, because the
-    /// hero had landed two hits by tick 27, and the phase-check count was 8 rather than the 2 DoT
-    /// ticks it was asserting about. Both would have been "fixed" by loosening the assertions, which
-    /// would have thrown away the two sharpest tests in the file.
+    /// A basic attack deals nothing here, and that is deliberate — it was found by a test that
+    /// failed for the wrong reason. Slot 4 runs on every tick of every fight, and a double that
+    /// dealt even 1 damage a swing made the target's HP a function of how many swings had happened
+    /// before the cadence boundary: a <c>BLEED</c> case written to read "at full health" measured
+    /// 10.2 instead of 10, because the hero had landed two hits by tick 27.
     /// </remarks>
     public AttackResolution ResolveAttack(
         IEffectActorView attacker, IEffectActorView defender, double attackMultiplier, string sourceEffectId)
@@ -296,19 +286,17 @@ internal class RecordingStatusPipeline : IAttackPipeline
     }
 
     /// <summary>
-    /// A phase controller that counts `05` §3.1's phase check — the call that is <b>doubled</b> if a DoT
-    /// tick routes <c>AfterHpDecrease</c> itself as well as through §4 step 9.
+    /// A phase controller that counts the phase check — the call that is doubled if a DoT tick
+    /// routes <c>AfterHpDecrease</c> itself as well as through the damage pipeline.
     /// </summary>
     /// <remarks>
-    /// 🔴 Counting inside <see cref="RecordingStatusPipeline"/> measures how many times the timeline
-    /// called the pipeline — which the <c>Dots.Count</c> assertion already says — and is structurally
-    /// blind to the defect: a timeline that <em>also</em> called <c>_services.AfterHpDecrease</c> leaves
-    /// that counter unchanged. <c>BattleSimulation.AfterHpDecrease</c> fans out to here, so this sees the
-    /// double.
+    /// Counting inside <see cref="RecordingStatusPipeline"/> instead would be structurally blind to
+    /// the defect: a timeline that also called <c>_services.AfterHpDecrease</c> leaves that counter
+    /// unchanged. <c>BattleSimulation.AfterHpDecrease</c> fans out to here, so this sees the double.
     /// </remarks>
     internal sealed class CountingPhases : IBossPhases
     {
-        /// <summary>How many times `05` §3.1's phase check ran.</summary>
+        /// <summary>How many times the phase check ran.</summary>
         internal int HpDecreaseCalls { get; private set; }
 
         /// <inheritdoc />
@@ -321,9 +309,9 @@ internal class RecordingStatusPipeline : IAttackPipeline
 
         /// <inheritdoc />
         /// <remarks>
-        /// M2-12's per-tick telegraph slot. This fixture counts `05` §3.1's phase check and nothing
-        /// else, so the slot is deliberately a no-op here — a counter would make the status suites
-        /// fail on a boss-engine change that has nothing to do with statuses.
+        /// The per-tick telegraph slot. This fixture counts the phase check and nothing else, so
+        /// the slot is deliberately a no-op here — a counter would make the status suites fail on a
+        /// boss-engine change that has nothing to do with statuses.
         /// </remarks>
         public void AdvanceTick(BattleActor actor, int tick)
         {
@@ -331,10 +319,10 @@ internal class RecordingStatusPipeline : IAttackPipeline
 
         /// <inheritdoc />
         /// <remarks>
-        /// M2-12's `18` §6 <c>PHASE</c>-scope reading. <c>null</c>, deliberately: this fixture models
-        /// no phases at all, and §6's own answer for a fight without them is that a <c>PHASE</c>
-        /// scope behaves as <c>BATTLE</c>. Every status case in this file is written against that
-        /// reading; the scope's own boundary is probed in <c>BossPhaseScopeTests</c>.
+        /// The <c>PHASE</c>-scope reading. <c>null</c>, deliberately: this fixture models no phases
+        /// at all, and the rule for a fight without them is that a <c>PHASE</c> scope behaves as
+        /// <c>BATTLE</c>. Every status case in this file is written against that reading; the
+        /// scope's own boundary is probed in <c>BossPhaseScopeTests</c>.
         /// </remarks>
         public int? CurrentPhase(BattleActor actor) => null;
     }

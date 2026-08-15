@@ -6,25 +6,17 @@ using SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>
-/// The bench every `18` §2 op test runs on: a battle, the six seams as <b>recorders</b>, and the
-/// literal calls each op made.
-/// </summary>
+/// <summary>The bench every op test runs on: a battle, the six seams as recorders, and the literal calls each op made.</summary>
 /// <remarks>
-/// 🔒 Recorders, not stubs that swallow: `18` §10 step 3 asks for a test that asserts the op's
-/// <b>numeric</b> behaviour, so these capture the number and the recipient of every seam call in order.
-/// A test asserting only that the resolver did not throw would pass over an op that multiplied by the
-/// wrong basis, hit the wrong actor, or silently did nothing.
+/// Recorders, not stubs that swallow: these capture the number and the recipient of every seam call
+/// in order, so a test that asserts only "the resolver did not throw" can't pass over an op that
+/// multiplied by the wrong basis, hit the wrong actor, or silently did nothing.
 /// <para>
-/// 🔒 <b>Every argument is captured, including ones no assertion reads yet.</b> A recorder that dropped
+/// Every argument is captured, including ones no assertion reads yet — a recorder that dropped
 /// <c>duration</c>, <c>stacking</c> or <c>sourceEffectId</c> would let an op pass <c>null, null, ""</c>
-/// with the whole suite green — and all three are load-bearing.
+/// with the whole suite green.
 /// </para>
-/// <para>
-/// The stat reader is <b>frozen by construction</b>, which is how <c>StatCopyOpTests</c> exhibits `18`
-/// §2.4's <em>"reads the start-of-tick snapshot, so mutual copies cannot recurse"</em> rather than
-/// asserting the doc comment.
-/// </para>
+/// <para>The stat reader is frozen by construction, so mutual <c>STAT_COPY</c> copies cannot recurse.</para>
 /// </remarks>
 internal sealed class OpTestBench
 {
@@ -37,39 +29,33 @@ internal sealed class OpTestBench
     /// <summary>The heal/ward/damage numbers, by member, for the numeric assertions.</summary>
     internal List<(string Member, string Actor, double Amount)> Amounts { get; } = [];
 
-    /// <summary>
-    /// The `18` §6 lifetime each seam call carried — the half of an effect no <see cref="Amounts"/>
-    /// row can show.
-    /// </summary>
+    /// <summary>The lifetime each seam call carried — the half of an effect no <see cref="Amounts"/> row can show.</summary>
     internal List<(string Member, EffectDuration? Duration, EffectStacking? Stacking)> Lifetimes { get; } = [];
 
-    /// <summary>The `18` §8 effect id each seam call carried.</summary>
+    /// <summary>The effect id each seam call carried.</summary>
     internal List<string> EffectIds { get; } = [];
 
-    /// <summary>Whether a <c>DAMAGE_MAXHP_PCT</c> reported `05` §4.1's bypass class (b).</summary>
+    /// <summary>Whether a <c>DAMAGE_MAXHP_PCT</c> reported a ward bypass.</summary>
     internal List<bool> WardBypasses { get; } = [];
 
     /// <summary>The <c>sourceCapPct</c> each <c>SHIELD</c> carried.</summary>
     internal List<double?> SourceCaps { get; } = [];
 
-    /// <summary>The `18` §2.5 ops queued rather than resolved.</summary>
+    /// <summary>The ops queued rather than resolved.</summary>
     internal List<(string EffectId, EffectOp Op, string Source, double Argument)> Queued { get; } = [];
 
     /// <summary>The percent-bucket writes <c>STAT_COPY</c> made, and who they landed on.</summary>
     internal List<(string Holder, StatId Stat, double Fraction)> PercentBuckets { get; } = [];
 
     /// <summary>
-    /// 🔒 M2-R1 — every <c>ITriggeredStatSink.Apply</c> call, one row per resolved target, as
+    /// Every <c>ITriggeredStatSink.Apply</c> call, one row per resolved target, as
     /// <c>(targetId, op, stat, value, sourceEffectId)</c>.
     /// </summary>
     internal List<(string TargetId, EffectOp Op, StatId Stat, double Value, string SourceEffectId)>
         TriggeredStatFirings
     { get; } = [];
 
-    /// <summary>
-    /// 🔒 `18` §10.1 E6 — every <c>RANDOM_OUTCOME</c> hand-off, as
-    /// <c>(holder, chosenEffectId, sourceEffectId)</c>.
-    /// </summary>
+    /// <summary>Every <c>RANDOM_OUTCOME</c> hand-off, as <c>(holder, chosenEffectId, sourceEffectId)</c>.</summary>
     /// <remarks>
     /// A list rather than a single slot precisely so <em>mutual exclusivity</em> is assertable:
     /// "exactly one row per roll" is the claim, and a recorder that overwrote would make one call
@@ -77,13 +63,10 @@ internal sealed class OpTestBench
     /// </remarks>
     internal List<(string Holder, string ChosenEffectId, string SourceEffectId)> RandomOutcomes { get; } = [];
 
-    /// <summary>
-    /// What <see cref="IAttackPipeline.ResolveAttack"/> answers.
-    /// </summary>
+    /// <summary>What <see cref="IAttackPipeline.ResolveAttack"/> answers.</summary>
     /// <remarks>
-    /// ⚠️ The default is a <b>miss</b>, deliberately: a default carrying HP would make
-    /// <c>DAMAGE</c>'s "the target set was empty" and "two attacks landed" indistinguishable in any
-    /// test that forgot to set it. A test asserting <c>DAMAGE</c>'s return sets it explicitly.
+    /// The default is a miss, deliberately: a default carrying HP would make "the target set was
+    /// empty" and "two attacks landed" indistinguishable in any test that forgot to set it.
     /// </remarks>
     internal AttackResolution AttackAnswer { get; set; } = new(Missed: true, false, false, 0.0, 0.0);
 
@@ -95,7 +78,7 @@ internal sealed class OpTestBench
         return this;
     }
 
-    /// <summary>`18` §2.4's <c>HIGHEST_PCT_BONUS</c> answer for one actor.</summary>
+    /// <summary><c>HIGHEST_PCT_BONUS</c> answer for one actor.</summary>
     internal OpTestBench WithHighestBucket(IEffectActorView actor, StatId stat)
     {
         _highestBucket[actor.Id] = stat;
@@ -112,13 +95,12 @@ internal sealed class OpTestBench
     }
 
     /// <summary>
-    /// 🔒 M2-R3 — the status ids <c>IStatusEngine.HasFixedPotency</c> answers <c>true</c> for on this
-    /// bench, standing in for <c>StatusCatalogue.Of(id).FixedPotency is not null</c> — `05` §5's
-    /// FREEZE, in the shipped data.
+    /// The status ids <c>IStatusEngine.HasFixedPotency</c> answers <c>true</c> for on this bench,
+    /// standing in for <c>StatusCatalogue.Of(id).FixedPotency is not null</c>.
     /// </summary>
     private readonly HashSet<string> _fixedPotencyStatuses = new(StringComparer.Ordinal);
 
-    /// <summary>Marks a status id as carrying its own literal potency, as FREEZE does in `05` §5.</summary>
+    /// <summary>Marks a status id as carrying its own literal potency, as FREEZE does.</summary>
     internal OpTestBench WithFixedPotency(string statusId)
     {
         _fixedPotencyStatuses.Add(statusId);
@@ -165,7 +147,7 @@ internal sealed class OpTestBench
                 $"expected exactly one {member} call, saw {matches.Length}: {string.Join(" | ", Calls)}");
     }
 
-    /// <summary>The `18` §6 lifetime the one call to a member carried.</summary>
+    /// <summary>The lifetime the one call to a member carried.</summary>
     internal (EffectDuration? Duration, EffectStacking? Stacking) OnlyLifetime(string member)
     {
         var matches = Lifetimes.Where(l => string.Equals(l.Member, member, StringComparison.Ordinal)).ToArray();
@@ -314,9 +296,8 @@ internal sealed class OpTestBench
     }
 
     /// <summary>
-    /// 🔒 `18` §2.4's start-of-tick snapshot, made literal: a map fixed before the ops run and never
-    /// written to. Two actors copying each other therefore cannot see each other's output, which is
-    /// the property §2.4 states and the op cannot enforce for itself.
+    /// The start-of-tick snapshot, made literal: a map fixed before the ops run and never written to,
+    /// so two actors copying each other cannot see each other's output.
     /// </summary>
     private sealed class FrozenStatReader(OpTestBench bench) : IResolvedStatReader
     {
@@ -360,7 +341,7 @@ internal sealed class OpTestBench
     }
 }
 
-/// <summary>Effect literals for the op tests, in the shapes `18` and `06` author.</summary>
+/// <summary>Effect literals for the op tests, in realistic authored shapes.</summary>
 internal static class OpFixtures
 {
     /// <summary>An effect with an id, an op and a value — the spine every op shares.</summary>
@@ -374,15 +355,10 @@ internal static class OpFixtures
             Target = target,
         };
 
-    /// <summary>
-    /// A minimal well-formed effect for one op — the keys its `18` §2 row and its schema branch
-    /// require, and nothing more.
-    /// </summary>
+    /// <summary>A minimal well-formed effect for one op — the keys its op row and schema branch require, and nothing more.</summary>
     /// <remarks>
-    /// 🔒 Shared by the resolver, seam and validation suites so that the three cannot disagree about
-    /// what an authorable effect of a given op looks like. Every shape here satisfies
-    /// <c>EffectOpValidation</c>, which
-    /// <c>EffectOpValidationTests.Every_exemplar_the_op_suites_share_is_well_formed</c> asserts.
+    /// Shared by the resolver, seam and validation suites so that the three cannot disagree about
+    /// what an authorable effect of a given op looks like.
     /// </remarks>
     internal static EffectDefinition Exemplar(
         EffectOp op, string? id = null, EffectTarget? target = EffectTarget.CURRENT_TARGET)
@@ -416,8 +392,8 @@ internal static class OpFixtures
 
             EffectOp.MODIFY_DIE_FACE => effect with { NewFace = new DieFaceSpec("Star") },
 
-            // 🔒 18 §10.1 E6 — RANDOM_OUTCOME carries NO value (its own number is the winning row's
-            //    index) and needs two rows, because one outcome is not a choice.
+            // RANDOM_OUTCOME carries no value (its own number is the winning row's index) and needs
+            // two rows, because one outcome is not a choice.
             EffectOp.RANDOM_OUTCOME => effect with
             {
                 Value = null,

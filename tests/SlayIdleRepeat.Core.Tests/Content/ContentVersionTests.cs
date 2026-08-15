@@ -5,8 +5,7 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// `14` §6 — the version stamp is a content hash, not a hand-bumped number. These tests pin the
-/// shape of the stamp; <c>ContentHashingTests</c> in the Application suite pins how it is derived.
+/// The version stamp is a content hash, not a hand-bumped number; these tests pin its shape.
 /// </summary>
 public sealed class ContentVersionTests
 {

@@ -5,9 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>
-/// `14` §6 — the load path end to end: parse → layer overrides → validate → stamp.
-/// </summary>
+/// <summary>Tests the load path end to end: parse, layer overrides, validate, stamp.</summary>
 public sealed class ContentLoaderTests
 {
     [Fact]
@@ -90,8 +88,7 @@ public sealed class ContentLoaderTests
     {
         var before = ContentLoader.Load(ContentTestData.Valid()).Require();
 
-        // One key, renamed everywhere it is written: both locales and the data that names it.
-        // Nothing about the run changes except the key, and the stamp must still move.
+        // Rename one key everywhere it appears (both locales and the data); the stamp must still move.
         var after = ContentLoader.Load(
             ContentTestData.Valid()
                 .Set(ContentTestData.EnglishPath, Rename(ContentTestData.English))
@@ -116,9 +113,8 @@ public sealed class ContentLoaderTests
     }
 
     /// <summary>
-    /// 🔒 Content pairs by <b>directory</b>. Under the stem rule this file would look for
-    /// <c>schema/CH_01_EMBERFALL.schema.json</c> — one <c>MissingSchema</c> per chapter, and a
-    /// <c>chapter.schema.json</c> still governing nothing.
+    /// Content pairs by directory. Under a stem rule this file would look for
+    /// <c>schema/CH_01_EMBERFALL.schema.json</c> instead — a MissingSchema per chapter file.
     /// </summary>
     [Theory]
     [InlineData("content/chapters/CH_01_EMBERFALL.json", "schema/chapter.schema.json")]
@@ -143,14 +139,12 @@ public sealed class ContentLoaderTests
             i.Code == ContentIssueCode.MissingSchema && i.Location == "content/runes/RUNE_EMBER.json");
     }
 
-    // ------------------------------------- 14 §6 duplicate ids, over a NUMERIC identity field
+    // ------------------------------------- duplicate ids over a numeric identity field
 
     /// <summary>
-    /// 🔒 <c>ContentInvariants.IdentityMemberNames</c> includes <c>chapter</c>, <c>day</c> and
-    /// <c>slot</c>, which are numbers. Keying the duplicate check on <c>ToString()</c> compared
-    /// numbers by <em>representation</em>: <c>ContentValue.ToString()</c> is scale-preserving while
-    /// <c>ContentValue.Equals</c> is deliberately scale-independent, so <c>3</c> beside <c>3.0</c>
-    /// declared the same slot twice and walked through the gate.
+    /// Some identity members (chapter, day, slot) are numbers. Keying the duplicate check on
+    /// ToString() compares by representation, while ContentValue.Equals is scale-independent — so
+    /// 3 next to 3.0 used to slip through as distinct.
     /// </summary>
     [Fact]
     public void Load_sees_a_duplicate_numeric_id_written_at_a_different_scale()
@@ -163,9 +157,8 @@ public sealed class ContentLoaderTests
     }
 
     /// <summary>
-    /// 🔒 And the other direction. <c>ToString()</c> for an object emits its member <em>names</em>
-    /// only, so two structurally different objects sitting in an identity slot reported as
-    /// duplicates of each other — a false build failure on data that is correct.
+    /// The other direction: ToString() for an object emits only its member names, so two
+    /// structurally different objects in an identity slot used to report as duplicates.
     /// </summary>
     [Fact]
     public void Load_does_not_call_two_different_objects_in_an_identity_slot_duplicates()

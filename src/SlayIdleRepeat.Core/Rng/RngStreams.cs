@@ -2,28 +2,21 @@ using System.Globalization;
 
 namespace SlayIdleRepeat.Core.Rng;
 
-/// <summary>
-/// 🔒 `14` §8.1 — the complete stream registry. "A system that needs randomness draws from one
-/// of these streams or gets a new row here."
-/// </summary>
+/// <summary>The complete RNG stream registry. A system that needs randomness draws from one of these streams or gets a new row here.</summary>
 /// <remarks>
+/// One run seed spawns independent named streams so that consuming randomness in one system never
+/// shifts another. The names are wire values, appearing in <c>rngStreamStates</c> on every outcome
+/// the server sends, so changing one is a protocol change, not a rename.
 /// <para>
-/// One run seed spawns independent named streams so that consuming randomness in one system
-/// never shifts another. The names are wire values: they appear in <c>rngStreamStates</c> on
-/// every outcome the server sends (`14` §2.3), so changing one is a protocol change, not a
-/// rename.
-/// </para>
-/// <para>
-/// They live here as constants because a stream name written as a literal at a call site has a
-/// failure mode nothing catches: a typo does not fail, it silently opens a different — perfectly
-/// valid — sequence, and the run it corrupts is by definition unreproducible.
-/// <see cref="DeterministicRng"/> validates against <see cref="IsRegistered"/> so that even a
-/// name arriving as data cannot slip through.
+/// They live here as constants rather than literals at each call site because a typo in a literal
+/// does not fail — it silently opens a different, perfectly valid sequence, corrupting the run in a
+/// way that is by definition unreproducible. <see cref="DeterministicRng"/> validates against
+/// <see cref="IsRegistered"/> so even a name arriving as data cannot slip through.
 /// </para>
 /// </remarks>
 public static class RngStreams
 {
-    /// <summary>Board layout generation; Portal jump draws (`03` §1.1).</summary>
+    /// <summary>Board layout generation; Portal jump draws.</summary>
     public const string Board = "board";
 
     /// <summary>Die rolls and the fair-bag weights.</summary>
@@ -35,16 +28,13 @@ public static class RngStreams
     /// <summary>Gear, currency and material drops.</summary>
     public const string Drops = "drops";
 
-    /// <summary>Treasure-tile payout profile draws (`03` §7a.3).</summary>
+    /// <summary>Treasure-tile payout profile draws.</summary>
     public const string Treasure = "treasure";
 
-    /// <summary>Shrine option draws (`03` §7a.5).</summary>
+    /// <summary>Shrine option draws.</summary>
     public const string Shrine = "shrine";
 
-    /// <summary>
-    /// Per battle, re-rooted at <c>battleSeed</c> — see <see cref="SeedDerivation.BattleSeed"/>,
-    /// which is the sole derivation.
-    /// </summary>
+    /// <summary>Per battle, re-rooted at <c>battleSeed</c> — see <see cref="SeedDerivation.BattleSeed"/>, the sole derivation.</summary>
     public const string Combat = "combat";
 
     /// <summary>Event card outcomes.</summary>
@@ -53,16 +43,13 @@ public static class RngStreams
     /// <summary>The prefix of the one parameterised row, <c>minigame:{index}</c>.</summary>
     public const string MinigamePrefix = "minigame:";
 
-    /// <summary>
-    /// The eight fixed rows of `14` §8.1, in the order the specification lists them. The ninth
-    /// row is parameterised and cannot be enumerated — build it with <see cref="Minigame"/>.
-    /// </summary>
+    /// <summary>The eight fixed rows of the registry. The ninth row is parameterised and cannot be enumerated — build it with <see cref="Minigame"/>.</summary>
     public static IReadOnlyList<string> FixedNames { get; } = Array.AsReadOnly(new[]
     {
         Board, Dice, Draft, Drops, Treasure, Shrine, Combat, Events,
     });
 
-    /// <summary>The minigame stream for the given index — the parameterised row of `14` §8.1.</summary>
+    /// <summary>The minigame stream for the given index — the parameterised row of the registry.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The index is negative.</exception>
     public static string Minigame(int index)
     {

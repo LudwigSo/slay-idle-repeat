@@ -7,26 +7,20 @@ using RunAggregate = SlayIdleRepeat.Core.Model.Run;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-// 🔒 Namespace SlayIdleRepeat.Core.Tests, not ...Tests.GameRules, and the files still sit under
-// GameRules/. The same measurement M1-04 recorded for Model/Player/: a child namespace named
-// `GameRules` shadows the type GameRules for everything inside SlayIdleRepeat.Core.Tests, so a test
-// written here could not name the very class it is testing (CS0118).
+// Namespace SlayIdleRepeat.Core.Tests, not ...Tests.GameRules, even though the files sit under
+// GameRules/: a child namespace named `GameRules` shadows the type GameRules for everything inside
+// SlayIdleRepeat.Core.Tests, so a test written here could not name the very class it is testing
+// (CS0118).
 
 /// <summary>
 /// Hermetic <see cref="WorldSlice"/> and command fixtures for the <c>GameRules.Apply</c> suite.
 /// </summary>
 /// <remarks>
-/// Aggregates are built the only way `30` §11.3 allows — through <c>Rehydrate</c> over the snapshot
-/// fixtures — so nothing here invents a starting state.
-/// <para>
-/// 🔒 <see cref="Context"/> carries no <c>CommandSeed</c>, which is correct for every fixture command
-/// here; a command that <em>draws</em> takes <see cref="Drawing"/>. Sharing one fixture would let a
-/// test pass on the wrong one of two opposite defects.
-/// </para>
-/// <para>
-/// ⚠️ The command fixtures are deliberately not any of `14` §2.3's 49 rows — a fixture borrowing a
-/// real name would read as a claim about it. They are named for the <em>shape</em> each drives.
-/// </para>
+/// Aggregates are built only through <c>Rehydrate</c> over the snapshot fixtures, so nothing here
+/// invents a starting state. <see cref="Context"/> carries no <c>CommandSeed</c>; a command that
+/// draws takes <see cref="Drawing"/> instead — sharing one fixture would let a test pass on the
+/// wrong one of two opposite defects. The command fixtures are deliberately not named after any
+/// real wire command, so a fixture never reads as a claim about one.
 /// </remarks>
 internal static class Worlds
 {
@@ -46,22 +40,19 @@ internal static class Worlds
         TestSupport.GameContexts.WithoutPlus,
         TestSupport.GameContexts.NoKillSwitchThrown);
 
-    /// <summary>
-    /// 🔒 The context a ⚄ command gets: <see cref="Context"/> plus a server-issued <c>CommandSeed</c>.
-    /// </summary>
+    /// <summary>The context a drawing command gets: <see cref="Context"/> plus a server-issued <c>CommandSeed</c>.</summary>
     /// <param name="commandSeed">
-    /// The seed. ⚠️ Required rather than defaulted — a default would make "which seed did this test
-    /// use" invisible at the call site, and every determinism assertion here is a claim about it.
+    /// Required rather than defaulted — a default would make "which seed did this test use"
+    /// invisible at the call site.
     /// </param>
     /// <param name="nowUtc">When the command is applied. Defaults to <see cref="NowUtc"/>.</param>
     internal static GameContext Drawing(ulong commandSeed, DateTimeOffset? nowUtc = null) =>
         Context with { CommandSeed = commandSeed, NowUtc = nowUtc ?? NowUtc };
 
-    /// <summary>The same instant, on the next game day (`30` §2.3's 05:00 UTC boundary).</summary>
+    /// <summary>The same instant, on the next game day.</summary>
     /// <remarks>
-    /// Written as a day's addition to <see cref="NowUtc"/> rather than as a second literal: the two
-    /// have to be one game day apart for the idempotence suite to mean anything, and two literals is
-    /// how that stops being true without a test noticing.
+    /// Written as a day's addition to <see cref="NowUtc"/> rather than as a second literal, so the
+    /// two stay one game day apart.
     /// </remarks>
     internal static DateTimeOffset NextDay(DateTimeOffset from) => from.AddDays(1);
 
@@ -96,10 +87,7 @@ internal static class Worlds
     /// <summary>A slice with a player and a run.</summary>
     internal static WorldSlice InARun(RunSnapshot? run = null) => new(NewPlayer(), NewRun(run));
 
-    /// <summary>
-    /// A command that acts inside a run. Its wire name is spelled so it cannot be mistaken for one
-    /// of `14` §2.3's rows.
-    /// </summary>
+    /// <summary>A command that acts inside a run. Its wire name cannot be mistaken for a real one.</summary>
     internal sealed record RunFixtureCommand : GameCommand;
 
     /// <summary>A command that acts outside a run.</summary>

@@ -5,29 +5,24 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 The headline regression: <em>"there is no test that runs the authored bosses to completion."</em>
-/// The nine authored scripts, through the REAL engine, to `05` §3's 1800-tick bound. Four of the nine
-/// used to fault with an unhandled <c>EffectContextException</c> partway through — never producing a
-/// <see cref="SimulationResult"/> at all — the moment their phase reached the mechanic that names it.
+/// The nine authored scripts, through the real engine, to the 1800-tick bound. Four of the nine
+/// used to fault with an unhandled <c>EffectContextException</c> partway through — never producing
+/// a <see cref="SimulationResult"/> at all — the moment their phase reached the mechanic that names it.
 /// </summary>
 /// <remarks>
-/// 🔒 Exit criterion ③'s run half: the zero-bespoke-code half was proved by an IL scan, and this is the
-/// test for the other.
+/// "Runs to completion" means a <see cref="SimulationResult"/> comes back — win, loss or timeout —
+/// not that the hero wins. The hero is calibrated to bring every boss down well inside the bound,
+/// so every case does win, but the assertion is on <c>DurationTicks</c> being within bounds and the
+/// fight not throwing.
 /// <para>
-/// ⚠️ "Runs to completion" means a <see cref="SimulationResult"/> comes back — win, loss or timeout — not
-/// that the hero wins. The hero is calibrated to bring every boss down well inside the bound, so every
-/// case does win, but the assertion is on <c>DurationTicks</c> being within bounds and the fight not
-/// throwing, which is the claim `05` §1's contract actually makes.
-/// </para>
-/// <para>
-/// 🔒 All eight affected effects were <c>PERIODIC</c>s naming <c>CURRENT_TARGET</c> with no attack in
-/// flight to carry one. <c>TargetResolverTests</c> pins the fix; this is the end-to-end proof that it is
-/// what makes those four bosses' fights complete.
+/// All eight affected effects were <c>PERIODIC</c>s naming <c>CURRENT_TARGET</c> with no attack in
+/// flight to carry one. <c>TargetResolverTests</c> pins the fix; this is the end-to-end proof that
+/// it is what makes those four bosses' fights complete.
 /// </para>
 /// </remarks>
 public sealed class AllAuthoredBossesRunToCompletionTests
 {
-    /// <summary>Every one of `17` §1.2's nine authored scripts.</summary>
+    /// <summary>Every one of the nine authored scripts.</summary>
     public static IEnumerable<object[]> AllBossIds() => RealBossFight.AllBossIds(ShippedBosses.Content);
 
     [Theory]
@@ -43,7 +38,7 @@ public sealed class AllAuthoredBossesRunToCompletionTests
     }
 
     /// <summary>
-    /// 🔒 The four previously-faulting bosses, individually — so a regression in just one of them
+    /// The four previously-faulting bosses, individually — so a regression in just one of them
     /// names itself in the test explorer rather than hiding inside the Theory's generic case label.
     /// </summary>
     [Theory]

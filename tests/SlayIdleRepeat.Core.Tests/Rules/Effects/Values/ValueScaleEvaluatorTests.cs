@@ -7,23 +7,20 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Values;
 
 /// <summary>
-/// 🔒 `18` §1.1 — <c>effectiveValue = value × steps</c>, <c>steps = min( floor( fn / per ), cap )</c>,
-/// with the reading rounded to 4 dp <b>before</b> the division.
+/// <c>effectiveValue = value × steps</c>, <c>steps = min( floor( fn / per ), cap )</c>, with the
+/// reading rounded to 4 dp before the division.
 /// </summary>
 /// <remarks>
 /// The arithmetic itself is <see cref="ValueScale"/>'s and is already pinned by
-/// <c>ValueScaleTests</c> (M2-01). What is pinned here is the <b>wiring</b>: that the reading comes
-/// from M2-05's <c>ConditionEvaluator.Read</c> and reaches <see cref="ValueScale.StepsFor"/>
-/// <em>unmodified</em>, and that the two worked rows of `18` §1.1 evaluate to the numbers the
-/// document captions.
+/// <c>ValueScaleTests</c>. What is pinned here is the wiring: that the reading comes from
+/// <c>ConditionEvaluator.Read</c> and reaches <see cref="ValueScale.StepsFor"/> unmodified, and that
+/// the two worked examples evaluate to the numbers the document captions.
 /// </remarks>
 public sealed class ValueScaleEvaluatorTests
 {
-    // ───────────────────────────────────────────── the two worked rows of `18` §1.1
+    // ───────────────────────────────────────────── the two worked examples
 
-    /// <summary>
-    /// `18` §1.1's <c>PK_BERSERK</c> Tier I — <em>"+1% ATK per 1% missing HP, up to +45%"</em>.
-    /// </summary>
+    /// <summary><c>PK_BERSERK</c> Tier I — "+1% ATK per 1% missing HP, up to +45%".</summary>
     [Fact]
     public void PK_BERSERK_scales_one_percent_of_ATK_per_one_percent_of_missing_HP()
     {
@@ -40,8 +37,8 @@ public sealed class ValueScaleEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 The cap is <c>min(…, cap)</c> — <c>PK_BERSERK</c> stops at +45%, which is the whole
-    /// difference between the perk the document authors and one that reaches +99% at 1 HP.
+    /// The cap is <c>min(…, cap)</c> — <c>PK_BERSERK</c> stops at +45%, which is the whole difference
+    /// between the perk the document authors and one that reaches +99% at 1 HP.
     /// </summary>
     [Fact]
     public void PK_BERSERK_stops_at_its_45_step_cap()
@@ -56,13 +53,11 @@ public sealed class ValueScaleEvaluatorTests
     }
 
     /// <summary>
-    /// `18` §1.1's <c>PK_HOARD</c> — <em>"+1% ATK per 100 Gold currently held"</em>, uncapped.
+    /// <c>PK_HOARD</c> — "+1% ATK per 100 Gold currently held", uncapped. <c>GOLD_HELD</c> is a
+    /// <see cref="long"/> on <c>IRunStateView</c> and readings cross to <see cref="double"/>, which is
+    /// exact to ≈1.4 × 10¹³ — a precision limit under an uncapped scale, not a determinism break,
+    /// since it is identical on every platform.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ <c>GOLD_HELD</c> is a <see cref="long"/> on <c>IRunStateView</c> and readings cross to
-    /// <see cref="double"/>, which is exact to ≈1.4 × 10¹³. That is a precision limit under an
-    /// uncapped scale, not a determinism break: it is identical on every platform.
-    /// </remarks>
     [Fact]
     public void PK_HOARD_is_uncapped()
     {
@@ -79,25 +74,20 @@ public sealed class ValueScaleEvaluatorTests
             "18 §1.1: cap null is uncapped, and GOLD_HELD is a long — a 32-bit balance would have wrapped");
     }
 
-    // ───────────────────────────────────────────── 🔒 the no-double-rounding contract
+    // ───────────────────────────────────────────── the no-double-rounding contract
 
     /// <summary>
-    /// 🔒 The reading is rounded once, by <c>ConditionEvaluator.Read</c>, and handed on unmodified: `18`
-    /// §1.1 puts the 4-dp rounding on the reading <em>before</em> the division, and rounding the quotient
-    /// instead moves a step boundary.
+    /// The reading is rounded once, by <c>ConditionEvaluator.Read</c>, and handed on unmodified: the
+    /// 4-dp rounding happens on the reading before the division, and rounding the quotient instead
+    /// moves a step boundary.
     /// </summary>
-    /// <remarks>
-    /// An actor at <c>55.0055</c> of <c>100</c> HP reads <c>0.449945</c>, rounded to <c>0.4499</c> —
-    /// <b>44</b> steps. The visible difference is at the boundary below, where the unrounded reading is a
-    /// hair under a step and the rounded one is exactly on it.
-    /// </remarks>
     [Fact]
     public void The_reading_is_rounded_before_the_division_never_after()
     {
         var berserk = Berserk();
 
-        // 05 §4 leaves HP as a double: 100 - 55.000049 is 44.999951, so the raw missing fraction is
-        // 0.44999951 -> Read rounds to 0.45 -> floor(0.45 / 0.01) = 45 steps -> +0.45.
+        // HP is a double: 100 - 55.000049 is 44.999951, so the raw missing fraction is 0.44999951 ->
+        // Read rounds to 0.45 -> floor(0.45 / 0.01) = 45 steps -> +0.45.
         ValueScaleEvaluator.EffectiveValue(berserk, AtHp(0.55000049)).ShouldBe(
             0.45,
             "18 §1.1 rounds fn to 4 dp BEFORE the division: 0.44999951 rounds to 0.45, which is 45 steps");
@@ -110,7 +100,7 @@ public sealed class ValueScaleEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 The evaluator's step count is <see cref="ValueScale.StepsFor"/>'s, over
+    /// The evaluator's step count is <see cref="ValueScale.StepsFor"/>'s, over
     /// <c>ConditionEvaluator.Read</c>'s output — not a second arithmetic.
     /// </summary>
     [Fact]
@@ -124,7 +114,7 @@ public sealed class ValueScaleEvaluatorTests
 
     // ───────────────────────────────────────────── the default, and the absent value
 
-    /// <summary>`18` §1.1: <em>"<c>valueScale: null</c> (the default) means <c>effectiveValue = value</c>"</em>.</summary>
+    /// <summary><c>valueScale: null</c> (the default) means <c>effectiveValue = value</c>.</summary>
     [Fact]
     public void An_effect_with_no_valueScale_keeps_its_authored_value()
     {

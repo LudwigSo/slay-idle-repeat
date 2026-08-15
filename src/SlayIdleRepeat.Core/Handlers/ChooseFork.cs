@@ -7,29 +7,16 @@ using SlayIdleRepeat.Core.Rules.Board.Resolution;
 namespace SlayIdleRepeat.Core.Handlers;
 
 /// <summary>
-/// 🔒 `03` §1.1 — the <c>CHOOSE_FORK</c> handler (M3-02): resolves a <see cref="Run.PendingFork"/>
-/// by taking the chosen edge and finishing the movement it interrupted.
+/// The <c>CHOOSE_FORK</c> handler: resolves a <see cref="Run.PendingFork"/> by taking the chosen
+/// edge and finishing the movement it interrupted.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The branch list a <c>BranchIndex</c> indexes is <see cref="BoardGraph.OutgoingEdges"/>'s own
-/// order.</b> A junction always has exactly two outgoing edges (`03` §1.1):
-/// <see cref="EdgeKind.Continue"/> at index 0 — the spine's own next node — then
-/// <see cref="EdgeKind.Branch"/> at index 1, `03` §3.1's honest preview attached. Anything else is
-/// not a choice this junction offers.
-/// </para>
-/// <para>
-/// ⚠️ <b>What this handler does not do.</b> `03` §1.1's chain (⛓) and Portal continuations that
-/// might resume mid-jump through a pause are both unreachable today — the starting die is all-Pip
-/// (`04` §1) and Portal tiles resolve under <c>RESOLVE_TILE</c> (M3-03, not yet built) — so the only
-/// pause this handler ever actually resumes is a single Pip roll's own movement. It resumes
-/// generically (any remaining steps, any further junction) rather than assuming that, so it needs no
-/// revisiting the day either becomes reachable.
-/// </para>
+/// A junction always has exactly two outgoing edges, in <see cref="BoardGraph.OutgoingEdges"/>'s own
+/// order: <see cref="EdgeKind.Continue"/> at index 0, then <see cref="EdgeKind.Branch"/> at index 1.
 /// </remarks>
 internal static class ChooseFork
 {
-    /// <summary>🔒 `03` §1.1 — applies <c>CHOOSE_FORK</c>.</summary>
+    /// <summary>Applies <c>CHOOSE_FORK</c>.</summary>
     internal static HandlerResult Handle(ChooseForkCommand command, HandlerInput input)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -40,8 +27,7 @@ internal static class ChooseFork
 
         if (pending is null)
         {
-            // 🔒 Not a defect: a player can legitimately resend a CHOOSE_FORK the server already
-            // answered (30 §2.1's P3 — an illegal move is data, never an exception out of Apply).
+            // Not a defect: a player can legitimately resend a fork the server already answered.
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
@@ -56,8 +42,7 @@ internal static class ChooseFork
 
         var chosen = edges[command.BranchIndex];
 
-        // The chosen edge is the first of the resumed movement's remaining steps; Advance's own
-        // loop already lands exactly (no pause) when there is nothing left to spend after it.
+        // The chosen edge is the first of the resumed movement's remaining steps.
         var afterFirstStep = pending.Value.RemainingSteps - 1;
         var result = MovementEngine.Advance(board, chosen.To, afterFirstStep);
 
@@ -70,10 +55,8 @@ internal static class ChooseFork
             return HandlerResult.Accept();
         }
 
-        // 🔒 M3-05 — movement finished (boss reached, a stage-end clamp, or an exact landing): the
-        // node the run stopped on is a real tile to arrive at. A stage-end clamp (RemainingSteps > 0
-        // without ReachedBoss) is also a Stage Gate — see Handlers.RollDice's mirrored wiring, the
-        // same rule reachable through the other landing path.
+        // A stage-end clamp without reaching the boss also triggers the Stage Gate — mirrored in
+        // Handlers.RollDice, the other landing path that can reach it.
         if (result.RemainingSteps > 0 && !result.ReachedBoss)
         {
             StageGateResolver.Apply(input, run.CurrentHp);

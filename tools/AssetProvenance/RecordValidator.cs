@@ -5,10 +5,10 @@ namespace SlayIdleRepeat.AssetProvenance;
 /// <summary>Which register an asset id belongs to.</summary>
 public enum AssetMedium
 {
-    /// <summary>`15` §E — an art slot.</summary>
+    /// <summary>An art slot.</summary>
     Art,
 
-    /// <summary>`20` §3/§4 — a music track or an SFX.</summary>
+    /// <summary>A music track or an SFX.</summary>
     Audio,
 }
 
@@ -104,9 +104,7 @@ public static partial class RecordValidator
         return problems;
     }
 
-    /// <summary>
-    /// 🔒 `20` §2.1's tool + version is required on audio and forbidden on art — both directions.
-    /// </summary>
+    /// <summary>Tool + version is required on audio and forbidden on art — both directions.</summary>
     private static void ValidateTooling(List<string> problems, ProvenanceRecord record, AssetMedium medium)
     {
         switch (medium, record.Tooling)

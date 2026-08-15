@@ -12,8 +12,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Perks;
 
 /// <summary>
-/// 🔒 M3-06, `06` §1-§4 — <c>PerkDraftEngine.GenerateOptions</c>, over the small hermetic catalogue
-/// in <see cref="PerkDocuments"/>.
+/// <c>PerkDraftEngine.GenerateOptions</c>, over the small hermetic catalogue in
+/// <see cref="PerkDocuments"/>.
 /// </summary>
 public sealed class PerkDraftEngineTests
 {
@@ -63,7 +63,7 @@ public sealed class PerkDraftEngineTests
         }
     }
 
-    // ------------------------------------------------------------------ fresh grant vs upgrade (06 §1.1)
+    // ------------------------------------------------------------------ fresh grant vs upgrade
 
     [Fact]
     public void An_unowned_perk_is_offered_as_a_fresh_grant_at_Tier_I()
@@ -100,7 +100,7 @@ public sealed class PerkDraftEngineTests
         }
     }
 
-    // ------------------------------------------------------------------ 06 §1.1's Tier III removal — mutated on purpose (S1)
+    // ------------------------------------------------------------------ Tier III removal — mutated on purpose (S1)
 
     [Fact]
     public void A_perk_owned_at_its_max_tier_is_never_offered_in_its_own_band()

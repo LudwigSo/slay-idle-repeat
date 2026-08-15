@@ -6,9 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model;
 
-/// <summary>
-/// 🔒 M3-03 — <c>Run</c>'s pending-tile state: the seam between arriving at a tile and resolving it.
-/// </summary>
+/// <summary><c>Run</c>'s pending-tile state: the seam between arriving at a tile and resolving it.</summary>
 public sealed class RunPendingTileTests
 {
     private static Core.Model.Run NewRun(RunSnapshot? snapshot = null)
@@ -37,7 +35,7 @@ public sealed class RunPendingTileTests
     }
 
     /// <summary>
-    /// ⚠️ …and the three getters throw rather than answering a default, because a default would let a
+    /// The three getters throw rather than answering a default, because a default would let a
     /// rule resolve a tile the run is not standing on. The message names the gate to ask instead.
     /// </summary>
     [Fact]
@@ -51,10 +49,10 @@ public sealed class RunPendingTileTests
 
     /// <summary>Arriving at a tile records all three of its facts.</summary>
     /// <remarks>
-    /// ⚠️ The kind arrives as an <c>int</c> rather than a <see cref="TileKind"/> because a
+    /// The kind arrives as an <c>int</c> rather than a <see cref="TileKind"/> because a
     /// <b>public</b> test method may not take a parameter of an <c>internal</c> type (CS0051) — the
     /// same accessibility wall that made <c>Run</c> store the value as an <c>int</c> in the first
-    /// place. The call sites below still name the kind, which is what the reader needs.
+    /// place.
     /// </remarks>
     [Theory]
     [InlineData((int)TileKind.Empty, 0, 1)]
@@ -75,8 +73,8 @@ public sealed class RunPendingTileTests
     }
 
     /// <summary>
-    /// 🔒 Arriving twice is a DEFECT — `03` §1's movement is forward-only, so a run that moved on
-    /// without resolving is a miswired movement engine rather than a player asking twice.
+    /// Arriving twice is a DEFECT: movement is forward-only, so a run that moved on without
+    /// resolving is a miswired movement engine rather than a player asking twice.
     /// </summary>
     [Fact]
     public void Arriving_with_a_tile_already_pending_is_refused()
@@ -101,7 +99,7 @@ public sealed class RunPendingTileTests
         run.PendingTileStage.ShouldBe(1);
     }
 
-    /// <summary>`03` §1.1's linear index runs from 0 upwards.</summary>
+    /// <summary>The linear index runs from 0 upwards.</summary>
     [Fact]
     public void A_negative_linear_index_is_refused()
     {
@@ -110,9 +108,8 @@ public sealed class RunPendingTileTests
     }
 
     /// <summary>
-    /// ⚠️ …and there is deliberately NO ceiling: the real bound is this run's own generated board,
-    /// which is M3-02's, so an index past the shipped 42 is accepted rather than refused by an
-    /// invented range.
+    /// There is deliberately NO ceiling: the real bound is this run's own generated board, so an
+    /// index past the shipped 42 is accepted rather than refused by an invented range.
     /// </summary>
     [Fact]
     public void A_linear_index_past_the_shipped_board_is_accepted()
@@ -120,7 +117,7 @@ public sealed class RunPendingTileTests
         Should.NotThrow(() => NewRun().ArriveAtTile((int)TileKind.Empty, 9999, 1));
     }
 
-    /// <summary>`03` §1 authors three stages plus the boss, and no other value.</summary>
+    /// <summary>Three stages plus the boss are authored, and no other value.</summary>
     [Theory]
     [InlineData(-1)]
     [InlineData(4)]
@@ -142,13 +139,11 @@ public sealed class RunPendingTileTests
         Should.NotThrow(() => NewRun().ArriveAtTile((int)TileKind.Empty, 0, stage));
     }
 
-    /// <summary>
-    /// A negative kind collides with the "nothing pending" sentinel and is refused.
-    /// </summary>
+    /// <summary>A negative kind collides with the "nothing pending" sentinel and is refused.</summary>
     /// <remarks>
-    /// ⚠️ That floor is the whole kind check this aggregate can make — `30` §11.4 forbids
-    /// <c>Model</c> from naming the tile vocabulary — so a value ABOVE the fourteen is accepted here
-    /// and caught by <c>ResolveTile</c> instead. See the next test.
+    /// That floor is the whole kind check this aggregate can make — <c>Model</c> may not name the
+    /// tile vocabulary — so a value ABOVE the authored range is accepted here and caught by
+    /// <c>ResolveTile</c> instead. See the next test.
     /// </remarks>
     [Fact]
     public void A_negative_tile_kind_is_refused()
@@ -157,8 +152,8 @@ public sealed class RunPendingTileTests
     }
 
     /// <summary>
-    /// 🔒 …and the documented consequence, pinned so it is a decision rather than a hole: a kind
-    /// above `03` §2's fourteen IS accepted by the aggregate, because it cannot see them.
+    /// The documented consequence, pinned so it is a decision rather than a hole: a kind above the
+    /// authored vocabulary IS accepted by the aggregate, because it cannot see them.
     /// </summary>
     [Fact]
     public void A_tile_kind_above_the_vocabulary_is_accepted_by_the_aggregate()
@@ -184,9 +179,7 @@ public sealed class RunPendingTileTests
         run.PendingEventCardId.ShouldBe("EVT_WELL");
     }
 
-    /// <summary>
-    /// 🔒 A second card is refused — that IS the re-draw the field exists to prevent.
-    /// </summary>
+    /// <summary>A second card is refused — that IS the re-draw the field exists to prevent.</summary>
     [Fact]
     public void A_second_card_on_the_same_tile_is_refused()
     {
@@ -238,7 +231,7 @@ public sealed class RunPendingTileTests
     }
 
     /// <summary>
-    /// 🔒 Clearing is IDEMPOTENT — the documented choice. Its promise is a postcondition ("no tile is
+    /// Clearing is IDEMPOTENT — the documented choice. Its promise is a postcondition ("no tile is
     /// pending"), which is already true when nothing is pending.
     /// </summary>
     [Fact]
@@ -252,9 +245,7 @@ public sealed class RunPendingTileTests
         run.HasPendingTile.ShouldBeFalse();
     }
 
-    /// <summary>
-    /// 🔒 …and clearing genuinely re-opens the seam: a run may arrive at another tile afterwards.
-    /// </summary>
+    /// <summary>Clearing genuinely re-opens the seam: a run may arrive at another tile afterwards.</summary>
     [Fact]
     public void A_cleared_run_may_arrive_at_another_tile()
     {
@@ -269,7 +260,7 @@ public sealed class RunPendingTileTests
 
     // ------------------------------------------------------------------ round trip
 
-    /// <summary>🔒 `30` §11.3 — a run with a pending tile round-trips through its own snapshot.</summary>
+    /// <summary>A run with a pending tile round-trips through its own snapshot.</summary>
     [Fact]
     public void A_pending_tile_round_trips_through_the_snapshot()
     {
@@ -296,7 +287,7 @@ public sealed class RunPendingTileTests
     }
 
     /// <summary>
-    /// 🔒 The aggregate spells "no card" as <c>null</c> and the snapshot as <c>""</c>, and the seam
+    /// The aggregate spells "no card" as <c>null</c> and the snapshot as <c>""</c>, and the seam
     /// translates both ways.
     /// </summary>
     [Fact]
@@ -321,7 +312,7 @@ public sealed class RunPendingTileTests
         result.Error.ShouldContain(nameof(RunSnapshot.PendingTileKind), Case.Sensitive);
     }
 
-    /// <summary>A negative index on a pending tile is below `03` §1.1's floor.</summary>
+    /// <summary>A negative index on a pending tile is below the floor.</summary>
     [Fact]
     public void A_negative_pending_index_is_a_fault()
     {
@@ -332,7 +323,7 @@ public sealed class RunPendingTileTests
         result.Error.ShouldContain(nameof(RunSnapshot.PendingTileLinearIndex), Case.Sensitive);
     }
 
-    /// <summary>A stage outside `03` §1's four is a row no rule could have written.</summary>
+    /// <summary>A stage outside the authored four is a row no rule could have written.</summary>
     [Fact]
     public void A_pending_stage_outside_the_four_is_a_fault()
     {
@@ -344,8 +335,8 @@ public sealed class RunPendingTileTests
     }
 
     /// <summary>
-    /// 🔒 A stale index left behind with nothing pending is refused rather than normalised, because
-    /// `14` §16.6 hashes the whole row: two identical runs must not have two stateHashes.
+    /// A stale index left behind with nothing pending is refused rather than normalised, because
+    /// the canonical encoding hashes the whole row: two identical runs must not have two stateHashes.
     /// </summary>
     [Fact]
     public void A_stale_index_with_nothing_pending_is_a_fault()
@@ -381,9 +372,7 @@ public sealed class RunPendingTileTests
         result.Error.ShouldContain(nameof(RunSnapshot.PendingEventCardId), Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 Faults ACCUMULATE — a row corrupt in three ways reports three problems, not the first.
-    /// </summary>
+    /// <summary>Faults ACCUMULATE — a row corrupt in three ways reports three problems, not the first.</summary>
     [Fact]
     public void Several_pending_tile_faults_accumulate()
     {
@@ -396,7 +385,7 @@ public sealed class RunPendingTileTests
     }
 
     /// <summary>
-    /// 🔒 …but ONE defect produces ONE fault: a kind below the sentinel does not also report the
+    /// But ONE defect produces ONE fault: a kind below the sentinel does not also report the
     /// three fields that describe a tile the row does not legibly name.
     /// </summary>
     [Fact]

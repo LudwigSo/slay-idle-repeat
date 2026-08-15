@@ -5,14 +5,9 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 `14` §8.1 — <see cref="RunRngScope"/> on its own: how it is seeded, how it counts, what it
-/// hands to <c>Run.CommitStreamPositions</c>, and why <c>combat</c> is not opened like the others.
+/// <see cref="RunRngScope"/> on its own: how it is seeded, how it counts, and why <c>combat</c> is
+/// not opened like the others. Its integration with <c>Apply</c> is covered in <c>GameRulesRngTests</c>.
 /// </summary>
-/// <remarks>
-/// The integration with <c>Apply</c> — the fold, and the refusal of a hand-written position — is in
-/// <c>GameRulesRngTests</c>. This file is about the scope's own contract, including the parts
-/// <c>Apply</c> depends on being true.
-/// </remarks>
 public sealed class RunRngScopeTests
 {
     private const ulong Seed = 0x0123456789ABCDEFUL;
@@ -23,14 +18,9 @@ public sealed class RunRngScopeTests
     // ------------------------------------------------------------------ seeding
 
     /// <summary>
-    /// 🔒 A stream opens at the position the run committed it at — which is what makes the next draw
-    /// the next one rather than a repeat.
+    /// A stream opens at the position the run committed it at, so the next draw is the next one
+    /// rather than a repeat. Asserted against the derivation rather than a magic number.
     /// </summary>
-    /// <remarks>
-    /// Asserted against the derivation rather than against a magic number: the value is
-    /// <c>Hash64(runSeed, "dice", 12)</c> by construction, and pinning a literal here would pin this
-    /// suite's own arithmetic rather than `14` §8.1's.
-    /// </remarks>
     [Fact]
     public void A_stream_opens_at_its_committed_position()
     {
@@ -51,14 +41,9 @@ public sealed class RunRngScopeTests
     }
 
     /// <summary>
-    /// 🔒 The same name yields the <b>same</b> stream for the whole command — a second
-    /// <c>Stream(dice)</c> continues the sequence rather than restarting it.
+    /// The same name yields the same stream for the whole command — a second <c>Stream(dice)</c>
+    /// continues the sequence rather than restarting it.
     /// </summary>
-    /// <remarks>
-    /// Without this a handler that asked twice would replay the draws it had already taken and the
-    /// counter would advance by half what it should. It is the single most likely way to write this
-    /// type wrongly, and it is invisible in any test that only asks once.
-    /// </remarks>
     [Fact]
     public void The_same_stream_name_yields_the_same_stream_for_the_whole_command()
     {
@@ -73,7 +58,7 @@ public sealed class RunRngScopeTests
         again.Position.ShouldBe(1UL);
     }
 
-    /// <summary>Different names are different sequences — the whole reason `14` §8.1 has streams.</summary>
+    /// <summary>Different names are different sequences.</summary>
     [Fact]
     public void Different_streams_are_independent()
     {
@@ -99,7 +84,7 @@ public sealed class RunRngScopeTests
         scope.Stream(RngStreams.Minigame(8)).Position.ShouldBe(0UL);
     }
 
-    /// <summary>A name outside `14` §8.1's registry cannot be drawn from.</summary>
+    /// <summary>A name outside the registry cannot be drawn from.</summary>
     [Theory]
     [InlineData("DICE")]
     [InlineData("dic")]
@@ -120,16 +105,11 @@ public sealed class RunRngScopeTests
     }
 
     /// <summary>
-    /// 🔒 A run committed at a stream the registry does not recognise cannot open a scope at all: a
-    /// name that cannot be drawn from cannot be resumed either.
+    /// A run committed at a stream the registry does not recognise cannot open a scope at all: a
+    /// name that cannot be drawn from cannot be resumed either. Asserted against this rule's own
+    /// message, not merely against <c>ArgumentException</c>, since <c>Stream</c> refuses the same
+    /// name with a different sentence.
     /// </summary>
-    /// <remarks>
-    /// The refusal is pinned to <b>this</b> rule and not merely to <c>ArgumentException</c> (steering
-    /// <b>S2</b>): <c>Stream</c> refuses the same name with a different sentence, and Shouldly's
-    /// <c>Should.Throw&lt;ArgumentException&gt;</c> is satisfied by the <c>ArgumentNullException</c>
-    /// on the row below as well. "A run stands at a position in a stream nothing can draw from" and
-    /// "a handler asked for a stream that does not exist" are different findings.
-    /// </remarks>
     [Fact]
     public void A_committed_map_with_an_unregistered_stream_is_refused()
     {
@@ -150,14 +130,10 @@ public sealed class RunRngScopeTests
     // ------------------------------------------------------------------ combat
 
     /// <summary>
-    /// 🔒 `14` §8.1 — <c>combat</c> is <b>not</b> opened like the others, and the refusal says why.
+    /// <c>combat</c> is not opened like the others, and the refusal says why: opening it as an
+    /// ordinary stream would advance the battle counter once per die roll inside a fight, and every
+    /// later battle in the run would be seeded from a number no replay could reproduce.
     /// </summary>
-    /// <remarks>
-    /// This is the rule M1-05 pinned from the storage side and this type enforces from the draw
-    /// side. A scope that let a handler open <c>combat</c> as an ordinary stream would advance the
-    /// battle counter once per die roll inside a fight, and every later battle in the run would be
-    /// seeded from a number no replay could reproduce.
-    /// </remarks>
     [Fact]
     public void The_combat_stream_cannot_be_opened_like_the_others()
     {
@@ -169,8 +145,8 @@ public sealed class RunRngScopeTests
     }
 
     /// <summary>
-    /// 🔒 <c>BeginBattle</c> consumes exactly one index of the <c>combat</c> stream and derives the
-    /// battle seed through <c>SeedDerivation.BattleSeed</c> — the one sanctioned spelling.
+    /// <c>BeginBattle</c> consumes exactly one index of the <c>combat</c> stream and derives the
+    /// battle seed through <c>SeedDerivation.BattleSeed</c>.
     /// </summary>
     [Fact]
     public void BeginBattle_consumes_one_index_and_derives_that_battles_seed()
@@ -187,8 +163,8 @@ public sealed class RunRngScopeTests
     }
 
     /// <summary>
-    /// 🔒 The draws <b>inside</b> a battle are never persisted: forty of them leave the committed
-    /// <c>combat</c> position at exactly one past where it started.
+    /// Draws inside a battle are never persisted: forty of them leave the committed <c>combat</c>
+    /// position at exactly one past where it started.
     /// </summary>
     [Fact]
     public void Draws_inside_a_battle_are_never_persisted()
@@ -207,8 +183,8 @@ public sealed class RunRngScopeTests
     }
 
     /// <summary>
-    /// 🔒 A battle's stream is rooted at the <b>battle</b> seed, not at the run seed — which is what
-    /// lets `14` §2.4 hand the client a fight to simulate without ever giving it <c>runSeed</c>.
+    /// A battle's stream is rooted at the battle seed, not the run seed, so the client can be handed
+    /// a fight to simulate without ever seeing <c>runSeed</c>.
     /// </summary>
     [Fact]
     public void A_battles_draws_come_from_the_battle_seed_and_not_the_run_seed()
@@ -221,10 +197,7 @@ public sealed class RunRngScopeTests
 
     // ------------------------------------------------------------------ FinalPositions
 
-    /// <summary>
-    /// 🔒 The map handed to <c>Run.CommitStreamPositions</c> is a <b>superset</b> of the committed
-    /// one — which is that seam's contract, not a courtesy.
-    /// </summary>
+    /// <summary>The map handed to <c>Run.CommitStreamPositions</c> is a superset of the committed one.</summary>
     [Fact]
     public void FinalPositions_carries_every_committed_stream_forward()
     {
@@ -242,13 +215,10 @@ public sealed class RunRngScopeTests
     }
 
     /// <summary>
-    /// 🔒 Sparse: a stream opened but never drawn from, and never committed, does not appear.
+    /// A stream opened but never drawn from, and never committed, does not appear: the eager
+    /// alternative would put a <c>"shrine": 0</c> row in the state hash of every run that ever
+    /// looked at a shrine stream, and the client recomputes that hash per command, on a handset.
     /// </summary>
-    /// <remarks>
-    /// The eager alternative would put a <c>"shrine": 0</c> row in the <c>stateHash</c> of every run
-    /// that ever looked at a shrine stream — and `14` §2.4 has the client recompute that hash per
-    /// command, on a handset.
-    /// </remarks>
     [Fact]
     public void An_opened_but_undrawn_stream_writes_no_row()
     {
@@ -306,10 +276,7 @@ public sealed class RunRngScopeTests
         positions.ContainsKey("DICE").ShouldBeFalse("the registry is ordinal: DICE is not dice.");
     }
 
-    /// <summary>
-    /// 🔒 A scope never moves a counter backwards, whatever a handler does with it — which is what
-    /// makes <c>Run.CommitStreamPositions</c>' monotonicity guard unreachable through this path.
-    /// </summary>
+    /// <summary>A scope never moves a counter backwards, whatever a handler does with it.</summary>
     [Fact]
     public void A_scope_never_moves_a_counter_backwards()
     {

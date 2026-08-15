@@ -6,20 +6,15 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// C13 — `15` Part F item 6:
-/// <em>"Alpha is clean — no white/black halo, no semi-transparent fringe"</em>.
-/// </summary>
+/// <summary>Validates that alpha edges are clean — no white/black halo, no semi-transparent fringe.</summary>
 public sealed class AlphaCleanlinessCheckTests
 {
-    /// <summary>Every hole item 6 reaches into.</summary>
     private static readonly string[] ThresholdsItem6Needs =
     [
         ThresholdKeys.HaloMaxFringeRatio,
         ThresholdKeys.HaloMaxLuminanceDeviation,
     ];
 
-    /// <summary>Every hole item 6 reaches into, one theory case each.</summary>
     public static TheoryData<string> EveryThresholdItem6Needs()
     {
         var data = new TheoryData<string>();
@@ -31,16 +26,10 @@ public sealed class AlphaCleanlinessCheckTests
         return data;
     }
 
-    /// <summary>
-    /// A fringe ratio nothing can exceed, stated so that a case aimed at the luminance half cannot
-    /// be answered by the ratio half. Not a calibration — a ratio is 0-1 by construction.
-    /// </summary>
+    /// <summary>Ratios are 0-1 by construction, so this forgives every fringe amount.</summary>
     private const double EveryFringeAllowed = 1d;
 
-    /// <summary>
-    /// A luminance deviation nothing can exceed: eight-bit channels span 255, so no deviation
-    /// reaches 256. Stated for the mirror-image reason.
-    /// </summary>
+    /// <summary>Eight-bit channels span 255, so this forgives every luminance deviation.</summary>
     private const double EveryHaloAllowed = 256d;
 
     [Fact]
@@ -60,10 +49,6 @@ public sealed class AlphaCleanlinessCheckTests
             .Value.ShouldBe(0d);
     }
 
-    /// <summary>
-    /// 🔒 The fringe half alone: every halo is forgiven, so only the amount of partial alpha can
-    /// trip the check and the reason has exactly one honest thing to name.
-    /// </summary>
     [Fact]
     public void Evaluate_fails_naming_the_fringe_ratio_when_the_edge_is_semi_transparent()
     {
@@ -81,8 +66,6 @@ public sealed class AlphaCleanlinessCheckTests
         outcome.Reason.ShouldContain(
             AlphaCleanlinessCheck.FringeRatioMeasurement, Case.Sensitive);
 
-        // 🔒 Every halo is forgiven in this set, so the luminance half cannot have tripped and a
-        // reason that named it would be reporting a claim that held (steering rule S2).
         outcome.Reason.ShouldNotContain(
             AlphaCleanlinessCheck.FringeLuminanceDeviationMeasurement, Case.Sensitive);
         outcome.Measurements
@@ -90,11 +73,6 @@ public sealed class AlphaCleanlinessCheckTests
             .Value.ShouldBeGreaterThan(0d);
     }
 
-    /// <summary>
-    /// 🔒 The halo half alone: every amount of fringe is forgiven, so only how white it is can trip
-    /// the check. Without this case an implementation that never looked at colour at all would pass
-    /// both halves of the item on the strength of the ratio.
-    /// </summary>
     [Fact]
     public void Evaluate_fails_naming_the_luminance_deviation_when_the_fringe_runs_white()
     {
@@ -110,8 +88,6 @@ public sealed class AlphaCleanlinessCheckTests
         outcome.Reason.ShouldContain(
             AlphaCleanlinessCheck.FringeLuminanceDeviationMeasurement, Case.Sensitive);
 
-        // 🔒 Every amount of fringe is forgiven in this set, so the ratio half cannot have tripped
-        // and a reason that named it would be reporting a claim that held (steering rule S2).
         outcome.Reason.ShouldNotContain(
             AlphaCleanlinessCheck.FringeRatioMeasurement, Case.Sensitive);
         outcome.Measurements
@@ -119,11 +95,6 @@ public sealed class AlphaCleanlinessCheckTests
             .Value.ShouldBeGreaterThan(0d);
     }
 
-    /// <summary>
-    /// 🔒 The S6 assertion for item 6. `15` says nothing about how much fringe is acceptable or how
-    /// white it may run — "clean" is the whole of the doc's guidance — so both numbers are holes and
-    /// neither may be filled in silently.
-    /// </summary>
     [Theory]
     [MemberData(nameof(EveryThresholdItem6Needs))]
     public void Evaluate_reports_Uncalibrated_naming_the_key_when_one_hole_is_left_open(string key)
@@ -137,9 +108,6 @@ public sealed class AlphaCleanlinessCheckTests
         outcome.Verdict.ShouldBe(QaVerdict.Uncalibrated);
         outcome.Reason.ShouldContain(key, Case.Sensitive);
 
-        // 🔒 Steering rule S2. A reason naming both of item 6's keys would satisfy the assertion
-        // above for both cases; the other key is stated here, so naming it names a hole that is
-        // not open.
         foreach (var stated in ThresholdsItem6Needs.Where(other => !string.Equals(other, key, StringComparison.Ordinal)))
         {
             outcome.Reason.ShouldNotContain(stated, Case.Sensitive);

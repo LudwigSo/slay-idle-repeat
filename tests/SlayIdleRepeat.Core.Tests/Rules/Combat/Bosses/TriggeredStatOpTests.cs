@@ -10,9 +10,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 A <b>fired</b> `18` §2.1 stat op reaches §8's aggregation, through the real
-/// <see cref="BattleSimulation"/> tick loop and not a unit fixture that calls
-/// <c>StatAggregation.Aggregate</c> directly.
+/// A fired stat op reaches the aggregation, through the real <see cref="BattleSimulation"/> tick
+/// loop and not a unit fixture that calls <c>StatAggregation.Aggregate</c> directly.
 /// </summary>
 /// <remarks>
 /// Every case runs a real fight and reads the firing actor's own aggregated
@@ -26,10 +25,7 @@ public sealed class TriggeredStatOpTests
 
     // ════════════════════════════════════════════════════ 1 · SYS_ENRAGE's magnitude
 
-    /// <summary>
-    /// 🔒 R1 / the M2-R1 acceptance criterion, stated exactly: three seconds of <c>SYS_ENRAGE</c> is
-    /// <c>100 × 1.08³ = 125.9712</c>, through the real loop.
-    /// </summary>
+    /// <summary>Three seconds of <c>SYS_ENRAGE</c> is <c>100 x 1.08^3 = 125.9712</c>, through the real loop.</summary>
     [Fact]
     public void Three_seconds_of_SYS_ENRAGE_multiplies_ATK_to_125_9712()
     {
@@ -46,11 +42,11 @@ public sealed class TriggeredStatOpTests
     }
 
     /// <summary>
-    /// 🔒 M2-R1 acceptance item 5 — a fired stat op applies EXACTLY once per activation. Sampled at
-    /// three ticks strictly between the first and second firing: an implementation that re-applied
-    /// SYS_ENRAGE every tick (rather than reading <c>EffectStackSet.CombinedValue</c> once per
-    /// activation) would show ATK climbing tick over tick; the real one holds it flat at
-    /// <c>100 x 1.08 = 108.0</c> until the second activation at tick 1420.
+    /// A fired stat op applies exactly once per activation. Sampled at three ticks strictly between
+    /// the first and second firing: an implementation that re-applied SYS_ENRAGE every tick (rather
+    /// than reading <c>EffectStackSet.CombinedValue</c> once per activation) would show ATK
+    /// climbing tick over tick; the real one holds it flat at <c>100 x 1.08 = 108.0</c> until the
+    /// second activation at tick 1420.
     /// </summary>
     [Fact]
     public void A_fired_stat_op_does_not_reapply_on_every_tick_between_activations()
@@ -64,8 +60,8 @@ public sealed class TriggeredStatOpTests
         boss.Stats[StatId.ATK].ShouldBe(108.0, "one activation of SYS_ENRAGE: 100 x 1.08^1");
 
         // Re-run to a second and a third point in that same open interval and confirm the reading is
-        // IDENTICAL every time — not "some other wrong number", the specific symptom a per-tick
-        // re-application bug produces (steering S2).
+        // identical every time — not "some other wrong number", the specific symptom a per-tick
+        // re-application bug produces.
         EnrageOnlyFight(maxTicks: 1410).Driver.Actors.Single(a => a.Id == Thornmaw)
             .Stats[StatId.ATK].ShouldBe(108.0, "tick 1409 is also strictly between the two firings");
 
@@ -104,7 +100,7 @@ public sealed class TriggeredStatOpTests
     // ════════════════════════════════════════════════════ 2 · a PHASE-scoped fired stat op
 
     /// <summary>
-    /// 🔒 A `18` §6 <c>PHASE</c> scope still ends a boss's fired stat op at phase exit. Regression-proofed
+    /// A <c>PHASE</c> scope still ends a boss's fired stat op at phase exit. Regression-proofed
     /// explicitly because this touches the same aggregation pass that scope depends on: a fold that
     /// forgot to consult <see cref="TriggeredStatInstance"/>'s duration would leave a fired
     /// <c>STAT_ADD_PCT</c> live for the rest of the battle.
@@ -128,7 +124,7 @@ public sealed class TriggeredStatOpTests
         Fight(15).Driver.Actors.Single(a => a.Id == Thornmaw)
             .Stats[StatId.ATK].ShouldBe(150.0, "100 x 1.5 — the phase-2 STAT_ADD_PCT ATK +50% fired");
 
-        // After phase 3 (entered at tick 30) — 18 §6 PHASE ends the phase-2 block at the exit.
+        // After phase 3 (entered at tick 30) — the PHASE scope ends the phase-2 block at the exit.
         Fight(40).Driver.Actors.Single(a => a.Id == Thornmaw)
             .Stats[StatId.ATK].ShouldBe(
                 100.0,
@@ -168,7 +164,7 @@ public sealed class TriggeredStatOpTests
             new List<(int, string, double)>
             {
                 (10, Thornmaw, 0.60), // into phase 2 — the buff fires
-                (30, Thornmaw, 0.20), // into phase 3 — 18 §6 ends the phase-2 block
+                (30, Thornmaw, 0.20), // into phase 3 — the PHASE scope ends the phase-2 block
             },
             maxTicks: maxTicks);
     }
@@ -176,11 +172,9 @@ public sealed class TriggeredStatOpTests
     // ════════════════════════════════════════════════════ 3 · a boss AURA granting RAGE
 
     /// <summary>
-    /// 🔒 M2-R1 acceptance item 2 — a boss <c>AURA</c> granting <c>RAGE</c> measurably changes ATK
-    /// through the real loop. Unlike the two sections above, <c>RAGE</c> is authored as
-    /// <c>APPLY_STATUS</c> (`17` §2's Thornmaw phase-3 RAGE, `18` §7.8's idiom) — a path M2-10 wired
-    /// and M2-R1 does not touch — so this is a confirmation the two paths agree, not a red-then-green
-    /// proof of THIS fix.
+    /// A boss <c>AURA</c> granting <c>RAGE</c> measurably changes ATK through the real loop. Unlike
+    /// the two sections above, <c>RAGE</c> is authored as <c>APPLY_STATUS</c> (Thornmaw's phase-3
+    /// RAGE) — a separately wired path — so this is a confirmation the two paths agree.
     /// </summary>
     [Fact]
     public void A_boss_AURA_granting_RAGE_measurably_raises_ATK()
@@ -213,8 +207,8 @@ public sealed class TriggeredStatOpTests
 
         enemy.Stats[StatId.ATK].ShouldBe(100.0, "the floor: baseline ATK before any RAGE");
 
-        // `17` §2 / `18` §7.8's idiom: APPLY_STATUS RAGE, 30% — read straight off StatusFixtures'
-        // catalogue row (TARGET_STAT_PCT on ATK).
+        // Thornmaw's idiom: APPLY_STATUS RAGE, 30% — read straight off StatusFixtures' catalogue
+        // row (TARGET_STAT_PCT on ATK).
         timeline!.Apply(
             enemy, enemy, "RAGE", potency: 0.3,
             duration: new EffectDuration { Scope = DurationScope.BATTLE },

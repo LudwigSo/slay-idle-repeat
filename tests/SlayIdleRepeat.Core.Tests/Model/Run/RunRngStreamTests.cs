@@ -7,17 +7,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model;
 
-/// <summary>
-/// 🔒 `14` §8.1 — the per-stream draw counters the <c>Run</c> aggregate holds, and the single seam
-/// that writes them.
-/// </summary>
+/// <summary>The per-stream draw counters the <c>Run</c> aggregate holds, and the single seam that writes them.</summary>
 /// <remarks>
 /// The counters are <em>authoritative run state</em> beside <c>runSeed</c>: a resumed run re-derives
 /// its next board, drop and draft draw from them, so a counter that reset, went backwards or went
-/// missing produces a run nobody can reproduce — including the player who is in it.
+/// missing produces a run nobody can reproduce.
 /// <para>
-/// The storage is an <b>open map validated by <c>RngStreams.IsRegistered</c></b>, because §8.1's ninth
-/// row is parameterised (<c>minigame:{index}</c>) and nine fixed slots could not hold
+/// The storage is an <b>open map validated by <c>RngStreams.IsRegistered</c></b>, since the registry's
+/// last slot is parameterised (<c>minigame:{index}</c>) and a fixed slot count could not hold
 /// <c>minigame:7</c>. The tests pin the four properties that make it safe: one seam,
 /// registry-validated keys, no partial commit, and monotone or throw.
 /// </para>
@@ -32,10 +29,10 @@ public sealed class RunRngStreamTests
     /// than stored as an eager zero.
     /// </summary>
     /// <remarks>
-    /// Sparse on purpose: `14` §2.3's wire echo <c>{"dice":12,"board":8}</c> shows only the streams
-    /// that moved, and eight eager zeros would put dead bytes in every <c>stateHash</c>. Zero for an
-    /// undrawn stream is not the S6 hole-filled-with-a-default — <c>new DeterministicRng(seed,
-    /// name)</c> genuinely starts at draw 0.
+    /// Sparse on purpose: the wire echo shows only the streams that moved, and eager zeros for
+    /// every stream would put dead bytes in every <c>stateHash</c>. Zero for an undrawn stream is
+    /// not a hole filled with a default — <c>new DeterministicRng(seed, name)</c> genuinely starts
+    /// at draw 0.
     /// </remarks>
     [Fact]
     public void An_undrawn_stream_stands_at_zero_and_is_not_stored()
@@ -47,8 +44,8 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 A name outside the `14` §8.1 registry is refused rather than answered with a zero — the
-    /// same predicate <c>DeterministicRng</c>'s constructor uses.
+    /// A name outside the registry is refused rather than answered with a zero — the same
+    /// predicate <c>DeterministicRng</c>'s constructor uses.
     /// </summary>
     /// <remarks>
     /// Answering zero would make <c>StreamPosition("dic")</c> indistinguishable from a real, undrawn
@@ -74,7 +71,7 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 <c>CommitStreamPositions</c> replaces the whole map: it is the one seam, and there is no
+    /// <c>CommitStreamPositions</c> replaces the whole map: it is the one seam, and there is no
     /// per-stream setter, no settable collection and no indexer.
     /// </summary>
     [Fact]
@@ -95,14 +92,12 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 A position that goes <b>backwards</b> throws — it is a determinism defect, not a rejection.
+    /// A position that goes <b>backwards</b> throws — it is a determinism defect, not a rejection.
     /// </summary>
     /// <remarks>
-    /// ⚠️ An <see cref="InvalidOperationException"/> and deliberately <b>not</b> a
+    /// An <see cref="InvalidOperationException"/> and deliberately <b>not</b> a
     /// <c>RejectionReason</c>: a rejection is the game correctly saying no to a legal request, and
-    /// handing a corrupt scope back to the player as a polite "no" would leave the run in it. A
-    /// counter that moved backwards means the next draw repeats a sequence the player has already
-    /// played, which is the one outcome §8.1's counter model exists to prevent.
+    /// handing a corrupt scope back to the player as a polite "no" would leave the run in it.
     /// </remarks>
     [Fact]
     public void A_stream_position_that_moves_backwards_is_a_determinism_defect_and_throws()
@@ -131,16 +126,10 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 A <b>partial</b> map is refused: every stream already committed has to be present in the
-    /// incoming one.
+    /// A <b>partial</b> map is refused: every stream already committed has to be present in the
+    /// incoming one. A dropped key would silently reset that stream to 0 and the next draw from it
+    /// would repeat a sequence the player has already played.
     /// </summary>
-    /// <remarks>
-    /// A dropped key would silently reset that stream to 0 and the next draw from it would repeat a
-    /// sequence the player has already played. This refusal is also what makes "<c>Apply</c> folds
-    /// the scope's final positions into the new <c>Run</c>" the <em>only</em> expressible call: a
-    /// handler that wanted to hand-write one position would have to reconstruct the entire committed
-    /// set to do it.
-    /// </remarks>
     [Fact]
     public void A_commit_that_drops_an_already_committed_stream_is_refused()
     {
@@ -156,15 +145,12 @@ public sealed class RunRngStreamTests
         run.StreamPosition(RngStreams.Dice).ShouldBe(12UL);
     }
 
-    /// <summary>
-    /// 🔒 A key the `14` §8.1 registry does not recognise is refused, naming the key and the
-    /// registry.
-    /// </summary>
+    /// <summary>A key the registry does not recognise is refused, naming the key and the registry.</summary>
     /// <remarks>
-    /// Same predicate as <c>DeterministicRng</c>'s constructor, which is the point: a name that
-    /// cannot be drawn from cannot be persisted either. <c>minigame:03</c> is included because it is
-    /// the case <c>RngStreams.IsRegistered</c> exists to separate — a different string, and therefore
-    /// a different sequence, for what every human reading it would call the same minigame.
+    /// Same predicate as <c>DeterministicRng</c>'s constructor: a name that cannot be drawn from
+    /// cannot be persisted either. <c>minigame:03</c> is included because it is a different string,
+    /// and therefore a different sequence, for what every human reading it would call the same
+    /// minigame.
     /// </remarks>
     [Theory]
     [InlineData("loot")]
@@ -181,10 +167,9 @@ public sealed class RunRngStreamTests
 
         message.ShouldMatchWildcard("*" + streamName + "*14 §8.1*");
 
-        // ⚠️ ShouldMatchWildcard is case-INSENSITIVE (it reproduces FluentAssertions' semantics), so
-        // the pattern above is also satisfied by a message that lower-cased the offending key — and
-        // "DICE" versus "dice" is the whole point of the registry being ordinal. The key has to come
-        // back exactly as it was persisted, or the reader cannot find the row that carries it.
+        // ShouldMatchWildcard is case-insensitive, so the pattern above is also satisfied by a
+        // message that lower-cased the offending key — and "DICE" versus "dice" is the whole point
+        // of the registry being ordinal. This assertion checks the key comes back exactly as persisted.
         message.ShouldContain(streamName, Case.Sensitive);
 
         run.RngStreamPositions.ShouldBeEmpty("a refused commit changes nothing");
@@ -244,13 +229,7 @@ public sealed class RunRngStreamTests
         run.StreamPosition(RngStreams.Board).ShouldBe(0UL);
     }
 
-    /// <summary>
-    /// …and the map the aggregate hands out cannot be written through its reference either.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ <c>Apply_is_the_only_public_mutation</c> would not see this hole: that rule inspects
-    /// setters, public fields, constructors and mutating methods, not exposed collections.
-    /// </remarks>
+    /// <summary>The map the aggregate hands out cannot be written through its reference either.</summary>
     [Fact]
     public void The_exposed_position_map_cannot_be_mutated_through_its_reference()
     {
@@ -264,14 +243,14 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 The keys are compared <b>ordinally</b>, because <c>CanonicalStateWriter</c> orders string
+    /// The keys are compared <b>ordinally</b>, because <c>CanonicalStateWriter</c> orders string
     /// keys ordinally — a map comparing them any other way would round-trip to a different hash than
     /// the one it was stored under.
     /// </summary>
     /// <remarks>
     /// Driven through a deliberately case-insensitive dictionary: under
     /// <see cref="StringComparer.OrdinalIgnoreCase"/> the key <c>DICE</c> <em>is</em> <c>dice</c>, so
-    /// a run that adopted the caller's comparer would answer 4 for a stream `14` §8.1 does not have.
+    /// a run that adopted the caller's comparer would answer 4 for a stream that does not exist.
     /// </remarks>
     [Fact]
     public void The_committed_keys_are_compared_ordinally_whatever_comparer_the_caller_used()
@@ -292,14 +271,14 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 <c>CommitStreamPositions</c> is the <b>one</b> seam. There is no per-stream setter, no
+    /// <c>CommitStreamPositions</c> is the <b>one</b> seam. There is no per-stream setter, no
     /// <c>AdvanceStream</c>, no indexer.
     /// </summary>
     /// <remarks>
-    /// The set is read off the type rather than transcribed, and floored so the assertion cannot pass
-    /// by finding nothing (steering S3). It is the type-shape half of the design: a second write site
-    /// would let a handler advance one counter and leave the rest, which is exactly the partial
-    /// commit the refusal above exists to make unrepresentable.
+    /// The set is read off the type rather than transcribed, and floored so the assertion cannot
+    /// pass by finding nothing. A second write site would let a handler advance one counter and
+    /// leave the rest, which is exactly the partial commit the refusal above exists to make
+    /// unrepresentable.
     /// </remarks>
     [Fact]
     public void CommitStreamPositions_is_the_only_member_that_writes_a_stream_position()
@@ -331,14 +310,13 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 The <c>combat</c> position is the <c>battleIndex</c> the <b>next</b> battle's seed is derived
+    /// The <c>combat</c> position is the <c>battleIndex</c> the <b>next</b> battle's seed is derived
     /// from, so a run standing at 3 opens battle 3 — none of the three it has already fought.
     /// </summary>
     /// <remarks>
-    /// ⚠️ That the counter's <em>unit</em> is battles-started rather than combat-draws is a <b>ruling</b>
-    /// this aggregate cannot enforce: the position is a <c>ulong</c> and every monotone value is a legal
-    /// commit by design. Naming the case after the ruling would promise what no assertion here can
-    /// deliver. What is checkable is asserted: the value is the index
+    /// That the counter's <em>unit</em> is battles-started rather than combat-draws is a ruling this
+    /// aggregate cannot enforce: the position is a <c>ulong</c> and every monotone value is a legal
+    /// commit by design. What is checkable is asserted: the value is the index
     /// <see cref="SeedDerivation.BattleSeed"/> takes, and the battle it opens is not one already fought.
     /// </remarks>
     [Fact]
@@ -358,17 +336,15 @@ public sealed class RunRngStreamTests
     }
 
     /// <summary>
-    /// 🔒 A battle's <b>own</b> draws never reach the run's <c>combat</c> position: fifty attack
+    /// A battle's <b>own</b> draws never reach the run's <c>combat</c> position: fifty attack
     /// rolls move the battle-rooted stream fifty places and leave the run exactly where it was.
     /// </summary>
     /// <remarks>
-    /// This is the discriminating half of `14` §8.1's re-rooting, and it is the assertion that stops
-    /// the next reader wiring a battle's draw counter into the run: the draws <em>inside</em> a
-    /// battle are rooted at <c>battleSeed</c>, restart at 0 for every battle and are <b>never
-    /// persisted</b>, which is what makes §8.1's <em>"a revived battle restarts from draw 0 of the
-    /// same battle stream: reproducible by construction"</em> true. Committing the draw count
-    /// instead of the battle count would skip forty-nine battle indices and derive every later
-    /// battle from a seed no replay reconstructs.
+    /// The draws <em>inside</em> a battle are rooted at <c>battleSeed</c>, restart at 0 for every
+    /// battle and are <b>never persisted</b>, which is what makes a revived battle restart from
+    /// draw 0 of the same battle stream. Committing the draw count instead of the battle count
+    /// would skip forty-nine battle indices and derive every later battle from a seed no replay
+    /// reconstructs.
     /// </remarks>
     [Fact]
     public void A_battles_own_draws_never_reach_the_runs_combat_position()

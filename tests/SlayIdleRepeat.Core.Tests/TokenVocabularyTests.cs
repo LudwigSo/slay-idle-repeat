@@ -6,40 +6,19 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 The two <b>open string vocabularies</b> the domain has grown — `30` §2.3's daily-counter keys and
-/// `30` §7's <c>CurrencyChanged.Reason</c> tokens — kept distinct, well formed, and visible.
+/// The two open string vocabularies the domain has grown — daily-counter keys and
+/// <c>CurrencyChanged.Reason</c> tokens — kept distinct, well formed, and visible. Both fail
+/// silently on collision: a daily-counter collision breaks "once per game day", and a Reason
+/// collision merges two income sources that can no longer be told apart in reporting.
 /// </summary>
-/// <remarks>
-/// 🔴 Both had their first two occupants and no registry, uniqueness rule or floor, and both fail
-/// <em>silently</em>: a daily-counter collision breaks "once per game day" (<c>Player.CountDaily</c>
-/// takes any string, so a later handler reusing the token makes the day look already-run), and a
-/// <c>Reason</c> collision merges two income sources in `21` §8.3's <c>income_attribution.csv</c>,
-/// which cannot be told apart afterwards.
-/// <para>
-/// 🔒 A check over the tokens <b>in use</b>, not a closed enum: `30` §2.3's five daily-reset systems do
-/// not exist yet and freezing their keys would invent them. Reflecting over declared constants adds no
-/// token and forbids no future one — it only says two declarations must not collide.
-/// </para>
-/// <para>
-/// ⚠️ The subject set is floored by identity: a reflection filter over field names can be emptied by a
-/// rename, and would then report success forever over a domain where every token had collided.
-/// </para>
-/// </remarks>
 public sealed class TokenVocabularyTests
 {
-    /// <summary>
-    /// 🔒 `21` §8.3 groups on these tokens and `30` §2.3 keys idempotence on them, so both are
-    /// <c>lower_snake_case</c> identifiers — never a sentence, never a number, never blank.
-    /// </summary>
     private static readonly Regex Token = new("^[a-z][a-z0-9_]*$", RegexOptions.Compiled);
 
     /// <summary>
-    /// 🔒 The identity floor: every token constant this suite knows about today.
+    /// Every token constant this suite knows about today, transcribed by hand rather than derived
+    /// from the reflection below — a floor built from the same filter it floors would agree with itself.
     /// </summary>
-    /// <remarks>
-    /// Transcribed by hand against the reflection below, which is the only way a floor can work — a
-    /// list derived from the same filter it floors would agree with itself.
-    /// </remarks>
     private static readonly string[] Floor =
     {
         "EnergyRegenReason",
@@ -48,15 +27,9 @@ public sealed class TokenVocabularyTests
     };
 
     /// <summary>
-    /// 🔒 No two declared tokens are the same string, whatever they are declared for.
+    /// The two vocabularies are checked together deliberately: nothing in the domain enforces that
+    /// they stay separate namespaces, and a collision between them is just as unreadable in reports.
     /// </summary>
-    /// <remarks>
-    /// The two vocabularies are checked <b>together</b> deliberately: they are different namespaces
-    /// conceptually, but nothing in the domain enforces that, both reach `21` §8.3's reporting, and a
-    /// reader debugging <c>income_attribution.csv</c> against a daily counter of the same name could not
-    /// tell which they were looking at. ⚠️ If a future task genuinely needs one string in both roles,
-    /// this is the rule to come and argue with.
-    /// </remarks>
     [Fact]
     public void No_two_declared_tokens_collide()
     {
@@ -67,21 +40,16 @@ public sealed class TokenVocabularyTests
             .Where(group => group.Count() > 1)
             .Select(group =>
                 $"'{group.Key}' is declared by {string.Join(" and ", group.Select(t => t.Declaration))}. " +
-                "30 §2.3 keys BEGIN_SESSION's per-game-day idempotence on a daily-counter token and " +
-                "21 §8.3 groups income_attribution.csv on a Reason token; two declarations of one " +
-                "string make one of those questions unanswerable, and neither failure is visible " +
-                "until a report is wrong or a grant stops paying.");
+                "Two declarations of one string make idempotence or income attribution unanswerable, " +
+                "and neither failure is visible until a report is wrong or a grant stops paying.");
 
         collisions.ShouldBeEmpty();
     }
 
-    /// <summary>🔒 Every declared token is a <c>lower_snake_case</c> identifier.</summary>
-    /// <remarks>
-    /// <c>CurrencyChanged</c> refuses a blank <c>Reason</c> and <c>Player.CountDaily</c> refuses a
-    /// blank key, so blankness is already closed. What is not is <c>"Daily Free Refill"</c> or
-    /// <c>"dailyFreeRefill"</c> — both legal strings, both of which would land in a CSV column the
-    /// economy dashboards group on, beside tokens spelled the other way.
-    /// </remarks>
+    /// <summary>
+    /// Blankness is already refused elsewhere; what isn't is <c>"Daily Free Refill"</c> or
+    /// <c>"dailyFreeRefill"</c> landing in a report column beside tokens spelled the other way.
+    /// </summary>
     [Fact]
     public void Every_declared_token_is_a_lower_snake_case_identifier()
     {
@@ -92,15 +60,9 @@ public sealed class TokenVocabularyTests
     }
 
     /// <summary>
-    /// 🔒 The subject set is the one this file was written against — the vacuity check under both
-    /// rules above (steering <b>S3</b>).
+    /// The two rules above hold vacuously over an empty set. The set is built by a name filter that a
+    /// rename could empty silently, so the constants known today are floored by name here.
     /// </summary>
-    /// <remarks>
-    /// Both rules are of the shape "no member of set S does X" and hold vacuously over an empty S.
-    /// The set is built by a <b>name filter</b> over <c>const string</c> fields, which a rename
-    /// empties silently — so the three constants that exist today are asserted by name, and a fourth
-    /// arriving is covered automatically by the filter.
-    /// </remarks>
     [Fact]
     public void The_token_constants_this_file_watches_are_all_present()
     {
@@ -121,14 +83,9 @@ public sealed class TokenVocabularyTests
     }
 
     /// <summary>
-    /// Every <c>const string</c> in <c>Core</c> whose name ends in <c>Reason</c> or <c>Counter</c>.
+    /// Every <c>const string</c> in <c>Core</c> whose name ends in <c>Reason</c> or <c>Counter</c>,
+    /// found by reflection so a token added later is covered automatically.
     /// </summary>
-    /// <remarks>
-    /// Reflection rather than a transcription, so a token added by a later milestone is covered on
-    /// the commit that adds it rather than on the commit somebody remembers to. The same mechanism
-    /// <c>SubjectSetFloorTests.TypeNameConstants()</c> uses over in the architecture suite, and it
-    /// carries the same known limit, which is what the floor above is for.
-    /// </remarks>
     private static (string Constant, string Value, string Declaration)[] DeclaredTokens() =>
         typeof(GameContext).Assembly
             .GetTypes()
@@ -137,13 +94,8 @@ public sealed class TokenVocabularyTests
                 .Where(f => f.Name.EndsWith("Reason", StringComparison.Ordinal) ||
                             f.Name.EndsWith("Counter", StringComparison.Ordinal))
 
-                // ⚠️ THE ONE EXCLUSION, and it is inline rather than in a list so a second one cannot
-                // be added quietly — the idiom SubjectSetFloorTests uses for IClockPort, and for the
-                // same reason. CurrencyChanged.BlankReason is the REFUSAL MESSAGE shown when a
-                // Reason is blank; it ends in "Reason" and is a prose paragraph, not a token. Caught
-                // by this file's own lower_snake_case rule on its first run, which is the filter
-                // saying it was too wide rather than the constant being wrong. A future exclusion is
-                // an argument to have here, not a name to append somewhere.
+                // The one exclusion, kept inline so a second can't be added quietly: BlankReason is a
+                // refusal message, not a token, and it ends in "Reason" so the name filter catches it.
                 .Where(f => !f.Name.Equals("BlankReason", StringComparison.Ordinal))
                 .Select(f => (
                     Constant: f.Name,

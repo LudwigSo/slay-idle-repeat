@@ -7,9 +7,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
-/// <summary>
-/// 🔒 `05` §9 guardrail 5 — the closed form, its ceiling, and the controls that show it discriminates.
-/// </summary>
+/// <summary>Guardrail 5: the closed form, its ceiling, and the controls that show it discriminates.</summary>
 [Collection(WallClockSensitive.Name)]
 public sealed class MitigationGuardrailTests
 {
@@ -18,15 +16,14 @@ public sealed class MitigationGuardrailTests
     [Fact]
     public void The_closed_form_is_05_4_step_3_written_out()
     {
-        // effDef / (effDef + 120 + 20 × attackerLevel), with the two dials as authored.
-        // DEF 100, PEN 0, level 10 -> 100 / (100 + 120 + 200) = 0.238095...
+        // effDef / (effDef + 120 + 20 x attackerLevel).
         Model.Mitigation(100.0, 0.0, 10).ShouldBe(100.0 / 420.0, tolerance: 1e-12);
 
-        // Second shape — the attacker's level is in the DENOMINATOR, so the same wall mitigates LESS
-        // against a higher-level attacker. A sign error would reverse this.
+        // Attacker level is in the denominator, so the same wall mitigates less against a
+        // higher-level attacker — a sign error would reverse this.
         Model.Mitigation(100.0, 0.0, 100).ShouldBeLessThan(Model.Mitigation(100.0, 0.0, 10));
 
-        // Third shape — PEN reduces the defender's DEF before the curve, so it lowers mitigation.
+        // PEN reduces the defender's DEF before the curve, so it lowers mitigation.
         Model.Mitigation(100.0, 0.5, 10).ShouldBe(50.0 / 370.0, tolerance: 1e-12);
         Model.Mitigation(100.0, 0.5, 10).ShouldBeLessThan(Model.Mitigation(100.0, 0.0, 10));
     }
@@ -59,8 +56,8 @@ public sealed class MitigationGuardrailTests
     {
         var model = Model;
 
-        // 🔴 The inverse is what lets the discriminating control below name an exact breaching DEF
-        // rather than search for one. Round-tripping it is the probe.
+        // The inverse is what lets the discriminating control below name an exact breaching DEF
+        // rather than search for one.
         foreach (var target in new[] { 0.50, 0.84, 0.85, 0.86, 0.99 })
         {
             var def = model.DefReaching(target, attackerPen: 0.0, attackerLevel: 40);
@@ -78,9 +75,6 @@ public sealed class MitigationGuardrailTests
     [Fact]
     public void A_DEF_just_over_and_just_under_the_ceiling_is_reported_correctly()
     {
-        // 🔴 The discriminating control the steering asks for: a DEF that DOES exceed 0.85, and the
-        // closed form reporting it — plus the one just under, so the assertion is known to have a
-        // boundary rather than to be always-true or always-false.
         var model = Model;
 
         var over = model.DefReaching(0.8501, attackerPen: 0.0, attackerLevel: 40);
@@ -112,38 +106,26 @@ public sealed class MitigationGuardrailTests
         result.Verdict.ShouldBe(GuardrailVerdict.Fail);
         result.SubjectCount.ShouldBeGreaterThan(100_000);
 
-        // 🔴 WHICH subject is the maximum, not merely that a maximum was printed. "maximum reached is"
-        // and a bare "Elite" are both satisfied by a guardrail that found its worst case anywhere at
-        // all — including at a wall that is not the worst one, which is the failure a max-finding bug
-        // actually produces. The corner named below is the one the authored model forces, and every
-        // part of it is independently pinned elsewhere in this suite:
-        //
-        //   WARDEN       — the highest authored DEF coefficient, 2.2
-        //                  (HarnessContentTests.The_enemy_derivation_coefficients_are_the_authored_ones)
-        //   ARMORED Elite — `05` §6.2's 2.2x power and 1.8x DEF, the only stacking pair
-        //   stage3 node 41 — `03` §1.1's last spine node, so the largest per-node growth term
-        //
-        // A maximum found anywhere else means the enumeration or the ordering moved.
+        // Which subject is the maximum, not merely that a maximum was printed — the named corner is
+        // the one the authored model forces, and a maximum found anywhere else means the enumeration
+        // or the ordering moved.
         result.Summary.ShouldContain("maximum reached is", Case.Sensitive);
         result.Summary.ShouldContain(
             "vs ARMORED Elite WARDEN at stage3 node 41", Case.Sensitive,
             "the worst reachable wall the authored coefficients allow");
 
-        // ⚠️ Deliberately NOT asserted here: that the details name a hero-side subject too. Details
-        // carry only the worst sample per (chapter, tier) and an enemy wall wins every one of those
-        // groups, so a hero-side line never appears — asserting one would be asserting a falsehood.
-        // Both directions being evaluated is pinned by subject COUNT instead, in
-        // Both_directions_of_the_guardrail_are_present_in_the_subject_set below.
+        // Not asserted here: that the details name a hero-side subject too. Details carry only the
+        // worst sample per (chapter, tier) and an enemy wall wins every one of those groups, so a
+        // hero-side line never appears there — both directions are pinned by subject count instead,
+        // in Both_directions_of_the_guardrail_are_present_in_the_subject_set below.
         string.Join("\n", result.Details).ShouldContain("BREACH", Case.Sensitive);
     }
 
     [Fact]
     public void Both_directions_of_the_guardrail_are_present_in_the_subject_set()
     {
-        // 🔒 Guardrail 5 is two assertions. A one-directional implementation would still produce a
-        // large subject count and a plausible maximum, so the count itself is the probe: with one
-        // (chapter, tier) and one hero, the enemy-side subjects are (nodes × archetypes × 3 forms + 1
-        // boss) and the hero-side adds exactly one more.
+        // Guardrail 5 is two assertions. A one-directional implementation would still produce a large
+        // subject count and a plausible maximum, so the count itself is the probe.
         var enemies = EnemyModel.Read(ShippedHarness.Content);
         var bosses = BossRoster.Read(ShippedHarness.Content);
         var parPower = ParPowerTable.Read(ShippedHarness.Content);
@@ -189,12 +171,9 @@ public sealed class MitigationGuardrailTests
 
     /// <summary>
     /// The authored par table with every cell scaled down, so the derived DEFs land under the ceiling.
+    /// Built through <c>GameDataLoader.LoadWith</c> rather than a fake table, so the reader, the
+    /// derivation and the guardrail under test are all the shipped ones.
     /// </summary>
-    /// <remarks>
-    /// Built through <c>GameDataLoader.LoadWith</c> rather than by constructing a fake table: the
-    /// reader, the derivation and the guardrail under test are all the shipped ones, and only the
-    /// authored numbers differ. `21` §3.3 — an override never edits the canonical files.
-    /// </remarks>
     private static ParPowerTable TinyPar()
     {
         var text = File.ReadAllText(Path.Combine(GameDataLoader.DataRoot, ParPowerTable.Document));

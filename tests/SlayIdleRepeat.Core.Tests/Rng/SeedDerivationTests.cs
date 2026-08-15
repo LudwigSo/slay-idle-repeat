@@ -6,22 +6,19 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 The two named seed derivations: `02` §2's
-/// <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>, and `14` §8.1's
+/// The two named seed derivations:
+/// <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>, and
 /// <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>.
 /// </summary>
 /// <remarks>
-/// Named rather than hand-rolled because it is the seam where the client simulates a fight without ever
-/// holding <c>runSeed</c>. A caller re-deriving it inline would sooner or later write
-/// <c>battleIndex + 1</c>, or the wrong stream name, and the two sides would disagree about a battle
-/// nobody could reproduce.
+/// Named rather than hand-rolled because it is the seam where the client simulates a fight without
+/// ever holding <c>runSeed</c>. A caller re-deriving it inline would sooner or later write
+/// <c>battleIndex + 1</c>, or the wrong stream name, and the two sides would disagree about a
+/// battle nobody could reproduce.
 /// </remarks>
 public sealed class SeedDerivationTests
 {
     // ------------------------------------------------------------------- runSeed
-    //
-    // 🔒 `02` §2 — runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter).
-    // The home for this function already existed (this class's own remarks say so); M1-05 wrote it.
 
     private static readonly PlayerId Player = new("PLAYER_TEST");
 
@@ -30,14 +27,11 @@ public sealed class SeedDerivationTests
         new(2026, 8, 12, 9, 41, 7, 123, TimeSpan.Zero);
 
     /// <summary>
-    /// 🔒 `02` §2, argument for argument. Spelled out rather than restated through the helper, so
-    /// changing the derivation without changing the specification fails here.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ <c>ToUnixTimeSeconds()</c> is written out on the right-hand side because it <b>is</b> `02`
-    /// §2's <c>floor(NowUtc as Unix seconds)</c>: the flooring belongs to the derivation, not to
+    /// Argument for argument, spelled out rather than restated through the helper, so changing the
+    /// derivation without changing the specification fails here. <c>ToUnixTimeSeconds()</c> is
+    /// written out on the right-hand side because the flooring belongs to the derivation, not to
     /// every caller who might otherwise round.
-    /// </remarks>
+    /// </summary>
     [Fact]
     public void RunSeed_is_Hash64_over_the_five_arguments_of_02_section_2()
     {
@@ -50,7 +44,7 @@ public sealed class SeedDerivationTests
                 613L));
     }
 
-    /// <summary>The same five inputs always produce the same seed — the whole point of `02` §2.</summary>
+    /// <summary>The same five inputs always produce the same seed.</summary>
     [Fact]
     public void RunSeed_is_reproducible_for_fixed_inputs()
     {
@@ -61,16 +55,11 @@ public sealed class SeedDerivationTests
     }
 
     /// <summary>
-    /// 🔒 …and changing <b>any one</b> of the five moves it — <c>runCounter</c> included, which is
-    /// the argument that exists precisely so two runs started in the same second on the same chapter
-    /// and tier draw different boards.
+    /// Changing any one of the five moves it, <c>runCounter</c> included — the argument that exists
+    /// precisely so two runs started in the same second on the same chapter and tier draw different
+    /// boards. Asserted as six distinct seeds, not five pairwise inequalities, so an implementation
+    /// that ignored one argument by coincidence could not pass.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Stated as five one-field mutations against one baseline and asserted as <b>six distinct
-    /// seeds</b>, not as five pairwise inequalities: an implementation that ignored, say,
-    /// <c>chapterId</c> but happened to differ from the baseline for another reason would pass the
-    /// pairwise form. The count is the assertion.
-    /// </remarks>
     [Fact]
     public void RunSeed_changes_when_any_one_of_its_five_inputs_changes()
     {
@@ -89,13 +78,10 @@ public sealed class SeedDerivationTests
     }
 
     /// <summary>
-    /// 🔒 The instant is floored to whole seconds, because `02` §2 hashes <c>utcUnixSeconds</c>.
+    /// The instant is floored to whole seconds: two instants inside the same second are one seed,
+    /// and the next second is a different one, which is what stops the flooring being "ignore the
+    /// timestamp".
     /// </summary>
-    /// <remarks>
-    /// Both halves. Two instants inside the same second are one seed — otherwise the derivation would
-    /// depend on a clock precision the wire never carries — and the next second is a different one,
-    /// which is what stops the flooring being "ignore the timestamp".
-    /// </remarks>
     [Fact]
     public void RunSeed_floors_the_instant_to_whole_seconds()
     {
@@ -110,16 +96,10 @@ public sealed class SeedDerivationTests
     }
 
     /// <summary>
-    /// 🔒 There is no zero-offset guard, and there does not need to be: an offset naming the same
-    /// instant converts to the same Unix seconds.
+    /// There is no zero-offset guard, and there does not need to be: an offset naming the same
+    /// instant converts to the same Unix seconds. Only the converted number is hashed here, so the
+    /// ambiguity <c>Run.Rehydrate</c> guards against elsewhere cannot arise.
     /// </summary>
-    /// <remarks>
-    /// This is the one place the aggregates' rule does <b>not</b> apply. <c>Run.Rehydrate</c> refuses
-    /// an offset <see cref="DateTimeOffset"/> because <c>CanonicalStateWriter</c> would hash two
-    /// spellings of one instant identically while record equality called them different. Here only
-    /// the converted number is hashed, so the ambiguity cannot arise — and a guard would be a branch
-    /// no legitimate input reaches, which is steering S1's defect rather than defence in depth.
-    /// </remarks>
     [Fact]
     public void RunSeed_is_offset_agnostic_because_it_hashes_the_converted_seconds()
     {
@@ -178,14 +158,10 @@ public sealed class SeedDerivationTests
     }
 
     /// <summary>
-    /// ⚠️ …and a <b>zero</b> <c>runCounter</c> is accepted, deliberately.
+    /// A zero <c>runCounter</c> is accepted, deliberately: <c>Player.BeginRun()</c> returns the
+    /// counter after the increment, so in practice the first run is seeded with 1, but nothing
+    /// requires that a zero counter be refused.
     /// </summary>
-    /// <remarks>
-    /// <c>Player.BeginRun()</c> returns the counter <em>after</em> the increment, so in practice the
-    /// first run is seeded with 1 — but nothing in `02` §2 says the counter's first value is 1, and
-    /// refusing 0 would be a claim the documents do not authorise (steering <b>S6</b>). This case is
-    /// what keeps that restraint from being tidied away later.
-    /// </remarks>
     [Fact]
     public void RunSeed_accepts_a_zero_run_counter_because_no_document_forbids_it()
     {
@@ -203,16 +179,6 @@ public sealed class SeedDerivationTests
             () => SeedDerivation.RunSeed(default(PlayerId), 1, DifficultyTier.NORMAL, Midmorning, 0));
     }
 
-    // 🔒 There was a `RunSeed_and_BattleSeed_are_different_derivations` case here. It asserted that
-    // BattleSeed(runSeed, 0..31) never returns runSeed itself — which is true of ANY hash of any
-    // seed and would hold even if the two derivations had been refactored into one another, so its
-    // name promised something its assertion could never deliver (steering S1). The claim it was
-    // reaching for is already covered with teeth:
-    // RunSeed_is_Hash64_over_the_five_arguments_of_02_section_2 pins this derivation argument for
-    // argument, BattleSeed_is_Hash64_over_the_run_seed_the_combat_stream_and_the_battle_index pins
-    // the other, and BattleSeed_differs_for_every_battle_index_of_a_run pins the injectivity
-    // RunRngStreamTests leans on.
-
     // ----------------------------------------------------------------- battleSeed
 
     /// <summary>The derivation, pinned against the committed reference row.</summary>
@@ -229,17 +195,10 @@ public sealed class SeedDerivationTests
     }
 
     /// <summary>
-    /// The derivation is exactly <c>Hash64(runSeed, "combat", battleIndex)</c> — spelled out so
-    /// that changing the helper without changing the specification fails here rather than in
-    /// M2's combat suite.
+    /// The derivation is exactly <c>Hash64(runSeed, "combat", battleIndex)</c>, spelled out with the
+    /// literal <c>"combat"</c> rather than <c>RngStreams.Combat</c>: writing the constant here would
+    /// let a change to its value move the derivation and this assertion together, in silence.
     /// </summary>
-    /// <remarks>
-    /// The stream name is the <b>literal</b> <c>"combat"</c>, not <c>RngStreams.Combat</c>. Writing
-    /// the constant here restates the implementation through the same symbol it uses, so a change
-    /// to the constant's value would move the derivation and this assertion together, in silence.
-    /// The literal also catches that. <c>RngStreams.Combat</c> is pinned to the same literal
-    /// separately, so the indirection loses nothing.
-    /// </remarks>
     [Fact]
     public void BattleSeed_is_Hash64_over_the_run_seed_the_combat_stream_and_the_battle_index()
     {
@@ -277,9 +236,8 @@ public sealed class SeedDerivationTests
     }
 
     /// <summary>
-    /// 🔒 The combat stream is re-rooted at the <c>battleSeed</c>, not at the <c>runSeed</c>.
-    /// That is what keeps <c>runSeed</c> on the server: a client holding the battle seed can
-    /// reproduce the fight and nothing else.
+    /// The combat stream is re-rooted at the <c>battleSeed</c>, not the <c>runSeed</c>: a client
+    /// holding the battle seed can reproduce the fight and nothing else.
     /// </summary>
     [Fact]
     public void A_combat_draw_is_rooted_at_the_battle_seed_not_at_the_run_seed()
@@ -293,11 +251,7 @@ public sealed class SeedDerivationTests
         new DeterministicRng(runSeed, RngStreams.Combat).NextUInt().ShouldNotBe(row.NextUInt);
     }
 
-    /// <summary>
-    /// 🔒 "A revived battle restarts from draw 0 of the same battle stream: reproducible by
-    /// construction." No state survives a revive — the battle seed and index 0 are the whole
-    /// story.
-    /// </summary>
+    /// <summary>A revived battle restarts from draw 0: no state survives a revive but the seed and index.</summary>
     [Fact]
     public void A_revived_battle_replays_the_same_sequence_from_draw_zero()
     {

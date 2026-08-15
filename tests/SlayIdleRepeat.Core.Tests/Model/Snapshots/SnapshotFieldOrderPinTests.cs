@@ -4,26 +4,15 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
-/// <summary>
-/// 🔒 `14` §16.6 — <em>"A CI test pins the field list per <c>SchemaVersion</c>."</em> This is that test.
-/// </summary>
+/// <summary>A CI test pins the field list per <c>SchemaVersion</c>. This is that test.</summary>
 /// <remarks>
-/// The subject set — public snapshot records under <c>Core/Model/Snapshots/</c> — was empty until the
-/// first record landed, and the rules were written against that final subject regardless, becoming
-/// real assertions with no <c>Skip</c> and nobody having to switch anything on.
-/// <para>
-/// Because a vacuous rule proves nothing about its own teeth, the second half of this file drives the
-/// same comparison against deliberately wrong lists over a test-only record — an added, removed and
-/// reordered field each proven caught, without ever committing a violation.
-/// </para>
+/// Because a vacuous rule proves nothing about its own teeth, the second half of this file drives
+/// the same comparison against deliberately wrong lists over a test-only record — an added,
+/// removed and reordered field each proven caught, without ever committing a violation.
 /// </remarks>
 public sealed class SnapshotFieldOrderPinTests
 {
-    /// <summary>
-    /// 🔒 `14` §16.6 — every snapshot record's canonical field order is exactly the list pinned
-    /// for the current <c>SchemaVersion</c>. Vacuous until M1-04; an assertion over every field of
-    /// every snapshot from the day <c>PlayerSnapshot</c> landed.
-    /// </summary>
+    /// <summary>Every snapshot record's canonical field order is exactly the list pinned for the current <c>SchemaVersion</c>.</summary>
     [Fact]
     public void Every_snapshot_record_matches_the_field_order_pinned_for_the_current_SchemaVersion()
     {
@@ -43,10 +32,8 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 — a snapshot record that is not pinned at all is an <b>added</b> record, which
-    /// is as much a serialisation change as an added field. It fired on the day M1-04 declared
-    /// <c>PlayerSnapshot</c> and had not yet pinned it, which was exactly the intent; it fires
-    /// again for <c>RunSnapshot</c> when M1-05 lands.
+    /// A snapshot record that is not pinned at all is an <b>added</b> record, which is as much a
+    /// serialisation change as an added field.
     /// </summary>
     [Fact]
     public void Every_snapshot_record_is_pinned_for_the_current_SchemaVersion()
@@ -63,8 +50,8 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 — a pinned record that no longer exists is a <b>removed</b> record. Without
-    /// this half, deleting a snapshot outright would pass a pin that only ever looks forwards.
+    /// A pinned record that no longer exists is a <b>removed</b> record. Without this half,
+    /// deleting a snapshot outright would pass a pin that only ever looks forwards.
     /// </summary>
     [Fact]
     public void Every_record_pinned_for_the_current_SchemaVersion_still_exists()
@@ -83,8 +70,8 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// `14` §16.6 — the current <c>SchemaVersion</c> has a pin at all. A bump that forgets to add
-    /// its section would otherwise leave the rule silently guarding nothing.
+    /// The current <c>SchemaVersion</c> has a pin at all. A bump that forgets to add its section
+    /// would otherwise leave the rule silently guarding nothing.
     /// </summary>
     [Fact]
     public void The_pin_file_carries_a_section_for_the_current_SchemaVersion()
@@ -93,8 +80,8 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// `14` §16.6 — every version up to the current one keeps its section. An old list describes
-    /// data that already exists on real devices; deleting it deletes the migration's starting point.
+    /// Every version up to the current one keeps its section. An old list describes data that
+    /// already exists on real devices; deleting it deletes the migration's starting point.
     /// </summary>
     [Fact]
     public void The_pin_file_keeps_a_section_for_every_schema_version_up_to_the_current_one()
@@ -105,8 +92,8 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// `14` §16.6 — the pin describes the <b>current</b> schema and no future one. A section for a
-    /// version above <c>SchemaVersion</c> means someone pinned a shape without bumping the number.
+    /// The pin describes the <b>current</b> schema and no future one. A section for a version
+    /// above <c>SchemaVersion</c> means someone pinned a shape without bumping the number.
     /// </summary>
     [Fact]
     public void The_pin_file_carries_no_section_above_the_current_SchemaVersion()
@@ -116,9 +103,9 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 — the pin bites on a <b>reordered</b> field. The subtlest of the three
-    /// changes: the field set is identical, every name and type is still present, and the byte
-    /// stream is completely different.
+    /// The pin bites on a <b>reordered</b> field. The subtlest of the three changes: the field set
+    /// is identical, every name and type is still present, and the byte stream is completely
+    /// different.
     /// </summary>
     [Fact]
     public void The_pin_catches_a_reordered_field()
@@ -131,7 +118,6 @@ public sealed class SnapshotFieldOrderPinTests
         offenders.ShouldNotBeEmpty();
     }
 
-    /// <summary>`14` §16.6.</summary>
     [Fact]
     public void The_pin_catches_an_added_field()
     {
@@ -143,7 +129,6 @@ public sealed class SnapshotFieldOrderPinTests
         offenders.ShouldHaveSingleItem().ShouldContain("pinned <no field>", Case.Sensitive);
     }
 
-    /// <summary>`14` §16.6.</summary>
     [Fact]
     public void The_pin_catches_a_removed_field()
     {
@@ -156,8 +141,8 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// `14` §16.6 — the pin bites on a field whose <b>type</b> changed even though its name and
-    /// position did not. Widening an id or making a field optional both move the bytes.
+    /// The pin bites on a field whose <b>type</b> changed even though its name and position did
+    /// not. Widening an id or making a field optional both move the bytes.
     /// </summary>
     [Fact]
     public void The_pin_catches_a_field_whose_type_changed()
@@ -171,7 +156,7 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 — a failure says plainly that this is a serialisation change requiring a
+    /// A failure says plainly that this is a serialisation change requiring a
     /// <c>SchemaVersion</c> bump and a migration, not a test edit. A pin whose message reads like
     /// an ordinary assertion failure gets "fixed" by editing the pin, which defeats the rule.
     /// </summary>
@@ -191,8 +176,8 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// `14` §16.6 — an unchanged record produces no violation. The negative half of the self-test:
-    /// a comparison that flagged everything would also "prove" it has teeth.
+    /// An unchanged record produces no violation. The negative half of the self-test: a
+    /// comparison that flagged everything would also "prove" it has teeth.
     /// </summary>
     [Fact]
     public void The_pin_is_silent_when_the_field_order_is_unchanged()
@@ -205,11 +190,9 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 — the predicate that selects this pin's subject set actually recognises a
-    /// snapshot record. It is the one thing the three rules above cannot prove about themselves
-    /// while the subject set is empty: an <c>IsCanonicalRecord</c> that answered <c>false</c> for
-    /// everything would leave them vacuous forever, including on the day M1 lands
-    /// <c>PlayerSnapshot</c> — a pin that never bites and never says why.
+    /// The predicate that selects this pin's subject set actually recognises a snapshot record.
+    /// An <c>IsCanonicalRecord</c> that answered <c>false</c> for everything would leave the rules
+    /// above vacuous forever — a pin that never bites and never says why.
     /// </summary>
     [Fact]
     public void IsCanonicalRecord_accepts_a_positional_record()
@@ -218,9 +201,9 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 — and it rejects every shape whose declaration order reflection cannot pin,
-    /// so the pin's idea of a snapshot is the same closed set <c>CanonicalBytes</c> will encode.
-    /// A predicate that accepted a plain class would pin a field order reflection never promised.
+    /// And it rejects every shape whose declaration order reflection cannot pin, so the pin's idea
+    /// of a snapshot is the same closed set <c>CanonicalBytes</c> will encode. A predicate that
+    /// accepted a plain class would pin a field order reflection never promised.
     /// </summary>
     [Theory]
     [MemberData(nameof(ShapesWithNoPinnableFieldOrder))]
@@ -230,8 +213,8 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// `14` §16.6 — the pinned list is the writer's own depth-first traversal, so a nested record's
-    /// fields appear inside their parent's, in declaration order, with a dotted path.
+    /// The pinned list is the writer's own depth-first traversal, so a nested record's fields
+    /// appear inside their parent's, in declaration order, with a dotted path.
     /// </summary>
     [Fact]
     public void CanonicalFieldOrder_flattens_a_nested_record_depth_first()
@@ -277,13 +260,11 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 — the <b>other</b> half of the subject query is not the vacuity source either.
+    /// The <b>other</b> half of the subject query is not the vacuity source either.
     /// <see cref="IsCanonicalRecord_accepts_a_positional_record"/> proves the record predicate
     /// works; nothing proved that <c>IsPublic &amp;&amp; !IsNested &amp;&amp; IsUnderSnapshots</c>
-    /// reaches the namespace at all. If it did not — or if M1 declared <c>PlayerSnapshot</c> as
-    /// <c>internal</c>, which `30` §11 makes plausible since aggregates get internal constructors
-    /// and <c>Core.Tests</c> holds <c>InternalsVisibleTo</c>, or nested it inside another type —
-    /// all four pin rules would stay green over nothing, forever.
+    /// reaches the namespace at all. If it did not, all four pin rules would stay green over
+    /// nothing, forever.
     /// </summary>
     [Fact]
     public void The_visibility_and_namespace_filter_reaches_the_snapshots_namespace_today()
@@ -294,19 +275,11 @@ public sealed class SnapshotFieldOrderPinTests
         names.ShouldContain(nameof(CanonicalStateWriter));
     }
 
-    /// <summary>
-    /// 🔒 The floor that replaced the vacuity tripwire: the subject set is never empty again, and it
-    /// names the record it expects.
-    /// </summary>
+    /// <summary>The floor that replaced the vacuity tripwire: the subject set is never empty again, and it names the record it expects.</summary>
     /// <remarks>
-    /// The old tripwire asserted the set was <i>empty</i> and told the filling milestone to delete it —
-    /// which would have left the four pin rules with nothing watching their subject set, the exact S3
-    /// failure the tripwire existed to prevent, one commit after it was retired.
-    /// <para>
-    /// Both halves matter: the count floor catches the selector being emptied by a move or a visibility
-    /// change, and naming <c>PlayerSnapshot</c> catches a rename, which a bare count would not once
-    /// <c>RunSnapshot</c> lands beside it.
-    /// </para>
+    /// Both halves matter: the count floor catches the selector being emptied by a move or a
+    /// visibility change, and naming <c>PlayerSnapshot</c> catches a rename, which a bare count
+    /// would not once <c>RunSnapshot</c> lands beside it.
     /// </remarks>
     [Fact]
     public void The_pins_subject_set_is_not_empty_and_holds_the_first_snapshot_record()
@@ -321,9 +294,9 @@ public sealed class SnapshotFieldOrderPinTests
             .Select(record => record.Name)
             .ShouldContain(nameof(PlayerSnapshot));
 
-        // 🔒 M1-05. Naming the second record as well is what the remark above anticipated: with two
-        // records in the set, a bare count survives one of them being renamed, made internal, nested
-        // or moved out of Core/Model/Snapshots/, and the pin would go on guarding the survivor while
+        // Naming the second record as well is what the remark above anticipated: with two records
+        // in the set, a bare count survives one of them being renamed, made internal, nested or
+        // moved out of Core/Model/Snapshots/, and the pin would go on guarding the survivor while
         // reporting success over the one that left.
         SnapshotFieldOrderPin.SnapshotRecords
             .Select(record => record.Name)
@@ -331,10 +304,9 @@ public sealed class SnapshotFieldOrderPinTests
     }
 
     /// <summary>
-    /// 🔒 Every snapshot record carries <c>SchemaVersion</c> as its <b>first</b> field.
-    /// <c>SnapshotSchema</c>'s own doc asserts it and nothing enforced it — neither
-    /// <c>CanonicalFieldOrder</c> nor the pin looked at index 0, so an omission would fail nothing
-    /// until <c>stateHash</c> values existed in the wild.
+    /// Every snapshot record carries <c>SchemaVersion</c> as its <b>first</b> field. Neither
+    /// <c>CanonicalFieldOrder</c> nor the pin looked at index 0 before, so an omission would fail
+    /// nothing until <c>stateHash</c> values existed in the wild.
     /// </summary>
     [Fact]
     public void Every_snapshot_record_carries_SchemaVersion_as_its_first_field()

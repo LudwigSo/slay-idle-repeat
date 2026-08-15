@@ -2,19 +2,16 @@ using SlayIdleRepeat.AssetManifest;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// Specs for the per-step cases, built straight from a shipped manifest row's fields.
-/// </summary>
+/// <summary>Specs for the per-step cases, built straight from a shipped manifest row's fields.</summary>
 /// <remarks>
-/// 🔒 Deliberately NOT through <see cref="AssetSpec.Resolve"/>. A step case must fail for the
-/// step's reason; routing it through the resolver would make every one of them also a resolver
-/// case, and a resolver bug would light up thirty red tests instead of the three that own it.
-/// <c>AssetSpecTests</c> is where <see cref="AssetSpec.Resolve"/> itself is pinned.
+/// Deliberately not through <see cref="AssetSpec.Resolve"/>: a step case must fail for the step's
+/// reason, so a resolver bug should light up only the resolver's own cases (<c>AssetSpecTests</c>),
+/// not every step case at once.
 /// </remarks>
 internal static class TestSpecs
 {
     /// <summary>A spec carrying one shipped row's real size, pivot, atlas, biome and palette.</summary>
-    /// <param name="id">A `15` §D1 asset id that has both a delivery size and a pivot.</param>
+    /// <param name="id">A shipped asset id that has both a delivery size and a pivot.</param>
     internal static AssetSpec FromRow(string id)
     {
         var row = ManifestRows.Require(id);
@@ -31,14 +28,14 @@ internal static class TestSpecs
     }
 
     /// <summary>The same, with a target size the case states instead of the manifest's.</summary>
-    /// <param name="id">A `15` §D1 asset id.</param>
+    /// <param name="id">A shipped asset id.</param>
     /// <param name="width">The case's stated target width.</param>
     /// <param name="height">The case's stated target height.</param>
     internal static AssetSpec WithTargetSize(string id, int width, int height) =>
         FromRow(id) with { TargetSize = new PixelSize(width, height) };
 
     /// <summary>The same, with a target size and a pivot the case states.</summary>
-    /// <param name="id">A `15` §D1 asset id.</param>
+    /// <param name="id">A shipped asset id.</param>
     /// <param name="width">The case's stated target width.</param>
     /// <param name="height">The case's stated target height.</param>
     /// <param name="pivot">One of <see cref="Doc15Pivots.All"/>.</param>
@@ -47,29 +44,22 @@ internal static class TestSpecs
         FromRow(id) with { TargetSize = new PixelSize(width, height), Pivot = pivot };
 }
 
-/// <summary>
-/// Threshold values <b>this suite states</b> for the synthetic fixtures it drives.
-/// </summary>
+/// <summary>Threshold values this suite states for the synthetic fixtures it drives.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>None of these is a calibration and none of them is a default.</b> `15` authorises no value
-/// for any of the seventeen keys, and <c>assets/pipeline/thresholds.json</c> ships every one of
-/// them null for exactly that reason (steering rule S6). What a caller may do — and what this is —
-/// is state a value at the call site and say why. Each value below is arbitrary-but-sufficient for
-/// the closed-form synthetic fixture the case using it drives, and would mean nothing against real
-/// generated art. M8-10 is the first batch that could calibrate any of them.
+/// None of these is a calibration or a default; the shipped thresholds file ships every key null.
+/// Each value below is arbitrary-but-sufficient for the closed-form synthetic fixture the case
+/// using it drives, and would mean nothing against real generated art.
 /// </para>
 /// <para>
 /// If a step under test starts to need a value these do not cover, add it here with a comment
 /// saying what makes it sufficient for the fixture — never by widening one silently.
 /// </para>
 /// <para>
-/// 🔒 <b>Do not merge this with <see cref="QaThresholds"/>, and in particular do not harmonise
-/// <see cref="ThresholdKeys.PaletteMatchTolerance"/>.</b> The two sets hold deliberately opposite
-/// values for it — 64 here, 8 there — because the `15` §B4 step 3 fixture and the Part F item 5
-/// fixture make opposite demands of the same 27.7-unit deviation: the step needs it inside the
-/// tolerance so the nearest §A5 hue is unambiguous, and item 5 needs it outside so there is a
-/// violation to find. One shared value would silently make one of the two cases vacuous.
+/// Do not merge this with <see cref="QaThresholds"/>, and in particular do not harmonise
+/// <see cref="ThresholdKeys.PaletteMatchTolerance"/>: the two sets hold deliberately opposite
+/// values for it (64 here, 8 there) because the step fixture and the item 5 fixture make opposite
+/// demands of the same deviation. One shared value would silently make one of the two cases vacuous.
 /// </para>
 /// </remarks>
 internal static class StatedThresholds
@@ -98,8 +88,7 @@ internal static class StatedThresholds
             // positive spread passes; 1 keeps the case honest about being generous.
             .With(ThresholdKeys.OutlineWidthUniformityTolerance, 1d)
 
-            // Black and white only. `15` §A5 says "+ neutrals" and enumerates nothing, so this is
-            // the smallest list that lets a case run at all — it is not a proposal.
+            // Smallest neutrals list that lets a case run at all — not a proposal.
             .WithColours(ThresholdKeys.PaletteNeutrals, ["#FFFFFF", "#000000"])
 
             // The palette fixture's off-palette pixel is a stated 27.7 units from its nearest hue
@@ -125,17 +114,12 @@ internal static class StatedThresholds
             .With(ThresholdKeys.SilhouetteMinDistinguishability, 0.01d)
             .With(ThresholdKeys.WatermarkCornerOpacityCeiling, 0.5d);
 
-    /// <summary>
-    /// The same set with the two `15` §B4 step 6 keys left uncalibrated, for the composed run over
-    /// a full `15` §C generation canvas.
-    /// </summary>
+    /// <summary>The same set with the export compression keys left uncalibrated, for the composed run over a full generation canvas.</summary>
     /// <remarks>
-    /// 🔒 Not a weakening: step 6's uncalibrated path is a shipped, tested path — it emits
-    /// <see cref="ExportStep.PngquantDeviationId"/> saying the compression half did not run — and
-    /// the composed case is about which step changes the image's size, which step 6 does not. What
-    /// it buys is time: the managed median cut is the one stage whose cost is superlinear in the
-    /// colour count, and a 1024x1024 frame is sixteen times the pixels every other case here
-    /// drives. <c>ExportStepTests</c> is where the calibrated path is pinned.
+    /// Not a weakening: the uncalibrated export path is a shipped, tested path, and this case is
+    /// about which step changes the image's size, which export does not. What it buys is time — the
+    /// managed median cut's cost is superlinear in colour count, and this frame is sixteen times the
+    /// pixels every other case here drives.
     /// </remarks>
     internal static ThresholdSet ForGenerationCanvasFixture() =>
         ThresholdSet.Uncalibrated()

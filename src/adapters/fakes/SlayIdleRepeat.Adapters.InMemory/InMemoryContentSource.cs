@@ -4,13 +4,11 @@ using SlayIdleRepeat.Application.Ports.Shared;
 namespace SlayIdleRepeat.Adapters.InMemory;
 
 /// <summary>
-/// The in-memory fake for <see cref="IContentSourcePort"/> (`23` §5 A5).
+/// The in-memory fake for <see cref="IContentSourcePort"/>.
 /// </summary>
 /// <remarks>
-/// Content held as bytes in a dictionary, which is exactly what the real source hands over — so a
-/// test can build a whole data tree, a malformed file, or a one-byte edit without a filesystem.
-/// <see cref="Revision"/> moves on every write, which is what makes the hot-reload path testable
-/// without a file watcher.
+/// Backed by a dictionary of bytes so a test can build a data tree without a filesystem;
+/// <see cref="Revision"/> moves on every write to keep the hot-reload path testable.
 /// </remarks>
 public sealed class InMemoryContentSource : IContentSourcePort
 {
@@ -30,8 +28,7 @@ public sealed class InMemoryContentSource : IContentSourcePort
         ArgumentException.ThrowIfNullOrEmpty(documentPath);
         ArgumentNullException.ThrowIfNull(bytes);
 
-        // Copied: a test that mutates its array afterwards would otherwise change the source
-        // without moving Revision, which is the one thing this fake exists to model faithfully.
+        // Copied so a caller mutating its array afterwards can't change the source without moving Revision.
         _documents[documentPath] = bytes.ToArray();
         _revision++;
         return this;
@@ -53,10 +50,8 @@ public sealed class InMemoryContentSource : IContentSourcePort
 
     /// <inheritdoc/>
     /// <remarks>
-    /// 🔒 <see cref="SlayIdleRepeat.Core.Content.MissingContentException"/>, the type the port
-    /// declares — not <c>KeyNotFoundException</c>, which is what a dictionary happens to throw. A
-    /// fake that fails differently from the real adapter is a fake that makes every case written
-    /// against it say nothing about production.
+    /// Throws <see cref="SlayIdleRepeat.Core.Content.MissingContentException"/> rather than the
+    /// dictionary's own <c>KeyNotFoundException</c>, so tests see the same failure as the real adapter.
     /// </remarks>
     public ReadOnlyMemory<byte> ReadDocument(string documentPath)
     {

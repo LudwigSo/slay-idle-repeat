@@ -6,22 +6,17 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §3 — how a fight ends: a cleared side, a downed hero, or the timeout, on which
-/// <em>"the side with the higher <b>remaining HP fraction</b> wins"</em>.
-/// </summary>
+/// <summary>How a fight ends: a cleared side, a downed hero, or the timeout by HP fraction.</summary>
 public sealed class BattleOutcomeTests
 {
     /// <summary>
-    /// 🔒 The timeout rule, with the hero ahead on fraction and <b>behind on absolute HP</b> — which
-    /// is what makes it a fraction rule rather than an HP rule.
+    /// The timeout rule, with the hero ahead on fraction and behind on absolute HP — proving it's a
+    /// fraction rule, not an HP rule.
     /// </summary>
     [Fact]
     public void On_the_timeout_the_higher_remaining_HP_FRACTION_wins_not_the_higher_HP()
     {
-        // Nobody can hurt anybody: the fight runs the full cap and the standings decide it.
-        // Hero: 60/100 = 0.60 of its bar, 60 HP absolute.
-        // Enemy: 300/1000 = 0.30 of its bar, 300 HP absolute — five times the hero's HP.
+        // Hero: 60/100 = 0.60 of its bar. Enemy: 300/1000 = 0.30, but 5x the hero's absolute HP.
         var result = Standoff(heroMaxHp: 100, heroHp: 60, enemyMaxHp: 1000, enemyHp: 300);
 
         result.HeroWon.ShouldBeTrue();
@@ -40,15 +35,9 @@ public sealed class BattleOutcomeTests
     }
 
     /// <summary>
-    /// 🔒 The fraction is the <b>side's</b>, summed over its killable actors — not the hero's against
-    /// one enemy's.
+    /// The fraction is the side's, summed over its killable actors: hero 0.50 vs. pack
+    /// (100+2)/(100+100) = 0.51, which distinguishes this from comparing against a single enemy.
     /// </summary>
-    /// <remarks>
-    /// The hero is at 0.50. Enemy 0 is at 1.00 and enemy 1 is at 0.02, so the pack is
-    /// <c>(100 + 2) / (100 + 100) = 0.51</c> and takes it. Comparing the hero against the
-    /// <em>weakest</em> enemy would give the hero the win, and against the <em>strongest</em> the
-    /// same answer as the sum — so the case discriminates all three readings.
-    /// </remarks>
     [Fact]
     public void The_timeout_fraction_is_summed_over_the_whole_side()
     {
@@ -60,10 +49,7 @@ public sealed class BattleOutcomeTests
         result.HeroWon.ShouldBeFalse();
     }
 
-    /// <summary>
-    /// ⚠️ An exact tie is a loss for the hero — errata, because `05` §3 authors no PvE tie rule and
-    /// `05` §9 defines <c>ParPower</c> by <em>clear rate</em>. A 90 s standoff cleared nothing.
-    /// </summary>
+    /// <summary>An exact tie is a loss for the hero: a 90 s standoff cleared nothing.</summary>
     [Fact]
     public void An_exact_tie_on_the_timeout_is_not_a_clear()
     {
@@ -105,11 +91,7 @@ public sealed class BattleOutcomeTests
         result.HeroHpRemaining.ShouldBe(0.0);
     }
 
-    /// <summary>
-    /// 🔒 The cap is a <b>parameter</b>. `05` §3's PvE fight is 1800 ticks and `05` §3.3's duel is
-    /// 1200 (<c>pvpMaxFightSeconds</c>, `11` §4.3) — which M2-06 recorded as unenforced anywhere and
-    /// M2-14 inherits.
-    /// </summary>
+    /// <summary>The tick cap is a parameter, not a hardcoded constant.</summary>
     [Theory]
     [InlineData(1800)]
     [InlineData(1200)]
@@ -120,14 +102,13 @@ public sealed class BattleOutcomeTests
 
         result.DurationTicks.ShouldBe(maxTicks);
 
-        // 🔒 Floored before the ShouldAllBe, which passes on an empty collection: at maxTicks 1 a
-        // loop that emitted nothing at all would satisfy "every event is below the cap" while
-        // proving nothing about where the cap falls.
+        // ShouldAllBe passes vacuously on an empty log, so assert non-empty first: otherwise
+        // maxTicks 1 with no emitted events would pass without proving where the cap falls.
         result.Log.ShouldNotBeEmpty();
         result.Log.ShouldAllBe(e => e.Tick < maxTicks);
     }
 
-    /// <summary>`05` §3.3's duel bounds, stated as the record the loop reads them from.</summary>
+    /// <summary>Duel bounds, stated as the record the loop reads them from.</summary>
     [Fact]
     public void The_duel_bounds_are_expressible_without_touching_the_loop()
     {
@@ -136,11 +117,8 @@ public sealed class BattleOutcomeTests
         CombatRules.PvE.IsPvp.ShouldBeFalse();
         CombatRules.PvE.HorizonSeconds.ShouldBe(90.0);
 
-        // ⚠️ Built through the factory since M2-14. `IsPvp` stopped being a stored flag: `11` §4.3
-        // makes an underdog mandatory in a duel and `05` §3 gives PvE none, so the two were one fact
-        // and IsPvp is now DERIVED from ExactTieWinner. The hand-rolled `(1200, false, IsPvp: true)`
-        // this line used to carry — a duel with 11 §4.3's tie rule silently off — is no longer a
-        // representable value. See PvpDuelTests for the tie rule itself.
+        // IsPvp is derived from ExactTieWinner rather than a stored flag, since a duel always has an
+        // underdog and PvE never does — the two facts are one fact.
         var duel = CombatRules.Duel(pvpMaxFightSeconds: 60.0, lowerRatedSide: BattleSide.ENEMY);
 
         duel.MaxTicks.ShouldBe(1200);
@@ -161,16 +139,10 @@ public sealed class BattleOutcomeTests
             () => new CombatRules(maxTicks, OnKillTriggersFire: true).Validated());
 
     /// <summary>
-    /// 🔒 A <b>despawned</b> summon has left the fight and has no stake in the timeout — `18` §2.4's
-    /// <em>"despawned ≠ killed"</em>.
+    /// A despawned summon has left the fight and has no stake in the timeout. Despawning is not a
+    /// death, so it keeps its HP; counting that HP would prop its side up at full health and hand a
+    /// stolen win to whoever despawned their own summons.
     /// </summary>
-    /// <remarks>
-    /// A killed actor sits at <c>0/max</c> and correctly drags its side's fraction down. A despawned
-    /// one keeps its HP, because <c>CLEAR_SUMMONS</c> is not a death — so counting it would prop the
-    /// side up at <c>max/max</c> and hand the timeout to whoever cleared their own summons. Here the
-    /// hero is at 0.50 and the enemy side's real remaining is 0.30; the despawned shard at full
-    /// health would lift the pack to 0.65 and steal the win.
-    /// </remarks>
     [Fact]
     public void A_despawned_summon_does_not_count_toward_the_timeout_fraction()
     {
@@ -196,7 +168,6 @@ public sealed class BattleOutcomeTests
 
         services.ShouldNotBeNull();
 
-        // The shard is really there, really despawned, and really still at full health.
         var shard = services.Actors.Single(a => a.IsSummon);
         shard.Despawned.ShouldBeTrue();
         shard.CurrentHp.ShouldBe(100.0);
@@ -206,7 +177,7 @@ public sealed class BattleOutcomeTests
     }
 
     /// <summary>
-    /// 🔒 A roster with no hero, or nothing killable to fight, is refused — both would otherwise
+    /// A roster with no hero, or nothing killable to fight, is refused — both would otherwise
     /// produce a valid one-tick log rather than an error.
     /// </summary>
     [Fact]
@@ -229,8 +200,8 @@ public sealed class BattleOutcomeTests
             })))
             .Message.ShouldContain("one-tick win");
 
-        // 🔒 `05` §3.3's duel satisfies both clauses: the defending hero is on the ENEMY side, so it
-        // is the killable enemy rather than a second hero-side hero.
+        // A duel: the defending hero is placed on the ENEMY side, so it's the killable enemy rather
+        // than a second hero-side hero.
         Should.NotThrow(() => BattleTestBench.Plan(new[]
             {
                 BattleTestBench.Hero(),
@@ -280,10 +251,7 @@ public sealed class BattleOutcomeTests
     }
 }
 
-/// <summary>
-/// Sets the standings once and admits a summon that is immediately despawned — `18` §2.4's
-/// <c>CLEAR_SUMMONS</c>, which leaves the actor at full health and out of the fight.
-/// </summary>
+/// <summary>Sets the standings once and admits a summon that is immediately despawned.</summary>
 internal sealed class DespawnedShard : IStatusTimeline
 {
     private readonly BattleServices _services;

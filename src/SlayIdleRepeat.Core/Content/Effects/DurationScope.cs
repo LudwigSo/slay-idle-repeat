@@ -1,9 +1,6 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>🔒 The six duration scopes of `18` §6.</summary>
-/// <remarks>
-/// 🔒 <b>6.</b> `18` §11: <em>"6 duration scopes = 5 + <c>PHASE</c>"</em>.
-/// </remarks>
+/// <summary>The six duration scopes.</summary>
 public enum DurationScope
 {
     /// <summary>Applies once and does not persist.</summary>
@@ -13,9 +10,8 @@ public enum DurationScope
     BATTLE = 2,
 
     /// <summary>
-    /// Ends when the boss <b>exits the phase in which the effect was applied</b> (`05` §3.1's phase
-    /// check fires the exits; `17` §1.1's <c>AURA</c> mechanics are <c>PHASE</c>-scoped by
-    /// definition — Gulgrot's Bog Air). Outside a boss fight it behaves as <see cref="BATTLE"/>.
+    /// Ends when the boss exits the phase in which the effect was applied. Outside a boss fight it
+    /// behaves as <see cref="BATTLE"/>.
     /// </summary>
     PHASE = 3,
 

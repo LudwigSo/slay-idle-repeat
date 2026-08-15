@@ -41,9 +41,7 @@ public sealed class TileKindIdsTests
     [Fact]
     public void Every_declared_TileKind_value_is_covered_by_ToId()
     {
-        // A floor against the enum silently growing a member ToId doesn't know about (S1's
-        // "reflection/enumeration whose subject set can go empty" failure shape, mirrored: here
-        // the risk is the set growing unnoticed, not shrinking).
+        // Floor against the enum silently growing a member ToId doesn't know about.
         foreach (var kind in Enum.GetValues<TileKind>())
         {
             Should.NotThrow(() => TileKindIds.ToId(kind));

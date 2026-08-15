@@ -4,9 +4,7 @@ using System.Text.Json;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 
-/// <summary>
-/// 🔒 The regeneration half of the committed baseline — <b>the shape, never the reasons</b>.
-/// </summary>
+/// <summary>The regeneration half of the committed baseline — the shape, never the reasons.</summary>
 /// <remarks>
 /// The documented command, and the only supported way to move a hash in
 /// <c>DslDeterminismBaseline.json</c>:
@@ -17,20 +15,19 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// </code>
 /// Run by hand, never by CI.
 /// <para>
-/// 🔒 <b>The regenerated file does not pass.</b> Every render stamps <see cref="UnreviewedStatus"/>
-/// into the review block and the reader <b>refuses</b> a table in that state — <em>"--write-baseline
-/// writes the SHAPE; the reason is written by hand. A generated reason is not a reason."</em> A
-/// regenerated table nobody reviewed is a determinism break accepted without anybody saying why.
+/// The regenerated file does not pass: every render stamps <see cref="UnreviewedStatus"/> into the
+/// review block and the reader refuses a table in that state. A regenerated table nobody reviewed is a
+/// determinism break accepted without anybody saying why.
 /// </para>
 /// <para>
-/// ⚠️ The reviewer must, in order: read the git diff (a change to <c>aggregate</c> alone is impossible,
-/// so one moved chunk means the change is localised); establish which `18` §8 step changed and whether
-/// that was intended; write the <c>why</c>, naming the change and the task; then set <c>status</c> and
-/// stamp <c>reviewedOn</c>.
+/// The reviewer must, in order: read the git diff (a change to <c>aggregate</c> alone is impossible,
+/// so one moved chunk means the change is localised); establish which resolution step changed and
+/// whether that was intended; write the <c>why</c>, naming the change and the task; then set
+/// <c>status</c> and stamp <c>reviewedOn</c>.
 /// </para>
 /// <para>
-/// Per-row <c>why</c> strings are <b>carried over</b> from the file being replaced: a row's reason
-/// describes the property it pins, which a regeneration does not change.
+/// Per-row <c>why</c> strings are carried over from the file being replaced: a row's reason describes
+/// the property it pins, which a regeneration does not change.
 /// </para>
 /// </remarks>
 internal static class DslDeterminismBaselineWriter
@@ -38,16 +35,15 @@ internal static class DslDeterminismBaselineWriter
     /// <summary>The environment variable naming where a regenerated table is written.</summary>
     internal const string DestinationVariable = "SIR_M2_17_BASELINE_OUT";
 
-    /// <summary>🔒 The status every render stamps, and the one the reader refuses.</summary>
+    /// <summary>The status every render stamps, and the one the reader refuses.</summary>
     internal const string UnreviewedStatus = "unreviewed";
 
-    /// <summary>🔒 The only file a regeneration may write, as a path suffix.</summary>
-    /// <remarks>
-    /// Unlike a CLI flag on a tool run deliberately, this is a <c>[Fact]</c> that writes whenever
-    /// <see cref="DestinationVariable"/> happens to be set — including during a plain <c>dotnet test</c>
-    /// nobody intended as a regeneration. So the write branch checks the path too: an exported variable
-    /// cannot send the render anywhere but the one file it belongs in.
-    /// </remarks>
+    /// <summary>
+    /// The only file a regeneration may write, as a path suffix. Unlike a CLI flag on a tool run
+    /// deliberately, this is a <c>[Fact]</c> that writes whenever <see cref="DestinationVariable"/>
+    /// happens to be set — including during a plain <c>dotnet test</c> nobody intended as a
+    /// regeneration. So the write branch checks the path too.
+    /// </summary>
     internal const string CanonicalPath =
         "tests/SlayIdleRepeat.Core.Tests/Rules/Effects/Determinism/DslDeterminismBaseline.json";
 
@@ -65,11 +61,11 @@ internal static class DslDeterminismBaselineWriter
     /// <summary>The status a human writes once they have read the diff and said why it moved.</summary>
     internal const string ReviewedStatus = "reviewed";
 
-    /// <summary>🔴 The steering-S5 limitation, in the words the committed file carries.</summary>
-    /// <remarks>
-    /// It lives on the <b>writer</b> because the writer renders it; the reader only checks the committed
-    /// file still carries it word for word. A header nobody checks is a header somebody deletes.
-    /// </remarks>
+    /// <summary>
+    /// The self-generated limitation, in the words the committed file carries. It lives on the writer
+    /// because the writer renders it; the reader only checks the committed file still carries it word
+    /// for word.
+    /// </summary>
     internal static IReadOnlyList<string> HeaderLines { get; } = new List<string>
     {
         "M2-17 — the `18` §8 determinism baseline over 10 000 seeded build permutations.",
@@ -151,13 +147,12 @@ internal static class DslDeterminismBaselineWriter
         return text.ToString();
     }
 
-    /// <summary>The per-row reasons held in the table file being replaced.</summary>
-    /// <remarks>
-    /// 🔒 <b>It refuses a destination that does not exist</b>, which is the whole safety of the
-    /// carry-over. Returning an empty map instead meant that pointing the variable at a scratch path to
-    /// inspect the diff — the obvious thing a reviewer does — silently produced a table with twelve
-    /// blank <c>why</c>s. Regeneration <b>replaces</b> a table; it does not create one from nothing.
-    /// </remarks>
+    /// <summary>
+    /// The per-row reasons held in the table file being replaced. Refuses a destination that does not
+    /// exist, which is the whole safety of the carry-over — an empty map instead would let pointing
+    /// the variable at a scratch path silently produce a table with blank <c>why</c>s. Regeneration
+    /// replaces a table; it does not create one from nothing.
+    /// </summary>
     /// <exception cref="FileNotFoundException">There is no table at that path to carry reasons over from.</exception>
     internal static IReadOnlyDictionary<string, string> ReasonsIn(string path)
     {

@@ -5,52 +5,38 @@ using SlayIdleRepeat.BalanceHarness.Sweep;
 namespace SlayIdleRepeat.BalanceHarness.Guardrails;
 
 /// <summary>
-/// 🔒 `05` §9's guardrails 1, 3 and 4, and `17` §1's Sporequeen band — the four assertions stated
-/// over the sweep's measured fights.
+/// Guardrails 1, 3 and 4, and the Sporequeen band — the four assertions stated over the sweep's
+/// measured fights.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Guardrail 2 is not here and must not be added here.</b> `05` §9's second guardrail is about
-/// perk draft viability, which needs M3-07's perk content; <c>content/perks/</c> is empty and
-/// <c>calibration_builds.json</c>'s <c>frozenPerks</c> name ids that do not resolve. It is M2-16b's.
-/// A stubbed or vacuous version would report a green guardrail number that nothing measured.
-/// </para>
-/// <para>
-/// 🔒 <b>Guardrails 3 and 4 are asserted on the cell's MEDIAN cleared duration, and the raw tails are
-/// reported beside it.</b> The statistic is a harness decision and it is stated here rather than
-/// buried: `17` §1 writes the floor, the ceiling and the 35-60 s band in one sentence
-/// (<em>"Duration — 35-60 s at par power. Balance guardrail: never below 12 s, never above 70 s"</em>),
-/// and the band is unambiguously a central statistic — a 10 000-fight sample of a well-tuned boss will
-/// always contain <em>some</em> fast roll. Asserting the floor on the sample minimum would make
-/// guardrail 3 a test of the tail's thickness rather than of the tuning. The per-cell counts of clears
-/// under 12 s and over 70 s are carried in <see cref="CellResult.ClearsUnderHardFloor"/> and
-/// <see cref="CellResult.ClearsOverHardCeiling"/> and printed in the report, so the tail is visible
-/// and nothing is hidden by the choice.
-/// </para>
+/// Guardrail 2 is not here and must not be added here: it's about perk draft viability, which needs
+/// perk content this milestone doesn't have (<c>content/perks/</c> is empty); a stubbed version would
+/// report a green guardrail number that nothing measured. Guardrails 3 and 4 are asserted on the
+/// cell's median cleared duration, not the sample minimum/maximum: a 10 000-fight sample of a
+/// well-tuned boss will always contain some fast roll, so asserting on the extreme would make these a
+/// test of tail thickness rather than of the tuning. The raw tail counts
+/// (<see cref="CellResult.ClearsUnderHardFloor"/>/<see cref="CellResult.ClearsOverHardCeiling"/>) are
+/// still printed beside it, so nothing is hidden by the choice.
 /// </remarks>
 public static class SweepGuardrails
 {
-    /// <summary>🔒 `05` §9 guardrail 1 — clear rate at par, per <c>(chapter, tier, archetype)</c>.</summary>
+    /// <summary>Guardrail 1 — clear rate at par, per <c>(chapter, tier, archetype)</c>.</summary>
     /// <param name="sweep">The measured cells.</param>
-    /// <param name="minimum">🔒 <c>par_power.json#/clearRateAtPar/assertionMin</c>, authored 0.62.</param>
-    /// <param name="maximum">🔒 <c>par_power.json#/clearRateAtPar/assertionMax</c>, authored 0.78.</param>
+    /// <param name="minimum"><c>par_power.json#/clearRateAtPar/assertionMin</c>, authored 0.62.</param>
+    /// <param name="maximum"><c>par_power.json#/clearRateAtPar/assertionMax</c>, authored 0.78.</param>
     /// <remarks>
-    /// ⚠️ <b>Scope: <em>"clears (c, t)"</em> is measured over the chapter's BOSS FIGHT at par.</b> The
-    /// full-run definition needs M3's board layer — <c>game-data/content/chapters/</c> is empty and
-    /// node composition is unauthored — and inventing an encounter ladder to walk is exactly the
-    /// harness-side invention `05` §9 forbids. The measured rate is therefore an <b>upper bound</b> on
-    /// a true run clear rate: a real run must survive `03` §1.1's forty-two spine nodes before it
-    /// reaches this fight, and every one of them can only lower the number.
+    /// Measured over the chapter's boss fight at par only, not a full run: the board layer needed to
+    /// walk a real run isn't authored yet, and inventing an encounter ladder isn't this harness's call
+    /// to make. The measured rate is therefore an upper bound — a real run must also survive the spine
+    /// nodes before it reaches this fight, which can only lower the true number.
     /// </remarks>
     public static GuardrailResult ClearRateAtPar(
         IReadOnlyList<CellResult> sweep, double minimum, double maximum)
     {
         ArgumentNullException.ThrowIfNull(sweep);
 
-        // 🔒 The band in the NAME is the band that was asserted, not a transcription of it. `05` §9's
-        // 0.62/0.78 live in par_power.json and arrive as parameters; a hardcoded "[62%, 78%]" here would
-        // go on naming those numbers after a retune, so the report's headline and its own detail lines
-        // would disagree about what was measured.
+        // The band in the name is the band that was actually asserted (a parameter), not a hardcoded
+        // transcription that could go stale after a retune.
         var name = $"Clear rate at par in [{Pct(minimum)}, {Pct(maximum)}] per (chapter, tier, archetype)";
         var details = new List<string>();
         var breaches = 0;
@@ -93,7 +79,7 @@ public static class SweepGuardrails
             sweep.Count);
     }
 
-    /// <summary>🔒 `05` §9 guardrail 3 — no build clears a boss below 12 s at par.</summary>
+    /// <summary>Guardrail 3 — no build clears a boss below 12 s at par.</summary>
     public static GuardrailResult HardFloor(IReadOnlyList<CellResult> sweep) =>
         DurationBound(
             3,
@@ -102,7 +88,7 @@ public static class SweepGuardrails
             cell => cell.MedianClearedSeconds < DurationBands.HardFloorSeconds,
             below: true);
 
-    /// <summary>🔒 `05` §9 guardrail 4 — no build needs more than 70 s for a boss at par.</summary>
+    /// <summary>Guardrail 4 — no build needs more than 70 s for a boss at par.</summary>
     public static GuardrailResult HardCeiling(IReadOnlyList<CellResult> sweep) =>
         DurationBound(
             4,
@@ -111,9 +97,7 @@ public static class SweepGuardrails
             cell => cell.MedianClearedSeconds > DurationBands.HardCeilingSeconds,
             below: false);
 
-    /// <summary>
-    /// 🔒 `17` §1's kickoff assertion — Sporequeen Vell's median duration at par sits in 35-60 s.
-    /// </summary>
+    /// <summary>Sporequeen Vell's median duration at par sits in 35-60 s.</summary>
     /// <param name="sweep">The measured cells; the Chapter 7 ones are selected by boss id.</param>
     /// <remarks>
     /// Selected on <c>BOSS_SPOREQUEEN_VELL</c> rather than on <c>chapter == 7</c>, so a sweep that
@@ -218,8 +202,7 @@ public static class SweepGuardrails
                 $"clears={Int(cell.ClearCount)}/{Int(cell.FightCount)}");
         }
 
-        // 🔒 Empty is INCONCLUSIVE, not pass. See GuardrailVerdict.Inconclusive: "every clear is above
-        // 12 s" is vacuously true of zero clears, and on the shipped data that is every cell.
+        // Empty is Inconclusive, not pass — see GuardrailVerdict.Inconclusive.
         if (measured == 0)
         {
             return new GuardrailResult(

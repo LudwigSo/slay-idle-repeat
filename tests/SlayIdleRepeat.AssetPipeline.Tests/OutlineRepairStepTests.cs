@@ -3,33 +3,20 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// C5 — `15` §B4 step 4: <em>"Outline repair -&gt; ensure the outline is continuous and uniform
-/// width"</em>.
-/// </summary>
 public sealed class OutlineRepairStepTests
 {
     /// <summary>
-    /// How far a repaired pixel may sit from `15` §A3's #231A2E, in RGB units.
+    /// This case's own tolerance for the synthetic fixture, not a calibration of
+    /// <see cref="ThresholdKeys.OutlineColourTolerance"/>: leaves room for an implementation that
+    /// blends a closed pixel with its neighbours, well short of the background colour it replaced.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The case's own stated tolerance for a synthetic fixture, not a calibration of
-    /// <see cref="ThresholdKeys.OutlineColourTolerance"/>. The fixture is painted without
-    /// antialiasing, so a morphological close that paints the outline colour lands exactly on it;
-    /// 16 leaves room for an implementation that blends a closed pixel with its neighbours, and is
-    /// still nowhere near the 228 units that separate #231A2E from the background it replaced.
-    /// </remarks>
     private const double RepairedColourTolerance = 16d;
 
     /// <summary>
-    /// How far the measured outline width may sit from the fixture's constructed three pixels.
+    /// Rasterising a circle discretises the constructed three-pixel width by up to half a pixel;
+    /// this is that measurement slack, not a statement about the authorised width band (QA item 3
+    /// owns that).
     /// </summary>
-    /// <remarks>
-    /// 🔒 The case's own stated tolerance. The outline is a radial band of exactly three pixels by
-    /// construction, but any measurement over a rasterised circle discretises; half a pixel is the
-    /// most that can cost, and it is not a statement about `15` §A3's 3-4 px band, which QA item 3
-    /// owns.
-    /// </remarks>
     private const double WidthMeasurementTolerance = 0.5d;
 
     [Fact]
@@ -48,10 +35,7 @@ public sealed class OutlineRepairStepTests
         distances.ShouldAllBe(distance => distance <= RepairedColourTolerance);
     }
 
-    /// <summary>
-    /// 🔒 Step 4 repairs a break. A step that repainted the whole outline would also pass the case
-    /// above, and would have quietly thickened every asset in the batch.
-    /// </summary>
+    /// <summary>A step that repainted the whole outline would also pass the case above, quietly thickening every asset.</summary>
     [Fact]
     public void Run_leaves_outline_pixels_far_from_the_break_exactly_as_they_were()
     {
@@ -65,11 +49,7 @@ public sealed class OutlineRepairStepTests
         Pixels.ColoursAt(result.Image, fixture.OutlinePixelsFarFromGap).ShouldBe(before);
     }
 
-    /// <summary>
-    /// 🔒 The step <em>measures</em> width and does not judge it. Conformance against `15` §A3's
-    /// 3-4 px band belongs to QA item 3; a step that both changed the width and graded it would be
-    /// marking its own homework.
-    /// </summary>
+    /// <summary>The step measures width but does not judge it; grading it would be marking its own homework.</summary>
     [Fact]
     public void Run_measures_the_outline_width_it_found()
     {

@@ -6,9 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Conditions;
 
-/// <summary>
-/// 🔒 `18` §4 — what each of the twenty-three condition functions reads.
-/// </summary>
+/// <summary>What each of the twenty-three condition functions reads.</summary>
 public sealed class ConditionFunctionTests
 {
     private static double Read(
@@ -19,7 +17,7 @@ public sealed class ConditionFunctionTests
 
     // ------------------------------------------------------------------ HP
 
-    /// <summary>`18` §4 — <c>SELF_HP_PCT</c> and <c>SELF_MISSING_HP_PCT</c> are 0..1 and complementary.</summary>
+    /// <summary><c>SELF_HP_PCT</c> and <c>SELF_MISSING_HP_PCT</c> are 0..1 and complementary.</summary>
     [Fact]
     public void SELF_HP_PCT_and_SELF_MISSING_HP_PCT_read_the_holder()
     {
@@ -31,9 +29,8 @@ public sealed class ConditionFunctionTests
     }
 
     /// <summary>
-    /// 🔒 The reading is rounded to four decimal places before it leaves the evaluator (`05` §1.1,
-    /// `14` §8.2, `18` §1.1) — the accumulation point a comparison and a <c>valueScale</c> division
-    /// both read.
+    /// The reading is rounded to four decimal places before it leaves the evaluator — the
+    /// accumulation point a comparison and a <c>valueScale</c> division both read.
     /// </summary>
     [Fact]
     public void An_HP_fraction_is_rounded_to_four_decimal_places()
@@ -41,13 +38,13 @@ public sealed class ConditionFunctionTests
         var hero = EffectTestBattle.Hero(currentHp: 1, maxHp: 3);
         var battle = EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1));
 
-        // 1/3 is 0.3333333333333333 unrounded. Asserted as an exact equality, not a tolerance:
-        // the point of the rule is that every platform produces the SAME double here.
+        // 1/3 is 0.3333333333333333 unrounded. Asserted as an exact equality, not a tolerance: the
+        // point of the rule is that every platform produces the SAME double here.
         Read(ConditionFunction.SELF_HP_PCT, battle).ShouldBe(0.3333);
         Read(ConditionFunction.SELF_MISSING_HP_PCT, battle).ShouldBe(0.6667);
     }
 
-    /// <summary>`18` §7.2 — <c>PK_EXECUTIONER</c> reads the holder's current target.</summary>
+    /// <summary><c>TARGET_HP_PCT</c> reads the holder's current target.</summary>
     [Fact]
     public void TARGET_HP_PCT_reads_the_current_target()
     {
@@ -64,13 +61,10 @@ public sealed class ConditionFunctionTests
     }
 
     /// <summary>
-    /// A zero <c>MaxHp</c> has no HP fraction, and `18` §4 authors no answer for one. Steering S6:
-    /// fail loudly rather than return the 0 or the 1 that a division guard would invent.
+    /// A zero <c>MaxHp</c> has no HP fraction: fail loudly rather than return the 0 or the 1 that a
+    /// division guard would invent. All three HP-fraction functions divide by the same denominator, so
+    /// all three are asserted — a guard on one of them is not a rule.
     /// </summary>
-    /// <remarks>
-    /// All three HP-fraction functions divide by the same denominator, so all three are asserted —
-    /// a guard on one of them is not a rule.
-    /// </remarks>
     [Theory]
     [InlineData(ConditionFunction.SELF_HP_PCT)]
     [InlineData(ConditionFunction.SELF_MISSING_HP_PCT)]
@@ -87,23 +81,18 @@ public sealed class ConditionFunctionTests
     }
 
     /// <summary>
-    /// 🔒 `18` §4 types the HP functions <c>0..1</c>, and the reading is clamped to that range.
+    /// The HP functions are typed <c>0..1</c>, and the reading is clamped to that range. Two live paths
+    /// break it: no floor is applied at zero and removal is deferred to the death slot, so an
+    /// overkilled holder firing its <c>ON_DEATH</c> effect sits at negative HP; and a Max HP decrease
+    /// leaves current above maximum. Unclamped, the second is the damaging one: <c>SELF_MISSING_HP_PCT</c>
+    /// reads <c>-0.2</c> and <c>PK_BERSERK</c>'s scale floors that to -20 steps — a perk that only ever
+    /// adds ATK subtracting 20% of it. <see cref="ValueScale.StepsFor"/> imposes no lower bound
+    /// precisely because it is told every function is non-negative by construction.
     /// </summary>
-    /// <remarks>
-    /// Two live paths break it: `05` §4 step 9 applies no floor at zero and §3.1 defers <em>removal</em>
-    /// to the death slot, so an overkilled holder firing its <c>ON_DEATH</c> effect sits at negative HP;
-    /// and a Max HP <b>decrease</b> leaves current above maximum.
-    /// <para>
-    /// ⚠️ Unclamped, the second is the damaging one: <c>SELF_MISSING_HP_PCT</c> reads <c>-0.2</c> and
-    /// <c>PK_BERSERK</c>'s scale floors that to <b>-20 steps</b> — a perk that only ever adds ATK
-    /// subtracting 20% of it. <see cref="ValueScale.StepsFor"/> imposes no lower bound precisely because
-    /// it is told every §4 function is non-negative by construction; this is what makes that true.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void An_HP_fraction_is_clamped_to_the_zero_to_one_range_18_declares()
     {
-        // Overkilled: 05 §4 applies no HP floor, and ON_DEATH fires before removal.
+        // Overkilled: no HP floor is applied, and ON_DEATH fires before removal.
         var overkilled = EffectTestBattle.Hero(currentHp: -40, maxHp: 100);
         var dying = EffectTestBattle.Context(overkilled, overkilled, EffectTestBattle.Enemy("GRUNT_A", 1));
 
@@ -127,8 +116,8 @@ public sealed class ConditionFunctionTests
     // ------------------------------------------------------------------ the roster
 
     /// <summary>
-    /// 🔒 <c>ENEMY_COUNT</c> is holder-relative, exactly as `18` §5's target tokens are (the R10
-    /// ruling): on a boss it counts the hero side.
+    /// <c>ENEMY_COUNT</c> is holder-relative, exactly as the target tokens are: on a boss it counts
+    /// the hero side.
     /// </summary>
     [Fact]
     public void ENEMY_COUNT_counts_the_living_non_pets_hostile_to_the_holder()
@@ -152,7 +141,6 @@ public sealed class ConditionFunctionTests
             "18 §7.10's R10 reading: the boss's enemies are the hero side, and 05 §3.2 keeps pets out");
     }
 
-    /// <summary>`18` §4.</summary>
     [Fact]
     public void TARGET_IS_ELITE_and_TARGET_IS_BOSS_read_the_current_target()
     {
@@ -178,7 +166,7 @@ public sealed class ConditionFunctionTests
 
     // ------------------------------------------------------------------ the clock
 
-    /// <summary>`18` §4 — <c>BATTLE_TIME</c> is seconds elapsed, straight from the context.</summary>
+    /// <summary><c>BATTLE_TIME</c> is seconds elapsed, straight from the context.</summary>
     [Fact]
     public void BATTLE_TIME_is_the_elapsed_battle_time()
     {
@@ -192,15 +180,12 @@ public sealed class ConditionFunctionTests
     }
 
     /// <summary>
-    /// 🔒 The two clock readings are rounded to four places as well — they are the ones a 20 Hz tick
-    /// accumulates, and therefore the ones most likely to arrive with a float tail.
+    /// The two clock readings are rounded to four places as well — they are the ones a 20 Hz tick
+    /// accumulates, and therefore the ones most likely to arrive with a float tail. <c>TICK = 0.05 s</c>
+    /// is not representable in binary floating point, so 1 800 of them summed is not 90; rounding only
+    /// the HP pair would leave the clock as an accumulation point that could put a <c>valueScale</c>
+    /// step boundary in a different place on two devices.
     /// </summary>
-    /// <remarks>
-    /// `05` §3's <c>TICK = 0.05 s</c> is not representable in binary floating point, so 1 800 of them
-    /// summed is not 90. Rounding only the HP pair would leave the clock as the one accumulation
-    /// point in `18` §4 that could put a <c>valueScale</c> step boundary in a different place on two
-    /// devices (`14` §8.2).
-    /// </remarks>
     [Fact]
     public void The_clock_readings_are_rounded_to_four_decimal_places()
     {
@@ -226,27 +211,22 @@ public sealed class ConditionFunctionTests
     }
 
     /// <summary>
-    /// 🔒 `18` §4 says <c>BATTLE_TIME_REMAINING_EST</c> is <em>"seconds to the 70 s enrage"</em>. `05`
-    /// §3.1 says the enrage is <em>"Bosses only; ordinary fights rely on the 90 s timeout"</em>.
+    /// <c>BATTLE_TIME_REMAINING_EST</c> is <c>max(0, horizon − elapsed)</c>, where the horizon is the
+    /// enrage when the fight has one and the fight's forced end otherwise. Both numbers are readings
+    /// on the context, never constants — the enrage delay and the fight timeouts are tunables kept out
+    /// of code.
     /// </summary>
-    /// <remarks>
-    /// 🔒 <b>The ruling</b>, since `18` gives no answer for a fight with no enrage:
-    /// <c>max(0, horizon − elapsed)</c>, where the horizon is the <b>enrage when the fight has one and
-    /// the fight's forced end otherwise</b>. Both numbers are readings on the context, never constants
-    /// here — <c>70</c>, <c>90</c> and the duel's <c>60</c> are tunables (`05` §3, §3.3, `17` §1,
-    /// `11` §4.3) and `21` §3.1 keeps tunables out of code.
-    /// </remarks>
     [Theory]
     // A boss fight: the enrage is the horizon, and the 90 s timeout is not.
     [InlineData(10.0, EffectTestBattle.EnrageSeconds, EffectTestBattle.PveTimeoutSeconds, 60.0)]
     [InlineData(69.5, EffectTestBattle.EnrageSeconds, EffectTestBattle.PveTimeoutSeconds, 0.5)]
-    // 🔒 Past the enrage there is no time remaining. Clamped rather than negative: a negative reading
-    // would flip the sign of every valueScale step driven by it (18 §1.1).
+    // Past the enrage there is no time remaining. Clamped rather than negative: a negative reading
+    // would flip the sign of every valueScale step driven by it.
     [InlineData(71.0, EffectTestBattle.EnrageSeconds, EffectTestBattle.PveTimeoutSeconds, 0.0)]
-    // An ordinary fight has no enrage, so the horizon is 05 §3's 90 s timeout.
+    // An ordinary fight has no enrage, so the horizon is the 90 s timeout.
     [InlineData(10.0, null, EffectTestBattle.PveTimeoutSeconds, 80.0)]
     [InlineData(89.95, null, EffectTestBattle.PveTimeoutSeconds, 0.05)]
-    // A duel has no enrage and 05 §3.3's 60 s cap.
+    // A duel has no enrage and a 60 s cap.
     [InlineData(10.0, null, EffectTestBattle.PvpTimeoutSeconds, 50.0)]
     public void BATTLE_TIME_REMAINING_EST_counts_down_to_the_enrage_or_the_fights_end(
         double elapsed,
@@ -268,14 +248,10 @@ public sealed class ConditionFunctionTests
     // ------------------------------------------------------------------ statuses
 
     /// <summary>
-    /// `18` §4 — <c>HAS_STATUS</c> (<em>"bool, by status id"</em>) and <c>STATUS_STACKS</c>
-    /// (<em>"int"</em>) read the <b>holder</b>.
+    /// <c>HAS_STATUS</c> (bool, by status id) and <c>STATUS_STACKS</c> (int) read the holder. Whose
+    /// status these read is otherwise unstated; the assumption is made on the grounds that every
+    /// function that reads somebody else says so in its name (<c>TARGET_*</c>, <c>ATTACKER_*</c>).
     /// </summary>
-    /// <remarks>
-    /// ⚠️ `18` §4 gives neither a prefix nor a worked example, so whose status these read is an
-    /// assumption — recorded as such, and made on the grounds that every §4 function that reads
-    /// somebody else says so in its name (<c>TARGET_*</c>, <c>ATTACKER_*</c>).
-    /// </remarks>
     [Fact]
     public void HAS_STATUS_and_STATUS_STACKS_read_the_holders_own_statuses()
     {
@@ -300,7 +276,7 @@ public sealed class ConditionFunctionTests
         Read(ConditionFunction.HAS_STATUS, battle, new ConditionArguments("BURN", null, null)).ShouldBe(0);
     }
 
-    /// <summary>🔒 Status ids compare ordinally, as every id in this repository (`14` §8.2).</summary>
+    /// <summary>Status ids compare ordinally, as every id in this repository.</summary>
     [Fact]
     public void A_status_id_is_matched_ordinally()
     {
@@ -317,7 +293,7 @@ public sealed class ConditionFunctionTests
 
     // ------------------------------------------------------------------ the run
 
-    /// <summary>The nine `18` §4 functions that read run state, read it through <c>IRunStateView</c>.</summary>
+    /// <summary>The nine functions that read run state, read it through <c>IRunStateView</c>.</summary>
     [Fact]
     public void The_run_state_functions_read_the_run_view()
     {
@@ -366,8 +342,8 @@ public sealed class ConditionFunctionTests
     // ------------------------------------------------------------------ the attacker trio
 
     /// <summary>
-    /// `18` §7.10 — <c>PK_STALWART</c>'s <em>"−20% damage taken from Elites and Bosses"</em>, read in
-    /// a context that has an attacker.
+    /// <c>PK_STALWART</c>'s "−20% damage taken from Elites and Bosses", read in a context that has an
+    /// attacker.
     /// </summary>
     [Fact]
     public void The_ATTACKER_IS_trio_reads_the_attacker_when_there_is_one()
@@ -396,16 +372,12 @@ public sealed class ConditionFunctionTests
     }
 
     /// <summary>
-    /// 🔒 `18` §4 — <em>"valid only in contexts with an attacker (<c>ON_HIT_TAKEN</c>,
-    /// <c>ON_DODGE</c>/<c>ON_BLOCK</c>, and <c>DAMAGE_TAKEN_MULT</c> evaluation inside `05` §4 step
-    /// 6); <b><c>false</c> elsewhere</b>"</em>.
+    /// Valid only in contexts with an attacker; <c>false</c> elsewhere. This is the one authored
+    /// default, which is why the three functions below return <c>false</c> where every other absent
+    /// subject throws: <c>PK_STALWART</c> is an <c>ALWAYS</c> effect, evaluated at every resolution
+    /// pass including stat aggregation, where no attacker exists — a throw there would make the perk
+    /// unusable.
     /// </summary>
-    /// <remarks>
-    /// An <b>authored default</b>, and the only one `18` §4 writes — which is why the three functions
-    /// below return <c>false</c> where every other absent subject throws. <c>PK_STALWART</c> is an
-    /// <c>ALWAYS</c> effect, so it is evaluated at every resolution pass including the stat
-    /// aggregation, where no attacker exists; a throw there would make the perk unusable.
-    /// </remarks>
     [Theory]
     [InlineData(ConditionFunction.ATTACKER_IS_ELITE)]
     [InlineData(ConditionFunction.ATTACKER_IS_BOSS)]
@@ -422,10 +394,7 @@ public sealed class ConditionFunctionTests
 
     // ------------------------------------------------------------------ the worked examples
 
-    /// <summary>
-    /// `18` §7.2 — <c>PK_EXECUTIONER</c> Tier I, verbatim:
-    /// <c>{"fn":"TARGET_HP_PCT","op":"lt","value":0.30}</c>.
-    /// </summary>
+    /// <summary><c>PK_EXECUTIONER</c> Tier I: <c>{"fn":"TARGET_HP_PCT","op":"lt","value":0.30}</c>.</summary>
     [Fact]
     public void PK_EXECUTIONER_gates_on_the_targets_HP_fraction()
     {
@@ -452,9 +421,8 @@ public sealed class ConditionFunctionTests
     }
 
     /// <summary>
-    /// `18` §7.10 — <c>PK_STALWART</c> Tier I, verbatim: an <c>any</c> over
-    /// <c>ATTACKER_IS_ELITE</c> and <c>ATTACKER_IS_BOSS</c>, both compared against the boolean
-    /// <c>true</c>.
+    /// <c>PK_STALWART</c> Tier I: an <c>any</c> over <c>ATTACKER_IS_ELITE</c> and
+    /// <c>ATTACKER_IS_BOSS</c>, both compared against the boolean <c>true</c>.
     /// </summary>
     [Fact]
     public void PK_STALWART_fires_against_an_elite_or_a_boss_and_against_nobody_else()
@@ -489,18 +457,16 @@ public sealed class ConditionFunctionTests
             .ShouldBeFalse("18 §4's authored default is false, so an ungated pass is not the answer either");
     }
 
-    // ------------------------------------------------------------------ the M2-06 seam
+    // ------------------------------------------------------------------ the condition/value seam
 
     /// <summary>
-    /// 🔒 `18` §1.1 — <c>PK_BERSERK</c> Tier I: <em>"+1% ATK per 1% missing HP, up to +45%"</em>,
-    /// <c>{"fn":"SELF_MISSING_HP_PCT","per":0.01,"cap":45}</c>.
+    /// <c>PK_BERSERK</c> Tier I: "+1% ATK per 1% missing HP, up to +45%",
+    /// <c>{"fn":"SELF_MISSING_HP_PCT","per":0.01,"cap":45}</c>. Asserted end to end:
+    /// <see cref="ConditionEvaluator.Read"/> supplies the reading already rounded to 4 dp, and
+    /// <see cref="ValueScale.StepsFor"/> does the division — the order is load-bearing, since
+    /// rounding before dividing makes an unrounded <c>0.44999999999999996</c> floor to 44 steps where
+    /// the rounded <c>0.45</c> floors to 45.
     /// </summary>
-    /// <remarks>
-    /// The seam M2-06 plugs into, asserted end to end: <see cref="ConditionEvaluator.Read"/> supplies
-    /// the reading already rounded to 4 dp, and <see cref="ValueScale.StepsFor"/> does the division.
-    /// 🔒 The order is load-bearing — `18` §1.1 rounds <b>before</b> the division, and an unrounded
-    /// <c>0.44999999999999996</c> floors to 44 steps where the rounded <c>0.45</c> floors to 45.
-    /// </remarks>
     [Fact]
     public void PK_BERSERK_scales_off_a_reading_that_is_already_rounded_to_four_places()
     {
@@ -511,9 +477,9 @@ public sealed class ConditionFunctionTests
             Cap = 45,
         };
 
-        // 🔒 A hero at 55/100 is the case the rounding rule exists for: `1 - 0.55` is
+        // A hero at 55/100 is the case the rounding rule exists for: `1 - 0.55` is
         // 0.44999999999999996 in binary floating point, which floors to 44 steps unrounded and to
-        // the cap's 45 once rounded. One step of ATK, decided by whether the rounding happened.
+        // the cap's 45 once rounded.
         (1.0 - (55.0 / 100.0)).ShouldNotBe(0.45, "the premise: the raw subtraction is 0.44999999999999996");
 
         var hero = EffectTestBattle.Hero(currentHp: 55, maxHp: 100);
@@ -524,9 +490,9 @@ public sealed class ConditionFunctionTests
         berserk.StepsFor(reading).ShouldBe(45);
         berserk.EffectiveValue(0.01, reading).ShouldBe(0.45);
 
-        // At full HP the reading is 0 steps — and 18 §8 step 10's rounding must give +0.0, never
-        // -0.0, because CanonicalStateWriter THROWS on a negative zero rather than encoding one.
-        // 18 §7.10's Bog Air is an authored negative value, so this is the live case, not a curio.
+        // At full HP the reading is 0 steps, and the result must be +0.0, never -0.0, because
+        // CanonicalStateWriter THROWS on a negative zero rather than encoding one. An authored
+        // negative value (Bog Air) makes this the live case, not a curio.
         var full = EffectTestBattle.Context(
             EffectTestBattle.Hero(),
             EffectTestBattle.Hero(),
@@ -539,9 +505,7 @@ public sealed class ConditionFunctionTests
             "zero steps of a negative authored value must be +0.0");
     }
 
-    /// <summary>
-    /// `18` §1.1 — <c>PK_HOARD</c>: <em>"+1% ATK per 100 Gold currently held"</em>, uncapped.
-    /// </summary>
+    /// <summary><c>PK_HOARD</c>: "+1% ATK per 100 Gold currently held", uncapped.</summary>
     [Fact]
     public void PK_HOARD_scales_off_the_run_views_gold()
     {

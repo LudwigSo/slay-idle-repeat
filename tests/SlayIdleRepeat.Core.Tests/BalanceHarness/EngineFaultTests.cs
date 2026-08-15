@@ -9,21 +9,11 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 /// <summary>
-/// 🔴 A cell the simulator cannot run is a <b>finding</b>, not the end of the run — and it must never
-/// be mistaken for a passing guardrail.
+/// A cell the simulator cannot run is a finding, not the end of the run, and must never be mistaken
+/// for a passing guardrail. <see cref="SweepRunner.RunCell"/> throws and
+/// <see cref="SweepRunner.TryRunCell"/> reports; the test suite and guardrail-facing paths use the
+/// throwing form so a scaling bug cannot hide as an empty cell.
 /// </summary>
-/// <remarks>
-/// The sweep hit three separate engine faults, each reachable only once a fight survives past boss
-/// phase 1: a phase-1 summon crashing the pre-tick, a boss <c>PERIODIC</c> on <c>CURRENT_TARGET</c>
-/// that cannot resolve, and an <c>APPLY_STATUS</c> with no <c>value</c>. A harness that died on the
-/// first would have reported nothing about the other 119 cells.
-/// <para>
-/// 🔒 The design is deliberately asymmetric: <see cref="SweepRunner.RunCell"/> throws and
-/// <see cref="SweepRunner.TryRunCell"/> reports. The sweep and the diagnostics use the reporting form;
-/// the test suite and every guardrail-facing path use the throwing one, so a scaling bug cannot hide
-/// as an empty cell.
-/// </para>
-/// </remarks>
 [Collection(WallClockSensitive.Name)]
 public sealed class EngineFaultTests
 {
@@ -43,11 +33,7 @@ public sealed class EngineFaultTests
     [Fact]
     public void TryRunCell_returns_the_fault_instead_of_throwing_when_the_engine_refuses()
     {
-        // 🔴 A REAL engine fault, reproducing the shipped one rather than inventing a failure mode.
-        // Deleting BOSS_GULGROT_P1_CROAK_POISON's `value` is exactly what makes
-        // BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE unrunnable in chapter 5 — an APPLY_STATUS with nothing
-        // to scale — except that Gulgrot's is a PHASE 1 effect, so it is reached on the first landed
-        // hit instead of only by a hero strong enough to push the boss into phase 2.
+        // A real engine fault, reproducing a shipped one rather than inventing a failure mode.
         var broken = GameDataLoader.LoadWith(
             GameDataLoader.DataRoot,
             new Dictionary<string, string>(StringComparer.Ordinal) { [BossRoster.Document] = Broken() });
@@ -60,15 +46,12 @@ public sealed class EngineFaultTests
         cell.ShouldBeNull();
         fault.ShouldNotBeNullOrWhiteSpace();
 
-        // 🔴 The fault names WHICH cell and WHICH rule refused. A fault string carrying only the cell
-        // key would be satisfied by any failure whatsoever — an out-of-range chapter, a missing
-        // archetype — and this case would stop being about the authoring hole it is named for.
+        // The fault names WHICH cell and WHICH rule refused, not just that something failed.
         fault!.ShouldContain("C2 NORMAL ARCH_CRIT", Case.Sensitive, "which cell");
         fault.ShouldContain("BOSS_GULGROT_P1_CROAK_POISON", Case.Sensitive, "which effect");
         fault.ShouldContain("APPLY_STATUS with no value", Case.Sensitive, "which authoring rule");
 
-        // ...and the throwing form still throws, which is what the test suite and the guardrails rely
-        // on — with the SAME identity, so a cell that died of something else cannot pass as this.
+        // ...and the throwing form still throws, with the same identity.
         Should.Throw<EffectContextException>(() => ShippedHarness.Runner.RunCell(
                 2, Tier.NORMAL, archetype.Id, archetype.Stats, fights: 2, broken))
             .Message.ShouldContain("APPLY_STATUS with no value", Case.Sensitive);
@@ -77,9 +60,8 @@ public sealed class EngineFaultTests
     [Fact]
     public void A_faulted_sweep_reports_the_fault_and_exits_non_zero()
     {
-        // 🔴 The CI contract for a fault. It is NOT graded as a balance result: the report names it in
-        // its own section, and the exit code is the breach code even if every measurable guardrail
-        // happened to pass.
+        // A fault is not graded as a balance result: the exit code is the breach code even if every
+        // measurable guardrail happened to pass.
         var output = new StringWriter();
         var dataRoot = Path.Combine(Path.GetTempPath(), $"balance-harness-data-{Guid.NewGuid():N}");
 
@@ -113,8 +95,7 @@ public sealed class EngineFaultTests
     [Fact]
     public void A_shortfall_probe_that_faults_reports_it_rather_than_a_multiple()
     {
-        // The probe raises the hero's power until the fight reaches a later boss phase, which is
-        // exactly where the shipped scripts fault. It must come back carrying the fault, not a number.
+        // A probe that reaches a faulting fight must come back carrying the fault, not a number.
         var probe = new SlayIdleRepeat.BalanceHarness.Diagnostics.ShortfallProbe(
             5, Tier.NORMAL, "ARCH_CRIT", 32.13, 0.0, 0.70, 120, "APPLY_STATUS with no value");
 
@@ -127,7 +108,7 @@ public sealed class EngineFaultTests
             .ShouldContain("reaches 70% at 2.85 x par");
     }
 
-    /// <summary>The shipped boss document with one authored <c>value</c> removed. See the cases above.</summary>
+    /// <summary>The shipped boss document with one authored <c>value</c> removed.</summary>
     private static string Broken()
     {
         var text = File.ReadAllText(Path.Combine(GameDataLoader.DataRoot, BossRoster.Document));
@@ -144,8 +125,7 @@ public sealed class EngineFaultTests
                 StringComparison.Ordinal);
         }
 
-        // 🔒 The edit has to have MATCHED. An unmatched one would leave this case running the shipped
-        // document and asserting that a healthy fight faults — a confusing red instead of a clear one.
+        // The edit has to have matched, or this case would run the unmodified document instead.
         broken.ShouldNotBe(text);
 
         return broken;

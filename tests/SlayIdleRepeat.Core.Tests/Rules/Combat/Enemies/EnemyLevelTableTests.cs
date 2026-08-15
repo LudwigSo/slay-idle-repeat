@@ -5,12 +5,9 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 
-/// <summary>
-/// 🔒 `05` §6.0 — <c>EnemyLevel(c, t) = BaseEnemyLevel(c) + TierLevelBonus(t)</c>.
-/// </summary>
+/// <summary><c>EnemyLevel(c, t) = BaseEnemyLevel(c) + TierLevelBonus(t)</c>.</summary>
 public sealed class EnemyLevelTableTests
 {
-    /// <summary>`05` §6.0's base table, chapter by chapter.</summary>
     [Theory]
     [InlineData(1, 10)]
     [InlineData(2, 15)]
@@ -23,7 +20,6 @@ public sealed class EnemyLevelTableTests
     public void BaseEnemyLevel_is_05_section_6_0s_chapter_table(int chapter, int expected) =>
         EnemyFixtures.Levels().BaseLevel(chapter).ShouldBe(expected);
 
-    /// <summary>`05` §6.0 — Normal +0 · Heroic +10 · Mythic +20.</summary>
     [Theory]
     [InlineData(0, 0)]
     [InlineData(1, 10)]
@@ -42,8 +38,8 @@ public sealed class EnemyLevelTableTests
         EnemyFixtures.Levels().Of(chapter, tierOrdinal).ShouldBe(expected);
 
     /// <summary>
-    /// 🔒 `05` §6.0: <em>"All enemies, Elites, Guardians and bosses in a <c>(chapter, tier)</c> share
-    /// this level."</em> There is one table and nothing takes an archetype.
+    /// All enemies, Elites, Guardians and bosses in a (chapter, tier) share this level — there is
+    /// one table and nothing takes an archetype.
     /// </summary>
     [Fact]
     public void The_level_depends_on_the_chapter_and_the_tier_and_on_nothing_else()
@@ -110,7 +106,7 @@ public sealed class EnemyLevelTableTests
               .ParamName.ShouldBe("tierOrdinal");
 
     /// <summary>
-    /// 🔒 S3 — the floor under the tier vocabulary. Every rule above indexes
+    /// The floor under the tier vocabulary: every rule above indexes
     /// <see cref="EnemyLevelTable.Ordinals"/>; an empty or shortened list would make the ordinal
     /// tests quantify over nothing while still passing.
     /// </summary>

@@ -1,20 +1,14 @@
 namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
-/// 🔒 The version stamp of a <see cref="ContentSnapshot"/>: a deterministic hash of the
-/// content it was built from, never a hand-bumped number.
+/// The version stamp of a <see cref="ContentSnapshot"/>: a deterministic hash of the content it
+/// was built from, never a hand-bumped number.
 /// </summary>
 /// <remarks>
-/// `14` §6: <em>"The version stamp is what lets a replayed command reproduce its original
-/// outcome after a balance patch — without it, replay and the reconnect chaos test silently
-/// diverge whenever content changes."</em> A hand-bumped integer cannot do that job: somebody
-/// forgets to bump it exactly once and every replay afterwards is quietly wrong. This is a
-/// hash, so forgetting is not an available failure mode.
-/// <para>
-/// The hash is computed by the load path (<c>SlayIdleRepeat.Application</c>) over a canonical
-/// serialisation of the loaded documents — `Core` references nothing, so it holds the stamp
-/// rather than computing it.
-/// </para>
+/// A hand-bumped integer cannot reliably drive replay: somebody forgets to bump it exactly once
+/// and every replay afterwards is quietly wrong. A hash makes that failure mode unavailable. It
+/// is computed by the load path over a canonical serialisation of the loaded documents — Core
+/// references nothing, so it holds the stamp rather than computing it.
 /// </remarks>
 public sealed class ContentVersion : IEquatable<ContentVersion>
 {

@@ -6,22 +6,15 @@ using Xunit;
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
 /// <summary>
-/// C15 — there is exactly one manifest reader in this repository, and it is M8-09's.
+/// A second manifest parser is a correctness problem, not a duplication one: the canonical reader
+/// throws where the manifest is silent, so a convenience deserialiser written elsewhere could turn
+/// missing sizes and pivots into <c>default</c> without anybody noticing.
 /// </summary>
-/// <remarks>
-/// 🔒 A second parser is not a duplication problem, it is a correctness one. M8-09's reader fetches
-/// every member by name and throws where the manifest is silent, precisely so that `15`'s holes
-/// stay visible; a convenience deserialiser written here would turn 144 missing sizes and 284
-/// missing pivots into <c>default</c> without anybody noticing.
-/// </remarks>
 public sealed class SingleManifestReaderTests
 {
     private const int MinimumProductionSourceFiles = 5;
 
-    /// <summary>
-    /// The manifest file stem. A second reader has to name the file it opens, so the absence of
-    /// this string from every production source is a real, greppable guard.
-    /// </summary>
+    /// <summary>A second reader has to name the file it opens, so this string's absence from production sources is a real guard.</summary>
     private const string ManifestFileStem = "asset_manifest";
 
     [Fact]
@@ -42,10 +35,7 @@ public sealed class SingleManifestReaderTests
             "SlayIdleRepeat.AssetManifest and never opens game-data/assets itself");
     }
 
-    /// <summary>
-    /// 🔒 The reflection half. A source scan cannot see a reader assembled out of pieces that never
-    /// spell the file name; a method that hands back a manifest can only have built one.
-    /// </summary>
+    /// <summary>A source scan cannot see a reader assembled out of pieces that never spell the file name, so this checks reflectively instead.</summary>
     [Fact]
     public void No_type_in_the_pipeline_assembly_hands_back_a_manifest_it_built_itself()
     {
@@ -61,11 +51,7 @@ public sealed class SingleManifestReaderTests
             "only SlayIdleRepeat.AssetManifest.AssetManifestReader may produce a manifest");
     }
 
-    /// <summary>
-    /// 🔒 The floor under the case above. If nothing in this assembly touched M8-09's row type at
-    /// all, "it produces no manifest" would be true of an assembly that had nothing to do with the
-    /// register, and the guard would be measuring the wrong thing.
-    /// </summary>
+    /// <summary>Guards the case above: if nothing here touched the row type at all, "it produces no manifest" would be measuring nothing.</summary>
     [Fact]
     public void The_pipeline_consumes_M8_09s_row_type_rather_than_one_of_its_own()
     {

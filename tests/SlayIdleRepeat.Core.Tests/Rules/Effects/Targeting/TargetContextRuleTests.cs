@@ -7,19 +7,19 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Targeting;
 
 /// <summary>
-/// 🔒 The uniform rule for a `18` §5 token that cannot be answered: <b>a token whose SUBJECT is absent
-/// throws <see cref="EffectContextException"/>; a token whose subject is present but whose SET is
-/// empty resolves to the empty set.</b>
+/// The uniform rule for a target token that cannot be answered: a token whose SUBJECT is absent throws
+/// <see cref="EffectContextException"/>; a token whose subject is present but whose SET is empty
+/// resolves to the empty set.
 /// </summary>
 /// <remarks>
-/// §5 authors a degradation for two of its eleven targets and nothing for the other nine, and steering
-/// S6 forbids inventing one — so the rule is stated once and applied uniformly. The empty-set half is
-/// <see cref="TargetResolverTests"/>'; this file covers the throwing half and pins <em>which</em> token
-/// failed, since several independent absences produce the same exception type.
+/// A degradation is authored for two of the eleven targets and nothing for the other nine, so the rule
+/// is stated once and applied uniformly rather than invented per token. The empty-set half is
+/// <see cref="TargetResolverTests"/>'; this file covers the throwing half and pins which token failed,
+/// since several independent absences produce the same exception type.
 /// </remarks>
 public sealed class TargetContextRuleTests
 {
-    /// <summary>`18` §5's <c>ATTACKER</c> has no authored default, unlike `18` §4's three ATTACKER_IS_*.</summary>
+    /// <summary><c>ATTACKER</c> has no authored default, unlike the three ATTACKER_IS_* condition functions.</summary>
     [Fact]
     public void ATTACKER_outside_an_attacker_context_fails_loudly()
     {
@@ -35,10 +35,8 @@ public sealed class TargetContextRuleTests
         thrown.Token.ShouldBe(nameof(EffectTarget.ATTACKER));
         thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
 
-        // 🔒 A document reference, not the implementer's prose. WildcardMessageAssertions compiles
-        // with RegexOptions.IgnoreCase, so a pattern like "*ATTACKER*attacker*" does not distinguish
-        // the token from the sentence around it — and pinning the sentence would fail a correct
-        // implementation that worded it differently.
+        // A document reference, not the implementer's prose: pinning the sentence would fail a
+        // correct implementation that worded it differently.
         thrown.Message.ShouldContain("18 §5", Case.Sensitive);
     }
 
@@ -58,8 +56,8 @@ public sealed class TargetContextRuleTests
     }
 
     /// <summary>
-    /// 🔒 No RNG, no draw. Falling back to the first candidate would be a "random" pick that is
-    /// perfectly stable and wrong — the determinism failure `14` §8.1 exists to prevent.
+    /// No RNG, no draw. Falling back to the first candidate would be a "random" pick that is perfectly
+    /// stable and wrong — exactly the determinism failure this guards against.
     /// </summary>
     [Fact]
     public void RANDOM_ENEMY_with_no_draw_stream_fails_loudly()
@@ -78,15 +76,12 @@ public sealed class TargetContextRuleTests
     }
 
     /// <summary>
-    /// 🔒 <c>ALL_PETS</c> on a PvE enemy side is the <b>empty set</b>, not a failure — the side is
-    /// present, it simply holds no pet.
+    /// <c>ALL_PETS</c> on a PvE enemy side is the empty set, not a failure — the side is present, it
+    /// simply holds no pet. A failure in the first draft: the argument for throwing was that a side
+    /// with no hero can hold no pets, an inference that appears in no document and would crash a
+    /// battle over any boss effect authored with <c>target: "ALL_PETS"</c>. The subject of the token
+    /// is the holder's side, which is always present.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ A failure in the first draft. The argument for throwing was that a side with no hero can hold
-    /// no pets — an inference that appears in no document, and inventing it would crash a battle over
-    /// any boss effect authored with <c>target: "ALL_PETS"</c>. The subject of the token is the holder's
-    /// side, which is always present.
-    /// </remarks>
     [Fact]
     public void ALL_PETS_on_a_side_that_holds_no_pet_is_the_empty_set()
     {
@@ -98,15 +93,11 @@ public sealed class TargetContextRuleTests
     }
 
     /// <summary>
-    /// 🔒 A summon that records no summoner is a malformed actor view, <b>not</b> `18` §5's authored
-    /// skip.
+    /// A summon that records no summoner is a malformed actor view, not the authored skip. The two are
+    /// one condition from being spelled identically, and collapsing them hides a roster-construction
+    /// bug behind a documented no-op: <c>OwnerId</c> documents <c>null</c> as "an actor that was not
+    /// summoned", which an actor flagged <c>IsSummon</c> claims not to be.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ The two are one condition from being spelled identically, and collapsing them hides a
-    /// roster-construction bug behind a documented no-op: <c>OwnerId</c> documents <c>null</c> as
-    /// <em>"an actor that was not summoned"</em>, which an actor flagged <c>IsSummon</c> claims not to
-    /// be.
-    /// </remarks>
     [Fact]
     public void OWNER_on_a_summon_that_records_no_summoner_fails_loudly()
     {
@@ -127,14 +118,11 @@ public sealed class TargetContextRuleTests
     }
 
     /// <summary>
-    /// 🔒 `18` §5 declares <c>RUN</c>, and §2.5 rules that run and board ops are resolved by the run
-    /// controller, never the simulator — which appends <c>RunEffectQueued</c> instead.
+    /// <c>RUN</c> is declared, and run and board ops are resolved by the run controller, never the
+    /// simulator — which appends <c>RunEffectQueued</c> instead. A declared token with no resolver is
+    /// the correct end state here: a placeholder would be a guess, and the throw makes "nobody wired
+    /// this yet" impossible to mistake for "this resolved to nobody".
     /// </summary>
-    /// <remarks>
-    /// A declared token with no resolver is the correct end state: the run controller is M3's, and a
-    /// placeholder would be a guess. The throw makes "nobody wired this yet" impossible to mistake for
-    /// "this resolved to nobody".
-    /// </remarks>
     [Fact]
     public void RUN_has_no_actor_resolver_and_says_so()
     {
@@ -150,17 +138,14 @@ public sealed class TargetContextRuleTests
         thrown.Message.ShouldContain("18 §2.5", Case.Sensitive);
     }
 
-    // ------------------------------------------------------------------ the floor (steering S3)
+    // ------------------------------------------------------------------ the floor
 
     /// <summary>
-    /// 🔒 Every one of `18` §5's eleven tokens is handled — none falls through to an unhandled switch
-    /// arm, and no token was added without a resolution.
+    /// Every one of the eleven tokens is handled — none falls through to an unhandled switch arm, and
+    /// no token was added without a resolution. Driven by <c>Enum.GetValues</c>, so its subject set
+    /// could silently empty; the count is re-asserted below so the dependency is visible from here
+    /// rather than only from the other file.
     /// </summary>
-    /// <remarks>
-    /// Driven by <c>Enum.GetValues</c>, so its subject set could silently empty; its floor is the count
-    /// pin in <c>EffectVocabularyCountTests</c>, re-asserted below so the dependency is visible from
-    /// here rather than only from the other file.
-    /// </remarks>
     [Fact]
     public void Every_one_of_the_eleven_targets_resolves_or_states_why_it_cannot()
     {

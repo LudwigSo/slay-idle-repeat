@@ -6,20 +6,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
-/// <summary>
-/// 🔒 `18` §3's 23 trigger kinds — the catalogue, its floor, and the parameter partition it enforces
-/// on triggers no schema ever saw.
-/// </summary>
+/// <summary>The 23 trigger kinds — the catalogue, its floor, and the parameter partition it enforces on triggers no schema ever saw.</summary>
 public sealed class TriggerCatalogueTests
 {
-    /// <summary>
-    /// 🔒 Steering S3 — the floor under every rule stated over the catalogue.
-    /// </summary>
+    /// <summary>The floor under every rule stated over the catalogue.</summary>
     /// <remarks>
-    /// Checked in <b>both</b> directions and against the enum, not against a literal alone. A
-    /// catalogue that lost a row would leave every other rule in this file passing over the rows that
-    /// remain; a catalogue with a row the enum does not declare would describe a trigger nothing can
-    /// author.
+    /// Checked in both directions and against the enum, not against a literal alone. A catalogue that
+    /// lost a row would leave every other rule in this file passing over the rows that remain; a
+    /// catalogue with a row the enum does not declare would describe a trigger nothing can author.
     /// </remarks>
     [Fact]
     public void The_catalogue_holds_all_23_trigger_kinds_and_no_others()
@@ -50,10 +44,7 @@ public sealed class TriggerCatalogueTests
         failure.Message.ShouldContain(EffectContextException.Marker, Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 The six run-layer kinds of the M2 kickoff's A4 — declared, validated and unit-tested here,
-    /// fired by M3's run controller and by nothing in `05` §3.1.
-    /// </summary>
+    /// <summary>The six run-layer kinds — declared, validated and unit-tested here, fired by the run controller and nothing else.</summary>
     [Theory]
     [InlineData(TriggerKind.ON_TILE_RESOLVED)]
     [InlineData(TriggerKind.ON_ROLL)]
@@ -66,10 +57,7 @@ public sealed class TriggerCatalogueTests
         TriggerCatalogue.LayerOf(kind).ShouldBe(TriggerLayer.RUN);
     }
 
-    /// <summary>
-    /// 🔒 Exactly six are run-layer, one is passive, and the remaining sixteen are the combat
-    /// triggers `05` §3.1's slots fire.
-    /// </summary>
+    /// <summary>Exactly six are run-layer, one is passive, and the remaining sixteen are combat triggers.</summary>
     /// <remarks>
     /// The counts are asserted rather than the membership alone, so that moving a kind between layers
     /// is a failure here rather than a silent change to which loop fires it.
@@ -86,14 +74,13 @@ public sealed class TriggerCatalogueTests
     }
 
     /// <summary>
-    /// 🔒 Every parameter <see cref="EffectTrigger"/> declares is admitted by at least one kind, and
+    /// Every parameter <see cref="EffectTrigger"/> declares is admitted by at least one kind, and
     /// every parameter a kind admits is one <see cref="EffectTrigger"/> declares.
     /// </summary>
     /// <remarks>
-    /// The two are separate statements of `18` §3's partition — the record's property list and this
+    /// The two are separate statements of the same partition — the record's property list and this
     /// catalogue — and nothing else compares them. A parameter added to <c>EffectTrigger</c> and
-    /// given to no kind is a key that silently means nothing; a parameter admitted here and not
-    /// declared there does not compile, which is why only one direction needs the reflection.
+    /// given to no kind is a key that silently means nothing.
     /// </remarks>
     [Fact]
     public void The_parameter_set_is_exactly_the_one_EffectTrigger_declares()
@@ -108,16 +95,13 @@ public sealed class TriggerCatalogueTests
 
         unused.ShouldBeEmpty("a parameter no kind admits is a key nothing can ever author");
 
-        // 🔒 Floored against EffectTrigger's own property list: `Kind` plus the twelve parameters.
+        // Floored against EffectTrigger's own property list: Kind plus the twelve parameters.
         typeof(EffectTrigger).GetProperties().Length.ShouldBe(
             13,
             "18 §3 gives its kinds twelve parameters, and EffectTrigger carries Kind as well");
     }
 
-    /// <summary>
-    /// 🔒 R11 — <c>ON_ATTACK</c> takes <c>chance</c>; <c>ON_KILL</c> does not. The extension and its
-    /// boundary, in one assertion.
-    /// </summary>
+    /// <summary><c>ON_ATTACK</c> takes <c>chance</c>; <c>ON_KILL</c> does not. The extension and its boundary, in one assertion.</summary>
     [Fact]
     public void R11_gives_ON_ATTACK_a_chance_and_ON_KILL_none()
     {
@@ -134,10 +118,7 @@ public sealed class TriggerCatalogueTests
             new EffectTrigger { Kind = TriggerKind.ON_KILL, Chance = 0.25 }));
     }
 
-    /// <summary>
-    /// 🔒 R9 — the Ossuary King's <c>ON_HP_THRESHOLD 1%</c> is an <c>ON_LOW_HP</c>, and there is no
-    /// 24th trigger to spell it with.
-    /// </summary>
+    /// <summary>The Ossuary King's "ON_HP_THRESHOLD 1%" is spelled as an <c>ON_LOW_HP</c> — there is no 24th trigger kind for it.</summary>
     [Fact]
     public void R9_spells_ON_HP_THRESHOLD_as_ON_LOW_HP()
     {
@@ -163,13 +144,8 @@ public sealed class TriggerCatalogueTests
             .ShouldBe(new[] { TriggerKind.ON_LOW_HP, TriggerKind.ON_LETHAL }, ignoreOrder: true);
     }
 
-    /// <summary>
-    /// 🔒 A parameter on a kind `18` §3 does not give it is refused, and the failure names the
-    /// parameter — not merely "invalid" (steering S2).
-    /// </summary>
-    /// <remarks>
-    /// Each row carries its own control below, so what fired is the partition and not the kind.
-    /// </remarks>
+    /// <summary>A parameter on a kind that does not admit it is refused, and the failure names the parameter — not merely "invalid".</summary>
+    /// <remarks>Each row carries its own control below, so what fired is the partition and not the kind.</remarks>
     [Theory]
     [InlineData(TriggerKind.ALWAYS, "chance")]
     [InlineData(TriggerKind.ON_HIT, "cooldown")]
@@ -192,10 +168,7 @@ public sealed class TriggerCatalogueTests
         failure.Message.ShouldContain("does not give it", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 Steering S6 — the three constitutive parameters are refused when absent rather than
-    /// coerced to a plausible value.
-    /// </summary>
+    /// <summary>The three constitutive parameters are refused when absent rather than coerced to a plausible value.</summary>
     [Theory]
     [InlineData(TriggerKind.PERIODIC, "interval")]
     [InlineData(TriggerKind.ON_LOW_HP, "threshold")]
@@ -210,15 +183,10 @@ public sealed class TriggerCatalogueTests
         failure.Message.ShouldContain("S6", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 The narrowing parameters are the complement: absent means "not narrowed", and a kind with
-    /// none of them written is a valid trigger.
-    /// </summary>
+    /// <summary>The narrowing parameters are the complement: absent means "not narrowed", and a kind with none of them written is a valid trigger.</summary>
     /// <remarks>
-    /// 🔒 Derived from the catalogue rather than hand-listed (steering S3): a kind that gained a
-    /// constitutive parameter leaves this theory automatically, and a new kind joins it, so the row
-    /// set cannot drift away from the rule it states. <see cref="The_two_partitions_of_Requires_cover_all_23"/>
-    /// is the floor under both halves.
+    /// Derived from the catalogue rather than hand-listed: a kind that gained a constitutive
+    /// parameter leaves this theory automatically, and a new kind joins it.
     /// </remarks>
     [Theory]
     [MemberData(nameof(KindsWithNoConstitutiveParameter))]
@@ -229,7 +197,7 @@ public sealed class TriggerCatalogueTests
         Should.NotThrow(() => TriggerCatalogue.Validate(new EffectTrigger { Kind = kind }));
     }
 
-    /// <summary>Every kind `18` §3.1 calls fully narrowing — valid with nothing but its kind.</summary>
+    /// <summary>Every fully narrowing kind — valid with nothing but its kind.</summary>
     public static TheoryData<TriggerKind> KindsWithNoConstitutiveParameter
     {
         get
@@ -246,10 +214,7 @@ public sealed class TriggerCatalogueTests
         }
     }
 
-    /// <summary>
-    /// 🔒 The floor under both halves of `18` §3.1's narrowing/constitutive split: exactly three
-    /// kinds require a parameter, twenty do not, and together they are the 23.
-    /// </summary>
+    /// <summary>The floor under both halves of the narrowing/constitutive split: exactly three kinds require a parameter, twenty do not, and together they are the 23.</summary>
     [Fact]
     public void The_two_partitions_of_Requires_cover_all_23()
     {
@@ -267,11 +232,7 @@ public sealed class TriggerCatalogueTests
             TriggerCatalogue.TriggerKindCount - constitutive.Length);
     }
 
-    /// <summary>
-    /// 🔒 Values outside the ranges `18` §3 and the schema state are refused — a trigger built in
-    /// code never passed through the schema, and the balance harness and M2-08's built-in
-    /// <c>SYS_ENRAGE</c> are exactly such callers.
-    /// </summary>
+    /// <summary>Values outside a parameter's range are refused — a trigger built in code never passed through the schema.</summary>
     [Theory]
     [InlineData(TriggerKind.ON_ATTACK, "everyNth", -1.0)]
     [InlineData(TriggerKind.ON_ATTACK, "everyNth", 0.0)]
@@ -303,17 +264,13 @@ public sealed class TriggerCatalogueTests
 
         failure.Token.ShouldBe(kind.ToString());
 
-        // 🔒 The fragment only the RANGE guard emits (steering S2). Asserting the parameter name
-        // alone would also pass for the surplus-parameter guard, which raises the same token and
-        // names the same parameter — so dropping `chance` from ON_HIT's Admits would leave this
-        // green while the range check for `chance` went untested.
+        // The fragment only the RANGE guard emits. Asserting the parameter name alone would also
+        // pass for the surplus-parameter guard, which raises the same token and names the same
+        // parameter.
         failure.Message.ShouldContain($"its {parameter} is", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 <c>{"once": false}</c> is a <b>written</b> parameter, not an absent one — the partition
-    /// tests presence, never truthiness.
-    /// </summary>
+    /// <summary><c>{"once": false}</c> is a written parameter, not an absent one — the partition tests presence, never truthiness.</summary>
     /// <remarks>
     /// Without this the check could be written as <c>Once == true</c> and
     /// <c>{"kind":"ALWAYS","once":false}</c> would validate: a key on a kind that does not take it,

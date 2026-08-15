@@ -8,22 +8,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 `18` §8 steps 6 and 9 — <c>STAT_CONVERT</c> and all three <c>STAT_CAP_OVERRIDE</c> kinds,
-/// through the real aggregation.
-/// </summary>
+/// <summary><c>STAT_CONVERT</c> and all three <c>STAT_CAP_OVERRIDE</c> kinds, through the real aggregation.</summary>
 /// <remarks>
-/// Both ops were unimplementable as authored (R6) and were closed under `18` §10 by adding
-/// <c>toStat</c>, <c>STAT_MAX</c> and <c>REDIRECT_EXCESS</c>. These are the numeric tests §10 step 3
-/// requires, and they run through <see cref="StatAggregation.Aggregate"/> rather than against the
-/// seam directly, so the step's <em>position</em> in the ten-step order is inside the assertion.
+/// These run through <see cref="StatAggregation.Aggregate"/> rather than against the seam directly,
+/// so each step's position in the aggregation order is part of the assertion.
 /// </remarks>
 public sealed class StatOpBehaviourTests
 {
-    /// <summary>
-    /// 🔒 `06` — <c>PK_TURTLE</c>: <em>"convert 20% of DEF into ATK"</em>. Two signed deltas, off the
-    /// <b>post-step-5</b> DEF.
-    /// </summary>
+    /// <summary><c>PK_TURTLE</c>: convert 20% of DEF into ATK — two signed deltas, off the post-step-5 DEF.</summary>
     [Fact]
     public void PK_TURTLE_moves_20_percent_of_DEF_into_ATK()
     {
@@ -37,11 +29,7 @@ public sealed class StatOpBehaviourTests
         result.Final[StatId.ATK].ShouldBe(200.0, "100 + 100");
     }
 
-    /// <summary>
-    /// 🔒 `06` — <c>PK_JUGGERNAUT</c>: <em>"convert 8% of Max HP into ATK"</em>. The same op with a
-    /// different <b>source</b>, which is what fixes <c>stat</c> as the source and <c>toStat</c> as
-    /// the destination.
-    /// </summary>
+    /// <summary><c>PK_JUGGERNAUT</c>: convert 8% of Max HP into ATK — <c>stat</c> is the source, <c>toStat</c> the destination.</summary>
     [Fact]
     public void PK_JUGGERNAUT_moves_8_percent_of_MAX_HP_into_ATK()
     {
@@ -56,8 +44,8 @@ public sealed class StatOpBehaviourTests
     }
 
     /// <summary>
-    /// 🔒 `18` §8 step 6 reads <b>post-step-5</b> values, so two conversions off one source both take
-    /// their percentage of the same number — not of each other's output.
+    /// Conversion reads post-step-5 values, so two conversions off one source both take their
+    /// percentage of the same number — not of each other's output.
     /// </summary>
     [Fact]
     public void Two_conversions_off_one_source_both_read_the_same_post_step_5_value()
@@ -92,16 +80,8 @@ public sealed class StatOpBehaviourTests
         result.Final[StatId.ATK].ShouldBe(100.0, "0.50 x the post-step-5 DEF of 200");
     }
 
-    /// <summary>
-    /// 🔒 `05` §1.1 rounds <b>results</b>, not authored values: the conversion's fraction reaches the
-    /// multiplication unrounded, and only the product is rounded.
-    /// </summary>
-    /// <remarks>
-    /// The other five `18` §8 steps pass <c>EffectiveValue</c> through unrounded and round after the
-    /// accumulation; step 6 rounding its fraction first would have made this pipeline the odd one
-    /// out. <c>0.123456 × 1000</c> is <c>123.456</c>; pre-rounding the fraction to <c>0.1235</c>
-    /// gives <c>123.5</c>.
-    /// </remarks>
+    /// <summary>Rounding applies to results, not authored values: the fraction reaches the multiplication unrounded.</summary>
+    /// <remarks><c>0.123456 × 1000</c> is <c>123.456</c>; pre-rounding the fraction to <c>0.1235</c> gives <c>123.5</c>.</remarks>
     [Fact]
     public void A_conversion_fraction_reaches_the_multiplication_unrounded()
     {
@@ -116,13 +96,13 @@ public sealed class StatOpBehaviourTests
     }
 
     /// <summary>
-    /// 🔒 <c>toStat</c> belongs to <see cref="StatCapKind.REDIRECT_EXCESS"/> alone — a raise and a
-    /// heal ceiling send nothing anywhere, so a destination on one is a key that means nothing.
+    /// <c>toStat</c> belongs to <see cref="StatCapKind.REDIRECT_EXCESS"/> alone — a raise and a heal
+    /// ceiling send nothing anywhere, so a destination on one is a key that means nothing.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Enforced here rather than in <c>effect.schema.json</c>: <c>JsonSchemaValidator</c>
-    /// implements neither <c>not</c> nor <c>if</c>/<c>then</c>/<c>else</c>, so a conditional-required
-    /// rule is not expressible there. Recorded as a known limit of the schema.
+    /// Enforced here rather than in the JSON schema: <c>JsonSchemaValidator</c> implements neither
+    /// <c>not</c> nor <c>if</c>/<c>then</c>/<c>else</c>, so this conditional-required rule isn't
+    /// expressible there.
     /// </remarks>
     [Theory]
     [InlineData(StatCapKind.STAT_MAX)]
@@ -160,7 +140,7 @@ public sealed class StatOpBehaviourTests
               .Message.ShouldContain("converts DEF into itself", Case.Sensitive);
     }
 
-    /// <summary>A conversion with no destination names the `18` §10 key that was missing.</summary>
+    /// <summary>A conversion with no destination names the missing key.</summary>
     [Fact]
     public void A_conversion_with_no_toStat_names_the_key_18_10_added()
     {
@@ -194,10 +174,7 @@ public sealed class StatOpBehaviourTests
 
     // ───────────────────────────────────────────── step 9 · the three cap kinds
 
-    /// <summary>
-    /// 🔒 <c>STAT_MAX</c> — §2.1's <em>"raise"</em>, added under `18` §10 because the one authored
-    /// <c>capKind</c> raised nothing.
-    /// </summary>
+    /// <summary><c>STAT_MAX</c> replaces the default cap on that stat with a raised one.</summary>
     [Fact]
     public void A_STAT_MAX_override_replaces_05_1s_ceiling_on_that_stat()
     {
@@ -218,16 +195,8 @@ public sealed class StatOpBehaviourTests
         raised.Final[StatId.CRIT].ShouldBe(0.88, "the override is the only edit between the two");
     }
 
-    /// <summary>
-    /// 🔒 <c>REDIRECT_EXCESS</c> — `09` §4's <em>Perfect Strike</em>: <em>"crit chance above the 75%
-    /// cap converts to crit damage"</em>. CRIT is still capped; the overshoot lands on CDMG.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ The ratio below is a <b>test</b> ratio, not `09`'s. `09` §4 words it "at 1:4" and never says
-    /// which way round; it is the effect's authored <c>value</c> and M3's talent catalogue owns it
-    /// (steering S6). What is asserted here is the arithmetic — <c>excess × value</c> — not a number
-    /// this task invented.
-    /// </remarks>
+    /// <summary><c>REDIRECT_EXCESS</c>: the stat is still capped, but the overshoot lands on <c>toStat</c>.</summary>
+    /// <remarks>The ratio here is a test value; what's asserted is the arithmetic (<c>excess × value</c>).</remarks>
     [Fact]
     public void A_REDIRECT_EXCESS_override_caps_the_stat_and_moves_the_overshoot_to_toStat()
     {
@@ -269,8 +238,8 @@ public sealed class StatOpBehaviourTests
     }
 
     /// <summary>
-    /// 🔒 <c>HEAL_CEILING</c> touches <b>no stat cap at all</b> — it bounds <c>Heal()</c> (`05` §4.3).
-    /// Folding it into the table would cap <c>Avatar of War</c>'s Max HP at 0.8, i.e. delete the hero.
+    /// <c>HEAL_CEILING</c> touches no stat cap at all — it bounds <c>Heal()</c> separately. Folding it
+    /// into the stat table would cap Max HP itself instead.
     /// </summary>
     [Fact]
     public void A_HEAL_CEILING_override_changes_no_stat_and_is_read_separately_by_the_healer()

@@ -6,21 +6,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
-/// <summary>
-/// 🔒 `18` §2.5's combat-context exception: <b>a combat trigger carrying a run/board op emits, it
-/// never resolves.</b>
-/// </summary>
+/// <summary>The combat-context exception: a combat trigger carrying a run/board op emits, it never resolves.</summary>
 /// <remarks>
-/// The sanctioned case is the Dicelord's Scramble — a <c>PERIODIC</c> firing
-/// <c>MODIFY_DIE_FACE</c> (`17` §9). The simulator appends a <c>RunEffectQueued</c> event and M3
-/// applies the queue when the battle resolves; in a duel the queue is discarded (M2-14).
+/// The sanctioned case is the Dicelord's Scramble — a <c>PERIODIC</c> firing <c>MODIFY_DIE_FACE</c>.
+/// The simulator appends a <c>RunEffectQueued</c> event; in a duel the queue is discarded.
 /// </remarks>
 public sealed class TriggerRoutingTests
 {
-    /// <summary>
-    /// 🔒 The headline: Scramble fires from a <c>PERIODIC</c>, is <b>queued</b>, and nothing about it
-    /// is resolved in the battle.
-    /// </summary>
+    /// <summary>Scramble fires from a <c>PERIODIC</c>, is queued, and nothing about it is resolved in the battle.</summary>
     [Fact]
     public void A_combat_trigger_carrying_a_run_op_emits_rather_than_resolves()
     {
@@ -54,10 +47,7 @@ public sealed class TriggerRoutingTests
         sink.Queued[0].Argument.ShouldBe(4.0);
     }
 
-    /// <summary>
-    /// 🔒 In a duel the queue is discarded — nothing is emitted and nothing is resolved. A duel has
-    /// no run to apply anything to (`18` §2.5, consistent with §9.3's <c>IS_PVP</c> skipping).
-    /// </summary>
+    /// <summary>In a duel the queue is discarded — nothing is emitted and nothing is resolved. A duel has no run to apply anything to.</summary>
     [Fact]
     public void In_a_duel_the_queued_run_op_is_discarded()
     {
@@ -74,10 +64,7 @@ public sealed class TriggerRoutingTests
         sink.Queued.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 A <b>run</b> trigger carrying the same op is <b>resolved</b>, not queued — `18` §7.9's
-    /// <c>TILE_DICE_FORGE</c> is already on the run layer.
-    /// </summary>
+    /// <summary>A run trigger carrying the same op is resolved, not queued — <c>TILE_DICE_FORGE</c> is already on the run layer.</summary>
     /// <remarks>
     /// This is the arm that is easy to collapse: a rule stated as "a run op is always queued" would
     /// post <c>TILE_DICE_FORGE</c> a letter to the room it is standing in, and M3 would apply it
@@ -110,14 +97,14 @@ public sealed class TriggerRoutingTests
     }
 
     /// <summary>
-    /// 🔒 An <c>ALWAYS</c> perk carrying a run/board op is routed by the <b>caller's</b> layer, not
-    /// by its trigger's — because `18` §3's one passive kind has no layer of its own.
+    /// An <c>ALWAYS</c> perk carrying a run/board op is routed by the caller's layer, not by its
+    /// trigger's — because the passive kind has no layer of its own.
     /// </summary>
     /// <remarks>
-    /// <c>MODIFY_SHOP</c> and <c>MODIFY_DROP_TABLE</c> (`18` §2.5) are exactly the shape a perk
-    /// authors as <c>{"kind":"ALWAYS"}</c>. Read off the trigger, <c>ALWAYS</c> is not
-    /// <see cref="TriggerLayer.RUN"/>, so such a perk classified as a combat emission — and M3,
-    /// evaluating one off the board with no sink to hand, got a throw instead of "resolve it".
+    /// <c>MODIFY_SHOP</c> and <c>MODIFY_DROP_TABLE</c> are exactly the shape a perk authors as
+    /// <c>{"kind":"ALWAYS"}</c>. Read off the trigger, <c>ALWAYS</c> is not
+    /// <see cref="TriggerLayer.RUN"/>, so evaluating one off the board with no sink to hand must
+    /// resolve it, not throw.
     /// </remarks>
     [Theory]
     [InlineData(EffectOp.MODIFY_SHOP)]
@@ -135,18 +122,14 @@ public sealed class TriggerRoutingTests
 
         TriggerRouting.RouteOf(perk, TriggerLayer.COMBAT, isPvp: false).ShouldBe(
             EffectRouting.QUEUE_FOR_RUN,
-            "reached from inside a battle it is 18 §2.5's combat-context exception like any other");
+            "reached from inside a battle it is the combat-context exception like any other");
     }
 
     /// <summary>
     /// An effect with no trigger is fired by its wrapper, so the wrapper's layer answers for it —
     /// the fourth arm of the rule, which is easy to collapse into a throw.
     /// </summary>
-    /// <remarks>
-    /// `18` §9.1's <c>CP_GLASS_HEART</c> and §7.7's pet actives are the authored triggerless effects.
-    /// Neither carries a run op today; what is pinned is that the classifier does not fall over when
-    /// one does.
-    /// </remarks>
+    /// <remarks>Neither of the authored triggerless effects carries a run op today; what is pinned is that the classifier does not fall over when one does.</remarks>
     [Fact]
     public void A_triggerless_run_op_is_routed_by_the_callers_layer_too()
     {
@@ -163,10 +146,7 @@ public sealed class TriggerRoutingTests
         TriggerRouting.RouteOf(triggerless, TriggerLayer.COMBAT, isPvp: false).ShouldBe(EffectRouting.QUEUE_FOR_RUN);
     }
 
-    /// <summary>
-    /// 🔒 `05` §1.1 — the one runtime-resolved argument is rounded to 4 dp on the way to the log,
-    /// which is the replay and is inside <c>LogHash</c>.
-    /// </summary>
+    /// <summary>The one runtime-resolved argument is rounded to 4 dp on the way to the log.</summary>
     [Fact]
     public void The_queued_argument_is_rounded_to_4_dp()
     {
@@ -202,13 +182,12 @@ public sealed class TriggerRoutingTests
     }
 
     /// <summary>
-    /// 🔒 Every one of `18` §2.5's thirteen run/board ops is queued when a combat trigger fires it —
-    /// the rule is on the op <b>family</b>, not on the one op the Dicelord happens to use.
+    /// Every one of the thirteen run/board ops is queued when a combat trigger fires it — the rule
+    /// is on the op family, not on the one op the Dicelord happens to use.
     /// </summary>
     /// <remarks>
-    /// Steering S3: a rule keyed on <c>MODIFY_DIE_FACE</c> alone would go quiet the moment a boss
-    /// design reached for <c>GRANT_CURRENCY</c>, and the simulator would resolve a currency grant
-    /// mid-fight — twice, since `14` §2.4 has the client re-run the simulation.
+    /// A rule keyed on <c>MODIFY_DIE_FACE</c> alone would go quiet the moment a boss design reached
+    /// for <c>GRANT_CURRENCY</c>, and the simulator would resolve a currency grant mid-fight.
     /// </remarks>
     [Fact]
     public void Every_run_and_board_op_is_queued_when_a_combat_trigger_fires_it()
@@ -226,17 +205,14 @@ public sealed class TriggerRoutingTests
 
             TriggerRouting.RouteOf(effect, TriggerLayer.COMBAT, isPvp: false).ShouldBe(
                 EffectRouting.QUEUE_FOR_RUN,
-                $"{op} is a 18 §2.5 op and the simulator never resolves one");
+                $"{op} is a run/board op and the simulator never resolves one");
         }
     }
 
-    /// <summary>
-    /// 🔒 A queued op with nowhere to go fails loudly rather than vanishing.
-    /// </summary>
+    /// <summary>A queued op with nowhere to go fails loudly rather than vanishing.</summary>
     /// <remarks>
-    /// Dropping it silently would look exactly like the duel case, and Scramble — which
-    /// <em>"persists into the remainder of the run if the player survives"</em> (`17` §9) — would
-    /// simply stop happening, in a fight nobody replays.
+    /// Dropping it silently would look exactly like the duel case, and Scramble — which persists into
+    /// the remainder of the run if the player survives — would simply stop happening.
     /// </remarks>
     [Fact]
     public void A_queued_run_op_with_no_sink_is_refused()
@@ -252,15 +228,10 @@ public sealed class TriggerRoutingTests
         failure.Message.ShouldContain("no run-effect sink", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 The sink is the R17-respecting seam: it is declared in <c>Rules.Effects</c> and names
-    /// nothing from <c>Rules.Combat</c>.
-    /// </summary>
+    /// <summary>The sink is declared in <c>Rules.Effects</c> and names nothing from <c>Rules.Combat</c>.</summary>
     /// <remarks>
     /// Asserted on the signature rather than left to the layering rule alone, because the layering
-    /// rule is stated over IL references and would go green if the seam were deleted. What this pins
-    /// is that the seam still exists and still hands over the two things M2-08's adapter needs to
-    /// reach <c>CombatLog.AppendRunEffectQueued</c>: the firing actor and the effect.
+    /// rule is stated over IL references and would go green if the seam were deleted.
     /// </remarks>
     [Fact]
     public void The_sink_hands_over_the_actor_and_the_effect_and_names_no_combat_type()

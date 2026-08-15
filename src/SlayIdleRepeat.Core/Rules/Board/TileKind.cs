@@ -1,8 +1,6 @@
 namespace SlayIdleRepeat.Core.Rules.Board;
 
-/// <summary>
-/// 🔒 `03` §2 — the closed set of 14 tile kinds a board node can hold, including the boss.
-/// </summary>
+/// <summary>The closed set of 14 tile kinds a board node can hold, including the boss.</summary>
 internal enum TileKind
 {
     Enemy,
@@ -22,9 +20,8 @@ internal enum TileKind
 }
 
 /// <summary>
-/// String-id round-trip for <see cref="TileKind"/> — the <c>TILE_*</c> ids `03` §2 and
-/// <c>game-data/schema/chapter.schema.json</c>'s <c>tileWeights</c> pattern use in content JSON
-/// and on the wire.
+/// String-id round-trip for <see cref="TileKind"/> — the <c>TILE_*</c> ids content JSON and the
+/// wire use.
 /// </summary>
 internal static class TileKindIds
 {
@@ -49,7 +46,7 @@ internal static class TileKindIds
             nameof(kind), kind, "not one of 03 §2's 14 tile kinds."),
     };
 
-    /// <summary>Attempts to parse a <c>TILE_*</c> id. False for anything outside 03 §2's set.</summary>
+    /// <summary>Attempts to parse a <c>TILE_*</c> id. False for anything outside the set.</summary>
     public static bool TryParse(string? id, out TileKind kind)
     {
         switch (id)
@@ -73,7 +70,7 @@ internal static class TileKindIds
     }
 
     /// <summary>Parses a <c>TILE_*</c> id.</summary>
-    /// <exception cref="ArgumentException">The id is not one of 03 §2's 14 ids.</exception>
+    /// <exception cref="ArgumentException">The id is not one of the 14 ids.</exception>
     public static TileKind Parse(string id)
     {
         ArgumentNullException.ThrowIfNull(id);

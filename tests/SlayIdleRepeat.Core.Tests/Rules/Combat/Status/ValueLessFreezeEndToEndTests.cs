@@ -11,18 +11,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 
 /// <summary>
-/// 🔒 A value-less <c>APPLY_STATUS FREEZE</c> — the exact shape
-/// <c>BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE</c> authors — through the REAL DSL resolver, rather than
+/// A value-less <c>APPLY_STATUS FREEZE</c> — the exact shape
+/// <c>BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE</c> authors — through the real DSL resolver, rather than
 /// <see cref="StatusTimelineTests"/>' decorator, which calls <c>StatusTimeline.Apply</c> directly and so
 /// never reaches <see cref="StatusOps"/> or the value evaluator at all.
 /// </summary>
 /// <remarks>
-/// 🔒 The fight goes: a <c>PERIODIC</c> fires → <c>EffectOpResolver</c> dispatches → <c>StatusOps.Apply</c>
+/// The fight goes: a <c>PERIODIC</c> fires, <c>EffectOpResolver</c> dispatches, <c>StatusOps.Apply</c>
 /// asks <c>IStatusEngine.HasFixedPotency("FREEZE")</c>, answered by the real
-/// <see cref="StatusCatalogue"/> → the real <see cref="StatusTimeline.Apply"/> reads
-/// <c>FixedPotency</c> → `18` §8 folds it into <c>ASPD</c>. Every hop is real; nothing is scripted.
+/// <see cref="StatusCatalogue"/>, the real <see cref="StatusTimeline.Apply"/> reads
+/// <c>FixedPotency</c> and folds it into <c>ASPD</c>. Every hop is real; nothing is scripted.
 /// <para>
-/// ⚠️ The target is <c>SELF</c> rather than the shipped effect's <c>ATTACKER</c>: this is deliberately
+/// The target is <c>SELF</c> rather than the shipped effect's <c>ATTACKER</c>: this is deliberately
 /// about the value-less path in isolation, with the simplest trigger and target that lets the holder
 /// debuff its own ASPD. <c>AllAuthoredBossesRunToCompletionTests</c> proves the shipped script.
 /// </para>
@@ -30,9 +30,8 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 public sealed class ValueLessFreezeEndToEndTests
 {
     /// <summary>
-    /// 🔒 The headline numeric claim: FREEZE, applied with no authored <c>value</c>, still halves the
-    /// target's aggregated ASPD — `05` §5's −50 %, read off the status's own row, not invented and not
-    /// refused.
+    /// The headline numeric claim: FREEZE, applied with no authored <c>value</c>, still halves the
+    /// target's aggregated ASPD, read off the status's own row, not invented and not refused.
     /// </summary>
     [Fact]
     public void A_value_less_APPLY_STATUS_FREEZE_halves_the_targets_ASPD()
@@ -42,7 +41,7 @@ public sealed class ValueLessFreezeEndToEndTests
             Id = "TEST_SHATTERBACK_FREEZE",
             Op = EffectOp.APPLY_STATUS,
             StatusId = "FREEZE",
-            Value = null, // 🔒 the exact shape BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE authors
+            Value = null, // the exact shape BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE authors
             Target = EffectTarget.SELF,
             Trigger = new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 1.0 },
             Duration = new EffectDuration { Scope = DurationScope.BATTLE, Seconds = 999.0 },
@@ -56,7 +55,7 @@ public sealed class ValueLessFreezeEndToEndTests
     }
 
     /// <summary>
-    /// 🔒 Negative control — the same fight, but the <c>value</c> is a plain 0.3 and the status is
+    /// Negative control — the same fight, but the <c>value</c> is a plain 0.3 and the status is
     /// RAGE (no <c>FixedPotency</c>), to show this bench measures a real aggregation and is not simply
     /// unable to detect a stat change.
     /// </summary>

@@ -5,21 +5,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 `05`'s headnote — <em>"the visual battle is a <b>replay of a pre-computed log</b>, not a live
-/// simulation"</em> — made checkable rather than aspirational.
+/// The visual battle is a replay of a pre-computed log, not a live simulation — made checkable
+/// rather than aspirational.
 /// </summary>
 /// <remarks>
 /// <see cref="Replayer"/> is a deliberately blunt consumer: it reconstructs tick by tick everything
-/// `05` §8 and `13` §5 say the battle screen draws — HP bars, who is alive, which statuses are up and
-/// at how many stacks, the boss's phase band, the telegraphs, the queued run effects.
-/// <para>
-/// ⚠️ Besides the log it holds only the two sides' <b>starting HP</b> (which the pre-battle banner
-/// already shows) and the roster. <b>No</b> stat block, effect definition, status table, RNG or
-/// simulator type, and it recomputes nothing — a DoT tick is told from a HoT tick by the <i>sign</i>
-/// of <see cref="CombatEvent.Value"/> alone. That is the real content of the claim: what is owed is a
-/// log a renderer <i>can</i> be built against, and the honest way to owe it is to build the smallest
-/// possible one now.
-/// </para>
+/// the battle screen draws. Besides the log it holds only the two sides' starting HP and the roster —
+/// no stat block, effect definition, status table, RNG or simulator type, and it recomputes nothing.
 /// </remarks>
 public sealed class CombatLogReplayTests
 {
@@ -34,7 +26,7 @@ public sealed class CombatLogReplayTests
     {
         var log = new CombatLog();
 
-        // Pre-tick (`05` §3.1 step 0b), then BattleStart at step 0d.
+        // Pre-tick, then BattleStart.
         log.Append(0, CombatEventType.Shield, CombatActor.Hero, CombatActor.Hero, 100.0);
         log.Append(0, CombatEventType.PhaseChange, Enemy0, Enemy0, 1.0);
         log.Append(0, CombatEventType.BattleStart, CombatActor.None, CombatActor.None);
@@ -50,8 +42,7 @@ public sealed class CombatLogReplayTests
         log.Append(20, CombatEventType.Attack, CombatActor.Hero, Enemy1);
         log.Append(20, CombatEventType.Miss, CombatActor.Hero, Enemy1);
 
-        // 🔒 A DoT tick and a HoT tick, distinguished by the SIGN of Value alone — the replayer
-        // branches on nothing else, which is what makes StatusTick self-describing.
+        // A DoT tick and a HoT tick, distinguished by the sign of Value alone.
         log.Append(30, CombatEventType.StatusTick, Enemy0, CombatActor.Hero, -5.0, StatusBurn);
         log.Append(30, CombatEventType.StatusTick, CombatActor.Hero, CombatActor.Hero, 2.5, StatusRegen);
         log.Append(30, CombatEventType.Heal, CombatActor.Hero, CombatActor.Hero, 12.5);
@@ -75,10 +66,7 @@ public sealed class CombatLogReplayTests
     private const ushort EffectScramble = 41;
     private const ushort EffectAllIn = 42;
 
-    /// <summary>
-    /// 🔒 The replayer reconstructs the whole fight from the log alone — no simulator, no stats, no
-    /// RNG, no recomputation.
-    /// </summary>
+    /// <summary>The replayer reconstructs the whole fight from the log alone — no simulator, no stats, no RNG.</summary>
     [Fact]
     public void The_log_alone_reconstructs_the_battle_for_display()
     {
@@ -95,9 +83,8 @@ public sealed class CombatLogReplayTests
         // Enemy 0 took 40 then 60; enemy 1 took 25 and died.
         replay.Hp[Enemy0].ShouldBe(100.0 - 40.0 - 60.0);
 
-        // 🔒 ActorDeath names the dying actor in TargetId, per CombatEvent's slot table. Asserted
-        // rather than left to convention: SourceId is the killer, and a replayer that read the
-        // wrong slot would delete the wrong sprite.
+        // ActorDeath names the dying actor in TargetId (SourceId is the killer): a replayer that
+        // read the wrong slot would delete the wrong sprite.
         replay.Dead.ShouldBe([Enemy1]);
         result.Log.Single(e => e.Type == CombatEventType.ActorDeath)
             .ShouldBe(new CombatEvent(90, CombatEventType.ActorDeath, CombatActor.Hero, Enemy1, 0.0, 0));
@@ -108,7 +95,6 @@ public sealed class CombatLogReplayTests
         replay.Phase[Enemy0].ShouldBe(2);
         replay.Telegraphs.ShouldBe([(40, EffectAllIn, 1.5)]);
 
-        // And the queued run effect, which nothing in M2 consumes (`18` §2.5).
         replay.QueuedRunEffects.ShouldBe([(EffectScramble, 3.0)]);
 
         replay.Finished.ShouldBeTrue();
@@ -116,14 +102,9 @@ public sealed class CombatLogReplayTests
     }
 
     /// <summary>
-    /// 🔒 A status that is still up at the end stays up in the replay — the replayer tracks state,
-    /// so the test above's empty status set is a real expiry rather than the replayer never having
-    /// seen an application.
+    /// A status that is still up at the end stays up in the replay, so the test above's empty
+    /// status set is a real expiry rather than the replayer never having seen an application.
     /// </summary>
-    /// <remarks>
-    /// Without this, <c>ActiveStatuses.ShouldBeEmpty()</c> would pass just as happily against a
-    /// replayer that ignored <c>StatusApplied</c> altogether.
-    /// </remarks>
     [Fact]
     public void A_status_still_active_at_the_end_is_still_active_in_the_replay()
     {
@@ -137,9 +118,8 @@ public sealed class CombatLogReplayTests
     }
 
     /// <summary>
-    /// 🔒 `05` §8 — <b>skip is always available</b>, <em>"the outcome is already determined, so this
-    /// is safe and must be offered"</em>. Replaying only the last event yields the same finished
-    /// state as replaying every one, so a skip needs no simulation.
+    /// Skip is always available: replaying only the last event yields the same finished state as
+    /// replaying every one, so a skip needs no simulation.
     /// </summary>
     [Fact]
     public void Skipping_to_the_end_reaches_the_outcome_that_watching_would()
@@ -165,14 +145,9 @@ public sealed class CombatLogReplayTests
     }
 
     /// <summary>
-    /// 🔒 `05` §8 — the ×1/×2/×3 toggle <em>"simply consumes the log faster"</em>.
+    /// The ×1/×2/×3 speed toggle simply consumes the log faster: the log carries an integer tick and
+    /// no wall clock, so speed is a rendering-side division.
     /// </summary>
-    /// <remarks>
-    /// After the same half second of wall clock, ×1 has consumed 10 ticks, ×2 twenty and ×3 thirty —
-    /// each showing the state the log says holds at that tick, against a trajectory written out here
-    /// rather than recomputed from the replayer. What makes that possible is that the log carries an
-    /// integer <b>tick</b> and no wall clock, so speed is a rendering-side division.
-    /// </remarks>
     [Theory]
     [InlineData(1, 20, 170.0)]
     [InlineData(2, 40, 180.0)]
@@ -183,9 +158,8 @@ public sealed class CombatLogReplayTests
         const double oneSecond = 1.0;
         var result = Fight();
 
-        // 20 ticks/second (`05` §3), consumed `speed` times as fast. The window is one second
-        // because a half second put ×1 and ×2 in the same event-free stretch of the fight, so two
-        // of the three rows could not have distinguished anything.
+        // 20 ticks/second, consumed `speed` times as fast. The window is one second because a half
+        // second put ×1 and ×2 in the same event-free stretch of the fight.
         var tick = (int)(oneSecond * CombatLog.TicksPerSecond * speed);
         tick.ShouldBe(expectedTick);
 
@@ -193,16 +167,10 @@ public sealed class CombatLogReplayTests
     }
 
     /// <summary>
-    /// 🔒 `13` §5 — <em>"status effect icons sit under each HP bar <b>with stack counts</b>"</em>.
-    /// The stack count is reconstructible from the log alone.
+    /// A status's stack count is reconstructible from the log alone: <c>StatusApplied</c> carries the
+    /// resulting stack count rather than potency, since counting events cannot substitute —
+    /// reapplication may add a stack or merely refresh, and the two are indistinguishable by counting.
     /// </summary>
-    /// <remarks>
-    /// This is why <see cref="CombatEventType.StatusApplied"/> carries the resulting stack count
-    /// rather than the potency. Counting <c>StatusApplied</c> events cannot substitute:
-    /// reapplication may add a stack or merely refresh (`18` §6), and the two are indistinguishable
-    /// by counting — the fourth application below is a refresh at max stacks and must not read as a
-    /// fourth stack.
-    /// </remarks>
     [Fact]
     public void The_log_alone_reconstructs_a_statuss_stack_count()
     {
@@ -224,15 +192,10 @@ public sealed class CombatLogReplayTests
             .LastOrDefault();
 
     /// <summary>
-    /// 🔒 Nothing in the log refers to simulator state. Every field is an integer tick, an
-    /// enum, a byte actor id, a <see cref="double"/> and a <see cref="ushort"/> content id — so a
-    /// replayer can hold the log and nothing else.
+    /// Nothing in the log refers to simulator state — every field is a primitive or an enum — so a
+    /// replayer can hold the log and nothing else. A log carrying a reference to the effect instance
+    /// that fired would make the replayer depend on the simulator's object graph.
     /// </summary>
-    /// <remarks>
-    /// This is what "compute-then-animate" means structurally. A log carrying, say, a reference to
-    /// the effect instance that fired would make the replayer depend on the simulator's object
-    /// graph, and `05`'s headnote would quietly become false.
-    /// </remarks>
     [Fact]
     public void No_field_of_the_log_refers_to_simulator_state()
     {
@@ -247,12 +210,8 @@ public sealed class CombatLogReplayTests
 
     /// <summary>
     /// A replayer: everything the battle screen draws, rebuilt from the log and nothing else.
+    /// Deliberately dumb — it knows the starting HP of each side and then only reads events.
     /// </summary>
-    /// <remarks>
-    /// Deliberately dumb. It knows the starting HP of each side — which the pre-battle banner
-    /// already shows the player (`05` §8) — and then only reads events. It never computes damage,
-    /// never consults a stat block, never touches the RNG, and names no simulator type.
-    /// </remarks>
     private sealed class Replayer
     {
         public Dictionary<byte, double> Hp { get; } = [];
@@ -314,9 +273,7 @@ public sealed class CombatLogReplayTests
                     break;
 
                 case CombatEventType.StatusTick:
-                    // Signed: negative is a DoT, positive a HoT. The replayer needs no status
-                    // content table to tell them apart, which is what `05` §8's purple-for-DoT
-                    // floating text depends on.
+                    // Signed: negative is a DoT, positive a HoT. No status content table needed.
                     Hp[entry.TargetId] += entry.Value;
                     StatusTicks.Add((entry.DataId, entry.Value));
                     break;

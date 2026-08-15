@@ -5,8 +5,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// 🔒 `03` §6.1 — <c>MinigameRewardTuning</c>: the tier counts, the chapter-scaling formula, and the
-/// refusals over <c>tuning/currencies.json</c>'s <c>minigameRewards</c> block.
+/// <c>MinigameRewardTuning</c>: the tier counts, the chapter-scaling formula, and the refusals over
+/// <c>tuning/currencies.json</c>'s <c>minigameRewards</c> block.
 /// </summary>
 public sealed class MinigameRewardTuningTests
 {
@@ -14,7 +14,7 @@ public sealed class MinigameRewardTuningTests
 
     // ------------------------------------------------------------------ tier counts
 
-    /// <summary>🔒 S1 — the four minigames genuinely have different tier counts; this is not one shape times four.</summary>
+    /// <summary>The four minigames genuinely have different tier counts; this is not one shape times four.</summary>
     [Theory]
     [InlineData(MinigameCatalogue.ChestPick, 3)]
     [InlineData(MinigameCatalogue.TimingBar, 4)]
@@ -25,7 +25,7 @@ public sealed class MinigameRewardTuningTests
         Tuning.TierCount(minigameId).ShouldBe(expectedTierCount);
     }
 
-    /// <summary>An id outside 03 §6's four is refused, naming the id.</summary>
+    /// <summary>An id outside the four is refused, naming the id.</summary>
     [Fact]
     public void An_unknown_minigame_id_is_refused()
     {
@@ -57,7 +57,7 @@ public sealed class MinigameRewardTuningTests
 
     // ------------------------------------------------------------------ the chapter-scaling formula
 
-    /// <summary>`03` §6.1 — <c>1 + adBundleScalar × (chapter − 1)</c>, applied to every column.</summary>
+    /// <summary><c>1 + adBundleScalar × (chapter − 1)</c>, applied to every column.</summary>
     [Theory]
     [InlineData(1, 400L, 30L)]  // scalar 1.0
     [InlineData(2, 540L, 41L)]  // scalar 1.35: 400*1.35=540, 30*1.35=40.5 -> 41 (away from zero)
@@ -80,7 +80,7 @@ public sealed class MinigameRewardTuningTests
 
     // ------------------------------------------------------------------ refusals
 
-    /// <summary>🔒 S1/S2 — a tier past the row count is refused, isolated from the chapter guard below.</summary>
+    /// <summary>A tier past the row count is refused, isolated from the chapter guard below.</summary>
     [Theory]
     [InlineData(-1)]
     [InlineData(3)]

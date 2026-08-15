@@ -1,26 +1,21 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 10: <em>"File named per §D1 and packed into the correct atlas"</em>.
-/// </summary>
+/// <summary>Checklist item 10: file named correctly and packed into the correct atlas.</summary>
 /// <remarks>
 /// <para>
-/// Two mechanical claims and no thresholds. The name goes through <see cref="AssetNaming"/> —
-/// §D1's grammar, plus the stem equalling the row's id. The packing is read off the `15` §B4 step 7
-/// result the caller supplies: the pack must be for the atlas §D2 assigns the row, and it must hold
-/// a placement for the row's id.
+/// Two mechanical claims and no thresholds. The name goes through <see cref="AssetNaming"/>. The
+/// packing is read off the atlas-pack result the caller supplies: the pack must be for the atlas
+/// assigned to the row, and it must hold a placement for the row's id.
 /// </para>
 /// <para>
-/// 🔒 <b>Order: name, then atlas</b> — the first failure is the reported one. A pack is searched by
-/// asset id, so a file whose stem does not parse as a §D1 id makes the membership question
-/// unanswerable rather than answerable in the negative.
+/// Name is checked before atlas, and the first failure is the reported one: a pack is searched by
+/// asset id, so a file whose stem does not parse makes the membership question unanswerable rather
+/// than answerable in the negative.
 /// </para>
 /// <para>
-/// 🔒 <b>A missing pack is a failure, not an absence.</b> A row §D2 assigns an atlas to that
-/// arrives with <see cref="QaSubject.AtlasPack"/> null has not been packed, and the item says
-/// "packed into the correct atlas". The one case where null is right is a row §D2 assigns no atlas
-/// — "Backgrounds are not atlased (they are full-screen and streamed per biome)" — and that passes
-/// on the name alone, with the reason saying so.
+/// A missing pack is a failure, not an absence: a row assigned an atlas that arrives with
+/// <see cref="QaSubject.AtlasPack"/> null has not been packed. The one case where null is right is a
+/// row assigned no atlas (backgrounds), which passes on the name alone.
 /// </para>
 /// </remarks>
 public sealed class NamingAndAtlasCheck : IQaCheck
@@ -58,9 +53,8 @@ public sealed class NamingAndAtlasCheck : IQaCheck
             new StepMeasurement(PlacementCountMeasurement, placements, "count", DocReference),
         ];
 
-        // 🔒 Name first. A pack is searched by asset id, so a stem that does not parse as a §D1 id
-        // makes the membership question unanswerable rather than answerable in the negative
-        // (steering rule S2).
+        // Name is checked first: a pack is searched by asset id, so an unparseable stem makes
+        // membership unanswerable rather than answerable in the negative.
         if (!name.IsValid)
         {
             return new QaOutcome(

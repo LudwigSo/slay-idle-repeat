@@ -6,32 +6,23 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `30` §2 / §2.2 — the façade's dispatch: which handler runs, what happens when none does, and the
-/// boundary between a <b>rejection</b> (the game saying no) and a <b>defect</b> (the caller or the
-/// domain being wrong).
+/// The façade's dispatch: which handler runs, what happens when none does, and the boundary
+/// between a rejection (the game saying no) and a defect (the caller or the domain being wrong).
 /// </summary>
 /// <remarks>
-/// Driven through <c>GameRules.Execute</c> over tables built in the test, because the shapes they need
-/// must <b>never</b> be committed to <c>Core</c> — a handler that hand-writes an RNG counter, a
-/// duplicate registration, an undefined <c>CommandKind</c>. ⚠️ Every row of the real table is
-/// <c>Deferred</c>, so a handler-shaped rule stated over it would report success forever.
+/// Driven through <c>GameRules.Execute</c> over tables built in the test, because the shapes they
+/// need must never be committed to <c>Core</c> — a handler that hand-writes an RNG counter, a
+/// duplicate registration, an undefined <c>CommandKind</c>.
 /// </remarks>
 public sealed class GameRulesDispatchTests
 {
-    // ------------------------------------------------------------------ P3 · totality
+    // ------------------------------------------------------------------ totality
 
     /// <summary>
-    /// 🔒 `30` §2.1 <b>P3</b> — a command no dispatch row names returns a <b>result</b>. It does not
-    /// throw, and the reason is domain tier.
+    /// A command no dispatch row names returns a result. It does not throw, and the reason is
+    /// domain tier: <c>ILLEGAL_STATE</c>, not the transport-tier <c>UNKNOWN_COMMAND_TYPE</c> — the
+    /// server refuses an unregistered wire name before the domain is ever invoked.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ <c>ILLEGAL_STATE</c> rather than `14` §16.2's <c>UNKNOWN_COMMAND_TYPE</c>, which is a
-    /// <b>transport</b>-tier value: the server refuses a wire name it has no row for before the
-    /// domain is invoked, and `30` §2 forbids <c>Apply</c> from returning one at all. Which rule
-    /// fired is pinned separately, at the mechanism, by
-    /// <see cref="An_unregistered_type_and_a_deferred_command_are_told_apart_at_the_table"/> —
-    /// several rules produce <c>ILLEGAL_STATE</c>, so the code alone would not say (steering S2).
-    /// </remarks>
     [Fact]
     public void An_unregistered_command_is_rejected_rather_than_thrown()
     {
@@ -47,17 +38,10 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 `30` §2.1 <b>P3</b>, on the real façade: <c>Apply</c> over the production table refuses a
-    /// command <b>no row names</b> rather than throwing.
+    /// On the real façade: <c>Apply</c> over the production table refuses a command no row names
+    /// rather than throwing — proving the public entry point delegates to the same body the rest of
+    /// this file drives, rather than being a second implementation.
     /// </summary>
-    /// <remarks>
-    /// It proves the public entry point delegates to the same body the rest of this file drives
-    /// rather than being a second implementation. ⚠️ The command is a <em>fixture</em> and stays one
-    /// now that the table has 49 real rows: this is the arm
-    /// <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c> keeps unreachable in
-    /// production, so the only way to exercise it is with a command type deliberately outside
-    /// `14` §2.3.
-    /// </remarks>
     [Fact]
     public void Apply_over_the_real_table_refuses_a_command_no_row_names()
     {
@@ -71,8 +55,8 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.2 — a command whose <b>system</b> arrives in a later milestone rejects with
-    /// <c>ILLEGAL_STATE</c> and its row names the owning milestone.
+    /// A command whose system arrives in a later milestone rejects with <c>ILLEGAL_STATE</c>, and
+    /// its row names the owning milestone.
     /// </summary>
     [Fact]
     public void A_deferred_command_rejects_and_its_row_names_the_owning_milestone()
@@ -91,17 +75,10 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 Steering <b>S2</b> — the two routes to <c>ILLEGAL_STATE</c> are told apart at the
-    /// <b>table</b>, because the wire contract of `30` §2 gives the result no room to say which.
+    /// The two routes to <c>ILLEGAL_STATE</c> are told apart at the table, because the result
+    /// itself gives no room to say which: "nobody registered this command" is a build-time hole,
+    /// and "its milestone has not landed" is a deliberate, registered deferral.
     /// </summary>
-    /// <remarks>
-    /// A test that only asserted the code would pass while the opposite defect fired: "nobody
-    /// registered this command" is a build-time hole that
-    /// <c>Every_command_type_is_handled_by_Apply</c> exists to close, and "its milestone has not
-    /// landed" is a deliberate, registered deferral. The same rejection reaches the player either
-    /// way — correctly, because the player's experience is identical — so the distinction lives
-    /// where an engineer reads it.
-    /// </remarks>
     [Fact]
     public void An_unregistered_type_and_a_deferred_command_are_told_apart_at_the_table()
     {
@@ -113,9 +90,8 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 A deferred row must name an owner: without one the <c>ILLEGAL_STATE</c> it produces is
-    /// indistinguishable from a rule that refused the player, and its <c>GapRegister</c> entry has
-    /// nothing to agree with.
+    /// A deferred row must name an owner: without one the <c>ILLEGAL_STATE</c> it produces is
+    /// indistinguishable from a rule that refused the player.
     /// </summary>
     [Theory]
     [InlineData("")]
@@ -130,15 +106,11 @@ public sealed class GameRulesDispatchTests
     // ------------------------------------------------------- defects, not rejections
 
     /// <summary>
-    /// 🔒 A <c>CommandKind.Run</c> command whose slice carries no run is a <b>loading defect</b>.
+    /// A <c>CommandKind.Run</c> command whose slice carries no run is a loading defect: it throws
+    /// rather than rejecting, because <c>RUN_NOT_FOUND</c> is transport tier — the transport already
+    /// refused a command whose run is genuinely missing, so reaching the domain means the caller
+    /// loaded the wrong slice.
     /// </summary>
-    /// <remarks>
-    /// It throws rather than rejecting, and the choice is the tier boundary of `30` §2 read from the
-    /// other side: `14` §16.2's <c>RUN_NOT_FOUND</c> is transport tier, so the transport has already
-    /// refused a command whose run is genuinely missing. Reaching the domain means the Application
-    /// layer loaded the wrong slice (`30` §4.1), and answering <c>ILLEGAL_STATE</c> would report a
-    /// miswired caller to the player as a rule.
-    /// </remarks>
     [Fact]
     public void A_run_command_with_no_run_in_the_slice_is_a_defect_and_not_a_rejection()
     {
@@ -152,9 +124,9 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// A meta command is dispatched perfectly happily <b>with</b> a run in the slice: a player can
-    /// open the shop mid-run, and `14` §2.3's split is about what the command acts on, not about
-    /// what happens to be loaded.
+    /// A meta command is dispatched perfectly happily with a run in the slice: a player can open
+    /// the shop mid-run, since the split is about what the command acts on, not what happens to be
+    /// loaded.
     /// </summary>
     [Fact]
     public void A_meta_command_runs_with_a_run_in_the_slice()
@@ -169,19 +141,10 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 The mirror of the rule above, from the handler's side: a <c>CommandKind.Meta</c> command
-    /// that reaches for <c>input.Run</c> is told its <b>dispatch row</b> is classified wrongly.
+    /// The mirror of the rule above, from the handler's side: a <c>CommandKind.Meta</c> command
+    /// that reaches for <c>input.Run</c> is told its dispatch row is classified wrongly. The slice
+    /// here carries no run, since a meta command mid-run is handed the run quite happily.
     /// </summary>
-    /// <remarks>
-    /// The two guards a misclassified row can hit are deliberately different sentences (steering
-    /// <b>S2</b>): this one is "a meta command tried to act on a run", and
-    /// <c>GameRulesRngTests.A_meta_command_has_no_run_scope_even_with_a_run_loaded</c> is "a meta
-    /// command tried to draw from the run's streams". A reader handed the wrong one reclassifies in
-    /// the wrong direction. ⚠️ The slice carries <b>no</b> run, which is the only shape that reaches
-    /// this guard: a meta command mid-run is handed the run quite happily (a player can open the
-    /// shop without leaving), and a <c>CommandKind.Run</c> command with no run never reaches a
-    /// handler at all — <c>Apply</c> refuses it first as a loading defect.
-    /// </remarks>
     [Fact]
     public void A_meta_command_that_reaches_for_the_run_names_the_misclassified_row()
     {
@@ -201,15 +164,11 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 A handler that returned <c>default(HandlerResult)</c> is a <b>defect</b>, and the answer
-    /// says which one rather than surfacing as a null reference two frames later.
+    /// A handler that returned <c>default(HandlerResult)</c> is a defect, and the answer says which
+    /// one rather than surfacing as a null reference two frames later: <c>HandlerResult</c> is a
+    /// <c>readonly record struct</c>, so the default carries no rejection (reading as accepted) and
+    /// no event list.
     /// </summary>
-    /// <remarks>
-    /// The same hole <c>CommandResultTests.The_default_struct_is_not_a_result_and_says_so</c> covers
-    /// one layer out, and it is reachable the same way: <c>HandlerResult</c> is a
-    /// <c>readonly record struct</c>, so the language hands out an instance that ran no constructor
-    /// — carrying no rejection (which reads as <em>accepted</em>) and no event list.
-    /// </remarks>
     [Fact]
     public void A_handler_that_returns_the_default_struct_is_a_defect()
     {
@@ -243,14 +202,11 @@ public sealed class GameRulesDispatchTests
     // ------------------------------------------------------------------ the table itself
 
     /// <summary>
-    /// 🔒 `14` §2.3 is <b>one</b> vocabulary: two rows may not claim one wire name, and two rows may
-    /// not claim one command type.
+    /// The wire vocabulary is one-to-one: two rows may not claim one wire name, and two rows may
+    /// not claim one command type. The two failures carry different wording on purpose: a
+    /// duplicated type makes which rule runs depend on declaration order, and a duplicated name
+    /// makes the envelope ambiguous in both directions.
     /// </summary>
-    /// <remarks>
-    /// The two failures carry different wording on purpose (steering S2): a duplicated type makes
-    /// which rule runs depend on declaration order, and a duplicated name makes the envelope
-    /// ambiguous in both directions. They are opposite mistakes with opposite fixes.
-    /// </remarks>
     [Fact]
     public void One_command_type_and_one_wire_name_each()
     {
@@ -270,15 +226,9 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 A refused registration leaves the table <b>exactly as it was</b>, rather than half added.
+    /// A refused registration leaves the table exactly as it was, rather than half added: the two
+    /// indices are written together or not at all.
     /// </summary>
-    /// <remarks>
-    /// The two indices are written together or not at all — the same construction, and the same
-    /// reason, as <c>Run.CommitStreamPositions</c> validating the whole incoming map before writing
-    /// any of it. A row that indexed itself by type and then threw on its wire name would leave a
-    /// dispatch that answered <c>For(type)</c> for a command no wire name can reach, and the
-    /// registrar's own retry under a corrected name would then fail as a duplicate type.
-    /// </remarks>
     [Fact]
     public void A_refused_registration_leaves_the_table_untouched()
     {
@@ -298,17 +248,11 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 `14` §2.3's ids are <c>SCREAMING_SNAKE</c>. This is the one place a command's wire name is
-    /// declared, so a typo here is a wire-contract break nothing else would see.
+    /// Wire ids are <c>SCREAMING_SNAKE</c>. This is the one place a command's wire name is
+    /// declared, so a typo here is a wire-contract break nothing else would see. Each row names the
+    /// rule that refused it: an absent name is a registration that declared nothing, and a
+    /// malformed one is a name spelled differently from the id on the wire.
     /// </summary>
-    /// <remarks>
-    /// 🔒 <b>Each row names the rule that refused it</b> (steering <b>S2</b>), because two different
-    /// ones do: an <b>absent</b> name is a registration that declared nothing, and a malformed one
-    /// is a name spelled differently from the id on the wire. They are different mistakes with
-    /// different fixes, and <c>Should.Throw&lt;ArgumentException&gt;</c> alone is also satisfied by
-    /// <c>ArgumentNullException</c> and <c>ArgumentOutOfRangeException</c> — the guard on the row
-    /// below this one.
-    /// </remarks>
     [Theory]
     [InlineData("", "A command registration declares 14 §2.3's wire name")]
     [InlineData("roll_dice", "is not a 14 §2.3 wire name")]
@@ -325,7 +269,7 @@ public sealed class GameRulesDispatchTests
         thrown.Message.ShouldContain(refusal, Case.Sensitive);
     }
 
-    /// <summary>The shapes `14` §2.3 actually uses are accepted.</summary>
+    /// <summary>The shapes the real vocabulary actually uses are accepted.</summary>
     [Theory]
     [InlineData("ROLL_DICE")]
     [InlineData("BEGIN_SESSION")]
@@ -339,9 +283,9 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 An undefined <see cref="CommandKind"/> is refused rather than defaulted. The kind decides
-    /// whether a <c>RunRngScope</c> is built and whether the run's `14` §16.3 TTL slides, and both
-    /// defaults are wrong in a way nothing downstream could notice.
+    /// An undefined <see cref="CommandKind"/> is refused rather than defaulted. The kind decides
+    /// whether a <c>RunRngScope</c> is built and whether the run's TTL slides, and both defaults
+    /// are wrong in a way nothing downstream could notice.
     /// </summary>
     [Fact]
     public void An_undefined_command_kind_is_refused()
@@ -352,8 +296,8 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 The wire-name index is the single declared source of the type↔name mapping (carried-forward
-    /// item 4), and it is handed out as a view that cannot be written through.
+    /// The wire-name index is the single declared source of the type-name mapping, handed out as a
+    /// view that cannot be written through.
     /// </summary>
     [Fact]
     public void The_wire_name_index_maps_both_ways_and_is_read_only()
@@ -374,26 +318,11 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// 🔒 Steering <b>S3</b> — the floor under this whole file, restated for the table that now
-    /// exists: the production registry carries `14` §2.3's <b>49</b> rows.
+    /// The floor under this whole file: the production registry carries all 49 rows. The number is
+    /// a literal rather than the registry's own <c>Count</c> compared to itself, and the set behind
+    /// it — which a count cannot see — is pinned against a hand-transcribed list in both directions
+    /// by <c>CommandVocabularyTests</c>.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This replaces M1-06's tripwire, which asserted the table was <em>empty</em> and was deleted on
-    /// the commit that made it false. The floor it was standing in for has not gone away: the rules
-    /// above are still driven from tables built in the test, because the shapes they need — a handler
-    /// that hand-writes an RNG counter, a duplicate registration, an undefined <c>CommandKind</c> —
-    /// must never be committed to <c>Core</c>. What has changed is that <c>Apply</c> over the real
-    /// table is no longer a one-assertion affair;
-    /// <c>Commands.CommandVocabularyTests.Every_command_in_the_vocabulary_is_applied_and_refused_rather_than_thrown</c>
-    /// drives all forty-nine through it.
-    /// </para>
-    /// <para>
-    /// The number is a literal rather than the registry's own <c>Count</c> compared to itself, and
-    /// the <b>set</b> behind it — which a count cannot see — is pinned against a hand-transcribed
-    /// list in both directions by <c>CommandVocabularyTests</c>.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_production_dispatch_table_carries_the_whole_registry()
     {

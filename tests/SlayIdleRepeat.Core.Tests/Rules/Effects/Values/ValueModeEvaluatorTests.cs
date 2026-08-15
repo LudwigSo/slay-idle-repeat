@@ -6,18 +6,16 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Values;
 
-/// <summary>
-/// 🔒 `18` §2.2 — the eight <c>valueMode</c>s: what an effect's <c>value</c> is a multiple of.
-/// </summary>
+/// <summary>The eight <c>valueMode</c>s: what an effect's <c>value</c> is a multiple of.</summary>
 /// <remarks>
-/// M2-06 owns the evaluator; M2-03 owns each op's <em>use</em> of the result. So every case here is
-/// stated as "this mode over these subjects is this number", never as "this op deals this damage".
+/// This evaluator owns the value; each op owns its use of the result. So every case here is stated as
+/// "this mode over these subjects is this number", never as "this op deals this damage".
 /// </remarks>
 public sealed class ValueModeEvaluatorTests
 {
     // ───────────────────────────────────────────────────────────── the eight modes
 
-    /// <summary>`18` §2.2: <em>"<c>value</c> is a multiple of the source's ATK"</em> — the default.</summary>
+    /// <summary><c>value</c> is a multiple of the source's ATK — the default.</summary>
     [Fact]
     public void ATK_MULT_multiplies_the_sources_ATK()
     {
@@ -25,7 +23,7 @@ public sealed class ValueModeEvaluatorTests
             600.0, "18 §7.7's PET_STORMFANG active is value 2.0 against a 300 ATK source");
     }
 
-    /// <summary>`18` §2.2's <c>FLAT</c> — an absolute amount, and the one mode `18` §9.1 puts on a stat op.</summary>
+    /// <summary><c>FLAT</c> — an absolute amount, and the one mode authored on a stat op.</summary>
     [Fact]
     public void FLAT_is_the_value_itself()
     {
@@ -33,7 +31,7 @@ public sealed class ValueModeEvaluatorTests
             1.0, "18 §9.1's CP_GLASS_HEART sets MAX_HP to a flat 1");
     }
 
-    /// <summary>`18` §7.10's Ossify — <c>SHIELD 0.20 SELF_MAXHP_PCT</c>.</summary>
+    /// <summary>Ossify — <c>SHIELD 0.20 SELF_MAXHP_PCT</c>.</summary>
     [Fact]
     public void SELF_MAXHP_PCT_is_a_fraction_of_the_sources_Max_HP()
     {
@@ -41,7 +39,7 @@ public sealed class ValueModeEvaluatorTests
             160.0, "18 §7.10: Ossify wards 20% of the Ossuary King's 800 Max HP");
     }
 
-    /// <summary>`18` §7.10's Volatile elite — <c>DAMAGE_MAXHP_PCT 0.15 TARGET_MAXHP_PCT</c>.</summary>
+    /// <summary>The Volatile elite — <c>DAMAGE_MAXHP_PCT 0.15 TARGET_MAXHP_PCT</c>.</summary>
     [Fact]
     public void TARGET_MAXHP_PCT_is_a_fraction_of_the_targets_Max_HP()
     {
@@ -49,7 +47,7 @@ public sealed class ValueModeEvaluatorTests
             75.0, "18 §7.10: the Volatile explosion is 15% of the hero's 500 Max HP");
     }
 
-    /// <summary>`18` §2.2's <c>TARGET_MISSING_HP_PCT</c> — Max HP less current HP.</summary>
+    /// <summary><c>TARGET_MISSING_HP_PCT</c> — Max HP less current HP.</summary>
     [Fact]
     public void TARGET_MISSING_HP_PCT_is_a_fraction_of_what_the_target_has_lost()
     {
@@ -58,16 +56,11 @@ public sealed class ValueModeEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 <c>TARGET_MISSING_HP_PCT</c> floors at zero, because "missing HP" and `18` §4's
-    /// <c>SELF_MISSING_HP_PCT</c> are the same quantity and §4 types that <c>0..1</c>.
+    /// <c>TARGET_MISSING_HP_PCT</c> floors at zero, because "missing HP" and <c>SELF_MISSING_HP_PCT</c>
+    /// are the same quantity, typed <c>0..1</c>. <c>CurrentHp &gt; MaxHp</c> is reachable — a Max HP
+    /// decrease from a buff expiring, or <c>CP_GLASS_HEART</c>'s re-base — and unfloored the mode
+    /// returns a negative amount, so an execute effect would heal the target it was meant to finish.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Nothing pinned the floor in either direction. <c>CurrentHp &gt; MaxHp</c> is reachable — a Max
-    /// HP <em>decrease</em> from a buff expiring, or <c>CP_GLASS_HEART</c>'s re-base — and unfloored the
-    /// mode returns a negative amount, so an execute effect would <b>heal</b> the target it was meant to
-    /// finish. The DSL states "missing HP" in two places and they must not disagree about one actor in
-    /// one tick.
-    /// </remarks>
     [Fact]
     public void TARGET_MISSING_HP_PCT_floors_at_zero_when_the_target_is_over_its_Max_HP()
     {
@@ -82,26 +75,21 @@ public sealed class ValueModeEvaluatorTests
             -25.0, "-25 is 0.25 x (500 - 600) — an execute effect healing the target it should finish");
     }
 
-    /// <summary>`18` §2.2's <c>DAMAGE_DEALT_PCT</c> — <c>HEAL_LEECH</c>'s basis.</summary>
+    /// <summary><c>DAMAGE_DEALT_PCT</c> — <c>HEAL_LEECH</c>'s basis.</summary>
     [Fact]
     public void DAMAGE_DEALT_PCT_is_a_fraction_of_the_damage_just_dealt()
     {
         Resolve(ValueMode.DAMAGE_DEALT_PCT, 0.10, Full()).ShouldBe(12.0, "10% of the 120 just dealt");
     }
 
-    /// <summary>
-    /// `05` §4.3 / `18` §2.2 — <c>HEAL_AMOUNT</c> is <em>"the full amount actually healed"</em>.
-    /// </summary>
+    /// <summary><c>HEAL_AMOUNT</c> is the full amount actually healed.</summary>
     [Fact]
     public void HEAL_AMOUNT_is_the_amount_actually_healed()
     {
         Resolve(ValueMode.HEAL_AMOUNT, 1.0, Full()).ShouldBe(80.0);
     }
 
-    /// <summary>
-    /// `18` §2.2's <c>PK_TRANSFUSION</c> — <em>"overheal converts into a shield"</em>.
-    /// <c>OVERHEAL_AMOUNT</c> is <em>"the clipped excess"</em> (`05` §4.3).
-    /// </summary>
+    /// <summary><c>PK_TRANSFUSION</c> — overheal converts into a shield. <c>OVERHEAL_AMOUNT</c> is the clipped excess.</summary>
     [Fact]
     public void OVERHEAL_AMOUNT_is_the_clipped_excess()
     {
@@ -110,16 +98,14 @@ public sealed class ValueModeEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 <b>Every mode is handled, and each answers with its own subject.</b> S3 — a mode reaching an
-    /// unhandled arm must fail rather than fall through.
+    /// Every mode is handled, and each answers with its own subject — a mode reaching an unhandled arm
+    /// must fail rather than fall through. An expected value per mode rather than
+    /// <c>Should.NotThrow</c>, which a single <c>default</c> arm answering all eight would also
+    /// satisfy — proven by stubbing <c>Resolve</c> as <c>=&gt; 0.0</c>, at which point the loop went
+    /// green while every per-mode fact went red. At <c>value = 1.0</c> the eight answers are just the
+    /// eight subjects, each pinned individually above and all distinct, so no <c>default</c> arm of
+    /// any shape survives.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ An expected value per mode rather than <c>Should.NotThrow</c>, which a single <c>default</c> arm
-    /// answering all eight satisfies — proven by stubbing <c>Resolve</c> as <c>=&gt; 0.0</c>, at which
-    /// point the loop went green while every per-mode fact went red. At <c>value = 1.0</c> the eight
-    /// answers are just the eight subjects, each pinned individually above and all distinct, so no
-    /// <c>default</c> arm of any shape survives.
-    /// </remarks>
     [Fact]
     public void Every_18_2_2_value_mode_is_handled()
     {
@@ -151,14 +137,11 @@ public sealed class ValueModeEvaluatorTests
     // ───────────────────────────────────────────── an absent SUBJECT throws, and says which
 
     /// <summary>
-    /// 🔒 <c>HEAL_AMOUNT</c> and <c>OVERHEAL_AMOUNT</c> <em>"exist only inside <c>ON_HEAL</c>
-    /// contexts"</em> (`18` §2.2, `05` §4.3). Outside one the subject is absent, and the layer's
-    /// uniform rule applies: <b>throw</b>, naming the mode (S2).
+    /// <c>HEAL_AMOUNT</c> and <c>OVERHEAL_AMOUNT</c> exist only inside <c>ON_HEAL</c> contexts.
+    /// Outside one the subject is absent, and the layer's uniform rule applies: throw, naming the
+    /// mode. A silent zero is byte-identical to a legitimate zero heal — <c>Heal()</c> on a full-HP
+    /// target heals 0 and overheals the lot — so the quiet answer is the one that can never go red.
     /// </summary>
-    /// <remarks>
-    /// A silent zero is byte-identical to a legitimate zero heal — <c>Heal()</c> on a full-HP target
-    /// heals 0 and overheals the lot — so the quiet answer is the one that can never go red.
-    /// </remarks>
     [Theory]
     [InlineData(ValueMode.HEAL_AMOUNT)]
     [InlineData(ValueMode.OVERHEAL_AMOUNT)]
@@ -193,9 +176,9 @@ public sealed class ValueModeEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 <c>FLAT</c> is the one mode with no subject at all, so it resolves against an empty
-    /// bundle. Without this the rule above would read as "every mode needs a context", which is
-    /// wrong and would make `18` §9.1's <c>CP_GLASS_HEART</c> unresolvable at aggregation time.
+    /// <c>FLAT</c> is the one mode with no subject at all, so it resolves against an empty bundle.
+    /// Without this the rule above would read as "every mode needs a context", which is wrong and
+    /// would make <c>CP_GLASS_HEART</c> unresolvable at aggregation time.
     /// </summary>
     [Fact]
     public void FLAT_needs_no_subject()
@@ -206,14 +189,11 @@ public sealed class ValueModeEvaluatorTests
     // ───────────────────────────────────────────── the documented default
 
     /// <summary>
-    /// `18` §2.2: <em>"<c>valueMode</c>: <c>ATK_MULT</c> (default)"</em> — stated once, here, so the
-    /// forty-three ops do not each restate it.
+    /// <c>valueMode</c> defaults to <c>ATK_MULT</c> — stated once, here, so the other ops do not each
+    /// restate it. The constant alone cannot fail for any implementation bug — what makes the claim
+    /// testable is resolving through it: the default has to behave as <c>ATK_MULT</c>, not merely
+    /// spell it.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ The constant alone cannot fail for any implementation bug — it is a literal compared to a
-    /// literal. What makes the claim testable is resolving <em>through</em> it: the default has to
-    /// behave as <c>ATK_MULT</c>, not merely spell it.
-    /// </remarks>
     [Fact]
     public void The_documented_default_for_the_damage_and_healing_ops_is_ATK_MULT()
     {

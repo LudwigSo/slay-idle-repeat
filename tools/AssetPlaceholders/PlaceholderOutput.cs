@@ -12,26 +12,20 @@ namespace SlayIdleRepeat.AssetPlaceholders;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Output goes under <c>artifacts/</c>, which is gitignored. Never <c>assets/</c>.</b>
-/// M8-01a's delivery scan walks <c>assets/**</c> on the <em>filesystem</em>, not the git index, and
-/// demands a provenance record for every <c>.png</c>, <c>.ogg</c> and <c>.wav</c> it finds. A
-/// placeholder run under <c>assets/</c> would therefore redden
-/// <c>build/ci/Invoke-ProvenanceGate.ps1</c> for every developer on this repository the moment it
-/// ran, uncommitted, on their machine — and it would flip
-/// <c>DeliveryDeclaration.AwaitingFirstDelivery</c> from a true statement into a false one.
+/// Output goes under <c>artifacts/</c>, which is gitignored — never <c>assets/</c>. The delivery
+/// scan that gates provenance walks <c>assets/**</c> on the filesystem, not the git index, and
+/// demands a record for every image/audio file it finds; a placeholder run under <c>assets/</c>
+/// would fail that gate for every developer the moment it ran, uncommitted, on their machine.
 /// </para>
 /// <para>
-/// 🔒 <b>And never <c>game-data/</c> (ruling A8, M8 2026-08-12).</b> <c>LocalFileContentSource</c>
-/// enumerates every <c>*.json</c> there into the <c>ContentSnapshot</c> whose hash
-/// <c>ContentHashing.Compute</c> turns into the content version stamp `14` §6 makes load-bearing for
-/// replay and <c>CONTENT_VERSION_MISMATCH</c>. One provenance record written there would move it.
+/// And never <c>game-data/</c> (ruling A8, M8 2026-08-12): that directory is enumerated into the
+/// content hash used for the runtime's replay compatibility check, and a stray file there would
+/// move it.
 /// </para>
 /// <para>
-/// 🔒 <b>The provenance records go beside the images, not into the store.</b> A placeholder is not a
-/// delivery, so its record must not enter <c>assets/provenance/records/</c> and must not count
-/// toward the gate's coverage. It is still a real
-/// <see cref="ProceduralProvenance"/>, written by M8-01a's own writer and validated by M8-01a's own
-/// validator — the first thing in this repository to exercise the <c>procedural</c> kind end to end.
+/// The provenance records go beside the images, not into the store — a placeholder is not a
+/// delivery, so its record must not enter <c>assets/provenance/records/</c> or count toward the
+/// gate's coverage.
 /// </para>
 /// </remarks>
 public static class PlaceholderOutput
@@ -56,11 +50,9 @@ public static class PlaceholderOutput
     /// <c>game-data/</c>.
     /// </summary>
     /// <remarks>
-    /// 🔒 Checked on the <b>path segments</b> of the resolved absolute path, so
+    /// Checked on the path segments of the resolved absolute path, so
     /// <c>artifacts/../assets</c> is refused rather than accepted on the strength of the word
-    /// "artifacts" appearing in it. Comparison is ordinal: <c>.gitignore</c> ignores
-    /// <c>artifacts/</c> lower-case, and on a case-sensitive filesystem <c>Artifacts/</c> is a
-    /// different, tracked directory.
+    /// "artifacts" appearing in it.
     /// </remarks>
     /// <param name="path">The directory a run would write into.</param>
     /// <returns>The resolved absolute path.</returns>
@@ -102,8 +94,8 @@ public static class PlaceholderOutput
     /// report describes.
     /// </summary>
     /// <remarks>
-    /// 🔒 <see cref="RequireArtifactsPath"/> runs first, so a mistyped root deletes nothing: the
-    /// only directories this can remove are ones under <c>artifacts/</c>, which is gitignored.
+    /// <see cref="RequireArtifactsPath"/> runs first, so a mistyped root deletes nothing: the
+    /// only directories this can remove are ones under <c>artifacts/</c>.
     /// </remarks>
     /// <param name="outputDirectory">The run's output directory.</param>
     public static void Clear(string outputDirectory)
@@ -118,8 +110,8 @@ public static class PlaceholderOutput
 
     /// <summary>Writes one delivered PNG-32.</summary>
     /// <param name="outputDirectory">The run's output directory.</param>
-    /// <param name="fileName">The `15` §D1 file name.</param>
-    /// <param name="encoded">`15` §B4 step 6's bytes.</param>
+    /// <param name="fileName">The delivered file name.</param>
+    /// <param name="encoded">The export step's bytes.</param>
     public static void WriteImage(string outputDirectory, string fileName, byte[] encoded)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
@@ -131,12 +123,12 @@ public static class PlaceholderOutput
     }
 
     /// <summary>
-    /// Writes one <c>procedural</c> provenance record, through M8-01a's writer and validator.
+    /// Writes one <c>procedural</c> provenance record, through the provenance writer and validator.
     /// </summary>
     /// <param name="outputDirectory">The run's output directory.</param>
     /// <param name="asset">The register row.</param>
     /// <param name="spec">Its manifest-derived spec.</param>
-    /// <param name="canvas">The `15` §C generation canvas it was drawn on.</param>
+    /// <param name="canvas">The generation canvas it was drawn on.</param>
     /// <param name="repoCommit">This repository's full 40-hex commit.</param>
     public static void WriteProvenance(
         string outputDirectory, ArtAsset asset, AssetSpec spec, PixelSize canvas, string repoCommit)
@@ -168,10 +160,8 @@ public static class PlaceholderOutput
     /// parameter that fixed the pixels.
     /// </summary>
     /// <remarks>
-    /// 🔒 <see cref="ProceduralProvenance.RepoCommit"/> stands where `15` §B0 puts the job id and
-    /// the seed. There is no job and no seed here — the reproducibility anchor for code-drawn output
-    /// is the revision of the code, and a seed field would be a hole waiting for a plausible value.
-    /// The parameters are the ones a reader would need to reproduce the file byte for byte.
+    /// <see cref="ProceduralProvenance.RepoCommit"/> is the reproducibility anchor for code-drawn
+    /// output — there is no job id or seed to record, since none exists for generated pixels.
     /// </remarks>
     public static ProceduralProvenance RecordFor(
         ArtAsset asset, AssetSpec spec, PixelSize canvas, string repoCommit)
@@ -183,7 +173,7 @@ public static class PlaceholderOutput
         return new ProceduralProvenance
         {
             AssetId = asset.Id,
-            // 🔒 Null, and required to be. An art record's tool is named by its kind; M8-01a's
+            // Null, and required to be: an art record's tool is named by its kind, and the
             // validator refuses tooling on an art record outright.
             Tooling = null,
             Generator = typeof(PlaceholderBatch).Assembly.GetName().Name
@@ -224,16 +214,12 @@ public static class PlaceholderOutput
     }
 
     /// <summary>
-    /// Writes one atlas's `15` §B4 step 7 result: its pages, every placement, and the `15` §C pivot
-    /// §C says is <em>"declared in the atlas metadata"</em>.
+    /// Writes one atlas's pack result: its pages, every placement, and the pivot declared in the
+    /// atlas metadata.
     /// </summary>
     /// <param name="outputDirectory">The run's output directory.</param>
     /// <param name="pack">The pack result.</param>
-    /// <param name="members">
-    /// The placed assets by `15` §D1 id, for the file name and pivot each placement belongs to. A
-    /// placement whose member is absent is a loud failure: the metadata's whole job is to point at
-    /// a real file.
-    /// </param>
+    /// <param name="members">The placed assets by id, for the file name and pivot each placement belongs to.</param>
     public static void WriteAtlasMetadata(
         string outputDirectory,
         AtlasPackResult pack,
@@ -312,21 +298,13 @@ public static class PlaceholderOutput
             Path.Combine(directory, pack.AtlasId + ".json"), buffer.ToArray());
     }
 
-    /// <summary>
-    /// Invariant-culture formatting for every number that reaches a file. 🔒 A provenance record
-    /// written on a machine whose culture spells a decimal point as a comma is a record nobody
-    /// else's reader parses.
-    /// </summary>
+    /// <summary>Invariant-culture formatting for every number that reaches a file.</summary>
     /// <param name="value">The value to format.</param>
     private static string Number(double value) =>
         value.ToString("0.####", CultureInfo.InvariantCulture);
 }
 
 /// <summary>What the atlas metadata records about one placed asset beyond its placement.</summary>
-/// <param name="FileName">The delivered `15` §D1 file name.</param>
-/// <param name="Pivot">
-/// The row's `15` §C pivot. §C says it is <em>"declared in the atlas metadata"</em>, and this is
-/// that declaration — which is also why `15` Part F item 7 verifies it against the pixels rather
-/// than against this file.
-/// </param>
+/// <param name="FileName">The delivered file name.</param>
+/// <param name="Pivot">The row's pivot, declared here and verified against the pixels by the QA checklist.</param>
 public sealed record AtlasMember(string FileName, string Pivot);

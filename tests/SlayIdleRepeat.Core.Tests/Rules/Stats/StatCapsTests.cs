@@ -5,14 +5,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
-/// <summary>
-/// 🔒 `05` §1 — the six stat ceilings, and `18` §8 step 9's application of them.
-/// </summary>
+/// <summary>The six stat ceilings, and their application.</summary>
 public sealed class StatCapsTests
 {
     /// <summary>
-    /// The six `05` §1 caps a nobody-has-overridden-anything table binds — and, just as importantly,
-    /// the eight it does not.
+    /// The six stats a default table binds a ceiling to — and, just as importantly, the eight it
+    /// does not.
     /// </summary>
     [Fact]
     public void Exactly_the_six_stats_05_section_1_caps_carry_a_ceiling()
@@ -56,9 +54,8 @@ public sealed class StatCapsTests
     }
 
     /// <summary>
-    /// 🔒 There is deliberately no floor. `18` §8 step 9 says "apply caps" — one direction — and
-    /// inventing a lower clamp would be a rule the design has not authorised (`16` R6). Recorded as
-    /// a case so the absence is a decision on the record rather than an oversight.
+    /// Deliberately no floor: capping is one-directional, and inventing a lower clamp would be an
+    /// unauthorised rule. Recorded as a case so the absence is a decision, not an oversight.
     /// </summary>
     [Fact]
     public void A_negative_value_is_not_clamped_because_05_authorises_no_floor()
@@ -85,7 +82,7 @@ public sealed class StatCapsTests
         thrown.Message.ShouldContain("05 §1.1", Case.Sensitive);
     }
 
-    /// <summary>`18` §2.1's <c>STAT_CAP_OVERRIDE</c> mechanism — the table can be rewritten.</summary>
+    /// <summary>The <c>STAT_CAP_OVERRIDE</c> mechanism — the table can be rewritten.</summary>
     [Fact]
     public void With_raises_a_ceiling_without_touching_the_others()
     {

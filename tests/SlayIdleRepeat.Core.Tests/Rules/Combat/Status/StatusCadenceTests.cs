@@ -5,21 +5,18 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 
-/// <summary>
-/// 🔒 `05` §3.1's DoT/HoT cadence — <em>"on the 20th simulation tick after first application, and
-/// every 20 ticks thereafter"</em>.
-/// </summary>
+/// <summary>The DoT/HoT cadence: on the 20th simulation tick after first application, and every 20 ticks thereafter.</summary>
 public sealed class StatusCadenceTests
 {
     /// <summary>
-    /// 🔴 The anchor is the <b>first application</b>, not the battle — probed at tick 7, the only kind of
+    /// The anchor is the first application, not the battle — probed at tick 7, the only kind of
     /// anchor that can tell the two apart.
     /// </summary>
     /// <remarks>
-    /// 🔴 An anchor of 0 cannot fail this test: a status applied on tick 0 ticks on 20, 40, 60 — and so
-    /// does an implementation that counted from battle start and ignored the anchor. The two readings are
-    /// byte-identical at every anchor that is a multiple of 20, which is exactly what a hand-written
-    /// fight produces. Anchored at 7 they share no tick in the first three seconds.
+    /// An anchor of 0 cannot fail this test: a status applied on tick 0 ticks on 20, 40, 60 — and
+    /// so does an implementation that counted from battle start and ignored the anchor. The two
+    /// readings are byte-identical at every anchor that is a multiple of 20, which is exactly what
+    /// a hand-written fight produces. Anchored at 7 they share no tick in the first three seconds.
     /// </remarks>
     [Fact]
     public void The_cadence_is_anchored_on_first_application_and_not_on_the_battle()
@@ -34,15 +31,13 @@ public sealed class StatusCadenceTests
         StatusCadence.LandsOn(7, 60).ShouldBeFalse();
     }
 
-    /// <summary>
-    /// 🔒 The first tick is the 20th <b>after</b> application — never on the application tick itself.
-    /// </summary>
+    /// <summary>The first tick is the 20th after application — never on the application tick itself.</summary>
     /// <remarks>
-    /// 🔴 The off-by-one this closes is worth a third of every DoT in the game: a 3 s <c>BURN</c>
-    /// ticking on its own application tick as well deals four ticks instead of three, on a fight that
-    /// otherwise looks entirely correct. Probed at two anchors, because <c>0 % 20 == 0</c> makes the
-    /// bug reachable at every anchor and the second shape is what stops the rule being an assertion
-    /// about tick 0.
+    /// The off-by-one this closes is worth a third of every DoT in the game: a 3 s <c>BURN</c>
+    /// ticking on its own application tick as well deals four ticks instead of three, on a fight
+    /// that otherwise looks entirely correct. Probed at two anchors, because <c>0 % 20 == 0</c>
+    /// makes the bug reachable at every anchor and the second shape is what stops the rule being an
+    /// assertion about tick 0.
     /// </remarks>
     [Theory]
     [InlineData(0)]
@@ -55,10 +50,7 @@ public sealed class StatusCadenceTests
         StatusCadence.LandsOn(anchor, anchor + StatusCadence.TicksPerCadence).ShouldBeTrue();
     }
 
-    /// <summary>
-    /// 🔒 `05` §3 — the cadence is <em>"once per second of battle time"</em>, and one second is `05`
-    /// §3's twenty ticks.
-    /// </summary>
+    /// <summary>The cadence is once per second of battle time, and one second is twenty ticks.</summary>
     /// <remarks>
     /// Stated against <c>CombatLog.TicksPerSecond</c> rather than against the literal 20, because the
     /// claim is that the two are the same fact. A cadence constant that drifted from the tick rate
@@ -88,7 +80,7 @@ public sealed class StatusCadenceTests
     }
 
     /// <summary>
-    /// 🔒 The per-tick answer and the count agree — a fight's boundaries are exactly the ticks
+    /// The per-tick answer and the count agree — a fight's boundaries are exactly the ticks
     /// <see cref="StatusCadence.LandsOn"/> reports.
     /// </summary>
     /// <remarks>

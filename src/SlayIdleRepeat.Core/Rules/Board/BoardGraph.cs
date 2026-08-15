@@ -3,11 +3,10 @@ using System.Globalization;
 namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>
-/// 🔒 `03` §1 — a run's board: a DAG that reads as a mostly-linear track with occasional
-/// two-way forks that rejoin. Immutable once built — <see cref="BoardGenerator.GenerateBoard"/>
-/// is the procedural producer; <see cref="FromLayout"/> is the seam a future authored-layout
-/// loader (`03` §3's bypass path, FTUE / Resource Dungeons — out of this task's scope) would call
-/// instead of the generator, so that path never needs a parallel graph type.
+/// A run's board: a DAG that reads as a mostly-linear track with occasional two-way forks that
+/// rejoin. Immutable once built — <see cref="BoardGenerator.GenerateBoard"/> is the procedural
+/// producer; <see cref="FromLayout"/> is the seam a future authored-layout loader would call
+/// instead, so that path never needs a parallel graph type.
 /// </summary>
 internal sealed class BoardGraph
 {
@@ -36,13 +35,13 @@ internal sealed class BoardGraph
     /// <summary>The trailhead's first possible landing — the spine node at linear index 0.</summary>
     public NodeId FirstNodeId => _spineByLinearIndex[0];
 
-    /// <summary>The boss node — always the last entry of the linear index (`03` §1.1: index 42).</summary>
+    /// <summary>The boss node — always the last entry of the linear index (index 42).</summary>
     public NodeId BossNodeId => _spineByLinearIndex[^1];
 
     /// <summary>Every node this board contains, spine, branch and boss alike.</summary>
     public int NodeCount => _nodes.Count;
 
-    /// <summary>The spine node (or the boss) at a `03` §1.1 linear index, <c>0..42</c>.</summary>
+    /// <summary>The spine node (or the boss) at a linear index, <c>0..42</c>.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The index is outside <c>0..42</c>.</exception>
     public NodeId SpineNode(int linearIndex)
     {
@@ -71,7 +70,7 @@ internal sealed class BoardGraph
     /// <summary>
     /// A node's outgoing edges — empty for the boss node, exactly one for every ordinary node,
     /// exactly two (<see cref="EdgeKind.Continue"/> then <see cref="EdgeKind.Branch"/>) for a
-    /// junction (`03` §1.1).
+    /// junction.
     /// </summary>
     /// <exception cref="KeyNotFoundException">No node with this id exists on this board.</exception>
     public IReadOnlyList<BoardEdge> OutgoingEdges(NodeId id)
@@ -85,17 +84,12 @@ internal sealed class BoardGraph
     }
 
     /// <summary>
-    /// Whether a node is a junction — `03` §1.1: a node with two outgoing edges, where movement
-    /// pauses for <c>CHOOSE_FORK</c> only when it must leave it.
+    /// Whether a node is a junction — a node with two outgoing edges, where movement pauses for
+    /// <c>CHOOSE_FORK</c> only when it must leave it.
     /// </summary>
     public bool IsJunction(NodeId id) => _junctions.Contains(id);
 
-    /// <summary>
-    /// Builds a board directly from an already-decided layout, bypassing generation and its C1-C7
-    /// constraints entirely (`03` §3's authored-board bypass headroom — the bypass's content
-    /// loading and schema validation are a separate, later task; this factory is only the graph
-    /// construction seam that path will call into).
-    /// </summary>
+    /// <summary>Builds a board directly from an already-decided layout, bypassing generation entirely.</summary>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// The spine index is empty, a node referenced by an edge or by <paramref name="spineByLinearIndex"/>

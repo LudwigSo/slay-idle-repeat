@@ -6,14 +6,13 @@ using Xunit;
 namespace SlayIdleRepeat.AssetProvenance.Tests;
 
 /// <summary>
-/// The gate, driven with a synthetic delivery set and store over the REAL `15` §E / `20` §3
-/// register — every rule proven to fire, and proven to fire for its own reason.
+/// The gate, driven with a synthetic delivery set and store over the REAL shipped register — every
+/// rule proven to fire, and proven to fire for its own reason.
 /// </summary>
 /// <remarks>
-/// 🔒 Zero assets are delivered in this repository today, so the forward direction has no live
-/// subject. That is exactly why these cases exist: they hand the gate the delivery set M8-02
-/// onwards will produce and check that it bites. A gate whose only evidence was a green run over
-/// an empty set would be steering S1's cannot-fail defect with a CI job attached.
+/// Zero assets are delivered in this repository today, so the forward direction has no live
+/// subject — these cases hand the gate a delivery set to check that it bites, rather than trusting
+/// a green run over an empty set.
 /// </remarks>
 public sealed class ProvenanceGateTests
 {
@@ -35,10 +34,7 @@ public sealed class ProvenanceGateTests
 
     // ------------------------------------------------------------------ forward direction
 
-    /// <summary>
-    /// 🔒 The rule `15` §G and `20` §6 are actually asking for: an asset that exists on disk and
-    /// has no provenance record fails the build.
-    /// </summary>
+    /// <summary>The rule this whole gate exists for: an asset on disk with no provenance record fails the build.</summary>
     [Fact]
     public void A_delivered_asset_with_no_record_fails()
     {
@@ -59,8 +55,8 @@ public sealed class ProvenanceGateTests
             [],
             [ProvenanceFixtures.ConfirmedLicence()]);
 
-        // Steering S2: a typo'd delivery is NOT reported as a missing record — the two say
-        // different things to whoever has to fix it.
+        // A typo'd delivery is NOT reported as a missing record — the two say different things to
+        // whoever has to fix it.
         var violation = report.Violations.ShouldHaveSingleItem();
         violation.Code.ShouldBe(ViolationCode.UnregisteredDelivery);
         violation.Detail.ShouldMatchWildcard("*is in neither register*15 §D1 makes the file name the asset id*");
@@ -77,7 +73,7 @@ public sealed class ProvenanceGateTests
         var violation = report.Violations.ShouldHaveSingleItem();
         violation.Code.ShouldBe(ViolationCode.MediumMismatch);
 
-        // Steering S2 — both branches of the rule emit the same code, so pin which one fired.
+        // Both branches of the rule emit the same code, so pin which one fired.
         violation.Detail.ShouldMatchWildcard("*is an ART slot; 15 §D1 delivers art as .png*");
     }
 
@@ -96,8 +92,8 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 `20` §5 gives music OGG Vorbis only; WAV is the SFX <em>source</em> format. Read off
-    /// <c>AudioAsset.IsMusic</c> rather than from the id's prefix — the register is the vocabulary.
+    /// Music is OGG Vorbis only; WAV is the SFX <em>source</em> format. Read off
+    /// <c>AudioAsset.IsMusic</c> rather than the id's prefix — the register is the vocabulary.
     /// </summary>
     [Fact]
     public void A_music_track_delivered_as_wav_fails_because_20_s5_gives_music_ogg_only()
@@ -123,8 +119,8 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 A DELIVERED cut asset is reported as the cut asset it is, not as a missing record. The
-    /// gate must never tell an author to write a record it would then refuse under `15` §E19 / O8.
+    /// A DELIVERED cut asset is reported as the cut asset it is, not as a missing record — the gate
+    /// must never tell an author to write a record it would then refuse under ruling O8.
     /// </summary>
     [Fact]
     public void A_delivered_cut_asset_is_reported_as_cut_and_not_as_missing_provenance()
@@ -144,8 +140,8 @@ public sealed class ProvenanceGateTests
     // ------------------------------------------------------------------ reverse direction
 
     /// <summary>
-    /// 🔒 The other half. M0-10 established that orphan checking here runs both ways; a record for
-    /// an id M8-09's register does not hold is a licence claim about nothing.
+    /// The other half: orphan checking runs both ways, and a record for an id the register does not
+    /// hold is a licence claim about nothing.
     /// </summary>
     [Fact]
     public void A_record_for_an_unknown_asset_id_fails()
@@ -159,9 +155,9 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 The O8 ruling (M8 kickoff, 2026-08-12) cut all 32 of `15` §E19's sprite sheets. A cut
-    /// asset needs no record — and a record for one is its OWN failure, not an unknown id: an
-    /// unknown id is a typo, a cut id is provenance for work that was called off.
+    /// The O8 ruling cut all 32 sprite sheets. A cut asset needs no record — and a record for one is
+    /// its OWN failure, not an unknown id: an unknown id is a typo, a cut id is provenance for work
+    /// that was called off.
     /// </summary>
     [Fact]
     public void A_record_for_a_cut_asset_fails_as_a_cut_asset_and_not_as_an_unknown_one()
@@ -194,11 +190,10 @@ public sealed class ProvenanceGateTests
         report.Violations.ShouldHaveSingleItem().Code.ShouldBe(ViolationCode.MalformedRecord);
     }
 
-    // ------------------------------------------------------------------ 20 §6 licences
+    // ------------------------------------------------------------------ licences
 
     /// <summary>
-    /// 🔒 `15` §G: <em>"Confirm the current commercial terms in writing before the first batch …
-    /// Legal prerequisite, not a formality."</em> This is that sentence, armed. It cannot fire
+    /// Commercial terms must be confirmed in writing before the first batch. This rule cannot fire
     /// today because nothing is delivered and nothing has a record — and it fires on the first
     /// asset that does.
     /// </summary>
@@ -217,9 +212,8 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 `20` §6 — a bare <c>true</c> is not a confirmation. Without a <c>confirmationRef</c>
-    /// naming where the written terms are filed, the register is asserting the formality `15` §G
-    /// says it is not.
+    /// A bare <c>true</c> is not a confirmation. Without a <c>confirmationRef</c> naming where the
+    /// written terms are filed, the register is asserting the formality this rule says it is not.
     /// </summary>
     [Fact]
     public void A_licence_marked_confirmed_with_nothing_filed_behind_it_still_fails()
@@ -233,10 +227,8 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 `15` §B0 locks Midjourney for ART, and `20` §2.1 asks for the terms of the music and SFX
-    /// tools separately. A confirmation obtained for one medium is not evidence about the other —
-    /// without this, the day M8-01b confirms Midjourney's art terms, an audio asset naming
-    /// Midjourney would ride in on it.
+    /// A confirmation obtained for one medium is not evidence about the other — without this, the
+    /// day art terms are confirmed for a tool, an audio asset naming the same tool would ride in on it.
     /// </summary>
     [Fact]
     public void A_licence_confirmed_for_art_does_not_cover_an_audio_asset()
@@ -266,8 +258,8 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 A procedural ART record names no tool: its generator is this repository, which needs no
-    /// commercial licence confirmed under `15` §G. The rule must not fire on it.
+    /// A procedural ART record names no tool: its generator is this repository, which needs no
+    /// commercial licence confirmed. The rule must not fire on it.
     /// </summary>
     [Fact]
     public void A_procedural_art_record_names_no_tool_and_needs_no_licence()
@@ -280,12 +272,11 @@ public sealed class ProvenanceGateTests
             .Violations.ShouldBeEmpty();
     }
 
-    // ------------------------------------------------------------------ S3: the floor
+    // ------------------------------------------------------------------ the floor
 
     /// <summary>
-    /// 🔒 Steering S3 — the gate quantifies over M8-09's register, and a register that shrank below
-    /// its floor is RED rather than "nothing to check". Proven by handing the gate a register with
-    /// two rows in it.
+    /// The gate quantifies over the shipped register, and a register that shrank below its floor is
+    /// RED rather than "nothing to check". Proven by handing the gate a register with two rows in it.
     /// </summary>
     [Fact]
     public void A_register_below_its_floor_fails_rather_than_passing_over_nothing()
@@ -295,8 +286,8 @@ public sealed class ProvenanceGateTests
             ProvenanceFixtures.StoreOf([], ProvenanceFixtures.ShippedLicences),
             []);
 
-        // Steering S2 — the floor has three branches and they all carry ManifestFloor, so each is
-        // pinned by its own subject rather than by the shared code.
+        // The floor has three branches and they all carry ManifestFloor, so each is pinned by its
+        // own subject rather than the shared code.
         report.Violations
             .First(v => v.Code == ViolationCode.ManifestFloor &&
                         v.Subject == ProvenanceGate.RegisterLocation)
@@ -309,8 +300,8 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 Steering S3's other half — a count alone is satisfied by a thousand rows of anything.
-    /// Every canary id `15` §D1 and `20` §3 write out literally must still be in the register.
+    /// The floor's other half — a count alone is satisfied by a thousand rows of anything, so every
+    /// literal canary id must still be in the register.
     /// </summary>
     [Fact]
     public void Every_canary_id_is_still_in_the_shipped_register()
@@ -341,10 +332,10 @@ public sealed class ProvenanceGateTests
                                 v.Subject == ProvenanceGate.CanaryCutAssetId);
     }
 
-    // ------------------------------------------------------------------ S4: the declaration
+    // ------------------------------------------------------------------ the declaration
 
     /// <summary>
-    /// 🔒 Steering S4 — the declared "nothing is delivered yet" state expires by itself. While
+    /// The declared "nothing is delivered yet" state expires by itself. While
     /// <c>DeliveryDeclaration.AwaitingFirstDelivery</c> is true, one delivered asset is enough to
     /// fail the build, so the declaration cannot outlive the situation it describes.
     /// </summary>
@@ -365,9 +356,9 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 Steering S4's own caveat — the exemption must fail when it has been <em>satisfied</em>
-    /// too. Pre-arming the flag while nothing is delivered would silence the first direction for
-    /// as long as the delivery set stayed empty, so that is a failure in its own right.
+    /// The declaration's own caveat: it must fail when it has been <em>satisfied</em> too.
+    /// Pre-arming the flag while nothing is delivered would silence the first direction for as long
+    /// as the delivery set stayed empty.
     /// </summary>
     [Fact]
     public void Flipping_the_declaration_early_is_equally_stale()
@@ -384,8 +375,8 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// `15` §G / `20` §6 — the constant that ships today, pinned. It is <c>true</c> because zero
-    /// assets are delivered; the commit that delivers the first one flips it and rewrites this.
+    /// The constant that ships today, pinned. It is <c>true</c> because zero assets are delivered;
+    /// the commit that delivers the first one flips it and rewrites this.
     /// </summary>
     [Fact]
     public void The_shipped_declaration_says_nothing_has_been_delivered_yet()
@@ -403,9 +394,9 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// 🔒 `20` §6 / `15` §G — the empty state and a populated one must never read the same. The
-    /// headline for zero deliveries says so in words, names the pairing count it actually verified,
-    /// and says which checks DID run.
+    /// The empty state and a populated one must never read the same. The headline for zero
+    /// deliveries says so in words, names the pairing count it actually verified, and says which
+    /// checks DID run.
     /// </summary>
     [Fact]
     public void The_zero_delivery_headline_cannot_be_read_as_a_pass_over_a_populated_set()
@@ -432,9 +423,8 @@ public sealed class ProvenanceGateTests
     // ------------------------------------------------------------------ coverage arithmetic
 
     /// <summary>
-    /// 🔒 `15` §E1 — COMPLETE is decided by distinct uncut SLOTS filled, never by the file count.
-    /// Two copies of one asset are one slot; a thousand misnamed files fill none. The one place the
-    /// report asserts completeness must not be reachable by counting files.
+    /// COMPLETE is decided by distinct uncut SLOTS filled, never by the file count. Two copies of
+    /// one asset are one slot; a thousand misnamed files fill none.
     /// </summary>
     [Fact]
     public void Duplicate_and_unregistered_files_never_add_up_to_complete_coverage()
@@ -457,8 +447,8 @@ public sealed class ProvenanceGateTests
     }
 
     /// <summary>
-    /// `15` §E1 — the COMPLETE branch, over a register small enough to fill. Without a case here it
-    /// is a state of the report nothing has ever produced.
+    /// The COMPLETE branch, over a register small enough to fill. Without a case here it is a state
+    /// of the report nothing has ever produced.
     /// </summary>
     [Fact]
     public void Filling_every_uncut_slot_reports_complete()
@@ -488,8 +478,7 @@ public sealed class ProvenanceGateTests
     {
         var report = Run([], [], ProvenanceFixtures.ShippedLicences);
 
-        // Counted from the shipped register, not quoted: 974 art + 106 audio, 32 of the art cut by
-        // the O8 ruling.
+        // Counted from the shipped register, not quoted.
         report.RegisteredAssets.ShouldBe(
             ProvenanceFixtures.Register.Art.Assets.Count + ProvenanceFixtures.Register.Audio.Assets.Count);
         report.RegisteredAssets.ShouldBe(1080);
@@ -501,10 +490,9 @@ public sealed class ProvenanceGateTests
     /// Runs the gate over the real register with a synthetic store and delivery set.
     /// </summary>
     /// <remarks>
-    /// 🔒 The declaration is derived from the delivery set the case supplies, so that a case about
+    /// The declaration is derived from the delivery set the case supplies, so that a case about
     /// (say) a missing record does not also trip <see cref="ViolationCode.StaleDeliveryDeclaration"/>
-    /// and make <c>ShouldHaveSingleItem</c> a lie. The declaration's own two directions are covered
-    /// by the two cases that pass <c>awaitingFirstDelivery</c> explicitly.
+    /// and make <c>ShouldHaveSingleItem</c> a lie.
     /// </remarks>
     private static ProvenanceGateReport Run(
         IReadOnlyList<DeliveredAsset> delivered,

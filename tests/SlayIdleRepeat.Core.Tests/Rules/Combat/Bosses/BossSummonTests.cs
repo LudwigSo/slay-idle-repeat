@@ -11,9 +11,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `18` §2.4's <c>SUMMON</c> for a boss — `17` §1's <em>"adds use standard archetypes from `05`
-/// §6.1 at 25–35% of boss power, capped at 3 alive at once"</em>, and `05` §3.1's entry rules the
-/// tick loop already owns.
+/// <c>SUMMON</c> for a boss: adds use standard archetypes at 25-35% of boss power, capped at 3
+/// alive at once, and the entry rules the tick loop already owns.
 /// </summary>
 public sealed class BossSummonTests
 {
@@ -23,9 +22,8 @@ public sealed class BossSummonTests
     // ════════════════════════════════════════════════════ 1 · what an add IS
 
     /// <summary>
-    /// 🔒 `17` §1 — an add is a `05` §6.1 archetype derived at a fraction of <b>boss</b> power, which
-    /// is the boss's <c>EnemyPower(i)</c> as handed in and never re-multiplied by
-    /// <c>StageMult.Boss</c>.
+    /// An add is its archetype derived at a fraction of boss power, which is the boss's
+    /// <c>EnemyPower(i)</c> as handed in and never re-multiplied by <c>StageMult.Boss</c>.
     /// </summary>
     [Fact]
     public void An_add_is_its_archetype_derived_at_a_fraction_of_boss_power()
@@ -43,9 +41,9 @@ public sealed class BossSummonTests
         add.Kind.ShouldBe(EffectActorKind.ENEMY);
         add.Side.ShouldBe(BattleSide.ENEMY);
 
-        // 🔴 The negative control. Without it "derived at 3000" is indistinguishable from "derived at
-        //    the boss's own power and happening to agree", which is exactly the 25–35% band going
-        //    unread — Thornmaw's phase-3 adds each as strong as Thornmaw.
+        // The negative control. Without it "derived at 3000" is indistinguishable from "derived at
+        // the boss's own power and happening to agree", which is exactly the 25-35% band going
+        // unread — Thornmaw's phase-3 adds each as strong as Thornmaw.
         add.BaseStats[StatId.MAX_HP].ShouldNotBe(
             EnemyDerivation.Derive(
                 10_000.0, EnemyFixtures.Row(EnemyArchetype.SWARM), EnemyFixtures.Constants())
@@ -53,11 +51,7 @@ public sealed class BossSummonTests
             "17 §1 gives the add a FRACTION of boss power, not boss power");
     }
 
-    /// <summary>
-    /// 🔒 The plan carries <b>no</b> index and <b>no</b> log id: `05` §3.1 gives both to the roster,
-    /// and <c>CombatActor</c> is 🔒 that a summon <em>"takes the next free id and never reuses a dead
-    /// one"</em>.
-    /// </summary>
+    /// <summary>The plan carries no index and no log id: the roster gives both, and a summon takes the next free id and never reuses a dead one's.</summary>
     [Fact]
     public void The_spawned_plan_leaves_the_index_and_the_log_id_to_the_roster()
     {
@@ -72,9 +66,9 @@ public sealed class BossSummonTests
     }
 
     /// <summary>
-    /// 🔒 `17` §1's band is 25–35%, and the engine does not pick a number inside it — but it does
-    /// refuse one outside it, because a fraction of 0.60 is adds twice as strong as `17` intends and
-    /// nothing else in the fight would say so.
+    /// The band is 25-35%, and the engine does not pick a number inside it — but it does refuse one
+    /// outside it, because a fraction of 0.60 is adds twice as strong as intended and nothing else
+    /// in the fight would say so.
     /// </summary>
     [Theory]
     [InlineData(0.24)]
@@ -84,9 +78,9 @@ public sealed class BossSummonTests
         var source = new BossSummonSource(
             BossTestBench.Catalogue(), bossPower: 10_000.0, powerFraction: fraction, level: 10);
 
-        // 🔒 Steering S2 — WHICH rule fired. A bare `ShouldContain("25")` stood here and matched any
-        //    message carrying those two digits, including the level, the power and the archetype
-        //    count that every other refusal in this class also prints.
+        // Which rule fired. A bare `ShouldContain("25")` stood here and matched any message
+        // carrying those two digits, including the level, the power and the archetype count that
+        // every other refusal in this class also prints.
         var thrown = Should.Throw<EffectContextException>(
             () => source.Spawn(Summoner(), nameof(EnemyArchetype.SWARM), SummonEffect));
 
@@ -102,15 +96,14 @@ public sealed class BossSummonTests
     }
 
     /// <summary>
-    /// The positive control: both ends of the band are accepted, and each derives the statline `17`
-    /// §1's fraction of boss power gives it.
+    /// The positive control: both ends of the band are accepted, and each derives the statline the
+    /// authored fraction of boss power gives it.
     /// </summary>
     /// <remarks>
-    /// 🔴 <c>ShouldBeGreaterThan(0.0)</c> stood here and was true of every Max HP a derivation could
+    /// <c>ShouldBeGreaterThan(0.0)</c> stood here and was true of every Max HP a derivation could
     /// possibly produce — including one derived at the boss's own power, which is the failure the
-    /// band exists to prevent (steering S1). The two ends are pinned to
-    /// <see cref="EnemyDerivation"/>'s answer at the two powers the band names, which differ from
-    /// each other and from full boss power.
+    /// band exists to prevent. The two ends are pinned to <see cref="EnemyDerivation"/>'s answer at
+    /// the two powers the band names, which differ from each other and from full boss power.
     /// </remarks>
     [Theory]
     [InlineData(BossAdds.MinPowerFraction, 2_500.0)]
@@ -130,9 +123,9 @@ public sealed class BossSummonTests
     }
 
     /// <summary>
-    /// 🔒 And the two ends do not agree: `17` §1's band is 25–<b>35</b>%, so the strong end really is
-    /// stronger. Without this the two rows above would both pass on a source that ignored the
-    /// fraction entirely and always derived at one number.
+    /// And the two ends do not agree: the strong end really is stronger. Without this the two rows
+    /// above would both pass on a source that ignored the fraction entirely and always derived at
+    /// one number.
     /// </summary>
     [Fact]
     public void The_two_ends_of_the_band_derive_different_adds()
@@ -148,7 +141,7 @@ public sealed class BossSummonTests
         strong.BaseStats[StatId.MAX_HP].ShouldBeGreaterThan(weak.BaseStats[StatId.MAX_HP]);
     }
 
-    /// <summary>An archetype `05` §6.1 does not have is refused rather than silently not spawning.</summary>
+    /// <summary>An unknown archetype is refused rather than silently not spawning.</summary>
     [Fact]
     public void An_unknown_archetype_is_refused()
     {
@@ -162,10 +155,10 @@ public sealed class BossSummonTests
     // ════════════════════════════════════════════════════ 2 · entry, through the roster
 
     /// <summary>
-    /// 🔒 `05` §3.1's entry rules, which are <b>the tick loop's</b> and are asserted here only
-    /// because a boss's phase-3 summon is the first thing in the repository that reaches them: the
-    /// add enters at the end of the enemy index list, takes the next free log id, and carries a
-    /// <b>full</b> <c>1.0 / ASPD</c> cooldown so that it never attacks on its spawn tick.
+    /// The entry rules, which belong to the tick loop and are asserted here only because a boss's
+    /// phase-3 summon is the first thing in the repository that reaches them: the add enters at the
+    /// end of the enemy index list, takes the next free log id, and carries a full
+    /// <c>1.0 / ASPD</c> cooldown so that it never attacks on its spawn tick.
     /// </summary>
     [Fact]
     public void An_add_enters_at_the_end_of_the_enemy_list_and_never_attacks_on_its_spawn_tick()
@@ -176,9 +169,9 @@ public sealed class BossSummonTests
 
         summons.Spawns.Count.ShouldBe(2, "18 §7.8's Thornmaw summons 2 on its phase-3 entry");
 
-        // 🔒 "At the END of the enemy index list" — the half of the rule the name promises and the
-        //    swing assertions below cannot see. The boss holds enemy index 0, so the two adds take
-        //    1 and 2, in spawn order and after every opening enemy.
+        // "At the end of the enemy index list" — the half of the rule the name promises and the
+        // swing assertions below cannot see. The boss holds enemy index 0, so the two adds take
+        // 1 and 2, in spawn order and after every opening enemy.
         var enemies = run.Driver.Actors
             .Where(a => a.Side == BattleSide.ENEMY)
             .OrderBy(a => a.Index)
@@ -196,10 +189,10 @@ public sealed class BossSummonTests
             .Select(e => e.Tick)
             .ToArray();
 
-        // 🔴 THE FLOOR, and without it the claim below is vacuous: an add that never swung at all
-        //    would satisfy "it did not swing on tick 60" perfectly, and so would an add that was
-        //    never admitted to the roster. The add's ASPD is 1.0, so `05` §3.1's full 1.0/ASPD entry
-        //    cooldown puts its first swing exactly 20 ticks after the spawn.
+        // The floor, and without it the claim below is vacuous: an add that never swung at all
+        // would satisfy "it did not swing on tick 60" perfectly, and so would an add that was
+        // never admitted to the roster. The add's ASPD is 1.0, so the full 1.0/ASPD entry cooldown
+        // puts its first swing exactly 20 ticks after the spawn.
         addSwings.Length.ShouldBeGreaterThan(
             0, "the add IS on the roster and DOES swing — otherwise the assertion below proves nothing");
 
@@ -209,7 +202,6 @@ public sealed class BossSummonTests
         addSwings[0].ShouldBe(80, "a FULL 1.0 / ASPD cooldown from the spawn tick, not a partial one");
     }
 
-    /// <summary>`17` §1.</summary>
     [Fact]
     public void Every_add_names_the_boss_that_summoned_it_and_the_mechanic_that_did()
     {
@@ -226,18 +218,13 @@ public sealed class BossSummonTests
     }
 
     /// <summary>
-    /// 🔴 `05` §3.1 — <em>"summons take the next free id and never reuse a dead one"</em>. The log <b>is</b>
-    /// the replay, and two actors on one id would draw the second resuming the first's HP bar.
+    /// Summons take the next free id and never reuse a dead one. The log is the replay, and two
+    /// actors on one id would draw the second resuming the first's HP bar.
     /// </summary>
     /// <remarks>
-    /// 🔴 This case previously carried this name and asserted nothing about a log id: it read back the
-    /// summoner id and the source effect id, both of which the fixture had just written, and its "two
-    /// waves" were one phase-3 entry.
-    /// <para>
-    /// The only shape that can observe the rule is a <b>recurring</b> summon with a death between two
-    /// firings, so the mechanic is a 2 s <c>PERIODIC</c>: firings land at 100, 140 and 180, the first add
-    /// is killed at 150, and the add replacing it must take log id <b>4</b>, not the dead one's <b>1</b>.
-    /// </para>
+    /// The only shape that can observe the rule is a recurring summon with a death between two
+    /// firings, so the mechanic is a 2 s <c>PERIODIC</c>: firings land at 100, 140 and 180, the
+    /// first add is killed at 150, and the add replacing it must take log id 4, not the dead one's 1.
     /// </remarks>
     [Fact]
     public void An_add_replacing_a_dead_one_takes_a_new_log_id_and_never_the_dead_ones()
@@ -276,9 +263,8 @@ public sealed class BossSummonTests
     // ════════════════════════════════════════════════════ 3 · the cap
 
     /// <summary>
-    /// 🔒 `17` §1 — <em>"capped at 3 alive at once"</em>, which is `18` §2.4's authored
-    /// <c>maxAlive</c> and is enforced by the tick loop's own <c>Summon</c> path, not by a second
-    /// count in the boss engine.
+    /// Capped at 3 alive at once, which is the authored <c>maxAlive</c> and is enforced by the tick
+    /// loop's own <c>Summon</c> path, not by a second count in the boss engine.
     /// </summary>
     [Fact]
     public void The_three_alive_cap_is_17_1s_number_and_it_is_the_authored_maxAlive()
@@ -289,15 +275,12 @@ public sealed class BossSummonTests
         BossAdds.MaxPowerFraction.ShouldBe(0.35);
     }
 
-    /// <summary>
-    /// 🔴 And the cap <b>holds in a fight</b>: a recurring summon that asks for two adds a firing
-    /// never puts a fourth on the roster while three are alive.
-    /// </summary>
+    /// <summary>And the cap holds in a fight: a recurring summon that asks for two adds a firing never puts a fourth on the roster while three are alive.</summary>
     /// <remarks>
-    /// The constant above is a number; this is the rule. Three firings at ticks 100, 140 and 180 ask
-    /// for six adds between them, and `17` §1's cap admits three — the third firing spawns nothing
-    /// at all. Without the per-firing floor a cap that admitted <em>none</em> would satisfy
-    /// "never more than three" perfectly (steering S3).
+    /// The constant above is a number; this is the rule. Three firings at ticks 100, 140 and 180
+    /// ask for six adds between them, and the cap admits three — the third firing spawns nothing at
+    /// all. Without the per-firing floor a cap that admitted none would satisfy "never more than
+    /// three" perfectly.
     /// </remarks>
     [Fact]
     public void A_firing_while_three_adds_are_alive_spawns_nothing()
@@ -352,7 +335,7 @@ public sealed class BossSummonTests
         },
         LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>(),
 
-        // No mechanic here authors a wind-up, so nothing is announced in any phase.
+        // No mechanic authors a wind-up here, so nothing is announced.
         AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
     };
 
@@ -366,9 +349,8 @@ public sealed class BossSummonTests
             summons: summons);
 
     /// <summary>
-    /// `17` §2's adds on a <b>recurring</b> cadence — the only shape in which a second wave exists,
-    /// and therefore the only one that can observe `05` §3.1's <em>"never reuse a dead one's id"</em>
-    /// and `17` §1's cap refusing a firing.
+    /// Adds on a recurring cadence — the only shape in which a second wave exists, and therefore
+    /// the only one that can observe "never reuse a dead one's id" and the cap refusing a firing.
     /// </summary>
     private static EffectDefinition WaveSummon() =>
         BossTestBench.Summon(SummonEffect, count: 2.0, everySeconds: 2.0);

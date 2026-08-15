@@ -7,14 +7,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §3.2 — targeting.
-/// </summary>
 public sealed class TargetSelectionTests
 {
     /// <summary>
-    /// 🔒 <em>"The hero targets the enemy with the highest <c>targetPriority</c>"</em> — even when
-    /// that enemy is at full health and the others are nearly dead.
+    /// The hero targets the highest <c>targetPriority</c> even when that enemy is at full health and
+    /// the others are nearly dead.
     /// </summary>
     [Fact]
     public void The_hero_targets_the_highest_targetPriority_before_it_looks_at_HP()
@@ -27,9 +24,7 @@ public sealed class TargetSelectionTests
         target!.Id.ShouldBe("ENEMY_1");
     }
 
-    /// <summary>
-    /// 🔒 <em>"breaking ties by <b>lowest current HP</b>"</em>.
-    /// </summary>
+    /// <summary>Equal priority is broken by lowest current HP.</summary>
     [Fact]
     public void Equal_priority_is_broken_by_lowest_current_HP()
     {
@@ -42,9 +37,8 @@ public sealed class TargetSelectionTests
     }
 
     /// <summary>
-    /// 🔒 <em>"a value of <c>-1</c> makes an enemy deprioritised (used by Sporequeen Vell's
-    /// sporelings)"</em> — the hero keeps hitting the queen while the sporelings are up, even though
-    /// they are the weakest thing on the field.
+    /// A <c>-1</c> priority deprioritises an enemy: the hero keeps hitting the queen while the
+    /// sporelings are up, even though they are the weakest thing on the field.
     /// </summary>
     [Fact]
     public void A_deprioritised_sporeling_is_ignored_while_the_queen_is_alive()
@@ -64,8 +58,7 @@ public sealed class TargetSelectionTests
     }
 
     /// <summary>
-    /// Two enemies equal on priority and on HP — a <c>SWARM</c> draw's three identical units (`05`
-    /// §6.4). The `05` §3.1 index decides, which is the only actor ordering the documents authorise.
+    /// Enemies tied on priority and HP fall back to the actor index, not to list order.
     /// </summary>
     [Fact]
     public void An_exact_tie_is_broken_by_the_actor_index_and_never_by_list_order()
@@ -80,8 +73,8 @@ public sealed class TargetSelectionTests
     }
 
     /// <summary>
-    /// 🔒 <em>"a pet's <i>targeted ability</i> selects the enemy with the <b>highest current
-    /// HP</b>"</em> — the opposite of the hero's tie-break, and it reads no <c>targetPriority</c>.
+    /// A pet's targeted ability selects the highest current HP — the opposite of the hero's
+    /// tie-break — and reads no <c>targetPriority</c>.
     /// </summary>
     [Fact]
     public void A_pet_ability_chips_the_tanky_one_and_ignores_targetPriority()
@@ -101,7 +94,7 @@ public sealed class TargetSelectionTests
         TargetSelection.ForBasicAttack(Context(Hero(), actors.Prepend(Hero())))!.Id.ShouldBe("ENEMY_0");
     }
 
-    /// <summary>🔒 <em>"Enemies always target the Hero."</em></summary>
+    /// <summary>Enemies always target the hero, never a pet.</summary>
     [Fact]
     public void An_enemy_targets_the_hero_and_never_a_pet()
     {
@@ -118,10 +111,7 @@ public sealed class TargetSelectionTests
         TargetSelection.ForEnemyAttack(enemy, roster).ShouldBeNull();
     }
 
-    /// <summary>
-    /// 🔒 <em>"Pets cannot be targeted or killed"</em> — so no selection ever names one, and a pet's
-    /// HP is not a way into the enemy list.
-    /// </summary>
+    /// <summary>Pets cannot be targeted or killed, so no selection ever names one.</summary>
     [Fact]
     public void No_selection_ever_names_a_pet()
     {
@@ -156,8 +146,8 @@ public sealed class TargetSelectionTests
     }
 
     /// <summary>
-    /// The `05` §3.2 selection lives on the battle's own roster. A second implementation of
-    /// <see cref="IEffectActorView"/> in the candidate list is two rosters, and it is refused.
+    /// A second implementation of <see cref="IEffectActorView"/> in the candidate list is two
+    /// rosters, and it is refused.
     /// </summary>
     [Fact]
     public void A_foreign_actor_view_is_refused_rather_than_silently_selected()

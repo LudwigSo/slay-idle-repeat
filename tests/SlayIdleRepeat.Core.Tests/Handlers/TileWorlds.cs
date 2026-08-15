@@ -10,20 +10,15 @@ using RunAggregate = SlayIdleRepeat.Core.Model.Run;
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
 /// <summary>
-/// <see cref="WorldSlice"/> and <see cref="GameContext"/> fixtures for M3-03's tile-resolution
-/// suite: a run standing on a pending tile, over a content set that carries `03` §7a's in-run income
-/// blocks, `19` Part E's curses and a purpose-built card list.
+/// <see cref="WorldSlice"/> and <see cref="GameContext"/> fixtures for the tile-resolution suite: a
+/// run standing on a pending tile, over a content set that carries the in-run income blocks, curses
+/// and a purpose-built card list.
 /// </summary>
 /// <remarks>
-/// <para>
-/// Distinct from <c>Worlds</c> rather than an extension of it, and deliberately: <c>Worlds.Context</c>
-/// carries the login-calendar/minigame tuning set, which holds none of the documents these handlers
-/// read. A test that shared it would fail on a missing document rather than on the rule it is about.
-/// </para>
-/// <para>
-/// 🔒 <b>Every run here is built through <c>Run.Rehydrate</c></b>, which `30` §11.3 makes the only
-/// way to obtain one — so nothing in this file invents a starting state.
-/// </para>
+/// Distinct from <c>Worlds</c> rather than an extension of it: <c>Worlds.Context</c> carries the
+/// login-calendar/minigame tuning set, which holds none of the documents these handlers read. Every
+/// run here is built through <c>Run.Rehydrate</c>, the only way to obtain one, so nothing in this
+/// file invents a starting state.
 /// </remarks>
 internal static class TileWorlds
 {
@@ -51,8 +46,8 @@ internal static class TileWorlds
     /// <summary>
     /// A slice whose run is standing on an unresolved tile of <paramref name="kind"/>.
     /// </summary>
-    /// <param name="kind">The `03` §2 tile kind the run has landed on.</param>
-    /// <param name="chapterId">`02` §1's chapter. Chapter 1 unless a scaling test needs otherwise.</param>
+    /// <param name="kind">The tile kind the run has landed on.</param>
+    /// <param name="chapterId">The chapter. Chapter 1 unless a scaling test needs otherwise.</param>
     /// <param name="gold">The run's starting Gold, for the cost and affordability cases.</param>
     /// <param name="currentHp">The hero's hit points, for the heal and HP-cost cases.</param>
     /// <param name="eventCardId">The card a pending event tile has already drawn, if any.</param>

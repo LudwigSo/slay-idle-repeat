@@ -1,15 +1,14 @@
 namespace SlayIdleRepeat.BalanceHarness.Diagnostics;
 
 /// <summary>
-/// ⚠️ The measured shortfall probes, indexed so an experiment can ask <em>"at what multiple of par
-/// does this build reach the target in this chapter?"</em>.
+/// The measured shortfall probes, indexed so an experiment can ask "at what multiple of par does this
+/// build reach the target in this chapter?"
 /// </summary>
 /// <remarks>
-/// 🔴 <b>Why the experiments need this at all.</b> `17` §1's boss phases are HP bands, so an effect
-/// authored on phase 2 or 3 does not exist for a hero that dies in phase 1. Running an A/B at a
-/// multiple calibrated for a <em>different</em> chapter reaches phase 1 in half the fights and
-/// reports a difference of zero for the wrong reason. Each experiment arm therefore asks for the
-/// multiple measured for its own <c>(chapter, archetype)</c>.
+/// Boss phases are HP bands, so an effect authored on phase 2 or 3 doesn't exist for a hero that dies
+/// in phase 1. Running an A/B at a multiple calibrated for a different chapter would reach phase 1
+/// instead and report a difference of zero for the wrong reason, so each arm asks for the multiple
+/// measured for its own <c>(chapter, archetype)</c>.
 /// </remarks>
 public sealed class ShortfallLookup
 {

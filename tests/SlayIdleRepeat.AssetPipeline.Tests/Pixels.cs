@@ -2,13 +2,11 @@ using SkiaSharp;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// Reading pixels out of a bitmap so a case can state an exact expectation about them.
-/// </summary>
+/// <summary>Reads pixels out of a bitmap so a case can state an exact expectation about them.</summary>
 /// <remarks>
-/// 🔒 <see cref="AlphaBytes"/> and <see cref="RgbBytes"/> go through the raw pixel buffer rather
-/// than <c>GetPixel</c>: "the alpha channel is bit-identical" is a claim about bytes, and a
-/// per-pixel accessor that round-tripped through <see cref="SKColor"/> could hide a conversion.
+/// <see cref="AlphaBytes"/> and <see cref="RgbBytes"/> go through the raw pixel buffer rather than
+/// <c>GetPixel</c>, since a per-pixel accessor round-tripped through <see cref="SKColor"/> could
+/// hide a byte-level conversion.
 /// </remarks>
 internal static class Pixels
 {

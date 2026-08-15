@@ -7,8 +7,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
-/// 🔒 `05` §2 — <em>"every actor — hero and enemy alike — carries a complete 14-stat block with
-/// these defaults. <b>An unstated stat is a bug, not a zero.</b>"</em>
+/// Every actor carries a complete 14-stat block with defaults — an unstated stat is a bug, not a
+/// zero.
 /// </summary>
 public sealed class ActorStatsTests
 {
@@ -91,8 +91,8 @@ public sealed class ActorStatsTests
     }
 
     /// <summary>
-    /// 🔒 `05` §1.1's rounding rule, guarded at the block rather than only at the writer. A value
-    /// arriving unrounded means an accumulation point upstream is missing its <c>Math.Round(x, 4)</c>.
+    /// The rounding rule, guarded at the block rather than only at the writer: a value arriving
+    /// unrounded means an accumulation point upstream is missing its <c>Math.Round(x, 4)</c>.
     /// </summary>
     [Fact]
     public void A_value_that_is_not_rounded_to_four_places_is_refused()

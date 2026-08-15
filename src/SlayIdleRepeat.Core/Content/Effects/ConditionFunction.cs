@@ -1,25 +1,18 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>
-/// 🔒 The 23 condition functions of `18` §4 — pure functions of current state.
-/// </summary>
+/// <summary>The 23 condition functions — pure functions of current state.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>23.</b> `18` §11: <em>"23 conditions = 20 + the three <c>ATTACKER_IS_*</c>"</em>.
+/// The same set is the domain of <see cref="ValueScale.Fn"/>, which is why this is one enum and not
+/// two.
 /// </para>
 /// <para>
-/// The same set is the domain of <see cref="ValueScale.Fn"/> (`18` §1.1: <em>"any condition
-/// function from §4"</em>), which is why this is one enum and not two.
+/// The three <c>ATTACKER_IS_*</c> functions are valid only in contexts with an attacker; <c>false</c>
+/// elsewhere. That is an evaluation rule, not a vocabulary rule: the schema declares them everywhere
+/// the DSL allows a condition.
 /// </para>
 /// <para>
-/// ⚠️ The three <c>ATTACKER_IS_*</c> functions are <em>"valid only in contexts with an attacker
-/// (<c>ON_HIT_TAKEN</c>, <c>ON_DODGE</c>/<c>ON_BLOCK</c>, and <c>DAMAGE_TAKEN_MULT</c> evaluation
-/// inside `05` §4 step 6); <c>false</c> elsewhere"</em>. That is an evaluation rule (M2-05), not a
-/// vocabulary rule: the schema declares them everywhere the DSL allows a condition.
-/// </para>
-/// <para>
-/// 🔒 Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c>
-/// member.
+/// Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c> member.
 /// </para>
 /// </remarks>
 public enum ConditionFunction

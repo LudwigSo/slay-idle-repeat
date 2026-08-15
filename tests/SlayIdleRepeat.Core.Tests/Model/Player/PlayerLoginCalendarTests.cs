@@ -6,16 +6,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `19` Part G on the <c>Player</c> aggregate: the open day, the claimed flag, and the invariants
-/// the aggregate holds over them.
+/// The login calendar on the <c>Player</c> aggregate: the open day, the claimed flag, and the
+/// invariants the aggregate holds over them.
 /// </summary>
 /// <remarks>
 /// The <b>behaviour</b> — when the calendar advances during a command — is
 /// <c>BeginSessionCalendarTests</c>'. What is here is what the aggregate refuses and what it
 /// round-trips, the half a handler cannot get wrong on its own.
 /// <para>
-/// ⚠️ <c>AdvanceLoginCalendar</c> is <c>internal</c>, reached through the <c>InternalsVisibleTo</c>
-/// `30` §11.3 sanctions: testing it directly is testing the invariant, not opening a second door.
+/// <c>AdvanceLoginCalendar</c> is <c>internal</c>, reached through <c>InternalsVisibleTo</c>:
+/// testing it directly is testing the invariant, not opening a second door.
 /// </para>
 /// </remarks>
 public sealed class PlayerLoginCalendarTests
@@ -23,22 +23,21 @@ public sealed class PlayerLoginCalendarTests
     private static LoginCalendarTuning Tuning { get; } =
         LoginCalendarTuning.Read(TuningDocuments.Shipped);
 
-    /// <summary>🔒 A new fixture opens on day 1, unclaimed — `19` G's starting state.</summary>
+    /// <summary>A new fixture opens on day 1, unclaimed.</summary>
     [Fact]
     public void A_fresh_row_opens_on_day_one_unclaimed()
     {
         var player = Worlds.NewPlayer();
 
         player.LoginCalendarDay.ShouldBe(LoginCalendarTuning.FirstDay);
-        player.LoginCalendarDayClaimed.ShouldBeFalse(
-            "…which is why an M1 player's calendar never moves: CLAIM_CALENDAR is deferred to M4-09.");
+        player.LoginCalendarDayClaimed.ShouldBeFalse();
     }
 
-    /// <summary>🔒 The pause: an unclaimed day is a silent no-op, not a refusal.</summary>
+    /// <summary>The pause: an unclaimed day is a silent no-op, not a refusal.</summary>
     /// <remarks>
-    /// It is a no-op rather than a throw because the pause is `19` G's <em>specified behaviour</em> —
-    /// <c>BEGIN_SESSION</c> arriving on a paused calendar is the normal case, and `30` §2.1's
-    /// <b>P3</b> forbids an exception out of <c>Apply</c> for something the player did legitimately.
+    /// It is a no-op rather than a throw because the pause is specified behaviour —
+    /// <c>BEGIN_SESSION</c> arriving on a paused calendar is the normal case, and an exception out
+    /// of <c>Apply</c> is forbidden for something the player did legitimately.
     /// </remarks>
     [Fact]
     public void An_unclaimed_day_does_not_advance()
@@ -48,13 +47,13 @@ public sealed class PlayerLoginCalendarTests
 
         player.AdvanceLoginCalendar(Tuning);
 
-        player.LoginCalendarDay.ShouldBe(9, "19 G: an unclaimed day pauses the calendar.");
+        player.LoginCalendarDay.ShouldBe(9, "an unclaimed day pauses the calendar.");
         player.LoginCalendarDayClaimed.ShouldBeFalse();
     }
 
-    /// <summary>🔒 The advance clears the claim, so the newly opened day pauses the calendar again.</summary>
+    /// <summary>The advance clears the claim, so the newly opened day pauses the calendar again.</summary>
     /// <remarks>
-    /// ⚠️ The clearing is the half that is easy to leave out, and leaving it out is unbounded: the
+    /// The clearing is the half that is easy to leave out, and leaving it out is unbounded: the
     /// calendar would then advance on <em>every</em> game day for the rest of the player's life,
     /// paying the whole 28-day table to somebody who claimed once.
     /// </remarks>
@@ -87,13 +86,13 @@ public sealed class PlayerLoginCalendarTests
         Should.Throw<ArgumentNullException>(() => player.AdvanceLoginCalendar(null!));
     }
 
-    // ------------------------------------------------------------------ 30 §11.3 · the row
+    // ------------------------------------------------------------------ the row
 
-    /// <summary>🔒 Both fields survive the snapshot round trip <c>Apply</c> clones through.</summary>
+    /// <summary>Both fields survive the snapshot round trip <c>Apply</c> clones through.</summary>
     /// <remarks>
-    /// `30` §2.1's <b>P4</b> rebuilds the slice through <c>ToSnapshot()</c>/<c>Rehydrate()</c> on
-    /// every command, so a field the pair dropped would be silently reset on the very next command —
-    /// the calendar would stand still whatever the handler wrote.
+    /// The slice rebuilds through <c>ToSnapshot()</c>/<c>Rehydrate()</c> on every command, so a
+    /// field the pair dropped would be silently reset on the very next command — the calendar
+    /// would stand still whatever the handler wrote.
     /// </remarks>
     [Fact]
     public void The_calendar_survives_the_snapshot_round_trip()
@@ -107,7 +106,7 @@ public sealed class PlayerLoginCalendarTests
         round.LoginCalendarDayClaimed.ShouldBeTrue();
     }
 
-    /// <summary>🔒 A row on day 0 or below is refused: `19` G numbers its table from 1.</summary>
+    /// <summary>A row on day 0 or below is refused: the table numbers from 1.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -123,12 +122,10 @@ public sealed class PlayerLoginCalendarTests
         result.Error.ShouldContain("19 G", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 A row <b>past</b> the cycle length loads, and that is a ruling rather than a gap.
-    /// </summary>
+    /// <summary>A row <b>past</b> the cycle length loads, and that is a ruling rather than a gap.</summary>
     /// <remarks>
-    /// ⚠️ The same ruling <c>Player.Rehydrate</c> records for the Energy banks: <c>cycleDays</c> is a
-    /// 📐 tunable, so refusing to LOAD a player left behind by a shortened cycle would turn a balance
+    /// The same ruling <c>Player.Rehydrate</c> records for the Energy banks: <c>cycleDays</c> is a
+    /// tunable, so refusing to load a player left behind by a shortened cycle would turn a balance
     /// patch into an account outage for every one of them.
     /// <c>LoginCalendarTuning.DayAfter</c> wraps them to day 1 on the next advance instead — asserted
     /// here rather than only in the tuning's own tests, because "it loads" is only safe if "it

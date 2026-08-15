@@ -1,23 +1,15 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>
-/// 🔒 The 23 trigger kinds of `18` §3 — <em>when</em> an effect fires.
-/// </summary>
+/// <summary>The 23 trigger kinds — <em>when</em> an effect fires.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>23.</b> `18` §11: <em>"23 triggers = 21 + <c>ON_DEATH</c> + <c>ON_REVIVE</c>"</em>. The
-/// §3 table has 21 rows, two of which name two kinds each
-/// (<c>ON_DODGE</c> / <c>ON_BLOCK</c> and <c>ON_RUN_START</c> / <c>ON_RUN_END</c>).
-/// </para>
 /// <para>
 /// Six of these fire on the run layer rather than in a battle — <see cref="ON_TILE_RESOLVED"/>,
 /// <see cref="ON_ROLL"/>, <see cref="ON_PERK_TAKEN"/>, <see cref="ON_STAGE_GATE"/>,
 /// <see cref="ON_RUN_START"/> and <see cref="ON_RUN_END"/>. They are declared here and wired by the
-/// run controller (M3), never by the combat simulator.
+/// run controller, never by the combat simulator.
 /// </para>
 /// <para>
-/// 🔒 Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c>
-/// member.
+/// Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c> member.
 /// </para>
 /// </remarks>
 public enum TriggerKind
@@ -25,7 +17,7 @@ public enum TriggerKind
     /// <summary>Passive, always active. No parameters.</summary>
     ALWAYS = 1,
 
-    /// <summary>Once when a battle begins — `05` §3.1's pre-tick slot 0b. No parameters.</summary>
+    /// <summary>Once when a battle begins. No parameters.</summary>
     ON_BATTLE_START = 2,
 
     /// <summary>Once when a battle ends. Parameter: <c>onlyIfWon</c>.</summary>
@@ -53,15 +45,13 @@ public enum TriggerKind
     ON_KILL = 10,
 
     /// <summary>
-    /// The owning actor dies — fires in tick slot 6, before removal (`05` §3.1). The Volatile
-    /// elite's explosion; Sporequeen's sporeling-death heal. No parameters.
+    /// The owning actor dies — fires before removal. E.g. an on-death explosion or heal. No parameters.
     /// </summary>
     ON_DEATH = 11,
 
     /// <summary>
     /// The owning actor returns from 0 HP — the <see cref="EffectOp.REVIVE"/> op or the ad revive.
-    /// <see cref="EffectOp.SURVIVE_LETHAL"/> does <b>not</b> count, because the actor never died.
-    /// <c>PK_PHOENIX</c>. No parameters.
+    /// <see cref="EffectOp.SURVIVE_LETHAL"/> does not count, because the actor never died. No parameters.
     /// </summary>
     ON_REVIVE = 12,
 
@@ -73,7 +63,7 @@ public enum TriggerKind
 
     /// <summary>
     /// Healing is received. The only context in which the <see cref="ValueMode.HEAL_AMOUNT"/> and
-    /// <see cref="ValueMode.OVERHEAL_AMOUNT"/> value modes are meaningful (`05` §4.3). No parameters.
+    /// <see cref="ValueMode.OVERHEAL_AMOUNT"/> value modes are meaningful. No parameters.
     /// </summary>
     ON_HEAL = 15,
 

@@ -7,11 +7,8 @@ using RunAggregate = SlayIdleRepeat.Core.Model.Run;
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
 /// <summary>
-/// 🔒 M3-13 — <see cref="WorldSlice"/> fixtures for <c>REVIVE</c>/<c>END_RUN</c>/<c>ABANDON_RUN</c>:
-/// runs standing at every combination of Boss-defeated, dead-or-alive and banked rewards these
-/// handlers branch on. Shares <see cref="TileWorlds.Context"/> (extended by M3-13 with
-/// <c>goldPerKill</c>/<c>soulShards</c>/<c>runXp</c>/<c>completionMultiplier</c>/
-/// <c>adDoubleMultiplier</c>/<c>AD_REVIVE</c>) rather than inventing a second content set.
+/// <see cref="WorldSlice"/> fixtures for REVIVE/END_RUN/ABANDON_RUN: runs standing at every
+/// combination of Boss-defeated, dead-or-alive and banked rewards these handlers branch on.
 /// </summary>
 internal static class RunEndWorlds
 {

@@ -10,15 +10,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 M2-R4 — <see cref="CombatSimulator.SimulateDuel"/>, the public entry point for `05` §3.3 /
-/// `11` §4.3's Ghost Duel, run through the real engine against the shipped
-/// <c>content/combat_caps.json</c> and <c>content/statuses.json</c>.
+/// <see cref="CombatSimulator.SimulateDuel"/>, the public entry point for the Ghost Duel, run
+/// through the real engine against the shipped content files.
 /// </summary>
 /// <remarks>
-/// Before this method, <c>PvpDuelTests</c> pinned §3.3's initiative override and §4.3's bounds
-/// against the <b>internal</b> <c>Simulate(BattlePlan)</c> only. This suite is that method's public
-/// half: nothing here re-asserts the initiative ordering or the exact-tie rule (already pinned
-/// internally) — what is new is that a caller outside <c>Core.Rules</c> can run one at all.
+/// <c>PvpDuelTests</c> pins initiative ordering and the exact-tie rule against the internal
+/// <c>Simulate(BattlePlan)</c>; this suite is that method's public half and does not re-assert them.
 /// </remarks>
 public sealed class DuelEntryPointTests
 {
@@ -49,10 +46,7 @@ public sealed class DuelEntryPointTests
 
     // ═══════════════════════════════════════════════════════════ acceptance 2: a real duel
 
-    /// <summary>
-    /// 🔒 Acceptance 2 — two hero builds can fight, per `05` §3.3's shape, through a real entry
-    /// point outside <c>Core.Rules</c>.
-    /// </summary>
+    /// <summary>Two hero builds can fight through a real entry point outside <c>Core.Rules</c>.</summary>
     [Fact]
     public void Two_hero_builds_can_fight_a_real_duel()
     {
@@ -69,29 +63,25 @@ public sealed class DuelEntryPointTests
     }
 
     /// <summary>
-    /// 🔒 `11` §4.3's duel cap, converted from seconds to ticks through the public entry point —
-    /// pinned as an outcome (the loop actually stops there), not as the factory's own arithmetic
-    /// (already pinned by <c>PvpDuelTests.The_duel_cap_is_pvpMaxFightSeconds_turned_into_ticks_by_the_clock</c>).
+    /// The duel cap, converted from seconds to ticks, actually bounds the fight when run through the
+    /// public entry point.
     /// </summary>
     [Fact]
     public void The_duration_cap_the_caller_passes_actually_bounds_the_fight()
     {
-        // Neither side can kill the other: ATK 0 leaves only 05 §4's damage floor, and the DEF/HP
-        // are large enough that the floor cannot clear either side inside the cap.
+        // Neither side can kill the other: ATK 0 leaves only the damage floor, and DEF/HP are large
+        // enough that the floor cannot clear either side inside the cap.
         var tank = Build(atk: 0.0, def: 100.0, maxHp: 1_000_000.0);
 
         var result = CombatSimulator.SimulateDuel(
             BattleSeed, tank, attackerLevel: 1, tank, defenderLevel: 1, durationSeconds: 5.0, Content);
 
-        result.DurationTicks.ShouldBe(100, "5.0 s at 05 §3's 20 Hz clock is exactly 100 ticks");
+        result.DurationTicks.ShouldBe(100, "5.0 s at the 20 Hz clock is exactly 100 ticks");
     }
 
     // ═══════════════════════════════════════════════════════════ acceptance 3: attaching an effect
 
-    /// <summary>
-    /// 🔒 Acceptance 3, the duel half — an attacker-held <c>APPLY_STATUS</c> effect resolves onto
-    /// the Ghost mid-duel.
-    /// </summary>
+    /// <summary>An attacker-held <c>APPLY_STATUS</c> effect resolves onto the Ghost mid-duel.</summary>
     [Fact]
     public void An_attached_APPLY_STATUS_effect_actually_resolves_during_a_duel()
     {

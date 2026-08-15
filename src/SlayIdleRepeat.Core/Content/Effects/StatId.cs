@@ -1,18 +1,15 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>
-/// 🔒 The 26 stats a `18` §2.1 stat op may name: 14 combat stats and 12 non-combat stats.
-/// </summary>
+/// <summary>The 26 stats a stat op may name: 14 combat stats and 12 non-combat stats.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>The 14 combat stats are exactly `05` §2's stat block</b>, and that is load-bearing:
-/// <em>"every actor — hero and enemy alike — carries a complete 14-stat block with these defaults.
-/// An unstated stat is a bug, not a zero."</em> This enum is isomorphic to that block, which is
-/// why <c>ALL_COMBAT</c> is <b>not</b> a member — see <see cref="StatSelector"/>.
+/// The 14 combat stats are exactly the full combat stat block: every actor, hero and enemy alike,
+/// carries a complete 14-stat block. This enum is isomorphic to that block, which is why
+/// <c>ALL_COMBAT</c> is not a member — see <see cref="StatSelector"/>.
 /// </para>
 /// <para>
-/// 🔒 Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c>
-/// member. The 14 combat stats occupy 1..14 and the 12 non-combat stats 15..26, so
+/// Wire values, as <see cref="EffectOp"/>: append, never renumber, never reuse; no <c>0</c> member.
+/// The 14 combat stats occupy 1..14 and the 12 non-combat stats 15..26, so
 /// <see cref="StatIds.IsCombat"/> is a fact about the enum rather than a second list to keep in
 /// step — but it is still written as an exhaustive switch, because a renumbering would otherwise
 /// silently reclassify a stat.
@@ -20,7 +17,7 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// </remarks>
 public enum StatId
 {
-    // ------------------------------------------------------- combat (14) — `05` §2's stat block
+    // ------------------------------------------------------- combat (14)
 
     /// <summary>Maximum hit points.</summary>
     MAX_HP = 1,
@@ -58,13 +55,13 @@ public enum StatId
     /// <summary>Damage reduction percent.</summary>
     DR_PCT = 12,
 
-    /// <summary>Multiplier on all healing received; base 1.0 (`05` §2).</summary>
+    /// <summary>Multiplier on all healing received; base 1.0.</summary>
     HEAL_PCT = 13,
 
     /// <summary>Thorns — damage returned to an attacker.</summary>
     THORNS = 14,
 
-    // ------------------------------------------------------- non-combat (12) — `18` §2.1
+    // ------------------------------------------------------- non-combat (12)
 
     /// <summary>Gold gain percent.</summary>
     GOLD_PCT = 15,

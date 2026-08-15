@@ -4,7 +4,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 
-/// <summary>The op → family map of `18` §2, and the run/board boundary it draws.</summary>
+/// <summary>The op → family map, and the run/board boundary it draws.</summary>
 public sealed class EffectOpsTests
 {
     /// <summary>
@@ -43,10 +43,7 @@ public sealed class EffectOpsTests
         thrown.Message.ShouldContain("18 §10", Case.Sensitive);
     }
 
-    /// <summary>
-    /// The 13 run and board ops of `18` §2.5 — <em>"resolved by the run controller, never by the
-    /// combat simulator"</em>.
-    /// </summary>
+    /// <summary>The 13 run and board ops: resolved by the run controller, never by the combat simulator.</summary>
     [Fact]
     public void The_run_and_board_ops_are_exactly_the_thirteen_of_section_2_5()
     {
@@ -69,9 +66,8 @@ public sealed class EffectOpsTests
     }
 
     /// <summary>
-    /// 🔒 `18` §2.5's combat-context exception: a combat trigger may carry a run/board op. The
-    /// sanctioned case is the Dicelord's Scramble firing <c>MODIFY_DIE_FACE</c> from
-    /// <c>PERIODIC</c>, and nothing in the vocabulary forbids it.
+    /// A combat trigger may carry a run/board op: the sanctioned case is the Dicelord's Scramble
+    /// firing <c>MODIFY_DIE_FACE</c> from <c>PERIODIC</c>, and nothing in the vocabulary forbids it.
     /// </summary>
     [Fact]
     public void A_combat_trigger_may_carry_a_run_and_board_op()
@@ -89,10 +85,7 @@ public sealed class EffectOpsTests
         scramble.Family.ShouldBe(EffectOpFamily.RUN_AND_BOARD);
     }
 
-    /// <summary>
-    /// The two `17` combat rulings that arrive as ops rather than as code: a targeting weight and a
-    /// state flag. Neither is a second actor and neither is a per-boss branch.
-    /// </summary>
+    /// <summary>Two combat rulings that arrive as ops rather than code: a targeting weight and a state flag.</summary>
     [Fact]
     public void The_two_17_combat_rulings_are_ordinary_combat_flow_ops()
     {

@@ -3,21 +3,18 @@ namespace SlayIdleRepeat.Core.Content.Effects;
 /// <summary>The <see cref="StatId"/> vocabulary read as a set: all 26, and the 14 combat stats.</summary>
 public static class StatIds
 {
-    /// <summary>Every stat `18` §2.1 declares, in declaration order.</summary>
+    /// <summary>Every stat this DSL declares, in declaration order.</summary>
     public static IReadOnlyList<StatId> All { get; } = Enum.GetValues<StatId>();
 
-    /// <summary>
-    /// 🔒 The 14 combat stats of `05` §2 — and therefore exactly what <c>ALL_COMBAT</c> selects
-    /// (`18` §9.1's <c>CP_GLASS_HEART</c>).
-    /// </summary>
+    /// <summary>The 14 combat stats — and therefore exactly what <c>ALL_COMBAT</c> selects.</summary>
     public static IReadOnlyList<StatId> Combat { get; } =
         Enum.GetValues<StatId>().Where(IsCombat).ToArray();
 
-    /// <summary>The 12 non-combat stats of `18` §2.1.</summary>
+    /// <summary>The 12 non-combat stats.</summary>
     public static IReadOnlyList<StatId> NonCombat { get; } =
         Enum.GetValues<StatId>().Where(s => !IsCombat(s)).ToArray();
 
-    /// <summary>True for one of `05` §2's 14 combat stats.</summary>
+    /// <summary>True for one of the 14 combat stats.</summary>
     /// <remarks>
     /// Every stat named explicitly rather than <c>stat &lt;= StatId.THORNS</c>: the wire values are
     /// append-only and a future non-combat stat could not be given a number below THORNS, but a

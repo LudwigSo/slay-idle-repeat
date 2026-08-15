@@ -4,21 +4,20 @@ using Xunit;
 namespace SlayIdleRepeat.AssetPlaceholders.Tests;
 
 /// <summary>
-/// The code-drawn 5×7 font: it covers every character a `15` §D1 id can carry, and every glyph in
+/// The code-drawn 5×7 font: it covers every character a register id can carry, and every glyph in
 /// it actually has ink.
 /// </summary>
 /// <remarks>
-/// 🔒 A font that quietly lost half its glyphs would stamp a page of question marks and the batch
-/// would still report success — the stamp is the only thing that makes a missing asset
-/// self-identifying, and nothing downstream reads it. So the coverage is asserted against the real
-/// register's ids rather than against a list typed here.
+/// A font that quietly lost half its glyphs would stamp a page of question marks and the batch
+/// would still report success, so coverage is asserted against the real register's ids rather than
+/// a list typed here.
 /// </remarks>
 public sealed class StampFontTests
 {
     /// <summary>
-    /// How many characters the font must draw as themselves. 🔒 26 letters + 10 digits + underscore
-    /// + hyphen + full stop + space, and the fallback glyph. An S3 floor: a font that shrank would
-    /// otherwise satisfy "every glyph has ink" vacuously.
+    /// How many characters the font must draw as themselves: 26 letters + 10 digits + punctuation +
+    /// space + fallback glyph. Floored so a font that shrank couldn't satisfy "every glyph has ink"
+    /// vacuously.
     /// </summary>
     private const int CharacterFloor = 40;
 

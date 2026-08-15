@@ -3,14 +3,10 @@ using SlayIdleRepeat.AssetManifest;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// A generated fixture image, together with the exact answer it was generated to have.
-/// </summary>
+/// <summary>A generated fixture image, together with the exact answer it was generated to have.</summary>
 /// <remarks>
-/// 🔒 Every list here is produced by the same closed-form predicate that painted the pixels, so it
-/// is the fixture's <em>stated</em> answer. A case asserts against these, never against whatever
-/// the code under test produced — a fixture that measured its own output would agree with any
-/// implementation, correct or not.
+/// Every list here is produced by the same closed-form predicate that painted the pixels, so a case
+/// asserts against these, never against whatever the code under test produced.
 /// </remarks>
 internal sealed record SyntheticFixture
 {
@@ -26,7 +22,7 @@ internal sealed record SyntheticFixture
     /// <summary>The exact colour every interior pixel was painted.</summary>
     public required SKColor SubjectColour { get; init; }
 
-    /// <summary>The exact colour every outline pixel was painted — `15` §A3's #231A2E.</summary>
+    /// <summary>The exact colour every outline pixel was painted.</summary>
     public required SKColor OutlineColour { get; init; }
 
     /// <summary>The outline's width in pixels, exact by construction.</summary>
@@ -62,10 +58,10 @@ internal sealed record SyntheticFixture
 
 /// <summary>A biome-palette image carrying one deliberately off-palette pixel.</summary>
 /// <param name="Image">The image, Rgba8888 / Unpremul.</param>
-/// <param name="Palette">The `15` §A5 palette every other pixel was painted from.</param>
+/// <param name="Palette">The palette every other pixel was painted from.</param>
 /// <param name="OffPalettePixel">Where the off-palette pixel is.</param>
 /// <param name="OffPaletteColour">Exactly what was painted there.</param>
-/// <param name="ExpectedSnappedColour">The §A5 hue it is unambiguously nearest to.</param>
+/// <param name="ExpectedSnappedColour">The hue it is unambiguously nearest to.</param>
 internal sealed record PaletteFixture(
     SKBitmap Image,
     Palette Palette,
@@ -79,17 +75,14 @@ internal sealed record PaletteFixture(
 /// <param name="Colour">The exact colour the rectangle was painted.</param>
 internal sealed record CanvasFixture(SKBitmap Image, SKRectI ContentBounds, SKColor Colour);
 
-/// <summary>
-/// A filled square framed by an outline ring of an exactly known width, on a transparent canvas.
-/// </summary>
+/// <summary>A filled square framed by an outline ring of an exactly known width, on a transparent canvas.</summary>
 /// <remarks>
-/// 🔒 A ring rather than the chibi blob, because `15` §A3 states the outline weight as a band that
-/// scales with the canvas (3-4 px at 512 px) and a rasterised circle's radial band is only
-/// approximately its nominal thickness. A square ring is exactly its thickness everywhere, so the
-/// case can state a band membership rather than a tolerance around one.
+/// A ring rather than the chibi blob: a rasterised circle's radial band is only approximately its
+/// nominal thickness, while a square ring is exactly its thickness everywhere, so the case can state
+/// a band membership rather than a tolerance around one.
 /// </remarks>
 /// <param name="Image">The image, Rgba8888 / Unpremul.</param>
-/// <param name="Canvas">The square canvas's side, in pixels — what §A3's band scales against.</param>
+/// <param name="Canvas">The square canvas's side, in pixels — what the outline band scales against.</param>
 /// <param name="OutlineWidth">The ring's thickness, exact by construction.</param>
 /// <param name="OutlineColour">Exactly what the ring was painted.</param>
 /// <param name="OutlinePixels">Every ring pixel still painted (the gap's are not here).</param>
@@ -104,21 +97,16 @@ internal sealed record OutlinedBoxFixture(
     IReadOnlyList<SKPointI> InteriorPixels,
     IReadOnlyList<SKPointI> GapPixels);
 
-/// <summary>
-/// Builds the fixture images this suite runs on, in code, at run time.
-/// </summary>
+/// <summary>Builds the fixture images this suite runs on, in code, at run time.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 No binary fixture is committed. Six of M8's eight original tasks are capability-blocked, so
-/// there is no real generated asset to test against; synthetic images with a closed-form answer are
-/// the expected approach here, not a compromise. What they prove is that the mechanics are correct
-/// on a known input. What they do <b>not</b> prove is that any threshold is right for real
-/// Midjourney output — that is M8-10's job, and it is why every threshold ships null.
+/// No binary fixture is committed: synthetic images with a closed-form answer prove the mechanics
+/// are correct on a known input, but do not prove any threshold is right for real generated art —
+/// which is why every threshold ships null.
 /// </para>
 /// <para>
-/// 🔒 Everything is <see cref="SKColorType.Rgba8888"/> / <see cref="SKAlphaType.Unpremul"/>.
-/// Straight alpha is `15` §C's delivery format and round-trips bit-for-bit; a premultiplied surface
-/// destroys colour in low-alpha pixels, which is exactly the halo `15` §B4 step 1 must remove.
+/// Everything is <see cref="SKColorType.Rgba8888"/> / <see cref="SKAlphaType.Unpremul"/>: straight
+/// alpha round-trips bit-for-bit, while a premultiplied surface destroys colour in low-alpha pixels.
 /// </para>
 /// <para>
 /// The chibi shape is a union of two circles — a body and a smaller head — with the outline defined
@@ -142,26 +130,16 @@ internal static class SyntheticAsset
     internal const int PaletteCanvas = 32;
 
     /// <summary>
-    /// The outlined-box fixture's canvas, square.
+    /// The outlined-box fixture's canvas, square. Chosen so the authorised outline band lands on
+    /// whole pixels here (1.5-2.0 px at 256); the chibi's 64px canvas would put the band at
+    /// 0.375-0.5 px, where no whole-pixel ring can conform at all.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Chosen so that `15` §A3's "3-4 px at 512 px canvas, scaled proportionally" lands on whole
-    /// pixels here: at 256 the band is exactly 1.5-2.0 px, and <see cref="OutlineBoxWidth"/> sits
-    /// inside it by construction rather than by rounding. 64 (the chibi's canvas) would put the
-    /// band at 0.375-0.5 px, where no whole-pixel ring can conform to §A3 at all.
-    /// </remarks>
     internal const int OutlineBoxCanvas = 256;
 
-    /// <summary>
-    /// The outlined-box ring's thickness — inside `15` §A3's band at
-    /// <see cref="OutlineBoxCanvas"/>, exactly.
-    /// </summary>
+    /// <summary>The outlined-box ring's thickness — inside the authorised band at <see cref="OutlineBoxCanvas"/>, exactly.</summary>
     internal const int OutlineBoxWidth = 2;
 
-    /// <summary>
-    /// A ring thickness far outside `15` §A3's band at <see cref="OutlineBoxCanvas"/> — four times
-    /// the band's upper bound, so no plausible uniformity tolerance rescues it.
-    /// </summary>
+    /// <summary>A ring thickness four times the authorised band's upper bound, so no plausible uniformity tolerance rescues it.</summary>
     internal const int OutlineBoxWidthTooWide = 8;
 
     /// <summary>How many pixels of the ring's top edge <see cref="OutlinedBox"/> punches out.</summary>
@@ -198,7 +176,7 @@ internal static class SyntheticAsset
     /// <summary>The subject's fill colour.</summary>
     internal static SKColor SubjectColour { get; } = new(0xE8, 0xC4, 0x8A);
 
-    /// <summary>`15` §A3's outline colour, taken from the production constant, not retyped.</summary>
+    /// <summary>The authorised outline colour, taken from the production constant, not retyped.</summary>
     internal static SKColor OutlineColour => Doc15Authorised.OutlineColour;
 
     /// <summary>The gap window punched into the head's outline.</summary>
@@ -212,9 +190,7 @@ internal static class SyntheticAsset
     /// <summary>A chibi blob on an opaque, exactly-known background.</summary>
     internal static SyntheticFixture Chibi() => Paint("chibi on an opaque background", BackgroundColour);
 
-    /// <summary>
-    /// The same chibi with the background already keyed out — what `15` §B4 step 2 onward see.
-    /// </summary>
+    /// <summary>The same chibi with the background already keyed out.</summary>
     internal static SyntheticFixture ChibiCutOut() =>
         Paint("chibi with the background already transparent", SKColors.Transparent);
 
@@ -268,8 +244,8 @@ internal static class SyntheticAsset
     }
 
     /// <summary>
-    /// A 32x32 image painted entirely from one biome's `15` §A5 palette plus the §A3 outline
-    /// colour, with exactly one pixel nudged off-palette toward nothing in particular.
+    /// A 32x32 image painted entirely from one biome's palette plus the outline colour, with
+    /// exactly one pixel nudged off-palette toward nothing in particular.
     /// </summary>
     /// <param name="palette">The biome palette, read from the shipped manifest row.</param>
     internal static PaletteFixture BiomePalette(Palette palette)
@@ -278,9 +254,8 @@ internal static class SyntheticAsset
         var baseHue = SKColor.Parse(palette.Base);
         var offPixel = new SKPointI(PaletteCanvas / 2, PaletteCanvas / 2);
 
-        // Sixteen units off the base hue in every channel: far enough that it is genuinely not one
-        // of the six, and near enough that base is unambiguously the closest of the six plus the
-        // outline colour. Both are stated here; no case recomputes them from the palette.
+        // Sixteen units off the base hue in every channel: far enough to be genuinely off-palette,
+        // near enough that base is still unambiguously the closest permitted colour.
         var off = new SKColor(
             (byte)(baseHue.Red + 16), (byte)(baseHue.Green + 16), (byte)(baseHue.Blue + 16));
         image.SetPixel(offPixel.X, offPixel.Y, off);
@@ -288,13 +263,10 @@ internal static class SyntheticAsset
         return new PaletteFixture(image, palette, offPixel, off, baseHue);
     }
 
-    /// <summary>
-    /// The same image with <b>no</b> off-palette pixel: every pixel is one of four `15` §A5 hues or
-    /// the §A3 outline colour, so `15` Part F item 5 has nothing to find.
-    /// </summary>
+    /// <summary>The same image with no off-palette pixel: every pixel is one of four palette hues or the outline colour.</summary>
     /// <remarks>
-    /// 🔒 The passing half of item 5's pair. Without it the only fixture item 5 could run on is the
-    /// one built to violate it, and a check hard-wired to fail would look correct.
+    /// The passing half of item 5's pair: without it, a check hard-wired to fail would look correct
+    /// since the only fixture available would be the one built to violate it.
     /// </remarks>
     /// <param name="palette">The biome palette, read from the shipped manifest row.</param>
     internal static SKBitmap OnPalette(Palette palette)
@@ -327,10 +299,7 @@ internal static class SyntheticAsset
         return image;
     }
 
-    /// <summary>
-    /// An opaque rectangle placed off-centre in an oversized transparent frame — `15` §B4 step 2's
-    /// input.
-    /// </summary>
+    /// <summary>An opaque rectangle placed off-centre in an oversized transparent frame.</summary>
     /// <param name="contentWidth">The rectangle's width.</param>
     /// <param name="contentHeight">The rectangle's height.</param>
     internal static CanvasFixture OffCentreSubject(int contentWidth, int contentHeight)
@@ -355,10 +324,7 @@ internal static class SyntheticAsset
             SubjectColour);
     }
 
-    /// <summary>
-    /// A 4x4 image whose centre pixel is exactly <c>#80FF0000</c> in straight alpha — the probe
-    /// `15` §C's "PNG-32 straight alpha" claim is checked with.
-    /// </summary>
+    /// <summary>A 4x4 image whose centre pixel is exactly <c>#80FF0000</c> in straight alpha — the round-trip probe.</summary>
     internal static (SKBitmap Image, SKPointI Probe, SKColor Colour) SemiTransparentProbe()
     {
         var colour = new SKColor(0xFF, 0x00, 0x00, 0x80);
@@ -382,10 +348,10 @@ internal static class SyntheticAsset
     /// frame just outside it painted white at partial alpha.
     /// </summary>
     /// <remarks>
-    /// 🔒 Distinct from <see cref="ChibiWithHalo"/>, which is fully opaque throughout and models the
-    /// halo `15` §B4 step 1 has to remove. `15` Part F item 6 grades what came out the other end, so
-    /// its fixture needs pixels that are neither fully on nor fully off — the "semi-transparent
-    /// fringe" the item names, which an opaque fixture cannot express at all.
+    /// Distinct from <see cref="ChibiWithHalo"/>, which is fully opaque throughout and models the
+    /// halo background removal has to remove. This grades what came out the other end, so its
+    /// fixture needs pixels that are neither fully on nor fully off, which an opaque fixture cannot
+    /// express at all.
     /// </remarks>
     internal static SyntheticFixture ChibiCutOutWithFringe()
     {
@@ -411,10 +377,7 @@ internal static class SyntheticAsset
         };
     }
 
-    /// <summary>
-    /// The cut-out chibi with an opaque block stamped into the bottom-right corner of the otherwise
-    /// transparent frame — the signature-in-a-corner failure `15` Part F item 8's proxy looks for.
-    /// </summary>
+    /// <summary>The cut-out chibi with an opaque block stamped into the bottom-right corner of the otherwise transparent frame.</summary>
     /// <returns>The image and the exact rectangle that was stamped.</returns>
     internal static (SKBitmap Image, SKRectI Signature) ChibiCutOutWithCornerSignature()
     {
@@ -437,10 +400,9 @@ internal static class SyntheticAsset
     /// A transparent 64x64 frame carrying a stated number of separated opaque squares, in a row.
     /// </summary>
     /// <remarks>
-    /// 🔒 The blobs are <see cref="BlobSize"/> apart, which is more than one pixel in every
-    /// direction, so they are separate under 8-connectivity as well as 4-. A gap of one pixel would
-    /// make the expected component count depend on which connectivity the implementation chose,
-    /// and the case would then be pinning an accident.
+    /// The blobs are <see cref="BlobSize"/> apart, more than one pixel in every direction, so they
+    /// are separate under 8-connectivity as well as 4-; a gap of one pixel would make the expected
+    /// component count depend on which connectivity the implementation chose.
     /// </remarks>
     /// <param name="count">How many blobs, 1 to <see cref="MaxBlobs"/>.</param>
     /// <returns>The image and how many pixels it painted opaque.</returns>
@@ -473,13 +435,10 @@ internal static class SyntheticAsset
         return (image, painted);
     }
 
-    /// <summary>
-    /// An opaque rectangle placed exactly where a stated `15` §C pivot puts it on a square canvas.
-    /// </summary>
+    /// <summary>An opaque rectangle placed exactly where a stated pivot puts it on a square canvas.</summary>
     /// <remarks>
-    /// 🔒 The passing half of `15` Part F item 7's pair, and deliberately smaller than the canvas: a
-    /// subject filling the frame satisfies every pivot at once, so a check that ignored the pivot
-    /// entirely would pass on it.
+    /// Deliberately smaller than the canvas: a subject filling the frame satisfies every pivot at
+    /// once, so a check that ignored the pivot entirely would pass on it.
     /// </remarks>
     /// <param name="canvas">The square canvas's side. Must exceed both content dimensions.</param>
     /// <param name="contentWidth">The rectangle's width. Even, so centring lands on whole pixels.</param>
@@ -513,13 +472,10 @@ internal static class SyntheticAsset
             image, new SKRectI(left, top, left + contentWidth, top + contentHeight), SubjectColour);
     }
 
-    /// <summary>
-    /// A filled square framed by a ring of exactly known thickness and colour, on a transparent
-    /// canvas — `15` Part F item 3's fixture.
-    /// </summary>
+    /// <summary>A filled square framed by a ring of exactly known thickness and colour, on a transparent canvas.</summary>
     /// <param name="outlineWidth">The ring's thickness in pixels.</param>
     /// <param name="outlineColour">
-    /// What to paint the ring. Null paints `15` §A3's #231A2E; anything else builds the
+    /// What to paint the ring. Null paints the authorised outline colour; anything else builds the
     /// wrong-colour violation.
     /// </param>
     /// <param name="gapLength">

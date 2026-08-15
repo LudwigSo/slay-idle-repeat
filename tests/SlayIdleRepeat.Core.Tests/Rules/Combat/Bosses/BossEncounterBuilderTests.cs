@@ -11,14 +11,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `17` §1.2 / §11 — one <see cref="BossScript"/> resolved into the encounter the simulator runs:
-/// the statline, every phase block on the plan, the two universal built-ins, and the six authoring
-/// rules that fire before a tick runs.
+/// One <see cref="BossScript"/> resolved into the encounter the simulator runs: the statline,
+/// every phase block on the plan, the universal built-ins, and the authoring rules that fire
+/// before a tick runs.
 /// </summary>
 /// <remarks>
-/// Every refusal below asserts <b>which</b> rule fired (steering S2). A builder that threw one
-/// message for six different authoring mistakes would send M2-13 looking in the wrong place five
-/// times out of six.
+/// Every refusal below asserts which rule fired. A builder that threw one message for six
+/// different authoring mistakes would send a debugger looking in the wrong place five times out
+/// of six.
 /// </remarks>
 public sealed class BossEncounterBuilderTests
 {
@@ -29,10 +29,8 @@ public sealed class BossEncounterBuilderTests
     // ════════════════════════════════════════════════════ 1 · the statline
 
     /// <summary>
-    /// 🔴 `05` §6.3 / `17` §1 — <em>"<c>EnemyPower(i)</c> … already includes
-    /// <c>StageMult.Boss = 2.20</c>. Do <b>not</b> multiply again."</em> The builder derives from the
-    /// power it was handed, and the expectation here is <c>EnemyDerivation</c>'s own answer at that
-    /// same power.
+    /// <c>EnemyPower(i)</c> already includes <c>StageMult.Boss</c>, so the builder must not
+    /// multiply it in again — it derives from the power it was handed.
     /// </summary>
     [Fact]
     public void The_statline_derives_from_the_power_as_handed_in_and_never_multiplies_it_again()
@@ -62,10 +60,7 @@ public sealed class BossEncounterBuilderTests
             "the negative control: a builder that applied StageMult.Boss itself would land here");
     }
 
-    /// <summary>
-    /// 🔒 `17` §1.2 — <em>"a per-boss coefficient row instead of a shared archetype"</em>, with the
-    /// baseline's secondaries kept: CRIT 0.05, CDMG 0.50, DODGE 0, LS 0.
-    /// </summary>
+    /// <summary>A per-boss coefficient row rather than a shared archetype, with the baseline's secondaries kept.</summary>
     [Fact]
     public void The_statline_row_takes_the_scripts_coefficients_and_the_baselines_secondaries()
     {
@@ -85,15 +80,12 @@ public sealed class BossEncounterBuilderTests
 
     // ════════════════════════════════════════════════════ 2 · what lands on the plan
 
-    /// <summary>
-    /// 🔴 <b>Every</b> phase block goes onto <see cref="ActorPlan.Effects"/>, phases 2 and 3
-    /// included.
-    /// </summary>
+    /// <summary>Every phase block goes onto <see cref="ActorPlan.Effects"/>, phases 2 and 3 included.</summary>
     /// <remarks>
-    /// The battle's effect table is built once from the <b>opening roster</b>, and its positions are
-    /// `05` §7's <c>Telegraph</c> and <c>RunEffectQueued</c> indices. A phase-3 mechanic that arrived
-    /// mid-fight would have no position in it, so <c>CombatLog.AppendTelegraph</c> could not name it
-    /// and the replayer — which rebuilds the same table — could not resolve it.
+    /// The battle's effect table is built once from the opening roster, and its positions are the
+    /// <c>Telegraph</c> and <c>RunEffectQueued</c> indices. A phase-3 mechanic that arrived mid-fight
+    /// would have no position in it, so <c>CombatLog.AppendTelegraph</c> could not name it and the
+    /// replayer — which rebuilds the same table — could not resolve it.
     /// </remarks>
     [Fact]
     public void Every_phase_block_is_on_the_plan_under_the_phase_tagged_instance_id()
@@ -113,9 +105,8 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔒 `17` §11 — the <b>three</b> universal built-ins are attached <b>by the builder</b>, once,
-    /// for every boss: the 70 s enrage, and one <c>IMMUNE_STATUS</c> each for the phase-3
-    /// <c>STUN</c> and <c>FREEZE</c> immunity `17` §1 states as one sentence.
+    /// The three universal built-ins are attached by the builder, once, for every boss: the 70 s
+    /// enrage, and one <c>IMMUNE_STATUS</c> each for the phase-3 <c>STUN</c> and <c>FREEZE</c> immunity.
     /// </summary>
     [Fact]
     public void The_three_universal_built_ins_are_attached_to_every_boss()
@@ -153,7 +144,7 @@ public sealed class BossEncounterBuilderTests
 
     // ════════════════════════════════════════════════════ 3 · the authoring rules, one at a time
 
-    /// <summary>🔒 `17` §1 — <em>"exactly 3"</em> phases, numbered 1, 2, 3, in that order.</summary>
+    /// <summary>Exactly 3 phases, numbered 1, 2, 3, in that order.</summary>
     [Theory]
     [InlineData(1, 2)]
     [InlineData(1, 2, 3, 3)]
@@ -168,9 +159,8 @@ public sealed class BossEncounterBuilderTests
             () => BossEncounterBuilder.Build(
                 BossTestBench.Request(script, BossTestBench.Lookup())));
 
-        // 🔒 Steering S2 — six independent authoring rules throw this one exception type, so the type
-        //    discriminates nothing. The expected sequence is what names THIS rule: no other refusal
-        //    in the builder states it.
+        // Six independent authoring rules throw this one exception type, so the type discriminates
+        // nothing. The expected sequence is what names this rule: no other refusal states it.
         thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
         thrown.Message.ShouldContain("phases", Case.Insensitive);
         thrown.Message.ShouldContain("BOSS_THORNMAW", Case.Sensitive, "which boss");
@@ -178,8 +168,8 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔒 A mechanic is a <b>sibling reference</b> — an id the same script declares — so one that
-    /// resolves to nothing in <see cref="BossEncounterRequest.Effects"/> is refused.
+    /// A mechanic is a sibling reference — an id the same script declares — so one that resolves
+    /// to nothing in <see cref="BossEncounterRequest.Effects"/> is refused.
     /// </summary>
     [Fact]
     public void A_mechanic_whose_effect_id_resolves_to_nothing_is_refused()
@@ -205,9 +195,9 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔴 A phase-2 or phase-3 block may not carry an <c>ON_BATTLE_START</c> trigger. `05` §3.1's 0b
-    /// sweep runs <b>before</b> 0c, so such an effect fires while the boss is still in phase 1 — a
-    /// phase-3 mechanic landing at battle start, in a fight that looks entirely legal.
+    /// A phase-2 or phase-3 block may not carry an <c>ON_BATTLE_START</c> trigger: that sweep runs
+    /// before phase 1 is entered, so such an effect would fire while the boss is still in phase 1 —
+    /// a phase-3 mechanic landing at battle start, in a fight that looks entirely legal.
     /// </summary>
     [Theory]
     [InlineData(2)]
@@ -235,7 +225,7 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔒 The negative control for the rule above: phase <b>1</b> may carry one, because 0b runs for
+    /// The negative control for the rule above: phase 1 may carry one, because the sweep runs for
     /// the phase the boss is actually in.
     /// </summary>
     [Fact]
@@ -258,14 +248,11 @@ public sealed class BossEncounterBuilderTests
         encounter.Plan.Effects.Select(h => h.Effect.Id).ShouldContain(Bask);
     }
 
-    /// <summary>
-    /// 🔒 `17` §11 — the built-ins are <em>"implemented once, applied to all bosses"</em>, so a script
-    /// that authored one would be a second, disagreeing copy.
-    /// </summary>
+    /// <summary>The built-ins are implemented once and applied to all bosses, so a script that authored one would be a second, disagreeing copy.</summary>
     /// <remarks>
-    /// 🔴 The lookup carries all three built-ins on purpose: holding only <c>SYS_ENRAGE</c> meant the
-    /// other row was refused by the <em>unresolved-mechanic</em> rule — whose message also names the id —
-    /// so the case proved nothing about this rule. With every built-in resolvable, the only thing wrong
+    /// The lookup carries all three built-ins on purpose: holding only <c>SYS_ENRAGE</c> meant the
+    /// other row was refused by the unresolved-mechanic rule — whose message also names the id — so
+    /// the case proved nothing about this rule. With every built-in resolvable, the only thing wrong
     /// with the script is that it authored one.
     /// </remarks>
     [Theory]
@@ -294,10 +281,7 @@ public sealed class BossEncounterBuilderTests
             "built-in", Case.Insensitive, "and WHY — 17 §11 attaches it, a script may not author it");
     }
 
-    /// <summary>
-    /// 🔒 `17` §1 — <em>"capped at 3 alive at once"</em>. The cap is `18` §2.4's authored
-    /// <c>maxAlive</c>, and the builder is where the authoring is checked against the document.
-    /// </summary>
+    /// <summary>Adds are capped at 3 alive at once, and the builder is where the authored <c>maxAlive</c> is checked against that cap.</summary>
     [Fact]
     public void A_SUMMON_mechanic_above_the_three_alive_cap_is_refused()
     {
@@ -313,8 +297,8 @@ public sealed class BossEncounterBuilderTests
             () => BossEncounterBuilder.Build(
                 BossTestBench.Request(script, BossTestBench.Lookup(summon))));
 
-        // 🔴 The marker, not the number: "3" was satisfiable by the words "phase 3" that every
-        //    message in this class carries, so it could not tell A5's refusal from A4's (steering S2).
+        // The marker, not the number: "3" was satisfiable by the words "phase 3" that every message
+        // in this class carries, so it couldn't tell A5's refusal from A4's.
         thrown.Message.ShouldContain("A5", Case.Sensitive, "which rule fired");
         thrown.Message.ShouldContain("4", Case.Sensitive, "the maxAlive the script authored");
         thrown.Message.ShouldContain(summon.Id, Case.Sensitive, "which mechanic");
@@ -322,13 +306,13 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔴 `17` §1 caps a boss's adds <b>unconditionally</b>, and `18` §2.4 leaves <c>maxAlive</c>
-    /// optional — <c>BattleFlowSink.Summon</c> reads an absent one as <b>no cap</b>. So the one
-    /// authoring that produces an uncapped boss fight is the one that omits the key, and A5 has to
-    /// refuse it rather than only compare numbers it was given.
+    /// Adds are capped unconditionally, but <c>maxAlive</c> is an optional field and
+    /// <c>BattleFlowSink.Summon</c> reads an absent one as no cap. So the one authoring that
+    /// produces an uncapped boss fight is the one that omits the key, and A5 has to refuse it
+    /// rather than only compare numbers it was given.
     /// </summary>
     /// <remarks>
-    /// 🔒 Two shapes and a negative control: the refusal fires whether the omission sits on an
+    /// Two shapes and a negative control: the refusal fires whether the omission sits on an
     /// <c>ON_PHASE_ENTER</c> summon or a <c>PERIODIC</c> one, and does not fire on the authored cap
     /// (<see cref="A_SUMMON_mechanic_at_the_three_alive_cap_is_accepted"/>).
     /// </remarks>
@@ -362,11 +346,10 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔴 <b>A2</b> over a <b>blank</b> id. <see cref="BossMechanic"/> is a record struct, so
-    /// <c>default</c> — and a JSON row that omits the key — carries a null <c>effectId</c>; the
-    /// sibling lookup is a <see cref="Dictionary{TKey,TValue}"/>, whose <c>TryGetValue(null)</c>
-    /// raises a bare <see cref="ArgumentNullException"/> naming neither the rule, the boss nor the
-    /// phase (steering S2).
+    /// A2 over a blank id. <see cref="BossMechanic"/> is a record struct, so <c>default</c> — and a
+    /// JSON row that omits the key — carries a null <c>effectId</c>; the sibling lookup is a
+    /// <see cref="Dictionary{TKey,TValue}"/>, whose <c>TryGetValue(null)</c> raises a bare
+    /// <see cref="ArgumentNullException"/> naming neither the rule, the boss nor the phase.
     /// </summary>
     [Theory]
     [InlineData(null, "an absent effectId")]
@@ -389,7 +372,7 @@ public sealed class BossEncounterBuilderTests
         thrown.Message.ShouldContain("no effect id", Case.Insensitive, "and what is wrong with it");
     }
 
-    /// <summary>The positive control: `17` §2's own phase-3 summon, at the authored cap, is accepted.</summary>
+    /// <summary>The positive control: the authored phase-3 summon, at the authored cap, is accepted.</summary>
     [Fact]
     public void A_SUMMON_mechanic_at_the_three_alive_cap_is_accepted()
     {
@@ -408,14 +391,14 @@ public sealed class BossEncounterBuilderTests
     // ════════════════════════════════════════════════════ 4 · O1 — the outcomes' sibling scope
 
     /// <summary>
-    /// 🔒 <b>O1</b> — a <c>RANDOM_OUTCOME</c> row names a <b>sibling</b>: an effect id the <em>same</em>
-    /// script declares. There is no registry to reach past its owner into, so an id outside the script
-    /// is refused <b>here</b>, before a tick runs.
+    /// O1: a <c>RANDOM_OUTCOME</c> row names a sibling — an effect id the same script declares.
+    /// There is no registry to reach past its owner into, so an id outside the script is refused
+    /// here, before a tick runs.
     /// </summary>
     /// <remarks>
-    /// 🔴 Two shapes, because the row and the mechanic are different scopes to get wrong: one id exists
-    /// nowhere, the other is real content belonging to a <em>different</em> boss — the case a registry
-    /// would have accepted and a sibling scope must not.
+    /// Two shapes, because the row and the mechanic are different scopes to get wrong: one id
+    /// exists nowhere, the other is real content belonging to a different boss — the case a
+    /// registry would have accepted and a sibling scope must not.
     /// </remarks>
     [Theory]
     [InlineData("BOSS_DICELORD_FATE_TYPO", "an id nothing declares")]
@@ -438,7 +421,7 @@ public sealed class BossEncounterBuilderTests
             BossTestBench.Block(2),
             BossTestBench.Block(3));
 
-        // 🔒 The lookup is this script's own effect set. The first row IS in it; the second is not.
+        // The lookup is this script's own effect set. The first row is in it; the second is not.
         var effects = BossTestBench.Lookup(
             roll, BossTestBench.FateOutcome(BossTestBench.FateBossAtk));
 
@@ -452,9 +435,9 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔒 The negative control for O1, and the half that makes the rule a scope rather than a ban:
-    /// every row naming a sibling of the <b>same</b> script is accepted, and each of those siblings
-    /// lands on <see cref="ActorPlan.Effects"/> — which is why it is a reference and not an embedded
+    /// The negative control for O1, and the half that makes the rule a scope rather than a ban:
+    /// every row naming a sibling of the same script is accepted, and each of those siblings lands
+    /// on <see cref="ActorPlan.Effects"/> — which is why it is a reference and not an embedded
     /// effect object in the first place.
     /// </summary>
     [Fact]
@@ -494,10 +477,10 @@ public sealed class BossEncounterBuilderTests
     }
 
     /// <summary>
-    /// 🔴 <b>O1</b> over a <b>blank</b> row. <see cref="RandomOutcomeEntry"/> is a record struct, so
-    /// <c>default</c> — and a JSON row that omits <c>effectId</c> — carries a null one, and the
-    /// sibling lookup's <c>ContainsKey(null)</c> raises a bare <see cref="ArgumentNullException"/>:
-    /// a refusal naming neither O1, nor the boss, nor the phase.
+    /// O1 over a blank row. <see cref="RandomOutcomeEntry"/> is a record struct, so <c>default</c>
+    /// — and a JSON row that omits <c>effectId</c> — carries a null one, and the sibling lookup's
+    /// <c>ContainsKey(null)</c> raises a bare <see cref="ArgumentNullException"/>: a refusal naming
+    /// neither O1, nor the boss, nor the phase.
     /// </summary>
     [Theory]
     [InlineData(null, "an absent effectId")]

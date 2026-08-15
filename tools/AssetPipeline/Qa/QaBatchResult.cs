@@ -1,12 +1,10 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa;
 
-/// <summary>
-/// What `15` Part F's gate — <em>"Before an asset batch is accepted"</em> — concluded.
-/// </summary>
+/// <summary>What the acceptance gate concluded for a batch.</summary>
 /// <remarks>
-/// 🔒 Four outcomes, not two. "Rejected" and "nobody has calibrated the threshold that would decide
-/// it" and "a human has not looked yet" are three different states of the world, and collapsing
-/// them into a boolean is precisely how an uncalibrated check becomes a passing one.
+/// Four outcomes, not two: "rejected", "nobody has calibrated the threshold that would decide it",
+/// and "a human has not looked yet" are different states, and collapsing them into a boolean is
+/// precisely how an uncalibrated check becomes a passing one.
 /// </remarks>
 public enum QaDecision
 {
@@ -32,27 +30,23 @@ public enum QaDecision
     AwaitingHumanReview,
 }
 
-/// <summary>
-/// Every `15` Part F item's outcome for one asset, plus the acceptance decision they add up to.
-/// </summary>
+/// <summary>Every checklist item's outcome for one asset, plus the acceptance decision they add up to.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Machinery cannot accept a batch.</b> A full <see cref="QaChecklist"/> run always includes
-/// five <see cref="QaClassification.Human"/> items, so the best <see cref="Decision"/> it can ever
-/// reach is <see cref="QaDecision.AwaitingHumanReview"/>. That is assumption A5 expressed as a
-/// return value rather than as a comment, and <c>QaBatchResultTests</c> pins it.
+/// Machinery cannot accept a batch: a full <see cref="QaChecklist"/> run always includes human-only
+/// items, so the best <see cref="Decision"/> it can ever reach is
+/// <see cref="QaDecision.AwaitingHumanReview"/>.
 /// </para>
 /// <para>
-/// 🔒 <b>Precedence: a known defect outranks an unknown one.</b> A <see cref="QaVerdict.Fail"/>
-/// anywhere gives <see cref="QaDecision.Rejected"/> even when something else is uncalibrated — the
-/// asset has to be regenerated either way, and reporting "blocked on calibration" would send a
-/// reviewer to measure a threshold for an asset that is already going back.
+/// Precedence: a known defect outranks an unknown one. A <see cref="QaVerdict.Fail"/> anywhere
+/// gives <see cref="QaDecision.Rejected"/> even when something else is uncalibrated — the asset has
+/// to be regenerated either way.
 /// </para>
 /// </remarks>
 /// <param name="AssetId">The asset these outcomes are about.</param>
 /// <param name="Outcomes">
-/// One outcome per item run, in `15` Part F order. A run holding no outcomes is a loud failure
-/// rather than a vacuous acceptance.
+/// One outcome per item run. A run holding no outcomes is a loud failure rather than a vacuous
+/// acceptance.
 /// </param>
 public sealed record QaBatchResult(string AssetId, IReadOnlyList<QaOutcome> Outcomes)
 {
@@ -100,14 +94,10 @@ public sealed record QaBatchResult(string AssetId, IReadOnlyList<QaOutcome> Outc
             .Select(outcome => outcome.HumanGap!),
     ];
 
-    /// <summary>
-    /// The outcomes, or a loud failure when there are none.
-    /// </summary>
+    /// <summary>The outcomes, or a loud failure when there are none.</summary>
     /// <remarks>
-    /// 🔒 Steering rule S3. "Nothing failed" over an empty list is vacuously true, and that is
-    /// exactly the shape of a checklist that silently stopped running — so a decision over no
-    /// outcomes is refused rather than answered. The lists below do not refuse: an empty
-    /// <see cref="Failures"/> is a real, useful answer; an empty acceptance is not.
+    /// "Nothing failed" over an empty list is vacuously true — exactly the shape of a checklist that
+    /// silently stopped running — so a decision over no outcomes is refused rather than answered.
     /// </remarks>
     private IReadOnlyList<QaOutcome> Graded => Outcomes.Count > 0
         ? Outcomes
@@ -116,7 +106,7 @@ public sealed record QaBatchResult(string AssetId, IReadOnlyList<QaOutcome> Outc
             "to report. A run holding no outcomes would otherwise read as a clean one, which is how " +
             "a checklist that stopped running passes forever.");
 
-    /// <summary>Every outcome carrying one verdict, in `15` Part F item order.</summary>
+    /// <summary>Every outcome carrying one verdict, in item order.</summary>
     /// <param name="verdict">The verdict to filter by.</param>
     private IReadOnlyList<QaOutcome> OfVerdict(QaVerdict verdict) =>
     [

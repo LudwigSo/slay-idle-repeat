@@ -3,14 +3,13 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Application.Services.Content.Tunables;
 
 /// <summary>
-/// A doc-section citation — the join between a 📐 marker in the documentation and the schema key
-/// that holds the number.
+/// A doc-section citation — the join between a tunable marker in the documentation and the schema
+/// key that holds the number.
 /// </summary>
 /// <remarks>
-/// M0-10 authored this link deliberately: every schema property description opens with the section
-/// that owns its numbers (<c>"08 §4.1 — …"</c>), and every 📐 marker sits under a numbered heading
-/// in a numbered document. The pair <c>(08, 4.1)</c> is therefore addressable from both sides,
-/// which is the only reason the `14` §6 build check can exist at all.
+/// Every schema property description opens with the section that owns its numbers
+/// (<c>"08 §4.1 — …"</c>), and every tunable marker sits under a numbered heading in a numbered
+/// document, so the pair <c>(08, 4.1)</c> is addressable from both sides.
 /// </remarks>
 /// <param name="DocId">The two-digit document number, e.g. <c>08</c>.</param>
 /// <param name="Section">The section number, e.g. <c>4.1</c> or <c>7a.3</c>. Empty means whole-document.</param>
@@ -47,7 +46,7 @@ public readonly record struct DocSection(string DocId, string Section)
     }
 }
 
-/// <summary>One 📐 TUNABLE marker found in the documentation set.</summary>
+/// <summary>One TUNABLE marker found in the documentation set.</summary>
 /// <param name="Section">Where it sits.</param>
 /// <param name="Line">1-based line number, for the report.</param>
 /// <param name="Text">The line it was found on, trimmed.</param>
@@ -70,10 +69,9 @@ public sealed record TunableMarker(
 /// only those are held to the reverse direction of the check.
 /// </param>
 /// <param name="GovernsNumericKey">
-/// True when the schema object carrying this description declares a numeric type. `14` §6's check
-/// is stated over <em>the schema keys</em> that hold 📐 numbers; a description on a container
-/// object, an id string or a <c>_doc</c> field records provenance, not a tunable, and holding it to
-/// the reverse direction would demand a 📐 marker for every section a schema ever mentions.
+/// True when the schema object carrying this description declares a numeric type. A description on
+/// a container object, an id string or a <c>_doc</c> field records provenance, not a tunable, and
+/// holding it to the reverse direction would demand a marker for every section a schema mentions.
 /// </param>
 public sealed record SchemaCitation(
     string SchemaPath,
@@ -82,9 +80,7 @@ public sealed record SchemaCitation(
     bool GovernsTuningFile,
     bool GovernsNumericKey = false);
 
-/// <summary>
-/// 🔒 What sort of mismatch a baseline entry records. The two are not interchangeable.
-/// </summary>
+/// <summary>What sort of mismatch a baseline entry records. The two are not interchangeable.</summary>
 public enum TunableBaselineKind
 {
     /// <summary>
@@ -112,18 +108,15 @@ public enum TunableBaselineKind
 public sealed record TunableBaselineEntry(
     DocSection Section, TunableBaselineKind Kind, string Reason, string ClosedBy);
 
-/// <summary>
-/// 🔒 The committed record of every known 📐 mismatch — spec debt, measured rather than hidden.
-/// </summary>
+/// <summary>The committed record of every known mismatch — spec debt, measured rather than hidden.</summary>
 /// <remarks>
-/// The check fails on anything <em>not</em> in here, and equally on an entry in here that no
-/// longer describes a real mismatch. Both halves matter: without the first the rule does not bite,
-/// without the second the baseline becomes a place mismatches go to be forgotten. Every entry
-/// carries a reason and the milestone that closes it, and the file carries the date it was taken.
+/// The check fails on anything <em>not</em> in here, and equally on an entry that no longer
+/// describes a real mismatch — otherwise the baseline becomes a place mismatches go to be
+/// forgotten. Every entry carries a reason and the milestone that closes it.
 /// </remarks>
 /// <param name="RecordedOn">ISO-8601 date the baseline was taken. Authored, never <c>UtcNow</c>.</param>
-/// <param name="UnmatchedMarkers">📐 markers with no schema key yet.</param>
-/// <param name="UnmarkedSchemaCitations">Tuning schema citations with no 📐 marker.</param>
+/// <param name="UnmatchedMarkers">Tunable markers with no schema key yet.</param>
+/// <param name="UnmarkedSchemaCitations">Tuning schema citations with no tunable marker.</param>
 public sealed record TunableBaseline(
     string RecordedOn,
     IReadOnlyList<TunableBaselineEntry> UnmatchedMarkers,
@@ -169,14 +162,10 @@ public sealed record TunableBaseline(
         return list.Items.Select(Entry).ToArray();
     }
 
-    /// <summary>
-    /// 🔒 The two kinds are enforced here rather than left to a convention.
-    /// </summary>
+    /// <summary>The two kinds are enforced here rather than left to a convention.</summary>
     /// <remarks>
     /// <c>--write-baseline</c> emits <c>kind: "unreviewed"</c> and no owner, so a regenerated file
-    /// that nobody hand-edited fails the very next run by name. The alternative it replaced — a
-    /// literal <c>"TODO"</c> owner — passed every check, because the only assertion in reach was
-    /// <c>ClosedBy.Length &gt; 0</c>.
+    /// that nobody hand-edited fails the very next run by name.
     /// </remarks>
     private static TunableBaselineEntry Entry(ContentValue item)
     {
@@ -215,10 +204,10 @@ public sealed record TunableBaseline(
     }
 }
 
-/// <summary>What the 📐 audit found.</summary>
+/// <summary>What the tunable-marker audit found.</summary>
 /// <param name="Issues">Findings that fail the build.</param>
-/// <param name="UnmatchedMarkers">📐 markers no schema key claims, baseline included.</param>
-/// <param name="UnmarkedCitations">Tuning schema citations with no 📐 marker, baseline included.</param>
+/// <param name="UnmatchedMarkers">Markers no schema key claims, baseline included.</param>
+/// <param name="UnmarkedCitations">Tuning schema citations with no marker, baseline included.</param>
 /// <param name="StaleBaselineEntries">Baseline entries that no longer describe a real mismatch.</param>
 public sealed record TunableAuditReport(
     IReadOnlyList<ContentIssue> Issues,

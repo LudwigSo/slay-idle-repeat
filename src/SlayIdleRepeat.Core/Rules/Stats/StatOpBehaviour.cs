@@ -5,31 +5,15 @@ using SlayIdleRepeat.Core.Rules.Effects.Ops;
 namespace SlayIdleRepeat.Core.Rules.Stats;
 
 /// <summary>
-/// 🔒 M2-03's implementation of `18` §8 steps 6 and 9 — the seam M2-07 left open, filled.
+/// The implementation of <c>STAT_CONVERT</c> and <c>STAT_CAP_OVERRIDE</c> behaviour.
 /// </summary>
 /// <remarks>
-/// <para>
-/// It replaces <c>UnimplementedStatOps</c>, which refused both steps because neither op was
-/// implementable as authored: <c>STAT_CONVERT</c> had one <c>stat</c> key for <em>"stat A into stat
-/// B"</em>, and <c>STAT_CAP_OVERRIDE</c>'s one authored <c>capKind</c> — <c>HEAL_CEILING</c> — is
-/// not one of `05` §1's six stat caps at all. Both were closed by `18` §10's extension procedure:
-/// see <see cref="EffectDefinition.ToStat"/> and <see cref="StatCapKind"/>.
-/// </para>
-/// <para>
-/// ⚠️ <b>Why this class is in <c>Rules/Stats/</c> and not with the other 41 ops.</b> R17 makes
-/// <c>Rules.Effects</c> the bottom of the intra-<c>Rules</c> layering, and
-/// <see cref="IStatOpBehaviour"/>'s signature is written in <c>ActorStats</c>, <c>StatCaps</c> and
-/// <c>StatDelta</c> — all <c>Rules.Stats</c>. An implementation under <c>Rules/Effects/Ops/</c>
-/// would make the bottom layer name the one above it. So the <b>arithmetic</b> is with the other ops
-/// (<see cref="StatOps"/>) and only the plumbing is here. (M2-02 moves the three `18` seams out of
-/// <c>Rules/Stats/</c> in wave 4; when it does, this class can follow them and the split closes.)
-/// </para>
-/// <para>
-/// 🔒 <b>Stateless and shared.</b> Nothing is cached: `18` §8 re-aggregates whenever the build or
-/// the fight changes — `05` §3.1's <c>SYS_ENRAGE</c> adds a <c>STAT_MULT</c> every second from 70 s —
-/// so a memoised conversion would be wrong one tick later, identically on client and server, which
-/// `14` §8.2's determinism job would not catch either.
-/// </para>
+/// Lives in <c>Rules/Stats/</c> rather than with the other ops, since <see cref="IStatOpBehaviour"/>'s
+/// signature is written in <c>Rules.Stats</c> types and an implementation under
+/// <c>Rules/Effects/Ops/</c> would make the bottom layer name the one above it — so the arithmetic
+/// lives with the other ops (<see cref="StatOps"/>) and only the plumbing is here. Stateless and
+/// shared: nothing is cached, since aggregation re-runs whenever the build or the fight changes, and
+/// a memoised conversion would go stale mid-fight.
 /// </remarks>
 internal sealed class StatOpBehaviour : IStatOpBehaviour
 {
@@ -42,12 +26,10 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
 
     /// <inheritdoc />
     /// <remarks>
-    /// 🔒 <b>Every conversion reads <paramref name="postAdditive"/> and nothing else.</b> That block
-    /// is frozen by the caller, so `18` §8 step 6's <em>"reads post-step-5 values"</em> is enforced
-    /// rather than trusted: two conversions off the same source both take their percentage of the
-    /// same number, whatever order they are applied in. The deltas are returned as a flat, signed
-    /// list in effect-id order — <c>PK_TURTLE</c>'s "20% of DEF into ATK" is a <c>-x</c> on DEF and a
-    /// <c>+x</c> on ATK — because a mutation would let the second conversion see the first's output.
+    /// Every conversion reads <paramref name="postAdditive"/> and nothing else — that block is
+    /// frozen by the caller, so two conversions off the same source both take their percentage of
+    /// the same number regardless of application order. Deltas are returned as a flat, signed list
+    /// rather than applied by mutation, so the second conversion never sees the first's output.
     /// </remarks>
     public IReadOnlyList<StatDelta> Convert(
         IReadOnlyList<EffectDefinition> conversions, ActorStats postAdditive, IEffectValueReader values)
@@ -69,9 +51,9 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
 
             var conversion = StatOps.Conversion(effect, values.EffectiveValue(effect));
 
-            // 🔒 A conversion between the 26-stat DSL vocabulary and the 14-stat actor block is
-            //    refused, not silently dropped: "convert 20% of GOLD_PCT into ATK" would otherwise
-            //    add a real ATK bonus out of a stat this pipeline does not hold, or take from one.
+            // A conversion across the combat/non-combat stat boundary is refused, not silently
+            // dropped: it would otherwise add or take a real combat bonus from a stat this pipeline
+            // doesn't hold.
             RequireCombat(effect, conversion.From, "source");
             RequireCombat(effect, conversion.To, "destination");
 
@@ -87,18 +69,12 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
 
     /// <inheritdoc />
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Only <see cref="StatCapKind.STAT_MAX"/> touches the table, and that is the ruling.</b>
-    /// <c>HEAL_CEILING</c> bounds <c>Heal()</c> (`05` §4.3), not a stat — `18` §7.6's
-    /// <em>Avatar of War</em> is <em>"you can no longer be healed above 80% Max HP"</em> (`09` §4),
-    /// which is a rule about healing and not a ceiling on <c>MAX_HP</c>. Folding it into the cap
-    /// table would cap the hero's Max HP at 0.8, i.e. delete the hero. It is passed over here and
-    /// read by M2-09 through <see cref="HealCeilingFraction"/>.
-    /// </para>
-    /// <para>
-    /// <see cref="StatCapKind.REDIRECT_EXCESS"/> is likewise not a cap-table change — it moves value
-    /// between two stats — and is applied by <see cref="RedirectCappedExcess"/> after the caps land.
-    /// </para>
+    /// Only <see cref="StatCapKind.STAT_MAX"/> touches the table. <c>HEAL_CEILING</c> bounds
+    /// healing, not a stat — folding it into the cap table would cap the hero's Max HP at 0.8
+    /// instead. It's read separately through <see cref="HealCeilingFraction"/>.
+    /// <see cref="StatCapKind.REDIRECT_EXCESS"/> is likewise not a cap-table change, since it moves
+    /// value between two stats, and is applied by <see cref="RedirectCappedExcess"/> after the caps
+    /// land.
     /// </remarks>
     public StatCaps OverrideCaps(
         IReadOnlyList<EffectDefinition> overrides, StatCaps declared, IEffectValueReader values)
@@ -173,10 +149,7 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
     }
 
     /// <inheritdoc />
-    /// <remarks>
-    /// A <c>STAT_CAP_OVERRIDE HEAL_CEILING</c> changes no stat at all — <c>Avatar of War</c>'s other
-    /// clause, the ×1.20 <c>STAT_MULT</c>, is what moves ATK.
-    /// </remarks>
+    /// <remarks>A <c>STAT_CAP_OVERRIDE HEAL_CEILING</c> changes no stat at all.</remarks>
     public double? HealCeilingFraction(
         IReadOnlyList<EffectDefinition> overrides, IEffectValueReader values)
     {
@@ -201,11 +174,9 @@ internal sealed class StatOpBehaviour : IStatOpBehaviour
     }
 
     /// <remarks>
-    /// ⚠️ <b>Fatal here, while steps 4/5/7/8 merely SKIP a non-combat stat</b> (and report it through
-    /// <c>AggregatedStats.SkippedNonCombatStatEffects</c>). The asymmetry is deliberate and follows
-    /// M2-07's own precedent: <see cref="StatCaps.From"/> already refuses a cap on a non-combat stat,
-    /// because <em>"a cap on one would bind nothing and read as though it did"</em>. A conversion is
-    /// worse still — half of it would vanish, silently changing the build's power.
+    /// Fatal here, while steps 4/5/7/8 merely skip a non-combat stat and report it. The asymmetry is
+    /// deliberate: a conversion or cap crossing the combat/non-combat boundary would silently change
+    /// the build's power, which a skip cannot do.
     /// </remarks>
     private static void RequireCombat(EffectDefinition effect, StatId stat, string role)
     {

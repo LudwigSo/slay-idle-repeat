@@ -7,16 +7,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
-/// <summary>
-/// 🔒 <c>content/bosses/bosses.json</c> as the boss engine reads it — `17` §1.2 and §2-9.
-/// </summary>
+/// <summary><c>content/bosses/bosses.json</c> as the boss engine reads it.</summary>
 /// <remarks>
 /// The structure is <c>EnemyCatalogueTests</c>'; what differs is where the bytes come from. This reader
-/// is exercised against the <b>shipped</b> document off disk, because a fixture cannot make that claim.
+/// is exercised against the shipped document off disk, because a fixture cannot make that claim.
 /// Every negative case mutates one anchor of the shipped text in memory, never an edit to
 /// <c>game-data/</c>.
 /// <para>
-/// 🔴 Each refusal is probed <b>twice, in different shapes</b>, with a negative control that must stay
+/// Each refusal is probed twice, in different shapes, with a negative control that must stay
 /// green: a reader that threw on everything would satisfy every refusal and read nothing at all.
 /// </para>
 /// </remarks>
@@ -27,7 +25,7 @@ public sealed class BossCatalogueTests
     private const string Sporequeen = "BOSS_SPOREQUEEN_VELL";
     private const string Ftue = "BOSS_FTUE";
 
-    /// <summary>`17` §1.2 — nine rows: the eight campaign bosses and the FTUE mini-boss.</summary>
+    /// <summary>Nine rows: the eight campaign bosses and the FTUE mini-boss.</summary>
     private const int AuthoredScriptCount = 9;
 
     /// <summary>
@@ -60,20 +58,19 @@ public sealed class BossCatalogueTests
         BossCatalogue.OutcomePointer(7, 0, 1)
             .ShouldBe("content/bosses/bosses.json#/scripts/7/effects/0/outcomes/1");
 
-        // 🔒 The document really is in the tree the harness loads. A pointer constant that named a
+        // The document really is in the tree the harness loads. A pointer constant that named a
         // file nobody ships would make every case in this class a statement about a typo.
         GameDataLoader.Load().DocumentPaths.ShouldContain(BossCatalogue.Document);
     }
 
     /// <summary>
-    /// 🔒 S3 — the floor under every case in this namespace: nine rows, a named one among them, and
-    /// `17` §1.2's four baseline secondaries.
+    /// The floor under every case in this namespace: nine rows, a named one among them, and the
+    /// four baseline secondaries.
     /// </summary>
     /// <remarks>
-    /// A reader that returned an empty catalogue would take
-    /// <c>AuthoredBossScriptTests</c>' 872 lines green with it, over nothing. The named row is what
-    /// makes "nine" a statement about `17` §1.2's table rather than about nine rows of some other
-    /// document.
+    /// A reader that returned an empty catalogue would take <c>AuthoredBossScriptTests</c> green
+    /// with it, over nothing. The named row is what makes "nine" a statement about the shipped
+    /// table rather than about nine rows of some other document.
     /// </remarks>
     [Fact]
     public void Reading_the_document_produces_every_row_17_section_1_2_puts_in_data()
@@ -109,14 +106,11 @@ public sealed class BossCatalogueTests
 
     // ─────────────────────────────────────────────────────── absent, and null, are different faults
 
-    /// <summary>
-    /// 🔒 An <b>absent</b> required pointer is refused rather than defaulted —
-    /// <see cref="MissingContentException"/>, naming the pointer.
-    /// </summary>
+    /// <summary>An absent required pointer is refused rather than defaulted — <see cref="MissingContentException"/>, naming the pointer.</summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes, at two depths.</b> A missing coefficient on a script row and a missing
-    /// <c>op</c> on an embedded effect travel through different block readers; a rule that only
-    /// covered the row would let an effect silently lose its operation.
+    /// Two shapes, at two depths: a missing coefficient on a script row and a missing <c>op</c> on
+    /// an embedded effect travel through different block readers; a rule that only covered the row
+    /// would let an effect silently lose its operation.
     /// </remarks>
     [Theory]
     [InlineData(
@@ -137,16 +131,12 @@ public sealed class BossCatalogueTests
         thrown.Reference.ShouldBe(pointer, what);
     }
 
-    /// <summary>
-    /// 🔒 An authored <b>null</b> at a required pointer is a different fault and earns a different
-    /// exception — <see cref="UnauthorisedTunableException"/>, <em>"the design docs do not authorise a
-    /// value here"</em>.
-    /// </summary>
+    /// <summary>An authored null at a required pointer is a different fault and earns a different exception — <see cref="UnauthorisedTunableException"/>.</summary>
     /// <remarks>
-    /// 🔴 The test-side reader it replaced handed the JSON <c>null</c> back, so a numeric read threw a
-    /// serialisation error about a token type — a message about JSON rather than content, at a pointer
-    /// nobody could grep for. Two shapes, at two depths: a top-level baseline stat and a coefficient
-    /// inside the scripts array.
+    /// A naive reader that handed the JSON <c>null</c> back would have a numeric read throw a
+    /// serialisation error about a token type — a message about JSON rather than content, at a
+    /// pointer nobody could grep for. Two shapes, at two depths: a top-level baseline stat and a
+    /// coefficient inside the scripts array.
     /// </remarks>
     [Theory]
     [InlineData(
@@ -168,7 +158,7 @@ public sealed class BossCatalogueTests
     }
 
     /// <summary>
-    /// 🔴 The negative control for the two cases above, and the discriminator: the SAME anchors,
+    /// The negative control for the two cases above, and the discriminator: the same anchors,
     /// edited to a legal value, read back as that value.
     /// </summary>
     /// <remarks>
@@ -186,18 +176,15 @@ public sealed class BossCatalogueTests
                 "\"coefficients\": { \"hp\": 2.5, \"atk\": 0.85, \"def\": 0.7, \"aspd\": 0.99 }")
             .Of(Gulgrot).Script.Coefficients.Aspd.ShouldBe(0.99);
 
-        // And the shipped tree is still the shipped tree — 21 §3.3's "overrides never edit the
-        // canonical files", asserted rather than assumed.
+        // And the shipped tree is still the shipped tree — overrides never edit the canonical
+        // files, asserted rather than assumed.
         ShippedBosses.Catalogue.Crit.ShouldBe(0.05);
         ShippedBosses.Catalogue.Of(Gulgrot).Script.Coefficients.Aspd.ShouldBe(0.75);
     }
 
-    /// <summary>
-    /// 🔒 An <b>optional</b> key is the one place a <c>null</c> is not a fault — it is the hole
-    /// itself, and it stays <c>null</c> rather than becoming a zero.
-    /// </summary>
+    /// <summary>An optional key is the one place a <c>null</c> is not a fault — it stays <c>null</c> rather than becoming a zero.</summary>
     /// <remarks>
-    /// 🔴 Paired with the row that authors the same key, because "null" alone is what a reader that
+    /// Paired with the row that authors the same key, because "null" alone is what a reader that
     /// read nothing would also answer.
     /// </remarks>
     [Fact]
@@ -212,8 +199,8 @@ public sealed class BossCatalogueTests
             0.30, "the discriminator — the reader does pick the key up where it is authored");
 
         // An authored null reads exactly as the absent key does: the documents authorise no value.
-        // 🔒 17 §1.2's fixedPower, which only the FTUE row carries — an optional key with a value,
-        // so the same anchor serves as its own discriminator on the line below.
+        // fixedPower, which only the FTUE row carries, is an optional key with a value, so the
+        // same anchor serves as its own discriminator on the line below.
         Read("\"fixedPower\": 900,", "\"fixedPower\": null,").Of(Ftue).FixedPower.ShouldBeNull(
             "an authored null is the documents authorising no value, and 900.0 would be a number " +
             "nobody wrote");
@@ -226,12 +213,9 @@ public sealed class BossCatalogueTests
 
     // ─────────────────────────────────────────────────────── the reader refuses what it cannot map
 
-    /// <summary>
-    /// 🔒 A key this reader does not map is refused, not ignored. A silently dropped key would leave
-    /// every case in this namespace asserting over a script that is not the one on disk.
-    /// </summary>
+    /// <summary>A key this reader does not map is refused, not ignored. A silently dropped key would leave every case in this namespace asserting over a script that is not the one on disk.</summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes.</b> A misspelled key on a mechanic — <c>telegraphTicks</c> where
+    /// Two shapes: a misspelled key on a mechanic — <c>telegraphTicks</c> where
     /// <c>telegraphSeconds</c> was meant, which is the mistake that deletes a wind-up in silence —
     /// and a new key at script level, which is the one a schema change would introduce.
     /// </remarks>
@@ -255,13 +239,10 @@ public sealed class BossCatalogueTests
         thrown.Message.ShouldContain(key, Case.Sensitive, "which key");
     }
 
-    /// <summary>
-    /// 🔒 A token outside a closed vocabulary is refused rather than silently becoming the enum's
-    /// zero member — which is a real operation, a real trigger and a real scope in every case.
-    /// </summary>
+    /// <summary>A token outside a closed vocabulary is refused rather than silently becoming the enum's zero member — which is a real operation, trigger and scope in every case.</summary>
     /// <remarks>
-    /// 🔴 <b>Three shapes across three vocabularies</b>, because each is parsed by its own method and
-    /// a rule proved over one says nothing about the other two.
+    /// Three shapes across three vocabularies, because each is parsed by its own method and a rule
+    /// proved over one says nothing about the other two.
     /// </remarks>
     [Theory]
     [InlineData("\"op\": \"REFLECT\",", "\"op\": \"DEFLECT\",",
@@ -288,10 +269,9 @@ public sealed class BossCatalogueTests
     /// in memory.
     /// </summary>
     /// <remarks>
-    /// 🔒 The anchor must occur exactly once. <c>string.Replace</c> hits every occurrence, so an
+    /// The anchor must occur exactly once. <c>string.Replace</c> hits every occurrence, so an
     /// anchor that appears twice is a case that reads as one edit and is not — and the rule that
-    /// fires may then not be the rule the case names. The precedent is
-    /// <c>SlayIdleRepeat.Application.Tests</c>' <c>RepoData.SourceWithEdit</c>.
+    /// fires may then not be the rule the case names.
     /// </remarks>
     private static BossCatalogue Read(string find, string replaceWith)
     {

@@ -6,24 +6,18 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 `18` §2.2's seven damage and healing ops, each asserted on the <b>number</b> it hands the
-/// `05` §4 engine — `18` §10 step 3.
-/// </summary>
+/// <summary>The seven damage and healing ops, each asserted on the number it hands the engine.</summary>
 /// <remarks>
-/// `05` §4.2's routing table is what these pin. The recurring failure they are written to catch is
-/// the one nothing else would: an op that routes correctly and multiplies by the wrong basis. A
-/// <c>DAMAGE</c> that multiplied its value by ATK before handing it to <c>ResolveAttack</c> would
-/// pass a "did it route" test and square the attacker's attack power in every fight.
+/// The recurring failure these are written to catch is the one nothing else would: an op that
+/// routes correctly but multiplies by the wrong basis. A <c>DAMAGE</c> that multiplied its value by
+/// ATK before handing it to <c>ResolveAttack</c> would pass a "did it route" test and square the
+/// attacker's attack power in every fight.
 /// </remarks>
 public sealed class DamageAndHealingOpTests
 {
     // ───────────────────────────────────────────────────────────── DAMAGE
 
-    /// <summary>
-    /// 🔒 `05` §4.2 — <em>"the op's <c>value</c> <b>is</b> the AttackMultiplier for that resolved
-    /// attack"</em>. `18` §7.10's <c>PK_CLEAVE</c> at 0.40 is a ×0.4 attack.
-    /// </summary>
+    /// <summary>The op's <c>value</c> is itself the AttackMultiplier for the resolved attack.</summary>
     [Fact]
     public void DAMAGE_hands_ResolveAttack_the_ops_value_as_the_AttackMultiplier_and_never_multiplies_by_ATK()
     {
@@ -42,7 +36,7 @@ public sealed class DamageAndHealingOpTests
             "so multiplying here would make it 100 and square ATK in the fight");
     }
 
-    /// <summary>`18` §7.10's <c>PK_CLEAVE</c> splash: one resolved attack per living enemy.</summary>
+    /// <summary><c>PK_CLEAVE</c> splash: one resolved attack per living enemy.</summary>
     [Fact]
     public void DAMAGE_resolves_one_attack_per_target_the_18_5_token_names()
     {
@@ -60,14 +54,9 @@ public sealed class DamageAndHealingOpTests
     }
 
     /// <summary>
-    /// 🔒 <c>DAMAGE</c> reports the HP actually lost — `05` §4 step 9's post-absorption number —
-    /// summed over its targets, and <b>not</b> step 8's pre-absorption basis.
+    /// <c>DAMAGE</c> reports the HP actually lost (post-absorption), summed over its targets — not
+    /// the pre-absorption basis. The two differ on any warded target.
     /// </summary>
-    /// <remarks>
-    /// The two differ on any warded target, and the wrong one here would feed a wrong
-    /// <c>DAMAGE_DEALT_PCT</c> to whatever leech read it. The bench answers a miss by default
-    /// precisely so that a test which forgot to state an outcome cannot assert 0 and look meaningful.
-    /// </remarks>
     [Fact]
     public void DAMAGE_reports_the_HP_actually_lost_summed_over_its_targets()
     {
@@ -83,21 +72,15 @@ public sealed class DamageAndHealingOpTests
 
         totals.HpLost.ShouldBe(180.0, "two hits at 90 HP lost each — step 9, after ward absorption");
 
-        // 🔒 05 §4 step 8's on-damage basis, published SEPARATELY. 05 §4.1: "a lifesteal attacker
-        //    still heals off a fully-warded hit", so a HEAL_LEECH fed HpLost would heal nothing off
-        //    a shielded target. The two fields exist so M2-04's wiring cannot be a guess.
+        // Basis is the pre-absorption number, published separately: a HEAL_LEECH fed HpLost would
+        // heal nothing off a warded target.
         totals.Basis.ShouldBe(240.0, "two hits at a pre-absorption basis of 120 each");
     }
 
-    /// <summary>
-    /// 🔒 `05` §1.1 — every op rounds to 4 dp <b>at each accumulation point</b>: per target, and
-    /// again over the total.
-    /// </summary>
+    /// <summary>Every op rounds to 4 dp at each accumulation point: per target, and again over the total.</summary>
     /// <remarks>
-    /// The other cases in this file all multiply to values that are exact in IEEE double, so none of
-    /// them is load-bearing on the rounding. This one is: <c>0.12345 × 3.0</c> is <c>0.37035</c>,
-    /// which rounds to <c>0.3704</c> — and two of them sum to <c>0.7408</c>, not to the
-    /// <c>0.7407</c> an unrounded accumulation would give.
+    /// <c>0.12345 × 3.0</c> is <c>0.37035</c>, which rounds to <c>0.3704</c> — and two of them sum to
+    /// <c>0.7408</c>, not the <c>0.7407</c> an unrounded accumulation would give.
     /// </remarks>
     [Fact]
     public void An_ops_number_is_rounded_to_4_dp_per_target_and_again_over_the_total()
@@ -117,9 +100,8 @@ public sealed class DamageAndHealingOpTests
     }
 
     /// <summary>
-    /// 🔒 <c>DAMAGE</c> admits <b>no</b> value mode but <c>ATK_MULT</c>: `05` §4.2 authorises one
-    /// reading, and turning a flat amount into a multiplier means dividing by the attacker's ATK,
-    /// which no clause states.
+    /// <c>DAMAGE</c> admits no value mode but <c>ATK_MULT</c> — turning a flat amount into a
+    /// multiplier would mean dividing by the attacker's ATK, which is undefined behaviour.
     /// </summary>
     [Fact]
     public void DAMAGE_refuses_a_value_mode_05_4_2_does_not_authorise()
@@ -145,10 +127,7 @@ public sealed class DamageAndHealingOpTests
 
     // ───────────────────────────────────────────────────────────── DAMAGE_TRUE
 
-    /// <summary>
-    /// `05` §4.2 — <c>DAMAGE_TRUE</c> reduces HP directly, so its value is an <b>amount</b>: on
-    /// §2.2's stated <c>ATK_MULT</c> default, <c>1.5 × 200 ATK = 300</c>.
-    /// </summary>
+    /// <summary><c>DAMAGE_TRUE</c> reduces HP directly; with no <c>valueMode</c> it defaults to a multiple of source ATK.</summary>
     [Fact]
     public void DAMAGE_TRUE_is_an_amount_and_defaults_to_a_multiple_of_the_sources_ATK()
     {
@@ -166,10 +145,7 @@ public sealed class DamageAndHealingOpTests
 
     // ───────────────────────────────────────────────────────────── DAMAGE_MAXHP_PCT
 
-    /// <summary>
-    /// 🔒 `18` §7.10's Volatile elite — <em>"explodes on death for 15% of <b>hero</b> Max HP"</em>,
-    /// authored as <c>TARGET_MAXHP_PCT</c> on an enemy actor targeting <c>ALL_ENEMIES</c>.
-    /// </summary>
+    /// <summary><c>TARGET_MAXHP_PCT</c> reads the target's max HP, not the source's.</summary>
     [Fact]
     public void DAMAGE_MAXHP_PCT_reads_the_TARGETS_max_HP_which_is_what_18_7_10_captions()
     {
@@ -190,9 +166,8 @@ public sealed class DamageAndHealingOpTests
     }
 
     /// <summary>
-    /// 🔒 The op's own §2.2 row wins over §2.2's blanket <c>ATK_MULT</c> default: the default here is
-    /// <c>TARGET_MAXHP_PCT</c>, which is the only reading under which §7.5's <c>CP_BLOOD_PRICE</c>
-    /// — <em>"lose 3% Max HP after every battle"</em>, authored with no <c>valueMode</c> — works.
+    /// <c>DAMAGE_MAXHP_PCT</c>'s own default is <c>TARGET_MAXHP_PCT</c>, overriding the blanket
+    /// <c>ATK_MULT</c> default other ops share.
     /// </summary>
     [Fact]
     public void DAMAGE_MAXHP_PCT_with_no_valueMode_is_a_percentage_of_max_HP_not_a_multiple_of_ATK()
@@ -212,10 +187,7 @@ public sealed class DamageAndHealingOpTests
             72.0, "0.03 x 2400 Max HP — under ATK_MULT it would be 15, which 06's row does not say");
     }
 
-    /// <summary>
-    /// 🔒 R12 / `05` §4.1 bypass class (b) — a <c>drawback</c>-tagged self-inflicted cost reports the
-    /// bypass, so <em>"wards must not silently delete perk drawbacks"</em> holds.
-    /// </summary>
+    /// <summary>A <c>drawback</c>-tagged self-inflicted cost reports a ward bypass, so wards cannot silently delete it.</summary>
     [Fact]
     public void A_drawback_tagged_self_inflicted_cost_reports_the_05_4_1_ward_bypass()
     {
@@ -234,9 +206,8 @@ public sealed class DamageAndHealingOpTests
     }
 
     /// <summary>
-    /// 🔒 The same tag pointed at an <b>enemy</b> is not a self-inflicted cost. `05` §4.1's class (b)
-    /// is <em>"self-inflicted costs"</em>; a blanket tag-keyed bypass would hand every cursed perk
-    /// ward penetration nobody authored.
+    /// The same tag pointed at an enemy is not a self-inflicted cost — a blanket tag-keyed bypass
+    /// would hand every cursed perk ward penetration nobody authored.
     /// </summary>
     [Fact]
     public void A_drawback_tag_on_an_offensive_clause_does_not_bypass_the_targets_wards()
@@ -260,7 +231,7 @@ public sealed class DamageAndHealingOpTests
 
     // ───────────────────────────────────────────────────────────── HEAL / HEAL_LEECH
 
-    /// <summary>`05` §4.2 — <c>HEAL</c> goes through <c>Heal()</c>, at its authored unit.</summary>
+    /// <summary><c>HEAL</c> goes through <c>Heal()</c>, at its authored unit.</summary>
     [Fact]
     public void HEAL_hands_Heal_a_pre_HEAL_PCT_amount()
     {
@@ -278,9 +249,8 @@ public sealed class DamageAndHealingOpTests
     }
 
     /// <summary>
-    /// 🔒 `18` §2.2 — <c>HEAL_LEECH</c> is <em>"a % of damage just dealt"</em>, and `05` §4 step 8 /
-    /// §4.1 make that the <b>pre-absorption</b> basis: <em>"a lifesteal attacker still heals off a
-    /// fully-warded hit"</em>.
+    /// <c>HEAL_LEECH</c> is a % of the pre-absorption damage basis, so a lifesteal attacker still
+    /// heals off a fully-warded hit.
     /// </summary>
     [Fact]
     public void HEAL_LEECH_reads_the_pre_absorption_damage_basis()
@@ -297,8 +267,8 @@ public sealed class DamageAndHealingOpTests
     }
 
     /// <summary>
-    /// 🔒 Outside a damage context there is no basis, and 0 would spell "the hit was fully absorbed" —
-    /// which `05` §4.1 says a leech still heals off. Steering S6: fail loudly.
+    /// Outside a damage context there is no basis, and 0 would wrongly read as "the hit was fully
+    /// absorbed" — so this fails loudly instead.
     /// </summary>
     [Fact]
     public void HEAL_LEECH_outside_a_damage_context_throws_rather_than_healing_nothing()
@@ -317,9 +287,7 @@ public sealed class DamageAndHealingOpTests
 
     // ───────────────────────────────────────────────────────────── SHIELD
 
-    /// <summary>
-    /// `18` §2.2 / §7.4 — <c>PK_UNBREAKABLE</c>'s second clause: a ward of 25% of the holder's Max HP.
-    /// </summary>
+    /// <summary><c>SHIELD</c> grants a ward of the size its value mode names.</summary>
     [Fact]
     public void SHIELD_grants_a_ward_of_the_size_its_value_mode_names()
     {
@@ -337,10 +305,7 @@ public sealed class DamageAndHealingOpTests
         bench.SourceCaps.ShouldBe([null], "18 §2.2's sourceCapPct is absent on this one");
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.2's <c>PK_TRANSFUSION</c> — overheal into a ward, with its per-instance
-    /// <c>sourceCapPct</c> travelling to the pool rather than being applied per grant.
-    /// </summary>
+    /// <summary>Overheal into a ward carries its per-instance <c>sourceCapPct</c> to the pool rather than applying it per grant.</summary>
     [Fact]
     public void SHIELD_from_OVERHEAL_AMOUNT_carries_its_sourceCapPct_to_the_ward_pool()
     {
@@ -361,10 +326,7 @@ public sealed class DamageAndHealingOpTests
             "18 §2.2 caps the total UNBROKEN ward of the instance, a running total only the pool holds");
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.2 — <c>HEAL_AMOUNT</c> / <c>OVERHEAL_AMOUNT</c> <em>"exist only inside
-    /// <c>ON_HEAL</c> contexts"</em>. 0 would silently delete <c>PK_TRANSFUSION</c>'s shield.
-    /// </summary>
+    /// <summary><c>HEAL_AMOUNT</c> / <c>OVERHEAL_AMOUNT</c> exist only inside <c>ON_HEAL</c> contexts.</summary>
     [Fact]
     public void An_ON_HEAL_only_value_mode_outside_an_ON_HEAL_context_throws()
     {
@@ -385,10 +347,7 @@ public sealed class DamageAndHealingOpTests
 
     // ───────────────────────────────────────────────────────────── REFLECT
 
-    /// <summary>
-    /// 🔒 R4 / `05` §4.2 — <c>REFLECT</c> <em>"adds to <c>THORN</c> for its duration"</em>, and
-    /// `05` §1 types <c>THORN</c> as a fraction. The Reflective elite's 25%.
-    /// </summary>
+    /// <summary><c>REFLECT</c> adds to <c>THORN</c> as a fraction, never as a multiple of ATK.</summary>
     [Fact]
     public void REFLECT_adds_its_value_to_THORN_as_a_fraction_and_never_as_a_multiple_of_ATK()
     {
@@ -405,15 +364,11 @@ public sealed class DamageAndHealingOpTests
         bench.OnlyAmount("AddThorns").ShouldBe(
             0.25, "under 18 §2.2's blanket ATK_MULT default this would be 225 — a thorns FRACTION of 225");
 
-        // 🔒 05 §4.2: "adds to THORN FOR ITS DURATION" — the second half of the row.
         bench.OnlyLifetime("AddThorns").Duration!.Scope.ShouldBe(DurationScope.BATTLE);
     }
 
     /// <summary>An op that resolves against an empty enemy set does nothing, and that is not a failure.</summary>
-    /// <remarks>
-    /// M2-05's uniform rule: a token whose <em>subject</em> is absent throws; a token whose
-    /// <em>set</em> is empty resolves to the empty set. The last enemy dying mid-tick is the case.
-    /// </remarks>
+    /// <remarks>A token whose subject is absent throws; a token whose set is empty resolves to the empty set.</remarks>
     [Fact]
     public void An_op_whose_target_set_is_empty_resolves_to_nothing_without_failing()
     {

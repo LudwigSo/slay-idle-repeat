@@ -9,18 +9,12 @@ using SlayIdleRepeat.Core.Tests.Rules.Stats;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// Fixtures and doubles for the `05` §3 tick-engine suite — a roster stated literally, and a damage
-/// engine that records what slot 4 asked it for.
+/// Fixtures and doubles for the tick-engine suite: a roster stated literally, and a damage engine
+/// that records what it was asked for rather than re-implementing damage resolution.
 /// </summary>
-/// <remarks>
-/// 🔒 <b>The doubles here implement the real seams and nothing more.</b> M2-09's
-/// <c>ResolveAttack</c> is not written; what the tick loop can be held to is <em>what it calls, with
-/// what, and in what order</em>, which is exactly what <see cref="RecordingAttackPipeline"/>
-/// captures. A double that re-implemented `05` §4 would be a second damage engine to keep in step.
-/// </remarks>
 internal static class BattleTestBench
 {
-    /// <summary>An actor block: `05` §1's fourteen stats, with the named ones set.</summary>
+    /// <summary>An actor block with the named stats set.</summary>
     internal static ActorStats Stats(
         double maxHp = 100.0, double atk = 10.0, double aspd = 1.0, double def = 0.0) =>
         StatFixtures.Block(
@@ -30,7 +24,7 @@ internal static class BattleTestBench
             (StatId.DEF, def),
             (StatId.HEAL_PCT, 1.0));
 
-    /// <summary>The hero — index 0, log id 0 (`05` §3.1, <c>CombatActor</c>).</summary>
+    /// <summary>The hero — index 0, log id 0.</summary>
     internal static ActorPlan Hero(
         ActorStats? stats = null, int level = 1, params HeldEffect[] effects) =>
         new()
@@ -82,8 +76,8 @@ internal static class BattleTestBench
         };
 
     /// <summary>
-    /// A plan over the given roster, with `05` §3's PvE bounds, `05` §4/§4.1's shipped 📐 constants
-    /// and — unless overridden — <see cref="BattleSeams.For"/>'s real `05` §4 pipeline.
+    /// A plan over the given roster, with PvE bounds and — unless overridden —
+    /// <see cref="BattleSeams.For"/>'s real pipeline.
     /// </summary>
     internal static BattlePlan Plan(
         IEnumerable<ActorPlan> actors,
@@ -121,10 +115,7 @@ internal static class BattleTestBench
         };
 }
 
-/// <summary>
-/// A `05` §4 pipeline that records every call and applies a flat, unmitigated hit — enough for a
-/// fight to end, and nothing that pretends to be M2-09.
-/// </summary>
+/// <summary>An attack pipeline that records every call and applies a flat, unmitigated hit.</summary>
 internal sealed class RecordingAttackPipeline : IAttackPipeline
 {
     private readonly double _damage;
@@ -189,13 +180,13 @@ internal sealed class RecordingAttackPipeline : IAttackPipeline
     }
 }
 
-/// <summary>A timeline that records the slots it was called in — `05` §3.1's 1, 2 and 4a.</summary>
+/// <summary>A timeline that records the tick-loop slots it was called in.</summary>
 internal sealed class RecordingTimeline : IStatusTimeline
 {
     /// <summary>Every call, as <c>"slot:actor@tick"</c>, in call order.</summary>
     internal List<string> Calls { get; } = new();
 
-    /// <summary>Actors that answer <c>false</c> to `05` §3.1 slot 4a's "not stunned".</summary>
+    /// <summary>Actors that are stunned and cannot act.</summary>
     internal HashSet<string> Stunned { get; } = new(StringComparer.Ordinal);
 
     /// <inheritdoc />
@@ -214,7 +205,7 @@ internal sealed class RecordingTimeline : IStatusTimeline
     public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
-/// <summary>A phase controller that records `05` §3.1's two hooks and can register a phase block.</summary>
+/// <summary>A phase controller that records its two hooks and can register a phase block.</summary>
 internal sealed class RecordingPhases : IBossPhases
 {
     private readonly BattleServices _services;
@@ -225,8 +216,7 @@ internal sealed class RecordingPhases : IBossPhases
 
     /// <param name="services">The battle.</param>
     /// <param name="phaseEffect">
-    /// An effect to <c>Register</c> the first time the boss falls below <paramref name="threshold"/> —
-    /// a `18` §6 <c>PHASE</c>-scoped block, whose R8 anchor is the tick it is registered on.
+    /// An effect to <c>Register</c> the first time the boss falls below <paramref name="threshold"/>.
     /// </param>
     /// <param name="threshold">The HP fraction the phase entry keys on.</param>
     internal RecordingPhases(
@@ -240,7 +230,7 @@ internal sealed class RecordingPhases : IBossPhases
     /// <summary>Every call, as <c>"hook:actor@tick"</c>.</summary>
     internal List<string> Calls { get; } = new();
 
-    /// <summary>Every slot-2a call, as <c>"2a:actor@tick"</c> — M2-12's telegraph pass.</summary>
+    /// <summary>Every slot-2a call, as <c>"2a:actor@tick"</c>.</summary>
     internal List<string> Ticks { get; } = new();
 
     /// <summary>The tick the phase block was registered on — its R8 anchor.</summary>
@@ -280,9 +270,8 @@ internal sealed class RecordingPhases : IBossPhases
 
     /// <inheritdoc />
     /// <remarks>
-    /// This double models one threshold, so it answers phase 2 once it has crossed and phase 1
-    /// before — enough for `18` §6's <c>PHASE</c> scope to have a reading, and deliberately not a
-    /// second copy of `17` §1's three-band machine, which is <c>BossPhaseController</c>'s.
+    /// This double models one threshold, answering phase 2 once crossed and phase 1 before —
+    /// deliberately not a copy of <c>BossPhaseController</c>'s full multi-band machine.
     /// </remarks>
     public int? CurrentPhase(BattleActor actor) => actor.IsBoss ? (_entered ? 2 : 1) : null;
 }

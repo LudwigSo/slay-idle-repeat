@@ -3,63 +3,36 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects.Values;
 
 /// <summary>
-/// 🔒 `18` §2.2 — the eight <c>valueMode</c>s: what an effect's <c>value</c> is a multiple of.
+/// The eight <c>valueMode</c>s: what an effect's <c>value</c> is a multiple of.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>M2-06 owns the evaluator; M2-03 owns each op's use of the result.</b> This type answers one
-/// question — <em>"what amount does this value denote, given these subjects"</em> — and knows nothing
-/// about damage pipelines, ward pools or heal ceilings. That split is why the signature takes a
-/// <see cref="ValueMode"/> and a bundle of subjects rather than an op and a battle.
-/// </para>
-/// <para>
-/// 🔒 <b>Nothing here rounds.</b> `05` §1.1's accumulation points are <em>"after each damage
-/// calculation, each heal, and each stat aggregation step"</em>, and a value-mode resolution is none
-/// of the three: it is an <em>input</em> to the first two, which round at their own step. Rounding
-/// here would be a second, earlier accumulation point the document does not authorise — the same
-/// mistake, in the same layer, that <c>EffectStackSet</c> records for the multiplicative product,
-/// where it is worth 0.0012 ATK a second on every boss.
-/// </para>
-/// <para>
-/// 🔒 <b>A mode whose SUBJECT is absent throws.</b> That is the uniform rule of this layer, stated
-/// once by <see cref="EffectContextException"/>: <em>a token whose subject is absent throws; a token
-/// whose subject is present but whose set is empty resolves to the empty set</em>. The headline case
-/// is `18` §2.2's own restriction — <c>HEAL_AMOUNT</c> and <c>OVERHEAL_AMOUNT</c> <em>"exist only
-/// inside <c>ON_HEAL</c> contexts (`05` §4.3)"</em> — where a silent zero would be byte-identical to
-/// a legitimate zero heal, because <c>Heal()</c> on a full-HP target heals exactly 0 and overheals
-/// the lot. Every message names the effect, so a failure says which rule fired (steering S2).
-/// </para>
-/// <para>
-/// ⚠️ <b>The subjects are plain numbers and M2-05's actor view, never a stat block.</b> R17 fixes the
-/// intra-<c>Rules</c> layering as <c>Rules.Combat → Rules.Stats → Rules.Effects</c> with this
-/// namespace at the bottom, so <c>ActorStats</c> is not nameable from here — and
-/// <see cref="IEffectActorView"/> deliberately carries no ATK. Hence
-/// <see cref="ValueModeSubjects.SourceAttack"/> as a <see cref="double"/>: the caller has already
-/// resolved it through `18` §8.
-/// </para>
+/// Answers one question — what amount does this value denote, given these subjects — and knows
+/// nothing about damage pipelines, ward pools or heal ceilings. Nothing here rounds: a value-mode
+/// resolution is an input to the damage/heal/stat-aggregation steps that round, not one of those
+/// steps itself, so rounding here would be an earlier, incorrect accumulation point. A mode whose
+/// subject is absent throws (a token whose subject is present but empty resolves to an empty set
+/// instead) — the headline case is <c>HEAL_AMOUNT</c>/<c>OVERHEAL_AMOUNT</c>, which only exist
+/// inside <c>ON_HEAL</c> contexts, where a silent zero would be indistinguishable from a legitimate
+/// zero heal. Subjects are plain numbers and an actor view, never a stat block, since this namespace
+/// sits below <c>Rules.Stats</c> in the layering and can't reference it.
 /// </remarks>
 internal static class ValueModeEvaluator
 {
-    /// <summary>
-    /// `18` §2.2: <em>"<c>valueMode</c>: <c>ATK_MULT</c> (default)"</em> — stated once, here.
-    /// </summary>
+    /// <summary>The default <c>valueMode</c> for damage-and-healing ops: <c>ATK_MULT</c>.</summary>
     /// <remarks>
-    /// ⚠️ <b>The default is not applied by this type.</b> §2.2 states it inside the damage-and-healing
-    /// section, and `18` says nothing about what an <em>absent</em> <c>valueMode</c> means for an op
-    /// outside it — which is why <see cref="EffectDefinition.ValueMode"/> is left <c>null</c> rather
-    /// than coerced. So the constant is offered and the op applies it:
-    /// <c>effect.ValueMode ?? ValueModeEvaluator.DamageAndHealingDefault</c>, at the §2.2 ops and
-    /// nowhere else.
+    /// The default is not applied by this type — <see cref="EffectDefinition.ValueMode"/> is left
+    /// <c>null</c> rather than coerced, and each damage/heal op applies
+    /// <c>effect.ValueMode ?? DamageAndHealingDefault</c> itself.
     /// </remarks>
     internal const ValueMode DamageAndHealingDefault = ValueMode.ATK_MULT;
 
     /// <summary>The amount <paramref name="value"/> denotes under <paramref name="mode"/>.</summary>
-    /// <param name="mode">One of `18` §2.2's eight modes.</param>
-    /// <param name="value">The effect's value, already scaled by `18` §1.1 if it carries a scale.</param>
+    /// <param name="mode">One of the eight value modes.</param>
+    /// <param name="value">The effect's value, already scaled if it carries a scale.</param>
     /// <param name="subjects">The subjects the mode reads.</param>
-    /// <param name="effectId">The effect's `18` §8 id, named in any failure (steering S2).</param>
+    /// <param name="effectId">The effect's id, named in any failure.</param>
     /// <exception cref="EffectContextException">
-    /// The bundle does not carry the mode's subject, or the mode is outside `18` §2.2's eight.
+    /// The bundle does not carry the mode's subject, or the mode is not one of the eight.
     /// </exception>
     internal static double Resolve(
         ValueMode mode, double value, ValueModeSubjects subjects, string effectId) =>
@@ -72,8 +45,8 @@ internal static class ValueModeEvaluator
                 "05 §4.2 adds that a pet ability uses the HERO's ATK, so the number is the caller's " +
                 "to resolve and there is no second reading of it here."),
 
-            // 🔒 The one mode with no subject at all. `18` §9.1's CP_GLASS_HEART is resolved at stat
-            // aggregation time, where there is no target, no attacker and no heal.
+            // The one mode with no subject at all — resolved at stat aggregation time, where there
+            // is no target, attacker or heal in context.
             ValueMode.FLAT => value,
 
             ValueMode.SELF_MAXHP_PCT => value * Actor(
@@ -113,14 +86,12 @@ internal static class ValueModeEvaluator
         };
 
     /// <summary>
-    /// 🔒 The reference both heal modes carry. `18` §2.2 and `05` §4.3 restrict them together, and
-    /// stating the restriction once means the two cannot drift apart.
+    /// The reference message both heal modes carry, stated once so the two can't drift apart.
     /// </summary>
     /// <remarks>
-    /// It cannot be a schema rule — <see cref="ValueMode"/>'s own remarks record why: the
-    /// <c>ON_HEAL</c> context can also be supplied by the wrapper an effect list sits in, since a pet
-    /// <c>active</c> block carries no trigger of its own (`18` §7.7). So it is enforced here, at
-    /// evaluation.
+    /// Can't be a schema rule: the <c>ON_HEAL</c> context can also be supplied by the wrapper an
+    /// effect list sits in, since some blocks carry no trigger of their own — so it's enforced here,
+    /// at evaluation.
     /// </remarks>
     private const string HealOnly =
         "18 §2.2: HEAL_AMOUNT and OVERHEAL_AMOUNT 'exist only inside ON_HEAL contexts (05 §4.3)'. " +
@@ -139,38 +110,25 @@ internal static class ValueModeEvaluator
             mode.ToString(), $"'{effectId}' reads the {role}'s Max HP and the context carries no {role}",
             reference);
 
-    /// <summary>
-    /// `18` §2.2's <em>"a fraction of the target's missing HP"</em>.
-    /// </summary>
+    /// <summary>A fraction of the target's missing HP.</summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Floored at zero, and the authority is `18` §4 rather than §2.2.</b> §2.2 names this mode
-    /// and types no range for it, so a bound read off §2.2 alone would be one the design has not
-    /// authorised (steering S6, and `16` R6 — which is why <see cref="ValueScale.StepsFor"/> imposes
-    /// no lower bound of its own). The bound that <em>is</em> authorised is §4's: it types
-    /// <c>SELF_MISSING_HP_PCT</c> as <c>0..1</c>, and <c>ConditionEvaluator.HpFraction</c> clamps on
-    /// exactly that authority. The DSL therefore states "missing HP" twice, once as a §4 function and
-    /// once as a §2.2 value mode, and the two must not disagree about the same actor — so this floor
-    /// is §4's clamp restated in HP units, not a second, invented bound.
-    /// </para>
-    /// <para>
-    /// The case that reaches it is the one <c>HpFraction</c> records: a Max HP <em>decrease</em> — a
-    /// buff expiring, `18` §9.1's <c>CP_GLASS_HEART</c> re-base — leaves <c>CurrentHp &gt; MaxHp</c>,
-    /// at which point unclamped "missing HP" is negative and an execute effect would <em>heal</em> its
-    /// target while <c>SELF_MISSING_HP_PCT</c>, on the same actor in the same tick, read zero.
-    /// </para>
+    /// Floored at zero, mirroring the same clamp <c>ConditionEvaluator.HpFraction</c> applies to
+    /// <c>SELF_MISSING_HP_PCT</c> — the DSL states "missing HP" twice (once as a condition function,
+    /// once as a value mode) and the two must agree about the same actor. The case that reaches it: a
+    /// Max HP decrease (e.g. a buff expiring) can leave <c>CurrentHp &gt; MaxHp</c>, where unclamped
+    /// "missing HP" would go negative and an execute effect would heal its target instead.
     /// </remarks>
     private static double MissingHp(IEffectActorView target) =>
         Math.Max(0.0, target.MaxHp - target.CurrentHp);
 }
 
 /// <summary>
-/// The subjects `18` §2.2's eight modes read — assembled by the caller, never gathered here.
+/// The subjects the eight value modes read — assembled by the caller, never gathered here.
 /// </summary>
 /// <remarks>
-/// Every member is nullable and every one is absent by default, because <em>which</em> subjects exist
-/// is what distinguishes an <c>ON_HEAL</c> cascade from a stat aggregation. A bundle that defaulted
-/// its numbers to zero would make `18` §2.2's <c>ON_HEAL</c>-only restriction unenforceable.
+/// Every member is nullable and absent by default, because which subjects exist is what
+/// distinguishes an <c>ON_HEAL</c> cascade from a stat aggregation. Defaulting the numbers to zero
+/// instead would make the <c>ON_HEAL</c>-only restriction unenforceable.
 /// </remarks>
 internal readonly record struct ValueModeSubjects
 {
@@ -183,23 +141,21 @@ internal readonly record struct ValueModeSubjects
     /// </summary>
     internal IEffectActorView? Target { get; init; }
 
-    /// <summary>
-    /// The source's final resolved ATK (`18` §8) — <c>ATK_MULT</c>'s subject.
-    /// </summary>
+    /// <summary>The source's final resolved ATK — <c>ATK_MULT</c>'s subject.</summary>
     /// <remarks>
-    /// A number rather than a reading off <see cref="Source"/>: `05` §4.2 rules that a pet ability
-    /// uses the <b>hero's</b> ATK with the pet's own CRIT, so the source actor is not always the
-    /// actor whose ATK applies. <see cref="IEffectActorView"/> carries no ATK for the same reason it
-    /// carries no cooldown — it is `18` §4/§5's view, not the stat block.
+    /// A number rather than a reading off <see cref="Source"/>: a pet ability uses the hero's ATK
+    /// with the pet's own CRIT, so the source actor isn't always the actor whose ATK applies.
+    /// <see cref="IEffectActorView"/> carries no ATK, same as it carries no cooldown — it's a
+    /// targeting/condition view, not the stat block.
     /// </remarks>
     internal double? SourceAttack { get; init; }
 
     /// <summary>The damage just dealt — <c>DAMAGE_DEALT_PCT</c>'s subject.</summary>
     internal double? DamageDealt { get; init; }
 
-    /// <summary>`05` §4.3's <c>healed</c> — <c>HEAL_AMOUNT</c>'s subject, in an <c>ON_HEAL</c> context.</summary>
+    /// <summary>The amount healed — <c>HEAL_AMOUNT</c>'s subject, in an <c>ON_HEAL</c> context.</summary>
     internal double? HealAmount { get; init; }
 
-    /// <summary>`05` §4.3's <c>overheal</c> — <c>OVERHEAL_AMOUNT</c>'s subject, likewise.</summary>
+    /// <summary>The overheal — <c>OVERHEAL_AMOUNT</c>'s subject, likewise.</summary>
     internal double? OverhealAmount { get; init; }
 }

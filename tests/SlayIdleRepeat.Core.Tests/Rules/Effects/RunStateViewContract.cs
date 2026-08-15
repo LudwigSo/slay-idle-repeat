@@ -5,20 +5,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>
-/// 🔒 The shared contract suite for <see cref="IRunStateView"/> — every implementation is run through
-/// it, including the ones M1-05 and M3 have not written yet.
+/// The shared contract suite for <see cref="IRunStateView"/> — every implementation is run through it.
 /// </summary>
 /// <remarks>
-/// 🔒 Steering S7: <em>"Add the <c>InMemory</c> fake AND the shared contract suite in the same change as
-/// the port. M0's first port shipped without its suite and its two implementations already disagreed on
-/// the exception type they threw."</em> This is not a port — it declares no I/O — but it has the
-/// property that matters: several implementations, written by people who never read each other's,
-/// months apart.
-/// <para>
-/// <b>To implement it:</b> derive a test class from this one, override <see cref="Create"/> to build
-/// your implementation at the stated readings, and the rules below run against it. Nothing may be
+/// To implement it: derive a test class from this one, override <see cref="Create"/> to build your
+/// implementation at the stated readings, and the rules below run against it. Nothing may be
 /// overridden — a rule an implementation can opt out of is not a contract.
-/// </para>
 /// </remarks>
 public abstract class RunStateViewContract
 {
@@ -26,14 +18,6 @@ public abstract class RunStateViewContract
 /// The readings a contract test asks an implementation to represent — every field of
 /// <see cref="IRunStateView"/>, stated as data.
 /// </summary>
-/// <param name="PerksByCategory">Perks held, by `06` §2 category.</param>
-/// <param name="DieFacesByKind">Die faces, by `04` §1 kind.</param>
-/// <param name="PetCount">Pets equipped.</param>
-/// <param name="GoldHeld">Gold held.</param>
-/// <param name="BattlesWonThisRun">Battles won this run.</param>
-/// <param name="StageIndex">The stage, 1..3.</param>
-/// <param name="Chapter">The chapter.</param>
-/// <param name="Tier">The tier's ordinal.</param>
     public sealed record RunStateFacts(
         IReadOnlyDictionary<string, int> PerksByCategory,
         IReadOnlyDictionary<string, int> DieFacesByKind,
@@ -44,14 +28,12 @@ public abstract class RunStateViewContract
         int Chapter,
         int Tier);
 
-    /// <summary>Builds the implementation under test at the given readings.</summary>
-    /// <remarks>
-    /// ⚠️ <c>private protected</c>, not <c>protected</c>: <see cref="IRunStateView"/> is
-    /// <c>internal</c> to <c>SlayIdleRepeat.Core</c> and reaches this assembly only through `30`
-    /// §11.3's <c>InternalsVisibleTo</c> grant, so a <c>protected</c> member of a <c>public</c> class
-    /// could not name it. Every implementation of this contract lives in this assembly, which is what
-    /// makes that the right accessibility rather than merely the one that compiles.
-    /// </remarks>
+    /// <summary>
+    /// Builds the implementation under test at the given readings. <c>private protected</c>, not
+    /// <c>protected</c>: <see cref="IRunStateView"/> is <c>internal</c> to
+    /// <c>SlayIdleRepeat.Core</c> and reaches this assembly only via an <c>InternalsVisibleTo</c>
+    /// grant, so a <c>protected</c> member of a <c>public</c> class could not name it.
+    /// </summary>
     private protected abstract IRunStateView Create(RunStateFacts facts);
 
     private static RunStateFacts Facts(
@@ -89,7 +71,7 @@ public abstract class RunStateViewContract
 
     /// <summary>
     /// <c>GOLD_HELD</c> is a <see cref="long"/>, and an implementation must carry a balance past
-    /// <see cref="int.MaxValue"/> rather than wrapping — `18` §1.1's <c>PK_HOARD</c> is uncapped.
+    /// <see cref="int.MaxValue"/> rather than wrapping — gold is uncapped.
     /// </summary>
     [Fact]
     public void Gold_beyond_the_int_range_survives()
@@ -97,7 +79,7 @@ public abstract class RunStateViewContract
         Create(Facts(gold: (long)int.MaxValue + 1_000)).GoldHeld.ShouldBe((long)int.MaxValue + 1_000);
     }
 
-    /// <summary>`18` §4 — <c>PERK_COUNT</c>: <em>"int, optionally by category"</em>.</summary>
+    /// <summary><c>PERK_COUNT</c> is an int, optionally by category.</summary>
     [Fact]
     public void PerkCount_answers_per_category_and_in_total()
     {
@@ -113,10 +95,7 @@ public abstract class RunStateViewContract
         view.PerkCount(null).ShouldBe(7, "a null category is every perk held");
     }
 
-    /// <summary>
-    /// A category the run holds no perk from is <c>0</c>, not a failure: a perk category with nothing
-    /// in it is a legitimate reading, and `PK_ARSENAL` counts exactly that.
-    /// </summary>
+    /// <summary>A category the run holds no perk from is <c>0</c>, not a failure.</summary>
     [Fact]
     public void An_unheld_category_reads_zero()
     {
@@ -126,7 +105,7 @@ public abstract class RunStateViewContract
         view.PerkCount("").ShouldBe(0);
     }
 
-    /// <summary>🔒 Categories and face kinds are matched ordinally (`14` §8.2).</summary>
+    /// <summary>Categories and face kinds are matched ordinally.</summary>
     [Fact]
     public void Category_and_face_kind_lookups_are_ordinal()
     {
@@ -140,8 +119,8 @@ public abstract class RunStateViewContract
     }
 
     /// <summary>
-    /// 🔒 <c>DISTINCT_PERK_CATEGORIES</c> agrees with <c>PERK_COUNT</c> — it counts the categories
-    /// that hold at least one perk, and a category recorded as zero is not one of them.
+    /// <c>DISTINCT_PERK_CATEGORIES</c> agrees with <c>PERK_COUNT</c> — it counts the categories that
+    /// hold at least one perk, and a category recorded as zero is not one of them.
     /// </summary>
     [Fact]
     public void DistinctPerkCategories_counts_only_categories_that_hold_a_perk()
@@ -172,7 +151,7 @@ public abstract class RunStateViewContract
         view.BattlesWonThisRun.ShouldBe(0);
     }
 
-    /// <summary>`18` §4 — <c>DIE_FACE_COUNT</c>: <em>"int, by face kind"</em>.</summary>
+    /// <summary><c>DIE_FACE_COUNT</c> is an int, by face kind.</summary>
     [Fact]
     public void DieFaceCount_answers_per_face_kind()
     {
@@ -188,14 +167,9 @@ public abstract class RunStateViewContract
     }
 
     /// <summary>
-    /// 🔒 A null face kind is a caller error, not a reading. <c>PERK_COUNT</c>'s category is
-    /// <em>optional</em> per `18` §4 and null means "every perk"; <c>DIE_FACE_COUNT</c>'s is not, so
-    /// the two must not answer alike.
+    /// A null face kind is a caller error, not a reading. <c>PERK_COUNT</c>'s category is optional and
+    /// null means "every perk"; <c>DIE_FACE_COUNT</c>'s is not, so the two must not answer alike.
     /// </summary>
-    /// <remarks>
-    /// The exception type is part of the contract — S7's cautionary tale is precisely two
-    /// implementations of one port that disagreed on which one they threw.
-    /// </remarks>
     [Fact]
     public void DieFaceCount_of_a_null_face_kind_throws_ArgumentNullException()
     {
@@ -203,14 +177,10 @@ public abstract class RunStateViewContract
     }
 
     /// <summary>
-    /// 🔒 The view is a reading, not a live handle: asking twice gives the same answer, and nothing
-    /// on it mutates anything.
+    /// The view is a reading, not a live handle: asking twice gives the same answer, and nothing on it
+    /// mutates anything. Run-state functions are only pure functions of current state if that state
+    /// does not move under the evaluator between two reads of one pass.
     /// </summary>
-    /// <remarks>
-    /// This is what <c>ConditionPurityRuleTests</c> enforces on the evaluator's side; here it is
-    /// enforced on the implementation's, because `18` §4's <em>"pure functions of current state"</em>
-    /// is only true if the state does not move under the evaluator between two reads of one pass.
-    /// </remarks>
     [Fact]
     public void Reading_the_view_twice_gives_the_same_answer()
     {
@@ -236,8 +206,8 @@ public abstract class RunStateViewContract
     }
 
     /// <summary>
-    /// 🔒 The interface exposes no way to write. Asserted by reflection rather than by reading it,
-    /// because the whole value of a read-only view is that no later member quietly adds a setter.
+    /// The interface exposes no way to write. Asserted by reflection rather than by reading it, because
+    /// the whole value of a read-only view is that no later member quietly adds a setter.
     /// </summary>
     [Fact]
     public void The_interface_declares_no_mutating_member()
@@ -250,7 +220,7 @@ public abstract class RunStateViewContract
 
         offenders.ShouldBeEmpty();
 
-        // 🔒 Floored, or the assertion above passes forever over an emptied interface (steering S3).
+        // Floored, or the assertion above passes forever over an emptied interface.
         typeof(IRunStateView).GetMethods().Length.ShouldBe(
             9,
             "18 §4 has nine run-state functions: PERK_COUNT, DISTINCT_PERK_CATEGORIES, PET_COUNT, " +

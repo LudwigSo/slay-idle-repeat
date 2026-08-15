@@ -1,10 +1,8 @@
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
-/// <summary>
-/// The representative snapshot-shaped records the `14` §16.6 suite is written against.
-/// </summary>
+/// <summary>The representative snapshot-shaped records the canonical-encoding suite is written against.</summary>
 /// <remarks>
-/// 🔒 These live in the <b>test</b> project on purpose: the real DTOs need the aggregates' real fields,
+/// These live in the <b>test</b> project on purpose: the real DTOs need the aggregates' real fields,
 /// and inventing them here would be a design decision made in the wrong milestone.
 /// <c>CanonicalStateWriter</c> is specified against the <i>encoding rules</i>, not two particular types.
 /// <para>
@@ -99,7 +97,7 @@ internal static class ReferenceSnapshots
         [2L] = "two",
     };
 
-    /// <summary>Every scalar rule of the §16.6 table, in one record.</summary>
+    /// <summary>Every scalar encoding rule, in one record.</summary>
     internal static ScalarsSnapshot Scalars { get; } = new(
         SchemaVersion: 1,
         Flag: true,
@@ -129,34 +127,25 @@ internal static class ReferenceSnapshots
 /// <summary>An <c>int</c>-backed enum, the ordinary case.</summary>
 internal enum Element
 {
-    /// <summary>Zero.</summary>
     None = 0,
-
-    /// <summary>Seven.</summary>
     Frost = 7,
 }
 
 /// <summary>An <c>sbyte</c>-backed enum with a negative member, so sign extension is exercised.</summary>
 internal enum Rarity : sbyte
 {
-    /// <summary>Minus three.</summary>
     Cursed = -3,
-
-    /// <summary>One.</summary>
     Common = 1,
 }
 
 /// <summary>A <c>ulong</c>-backed enum holding a value no <c>long</c> can, so widening is exercised.</summary>
 internal enum BigFlag : ulong
 {
-    /// <summary>Zero.</summary>
     None = 0,
-
-    /// <summary>Every bit set.</summary>
     All = ulong.MaxValue,
 }
 
-/// <summary>Every scalar rule of `14` §16.6, in declaration order.</summary>
+/// <summary>Every scalar encoding rule, in declaration order.</summary>
 internal sealed record ScalarsSnapshot(
     int SchemaVersion,
     bool Flag,

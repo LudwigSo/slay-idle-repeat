@@ -5,31 +5,23 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
-/// <summary>
-/// 🔒 The shared contract suite for <see cref="IRunTriggerCounters"/> — every implementation is run
-/// through it, including the ones M1-05 and M3 have not written yet.
-/// </summary>
+/// <summary>The shared contract suite for <see cref="IRunTriggerCounters"/> — every implementation is run through it.</summary>
 /// <remarks>
-/// 🔒 Steering S7, as <c>RunStateViewContract</c> one directory over: not a port, but several
-/// implementations written months apart by people who never read each other's.
-/// <para>
 /// <b>To implement it:</b> derive a test class from this one and override <see cref="Create"/>. Nothing
 /// may be overridden — a rule an implementation can opt out of is not a contract.
-/// </para>
 /// </remarks>
 public abstract class RunTriggerCountersContract
 {
     /// <summary>Builds an empty implementation — a run that has counted nothing yet.</summary>
     /// <remarks>
-    /// <c>private protected</c> for <c>RunStateViewContract</c>'s reason: the interface is
-    /// <c>internal</c> to <c>SlayIdleRepeat.Core</c> and reaches this assembly only through `30`
-    /// §11.3's <c>InternalsVisibleTo</c> grant, so a <c>protected</c> member of a <c>public</c> class
-    /// could not name it.
+    /// <c>private protected</c> because the interface is <c>internal</c> to <c>SlayIdleRepeat.Core</c>
+    /// and reaches this assembly only through an <c>InternalsVisibleTo</c> grant, so a
+    /// <c>protected</c> member of a <c>public</c> class could not name it.
     /// </remarks>
     private protected abstract IRunTriggerCounters Create();
 
     /// <summary>
-    /// 🔒 An instance the run has never counted reads <c>0</c>. A run that has killed nothing with
+    /// An instance the run has never counted reads <c>0</c>. A run that has killed nothing with
     /// <c>PK_MIDAS</c> has a count of zero, which is a reading and not an error.
     /// </summary>
     [Fact]
@@ -63,10 +55,7 @@ public abstract class RunTriggerCountersContract
         counters.Read(midas).ShouldBe(6);
     }
 
-    /// <summary>
-    /// 🔒 <b>Two instances are two counters</b> — the per-instance rule of `18` §3, restated on the
-    /// seam so an implementation cannot collapse them.
-    /// </summary>
+    /// <summary>Two instances are two counters — the per-instance rule restated on the seam so an implementation cannot collapse them.</summary>
     [Fact]
     public void Two_instances_hold_two_counters()
     {
@@ -81,7 +70,7 @@ public abstract class RunTriggerCountersContract
         counters.Read(second).ShouldBe(1);
     }
 
-    /// <summary>🔒 Ids are matched <b>ordinally</b> (`18` §8, `14` §8.2), like every id here.</summary>
+    /// <summary>Ids are matched ordinally, like every id here.</summary>
     [Fact]
     public void Instance_ids_are_matched_ordinally()
     {
@@ -95,7 +84,7 @@ public abstract class RunTriggerCountersContract
     }
 
     /// <summary>
-    /// 🔒 Zero is a writable count. A run that has just fired <c>PK_MIDAS</c> and reset its cycle is
+    /// Zero is a writable count. A run that has just fired <c>PK_MIDAS</c> and reset its cycle is
     /// a real state, and an implementation that treated zero as "delete the key" would still have to
     /// read it back as zero.
     /// </summary>
@@ -111,11 +100,7 @@ public abstract class RunTriggerCountersContract
         counters.Read(midas).ShouldBe(0);
     }
 
-    /// <summary>
-    /// 🔒 A negative count is refused, and the exception type is part of the contract — S7's
-    /// cautionary tale is exactly two implementations of one seam that disagreed on which one they
-    /// threw.
-    /// </summary>
+    /// <summary>A negative count is refused, and the exception type is part of the contract.</summary>
     [Fact]
     public void A_negative_count_throws_ArgumentOutOfRangeException()
     {
@@ -123,15 +108,12 @@ public abstract class RunTriggerCountersContract
             () => Create().Write(EffectInstanceId.Of("HERO#0/PK_MIDAS_T1"), -1));
     }
 
-    /// <summary>
-    /// 🔒 An id that names no holding is refused on <b>both</b> members — <c>default</c>, empty and
-    /// whitespace alike.
-    /// </summary>
+    /// <summary>An id that names no holding is refused on both members — <c>default</c>, empty and whitespace alike.</summary>
     /// <remarks>
-    /// ⚠️ <c>EffectInstanceId.Of</c> refuses all three, but a <c>record struct</c>'s generated
+    /// <c>EffectInstanceId.Of</c> refuses all three, but a <c>record struct</c>'s generated
     /// constructor is public and <c>default</c> bypasses it — so these arrive here whatever
     /// <c>Of</c> does. Two <c>new EffectInstanceId("")</c> instances sharing one run counter is the
-    /// per-instance rule of `18` §3 failing in the direction that looks like it works.
+    /// per-instance rule failing in the direction that looks like it works.
     /// </remarks>
     [Theory]
     [InlineData(null)]
@@ -145,23 +127,19 @@ public abstract class RunTriggerCountersContract
         Should.Throw<ArgumentException>(() => Create().Read(id));
     }
 
-    /// <summary>
-    /// 🔒 What M3 persists comes out in ascending <b>ordinal</b> id order, not in the order the hero
-    /// happened to kill things.
-    /// </summary>
+    /// <summary>What gets persisted comes out in ascending ordinal id order, not in the order the hero happened to kill things.</summary>
     /// <remarks>
     /// <para>
-    /// A dictionary's enumeration order is an implementation detail of the runtime, and `14` §8.2
-    /// hashes the run snapshot on x64 and ARM64 and compares. Ordering here is what stops the same
-    /// run hashing differently on two devices, which is why it is on the <b>contract</b> and not on
-    /// one implementation.
+    /// A dictionary's enumeration order is an implementation detail of the runtime, and the run
+    /// snapshot is hashed on x64 and ARM64 and compared. Ordering here is what stops the same run
+    /// hashing differently on two devices, which is why it is on the contract and not on one
+    /// implementation.
     /// </para>
     /// <para>
-    /// ⚠️ Two things this is written to be able to fail on. The <b>keys</b> are asserted, not the
-    /// counts, and the counts deliberately do <em>not</em> co-vary with the id order — an earlier
-    /// draft assigned 1/2/3 in id order and asserted the values, so ordering by the count would have
-    /// passed identically. And the ids differ by <b>case</b>: <c>'A' (U+0041)</c> sorts before
-    /// <c>'a' (U+0061)</c> ordinally and <em>after</em> it under most culture-aware collations, so a
+    /// The keys are asserted, not the counts, and the counts deliberately do not co-vary with the id
+    /// order — an earlier draft assigned 1/2/3 in id order and asserted the values, so ordering by the
+    /// count would have passed identically. And the ids differ by case: <c>'A' (U+0041)</c> sorts
+    /// before <c>'a' (U+0061)</c> ordinally and after it under most culture-aware collations, so a
     /// culture-sensitive comparer fails here rather than in production on somebody's phone.
     /// </para>
     /// </remarks>
@@ -195,15 +173,11 @@ public abstract class RunTriggerCountersContract
         Create().Entries.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 The seam declares exactly one read, one write and one enumeration, and nothing else.
-    /// Floored, or the claim passes forever over an emptied interface (steering S3).
-    /// </summary>
+    /// <summary>The seam declares exactly one read, one write and one enumeration, and nothing else. Floored, or the claim passes forever over an emptied interface.</summary>
     /// <remarks>
-    /// 🔒 <c>Entries</c> is on the <b>interface</b> and not only on the implementation, because
-    /// without it the seam does not close: the pairs M3 has to snapshot would be reachable only
-    /// through the concrete type, so M3 would abandon the interface and the contract would buy
-    /// nothing.
+    /// <c>Entries</c> is on the interface and not only on the implementation, because without it the
+    /// seam does not close: the snapshot pairs would be reachable only through the concrete type, and
+    /// the contract would buy nothing.
     /// </remarks>
     [Fact]
     public void The_seam_declares_one_read_one_write_and_one_enumeration()

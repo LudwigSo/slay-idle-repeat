@@ -6,36 +6,30 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>
-/// 🔒 The shared contract suite for <see cref="IEffectSource"/> — `18` §8 step 1's source abstraction.
-/// Every implementation is run through it, including the ten M3 and M4 have not written yet.
+/// The shared contract suite for <see cref="IEffectSource"/> — the source abstraction feeding effect
+/// collection. Every implementation is run through it.
 /// </summary>
 /// <remarks>
-/// 🔒 Steering S7 — the fake is <c>ListEffectSource</c> and this is the suite. Not a port, but it has
-/// the property S7 exists for: <b>ten</b> implementations, seven milestones, months apart, by people
-/// who never read each other's.
+/// To implement it: derive a test class from this one and override <see cref="Create"/> to build your
+/// implementation carrying the given effects in the given order. Nothing may be overridden — a rule an
+/// implementation can opt out of is not a contract.
 /// <para>
-/// <b>To implement it:</b> derive a test class from this one and override <see cref="Create"/> to build
-/// your implementation carrying the given effects in the given order. Nothing may be overridden — a
-/// rule an implementation can opt out of is not a contract.
-/// </para>
-/// <para>
-/// ⚠️ <b>What this suite cannot check.</b> The load-bearing half of the obligation is that
-/// <see cref="IEffectSource.Effects"/> is ordered by a function of the <em>build</em> and is therefore
-/// identical on a phone and in a container, because that order is
-/// <see cref="EffectResolutionOrder"/>'s tiebreak. A suite in one process can prove the order is
-/// <b>stable</b> and not that it is <b>device-independent</b> — an implementation enumerating a
-/// <see cref="HashSet{T}"/> would pass everything here and still put the divergence back.
+/// What this suite cannot check: the load-bearing half of the obligation is that
+/// <see cref="IEffectSource.Effects"/> is ordered by a function of the build and is therefore identical
+/// on a phone and in a container, because that order is <see cref="EffectResolutionOrder"/>'s tiebreak.
+/// A suite in one process can prove the order is stable, not that it is device-independent — an
+/// implementation enumerating a <see cref="HashSet{T}"/> would pass everything here and still put the
+/// divergence back.
 /// </para>
 /// </remarks>
 public abstract class EffectSourceContract
 {
-    /// <summary>Builds the implementation under test, carrying the given effects in the given order.</summary>
-    /// <remarks>
-    /// ⚠️ <c>private protected</c>, not <c>protected</c>: <see cref="IEffectSource"/> is
-    /// <c>internal</c> to <c>SlayIdleRepeat.Core</c> and reaches this assembly through `30` §11.3's
-    /// <c>InternalsVisibleTo</c> grant, so a <c>protected</c> member of a <c>public</c> class could
-    /// not name it. <c>RunStateViewContract</c> is the precedent.
-    /// </remarks>
+    /// <summary>
+    /// Builds the implementation under test, carrying the given effects in the given order.
+    /// <c>private protected</c>, not <c>protected</c>: <see cref="IEffectSource"/> is <c>internal</c>
+    /// to <c>SlayIdleRepeat.Core</c> and reaches this assembly only via an <c>InternalsVisibleTo</c>
+    /// grant, so a <c>protected</c> member of a <c>public</c> class could not name it.
+    /// </summary>
     private protected abstract IEffectSource Create(
         EffectSourceKind kind, IReadOnlyList<SourcedEffect> effects);
 
@@ -69,8 +63,8 @@ public abstract class EffectSourceContract
     }
 
     /// <summary>
-    /// 🔒 The effects come back in the order they went in. `18` §8 step 1 collects; it does not sort,
-    /// and <see cref="EffectResolutionOrder"/>'s tiebreak is this index.
+    /// The effects come back in the order they went in. Collection does not sort, and
+    /// <see cref="EffectResolutionOrder"/>'s tiebreak is this index.
     /// </summary>
     [Fact]
     public void The_effects_are_reported_in_the_order_given()
@@ -84,8 +78,8 @@ public abstract class EffectSourceContract
     }
 
     /// <summary>
-    /// 🔒 Reading twice gives the same order. A source is a reading of the build, not a live query,
-    /// and step 1 and step 2 of one resolution pass must see one answer.
+    /// Reading twice gives the same order. A source is a reading of the build, not a live query, and
+    /// both passes of one resolution must see one answer.
     /// </summary>
     [Fact]
     public void Reading_the_effects_twice_gives_the_same_order()
@@ -101,10 +95,7 @@ public abstract class EffectSourceContract
         first.ShouldBe(new[] { "PK_C", "PK_A", "PK_B", "PK_A" });
     }
 
-    /// <summary>
-    /// 🔒 A source with nothing to contribute reports an <b>empty</b> list, never <c>null</c>. Every
-    /// one of the ten is in exactly this state for the whole of M2 unless a caller fills it.
-    /// </summary>
+    /// <summary>A source with nothing to contribute reports an empty list, never <c>null</c>.</summary>
     [Fact]
     public void A_source_with_nothing_to_contribute_reports_an_empty_list()
     {
@@ -115,8 +106,8 @@ public abstract class EffectSourceContract
     }
 
     /// <summary>
-    /// 🔒 The same authored id twice is <b>kept</b> twice — the same affix on two gear slots is two
-    /// bonuses, and de-duplicating would silently halve a legitimate build.
+    /// The same authored id twice is kept twice — the same affix on two gear slots is two bonuses, and
+    /// de-duplicating would silently halve a legitimate build.
     /// </summary>
     [Fact]
     public void Two_effects_with_one_id_are_both_reported()
@@ -128,9 +119,9 @@ public abstract class EffectSourceContract
     }
 
     /// <summary>
-    /// 🔒 <b>Every reported effect names a holding.</b> <c>EffectInstanceId</c> is the effects layer's
-    /// one instance identity and this layer may never derive it — a source that left it blank would
-    /// give every instance one shared `18` §3 counter.
+    /// Every reported effect names a holding. <c>EffectInstanceId</c> is the effects layer's one
+    /// instance identity and this layer may never derive it — a source that left it blank would give
+    /// every instance one shared trigger counter.
     /// </summary>
     [Fact]
     public void Every_reported_effect_names_a_holding()
@@ -145,17 +136,16 @@ public abstract class EffectSourceContract
 
         unnamed.ShouldBeEmpty();
 
-        // 🔒 Floored: ShouldBeEmpty passes on an empty collection, so an implementation reporting
-        //    nothing at all would satisfy the assertion above (steering S3).
+        // Floored: ShouldBeEmpty passes on an empty collection, so an implementation reporting
+        // nothing at all would satisfy the assertion above.
         source.Effects.Count.ShouldBe(3);
     }
 
     /// <summary>
-    /// 🔒 <b>Two copies of one authored effect are two DIFFERENT holdings.</b> This is the rule
-    /// <c>EffectInstanceId</c> exists for: <c>TriggerRegistry.Register</c> refuses a duplicate, and a
-    /// source that keyed both copies on the effect id would give <c>PK_FLURRY</c> one shared counter
-    /// — firing on every 5th attack instead of every 5th <em>per copy</em>, which produces a
-    /// legal-looking fight and is wrong in the only number that matters.
+    /// Two copies of one authored effect are two different holdings. <c>TriggerRegistry.Register</c>
+    /// refuses a duplicate, and a source that keyed both copies on the effect id would give
+    /// <c>PK_FLURRY</c> one shared counter — firing on every 5th attack instead of every 5th per copy,
+    /// which produces a legal-looking fight and is wrong in the only number that matters.
     /// </summary>
     [Fact]
     public void Two_copies_of_one_effect_are_two_distinct_holdings()
@@ -168,8 +158,8 @@ public abstract class EffectSourceContract
     }
 
     /// <summary>
-    /// 🔒 The source does not alias a list the caller can still mutate. A build read at step 1 that
-    /// changed before step 2 is the order-dependence `18` §8 exists to remove, one layer down.
+    /// The source does not alias a list the caller can still mutate. A build read at collection that
+    /// changed before gating is the order-dependence the resolution pipeline exists to remove.
     /// </summary>
     [Fact]
     public void Mutating_the_list_that_was_passed_in_does_not_change_the_source()
@@ -184,8 +174,8 @@ public abstract class EffectSourceContract
     }
 
     /// <summary>
-    /// 🔒 The interface exposes no way to write, and is floored at its two members — a view that
-    /// grew a mutator, or shrank to nothing, would take the assertion above with it (steering S3).
+    /// The interface exposes no way to write, and is floored at its two members — a view that grew a
+    /// mutator, or shrank to nothing, would take the assertion above with it.
     /// </summary>
     [Fact]
     public void The_interface_declares_no_mutating_member()
@@ -216,8 +206,8 @@ public sealed class ListEffectSourceContractTests : EffectSourceContract
         new ListEffectSource(kind, effects);
 
     /// <summary>
-    /// 🔒 A <c>null</c> in the list is refused at construction, naming the position. The resolution
-    /// order is stated over ids and a hole has none.
+    /// A <c>null</c> in the list is refused at construction, naming the position. The resolution order
+    /// is stated over ids and a hole has none.
     /// </summary>
     [Fact]
     public void A_null_effect_is_refused_at_construction()
@@ -226,12 +216,11 @@ public sealed class ListEffectSourceContractTests : EffectSourceContract
             () => new ListEffectSource(
                 EffectSourceKind.GEAR, new[] { Held(Effect("AFF_A")), new SourcedEffect(null!, EffectInstanceId.Of("x")) }));
 
-        // S2 — the index is the identity: "something was null" would not say which slot.
         thrown.Message.ShouldContain("element 1", Case.Sensitive);
     }
 
     /// <summary>
-    /// 🔒 A kind outside `18` §8 step 1's ten is refused: it has no position in the source order, so
+    /// A kind outside the declared ten is refused: it has no position in the source order, so
     /// <see cref="EffectResolutionOrder"/>'s tiebreak would be undefined for it.
     /// </summary>
     [Fact]

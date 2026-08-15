@@ -11,16 +11,10 @@ namespace SlayIdleRepeat.AssetPlaceholders.Tests;
 /// One real run of the whole thing, over a deliberately diverse ten-row sample.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The sample covers all eight `15` §C delivery sizes the register holds, both §C pivots,
-/// biome-scoped and not, and atlased and not. Ten rows is enough to reach every branch and small
-/// enough to keep a unit suite fast; ⚠️ <b>the full ~641-row batch is a CLI run, not a test.</b>
-/// </para>
-/// <para>
-/// 🔒 The run is shared through a class fixture. It draws ten placeholders on canvases up to
-/// 2048×2048 and drives every one through all seven `15` §B4 steps — doing that once per case would
-/// make this suite the slowest in the repository for no extra coverage.
-/// </para>
+/// The sample covers every delivery size the register holds, both pivots, biome-scoped and not,
+/// atlased and not — enough to reach every branch while staying fast; the full ~641-row batch is a
+/// CLI run, not a test. Shared through a class fixture so the seven-step pipeline runs once per
+/// asset rather than once per case.
 /// </remarks>
 public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<SampleBatch>
 {
@@ -31,10 +25,9 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     {
         var rows = SampleRows.Generatable.Select(SampleRows.Require).ToArray();
 
-        // 🔒 S3 over the SAMPLE, not over the register. Eight batch cases and four renderer cases
-        // quantify over SampleRows.Generatable, so it is this suite's entire subject set — and a row
-        // quietly dropped from it narrows twelve assertions at once while every one stays green.
-        // Every claim in SampleRows' own remarks is asserted here rather than described there.
+        // Floored over the SAMPLE, not the register: several cases quantify over
+        // SampleRows.Generatable, so a row quietly dropped from it would narrow many assertions
+        // while every one stayed green.
         rows.Select(row => row.RequireDeliverySize()).Distinct().Count().ShouldBe(8);
         rows.Select(row => row.Pivot)
             .Distinct()
@@ -61,8 +54,7 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void Nothing_failed()
     {
-        // 🔒 S3 floor. "Nothing failed" over a run that attempted nothing is vacuously true, and a
-        // typo in one SampleRows id produces exactly that.
+        // Floored: "nothing failed" over a run that attempted nothing is vacuously true.
         report.Accounted.ShouldBe(SampleRows.Generatable.Count + SampleRows.Skippable.Count);
 
         report.Failed.ShouldBeEmpty(
@@ -79,8 +71,7 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
 
             skip.ShouldNotBeNull($"'{id}' should have been skipped and was not.");
 
-            // 🔒 Steering S2: which refusal fired, not merely that one did. O30 needs the three
-            // counts separately at M11-01, and 95 rows carry neither a size nor a pivot.
+            // Which refusal fired matters, not merely that one did — the three counts are needed separately.
             skip.Reason.ShouldBe(reason);
         }
     }
@@ -115,14 +106,9 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void The_register_totals_the_report_reconciles_against_are_the_registers_own()
     {
-        // 🔒 The register holds 974 art rows and 106 audio ones — 1,080 ids in all, of which 1,048
-        // are uncut. Audio is out of scope for M8-10 (no licence, no capability), so the universe
-        // here is the 942 uncut ART rows. The report carries both totals so that arithmetic is
-        // checkable rather than remembered.
-        //
-        // 🔒 S3 floor first. Every equality below reads both sides off the same loaded register, so
-        // 0 == 0 satisfies all of them — which is exactly what a reader that silently returned no
-        // rows would produce. The two counts are measured against the committed files, 2026-08-14.
+        // Both raw totals are carried so the arithmetic is checkable rather than remembered. Every
+        // equality below reads both sides off the same loaded register, so a reader that silently
+        // returned zero rows would satisfy 0 == 0 for all of them.
         PlaceholderFiles.Shipped.Art.Assets.Count.ShouldBe(974);
         PlaceholderFiles.Shipped.Audio.Assets.Count.ShouldBe(106);
 
@@ -135,9 +121,8 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void No_placeholder_fails_doc_15_Part_F_item_7_or_item_10()
     {
-        // 🔒 The two fully mechanical items, and the only two this generator entirely controls: the
-        // canvas it draws, the pivot it centres against, the name it writes, the atlas it packs
-        // into. A failure here is a defect in this tool.
+        // The two fully mechanical items — canvas, pivot, name, atlas — are the only ones this
+        // generator entirely controls, so a failure here is a defect in this tool.
         PlaceholderBatchReport.MechanicalItems.ShouldBe([7, 10], ignoreOrder: true);
 
         report.MechanicalFailures.ShouldBeEmpty(
@@ -158,11 +143,9 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void The_batch_is_blocked_by_uncalibrated_thresholds_and_cannot_be_better_than_that()
     {
-        // 🔒 This is the honest ceiling and it is not a defect. Five of `15` Part F's eleven items
-        // are Human and can only return HumanGapOnly; four more read cutoffs that ship null and
-        // return Uncalibrated. Uncalibrated outranks HumanGapOnly in QaBatchResult's own precedence,
-        // so a full eleven-item run over the shipped register tops out here — not at
-        // AwaitingHumanReview, and never at Accepted.
+        // This is the honest ceiling, not a defect: five of eleven QA items are Human-only and
+        // four more read cutoffs that ship null, so a full run tops out at Uncalibrated — never at
+        // AwaitingHumanReview or Accepted.
         report.Decision.ShouldBe(QaDecision.BlockedByUncalibratedThreshold);
 
         var checklist = new QaChecklist();
@@ -174,9 +157,9 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void The_run_declares_its_one_knowing_departure_from_doc_15()
     {
-        // 🔒 `15` §A3 forbids text in a generated image and Part F item 8 forbids it again; every
-        // placeholder carries its id. Part F will not report that — item 8 is a Human item and
-        // returns HumanGapOnly on every asset — so the batch report is the only place it appears.
+        // Every placeholder carries its id as text, a known departure from the no-text-in-art rule.
+        // Item 8 grades that as Human on every asset, so the batch report is the only place this
+        // departure is ever surfaced.
         report.Departures.Select(departure => departure.Id).ShouldBe(["DEP_A3_ID_STAMP"]);
         report.Departures[0].DocReference.ShouldBe("15 §A3, Part F item 8");
 
@@ -194,8 +177,7 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void Every_placeholder_in_the_sample_carries_its_id_stamp()
     {
-        // Floored: Unstamped is empty over an empty batch too, and the renderer draws no stamp at
-        // all when the card is too small to carry one legibly.
+        // Floored: Unstamped is empty over an empty batch too, and a too-small card gets no stamp at all.
         report.Generated.Count.ShouldBe(SampleRows.Generatable.Count);
         report.Unstamped.ShouldBeEmpty(
             "a placeholder exists so a missing asset is self-identifying on screen, and an " +
@@ -205,11 +187,9 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void The_gate_is_handed_the_shipped_register_and_a_caller_cannot_substitute_another()
     {
-        // 🔒 S6. Three of the nine processing values ForPipeline states — the outline colour
-        // tolerance, the palette match tolerance and the neutral list — are also read by Part F
-        // items 3 and 5. Handing the gate the pipeline's set would grade those two items against
-        // the generator's own working numbers, so PlaceholderBatchOptions takes the register's JSON
-        // and builds the set itself: there is no parameter to pass a different one through.
+        // Three of the nine values ForPipeline states are also read by the QA gate. Handing the gate
+        // the pipeline's own set would let it grade against the generator's working numbers, so
+        // PlaceholderBatchOptions always builds the QA set from the register's JSON itself.
         var options = new PlaceholderBatchOptions(
             batch.Directory, "0123456789abcdef0123456789abcdef01234567", PlaceholderFiles.ThresholdsJson());
 
@@ -225,9 +205,8 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
             .Where(outcome => outcome.ItemNumber == 1)
             .ToArray();
 
-        // 🔒 Floored before the Distinct(). Item 1 is graded once per generated placeholder, so
-        // nine of the ten silently losing it would leave a single Uncalibrated verdict behind and
-        // satisfy an assertion whose name says "every asset".
+        // Floored before Distinct(): losing nine of the ten silently would still leave one
+        // Uncalibrated verdict, satisfying an assertion named "every asset".
         outcomes.Length.ShouldBe(SampleRows.Generatable.Count);
         outcomes.Select(outcome => outcome.Verdict).Distinct().ShouldBe([QaVerdict.Uncalibrated]);
     }
@@ -247,18 +226,14 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
     [Fact]
     public void No_asset_reports_the_delivery_aspect_contradiction()
     {
-        // 🔒 The whole point of the CON_DELIVERY_ASPECT ruling. Generating on the delivery aspect
-        // makes step 5's resample uniform, so the contradiction M8-06 declared against a square
-        // canvas never fires — including for the 512×384 mount in the sample, which is the row it
-        // was declared about.
-        // 🔒 S3 floor: ShouldNotContain over an empty dictionary is vacuous, and an empty
-        // Contradictions is the shape of a run that tallied none at all. Step 7 emits the page-cap
-        // contradiction on every pack, so its presence proves the tally is live.
+        // Generating on the delivery aspect keeps step 5's resample uniform, so the aspect
+        // contradiction never fires — including for the 512×384 mount here.
+        // Floored: ShouldNotContain over an empty dictionary is vacuous, so the page-cap
+        // contradiction's presence proves the tally is actually live.
         report.Contradictions.Keys.ShouldContain(AtlasPackStep.PageCapContradictionId);
         report.Contradictions.Keys.ShouldNotContain(ResizeStep.DeliveryAspectContradictionId);
 
-        // 🔒 And the row the ruling was declared about really was in this run. Asserting only that
-        // the register still says 512×384 proves nothing about what was generated.
+        // And the row the ruling was declared about really was in this run.
         report.Generated.Select(placeholder => placeholder.AssetId).ShouldContain(SampleRows.Mount);
         SampleRows.Require(SampleRows.Mount).DeliverySize.ShouldBe(new PixelSize(512, 384));
     }
@@ -281,7 +256,7 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
                 .ShouldBe(expected);
         }
 
-        // 🔒 The one row `15` §D2 assigns no atlas is packed into nothing, and still passes item 10.
+        // The one row with no atlas assignment is packed into nothing, and still passes item 10.
         report.Atlases.ShouldNotContain(pack => pack.Placements.Any(p => p.AssetId == SampleRows.TileIcon));
         SampleRows.Require(SampleRows.TileIcon).Atlas.ShouldBeNull();
     }
@@ -302,13 +277,13 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
 
             new FileInfo(image).Length.ShouldBe(placeholder.EncodedBytes);
 
-            // Read back through M8-01a's own reader, so a record this tool wrote that its own
-            // store cannot parse fails here rather than in a gate run months later.
+            // Read back through the real reader, so a record this tool wrote but can't parse itself
+            // fails here rather than in a gate run months later.
             ProvenanceStore.ReadRecord(File.ReadAllText(provenance), placeholder.AssetId)
                 .Kind.ShouldBe(ProceduralProvenance.KindName);
         }
 
-        // 🔒 Nothing leaked into the store the provenance gate reads.
+        // Nothing leaked into the store the provenance gate reads.
         Directory.Exists(Path.Combine(
                 PlaceholderFiles.RepositoryRoot,
                 ProvenanceStore.StoreDirectory.Replace('/', Path.DirectorySeparatorChar),
@@ -349,7 +324,6 @@ public sealed class SampleBatch : IDisposable
 {
     private readonly ScratchDirectory scratch = PlaceholderFiles.Scratch("sample-batch");
 
-    /// <summary>Draws the sample.</summary>
     public SampleBatch()
     {
         var considered = SampleRows.Generatable

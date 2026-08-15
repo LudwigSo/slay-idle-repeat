@@ -5,30 +5,24 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 `14` §8.1's <b>meta</b> draw regime: <em>"draw <c>i</c> is <c>Hash64(CommandSeed, s, i)</c> with
-/// <c>i</c> starting at 0 for each command and <b>no persisted counter</b>."</em>
+/// The meta draw regime: draw <c>i</c> is <c>Hash64(CommandSeed, s, i)</c> with <c>i</c> starting
+/// at 0 for each command and no persisted counter.
 /// </summary>
 /// <remarks>
-/// 🔒 Every claim is checked against <c>Hash64.Of</c> directly rather than a recorded value: a table
-/// generated from the scope itself would prove only that it agrees with itself.
-/// <para>
-/// ⚠️ The stream names are <c>drops</c> and <c>board</c> deliberately — the registry has no row for a
-/// quest or Daily-shop draw, and a container open is a ⚄ meta command that draws gear, so nothing here
-/// invents a name. The rows M4-09 will need are a `14` §8.1 amendment, which is why
-/// <see cref="An_unregistered_stream_is_refused"/> asserts the refusal rather than working around it.
-/// </para>
+/// Every claim is checked against <c>Hash64.Of</c> directly rather than a recorded value: a table
+/// generated from the scope itself would prove only that it agrees with itself. The stream names
+/// are <c>drops</c> and <c>board</c> deliberately — the registry has no row for a quest or
+/// daily-shop draw yet, so nothing here invents one.
 /// </remarks>
 public sealed class MetaDrawScopeTests
 {
     private const ulong Seed = 0x0123_4567_89AB_CDEFUL;
 
-    /// <summary>🔒 Draw 0 of a stream is exactly <c>Hash64(CommandSeed, s, 0)</c>.</summary>
-    /// <remarks>
-    /// <c>NextUInt</c> is the top 32 bits of the draw (`14` §8's <c>DeterministicRng</c>), so the
-    /// expectation is written that way rather than compared against the raw 64-bit hash — restating
-    /// the projection is what makes this a test of the <em>seed and index</em> rather than of the
-    /// projection.
-    /// </remarks>
+    /// <summary>
+    /// Draw 0 of a stream is exactly <c>Hash64(CommandSeed, s, 0)</c>. <c>NextUInt</c> is the top
+    /// 32 bits of the draw, so the expectation is written that way rather than against the raw
+    /// 64-bit hash.
+    /// </summary>
     [Fact]
     public void Draw_zero_is_the_hash_of_the_seed_the_stream_and_zero()
     {
@@ -39,13 +33,11 @@ public sealed class MetaDrawScopeTests
             "14 §8.1: draw i is Hash64(CommandSeed, s, i), and i starts at 0 for each command.");
     }
 
-    /// <summary>🔒 Successive draws walk <c>i = 0, 1, 2 …</c> within the command.</summary>
-    /// <remarks>
-    /// This is the property M4-09 needs to draw a slate: three quests are draws 0, 1 and 2 of one
-    /// stream, not three draws of index 0. A scope that handed back a fresh stream each time would
-    /// draw the same quest three times, and <see cref="Draw_zero_is_the_hash_of_the_seed_the_stream_and_zero"/>
-    /// would still pass.
-    /// </remarks>
+    /// <summary>
+    /// Successive draws walk <c>i = 0, 1, 2 …</c> within the command: a scope that handed back a
+    /// fresh stream each time would draw the same value repeatedly while the single-draw test
+    /// above still passed.
+    /// </summary>
     [Fact]
     public void Successive_draws_advance_the_index_within_the_command()
     {
@@ -65,15 +57,10 @@ public sealed class MetaDrawScopeTests
     }
 
     /// <summary>
-    /// 🔒 One name yields the <b>same</b> stream for the whole command — a second ask continues the
-    /// sequence rather than restarting it.
+    /// One name yields the same stream for the whole command — a second ask continues the
+    /// sequence rather than restarting it. A scope that re-opened the stream would hand back the
+    /// same value twice, silently.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ The failure this closes is silent and generous: a scope that re-opened the stream would hand
-    /// back <em>the same value twice</em>, so a quest slate drawn in two places would contain
-    /// duplicates and a wheel spun twice in one command would land on one segment. It is the same
-    /// property <c>RunRngScope</c> owns for the run streams.
-    /// </remarks>
     [Fact]
     public void One_name_is_one_stream_for_the_whole_command()
     {
@@ -88,12 +75,7 @@ public sealed class MetaDrawScopeTests
         scope.Stream(RngStreams.Drops).Position.ShouldBe(2UL);
     }
 
-    /// <summary>🔒 Two streams over one seed are independent: consuming one does not shift the other.</summary>
-    /// <remarks>
-    /// `14` §8.1's stated reason for named streams at all — <em>"so consuming randomness in one system
-    /// never shifts another"</em>. Under the meta regime the same has to hold, or M4-09's quest draw
-    /// would move the Daily shop block depending on how many quests the pool happened to reject.
-    /// </remarks>
+    /// <summary>Two streams over one seed are independent: consuming one does not shift the other.</summary>
     [Fact]
     public void Two_streams_over_one_seed_do_not_shift_each_other()
     {
@@ -108,21 +90,11 @@ public sealed class MetaDrawScopeTests
     }
 
     /// <summary>
-    /// 🔒 <b>No persisted counter:</b> a second scope over the same seed starts again at draw 0.
+    /// No persisted counter: a second scope over the same seed starts again at draw 0. This is the
+    /// whole difference from <c>RunRngScope</c>, and it is a feature: idempotency replays a
+    /// resubmitted command's stored outcome, so a meta draw can never be re-rolled by resubmission,
+    /// and a counter here would be state nothing folds back and nothing reads.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔒 This is the whole difference from <c>RunRngScope</c>, and it is a <b>feature</b> rather than
-    /// an omission: `14` §16.3's idempotency <em>replays a resubmitted command's stored outcome</em>,
-    /// so a meta draw can never be re-rolled by resubmission — and therefore needs no counter to stop
-    /// it being. A counter here would be state nothing folds back and nothing reads.
-    /// </para>
-    /// <para>
-    /// ⚠️ It is asserted because the alternative is invisible: a scope that <em>did</em> carry a
-    /// counter across commands would produce perfectly plausible values, and only a bug report asking
-    /// "why did the replay differ" would ever find it.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void A_second_scope_over_the_same_seed_starts_at_draw_zero_again()
     {
@@ -137,12 +109,11 @@ public sealed class MetaDrawScopeTests
             "14 §16.3 promises to return.");
     }
 
-    /// <summary>🔒 Zero is a legitimate seed, not an absence.</summary>
-    /// <remarks>
-    /// <c>GameContext.CommandSeed</c> is <see cref="Nullable{T}"/> precisely because of this: a
-    /// sentinel <c>0</c> meaning "no seed" would make one seed in 2^64 silently unusable, and the
-    /// host has no way to know it drew it.
-    /// </remarks>
+    /// <summary>
+    /// Zero is a legitimate seed, not an absence: <c>GameContext.CommandSeed</c> is
+    /// <see cref="Nullable{T}"/> precisely so a sentinel <c>0</c> does not make one seed in 2^64
+    /// silently unusable.
+    /// </summary>
     [Fact]
     public void Zero_is_a_seed_like_any_other()
     {
@@ -151,22 +122,11 @@ public sealed class MetaDrawScopeTests
     }
 
     /// <summary>
-    /// 🔒 A stream name `14` §8.1 does not carry is <b>refused</b> — which is what defers the quest and
-    /// Daily-shop draws rather than letting them be spelled into existence.
+    /// An unregistered stream name is refused rather than let through: the registry is closed, so
+    /// adding a row is a deliberate change, not a string literal at a call site. The refusal comes
+    /// from <c>DeterministicRng</c>'s own guard rather than a second copy in the scope, so there is
+    /// one registry and one message.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// ⚠️ <b>The names in the theory below are the ones M4-09 would plausibly reach for</b>, and that
-    /// is the point: `14` §8.1's registry is closed — <em>"a system that needs randomness draws from
-    /// one of these streams or gets a new row here"</em> — so adding the rows is a document amendment,
-    /// not a string literal at a call site. The same seed and a different string is a different
-    /// sequence, silently.
-    /// </para>
-    /// <para>
-    /// 🔒 The refusal comes from <c>DeterministicRng</c>'s own guard rather than from a second copy in
-    /// the scope, so there is one registry and one message.
-    /// </para>
-    /// </remarks>
     [Theory]
     [InlineData("quests")]
     [InlineData("daily_shop")]

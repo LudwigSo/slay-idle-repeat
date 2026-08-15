@@ -5,29 +5,21 @@ namespace SlayIdleRepeat.AssetPlaceholders;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Why not <c>SKTypeface</c>.</b> Skia's default typeface is whatever the host operating
-/// system provides. On CI's <c>ubuntu-24.04</c> runner a container can carry no font at all, in
-/// which case Skia silently draws nothing — the stamp that makes a missing asset self-identifying
-/// would vanish and the batch would still report success. Even where a font exists, Windows and
-/// Linux resolve different ones, so two runs of the same generator would produce different pixels.
-/// A font declared here has neither problem and needs no native binary.
+/// Declared here instead of using <c>SKTypeface</c> because Skia's default typeface depends on
+/// whatever font the host OS provides — on a bare CI container that can be none at all, in which
+/// case Skia silently draws nothing and the stamp vanishes while the batch still reports success.
+/// A font declared in code needs no native binary and renders identically everywhere.
 /// </para>
 /// <para>
-/// 🔒 <b>Uppercase glyph shapes for a lowercase id.</b> `15` §D1 ids are snake_case; the glyphs
-/// below are drawn in capitals because a 5×7 cell cannot carry a legible descender, and the stamp
-/// has to survive `15` §B4 step 5's downscale to as little as 96×96. The letters read as the id;
-/// the case is a rendering choice, not a different string.
+/// Glyphs are uppercase for a lowercase (snake_case) id: a 5×7 cell can't carry a legible
+/// descender, and the stamp has to survive downscaling to as little as 96×96. The letters still
+/// read as the id; the case is a rendering choice, not a different string.
 /// </para>
 /// <para>
-/// ⚠️ <b>This stamp is a knowing departure from `15` §A3</b> — <em>"Never render text inside a
-/// generated image"</em> — and from Part F item 8. It is authorised for placeholders specifically,
-/// by the M8 kickoff: a placeholder exists so that a missing asset is identifiable on screen, and an
-/// unlabelled grey box on a battle screen tells nobody which of 641 slots is empty.
-/// <see cref="PlaceholderBatchReport.Departures"/> carries it as
-/// <see cref="PlaceholderBatchReport.IdStampDeparture"/> in every batch that drew anything, so it
-/// can never be mistaken for something the doc permits in delivered art — Part F item 8 will not
-/// report it, because it is a <see cref="AssetPipeline.Qa.QaClassification.Human"/> item and returns
-/// <see cref="AssetPipeline.Qa.QaVerdict.HumanGapOnly"/> on every asset.
+/// This stamp is a knowing departure from the "never render text inside a generated image" rule,
+/// authorised for placeholders specifically by the M8 kickoff so a missing asset is identifiable on
+/// screen. <see cref="PlaceholderBatchReport.Departures"/> carries it as
+/// <see cref="PlaceholderBatchReport.IdStampDeparture"/> in every batch that drew anything.
 /// </para>
 /// </remarks>
 public static class StampFont
@@ -47,9 +39,8 @@ public static class StampFont
     /// <summary>The glyph a character outside the font is drawn as.</summary>
     private const char Fallback = '?';
 
-    // 🔒 Declared as the concrete Dictionary, not IReadOnlyDictionary: only Dictionary<,>.Keys is a
-    // collection rather than a bare IEnumerable, and `Characters` returning it should not depend on
-    // an unchecked cast that happens to succeed. The field is private and never mutated.
+    // Declared as the concrete Dictionary rather than IReadOnlyDictionary so `Characters` can
+    // return `.Keys` directly. Never mutated after initialisation.
     private static readonly Dictionary<char, string[]> Glyphs =
         new Dictionary<char, string[]>
         {
@@ -96,10 +87,7 @@ public static class StampFont
             [Fallback] = [".###.", "#...#", "....#", "...#.", "..#..", ".....", "..#.."],
         };
 
-    /// <summary>
-    /// Every character this font draws as itself. 🔒 Read by the suite as an S3 floor: a font that
-    /// silently lost its glyphs would stamp a page of question marks and still report success.
-    /// </summary>
+    /// <summary>Every character this font draws as itself.</summary>
     public static IReadOnlyCollection<char> Characters => Glyphs.Keys;
 
     /// <summary>True when this font draws the character as itself rather than as a fallback.</summary>

@@ -6,14 +6,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Duration;
 
-/// <summary>
-/// 🔒 `18` §6 — the six duration scopes and the <c>until</c> early terminator.
-/// </summary>
+/// <summary>The six duration scopes and the <c>until</c> early terminator.</summary>
 public sealed class DurationEvaluatorTests
 {
     // ───────────────────────────────────────────────────────────── INSTANT and BATTLE
 
-    /// <summary>`18` §6's <c>INSTANT</c>: it applies once and does not persist.</summary>
+    /// <summary><c>INSTANT</c>: it applies once and does not persist.</summary>
     [Fact]
     public void An_INSTANT_effect_has_already_ended_when_it_is_first_probed()
     {
@@ -23,7 +21,7 @@ public sealed class DurationEvaluatorTests
         outcome.Reason.ShouldBe(DurationEndReason.Instant);
     }
 
-    /// <summary>`18` §6's <c>BATTLE</c>: it ends when the battle does, and not before.</summary>
+    /// <summary><c>BATTLE</c>: it ends when the battle does, and not before.</summary>
     [Fact]
     public void A_BATTLE_scoped_effect_runs_until_the_battle_ends()
     {
@@ -40,8 +38,8 @@ public sealed class DurationEvaluatorTests
     // ───────────────────────────────────────────────────────────── the timer
 
     /// <summary>
-    /// `18` §7.10's Ossify carries <c>{"seconds": 6.0, "scope": "BATTLE"}</c>. The timer is measured
-    /// from the moment the effect was applied, not from the start of the battle.
+    /// Ossify carries <c>{"seconds": 6.0, "scope": "BATTLE"}</c>. The timer is measured from the
+    /// moment the effect was applied, not from the start of the battle.
     /// </summary>
     [Fact]
     public void A_timer_is_measured_from_the_application_not_from_the_battle_start()
@@ -61,9 +59,8 @@ public sealed class DurationEvaluatorTests
     // ───────────────────────────────────────────────────────────── PHASE
 
     /// <summary>
-    /// 🔒 `18` §6: <c>PHASE</c> <em>"ends when the boss exits the phase in which the effect was
-    /// applied"</em>. `18` §7.10's Bog Air — Gulgrot phase 2, <c>{"scope": "PHASE"}</c> with no
-    /// timer at all.
+    /// <c>PHASE</c> ends when the boss exits the phase in which the effect was applied. Bog Air —
+    /// Gulgrot phase 2, <c>{"scope": "PHASE"}</c> with no timer at all.
     /// </summary>
     [Fact]
     public void Bog_Air_ends_when_Gulgrot_leaves_the_phase_it_was_applied_in()
@@ -82,15 +79,12 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// 🔴 <b>R3</b> — every boss <c>AURA</c> mechanic is <c>PHASE</c>-scoped, which is what makes the
-    /// <c>{999, BATTLE}</c> idiom unnecessary.
+    /// Every boss <c>AURA</c> mechanic is <c>PHASE</c>-scoped by definition, which is what makes the
+    /// <c>{999, BATTLE}</c> idiom unnecessary. Thornmaw RAGE predates <c>PHASE</c>; the two are
+    /// equivalent for it only because phase 3 is never exited, which is why the artifact survived. This
+    /// case shows they are not equivalent in general: applied in phase 2, the <c>PHASE</c> form ends at
+    /// the exit and <c>{999, BATTLE}</c> does not.
     /// </summary>
-    /// <remarks>
-    /// `18` §7.8's Thornmaw RAGE predates <c>PHASE</c>; §6 makes <c>AURA</c> mechanics <c>PHASE</c>-scoped
-    /// <b>by definition</b>. The two are equivalent for Thornmaw <em>only</em> because phase 3 is never
-    /// exited, which is why the artifact survived. This case shows they are not equivalent in general:
-    /// applied in phase 2, the <c>PHASE</c> form ends at the exit and <c>{999, BATTLE}</c> does not.
-    /// </remarks>
     [Fact]
     public void A_PHASE_aura_and_the_999_second_BATTLE_idiom_are_not_the_same_effect()
     {
@@ -108,8 +102,8 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// `18` §6: <em>"Outside a boss fight it behaves as <c>BATTLE</c>"</em>. Not a special case —
-    /// there is no phase to exit, so the battle boundary is the only one left.
+    /// Outside a boss fight, <c>PHASE</c> behaves as <c>BATTLE</c>. Not a special case — there is no
+    /// phase to exit, so the battle boundary is the only one left.
     /// </summary>
     [Fact]
     public void Outside_a_boss_fight_PHASE_behaves_as_BATTLE()
@@ -124,17 +118,12 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 A <c>PHASE</c> effect is battle-bounded, so the battle's own boundary still ends it — even in
-    /// the phase it was applied in, which the boss never leaves.
+    /// A <c>PHASE</c> effect is battle-bounded, so the battle's own boundary still ends it — even in
+    /// the phase it was applied in, which the boss never leaves. A real defect nothing pinned in either
+    /// direction: the evaluator once answered "not ended" here, which contradicts
+    /// <c>A_battle_bounded_scope_does_not_outlive_the_battle</c> while both stayed green, because every
+    /// other <c>PHASE</c> case either changes phase or runs outside a boss fight.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ A real defect nothing pinned in either direction: the evaluator answered "not ended" for a
-    /// phase-scoped effect still inside its own phase, so Thornmaw's mechanic re-authored as R3 requires
-    /// outlived the battle — the one answer `18` §6 reserves for <c>STAGE</c>/<c>RUN</c>/<c>PERMANENT</c>,
-    /// directly contradicting this file's own <c>A_battle_bounded_scope_does_not_outlive_the_battle</c>,
-    /// both green. The hole was that every other <c>PHASE</c> case either changes phase or runs outside
-    /// a boss fight.
-    /// </remarks>
     [Fact]
     public void A_PHASE_effect_still_inside_its_own_phase_ends_when_the_battle_does()
     {
@@ -153,9 +142,9 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.1: <em>"Phases never revert — healing back above a threshold does not re-enter an
-    /// earlier phase"</em>. A probe reporting an earlier phase than the application is therefore an
-    /// invariant violation, and it is refused rather than quietly read as "still inside".
+    /// Phases never revert — healing back above a threshold does not re-enter an earlier phase. A
+    /// probe reporting an earlier phase than the application is therefore an invariant violation, and
+    /// it is refused rather than quietly read as "still inside".
     /// </summary>
     [Fact]
     public void A_phase_that_went_backwards_is_refused()
@@ -188,9 +177,7 @@ public sealed class DurationEvaluatorTests
 
     // ───────────────────────────────────────────── the WARD_BROKEN terminator
 
-    /// <summary>
-    /// `18` §6 / §7.10 — Ossify's DR buff <em>"ends the moment the owner's ward pool breaks"</em>.
-    /// </summary>
+    /// <summary>Ossify's DR buff ends the moment the owner's ward pool breaks.</summary>
     [Fact]
     public void Ossifys_DR_buff_ends_the_moment_the_ward_breaks()
     {
@@ -211,16 +198,12 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 <b>`05` §4.1 is precise about what counts.</b> <c>WardBroken</c> fires <em>"the moment the
-    /// pool reaches 0 <b>through damage</b>"</em>; <em>"segment expiry silently removes its remainder
-    /// (<c>StatusExpired</c>), and does <b>not</b> fire <c>WardBroken</c>"</em>. An effect
-    /// terminating on segment expiry would be a bug.
+    /// What counts is precise: <c>WardBroken</c> fires the moment the pool reaches 0 through damage;
+    /// segment expiry silently removes its remainder and does not fire it. An effect terminating on
+    /// segment expiry would be a bug. The probe carries a <see cref="WardPoolEvent"/> rather than a
+    /// <c>bool</c> precisely so this is the evaluator's decision and not a caller's discipline — a
+    /// caller cannot pass "the ward emptied" without saying how.
     /// </summary>
-    /// <remarks>
-    /// The probe carries a <see cref="WardPoolEvent"/> rather than a <c>bool</c> precisely so this is
-    /// the <em>evaluator's</em> decision and not a caller's discipline — a caller cannot pass "the
-    /// ward emptied" without saying <em>how</em>.
-    /// </remarks>
     [Fact]
     public void A_ward_segment_expiring_does_not_fire_the_WARD_BROKEN_terminator()
     {
@@ -237,7 +220,7 @@ public sealed class DurationEvaluatorTests
             ossify, At(16.0) with { OwnerWardEvent = WardPoolEvent.SegmentExpired }).HasEnded.ShouldBeFalse(
             "05 §4.1: segment expiry emits StatusExpired and never WardBroken");
 
-        // 🔒 The discriminating half, in the same test: an evaluator that ended nothing at all would
+        // The discriminating half, in the same test: an evaluator that ended nothing at all would
         // satisfy the line above. The only thing that differs between the two probes is HOW the pool
         // emptied, so this pair pins the distinction rather than the absence of an ending.
         DurationEvaluator.Evaluate(
@@ -268,15 +251,15 @@ public sealed class DurationEvaluatorTests
 
         DurationEvaluator.Evaluate(plainBuff, breaking).HasEnded.ShouldBeFalse();
 
-        // 🔒 The discriminating half: the two applications differ only in the `until` key, so an
+        // The discriminating half: the two applications differ only in the `until` key, so an
         // evaluator that ended nothing on this probe cannot satisfy both lines.
         DurationEvaluator.Evaluate(terminated, breaking).HasEnded.ShouldBeTrue(
             "the same ward break, on the effect that did declare the terminator");
     }
 
     /// <summary>
-    /// `18` §6: <em>"<c>until</c> fields fire whichever comes first, terminator or timer."</em> The
-    /// timer half of that sentence, on the very effect that carries both.
+    /// <c>until</c> fields fire whichever comes first, terminator or timer. The timer half of that
+    /// rule, on the very effect that carries both.
     /// </summary>
     [Fact]
     public void Ossifys_DR_buff_also_ends_on_its_timer_when_the_ward_survives()
@@ -296,13 +279,13 @@ public sealed class DurationEvaluatorTests
         expired.Reason.ShouldBe(DurationEndReason.TimerElapsed);
     }
 
-    // ───────────────────────────────────────────── the run-layer scopes (A4 — declared, not wired)
+    // ───────────────────────────────────────────── the run-layer scopes (declared, not wired)
 
     /// <summary>
-    /// 🔒 <c>STAGE</c>, <c>RUN</c> and <c>PERMANENT</c> outlive a battle, so the battle-scoped
-    /// evaluator never ends one. The run controller that does is M3's, over M1-05's <c>Run</c>
-    /// aggregate (kickoff A4) — a declared scope with no run-layer consumer is the correct end state,
-    /// and a placeholder controller here would be a second mechanism to delete later.
+    /// <c>STAGE</c>, <c>RUN</c> and <c>PERMANENT</c> outlive a battle, so the battle-scoped evaluator
+    /// never ends one. A separate run controller does — a declared scope with no run-layer consumer is
+    /// the correct end state here, and a placeholder controller in this file would be a second
+    /// mechanism to delete later.
     /// </summary>
     [Theory]
     [InlineData(DurationScope.STAGE)]
@@ -331,8 +314,8 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 A timer still ends a run-scoped effect — `18` §6's <em>"whichever comes first"</em> is
-    /// about the terminator and the timer, and the scope is what happens when neither fires.
+    /// A timer still ends a run-scoped effect — "whichever comes first" is about the terminator and
+    /// the timer, and the scope is what happens when neither fires.
     /// </summary>
     [Fact]
     public void A_timer_still_ends_a_run_scoped_effect()
@@ -343,11 +326,11 @@ public sealed class DurationEvaluatorTests
         DurationEvaluator.Evaluate(timed, At(16.0)).Reason.ShouldBe(DurationEndReason.TimerElapsed);
     }
 
-    // ───────────────────────────────────────────── the shape `18` §1 calls the default
+    // ───────────────────────────────────────────── the default shape: no duration block
 
     /// <summary>
-    /// `18` §1 writes <c>"duration": null</c> on the canonical passive. Such an effect is not a timed
-    /// instance at all, and the battle evaluator never ends one.
+    /// <c>"duration": null</c> is the canonical passive. Such an effect is not a timed instance at
+    /// all, and the battle evaluator never ends one.
     /// </summary>
     [Fact]
     public void An_effect_with_no_duration_block_is_not_duration_governed()
@@ -360,22 +343,18 @@ public sealed class DurationEvaluatorTests
         outcome.Reason.ShouldBe(DurationEndReason.NotEnded);
     }
 
-    // ───────────────────────────────────────────── S3 · the subject-set floor
+    // ───────────────────────────────────────────── the subject-set floor
 
     /// <summary>
-    /// 🔒 <b>Every scope is handled, and each answers with its own boundary.</b> S3 — a scope reaching
-    /// no arm would make an effect immortal with nothing going red.
+    /// Every scope is handled, and each answers with its own boundary — a scope reaching no arm would
+    /// make an effect immortal with nothing going red. An expected reason per scope rather than
+    /// <c>Should.NotThrow</c>, which a single <c>default</c> arm answering all six would also satisfy —
+    /// proven by stubbing <c>Evaluate</c> as <c>=&gt; default</c>, at which point the loop went green
+    /// while every per-scope fact went red. The probe is the end of an ordinary 90 s fight with no boss
+    /// phase, the one probe that splits the six three ways: <c>INSTANT</c> ended before it began,
+    /// <c>BATTLE</c> and (with no phase to exit) <c>PHASE</c> end with the battle, and the three
+    /// run-layer scopes outlive it.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ An expected reason per scope rather than <c>Should.NotThrow</c>, which a single <c>default</c>
-    /// arm answering all six satisfies — proven by stubbing <c>Evaluate</c> as <c>=&gt; default</c>, at
-    /// which point the loop went green while every per-scope fact went red.
-    /// <para>
-    /// The probe is the end of an ordinary 90 s fight with no boss phase, the one probe that splits the
-    /// six three ways: <c>INSTANT</c> ended before it began, <c>BATTLE</c> and (with no phase to exit)
-    /// <c>PHASE</c> end with the battle, and the three run-layer scopes outlive it.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void Every_18_6_duration_scope_is_handled()
     {
@@ -405,8 +384,8 @@ public sealed class DurationEvaluatorTests
     }
 
     /// <summary>
-    /// 🔒 The same floor for the terminator. `18` §6 authors exactly one, and a second takes §10's
-    /// route — at which point this fails until the evaluator answers for it.
+    /// The same floor for the terminator: exactly one is authored today, and a second added later
+    /// fails this test until the evaluator answers for it.
     /// </summary>
     [Fact]
     public void Every_18_6_early_terminator_is_handled()

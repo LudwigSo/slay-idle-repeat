@@ -7,11 +7,10 @@ namespace SlayIdleRepeat.AssetProvenance.Tests;
 /// cases drive the gate with.
 /// </summary>
 /// <remarks>
-/// 🔒 The gate cases run against the <b>real</b> M8-09 register rather than a hand-built one. Every
-/// id they use — <c>chr_hero_body_idle</c>, <c>mus_home</c>, <c>vfx_bleed_loop_sheet</c> — is a row
-/// somebody transcribed from `15` §E / `20` §3, so a case that passes is a case about this project
-/// rather than about a fixture that agrees with itself. What the cases synthesise is the part that
-/// does not exist yet: the delivery set and the records.
+/// The gate cases run against the <b>real</b> shipped register rather than a hand-built one, so a
+/// case that passes is a case about this project rather than about a fixture that agrees with
+/// itself. What the cases synthesise is the part that does not exist yet: the delivery set and the
+/// records.
 /// </remarks>
 internal static class ProvenanceFixtures
 {
@@ -26,7 +25,7 @@ internal static class ProvenanceFixtures
     /// <summary>The repository root.</summary>
     internal static string RepositoryRoot => LazyRoot.Value;
 
-    /// <summary>The <c>game-data</c> root — M8-09's register.</summary>
+    /// <summary>The <c>game-data</c> root.</summary>
     internal static string DataRoot => Path.Combine(RepositoryRoot, "game-data");
 
     /// <summary>The committed provenance store.</summary>
@@ -35,7 +34,7 @@ internal static class ProvenanceFixtures
     /// <summary>The committed delivery root.</summary>
     internal static string DeliveryRoot => DeliveredAssets.RootFor(RepositoryRoot);
 
-    /// <summary>M8-09's shipped register.</summary>
+    /// <summary>The shipped register.</summary>
     internal static AssetManifestSet Register => LazyRegister.Value;
 
     /// <summary>The shipped store, as committed.</summary>
@@ -47,16 +46,16 @@ internal static class ProvenanceFixtures
     // the register breaks compilation in one place instead of turning five cases green over ids
     // that no longer exist.
 
-    /// <summary>A real, uncut ART id — `15` §D1's first worked example.</summary>
+    /// <summary>A real, uncut ART id.</summary>
     internal const string ArtId = "chr_hero_body_idle";
 
     /// <summary>A second real, uncut ART id.</summary>
     internal const string OtherArtId = "ui_panel_main_9slice";
 
-    /// <summary>A real AUDIO id — `20` §7 step 1.</summary>
+    /// <summary>A real AUDIO id.</summary>
     internal const string AudioId = "mus_home";
 
-    /// <summary>A real ART id the O8 ruling CUT (one of `15` §E19's 32 sheets).</summary>
+    /// <summary>A real ART id the O8 ruling CUT.</summary>
     internal const string CutArtId = "vfx_bleed_loop_sheet";
 
     /// <summary>An id in neither register.</summary>
@@ -100,7 +99,7 @@ internal static class ProvenanceFixtures
         },
     };
 
-    /// <summary>A well-formed CC0 record for an audio id — `20` §2's CC0 UI pack.</summary>
+    /// <summary>A well-formed CC0 record for an audio id.</summary>
     internal static Cc0Provenance Cc0(string assetId = AudioId) => new()
     {
         AssetId = assetId,

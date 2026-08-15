@@ -7,28 +7,20 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 <c>BattlePlan</c> refuses a fight whose `05` §4 / §4.1 📐 constants would run a different game.
+/// <c>BattlePlan</c> refuses a fight whose combat constants would run a different game. Every value
+/// below produces a legal-looking log rather than an error if waved through: a zero
+/// <c>wardCapPct</c> clips every grant to nothing while the <c>Shield</c> event still fires, and a
+/// zero <c>flatConstant</c> makes the mitigation fraction <c>1</c> against any defender with DEF and
+/// <c>0/0</c> against one without. Both are refused rather than clamped, since a clamp would silently
+/// substitute a game nobody balanced.
 /// </summary>
-/// <remarks>
-/// Every value below produces a <b>legal-looking log</b> rather than an error if waved through, which is
-/// why the check exists: a zero <c>wardCapPct</c> clips every grant to nothing while the <c>Shield</c>
-/// event still fires on each, and a zero <c>flatConstant</c> makes step 3's fraction
-/// <c>effDef/effDef = 1</c> against any defender with DEF — mitigating every hit in the game to its 10%
-/// floor — and <c>0/0</c> against one without, refused as a NaN three layers later, naming the wrong
-/// thing.
-/// <para>
-/// ⚠️ Both are <b>refused</b> rather than clamped: §4's own sanity check is arithmetic on the shipped
-/// pair, and a clamp would silently substitute a game nobody balanced.
-/// </para>
-/// </remarks>
 public sealed class SimulatorConstantTests
 {
-    /// <summary>🔒 `05` §4.1 — <c>wardCapPct</c> is strictly positive and finite.</summary>
-    /// <remarks>
-    /// <c>0.0</c> is the row that matters: it is the one value <c>game-data/schema/combat_caps.schema.json</c>
-    /// forbids by <c>exclusiveMinimum</c> and the one a <c>&lt; 0</c> guard would let through, while
-    /// being the value that deletes every shield in the game.
-    /// </remarks>
+    /// <summary>
+    /// <c>wardCapPct</c> is strictly positive and finite. <c>0.0</c> is the row that matters: it is
+    /// the value that deletes every shield in the game, and the one a <c>&lt; 0</c> guard would let
+    /// through.
+    /// </summary>
     [Theory]
     [InlineData(0.0)]
     [InlineData(-1.0)]
@@ -38,12 +30,11 @@ public sealed class SimulatorConstantTests
         Should.Throw<ArgumentOutOfRangeException>(() => Simulate(wardCapPct: wardCapPct))
             .Message.ShouldContain("wardCapPct", Case.Sensitive);
 
-    /// <summary>🔒 `05` §4 — the mitigation dials are a positive flat term and a non-negative slope.</summary>
-    /// <remarks>
-    /// The <c>(120, -1)</c> row is the negative control on the asymmetry: `05` §4's slope may be 0 in
-    /// principle (a game where defence does not decay) but never negative, which would make
-    /// mitigation <em>fall</em> as the attacker levels.
-    /// </remarks>
+    /// <summary>
+    /// The mitigation dials are a positive flat term and a non-negative slope: the slope may be 0
+    /// (defence never decays) but never negative, which would make mitigation fall as the attacker
+    /// levels.
+    /// </summary>
     [Theory]
     [InlineData(0.0, 20.0)]
     [InlineData(-120.0, 20.0)]
@@ -60,12 +51,10 @@ public sealed class SimulatorConstantTests
     public void The_shipped_constants_are_accepted() =>
         Should.NotThrow(() => Simulate());
 
-    /// <summary>🔒 A slope of exactly 0 is legal: `05` §4 states no lower bound above it.</summary>
-    /// <remarks>
-    /// The boundary case, and it is what stops the guard from being tightened past what `05` §4 says.
-    /// <c>perLevel = 0</c> is a game in which the <c>20 × attackerLevel</c> term is switched off —
-    /// unbalanced, and not malformed.
-    /// </remarks>
+    /// <summary>
+    /// A slope of exactly 0 is legal — the boundary case that stops the guard from being tightened
+    /// too far: it switches off the level term, which is unbalanced but not malformed.
+    /// </summary>
     [Fact]
     public void A_zero_per_level_slope_is_legal() =>
         Should.NotThrow(() => Simulate(mitigation: new MitigationConstants(120.0, 0.0)));

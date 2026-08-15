@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Dice;
 
-/// <summary>M3-04's authored <c>TILE_DICE_FORGE</c> upgrade menu.</summary>
+/// <summary>The authored <c>TILE_DICE_FORGE</c> upgrade menu.</summary>
 public sealed class DiceForgeUpgradeTableTests
 {
     [Fact]

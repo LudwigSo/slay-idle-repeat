@@ -4,43 +4,20 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Stats;
 
 /// <summary>
-/// 🔒 `05` §1–2 — one actor's complete 14-stat block. <b>An unstated stat is a bug, not a zero.</b>
+/// One actor's complete 14-stat block. An unstated stat is a bug, not a zero.
 /// </summary>
 /// <remarks>
-/// <para>
-/// `05` §2, verbatim and 🔒: <em>"every actor — hero and enemy alike — carries a complete 14-stat
-/// block with these defaults. An unstated stat is a bug, not a zero."</em> This type is that
-/// sentence made mechanical, in four ways that each close a different hole:
-/// </para>
-/// <list type="number">
-/// <item><b>There is no public constructor and no <c>default</c>.</b> It is a sealed class with one
-/// private constructor, so there is no zero-initialised value of this type to reach for and no
-/// <c>new ActorStats()</c> to write. The only routes in are <see cref="From"/> and
-/// <see cref="With"/>, and both go through the same completeness check.</item>
-/// <item><b><see cref="From"/> is stated over <see cref="StatIds.Combat"/>, at run time.</b> It is
-/// not a fourteen-parameter constructor and not a hard-coded list: it asks the enum what the combat
-/// stats are, so a fifteenth combat member of <see cref="StatId"/> makes <em>every</em> existing
-/// construction site throw on the commit that adds it, naming the stat nobody supplied. A
-/// fixed-arity constructor would keep compiling and keep returning a block with a silent hole.</item>
-/// <item><b>An extra key is rejected as loudly as a missing one.</b> A non-combat stat
-/// (<c>GOLD_PCT</c>) or an undeclared enum value in the map is a caller confusing the 26-stat DSL
-/// vocabulary with the 14-stat actor block, and silently dropping it would lose an effect.</item>
-/// <item><b>Every value must already be rounded</b> (<see cref="StatRounding.IsRounded"/>). `05`
-/// §1.1 rounds at every accumulation point; a value arriving here unrounded means an accumulation
-/// point upstream is missing its <c>Math.Round(x, 4)</c>, and this is the last place that is cheap
-/// to notice.</item>
-/// </list>
-/// <para>
-/// ⚠️ <b>Not named <c>*Snapshot</c>, deliberately.</b> `05` §1 calls the simulator's inputs
-/// <c>heroSnapshot</c> and <c>enemySnapshot</c>, but nothing in combat is persisted state: the
-/// <c>*Snapshot</c> suffix belongs to `14` §16.6's persistence contract and its committed field-order
-/// pin, and borrowing it here would drag a battle input into that contract.
-/// </para>
-/// <para>
-/// The block holds the 14 <b>combat</b> stats only. The 12 non-combat stats of `18` §2.1
-/// (<c>GOLD_PCT</c>, <c>DROP_CHANCE</c>, …) are run and meta modifiers with no place in a fight, and
-/// <c>ALL_COMBAT</c> selects exactly the fourteen here — see <see cref="StatSelector"/>.
-/// </para>
+/// No public constructor and no <c>default</c> — the only routes in are <see cref="From"/> and
+/// <see cref="With"/>, and both go through the same completeness check. <see cref="From"/> is
+/// stated over <see cref="StatIds.Combat"/> at run time rather than a fixed-arity constructor, so a
+/// new combat stat makes every existing construction site throw and name what's missing, instead of
+/// compiling with a silent hole. An extra key is rejected as loudly as a missing one — a non-combat
+/// stat in the map means a caller confused the wider DSL vocabulary with this 14-stat block. Every
+/// value must already be rounded (<see cref="StatRounding.IsRounded"/>), since an unrounded value
+/// here means an accumulation point upstream is missing its rounding step. Not named
+/// <c>*Snapshot</c>, since nothing in combat is persisted state — that suffix belongs to the
+/// persistence contract elsewhere. Holds the 14 combat stats only; the non-combat stats are run and
+/// meta modifiers with no place in a fight.
 /// </remarks>
 public sealed class ActorStats : IEquatable<ActorStats>
 {
@@ -49,10 +26,8 @@ public sealed class ActorStats : IEquatable<ActorStats>
     /// <see cref="StatIds.Combat"/> rather than from the enum's wire numbers.
     /// </summary>
     /// <remarks>
-    /// Built from the classification, not from <c>(int)stat - 1</c>: the wire values are append-only
-    /// and a renumbering would be caught elsewhere, but an index derived from a number rather than
-    /// from membership is a rule that goes quietly wrong, which is the reasoning
-    /// <see cref="StatIds.IsCombat"/> already records for itself.
+    /// Built from the classification, not from a numeric offset: an index derived from a number
+    /// rather than from membership is a rule that goes quietly wrong if the enum is renumbered.
     /// </remarks>
     private static readonly IReadOnlyDictionary<StatId, int> Slots =
         StatIds.Combat.Select((stat, slot) => (stat, slot)).ToDictionary(x => x.stat, x => x.slot);
@@ -61,14 +36,12 @@ public sealed class ActorStats : IEquatable<ActorStats>
 
     private ActorStats(double[] values) => _values = values;
 
-    /// <summary>
-    /// 🔒 The stats a block must state — exactly `05` §1's fourteen, read off the enum.
-    /// </summary>
+    /// <summary>The stats a block must state — the fourteen combat stats, read off the enum.</summary>
     internal static IReadOnlyList<StatId> Required => StatIds.Combat;
 
     /// <summary>One stat's value.</summary>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="stat"/> is not one of `05` §1's fourteen combat stats.
+    /// <paramref name="stat"/> is not one of the fourteen combat stats.
     /// </exception>
     internal double this[StatId stat] => _values[SlotOf(stat)];
 
@@ -81,7 +54,7 @@ public sealed class ActorStats : IEquatable<ActorStats>
     /// map too many.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="stat"/> is not one of `05` §1's fourteen combat stats.
+    /// <paramref name="stat"/> is not one of the fourteen combat stats.
     /// </exception>
     internal static int SlotOf(StatId stat) =>
         Slots.TryGetValue(stat, out var slot)
@@ -91,33 +64,22 @@ public sealed class ActorStats : IEquatable<ActorStats>
                 $"05 §1's actor block holds the {Required.Count.ToString(CultureInfo.InvariantCulture)} " +
                 $"combat stats only. {Describe(stat)} is not one of them.");
 
-    /// <summary>Every stat and its value, in `05` §1's table order.</summary>
+    /// <summary>Every stat and its value, in table order.</summary>
     internal IEnumerable<KeyValuePair<StatId, double>> Values =>
         Required.Select(stat => new KeyValuePair<StatId, double>(stat, _values[Slots[stat]]));
 
     /// <summary>
-    /// Builds a block from a complete map of `05` §1's fourteen combat stats.
+    /// Builds a block from a complete map of the fourteen combat stats.
     /// </summary>
     /// <param name="values">One entry per combat stat. Not more, not fewer.</param>
     /// <exception cref="ArgumentException">
     /// A combat stat is missing, a stat that is not a combat stat is present, or a value is NaN,
-    /// infinite, a negative zero, or not rounded to four decimal places (`05` §1.1).
+    /// infinite, a negative zero, or not rounded to four decimal places.
     /// </exception>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Public because it is the only way to build the argument
-    /// <c>CombatSimulator.Simulate</c> takes</b> — the rest of this type stays internal.
-    /// </para>
-    /// <para>
-    /// R15/R16 made this type public as part of the enumerated signature closure of `30` §11.2's
-    /// public entry point. That widening is only worth anything if the entry point can actually be
-    /// called: `05` §9's balance harness is a separate assembly with no <c>InternalsVisibleTo</c>
-    /// grant, and its inputs are authored stat maps in <c>data/tuning/calibration_builds.json</c> —
-    /// which is exactly this signature. A public <c>Simulate</c> whose parameter type no outside
-    /// assembly can construct is a public API in name only, and every accessibility rule would report
-    /// green over it. <see cref="StatId"/> is already public and lives in <c>Content</c>, so nothing
-    /// further is widened by this.
-    /// </para>
+    /// Public because it's the only way to build the argument the public combat-simulation entry
+    /// point takes, so an external caller (e.g. the balance harness) can actually construct one — the
+    /// rest of this type stays internal.
     /// </remarks>
     public static ActorStats From(IReadOnlyDictionary<StatId, double> values)
     {
@@ -164,11 +126,11 @@ public sealed class ActorStats : IEquatable<ActorStats>
     /// <remarks>
     /// The shape <see cref="StatAggregation"/> works in. It is the same completeness rule stated
     /// over an array rather than a map — a wrong length is a missing (or extra) stat — and it exists
-    /// so a pass through `18` §8 does not build and tear down two dictionaries per step boundary.
+    /// so aggregation does not build and tear down two dictionaries per step boundary.
     /// </remarks>
     /// <exception cref="ArgumentException">
     /// The array is not exactly <see cref="Required"/> long, or a value is NaN, infinite, a negative
-    /// zero, or not rounded to four decimal places (`05` §1.1).
+    /// zero, or not rounded to four decimal places.
     /// </exception>
     internal static ActorStats FromSlots(IReadOnlyList<double> slots)
     {
@@ -227,7 +189,7 @@ public sealed class ActorStats : IEquatable<ActorStats>
         return hash.ToHashCode();
     }
 
-    /// <summary>The block as `05` §1's table reads, for a failure message.</summary>
+    /// <summary>The block rendered for a failure message.</summary>
     public override string ToString() =>
         string.Join(
             ", ",

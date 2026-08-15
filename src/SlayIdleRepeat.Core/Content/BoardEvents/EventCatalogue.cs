@@ -4,28 +4,26 @@ using SlayIdleRepeat.Core.Primitives;
 namespace SlayIdleRepeat.Core.Content.BoardEvents;
 
 /// <summary>
-/// 🔒 `19` Part A — the thirty in-run event cards, read out of
-/// <c>content/board_events/board_events.json</c>.
+/// The thirty in-run event cards, read out of <c>content/board_events/board_events.json</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Read per command out of the command's own <c>ContentSnapshot</c>, never cached statically — the
-/// same shape <see cref="MinigameRewardTuning"/> is read in: `30` §3 versions the snapshot per
-/// command, so a static cache would serve one command's content to another.
+/// Read per command out of the command's own <c>ContentSnapshot</c>, never cached statically: the
+/// snapshot is versioned per command, so a static cache would serve one command's content to
+/// another.
 /// </para>
 /// <para>
-/// ⚠️ <b>Every refusal is a throw, not a rejection.</b> Malformed content is a build-time failure
-/// `14` §6 already catches in the Application layer's schema validation; a card that reached this
-/// reader broken is a data set that should never have shipped, not a player asking for something
-/// illegal.
+/// Every refusal is a throw, not a rejection: malformed content is a build-time failure already
+/// caught by schema validation, so a card that reaches this reader broken is a data set that
+/// should never have shipped, not a player asking for something illegal.
 /// </para>
 /// </remarks>
 internal sealed class EventCatalogue
 {
-    /// <summary>The document `19` Part A is transcribed into.</summary>
+    /// <summary>The document the card catalogue is transcribed into.</summary>
     internal const string DocumentPath = "content/board_events/board_events.json";
 
-    /// <summary>`19` Part A — the thirty cards.</summary>
+    /// <summary>The thirty cards.</summary>
     internal const string CardsReference = DocumentPath + "#/cards";
 
     private readonly IReadOnlyDictionary<string, EventCard> _byId;
@@ -38,9 +36,8 @@ internal sealed class EventCatalogue
 
     /// <summary>Every authored card, in the document's order.</summary>
     /// <remarks>
-    /// 🔒 The order is load-bearing: <c>EventTileResolver.DrawCard</c> draws by index over the
-    /// chapter-eligible subset of this list, so re-ordering the file changes which card every
-    /// existing run seed draws.
+    /// The order is load-bearing: the resolver draws by index over the chapter-eligible subset of
+    /// this list, so re-ordering the file changes which card every existing run seed draws.
     /// </remarks>
     internal IReadOnlyList<EventCard> All { get; }
 
@@ -63,12 +60,10 @@ internal sealed class EventCatalogue
     }
 
     /// <summary>The cards a run in <paramref name="chapterId"/> may draw, in the document's order.</summary>
-    /// <param name="chapterId">`02` §1's chapter, from 1.</param>
+    /// <param name="chapterId">The chapter, from 1.</param>
     /// <remarks>
-    /// A chapter below 1 is refused rather than answered with an empty list — the same line
-    /// <c>CurseTuning.AvailableFrom</c> draws, and for the same reason: an empty answer would reach
-    /// <c>EventTileResolver.DrawCard</c> as "the content file lost a band", which is a different and
-    /// much more alarming defect than the caller having asked about a chapter that does not exist.
+    /// A chapter below 1 is refused rather than answered with an empty list: an empty answer would
+    /// read as "the content file lost a band", a more alarming defect than an invalid chapter.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="chapterId"/> is below 1.</exception>
     internal IReadOnlyList<EventCard> AvailableIn(int chapterId)
@@ -97,7 +92,7 @@ internal sealed class EventCatalogue
     }
 
     /// <summary>Reads the card catalogue. Throws rather than defaulting on anything unusable.</summary>
-    /// <param name="content">The version-stamped snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped snapshot the command is reading.</param>
     /// <exception cref="MissingContentException">The document or a pointer is not there.</exception>
     /// <exception cref="UnauthorisedTunableException">A pointer holds a deliberate <c>null</c>.</exception>
     /// <exception cref="ContentTypeMismatchException">A leaf holds the wrong shape.</exception>
@@ -275,11 +270,10 @@ internal sealed class EventCatalogue
             {
                 var amount = Member(entry, "amount", pointer).AsInt64(pointer + "/amount");
 
-                // 🔒 Zero is refused for the same reason an empty `effects` array is, three methods
-                // below: EventTileResolver.Move skips a zero delta (a CurrencyChanged of 0 would be
-                // a misleading row in 21 §8.3's attribution log), so a zero-amount effect resolves
-                // to nothing at all and is indistinguishable from a row nobody finished authoring.
-                // A deliberate no-op is a NONE effect, which says so.
+                // Zero is refused for the same reason an empty `effects` array is: the resolver
+                // skips a zero delta, so a zero-amount effect resolves to nothing at all and is
+                // indistinguishable from a row nobody finished authoring. A deliberate no-op is a
+                // NONE effect, which says so.
                 if (amount == 0)
                 {
                     throw new InvalidTunableException(
@@ -324,11 +318,10 @@ internal sealed class EventCatalogue
                 {
                     throw new InvalidTunableException(
                         pointer + "/curseId",
-                        "'" + curseId + "' has no payable reward. ⚠️ CurseRewards carries a narrow, " +
-                        "named table for exactly the four chapter-1 curses whose 19 Part E reward " +
-                        "is a flat currency amount; the other eight pay percentages and gear-drop " +
-                        "chances no system exists to grant. An event card that needs one of those " +
-                        "authors an UNSUPPORTED effect instead, which says so.");
+                        "'" + curseId + "' has no payable reward. CurseRewards carries a narrow, " +
+                        "named table for the curses whose reward is a flat currency amount; others " +
+                        "pay percentages and gear-drop chances no system exists to grant. An event " +
+                        "card that needs one of those authors an UNSUPPORTED effect instead.");
                 }
 
                 return new EventEffect(

@@ -4,17 +4,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// C3 — `15` §B4 step 2: <em>"Trim to content -&gt; then pad to the target canvas with the subject
-/// centered"</em>, honouring `15` §C's two pivots.
-/// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>"The target canvas" is the WORKING canvas — the `15` §C generation canvas the image
-/// arrived on — not the §C delivery size.</b> §B4 lists step 2 and step 5 ("Resize -&gt; to the spec
-/// size in the manifest") separately; under the other reading step 5 is an identity resample on
-/// every asset and §B4's own step 5 is dead text. These cases therefore assert against the source
-/// image's own dimensions and never against <c>spec.TargetSize</c>.
+/// "The target canvas" means the working canvas the image arrived on, not the delivery size:
+/// reading it as the delivery size would make the resize step an identity resample on every asset.
+/// These cases therefore assert against the source image's own dimensions, never against
+/// <c>spec.TargetSize</c>.
 /// </para>
 /// <para>
 /// The arithmetic is stated, not derived: a 20x10 subject on the fixture's 64x64 frame leaves 44 px
@@ -67,13 +62,11 @@ public sealed class TrimToCanvasStepTests
     }
 
     /// <summary>
-    /// 🔒 <b>The case that replaces "content larger than the target canvas fails loudly".</b> That
-    /// contract no longer exists, and it was wrong: it measured the trimmed content against the
-    /// <em>delivery</em> canvas and refused an ordinary `15` §C generation — a subject spanning most
-    /// of the generation frame, for a row that delivers smaller — before step 5, the step whose
-    /// entire job is that downscale, ever ran. Content trimmed out of an image can never exceed that
-    /// image, so padding back to the image's own dimensions has no oversize case at all. Here the
-    /// subject is 20x10 against an 8x8 delivery size: this used to throw, and must now re-frame.
+    /// Replaces a prior contract of "content larger than the target canvas fails loudly", which was
+    /// wrong: it measured trimmed content against the delivery canvas and refused an ordinary
+    /// generation before the resize step (whose job is exactly that downscale) ever ran. Content
+    /// trimmed out of an image can never exceed that image, so padding back to its own dimensions
+    /// has no oversize case at all.
     /// </summary>
     [Fact]
     public void Run_pads_to_the_working_canvas_even_when_the_content_dwarfs_the_15_C_delivery_size()
@@ -86,8 +79,6 @@ public sealed class TrimToCanvasStepTests
         var result = step.Run(
             new AssetStepInput(fixture.Image, spec, StatedThresholds.ForSyntheticFixtures()));
 
-        // The delivery size really is smaller than the content, so the old guard's condition holds
-        // on this input and only the ruling stops it throwing.
         spec.TargetSize.Width.ShouldBeLessThan(ContentWidth);
         result.Image.Width.ShouldBe(WorkingCanvas);
         result.Image.Height.ShouldBe(WorkingCanvas);
@@ -96,10 +87,7 @@ public sealed class TrimToCanvasStepTests
         Pixels.OpaqueBounds(result.Image).ShouldBe(new SKRectI(22, 27, 42, 37));
     }
 
-    /// <summary>
-    /// 🔒 An image `15` §B4 step 1 keyed away entirely has no subject to centre, and inventing a
-    /// placement for nothing would hand step 5 an empty frame that looks like a clean asset.
-    /// </summary>
+    /// <summary>An image keyed away entirely has no subject to centre; inventing a placement for nothing would look like a clean asset.</summary>
     [Fact]
     public void Run_refuses_an_image_with_no_visible_pixel_naming_the_asset()
     {

@@ -5,14 +5,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Stacking;
 
-/// <summary>
-/// 🔒 `18` §6 — the five stacking modes, <c>maxStacks</c> and <c>refreshOnReapply</c>.
-/// </summary>
+/// <summary>The five stacking modes, <c>maxStacks</c> and <c>refreshOnReapply</c>.</summary>
 public sealed class EffectStackSetTests
 {
     // ───────────────────────────────────────────────────────────── the five modes
 
-    /// <summary>`18` §6.</summary>
     [Fact]
     public void ADDITIVE_stacks_sum()
     {
@@ -25,9 +22,7 @@ public sealed class EffectStackSetTests
         sundered.CombinedValue.ShouldBe(0.18, 1e-12, "05 §5's SUNDER stacks to 5, additively");
     }
 
-    /// <summary>
-    /// `18` §6's <c>MULTIPLICATIVE</c> — <em>"stacks multiply"</em>, the enrage's mode.
-    /// </summary>
+    /// <summary><c>MULTIPLICATIVE</c> — stacks multiply, the enrage's mode.</summary>
     [Fact]
     public void MULTIPLICATIVE_stacks_multiply()
     {
@@ -40,7 +35,7 @@ public sealed class EffectStackSetTests
             "05 §3.1: SYS_ENRAGE is STAT_MULT ATK x1.08, multiplicative — and 1.08^3 is 1.259712");
     }
 
-    /// <summary>`18` §6's <c>REPLACE</c> — a new application replaces the existing one.</summary>
+    /// <summary><c>REPLACE</c> — a new application replaces the existing one.</summary>
     [Fact]
     public void REPLACE_keeps_only_the_newest_application()
     {
@@ -50,10 +45,7 @@ public sealed class EffectStackSetTests
         replaced.CombinedValue.ShouldBe(0.10, "the newest application, weaker or not");
     }
 
-    /// <summary>
-    /// `18` §6's <c>HIGHEST_WINS</c> — the strongest application wins, and a weaker reapplication
-    /// does not overwrite it.
-    /// </summary>
+    /// <summary><c>HIGHEST_WINS</c> — the strongest application wins, and a weaker reapplication does not overwrite it.</summary>
     [Fact]
     public void HIGHEST_WINS_keeps_the_strongest_application()
     {
@@ -67,10 +59,7 @@ public sealed class EffectStackSetTests
         strongestLast.Count.ShouldBe(1);
     }
 
-    /// <summary>
-    /// `18` §6's <c>NONE</c> — a second application is ignored. `05` §5's <c>BLEED</c>:
-    /// <em>"Does not stack; reapplication refreshes"</em>.
-    /// </summary>
+    /// <summary><c>NONE</c> — a second application is ignored. <c>BLEED</c>: "does not stack; reapplication refreshes".</summary>
     [Fact]
     public void NONE_ignores_every_application_after_the_first()
     {
@@ -83,20 +72,15 @@ public sealed class EffectStackSetTests
     }
 
     /// <summary>
-    /// 🔒 <b>Every mode is handled, and each combines its own way.</b> S3 — one falling through would
-    /// leave a status stacking as whatever the last arm happened to do.
+    /// Every mode is handled, and each combines its own way — one falling through would leave a
+    /// status stacking as whatever the last arm happened to do. An expected value per mode rather than
+    /// <c>Should.NotThrow</c>, which a single <c>default</c> arm answering all five would also
+    /// satisfy — proven by stubbing both members to constants, at which point the loop went green
+    /// while every per-mode fact went red. The sequence <c>0.25 → 0.5 → 0.125</c> is the shortest that
+    /// separates all five: two applications cannot tell <c>REPLACE</c> from <c>HIGHEST_WINS</c> or
+    /// <c>NONE</c>, and a monotone three cannot tell <c>HIGHEST_WINS</c> from <c>NONE</c>. Every value
+    /// is a negative power of two, so the sums and products are exact in binary and need no tolerance.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ An expected value per mode rather than <c>Should.NotThrow</c>, which a single <c>default</c> arm
-    /// answering all five satisfies — proven by stubbing both members to constants, at which point the
-    /// loop went green while every per-mode fact went red.
-    /// <para>
-    /// The sequence <c>0.25 → 0.5 → 0.125</c> is the shortest that separates all five: two applications
-    /// cannot tell <c>REPLACE</c> from <c>HIGHEST_WINS</c> or <c>NONE</c>, and a monotone three cannot
-    /// tell <c>HIGHEST_WINS</c> from <c>NONE</c>. Every value is a negative power of two, so the sums and
-    /// products are exact in binary and need no tolerance.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void Every_18_6_stacking_mode_is_handled()
     {
@@ -126,7 +110,7 @@ public sealed class EffectStackSetTests
 
     // ───────────────────────────────────────────────────────────── maxStacks
 
-    /// <summary>`05` §5: <c>BURN</c> <em>"stacks to 5"</em>, and the sixth application adds nothing.</summary>
+    /// <summary><c>BURN</c> stacks to 5, and the sixth application adds nothing.</summary>
     [Fact]
     public void An_application_past_maxStacks_adds_no_stack()
     {
@@ -143,10 +127,7 @@ public sealed class EffectStackSetTests
         surplus.Stacks.CombinedValue.ShouldBe(0.50, 1e-12);
     }
 
-    /// <summary>
-    /// 🔒 <c>maxStacks: null</c> is <b>uncapped</b>, not one. `05` §3.1's <c>SYS_ENRAGE</c> is
-    /// <em>"multiplicative stacking, uncapped"</em> and runs for the rest of the fight.
-    /// </summary>
+    /// <summary><c>maxStacks: null</c> is uncapped, not one — <c>SYS_ENRAGE</c> runs for the rest of the fight.</summary>
     [Fact]
     public void maxStacks_null_is_uncapped()
     {
@@ -174,10 +155,9 @@ public sealed class EffectStackSetTests
     // ───────────────────────────────────────────────────────────── refreshOnReapply
 
     /// <summary>
-    /// 🔒 <c>refreshOnReapply</c> is an <b>independent key</b>, honoured for every mode including
-    /// <c>NONE</c>. `05` §5's <c>BLEED</c> — <em>"Does not stack; reapplication refreshes"</em> — is
-    /// exactly <c>NONE</c> plus <c>refreshOnReapply: true</c>, so the combination is authored rather
-    /// than hypothetical.
+    /// <c>refreshOnReapply</c> is an independent key, honoured for every mode including <c>NONE</c>.
+    /// <c>BLEED</c> — "does not stack; reapplication refreshes" — is exactly <c>NONE</c> plus
+    /// <c>refreshOnReapply: true</c>, so the combination is authored rather than hypothetical.
     /// </summary>
     [Fact]
     public void BLEED_does_not_stack_and_still_refreshes()
@@ -191,8 +171,8 @@ public sealed class EffectStackSetTests
 
     /// <summary>
     /// A surplus application past <c>maxStacks</c> still refreshes. The stack ceiling and the
-    /// duration are two different keys, and `05` §3.1 keeps them apart: <em>"Reapplication adds
-    /// stacks / refreshes duration per the status's stacking rule"</em>.
+    /// duration are two different keys: "reapplication adds stacks / refreshes duration per the
+    /// status's stacking rule".
     /// </summary>
     [Fact]
     public void An_application_past_maxStacks_still_refreshes_the_duration()
@@ -205,9 +185,9 @@ public sealed class EffectStackSetTests
     }
 
     /// <summary>
-    /// An absent <c>refreshOnReapply</c> is <b>not</b> a refresh. <c>true</c> is opt-in language and
-    /// `18` §1's canonical <c>{"mode":"ADDITIVE","maxStacks":1}</c> omits the key, so the absence is
-    /// the absence of the opt-in rather than a manufactured default.
+    /// An absent <c>refreshOnReapply</c> is not a refresh. <c>true</c> is opt-in language and the
+    /// canonical <c>{"mode":"ADDITIVE","maxStacks":1}</c> omits the key, so the absence is the absence
+    /// of the opt-in rather than a manufactured default.
     /// </summary>
     [Fact]
     public void An_absent_refreshOnReapply_does_not_refresh()
@@ -218,10 +198,7 @@ public sealed class EffectStackSetTests
             "and this one IS a reapplication — the first application's own false is a different rule");
     }
 
-    /// <summary>
-    /// 🔒 The <b>first</b> application is not a reapplication, so it never reports a refresh —
-    /// otherwise M2-10 would re-anchor a cadence it had only just set.
-    /// </summary>
+    /// <summary>The first application is not a reapplication, so it never reports a refresh — otherwise a status would re-anchor a cadence it had only just set.</summary>
     [Fact]
     public void The_first_application_is_not_a_reapplication()
     {
@@ -253,10 +230,9 @@ public sealed class EffectStackSetTests
     // ───────────────────────────────────────────── immutability
 
     /// <summary>
-    /// 🔒 <see cref="EffectStackSet.Apply"/> returns a new set and never mutates the one it was
-    /// called on. `18` §4's <em>"pure functions of current state"</em> is the neighbouring layer's
-    /// rule, and a stack set that mutated in place would make a status's potency depend on how many
-    /// times something happened to have asked.
+    /// <see cref="EffectStackSet.Apply"/> returns a new set and never mutates the one it was called
+    /// on. A stack set that mutated in place would make a status's potency depend on how many times
+    /// something happened to have asked.
     /// </summary>
     [Fact]
     public void Applying_a_stack_never_mutates_the_set_it_was_called_on()

@@ -4,18 +4,15 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// C11 — the manifest's holes propagate out of <see cref="AssetSpec.Resolve"/> loudly. They are
-/// never caught, and never defaulted.
-/// </summary>
+/// <summary>Manifest holes propagate out of <see cref="AssetSpec.Resolve"/> loudly — never caught, never defaulted.</summary>
 public sealed class AssetSpecTests
 {
     private const int RowsWithoutDeliverySize = 144;
     private const int RowsWithoutPivot = 284;
 
     /// <summary>
-    /// 🔒 The floor under both cases below. They pick one row each out of the shipped register; if
-    /// somebody fills those holes in, the cases must fail loudly rather than quietly test nothing.
+    /// Guards the two cases below: if the shipped register ever fills these holes in, those cases
+    /// must fail loudly rather than quietly test nothing.
     /// </summary>
     [Fact]
     public void The_shipped_register_still_carries_the_holes_these_cases_rely_on()
@@ -26,11 +23,6 @@ public sealed class AssetSpecTests
         rows.Count(row => row.Pivot is null).ShouldBe(RowsWithoutPivot);
     }
 
-    /// <summary>
-    /// 🔒 M8-09's <c>RequireDeliverySize()</c> throws rather than defaulting, and this type does not
-    /// catch it. A pipeline that defaulted a missing `15` §C size would resize 144 assets to a
-    /// number nobody wrote down.
-    /// </summary>
     [Fact]
     public void Resolve_propagates_the_missing_delivery_size_instead_of_defaulting_it()
     {
@@ -44,12 +36,7 @@ public sealed class AssetSpecTests
         exception.Message.ShouldContain("DSC_MISSING_SIZES", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 `15` §C authorises a pivot for characters and for icons and for nothing else, and 284 rows
-    /// carry none. The row picked HAS a delivery size, so the only thing that can stop the resolve
-    /// is the pivot — a refusal that fired for the size would otherwise pass this case unnoticed
-    /// (steering rule S2).
-    /// </summary>
+    /// <summary>The row picked has a delivery size, so only the missing pivot can trigger the refusal.</summary>
     [Fact]
     public void Resolve_refuses_a_row_15_C_states_no_pivot_for_naming_the_asset_and_the_section()
     {

@@ -4,10 +4,9 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 
-/// <summary>The eight-part shape of `18` §1, and the id ruling that `18` omits.</summary>
+/// <summary>The eight-part effect shape, and the id ruling.</summary>
 public sealed class EffectDefinitionTests
 {
-    /// <summary>`18` §1's canonical effect, field for field.</summary>
     [Fact]
     public void The_canonical_effect_of_section_1_round_trips()
     {
@@ -33,7 +32,7 @@ public sealed class EffectDefinitionTests
     }
 
     /// <summary>
-    /// 🔒 The conductor's ruling on the field `18` never writes: the id is authored and required.
+    /// The ruling on a field the vocabulary never writes: the id is authored and required.
     /// A record with <c>required</c> members cannot be constructed without it, so "derived from
     /// array position" is not a shortcut anyone can take by accident.
     /// </summary>
@@ -54,14 +53,10 @@ public sealed class EffectDefinitionTests
             "Manufacturing one here would be the invisible hole game-data/README.md warns about.");
     }
 
-    /// <summary>
-    /// The spine parts `18` leaves out of some of its own examples are <c>null</c>, not defaulted.
-    /// Steering S6: a hole that is null is greppable.
-    /// </summary>
+    /// <summary>Parts left out of an effect are <c>null</c>, not defaulted — a hole that's null is greppable.</summary>
     [Fact]
     public void An_effect_with_no_trigger_or_target_carries_nulls_rather_than_manufactured_defaults()
     {
-        // 18 §9.1's CP_GLASS_HEART entries, which carry neither.
         var effect = new EffectDefinition
         {
             Id = "CP_GLASS_HEART_MULT",
@@ -80,10 +75,7 @@ public sealed class EffectDefinitionTests
         effect.Tags.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.1's built-in enrage, expressed with no new concept. If this needed one, the
-    /// vocabulary would be defective — `05` §3.1 fixes its form exactly.
-    /// </summary>
+    /// <summary>Built-in enrage, expressed with no new concept — if it needed one, the vocabulary would be defective.</summary>
     [Fact]
     public void SYS_ENRAGE_is_expressible_with_no_concept_the_DSL_lacks()
     {
@@ -106,10 +98,7 @@ public sealed class EffectDefinitionTests
         enrage.Duration!.Scope.ShouldBe(DurationScope.BATTLE);
     }
 
-    /// <summary>
-    /// `18` §7.10's Ossify — a duration that carries both a timer and an early terminator.
-    /// <em>"<c>until</c> fields fire whichever comes first, terminator or timer."</em>
-    /// </summary>
+    /// <summary>A duration carrying both a timer and an early terminator: <c>until</c> fields fire whichever comes first.</summary>
     [Fact]
     public void A_duration_may_carry_both_a_timer_and_a_terminator()
     {
@@ -133,7 +122,7 @@ public sealed class EffectDefinitionTests
         ossify.Duration.Until.ShouldBe(DurationTerminator.WARD_BROKEN);
     }
 
-    /// <summary>`18` §7.10's Bog Air — a scope with no timer at all.</summary>
+    /// <summary>A duration scope with no timer at all.</summary>
     [Fact]
     public void A_duration_may_carry_a_scope_with_no_timer()
     {

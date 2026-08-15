@@ -9,35 +9,28 @@ namespace SlayIdleRepeat.AssetPlaceholders;
 /// <param name="Fill">The body of the card.</param>
 /// <param name="Cross">The diagonal cross that says "this is not art".</param>
 /// <param name="Stamp">The id stamp.</param>
-/// <param name="Outline">`15` §A3's outline colour. The same for every asset, biome or not.</param>
+/// <param name="Outline">The outline colour. The same for every asset, biome or not.</param>
 public sealed record PlaceholderColours(SKColor Fill, SKColor Cross, SKColor Stamp, SKColor Outline);
 
 /// <summary>
-/// Chooses a placeholder's colours: the row's `15` §A5 biome palette where it has one, and a flat
-/// neutral where it does not.
+/// Chooses a placeholder's colours: the row's biome palette where it has one, and a flat neutral
+/// where it does not.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Biome rows use the register's own palette so the atlases are visually coherent</b> — a
-/// biome atlas full of identical grey boxes tells a reader nothing about whether the eight biome
-/// batches were assembled correctly, and `15` §B4 step 3 is a no-op on a colour it does not
-/// recognise, so a grey placeholder would leave the quantiser untested on every one of the 192
-/// biome-scoped rows.
+/// Biome rows use the register's own palette so the atlases are visually coherent — a biome atlas
+/// full of identical grey boxes would leave the palette quantiser step untested on every biome row.
 /// </para>
 /// <para>
-/// 🔒 <b>The choices are constrained by two measurable distances, not by taste.</b> `15` §B4 step 4
-/// reads every visible pixel within <see cref="AssetPipeline.ThresholdKeys.OutlineColourTolerance"/>
-/// of <c>#231A2E</c> as outline. So the fill, the cross and the stamp must all sit <em>far</em> from
-/// the outline colour, or the whole card joins the outline mask and step 4 spends its run closing
-/// concavities in a shape that is not an outline. See
+/// The choices are constrained by two measurable distances, not by taste: the pipeline's outline
+/// detection reads any pixel within tolerance of the outline colour as outline, so the fill, cross
+/// and stamp must all sit far enough from it that the whole card doesn't join the outline mask. See
 /// <see cref="PlaceholderThresholds.OutlineColourTolerance"/> for the arithmetic that fixes the
 /// tolerance between those two bands.
 /// </para>
 /// <para>
-/// 🔒 §A5's <c>shadow</c> and <c>sky</c> hues are deliberately <b>not</b> used. Three of the eight
-/// are within 40 channel units of <c>#231A2E</c> (Sunken Crypt's shadow <c>#233A45</c>, Astral
-/// Spire's sky <c>#141028</c>), so a card drawn in them would read as outline. <c>accent</c> and
-/// <c>glow</c> are light in all eight biomes by §A5's own construction.
+/// The <c>shadow</c> and <c>sky</c> biome hues are deliberately not used, since some sit close
+/// enough to the outline colour that a card drawn in them would read as outline.
 /// </para>
 /// </remarks>
 public static class PlaceholderPalette
@@ -52,7 +45,7 @@ public static class PlaceholderPalette
     public const string NeutralStampHex = "#F2F2F6";
 
     /// <summary>The colours for one row.</summary>
-    /// <param name="palette">The row's `15` §A5 palette, or null where the row names no biome.</param>
+    /// <param name="palette">The row's palette, or null where the row names no biome.</param>
     public static PlaceholderColours For(Palette? palette)
     {
         var outline = Parse(AssetPipeline.Doc15Authorised.OutlineColourHex);
@@ -66,20 +59,9 @@ public static class PlaceholderPalette
 
     /// <summary>Euclidean distance between two colours in RGB, ignoring alpha.</summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 The same metric <c>Raster.RgbDistance</c> uses, because the numbers this generator reasons
-    /// about are the numbers the pipeline's steps will measure. <c>Raster</c> is internal to
-    /// <c>SlayIdleRepeat.AssetPipeline</c>, so it cannot be called from here; the formula is three
-    /// subtractions and a square root, and the suite pins that the two agree by driving a real
-    /// placeholder through the real steps rather than by trusting this comment.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Public for the suite, and nothing in this project calls it.</b> The colour choices in
-    /// <see cref="For"/> are constrained by two measured distances (see this type's remarks), and
-    /// the case that re-derives that arithmetic from the register's live palettes needs the metric.
-    /// Exposing it is cheaper than the alternative — a fourth copy of the formula in the suite,
-    /// where it could drift from the one the steps actually use.
-    /// </para>
+    /// The same metric the pipeline's own outline step uses (that code is internal and cannot be
+    /// called from here), so the numbers this generator reasons about match what the pipeline
+    /// measures. Public because the test suite needs it to re-derive the tolerance arithmetic.
     /// </remarks>
     /// <param name="first">One colour.</param>
     /// <param name="second">The other.</param>

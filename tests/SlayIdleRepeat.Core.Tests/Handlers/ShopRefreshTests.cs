@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>
-/// 🔒 `03` §7 / M3-08 — <c>SHOP_REFRESH</c>: dispatched through the production table, and refused
-/// today. See <c>Handlers.ShopRefresh</c>'s remarks.
-/// </summary>
+/// <summary>SHOP_REFRESH: dispatched through the production table, and refused today.</summary>
 public sealed class ShopRefreshTests
 {
     [Fact]
@@ -22,7 +19,7 @@ public sealed class ShopRefreshTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>🔒 P4: a rejected command's state is the caller's own slice, unchanged.</summary>
+    /// <summary>A rejected command's state is the caller's own slice, unchanged.</summary>
     [Fact]
     public void A_rejection_leaves_the_run_untouched()
     {

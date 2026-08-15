@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
-/// <summary>
-/// 🔒 <c>content/combat_caps.json</c> as the simulator reads it — `05` §1.1, §2, §4, §4.1 and
-/// `11` §4.3.
-/// </summary>
+/// <summary><c>content/combat_caps.json</c> as the simulator reads it.</summary>
 public sealed class CombatCapsTests
 {
     [Fact]
@@ -28,11 +25,11 @@ public sealed class CombatCapsTests
     }
 
     /// <summary>
-    /// 🔒 The six `05` §1 caps are named in code, not discovered from whatever keys the file holds.
+    /// The six capped stats are named in code, not discovered from whatever keys the file holds.
     /// </summary>
     /// <remarks>
     /// Absence means "uncapped" for the other eight stats, so a cap that vanished from the data
-    /// would be indistinguishable from a stat `05` §1 never capped — the reader would happily
+    /// would be indistinguishable from a stat that was never capped — the reader would happily
     /// produce an uncapped CRIT and report success. Naming the six turns that into a
     /// <c>MissingContentException</c>.
     /// </remarks>

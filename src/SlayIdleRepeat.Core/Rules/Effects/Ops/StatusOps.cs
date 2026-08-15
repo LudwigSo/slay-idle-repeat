@@ -2,47 +2,28 @@ using SlayIdleRepeat.Core.Content.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 `18` §2.3's six status ops, over `05` §5's twelve statuses.
-/// </summary>
+/// <summary>The six status ops, over the twelve statuses.</summary>
 /// <remarks>
 /// <para>
-/// The six split three ways, and the split is what stops them being written as one method with a
-/// flag: three <b>name</b> a status (<c>APPLY_STATUS</c>, <c>EXTEND_STATUS</c>,
-/// <c>IMMUNE_STATUS</c> — the schema requires <c>statusId</c> on all three); one names <b>either</b>
-/// a status or a tag group (<c>REMOVE_STATUS</c>); and two name <b>none</b> and scale statuses in
-/// bulk (<c>STATUS_POWER_PCT</c>, <c>STATUS_DURATION_PCT</c>).
+/// The six split three ways: three name a status (<c>APPLY_STATUS</c>, <c>EXTEND_STATUS</c>,
+/// <c>IMMUNE_STATUS</c>); one names either a status or a tag group (<c>REMOVE_STATUS</c>); two name
+/// none and scale statuses in bulk (<c>STATUS_POWER_PCT</c>, <c>STATUS_DURATION_PCT</c>).
 /// </para>
 /// <para>
-/// 🔒 <b>The last two point in opposite directions, and §2.3's two rows are the only place that is
-/// said.</b> <c>STATUS_POWER_PCT</c> scales <em>"the potency of statuses <b>this actor
-/// applies</b>"</em> — outgoing — while <c>STATUS_DURATION_PCT</c> scales <em>"duration of statuses
-/// <b>applied to</b> this actor"</em> — incoming. Reading them as one direction is a silent balance
-/// bug in whichever half is wrong, so they call two differently named seam members rather than one
-/// with a parameter.
-/// </para>
-/// <para>
-/// ⚠️ <b><c>statusId</c> is not validated against `05` §5's twelve here.</b> The schema enumerates
-/// them (<c>$defs/statusId</c>) and M2-10's catalogue is the type that will hold them; a third copy
-/// of the list in this file would be a set that must agree with two others with nothing making it.
+/// The last two point in opposite directions: <c>STATUS_POWER_PCT</c> scales potency of statuses
+/// this actor applies (outgoing), <c>STATUS_DURATION_PCT</c> scales duration of statuses applied to
+/// this actor (incoming). They call two differently named seam members rather than one with a
+/// direction flag, so a mixed-up direction fails loudly rather than silently.
 /// </para>
 /// </remarks>
 internal static class StatusOps
 {
-    /// <summary>`18` §2.3 — <c>APPLY_STATUS</c>. The value is the status's own potency (its X in `05` §5).</summary>
+    /// <summary><c>APPLY_STATUS</c>. The value is the status's own potency.</summary>
     /// <remarks>
-    /// <para>
-    /// The potency is <b>not</b> passed through <see cref="OpValue"/>: `05` §5 types every X as the
-    /// status's own unit — <em>"X% of attacker ATK per second"</em>, <em>"−X% ASPD"</em>,
-    /// <em>"−X% DEF"</em> — so the status decides what its number means and a value mode here would
-    /// be a second, disagreeing answer. `18` §1.1's <c>valueScale</c> still applies, because that
-    /// scales the authored number rather than reinterpreting it.
-    /// </para>
-    /// <para>
-    /// 🔒 M2-R3 — <see cref="Potency"/> is what makes a value-less <c>APPLY_STATUS</c> possible at
-    /// all, for exactly `05` §5's FREEZE shape (a status stated as a literal, not as an authored X).
-    /// See that method's remarks.
-    /// </para>
+    /// The potency is not passed through <see cref="OpValue"/>: each status types its own potency in
+    /// its own unit, so the status decides what its number means rather than a value mode
+    /// reinterpreting it. <c>valueScale</c> still applies, since that scales the authored number
+    /// rather than its meaning.
     /// </remarks>
     internal static double Apply(EffectDefinition effect, EffectOpContext context)
     {
@@ -51,10 +32,8 @@ internal static class StatusOps
 
         foreach (var target in OpTargets.Resolve(effect, context))
         {
-            // 🔒 The holder travels with the application, and it is `05` §5 that requires it: BURN is
-            // "X% of ATTACKER ATK per second" and BLEED is "set at application as X% of the APPLIER's
-            // ATK". EffectOpContext.Holder is "the source of every op's number", and it is the only
-            // actor in reach here that answers to either word.
+            // The holder travels with the application — some statuses are typed against the
+            // applier's own stats (e.g. a % of the applier's ATK), not the target's.
             context.Seams.Statuses.Apply(
                 context.Holder, target, statusId, potency, effect.Duration, effect.Stacking, effect.Id);
         }
@@ -62,35 +41,13 @@ internal static class StatusOps
         return potency;
     }
 
-    /// <summary>
-    /// 🔒 M2-R3 — the effect's potency, or the sentinel <c>0.0</c> when the named status supplies its
-    /// own (`05` §5's FREEZE — <em>"−50% ASPD"</em>, a literal, not an authored X).
-    /// </summary>
+    /// <summary>The effect's potency, or the sentinel <c>0.0</c> when the named status supplies its own fixed potency.</summary>
     /// <remarks>
-    /// <para>
-    /// <see cref="ValueScaleEvaluator.Value"/> refuses a value-less effect for every op, and must not
-    /// simply stop doing that: for the other five `18` §2.3 status ops, and for a value-less
-    /// <c>APPLY_STATUS</c> naming a status with no <c>StatusCatalogue.FixedPotency</c>, an
-    /// absent value is still exactly the authoring hole steering S6 says it is. What narrows is only
-    /// this one case: a value-less <c>APPLY_STATUS</c> whose <see cref="IStatusEngine.HasFixedPotency"/>
-    /// answers yes.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Why the guard could not simply move into <see cref="ValueScaleEvaluator.Value"/> itself.</b>
-    /// R17 makes <c>Rules.Effects</c> — where that evaluator lives — the bottom of the intra-<c>Rules</c>
-    /// layering; <c>StatusCatalogue</c> lives one layer up, in <c>Rules.Combat.Status</c>, so the
-    /// evaluator has no legal way to ask "does this status carry its own number". The seam already
-    /// exists for the identical reason on the <c>STAT_COPY</c> side (<see cref="IResolvedStatReader"/>),
-    /// so <see cref="IStatusEngine.HasFixedPotency"/> follows the same shape: the question is asked
-    /// through a seam the op layer already holds, one layer down from where the answer lives, rather
-    /// than by widening what the shared value-scale evaluator may reach into.
-    /// </para>
-    /// <para>
-    /// ⚠️ The <c>0.0</c> returned when a FixedPotency backs the status is a sentinel, not a computed
-    /// number: <c>StatusTimeline.Apply</c>'s <c>definition.FixedPotency ?? …</c> never reads the
-    /// <c>potency</c> parameter when <c>FixedPotency</c> is set, so nothing downstream ever sees this
-    /// value. It documents "unused" rather than "computed and (coincidentally or not) correct".
-    /// </para>
+    /// A value-less effect is normally an authoring hole and refused elsewhere; this narrows that
+    /// only for a value-less <c>APPLY_STATUS</c> whose status answers yes to
+    /// <see cref="IStatusEngine.HasFixedPotency"/> — asked through a seam since the op layer can't
+    /// reach the status catalogue directly. The <c>0.0</c> is a sentinel, never read downstream when
+    /// a fixed potency is set.
     /// </remarks>
     private static double Potency(EffectDefinition effect, EffectOpContext context, string statusId)
     {
@@ -102,15 +59,11 @@ internal static class StatusOps
         return OpRounding.Round(context.Seams.Values.ScaledValue(effect), effect.Id, "potency");
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.3 — <c>REMOVE_STATUS</c>: <em>"clear a status or a tag group"</em>. Exactly one of
-    /// the two.
-    /// </summary>
+    /// <summary><c>REMOVE_STATUS</c>: clear a status or a tag group. Exactly one of the two.</summary>
     /// <remarks>
-    /// R12 — the tag group is a <see cref="StatusTag"/>, which is a different type from the
-    /// <see cref="AuthorTag"/>s in the effect's own <c>tags</c> array. The two cannot be swapped by
-    /// accident, which matters because `05` §4.1's ward bypass keys on the reserved
-    /// <c>drawback</c> author tag: a <c>REMOVE_STATUS</c> that could take one would clear the marker.
+    /// The tag group is a <see cref="StatusTag"/>, a different type from the effect's own author
+    /// <see cref="AuthorTag"/>s, so the two can't be swapped by accident — which matters because the
+    /// ward-bypass rule keys on the reserved <c>drawback</c> author tag.
     /// </remarks>
     internal static double Remove(EffectDefinition effect, EffectOpContext context)
     {
@@ -144,13 +97,11 @@ internal static class StatusOps
         return 0.0;
     }
 
-    /// <summary>`18` §2.3 — <c>EXTEND_STATUS</c>: <em>"add duration to an existing status"</em>.</summary>
+    /// <summary><c>EXTEND_STATUS</c>: add duration to an existing status.</summary>
     /// <remarks>
-    /// ⚠️ <b>The seconds come from <c>value</c>, not from <c>duration.seconds</c>, and that is a
-    /// ruling.</b> `18` §2.3 names no key at all. <c>duration</c> means <em>how long the effect
-    /// lasts</em> on all forty-two other ops (§6), so reading the extension out of it would give the
-    /// same key two meanings; <c>value</c> is the op's free magnitude and is unused otherwise.
-    /// Recorded as errata against §2.3.
+    /// The seconds come from <c>value</c>, not <c>duration.seconds</c> — <c>duration</c> means how
+    /// long the effect itself lasts on every other op, so reusing it here would give one key two
+    /// meanings.
     /// </remarks>
     internal static double Extend(EffectDefinition effect, EffectOpContext context)
     {
@@ -175,7 +126,7 @@ internal static class StatusOps
         return seconds;
     }
 
-    /// <summary>`18` §2.3 — <c>IMMUNE_STATUS</c>: immunity to one status for a duration.</summary>
+    /// <summary><c>IMMUNE_STATUS</c>: immunity to one status for a duration.</summary>
     internal static double GrantImmunity(EffectDefinition effect, EffectOpContext context)
     {
         var statusId = RequireStatusId(effect);
@@ -188,11 +139,11 @@ internal static class StatusOps
         return 0.0;
     }
 
-    /// <summary>`18` §2.3 — <c>STATUS_POWER_PCT</c>: scales the potency of statuses the actor <b>applies</b>.</summary>
+    /// <summary><c>STATUS_POWER_PCT</c>: scales the potency of statuses the actor applies.</summary>
     internal static double ScaleOutgoingPower(EffectDefinition effect, EffectOpContext context) =>
         ScaleBulk(effect, context, outgoingPower: true);
 
-    /// <summary>`18` §2.3 — <c>STATUS_DURATION_PCT</c>: scales the duration of statuses <b>applied to</b> the actor.</summary>
+    /// <summary><c>STATUS_DURATION_PCT</c>: scales the duration of statuses applied to the actor.</summary>
     internal static double ScaleIncomingDuration(EffectDefinition effect, EffectOpContext context) =>
         ScaleBulk(effect, context, outgoingPower: false);
 

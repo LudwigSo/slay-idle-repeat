@@ -5,57 +5,22 @@ using SlayIdleRepeat.Core.Primitives;
 namespace SlayIdleRepeat.Core.Rules.Stats;
 
 /// <summary>
-/// 🔒 The 4-decimal-place rounding of `05` §1.1, in one place.
+/// The 4-decimal-place rounding rule, in one place.
 /// </summary>
 /// <remarks>
-/// <para>
-/// `05` §1.1, verbatim: <em>"all combat math uses <c>double</c>, <b>rounded to 4 decimal places
-/// (<c>Math.Round(x, 4)</c>) at every accumulation point</b> — after each damage calculation, each
-/// heal, and each stat aggregation step. This is the locked determinism rule (`14` §8.2, `18` §8
-/// step 10, `16` A3)."</em> `18` §8 states the same rule as its step 10.
-/// </para>
-/// <para>
-/// ⚠️ <b>Every stat aggregation STEP, not only step 10.</b> The two are different answers, and
-/// <c>StatAggregationTests.Rounding_at_step_5_and_rounding_only_at_step_10_are_different_answers</c>
-/// exhibits a case where they differ in the fourth decimal place. Rounding only at the end would
-/// make the pipeline's arithmetic depend on how many intermediate products the platform happened to
-/// keep in an 80-bit register, which is the class of divergence `14` §8.2 exists to remove.
-/// </para>
-/// <para>
-/// ⚠️ <b>Where it is <em>observable</em>, said honestly.</b> A rounding at step <em>n</em> can only
-/// change an answer if a later step magnifies the difference, so steps 4, 5, 6 and 7 each have a
-/// discriminating case in <c>StatAggregationTests</c> and steps 8, 9 and 10 do not: they are
-/// terminal, and only the last of the three is observable. All seven are written anyway, because
-/// `05` §1.1 says "every accumulation point" and `18` §8 lists step 10 separately — a future step
-/// inserted between 8 and 10 should not have to discover that its predecessor stopped rounding.
-/// </para>
-/// <para>
-/// 🔒 <b>The trailing <c>+ 0.0</c> is not redundant</b>, and it is the same normalisation
-/// <see cref="ValueScale.EffectiveValue"/> performs. <c>Math.Round(-0.00004, 4)</c> is <c>-0.0</c>
-/// and .NET preserves the sign of zero, so a stat that drifts a hair below zero — a `18` §7.10 Bog
-/// Air <c>-0.35</c> against a small base, a <c>SUNDER</c> stack that takes DEF through zero — would
-/// reach <c>CanonicalStateWriter</c> as a negative zero. That writer <em>throws</em> rather than
-/// encoding one, because <c>-0.0 == 0.0</c> is true in C# while the bit patterns differ, so two
-/// states the language calls identical would carry different hashes. Its own comment names this
-/// method's job: <em>"normalise at the accumulation point — <c>x + 0.0</c> is +0.0 — rather than
-/// letting the writer edit state on its way out."</em>
-/// </para>
-/// <para>
-/// NaN and infinity throw here rather than at the writer. An infinite stat is an overflow upstream,
-/// and a NaN is a <c>0 × ∞</c> or <c>0/0</c> in an aggregation step; both are far easier to trace
-/// from the step and stat that produced them than from a serialisation failure three layers later.
-/// </para>
+/// Applied at every accumulation point, not only the final one: rounding only at the end would make
+/// the pipeline's arithmetic depend on how many intermediate digits the platform happened to keep in
+/// an extended-precision register, which is exactly the class of client/server divergence this rule
+/// exists to remove. The trailing normalisation of <c>-0.0</c> to <c>+0.0</c> matters because a stat
+/// that drifts a hair below zero would otherwise reach the canonical state writer as a negative
+/// zero — which compares equal to <c>0.0</c> in C# but has a different bit pattern, so two states the
+/// language calls identical would hash differently. NaN and infinity throw here rather than later:
+/// both are far easier to trace from the step and stat that produced them than from a serialization
+/// failure layers downstream.
 /// </remarks>
 internal static class StatRounding
 {
-    /// <summary>
-    /// 🔒 The number of decimal places `05` §1.1 and `18` §8 step 10 lock — <b>not a second
-    /// statement of it</b>. Since M2-02 the number and the arithmetic live once, in
-    /// <see cref="DeterminismRounding"/>; this is the stat pipeline's name for it, and the
-    /// architecture rule
-    /// <c>DeterminismRoundingRuleTests.The_4_dp_rule_of_05_1_1_is_stated_in_exactly_one_place</c> is
-    /// what stops it drifting back into a copy.
-    /// </summary>
+    /// <summary>The number of decimal places this rule rounds to.</summary>
     internal const int Decimals = DeterminismRounding.Decimals;
 
     /// <summary>
@@ -64,7 +29,7 @@ internal static class StatRounding
     /// </summary>
     /// <param name="value">The accumulated value.</param>
     /// <param name="stat">The stat being accumulated — named in the failure message.</param>
-    /// <param name="step">The `18` §8 step this accumulation point belongs to.</param>
+    /// <param name="step">The aggregation step this accumulation point belongs to.</param>
     /// <exception cref="ArithmeticException">
     /// <paramref name="value"/> is NaN or infinite.
     /// </exception>
@@ -80,41 +45,21 @@ internal static class StatRounding
                 "aggregation step that produced it.");
         }
 
-        // 🔒 One statement of the rule, in Primitives — see DeterminismRounding for why the failure
-        //    message stays here while the arithmetic does not.
         return DeterminismRounding.Round(value);
     }
 
     /// <summary>
-    /// 🔒 The same rounding, for an accumulation point that is <b>not</b> a stat: a tick's battle
-    /// time, an attack cooldown, an HP fraction, a transient multiplier.
+    /// The same rounding, for an accumulation point that is not a stat: a tick's battle time, an
+    /// attack cooldown, an HP fraction, a transient multiplier.
     /// </summary>
     /// <param name="value">The accumulated value.</param>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>It exists so that `05` §1.1 is one rule and not two.</b> The overload above needs a
-    /// <see cref="StatId"/> and a `18` §8 step to name in its failure message, which the combat loop
-    /// has neither of — so before this existed, <c>Rules.Combat</c> wrote
-    /// <c>Math.Round(x, StatRounding.Decimals)</c> at eight sites and the <c>-0.0</c> normalisation
-    /// at exactly one of them. That splits the rounding rule from the normalisation rule in the one
-    /// namespace whose output feeds <c>LogHash</c>: <c>-0.0</c> compares equal to <c>0.0</c> in C#
-    /// and hashes differently, which is a false divergence in `11` §6's tamper check.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>It does not throw on NaN or infinity</b>, and that is the difference from the overload
-    /// above. A stat that is infinite is an overflow in a named `18` §8 step, worth stopping at; a
-    /// combat transient reaches <c>CombatLog</c>, which refuses a NaN and names the event and tick
-    /// that carried it — a better message than this method could write.
-    /// </para>
+    /// Does not throw on NaN or infinity, unlike the overload above: a combat transient reaches the
+    /// combat log instead, which names the event and tick that carried it — a better message than
+    /// this method could write. Delegates to <see cref="DeterminismRounding.Round"/>, the one
+    /// statement of the rule; kept as its own name since the combat loop reads better calling a
+    /// stat-pipeline verb.
     /// </remarks>
-    /// <para>
-    /// 🔒 <b>Delegates to <see cref="DeterminismRounding.Round"/>, which is the one statement of the
-    /// rule.</b> M2-08 and M2-02 ran in parallel and independently consolidated `05` §1.1's rounding:
-    /// M2-08 introduced this non-throwing overload for the combat loop, M2-02 introduced
-    /// <c>Primitives.DeterminismRounding</c> for the whole of Core. Both were right about the
-    /// problem; two primitives for one rule is the problem restated. This method keeps its name and
-    /// its doc — the combat loop reads better calling a stat-pipeline verb — and owns no arithmetic.
-    /// </para>
     internal static double Round(double value) => DeterminismRounding.Round(value);
 
     /// <summary>

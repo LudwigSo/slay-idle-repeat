@@ -5,20 +5,9 @@ namespace SlayIdleRepeat.Core.Content;
 /// <see cref="ContentValueKind.Unauthorised"/>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// This is `Core`'s own value tree, deliberately free of any serialisation type. `14` §6:
-/// <em>"Loading JSON is I/O and belongs in an adapter; reading content is a rule."</em>
-/// `Core` references nothing (`23` §2.1), so there is no <c>System.Text.Json</c> here and no
-/// attribute, converter or reader leaks in from the load path.
-/// </para>
-/// <para>
-/// 🔒 <b>Ordering is pinned.</b> Object members are stored ordinal-sorted by name and arrays
-/// keep their document order. That is what makes the version stamp reproducible across
-/// machines and runtimes — see <c>ContentHashing</c>. The content stamp may be carried inside a
-/// snapshot, so a non-deterministic one would move <c>stateHash</c>; it is a separate encoding
-/// from `14` §16.6's <c>CanonicalStateWriter</c>, which never sees a <see cref="ContentValue"/>,
-/// and the two never share bytes.
-/// </para>
+/// <b>Ordering is pinned.</b> Object members are stored ordinal-sorted by name and arrays keep
+/// their document order — that is what makes the version stamp reproducible across machines and
+/// runtimes (see <c>ContentHashing</c>).
 /// </remarks>
 public sealed class ContentValue : IEquatable<ContentValue>
 {
@@ -52,7 +41,7 @@ public sealed class ContentValue : IEquatable<ContentValue>
         Items = System.Array.AsReadOnly(items);
     }
 
-    /// <summary>🔒 The <c>null</c> of the data files: "the design docs do not authorise a value here".</summary>
+    /// <summary>The <c>null</c> of the data files: "the design docs do not authorise a value here".</summary>
     public static ContentValue Unauthorised { get; } =
         new(ContentValueKind.Unauthorised, null, 0m, false, NoNames, NoValues, NoValues);
 
@@ -75,20 +64,19 @@ public sealed class ContentValue : IEquatable<ContentValue>
     /// <summary>The kind this value holds.</summary>
     public ContentValueKind Kind { get; }
 
-    /// <summary>🔒 True when the design docs do not authorise a value here.</summary>
+    /// <summary>True when the design docs do not authorise a value here.</summary>
     public bool IsUnauthorised => Kind == ContentValueKind.Unauthorised;
 
     /// <summary>Member names, ordinal-sorted. Empty for anything but an object.</summary>
     /// <remarks>
-    /// 🔒 A wrapper, not the backing array. An <c>IReadOnlyList&lt;T&gt;</c> that <em>is</em> a
+    /// A wrapper, not the backing array: an <c>IReadOnlyList&lt;T&gt;</c> that <em>is</em> a
     /// <c>string[]</c> can be cast back and written through, and this type's immutability is what
-    /// the version stamp rests on. Built once in the constructor rather than per read, because
-    /// these two are walked in tight loops by the validator and the hasher.
+    /// the version stamp rests on.
     /// </remarks>
     public IReadOnlyList<string> MemberNames { get; }
 
     /// <summary>Array items in document order. Empty for anything but an array.</summary>
-    /// <remarks>🔒 A wrapper, for the same reason as <see cref="MemberNames"/>.</remarks>
+    /// <remarks>A wrapper, for the same reason as <see cref="MemberNames"/>.</remarks>
     public IReadOnlyList<ContentValue> Items { get; }
 
     /// <summary>Creates a text value.</summary>

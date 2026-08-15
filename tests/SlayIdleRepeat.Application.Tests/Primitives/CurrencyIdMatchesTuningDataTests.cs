@@ -6,23 +6,13 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Primitives;
 
-/// <summary>
-/// 🔒 `10` §1 — <see cref="CurrencyId"/> and <c>game-data/tuning/currencies.json</c> cannot drift
-/// apart.
-/// </summary>
+/// <summary>Checks that <see cref="CurrencyId"/> and <c>tuning/currencies.json</c> cannot drift apart.</summary>
 /// <remarks>
-/// <para>
 /// The enum is the compile-time half of the currency list and the JSON is the authored half. Each
-/// on its own is checkable and neither check notices the other moving: a ninth wallet entry added
-/// to the data would have no member to pay out to, and a ninth member added to the enum would name
-/// a currency with no display name, no scope and no price anywhere.
-/// </para>
-/// <para>
-/// It lives in <c>SlayIdleRepeat.Application.Tests</c> rather than <c>Core.Tests</c> because it
-/// reads a file off disk, and <c>Core.Tests</c> is hermetic. <see cref="RepoData"/> already exists
-/// for exactly this and is reused rather than reimplemented — it is still no adapter, no port, no
-/// container, no network (`23` §3), just <c>System.IO</c> over the checkout the test runs from.
-/// </para>
+/// on its own is checkable and neither notices the other moving: a ninth wallet entry with no enum
+/// member has nothing to pay out to, and a ninth enum member with no wallet entry names a currency
+/// with no display name, scope, or price anywhere. It lives here rather than in Core.Tests because
+/// it reads a file off disk and Core.Tests is hermetic.
 /// </remarks>
 public sealed class CurrencyIdMatchesTuningDataTests
 {
@@ -55,11 +45,10 @@ public sealed class CurrencyIdMatchesTuningDataTests
     {
         var counters = IdsOf("nonWalletCounters");
 
-        // 🔒 The floor, and it is named rather than counted: the intersection below is empty for an
-        // empty subject set, so without this the case passes forever the moment the reader stops
-        // finding counters. `ShouldNotBeEmpty` would not be that floor either — it accepts one, while
-        // the sentence it is defending names two. Deliberately a floor and not a ceiling: 10 §1.1 may
-        // gain a third counter, and that is not this case's business.
+        // The floor, named rather than counted: the intersection below is empty for an empty
+        // subject set, so without this the case would pass forever the moment the reader stops
+        // finding counters. Deliberately a floor and not a ceiling: a third counter may be added
+        // later, and that is not this case's business.
         counters.ShouldContain(
             "BEAST_MARKS",
             $"10 §1.1 names BEAST_MARKS a nonWalletCounter, and {CurrenciesDocument} does not author " +
@@ -76,25 +65,13 @@ public sealed class CurrencyIdMatchesTuningDataTests
             "the income-attribution report as income it never was.");
     }
 
-    /// <summary>
-    /// 🔒 `10` §1 / milestone assumption <b>A3</b> — the <b>scope split</b> is authored too, and
-    /// <c>Player.WalletCurrencies</c> is exactly the <c>META</c> half of it.
-    /// </summary>
+    /// <summary>The currency scope split is authored too, and <c>Player.WalletCurrencies</c> is exactly the META half of it.</summary>
     /// <remarks>
-    /// <para>
-    /// The case above pins the currency <em>set</em>; this one pins the <em>partition</em>. M1-04
-    /// re-expressed that partition in C# — six currencies on the <c>Player</c> aggregate, with
-    /// <c>GOLD</c> on <c>Run</c> and <c>ENERGY</c> in the two banks of `28` C — and nothing
-    /// connected the two halves. A scope changed in the data, or a ninth <c>META</c> currency
-    /// authored, would desynchronise silently, and the failure mode is the worst kind:
-    /// <c>Player.Rehydrate</c> refusing <b>every</b> persisted row, because its wallet would be
-    /// missing a currency the aggregate requires or carrying one it forbids.
-    /// </para>
-    /// <para>
-    /// It is stated as an exact partition rather than a subset, so a currency moving from
-    /// <c>RUN</c> to <c>META</c> is a red build on the commit that moves it rather than on the
-    /// commit that next loads a player.
-    /// </para>
+    /// The case above pins the currency set; this one pins the partition. A scope changed in the
+    /// data, or a ninth META currency authored, would desynchronise silently, and the failure mode
+    /// is the worst kind: <c>Player.Rehydrate</c> refusing every persisted row. Stated as an exact
+    /// partition rather than a subset, so a currency moving scope is a red build on the commit that
+    /// moves it rather than the commit that next loads a player.
     /// </remarks>
     [Fact]
     public void Player_WalletCurrencies_is_exactly_the_META_scoped_half_of_the_authored_split()

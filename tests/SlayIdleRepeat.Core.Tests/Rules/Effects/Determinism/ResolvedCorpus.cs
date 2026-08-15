@@ -14,11 +14,8 @@ internal sealed record NamedPermutation(string Id, int Index);
 /// <remarks>
 /// Built in a static initialiser because xUnit gives a class one instance per test method, and the
 /// corpus is a pure function of <c>BuildPermutationGenerator.BaselineSeed</c> — regenerating it per
-/// method would multiply the suite's cost by its test count for no added coverage.
-/// <para>
-/// 🔒 The three phases are timed separately: "it is fast enough" is not a claim a report can make
-/// without the number.
-/// </para>
+/// method would multiply the suite's cost by its test count for no added coverage. The three phases are
+/// timed separately: "it is fast enough" is not a claim a report can make without the number.
 /// </remarks>
 internal sealed class ResolvedCorpus
 {
@@ -28,13 +25,12 @@ internal sealed class ResolvedCorpus
     /// regeneration meaning the same thing.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Order matters, and this is the invariant.</b> <see cref="FirstUnclaimedIndexWhere"/>
-    /// claims greedily down this list, so a selector satisfied by exactly <b>one</b> permutation
-    /// (<c>corpus-first</c>, <c>corpus-last</c>) must come before any broad selector that could claim
-    /// it first. Violating it does not produce a wrong answer — it produces an
-    /// <see cref="InvalidOperationException"/> out of a static initialiser, which surfaces as a
-    /// <c>TypeInitializationException</c> in every test in the suite at once. Loud, but a long way
-    /// from its cause; hence the note.
+    /// Order matters. <see cref="FirstUnclaimedIndexWhere"/> claims greedily down this list, so a
+    /// selector satisfied by exactly one permutation (<c>corpus-first</c>, <c>corpus-last</c>) must
+    /// come before any broad selector that could claim it first. Violating it does not produce a wrong
+    /// answer — it produces an <see cref="InvalidOperationException"/> out of a static initialiser,
+    /// which surfaces as a <c>TypeInitializationException</c> in every test in the suite at once. Loud,
+    /// but a long way from its cause; hence the note.
     /// </remarks>
     private static readonly IReadOnlyList<(string Id, Func<BuildPermutation, PermutationOutcome, bool> Holds)> Selectors =
         new List<(string, Func<BuildPermutation, PermutationOutcome, bool>)>
@@ -45,9 +41,9 @@ internal sealed class ResolvedCorpus
                 permutation.Effects.Count > BuildPermutationGenerator.IntrosortStabilityThreshold),
             ("at-or-below-introsort-threshold", static (permutation, _) =>
                 permutation.Effects.Count <= BuildPermutationGenerator.IntrosortStabilityThreshold),
-            // 🔒 Keyed on the duplicate-id ANCHOR, not on "some duplicate exists": the row is named
-            //    for M2-02's blind spot, and the property it defends is that both halves of the
-            //    deliberate pair survived step 2 in a build big enough to scramble.
+            // Keyed on the duplicate-id ANCHOR, not on "some duplicate exists": the property this
+            // defends is that both halves of the deliberate pair survived the gate in a build big
+            // enough to scramble.
             ("duplicate-ids-above-threshold", static (permutation, outcome) =>
                 permutation.Effects.Count > BuildPermutationGenerator.IntrosortStabilityThreshold &&
                 outcome.Active.Count(row =>
@@ -82,9 +78,9 @@ internal sealed class ResolvedCorpus
         GenerationElapsed = generationElapsed;
         ResolutionElapsed = resolutionElapsed;
         HashingElapsed = hashingElapsed;
-        // 🔒 Claimed as we go, so the twelve rows name twelve DIFFERENT builds. Without it,
-        //    permutation 0 happens to carry six of the properties and the table would pin one
-        //    permutation six times while reading as though it pinned six.
+        // Claimed as we go, so the twelve rows name twelve DIFFERENT builds. Without it, permutation 0
+        // happens to carry six of the properties and the table would pin one permutation six times
+        // while reading as though it pinned six.
         var claimed = new HashSet<int>();
         Named = Selectors
             .Select(selector => new NamedPermutation(
@@ -99,7 +95,7 @@ internal sealed class ResolvedCorpus
     /// <summary>The 10 000 generated permutations, in ordinal order.</summary>
     internal IReadOnlyList<BuildPermutation> Permutations { get; }
 
-    /// <summary>What `18` §8 made of each of them.</summary>
+    /// <summary>What resolution made of each of them.</summary>
     internal IReadOnlyList<PermutationOutcome> Outcomes { get; }
 
     /// <summary>Each outcome's <c>"fnv1a:"</c> wire hash.</summary>
@@ -117,7 +113,7 @@ internal sealed class ResolvedCorpus
     /// <summary>How long generating the 10 000 permutations took.</summary>
     internal TimeSpan GenerationElapsed { get; }
 
-    /// <summary>How long resolving them through `18` §8 took.</summary>
+    /// <summary>How long resolving them took.</summary>
     internal TimeSpan ResolutionElapsed { get; }
 
     /// <summary>How long hashing the outcomes took.</summary>
@@ -176,17 +172,11 @@ internal sealed class ResolvedCorpus
     /// already claimed — or a refusal naming the property.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>The claim set is what makes the twelve rows twelve builds.</b> The rule is stated here
-    /// once, and <c>Every_named_row_still_names_the_permutation_its_property_first_holds_at</c>
-    /// re-derives it from the same code, so the committed ordinals mean what the ids say.
-    /// </para>
-    /// <para>
-    /// 🔒 It throws rather than returning <c>-1</c>. A named row whose property no longer holds
-    /// anywhere in the corpus is a generator that stopped emitting a shape, which is exactly the
-    /// silent-coverage-loss failure the named rows exist to catch — and a sentinel index would be
-    /// committed as a hash of permutation zero and pass forever.
-    /// </para>
+    /// The claim set is what makes the twelve rows twelve builds. It throws rather than returning
+    /// <c>-1</c>: a named row whose property no longer holds anywhere in the corpus is a generator
+    /// that stopped emitting a shape, which is exactly the silent-coverage-loss failure the named rows
+    /// exist to catch — and a sentinel index would be committed as a hash of permutation zero and pass
+    /// forever.
     /// </remarks>
     private static int FirstUnclaimedIndexWhere(
         IReadOnlyList<BuildPermutation> permutations,

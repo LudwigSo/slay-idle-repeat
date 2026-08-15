@@ -5,27 +5,20 @@ using SlayIdleRepeat.BalanceHarness.Rules;
 namespace SlayIdleRepeat.BalanceHarness.Sweep;
 
 /// <summary>One fight's measured outcome.</summary>
-/// <param name="HeroWon">`05` §3 — did the hero clear the boss.</param>
+/// <param name="HeroWon">Did the hero clear the boss.</param>
 /// <param name="DurationTicks">Ticks the fight ran. 20 ticks is one second; the cap is 1800.</param>
 /// <param name="HeroHpRemaining">The hero's HP at the end. Zero on a loss.</param>
-/// <param name="LogHash">`05` §7's replay hash — the determinism handle.</param>
+/// <param name="LogHash">The replay hash — the determinism handle.</param>
 /// <param name="ElapsedMicroseconds">
-/// ⚠️ Wall-clock cost of the <c>SimulateBossFight</c> call itself, in microseconds. Under
-/// <c>--parallel</c> these are <b>contended</b> measurements and read high; the report states an
-/// uncontended sample separately.
+/// Wall-clock cost of the <c>SimulateBossFight</c> call itself, in microseconds. Under
+/// <c>--parallel</c> these are contended measurements and read high; the report states an uncontended
+/// sample separately.
 /// </param>
 /// <param name="MaxBossPhase">
-/// 🔴 The highest boss phase the fight reached, read off the log's <c>PhaseChange</c> events.
+/// The highest boss phase the fight reached, read off the log's <c>PhaseChange</c> events — recorded
+/// because boss phases are HP bands, so a hero that dies early never sees a later phase's mechanics,
+/// and without this an experiment reading "no effect" cannot tell that apart from "never fired".
 /// </param>
-/// <remarks>
-/// 🔴 <b><see cref="MaxBossPhase"/> exists because without it two of this milestone's measurements are
-/// unreadable.</b> `17` §1's phases are HP bands — phase 2 at 66% boss HP, phase 3 at 33% — so a hero
-/// that dies having removed 14% of the boss's health never sees a single phase mechanic. Both `21`
-/// §3.2 experiments target phase mechanics (Thornmaw's phase-3 <c>RAGE</c>; four of the five summons),
-/// and on the shipped data at par they both measure a difference of exactly zero. Recording the phase
-/// reached is what separates <em>"the effect does not matter"</em> from <em>"the effect never fired"</em>,
-/// which are opposite conclusions from identical numbers.
-/// </remarks>
 public readonly record struct FightOutcome(
     bool HeroWon,
     int DurationTicks,
@@ -38,14 +31,11 @@ public readonly record struct FightOutcome(
     public double Seconds => DurationBands.Seconds(DurationTicks);
 }
 
-/// <summary>
-/// One <c>(chapter, tier, archetype)</c> cell of `05` §9's sweep and everything measured over it.
-/// </summary>
+/// <summary>One <c>(chapter, tier, archetype)</c> cell of the sweep and everything measured over it.</summary>
 /// <remarks>
-/// 🔒 <b>The duration statistics are taken over <em>cleared</em> fights only</b>, and every member
-/// that does so says so in its name. `05` §9's guardrails 3 and 4 are about how long it takes to
-/// <em>clear</em> a boss; a loss's duration is the length of the hero's death or the 90 s cap, which
-/// is a different quantity and would drag every percentile toward the cap the worse a build is.
+/// The duration statistics are taken over cleared fights only (every member that does so says so in
+/// its name): a loss's duration is the length of the hero's death or the 90 s cap, a different
+/// quantity that would drag every percentile toward the cap the worse a build is.
 /// </remarks>
 public sealed class CellResult
 {
@@ -96,13 +86,13 @@ public sealed class CellResult
     /// <summary>The boss script fought.</summary>
     public string BossId { get; }
 
-    /// <summary>`29` §4's <c>ParPower(c, t)</c> for this cell.</summary>
+    /// <summary><c>ParPower(c, t)</c> for this cell.</summary>
     public double ParPower { get; }
 
-    /// <summary>`02` §4.3's <c>EnemyPower(42)</c>, with <c>StageMult.Boss</c> already inside it.</summary>
+    /// <summary><c>EnemyPower(42)</c>, with <c>StageMult.Boss</c> already inside it.</summary>
     public double BossPower { get; }
 
-    /// <summary>`05` §6.0's <c>EnemyLevel(c, t)</c> — the hero's level too, per `29` §2.5.3.</summary>
+    /// <summary><c>EnemyLevel(c, t)</c> — the hero's level too.</summary>
     public int EnemyLevel { get; }
 
     /// <summary>The par-scaled hero.</summary>
@@ -117,7 +107,7 @@ public sealed class CellResult
     /// <summary>How many the hero won.</summary>
     public int ClearCount => _clearedSecondsSorted.Length;
 
-    /// <summary>🔒 Guardrail 1's measurement — cleared ÷ fought.</summary>
+    /// <summary>Guardrail 1's measurement — cleared ÷ fought.</summary>
     public double ClearRate => FightCount == 0 ? 0.0 : (double)ClearCount / FightCount;
 
     /// <summary>Median seconds over <b>cleared</b> fights. <c>NaN</c> when nothing cleared.</summary>
@@ -139,18 +129,18 @@ public sealed class CellResult
             ? double.NaN
             : _clearedSecondsSorted[^1];
 
-    /// <summary>Cleared fights faster than `05` §9's 12 s floor — the raw tail, reported beside the median.</summary>
+    /// <summary>Cleared fights faster than the 12 s floor — the raw tail, reported beside the median.</summary>
     public int ClearsUnderHardFloor =>
         _clearedSecondsSorted.Count(s => s < DurationBands.HardFloorSeconds);
 
-    /// <summary>Cleared fights slower than `05` §9's 70 s ceiling — the raw tail.</summary>
+    /// <summary>Cleared fights slower than the 70 s ceiling — the raw tail.</summary>
     public int ClearsOverHardCeiling =>
         _clearedSecondsSorted.Count(s => s > DurationBands.HardCeilingSeconds);
 
-    /// <summary>🔴 The highest boss phase any fight in this cell reached. 1 means no mechanic ever fired.</summary>
+    /// <summary>The highest boss phase any fight in this cell reached. 1 means no mechanic ever fired.</summary>
     public int MaxBossPhaseReached => Fights.Count == 0 ? 0 : Fights.Max(f => f.MaxBossPhase);
 
-    /// <summary>🔴 The share of fights that reached boss phase 3, where most authored mechanics live.</summary>
+    /// <summary>The share of fights that reached boss phase 3, where most authored mechanics live.</summary>
     public double Phase3Share =>
         Fights.Count == 0 ? 0.0 : (double)Fights.Count(f => f.MaxBossPhase >= 3) / Fights.Count;
 

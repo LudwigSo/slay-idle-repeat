@@ -4,12 +4,11 @@ namespace SlayIdleRepeat.Application.Services.Content;
 
 /// <summary>How a load should treat the source it was handed.</summary>
 /// <remarks>
-/// The one knob that matters is <see cref="OverrideDocuments"/>. `21` §3.3: <em>"An override file
-/// is a sparse JSON patch applied on top of the canonical data at load time. Sweeps, experiments
-/// and what-ifs all run as overrides, so the canonical data is only ever edited when a change is
-/// adopted."</em> Overrides are named explicitly and layered in the order given — never
-/// auto-discovered, because an experiment that applies itself just by existing on disk is an
-/// experiment nobody knows is running.
+/// The one knob that matters is <see cref="OverrideDocuments"/>: sweeps, experiments and what-ifs
+/// all run as overrides, so the canonical data is only ever edited when a change is adopted.
+/// Overrides are named explicitly and layered in the order given — never auto-discovered, because
+/// an experiment that applies itself just by existing on disk is an experiment nobody knows is
+/// running.
 /// </remarks>
 public sealed record ContentLoadOptions
 {
@@ -19,22 +18,15 @@ public sealed record ContentLoadOptions
     /// <summary>A load that also enforces the rules that only matter for a build going to players.</summary>
     public static ContentLoadOptions Shipping { get; } = new() { ShippingBuild = true };
 
-    /// <summary>
-    /// Override document paths, applied in order. Each must be listed by the source and must be a
-    /// sparse patch keyed by canonical file name (`21` §3.3).
-    /// </summary>
+    /// <summary>Override document paths, applied in order. Each must be a sparse patch keyed by canonical file name.</summary>
     public IReadOnlyList<string> OverrideDocuments { get; init; } = [];
 
-    /// <summary>
-    /// 🔒 True when this content is going in front of players, which turns on the ship gates.
-    /// </summary>
+    /// <summary>True when this content is going in front of players, which turns on the ship gates.</summary>
     /// <remarks>
-    /// Today that means one rule: <c>game-data/README.md</c> and
-    /// <c>schema/loc.schema.json</c> both state that <em>"a build that ships to players must fail
-    /// while any sentinel remains"</em>, and `16` D20/X-04 forbid machine translation reaching a
-    /// player at all. All 82 DE values are <c>##TODO_DE##</c> sentinels right now, so the gate
-    /// cannot be on by default without failing M0-M16 on purpose. Off it is a promise nobody keeps;
-    /// behind this flag it is a release job that fails, on the day it should.
+    /// Today that means one rule: a build that ships to players must fail while any translation
+    /// sentinel remains. All DE values are sentinels right now, so the gate cannot be on by default
+    /// without failing the current milestones on purpose — behind this flag it fails on the day it
+    /// should instead.
     /// </remarks>
     public bool ShippingBuild { get; init; }
 }

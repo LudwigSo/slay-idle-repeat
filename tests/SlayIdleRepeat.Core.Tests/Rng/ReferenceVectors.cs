@@ -6,14 +6,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
-/// <summary>
-/// Reads <c>Hash64ReferenceVectors.json</c> — the committed determinism pin of `14` §8.0 —
-/// out of this assembly's embedded resources.
-/// </summary>
+/// <summary>Reads <c>Hash64ReferenceVectors.json</c> out of this assembly's embedded resources.</summary>
 /// <remarks>
-/// The rows in that file were generated from a second, independent XXH64 implementation
-/// (<c>System.IO.Hashing.XxHash64</c>) and are the expectations, not the output of the code
-/// under test. Nothing here re-derives a hash: it only parses.
+/// Generated from a second, independent XXH64 implementation (<c>System.IO.Hashing.XxHash64</c>);
+/// these are expectations, not the output of the code under test.
 /// </remarks>
 internal static class ReferenceVectors
 {
@@ -27,7 +23,7 @@ internal static class ReferenceVectors
     /// <summary>The three short ASCII vectors that circulate with every port of xxHash.</summary>
     internal static IReadOnlyList<AsciiRow> PublishedAscii { get; } = ReadAscii();
 
-    /// <summary>Rows over the canonical argument encoding of `14` §8.0.</summary>
+    /// <summary>Rows over the canonical argument encoding.</summary>
     internal static IReadOnlyList<CanonicalRow> Canonical { get; } = ReadCanonical();
 
     /// <summary>Rows over <see cref="DeterministicRng"/>'s accessors.</summary>
@@ -56,15 +52,12 @@ internal static class ReferenceVectors
         return buffer;
     }
 
-    /// <summary>The one canonical-encoding row with this id.</summary>
     internal static CanonicalRow Row(string id) =>
         Canonical.Single(row => row.Id.Equals(id, StringComparison.Ordinal));
 
-    /// <summary>The one draw row with this id.</summary>
     internal static RngRow DrawRow(string id) =>
         Draws.Single(row => row.Id.Equals(id, StringComparison.Ordinal));
 
-    /// <summary>Every canonical row id, as xUnit theory data.</summary>
     internal static TheoryData<string> CanonicalIds()
     {
         var data = new TheoryData<string>();
@@ -76,7 +69,6 @@ internal static class ReferenceVectors
         return data;
     }
 
-    /// <summary>Every draw row id, as xUnit theory data.</summary>
     internal static TheoryData<string> DrawIds()
     {
         var data = new TheoryData<string>();
@@ -88,7 +80,6 @@ internal static class ReferenceVectors
         return data;
     }
 
-    /// <summary>Every published sanity row, as xUnit theory data.</summary>
     internal static TheoryData<int, ulong, ulong> PublishedRows()
     {
         var data = new TheoryData<int, ulong, ulong>();
@@ -100,7 +91,6 @@ internal static class ReferenceVectors
         return data;
     }
 
-    /// <summary>Every short ASCII vector, as xUnit theory data.</summary>
     internal static TheoryData<string, ulong> AsciiRows()
     {
         var data = new TheoryData<string, ulong>();
@@ -180,9 +170,8 @@ internal static class ReferenceVectors
             .ToArray();
 
     /// <summary>
-    /// Turns one JSON argument into the <see cref="Hash64Argument"/> the production API takes.
-    /// The enum rows name one of the eight <see cref="ReferenceEnums"/> types so the widening
-    /// rule is pinned for every underlying integral type.
+    /// Enum rows name one of the eight <see cref="ReferenceEnums"/> types so the widening rule is
+    /// pinned for every underlying integral type.
     /// </summary>
     private static Hash64Argument ReadArgument(JsonElement element)
     {
@@ -242,9 +231,8 @@ internal static class ReferenceVectors
 
 /// <summary>
 /// One enum per underlying integral type, so the "widened to 64 bits; signed ones
-/// sign-extended" rule of `14` §8.0 is pinned for all eight. The values come from the
-/// reference table, not from these declarations — the members exist only to give each type
-/// a shape.
+/// sign-extended" rule is pinned for all eight. Values come from the reference table, not
+/// from these declarations — the members exist only to give each type a shape.
 /// </summary>
 internal static class ReferenceEnums
 {

@@ -7,19 +7,15 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 
-/// <summary>
-/// 🔒 `05` §5's twelve statuses, as the catalogue reads them.
-/// </summary>
+/// <summary>The twelve statuses, as the catalogue reads them.</summary>
 public sealed class StatusCatalogueTests
 {
-    /// <summary>
-    /// 🔒 `05` §5 fixes <b>twelve</b> statuses, by these exact ids, in this order.
-    /// </summary>
+    /// <summary>Exactly twelve statuses, by these exact ids, in this order.</summary>
     /// <remarks>
-    /// The S3 floor for every rule in this file and every <c>MemberData</c> that walks the catalogue:
+    /// The floor for every rule in this file and every <c>MemberData</c> that walks the catalogue:
     /// a reader that returned an empty or shortened list would make each of them report success over
     /// nothing. The order is asserted as well as the set, because <c>StatusLogId</c>'s ordinals are
-    /// `05` §5's table positions and they are inside <c>LogHash</c>.
+    /// table positions and they are inside <c>LogHash</c>.
     /// </remarks>
     [Fact]
     public void The_catalogue_holds_05_section_5s_twelve_statuses_in_the_sections_order()
@@ -34,9 +30,7 @@ public sealed class StatusCatalogueTests
         });
     }
 
-    /// <summary>
-    /// 🔒 `05` §5's Type column — three DoTs, five Debuffs, three Buffs and one HoT.
-    /// </summary>
+    /// <summary>Three DoTs, five Debuffs, three Buffs and one HoT.</summary>
     /// <remarks>
     /// Stated per status rather than as four counts: a count is satisfied by any permutation, and
     /// swapping <c>REGEN</c> and <c>BURN</c>'s kinds would keep every count right while routing a
@@ -60,10 +54,7 @@ public sealed class StatusCatalogueTests
         StatusFixtures.Catalogue().Of(id).Kind.ShouldBe(Enum.Parse<StatusKind>(kind));
     }
 
-    /// <summary>
-    /// 🔒 Exactly the two kinds `05` §3.1's cadence drives — a <c>Debuff</c> and a <c>Buff</c> have no
-    /// per-second amount for a boundary to land.
-    /// </summary>
+    /// <summary>Exactly the DoT and HoT kinds are cadence-driven — a <c>Debuff</c> and a <c>Buff</c> have no per-second amount for a boundary to land.</summary>
     [Fact]
     public void Only_the_DoTs_and_the_HoT_are_driven_by_the_05_section_3_1_cadence()
     {
@@ -72,16 +63,11 @@ public sealed class StatusCatalogueTests
         ticking.ShouldBe(new[] { "BURN", "POISON", "BLEED", "REGEN" });
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 states a stack ceiling for exactly five of the twelve, and none for the other seven.
-    /// </summary>
+    /// <summary>A stack ceiling is authored for exactly five of the twelve, and none for the other seven.</summary>
     /// <remarks>
-    /// ⚠️ <b>The seven <c>null</c>s are a statement, not seven holes.</b> `05` §5 fixes the stacking
-    /// of <c>BURN</c>, <c>POISON</c>, <c>BLEED</c>, <c>SUNDER</c> and <c>SPORE</c> and says nothing
-    /// about the rest, so for the rest `18` §6's per-effect block governs and this catalogue must not
-    /// pre-empt it. That is a different fact from `05` §6.1a's <c>FREEZE</c> row, which asks the
-    /// catalogue for a stack count and gets none — that hole is recorded in
-    /// <c>content/enemies/enemies.json</c> and is M2-11's, untouched by this task.
+    /// The seven <c>null</c>s are a statement, not seven holes: stacking is fixed for <c>BURN</c>,
+    /// <c>POISON</c>, <c>BLEED</c>, <c>SUNDER</c> and <c>SPORE</c> and stated for nothing else, so
+    /// for the rest the per-effect block governs and this catalogue must not pre-empt it.
     /// </remarks>
     [Fact]
     public void Only_the_five_statuses_05_section_5_states_a_stacking_rule_for_carry_one()
@@ -96,20 +82,16 @@ public sealed class StatusCatalogueTests
         catalogue.Of("SUNDER").Stacking!.MaxStacks.ShouldBe(5);
         catalogue.Of("SPORE").Stacking!.MaxStacks.ShouldBe(4);
 
-        // 🔒 BLEED is "does not stack; reapplication refreshes" — 18 §6's NONE plus refreshOnReapply,
-        // which 18 §6's own erratum names as the authored user of that combination.
+        // BLEED is "does not stack; reapplication refreshes" — NONE plus refreshOnReapply.
         catalogue.Of("BLEED").Stacking!.Mode.ShouldBe(StackingMode.NONE);
         catalogue.Of("BLEED").Stacking!.RefreshOnReapply.ShouldBe(true);
     }
 
-    /// <summary>
-    /// 🔒 The `18` §6 block an application uses: the effect's, else `05` §5's, else `18` §1's
-    /// canonical one.
-    /// </summary>
+    /// <summary>The stacking block an application uses: the effect's, else the status's, else the canonical one.</summary>
     /// <remarks>
-    /// All three arms are probed. The third is the one `18` §7.8's Thornmaw <c>RAGE</c> needs — it
-    /// authors no <c>stacking</c> at all and <c>RAGE</c> is not one of the five — and refusing there
-    /// would throw on authored spec content.
+    /// All three arms are probed. The third is the one Thornmaw's <c>RAGE</c> needs — it authors no
+    /// <c>stacking</c> at all and <c>RAGE</c> is not one of the five — and refusing there would
+    /// throw on authored content.
     /// </remarks>
     [Fact]
     public void The_stacking_block_falls_back_from_the_effect_to_05_section_5_to_18_section_1()
@@ -122,10 +104,7 @@ public sealed class StatusCatalogueTests
         catalogue.StackingFor("RAGE", authored: null).ShouldBe(StatusCatalogue.CanonicalStacking);
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 states <c>FREEZE</c>'s potency as a literal <em>−50% ASPD</em>, so the number is the
-    /// status's — and it is the only row that carries one.
-    /// </summary>
+    /// <summary><c>FREEZE</c>'s potency is a literal -50% ASPD, and it is the only row that carries one.</summary>
     [Fact]
     public void FREEZE_is_the_only_status_whose_potency_05_section_5_states_as_a_literal()
     {
@@ -137,14 +116,11 @@ public sealed class StatusCatalogueTests
         catalogue.Of("FREEZE").FixedPotency.ShouldBe(-0.5);
     }
 
-    /// <summary>
-    /// 🔒 The six <c>TargetStatPct</c> rows name a stat; the other six name none and refuse to be
-    /// asked.
-    /// </summary>
+    /// <summary>The six <c>TargetStatPct</c> rows name a stat; the other six name none and refuse to be asked.</summary>
     /// <remarks>
-    /// The refusal half is the negative control (steering S1): a <c>RequireStat</c> that returned a
-    /// default would silently debuff <c>MAX_HP</c> on every status that has no stat, and the six
-    /// positive rows would still pass.
+    /// The refusal half is the negative control: a <c>RequireStat</c> that returned a default would
+    /// silently debuff <c>MAX_HP</c> on every status that has no stat, and the six positive rows
+    /// would still pass.
     /// </remarks>
     [Fact]
     public void The_six_stat_statuses_name_their_stat_and_the_other_six_refuse_to_be_asked()
@@ -162,13 +138,10 @@ public sealed class StatusCatalogueTests
         thrown.Message.ShouldContain("names no stat", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 says <c>RAGE</c> <em>"decays over D s"</em> and authors no curve — the hole stays a
-    /// hole and fails by name.
-    /// </summary>
+    /// <summary><c>RAGE</c> "decays over D s" but authors no curve — the hole stays a hole and fails by name.</summary>
     /// <remarks>
-    /// Steering S6. <c>RAGE</c> is the only row carrying the key, so the assertion is stated over the
-    /// whole catalogue rather than over that one row: a second status quietly acquiring a decay would
+    /// <c>RAGE</c> is the only row carrying the key, so the assertion is stated over the whole
+    /// catalogue rather than over that one row: a second status quietly acquiring a decay would
     /// otherwise be invisible here.
     /// </remarks>
     [Fact]
@@ -186,9 +159,7 @@ public sealed class StatusCatalogueTests
         thrown.Message.ShouldContain("RAGE", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 A status id outside `05` §5's twelve is refused rather than silently doing nothing.
-    /// </summary>
+    /// <summary>A status id outside the twelve is refused rather than silently doing nothing.</summary>
     /// <remarks>
     /// <c>StatusOps</c> deliberately does not validate the id — the effect schema encloses the set —
     /// so an effect built in code rather than loaded from JSON arrives here unchecked, and this is
@@ -203,15 +174,14 @@ public sealed class StatusCatalogueTests
         thrown.Message.ShouldContain("twelve statuses", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 `05` §6.1a states exactly five potency units — the floor under the per-row mapping below.
-    /// </summary>
+    /// <summary>Exactly five potency units are authored — the floor under the per-row mapping below.</summary>
     /// <remarks>
-    /// 🔴 This replaced a theory that could not fail: it paired each §6.1a unit with a §5 unit and then
-    /// asserted only <c>Enum.IsDefined</c> on both, and because every <c>InlineData</c> was a
-    /// <c>nameof</c>, both checks were true at compile time. The pairing — the entire claim in its name —
-    /// was never checked; mapping <c>TargetAspdPct</c> onto <c>FlatHp</c> left all five passing. What
-    /// survives is the half that bites: a sixth unit fails here, forcing somebody to extend the mapping.
+    /// This replaced a theory that could not fail: it paired each potency unit with a status unit
+    /// and then asserted only <c>Enum.IsDefined</c> on both, and because every <c>InlineData</c> was
+    /// a <c>nameof</c>, both checks were true at compile time. The pairing — the entire claim in its
+    /// name — was never checked; mapping <c>TargetAspdPct</c> onto <c>FlatHp</c> left all five
+    /// passing. What survives is the half that bites: a sixth unit fails here, forcing somebody to
+    /// extend the mapping.
     /// </remarks>
     [Fact]
     public void The_05_section_6_1a_potency_units_are_the_five_that_section_states()
@@ -220,14 +190,14 @@ public sealed class StatusCatalogueTests
     }
 
     /// <summary>
-    /// 🔒 The five on-hit statuses `05` §6.1a applies are all `05` §5 statuses, and each row's unit is
+    /// The on-hit statuses that enemy rows apply are all catalogue statuses, and each row's unit is
     /// the one this catalogue gives that status.
     /// </summary>
     /// <remarks>
-    /// 🔴 This is the assertion the theory above cannot make. Mapping the two enums proves the
-    /// vocabularies overlap; this proves the <b>rows agree</b> — that §6.1a's <c>FREEZE</c> row really
-    /// is measured in the unit §5 gives <c>FREEZE</c>. A biome row retyped to a different unit would
-    /// pass every enum-level check and apply a fraction of Max HP as a fraction of ATK.
+    /// This is the assertion the theory above cannot make. Mapping the two enums proves the
+    /// vocabularies overlap; this proves the rows agree — that an enemy's <c>FREEZE</c> row really
+    /// is measured in the unit this catalogue gives <c>FREEZE</c>. A row retyped to a different unit
+    /// would pass every enum-level check and apply a fraction of Max HP as a fraction of ATK.
     /// </remarks>
     [Theory]
     [InlineData("BLEED", nameof(StatusPotencyBasis.ApplierAtkPctPerSecond))]
@@ -242,14 +212,11 @@ public sealed class StatusCatalogueTests
         StatusFixtures.Catalogue().Of(statusId).Basis.ShouldBe(Enum.Parse<StatusPotencyBasis>(basis));
     }
 
-    /// <summary>
-    /// 🔒 `05` §7's <c>dataId</c>s — the twelve table positions, one-based, and covering the catalogue
-    /// exactly.
-    /// </summary>
+    /// <summary>The <c>dataId</c>s are the twelve table positions, one-based, and cover the catalogue exactly.</summary>
     /// <remarks>
-    /// One-based because <c>CombatLog.NoDataId</c> is <c>0</c> and means <em>"names no content"</em>:
-    /// a zero-based <c>BURN</c> would be indistinguishable from an event naming nothing. The set
-    /// equality in both directions is the S3 floor — a mapping that lost a status would leave every
+    /// One-based because <c>CombatLog.NoDataId</c> is <c>0</c> and means "names no content": a
+    /// zero-based <c>BURN</c> would be indistinguishable from an event naming nothing. The set
+    /// equality in both directions is the floor — a mapping that lost a status would leave every
     /// event for it carrying a <c>dataId</c> the replayer cannot resolve.
     /// </remarks>
     [Fact]

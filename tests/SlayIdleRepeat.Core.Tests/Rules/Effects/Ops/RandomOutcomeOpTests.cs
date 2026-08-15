@@ -7,35 +7,23 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 `18` §2.4 / §10.1 <b>E6</b> — <c>RANDOM_OUTCOME</c>, the forty-fourth op: one draw over a
-/// weighted table of <b>mutually exclusive</b> outcomes.
-/// </summary>
+/// <summary><c>RANDOM_OUTCOME</c>: one draw over a weighted table of mutually exclusive outcomes.</summary>
 /// <remarks>
-/// The mechanic is `17` §9's <em>Roll of Fate</em> — one visible d6, exactly one result. Three
-/// <c>chance</c>-gated effects would be three <b>independent</b> draws (all three can fire, or none)
-/// spending <b>three</b> indices where <see cref="DeterministicRng.WeightedPick{T}"/> spends
-/// <b>one</b> — and since the position is persisted state, the two readings desynchronise every later
-/// draw of the battle. That is why the single-draw case is the load-bearing one.
-/// <para>
-/// 🔴 <c>CombatFlowOps.RandomOutcome</c> is a stub that throws naming M2-12, so every <b>behaviour</b>
-/// case here is red on purpose and describes what replaces it. The <b>paperwork</b> cases are green.
-/// </para>
+/// One visible roll, exactly one result. Three independently <c>chance</c>-gated effects would spend
+/// three draw indices instead of one — and since the draw position is persisted state, the two
+/// readings desynchronise every later draw of the battle.
 /// </remarks>
 public sealed class RandomOutcomeOpTests
 {
-    // `17` §9's two authored tables. Phase 1 is the three-outcome d6; phase 2 drops the
-    // hero-favourable row (kickoff decision 1(c)) and reweights what is left.
+    // Two authored tables: phase 1 is the three-outcome d6; phase 2 drops the hero-favourable row
+    // and reweights what is left.
     private const string BossAtk = "BOSS_DICELORD_FATE_BOSS_ATK";
     private const string HeroAtk = "BOSS_DICELORD_FATE_HERO_ATK";
     private const string BothAspd = "BOSS_DICELORD_FATE_BOTH_ASPD";
 
     // ════════════════════════════════════════════════════ 1 · the single-draw proof
 
-    /// <summary>
-    /// 🔒 The load-bearing case: one roll costs <b>exactly one</b> draw index, which is the whole
-    /// reason the op exists rather than three <c>chance</c> gates.
-    /// </summary>
+    /// <summary>One roll costs exactly one draw index — the whole reason the op exists rather than three <c>chance</c> gates.</summary>
     [Fact]
     public void RANDOM_OUTCOME_consumes_exactly_one_draw_index_per_roll()
     {
@@ -55,9 +43,8 @@ public sealed class RandomOutcomeOpTests
     }
 
     /// <summary>
-    /// 🔒 The negative control: a roll refused for a malformed table spends <b>no</b> draw index.
-    /// <see cref="DeterministicRng.WeightedPick{T}"/>'s own contract is that <em>a rejected call is
-    /// not a call</em>, and this op validates before it draws for exactly that reason.
+    /// The negative control: a roll refused for a malformed table spends no draw index — a rejected
+    /// call is not a call, so the op validates before it draws.
     /// </summary>
     [Fact]
     public void A_refused_RANDOM_OUTCOME_consumes_no_draw_index()
@@ -81,10 +68,7 @@ public sealed class RandomOutcomeOpTests
 
     // ════════════════════════════════════════════════════ 2 · numeric behaviour
 
-    /// <summary>
-    /// 🔒 `18` §10 step 3's numeric assertion, pinned at a literal seed: which row won, what the op
-    /// returned, and what the seam was handed.
-    /// </summary>
+    /// <summary>Numeric assertion pinned at a literal seed: which row won, what the op returned, and what the seam was handed.</summary>
     [Fact]
     public void RANDOM_OUTCOME_returns_the_1_based_index_of_the_row_its_seed_drew()
     {
@@ -138,8 +122,8 @@ public sealed class RandomOutcomeOpTests
     // ════════════════════════════════════════════════════ 3 · the weights actually bias the draw
 
     /// <summary>
-    /// 🔒 The weights are read, and a <b>uniform</b> pick over the same rows at the same seed would
-    /// answer differently — which a table of three equal weights could never show.
+    /// The weights are read: a uniform pick over the same rows at the same seed would answer
+    /// differently, which a table of equal weights could never show.
     /// </summary>
     /// <remarks>
     /// The two rows point the same trick opposite ways, so an implementation that happened to agree with
@@ -168,10 +152,7 @@ public sealed class RandomOutcomeOpTests
         index.ShouldBe(expectedIndex);
     }
 
-    /// <summary>
-    /// 🔒 A zero-weight row is <b>unreachable</b>, wherever it sits: `14` §8.0's walk compares
-    /// strictly, and that is how authored content disables one outcome without disabling the roll.
-    /// </summary>
+    /// <summary>A zero-weight row is unreachable, wherever it sits — how authored content disables one outcome without disabling the roll.</summary>
     [Fact]
     public void A_zero_weight_outcome_is_never_drawn_across_five_hundred_seeds()
     {
@@ -183,7 +164,7 @@ public sealed class RandomOutcomeOpTests
 
         var picks = PicksAcrossSeeds(disabledFirst, seeds: 500);
 
-        // S3 — the floor. ShouldNotContain over an empty list is vacuously true.
+        // The floor: ShouldNotContain over an empty list is vacuously true.
         picks.Count.ShouldBe(500, "one pick per seed, and every roll must have produced one");
 
         picks.ShouldNotContain("EFF_DISABLED", "a weight of 0 disables the row");
@@ -194,8 +175,8 @@ public sealed class RandomOutcomeOpTests
     // ════════════════════════════════════════════════════ 4 · mutual exclusivity
 
     /// <summary>
-    /// 🔒 Exactly <b>one</b> outcome fires per roll — the property three <c>chance</c>-gated effects
-    /// cannot have, since each gate is drawn independently and all three can pass.
+    /// Exactly one outcome fires per roll — the property three <c>chance</c>-gated effects cannot
+    /// have, since each gate is drawn independently and all three can pass.
     /// </summary>
     [Fact]
     public void Exactly_one_outcome_fires_per_roll_and_the_seam_is_called_once()
@@ -214,9 +195,8 @@ public sealed class RandomOutcomeOpTests
     // ════════════════════════════════════════════════════ 5 · the Dicelord's two authored tables
 
     /// <summary>
-    /// 🔒 `17` §9's two <em>Roll of Fate</em> tables — phase 1's <c>2/2/2</c> over three outcomes and
-    /// phase 2's <c>4/2</c> over two — are both legal for the <b>one</b> op, with no code path
-    /// between them. That is the whole claim of E6: the boss script is data.
+    /// Two differently shaped tables (phase 1's <c>2/2/2</c> over three, phase 2's <c>4/2</c> over
+    /// two) are both legal for the one op, with no code path between them.
     /// </summary>
     [Theory]
     [InlineData(6UL, BossAtk, 1.0)]
@@ -236,14 +216,14 @@ public sealed class RandomOutcomeOpTests
         ulong battleSeed, string expected, double expectedIndex) =>
         Draws(PhaseTwo(), battleSeed, expected, expectedIndex);
 
-    /// <summary>Both authored tables are well-formed as data, which is the half `18` §10 fixes.</summary>
+    /// <summary>Both authored tables are well-formed as data.</summary>
     [Fact]
     public void Both_of_the_Dicelords_authored_tables_are_well_formed()
     {
         EffectOpValidation.Problems(PhaseOne()).ShouldBeEmpty();
         EffectOpValidation.Problems(PhaseTwo()).ShouldBeEmpty();
 
-        // The shape the tables are actually authored in — 18 §3's PERIODIC trigger, no value.
+        // The shape the tables are actually authored in: a PERIODIC trigger, no value.
         PhaseOne().Trigger!.Kind.ShouldBe(TriggerKind.PERIODIC);
         PhaseOne().Trigger!.Interval.ShouldBe(10.0);
         PhaseOne().Value.ShouldBeNull("18 §10.1 E6 adds a KEY, never a number");
@@ -269,7 +249,7 @@ public sealed class RandomOutcomeOpTests
                           .ShouldContain(p => p.Contains("names no outcomes", StringComparison.Ordinal));
     }
 
-    /// <summary>🔒 One outcome is not a choice — author the effect directly instead.</summary>
+    /// <summary>One outcome is not a choice — author the effect directly instead.</summary>
     [Fact]
     public void A_RANDOM_OUTCOME_with_a_single_outcome_is_refused()
     {
@@ -294,16 +274,10 @@ public sealed class RandomOutcomeOpTests
     }
 
     /// <summary>
-    /// 🔴 A row that names <b>no</b> effect id. <see cref="RandomOutcomeEntry"/> is a record struct,
-    /// so <c>default</c> — and a JSON row that omits <c>effectId</c> — carries a null one; the boss
-    /// encounter builder's sibling lookup would then raise a bare <see cref="ArgumentNullException"/>
-    /// naming no rule at all (steering S2).
+    /// A row that names no effect id. <see cref="RandomOutcomeEntry"/> is a record struct, so
+    /// <c>default</c> — and a JSON row omitting <c>effectId</c> — carries a null one, which would
+    /// otherwise raise a bare <see cref="ArgumentNullException"/> naming no rule at all.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The weight rule still reads the row, and the negative control below it is
-    /// <see cref="A_well_formed_RANDOM_OUTCOME_reports_no_problem"/>: a table whose ids are all present
-    /// raises none of this.
-    /// </remarks>
     [Theory]
     [InlineData(null, "an absent effectId")]
     [InlineData("", "an empty one")]
@@ -321,7 +295,7 @@ public sealed class RandomOutcomeOpTests
                               $"which rule fired — {why}");
     }
 
-    /// <summary>`14` §8.0 takes a finite, non-negative weight and nothing else.</summary>
+    /// <summary>A weight must be finite and non-negative.</summary>
     [Theory]
     [InlineData(-1.0)]
     [InlineData(double.NaN)]
@@ -337,7 +311,7 @@ public sealed class RandomOutcomeOpTests
                           .ShouldContain(p => p.Contains($"weighs '{HeroAtk}' at", StringComparison.Ordinal));
     }
 
-    /// <summary>Every row zero: `14` §8.0 has no row to pick, so the roll is dead weight.</summary>
+    /// <summary>Every row zero: there is no row to pick, so the roll is dead weight.</summary>
     [Fact]
     public void A_RANDOM_OUTCOME_whose_every_weight_is_zero_is_refused()
     {
@@ -351,7 +325,7 @@ public sealed class RandomOutcomeOpTests
                                                          StringComparison.Ordinal));
     }
 
-    /// <summary>🔒 A row naming the roll itself rolls the roll — unbounded, one draw index per turn.</summary>
+    /// <summary>A row naming the roll itself rolls the roll — unbounded, one draw index per turn.</summary>
     [Fact]
     public void A_RANDOM_OUTCOME_naming_its_own_id_as_an_outcome_is_refused()
     {
@@ -367,9 +341,8 @@ public sealed class RandomOutcomeOpTests
     }
 
     /// <summary>
-    /// 🔒 <c>RANDOM_OUTCOME</c> carries no <c>value</c>: its number is the winning row's index, which
-    /// nothing authors. Refused rather than ignored — dropping it would ship whichever misreading
-    /// put it there (the <c>FORCE_CRIT_NEXT</c> precedent).
+    /// <c>RANDOM_OUTCOME</c> carries no <c>value</c>: its number is the winning row's index, which
+    /// nothing authors. Refused rather than ignored, so a stray value can't ship a misreading.
     /// </summary>
     [Fact]
     public void A_RANDOM_OUTCOME_carrying_a_value_is_refused_rather_than_ignored()
@@ -398,11 +371,11 @@ public sealed class RandomOutcomeOpTests
 
     // ════════════════════════════════════════════════════ 7 · exhaustiveness and count
 
-    /// <summary>The op is in the vocabulary, in `18` §2.4's family, and routed by the resolver.</summary>
+    /// <summary>The op is in the vocabulary, in the combat-flow family, and routed by the resolver.</summary>
     [Fact]
     public void RANDOM_OUTCOME_is_the_forty_fourth_op_and_a_combat_flow_one()
     {
-        // S3 — the floor under the membership assertion below.
+        // The floor under the membership assertion below.
         EffectOps.All.Count.ShouldBe(44, "18 §11: '44 ops = 41 + CLEAR_SUMMONS + STAT_COPY + RANDOM_OUTCOME'");
 
         EffectOps.All.ShouldContain(EffectOp.RANDOM_OUTCOME);
@@ -414,10 +387,7 @@ public sealed class RandomOutcomeOpTests
             44, "the numbers are wire values — append, never renumber, never reuse");
     }
 
-    /// <summary>
-    /// 🔒 The resolver does not reach its <c>default</c> arm for this op — the arm that would report
-    /// <em>"is not one of 18 §2's 44"</em>.
-    /// </summary>
+    /// <summary>The resolver does not reach its <c>default</c> arm for this op.</summary>
     [Fact]
     public void The_resolver_routes_RANDOM_OUTCOME_rather_than_falling_through()
     {
@@ -429,10 +399,7 @@ public sealed class RandomOutcomeOpTests
         outcome.Op.ShouldBe(EffectOp.RANDOM_OUTCOME);
     }
 
-    /// <summary>
-    /// 🔒 The op with no draw stream is refused rather than answering with the first row — a stable,
-    /// reproducible, wrong "random", exactly as `18` §5's <c>RANDOM_ENEMY</c> is refused.
-    /// </summary>
+    /// <summary>The op with no draw stream is refused rather than answering with the first row — a stable, reproducible, wrong "random".</summary>
     [Fact]
     public void A_RANDOM_OUTCOME_in_a_context_with_no_draw_stream_is_refused()
     {
@@ -446,15 +413,7 @@ public sealed class RandomOutcomeOpTests
         bench.RandomOutcomes.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 <see cref="EffectOpSeams.Strict"/>'s doctrine holds for the new member too: an unwired flow
-    /// sink <b>throws naming M2-08</b> rather than quietly doing nothing.
-    /// </summary>
-    /// <remarks>
-    /// This is the case <c>EffectOpSeamTests.An_unwired_combat_flow_op_names_M2_08</c> excludes while
-    /// the handler is a stub — it never reaches a seam at all today. When this goes green that
-    /// exclusion comes off.
-    /// </remarks>
+    /// <summary>An unwired flow sink throws naming M2-08 rather than quietly doing nothing.</summary>
     [Fact]
     public void The_unwired_flow_sink_refuses_a_RANDOM_OUTCOME_naming_M2_08()
     {
@@ -473,7 +432,7 @@ public sealed class RandomOutcomeOpTests
 
     // ════════════════════════════════════════════════════ fixtures
 
-    /// <summary>`17` §9's phase 1 <em>Roll of Fate</em>: one d6, three equally weighted results.</summary>
+    /// <summary>Phase 1 <em>Roll of Fate</em>: one d6, three equally weighted results.</summary>
     private static EffectDefinition PhaseOne() => Roll(
         "BOSS_DICELORD_ROLL_OF_FATE_P1",
         new RandomOutcomeEntry(BossAtk, 2.0),
@@ -481,15 +440,15 @@ public sealed class RandomOutcomeOpTests
         new RandomOutcomeEntry(BothAspd, 2.0));
 
     /// <summary>
-    /// `17` §9's phase 2: the hero-favourable row is gone (kickoff decision 1(c)) and the two that
-    /// remain are weighted <c>4/2</c>. Same op, different data, no branch.
+    /// Phase 2: the hero-favourable row is gone and the two that remain are weighted <c>4/2</c>. Same
+    /// op, different data, no branch.
     /// </summary>
     private static EffectDefinition PhaseTwo() => Roll(
         "BOSS_DICELORD_ROLL_OF_FATE_P2",
         new RandomOutcomeEntry(BossAtk, 4.0),
         new RandomOutcomeEntry(BothAspd, 2.0));
 
-    /// <summary>A <c>RANDOM_OUTCOME</c> in the shape `17` §9 authors: PERIODIC, on SELF, no value.</summary>
+    /// <summary>A <c>RANDOM_OUTCOME</c> in its authored shape: PERIODIC, on SELF, no value.</summary>
     private static EffectDefinition Roll(string id, params RandomOutcomeEntry[] outcomes) =>
         new()
         {
@@ -527,10 +486,7 @@ public sealed class RandomOutcomeOpTests
     }
 
     /// <summary>One roll per seed over <c>1..seeds</c>, and the effect id each one chose.</summary>
-    /// <remarks>
-    /// The loop lives here rather than in a test body: `18` §10's own rule is that a disabled row is
-    /// unreachable <em>wherever it sits</em>, and one seed cannot show that.
-    /// </remarks>
+    /// <remarks>The loop lives here rather than in a test body: one seed cannot show that a disabled row is unreachable wherever it sits.</remarks>
     private static IReadOnlyList<string> PicksAcrossSeeds(EffectDefinition roll, int seeds)
     {
         var picks = new List<string>();

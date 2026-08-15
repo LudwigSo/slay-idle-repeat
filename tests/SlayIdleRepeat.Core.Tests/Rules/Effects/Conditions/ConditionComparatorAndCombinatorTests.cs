@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Conditions;
 
-/// <summary>
-/// 🔒 `18` §4's seven comparators — <c>eq · neq · lt · lte · gt · gte · between</c> — and its three
-/// combinators — <c>all · any · not</c>.
-/// </summary>
+/// <summary>The seven comparators — <c>eq · neq · lt · lte · gt · gte · between</c> — and the three combinators — <c>all · any · not</c>.</summary>
 public sealed class ConditionComparatorAndCombinatorTests
 {
     /// <summary>
@@ -91,10 +88,7 @@ public sealed class ConditionComparatorAndCombinatorTests
             .ShouldBe(expected);
     }
 
-    /// <summary>
-    /// `18` §7.10 writes <c>{"fn":"ATTACKER_IS_ELITE","op":"eq","value":true}</c> — a boolean
-    /// comparison, carried by <see cref="ConditionTerm.Flag"/>.
-    /// </summary>
+    /// <summary>A boolean comparison, carried by <see cref="ConditionTerm.Flag"/>.</summary>
     [Theory]
     [InlineData(ConditionComparator.EQ, true, true)]
     [InlineData(ConditionComparator.EQ, false, false)]
@@ -154,10 +148,7 @@ public sealed class ConditionComparatorAndCombinatorTests
 
     // ------------------------------------------------------------------ combinators
 
-    /// <summary>
-    /// `18` §4's worked combinator, verbatim:
-    /// <c>{"all":[{"fn":"SELF_HP_PCT","op":"gte","value":1.0},{"fn":"ENEMY_COUNT","op":"eq","value":1}]}</c>.
-    /// </summary>
+    /// <summary><c>all</c> holds only when every operand holds.</summary>
     [Theory]
     [InlineData(100, 1, true)]
     [InlineData(100, 2, false)]
@@ -224,10 +215,8 @@ public sealed class ConditionComparatorAndCombinatorTests
     }
 
     /// <summary>
-    /// Combinators nest. `18` §9.3's skip idiom — <em>"gear affixes like <c>+X% Gold Gain</c> still
-    /// need to be neutralised in duels — they are simply skipped"</em> — is
-    /// <c>{"all":[{"not":{"fn":"IS_PVP","op":"eq","value":true}}, …]}</c>, and it must survive a
-    /// combinator inside a combinator.
+    /// Combinators nest. The <c>not IS_PVP</c> skip idiom, used to neutralise gear affixes like
+    /// <c>+X% Gold Gain</c> in duels, must survive a combinator inside a combinator.
     /// </summary>
     [Fact]
     public void Combinators_nest_to_arbitrary_depth()
@@ -267,16 +256,11 @@ public sealed class ConditionComparatorAndCombinatorTests
     }
 
     /// <summary>
-    /// 🔒 <c>all</c> and <c>any</c> short-circuit — the duel skip above is only safe if a failed
-    /// <c>not IS_PVP</c> stops the tree before an operand that would throw against a run-less duel
-    /// context.
+    /// <c>all</c> and <c>any</c> short-circuit — this is not an optimisation. The duel skip above is
+    /// only safe if a failed <c>not IS_PVP</c> stops the tree before an operand that would throw
+    /// against a run-less duel context: an evaluator that read every operand before combining them
+    /// would throw on exactly the effects the ruling exists to neutralise.
     /// </summary>
-    /// <remarks>
-    /// This is not an optimisation. `18` §9.3's whole mechanism is that a non-combat clause is
-    /// <em>skipped</em> in a duel, and a duel context carries no <c>IRunStateView</c> (`05` §3.3), so
-    /// an evaluator that read every operand before combining them would throw on exactly the effects
-    /// the ruling exists to neutralise.
-    /// </remarks>
     [Fact]
     public void ALL_short_circuits_so_the_IS_PVP_skip_never_reaches_the_run_state_it_guards()
     {
@@ -296,14 +280,14 @@ public sealed class ConditionComparatorAndCombinatorTests
             }));
 
         var duel = EffectTestBattle.Duel();
-        duel.Run.ShouldBeNull("05 §3.3: a duel has no run");
+        duel.Run.ShouldBeNull("a duel has no run");
 
         ConditionEvaluator.IsSatisfied(goldAffix, duel).ShouldBeFalse();
     }
 
     /// <summary>
-    /// 🔒 And <c>any</c> short-circuits too — the same skip idiom is equally reachable through it,
-    /// and a rule that held for one combinator and not the other would be half a rule.
+    /// <c>any</c> short-circuits too — the same skip idiom is equally reachable through it, and a rule
+    /// that held for one combinator and not the other would be half a rule.
     /// </summary>
     [Fact]
     public void ANY_short_circuits_so_a_satisfied_first_operand_never_reaches_the_rest()
@@ -330,7 +314,7 @@ public sealed class ConditionComparatorAndCombinatorTests
         ConditionEvaluator.IsSatisfied(inADuelOrHoldingGold, duel).ShouldBeTrue();
     }
 
-    /// <summary>An absent condition is an ungated effect — `18` §1's <c>"condition": null</c>.</summary>
+    /// <summary>An absent condition is an ungated effect.</summary>
     [Fact]
     public void A_null_condition_holds()
     {

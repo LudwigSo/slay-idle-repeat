@@ -3,32 +3,31 @@ using System.Globalization;
 namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
-/// 🔒 M3-13, `02` §5.2 — <c>FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier</c>,
-/// read out of <c>tuning/progression.json</c>'s <c>completionMultiplier</c> and <c>adDoubleMultiplier</c>
-/// blocks.
+/// <c>FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier</c>, read out of
+/// <c>tuning/progression.json</c>'s <c>completionMultiplier</c> and <c>adDoubleMultiplier</c> blocks.
 /// </summary>
 internal sealed class RunPayoutTuning
 {
-    /// <summary>The document `02` §5.2's payout blocks live in.</summary>
+    /// <summary>The document the payout blocks live in.</summary>
     internal const string DocumentPath = "tuning/progression.json";
 
     private const string CompletionPointer = DocumentPath + "#/completionMultiplier";
 
     private const string AdDoublePointer = DocumentPath + "#/adDoubleMultiplier/value";
 
-    /// <summary>`02` §5.2 — the boss killed. 1.0 as shipped.</summary>
+    /// <summary>The boss killed. 1.0 as shipped.</summary>
     internal const string VictoryReference = CompletionPointer + "/VICTORY";
 
-    /// <summary>`02` §5.2 — death in Stage 3. 0.6 as shipped.</summary>
+    /// <summary>Death in Stage 3. 0.6 as shipped.</summary>
     internal const string Stage3DeathReference = CompletionPointer + "/STAGE_3_DEATH";
 
-    /// <summary>`02` §5.2 — death in Stage 2. 0.4 as shipped.</summary>
+    /// <summary>Death in Stage 2. 0.4 as shipped.</summary>
     internal const string Stage2DeathReference = CompletionPointer + "/STAGE_2_DEATH";
 
-    /// <summary>`02` §5.2 — death in Stage 1. 0.25 as shipped.</summary>
+    /// <summary>Death in Stage 1. 0.25 as shipped.</summary>
     internal const string Stage1DeathReference = CompletionPointer + "/STAGE_1_DEATH";
 
-    /// <summary>`02` §5.2 — the run was abandoned; no gear drops are kept. 0.10 as shipped.</summary>
+    /// <summary>The run was abandoned; no gear drops are kept. 0.10 as shipped.</summary>
     internal const string AbandonReference = CompletionPointer + "/ABANDON";
 
     private readonly IReadOnlyDictionary<RunCompletionOutcome, double> _completionMultiplier;
@@ -41,10 +40,10 @@ internal sealed class RunPayoutTuning
         _adDoubleMultiplier = adDoubleMultiplier;
     }
 
-    /// <summary>`02` §5.2 — the completion multiplier for one outcome.</summary>
+    /// <summary>The completion multiplier for one outcome.</summary>
     internal double CompletionMultiplier(RunCompletionOutcome outcome) => _completionMultiplier[outcome];
 
-    /// <summary>`02` §5.2 — 2.0 if the run-end rewarded ad was watched, else 1.0.</summary>
+    /// <summary>2.0 if the run-end rewarded ad was watched, else 1.0.</summary>
     internal double AdDoubleMultiplier(bool watchedAd) => watchedAd ? _adDoubleMultiplier : 1.0;
 
     /// <summary>Reads both payout blocks. Throws rather than defaulting on anything unusable.</summary>
@@ -102,7 +101,7 @@ internal sealed class RunPayoutTuning
     private static string Text(double value) => value.ToString(CultureInfo.InvariantCulture);
 }
 
-/// <summary>`02` §5.2 — how a run ended, for <see cref="RunPayoutTuning.CompletionMultiplier"/>.</summary>
+/// <summary>How a run ended, for <see cref="RunPayoutTuning.CompletionMultiplier"/>.</summary>
 internal enum RunCompletionOutcome
 {
     /// <summary>The boss was killed.</summary>
@@ -115,10 +114,8 @@ internal enum RunCompletionOutcome
     Stage2Death,
 
     /// <summary>
-    /// The hero died in Stage 3 — including a death to the boss itself, which `03` §1's board has no
-    /// stage of its own for (the boss node "belongs to no stage"); a death fighting the boss is the
-    /// closest of the three named stages and is treated as this one. A documented judgement call —
-    /// see <c>Handlers.EndRun</c>'s remarks.
+    /// The hero died in Stage 3 — including a death to the boss itself, which the board has no
+    /// stage of its own for. Treated as the closest of the three named stages.
     /// </summary>
     Stage3Death,
 

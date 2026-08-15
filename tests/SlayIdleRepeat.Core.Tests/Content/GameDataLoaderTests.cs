@@ -5,18 +5,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content;
 
-/// <summary>
-/// 🔒 The harness's <c>game-data</c> → <see cref="ContentSnapshot"/> loader, over the real tree.
-/// </summary>
+/// <summary>The harness's <c>game-data</c> → <see cref="ContentSnapshot"/> loader, over the real tree.</summary>
 /// <remarks>
-/// The loader ships in the harness because that tool is pinned to <c>Core</c> with no packages, so it
-/// can reach neither the <c>Application</c> pipeline nor any adapter. These cases are stated here
-/// because this is the suite that consumes it, and because the composition asserted must be the one
-/// the harness actually runs rather than a restatement of it.
-/// <para>
-/// 🔴 Every negative case carries a <b>negative control</b> that must stay green: a loader that threw on
-/// everything would satisfy the refusals and load nothing.
-/// </para>
+/// Ships in the harness because that tool is pinned to <c>Core</c> with no packages and cannot reach
+/// the <c>Application</c> pipeline or any adapter. Every negative case below carries a negative
+/// control that must stay green, since a loader that threw on everything would satisfy the refusals too.
 /// </remarks>
 public sealed class GameDataLoaderTests
 {
@@ -24,13 +17,12 @@ public sealed class GameDataLoaderTests
     private const string Replaceable = "content/bosses/bosses.json";
 
     /// <summary>
-    /// 🔒 `05` §5 — <c>RAGE</c> <em>"decays over D s"</em> and no document states the curve, so the
-    /// leaf is an authored <c>null</c>. It is the shipped hole this loader's <c>null</c> mapping is
-    /// probed against; <c>SubjectSetFloorTests</c>' <c>StatusDecayCurve</c> entry is its expiry.
+    /// RAGE decays over an unstated curve, so the leaf is an authored <c>null</c> — the shipped hole
+    /// this loader's <c>null</c> mapping is probed against.
     /// </summary>
     private const string AuthoredNull = "content/statuses.json#/statuses/8/decayCurve";
 
-    /// <summary>`05` §6.2 — the second shipped hole: <c>CURSED</c> names no curse.</summary>
+    /// <summary>The second shipped hole: <c>CURSED</c> names no curse.</summary>
     private const string SecondAuthoredNull = "content/enemies/enemies.json#/elites/modifiers/6/curseId";
 
     /// <summary>S3 — the tree really is the shipped one, and the loader really read it.</summary>
@@ -55,19 +47,17 @@ public sealed class GameDataLoaderTests
             Path.IsPathRooted(path).ShouldBeFalse(path);
         }
 
-        // And the values arrived, not just the keys.
         snapshot.ReadDouble("content/bosses/bosses.json#/secondaryStats/critDamage").ShouldBe(0.5);
     }
 
     /// <summary>
-    /// 🔒 <c>game-data/README.md</c> — a JSON <c>null</c> is <em>"the design docs do not authorise a
-    /// value here"</em>, and it loads as <see cref="ContentValueKind.Unauthorised"/>, never as a zero.
+    /// A JSON <c>null</c> means "the design docs do not authorise a value here", and loads as
+    /// <see cref="ContentValueKind.Unauthorised"/>, never as a zero.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Two shipped holes and two negative controls, and the controls are what make the case say
-    /// anything.</b> <c>IsAuthorised</c> returning <c>false</c> is equally consistent with a loader
-    /// that resolved nothing at all — so each hole is paired with an authored value at a sibling
-    /// pointer of the same document, which must read back as authorised and with its value.
+    /// Two shipped holes and two negative controls: <c>IsAuthorised</c> returning <c>false</c> is
+    /// equally consistent with a loader that resolved nothing, so each hole is paired with an
+    /// authored value at a sibling pointer that must read back authorised with its value.
     /// </remarks>
     [Theory]
     [InlineData(AuthoredNull, "content/statuses.json#/statuses/8/stat", "ATK")]
@@ -82,13 +72,12 @@ public sealed class GameDataLoaderTests
             $"{hole} is null in the shipped data, which is the design docs authorising no value");
         snapshot.Read(hole).Kind.ShouldBe(ContentValueKind.Unauthorised);
 
-        // 📐 Not a zero, and the difference is the whole convention: a reader that mapped null to 0
-        // would produce numbers, the simulator would grade them, and nobody would learn that a curve
-        // nobody authored had been treated as flat.
+        // Not a zero: mapping null to 0 would produce plausible numbers the simulator would grade,
+        // hiding an unauthored curve as flat.
         Should.Throw<UnauthorisedTunableException>(() => snapshot.ReadDouble(hole))
             .Reference.ShouldBe(hole);
 
-        // 🔴 The discriminator. Point the same two assertions at a value that IS authored.
+        // The discriminator: point the same two assertions at a value that IS authored.
         snapshot.IsAuthorised(authored).ShouldBeTrue(
             "the negative control — the loader resolves this document's authored leaves too, so " +
             "'unauthorised' above is a statement about the null and not about the loader");
@@ -96,12 +85,12 @@ public sealed class GameDataLoaderTests
     }
 
     /// <summary>
-    /// 🔒 A duplicate key <b>throws</b>. <c>JsonDocument</c> keeps one of the two and discards the
-    /// other in silence, which is `14` §6's duplicate-id failure class with nothing to see.
+    /// A duplicate key <b>throws</b>. <c>JsonDocument</c> keeps one of the two and discards the
+    /// other in silence, which would otherwise be a failure with nothing to see.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes.</b> A duplicate at the document root and one nested inside an array element
-    /// are different code paths — the second is the one a rule that only checked the top level would
+    /// Two shapes: a duplicate at the document root and one nested inside an array element are
+    /// different code paths — the second is the one a rule that only checked the top level would
     /// wave through, and it is the shape real authored data would produce.
     /// </remarks>
     [Theory]
@@ -118,7 +107,7 @@ public sealed class GameDataLoaderTests
     }
 
     /// <summary>
-    /// 🔴 The negative control for the case above: the same two shapes with the duplicate removed
+    /// The negative control for the case above: the same two shapes with the duplicate removed
     /// load, and their values are readable. Without it, a loader that threw on every replacement
     /// would pass the refusals.
     /// </summary>
@@ -132,10 +121,7 @@ public sealed class GameDataLoaderTests
         snapshot.ReadDouble(Replaceable + pointer).ShouldBe(expected);
     }
 
-    /// <summary>
-    /// 🔒 `21` §3.3 — an override is in memory and never an edit to <c>game-data/</c>, and it really
-    /// does replace the document rather than being ignored.
-    /// </summary>
+    /// <summary>An override is in memory and never an edit to <c>game-data/</c>, and it really does replace the document rather than being ignored.</summary>
     [Fact]
     public void An_override_replaces_the_document_in_memory_and_leaves_the_tree_alone()
     {
@@ -147,7 +133,7 @@ public sealed class GameDataLoaderTests
         shipped.ReadDouble(Replaceable + "#/secondaryStats/crit").ShouldBe(
             0.05, "17 §1.2's authored baseline — the shipped snapshot is untouched by the experiment");
 
-        // And the file on disk is untouched, which is the half 21 §3.3 is actually about.
+        // And the file on disk is untouched, which is the point.
         GameDataLoader.Load()
             .ReadDouble(Replaceable + "#/secondaryStats/crit")
             .ShouldBe(0.05, "an override that wrote to game-data/ would leave this at 0.99 forever");
@@ -173,14 +159,14 @@ public sealed class GameDataLoaderTests
     }
 
     /// <summary>
-    /// 🔒 The stamp is a real hash of the loaded documents — <see cref="ContentVersion"/> exists so
+    /// The stamp is a real hash of the loaded documents — <see cref="ContentVersion"/> exists so
     /// that a replayed command reproduces its outcome across a balance patch, which a constant
     /// cannot do.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Both directions.</b> "Two trees differ" alone passes on a random stamp, and "the same
-    /// tree agrees" alone passes on a constant of zeros. Together they say it is a function of the
-    /// content and of nothing else.
+    /// Both directions: "two trees differ" alone passes on a random stamp, and "the same tree
+    /// agrees" alone passes on a constant of zeros. Together they say it is a function of the
+    /// content and nothing else.
     /// </remarks>
     [Fact]
     public void The_version_stamp_is_a_real_hash_of_the_documents_loaded()

@@ -5,19 +5,13 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
-/// <summary>
-/// `14` §16.6 — the primitives a snapshot will carry must already have a canonical encoding.
-/// </summary>
+/// <summary>The primitives a snapshot will carry must already have a canonical encoding.</summary>
 /// <remarks>
-/// <see cref="CanonicalStateWriter"/> dispatches over a <b>closed allowlist</b> with no
+/// <see cref="CanonicalStateWriter"/> dispatches over a closed allowlist with no
 /// <c>IEnumerable</c> fallback, so "will this hash?" is a real question whose wrong answer is a
-/// <c>NotSupportedException</c> discovered by whoever declares the snapshot rather than by whoever chose
-/// the id's shape.
-/// <para>
-/// They also pin <b>what</b> the encoding is, not merely that one exists: an id encodes as its string and
-/// an enum as its number, with the id type contributing no bytes of its own. That is what makes the id
-/// wrapper free at the wire, and it is the assumption the field-order pin is written on top of.
-/// </para>
+/// <c>NotSupportedException</c> discovered by whoever declares the snapshot. These tests also pin
+/// what the encoding is: an id encodes as its string and an enum as its number, with the id type
+/// contributing no bytes of its own.
 /// </remarks>
 public sealed class PrimitiveEncodingTests
 {
@@ -55,14 +49,10 @@ public sealed class PrimitiveEncodingTests
     }
 
     /// <summary>
-    /// The absolute byte count behind every "encodes exactly as" case above.
+    /// The absolute byte count behind every "encodes exactly as" case above: those compare two
+    /// results against each other, a relation an encoder returning a constant would satisfy
+    /// perfectly, so this pins a number nothing in the test derived from the writer.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Those cases compare two <see cref="CanonicalStateWriter.CanonicalBytes"/> results against
-    /// <i>each other</i>, which is a relation an encoder returning a constant — the empty array,
-    /// most obviously — satisfies perfectly. This is the case that pins a number nothing in the test
-    /// derived from the writer, so the equalities above are equalities between real encodings.
-    /// </remarks>
     [Fact]
     public void An_id_is_not_a_presence_byte_wider_than_its_string()
     {

@@ -4,28 +4,17 @@ using SlayIdleRepeat.BalanceHarness.Model;
 
 namespace SlayIdleRepeat.BalanceHarness.Content;
 
-/// <summary>
-/// 🔒 The one mapping from <c>tuning/calibration_builds.json</c>'s camelCase stat keys to `18` §2.1's
-/// <see cref="StatId"/> vocabulary.
-/// </summary>
+/// <summary>Maps <c>tuning/calibration_builds.json</c>'s camelCase stat keys to <see cref="StatId"/>.</summary>
 /// <remarks>
-/// <para>
-/// The two vocabularies genuinely differ on five names and the differences are not guessable:
-/// <c>lifesteal</c> is `05` §1's <c>LS</c> and `18` §2.1's <see cref="StatId.LIFESTEAL"/>,
-/// <c>thorns</c> is <c>THORN</c> / <see cref="StatId.THORNS"/>, <c>critDamage</c> is
-/// <see cref="StatId.CDMG"/>, and <c>dmgPct</c> / <c>drPct</c> / <c>healPct</c> are `05` §1's
-/// <c>DMG%</c> / <c>DR%</c> / <c>HEAL%</c>. Every other key is the obvious lowercase of the enum.
-/// </para>
-/// <para>
-/// 🔒 <b><c>healPct</c>'s base is 1.0, not 0.</b> It multiplies all healing received, so a block that
-/// silently defaulted it would disable every heal in the game and make the lifesteal archetype's
-/// guardrail-1 number a fiction. <see cref="Read"/> therefore requires all fourteen keys and refuses a
-/// missing one rather than filling it.
-/// </para>
+/// Five names genuinely differ and aren't guessable: <c>lifesteal</c>/<see cref="StatId.LIFESTEAL"/>,
+/// <c>thorns</c>/<see cref="StatId.THORNS"/>, <c>critDamage</c>/<see cref="StatId.CDMG"/>, and
+/// <c>dmgPct</c>/<c>drPct</c>/<c>healPct</c>. Every other key is the obvious lowercase of the enum.
+/// <c>healPct</c>'s base is 1.0, not 0 — it multiplies all healing received, so a silent default would
+/// disable every heal in the game. <see cref="Read"/> therefore requires all fourteen keys.
 /// </remarks>
 public static class AuthoredStatNames
 {
-    /// <summary>The authored key for each of `05` §1's fourteen combat stats.</summary>
+    /// <summary>The authored key for each combat stat.</summary>
     public static IReadOnlyDictionary<StatId, string> ByStat { get; } = new Dictionary<StatId, string>
     {
         [StatId.MAX_HP] = "maxHp",

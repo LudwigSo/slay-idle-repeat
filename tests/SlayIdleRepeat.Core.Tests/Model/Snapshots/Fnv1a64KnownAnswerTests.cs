@@ -5,10 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
-/// <summary>
-/// 🔒 The <b>external</b> check on `14` §16.6's algorithm: Landon Curt Noll's published FNV-1a 64 test
-/// vectors, over raw bytes.
-/// </summary>
+/// <summary>The <b>external</b> check on the hashing algorithm: Landon Curt Noll's published FNV-1a 64 test vectors, over raw bytes.</summary>
 /// <remarks>
 /// A hash that is merely self-consistent passes every test its own author writes and fails the day
 /// someone cross-checks it. These rows come from outside this repository, and an implementation that
@@ -60,7 +57,7 @@ public sealed class Fnv1a64KnownAnswerTests
     }
 
     /// <summary>
-    /// 🔒 FNV-1**a**, not FNV-1: the two differ only in the order of the XOR and the multiply,
+    /// FNV-1**a**, not FNV-1: the two differ only in the order of the XOR and the multiply,
     /// and produce completely different values. Pinned against FNV-1's published <c>"a"</c>.
     /// </summary>
     [Fact]

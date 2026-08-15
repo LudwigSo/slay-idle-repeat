@@ -4,9 +4,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 
-/// <summary>
-/// 🔒 <c>ALL_COMBAT</c> is a stat <b>selector</b>, not a stat — the `18` §9.1 ruling, as a type.
-/// </summary>
+/// <summary><c>ALL_COMBAT</c> is a stat <b>selector</b>, not a stat.</summary>
 public sealed class StatSelectorTests
 {
     [Fact]
@@ -42,9 +40,9 @@ public sealed class StatSelectorTests
     }
 
     /// <summary>
-    /// <c>HIGHEST_PCT_BONUS</c> is only knowable at copy time (`18` §2.4). Expanding it throws
-    /// rather than returning an empty list — an effect that silently selected no stats would apply
-    /// to nothing and still report success.
+    /// <c>HIGHEST_PCT_BONUS</c> is only knowable at copy time. Expanding it throws rather than
+    /// returning an empty list — an effect that silently selected no stats would apply to nothing
+    /// and still report success.
     /// </summary>
     [Fact]
     public void HIGHEST_PCT_BONUS_cannot_be_expanded_before_evaluation()
@@ -72,13 +70,12 @@ public sealed class StatSelectorTests
     }
 
     /// <summary>
-    /// 🔒 `18` §9.1's <c>CP_GLASS_HEART</c>, as pure data and as two effects — the second exists
-    /// precisely because the group selector cannot set one stat.
+    /// CP_GLASS_HEART as pure data, in two effects — the second exists because the group selector
+    /// cannot set one stat.
     /// </summary>
     /// <remarks>
-    /// <em>"A pre-agreed downgrade to ×1.6 must be a one-number edit in data, never a code
-    /// change."</em> Nothing in <c>SlayIdleRepeat.Core.Content.Effects</c> knows the number 2.0;
-    /// this case supplies it, which is the demonstration.
+    /// A downgrade to the multiplier must be a one-number edit in data, never a code change:
+    /// nothing in <c>SlayIdleRepeat.Core.Content.Effects</c> knows the number 2.0; this case supplies it.
     /// </remarks>
     [Fact]
     public void CP_GLASS_HEART_is_two_effects_and_the_multiplier_is_data()
@@ -103,16 +100,15 @@ public sealed class StatSelectorTests
         doubled.Stat!.Value.Expand().Count.ShouldBe(14);
         oneHp.Stat!.Value.Expand().ShouldBe([StatId.MAX_HP]);
 
-        // The downgrade 18 §9.1 pre-agrees is a `with` on the data, not a branch anywhere.
+        // A downgrade to the multiplier is a `with` on the data, not a branch anywhere.
         (doubled with { Value = 1.6 }).Value.ShouldBe(1.6);
     }
 
     /// <summary>
-    /// The classification, stated against `18` §2.1's two literal lists rather than against
-    /// <c>StatIds.All</c>.
+    /// The classification, stated against two literal lists rather than against <c>StatIds.All</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <c>Combat.Concat(NonCombat) == All</c> would be a tautology: both are defined as
+    /// <c>Combat.Concat(NonCombat) == All</c> would be a tautology: both are defined as
     /// <c>All.Where(IsCombat)</c> and its complement, so the identity holds however
     /// <see cref="StatIds.IsCombat"/> answers. Only naming the twelve non-combat stats can catch a
     /// stat that moved sides — which matters because <c>ALL_COMBAT</c> selects exactly the other

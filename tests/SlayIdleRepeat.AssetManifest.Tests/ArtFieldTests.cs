@@ -3,14 +3,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetManifest.Tests;
 
-/// <summary>
-/// The per-row fields the three downstream consumers read: M8-01a keys provenance to the id,
-/// M8-06 drives post-processing from delivery size / pivot / atlas, M8-10 emits one placeholder
-/// per row.
-/// </summary>
+/// <summary>The per-row fields downstream consumers read: id (provenance), delivery size / pivot / atlas (post-processing), and per-row placeholder generation.</summary>
 public sealed class ArtFieldTests
 {
-    /// <summary>`15` §C's delivery-size table, transcribed here by hand from the doc.</summary>
+    /// <summary>Delivery sizes transcribed by hand from the design doc's table.</summary>
     [Theory]
     [InlineData("chr_hero_body_idle", 512, 512)]          // Hero body & gear overlays
     [InlineData("chr_hero_weapon_blade_ss", 512, 512)]
@@ -28,7 +24,7 @@ public sealed class ArtFieldTests
     [InlineData("icon_status_burn", 128, 128)]
     [InlineData("icon_cur_gold", 96, 96)]                  // Currency icons
     [InlineData("die_face_star", 256, 256)]                // Die faces
-    [InlineData("store_app_icon", 1024, 1024)]             // 15 §E21's own table
+    [InlineData("store_app_icon", 1024, 1024)]
     public void Delivery_sizes_match_15_section_C(string id, int width, int height)
     {
         var asset = ManifestFiles.Shipped.RequireArt(id);
@@ -36,10 +32,7 @@ public sealed class ArtFieldTests
         asset.RequireDeliverySize().ShouldBe(new PixelSize(width, height));
     }
 
-    /// <summary>
-    /// 🔒 Where `15` states no size, the row carries null and stays greppable. Never a borrowed
-    /// default — `game-data/README.md` and `16` R6 both forbid filling a hole with a plausible value.
-    /// </summary>
+    /// <summary>Where the doc states no size, the row carries null rather than a borrowed default.</summary>
     [Theory]
     [InlineData("bg_home", "15 §C's 1080×1440 row is stated for the biome battle backdrops only")]
     [InlineData("bg_arena", "same — §C says nothing about the four scene backgrounds")]
@@ -51,10 +44,7 @@ public sealed class ArtFieldTests
         ManifestFiles.Shipped.RequireArt(id).DeliverySize.ShouldBeNull(why);
     }
 
-    /// <summary>
-    /// 🔒 And reading one fails loudly rather than defaulting. The pointer is named so a caller
-    /// knows which slot is unauthorised, not merely that something was.
-    /// </summary>
+    /// <summary>Reading an unauthorised size fails loudly, naming which slot was unauthorised.</summary>
     [Fact]
     public void Reading_an_unauthorised_delivery_size_throws_instead_of_producing_a_number()
     {
@@ -67,7 +57,7 @@ public sealed class ArtFieldTests
         thrown.Message.ShouldContain("DSC_MISSING_SIZES", Case.Sensitive);
     }
 
-    /// <summary>`15` §C: "Pivot | Characters: bottom-center. Icons: center."</summary>
+    /// <summary>Characters pivot bottom-center; icons pivot center.</summary>
     [Theory]
     [InlineData("E2", "bottom-center")]
     [InlineData("E3", "bottom-center")]
@@ -91,11 +81,7 @@ public sealed class ArtFieldTests
         rows.ShouldAllBe(a => a.Pivot == pivot);
     }
 
-    /// <summary>
-    /// 🔒 `15` §C names exactly two pivot classes. Everything else is null — a board tile, a
-    /// backdrop, a 9-slice panel and a die face are none of "character" or "icon", and guessing
-    /// one would be inventing a value the doc withholds.
-    /// </summary>
+    /// <summary>Only "character" and "icon" have a stated pivot; anything else (tiles, backdrops, panels, dice) is null rather than guessed.</summary>
     [Theory]
     [InlineData("E9")]
     [InlineData("E10")]
@@ -111,7 +97,7 @@ public sealed class ArtFieldTests
         rows.ShouldAllBe(a => a.Pivot == null);
     }
 
-    /// <summary>`15` §D2's atlas grouping, per section.</summary>
+    /// <summary>The atlas grouping per section, from the design doc.</summary>
     [Theory]
     [InlineData("E2", "atlas_hero")]
     [InlineData("E6", "atlas_pets")]
@@ -132,7 +118,7 @@ public sealed class ArtFieldTests
         rows.ShouldAllBe(a => a.Atlas == atlas);
     }
 
-    /// <summary>Biome-scoped sections pack into their chapter's atlas (`15` §D2).</summary>
+    /// <summary>Biome-scoped sections pack into their chapter's atlas.</summary>
     [Theory]
     [InlineData("E3")]
     [InlineData("E4")]
@@ -149,11 +135,7 @@ public sealed class ArtFieldTests
         rows.ShouldAllBe(a => a.Atlas == $"atlas_biome_{byKey[a.Biome!].Chapter}");
     }
 
-    /// <summary>
-    /// 🔒 `15` §D2 assigns no atlas to backgrounds ("not atlased"), and names none for misc UI
-    /// icons, store art or the shared tile icons. Those carry null rather than a guess — see the
-    /// DSC_TILE_ATLAS and DSC_UNASSIGNED_ATLASES records.
-    /// </summary>
+    /// <summary>Backgrounds, misc UI icons, store art and tile icons have no assigned atlas — null rather than a guess (see DSC_TILE_ATLAS, DSC_UNASSIGNED_ATLASES).</summary>
     [Theory]
     [InlineData("E8")]
     [InlineData("E10")]
@@ -167,7 +149,7 @@ public sealed class ArtFieldTests
         rows.ShouldAllBe(a => a.Atlas == null);
     }
 
-    /// <summary>🔒 After the O8 ruling, `atlas_vfx` has members but none of them uncut.</summary>
+    /// <summary>After the O8 cut ruling, atlas_vfx has members but none of them uncut.</summary>
     [Fact]
     public void Atlas_vfx_still_exists_in_section_D2_but_has_no_contents_left()
     {
@@ -190,16 +172,11 @@ public sealed class ArtFieldTests
         populated.ShouldAllBe(a => a.UncutAssetCount > 0);
     }
 
-    /// <summary>
-    /// `15` §A5's eight biomes, their chapters and all six of the hues it locks — in the
-    /// base · shadow · accent · glow · prop · sky order the §A5 table tabulates them.
-    /// </summary>
+    /// <summary>The eight biomes, their chapters, and all six locked hues in base/shadow/accent/glow/prop/sky order.</summary>
     /// <remarks>
-    /// 🔒 All six, not just the base. <see cref="Palette.Hues"/> is a six-element expression on the
-    /// record, so a count assertion over it is true of every possible palette and cannot fail; and
-    /// the only other check on a row's palette is <c>ManifestValidator</c>'s row-vs-header
-    /// comparison, which is pure self-consistency. With the base alone pinned, five wrong hues per
-    /// biome could ship green across the whole register.
+    /// All six are pinned, not just the base: <see cref="Palette.Hues"/> is a fixed six-element
+    /// expression, so a bare count assertion over it is true of every possible palette and can't
+    /// fail, and the only other palette check is a pure row-vs-header self-consistency comparison.
     /// </remarks>
     [Theory]
     [InlineData(1, "greenwood", "Greenwood Vale",
@@ -230,10 +207,7 @@ public sealed class ArtFieldTests
         biome.Palette.Hues.ShouldBe([baseHue, shadow, accent, glow, prop, sky]);
     }
 
-    /// <summary>
-    /// 🔒 And every biome-scoped row carries its biome's locked six verbatim — the register, not
-    /// only the header block, is pinned to `15` §A5.
-    /// </summary>
+    /// <summary>Every biome-scoped row carries its biome's locked six hues verbatim, not just the header block.</summary>
     [Fact]
     public void Every_biome_scoped_row_carries_its_biomes_locked_six_from_15_section_A5()
     {
@@ -244,7 +218,7 @@ public sealed class ArtFieldTests
         scoped.ShouldAllBe(a => a.PaletteColours == byKey[a.Biome!].Palette);
     }
 
-    /// <summary>`15` §A5's rarity colours, identical across all biomes.</summary>
+    /// <summary>The rarity colours, identical across all biomes.</summary>
     [Theory]
     [InlineData("C", "#9AA5B1")]
     [InlineData("B", "#4CAF50")]
@@ -256,9 +230,7 @@ public sealed class ArtFieldTests
         ManifestFiles.Shipped.Art.Rarities.Single(r => r.Code == code).Colour.ShouldBe(colour);
     }
 
-    /// <summary>
-    /// Subject descriptors are transcribed verbatim from the doc, including the ones `22` owns.
-    /// </summary>
+    /// <summary>Subject descriptors are transcribed verbatim from the doc.</summary>
     [Theory]
     [InlineData("chr_boss_thornmaw_idle",
         "a colossal carnivorous flower with a fanged maw, thick thorned vines for arms, glowing yellow pollen, rooted in mossy stone")]
@@ -274,11 +246,7 @@ public sealed class ArtFieldTests
         ManifestFiles.Shipped.RequireArt(id).Subject.ShouldBe(subject);
     }
 
-    /// <summary>
-    /// 🔒 `15` §E11 gives no descriptor for the boots, ring and amulet families — §E2's family
-    /// table covers only the twelve weapon/helmet/armor ones. Those 60 rows keep subject:null
-    /// rather than echoing the family name back as though it were a prompt.
-    /// </summary>
+    /// <summary>The boots/ring/amulet gear families have no doc-stated subject, so those 60 rows keep subject:null rather than echoing the family name back as a prompt.</summary>
     [Fact]
     public void Gear_families_the_docs_never_describe_carry_a_null_subject()
     {
@@ -295,11 +263,7 @@ public sealed class ArtFieldTests
             .ShouldBe(["boots", "ring", "amulet"], ignoreOrder: true);
     }
 
-    /// <summary>
-    /// 🔒 §E20 names each misc icon but describes none. The name is not a descriptor, so subject
-    /// stays null instead of echoing displayName — otherwise a prompt pipeline would generate art
-    /// from the string "bug report".
-    /// </summary>
+    /// <summary>Misc UI icons are named but never described; subject stays null instead of echoing displayName, or a prompt pipeline would generate art from the raw name.</summary>
     [Fact]
     public void Misc_ui_icons_carry_a_name_but_no_invented_subject()
     {
@@ -321,7 +285,7 @@ public sealed class ArtFieldTests
         ids.Distinct(StringComparer.Ordinal).Count().ShouldBe(ids.Count);
     }
 
-    /// <summary>`15` §D1's own worked examples must all resolve against the register.</summary>
+    /// <summary>The doc's own worked examples must all resolve against the register.</summary>
     [Theory]
     [InlineData("chr_hero_body_idle")]
     [InlineData("chr_hero_weapon_blade_s")]
@@ -342,10 +306,7 @@ public sealed class ArtFieldTests
         ManifestFiles.Shipped.RequireArt(id).Id.ShouldBe(id);
     }
 
-    /// <summary>
-    /// The one §D1 example that does NOT resolve, and why: `die_face_star_default.png` carries a
-    /// `_default` variant suffix left over from the die-skin system D14 cut. §E16's ids have none.
-    /// </summary>
+    /// <summary>The one worked example that does not resolve: a leftover variant suffix from the cut die-skin system, which the shipped ids don't carry.</summary>
     [Fact]
     public void The_die_skin_leftover_in_15_section_D1_is_recorded_rather_than_honoured()
     {

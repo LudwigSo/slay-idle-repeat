@@ -11,21 +11,14 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// loaded documents.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 The canonical form is unambiguous by construction — documents in ordinal path order, object
+/// The canonical form is unambiguous by construction — documents in ordinal path order, object
 /// members ordinal-sorted, arrays in index order, every string and count length-prefixed, numbers
-/// written as a normalised invariant decimal. No locale, no hash-table iteration order and no
-/// floating-point formatting can reach it, so the same content stamps identically on a Windows
-/// dev box, a Linux CI runner and an Android device. The content stamp may be carried inside a
-/// snapshot, so it must be deterministic or <c>stateHash</c> moves with the machine; it is a
-/// <em>separate encoding</em> from `14` §16.6's — that one is <c>Core</c>'s
-/// <c>CanonicalStateWriter</c>, FNV-1a 64 over snapshot DTOs — and the two never share bytes.
-/// </para>
+/// written as a normalised invariant decimal — so the same content stamps identically on any
+/// machine. This is a separate encoding from <c>Core</c>'s <c>CanonicalStateWriter</c>; the two
+/// never share bytes.
 /// <para>
-/// The stamp identifies <em>content</em>, not <em>formatting</em>: reindenting a data file does
-/// not move it, changing any key or value does. That is the property `14` §6 actually needs —
-/// "a replayed command reproduces its original outcome" is about values, and a stamp that moved
-/// on whitespace would force a spurious content download after a formatting commit.
+/// The stamp identifies content, not formatting: reindenting a data file does not move it, but
+/// changing any key or value does.
 /// </para>
 /// </remarks>
 public static class ContentHashing
@@ -38,10 +31,7 @@ public static class ContentHashing
     private const byte TagArray = 0x05;
     private const byte TagObject = 0x06;
 
-    /// <summary>
-    /// Version of the canonical encoding, mixed into the hash. Bumping it moves every stamp, so it
-    /// changes only when the encoding itself changes — deliberately, never as a side effect.
-    /// </summary>
+    /// <summary>Version of the canonical encoding, mixed into the hash.</summary>
     public const byte CanonicalFormatVersion = 1;
 
     /// <summary>The canonical bytes the stamp is taken over. Exposed so a test can pin the encoding.</summary>
@@ -112,10 +102,8 @@ public static class ContentHashing
 
                 break;
 
-            // 🔒 A closed allowlist with a throwing default, matching CanonicalStateWriter. With
-            // Object in `default:` a seventh ContentValueKind would encode silently as an object
-            // and move every stamp in the repository — the one class of change this encoding
-            // exists to make impossible by accident.
+            // Closed allowlist with a throwing default: a new ContentValueKind must add its tag
+            // and bytes here deliberately, rather than silently encoding as an object.
             default:
                 throw new ArgumentOutOfRangeException(
                     nameof(value), value.Kind,
@@ -126,8 +114,7 @@ public static class ContentHashing
     }
 
     /// <summary>
-    /// A decimal written so that 1.5 and 1.500 — the same number, differently typed by a human —
-    /// produce identical bytes, and -0 is 0.
+    /// A decimal written so that 1.5 and 1.500 produce identical bytes, and -0 is 0.
     /// </summary>
     private static string Normalise(decimal value)
     {
@@ -141,12 +128,7 @@ public static class ContentHashing
         return text is "-0" or "" ? "0" : text;
     }
 
-    /// <summary>
-    /// UTF-8 <em>without</em> a BOM and with no exception fallback swapped in, stated explicitly
-    /// rather than inherited from <see cref="Encoding.UTF8"/> — the same posture, and the same
-    /// reason, as the two <c>Core</c> hashers. Byte-identical output; the point is that the
-    /// encoding a hash is taken over is never a default somebody could change elsewhere.
-    /// </summary>
+    /// <summary>UTF-8 without a BOM, stated explicitly rather than inherited from a shared default.</summary>
     private static readonly UTF8Encoding Utf8 = new(encoderShouldEmitUTF8Identifier: false);
 
     private static void WriteString(MemoryStream buffer, string value)

@@ -6,23 +6,19 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §7's event shape, asserted as the wire contract it is.
-/// </summary>
+/// <summary>The event shape, asserted as the wire contract it is.</summary>
 /// <remarks>
 /// Everything here would be a triviality if <see cref="CombatEvent"/> were an implementation
-/// detail. It is not: `05` §8 replays it, `11` §6 hashes it to detect tampering and M5-12 hashes it
-/// on three architectures. A change to any of these is a change to every <c>LogHash</c> in
-/// existence, so each one is pinned rather than left to review.
+/// detail. It is not: it is replayed, hashed to detect tampering, and hashed cross-platform. A
+/// change to any of these is a change to every <c>LogHash</c> in existence.
 /// </remarks>
 public sealed class CombatEventTests
 {
-    /// <summary>The six fields `05` §7 names, in `05` §7's order, at `05` §7's widths.</summary>
+    /// <summary>The six documented fields, in order, at their widths.</summary>
     /// <remarks>
-    /// Asserted through <c>CanonicalFieldOrder</c> — the <b>writer's own</b> traversal — rather than
-    /// through <c>typeof(CombatEvent).GetProperties()</c>, so this pins the bytes rather than a
-    /// second opinion about them. Property order is not guaranteed by reflection at all; the
-    /// primary constructor's parameter order is.
+    /// Asserted through <c>CanonicalFieldOrder</c> — the writer's own traversal — rather than
+    /// through reflection's <c>GetProperties()</c>, which does not guarantee order; the primary
+    /// constructor's parameter order does.
     /// </remarks>
     [Fact]
     public void The_event_carries_exactly_the_six_documented_fields_in_order()
@@ -39,13 +35,10 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// 🔒 The event is a shape the one serialiser can actually see.
+    /// The event is a shape the one serialiser can actually see — the reason
+    /// <see cref="CombatEvent"/> is a positional record rather than a struct with public fields,
+    /// which hashes to nothing.
     /// </summary>
-    /// <remarks>
-    /// The converse of <see cref="CanonicalStateWriterTests"/>' refusal tests, and the reason
-    /// <see cref="CombatEvent"/> departs from `05` §7's <c>public readonly struct</c> with public
-    /// fields: that shape hashes to nothing.
-    /// </remarks>
     [Fact]
     public void The_event_is_a_canonical_record()
     {
@@ -53,14 +46,10 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// 🔒 No public instance field on the event — the shape that would hash as zero bytes.
+    /// No public instance field on the event — the shape that would hash as zero bytes. Asserted
+    /// directly as well as through <c>IsCanonicalRecord</c> above, since a failure there could point
+    /// the reader at the wrong hazard (e.g. a second constructor).
     /// </summary>
-    /// <remarks>
-    /// Asserted directly as well as through <c>IsCanonicalRecord</c> above, because the two say
-    /// different things. <c>IsCanonicalRecord</c> would also go false if someone added a second
-    /// constructor, and a failure that says "not a canonical record" sends the reader looking at
-    /// constructors. This one names the actual hazard (S2).
-    /// </remarks>
     [Fact]
     public void The_event_declares_no_public_field()
     {
@@ -74,9 +63,8 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// 🔒 <see cref="CombatEvent.Value"/> is a <see cref="double"/>. See the type's remarks: `14`
-    /// §16.6 has no <c>float</c> row, so a <c>float</c> here would be unhashable, and
-    /// <see cref="CombatLogPrecisionTests"/> shows what it would cost even if it were not.
+    /// <see cref="CombatEvent.Value"/> is a <see cref="double"/>: a <c>float</c> here would be
+    /// unhashable. See <see cref="CombatLogPrecisionTests"/> for what it would cost even if it were not.
     /// </summary>
     [Fact]
     public void The_value_field_is_a_double()
@@ -85,14 +73,10 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// 🔒 Every <see cref="CombatEventType"/> ordinal, written out. The ordinal is what is hashed, so
-    /// this table <b>is</b> the wire contract.
+    /// Every <see cref="CombatEventType"/> ordinal, written out. The ordinal is what is hashed, so
+    /// this table is the wire contract. <c>Telegraph</c> is appended last precisely so none of the
+    /// original seventeen moves. Driven by <c>nameof</c> so a rename is still a compile failure.
     /// </summary>
-    /// <remarks>
-    /// The first seventeen are `05` §7's list in §7's order; <c>Telegraph</c> is an addition and is
-    /// appended last precisely so none of the seventeen moves. Driven by <c>nameof</c> so a rename is
-    /// still a <b>compile</b> failure.
-    /// </remarks>
     [Theory]
     [InlineData(nameof(CombatEventType.BattleStart), 0)]
     [InlineData(nameof(CombatEventType.Attack), 1)]
@@ -120,12 +104,10 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// The enum has exactly the eighteen members above and no nineteenth that slipped in unpinned.
-    /// </summary>
-    /// <remarks>
-    /// S3: <see cref="Every_event_type_holds_its_documented_ordinal"/> is a theory over a written-out
+    /// The enum has exactly the eighteen members above and no nineteenth that slipped in unpinned:
+    /// <see cref="Every_event_type_holds_its_documented_ordinal"/> is a theory over a written-out
     /// list, so a member added to the enum and not added there is a member nothing checks.
-    /// </remarks>
+    /// </summary>
     [Fact]
     public void The_event_vocabulary_is_exactly_the_documented_eighteen()
     {
@@ -136,14 +118,10 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// 🔒 The seventeen `05` §7 members occupy <c>0..16</c> contiguously, and every addition is
-    /// above them.
+    /// The original seventeen members occupy <c>0..16</c> contiguously, and every addition is above
+    /// them — the rule an author is most likely to break by instinct, e.g. alphabetising the enum
+    /// or slotting a new member in where it reads better.
     /// </summary>
-    /// <remarks>
-    /// Stated as its own rule because it is the one an author is most likely to break by instinct:
-    /// alphabetising the enum, or slotting <c>Telegraph</c> in beside <c>PhaseChange</c> where it
-    /// reads better, both silently rewrite every <c>LogHash</c>.
-    /// </remarks>
     [Fact]
     public void Nothing_was_inserted_below_the_documented_members()
     {
@@ -187,15 +165,10 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// 🔒 And changing any one field changes the <b>hash</b>. The stronger claim, and the one
-    /// `11` §6 relies on: a tampered log must not be able to differ from the honest one in a field
-    /// the encoding cannot see.
+    /// Changing any one field changes the hash — the stronger claim a tamper check relies on: a
+    /// tampered log must not be able to differ from the honest one in a field the encoding cannot
+    /// see. Stated field by field rather than as one "the hash is sensitive" smoke test.
     /// </summary>
-    /// <remarks>
-    /// This is exactly the assertion a public-field <see cref="CombatEvent"/> would fail — silently,
-    /// on four of the six fields — which is why it is stated field by field rather than as one
-    /// "the hash is sensitive" smoke test.
-    /// </remarks>
     [Fact]
     public void Every_field_participates_in_the_hash()
     {

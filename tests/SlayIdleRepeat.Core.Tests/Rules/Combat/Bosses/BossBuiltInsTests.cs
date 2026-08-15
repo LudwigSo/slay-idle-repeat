@@ -8,9 +8,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `17` §1's second universal built-in — <em>"Bosses are immune to <c>STUN</c> and <c>FREEZE</c>
-/// in phase 3"</em> — plus `17` §11's two remaining checklist rows: the <c>Core</c> damage-amp state
-/// flag, and `17` §1's duration guardrails.
+/// Covers three boss built-ins: phase-3 STUN/FREEZE immunity, the Core damage-amplification flag,
+/// and the boss duration guardrails.
 /// </summary>
 public sealed class BossBuiltInsTests
 {
@@ -18,11 +17,6 @@ public sealed class BossBuiltInsTests
 
     // ════════════════════════════════════════════════════ 1 · phase-3 immunity
 
-    /// <summary>
-    /// 🔒 `17` §1 — entering phase 3 grants <c>STUN</c> and <c>FREEZE</c> immunity, through
-    /// <see cref="IStatusEngine.GrantImmunity"/> and as <b>data</b>: an <c>IMMUNE_STATUS</c> on an
-    /// <c>ON_PHASE_ENTER {phase: 3}</c> trigger, attached to every boss by the builder.
-    /// </summary>
     [Fact]
     public void Entering_phase_3_grants_STUN_and_FREEZE_immunity_through_the_status_engine()
     {
@@ -44,11 +38,7 @@ public sealed class BossBuiltInsTests
         }
     }
 
-    /// <summary>
-    /// 🔒 The negative control: phase <b>2</b> grants neither. `17` §1 gives the immunity to phase 3
-    /// alone, and phases 1–2 keep `05` §5's ordinary 3 s stun-immunity window — which is M2-10's and
-    /// is <b>not</b> implemented here.
-    /// </summary>
+    /// <summary>Negative control: only phase 3 gets the immunity grant, not phase 2.</summary>
     [Fact]
     public void Entering_phase_2_grants_no_immunity()
     {
@@ -60,10 +50,6 @@ public sealed class BossBuiltInsTests
         run.Statuses.Immunities.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// The built-ins as data: `18` §2.3's <c>IMMUNE_STATUS</c>, on <c>SELF</c>, fired by phase 3's
-    /// entry, one per status.
-    /// </summary>
     [Theory]
     [InlineData("SYS_PHASE3_IMMUNE_STUN", "STUN")]
     [InlineData("SYS_PHASE3_IMMUNE_FREEZE", "FREEZE")]
@@ -80,13 +66,9 @@ public sealed class BossBuiltInsTests
         effect.Duration!.Scope.ShouldBe(DurationScope.PHASE);
     }
 
-    // ════════════════════════════════════════════════════ 2 · `17` §11's Core state flag
+    // ════════════════════════════════════════════════════ 2 · Core damage-amplification flag
 
-    /// <summary>
-    /// 🔒 `17` §6's ruling — <em>"the Core is not a separate actor. It is a state flag on the boss
-    /// that multiplies incoming damage by 1.6 … no targeting logic changes"</em>. `17` §11 asks for
-    /// exactly that flag, and the pair that satisfies it already exists.
-    /// </summary>
+    /// <summary>The Core is a damage-taken multiplier flag on the boss, not a separate actor.</summary>
     [Fact]
     public void The_damage_amplification_state_flag_is_CombatFlowStates_existing_pair()
     {
@@ -105,16 +87,9 @@ public sealed class BossBuiltInsTests
             "is named Add rather than Set");
     }
 
-    /// <summary>
-    /// 🔒 And it is <b>reachable from a boss phase block</b>, which is the half `17` §11's checklist
-    /// row actually asks about: a <c>DAMAGE_TAKEN_MULT</c> authored on Rimehold's phase-2 entry lands
-    /// on the boss's own flow state when the phase is entered.
-    /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Nothing is implemented for this.</b> `18` §2.4's op, `05` §4 step 6's product and the
-    /// flow state all shipped in M2-03/M2-08, and M2-09 applies the multiplier inside the damage
-    /// pipeline. This case is the pin that the three meet at a boss phase block, and the boss engine
-    /// adds no code to the path.
+    /// No boss-engine code was added for this — it's the existing op, product formula, and flow
+    /// state meeting at a phase block for free.
     /// </remarks>
     [Fact]
     public void A_phase_block_can_arm_the_Core_state_flag_on_the_boss()
@@ -127,17 +102,12 @@ public sealed class BossBuiltInsTests
             1.6, "17 §6: hits deal ×1.6 while the Core is exposed, with no targeting change");
     }
 
-    // ════════════════════════════════════════════════════ 3 · `17` §1's duration guardrails
+    // ════════════════════════════════════════════════════ 3 · duration guardrails
 
-    /// <summary>
-    /// 🔒 `17` §1 / `05` §9 — <em>"35–60 s at par power … never below 12 s, never above 70 s"</em>,
-    /// as named numbers the balance harness reads rather than as engine throws.
-    /// </summary>
     /// <remarks>
-    /// 🔒 <b>Nothing in the engine enforces these and nothing should.</b> A fight that runs 8 s is a
-    /// tuning failure the harness (M2-16a) reports across a distribution; an engine that refused it
-    /// would turn a balance finding into a crash inside a player's run — and would stop the harness
-    /// measuring the very thing it exists to measure.
+    /// Deliberately unenforced by the engine: a short fight is a tuning signal for the balance
+    /// harness, not an engine-level error — throwing here would turn a balance finding into a
+    /// player-facing crash.
     /// </remarks>
     [Fact]
     public void The_duration_guardrails_are_the_numbers_17_1_and_05_9_state()
@@ -177,7 +147,7 @@ public sealed class BossBuiltInsTests
         },
         LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>(),
 
-        // No mechanic here authors a wind-up, so nothing is announced in any phase.
+        // No mechanic authors a wind-up here, so nothing is announced.
         AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
     };
 

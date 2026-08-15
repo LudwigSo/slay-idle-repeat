@@ -9,8 +9,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 M2-13's authored data driven through a real fight — the two claims that cannot be made from the
-/// script alone: a phase block ends when its phase does, and `17` §9's <em>Roll of Fate</em> is one
+/// Authored data driven through a real fight — the two claims that cannot be made from the script
+/// alone: a phase block ends when its phase does, and the Dicelord's <em>Roll of Fate</em> is one
 /// draw.
 /// </summary>
 /// <remarks>
@@ -21,18 +21,18 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 public sealed class AuthoredBossFightTests
 {
     /// <summary>
-    /// 🔒 `18` §6 / R3 — a phase block's mechanic is live inside its phase and deactivated at the exit,
-    /// and the built-in enrage is reached by neither transition.
+    /// A phase block's mechanic is live inside its phase and deactivated at the exit, and the
+    /// built-in enrage is reached by neither transition.
     /// </summary>
     /// <remarks>
-    /// 🔴 <c>SYS_ENRAGE</c> is the negative control and the case is worthless without it: "Bog Air is
+    /// <c>SYS_ENRAGE</c> is the negative control and the case is worthless without it: "Bog Air is
     /// inactive after the phase-3 entry" is equally consistent with the fight having ended or the
-    /// registry having dropped everything. The built-in is registered by the same pass and sampled on the
-    /// same ticks, and must still be <b>active</b>.
+    /// registry having dropped everything. The built-in is registered by the same pass and sampled
+    /// on the same ticks, and must still be active.
     /// <para>
-    /// 🔴 The reading is <c>IsActive</c> rather than "did it fire": <c>Activate</c> is a no-op on a live
-    /// instance, so a transition that forgot to deactivate produces a fight in which everything still
-    /// fires and an "it fired" assertion passes either way.
+    /// The reading is <c>IsActive</c> rather than "did it fire": <c>Activate</c> is a no-op on a
+    /// live instance, so a transition that forgot to deactivate produces a fight in which
+    /// everything still fires and an "it fired" assertion passes either way.
     /// </para>
     /// </remarks>
     [Fact]
@@ -42,7 +42,7 @@ public sealed class AuthoredBossFightTests
         var encounter = BossEncounterBuilder.Build(
             BossTestBench.Request(gulgrot.Script, gulgrot.Effects));
 
-        // 17 §3's Bog Air — the AURA whose duration R3 makes PHASE-scoped.
+        // Gulgrot's Bog Air — the AURA whose duration is made PHASE-scoped.
         var bogAir = BossBuiltIns.PhaseInstance(gulgrot.Script.Id, 2, "BOSS_GULGROT_P2_BOG_AIR");
         var enrage = BossBuiltIns.BuiltInInstance(gulgrot.Script.Id, BossBuiltIns.EnrageId);
 
@@ -72,16 +72,12 @@ public sealed class AuthoredBossFightTests
             "70 s after 66% HP");
     }
 
-    /// <summary>
-    /// 🔒 `18` §10.1 E6 — <em>"exactly one draw index per roll"</em>: the authored Dicelord's Roll of
-    /// Fate resolves one outcome per firing, not three independent ones.
-    /// </summary>
+    /// <summary>The authored Dicelord's Roll of Fate resolves exactly one outcome per firing, not three independent ones.</summary>
     /// <remarks>
-    /// 🔴 <b>The count is the whole point.</b> `18` §10.1 E6 records that three <c>chance</c>-gated
-    /// effects would be three <em>independent</em> draws — all three can fire, or none — which is
-    /// neither mutual exclusion nor one d6. So the assertion is not "an outcome fired" but "the
-    /// number of outcomes resolved equals the number of rolls", and every resolved id is one of the
-    /// three rows the authored table declares.
+    /// The count is the whole point: three <c>chance</c>-gated effects would be three independent
+    /// draws — all three can fire, or none — which is neither mutual exclusion nor one d6. So the
+    /// assertion is not "an outcome fired" but "the number of outcomes resolved equals the number
+    /// of rolls", and every resolved id is one of the three rows the authored table declares.
     /// </remarks>
     [Fact]
     public void The_authored_Roll_of_Fate_resolves_exactly_one_outcome_per_roll()
@@ -96,13 +92,12 @@ public sealed class AuthoredBossFightTests
 
         var recorder = new AuthoredOutcomeRecorder();
 
-        // 17 §9's phase 1 lasts the whole fight here: no HP script, so the boss never leaves it and
-        // the only thing that can resolve an outcome is the phase-1 Roll of Fate.
+        // Phase 1 lasts the whole fight here: no HP script, so the boss never leaves it and the
+        // only thing that can resolve an outcome is the phase-1 Roll of Fate.
         //
-        // 🔴 700 ticks, not the bench's default 200, and the S3 floor below is what said so: the
-        // authored period is 10 s, which is 200 ticks, so a 200-tick fight rolls the die exactly
-        // ZERO times and every assertion about "one draw per roll" would have been vacuously true
-        // over an empty list. 35 s gives three rolls.
+        // 700 ticks, not the bench's default 200: the authored period is 10 s, which is 200 ticks,
+        // so a 200-tick fight rolls the die exactly zero times and every assertion about "one draw
+        // per roll" would have been vacuously true over an empty list. 35 s gives three rolls.
         var maxTicks = 700;
 
         BossTestBench.Run(
@@ -113,7 +108,7 @@ public sealed class AuthoredBossFightTests
             outcomes: _ => recorder,
             maxTicks: maxTicks);
 
-        // R8: an absent startDelay is one interval, so the schedule is anchor + k x interval for
+        // An absent startDelay is one interval, so the schedule is anchor + k x interval for
         // k = 1, 2, ... within the fight's bound.
         var expected = (maxTicks - 1) / (int)(interval * BossTestBench.TicksPerSecond);
 
@@ -132,14 +127,13 @@ public sealed class AuthoredBossFightTests
 
     /// <summary>
     /// Counts what <c>RANDOM_OUTCOME</c> handed the outcome seam. It records rather than resolves:
-    /// the subject is <b>how many</b> ids one roll produces, and firing them would drag `05` §4 into
-    /// a case about `14` §8.0's draw count.
+    /// the subject is how many ids one roll produces, and firing them would drag the attack
+    /// pipeline into a case about the draw count.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Named <c>AuthoredOutcomeRecorder</c> rather than <c>RecordingOutcomes</c>: the bench already
-    /// declares a namespace-scope <c>RecordingOutcomes</c>, and a nested type of the same name in the
-    /// same namespace compiles while shadowing it — which is a trap for the next reader rather than a
-    /// defect for this one.
+    /// Named <c>AuthoredOutcomeRecorder</c> rather than <c>RecordingOutcomes</c>: the bench already
+    /// declares a namespace-scope <c>RecordingOutcomes</c>, and a nested type of the same name in
+    /// the same namespace compiles while shadowing it — a trap for the next reader.
     /// </remarks>
     private sealed class AuthoredOutcomeRecorder : IBossOutcomes
     {

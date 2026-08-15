@@ -4,48 +4,35 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects;
 
 /// <summary>
-/// 🔒 One of `18` §8 step 1's ten sources, as narrow as the step allows: <b>which
-/// <see cref="EffectSourceKind"/> this is, and the effects it contributes.</b>
+/// One of the ten collection sources, as narrow as the step allows: which
+/// <see cref="EffectSourceKind"/> this is, and the effects it contributes.
 /// </summary>
 /// <remarks>
 /// <para>
-/// `18` §8 step 1 is <em>"collect all active effects from: gear → affixes → … → perks"</em>. What a
-/// source contributes is a list of effects; how it knows them — an equipped item's affix rolls, a
-/// talent's rank, the perks drafted this run — is entirely that milestone's business and is
-/// deliberately not expressible here.
+/// What a source contributes is a list of effects; how it knows them — an equipped item's affix
+/// rolls, a talent's rank, the perks drafted this run — is entirely that milestone's business and is
+/// deliberately not expressible here. There is no <c>Collect(Player, Run, ContentSnapshot)</c>: an
+/// implementation is constructed by the layer that holds the build and simply reports what it holds,
+/// which also keeps <c>Rules.Effects</c> at the bottom of the layering without naming an aggregate.
 /// </para>
 /// <para>
-/// 🔒 <b>Bound to its subject before it arrives, not asked about one.</b> There is no
-/// <c>Collect(Player, Run, ContentSnapshot)</c>, and that is the whole design: <c>Player</c> is
-/// M1-04 and <c>Run</c> is M1-05, neither exists on this branch, and naming them would be steering
-/// S6's <em>"filling a hole with a plausible value"</em> ten times over. An implementation is
-/// constructed by the layer that holds the build and simply reports what it holds — which is also
-/// what keeps <c>Rules.Effects</c> at the bottom of R17's layering, since a signature naming an
-/// aggregate would drag <c>Model</c> into it.
+/// The ordering obligation: <see cref="Effects"/> must be in an order that is a function of the
+/// build, identical on client and server — never of hash iteration, dictionary enumeration or object
+/// identity. <see cref="EffectResolutionOrder"/>'s tiebreak for two effects sharing one id is this
+/// list's index, so a source that enumerated a <c>HashSet</c> would put a device-dependent order
+/// back exactly there.
 /// </para>
 /// <para>
-/// 🔒 <b>THE ORDERING OBLIGATION — the one thing an implementation can get wrong invisibly.</b>
-/// <see cref="Effects"/> must be in an order that is a <b>function of the build</b>, identical on
-/// client and server, and not of hash iteration, dictionary enumeration or object identity. `18` §8
-/// exists to remove <em>"the last source of order-dependence between client and server"</em>, and
-/// while <see cref="EffectResolutionOrder"/> re-sorts everything ordinally by effect id, its
-/// <b>tiebreak</b> for two effects sharing one id is this list's index. A source that enumerated a
-/// <c>HashSet</c> would put a device-dependent order back exactly there. <c>EffectSourceContract</c>
-/// asserts a stable repeat read; only the implementation can make it deterministic <em>across
-/// devices</em>, and that is why the obligation is written out rather than left to the suite.
-/// </para>
-/// <para>
-/// ⚠️ <b>"Active" in step 1 does not mean "condition satisfied".</b> That is step 2, and it belongs
-/// to <see cref="EffectResolver"/> — `18` §4's conditions are <em>"pure functions of current
-/// state"</em> re-evaluated at every resolution pass, so a source that pre-filtered by condition
-/// would be caching an answer that is wrong on the next tick. A source reports what the build
-/// <em>holds</em>: an unequipped item contributes nothing, a held perk contributes its clauses
+/// "Active" here does not mean "condition satisfied" — that's a separate filter step, since
+/// conditions are pure functions of current state re-evaluated every pass, and a source that
+/// pre-filtered by condition would cache an answer that's wrong on the next tick. A source reports
+/// what the build holds: an unequipped item contributes nothing, a held perk contributes its clauses
 /// whatever their conditions say.
 /// </para>
 /// </remarks>
 internal interface IEffectSource
 {
-    /// <summary>Which of `18` §8 step 1's ten sources this is.</summary>
+    /// <summary>Which of the ten sources this is.</summary>
     EffectSourceKind Kind { get; }
 
     /// <summary>
@@ -56,60 +43,37 @@ internal interface IEffectSource
     IReadOnlyList<SourcedEffect> Effects { get; }
 }
 
-/// <summary>
-/// One effect as a `18` §8 step 1 source reports it: the authored effect, and
-/// <b>which holding it came from</b>.
-/// </summary>
+/// <summary>One effect as a source reports it: the authored effect, and which holding it came from.</summary>
 /// <param name="Effect">The authored effect.</param>
-/// <param name="Instance">
-/// 🔒 <see cref="EffectInstanceId"/> — <em>"the effects layer's <b>one</b> instance identity"</em>,
-/// naming <em>"the holding — the perk in a draft slot, the affix on a gear item"</em>.
-/// </param>
+/// <param name="Instance">The holding — a perk in a draft slot, an affix on a gear item.</param>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Why the source supplies it, and why that is not a widening for its own sake.</b>
-/// <see cref="EffectInstanceId"/> states in terms that this layer must never <em>derive</em> the
-/// identity: <c>(actorId, effectId)</c> <em>"collapses two copies of one effect on one actor into a
-/// single counter"</em> and <em>"cannot be stable across a battle boundary, which the same sentence
-/// requires of <c>ON_KILL</c>"</em>, so <c>PK_MIDAS</c>'s every-6th-kill counter would restart every
-/// fight. What is stable across a run is the holding, and <b>a `18` §8 step 1 source is precisely
-/// the layer that knows one</b> — M4-03's gear source knows which slot an affix rolled on, M3-07's
-/// perk source knows which draft slot a perk sits in. Making the source report it is the seam doing
-/// its job rather than seven later milestones each inventing an answer.
+/// The source supplies the identity rather than this layer deriving it, because the obvious
+/// derivation — <c>(actorId, effectId)</c> — collapses two copies of one effect on one actor into a
+/// single counter and can't survive a battle boundary. What's stable across a run is the holding,
+/// and a source is precisely the layer that knows one (M4-03's gear source knows which slot an affix
+/// rolled on, M3-07's perk source knows which draft slot a perk sits in).
 /// </para>
 /// <para>
-/// ⚠️ <b>This is NOT <see cref="CollectedEffect"/>'s <c>(Source, IndexInSource)</c>, and the two must
-/// never be conflated.</b> That pair is an <b>ordering</b> key: it is per-resolution-pass, it exists
-/// only to make `18` §8's effect-id order total, and it changes the moment a build gains a gear slot.
-/// This is an <b>identity</b> key: it must survive battle boundaries, and
-/// <c>TriggerRegistry.Register</c> refuses a duplicate. Two effects can share an ordering position
-/// across passes and be different holdings, and one holding keeps its identity while its ordering
-/// position moves.
+/// Not the same as <see cref="CollectedEffect"/>'s <c>(Source, IndexInSource)</c> — that pair is an
+/// ordering key, valid for one resolution pass; this is an identity key that must survive battle
+/// boundaries. Two effects can share an ordering position across passes and be different holdings.
 /// </para>
 /// </remarks>
 internal readonly record struct SourcedEffect(EffectDefinition Effect, EffectInstanceId Instance);
 
-/// <summary>
-/// The in-<c>Core</c> <see cref="IEffectSource"/>: a source that contributes exactly the effects it
-/// was given.
-/// </summary>
+/// <summary>The in-<c>Core</c> <see cref="IEffectSource"/>: a source that contributes exactly the effects it was given.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 Steering S7 — <em>"add the <c>InMemory</c> fake <b>and</b> the shared contract suite in the
-/// same change as the port"</em>. This is the fake; <c>EffectSourceContract</c> is the suite, and it
-/// runs this and every later implementation through the same rules.
+/// Not a placeholder for the ten absent sources — it carries no notion of gear, a perk or a draft.
+/// It's the degenerate implementation that lets collection and filtering be built, tested and frozen
+/// now, and what the balance harness hands synthetic builds through, since that harness has no
+/// <c>Player</c> either.
 /// </para>
 /// <para>
-/// ⚠️ It is not a placeholder for the ten absent sources and must not become one. It carries no
-/// notion of gear, of a perk or of a draft; it is the degenerate implementation that lets `18` §8
-/// steps 1 and 2 be built, tested and frozen now, and it is what M2-16a's balance harness (`05` §9)
-/// hands synthetic builds through, since that harness has no <c>Player</c> either.
-/// </para>
-/// <para>
-/// 🔒 The list is <b>copied</b> on construction. A source is a reading of the build at one resolution
-/// pass; a caller that kept a handle on the list it passed in could otherwise mutate the collected
-/// set between step 1 and step 2 of the same pass, which is precisely the order-dependence §8
-/// removes.
+/// The list is copied on construction: a source is a reading of the build at one resolution pass, so
+/// a caller that kept a handle on the list it passed in could otherwise mutate the collected set
+/// mid-pass.
 /// </para>
 /// </remarks>
 internal sealed class ListEffectSource : IEffectSource
@@ -120,21 +84,20 @@ internal sealed class ListEffectSource : IEffectSource
     /// <exception cref="ArgumentException">
     /// An element carries a <c>null</c> effect, or an <see cref="EffectInstanceId"/> naming no holding.
     /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">The kind is outside `18` §8 step 1's ten.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The kind is outside the declared ten.</exception>
     internal ListEffectSource(EffectSourceKind kind, IEnumerable<SourcedEffect> effects)
     {
         ArgumentNullException.ThrowIfNull(effects);
 
-        // 🔒 Refused here rather than at the resolver: a kind outside the ten has no position in
-        //    `18` §8 step 1's order, so EffectResolutionOrder's tiebreak would be undefined for it.
+        // Refused here rather than at the resolver: a kind outside the ten has no position in the
+        // collection order, so EffectResolutionOrder's tiebreak would be undefined for it.
         _ = EffectSourceCatalogue.RowFor(kind);
 
         Kind = kind;
 
-        // 🔒 Copied AND wrapped. The copy stops a caller mutating the list it passed in; the wrapper
-        //    stops the reverse — an `EffectDefinition[]` returned as `IReadOnlyList<T>` can be cast
-        //    back and written through, which would let a consumer edit the build between step 1 and
-        //    step 2 of one resolution pass.
+        // Copied and wrapped: the copy stops a caller mutating the list it passed in; the wrapper
+        // stops the reverse — an array returned as IReadOnlyList<T> can be cast back and written
+        // through, letting a consumer edit the build mid-pass.
         var copy = effects.ToArray();
         _effects = new ReadOnlyCollection<SourcedEffect>(copy);
 
@@ -164,22 +127,15 @@ internal sealed class ListEffectSource : IEffectSource
     }
 
     /// <summary>
-    /// ⚠️ A source whose holdings are <b>synthetic</b>: each instance id is derived from the kind and
-    /// the list position. For `05` §9's balance harness and for tests, neither of which has a build to
-    /// read a real holding from.
+    /// A source whose holdings are synthetic: each instance id is derived from the kind and the list
+    /// position. For the balance harness and for tests, neither of which has a build to read a real
+    /// holding from.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Named so that no production caller reaches for it by accident.</b>
-    /// <see cref="EffectInstanceId"/> requires an id stable <em>across battle boundaries</em>, because
-    /// `18` §3's <c>ON_KILL</c> counters persist for the run — and a list position is not: equipping
-    /// one more item renumbers every affix behind it and <c>PK_MIDAS</c>'s counter restarts. These ids
-    /// are correct for a single synthetic evaluation and wrong for anything spanning battles, which is
-    /// exactly what `05` §9's harness does and does not do.
-    /// </para>
-    /// <para>
-    /// The ten real sources supply the holding instead — see <see cref="SourcedEffect"/>.
-    /// </para>
+    /// Named so no production caller reaches for it by accident: a list position is not stable across
+    /// battle boundaries the way a run-scoped counter needs — equipping one more item renumbers every
+    /// affix behind it. Correct for a single synthetic evaluation, wrong for anything spanning
+    /// battles. The ten real sources supply the holding instead — see <see cref="SourcedEffect"/>.
     /// </remarks>
     internal static ListEffectSource Synthetic(EffectSourceKind kind, params EffectDefinition[] effects)
     {

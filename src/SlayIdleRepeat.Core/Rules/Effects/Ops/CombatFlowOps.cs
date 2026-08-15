@@ -4,37 +4,18 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 /// <summary>
-/// 🔒 Eleven of `18` §2.4's twelve combat-flow ops. The twelfth, <c>STAT_COPY</c>, is
-/// <see cref="StatCopyOp"/> — it is the one op in the DSL whose <c>target</c> does not name who it
-/// writes to, and that inversion is worth a file of its own.
+/// Eleven of the twelve combat-flow ops. The twelfth, <c>STAT_COPY</c>, is <see cref="StatCopyOp"/> —
+/// the one op whose <c>target</c> does not name who it writes to.
 /// </summary>
 /// <remarks>
-/// <para>
-/// These ops write <b>actor state</b> rather than HP: charge counters, cooldowns, targeting weight,
-/// an armed death save. None of them has a number that means anything to `05` §4's damage pipeline,
-/// which is why they route through <see cref="ICombatFlowSink"/> and not
-/// <see cref="IAttackPipeline"/>.
-/// </para>
-/// <para>
-/// 🔒 <b>Three of them carry a count, and `18` §2.4 named a key for exactly one.</b>
-/// <c>EXTRA_ATTACK</c>'s count is its <c>value</c> (§7.3's <c>PK_FLURRY</c> is
-/// <c>{"op":"EXTRA_ATTACK","value":1}</c>), but <c>ATTACK_MULT_NEXT</c> and <c>FORCE_CRIT_NEXT</c>
-/// both say <em>"the next N attacks"</em> while `05` §4 has already spent their <c>value</c> on the
-/// multiplier (<em>"<c>PK_OPENER</c>'s ×3 first attack"</em>). <c>charges</c> is the key added for
-/// that under `18` §10 — see <see cref="EffectDefinition.Charges"/>.
-/// </para>
+/// These ops write actor state rather than HP: charge counters, cooldowns, targeting weight, an
+/// armed death save. None has a number that means anything to the damage pipeline, which is why they
+/// route through <see cref="ICombatFlowSink"/> and not <see cref="IAttackPipeline"/>.
 /// </remarks>
 internal static class CombatFlowOps
 {
-    /// <summary>
-    /// `18` §2.4 / §7.3 — <c>EXTRA_ATTACK</c>: <em>"perform an additional attack immediately"</em>,
-    /// <c>value</c> times.
-    /// </summary>
-    /// <remarks>
-    /// The count is <c>value</c> and not <c>charges</c>: §7.3 authors <c>PK_FLURRY</c> as
-    /// <c>{"op": "EXTRA_ATTACK", "value": 1, …}</c>, so the key already exists and adding a second
-    /// spelling would be two ways to say one thing.
-    /// </remarks>
+    /// <summary><c>EXTRA_ATTACK</c>: perform an additional attack immediately, <c>value</c> times.</summary>
+    /// <remarks>The count is <c>value</c>, not <c>charges</c> — <c>PK_FLURRY</c> already authors it that way.</remarks>
     internal static double ExtraAttack(EffectDefinition effect, EffectOpContext context)
     {
         var attacks = WholeCount(effect, context.Seams.Values.ScaledValue(effect), "extra attacks");
@@ -48,15 +29,8 @@ internal static class CombatFlowOps
         return attacks;
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.4 — <c>ATTACK_MULT_NEXT</c>: multiply the damage of the next <c>charges</c>
-    /// attacks by <c>value</c>.
-    /// </summary>
-    /// <remarks>
-    /// Holder-scoped: <em>"the next N attacks"</em> are the holder's, which is why `05` §3.1 grants
-    /// <c>PK_OPENER</c>'s charge at the pre-tick with no target in sight. The effect id travels
-    /// because `05` §4 consumes the charges <em>"in ascending effect-id order"</em>.
-    /// </remarks>
+    /// <summary><c>ATTACK_MULT_NEXT</c>: multiply the damage of the next <c>charges</c> attacks by <c>value</c>.</summary>
+    /// <remarks>Holder-scoped. The effect id travels because charges are consumed in ascending effect-id order.</remarks>
     internal static double AttackMultiplierCharges(EffectDefinition effect, EffectOpContext context)
     {
         var multiplier = OpRounding.Round(
@@ -68,14 +42,10 @@ internal static class CombatFlowOps
         return multiplier;
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.4 — <c>FORCE_CRIT_NEXT</c>: the next <c>charges</c> attacks always crit.
-    /// </summary>
+    /// <summary><c>FORCE_CRIT_NEXT</c>: the next <c>charges</c> attacks always crit.</summary>
     /// <remarks>
-    /// ⚠️ Carries <b>no</b> <c>value</c> at all — the crit's size is the actor's own <c>CDMG</c>
-    /// (`05` §4 step 4). An effect that authors one is refused rather than ignored: a forced crit
-    /// written <c>{"charges": 2, "value": 3}</c> reads as "three attacks" to whoever wrote it, and
-    /// silently dropping the 3 would ship that misreading.
+    /// Carries no value — crit size is the actor's own CDMG. An effect that authors one is refused
+    /// rather than silently ignored, since a stray value would be a misreading nobody caught.
     /// </remarks>
     internal static double ForcedCritCharges(EffectDefinition effect, EffectOpContext context)
     {
@@ -95,15 +65,10 @@ internal static class CombatFlowOps
         return charges;
     }
 
-    /// <summary>
-    /// `18` §2.4 — <c>REDUCE_COOLDOWN</c>: <em>"reduce pet/boss ability cooldowns"</em>.
-    /// </summary>
+    /// <summary><c>REDUCE_COOLDOWN</c>: reduce pet/boss ability cooldowns.</summary>
     /// <remarks>
-    /// ⚠️ <b>The value is a fraction of the cooldown, and `18` §2.4 does not say so.</b> `09` §4's
-    /// <em>Relentless</em> — <em>"−3% per rank to all pet ability cooldowns"</em> — is the only
-    /// authored user in any document, and it is a percentage. Reading it as seconds would make that
-    /// talent remove 0.03 s from a 12 s cooldown. Recorded as errata against §2.4; no <c>valueMode</c>
-    /// is added, because one authored user pointing one way is not two readings to choose between.
+    /// The value is a fraction of the cooldown, not seconds — the only authored user ("−3% per rank")
+    /// is a percentage, and reading it as seconds would barely dent a 12s cooldown.
     /// </remarks>
     internal static double ReduceCooldown(EffectDefinition effect, EffectOpContext context)
     {
@@ -118,22 +83,11 @@ internal static class CombatFlowOps
         return fraction;
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.4 / R7 — <c>SURVIVE_LETHAL</c>: arm a save at the HP the effect names.
-    /// </summary>
+    /// <summary><c>SURVIVE_LETHAL</c>: arm a save at the HP the effect names.</summary>
     /// <remarks>
-    /// <para>
-    /// R7: §2.4 words it <em>"at a given HP fraction"</em>, §7.4 writes <c>"value": 1</c> — which as
-    /// a fraction is <b>full HP</b> — and `06` words the same perk <em>"survive a lethal hit at 1
-    /// HP"</em>. The <c>valueMode</c> key added under `18` §10 is what lets both be authored:
-    /// <c>PK_UNBREAKABLE</c> is <c>{"value": 1, "valueMode": "FLAT"}</c> = 1 HP, and an effect that
-    /// really means half health writes <c>{"value": 0.5}</c> on the <c>SELF_MAXHP_PCT</c> default.
-    /// </para>
-    /// <para>
-    /// 🔒 Holder-scoped and <b>not</b> an <c>ON_REVIVE</c>: `18` §3 is explicit that
-    /// <em>"<c>SURVIVE_LETHAL</c> does not count (the actor never died)"</em>. The seam has two
-    /// members for exactly that reason.
-    /// </para>
+    /// <c>valueMode</c> lets this be authored either as a flat HP value or a fraction of Max HP.
+    /// Holder-scoped, and not an <c>ON_REVIVE</c> — the actor never died, so the seam has a separate
+    /// member for it.
     /// </remarks>
     internal static double SurviveLethal(EffectDefinition effect, EffectOpContext context)
     {
@@ -145,7 +99,7 @@ internal static class CombatFlowOps
         return hp;
     }
 
-    /// <summary>`18` §2.4 — <c>REVIVE</c>: return from 0 HP at a fraction of Max HP. Fires <c>ON_REVIVE</c>.</summary>
+    /// <summary><c>REVIVE</c>: return from 0 HP at a fraction of Max HP. Fires <c>ON_REVIVE</c>.</summary>
     internal static double Revive(EffectDefinition effect, EffectOpContext context)
     {
         var holder = OpTargets.Holder(context);
@@ -156,7 +110,7 @@ internal static class CombatFlowOps
         return hp;
     }
 
-    /// <summary>`18` §2.4 / §7.8 — <c>SUMMON</c>: <c>value</c> of <c>archetype</c>, at most <c>maxAlive</c>.</summary>
+    /// <summary><c>SUMMON</c>: <c>value</c> of <c>archetype</c>, at most <c>maxAlive</c>.</summary>
     internal static double Summon(EffectDefinition effect, EffectOpContext context)
     {
         var archetype = effect.Archetype ?? throw new EffectContextException(
@@ -174,37 +128,23 @@ internal static class CombatFlowOps
     }
 
     /// <summary>
-    /// 🔒 `18` §2.4 / §10.1 E6 — <c>RANDOM_OUTCOME</c>: <b>one</b> draw over the <c>outcomes</c>
-    /// weight table, and the single effect id it names handed to
-    /// <see cref="ICombatFlowSink.RandomOutcome"/>. Returns the <b>1-based index</b> of the row that
-    /// won.
+    /// <c>RANDOM_OUTCOME</c>: one draw over the <c>outcomes</c> weight table, naming the winning
+    /// effect id. Returns the 1-based index of the row that won.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>Why this op exists at all.</b> `17` §9's Dicelord <em>Roll of Fate</em> is one visible
-    /// d6 with three <b>mutually exclusive</b> weighted outcomes. `18` §4's conditions are
-    /// <em>"pure functions of current state"</em> and a draw is not state, so three
-    /// <c>chance</c>-gated effects would be three <b>independent</b> draws — all three can fire, or
-    /// none — and would spend <b>three</b> draw indices where `14` §8.0's
-    /// <see cref="Rng.DeterministicRng.WeightedPick{T}"/> spends <b>one</b>.
-    /// <see cref="Rng.DeterministicRng.Position"/> is the persisted state of the stream, so the two
-    /// readings desynchronise every later draw of the battle.
+    /// Exists for mutually-exclusive weighted outcomes (e.g. one visible d6 result): three
+    /// independently chance-gated effects would be three separate draws where any combination could
+    /// fire, spending three RNG draws where a single pick spends one — desynchronising every later
+    /// draw of the battle between client and server.
     /// </para>
     /// <para>
-    /// 🔒 <b>Validation runs BEFORE the draw</b>, mirroring <c>WeightedPick</c>'s own contract that
-    /// <em>a rejected call is not a call</em>: a refused <c>RANDOM_OUTCOME</c> consumes no draw
-    /// index, or a malformed table would shift every later draw of that battle.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The table is re-read through <see cref="EffectOpValidation"/> rather than re-checked
-    /// here.</b> Its rules are the ones <see cref="Rng.DeterministicRng.WeightedPick{T}"/> would
-    /// refuse at fire time plus the two only this op has, and a second copy of them would be a second
-    /// set of words for one authoring error — which is exactly what steering S2 asks a refusal not to
-    /// be.
+    /// Validation runs before the draw: a rejected call must not consume a draw index, or a malformed
+    /// table would shift every later draw of the battle.
     /// </para>
     /// </remarks>
-    /// <param name="effect">The authored roll, carrying `18` §10.1 E6's <c>outcomes</c> table.</param>
-    /// <param name="context">The `18` §4/§5 state and the seams the winner is named across.</param>
+    /// <param name="effect">The authored roll, carrying the <c>outcomes</c> table.</param>
+    /// <param name="context">The evaluation state and the seams the winner is named across.</param>
     /// <returns>The 1-based index of the row that won.</returns>
     /// <exception cref="EffectContextException">
     /// The table is malformed, or the context carries no draw stream.
@@ -244,7 +184,6 @@ internal static class CombatFlowOps
             table[row] = (outcomes[row].EffectId, outcomes[row].Weight);
         }
 
-        // 🔒 ONE draw. Three chance-gated effects would spend three and could fire all three.
         var chosen = rng.WeightedPick(table);
 
         context.Seams.Flow.RandomOutcome(OpTargets.Holder(context), chosen, effect.Id);
@@ -253,8 +192,7 @@ internal static class CombatFlowOps
         {
             if (string.Equals(outcomes[row].EffectId, chosen, StringComparison.Ordinal))
             {
-                // 🔒 `18` §10 step 3's number: 1-based, so that the op's amount is the face the d6
-                // showed rather than an array offset nobody authored.
+                // 1-based, so the amount is the face shown rather than an array offset nobody authored.
                 return row + 1;
             }
         }
@@ -267,15 +205,10 @@ internal static class CombatFlowOps
             "an index nobody computed (steering S6).");
     }
 
-    /// <summary>
-    /// `18` §2.4 — <c>CLEAR_SUMMONS</c>: <em>"despawn all living summons owned by the target
-    /// (default <c>SELF</c>)"</em>.
-    /// </summary>
+    /// <summary><c>CLEAR_SUMMONS</c>: despawn all living summons owned by the target (default SELF).</summary>
     /// <remarks>
-    /// 🔒 <em>"Despawned ≠ killed: no <c>ON_DEATH</c>, no <c>ON_KILL</c>, no on-death explosions, no
-    /// rewards"</em> — which is why the seam has its own member rather than the op looping and
-    /// dealing lethal damage. Ossuary King's <em>Rise Again</em> would otherwise detonate its own
-    /// Volatile adds.
+    /// Despawned, not killed — no <c>ON_DEATH</c>/<c>ON_KILL</c>/on-death explosions/rewards, so a
+    /// summoner clearing its own adds can't detonate them.
     /// </remarks>
     internal static double ClearSummons(EffectDefinition effect, EffectOpContext context)
     {
@@ -287,10 +220,7 @@ internal static class CombatFlowOps
         return 0.0;
     }
 
-    /// <summary>
-    /// `18` §2.4 — <c>SET_TARGET_PRIORITY</c>. `05` §3.2: default <c>0</c>, <c>-1</c>
-    /// deprioritises (Sporequeen's sporelings), <c>+1</c> forces focus.
-    /// </summary>
+    /// <summary><c>SET_TARGET_PRIORITY</c>: default 0, -1 deprioritises, +1 forces focus.</summary>
     internal static double SetTargetPriority(EffectDefinition effect, EffectOpContext context)
     {
         var priority = OpRounding.Round(
@@ -304,15 +234,11 @@ internal static class CombatFlowOps
         return priority;
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.4 / §7.10 — <c>DAMAGE_TAKEN_MULT</c>: multiply incoming damage.
-    /// <c>PK_STALWART</c>'s 0.80, Rimehold's Core's 1.6.
-    /// </summary>
+    /// <summary><c>DAMAGE_TAKEN_MULT</c>: multiply incoming damage.</summary>
     /// <remarks>
-    /// `05` §4 step 6 takes the <b>product</b> of every active one in ascending effect-id order, so
-    /// this accumulates rather than replaces — <see cref="ICombatFlowSink.AddDamageTakenMultiplier"/>
-    /// is named for that. A negative multiplier is refused: `05` §4 step 6 multiplies the damage by
-    /// it, so a negative one would heal the defender through the damage pipeline.
+    /// Accumulates as the product of every active one in ascending effect-id order, rather than
+    /// replacing. A non-positive multiplier is refused — zero would be permanent invulnerability and
+    /// a negative one would heal the defender through the damage pipeline.
     /// </remarks>
     internal static double DamageTakenMultiplier(EffectDefinition effect, EffectOpContext context)
     {
@@ -357,7 +283,7 @@ internal static class CombatFlowOps
                 "having fired.");
     }
 
-    /// <summary>`18` §2.4's <c>charges</c> — the N of "the next N attacks".</summary>
+    /// <summary>The charges — the N of "the next N attacks".</summary>
     private static int RequireCharges(EffectDefinition effect) =>
         effect.Charges is { } charges && charges >= 1
             ? charges

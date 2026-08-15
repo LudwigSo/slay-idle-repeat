@@ -1,12 +1,12 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
 /// <summary>
-/// What a node of a `18` §4 condition tree is: a comparison, or one of the three combinators
+/// What a node of a condition tree is: a comparison, or one of the three combinators
 /// <c>all · any · not</c>.
 /// </summary>
 /// <remarks>
-/// ⚠️ Like <see cref="ConditionComparator"/>, the combinators' JSON spelling is lower-case — a
-/// combinator node is written <c>{"all": [ … ]}</c>, with the combinator as the member NAME rather
+/// Like <see cref="ConditionComparator"/>, the combinators' JSON spelling is lower-case — a
+/// combinator node is written <c>{"all": [ … ]}</c>, with the combinator as the member name rather
 /// than as a value. <see cref="TERM"/> has no JSON token at all: a node with <c>fn</c> is a term.
 /// </remarks>
 public enum ConditionKind

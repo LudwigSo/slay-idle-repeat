@@ -7,64 +7,40 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>
-/// 🔒 `30` §6's speed target — <em>"a full 180-day simulated player in &lt; 200 ms"</em> — and the
-/// structural invariants that still hold on somebody else's machine.
-/// </summary>
+/// <summary>The speed target — a full 180-day simulated player in under 200 ms — plus the structural
+/// invariants that still hold on somebody else's machine.</summary>
 /// <remarks>
-/// 🔒 The budget is split three ways, because a wall-clock assertion on a shared runner fails randomly
+/// The budget is split three ways, because a wall-clock assertion on a shared runner fails randomly
 /// and then gets disabled, while one loose enough to pass anywhere asserts nothing:
 /// <list type="bullet">
 ///   <item><b>Recorded, not asserted at 200 ms.</b> The measurement goes into the failure message; the
-///   assertion is at <b>ten times</b> the budget — a regression detector for an order-of-magnitude
-///   change, tolerant of the 3–5× spread between a laptop and a contended container.</item>
+///   assertion is at ten times the budget — an order-of-magnitude regression detector, tolerant of the
+///   3-5x spread between a laptop and a contended container.</item>
 ///   <item><b>A ratio on the same machine.</b>
 ///   <see cref="The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap"/> compares a one-day gap
 ///   against a ten-year one; both absorb the machine's speed identically, and a per-boundary catch-up
 ///   would make it ~3,650.</item>
 ///   <item><b>A structural invariant with no clock in it.</b>
 ///   <see cref="A_gap_of_any_size_is_one_command_and_one_boundary_step"/> asserts that crossing 180
-///   days takes <b>one</b> <c>Apply</c> — true on every machine, forever.</item>
+///   days takes one <c>Apply</c> — true on every machine, forever.</item>
 /// </list>
-/// <para>
-/// Measured (Release, x64, 180 days × 4 commands/day): <b>15.4 ms</b> for the whole drive, 21.4 µs per
-/// command against a 200 ms budget. <c>EnergyTuning.Read</c> is 27.7% of it — the largest single named
-/// cost, and the first place to look if the budget tightens. Gap size is <b>flat</b>: 1 / 30 / 180 /
-/// 3,650-day gaps all cost ~24–25 µs per command.
-/// </para>
-/// <para>
-/// ⚠️ <b>The slope, read honestly.</b> The +18% measured for 400 counter rows is <em>not</em> a
-/// prediction for 400 inventory slots. The cost per element is copying and <b>revalidating</b> it, and
-/// a <c>(string, long)</c> pair is about as cheap as an element gets, while a <c>GearInstance</c>
-/// carries quality, origin, a mercy counter, affixes and a lock. At 10–50× per element, 400 slots is
-/// 2× to 8× the whole per-command cost — paid on every command, including ones that never touch
-/// inventory. The <b>element type</b> is the variable, not the count.
-/// </para>
 /// </remarks>
 public sealed class InMemoryGamePerformanceTests
 {
     private const int Days = 180;
     private const int CommandsPerDay = 4;
 
-    /// <summary>`30` §6's figure, in milliseconds. Recorded here so the assertion can name it.</summary>
+    /// <summary>The budget, in milliseconds.</summary>
     private const double BudgetMs = 200;
 
-    /// <summary>
-    /// The multiple of the budget the wall-clock assertion actually uses. See the type's remarks:
-    /// this is a regression detector, not a budget check.
-    /// </summary>
+    /// <summary>The multiple of the budget the wall-clock assertion actually uses — a regression
+    /// detector, not a budget check.</summary>
     private const double RegressionMultiple = 10;
 
-    /// <summary>
-    /// 🔒 `30` §6 — a full 180-day simulated player, measured warm and asserted at ten times the
-    /// budget.
-    /// </summary>
-    /// <remarks>
-    /// Warm because the first run of anything in a fresh process measures the JIT: `30` §6's claim is
-    /// about the domain, and `21` §9's sweep pays the JIT once across 2,800 runs. Best-of-three for
-    /// the same reason a benchmark takes a minimum — the fastest run is the one least contaminated by
-    /// whatever else the machine was doing.
-    /// </remarks>
+    /// <summary>A full 180-day simulated player, measured warm and asserted at ten times the budget.
+    /// Warm because the first run of anything in a fresh process measures the JIT rather than the
+    /// domain. Best-of-three, since the fastest run is least contaminated by whatever else the
+    /// machine was doing.</summary>
     [Fact]
     public void A_180_day_player_runs_well_inside_the_budget()
     {
@@ -92,33 +68,20 @@ public sealed class InMemoryGamePerformanceTests
             "happened.");
     }
 
-    /// <summary>
-    /// 🔒 <em>"180 days offline is one subtraction, not 180 iterations"</em> — as a <b>ratio</b>, so the
-    /// machine's speed cancels.
-    /// </summary>
-    /// <remarks>
-    /// Both halves run the same commands through the same code in the same process; only the clock step
-    /// differs. A catch-up that walked boundaries would make the ten-year half ~3,650× the one-day half,
-    /// which no runner contention produces. Measured: 25.4 µs against 24.1 µs — the long gap marginally
-    /// <em>cheaper</em>, because a ten-year step crosses a week boundary on every command.
-    /// ⚠️ The tolerance is a factor of four, loose on purpose, and still leaves three orders of magnitude
-    /// between "passes" and "a loop crept in".
-    /// </remarks>
+    /// <summary>180 days offline is one subtraction, not 180 iterations — asserted as a ratio, so
+    /// the machine's speed cancels. A catch-up that walked boundaries would make the ten-year half
+    /// ~3,650x the one-day half; the tolerance here is a factor of four, loose on purpose, and still
+    /// leaves three orders of magnitude between "passes" and "a loop crept in".</summary>
     [Fact]
     public void The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap()
     {
         const int Commands = Days * CommandsPerDay;
 
-        // 🔒 The workload floor, on both halves — see Drive's remarks. Every command is accepted and
-        // every one of them crosses at least one game day, so a one-day gap grants once per command
-        // and a ten-year gap does too.
         ShouldHaveDoneTheWork(GapDrive(1, Commands), Commands, Commands);
         ShouldHaveDoneTheWork(GapDrive(3650, Commands), Commands, Commands);
 
-        // 🔒 INTERLEAVED, not two separate best-of-3 blocks. Each drive is ~18 ms, so a GC pause or
-        // some CPU steal landing inside all three ten-year runs and none of the one-day runs would
-        // produce a red that reproduces nowhere. Alternating them puts both halves through the same
-        // contention, which is the only way a ratio measured on a shared runner means anything.
+        // Interleaved rather than two separate best-of-3 blocks, so a GC pause or CPU steal lands on
+        // both halves equally rather than skewing just one of them.
         var oneDay = double.MaxValue;
         var tenYears = double.MaxValue;
 
@@ -139,17 +102,9 @@ public sealed class InMemoryGamePerformanceTests
             "this suite the one clock-based assertion worth having.");
     }
 
-    /// <summary>
-    /// 🔒 The same claim with <b>no clock in it</b>: a gap of any size is one command, and it lands
-    /// the period boundaries on the calendar's own answer.
-    /// </summary>
-    /// <remarks>
-    /// This is the assertion that will still be true on somebody else's machine in five years.
-    /// <c>CommandsIssued</c> counts <c>Apply</c> calls, and the two boundaries are compared against
-    /// <c>GameCalendar</c> — the one definition both <c>Player</c>'s invariants and
-    /// <c>AdvanceTime</c>'s computation read — rather than against a literal or against an
-    /// accumulation of steps.
-    /// </remarks>
+    /// <summary>The same claim with no clock in it: a gap of any size is one command, and it lands
+    /// the period boundaries on <c>GameCalendar</c>'s own answer rather than an accumulation of
+    /// steps.</summary>
     [Fact]
     public void A_gap_of_any_size_is_one_command_and_one_boundary_step()
     {
@@ -180,15 +135,8 @@ public sealed class InMemoryGamePerformanceTests
             "and 14 §7.1's economy log would carry a row for every day the player was away.");
     }
 
-    /// <summary>
-    /// 🔒 The event list does not grow with the size of the gap either — which is a memory claim as
-    /// well as a speed one, and `21` §9 runs 2,800 of these.
-    /// </summary>
-    /// <remarks>
-    /// Asserted by identity of the two lists rather than by a bound: a hundred-fold gap producing the
-    /// same rows as a one-day gap is the strongest form of the claim, and it is only sayable because
-    /// the accrual is one event whatever the span.
-    /// </remarks>
+    /// <summary>The event list does not grow with the size of the gap either — a memory claim as well
+    /// as a speed one, asserted by comparing the two lists directly rather than by a bound.</summary>
     [Fact]
     public void The_event_list_does_not_grow_with_the_size_of_the_gap()
     {
@@ -211,15 +159,9 @@ public sealed class InMemoryGamePerformanceTests
             "amount — the deltas differ only while the banks have room.");
     }
 
-    /// <summary>
-    /// One 180-day drive, returning the harness so the caller can floor the workload it measured.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <b>The floor is not decoration</b> (steering <b>S3</b>). If <c>BEGIN_SESSION</c> regressed
-    /// to a rejection, every timing test in this file would get <em>faster</em> and stay green over
-    /// 720 refusals — a perf suite measuring nothing, reporting success. So each test that times a
-    /// drive also asserts what the drive did.
-    /// </remarks>
+    /// <summary>One 180-day drive, returning the harness so the caller can floor the workload it
+    /// measured — if <c>BEGIN_SESSION</c> regressed to a rejection, every timing test here would get
+    /// faster and stay green over pure refusals, so each test also asserts what the drive did.</summary>
     private static InMemoryGame Drive()
     {
         var (game, player) = Harnesses.WithPlayer();

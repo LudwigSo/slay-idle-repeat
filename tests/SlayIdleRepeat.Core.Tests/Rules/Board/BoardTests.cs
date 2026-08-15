@@ -5,10 +5,7 @@ using CoreBoard = SlayIdleRepeat.Core.Rules.Board.BoardGraph;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
-/// <summary>
-/// <see cref="CoreBoard.FromLayout"/> — the seam a future authored-layout loader (`03` §3's
-/// bypass) would call directly, without going through <see cref="BoardGenerator"/>.
-/// </summary>
+/// <summary>Tests <see cref="CoreBoard.FromLayout"/>, the seam a future authored-layout loader would call directly, bypassing <see cref="BoardGenerator"/>.</summary>
 public sealed class BoardTests
 {
     private static (BoardNode a, BoardNode b) TwoNodes() =>

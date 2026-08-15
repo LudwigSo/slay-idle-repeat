@@ -8,17 +8,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `30` §11.3 — <c>Run.Rehydrate</c> is <em>"one validated entry point for every persisted state in
-/// the game — a corrupt row fails loudly at the seam rather than silently three rules later."</em>
-/// One assertion per way a row can be wrong.
+/// <c>Run.Rehydrate</c> is one validated entry point for every persisted state: a corrupt row
+/// fails loudly at the seam rather than silently three rules later. One assertion per way a row
+/// can be wrong.
 /// </summary>
 /// <remarks>
-/// 🔒 Every failure assertion pins <b>which</b> validation fired. <c>Rehydrate</c> reports every fault
-/// it finds rather than the first, so a test that only checked <c>IsFailure</c> would pass for a row
-/// invalid in some entirely different way — which is how a validation gets deleted without anything
-/// going red.
+/// Every failure assertion pins <b>which</b> validation fired. <c>Rehydrate</c> reports every
+/// fault it finds rather than the first, so a test that only checked <c>IsFailure</c> would pass
+/// for a row invalid in some entirely different way.
 /// <para>
-/// 🔒 No <c>ContentSnapshot</c> parameter, unlike <c>Player.Rehydrate</c>: nothing <c>RunSnapshot</c>
+/// No <c>ContentSnapshot</c> parameter, unlike <c>Player.Rehydrate</c>: nothing <c>RunSnapshot</c>
 /// carries has a content-derived bound today.
 /// </para>
 /// </remarks>
@@ -75,21 +74,20 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.6 + the M1 kickoff ruling — an unknown <c>SchemaVersion</c> hard-fails, and the
-    /// message says there is no migration rather than reading the row anyway.
+    /// An unknown <c>SchemaVersion</c> hard-fails, and the message says there is no migration
+    /// rather than reading the row anyway.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>The "one past the current" row is an expression, not a literal</b> — see
-    /// <c>PlayerRehydrateTests</c>'s case of the same name for why M1-09 changed it. <c>RunSnapshot</c>
-    /// did not move at the SchemaVersion 2 bump and this case went red all the same, which is the
-    /// point: the pin is per <em>version</em>, not per record.
+    /// <b>The "one past the current" row is an expression, not a literal</b> — see
+    /// <c>PlayerRehydrateTests</c>'s case of the same name. <c>RunSnapshot</c> can go red at a
+    /// version bump even when its own layout did not move, which is the point: the pin is per
+    /// <em>version</em>, not per record.
     /// </remarks>
     [Theory]
     [InlineData(0)]
 
-    // 🔒 The version M1-09 orphans — see PlayerRehydrateTests' case of the same name. RunSnapshot's
-    // own layout did not move at that bump, which is the point: the pin is per VERSION, so a v1
-    // RunSnapshot is unreadable too.
+    // The version this build orphans, even though RunSnapshot's own layout did not move at that
+    // bump: the pin is per version, so an old RunSnapshot is unreadable too.
     [InlineData(SnapshotSchema.SchemaVersion - 1)]
     [InlineData(SnapshotSchema.SchemaVersion + 1)]
     [InlineData(int.MaxValue)]
@@ -104,13 +102,12 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 The version check runs <b>first and alone</b>: a row from another schema is refused for
+    /// The version check runs <b>first and alone</b>: a row from another schema is refused for
     /// being from another schema, not for whatever its fields happen to look like under this layout.
     /// </summary>
     /// <remarks>
-    /// Steering <b>S2</b>. Without this, a wrong-version row that also had a negative position could
-    /// report the position and let a reader "fix" the row instead of the version — and the case above
-    /// would still pass, because its fragment would be in the joined message.
+    /// Without this, a wrong-version row that also had a negative position could report the
+    /// position and let a reader "fix" the row instead of the version.
     /// </remarks>
     [Fact]
     public void A_wrong_SchemaVersion_is_reported_alone_and_not_alongside_field_faults()
@@ -134,10 +131,7 @@ public sealed class RunRehydrateTests
            .IsSuccess.ShouldBeTrue();
     }
 
-    /// <summary>
-    /// 🔒 <c>default(RunId)</c> never ran <c>RunId</c>'s constructor, so its <c>Value</c> is null.
-    /// <c>RunId</c>'s own remarks name this seam as the one that has to catch it.
-    /// </summary>
+    /// <summary><c>default(RunId)</c> never ran <c>RunId</c>'s constructor, so its <c>Value</c> is null.</summary>
     [Fact]
     public void A_default_RunId_is_refused_because_its_constructor_never_ran()
     {
@@ -148,8 +142,8 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 …and the same for the owning player. `30` §4 makes <c>Run</c> a child of <c>Player</c>, so
-    /// a run that names no player is an orphan rather than a run.
+    /// And the same for the owning player: a <c>Run</c> is a child of <c>Player</c>, so a run that
+    /// names no player is an orphan rather than a run.
     /// </summary>
     [Fact]
     public void A_default_PlayerId_is_refused_because_a_run_is_a_child_of_a_player()
@@ -160,10 +154,7 @@ public sealed class RunRehydrateTests
         result.Error.ShouldContain("PlayerId is blank or default(PlayerId)", Case.Sensitive);
     }
 
-    /// <summary>
-    /// A chapter below 1 is refused — <c>chapter.schema.json</c> sets <c>"minimum": 1</c> and `02`
-    /// §1 runs chapters from 1.
-    /// </summary>
+    /// <summary>A chapter below 1 is refused — <c>chapter.schema.json</c> sets <c>"minimum": 1</c>.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -178,16 +169,13 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// ⚠️ A chapter <b>above</b> the eight `02` §1 names is <b>accepted</b>, deliberately — the
+    /// A chapter <b>above</b> the authored chapters is <b>accepted</b>, deliberately — the
     /// assertion that keeps the chapter rule honest.
     /// </summary>
     /// <remarks>
-    /// <c>content/chapters/</c> holds only chapters 1-2 (M3-14); chapters 3-8 are M11-02's
-    /// unauthored rows, so the content set still does not span the full range and no ceiling is
-    /// derivable from it. Hard-coding <c>8</c> would put a content bound in code and be a
-    /// <em>partial</em> invariant masquerading as the real one; the deferral already has a
-    /// self-expiring mechanism in <c>RealDataSetTests</c>, and this pins that <c>Core</c> did not
-    /// grow a second one.
+    /// The authored content set does not span the full range, so no ceiling is derivable from it.
+    /// Hard-coding a maximum would put a content bound in code and be a <em>partial</em> invariant
+    /// masquerading as the real one.
     /// </remarks>
     [Theory]
     [InlineData(1)]
@@ -202,7 +190,7 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 An undefined <see cref="DifficultyTier"/> is refused, including the zero
+    /// An undefined <see cref="DifficultyTier"/> is refused, including the zero
     /// <c>default(DifficultyTier)</c> reads as — which is why the enum has no <c>0</c> member.
     /// </summary>
     [Theory]
@@ -219,7 +207,7 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 A non-UTC <c>LastAppliedAtUtc</c> is refused. <c>CanonicalStateWriter</c> encodes a
+    /// A non-UTC <c>LastAppliedAtUtc</c> is refused. <c>CanonicalStateWriter</c> encodes a
     /// <see cref="DateTimeOffset"/> as Unix milliseconds, so two offsets naming one instant share a
     /// <c>stateHash</c> while record equality calls the two snapshots different.
     /// </summary>
@@ -235,15 +223,11 @@ public sealed class RunRehydrateTests
         result.Error.ShouldContain("offset", Case.Sensitive);
     }
 
-    /// <summary>
-    /// A position below `03` §1.1's trailhead is refused — and that is the whole position check
-    /// (see M3-01).
-    /// </summary>
+    /// <summary>A position below the trailhead is refused — and that is the whole position check.</summary>
     /// <remarks>
-    /// ⚠️ The fault <b>count</b> is asserted beside the fragment, because <c>Position</c> is a
+    /// The fault <b>count</b> is asserted beside the fragment, because <c>Position</c> is a
     /// substring of <c>RngStreamPositions</c>: on its own, that fragment would be satisfied by a
-    /// message about the stream map and this case would pass while the position check was gone
-    /// (steering S2).
+    /// message about the stream map and this case would pass while the position check was gone.
     /// </remarks>
     [Fact]
     public void A_position_below_the_trailhead_is_refused()
@@ -255,16 +239,13 @@ public sealed class RunRehydrateTests
         result.Error.ShouldContain("Position", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 …but the <b>trailhead itself</b> rehydrates, because that is where every run starts.
-    /// </summary>
+    /// <summary>But the <b>trailhead itself</b> rehydrates, because that is where every run starts.</summary>
     /// <remarks>
-    /// ⚠️ The case a floor of 0 would have got wrong. `03` §1.1 (ruled in `16` A7) begins every run
-    /// at <em>"a virtual trailhead one step before node 0 (position −1)"</em>, and the movement
-    /// arithmetic closes from there — <em>"a first roll of <c>1</c> therefore lands on node 0"</em>.
-    /// A run that <c>START_RUN</c> (M3-15) created and the player left before their first
-    /// <c>ROLL_DICE</c> is persisted at −1, and `14` §16.3's sliding 48-hour TTL exists precisely to
-    /// let that row come back — so <c>Rehydrate</c> has to read it.
+    /// The case a floor of 0 would have got wrong. Every run begins at a virtual trailhead one
+    /// step before node 0 (position −1), and the movement arithmetic closes from there — a first
+    /// roll of 1 therefore lands on node 0. A run created and abandoned before its first roll is
+    /// persisted at −1, and the sliding TTL exists precisely to let that row come back, so
+    /// <c>Rehydrate</c> has to read it.
     /// </remarks>
     [Fact]
     public void The_trailhead_position_rehydrates_because_that_is_where_every_run_starts()
@@ -272,14 +253,12 @@ public sealed class RunRehydrateTests
         Run.Rehydrate(RunSnapshots.With(position: -1)).Value.Position.ShouldBe(-1);
     }
 
-    /// <summary>
-    /// ⚠️ …and a position no board could contain is <b>accepted</b>, because there is no board.
-    /// </summary>
+    /// <summary>And a position no board could contain is <b>accepted</b>, because there is no board.</summary>
     /// <remarks>
-    /// The converse half, and it is the one that keeps the deferral honest: `30` §11.5's <em>"a run's
-    /// position is a valid node"</em> is registered against M3-01 in <c>GapRegister</c> rather than
-    /// approximated here. If someone later invents a range check, this case turns red and points at
-    /// the register entry instead of the invariant quietly becoming a guess.
+    /// The converse half, and it is the one that keeps the deferral honest: "a run's position is a
+    /// valid node" is registered as a gap rather than approximated here. If someone later invents
+    /// a range check, this case turns red and points at the register entry instead of the
+    /// invariant quietly becoming a guess.
     /// </remarks>
     [Fact]
     public void A_position_no_board_could_contain_is_accepted_because_node_identity_is_M3_01s()
@@ -334,14 +313,13 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 One defect is one fault. A row whose <c>MaxHp</c> is itself invalid must not <em>also</em>
+    /// One defect is one fault. A row whose <c>MaxHp</c> is itself invalid must not <em>also</em>
     /// be reported for a current that exceeds it — the comparison is meaningless against a maximum
     /// the row does not have.
     /// </summary>
     /// <remarks>
-    /// Steering <b>S2</b>, stated as an exact count rather than as a fragment: a reader handed two
-    /// faults for one defect fixes the wrong one. <c>Player.RequireTimestamps</c> makes the same move
-    /// for the game-day boundary checks and says so in a comment.
+    /// Stated as an exact count rather than as a fragment: a reader handed two faults for one
+    /// defect fixes the wrong one.
     /// </remarks>
     [Fact]
     public void An_invalid_MaxHp_is_reported_once_and_not_also_as_a_CurrentHp_overflow()
@@ -353,7 +331,7 @@ public sealed class RunRehydrateTests
         result.Error.ShouldContain("(1 problem(s))", Case.Sensitive);
     }
 
-    /// <summary>`30` §11.5 — a currency never goes negative, checked at the seam as well.</summary>
+    /// <summary>A currency never goes negative, checked at the seam as well.</summary>
     [Fact]
     public void A_negative_Gold_is_refused()
     {
@@ -375,11 +353,11 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 A persisted stream name the `14` §8.1 registry does not recognise is refused, by the same
-    /// predicate <c>DeterministicRng</c>'s constructor uses.
+    /// A persisted stream name the registry does not recognise is refused, by the same predicate
+    /// <c>DeterministicRng</c>'s constructor uses.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The cases are the ones <c>RngStreams.IsRegistered</c> is specified to separate:
+    /// The cases are the ones <c>RngStreams.IsRegistered</c> is specified to separate:
     /// <c>minigame:03</c> is a <em>different string</em> from <c>minigame:3</c> and therefore a
     /// different sequence for what a human reads as the same minigame, and <c>DICE</c> pins that the
     /// comparison is ordinal. A row carrying one could never be drawn from.
@@ -409,7 +387,7 @@ public sealed class RunRehydrateTests
     [Fact]
     public void Every_row_of_the_registry_is_accepted_including_the_parameterised_minigame_row()
     {
-        // ⚠️ index + 1, not index: a stream persisted at 0 is indistinguishable from one the row
+        // index + 1, not index: a stream persisted at 0 is indistinguishable from one the row
         // never carried, because absent means 0. With a zero in the fixture, one of the ten
         // assertions below would hold for a validation that dropped that key entirely.
         var everyStream = RngStreams.FixedNames
@@ -468,9 +446,9 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// ⚠️ An ad placement id the game does not author is <b>accepted</b>, because <c>Core</c> holds
-    /// no placement catalogue: the thirteen in-run ids live in <c>tuning/ads.json</c> and
-    /// <c>AdPlacementId</c> is an <c>Application</c>-layer type (`12` §7).
+    /// An ad placement id the game does not author is <b>accepted</b>, because <c>Core</c> holds
+    /// no placement catalogue: the in-run ids live in content tuning, and <c>AdPlacementId</c> is
+    /// an <c>Application</c>-layer type.
     /// </summary>
     [Fact]
     public void An_unauthored_placement_id_is_accepted_because_the_catalogue_is_content()
@@ -482,12 +460,12 @@ public sealed class RunRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 `30` §11.3 — a corrupt row reports <b>every</b> fault, not the first. One round trip per
-    /// defect is one round trip too many when the row is already in production.
+    /// A corrupt row reports <b>every</b> fault, not the first. One round trip per defect is one
+    /// round trip too many when the row is already in production.
     /// </summary>
     /// <remarks>
-    /// Stated as an exact count <em>and</em> as the identity of each fault (steering S2): a count
-    /// alone would hold for five faults about the wrong five fields.
+    /// Stated as an exact count <em>and</em> as the identity of each fault: a count alone would
+    /// hold for five faults about the wrong five fields.
     /// </remarks>
     [Fact]
     public void Every_fault_in_a_row_is_reported_not_just_the_first()
@@ -537,7 +515,7 @@ public sealed class RunRehydrateTests
         run.AdUseCount("AD_DOUBLE_CHEST").ShouldBe(0);
     }
 
-    // ---------------------------------------------------------------- M3-03c, ResolvedMinigames
+    // ---------------------------------------------------------------- ResolvedMinigames
 
     /// <summary>A null resolved-minigames map is refused; an absent map is not an empty one.</summary>
     [Fact]
@@ -586,7 +564,7 @@ public sealed class RunRehydrateTests
         run.HasResolvedMinigameAt(4).ShouldBeFalse();
     }
 
-    // ------------------------------------------------------------------ RequireBankedRewards faults (M3-13)
+    // ------------------------------------------------------------------ RequireBankedRewards faults
 
     /// <summary>Banked Legend XP is a pending grant — it never goes negative.</summary>
     [Fact]
@@ -608,7 +586,7 @@ public sealed class RunRehydrateTests
         result.Error.ShouldContain(nameof(RunSnapshot.BankedSoulShards), Case.Sensitive);
     }
 
-    /// <summary>🔒 Faults accumulate: both pools negative reports both problems, not just the first.</summary>
+    /// <summary>Faults accumulate: both pools negative reports both problems, not just the first.</summary>
     [Fact]
     public void Negative_banked_rewards_in_both_pools_accumulate()
     {

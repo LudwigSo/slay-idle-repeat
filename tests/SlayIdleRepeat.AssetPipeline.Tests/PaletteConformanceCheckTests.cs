@@ -8,25 +8,18 @@ using Xunit;
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
 /// <summary>
-/// C13 — `15` Part F item 5:
-/// <em>"Palette conforms to the biome's locked six colours + neutrals"</em>.
+/// The six hues come off the shipped row, so the passing fixture is painted from the register's
+/// own colours. Neutrals are never enumerated anywhere, so <see cref="ThresholdKeys.PaletteNeutrals"/>
+/// ships null and this item cannot conclude without somebody stating a list.
 /// </summary>
-/// <remarks>
-/// 🔒 The six hues come off the shipped row, so the passing fixture is painted from the register's
-/// own colours rather than from six the case chose. "+ neutrals" is the hole: `15` §A5 writes the
-/// phrase and enumerates nothing, so <see cref="ThresholdKeys.PaletteNeutrals"/> ships null and this
-/// item cannot conclude without somebody stating a list.
-/// </remarks>
 public sealed class PaletteConformanceCheckTests
 {
-    /// <summary>Every hole item 5 reaches into.</summary>
     private static readonly string[] ThresholdsItem5Needs =
     [
         ThresholdKeys.PaletteNeutrals,
         ThresholdKeys.PaletteMatchTolerance,
     ];
 
-    /// <summary>Every hole item 5 reaches into, one theory case each.</summary>
     public static TheoryData<string> EveryThresholdItem5Needs()
     {
         var data = new TheoryData<string>();
@@ -39,10 +32,8 @@ public sealed class PaletteConformanceCheckTests
     }
 
     /// <summary>
-    /// 🔒 The fixture's off-palette pixel is only a violation if it really is off the permitted set.
-    /// This measures that against the row's own six hues before any case relies on it, so a palette
-    /// edit that happened to make the nudged colour legal fails here rather than silently turning
-    /// the violation case green.
+    /// Verifies the off-palette pixel is really off the permitted set, so a palette edit that
+    /// happened to make it legal fails here rather than silently turning the violation case green.
     /// </summary>
     [Fact]
     public void The_violating_fixtures_pixel_is_further_from_every_permitted_hue_than_the_stated_tolerance()
@@ -90,11 +81,7 @@ public sealed class PaletteConformanceCheckTests
             .Value.ShouldBe(1d);
     }
 
-    /// <summary>
-    /// 🔒 `15` §B4 step 3 is "(biome assets only)" and 646 of the 974 rows carry no palette. Grading
-    /// the UI kit against a biome's six hues would reject all of it, so a non-biome row passes with
-    /// the reason saying why rather than being quietly skipped.
-    /// </summary>
+    /// <summary>Most rows carry no palette; grading them against a biome's six hues would reject all of them.</summary>
     [Fact]
     public void Evaluate_passes_a_non_biome_row_with_a_stated_reason_rather_than_grading_it()
     {
@@ -114,10 +101,7 @@ public sealed class PaletteConformanceCheckTests
         outcome.Reason.ShouldNotBeNullOrWhiteSpace();
     }
 
-    /// <summary>
-    /// 🔒 The S6 assertion for item 5. `15` §A5's "+ neutrals" is a phrase, not a list, and a check
-    /// that passed without one would be enforcing a palette of its own invention on 328 rows.
-    /// </summary>
+    /// <summary>Neutrals are never enumerated as a list, so a check that passed without one would invent its own palette.</summary>
     [Theory]
     [MemberData(nameof(EveryThresholdItem5Needs))]
     public void Evaluate_reports_Uncalibrated_naming_the_key_when_one_hole_is_left_open(string key)
@@ -131,9 +115,6 @@ public sealed class PaletteConformanceCheckTests
         outcome.Verdict.ShouldBe(QaVerdict.Uncalibrated);
         outcome.Reason.ShouldContain(key, Case.Sensitive);
 
-        // 🔒 Steering rule S2. A reason naming both of item 5's keys would satisfy the assertion
-        // above for both cases; the other key is stated here, so naming it names a hole that is
-        // not open.
         foreach (var stated in ThresholdsItem5Needs.Where(other => !string.Equals(other, key, StringComparison.Ordinal)))
         {
             outcome.Reason.ShouldNotContain(stated, Case.Sensitive);

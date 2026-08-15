@@ -5,25 +5,18 @@ using SlayIdleRepeat.Core.Rng;
 
 namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 
-/// <summary>
-/// 🔒 `03` §7a.4 — <c>TILE_CACHE</c>: one draw decides Pet Egg or Beast Feed.
-/// </summary>
+/// <summary><c>TILE_CACHE</c>: one draw decides Pet Egg or Beast Feed.</summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>An egg hit pays nothing today, and that is a scope boundary rather than a lost reward.</b>
-/// §7a.4 says the cache <em>"pays one Pet Egg instead of the Feed"</em>, and a Pet Egg is a
-/// container — <c>GapRegister</c>'s <c>ContainerShelf</c> entry, M4-02's, together with
-/// <c>OPEN_EGG</c>, which is still a <c>Deferred</c> dispatch row. There is nowhere in <c>Core</c>
-/// to put one. Granting Beast Feed on the egg branch instead would silently delete the egg from the
-/// design and make the tile's odds a lie; paying nothing is the honest answer, and the draw is still
-/// taken so the stream advances identically to the day M4-02 fills the branch in.
+/// An egg hit pays nothing today — a scope boundary, not a lost reward. A Pet Egg is a container
+/// type that does not yet exist in <c>Core</c>. Granting Beast Feed on the egg branch instead would
+/// silently delete the egg from the design and make the tile's odds a lie, so paying nothing is the
+/// honest answer; the draw is still taken so the stream advances identically once the egg branch is
+/// filled in.
 /// </para>
 /// <para>
-/// 🔒 <b>The draw happens on the <c>drops</c> stream, and that is a recorded assumption.</b>
-/// `14` §8.1's registry is closed and authors no cache stream; <c>drops</c> — <em>"gear, currency and
-/// material drops"</em> — is the closest existing semantic fit for a tile whose whole job is a
-/// material drop. Adding a registry row would be a protocol change (`14` §2.3 puts stream names on
-/// the wire), which this task is not authorised to make.
+/// The draw happens on the <c>drops</c> stream — the closest existing semantic fit for a tile
+/// whose whole job is a material drop; there is no dedicated cache stream.
 /// </para>
 /// </remarks>
 internal static class CacheResolver
@@ -43,10 +36,9 @@ internal static class CacheResolver
 
         var tuning = CacheTuning.Read(input.Context.Content);
 
-        // 🔒 Exactly ONE draw either way. NextDouble rather than Range: the tunable is a probability
-        // in [0,1], so comparing a unit-interval draw against it needs no scaling and no rounding
-        // decision, and a rate of 0 or 1 lands exactly on "never" / "always" (the draw is strictly
-        // below 1, so `< 1.0` is always true and `< 0.0` never is).
+        // Exactly one draw either way. NextDouble rather than Range: the tunable is a probability
+        // in [0,1], so comparing a unit-interval draw against it needs no scaling, and a rate of 0
+        // or 1 lands exactly on "never" / "always".
         var isEgg = input.Rng.Stream(RngStreams.Drops).NextDouble() < tuning.EggChance;
 
         if (isEgg)
@@ -56,8 +48,8 @@ internal static class CacheResolver
 
         var scalars = ChapterScalarTuning.Read(input.Context.Content);
 
-        // 🔒 ScaleMeta rather than a multiply by the scalar: 03 §7a rounds the scaled AMOUNT to a
-        // whole currency unit, never the scalar itself — see ChapterScalarTuning.ScaleMeta.
+        // ScaleMeta rather than a multiply by the scalar: the scaled amount rounds to a whole
+        // currency unit, never the scalar itself — see ChapterScalarTuning.ScaleMeta.
         var feed = scalars.ScaleMeta(tuning.BeastFeedBase, input.Run.ChapterId);
 
         return feed == 0

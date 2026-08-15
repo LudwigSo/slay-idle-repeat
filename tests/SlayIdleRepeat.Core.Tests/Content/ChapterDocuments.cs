@@ -3,15 +3,14 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// Hermetic <c>content/chapters/*.json</c> fixtures — M3-02's <c>Rules.Board.ChapterBoardTuning</c>
-/// reads this shape to build the <see cref="Rules.Board.ChapterBoardConfig"/> a run's board
-/// generates from.
+/// Hermetic <c>content/chapters/*.json</c> fixtures — <c>Rules.Board.ChapterBoardTuning</c> reads
+/// this shape to build the <see cref="Rules.Board.ChapterBoardConfig"/> a run's board generates from.
 /// </summary>
 /// <remarks>
-/// 🔒 <c>Core.Tests</c> is hermetic, so this <em>mirrors</em> the shipped
+/// <c>Core.Tests</c> is hermetic, so this mirrors the shipped
 /// <c>content/chapters/CH_01_GREENWOOD_VALE.json</c> rather than reading it — the same numbers
-/// <c>Rules.Board.Tests.BoardFixtures.ChapterOneConfig</c> already transcribes for the generator's
-/// own tests, so a handler-level test and a Rules-level test agree on what chapter 1 actually is.
+/// <c>Rules.Board.Tests.BoardFixtures.ChapterOneConfig</c> already transcribes, so a handler-level
+/// test and a Rules-level test agree on what chapter 1 actually is.
 /// </remarks>
 internal static class ChapterDocuments
 {
@@ -21,7 +20,7 @@ internal static class ChapterDocuments
     /// <summary>Where the handler-test-only tiny chapter (2) lives — see <see cref="TinyChapterDocument"/>.</summary>
     internal const string TinyChapterPath = "content/chapters/CH_02_TEST.json";
 
-    /// <summary>`03` §3 needs room for at least one fork per stage: 12+ nodes (see <c>BoardGenerator</c>'s candidate window).</summary>
+    /// <summary>Room for at least one fork per stage: 12+ nodes (see <c>BoardGenerator</c>'s candidate window).</summary>
     internal const int TinyChapterStageLength = 12;
 
     /// <summary>A content set holding chapter 1's board-relevant document.</summary>
@@ -30,7 +29,7 @@ internal static class ChapterDocuments
         [Document(chapterId: 1, ChapterOnePath), ForkBiasDocument()]);
 
     /// <summary>
-    /// `03` §3.1's fork-bias multipliers, global rather than chapter-scoped —
+    /// Fork-bias multipliers, global rather than chapter-scoped —
     /// <see cref="Rules.Board.ChapterBoardTuning.Read"/> reads them out of
     /// <c>tuning/currencies.json#/boardGeneration</c> alongside the chapter document. Mirrors
     /// <see cref="TuningDocuments.ShippedForkBiasPlusMultiplier"/>/<c>MinusMultiplier</c>.

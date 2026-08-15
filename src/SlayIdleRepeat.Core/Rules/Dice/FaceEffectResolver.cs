@@ -4,35 +4,30 @@ using SlayIdleRepeat.Core.Content.Dice;
 namespace SlayIdleRepeat.Core.Rules.Dice;
 
 /// <summary>
-/// 🔒 `04` §1 — what a rolled <see cref="DieFace"/> actually does: how far the hero moves, and any
-/// non-movement effect that rides along. Pure: no <c>Run</c>, no RNG, no clock.
+/// What a rolled <see cref="DieFace"/> actually does: how far the hero moves, and any non-movement
+/// effect that rides along. Pure: no <c>Run</c>, no RNG, no clock.
 /// </summary>
 /// <remarks>
-/// <para>
-/// ⚠️ <b><see cref="DieFaceKind.Star"/> is a genuine gap, stated rather than guessed around.</b>
-/// `04` §1: "choose your movement, 1-6." <c>RollDiceCommand</c> is declared with no payload at all
-/// (`14` §2.3's payload column for it is empty), so there is no wire field a client could use to
-/// send that choice today — a gap in <c>CommandPayload</c>'s deferred-fields list, not this
-/// resolver's to invent. <see cref="Resolve"/> therefore takes an optional
-/// <paramref name="playerChosenMovement"/> for <see cref="DieFaceKind.Star"/> and returns a
-/// <see cref="FaceOutcome"/> whose <see cref="FaceOutcome.RequiresPlayerChoice"/> is true when none
-/// was supplied, rather than picking a plausible 1-6 on the caller's behalf (steering S6). The
-/// starting die (`04` §1) is all <see cref="DieFaceKind.Pip"/>, so this path is unreachable from
-/// today's composed die and is here for the day a Star face is actually reachable.
-/// </para>
+/// <see cref="DieFaceKind.Star"/>'s player-chosen movement is a genuine gap: no command payload
+/// exists yet for a client to send that choice, so <see cref="Resolve"/> takes an optional
+/// <paramref name="playerChosenMovement"/> and returns a <see cref="FaceOutcome"/> whose
+/// <see cref="FaceOutcome.RequiresPlayerChoice"/> is true when none was supplied, rather than
+/// picking a plausible 1-6 on the caller's behalf. The starting die is all
+/// <see cref="DieFaceKind.Pip"/>, so this path is unreachable today and is here for when a Star face
+/// becomes reachable.
 /// </remarks>
 internal static class FaceEffectResolver
 {
-    /// <summary>`04` §1 — Surge heals 12/15/18/21% Max HP at tier 0/1/2/3.</summary>
+    /// <summary>Surge heals 12/15/18/21% Max HP at tier 0/1/2/3.</summary>
     private static readonly IReadOnlyList<double> SurgeHealPctByTier = new[] { 0.12, 0.15, 0.18, 0.21 };
 
-    /// <summary>`04` §1 — Fortune's landed-tile reward multiplier (Gold/Crowns/drops, never perks).</summary>
+    /// <summary>Fortune's landed-tile reward multiplier (Gold/Crowns/drops, never perks).</summary>
     public const double FortuneRewardMultiplier = 2.0;
 
-    /// <summary>`04` §1 — Void's re-resolve reward multiplier.</summary>
+    /// <summary>Void's re-resolve reward multiplier.</summary>
     public const double VoidReResolveRewardMultiplier = 0.5;
 
-    /// <summary>`04` §1 — Chain's roll-again ceiling before a forced stop.</summary>
+    /// <summary>Chain's roll-again ceiling before a forced stop.</summary>
     public const int ChainMaxLinks = 3;
 
     /// <summary>
@@ -103,7 +98,7 @@ internal static class FaceEffectResolver
 /// <summary>What resolving one <see cref="DieFace"/> produces: movement plus at most one side effect.</summary>
 /// <remarks>
 /// Exactly one of the boolean/nullable members below is meaningful per outcome — the shape mirrors
-/// `04` §1's six kinds one-to-one rather than a generic "effect bag" nothing asks for.
+/// the six face kinds one-to-one rather than a generic "effect bag" nothing asks for.
 /// </remarks>
 internal readonly record struct FaceOutcome
 {

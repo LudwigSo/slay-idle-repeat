@@ -5,10 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
-/// <summary>
-/// 🔒 `05` §1.1 / `14` §8.2 / `18` §8 step 10 — the 4-decimal-place rounding at every accumulation
-/// point.
-/// </summary>
+/// <summary>The 4-decimal-place rounding at every accumulation point.</summary>
 public sealed class StatRoundingTests
 {
     [Fact]
@@ -25,10 +22,9 @@ public sealed class StatRoundingTests
     }
 
     /// <summary>
-    /// 🔒 The <c>+ 0.0</c>. <c>CanonicalStateWriter</c> throws on a negative zero rather than
-    /// encoding one — <c>-0.0 == 0.0</c> in C# while the bit patterns differ, so two states the
-    /// language calls identical would carry two <c>stateHash</c>es — and its own comment names the
-    /// fix: <em>"normalise at the accumulation point."</em> This is that accumulation point.
+    /// 🔒 The <c>+ 0.0</c>: <c>-0.0 == 0.0</c> in C# but the bit patterns differ, so two
+    /// "identical" states could hash differently. This is the accumulation point where that gets
+    /// normalised.
     /// </summary>
     [Fact]
     public void A_negative_zero_is_normalised_rather_than_carried()

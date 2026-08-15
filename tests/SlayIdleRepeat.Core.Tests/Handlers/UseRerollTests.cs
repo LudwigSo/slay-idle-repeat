@@ -8,8 +8,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
 /// <summary>
-/// 🔒 `04` §3 / M3-04 — <c>USE_REROLL</c>: burns one <c>dice</c> stream draw without moving the run,
-/// so the next roll draws a different index against updated Fair-Dice weights.
+/// USE_REROLL: burns one dice stream draw without moving the run, so the next roll draws a
+/// different index against updated Fair-Dice weights.
 /// </summary>
 public sealed class UseRerollTests
 {
@@ -67,9 +67,8 @@ public sealed class UseRerollTests
     }
 
     // ------------------------------------------------------------------------------------------
-    // 🔒 M3-05 closed the charge-cap gap UseReroll's own remarks used to name: `04` §3's base
-    // allotment (1/stage, no bonus sources yet — talents/Campfire/perks/Reroll Token are all still
-    // GapRegister entries) is now enforced against Run.RerollChargesSpentThisStage.
+    // The base allotment (1/stage, no bonus sources yet) is enforced against
+    // Run.RerollChargesSpentThisStage.
     // ------------------------------------------------------------------------------------------
 
     [Fact]
@@ -86,9 +85,8 @@ public sealed class UseRerollTests
     [Fact]
     public void A_second_reroll_in_the_same_stage_is_refused_as_CAP_REACHED()
     {
-        // 04 §3's base allotment is 1/stage and no bonus source exists yet (all GapRegister
-        // entries), so RerollEconomy.TotalCharges(0, false, 0, 0) is 1 — a run that has already
-        // spent its one charge this stage cannot afford a second.
+        // The base allotment is 1/stage with no bonus source yet, so a run that has already spent
+        // its one charge this stage cannot afford a second.
         var state = Worlds.InARun(RunSnapshots.With(rerollChargesSpentThisStage: 1));
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(state, new UseRerollCommand(), Worlds.Context);

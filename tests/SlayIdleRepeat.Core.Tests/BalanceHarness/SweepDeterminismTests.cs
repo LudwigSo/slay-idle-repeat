@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
-/// <summary>
-/// 🔒 The sweep is reproducible: a <c>(cell, fightIndex)</c> names one fight, whatever the degree of
-/// parallelism, whatever the fight count, and whatever order the cells ran in.
-/// </summary>
+/// <summary>The sweep is reproducible: a <c>(cell, fightIndex)</c> names one fight regardless of parallelism, fight count or run order.</summary>
 [Collection(WallClockSensitive.Name)]
 public sealed class SweepDeterminismTests
 {
@@ -47,17 +44,15 @@ public sealed class SweepDeterminismTests
         seeds.Length.ShouldBe(500);
         seeds.Distinct().Count().ShouldBe(500);
 
-        // 🔒 Fight k has the same seed in a 200-fight run as in a 10 000-fight run, which is what lets
-        // the PR-tier subset be compared with the nightly sweep at all.
+        // Fight k has the same seed regardless of the total fight count.
         SweepSeeds.FightSeed(seed, 199).ShouldBe(seeds[199]);
     }
 
     [Fact]
     public void The_same_cell_gives_the_same_LogHash_at_one_thread_and_at_many()
     {
-        // 🔒 The claim that makes Parallel.For legitimate. Two runs of the same scope at very
-        // different degrees of parallelism must agree fight for fight — not just on the clear rate,
-        // which would pass for a simulator that had reordered every fight.
+        // Two runs at very different degrees of parallelism must agree fight for fight, not just on
+        // the clear rate, which would pass for a simulator that had reordered every fight.
         var scope = new SweepScope([1, 2], [Tier.NORMAL], ["ARCH_CRIT", "ARCH_TANK_THORNS"], 12, 1);
 
         var sequential = ShippedHarness.Runner.Run(scope);
@@ -103,8 +98,7 @@ public sealed class SweepDeterminismTests
     [Fact]
     public void A_cell_runs_exactly_the_number_of_fights_it_was_asked_for()
     {
-        // Steering S3 — a sweep that silently ran fewer fights must not pass. Two counts, because a
-        // hard-coded one would satisfy a single probe.
+        // Two counts, because a hard-coded one would satisfy a single probe.
         foreach (var fights in new[] { 3, 17 })
         {
             var cell = ShippedHarness.Runner.RunCell(
@@ -125,8 +119,7 @@ public sealed class SweepDeterminismTests
     [Fact]
     public void The_full_scope_is_one_hundred_and_twenty_cells_and_includes_the_Sporequeen()
     {
-        // 🔒 Steering S3's subject-set floor for the sweep itself: 8 chapters × 3 tiers × 5 archetypes.
-        // Asserted over the SCOPE the CLI builds from the authored catalogues, so a data change that
+        // Asserted over the scope the CLI builds from the authored catalogues, so a data change that
         // dropped a chapter fails here rather than quietly shrinking the nightly job.
         var runner = ShippedHarness.Runner;
         var scope = new SweepScope(

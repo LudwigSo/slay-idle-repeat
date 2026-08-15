@@ -5,9 +5,8 @@ namespace SlayIdleRepeat.Application.Services.Content;
 
 /// <summary>Whether this host may rebuild its content without restarting.</summary>
 /// <remarks>
-/// `14` §6: <em>"In editor/dev builds, content hot-reloads without restarting."</em> Editor and
-/// dev builds only — a shipped client or server reloads content by being handed a new package and
-/// restarting, never by watching a directory.
+/// Editor and dev builds only — a shipped client or server reloads content by being handed a new
+/// package and restarting, never by watching a directory.
 /// </remarks>
 public enum ContentReloadPolicy
 {
@@ -33,11 +32,9 @@ public sealed class ContentReloadNotPermittedException : Exception
 /// Holds the one live <c>ContentSnapshot</c> and, in editor/dev builds, replaces it.
 /// </summary>
 /// <remarks>
-/// 🔒 <b>Reload never mutates.</b> <see cref="Reload"/> builds a whole new snapshot from the
-/// source and swaps the reference; the previous snapshot is untouched and stays valid for anyone
-/// still holding it. That is what keeps `14` §6's immutability promise true <em>through</em> a
-/// hot-reload rather than only until the first one — a command mid-flight against the old
-/// snapshot still replays against the content it actually ran on.
+/// Reload never mutates: <see cref="Reload"/> builds a whole new snapshot from the source and swaps
+/// the reference, so the previous snapshot stays valid for anyone still holding it — a command
+/// mid-flight against the old snapshot still replays against the content it actually ran on.
 /// </remarks>
 public sealed class ContentProvider
 {
@@ -45,13 +42,11 @@ public sealed class ContentProvider
     private readonly ContentLoadOptions _options;
     private readonly object _reloadGate = new();
 
-    /// <summary>
-    /// The snapshot and the source revision it was built from, published as one value.
-    /// </summary>
+    /// <summary>The snapshot and the source revision it was built from, published as one value.</summary>
     /// <remarks>
-    /// 🔒 Two separate fields would be two separate publications: a reader could see the new
-    /// snapshot beside the old revision — in which case <see cref="TryReloadIfChanged"/> reports
-    /// "nothing changed" while <see cref="Current"/> is stale, and the dev never sees their edit.
+    /// Two separate fields would be two separate publications: a reader could see the new snapshot
+    /// beside the old revision, in which case <see cref="TryReloadIfChanged"/> reports "nothing
+    /// changed" while <see cref="Current"/> is stale.
     /// </remarks>
     private sealed record Loaded(ContentSnapshot Snapshot, string Revision);
 
@@ -82,12 +77,12 @@ public sealed class ContentProvider
 
     /// <summary>Rebuilds from the source and swaps in the new snapshot, which it returns.</summary>
     /// <remarks>
-    /// 🔒 The rebuild happens first and completely. If the edited content is invalid the exception
+    /// The rebuild happens first and completely: if the edited content is invalid the exception
     /// leaves <see cref="Current"/> exactly as it was — a dev who saves a half-typed JSON file gets
     /// an error, not a game running on nothing.
     /// <para>
-    /// Serialised: a file watcher and a manual reload can otherwise interleave so that the
-    /// <em>older</em> rebuild wins the last write and the newer edit is silently discarded.
+    /// Serialised: a file watcher and a manual reload can otherwise interleave so that the older
+    /// rebuild wins the last write and the newer edit is silently discarded.
     /// </para>
     /// </remarks>
     public ContentSnapshot Reload()
@@ -109,16 +104,14 @@ public sealed class ContentProvider
 
     /// <summary>Reloads only when the source revision moved. False means nothing changed.</summary>
     /// <remarks>
-    /// 🔒 Never throws <see cref="ContentReloadNotPermittedException"/> on a host that may not
-    /// reload, whether or not its revision moved. This is the method a watcher polls, and a
-    /// <c>Try*</c> that throws on a shipping build is a crash waiting for the first content
-    /// change — it reports "nothing to do", which is the truth for that host.
+    /// Never throws <see cref="ContentReloadNotPermittedException"/> on a host that may not reload —
+    /// this is the method a watcher polls, and it reports "nothing to do" instead, which is the
+    /// truth for that host.
     /// <para>
     /// It does still propagate a <see cref="ContentLoadException"/> from a dev host whose edited
-    /// content is invalid. That is not the same thing: the caller asked for a rebuild, the rebuild
-    /// failed, and swallowing it would leave a dev staring at stale content with no error. As with
-    /// <see cref="Reload"/>, <see cref="Current"/> is untouched and still serves the last good
-    /// snapshot.
+    /// content is invalid: the caller asked for a rebuild, the rebuild failed, and swallowing it
+    /// would leave a dev staring at stale content with no error. <see cref="Current"/> stays
+    /// untouched either way.
     /// </para>
     /// </remarks>
     public bool TryReloadIfChanged(out ContentSnapshot snapshot)
@@ -139,12 +132,9 @@ public sealed class ContentProvider
                 return false;
             }
 
-            // 🔒 Rebuild inline rather than delegating to Reload(). Reload() re-checks the policy
-            // and throws, and this method's own contract is that it never throws for a host that
-            // may not reload — but the policy gate above returns before the revision is even read,
-            // so a shipping host whose revision HAD moved would have reached Reload() and got a
-            // ContentReloadNotPermittedException out of a Try* method. It cannot today only
-            // because of the ordering; that is not a property worth relying on.
+            // Rebuild inline rather than delegating to Reload(), which re-checks the policy and
+            // throws — this method's contract is that it never throws for a host that may not
+            // reload, even though the ordering above happens to make that unreachable today.
             var revision = _source.Revision;
             var rebuilt = ContentLoader.Load(_source, _options).Require();
 

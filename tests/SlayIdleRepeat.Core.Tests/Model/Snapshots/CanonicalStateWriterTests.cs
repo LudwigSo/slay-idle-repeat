@@ -7,20 +7,18 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
-/// <summary>
-/// 🔒 The public surface of `14` §16.6: the wire form, the two hashing modes, and determinism.
-/// </summary>
+/// <summary>The wire form, the two hashing modes, and determinism.</summary>
 /// <remarks>
-/// §16.6 opens with the reason this class exists — <em>"A second serialiser producing 'almost the
-/// same bytes' is how parity tests rot; there is exactly one."</em> The two named modes are that
-/// writer's only doors, so no caller hand-rolls the run-command concatenation.
+/// A second serialiser producing "almost the same bytes" is how parity tests rot, so there is
+/// exactly one: the two named modes are that writer's only doors, and no caller hand-rolls the
+/// run-command concatenation.
 /// </remarks>
 public sealed class CanonicalStateWriterTests
 {
     /// <summary>Exactly <c>"fnv1a:"</c> plus 16 lowercase hexadecimal characters, and nothing else.</summary>
     private static readonly Regex WireForm = new("^fnv1a:[0-9a-f]{16}$", RegexOptions.None, TimeSpan.FromSeconds(1));
 
-    /// <summary>🔒 The wire form names its algorithm, so it can only be rotated visibly.</summary>
+    /// <summary>The wire form names its algorithm, so it can only be rotated visibly.</summary>
     [Fact]
     public void HashMetaCommandState_prefixes_the_hash_with_the_algorithm_name()
     {
@@ -39,12 +37,10 @@ public sealed class CanonicalStateWriterTests
         WireForm.IsMatch(hash).ShouldBeTrue($"'{hash}' is not of the form {WireForm}");
     }
 
-    /// <summary>🔒 The hex is lowercase. A mixed-case wire form is two wire forms.</summary>
+    /// <summary>The hex is lowercase. A mixed-case wire form is two wire forms.</summary>
     /// <remarks>
-    /// Asserted against a value whose hash actually <b>has</b> letters in it, and checked for at
-    /// least one. The obvious form — <c>hash.ShouldBe(hash.ToLowerInvariant())</c> — is vacuous
-    /// for any hash made only of digits, and is subsumed by the wire-form regex besides: both would
-    /// pass an uppercase formatter roughly whenever the digits happened to fall that way.
+    /// Asserted against a value whose hash actually <b>has</b> letters in it. The obvious form —
+    /// <c>hash.ShouldBe(hash.ToLowerInvariant())</c> — is vacuous for any hash made only of digits.
     /// </remarks>
     [Fact]
     public void HashMetaCommandState_produces_lowercase_hexadecimal()
@@ -61,8 +57,8 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 A hash with leading zero nibbles is <b>zero-padded</b> to 16 characters, never truncated.
-    /// A trimming formatter produces a shorter string roughly once every sixteen states and is
+    /// A hash with leading zero nibbles is <b>zero-padded</b> to 16 characters, never truncated. A
+    /// trimming formatter produces a shorter string roughly once every sixteen states and is
     /// invisible until a client compares one against a padded one.
     /// </summary>
     [Fact]
@@ -97,7 +93,7 @@ public sealed class CanonicalStateWriterTests
             .ShouldStartWith(CanonicalStateWriter.AlgorithmPrefix, Case.Sensitive);
     }
 
-    /// <summary>🔒 A run command hashes <c>PlayerSnapshot</c> then <c>RunSnapshot</c>, concatenated.</summary>
+    /// <summary>A run command hashes <c>PlayerSnapshot</c> then <c>RunSnapshot</c>, concatenated.</summary>
     [Fact]
     public void HashRunCommandState_hashes_the_player_bytes_followed_by_the_run_bytes()
     {
@@ -111,7 +107,6 @@ public sealed class CanonicalStateWriterTests
         hash.ShouldBe("fnv1a:" + expected.ToString("x16", CultureInfo.InvariantCulture));
     }
 
-    /// <summary>🔒 A meta command hashes <c>PlayerSnapshot</c> alone.</summary>
     [Fact]
     public void HashMetaCommandState_hashes_the_player_bytes_alone()
     {
@@ -124,8 +119,8 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 The run-mode hash of (player, run) is <b>not</b> the meta-mode hash of the player.
-    /// Two commands that touched different state must not report the same <c>stateHash</c>.
+    /// The run-mode hash of (player, run) is <b>not</b> the meta-mode hash of the player. Two
+    /// commands that touched different state must not report the same <c>stateHash</c>.
     /// </summary>
     [Fact]
     public void HashRunCommandState_differs_from_the_meta_hash_of_the_same_player()
@@ -137,7 +132,7 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 The two arguments are <b>ordered</b>. Swapping them is a different state and a different
+    /// The two arguments are <b>ordered</b>. Swapping them is a different state and a different
     /// hash — the concatenation is not a commutative combine.
     /// </summary>
     [Fact]
@@ -192,7 +187,7 @@ public sealed class CanonicalStateWriterTests
         Should.Throw<ArgumentNullException>(act);
     }
 
-    /// <summary>🔒 The same input hashes identically twice — nothing is consumed or advanced.</summary>
+    /// <summary>The same input hashes identically twice — nothing is consumed or advanced.</summary>
     [Fact]
     public void HashMetaCommandState_returns_the_same_hash_when_called_twice()
     {
@@ -203,7 +198,7 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 Two separately-constructed values with equal contents hash identically. There is no
+    /// Two separately-constructed values with equal contents hash identically. There is no
     /// per-instance identity, cache or reference in the encoding — only the state.
     /// </summary>
     [Fact]
@@ -288,7 +283,7 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 A record whose shape the writer cannot pin — no single positional constructor — is
+    /// A record whose shape the writer cannot pin — no single positional constructor — is
     /// refused rather than encoded in whatever order reflection happened to hand back. Reflection
     /// does not guarantee property order; constructor parameter order is declaration order.
     /// </summary>
@@ -302,7 +297,7 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 A value stored in a base-typed slot but constructed as a subclass is refused: its extra
+    /// A value stored in a base-typed slot but constructed as a subclass is refused: its extra
     /// fields are outside the pinned field list, so encoding it would write state the
     /// <c>SchemaVersion</c> pin never saw.
     /// </summary>
@@ -318,10 +313,10 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 A record carrying a public property that is <b>not</b> a primary-constructor parameter is
+    /// A record carrying a public property that is <b>not</b> a primary-constructor parameter is
     /// refused. The field list is the parameter list, so such a property would be hashed as zero
-    /// bytes — the one defect a state hash may never have, and the shape an optional snapshot
-    /// member (<c>record</c> + <c>{ get; init; }</c>) reaches for by default.
+    /// bytes — the shape an optional snapshot member (<c>record</c> + <c>{ get; init; }</c>)
+    /// reaches for by default.
     /// </summary>
     [Fact]
     public void CanonicalBytes_refuses_a_record_property_declared_outside_the_primary_constructor()
@@ -337,10 +332,8 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 And it is refused rather than silently dropped. Record equality sees the extra field, so
-    /// an encoder that skipped it would hand two demonstrably different states the same
-    /// <c>stateHash</c> — §2.4's client-mirror check and §13's parity tests would both report
-    /// agreement on genuinely divergent state.
+    /// Refused rather than silently dropped: record equality sees the extra field, so an encoder
+    /// that skipped it would hand two demonstrably different states the same <c>stateHash</c>.
     /// </summary>
     [Fact]
     public void HashMetaCommandState_refuses_the_shape_whose_extra_field_record_equality_can_see()
@@ -358,7 +351,7 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔴 A record carrying a public <b>field</b> outside its primary constructor is refused too: the
+    /// A record carrying a public <b>field</b> outside its primary constructor is refused too: the
     /// check above counted <i>properties</i>, and a field is in no parameter list and is not a
     /// property, so it slipped past both halves and hashed as zero bytes.
     /// </summary>
@@ -377,15 +370,13 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔴 The consequence: two states a <b>public field</b> makes different must never share a
+    /// The consequence: two states a <b>public field</b> makes different must never share a
     /// <c>stateHash</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Measured, not assumed: Roslyn's synthesized record <c>Equals</c> compares every <i>instance
-    /// field</i>, not only the primary-constructor components — so equality <b>does</b> see this field.
     /// The assertion is on the refusal rather than on two hashes differing, because there is no
-    /// encoding of this shape that could be correct: the field is in no parameter list, so it has no
-    /// position.
+    /// encoding of this shape that could be correct: the field is in no parameter list, so it has
+    /// no position.
     /// </remarks>
     [Fact]
     public void HashMetaCommandState_refuses_a_public_field_record_equality_can_see()
@@ -408,9 +399,9 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔴 And the field-order pin asks the same question, so the shape has no pinnable field order
-    /// either. Without this half, a future <c>CanonicalFieldOrder</c> could pin a list for a record
-    /// the bytes refuse — the drift the two sharing one <c>BuildPlan</c> exists to prevent.
+    /// The field-order pin asks the same question, so the shape has no pinnable field order
+    /// either. Without this half, a future <c>CanonicalFieldOrder</c> could pin a list for a
+    /// record the bytes refuse.
     /// </summary>
     [Fact]
     public void CanonicalFieldOrder_refuses_a_record_field_declared_outside_the_primary_constructor()
@@ -421,10 +412,9 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 The negative half: the fix refuses a public field and <b>only</b> a public field. A
+    /// The negative half: the fix refuses a public field and <b>only</b> a public field. A
     /// positional record compiles its components to private backing fields, so requiring zero
-    /// public instance fields must cost a compliant snapshot nothing — including the real
-    /// <c>PlayerSnapshot</c>, whose value-typed members carry backing fields of their own.
+    /// public instance fields must cost a compliant snapshot nothing.
     /// </summary>
     [Fact]
     public void The_public_field_refusal_leaves_a_compliant_record_alone()
@@ -437,14 +427,9 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// 🔒 A record carrying a public <b>field</b> is refused — the same zero-byte defect, reached by
+    /// A record carrying a public <b>field</b> is refused — the same zero-byte defect, reached by
     /// the door the property check cannot watch.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ The fixture is named after `05` §7's <c>CombatEvent</c> because that is where the shape
-    /// actually appears: the battle <c>LogHash</c> is defined over exactly such a record, and would
-    /// have shipped as a hash over one sixth of its own event had this stayed open.
-    /// </remarks>
     [Fact]
     public void CanonicalBytes_refuses_a_record_carrying_a_public_field()
     {
@@ -456,23 +441,16 @@ public sealed class CanonicalStateWriterTests
         thrown.Message.ShouldContain("16.6", Case.Sensitive);
         thrown.Message.ShouldContain("ZERO BYTES", Case.Sensitive);
 
-        // S2 — the generic rule list names BOTH the property-shape and the field-shape reason, so a
-        // fragment of it cannot tell the two branches apart. This sentence is emitted only by the
-        // field branch, and it names the offending fields.
+        // This sentence is emitted only by the field branch, and names the offending fields.
         thrown.Message.ShouldContain(
             "SPECIFICALLY: CombatEventAsDocumented declares the public instance field(s) [SourceId, Value]",
             Case.Sensitive);
     }
 
     /// <summary>
-    /// 🔒 Refused rather than silently hashed to a fraction of itself: two instances record equality
+    /// Refused rather than silently hashed to a fraction of itself: two instances record equality
     /// calls different, differing <b>only</b> in their fields, must not both reach a hash.
     /// </summary>
-    /// <remarks>
-    /// Without the rule both calls succeed and return the <i>same</i> value — which is why this is two
-    /// refusals over a demonstrated inequality rather than a hash comparison, which would have to spell
-    /// out the collision it is preventing.
-    /// </remarks>
     [Fact]
     public void HashMetaCommandState_refuses_the_shape_whose_fields_it_cannot_see()
     {
@@ -501,8 +479,8 @@ public sealed class CanonicalStateWriterTests
     }
 
     /// <summary>
-    /// And the property-shape refusal does <b>not</b> claim a field problem — the two branches are
-    /// distinguishable in both directions (S2).
+    /// The property-shape refusal does <b>not</b> claim a field problem — the two branches are
+    /// distinguishable in both directions.
     /// </summary>
     [Fact]
     public void The_property_shape_refusal_does_not_name_a_field()

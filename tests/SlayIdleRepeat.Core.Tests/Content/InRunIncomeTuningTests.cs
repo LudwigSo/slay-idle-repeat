@@ -5,9 +5,9 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// 🔒 `03` §7a — the four readers M3-03's tile resolvers depend on:
-/// <see cref="ChapterScalarTuning"/>, <see cref="TreasureTuning"/>, <see cref="CacheTuning"/> and
-/// <see cref="ShrineTuning"/>, over <c>tuning/currencies.json</c>.
+/// The four readers the tile resolvers depend on: <see cref="ChapterScalarTuning"/>,
+/// <see cref="TreasureTuning"/>, <see cref="CacheTuning"/> and <see cref="ShrineTuning"/>, over
+/// <c>tuning/currencies.json</c>.
 /// </summary>
 public sealed class InRunIncomeTuningTests
 {
@@ -15,9 +15,7 @@ public sealed class InRunIncomeTuningTests
 
     // ------------------------------------------------------------------ ChapterScalarTuning
 
-    /// <summary>
-    /// 🔒 `03` §7a — <c>M(c) = metaGrowth^(c-1)</c>, as the <b>unrounded real multiplier</b> it is.
-    /// </summary>
+    /// <summary><c>M(c) = metaGrowth^(c-1)</c>, as the unrounded real multiplier it is.</summary>
     /// <remarks>
     /// The expectations are computed from 1.35 rather than restated as literals per row, because a
     /// literal table would keep passing after the growth base moved. Chapter 1 IS asserted as the
@@ -47,7 +45,7 @@ public sealed class InRunIncomeTuningTests
         tuning.GoldScalar(1).ShouldBe(1.0);
     }
 
-    /// <summary>🔒 …and the gold curve is the same shape over its own, faster base.</summary>
+    /// <summary>…and the gold curve is the same shape over its own, faster base.</summary>
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
@@ -60,15 +58,11 @@ public sealed class InRunIncomeTuningTests
             .ShouldBe(Math.Pow(1.55, chapterId - 1), 1e-12);
     }
 
-    /// <summary>
-    /// 🔒 `03` §7a — the rounding lands on the scaled <b>amount</b>, never on the scalar.
-    /// </summary>
+    /// <summary>The rounding lands on the scaled <b>amount</b>, never on the scalar.</summary>
     /// <remarks>
-    /// ⚠️ <b>This is the regression test for a real defect.</b> <c>Scalar</c> used to return a
-    /// <c>long</c>, quantising <c>M(c)</c> itself: with the shipped 1.35 that made
-    /// <c>round(1.35) = 1</c>, so chapter 2 paid <em>exactly</em> what chapter 1 paid and the growth
-    /// curve only moved in steps. The assertions below are the shape that catches it — 100 at
-    /// chapter 2 is 135, not 100, and Gold's 100 is 155, not 200.
+    /// Regression test for a real defect: <c>Scalar</c> used to return a <c>long</c>, quantising
+    /// <c>M(c)</c> itself — with the shipped 1.35 that made <c>round(1.35) = 1</c>, so chapter 2 paid
+    /// exactly what chapter 1 paid and the growth curve only moved in steps.
     /// </remarks>
     [Theory]
     [InlineData(1, 100L, 100L)]
@@ -133,7 +127,7 @@ public sealed class InRunIncomeTuningTests
     // and a test that could only reach it by bypassing the content seam would be asserting against a
     // state the game cannot be in.
 
-    /// <summary>A chapter below `02` §1's floor of 1 has no exponent to raise the base to.</summary>
+    /// <summary>A chapter below the floor of 1 has no exponent to raise the base to.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -153,7 +147,7 @@ public sealed class InRunIncomeTuningTests
     }
 
     /// <summary>
-    /// 🔒 A rounding mode this reader does not implement is refused rather than silently treated as
+    /// A rounding mode this reader does not implement is refused rather than silently treated as
     /// the one it does.
     /// </summary>
     [Fact]
@@ -178,21 +172,18 @@ public sealed class InRunIncomeTuningTests
 
     // ------------------------------------------------------------------ CampfireTuning
 
-    /// <summary>🔒 `03` §2 — the campfire's rest heal comes from the document.</summary>
+    /// <summary>The campfire's rest heal comes from the document.</summary>
     [Fact]
     public void The_campfire_heal_comes_from_the_currencies_document()
     {
         CampfireTuning.Read(Shipped).HealPctMaxHp.ShouldBe(0.4);
     }
 
-    /// <summary>
-    /// 🔒 …and is genuinely READ rather than the constant it used to be.
-    /// </summary>
+    /// <summary>…and is genuinely READ rather than the constant it used to be.</summary>
     /// <remarks>
-    /// ⚠️ This test is the point of the whole block: the rest heal shipped as a
-    /// <c>const double HealPctMaxHp = 0.40</c> on <c>CampfireResolver</c> until M3-03's review moved
-    /// it into <c>#/inRunIncome/campfire</c> under `21` §3.1. Asserting only the shipped 0.4 would
-    /// pass just as well against the constant.
+    /// This test is the point of the whole block: the rest heal used to ship as a
+    /// <c>const double HealPctMaxHp = 0.40</c> on <c>CampfireResolver</c>. Asserting only the shipped
+    /// 0.4 would pass just as well against the constant.
     /// </remarks>
     [Fact]
     public void A_different_authored_campfire_heal_is_honoured()
@@ -203,7 +194,7 @@ public sealed class InRunIncomeTuningTests
     }
 
     /// <summary>
-    /// 🔒 A rest that heals nothing, or more than a full bar, is refused. ⚠️ Zero is refused here
+    /// A rest that heals nothing, or more than a full bar, is refused. Zero is refused here
     /// where the cache's egg rate accepts it — see <see cref="CampfireTuning"/> for the asymmetry.
     /// </summary>
     [Theory]
@@ -227,7 +218,7 @@ public sealed class InRunIncomeTuningTests
 
     // ------------------------------------------------------------------ TreasureTuning
 
-    /// <summary>🔒 `03` §7a.3's three profiles, in the document's own order and with its own numbers.</summary>
+    /// <summary>The three profiles, in the document's own order and with its own numbers.</summary>
     [Fact]
     public void Every_treasure_profile_comes_from_the_currencies_document()
     {
@@ -310,7 +301,7 @@ public sealed class InRunIncomeTuningTests
 
     // ------------------------------------------------------------------ CacheTuning
 
-    /// <summary>🔒 `03` §7a.4's two numbers come from the document.</summary>
+    /// <summary>The two cache numbers come from the document.</summary>
     [Fact]
     public void Every_cache_number_comes_from_the_currencies_document()
     {
@@ -358,7 +349,7 @@ public sealed class InRunIncomeTuningTests
 
     // ------------------------------------------------------------------ ShrineTuning
 
-    /// <summary>🔒 `03` §7a.5's pool of ten, in the document's own order and with its own numbers.</summary>
+    /// <summary>The pool of ten, in the document's own order and with its own numbers.</summary>
     [Fact]
     public void Every_shrine_buff_comes_from_the_currencies_document()
     {
@@ -392,7 +383,7 @@ public sealed class InRunIncomeTuningTests
         heal.ImmediateHealPctMaxHp.ShouldBe(0.4);
     }
 
-    /// <summary>🔒 …and <c>SHR_HP</c> carries BOTH halves, which is why the heal is not a row flag.</summary>
+    /// <summary>…and <c>SHR_HP</c> carries BOTH halves, which is why the heal is not a row flag.</summary>
     [Fact]
     public void The_max_hp_row_carries_a_stat_and_a_heal()
     {

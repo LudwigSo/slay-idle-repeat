@@ -5,144 +5,75 @@ using SlayIdleRepeat.Core.Rng;
 namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 
 /// <summary>
-/// 🔒 Every live effect instance's trigger state for one battle, and the two questions `05` §3.1's
-/// tick loop asks of them: <em>does this instance fire on this moment</em>, and <em>which
-/// <c>PERIODIC</c>s are due on this tick</em>.
+/// Every live effect instance's trigger state for one battle, and the two questions the tick loop
+/// asks of them: does this instance fire on this moment, and which <c>PERIODIC</c>s are due on this tick.
 /// </summary>
 /// <remarks>
 /// <para>
-/// ═══ 🔒 <b>THE WIRING CONTRACT — WHAT M2-08 MUST DO</b> ═══
+/// This type owns the trigger model, the registry and the firing predicates. The tick loop owns the
+/// clock and plugs itself in — nothing here assumes it owns the clock: there is no timer, no
+/// <c>while</c>, and every method takes the tick as an argument.
 /// </para>
-/// <para>
-/// This task owns the trigger model, the registry and the firing predicates, tested against a
-/// hand-driven tick source. <b>M2-08 owns the real tick loop</b> and plugs it in. Nothing here
-/// assumes it owns the clock: there is no timer, no <c>while</c>, and every method takes the tick as
-/// an argument.
-/// </para>
+/// <para>The wiring contract for whoever drives the tick loop:</para>
 /// <list type="number">
-///   <item>
-///     <b>One registry per battle.</b> Construct it with the run's
-///     <see cref="IRunTriggerCounters"/> — the <em>run's</em>, held across battles, not one built
-///     per fight. That single choice is what makes `18` §3's <em>"<c>ON_ATTACK</c> counters reset at
-///     battle start; <c>ON_KILL</c> counters persist across battles"</em> true structurally rather
-///     than by a step somebody remembers.
-///   </item>
-///   <item>
-///     <b>Pre-tick 0a/0b</b> — <see cref="Register"/> every effect that is active at battle start,
-///     with <c>activationTick: 0</c>. That is the R8 anchor for perk periodics and for
-///     <c>SYS_ENRAGE</c>, which is a <c>BATTLE</c>-scope built-in and therefore anchors at battle
-///     start, not at any phase. Then <see cref="Evaluate"/> each with an
-///     <c>ON_BATTLE_START</c> occurrence, hero side first and within one actor in
-///     <see cref="EffectOrder"/> order.
-///   </item>
-///   <item>
-///     <b>Pre-tick 0c</b> — the boss's phase 1 counts as entered: <see cref="Register"/> its phase-1
-///     block at tick 0 and <see cref="Evaluate"/> an <c>ON_PHASE_ENTER</c> occurrence with
-///     <c>Phase = 1</c>.
-///   </item>
-///   <item>
-///     <b>Slot 3, every tick</b> — call <see cref="PeriodicDue"/> once per actor in `05` §3.1 actor
-///     order, handing it that actor's instance ids. It returns the due ones already in
-///     <see cref="EffectOrder"/> order and advances their schedules. This is the <b>only</b>
-///     <c>PERIODIC</c> path; <see cref="Evaluate"/> refuses the kind.
-///   </item>
-///   <item>
-///     <b>Slot 4</b> — an <c>ON_ATTACK</c> occurrence per swing, then <c>ON_HIT</c> /
-///     <c>ON_CRIT</c> / <c>ON_HIT_TAKEN</c> / <c>ON_DODGE</c> / <c>ON_BLOCK</c> / <c>ON_KILL</c> as
-///     `05` §4 resolves them, depth-first, in <see cref="EffectOrder"/> order. Hand in the battle's
-///     combat stream — <c>new DeterministicRng(battleSeed, RngStreams.Combat)</c> (`14` §8.1) — so
-///     <c>chance</c> can be drawn. Use <see cref="EvaluateAll"/> for a flat sweep; drive a cascade
-///     that changes the roster one instance at a time through <see cref="Evaluate"/>.
-///   </item>
-///   <item>
-///     <b>Slot 5 fires nothing of its own.</b> `18` §7.7's pet actives carry no trigger — the
-///     ability's cooldown is the wrapper's — so a pet ability raises only the <c>ON_HIT</c> family
-///     of slot 4, through the damage it resolves (`05` §4.2). Said because a tick-loop author
-///     otherwise has to infer it from the absence of a slot-5 item.
-///   </item>
-///   <item>
-///     <b>Slot 6</b> — <c>ON_DEATH</c> before removal. Nothing here filters on liveness: M2-05's
-///     rule is that liveness filters <em>selection</em>, not <em>naming</em>, which is what lets
-///     `18` §7.10's Volatile elite fire its own death explosion.
-///   </item>
-///   <item>
-///     <b>Phase transitions</b> — on each entry, <see cref="Register"/> that phase's block at the
-///     current tick (its R8 anchor) and <see cref="Deactivate"/> the exited phase's `18` §6
-///     <c>PHASE</c>-scoped instances. A burst that crosses two thresholds does this twice in one
-///     tick, in order; an instance already live does not re-anchor.
-///   </item>
-///   <item>
-///     <b>Run ops</b> — after a firing, ask <see cref="TriggerRouting"/> what to do with the effect,
-///     passing <see cref="TriggerLayer.COMBAT"/> as the firing layer. A combat trigger carrying a
-///     `18` §2.5 run/board op is <b>emitted, never resolved</b>.
-///   </item>
-///   <item>
-///     <b>The six run-layer kinds are not yours.</b> <c>ON_TILE_RESOLVED</c>, <c>ON_ROLL</c>,
-///     <c>ON_PERK_TAKEN</c>, <c>ON_STAGE_GATE</c>, <c>ON_RUN_START</c> and <c>ON_RUN_END</c> are
-///     declared, validated and unit-tested here and fired by M3's run controller. This registry will
-///     answer them if asked, because the predicate is the same one; the tick loop simply never asks.
-///   </item>
+///   <item>One registry per battle, constructed with the run's <see cref="IRunTriggerCounters"/> —
+///   the run's, held across battles, not rebuilt per fight. That single choice is what makes
+///   "<c>ON_ATTACK</c> counters reset at battle start; <c>ON_KILL</c> counters persist across
+///   battles" true structurally rather than by a step somebody remembers.</item>
+///   <item><see cref="Register"/> every effect active at battle start with
+///   <c>activationTick: 0</c>, then <see cref="Evaluate"/> each with an <c>ON_BATTLE_START</c>
+///   occurrence, hero side first and in <see cref="EffectOrder"/> order within an actor. The boss's
+///   phase 1 counts as entered too: register its phase-1 block at tick 0 and evaluate an
+///   <c>ON_PHASE_ENTER</c> occurrence with <c>Phase = 1</c>.</item>
+///   <item>Every tick, call <see cref="PeriodicDue"/> once per actor in actor order, handing it that
+///   actor's instance ids — the only <c>PERIODIC</c> path; <see cref="Evaluate"/> refuses the kind.</item>
+///   <item>Per swing: an <c>ON_ATTACK</c> occurrence, then <c>ON_HIT</c> / <c>ON_CRIT</c> /
+///   <c>ON_HIT_TAKEN</c> / <c>ON_DODGE</c> / <c>ON_BLOCK</c> / <c>ON_KILL</c> as combat resolves
+///   them, depth-first, in <see cref="EffectOrder"/> order. Hand in the battle's combat draw stream
+///   so <c>chance</c> can be drawn. Use <see cref="EvaluateAll"/> for a flat sweep; drive a cascade
+///   that changes the roster one instance at a time through <see cref="Evaluate"/>.</item>
+///   <item>A pet's active ability carries no trigger of its own — its cadence is the wrapper's
+///   cooldown — so it only raises the <c>ON_HIT</c> family, through the damage it resolves.</item>
+///   <item><c>ON_DEATH</c> fires before removal. Nothing here filters on liveness — liveness filters
+///   selection, not naming — which is what lets a death explosion fire on the actor that just died.</item>
+///   <item>On each phase entry, register that phase's block at the current tick and
+///   <see cref="Deactivate"/> the exited phase's scoped instances. A burst that crosses two phase
+///   thresholds does this twice in one tick, in order; an instance already live does not re-anchor.</item>
+///   <item>After a firing, ask <see cref="TriggerRouting"/> what to do with the effect, passing
+///   <see cref="TriggerLayer.COMBAT"/> as the firing layer — a combat trigger carrying a run/board op
+///   is emitted, never resolved.</item>
+///   <item>The six run-layer kinds (<c>ON_TILE_RESOLVED</c>, <c>ON_ROLL</c>, <c>ON_PERK_TAKEN</c>,
+///   <c>ON_STAGE_GATE</c>, <c>ON_RUN_START</c>, <c>ON_RUN_END</c>) are declared and unit-tested here
+///   but fired by the run controller, not the tick loop — this registry will answer them if asked,
+///   since the predicate is the same one.</item>
 /// </list>
-///
-/// <para>
-/// ═══ <b>THE SIX COMBAT KINDS `05` §3.1 DOES NOT PUT IN A NUMBERED SLOT</b> ═══
-/// </para>
-/// <para>
-/// The tick order names six of its eight slots by trigger. These are the rest, stated so nobody has
-/// to guess:
-/// </para>
+/// <para>Six combat kinds have no numbered slot of their own:</para>
 /// <list type="bullet">
-///   <item><b><c>ALWAYS</c></b> — no moment at all. `18` §1.1 re-evaluates it <em>"at every
-///   resolution pass"</em>, so it belongs to M2-02's resolver rather than to a slot. This registry
-///   answers <c>FIRES</c> for a live one if asked, which is what a passive means.</item>
-///   <item><b><c>ON_BATTLE_END</c></b> — after slot 8's break, at the fight's last tick, with
-///   <see cref="TriggerOccurrence.HeroWon"/> set from the outcome. It is the only kind that reads
-///   that field. `18` §2.5 fixes its position relative to the run queue: the queue is applied
-///   <em>"after the outcome is fixed, before <c>ON_BATTLE_END</c> effects are granted"</em>.</item>
-///   <item><b><c>ON_LOW_HP</c></b> — after <b>every</b> HP change of the holder, alongside `05`
-///   §3.1's phase check, DoT ticks in slot 1 included. It is a <em>crossing</em>, so a skipped
-///   observation is a firing lost: hand in the post-change fraction and let the instance hold the
-///   previous one.</item>
-///   <item><b><c>ON_LETHAL</c></b> — inside `05` §4, when the hit would be fatal, before slot 6.
-///   ⚠️ `05` §3.1's anti-loop rule — <c>SURVIVE_LETHAL</c> and <c>REVIVE</c> fire <em>"at most their
-///   authored <c>once</c> count per battle"</em> — is a rule about the <b>op</b>, so it is M2-08's
-///   to apply; <see cref="TriggerInstance.FireCount"/> is what it reads.</item>
-///   <item><b><c>ON_HEAL</c></b> — inside `05` §4.3's <c>Heal()</c>, for every heal: lifesteal,
-///   HoT cadence in slot 1, and a <c>HEAL</c> op. §4.3 fires it after the HP is applied, which is
-///   what makes <c>HEAL_AMOUNT</c> and <c>OVERHEAL_AMOUNT</c> readable.</item>
-///   <item><b><c>ON_REVIVE</c></b> — when the <c>REVIVE</c> op or the ad revive returns the actor
-///   from 0 HP. `18` §3 is explicit that <c>SURVIVE_LETHAL</c> does <b>not</b> count, because the
-///   actor never died.</item>
+///   <item><c>ALWAYS</c> — no moment at all; re-evaluated at every resolution pass rather than fired
+///   by an event. This registry answers <c>FIRES</c> for a live one if asked.</item>
+///   <item><c>ON_BATTLE_END</c> — at the fight's last tick, with <see cref="TriggerOccurrence.HeroWon"/>
+///   set from the outcome; the only kind that reads that field. Applied after the run queue and
+///   before <c>ON_BATTLE_END</c> effects are granted.</item>
+///   <item><c>ON_LOW_HP</c> — after every HP change of the holder, DoT ticks included. It's a
+///   crossing, so a skipped observation is a firing lost — hand in the post-change fraction and let
+///   the instance hold the previous one.</item>
+///   <item><c>ON_LETHAL</c> — when a hit would be fatal, before removal. The anti-loop bound on
+///   <c>SURVIVE_LETHAL</c>/<c>REVIVE</c> is a rule about the op, applied by the caller;
+///   <see cref="TriggerInstance.FireCount"/> is what it reads.</item>
+///   <item><c>ON_HEAL</c> — for every heal: lifesteal, HoT cadence, a <c>HEAL</c> op. Fired after
+///   the HP is applied, which is what makes <c>HEAL_AMOUNT</c> and <c>OVERHEAL_AMOUNT</c> readable.</item>
+///   <item><c>ON_REVIVE</c> — when the <c>REVIVE</c> op or an ad revive returns the actor from 0 HP.
+///   <c>SURVIVE_LETHAL</c> does not count, since the actor never died.</item>
 /// </list>
-///
 /// <para>
-/// ═══ <b>TWO THINGS THIS REGISTRY DELIBERATELY DOES NOT KNOW</b> ═══
+/// Two things this registry deliberately does not know: it's actor-blind (a
+/// <see cref="TriggerInstance"/> carries no actor; the actor-to-instances map is the caller's to
+/// maintain), and it does not mint <see cref="EffectInstanceId"/>s — <see cref="Register"/> refuses a
+/// duplicate, which is the per-instance rule's teeth, but the minting rule itself (a run-scoped
+/// holding gets a stable id, a battle-local effect gets a battle-local one) is the caller's to get right.
 /// </para>
-/// <para>
-/// <b>1. It is actor-blind.</b> A <see cref="TriggerInstance"/> carries no actor, and
-/// <see cref="PeriodicDue"/> and <see cref="EvaluateAll"/> take the ids the caller wants asked. The
-/// actor → instances map is the tick loop's, because `05` §3.1's actor order — <em>"hero, pets in
-/// slot order, enemies by index"</em>, with summons appended — is the loop's to maintain as actors
-/// spawn and die, and a second copy of it here would be a second thing to keep in step.
-/// </para>
-/// <para>
-/// <b>2. It does not mint <see cref="EffectInstanceId"/>s</b>, and the minting rule is the one thing
-/// M2-08 must get right that nothing here can check. Two obligations, from `18` §3: every live copy
-/// of an effect needs a <b>distinct</b> id (<see cref="Register"/> refuses a duplicate, which is the
-/// rule's teeth), and an <c>ON_KILL</c> id must be <b>stable across battles</b> because its counter
-/// is the run's. So a hero-side holding — a perk in a draft slot, an affix on a gear item — takes an
-/// id the run layer owns and repeats every fight; a boss, elite or summon effect has no run-scoped
-/// holding and takes a battle-local id, which is sound because no `17` mechanic carries
-/// <c>ON_KILL</c>.
-/// </para>
-/// <para>
-/// ⚠️ <b>What this class does not do, deliberately.</b> It does not order actors, select targets,
-/// evaluate `18` §4 conditions, apply ops, or write to the combat log. A trigger says <em>when</em>;
-/// `18`'s other four parts say what, to whom, how much and for how long.
-/// </para>
-/// <para>
-/// Not thread-safe, for <c>CombatLog</c>'s reason: one battle, one caller.
-/// </para>
+/// <para>What this class does not do: order actors, select targets, evaluate conditions, apply ops, or write to the combat log. A trigger says when; the rest says what, to whom, how much and for how long.</para>
+/// <para>Not thread-safe: one battle, one caller.</para>
 /// </remarks>
 internal sealed class TriggerRegistry
 {
@@ -152,9 +83,7 @@ internal sealed class TriggerRegistry
     private int _lastPeriodicTick;
 
     /// <summary>Builds a registry for one battle.</summary>
-    /// <param name="runCounters">
-    /// The <b>run's</b> counter store (`18` §3), not a per-battle one. See the type remarks.
-    /// </param>
+    /// <param name="runCounters">The run's counter store, not a per-battle one. See the type remarks.</param>
     internal TriggerRegistry(IRunTriggerCounters runCounters)
     {
         ArgumentNullException.ThrowIfNull(runCounters);
@@ -167,27 +96,19 @@ internal sealed class TriggerRegistry
     internal IReadOnlyList<TriggerInstance> Instances =>
         _instances.Values.OrderBy(i => i.Id.Value, EffectInstanceId.Comparer).ToArray();
 
-    /// <summary>
-    /// 🔒 Registers and activates one effect instance — and, for a <c>PERIODIC</c>, starts its R8
-    /// clock at <paramref name="activationTick"/>.
-    /// </summary>
+    /// <summary>Registers and activates one effect instance — and, for a <c>PERIODIC</c>, starts its clock at <paramref name="activationTick"/>.</summary>
     /// <param name="id">The instance's stable id. See <see cref="EffectInstanceId"/>.</param>
     /// <param name="effect">The authored effect.</param>
     /// <param name="activationTick">The tick the effect becomes active on.</param>
-    /// <param name="holderHpFraction">
-    /// The holder's HP fraction now, <c>0..1</c>. Required for <c>ON_LOW_HP</c> and ignored
-    /// otherwise.
-    /// </param>
+    /// <param name="holderHpFraction">The holder's HP fraction now. Required for <c>ON_LOW_HP</c> and ignored otherwise.</param>
     /// <exception cref="EffectContextException">
     /// The id is already registered, the effect carries no trigger, the trigger is malformed, or an
     /// <c>ON_LOW_HP</c> was registered without an HP reading.
     /// </exception>
     /// <remarks>
-    /// 🔒 <b>A duplicate id is refused, and that refusal is the per-instance rule's teeth.</b>
-    /// `18` §3's counters live on the effect <em>instance</em>, so a caller holding two copies of one
-    /// effect must name them differently. A registry that quietly merged them would give
-    /// <c>PK_FLURRY</c> one shared counter across two copies — a fight that looks entirely legal in
-    /// the log and is wrong in the only number that matters.
+    /// A duplicate id is refused, and that refusal is the per-instance rule's teeth: counters live on
+    /// the effect instance, so a caller holding two copies of one effect must name them differently —
+    /// a registry that quietly merged them would give both copies one shared counter.
     /// </remarks>
     internal TriggerInstance Register(
         EffectInstanceId id,
@@ -198,12 +119,9 @@ internal sealed class TriggerRegistry
         ArgumentNullException.ThrowIfNull(effect);
         ArgumentOutOfRangeException.ThrowIfNegative(activationTick);
 
-        // 🔒 Checked HERE and not left to EffectInstanceId.Of. A record struct's generated
-        // constructor is public and `default(EffectInstanceId)` carries a null value, so `Of`'s
-        // guard is a convenience rather than a guarantee — and `default` is a perfectly good
-        // dictionary key, so an unnamed instance would register cleanly and every other unnamed
-        // instance would share its counter. The per-instance rule fails silently in the direction
-        // that looks like it works.
+        // Checked here and not left to EffectInstanceId.Of: default(EffectInstanceId) is a perfectly
+        // good dictionary key, so an unnamed instance would otherwise register cleanly and share its
+        // counter with every other unnamed instance.
         if (!id.NamesAHolding)
         {
             throw new EffectContextException(
@@ -248,47 +166,31 @@ internal sealed class TriggerRegistry
     /// <param name="id">The instance id.</param>
     internal bool IsRegistered(EffectInstanceId id) => _instances.ContainsKey(id);
 
-    /// <summary>
-    /// Ends an instance — `18` §6's <c>PHASE</c> scope at a phase exit (`05` §3.1), or any other
-    /// removal.
-    /// </summary>
+    /// <summary>Ends an instance — a <c>PHASE</c> scope at a phase exit, or any other removal.</summary>
     /// <param name="id">The instance id.</param>
     internal void Deactivate(EffectInstanceId id) => this[id].Deactivate();
 
-    /// <summary>
-    /// Re-activates an instance that was deactivated — a re-grant. Its R8 clock and its
-    /// <c>ON_LOW_HP</c> arming both restart from <paramref name="tick"/>; a live instance is
-    /// untouched.
-    /// </summary>
+    /// <summary>Re-activates an instance that was deactivated — a re-grant. Its clock and its <c>ON_LOW_HP</c> arming both restart from <paramref name="tick"/>; a live instance is untouched.</summary>
     /// <param name="id">The instance id.</param>
     /// <param name="tick">The tick the effect becomes active again on.</param>
-    /// <param name="holderHpFraction">
-    /// The holder's HP fraction now, <c>0..1</c>. Required for <c>ON_LOW_HP</c> and ignored
-    /// otherwise — a re-grant is a new arming for the same reason it is a new clock.
-    /// </param>
+    /// <param name="holderHpFraction">The holder's HP fraction now. Required for <c>ON_LOW_HP</c> and ignored otherwise.</param>
     /// <remarks>
-    /// Distinct from <see cref="Register"/>, which refuses a duplicate id. Boss phases never revert
-    /// (`05` §3.1), so this is not on the phase path — it is for the cases that do repeat: a summon
-    /// re-entering, an ad revive, and M2-06's re-grant of an expired effect.
+    /// Distinct from <see cref="Register"/>, which refuses a duplicate id. Boss phases never revert,
+    /// so this isn't on the phase path — it's for the cases that do repeat: a summon re-entering, an
+    /// ad revive, or a re-grant of an expired effect.
     /// </remarks>
     internal void Activate(EffectInstanceId id, int tick, double? holderHpFraction = null) =>
         this[id].Activate(tick, holderHpFraction);
 
-    /// <summary>
-    /// 🔒 Whether an instance fires on a moment, and which rule decided (steering S2).
-    /// </summary>
+    /// <summary>Whether an instance fires on a moment, and which rule decided.</summary>
     /// <param name="id">The instance id.</param>
     /// <param name="occurrence">The moment.</param>
-    /// <param name="rng">The battle's combat draw stream (`14` §8.1), for `18` §3's <c>chance</c>.</param>
-    /// <exception cref="EffectContextException">
-    /// The id is unregistered, or the occurrence is <c>PERIODIC</c> — see the remarks.
-    /// </exception>
+    /// <param name="rng">The battle's combat draw stream, for <c>chance</c>.</param>
+    /// <exception cref="EffectContextException">The id is unregistered, or the occurrence is <c>PERIODIC</c> — see the remarks.</exception>
     /// <remarks>
-    /// 🔒 <b><c>PERIODIC</c> is refused here</b>, the way <c>CombatLog.Append</c> refuses a
-    /// <c>Telegraph</c>: it is the one kind whose firing is decided by a schedule rather than by a
-    /// moment, and evaluating it through this path would advance that schedule from whatever tick the
-    /// caller happened to ask on. <see cref="PeriodicDue"/> is the single path, so the schedule
-    /// cannot be advanced twice for one tick or skipped for another.
+    /// <c>PERIODIC</c> is refused here: it's the one kind whose firing is decided by a schedule
+    /// rather than a moment, and evaluating it through this path would advance that schedule from
+    /// whatever tick the caller happened to ask on. <see cref="PeriodicDue"/> is the single path.
     /// </remarks>
     internal TriggerOutcome Evaluate(EffectInstanceId id, in TriggerOccurrence occurrence, DeterministicRng? rng = null)
     {
@@ -305,32 +207,22 @@ internal sealed class TriggerRegistry
         return this[id].Evaluate(occurrence, rng);
     }
 
-    /// <summary>
-    /// 🔒 The same question over several instances, <b>in ascending effect-id order</b> — what
-    /// `05` §3.1 asks in the pre-tick's <c>ON_BATTLE_START</c> sweep, in slot 4's on-hit cascade and
-    /// in slot 6's death resolution.
-    /// </summary>
-    /// <param name="candidates">
-    /// The instance ids to ask — one actor's, so the caller can walk actors in `05` §3.1's order.
-    /// </param>
+    /// <summary>The same question over several instances, in ascending effect-id order.</summary>
+    /// <param name="candidates">The instance ids to ask — one actor's, so the caller can walk actors in the right order.</param>
     /// <param name="occurrence">The moment.</param>
-    /// <param name="rng">The battle's combat draw stream (`14` §8.1).</param>
+    /// <param name="rng">The battle's combat draw stream.</param>
     /// <returns>The instances that fired, in the order they were decided.</returns>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>It exists so that "ascending effect-id order" is not something four call sites have to
-    /// remember.</b> `05` §3.1 keys on that order in five places and `18` §8 makes it ordinal;
-    /// <see cref="PeriodicDue"/> already imposes it for slot 3, and leaving the other four to the
-    /// caller would re-open at the call site exactly the defect <c>StringOrderingRuleTests</c>
-    /// exists to close — a bare <c>OrderBy(e =&gt; e.Id)</c> that is right on the machine it was
-    /// written on.
+    /// Exists so "ascending effect-id order" isn't something every call site has to remember —
+    /// <see cref="PeriodicDue"/> already imposes it for the periodic path, and leaving the rest to
+    /// the caller would risk a bare <c>OrderBy(e =&gt; e.Id)</c> that's culture-dependent.
     /// </para>
     /// <para>
-    /// ⚠️ <b>Not for a cascade that changes the roster.</b> `05` §3.1 resolves on-hit triggers
-    /// <em>"immediately, depth-first"</em>: if firing one instance can register another, or kill the
-    /// holder, the tick loop must drive them one at a time through <see cref="Evaluate"/> and order
-    /// them itself with <see cref="EffectOrder.IdComparer"/>. This is the flat case — every candidate
-    /// decided against one unchanging moment.
+    /// Not for a cascade that changes the roster: on-hit triggers resolve immediately, depth-first,
+    /// so if firing one instance can register another or kill the holder, the tick loop must drive
+    /// them one at a time through <see cref="Evaluate"/> instead. This is the flat case — every
+    /// candidate decided against one unchanging moment.
     /// </para>
     /// </remarks>
     internal IReadOnlyList<TriggerInstance> EvaluateAll(
@@ -352,36 +244,17 @@ internal sealed class TriggerRegistry
         return fired;
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.1 slot 3 — the <c>PERIODIC</c> instances among <paramref name="candidates"/> that
-    /// fire on <paramref name="tick"/>, <b>in ascending effect-id order</b>, with their schedules
-    /// advanced.
-    /// </summary>
-    /// <param name="candidates">
-    /// The instance ids to consider — one actor's, so the caller can walk actors in `05` §3.1's
-    /// order. An id that is not a <c>PERIODIC</c>, or is inactive, is simply not due.
-    /// </param>
-    /// <param name="tick">The tick slot 3 is running.</param>
+    /// <summary>The <c>PERIODIC</c> instances among <paramref name="candidates"/> that fire on <paramref name="tick"/>, in ascending effect-id order, with their schedules advanced.</summary>
+    /// <param name="candidates">The instance ids to consider — one actor's. An id that is not a <c>PERIODIC</c>, or is inactive, is simply not due.</param>
+    /// <param name="tick">The tick being run.</param>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>The order is <see cref="EffectOrder"/>'s and is imposed here, not assumed.</b> `05`
-    /// §3.1 fires slot 3 <em>"in actor order, within one actor in ascending effect-id order"</em>,
-    /// and `18` §8 makes that ordinal. A caller cannot change which ward lands first by reordering
-    /// the list it hands in. Ordering with a bare <c>OrderBy(x =&gt; x.Id)</c> would consult the
-    /// ambient collation and put a German phone and a Linux container in different orders —
-    /// <c>StringOrderingRuleTests</c> fails the build on exactly that.
+    /// The order is imposed here, not assumed: a caller cannot change which ward lands first by
+    /// reordering the list it hands in, and a bare culture-aware sort would put a German phone and a
+    /// Linux container in different orders.
     /// </para>
-    /// <para>
-    /// 🔒 <b>Calling it twice for one tick is safe and returns nothing the second time</b>, because
-    /// a firing advances the instance past the tick. That is the property that makes this the single
-    /// path rather than a convenience over <see cref="Evaluate"/>.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Ticks never go backwards</b>, for <c>CombatLog.Append</c>'s reason and one more: a tick
-    /// below a previous call answers <c>NOT_DUE</c> for everything, so a caller that walked its loop
-    /// wrongly would lose every firing in between with nothing going red. Every other wiring gap in
-    /// this class throws; so does this one.
-    /// </para>
+    /// <para>Calling it twice for one tick is safe and returns nothing the second time, because a firing advances the instance past the tick — the property that makes this the single path rather than a convenience over <see cref="Evaluate"/>.</para>
+    /// <para>Ticks never go backwards: a tick below a previous call throws rather than silently answering <c>NOT_DUE</c> for everything and losing every firing in between.</para>
     /// </remarks>
     internal IReadOnlyList<TriggerInstance> PeriodicDue(IEnumerable<EffectInstanceId> candidates, int tick)
     {
@@ -413,30 +286,18 @@ internal sealed class TriggerRegistry
         return due;
     }
 
-    /// <summary>
-    /// 🔒 The candidates as instances, in `05` §3.1's <em>"ascending effect-id order"</em> — resolved
-    /// and ordered <b>before</b> any of them fires.
-    /// </summary>
+    /// <summary>The candidates as instances, in ascending effect-id order — resolved and ordered before any of them fires.</summary>
     /// <remarks>
     /// <para>
-    /// Materialised first, so that an unregistered id throws before any instance has been advanced
-    /// and the registry cannot be left half-fired. Ordering after the firings would put `05` §3.1's
-    /// rule on the wrong side of their side effects — a <c>PERIODIC</c> may summon or damage.
+    /// Materialised first, so an unregistered id throws before any instance has been advanced and
+    /// the registry can't be left half-fired.
     /// </para>
     /// <para>
-    /// 🔒 <b>The tie-break is the instance id, and it is load-bearing.</b> The key is the
-    /// <em>effect</em> id, while <see cref="EffectInstanceId"/> exists precisely because one actor can
-    /// hold two copies of one effect (`18` §3). Two copies of <c>PK_AEGIS</c> tie on the effect id,
-    /// and a stable sort would then let the caller's list order decide which ward lands first —
-    /// falsifying the claim above and making the fight depend on how the tick loop happened to build
-    /// a list.
+    /// The tie-break is the instance id, and it's load-bearing: the primary key is the effect id, and
+    /// two copies of one effect on one actor tie on it, so a stable sort would let the caller's list
+    /// order decide which one resolves first.
     /// </para>
-    /// <para>
-    /// 🔒 <b>A duplicate id in one call is refused.</b> It is normally harmless, but a schedule that
-    /// is behind (<c>due = 40</c>, <c>interval = 20</c>, <c>tick = 100</c>) leaves the instance due
-    /// again immediately, so the duplicate fires twice inside one tick and appears twice in the
-    /// result — a boss summoning two waves on one tick, from a caller bug no log would explain.
-    /// </para>
+    /// <para>A duplicate id in one call is refused: a schedule that's behind can leave an instance due again immediately, so a duplicate would fire twice inside one tick.</para>
     /// </remarks>
     private List<TriggerInstance> Ordered(IEnumerable<EffectInstanceId> candidates)
     {
@@ -464,7 +325,7 @@ internal sealed class TriggerRegistry
         return instances;
     }
 
-    /// <summary>`18` §8's ordinal effect-id order, tie-broken by the instance id.</summary>
+    /// <summary>Ordinal effect-id order, tie-broken by the instance id.</summary>
     private static int ByEffectThenInstanceId(TriggerInstance left, TriggerInstance right)
     {
         var byEffect = EffectOrder.IdComparer.Compare(left.Effect.Id, right.Effect.Id);

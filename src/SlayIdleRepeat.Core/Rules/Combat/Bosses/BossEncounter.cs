@@ -7,16 +7,15 @@ using SlayIdleRepeat.Core.Rules.Effects.Triggers;
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 Everything <see cref="BossEncounterBuilder"/> resolves out of a <see cref="BossScript"/>: the
+/// Everything <see cref="BossEncounterBuilder"/> resolves out of a <see cref="BossScript"/>: the
 /// boss's <see cref="ActorPlan"/>, its two phase boundaries, and the two maps
 /// <see cref="BossPhaseController"/> reads.
 /// </summary>
 /// <remarks>
-/// 🔒 <b>The maps are the reason this is a record and not just an <see cref="ActorPlan"/>.</b> A
-/// plan is what the simulator needs; a phase is what the controller needs, and
-/// <c>BattleSimulation.RegisterHoldings</c> registers plan effects without knowing that some of them
-/// belong to phases 2 and 3. Everything the controller has to key on — which instance is in which
-/// phase, and which instance carries a wind-up — is decided once, here, at build time.
+/// The maps are why this is a record and not just an <see cref="ActorPlan"/>: a plan is what the
+/// simulator needs, a phase is what the controller needs, and everything the controller has to key
+/// on — which instance is in which phase, which carries a wind-up — is decided once here, at build
+/// time.
 /// </remarks>
 internal sealed record BossEncounter
 {
@@ -24,13 +23,12 @@ internal sealed record BossEncounter
     public required string BossId { get; init; }
 
     /// <summary>
-    /// 🔒 The boss as it enters the fight: `17` §1.2's statline, every phase block's mechanics and
-    /// the three <see cref="BossBuiltIns"/>, all on <see cref="ActorPlan.Effects"/> with explicit
-    /// instance ids.
+    /// The boss as it enters the fight: its statline, every phase block's mechanics and the three
+    /// <see cref="BossBuiltIns"/>, all on <see cref="ActorPlan.Effects"/> with explicit instance ids.
     /// </summary>
     public required ActorPlan Plan { get; init; }
 
-    /// <summary>`17` §1's first-clear flag, as the encounter was built with it.</summary>
+    /// <summary>The first-clear flag the encounter was built with.</summary>
     public required bool FirstClear { get; init; }
 
     /// <summary>
@@ -46,13 +44,12 @@ internal sealed record BossEncounter
     public required double Phase3HpFraction { get; init; }
 
     /// <summary>
-    /// 🔒 The phase map: every instance that belongs to a phase block, and which block.
+    /// The phase map: every instance that belongs to a phase block, and which block.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>What is <em>not</em> in it is the load-bearing half.</b> The three
-    /// <see cref="BossBuiltIns"/> are absent, so no phase transition can deactivate or reactivate
-    /// <c>SYS_ENRAGE</c> — which is the one thing that would re-anchor its R8 clock and move the
-    /// enrage from 70 s of battle to 70 s after 66% HP.
+    /// What is <em>not</em> in it is the load-bearing half: the three <see cref="BossBuiltIns"/> are
+    /// absent, so no phase transition can deactivate or reactivate <c>SYS_ENRAGE</c> and re-anchor
+    /// its clock.
     /// </remarks>
     public required IReadOnlyDictionary<EffectInstanceId, int> PhaseOfInstance { get; init; }
 
@@ -63,19 +60,15 @@ internal sealed record BossEncounter
     public required IReadOnlyDictionary<EffectInstanceId, double> LeadSecondsOfInstance { get; init; }
 
     /// <summary>
-    /// 🔒 <see cref="LeadSecondsOfInstance"/> bucketed by phase and <b>already ordered</b>, which is
-    /// the only shape <see cref="BossPhaseController.AdvanceTick"/> ever asks for. A phase with no
-    /// wind-up is absent rather than empty, so the per-tick pass answers with a single failed
-    /// dictionary probe.
+    /// <see cref="LeadSecondsOfInstance"/> bucketed by phase and already ordered, the only shape
+    /// <see cref="BossPhaseController.AdvanceTick"/> ever asks for. A phase with no wind-up is
+    /// absent rather than empty, so the per-tick pass is a single failed dictionary probe.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>It is precomputed because <c>AdvanceTick</c> runs once per boss on every one of `05`
-    /// §3's up-to-1800 ticks</b>, and `05` §3.1 budgets a whole fight at under 5 ms. Selecting and
-    /// sorting this out of the two maps at each of those ticks allocated a filter, a closure over
-    /// the phase, an ordering and its sort buffer for a list that cannot change during a fight —
-    /// both maps are fixed at build time. Deciding it here keeps the controller's one accumulator
-    /// (<c>BossPhaseController._phase</c>) the only state in the namespace: this is plan data, not a
-    /// cache.
+    /// Precomputed rather than derived per tick: <c>AdvanceTick</c> runs once per boss on every tick
+    /// of a fight budgeted under 5 ms, and both source maps are fixed at build time, so selecting and
+    /// sorting here avoids reallocating a filter and a sort buffer every tick for a list that cannot
+    /// change during the fight.
     /// </remarks>
     public required IReadOnlyDictionary<int, IReadOnlyList<EffectInstanceId>> AnnouncingOfPhase { get; init; }
 }
@@ -86,140 +79,99 @@ internal sealed record BossEncounter
 /// effect ids resolve against.
 /// </summary>
 /// <remarks>
-/// 🔒 <b><see cref="Power"/> arrives as a parameter and is never derived here</b>, exactly as
-/// <c>EnemyDerivation.Derive</c>'s does and for the same reason: `05` §6.3 and `17` §1 both state
-/// that a boss's Power <b>already</b> includes <c>StageMult.Boss = 2.20</c> and must not be
-/// multiplied again. Keeping the derivation on this side of the parameter is what makes the
-/// double-multiplication impossible to write.
+/// <see cref="Power"/> arrives as a parameter and is never derived here: a boss's power already
+/// includes the boss stage multiplier, and must not be multiplied by it again. Keeping the
+/// derivation on this side of the parameter makes the double-multiplication impossible to write.
 /// </remarks>
 internal sealed record BossEncounterRequest
 {
-    /// <summary>The boss script — M2-13's data.</summary>
+    /// <summary>The boss script.</summary>
     public required BossScript Script { get; init; }
 
     /// <summary>
-    /// 🔒 <b>The script's own effect set</b> — every effect the owning boss content declares, keyed
-    /// by `18` §8 id. The caller supplies it, on <c>EnemyCatalogue</c>'s pattern: the boss engine
-    /// does not read content.
+    /// The script's own effect set — every effect the owning boss content declares, keyed by id.
+    /// Supplied by the caller; the boss engine does not read content.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>This is the scope every id in the script resolves in, and there is no wider one.</b> An
-    /// effect is embedded in the content that owns it rather than living in a registry, so a
-    /// <see cref="BossMechanic.EffectId"/> and a <c>RANDOM_OUTCOME</c> row alike name a <b>sibling</b>
-    /// of the same script. <see cref="BossEncounterBuilder"/> refuses either when the id is not in
-    /// here, which is what makes the reference resolvable without anything global.
+    /// This is the scope every id in the script resolves in, and there is no wider one: an effect is
+    /// embedded in the content that owns it rather than living in a registry, so a
+    /// <see cref="BossMechanic.EffectId"/> and a <c>RANDOM_OUTCOME</c> row alike name a sibling of
+    /// the same script, and <see cref="BossEncounterBuilder"/> refuses either when the id isn't here.
     /// </remarks>
     public required IReadOnlyDictionary<string, EffectDefinition> Effects { get; init; }
 
     /// <summary>
-    /// 🔒 `02` §4.3's <c>EnemyPower(i)</c> for the boss node, <b>with <c>StageMult.Boss</c> already
-    /// inside it</b> (`05` §6.3, `17` §1). Never multiplied by 2.20 here.
+    /// The boss node's power, with the boss stage multiplier already inside it. Never multiplied
+    /// again here.
     /// </summary>
     public required double Power { get; init; }
 
-    /// <summary>`05` §6.0's <c>EnemyLevel(chapter, tier)</c>.</summary>
+    /// <summary>The enemy level for this chapter/tier.</summary>
     public required int Level { get; init; }
 
-    /// <summary>The boss's `05` §3.1 actor index.</summary>
+    /// <summary>The boss's actor index.</summary>
     public required int Index { get; init; }
 
-    /// <summary>The boss's `05` §7 log id.</summary>
+    /// <summary>The boss's log id.</summary>
     public required byte LogId { get; init; }
 
-    /// <summary>
-    /// 🔒 `17` §1.2's <em>"Secondary stats: every boss uses the baseline"</em> row, as authored
-    /// content.
-    /// </summary>
+    /// <summary>The baseline secondary-stats row every boss shares, as authored content.</summary>
     /// <remarks>
     /// Only its four secondaries — CRIT, CDMG, DODGE, LIFESTEAL — are read; the four power
-    /// coefficients are replaced by <see cref="BossScript.Coefficients"/>. It is handed in rather
-    /// than written here because <em>"a number in code is a number nobody can retune without a
-    /// build"</em>, and `17` §1.2 puts these in <c>data/bosses.json</c>.
+    /// coefficients are replaced by <see cref="BossScript.Coefficients"/>.
     /// </remarks>
     public required ArchetypeRow Baseline { get; init; }
 
-    /// <summary>`05` §6's derivation constants — <c>EnemyCatalogue.Derivation</c>.</summary>
+    /// <summary>The derivation constants — <c>EnemyCatalogue.Derivation</c>.</summary>
     public required EnemyDerivationConstants Derivation { get; init; }
 
-    /// <summary>`17` §1's first-clear flag for this player and this boss.</summary>
+    /// <summary>The first-clear flag for this player and this boss.</summary>
     public bool FirstClear { get; init; }
 }
 
 /// <summary>
-/// 🔒 `17` §1 / §1.2 — one <see cref="BossScript"/> plus its encounter, resolved into the
-/// <see cref="BossEncounter"/> the simulator and the phase controller run on.
+/// One <see cref="BossScript"/> plus its encounter, resolved into the <see cref="BossEncounter"/>
+/// the simulator and the phase controller run on.
 /// </summary>
 /// <remarks>
 /// <para>
-/// ═══ 🔒 <b>WHAT IS CHECKED HERE, AND WHY HERE</b> ═══
-/// </para>
-/// <para>
-/// Every rule below is an <b>authoring</b> rule: it can be decided before a tick runs, and a failure
-/// names the boss, the phase and the mechanic. Deferring any of them to the tick loop would surface
-/// M2-13's typo as a mid-fight exception in a player's run, or — worse — as a boss whose mechanics
-/// silently did nothing, which the balance harness would read as the boss being weak.
+/// Every rule enforced here is an authoring rule: it can be decided before a tick runs, and a
+/// failure names the boss, the phase and the mechanic. Deferring any of them to the tick loop would
+/// surface a content typo as a mid-fight exception, or — worse — as a boss whose mechanics silently
+/// did nothing, read by the balance harness as the boss being weak.
 /// </para>
 /// <list type="number">
-///   <item>Exactly <see cref="BossScript.PhaseCount"/> blocks, numbered 1, 2, 3, <b>in order</b>.</item>
+///   <item>Exactly <see cref="BossScript.PhaseCount"/> blocks, numbered 1, 2, 3, in order.</item>
 ///   <item>Every referenced effect id resolves against <see cref="BossEncounterRequest.Effects"/>.</item>
-///   <item>🔒 No block at phase 2 or 3 carries an <c>ON_BATTLE_START</c> trigger. `05` §3.1's 0b
-///   sweep runs <b>before</b> 0c, so such an effect would fire while the boss is still in phase 1 —
-///   a phase-3 mechanic landing at battle start.</item>
+///   <item>No block at phase 2 or 3 carries an <c>ON_BATTLE_START</c> trigger — the battle-start
+///   sweep runs before phase 1 is entered, so such an effect would fire while the boss is still in
+///   phase 1.</item>
 ///   <item>No script may name one of the three <see cref="BossBuiltIns"/>: they are attached here,
 ///   once, for every boss.</item>
-///   <item><b>T1</b>, <b>T2</b> and <b>T3</b> — see <see cref="BossTelegraphs"/>.</item>
-///   <item>A <c>SUMMON</c> mechanic authors a <c>maxAlive</c>, and it is at most
-///   <see cref="BossAdds.MaxAlive"/>. 🔴 <b>Authoring none is refused too</b> — `18` §2.4 leaves the
-///   key optional and an absent one means <em>no cap</em>, which `17` §1 does not permit a boss.</item>
+///   <item>The wind-up rules — see <see cref="BossTelegraphs"/>.</item>
+///   <item>A <c>SUMMON</c> mechanic authors a <c>maxAlive</c> of at most <see cref="BossAdds.MaxAlive"/>.
+///   Authoring none is refused too — an absent key means no cap, which is never allowed.</item>
 ///   <item>
-///   🔒 <b>O1 — every <c>RANDOM_OUTCOME</c> row names a <em>sibling</em>.</b> `18` §10.1 E6's
-///   <c>outcomes</c> rows are effect ids, and the scope they resolve in is <b>this script's own
-///   effect set</b> (<see cref="BossEncounterRequest.Effects"/>) — an effect is embedded in the
-///   content that owns it, so there is no registry a row could reach past its owner into. A row
-///   naming an id this script does not declare is refused <b>here</b>, at build time, with the boss,
-///   the phase, the rolling effect and the missing id named. Deferring it would surface as
-///   <c>BossOutcomes.Resolve</c> throwing mid-fight on whichever roll happened to draw the bad row —
-///   a defect that appears in one fight in three and never in the same place twice.
+///   Every <c>RANDOM_OUTCOME</c> row names a sibling: an effect is embedded in the content that owns
+///   it, so a row naming an id this script does not declare is refused here, at build time, rather
+///   than surfacing as a mid-fight throw on whichever roll happens to draw it.
 ///   </item>
 /// </list>
 /// <para>
-/// 🔒 <b>Every refusal is an <see cref="EffectContextException"/> naming the boss, the phase and the
-/// mechanic, and carrying the rule's own marker</b> (steering S2: a failure has to say <em>which</em>
-/// rule fired, not merely that something was wrong). <c>CombatLog.AppendTelegraph</c> enforces T1
-/// again at emission time and is the second line of defence; the message here is the better one
-/// because it knows the authoring.
-/// </para>
-/// <para>
-/// ═══ 🔒 <b>THE MARKER REGISTER — grep for one and find the rule, its message and its cases</b> ═══
-/// </para>
-/// <list type="table">
-///   <item><term><c>A1</c></term><description>the phase blocks are not 1, 2, 3 in order.</description></item>
-///   <item><term><c>A2</c></term><description>a mechanic names an effect the script does not declare.</description></item>
-///   <item><term><c>A3</c></term><description>a script authors one of the three <see cref="BossBuiltIns"/>.</description></item>
-///   <item><term><c>A4</c></term><description>a phase-2 or phase-3 block carries <c>ON_BATTLE_START</c>.</description></item>
-///   <item><term><c>A5</c></term><description>a <c>SUMMON</c> authors <b>no</b> <c>maxAlive</c>, or one above <see cref="BossAdds.MaxAlive"/>.</description></item>
-///   <item><term><c>T1</c>, <c>T2</c>, <c>T3</c></term><description>the wind-up rules — see
-///   <see cref="BossTelegraphs"/>. ⚠️ Its <b>T4</b> is deliberately absent from this register: it
-///   bounds a firing by <c>CombatRules.MaxTicks</c>, which depends on the HP-driven tick a phase was
-///   entered at and so cannot be decided from a script. It is enforced at emission instead, and it
-///   is the one wind-up rule with no marker because there is no authoring for it to refuse.</description></item>
-///   <item><term><c>O1</c></term><description>a <c>RANDOM_OUTCOME</c> row names a non-sibling effect id.</description></item>
-/// </list>
-/// <para>
-/// ⚠️ The <c>A</c> markers are M2-12's implementation phase's, added so that all eight rules are
-/// discriminable the same way rather than four of them being. A refusal a reader cannot tell from its
-/// neighbour sends M2-13 looking in the wrong place.
+/// Every refusal is an <see cref="EffectContextException"/> naming the boss, the phase and the
+/// mechanic, and carrying a rule marker (<c>A1</c>-<c>A5</c>, <c>T1</c>-<c>T3</c>, <c>O1</c>) so a
+/// failure says which rule fired.
 /// </para>
 /// </remarks>
 internal static class BossEncounterBuilder
 {
     /// <summary>
-    /// 🔒 Builds one boss's encounter — its `17` §1.2 statline, its plan with every phase block and
-    /// built-in on it, its two phase boundaries and the controller's two maps.
+    /// Builds one boss's encounter — its statline, its plan with every phase block and built-in on
+    /// it, its two phase boundaries and the controller's two maps.
     /// </summary>
     /// <param name="request">The script and its encounter.</param>
     /// <returns>The resolved encounter.</returns>
-    /// <exception cref="EffectContextException">One of the eight authoring rules refused.</exception>
+    /// <exception cref="EffectContextException">One of the authoring rules refused.</exception>
     internal static BossEncounter Build(BossEncounterRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -254,8 +206,8 @@ internal static class BossEncounterBuilder
             }
         }
 
-        // 🔒 `17` §11 — attached here, once, for every boss, and deliberately NOT in the phase map:
-        // nothing a transition walks can reach SYS_ENRAGE, so nothing can re-anchor its R8 clock.
+        // Attached here, once, for every boss, and deliberately NOT in the phase map: nothing a
+        // transition walks can reach SYS_ENRAGE, so nothing can re-anchor its clock.
         foreach (var builtIn in BossBuiltIns.All)
         {
             holdings.Add(new HeldEffect(builtIn, BossBuiltIns.BuiltInInstance(script.Id, builtIn.Id)));
@@ -275,20 +227,16 @@ internal static class BossEncounterBuilder
     }
 
     /// <summary>
-    /// 🔒 <see cref="BossEncounter.AnnouncingOfPhase"/> — the wind-up map bucketed by phase, each
+    /// <see cref="BossEncounter.AnnouncingOfPhase"/> — the wind-up map bucketed by phase, each
     /// bucket in ascending instance-id order, decided once here.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>The order is <c>Ordinal</c> and is fixed <em>here</em> rather than at emission</b>: two
-    /// wind-ups due on the same tick reach the log in this order, and the log <em>is</em> the replay
-    /// (`05` §7). A <see cref="Dictionary{TKey,TValue}"/>'s enumeration order is not part of its
-    /// contract, so leaving it to the walk would leave the log's order to an implementation detail.
+    /// The order is fixed here rather than at emission: two wind-ups due on the same tick reach the
+    /// log in this order, and a <see cref="Dictionary{TKey,TValue}"/>'s enumeration order is not part
+    /// of its contract.
     /// <para>
-    /// ⚠️ <c>internal</c> rather than private so that a hand-built <see cref="BossEncounter"/> —
-    /// which the controller and telegraph suites use to test the controller <em>without</em>
-    /// <see cref="Build"/> — derives this map from its own lead map instead of restating it. A
-    /// fixture that stated both by hand could author a lead the announce list did not carry, and the
-    /// telegraph it was written to prove would simply never be emitted.
+    /// <c>internal</c> rather than private so that a hand-built <see cref="BossEncounter"/> in tests
+    /// can derive this map from its own lead map instead of restating it by hand.
     /// </para>
     /// </remarks>
     internal static IReadOnlyDictionary<int, IReadOnlyList<EffectInstanceId>> AnnouncingByPhase(
@@ -299,8 +247,7 @@ internal static class BossEncounterBuilder
 
         foreach (var instance in leadSecondsOfInstance.Keys)
         {
-            // Every instance carrying a lead was put in the phase map by the same loop that put it
-            // here, so the indexer is the assertion rather than a lookup that might miss.
+            // Every instance with a lead was put in the phase map by the same loop, so this can't miss.
             var phase = phaseOfInstance[instance];
 
             if (!byPhase.TryGetValue(phase, out var announcing))
@@ -326,12 +273,12 @@ internal static class BossEncounterBuilder
     }
 
     /// <summary>
-    /// 🔒 `17` §1.2's statline row: <see cref="BossEncounterRequest.Baseline"/>'s secondaries with
-    /// the script's four coefficients in place of the archetype's.
+    /// The statline row: <see cref="BossEncounterRequest.Baseline"/>'s secondaries with the script's
+    /// four coefficients in place of the archetype's.
     /// </summary>
-    /// <param name="coefficients">`17` §1.2's per-boss row.</param>
+    /// <param name="coefficients">The per-boss row.</param>
     /// <param name="baseline">The authored baseline row.</param>
-    /// <returns>The row `05` §6's derivation is run over.</returns>
+    /// <returns>The row the derivation is run over.</returns>
     internal static ArchetypeRow StatlineRow(BossCoefficients coefficients, ArchetypeRow baseline)
     {
         ArgumentNullException.ThrowIfNull(baseline);
@@ -346,8 +293,8 @@ internal static class BossEncounterBuilder
     }
 
     /// <summary>
-    /// 🔒 `05` §6.3 / `17` §1 — the statline is derived from <see cref="BossEncounterRequest.Power"/>
-    /// <b>as handed in</b>: <c>StageMult.Boss = 2.20</c> is already inside it.
+    /// The statline is derived from <see cref="BossEncounterRequest.Power"/> as handed in — the boss
+    /// stage multiplier is already inside it.
     /// </summary>
     private static ActorPlan PlanFor(BossEncounterRequest request, IReadOnlyList<HeldEffect> holdings) =>
         new()
@@ -366,7 +313,7 @@ internal static class BossEncounterBuilder
             Effects = holdings,
         };
 
-    /// <summary>🔒 <b>A1</b> — `17` §1's <em>"exactly 3"</em>, numbered 1, 2, 3, in that order.</summary>
+    /// <summary><b>A1</b> — exactly 3 phase blocks, numbered 1, 2, 3, in that order.</summary>
     private static void RequirePhaseShape(BossScript script)
     {
         var authored = script.Phases.Select(p => p.Phase).ToArray();
@@ -387,8 +334,8 @@ internal static class BossEncounterBuilder
     }
 
     /// <summary>
-    /// 🔒 <b>A2</b> and <b>A3</b> — the mechanic is a sibling of this script, and it is not one of
-    /// the three universal built-ins.
+    /// <b>A2</b> and <b>A3</b> — the mechanic is a sibling of this script, and it is not one of the
+    /// three universal built-ins.
     /// </summary>
     private static EffectDefinition ResolveMechanic(
         BossScript script,
@@ -410,9 +357,8 @@ internal static class BossEncounterBuilder
             }
         }
 
-        // 🔴 Before the lookup, because Dictionary.TryGetValue(null) throws ArgumentNullException —
-        // a refusal that names no rule, no boss and no phase, which is exactly what S2 asks a
-        // refusal not to be. A BossMechanic is a record struct, so `default` is a reachable shape.
+        // Checked before the lookup: Dictionary.TryGetValue(null) throws ArgumentNullException, and
+        // BossMechanic is a record struct so `default` (a null EffectId) is reachable.
         if (string.IsNullOrWhiteSpace(mechanic.EffectId))
         {
             throw new EffectContextException(
@@ -437,8 +383,9 @@ internal static class BossEncounterBuilder
     }
 
     /// <summary>
-    /// 🔒 <b>A4</b> — `05` §3.1's 0b sweep runs <b>before</b> 0c, so an <c>ON_BATTLE_START</c> in a
-    /// phase-2 or phase-3 block fires while the boss is still in phase 1.
+    /// <b>A4</b> — the battle-start sweep runs before phase 1 is entered, so an
+    /// <c>ON_BATTLE_START</c> in a phase-2 or phase-3 block would fire while the boss is still in
+    /// phase 1.
     /// </summary>
     private static void RequireNoOpenerOutsidePhase1(BossScript script, int phase, EffectDefinition effect)
     {
@@ -457,15 +404,10 @@ internal static class BossEncounterBuilder
             "phase the boss is actually in.");
     }
 
-    /// <summary>🔒 <b>A5</b> — `17` §1's <em>"capped at 3 alive at once"</em>, checked at authoring.</summary>
+    /// <summary><b>A5</b> — a boss's adds are capped, checked at authoring.</summary>
     /// <remarks>
-    /// 🔴 <b>An <em>absent</em> <c>maxAlive</c> is refused, not admitted.</b> `18` §2.4 makes the key
-    /// optional and <c>BattleFlowSink.Summon</c> reads <c>maxAlive is { } cap</c> — so no key means
-    /// <b>no cap</b>, and a boss <c>SUMMON</c> that simply omitted it would spawn adds without a
-    /// ceiling while passing a rule that only ever compared numbers. `17` §1 caps a <em>boss's</em>
-    /// adds unconditionally, so on this side of the DSL the key is required (steering S6: the hole is
-    /// refused rather than filled with a plausible <see cref="BossAdds.MaxAlive"/>, which would make
-    /// the engine author a number `17` gives to content).
+    /// An absent <c>maxAlive</c> is refused, not admitted: the key is optional in the DSL and reads
+    /// as no cap, so a <c>SUMMON</c> that simply omitted it would spawn adds without a ceiling.
     /// </remarks>
     private static void RequireSummonCap(BossScript script, int phase, EffectDefinition effect)
     {
@@ -500,7 +442,7 @@ internal static class BossEncounterBuilder
     }
 
     /// <summary>
-    /// 🔒 <b>O1</b> — every <c>RANDOM_OUTCOME</c> row names a <b>sibling</b> of this same script.
+    /// <b>O1</b> — every <c>RANDOM_OUTCOME</c> row names a sibling of this same script.
     /// </summary>
     private static void RequireSiblingOutcomes(
         BossScript script,
@@ -515,10 +457,8 @@ internal static class BossEncounterBuilder
 
         foreach (var row in outcomes)
         {
-            // 🔴 Before the lookup: Dictionary.ContainsKey(null) throws ArgumentNullException, and a
-            // RandomOutcomeEntry is a record struct whose `default` carries a null id — so without
-            // this, the one authoring mistake that omits an effectId is refused by a message naming
-            // neither O1, nor the boss, nor the phase.
+            // Checked before the lookup: Dictionary.ContainsKey(null) throws ArgumentNullException,
+            // and RandomOutcomeEntry is a record struct whose `default` carries a null id.
             if (string.IsNullOrWhiteSpace(row.EffectId) || !effects.ContainsKey(row.EffectId))
             {
                 throw new EffectContextException(
@@ -535,8 +475,8 @@ internal static class BossEncounterBuilder
     }
 
     /// <summary>
-    /// 🔒 <b>T1</b>, <b>T2</b> and <b>T3</b> — the three rules a mechanic's wind-up has to satisfy.
-    /// See <see cref="BossTelegraphs"/> for what each one is protecting.
+    /// <b>T1</b>, <b>T2</b> and <b>T3</b> — the three rules a mechanic's wind-up has to satisfy. See
+    /// <see cref="BossTelegraphs"/> for what each one is protecting.
     /// </summary>
     private static void RequireWindUp(
         BossScript script, int phase, EffectDefinition effect, double? leadSeconds)
@@ -595,6 +535,5 @@ internal static class BossEncounterBuilder
 
     private static string Number(int value) => InvariantText.Text(value);
 
-    // 🔒 The convention, not a second statement of it — see Primitives/InvariantText.
     private static string Format(double value) => InvariantText.Text(value);
 }

@@ -5,10 +5,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// `14` §6 / `game-data/README.md` — the value tree `Core` reads content out of.
-/// The load-bearing property here is that a JSON <c>null</c> is a <em>kind</em>, not a value:
-/// 96 leaves in the shipped tuning files are unauthorised holes, and a silent zero in any of them
-/// would produce a plausible, wrong economy.
+/// A JSON <c>null</c> is a <em>kind</em>, not a value: unauthorised holes must throw rather than
+/// silently reading as zero, since a silent zero would produce a plausible, wrong economy.
 /// </summary>
 public sealed class ContentValueTests
 {
@@ -21,11 +19,7 @@ public sealed class ContentValueTests
         value.IsUnauthorised.ShouldBeTrue();
     }
 
-    /// <summary>
-    /// 🔒 Every accessor, not a sample of them. Four hand-written cases over one shared code path
-    /// read as exhaustive while leaving <c>AsDouble</c> and <c>AsInt64</c> — the two with no
-    /// unauthorised coverage at any layer — untested.
-    /// </summary>
+    /// <summary>Every accessor, not a sample — AsDouble/AsInt64 have no unauthorised coverage elsewhere.</summary>
     public static TheoryData<string, Func<ContentValue, object>> Accessors => new()
     {
         { "AsNumber", v => v.AsNumber() },

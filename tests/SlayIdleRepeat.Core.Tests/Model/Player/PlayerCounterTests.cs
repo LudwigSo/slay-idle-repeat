@@ -8,15 +8,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `30` §2.3 — the daily/weekly counter <b>mechanism</b> M1-08's <c>AdvanceTime</c> drives:
-/// a period boundary, a key→count map, and the invariants that keep both meaningful.
+/// The daily/weekly counter mechanism: a period boundary, a key→count map, and the invariants
+/// that keep both meaningful.
 /// </summary>
 /// <remarks>
-/// ⚠️ There is no catalogue of counter keys here, and there is not supposed to be. `30` §2.3 names
-/// five things the 05:00 UTC reset clears — quest expiry, the wheel's free spin, ad caps, dungeon
-/// entries and daily-shop stock — and none of those systems exists yet (M4-09, M10, `12`). What
-/// M1-04 ships is the shape they will register into; freezing their vocabulary now would invent it
-/// (S6). The keys used below are illustrative and are named as such.
+/// There is no catalogue of counter keys here, and there is not supposed to be — the systems that
+/// will register into this mechanism don't exist yet, so the keys used below are illustrative.
 /// </remarks>
 public sealed class PlayerCounterTests
 {
@@ -25,7 +22,6 @@ public sealed class PlayerCounterTests
     private static Core.Model.Player Player() =>
         Core.Model.Player.Rehydrate(PlayerSnapshots.Valid, Content).Value;
 
-    /// <summary>A counter registers itself on first use — nothing declares it in advance.</summary>
     [Fact]
     public void A_counter_comes_into_existence_on_its_first_increment()
     {
@@ -51,7 +47,6 @@ public sealed class PlayerCounterTests
         player.DailyCount("some_future_system").ShouldBe(5);
     }
 
-    /// <summary>🔒 Daily and weekly are two independent maps — counting one must not count the other.</summary>
     [Fact]
     public void The_daily_and_weekly_maps_are_independent()
     {
@@ -64,12 +59,11 @@ public sealed class PlayerCounterTests
         player.WeeklyCount("shared_key").ShouldBe(9);
     }
 
-    /// <summary>🔒 Keys are compared ordinally, as <c>CanonicalStateWriter</c> orders them.</summary>
-    /// <remarks>
-    /// A map that compared its keys case-insensitively would round-trip to a different
-    /// <c>stateHash</c> than the one it was stored under, because the writer sorts string keys
-    /// ordinally and would see one entry where the aggregate saw two — or vice versa.
-    /// </remarks>
+    /// <summary>
+    /// Keys are compared ordinally: a case-insensitive map would round-trip to a different
+    /// <c>stateHash</c> than the one it was stored under, since the writer sorts string keys
+    /// ordinally and would see one entry where the aggregate saw two.
+    /// </summary>
     [Fact]
     public void Counter_keys_are_ordinal()
     {
@@ -99,7 +93,7 @@ public sealed class PlayerCounterTests
     }
 
     /// <summary>
-    /// 🔒 A counter counts upwards. A negative advance is a refund, and a refund belongs to the
+    /// A counter counts upwards. A negative advance is a refund, and a refund belongs to the
     /// rule that granted the thing — not to the counter that recorded the use.
     /// </summary>
     [Fact]
@@ -142,7 +136,7 @@ public sealed class PlayerCounterTests
         player.DailyPeriodStartUtc.ShouldBe(nextDay);
     }
 
-    /// <summary>🔒 …and it leaves the weekly counters alone. A day boundary is not a week boundary.</summary>
+    /// <summary>A day boundary is not a week boundary: a daily reset leaves the weekly counters alone.</summary>
     [Fact]
     public void A_daily_reset_leaves_the_weekly_counters_alone()
     {
@@ -155,7 +149,6 @@ public sealed class PlayerCounterTests
         player.WeeklyPeriodStartUtc.ShouldBe(PlayerSnapshots.Monday);
     }
 
-    /// <summary>The weekly reset is the mirror image, and leaves the daily counters alone.</summary>
     [Fact]
     public void A_weekly_reset_clears_only_the_weekly_counters()
     {
@@ -171,10 +164,7 @@ public sealed class PlayerCounterTests
         player.DailyCount("ad_caps").ShouldBe(2);
     }
 
-    /// <summary>
-    /// 🔒 `30` §2.3 — a period boundary is 05:00 UTC. Any other time of day is a period the rest of
-    /// the game does not agree exists.
-    /// </summary>
+    /// <summary>A period boundary is 05:00 UTC; any other time of day is a period the rest of the game does not agree exists.</summary>
     [Theory]
     [InlineData(0, 0)]
     [InlineData(4, 59)]
@@ -201,13 +191,12 @@ public sealed class PlayerCounterTests
     }
 
     /// <summary>
-    /// 🔒 Milestone assumption <b>A2</b>, derived from `27` §4: the game <b>week</b> starts on a
-    /// <b>Monday</b>. Every other 05:00 UTC boundary is a legal day and an illegal week.
+    /// The game <b>week</b> starts on a <b>Monday</b>; every other 05:00 UTC boundary is a legal
+    /// day and an illegal week.
     /// </summary>
     /// <remarks>
-    /// The days are all <b>after</b> the fixture's current daily boundary (2026-08-12). A day
-    /// before it would be refused by the monotonic clause instead, and the test would pass for the
-    /// wrong reason — which is what the first draft of this test did.
+    /// The days are all <b>after</b> the fixture's current daily boundary. A day before it would
+    /// be refused by the monotonic clause instead, and the test would pass for the wrong reason.
     /// </remarks>
     [Theory]
     [InlineData(18)] // Tuesday
@@ -226,8 +215,6 @@ public sealed class PlayerCounterTests
         Should.Throw<ArgumentOutOfRangeException>(() => player.ResetWeeklyCounters(notMonday))
               .Message.ShouldMatchWildcard("*game week starts MONDAY*A2*27 §4*");
 
-        // …and the very same instant is a perfectly legal DAY boundary, which is what makes the
-        // Monday clause the thing under test rather than the 05:00 clause a second time.
         Should.NotThrow(() => player.ResetDailyCounters(notMonday));
     }
 
@@ -263,15 +250,10 @@ public sealed class PlayerCounterTests
     }
 
     /// <summary>
-    /// 🔒 Resetting to the boundary <b>already in force</b> is a no-op, not a clear.
+    /// Resetting to the boundary <b>already in force</b> is a no-op, not a clear. Lazy catch-up
+    /// runs on every command a player sends, so clearing on equality would wipe the day's counters
+    /// several times an hour — handing back every cap the player had already spent.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ This is the sharpest correctness case in the mechanism. `30` §2.3 runs lazy catch-up as
-    /// the first step of <em>every</em> command, so M1-08 calls this on every command a player
-    /// sends. Clearing on equality would wipe the day's ad caps, dungeon entries and quest progress
-    /// several times an hour — handing back every cap the player had already spent, which is
-    /// exactly what the monotonic guard's own message says must never happen.
-    /// </remarks>
     [Fact]
     public void Resetting_to_the_boundary_already_in_force_keeps_the_counts()
     {
@@ -288,9 +270,6 @@ public sealed class PlayerCounterTests
         player.WeeklyPeriodStartUtc.ShouldBe(PlayerSnapshots.Monday);
     }
 
-    /// <summary>
-    /// …and a boundary that <b>has</b> moved does clear, so the no-op above is not "never resets".
-    /// </summary>
     [Fact]
     public void A_boundary_that_has_moved_does_clear()
     {
@@ -358,14 +337,12 @@ public sealed class PlayerCounterTests
         offWeek.Error.ShouldContain("game week starts MONDAY 05:00 UTC", Case.Sensitive);
     }
 
-    /// <summary>🔒 Every persisted instant must carry a zero offset, named field by field.</summary>
-    /// <remarks>
-    /// <c>CanonicalStateWriter</c> encodes a <see cref="DateTimeOffset"/> as Unix milliseconds, so
-    /// <c>12:00+02:00</c> and <c>10:00Z</c> hash identically while record equality calls them
-    /// different — two snapshots the language says are different sharing one <c>stateHash</c>,
-    /// which is the same class of defect as the <c>-0.0</c> the writer already refuses. Each field
-    /// is asserted by name so a check that covered three of five would fail here rather than pass.
-    /// </remarks>
+    /// <summary>
+    /// Every persisted instant must carry a zero offset: <c>CanonicalStateWriter</c> encodes a
+    /// <see cref="DateTimeOffset"/> as Unix milliseconds, so <c>12:00+02:00</c> and <c>10:00Z</c>
+    /// would hash identically while record equality calls them different. Each field is asserted
+    /// by name so a check that covered three of five would fail here rather than pass.
+    /// </summary>
     [Fact]
     public void Every_persisted_instant_must_be_UTC()
     {
@@ -396,8 +373,8 @@ public sealed class PlayerCounterTests
     }
 
     /// <summary>
-    /// `30` §2.3 — <c>LastAppliedAtUtc</c> moves forwards, and equal is allowed: two commands can
-    /// legitimately share an instant, while an earlier one means a clock moved backwards.
+    /// <c>LastAppliedAtUtc</c> moves forwards, and equal is allowed: two commands can legitimately
+    /// share an instant, while an earlier one means a clock moved backwards.
     /// </summary>
     [Fact]
     public void The_last_applied_instant_moves_forwards_and_may_repeat()

@@ -5,16 +5,13 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>
-/// 🔒 M3-13, `14` §2.3, `02` §5.2 — <c>ABANDON_RUN</c>: closes the run at the 0.10 <c>ABANDON</c>
-/// multiplier, no matter the run's HP or whether the Boss is dead.
-/// </summary>
+/// <summary>ABANDON_RUN closes the run at the 0.10 ABANDON multiplier, regardless of HP or Boss state.</summary>
 public sealed class AbandonRunTests
 {
     private static CommandResult Abandon(WorldSlice state) =>
         SlayIdleRepeat.Core.GameRules.Apply(state, new AbandonRunCommand(), TileWorlds.Context);
 
-    /// <summary>🔒 Chapter 1 NORMAL: banked 100 Legend XP * ABANDON (0.10) = 10, exactly.</summary>
+    /// <summary>Banked 100 Legend XP * ABANDON (0.10) = 10, exactly.</summary>
     [Fact]
     public void An_unhurt_run_with_the_boss_alive_can_still_abandon_at_ten_percent()
     {
@@ -37,8 +34,7 @@ public sealed class AbandonRunTests
 
         var result = Abandon(world);
 
-        // 🔒 Negative control: ABANDON never banks the 250 Victory bonus EndRun would — this proves
-        // AbandonRun does not silently fall through to the Victory branch.
+        // Negative control: proves AbandonRun does not fall through to EndRun's Victory branch.
         (result.NewState.Player.LegendXp - before).ShouldBe(10);
     }
 

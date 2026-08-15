@@ -7,10 +7,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>
-/// 🔒 M3-05, `14` §2.3 — <c>START_BATTLE</c>, driven through the production dispatch table by
-/// <c>GameRules.Apply</c>.
-/// </summary>
+/// <summary>START_BATTLE, driven through the production dispatch table by GameRules.Apply.</summary>
 public sealed class StartBattleTests
 {
     private static CommandResult Start(WorldSlice state) =>
@@ -51,7 +48,7 @@ public sealed class StartBattleTests
 
     // ------------------------------------------------------------------ opening the fight
 
-    /// <summary>🔒 Each of the three fight kinds opens a battle: Phase moves to BattlePending.</summary>
+    /// <summary>Each of the three fight kinds opens a battle: Phase moves to BattlePending.</summary>
     [Theory]
     [InlineData((int)TileKind.Enemy)]
     [InlineData((int)TileKind.Elite)]
@@ -73,7 +70,7 @@ public sealed class StartBattleTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe((int)TileKind.Enemy);
     }
 
-    /// <summary>🔒 `14` §8.1 — opening a battle advances the run's <c>combat</c> stream by exactly one.</summary>
+    /// <summary>Opening a battle advances the run's combat stream by exactly one.</summary>
     [Fact]
     public void Opening_a_battle_advances_the_combat_stream_by_one()
     {
@@ -93,10 +90,8 @@ public sealed class StartBattleTests
 
         closed.Run!.HasPendingTile.ShouldBeFalse("CONFIRM_BATTLE_RESULT must clear the pending tile");
 
-        // 🔒 M3-06 — CONFIRM_BATTLE_RESULT also marks a draft pending, and GameRules.Execute's
-        // DraftPending gate refuses every run command but PICK_PERK/REROLL_DRAFT/SKIP_DRAFT while
-        // one is open. This test is about the combat stream's monotonicity, not the draft, so it
-        // resolves the draft with SKIP_DRAFT before splicing a second fight tile onto the run.
+        // CONFIRM_BATTLE_RESULT also marks a draft pending, which gates every other run command, so
+        // it is resolved with SKIP_DRAFT before splicing a second fight tile onto the run.
         var draftResolved = SlayIdleRepeat.Core.GameRules.Apply(
             closed, new SkipDraftCommand(), TileWorlds.Context).NewState;
 

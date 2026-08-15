@@ -3,33 +3,20 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects;
 
 /// <summary>
-/// 🔒 `18` §8 step 1's ten sources as one build hands them over: at most one
-/// <see cref="IEffectSource"/> per <see cref="EffectSourceKind"/>, and nothing for the kinds this
-/// build has none of.
+/// The ten sources as one build hands them over: at most one <see cref="IEffectSource"/> per
+/// <see cref="EffectSourceKind"/>, and nothing for the kinds this build has none of.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Ten slots, always — not "the sources somebody remembered to pass".</b>
-/// <see cref="Collect"/> walks <see cref="EffectSourceCatalogue.Rows"/>, which is `18` §8 step 1's
-/// own sentence, and asks each of the ten in turn. A kind with no source contributes nothing. That is
-/// the difference between a collector that <em>implements step 1</em> and one that happens to
-/// enumerate whatever list it was given: the second silently drops a source the day a caller forgets
-/// one, and step 1 is the step whose whole content is <em>which</em> sources.
+/// <see cref="Collect"/> walks all ten catalogue rows and asks each in turn, so a kind with no
+/// source contributes nothing rather than being silently dropped by an incomplete caller.
 /// </para>
+/// <para>None of the ten can be supplied from a real build today, since no data model exists yet — an empty set is the normal state.</para>
 /// <para>
-/// ⚠️ <b>None of the ten can be supplied from a real build today</b>, because no data model exists — see
-/// <see cref="EffectSourceCatalogue"/> for the milestone that lands each and the
-/// <c>SubjectSetFloorTests.Pending</c> entry that fires when it does. An empty set is therefore the
-/// normal state in M2, and <see cref="Collect"/> returning nothing from an unfilled slot is the correct
-/// answer rather than a gap.
-/// </para>
-/// <para>
-/// 🔒 <b>A duplicate kind is refused.</b> Two sources both claiming <c>GEAR</c> would have no defined
-/// order between them, and <see cref="EffectResolutionOrder"/>'s tiebreak is
-/// <c>(source, index-within-source)</c> — which is total only because a kind identifies exactly one
-/// list. Accepting both and concatenating them would put arrival order back underneath the tiebreak,
-/// one level down, where it would be much harder to find. A build with two gear slots contributes one
-/// <c>GEAR</c> source listing both slots' effects, in the slot order `08` §2 fixes.
+/// A duplicate kind is refused: two sources both claiming <c>GEAR</c> would have no defined order
+/// between them, since <see cref="EffectResolutionOrder"/>'s tiebreak assumes a kind names exactly
+/// one list. A build with two gear slots contributes one <c>GEAR</c> source listing both slots'
+/// effects, not one source per slot.
 /// </para>
 /// </remarks>
 internal sealed class EffectSourceSet
@@ -41,13 +28,11 @@ internal sealed class EffectSourceSet
     /// <summary>The empty build: ten declared sources, none of which contributes anything.</summary>
     internal static EffectSourceSet Empty { get; } = new(new Dictionary<EffectSourceKind, IEffectSource>());
 
-    /// <summary>A build's sources. At most one per `18` §8 step 1 kind.</summary>
+    /// <summary>A build's sources. At most one per source kind.</summary>
     /// <exception cref="ArgumentException">
     /// Two sources claim the same kind, or an element is <c>null</c>.
     /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// A source's kind is outside `18` §8 step 1's ten.
-    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A source's kind is outside the declared ten.</exception>
     internal static EffectSourceSet Of(params IEffectSource[] sources)
     {
         ArgumentNullException.ThrowIfNull(sources);
@@ -58,12 +43,8 @@ internal sealed class EffectSourceSet
         {
             ArgumentNullException.ThrowIfNull(source, nameof(sources));
 
-            // 🔒 Refused HERE, not left to Collect(). Collect walks the catalogue, so a source
-            //    carrying a kind outside `18` §8 step 1's ten would be stored, never visited, and
-            //    contribute nothing — silently, which is the exact failure this type's remarks say
-            //    it exists to prevent. ListEffectSource validates in its own constructor, but the
-            //    interface is the extension point for ten implementations by seven milestones and
-            //    none of them is obliged to.
+            // Validated here rather than left to Collect(), which only walks the catalogue and would
+            // never visit — and never flag — a source carrying an out-of-range kind.
             _ = EffectSourceCatalogue.RowFor(source.Kind);
 
             if (!byKind.TryAdd(source.Kind, source))
@@ -85,32 +66,20 @@ internal sealed class EffectSourceSet
     internal IEffectSource? For(EffectSourceKind kind) =>
         _sources.TryGetValue(kind, out var source) ? source : null;
 
-    /// <summary>
-    /// 🔒 `18` §8 <b>step 1</b> — <em>"collect all active effects from: gear → affixes → set bonuses →
-    /// talents → pet auras → mount → run buffs → shrine buffs → curses → perks (in draft order)"</em>.
-    /// </summary>
+    /// <summary>Collects all active effects from the build's sources.</summary>
     /// <remarks>
-    /// <para>
-    /// Returned in `18` §8 step 1's <b>collection</b> order — the order of the sentence — and
-    /// <em>not</em> sorted. R5: collection order is which effects to gather; application order is
-    /// effect-id order, and <see cref="EffectResolver"/> applies it. Keeping the two apart here is
-    /// what lets <c>EffectResolverTests</c> show that the arrival order genuinely cannot reach the
-    /// arithmetic, by handing the same build in two collection orders.
-    /// </para>
-    /// <para>
-    /// ⚠️ An effect that appears in two <em>different</em> sources is collected twice, once per
-    /// source. That is not de-duplication's job and it is not a bug: two sources contributing one
-    /// authored id are two applications of it (the same affix on two gear slots is two bonuses), and
-    /// which order they resolve in is <see cref="EffectResolutionOrder"/>'s ruling.
-    /// </para>
+    /// Returned in collection order — not sorted. Collection order is kept apart from application
+    /// (effect-id) order, which <see cref="EffectResolver"/> applies, so that arrival order can never
+    /// leak into the arithmetic. An effect appearing in two different sources is collected twice, once
+    /// per source — that is not a bug, since two sources contributing one id are two applications of
+    /// it (the same affix on two gear slots is two bonuses).
     /// </remarks>
     internal IReadOnlyList<CollectedEffect> Collect()
     {
         var collected = new List<CollectedEffect>();
 
-        // 🔒 Over the CATALOGUE, not over _sources. The catalogue is `18` §8 step 1's ten in its own
-        //    order; iterating the dictionary would be both incomplete (most slots absent today) and
-        //    hash-ordered, which is exactly the device-dependence §8 exists to remove.
+        // Walk the catalogue, not the dictionary directly: iterating _sources would be both
+        // incomplete (most slots are absent today) and hash-ordered.
         foreach (var row in EffectSourceCatalogue.Rows)
         {
             if (For(row.Kind) is not { } source)
@@ -131,10 +100,8 @@ internal sealed class EffectSourceSet
                     $"element {position} of the {row.Kind} source has a null effect. The resolution " +
                     "order is stated over effect ids and a hole has none.");
 
-                // 🔒 Checked here as well as in ListEffectSource's constructor: IEffectSource is the
-                //    extension point ten later implementations satisfy, and an unnamed holding makes
-                //    every instance share one `18` §3 counter — silently, in the direction that looks
-                //    like it works.
+                // Checked here too, not only in ListEffectSource's constructor, since IEffectSource is
+                // an extension point other implementations aren't obliged to validate themselves.
                 if (!effects[i].Instance.NamesAHolding)
                 {
                     throw new InvalidOperationException(

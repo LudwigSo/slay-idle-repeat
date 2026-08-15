@@ -5,13 +5,9 @@ using Xunit;
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
 /// <summary>
-/// C1 — every `15` §B4 step stands on its own, and the orchestrator runs 1-6 in the doc's order.
+/// Every step stands on its own, and the orchestrator runs them in order. A failure in step 4 must
+/// be diagnosable without re-running 1-3, so each step must be constructible and runnable alone.
 /// </summary>
-/// <remarks>
-/// 🔒 A failure in step 4 must be diagnosable without re-running 1-3. That is only true if each
-/// step is constructible and runnable with nothing else in the room, which is what the theory
-/// below actually exercises — the orchestrator is a convenience on top, not the seam.
-/// </remarks>
 public sealed class StepCompositionTests
 {
     [Theory]
@@ -49,9 +45,7 @@ public sealed class StepCompositionTests
         step.Number.ShouldBe(7);
         result.AtlasId.ShouldBe("atlas_ui");
 
-        // 🔒 "Runnable alone" means it did the work, not that it returned a shape. A packer that
-        // handed back an empty result would satisfy the two assertions above, both of which read
-        // values the caller supplied.
+        // A packer that handed back an empty result would satisfy the two assertions above alone.
         result.Placements.Select(placement => placement.AssetId).ToArray()
             .ShouldBe([ManifestRows.NonBiomeUiIcon]);
         result.Exclusions.ShouldBeEmpty();
@@ -68,10 +62,8 @@ public sealed class StepCompositionTests
     }
 
     /// <summary>
-    /// 🔒 The order is asserted as the exact <see cref="AssetStepResult.Number"/> sequence, not as
-    /// "six results came back". Six results in the wrong order is the failure this case exists for:
-    /// quantising before the background is keyed, or sharpening before the outline is repaired,
-    /// both produce six results and the wrong picture.
+    /// Order is asserted as the exact <see cref="AssetStepResult.Number"/> sequence, not just a
+    /// count of six results — quantising before the background is keyed still produces six results.
     /// </summary>
     [Fact]
     public void Run_reports_15_B4_steps_1_to_6_in_the_order_the_doc_lists_them()
@@ -86,18 +78,14 @@ public sealed class StepCompositionTests
     }
 
     /// <summary>
-    /// 🔒 <b>The case whose absence let the misread ship.</b> `15` §B4 lists step 2 ("pad to the
-    /// target canvas") and step 5 ("Resize -&gt; to the spec size in the manifest") as two steps.
-    /// While step 2 padded to the <em>delivery</em> size, step 5's input was already the target: the
-    /// Mitchell resample was an identity on every asset, its scale measurement was exactly 1.0, and
-    /// <c>DEV_LANCZOS_UNAVAILABLE</c> was declared for a resample that never resampled — while §B4's
-    /// own step 5 was dead text. Every per-step case still passed, because each one asserted its own
-    /// step in isolation.
+    /// A prior defect had step 2 pad all the way to the delivery size, leaving step 5's resample an
+    /// identity on every asset (scale exactly 1.0, a deviation declared for a resample that never
+    /// resampled) — invisible to every per-step case since each asserted its own step in isolation.
     /// </summary>
     /// <remarks>
     /// The triple is what makes step 5 provably live: the run ends at the manifest's size, step 2
-    /// did <b>not</b> resize, and step 5's scale is not 1. Any two of the three can be satisfied by
-    /// the defect.
+    /// did not resize, and step 5's scale is not 1. Any two of the three can be satisfied by the
+    /// defect.
     /// </remarks>
     [Fact]
     public void Run_over_a_15_C_generation_canvas_downscales_in_step_5_and_not_in_step_2()
@@ -107,15 +95,11 @@ public sealed class StepCompositionTests
 
         var row = ManifestRows.Require(ManifestRows.SquareCharacterDeliveringAt512);
 
-        // 🔒 The shipped row really does deliver at 512x512 — otherwise the assertions below would
-        // be measuring against a number this case invented.
         row.RequireDeliverySize().Width.ShouldBe(deliveryEdge);
         row.RequireDeliverySize().Height.ShouldBe(deliveryEdge);
 
-        // A subject well inside the generation frame, and centred rather than bottom-aligned: a
-        // subject filling the frame would leave step 2 nothing to re-frame, and one already sitting
-        // at the row's own bottom-center pivot would let a step 2 that did nothing pass. Touching
-        // no edge also keeps `15` §B4 step 1 from sampling the subject as the border colour.
+        // Centred rather than bottom-aligned: a subject already sitting at the row's own
+        // bottom-center pivot would let a step 2 that did nothing pass.
         const int contentWidth = 600;
         const int contentHeight = 400;
         var fixture = SyntheticAsset.PivotedSubject(
@@ -132,9 +116,7 @@ public sealed class StepCompositionTests
         run.Output!.Width.ShouldBe(deliveryEdge);
         run.Output.Height.ShouldBe(deliveryEdge);
 
-        // (b) Step 2 re-framed on the generation canvas and did not resize. The re-framing is
-        // asserted as the exact bbox the row's bottom-center pivot puts the subject at, so a step 2
-        // that returned its input untouched would fail here as well as a step 2 that resized.
+        // (b) Step 2 re-framed on the generation canvas and did not resize.
         trim.Image.Width.ShouldBe(generationCanvas);
         trim.Image.Height.ShouldBe(generationCanvas);
         Pixels.OpaqueBounds(trim.Image).ShouldBe(new SKRectI(

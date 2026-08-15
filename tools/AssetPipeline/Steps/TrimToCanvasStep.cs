@@ -2,22 +2,15 @@ using SlayIdleRepeat.AssetManifest;
 
 namespace SlayIdleRepeat.AssetPipeline;
 
-/// <summary>
-/// `15` §B4 step 2: <em>"Trim to content -&gt; then pad to the target canvas with the subject
-/// centered"</em>.
-/// </summary>
+/// <summary>Trim to content, then pad to the target canvas with the subject centered.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>"The target canvas" here is the WORKING canvas — the `15` §C <em>generation</em> canvas the
-/// image arrived on (1024x1024, or 2048 for bosses and backgrounds) — and NOT the §C delivery size
-/// the manifest carries.</b> `15` §B4 lists step 2 ("Trim to content -&gt; then pad to the target
-/// canvas with the subject centered") and step 5 ("Resize -&gt; to the spec size in the manifest")
-/// as two separate steps. Read step 2's canvas as the delivery size and step 5 becomes an identity
-/// resample — its scale is exactly 1.0 on every asset, its Lanczos deviation is declared for a
-/// resample that never resamples, and §B4's own step 5 is dead text. The only reading under which
-/// all seven steps do work is this one: <b>step 2 re-frames, step 5 is the only step that changes
-/// size.</b> It also puts steps 3 and 4 at generation resolution, which is the only place they can
-/// work — repairing a 3-4 px outline after a downscale to 128x128 would be destructive.
+/// "The target canvas" here is the WORKING canvas — the generation canvas the image arrived on —
+/// and NOT the delivery size the manifest carries. Reading it as the delivery size would make the
+/// later resize step an identity resample on every asset, which cannot be the intended split: this
+/// step re-frames, and the resize step is the only one that changes size. It also puts the outline
+/// steps at generation resolution, which is the only place they can work — repairing a 3-4 px
+/// outline after a downscale to 128x128 would be destructive.
 /// </para>
 /// <para>
 /// So: trim to the alpha bounding box, then pad back out to the source image's own dimensions,
@@ -26,14 +19,11 @@ namespace SlayIdleRepeat.AssetPipeline;
 /// The job is consistent framing, not resizing.
 /// </para>
 /// <para>
-/// 🔒 <b>There is no oversize guard, because there is no oversize case.</b> Content trimmed out of
-/// an image can never exceed that image, so padding back to the image's own dimensions always fits.
-/// The guard this step used to carry compared the content against the <em>delivery</em> canvas and
-/// refused a perfectly ordinary §C generation — a 1024x1024 render whose subject spans 900 px, for a
-/// row delivering at 512x512 — before step 5, the step whose entire job is that downscale, ever ran.
+/// There is no oversize guard, because there is no oversize case: content trimmed out of an image
+/// can never exceed that image, so padding back to the image's own dimensions always fits.
 /// </para>
 /// <para>
-/// 🔒 <b>The odd pixel goes right and bottom</b>, by integer division of the slack.
+/// The odd pixel goes right and bottom, by integer division of the slack.
 /// <see cref="Qa.Checks.CanvasAndPivotCheck"/> grades the delivered image against exactly that
 /// convention, so the two must not drift apart.
 /// </para>
@@ -74,11 +64,9 @@ public sealed class TrimToCanvasStep : IAssetStep
 
         var contentSize = new PixelSize(content.Width, content.Height);
 
-        // 🔒 The working canvas: the `15` §C generation canvas the image arrived on, not
-        // spec.TargetSize. This step re-frames at generation resolution; step 5 is the only step
-        // that changes size. See the type's remarks for why the alternative reading makes §B4's own
-        // step 5 dead text. Padding back to the image's own dimensions invents no number, so there
-        // is no threshold here and nothing for steering rule S6 to catch.
+        // The working canvas: the generation canvas the image arrived on, not spec.TargetSize. See
+        // the type's remarks for why. Padding back to the image's own dimensions invents no number,
+        // so there is no threshold here to calibrate.
         var target = new PixelSize(image.Width, image.Height);
 
         var left = (target.Width - contentSize.Width) / 2;

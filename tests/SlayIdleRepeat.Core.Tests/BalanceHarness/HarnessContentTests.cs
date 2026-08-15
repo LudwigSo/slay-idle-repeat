@@ -7,14 +7,10 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 /// <summary>
-/// 🔒 The harness reads the authored inputs `05` §9 names, and reads the ones it is forbidden to
-/// resolve <b>not at all</b>.
+/// The harness reads the authored inputs, and never resolves the ones it is forbidden to. Every
+/// subject set is floored before anything is asserted over it, so a reader that silently returned a
+/// smaller set would not leave downstream assertions green over a quietly shrunk sweep.
 /// </summary>
-/// <remarks>
-/// Steering S3 — every subject set is floored before anything is asserted over it. A reader that
-/// silently returned four archetypes, or twenty-three par cells, or seven bosses would leave every
-/// downstream assertion green over a sweep that was quietly a fifth smaller than `05` §9's.
-/// </remarks>
 [Collection(WallClockSensitive.Name)]
 public sealed class HarnessContentTests
 {
@@ -34,10 +30,8 @@ public sealed class HarnessContentTests
     [Fact]
     public void The_par_cells_are_read_from_the_file_and_not_recomputed_from_the_default_fill()
     {
-        // 🔒 The document says of its own defaultFill: "every cell is independently editable and the
-        // formula below is the default fill, not a constraint". This case is the probe that would
-        // catch a reader that evaluated 1000 × 2^(c-1) instead: it edits ONE cell in memory and
-        // requires the reader to follow the edit rather than the formula.
+        // Every cell is independently editable; the formula is a default fill, not a constraint. This
+        // edits one cell in memory and requires the reader to follow the edit, not the formula.
         var edited = ParPowerTable.Read(GameDataLoader.LoadWith(
             GameDataLoader.DataRoot,
             new Dictionary<string, string>(StringComparer.Ordinal)
@@ -52,7 +46,7 @@ public sealed class HarnessContentTests
 
         edited.Power(3, Tier.NORMAL).ShouldBe(4321.0);
 
-        // The negative control: the shipped file is untouched and still reads 4000.
+        // Negative control: the shipped file is untouched and still reads 4000.
         ParPowerTable.Read(ShippedHarness.Content).Power(3, Tier.NORMAL).ShouldBe(4000.0);
     }
 
@@ -79,8 +73,7 @@ public sealed class HarnessContentTests
 
         foreach (var archetype in calibration.Archetypes)
         {
-            // Every one of 05 §1's fourteen is readable, and HEAL_PCT is 1.0-based rather than 0 —
-            // the case game-data/content/combat_caps.json calls out by name.
+            // HEAL_PCT is 1.0-based rather than 0.
             StatIds.Combat.Count.ShouldBe(14);
             foreach (var stat in StatIds.Combat)
             {
@@ -94,9 +87,7 @@ public sealed class HarnessContentTests
     [Fact]
     public void Only_ARCH_TANK_THORNS_holds_THORNS_above_zero()
     {
-        // The probe that makes the elasticity table's archetype choice non-arbitrary, and a second
-        // shape on the statline reader: it is not enough that the stats parse, they must be the
-        // authored VALUES and they must differ between archetypes.
+        // Not enough that the stats parse — they must be the authored values, and differ between archetypes.
         var calibration = CalibrationBuilds.Read(ShippedHarness.Content);
 
         var withThorns = calibration.Archetypes
@@ -135,10 +126,7 @@ public sealed class HarnessContentTests
     [Fact]
     public void The_archetype_reader_exposes_no_perk_or_pet_member_at_all()
     {
-        // 🔒 frozenPerks and pets name ids that do not exist until M3-07 / M4-07. The rule is that the
-        // reader must not even look at them, and the enforceable form of that rule is that the type
-        // carries nowhere to put them. A member added later would fail here before it could be filled
-        // with a stub.
+        // The reader must not even look at perks or pets — enforced by the type carrying nowhere to put them.
         var members = typeof(BuildArchetype)
             .GetProperties()
             .Select(p => p.Name)
@@ -160,8 +148,8 @@ public sealed class HarnessContentTests
         enemies.Level(8, Tier.NORMAL).ShouldBe(80);
         enemies.Level(8, Tier.MYTHIC).ShouldBe(100);
 
-        // Second shape: the bonus is per tier and the base is per chapter, so a reader that
-        // transposed them would still pass chapter 1 Normal.
+        // The bonus is per tier and the base is per chapter — a reader that transposed them would
+        // still pass chapter 1 Normal.
         enemies.Level(5, Tier.HEROIC).ShouldBe(50);
     }
 
@@ -184,8 +172,6 @@ public sealed class HarnessContentTests
             "GRUNT", "SWARM", "BRUTE", "SKIRMISHER", "WARDEN", "CASTER", "LEECH", "REAVER",
         });
 
-        // WARDEN's 2.2 is the highest authored DEF coefficient, which is what makes it the subject of
-        // guardrail 5's maximum.
         enemies.Archetypes.Max(a => a.DefCoef).ShouldBe(2.2);
         enemies.Archetypes.Single(a => a.Id == "WARDEN").DefCoef.ShouldBe(2.2);
     }
@@ -198,8 +184,7 @@ public sealed class HarnessContentTests
         enemies.Def(1000.0, 1.0).ShouldBe(30.0);
         enemies.Def(5434.0, 0.8).ShouldBe(130.416);
 
-        // Negative control — the two multipliers are not interchangeable, so a transposed
-        // implementation gives a different number here.
+        // Negative control: the two multipliers are not interchangeable.
         enemies.Def(5434.0, 0.8).ShouldNotBe(enemies.Def(5434.0 * 0.8, 0.03));
     }
 
@@ -216,7 +201,7 @@ public sealed class HarnessContentTests
             "BOSS_RIMEHOLD", "BOSS_COGITATOR_PRIME", "BOSS_SPOREQUEEN_VELL", "BOSS_DICELORD",
         });
 
-        // 🔒 Excluded because it states no chapter, not because of its name.
+        // Excluded because it states no chapter, not because of its name.
         bosses.Excluded.Count.ShouldBe(1);
         bosses.Excluded.Single().Id.ShouldBe(BossRoster.FtueScriptId);
         bosses.Excluded.Single().Chapter.ShouldBeNull();
@@ -240,17 +225,15 @@ public sealed class HarnessContentTests
 
         bosses.Summoners.ShouldAllBe(b => b.AddsPowerFraction == 0.3);
 
-        // Negative control: the other four carry no fraction at all, which is what makes "every
-        // summoner is at the midpoint" a statement rather than a tautology over an empty set.
+        // Negative control: the other four carry no fraction, so the assertion isn't vacuous.
         bosses.All.Count(b => b.AddsPowerFraction is null).ShouldBe(4);
     }
 
     [Fact]
     public void The_mitigation_dials_agree_between_the_two_documents_that_author_them()
     {
-        // 🔒 05 §4's pair is authored TWICE — content/combat_caps.json and tuning/power_model.json —
-        // and a build rule mirrors them. Guardrail 5 reads the combat copy; if the mirror ever stopped
-        // running, it would be measuring the wrong one and would still look green.
+        // The pair is authored twice, in two documents, and a build rule mirrors them. If the mirror
+        // ever stopped running, guardrail 5 would be measuring the wrong copy and still look green.
         var combat = MitigationDials.Read(ShippedHarness.Content);
         var powerModel = MitigationDials.ReadPowerModelCopy(ShippedHarness.Content);
 

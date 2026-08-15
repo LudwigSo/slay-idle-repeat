@@ -8,20 +8,17 @@ namespace SlayIdleRepeat.AssetPlaceholders.Tests;
 /// The report's own arithmetic, over hand-built outcomes — no images, no pipeline.
 /// </summary>
 /// <remarks>
-/// 🔒 These are the two claims a full batch run cannot exercise, because a real run never reaches
-/// them: the batch decision's precedence needs a <see cref="QaDecision.Rejected"/> asset beside an
-/// <see cref="QaDecision.AwaitingHumanReview"/> one, and the empty-batch refusal needs an empty
-/// batch. Both are exactly the shapes a defect would take.
+/// Two claims a full batch run cannot exercise: the decision's precedence needs a
+/// <see cref="QaDecision.Rejected"/> asset beside an <see cref="QaDecision.AwaitingHumanReview"/>
+/// one, and the empty-batch refusal needs an empty batch.
 /// </remarks>
 public sealed class PlaceholderBatchReportTests
 {
     [Fact]
     public void A_rejected_asset_outranks_an_asset_merely_awaiting_a_human()
     {
-        // 🔒 QaDecision is declared Accepted, Rejected, BlockedByUncalibratedThreshold,
-        // AwaitingHumanReview. Taking Max() over the enum would rank "a human has not looked yet"
-        // above "an item failed", and a batch holding a rejected asset would report as merely
-        // awaiting review. This case is why Severity is an explicit map.
+        // Taking Max() over the QaDecision enum would rank "not reviewed yet" above "failed", so
+        // Severity is an explicit map instead of enum order.
         Report([Graded(QaVerdict.HumanGapOnly), Graded(QaVerdict.Fail)])
             .Decision
             .ShouldBe(QaDecision.Rejected);
@@ -38,8 +35,8 @@ public sealed class PlaceholderBatchReportTests
     [Fact]
     public void A_run_that_generated_nothing_has_no_decision_rather_than_a_clean_one()
     {
-        // Steering S3. "Nothing failed" over an empty batch is vacuously true, and that is the
-        // shape of a generator that silently produced no output.
+        // "Nothing failed" over an empty batch is vacuously true — the shape of a generator that
+        // silently produced no output.
         var thrown = Should.Throw<InvalidOperationException>(() => Report([]).Decision);
 
         thrown.Message.ShouldContain("no `15` Part F decision to report", Case.Sensitive);
@@ -85,8 +82,7 @@ public sealed class PlaceholderBatchReportTests
     [Fact]
     public void Only_the_two_fully_mechanical_items_are_reported_as_mechanical_failures()
     {
-        // A Fail on item 1 is an uncalibrated gate's business, not this generator's, and must not
-        // land in the list that says "your generator is broken".
+        // A Fail on item 1 is an uncalibrated gate's business, not this generator's.
         var report = Report(
         [
             new QaOutcome(QaVerdict.Fail, 1, "silhouette", [], "gap"),
@@ -100,10 +96,7 @@ public sealed class PlaceholderBatchReportTests
     private static QaOutcome Graded(QaVerdict verdict) =>
         new(verdict, 7, "a hand-built outcome", [], HumanGap: verdict == QaVerdict.HumanGapOnly ? "gap" : null);
 
-    /// <summary>
-    /// A report holding one placeholder per outcome. 🔒 Each outcome becomes its own asset, so the
-    /// batch-level precedence is exercised across assets rather than within one.
-    /// </summary>
+    /// <summary>A report holding one placeholder per outcome, so precedence is exercised across assets.</summary>
     private static PlaceholderBatchReport Report(IReadOnlyList<QaOutcome> outcomes) =>
         new()
         {

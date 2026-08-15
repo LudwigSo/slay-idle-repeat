@@ -8,14 +8,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Conditions;
 
 /// <summary>
-/// 🔒 The uniform rule for a `18` §4 function that cannot be answered, and the floor under the
+/// The uniform rule for a condition function that cannot be answered, and the floor under the
 /// twenty-three functions themselves.
 /// </summary>
 /// <remarks>
-/// `18` §4 authors exactly one default — the three <c>ATTACKER_IS_*</c> functions are <c>false</c>
-/// outside an attacker context, pinned in <see cref="ConditionFunctionTests"/>. Everywhere else it
-/// authors nothing, so steering S6 applies and the subject's absence is a failure rather than a
-/// substituted zero.
+/// Exactly one default is authored — the three <c>ATTACKER_IS_*</c> functions are <c>false</c> outside
+/// an attacker context, pinned in <see cref="ConditionFunctionTests"/>. Everywhere else the subject's
+/// absence is a failure rather than a substituted zero.
 /// </remarks>
 public sealed class ConditionContextRuleTests
 {
@@ -42,10 +41,10 @@ public sealed class ConditionContextRuleTests
     }
 
     /// <summary>
-    /// A run-state function against a context with no run throws rather than reading zero. `18` §9.3
-    /// rules that clauses with no duel meaning are <em>skipped</em> via <c>IS_PVP</c>, so one
-    /// reaching this point means the content did not skip it — and a zero would hide that forever
-    /// while quietly changing what the effect does.
+    /// A run-state function against a context with no run throws rather than reading zero. Clauses
+    /// with no duel meaning are meant to be skipped via <c>IS_PVP</c>, so one reaching this point means
+    /// the content did not skip it — and a zero would hide that forever while quietly changing what
+    /// the effect does.
     /// </summary>
     [Theory]
     [InlineData(ConditionFunction.PERK_COUNT)]
@@ -65,9 +64,6 @@ public sealed class ConditionContextRuleTests
             () => ConditionEvaluator.Read(function, ConditionArguments.None, duel));
 
         thrown.Token.ShouldBe(function.ToString());
-
-        // 🔒 The document reference, not the implementer's prose: 18 §9.3 is the clause that says a
-        // clause with no duel meaning is skipped, and it is what a reader chasing this failure needs.
         thrown.Message.ShouldContain("18 §9.3", Case.Sensitive);
     }
 
@@ -88,10 +84,8 @@ public sealed class ConditionContextRuleTests
     }
 
     /// <summary>
-    /// A function whose `18` §4 row says <em>"by status id"</em> or <em>"by face kind"</em> has no
-    /// answer without one. `18` §1.1 puts the same functions behind <c>valueScale</c>, which today
-    /// carries no argument key at all — so this is the failure that makes that gap visible instead of
-    /// silently counting every status.
+    /// A function keyed "by status id" or "by face kind" has no answer without one — this is the
+    /// failure that makes a missing argument visible instead of silently counting every status.
     /// </summary>
     [Theory]
     [InlineData(ConditionFunction.HAS_STATUS)]
@@ -109,16 +103,11 @@ public sealed class ConditionContextRuleTests
     }
 
     /// <summary>
-    /// A <c>between</c> term missing a bound is malformed. `18` §4 lists the comparator and writes no
-    /// example, so the encoding is <see cref="ConditionTerm"/>'s two-element one — and half of it is
-    /// not a range.
+    /// A <c>between</c> term missing a bound is malformed — half of a two-element range is not a
+    /// range. Each of the three malformed-term rules below pins which one fired, not merely that
+    /// something threw: an evaluator that threw for any term whose <c>Value</c> is null would pass all
+    /// three while getting the flag case entirely wrong.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Each of the three malformed-term rules below pins <b>which</b> one fired, not merely that
-    /// something threw (steering S2). Every subject-absence rule in this file throws the same type,
-    /// and so do the other two malformed-term rules — an evaluator that threw for any term whose
-    /// <c>Value</c> is null would pass all three while getting the flag case entirely wrong.
-    /// </remarks>
     [Theory]
     [InlineData(0.1, null)]
     [InlineData(null, 0.9)]
@@ -190,16 +179,12 @@ public sealed class ConditionContextRuleTests
     }
 
     /// <summary>
-    /// 🔒 A combinator with no operands is rejected by the <b>evaluator</b>, not only by
-    /// <see cref="EffectCondition.All"/>'s factory.
+    /// A combinator with no operands is rejected by the evaluator, not only by
+    /// <see cref="EffectCondition.All"/>'s factory. The factory guard is bypassable:
+    /// <see cref="EffectCondition.Operands"/> is an <c>init</c> property defaulting to an empty list,
+    /// so an object initialiser (and a JSON deserialiser binding init properties directly) skips it. An
+    /// empty <c>all</c> is silently vacuously true; an empty <c>any</c> would silently never fire.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ The factory guard is bypassable and will be bypassed: <see cref="EffectCondition.Operands"/>
-    /// is an <c>init</c> property defaulting to an empty list, so an object initialiser skips it — and
-    /// so will M2-02's JSON deserialiser, which binds init properties directly. An empty <c>all</c>
-    /// is vacuously true, so the effect would fire with its condition still plainly visible in the
-    /// data; an empty <c>any</c> is vacuously false and it would never fire again. Both are silent.
-    /// </remarks>
     [Theory]
     [InlineData(ConditionKind.ALL)]
     [InlineData(ConditionKind.ANY)]
@@ -222,13 +207,11 @@ public sealed class ConditionContextRuleTests
     }
 
     /// <summary>
-    /// A <c>null</c> operand inside a combinator is a hole in the tree, not `18` §1's ungated effect.
-    /// </summary>
-    /// <remarks>
+    /// A <c>null</c> operand inside a combinator is a hole in the tree, not an ungated effect.
     /// <c>IsSatisfied(null, …)</c> answers <c>true</c> — correctly, for an effect whose top-level
-    /// <c>"condition"</c> is <c>null</c>. Letting that reach inside a combinator would make an
-    /// <c>any</c> vacuously true, which is the same silent ungating one level down.
-    /// </remarks>
+    /// condition is <c>null</c> — so letting that reach inside a combinator would make an <c>any</c>
+    /// vacuously true, the same silent ungating one level down.
+    /// </summary>
     [Fact]
     public void A_null_operand_inside_a_combinator_fails_loudly()
     {
@@ -248,15 +231,11 @@ public sealed class ConditionContextRuleTests
     }
 
     /// <summary>
-    /// 🔒 A term carrying both a numeric value and a boolean one is rejected rather than answered on
-    /// the flag.
+    /// A term carrying both a numeric value and a boolean one is rejected rather than answered on the
+    /// flag. Without the check the flag branch wins silently: the term below would hold at any
+    /// non-zero HP, because a boolean comparison asks only whether the reading is non-zero, while the
+    /// data plainly asked for exactly 50%.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Without the check the flag branch simply wins: the term below would hold at <b>any</b>
-    /// non-zero HP, because a boolean comparison asks only whether the reading is non-zero — while
-    /// the data plainly asked for exactly 50%. Silent, and the wrong answer in the permissive
-    /// direction.
-    /// </remarks>
     [Fact]
     public void A_term_carrying_both_a_value_and_a_flag_fails_loudly()
     {
@@ -301,19 +280,14 @@ public sealed class ConditionContextRuleTests
         thrown.Message.ShouldContain("inverted", Case.Sensitive);
     }
 
-    // ------------------------------------------------------------------ the floor (steering S3)
+    // ------------------------------------------------------------------ the floor
 
     /// <summary>
-    /// 🔒 Every one of `18` §4's twenty-three functions reads something — none falls through to an
-    /// unhandled switch arm, and no function was added to <see cref="ConditionFunction"/> without an
-    /// implementation.
+    /// Every one of the twenty-three functions reads something — none falls through to an unhandled
+    /// switch arm, and no function was added to <see cref="ConditionFunction"/> without an
+    /// implementation. Driven by <c>Enum.GetValues</c>, so the subject set could silently empty; the
+    /// count is re-asserted here so that dependency is visible from the rule that relies on it.
     /// </summary>
-    /// <remarks>
-    /// Steering S3: driven by <c>Enum.GetValues</c>, so the subject set could silently empty. Its
-    /// floor is the equality in <c>EffectVocabularyCountTests.There_are_23_condition_functions</c>
-    /// against `18` §11's <em>"23 conditions = 20 + the three <c>ATTACKER_IS_*</c>"</em>, re-asserted
-    /// here so the dependency is visible from the rule that relies on it.
-    /// </remarks>
     [Fact]
     public void Every_one_of_the_twenty_three_functions_reads_a_value()
     {
@@ -350,10 +324,9 @@ public sealed class ConditionContextRuleTests
             {
                 var reading = ConditionEvaluator.Read(function, arguments, fullyPopulated);
 
-                // 🔒 And the reading is usable as a `18` §1.1 valueScale source — "fn: any condition
-                // function from §4". Asserted here rather than in a test of its own: StepsFor rejects
-                // exactly NaN, infinity and an out-of-int step count, so a separate test would be one
-                // that cannot fail while this loop passes.
+                // And the reading is usable as a valueScale source. Asserted here rather than in a
+                // test of its own: StepsFor rejects exactly NaN, infinity and an out-of-int step
+                // count, so a separate test would be one that cannot fail while this loop passes.
                 new ValueScale { Fn = function, Per = 0.01, Cap = null }.StepsFor(reading);
             }
             catch (Exception e)

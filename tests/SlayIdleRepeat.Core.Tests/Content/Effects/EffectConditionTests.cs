@@ -4,10 +4,9 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 
-/// <summary>`18` §4's condition trees — comparisons and the three combinators.</summary>
+/// <summary>Condition trees: comparisons and the three combinators.</summary>
 public sealed class EffectConditionTests
 {
-    /// <summary>`18` §4's worked condition, verbatim.</summary>
     [Fact]
     public void The_worked_all_condition_of_section_4_round_trips()
     {
@@ -31,7 +30,7 @@ public sealed class EffectConditionTests
         condition.Operands[1].Term!.Comparator.ShouldBe(ConditionComparator.EQ);
     }
 
-    /// <summary>`18` §7.10's <c>PK_STALWART</c> — an <c>any</c> over the two attacker predicates.</summary>
+    /// <summary>PK_STALWART: an <c>any</c> over the two attacker predicates.</summary>
     [Fact]
     public void PK_STALWART_gates_a_damage_taken_multiplier_on_an_any_over_attacker_predicates()
     {
@@ -105,7 +104,7 @@ public sealed class EffectConditionTests
         Should.Throw<ArgumentNullException>(() => EffectCondition.All(null!));
     }
 
-    /// <summary>The `18` §4 comparator vocabulary is complete and lower-cases to the JSON tokens.</summary>
+    /// <summary>The comparator vocabulary is complete and lower-cases to the JSON tokens.</summary>
     [Fact]
     public void The_comparators_lower_case_to_the_tokens_18_writes()
     {
@@ -115,7 +114,7 @@ public sealed class EffectConditionTests
             .ShouldBe(["between", "eq", "gt", "gte", "lt", "lte", "neq"]);
     }
 
-    /// <summary>Combinators nest — the tree has no depth rule in `18`, so none is imposed here.</summary>
+    /// <summary>Combinators nest; no depth rule is imposed.</summary>
     [Fact]
     public void Combinators_nest()
     {

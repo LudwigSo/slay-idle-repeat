@@ -1,18 +1,13 @@
 namespace SlayIdleRepeat.Contracts;
 
 /// <summary>
-/// The wire protocol version carried by every command request and response envelope
-/// (<c>14</c> §16.1).
+/// The wire protocol version carried by every command request and response envelope.
 /// </summary>
 /// <remarks>
-/// One of the three independent version numbers in this codebase:
-/// <list type="bullet">
-///   <item>the assembly SemVer lives in <c>Directory.Build.props</c> and moves on releases;</item>
-///   <item><see cref="PROTOCOL_VERSION"/> versions the envelope and lifecycle semantics;</item>
-///   <item><c>SlayIdleRepeat.Core.Model.Snapshots.SnapshotSchema.SchemaVersion</c> versions
-///         snapshot serialisation.</item>
-/// </list>
-/// They are never bumped together for tidiness.
+/// One of three independent version numbers in this codebase: the assembly SemVer in
+/// <c>Directory.Build.props</c>, <see cref="PROTOCOL_VERSION"/> for envelope/lifecycle
+/// semantics, and <c>SnapshotSchema.SchemaVersion</c> for snapshot serialisation. They
+/// are never bumped together.
 /// </remarks>
 public static class WireProtocol
 {
@@ -20,13 +15,11 @@ public static class WireProtocol
     /// The protocol version this build speaks.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Bump rule (<c>14</c> §16.1):</b> this integer versions the <i>envelope and lifecycle
-    /// semantics</i> of <c>14</c> §16 and nothing else. Bump it only on a wire-contract change.
-    /// Content changes ride the content hash (<c>14</c> §6) and never bump it; command additions
-    /// ride the command registry (<c>14</c> §2.3) and never bump it either.
-    /// <para>🔒 <b>Skew rule:</b> the server accepts its own version <c>N</c> and <c>N−1</c>.
-    /// Anything outside that window is rejected with <c>PROTOCOL_VERSION_UNSUPPORTED</c> and the
-    /// client shows the forced-update flow.</para>
+    /// Bump only on a wire-contract change to envelope/lifecycle semantics — content
+    /// changes ride the content hash and command additions ride the command registry,
+    /// neither bumps this. The server accepts its own version <c>N</c> and <c>N-1</c>;
+    /// anything outside that window is rejected with <c>PROTOCOL_VERSION_UNSUPPORTED</c>
+    /// and the client shows the forced-update flow.
     /// </remarks>
     public const int PROTOCOL_VERSION = 1;
 }

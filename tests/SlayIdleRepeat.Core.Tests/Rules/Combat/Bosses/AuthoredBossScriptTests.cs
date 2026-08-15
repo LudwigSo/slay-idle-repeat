@@ -8,24 +8,22 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 The authored boss data run through the engine that consumes it: `17` §1.2's nine coefficient
-/// rows, `17` §2-9's mechanics, and the eight authoring rules <see cref="BossEncounterBuilder"/>
-/// refuses on.
+/// The authored boss data run through the engine that consumes it: the nine coefficient rows, the
+/// authored mechanics, and the eight authoring rules <see cref="BossEncounterBuilder"/> refuses on.
 /// </summary>
 /// <remarks>
-/// `17` §11: <em>"All 8 bosses expressed purely in the effect DSL — zero bespoke boss code."</em> The
-/// content pipeline proves the data is valid JSON against the schemas; this proves the same data
-/// <b>builds into an encounter</b>, a different failure surface, because A1-A5, T1-T3 and O1 are
-/// engine rules no schema states.
+/// All bosses are expressed purely in the effect DSL, with zero bespoke boss code. The content
+/// pipeline proves the data is valid JSON against the schemas; this proves the same data builds
+/// into an encounter, a different failure surface, because A1-A5, T1-T3 and O1 are engine rules no
+/// schema states.
 /// <para>
-/// 🔒 Every negative case mutates an <em>authored</em> script rather than a fixture — one field
-/// changed, the rest as it is on disk — and names the marker rather than observing that something
-/// threw.
+/// Every negative case mutates an authored script rather than a fixture — one field changed, the
+/// rest as it is on disk — and names the marker rather than observing that something threw.
 /// </para>
 /// </remarks>
 public sealed class AuthoredBossScriptTests
 {
-    /// <summary>`17` §1.2 — the nine rows the table has, and the floor for every census below.</summary>
+    /// <summary>The nine rows the table has, and the floor for every census below.</summary>
     private const int AuthoredScriptCount = 9;
 
     private const string Thornmaw = "BOSS_THORNMAW";
@@ -47,13 +45,13 @@ public sealed class AuthoredBossScriptTests
     // ─────────────────────────────────────────────────────── the data builds, and there is data
 
     /// <summary>
-    /// 🔒 The headline: every authored script resolves and builds. A boss whose mechanics do not
+    /// The headline: every authored script resolves and builds. A boss whose mechanics do not
     /// resolve is a fight with its mechanics silently deleted, which the balance harness reads as the
     /// boss being weak.
     /// </summary>
     /// <remarks>
-    /// S3 — the subject set is floored at <see cref="AuthoredScriptCount"/>, without which a reader
-    /// returning an empty list makes this and every case below pass over nothing. 🔴 The named row
+    /// The subject set is floored at <see cref="AuthoredScriptCount"/>, without which a reader
+    /// returning an empty list makes this and every case below pass over nothing. The named row
     /// beside the count is why a count alone is not enough: these read the shipped file through
     /// <see cref="BossCatalogue"/>, so "nine of something" could be nine rows of a different document.
     /// </remarks>
@@ -76,10 +74,10 @@ public sealed class AuthoredBossScriptTests
         }
     }
 
-    /// <summary>🔒 `17` §1.2, transcribed. Every number here is one that section states.</summary>
+    /// <summary>Every coefficient here is transcribed, not derived.</summary>
     /// <remarks>
-    /// S6 — this is the governing rule for the whole task, so the rows are pinned literally rather
-    /// than derived from the file they are asserting about.
+    /// This is the governing rule for the whole task, so the rows are pinned literally rather than
+    /// derived from the file they are asserting about.
     /// </remarks>
     [Theory]
     [InlineData(Thornmaw, 1, 2.40, 0.80, 0.80, 0.70)]
@@ -104,8 +102,8 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 `17` §1.2 — <em>"Fixed authored inputs: power = 900, Level = 1 📐 — it does not use
-    /// EnemyPower(i)"</em>, and it is the only row that carries them.
+    /// The FTUE boss authors fixed power = 900 and Level = 1 rather than using EnemyPower(i), and
+    /// it is the only row that carries them.
     /// </summary>
     [Fact]
     public void Only_the_FTUE_row_carries_17_section_1_2s_fixed_authored_inputs()
@@ -128,7 +126,7 @@ public sealed class AuthoredBossScriptTests
         }
     }
 
-    /// <summary>🔒 `17` §1.2 — <em>"every boss uses the baseline"</em>, authored once.</summary>
+    /// <summary>Every boss uses the same secondary-stat baseline, authored once.</summary>
     [Fact]
     public void The_secondary_stats_are_17_section_1_2s_baseline()
     {
@@ -140,8 +138,8 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 `17` §1.2's <em>"never a base stat"</em>, from the other side: the two secondaries the
-    /// section names as phase mechanics are authored as effects on the scripts that own them.
+    /// From the other side: the two secondaries authored as phase mechanics rather than base stats
+    /// are authored as effects on the scripts that own them.
     /// </summary>
     [Fact]
     public void The_two_secondaries_17_section_1_2_calls_phase_mechanics_are_authored_as_effects()
@@ -157,27 +155,27 @@ public sealed class AuthoredBossScriptTests
             .Op.ShouldBe(EffectOp.FORCE_CRIT_NEXT);
     }
 
-    // ─────────────────────────────────────────────────────── 17 §2-9, transcribed
+    // ─────────────────────────────────────────────────────── the boss mechanics, transcribed
 
     /// <summary>
-    /// 🔒 `17` §2-9's authored magnitudes and periods, one row per mechanic — <b>the governing
-    /// assertion</b>: every number in the boss data has to trace to a `17` line, and until these rows
-    /// existed a single-token typo shipped green, because every other census here checks an op, a cap,
-    /// a scope or a sibling reference and never the number.
+    /// The authored magnitudes and periods, one row per mechanic — the governing assertion: every
+    /// number in the boss data has to trace to a documented line, and until these rows existed a
+    /// single-token typo shipped green, because every other census here checks an op, a cap, a
+    /// scope or a sibling reference and never the number.
     /// </summary>
     /// <remarks>
     /// <paramref name="value"/> is the effect's authored <c>value</c>, <paramref name="intervalSeconds"/>
     /// its <c>PERIODIC</c> period or <c>null</c> where the mechanic is not periodic. Both are read off
-    /// the shipped file; the expected numbers are quoted from `17`. 🔒 The row count is floored against
-    /// the data, so a mechanic added to <c>bosses.json</c> without a row here fails.
+    /// the shipped file. The row count is floored against the data, so a mechanic added to
+    /// <c>bosses.json</c> without a row here fails.
     /// </remarks>
     [Theory]
-    // 17 §2 — Thornmaw
+    // Thornmaw
     [InlineData("BOSS_THORNMAW_P2_ROOT", -0.40, 8.0, "§2: 'PERIODIC 8s — Root: hero ASPD -40% for 3 s'")]
     [InlineData("BOSS_THORNMAW_P3_BLOOM", 2.0, null, "§2: 'summons 2 SWARM adds'")]
     [InlineData("BOSS_THORNMAW_P3_REGROWTH", 2.0, 12.0, "§2: 'PERIODIC 12s — summons 2 more'")]
     [InlineData("BOSS_THORNMAW_P3_RAGE", 0.30, null, "§2: 'boss gains RAGE +30% ATK'")]
-    // 17 §3 — Gulgrot
+    // Gulgrot
     [InlineData("BOSS_GULGROT_P1_CROAK_POISON", 0.02, null, "§3: 'POISON (1 stack, 2% Max HP/s)'")]
     [InlineData("BOSS_GULGROT_P2_BOG_AIR", -0.35, null, "§3: 'Bog Air: hero HEAL% -35%'")]
     [InlineData("BOSS_GULGROT_P2_BELCH_FIRST", 0.02, 10.0, "§3: 'PERIODIC 10s — Belch: 2 POISON stacks'")]
@@ -185,7 +183,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData("BOSS_GULGROT_P3_GORGE_LIFESTEAL", 0.30, null, "§3: 'boss gains 30% Lifesteal'")]
     [InlineData("BOSS_GULGROT_P3_SPIT", 1.20, null, "§3: 'Spit: 120% ATK burst'")]
     [InlineData("BOSS_GULGROT_P3_SPIT_POISON", 0.02, null, "§3: 'and 1 POISON stack'")]
-    // 17 §4 — Ossuary King
+    // Ossuary King
     [InlineData("BOSS_OSSUARY_KING_P1_COURT", 2.0, null, "§4: 'summons 2 GRUNT skeletons'")]
     [InlineData("BOSS_OSSUARY_KING_P1_RECALL", 2.0, 15.0, "§4: 'PERIODIC 15s — resummons any dead ones'")]
     [InlineData("BOSS_OSSUARY_KING_P2_OSSIFY_WARD", 0.20, 14.0, "§4: 'PERIODIC 14s — a WARD equal to 20% of its Max HP'")]
@@ -193,22 +191,19 @@ public sealed class AuthoredBossScriptTests
     [InlineData("BOSS_OSSUARY_KING_P3_RISE_AGAIN", 0.25, null, "§4: 'boss returns to 25% HP'")]
     [InlineData("BOSS_OSSUARY_KING_P3_RISEN_ATK", 0.40, null, "§4: 'ATK +40%'")]
     [InlineData("BOSS_OSSUARY_KING_P3_RISEN_ASPD", 0.25, null, "§4: 'ASPD +25%'")]
-    // 17 §5 — Cindermaw
+    // Cindermaw
     [InlineData("BOSS_CINDERMAW_SMOULDER_BURN", 0.08, null, "§5: 'BURN (8% boss ATK/s, 3 s, stacks to 5)'")]
     [InlineData("BOSS_CINDERMAW_P2_MAGMA_VENT", 1.80, 9.0, "§5: 'PERIODIC 9s — Magma Vent: 180% ATK'")]
-    // 🔴 M2-R3 errata: BOSS_CINDERMAW_P2_VENT_REFRESH and _P3_VENT_REFRESH shipped with NO value at
-    // all — an EXTEND_STATUS whose seconds (18 §2.3: "the seconds come from value, not
-    // duration.seconds") were simply never authored, which faulted the instant either fired. 17 §5
-    // states only "refreshes all BURN stacks", no number; 3.0 is BOSS_CINDERMAW_SMOULDER_BURN's own
-    // per-application BURN duration two rows up, so "refresh" is read as "restore the fresh window
-    // that BURN would carry if applied now" rather than an unauthored magnitude of its own.
+    // Errata fix: the VENT_REFRESH rows shipped with no EXTEND_STATUS value at all, so the refresh
+    // never fired. No number is authored for "refreshes all BURN stacks", so 3.0 is read from
+    // SMOULDER_BURN's own per-application BURN duration two rows up.
     [InlineData("BOSS_CINDERMAW_P2_VENT_REFRESH", 3.00, 9.0, "§5: 'and refreshes all BURN stacks' (M2-R3: matches SMOULDER_BURN's own 3 s)")]
     [InlineData("BOSS_CINDERMAW_P2_ERUPTION_DR", 0.20, null, "§5: 'boss DR% +20%'")]
     [InlineData("BOSS_CINDERMAW_P3_MAGMA_VENT", 1.80, 7.0, "§5: 'PERIODIC 7s — Magma Vent continues'")]
     [InlineData("BOSS_CINDERMAW_P3_VENT_REFRESH", 3.00, 7.0, "§5: 'refreshes all BURN stacks' (M2-R3, phase 3's copy of the same fix)")]
     [InlineData("BOSS_CINDERMAW_P3_OVERHEAT_ATK", 0.60, null, "§5: 'Overheat: boss ATK +60%'")]
     [InlineData("BOSS_CINDERMAW_P3_OVERHEAT_DEF", -0.40, null, "§5: 'DEF -40%'")]
-    // 17 §6 — Rimehold
+    // Rimehold
     [InlineData("BOSS_RIMEHOLD_P1_CHILL", -0.25, 12.0, "§6: 'PERIODIC 12s — Chill: hero ASPD -25% for 4 s'")]
     [InlineData("BOSS_RIMEHOLD_P2_GLACIAL_ARMOUR", 0.60, null, "§6: 'boss DEF +60%'")]
     [InlineData("BOSS_RIMEHOLD_P2_SHATTERBACK", 0.25, null, "§6: 'Shatterback: reflects 25% of the hit'")]
@@ -216,7 +211,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData("BOSS_RIMEHOLD_P3_COLLAPSE", 2.20, 10.0, "§6: 'PERIODIC 10s — Collapse: 220% ATK'")]
     [InlineData("BOSS_RIMEHOLD_P3_ICE_SHARDS", 2.0, 10.0, "§6: 'and 2 SWARM ice shards spawn'")]
     [InlineData("BOSS_RIMEHOLD_P3_AVALANCHE_ASPD", 0.40, null, "§6: 'boss ASPD +40%'")]
-    // 17 §7 — Cogitator Prime
+    // Cogitator Prime
     [InlineData("BOSS_COGITATOR_PRIME_P1_ESCALATION_ATK", 1.02, 5.0, "§7: '+2% ATK ... every 5 s' (R1: the value IS the multiplier)")]
     [InlineData("BOSS_COGITATOR_PRIME_P1_ESCALATION_ASPD", 1.02, 5.0, "§7: 'and +2% ASPD every 5 s'")]
     [InlineData("BOSS_COGITATOR_PRIME_P2_ESCALATION_ATK", 1.02, 5.0, "§7: Escalation 'never resets for the whole fight'")]
@@ -226,7 +221,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData("BOSS_COGITATOR_PRIME_P3_OVERCLOCK_ATK", 1.04, 5.0, "§7: 'Escalation rate doubles to +4% per 5 s'")]
     [InlineData("BOSS_COGITATOR_PRIME_P3_OVERCLOCK_ASPD", 1.04, 5.0, "§7: the same, for ASPD")]
     [InlineData("BOSS_COGITATOR_PRIME_P3_PISTON_SLAM", 2.00, 8.0, "§7: 'PERIODIC 8s — Piston Slam: 200% ATK'")]
-    // 17 §8 — Sporequeen Vell
+    // Sporequeen Vell
     [InlineData("BOSS_SPOREQUEEN_VELL_P1_POLLINATION", -0.12, 6.0, "§8: 'PERIODIC 6s — 1 SPORE stack (hero HEAL% -12% each)'")]
     [InlineData("BOSS_SPOREQUEEN_VELL_P2_BLOOM_COURT", 2.0, null, "§8: 'summons 2 CASTER sporelings'")]
     [InlineData("BOSS_SPOREQUEEN_VELL_P2_BURST_CAP", 1.50, 12.0, "§8: 'PERIODIC 12s — Burst Cap: 150% ATK AoE'")]
@@ -234,7 +229,7 @@ public sealed class AuthoredBossScriptTests
     [InlineData("BOSS_SPOREQUEEN_VELL_P2_BURST_CAP_POISON_SECOND", 0.02, 12.0, "§8: the second of the two")]
     [InlineData("BOSS_SPOREQUEEN_VELL_P3_ROT", 0.015, 1.0, "§8: 'hero takes 1.5% Max HP true damage per second'")]
     [InlineData("BOSS_SPOREQUEEN_VELL_P3_REGROW", 1.0, 10.0, "§8: 'PERIODIC 10s — resummons 1 sporeling'")]
-    // 17 §9 — the Dicelord
+    // The Dicelord
     [InlineData("BOSS_DICELORD_P1_FATE_BOSS_ATK", 0.25, null, "§9: '1-2: boss gains ATK +25% for 8 s'")]
     [InlineData("BOSS_DICELORD_P1_FATE_HERO_ATK", 0.25, null, "§9: '3-4: hero gains ATK +25% for 8 s'")]
     [InlineData("BOSS_DICELORD_P1_FATE_BOTH_ASPD", 0.30, null, "§9: '5-6: both gain ASPD +30% for 8 s'")]
@@ -270,8 +265,8 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 S3 — the transcription theory above covers <b>every</b> authored effect that carries a
-    /// value, so a mechanic added to <c>bosses.json</c> cannot escape it by simply not having a row.
+    /// The transcription theory above covers every authored effect that carries a value, so a
+    /// mechanic added to <c>bosses.json</c> cannot escape it by simply not having a row.
     /// </summary>
     /// <remarks>
     /// Without this, the theory is a list somebody has to remember to extend — and the failure mode
@@ -308,13 +303,10 @@ public sealed class AuthoredBossScriptTests
 
     // ─────────────────────────────────────────────────────── the adds power fraction (the M2-12 gap)
 
-    /// <summary>
-    /// 🔒 `17` §1 — the adds fraction is <b>per boss</b>, present on exactly the scripts that summon,
-    /// and inside the 25-35% band.
-    /// </summary>
+    /// <summary>The adds power fraction is per boss, present on exactly the scripts that summon, and inside the 25-35% band.</summary>
     /// <remarks>
-    /// 🔴 <b>Both directions, because either alone is satisfiable by the wrong data.</b> "In band on
-    /// every script that has one" passes on a file where nobody authored one at all; "present on the
+    /// Both directions, because either alone is satisfiable by the wrong data. "In band on every
+    /// script that has one" passes on a file where nobody authored one at all; "present on the
     /// summoners" passes on a file that authors 0.60. The pairing with the SUMMON census is what
     /// makes it a statement about this data.
     /// </remarks>
@@ -354,7 +346,7 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 The evidence that decided per-boss over per-mechanic: no boss summons two archetypes, so
+    /// The evidence that decided per-boss over per-mechanic: no boss summons two archetypes, so
     /// no fight ever needs two fractions.
     /// </summary>
     [Fact]
@@ -385,18 +377,15 @@ public sealed class AuthoredBossScriptTests
         summoners.ShouldBe(5, "17 §2, §4, §6, §7 and §8");
     }
 
-    /// <summary>
-    /// 🔒 <b>R3</b> — every effect a phase <em>entry</em> grants for a duration is <c>PHASE</c>-scoped,
-    /// and nothing anywhere uses the retired 999-second idiom.
-    /// </summary>
+    /// <summary>Every effect a phase entry grants for a duration is <c>PHASE</c>-scoped, and nothing uses the retired 999-second idiom.</summary>
     /// <remarks>
-    /// ⚠️ The subject set is a structural proxy for `17` §1.1's <c>AURA</c>, not that list: an
-    /// <c>ON_PHASE_ENTER</c> effect carrying a duration is what R3 is decidable over, and two of the
-    /// thirteen auras are authored as <c>PERIODIC</c> and fall outside <b>by construction</b> —
+    /// The subject set is a structural proxy for <c>AURA</c>, not that list: an
+    /// <c>ON_PHASE_ENTER</c> effect carrying a duration is what this rule is decidable over, and two
+    /// of the thirteen auras are authored as <c>PERIODIC</c> and fall outside by construction —
     /// Escalation must survive every transition (a <c>BATTLE</c> scope) and Rot is a per-second drain.
     /// <para>
-    /// 🔴 The second assertion is stated over <b>every</b> authored duration, not only the auras,
-    /// because `18` §7.8's retired idiom is reachable from any of them.
+    /// The second assertion is stated over every authored duration, not only the auras, because the
+    /// retired idiom is reachable from any of them.
     /// </para>
     /// </remarks>
     [Fact]
@@ -441,11 +430,11 @@ public sealed class AuthoredBossScriptTests
 
     // ─────────────────────────────────────────────────────── the eight refusals, against this data
 
-    /// <summary>🔒 <b>A1</b> — `17` §1's <em>"exactly 3"</em>, numbered 1, 2, 3 in order.</summary>
+    /// <summary>A1: exactly 3 phase blocks, numbered 1, 2, 3 in order.</summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes.</b> Dropping a block and re-ordering two are different mistakes, and a rule
-    /// that only counted would pass the second. The negative control is the unmutated script, which
-    /// the first case above builds.
+    /// Two shapes: dropping a block and re-ordering two are different mistakes, and a rule that
+    /// only counted would pass the second. The negative control is the unmutated script, which the
+    /// first case above builds.
     /// </remarks>
     [Theory]
     [InlineData(true, "a block is missing")]
@@ -466,11 +455,11 @@ public sealed class AuthoredBossScriptTests
         thrown.Message.ShouldContain(Thornmaw, Case.Sensitive, "which boss");
     }
 
-    /// <summary>🔒 <b>A2</b> — a mechanic naming an effect the script does not declare.</summary>
+    /// <summary>A2: a mechanic naming an effect the script does not declare.</summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes: a typo, and an id that is real content of ANOTHER boss.</b> The second is
-    /// the case a global effect registry would have accepted, and it is the one that proves the
-    /// scope is the script rather than the repository.
+    /// Two shapes: a typo, and an id that is real content of another boss. The second is the case a
+    /// global effect registry would have accepted, and it is the one that proves the scope is the
+    /// script rather than the repository.
     /// </remarks>
     [Theory]
     [InlineData("BOSS_THORNMAW_P2_TYPO", "an id nothing declares")]
@@ -486,9 +475,7 @@ public sealed class AuthoredBossScriptTests
         thrown.Message.ShouldContain(outsider, Case.Sensitive, "which mechanic");
     }
 
-    /// <summary>
-    /// 🔒 <b>A3</b> — no script may author one of the three engine built-ins, and none does.
-    /// </summary>
+    /// <summary>A3: no script may author one of the three engine built-ins, and none does.</summary>
     /// <remarks>
     /// The census is the positive half and the theory is the negative half. Both matter: the census
     /// alone passes on a file with no effects at all, and the refusal alone says nothing about the
@@ -509,7 +496,7 @@ public sealed class AuthoredBossScriptTests
         thrown.Message.ShouldContain(builtIn, Case.Sensitive, "which built-in");
     }
 
-    /// <summary>🔒 <b>A3</b>, the positive half: no authored script names a built-in anywhere.</summary>
+    /// <summary>A3, the positive half: no authored script names a built-in anywhere.</summary>
     [Fact]
     public void No_authored_script_names_an_engine_built_in()
     {
@@ -534,8 +521,8 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 <b>A4</b> — `05` §3.1 sweeps <c>ON_BATTLE_START</c> at pre-tick 0b and enters phase 1 at
-    /// 0c, so one in a later block lands while the boss is still in phase 1.
+    /// A4: <c>ON_BATTLE_START</c> is swept before phase 1 is entered, so one authored in a later
+    /// block would land while the boss is still in phase 1.
     /// </summary>
     [Fact]
     public void A4_refuses_an_ON_BATTLE_START_outside_phase_1()
@@ -560,13 +547,10 @@ public sealed class AuthoredBossScriptTests
         thrown.Message.ShouldContain(opener.Id, Case.Sensitive, "which mechanic");
     }
 
-    /// <summary>
-    /// 🔒 <b>A5</b> — `17` §1 caps a boss's adds at 3 alive, and an <em>absent</em> cap is refused
-    /// too, because an absent one means no cap at all.
-    /// </summary>
+    /// <summary>A5: adds are capped at 3 alive, and an absent cap is refused too, because absent means no cap at all.</summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes, and the absent one is the load-bearing case.</b> A rule that only compared
-    /// numbers would pass a boss that simply omitted the key and then spawned adds without a ceiling.
+    /// Two shapes, and the absent one is the load-bearing case: a rule that only compared numbers
+    /// would pass a boss that simply omitted the key and then spawned adds without a ceiling.
     /// </remarks>
     [Theory]
     [InlineData(null, "no cap at all")]
@@ -592,15 +576,13 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 <b>A5</b>, the positive half: every authored summon caps at the standing add count its own
-    /// `17` section states, and never above `17` §1's ceiling of three.
+    /// A5, the positive half: every authored summon caps at its own fight's standing add count, and
+    /// never above the ceiling of three.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Not "3 everywhere".</b> `17` §1's <em>"capped at 3 alive at once"</em> is a ceiling the
-    /// builder enforces, and a summon authored at 3 tops the field up to 3 whatever its own fight
-    /// says — so `17` §4's <em>"summons 2 skeletons … resummons any dead ones"</em> would quietly grow
-    /// a third. `17` §2 writes <em>"(max 3 alive)"</em> in so many words and `17` §6 states no standing
-    /// count at all; those two are the only 3s.
+    /// Not "3 everywhere": the ceiling is what the builder enforces, and a summon authored at 3
+    /// tops the field up to 3 whatever its own fight says — so a fight that only ever summons 2
+    /// would quietly grow a third if authored wrong. Only two fights actually author 3.
     /// </remarks>
     [Theory]
     [InlineData("BOSS_THORNMAW_P3_BLOOM", 3, "§2: '(max 3 alive)', stated")]
@@ -625,7 +607,7 @@ public sealed class AuthoredBossScriptTests
             BossAdds.MaxAlive, "17 §1's ceiling, which A5 refuses anything above");
     }
 
-    /// <summary>🔒 S3 — the theory above covers every authored summon, not a subset of them.</summary>
+    /// <summary>The theory above covers every authored summon, not a subset of them.</summary>
     [Fact]
     public void Every_authored_summon_has_a_cap_row()
     {
@@ -635,14 +617,11 @@ public sealed class AuthoredBossScriptTests
             .ShouldBe(8, "17 §2, §4, §6, §7 and §8 author eight summons between them");
     }
 
-    /// <summary>
-    /// 🔒 <b>T1</b> — `17` §1's 1.0-1.5 s band, and `05` §3's fixed tick: a legal wind-up is a whole
-    /// number of ticks inside the band.
-    /// </summary>
+    /// <summary>T1: the 1.0-1.5 s band and the fixed tick grid — a legal wind-up is a whole number of ticks inside the band.</summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes, because the band and the tick grid are different constraints.</b> 0.8 s is
-    /// a whole 16 ticks and outside the band; 1.23 s is inside the band and 24.6 ticks, which points
-    /// at neither of two ticks.
+    /// Two shapes, because the band and the tick grid are different constraints. 0.8 s is a whole
+    /// 16 ticks and outside the band; 1.23 s is inside the band and 24.6 ticks, which points at
+    /// neither of two ticks.
     /// </remarks>
     [Theory]
     [InlineData(0.8, "a whole number of ticks, but outside 17 §1's band")]
@@ -659,8 +638,8 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 <b>T2</b> — the period must exceed the wind-up, or firing k+1 is announced before firing k
-    /// lands and two wind-ups become indistinguishable in a log that IS the replay.
+    /// T2: the period must exceed the wind-up, or firing k+1 is announced before firing k lands and
+    /// two wind-ups become indistinguishable in a log that is the replay.
     /// </summary>
     [Fact]
     public void T2_refuses_a_wind_up_at_least_as_long_as_the_period()
@@ -683,18 +662,14 @@ public sealed class AuthoredBossScriptTests
         thrown.Message.ShouldContain("T2", Case.Sensitive, "the period-versus-lead marker");
     }
 
-    /// <summary>
-    /// 🔒 <b>T3</b> — a periodic damaging mechanic whose period leaves room for a wind-up must carry
-    /// one. `17` §1: <em>"they must be able to read what is happening, or the fight feels
-    /// arbitrary."</em>
-    /// </summary>
+    /// <summary>T3: a periodic damaging mechanic whose period leaves room for a wind-up must carry one.</summary>
     [Fact]
     public void T3_refuses_a_damaging_periodic_that_authors_no_wind_up()
     {
         var authored = Catalogue.Of(Dicelord);
         var blocks = authored.Script.Phases.ToList();
 
-        // 17 §9's All In, stripped of the 1.5 s 17 §9 authors for it.
+        // All In, stripped of its authored 1.5 s wind-up.
         var stripped = blocks[2].Mechanics
             .Select(m => string.Equals(m.EffectId, "BOSS_DICELORD_P3_ALL_IN", StringComparison.Ordinal)
                 ? new BossMechanic(m.EffectId)
@@ -711,8 +686,8 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 <b>T1/T3</b>, the positive half: every authored wind-up is inside `17` §1's band and a whole
-    /// number of ticks, and `17`'s four stated leads are transcribed.
+    /// T1/T3, the positive half: every authored wind-up is inside the band and a whole number of
+    /// ticks, and the four authored leads are transcribed.
     /// </summary>
     [Fact]
     public void Every_authored_wind_up_is_in_17_section_1s_band_and_a_whole_number_of_ticks()
@@ -735,14 +710,14 @@ public sealed class AuthoredBossScriptTests
             }
         }
 
-        // 🔴 EXACTLY eight, not "at least". A floor of seven passes on data with one wind-up deleted,
-        // and "17 §1 requires a wind-up on every damaging mechanic" is exactly what that would break.
+        // Exactly eight, not "at least": a floor of seven passes on data with one wind-up deleted,
+        // which is exactly the defect "every damaging mechanic needs a wind-up" is meant to catch.
         leads.ShouldBe(
             8,
             "17 §2 (Root), §3 (Belch), §5 (Magma Vent, twice — phases 2 and 3), §6 (Collapse), " +
             "§7 (Piston Slam), §8 (Burst Cap) and §9 (All In)");
 
-        // 17's own four stated leads, transcribed rather than inferred.
+        // The four authored leads, transcribed rather than inferred.
         Lead(Thornmaw, 2, "BOSS_THORNMAW_P2_ROOT")
             .ShouldBe(1.2, "17 §2: 'vines coil around the hero's feet 1.2 s before'");
         Lead(Gulgrot, 2, "BOSS_GULGROT_P2_BELCH_FIRST")
@@ -753,11 +728,10 @@ public sealed class AuthoredBossScriptTests
             .ShouldBe(1.5, "17 §9: '300% ATK single hit, telegraphed 1.5 s'");
     }
 
-    /// <summary>🔒 <b>O1</b> — every <c>RANDOM_OUTCOME</c> row names a sibling of its own script.</summary>
+    /// <summary>O1: every <c>RANDOM_OUTCOME</c> row names a sibling of its own script.</summary>
     /// <remarks>
-    /// 🔴 <b>Two shapes, on <c>BossEncounterBuilderTests</c>' precedent: an id nothing declares, and
-    /// a real effect id belonging to another boss</b> — the second being what a registry would have
-    /// accepted.
+    /// Two shapes: an id nothing declares, and a real effect id belonging to another boss — the
+    /// second being what a registry would have accepted.
     /// </remarks>
     [Theory]
     [InlineData("BOSS_DICELORD_P1_FATE_TYPO", "an id nothing declares")]
@@ -785,15 +759,15 @@ public sealed class AuthoredBossScriptTests
     // ─────────────────────────────────────────────────────── R21, and the Dicelord's tables
 
     /// <summary>
-    /// 🔒 <b>R21</b> — `17` §9's <em>"every 6th attack the boss makes is an automatic critical hit
-    /// for ×3"</em>, and why the authored multiplier is 2.0 and not 3.0.
+    /// R21: every 6th attack the boss makes is an automatic critical hit for x3, and why the
+    /// authored multiplier is 2.0 and not 3.0.
     /// </summary>
     /// <remarks>
-    /// `05` §4 step 4 applies <c>dmg *= (1 + CDMG)</c> and `17` §1.2 fixes a boss's CDMG at 0.50, so
-    /// a forced crit is already ×1.5. Step 2 applies the attack multiplier to <c>raw</c>. The product
-    /// is what `17` §9 asks for, and it is pinned <b>numerically from the authored values</b> rather
-    /// than restated as a literal — a <c>const</c> would be folded by the compiler and would pin
-    /// nothing about this data.
+    /// The damage step applies <c>dmg *= (1 + CDMG)</c> and a boss's CDMG is fixed at 0.50, so a
+    /// forced crit is already x1.5; the attack-multiplier step applies on top of that. The product
+    /// is what's wanted, and it is pinned numerically from the authored values rather than restated
+    /// as a literal — a <c>const</c> would be folded by the compiler and would pin nothing about
+    /// this data.
     /// </remarks>
     [Fact]
     public void R21_the_every_sixth_attack_lands_at_exactly_three_times_damage()
@@ -819,8 +793,8 @@ public sealed class AuthoredBossScriptTests
     }
 
     /// <summary>
-    /// 🔒 `17` §9 and the M2 kickoff — one visible d6 per phase, and phase 2's table is the ruled
-    /// one: <em>1-4 boss buff, 5-6 both buff</em>, the hero-favourable outcome removed.
+    /// One visible d6 per phase, and phase 2's table is the ruled one: 1-4 boss buff, 5-6 both
+    /// buff, the hero-favourable outcome removed.
     /// </summary>
     [Fact]
     public void The_Roll_of_Fate_tables_are_a_d6_in_both_phases()

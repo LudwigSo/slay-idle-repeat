@@ -6,18 +6,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
 /// <summary>
-/// 🔒 `03` §1.1 / M3-02 — <see cref="MovementEngine"/>'s stepwise traversal, over small,
-/// hand-authored <see cref="BoardGraph.FromLayout"/> graphs so every rule (junction pause,
-/// stage-end clamp, boss-exact, Portal's campfire clamp) is exercised against a KNOWN layout rather
-/// than a procedurally generated one.
+/// Tests <see cref="MovementEngine"/>'s stepwise traversal, over small, hand-authored
+/// <see cref="BoardGraph.FromLayout"/> graphs so every rule (junction pause, stage-end clamp,
+/// boss-exact, Portal's campfire clamp) is exercised against a KNOWN layout.
 /// </summary>
 public sealed class MovementEngineTests
 {
-    // ------------------------------------------------------------------------------------------
-    // Fixture: a straight run of 5 spine nodes, one stage, no junction — the negative control every
-    // rule below is checked AGAINST (steering S1: a shape that could never trigger the rule too).
-    // ------------------------------------------------------------------------------------------
-
+    // Fixture: a straight run of 5 spine nodes, one stage, no junction — the negative control
+    // every rule below is checked against.
     private static BoardGraph LinearFiveNodeBoard()
     {
         var nodes = new[]
@@ -74,19 +70,16 @@ public sealed class MovementEngineTests
         Should.Throw<ArgumentOutOfRangeException>(() => MovementEngine.Advance(board, new NodeId(0), -1));
     }
 
-    // ------------------------------------------------------------------------------------------
     // Fixture: N0 -> J (junction) -> { Continue: N2 -> N3 ; Branch: B0 -> B1 -> N3 (rejoin) },
     // all stage 1. The branch's own linear indices mirror the spine's at equal forward distance
-    // from the junction (03 §1.1), exactly as BoardGenerator builds one.
-    // ------------------------------------------------------------------------------------------
-
+    // from the junction, exactly as BoardGenerator builds one.
     private static (BoardGraph Board, NodeId N0, NodeId J, NodeId N2, NodeId N3, NodeId B0, NodeId B1) JunctionBoard()
     {
         var n0 = new BoardNode(new NodeId(0), TileKind.Enemy, 0, 1);
         var j = new BoardNode(new NodeId(1), TileKind.Enemy, 1, 1);
         var n2 = new BoardNode(new NodeId(2), TileKind.Enemy, 2, 1);
         var n3 = new BoardNode(new NodeId(3), TileKind.Enemy, 3, 1);
-        var b0 = new BoardNode(new NodeId(4), TileKind.Shrine, 2, 1); // same linear index as n2 (03 §1.1)
+        var b0 = new BoardNode(new NodeId(4), TileKind.Shrine, 2, 1); // same linear index as n2
         var b1 = new BoardNode(new NodeId(5), TileKind.Treasure, 3, 1); // same linear index as n3
 
         var preview = new ForkPreview(ForkLabel.Sheltered, new[] { TileKind.Shrine, TileKind.Treasure });
@@ -160,7 +153,7 @@ public sealed class MovementEngineTests
         edges[1].Kind.ShouldBe(EdgeKind.Branch);
         edges[1].To.ShouldBe(b0);
 
-        // Resuming after each choice with 1 remaining step lands where 03 §1.1 says it must.
+        // Resuming after each choice with 1 remaining step lands where it must.
         MovementEngine.Advance(board, edges[0].To, 0).Node.ShouldBe(n2);
         MovementEngine.Advance(board, edges[1].To, 1).Node.ShouldBe(b1);
     }
@@ -176,12 +169,9 @@ public sealed class MovementEngineTests
         result.PausedAtJunction.ShouldBeFalse();
     }
 
-    // ------------------------------------------------------------------------------------------
     // Fixture: stage-end clamp and the boss-exact rule.
     // Stage 1: N0 -> N1 (last node of stage 1) -> M0 (first node of stage 2, DIFFERENT stage).
     // Stage 3: S0 -> S1 (last node of stage 3) -> Boss (BossStage, Tile.Boss).
-    // ------------------------------------------------------------------------------------------
-
     private static (BoardGraph Board, NodeId N0, NodeId N1, NodeId M0) StageBoundaryBoard()
     {
         var n0 = new BoardNode(new NodeId(0), TileKind.Enemy, 0, 1);
@@ -280,12 +270,9 @@ public sealed class MovementEngineTests
         result.ReachedBoss.ShouldBeFalse();
     }
 
-    // ------------------------------------------------------------------------------------------
     // Portal's extra pre-boss campfire clamp (stage 3 only). Layout:
     // S0 -> S1 -> S2 -> S3 -> Camp (campfire, bossLinearIndex - 2) -> S5 (stage 3's last node) -> Boss.
     // Room for a full 3-6 draw from S0 to land short of, on, or past the campfire.
-    // ------------------------------------------------------------------------------------------
-
     private static (BoardGraph Board, NodeId S0, NodeId S3, NodeId Camp, NodeId Boss) PortalStage3Board()
     {
         var s0 = new BoardNode(new NodeId(0), TileKind.Enemy, 0, 3);

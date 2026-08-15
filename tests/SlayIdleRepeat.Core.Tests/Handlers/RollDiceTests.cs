@@ -8,8 +8,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
 /// <summary>
-/// 🔒 `04` §§1,3,4 / M3-04 — <c>ROLL_DICE</c>: draws against the Fair-Dice bag, moves the run, and
-/// commits exactly one <c>dice</c> stream draw per face rolled.
+/// ROLL_DICE: draws against the Fair-Dice bag, moves the run, and commits exactly one dice stream
+/// draw per face rolled.
 /// </summary>
 public sealed class RollDiceTests
 {
@@ -63,10 +63,8 @@ public sealed class RollDiceTests
     }
 
     /// <summary>
-    /// 🔒 Not a rejection — `30` §4.1 makes loading the right slice the Application layer's job, so
-    /// every <c>CommandKind.Run</c> row but <c>START_RUN</c> throws on a run-less slice
-    /// (<c>GameRules.Execute</c>'s own unconditional guard). ROLL_DICE carries no
-    /// <c>CommandRegistration.OpensRun</c> exemption, so it is one of the 18 rows still governed by it.
+    /// Not a rejection: every CommandKind.Run row but START_RUN throws on a run-less slice, and
+    /// ROLL_DICE carries no OpensRun exemption.
     /// </summary>
     [Fact]
     public void Rolling_on_a_run_less_slice_is_a_defect_not_a_rejection()

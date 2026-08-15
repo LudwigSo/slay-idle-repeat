@@ -6,19 +6,9 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 `18` §2.5 — the combat→run bridge. The simulator marks a consequence for the run and never
-/// resolves it.
+/// The combat-to-run bridge: the simulator marks a consequence for the run and never resolves it.
+/// What is tested here is the encoding and the emission contract.
 /// </summary>
-/// <remarks>
-/// The sanctioned case is `17` §9's Scramble: a <c>PERIODIC 14 s</c> boss mechanic that replaces one of
-/// the hero's die faces with <c>Void</c> — <em>"purely cosmetic during combat, but it persists into the
-/// remainder of the run if the player survives"</em>.
-/// <para>
-/// 🔒 Nothing consumes these in M2, and that is the finished state: draining the queue is M3's and
-/// discarding it in a duel is M2-14's. What is tested here is the <b>encoding and the emission
-/// contract</b>.
-/// </para>
-/// </remarks>
 public sealed class RunEffectQueuedTests
 {
     private const byte Dicelord = CombatActor.FirstEnemy;
@@ -50,14 +40,9 @@ public sealed class RunEffectQueuedTests
     }
 
     /// <summary>
-    /// 🔒 The target is <see cref="CombatActor.None"/>, not an actor: `18` §5's <c>RUN</c> target is
-    /// the run itself, and a run/board op has no victim in the arena.
+    /// The target is <see cref="CombatActor.None"/>, not an actor: a run/board op has no victim in
+    /// the arena, and <c>0</c> — the obvious "no target" default — is the hero.
     /// </summary>
-    /// <remarks>
-    /// Pinned because <c>0</c> — the obvious "no target" — is the <b>hero</b>, so an author reaching
-    /// for a default would silently make every queued run effect look like something that happened
-    /// to the player.
-    /// </remarks>
     [Fact]
     public void A_queued_run_effect_targets_no_actor()
     {
@@ -68,10 +53,7 @@ public sealed class RunEffectQueuedTests
         CombatActor.IsActor(log.Events[^1].TargetId).ShouldBeFalse();
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.5 — <em>"the run controller applies the queued ops <b>in log order</b>"</em>. The
-    /// queue is the log's <c>RunEffectQueued</c> entries, read front to back.
-    /// </summary>
+    /// <summary>The queue is the log's <c>RunEffectQueued</c> entries, read front to back.</summary>
     [Fact]
     public void The_queue_is_the_log_read_in_order()
     {
@@ -90,9 +72,8 @@ public sealed class RunEffectQueuedTests
     }
 
     /// <summary>
-    /// 🔒 `05` §7 — <see cref="SimulationResult"/> has exactly five fields, and <b>none of them is a
-    /// queue</b>. The queue is the log; a sixth field would be a second copy of it, and only one of
-    /// the two would be inside <see cref="SimulationResult.LogHash"/>.
+    /// <see cref="SimulationResult"/> has exactly five fields, and none of them is a queue: the
+    /// queue is the log, and a sixth field would be a second copy outside <c>LogHash</c>.
     /// </summary>
     [Fact]
     public void The_result_carries_no_separate_queue_field()
@@ -110,14 +91,9 @@ public sealed class RunEffectQueuedTests
     }
 
     /// <summary>
-    /// The queued op is inside <see cref="SimulationResult.LogHash"/>, like every other event — so
-    /// a client cannot add, drop or retarget a run effect without `11` §6 noticing.
+    /// The queued op is inside <see cref="SimulationResult.LogHash"/>, like every other event, so a
+    /// client cannot add, drop or retarget a run effect without the tamper check noticing.
     /// </summary>
-    /// <remarks>
-    /// This is the direct benefit of the queue being the log rather than a sixth field: a separate
-    /// list would have sat outside the hash, and Scramble's die-face replacement <em>"persists into
-    /// the remainder of the run"</em> — a run-affecting consequence outside the anti-tamper check.
-    /// </remarks>
     [Fact]
     public void A_queued_run_effect_moves_the_LogHash()
     {
@@ -141,16 +117,10 @@ public sealed class RunEffectQueuedTests
     }
 
     /// <summary>
-    /// 🔒 The effect index is stored verbatim across the whole <see cref="ushort"/> range —
-    /// including <c>0</c>, which is a legitimate <b>first effect</b> and not "no content".
+    /// The effect index is stored verbatim across the whole <see cref="ushort"/> range, including
+    /// <c>0</c>: <see cref="CombatLog.NoDataId"/> is also <c>0</c>, so a consumer that treated
+    /// <c>DataId == 0</c> as "names nothing" would silently drop the first effect's queued ops.
     /// </summary>
-    /// <remarks>
-    /// The zero case is the one that matters: <see cref="CombatLog.NoDataId"/> is also <c>0</c>, so
-    /// a consumer that treated <c>DataId == 0</c> as "names nothing" would silently drop the first
-    /// effect's queued ops. <see cref="CombatEvent"/>'s slot table states that
-    /// <see cref="CombatEvent.DataId"/>'s meaning is a function of
-    /// <see cref="CombatEvent.Type"/> alone.
-    /// </remarks>
     [Fact]
     public void The_effect_index_is_stored_verbatim_including_zero()
     {

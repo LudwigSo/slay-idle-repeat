@@ -23,9 +23,8 @@ public sealed class ShippedStoreTests
     }
 
     /// <summary>
-    /// 🔒 `15` §G / `20` §6 — the honest statement of what that green means today. Pinning the
-    /// coverage state, and not merely <c>Passed</c>, is what stops "0 delivered, 0 records, all
-    /// clear" being read as "1,048 assets, all documented".
+    /// The honest statement of what that green means today: pinning the coverage state, not merely
+    /// <c>Passed</c>, stops "0 delivered, all clear" being read as "1,048 assets, all documented".
     /// </summary>
     [Fact]
     public void That_pass_is_over_zero_deliveries_and_the_report_says_so()
@@ -57,10 +56,7 @@ public sealed class ShippedStoreTests
         DeliveryDeclaration.AwaitingFirstDelivery.ShouldBeTrue();
     }
 
-    /// <summary>
-    /// 🔒 `15` §G / `20` §2.1 — a missing store must not read as an empty one. The whole gate turns
-    /// on that distinction, so it is asserted rather than assumed.
-    /// </summary>
+    /// <summary>A missing store must not read as an empty one — the whole gate turns on that distinction.</summary>
     [Fact]
     public void A_missing_store_is_a_loud_failure()
     {
@@ -95,9 +91,8 @@ public sealed class ShippedStoreTests
     }
 
     /// <summary>
-    /// 🔒 `15` §G — the store is flat. A record one directory deep would be loaded by nothing and
-    /// reported by nothing, which is a quiet place to hide a record in a store whose whole premise
-    /// is that a missing one is loud.
+    /// The store is flat. A record one directory deep would be loaded by nothing and reported by
+    /// nothing — a quiet place to hide a record in a store whose whole premise is loudness.
     /// </summary>
     [Fact]
     public void A_record_filed_in_a_subdirectory_is_refused_rather_than_ignored()
@@ -113,8 +108,8 @@ public sealed class ShippedStoreTests
     }
 
     /// <summary>
-    /// `15` §G / `20` §2.1 — a populated store round-trips through disk. The cases above prove the
-    /// empty state is honest; this proves the store works when it stops being empty.
+    /// A populated store round-trips through disk. The cases above prove the empty state is honest;
+    /// this proves the store works when it stops being empty.
     /// </summary>
     [Fact]
     public void A_populated_store_loads_back_every_record_it_was_written_with()
@@ -137,8 +132,8 @@ public sealed class ShippedStoreTests
     }
 
     /// <summary>
-    /// The end-to-end shape M8-02 onwards will be in: assets on disk, records beside them, and
-    /// `15` §G's written licence confirmation as the only thing left between them and a green gate.
+    /// The end-to-end shape M8-02 onwards will be in: assets on disk, records beside them, and a
+    /// written licence confirmation as the only thing left between them and a green gate.
     /// </summary>
     [Fact]
     public void A_delivered_asset_with_a_record_still_fails_until_the_licence_is_confirmed_in_writing()

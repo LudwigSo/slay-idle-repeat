@@ -5,15 +5,10 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// `14` §6 🔒 — <em>"JSON is validated at build time against schemas in
-/// <c>game-data/schema/</c>. The build fails on unknown IDs, missing icons,
-/// out-of-range values, orphaned references or duplicate IDs."</em>
+/// Tests that JSON is validated at build time: the five failure classes (unknown IDs, missing
+/// icons, out-of-range values, orphaned references, duplicate IDs) each get a case that proves
+/// the validator actually rejects them.
 /// </summary>
-/// <remarks>
-/// Every one of those five classes gets a case here that proves the validator actually rejects it.
-/// A validator whose negative cases were never committed is a validator nobody can trust after the
-/// first refactor.
-/// </remarks>
 public sealed class SchemaValidationTests
 {
     /// <summary>The one schema object in the fixture that is small enough to restate whole.</summary>
@@ -24,7 +19,7 @@ public sealed class SchemaValidationTests
     private static IReadOnlyList<ContentIssue> Issues(Adapters.InMemory.InMemoryContentSource source) =>
         ContentLoader.Load(source).Issues;
 
-    // ---------------------------------------------------------------- 14 §6: unknown IDs
+    // ---------------------------------------------------------------- unknown IDs
 
     [Fact]
     public void Load_rejects_an_enum_member_the_schema_does_not_know()
@@ -65,7 +60,7 @@ public sealed class SchemaValidationTests
         issues.ShouldContain(i => i.Code == ContentIssueCode.UnknownId);
     }
 
-    // ------------------------------------------------------------ 14 §6: out-of-range values
+    // ------------------------------------------------------------ out-of-range values
 
     [Fact]
     public void Load_rejects_an_integer_above_its_maximum()
@@ -114,7 +109,7 @@ public sealed class SchemaValidationTests
         issues.ShouldContain(i => i.Code == ContentIssueCode.OutOfRange);
     }
 
-    // ------------------------------------------------------------ 14 §6: duplicate IDs
+    // ------------------------------------------------------------ duplicate IDs
 
     [Fact]
     public void Load_rejects_the_same_collection_entry_twice()
@@ -146,7 +141,7 @@ public sealed class SchemaValidationTests
         issues.ShouldContain(i => i.Code == ContentIssueCode.DuplicateKey);
     }
 
-    // ------------------------------------------------------- 14 §6: orphaned references
+    // ------------------------------------------------------- orphaned references
 
     [Fact]
     public void Load_rejects_a_reference_to_an_id_that_is_declared_nowhere()
@@ -189,7 +184,7 @@ public sealed class SchemaValidationTests
         Issues(source).ShouldContain(i => i.Code == ContentIssueCode.OrphanedReference);
     }
 
-    // ----------------------------------------------------------- 14 §6: missing icons
+    // ----------------------------------------------------------- missing icons
 
     [Fact]
     public void Load_rejects_a_definition_whose_siblings_declare_an_icon_and_it_does_not()
@@ -249,9 +244,9 @@ public sealed class SchemaValidationTests
     }
 
     /// <summary>
-    /// 🔒 A <em>known</em> keyword written in the wrong shape. Every one of these degrades to a
-    /// silent no-op without the eager shape check, and the worst of them —
-    /// <c>"properties": []</c> — leaves the whole object unvalidated while the file reports clean.
+    /// A known keyword written in the wrong shape. Every one of these degrades to a silent no-op
+    /// without the eager shape check; the worst, <c>"properties": []</c>, leaves the whole object
+    /// unvalidated while the file reports clean.
     /// </summary>
     [Theory]
     // properties — an array applies no sub-schema at all.
@@ -289,10 +284,9 @@ public sealed class SchemaValidationTests
     }
 
     /// <summary>
-    /// 🔒 The specific catastrophe, located. <c>"properties": []</c> on an object that declares no
-    /// <c>additionalProperties</c> means <b>nothing under that object is validated at all</b>, and
-    /// the file reports clean. The finding has to name the schema pointer, or the author is told
-    /// only that something, somewhere, is unsupported.
+    /// <c>"properties": []</c> on an object with no <c>additionalProperties</c> means nothing under
+    /// that object is validated at all, and the file reports clean — the finding has to name the
+    /// schema pointer or the author learns nothing.
     /// </summary>
     [Fact]
     public void A_properties_keyword_that_is_an_array_does_not_leave_its_object_silently_unvalidated()
@@ -306,10 +300,9 @@ public sealed class SchemaValidationTests
     }
 
     /// <summary>
-    /// 🔒 One violation per enforced keyword. The list-equality test below can only see that a
-    /// keyword is <em>claimed</em>; this is what sees whether it is <em>enforced</em>. Without it,
-    /// deleting the <c>multipleOf</c> or <c>maxLength</c> block from the validator leaves every
-    /// test green while a bound in the real schemas silently stops biting.
+    /// One violation per enforced keyword. The list-equality test below only sees that a keyword is
+    /// claimed; this sees whether it is enforced — without it, deleting a keyword's block from the
+    /// validator would leave every test green while it silently stops biting.
     /// </summary>
     [Theory]
     [InlineData("\"inputCount\": 3", "\"inputCount\": 9", ContentIssueCode.OutOfRange)]                    // maximum
@@ -334,11 +327,10 @@ public sealed class SchemaValidationTests
     }
 
     /// <summary>
-    /// 🔒 Pins the <b>schema-layer</b> identity, not just the code. On an id-bearing collection
-    /// <c>CheckIdSpaces</c> emits <c>DuplicateId</c> for the same edit, so deleting the
-    /// <c>CheckUniqueItems</c> call — leaving the keyword in <c>SupportedKeywords</c>, so no
-    /// <c>UnsupportedSchemaKeyword</c> fires either — left this green while <c>uniqueItems</c>
-    /// silently stopped biting on every array in all 19 schemas.
+    /// Pins the schema-layer identity, not just the code. On an id-bearing collection,
+    /// <c>CheckIdSpaces</c> emits <c>DuplicateId</c> for the same edit — so without this test,
+    /// deleting the <c>CheckUniqueItems</c> call would leave <c>uniqueItems</c> silently unenforced
+    /// on every array.
     /// </summary>
     [Fact]
     public void Load_enforces_uniqueItems_so_a_repeated_collection_entry_cannot_pass()
@@ -355,10 +347,9 @@ public sealed class SchemaValidationTests
     }
 
     /// <summary>
-    /// 🔒 The companion case, on an array with <b>no <c>id</c> members</b>. Several shipped arrays
-    /// are like this — <c>neverPays</c>, <c>shrineForbiddenNodes</c>, <c>dungeons</c> — so
-    /// <c>uniqueItems</c> is the only thing standing between them and a silently repeated entry.
-    /// There is no invariant backstop to make this pass for the wrong reason.
+    /// The companion case, on an array with no <c>id</c> members. Several shipped arrays are like
+    /// this, so <c>uniqueItems</c> is the only thing standing between them and a silently repeated
+    /// entry.
     /// </summary>
     [Fact]
     public void Load_enforces_uniqueItems_on_an_array_that_has_no_invariant_backstop()
@@ -371,10 +362,9 @@ public sealed class SchemaValidationTests
     }
 
     /// <summary>
-    /// 🔒 <c>minProperties</c> was claimed by <c>SupportedKeywords</c> and enforced by nothing that
-    /// any test could see. Delete the block from the validator and a locale file shipping
-    /// <c>"strings": {}</c> validates clean — every UI string then renders as its own key, and the
-    /// locale-parity rules are vacuous because both sides are empty.
+    /// <c>minProperties</c> was claimed by <c>SupportedKeywords</c> but enforced by nothing any
+    /// test could see — without it, a locale file shipping <c>"strings": {}</c> would validate
+    /// clean.
     /// </summary>
     [Fact]
     public void Load_rejects_a_locale_file_whose_string_table_is_empty()

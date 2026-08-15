@@ -2,37 +2,25 @@ using SlayIdleRepeat.Core.Content.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 The six seams `18` §2's ops resolve through, and the strict default set that refuses every one
-/// of them by name.
-/// </summary>
-/// <param name="Values">`18` §1.1's <c>valueScale</c> — <b>M2-06</b>.</param>
-/// <param name="Attack">`05` §4 / §4.1 / §4.3 — <b>M2-09</b>.</param>
-/// <param name="Statuses">`05` §5 — <b>M2-10</b>.</param>
-/// <param name="Flow">`18` §2.4's actor flow state — <b>M2-08</b>.</param>
-/// <param name="Stats">`18` §2.4's <c>STAT_COPY</c> reading — <b>M2-08</b> over M2-07's block.</param>
-/// <param name="RunQueue">`18` §2.5's queue — emitted by <b>M2-08</b>, drained by <b>M3</b>.</param>
-/// <param name="TriggeredStats">
-/// `18` §2.1's four basic stat ops, when a <c>18</c> §3 trigger fires them rather than `18` §8's
-/// aggregation — <b>M2-R1</b>. See <see cref="ITriggeredStatSink"/>.
-/// </param>
+/// <summary>The six seams the ops resolve through, and the strict default set that refuses every one of them by name.</summary>
+/// <param name="Values">The <c>valueScale</c> reader.</param>
+/// <param name="Attack">The damage/ward/healing engine.</param>
+/// <param name="Statuses">The status engine.</param>
+/// <param name="Flow">Actor flow state.</param>
+/// <param name="Stats"><c>STAT_COPY</c>'s reading of the aggregated stat block.</param>
+/// <param name="RunQueue">The run/board op queue.</param>
+/// <param name="TriggeredStats">The four basic stat ops, when a trigger fires them rather than aggregation collecting them.</param>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Why the ops own no state and reach nothing directly.</b> R17 puts
-/// <c>Rules.Effects</c> at the bottom of the intra-<c>Rules</c> layering
-/// (<c>Rules.Combat → Rules.Stats → Rules.Effects</c>), so nothing here may name
-/// <c>ActorStats</c>, <c>StatCaps</c>, <c>CombatEvent</c> or <c>CombatLog</c>. Every op therefore
-/// computes its number from the DSL and hands it to a seam whose implementation lives one layer up.
-/// That is not a workaround for the layering — it is what makes `05` §3.1 step 7's
-/// <em>"appended at the moment each state change occurs"</em> hold: the op calls, the simulator
-/// logs, and no plan is accumulated and flushed later.
+/// Ops own no state and reach nothing directly: the intra-<c>Rules</c> layering keeps
+/// <c>Rules.Effects</c> at the bottom, so nothing here may name <c>ActorStats</c>, <c>CombatEvent</c>
+/// or <c>CombatLog</c>. Every op computes its number from the DSL and hands it to a seam whose
+/// implementation lives one layer up — which is also what keeps each state change logged the moment
+/// it happens, rather than accumulated into a plan and flushed later.
 /// </para>
 /// <para>
-/// 🔒 <b>Every default throws, and none no-ops.</b> Same shape M2-07 used for
-/// <c>StatAggregationSeams.Strict</c>, for the same reason: a silent no-op turns "M2-09 has not
-/// landed" into "this perk does nothing", which is a balance bug rather than an error, and the
-/// balance harness would attribute it to the content. Each message names the task that owns the
-/// member.
+/// Every default throws, and none no-ops — a silent no-op would turn "the engine isn't wired yet"
+/// into "this perk does nothing", a balance bug rather than a visible error.
 /// </para>
 /// </remarks>
 internal sealed record EffectOpSeams(
@@ -44,10 +32,7 @@ internal sealed record EffectOpSeams(
     IRunEffectQueue RunQueue,
     ITriggeredStatSink TriggeredStats)
 {
-    /// <summary>
-    /// 🔒 The seam set M2-03 ships: `18` §1.1's unscaled authored value, and a refusal — naming the
-    /// owning task — for everything the combat engine has not yet built.
-    /// </summary>
+    /// <summary>The unwired seam set: an unscaled authored value, and a refusal — naming the owning member — for everything not yet built.</summary>
     internal static EffectOpSeams Strict { get; } = new(
         AuthoredScaledValue.Instance,
         UnwiredAttackPipeline.Instance,
@@ -58,428 +43,246 @@ internal sealed record EffectOpSeams(
         UnwiredTriggeredStatSink.Instance);
 }
 
-/// <summary>
-/// 🔒 M2-R1 — `18` §2.1's four basic stat ops (<c>STAT_ADD_FLAT</c>, <c>STAT_ADD_PCT</c>,
-/// <c>STAT_MULT</c>, <c>STAT_SET</c>), the moment a `18` §3 trigger fires one rather than `18` §8's
-/// aggregation collecting it as an <c>ALWAYS</c> passive. The seam <b>M2-08</b>/<b>M2-R1</b>
-/// implements.
-/// </summary>
+/// <summary>The four basic stat ops, the moment a trigger fires one rather than aggregation collecting it as an ALWAYS passive.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Why a fired stat op needs a seam at all, when `18` §8's own aggregation does not.</b> An
-/// <c>ALWAYS</c> passive is read straight off <see cref="BattleActor.StandingEffects"/> by
-/// <c>StatAggregation</c> and never reaches <see cref="EffectOpResolver"/>. A <b>triggered</b> stat op
-/// — <c>SYS_ENRAGE</c>'s <c>STAT_MULT</c>, a boss's <c>ON_PHASE_ENTER</c> buff — reaches the resolver
-/// exactly like any other firing effect, and `18` §8 step 1's <em>"collect all active effects"</em>
-/// includes it for as long as its own `18` §6 duration has not ended. Recording that is state — a
-/// per-target, per-effect stack set that lives across ticks — and R17 forbids <c>Rules.Effects</c>
-/// holding any: nothing here may name <c>BattleActor</c>, so the store one layer up is reached through
-/// this seam, the same shape <see cref="IStatusEngine"/> uses for `05` §5's statuses.
+/// An ALWAYS passive is read straight off standing effects by aggregation and never reaches
+/// <see cref="EffectOpResolver"/>. A triggered stat op reaches the resolver like any other firing
+/// effect and stays collected for as long as its own duration hasn't ended — recording that is
+/// per-target, per-effect state that the effects layer isn't allowed to hold directly, so it's
+/// reached through this seam instead, one layer up.
 /// </para>
 /// <para>
-/// ⚠️ <b>Not <see cref="EffectOp.STAT_CONVERT"/> or <c>STAT_CAP_OVERRIDE</c>.</b> Those two remain `18` §8
-/// steps 6 and 9 exclusively — read straight off the effect at aggregation time, never through a
-/// firing — because their arithmetic needs a <em>post-aggregation</em> value (`18` §8's
-/// <em>"reads post-step-5 values"</em>) that only <c>StatAggregation</c> has in hand. No authored
-/// content fires either through a trigger; <see cref="EffectOpResolver"/> keeps routing them to a bare
-/// <c>AGGREGATED</c> outcome with no target and no stat.
+/// Not <see cref="EffectOp.STAT_CONVERT"/> or <c>STAT_CAP_OVERRIDE</c> — those remain aggregation-only,
+/// never fired through a trigger, because their arithmetic needs a post-aggregation value only
+/// aggregation has in hand.
 /// </para>
 /// </remarks>
 internal interface ITriggeredStatSink
 {
-    /// <summary>
-    /// Records one firing of a `18` §2.1 basic stat op onto every actor its `18` §5 target token
-    /// resolved to.
-    /// </summary>
-    /// <param name="targets">
-    /// The op's resolved `18` §5 targets — <see cref="OpTargets.Resolve"/>'s result. May differ from
-    /// the holder: <c>BOSS_THORNMAW_P2_ROOT</c> targets <c>ALL_ENEMIES</c>.
-    /// </param>
+    /// <summary>Records one firing of a basic stat op onto every actor its target token resolved to.</summary>
+    /// <param name="targets">The op's resolved targets — <see cref="OpTargets.Resolve"/>'s result. May differ from the holder.</param>
     /// <param name="op">Which of the four ops fired.</param>
     /// <param name="stat">The stat it names.</param>
-    /// <param name="value">The fire-time, `18` §1.1-scaled value of this application.</param>
-    /// <param name="duration">The effect's `18` §6 duration block, or <c>null</c> for none authored.</param>
-    /// <param name="stacking">The effect's own `18` §6 stacking block, or <c>null</c> to take the default.</param>
-    /// <param name="sourceEffectId">The firing effect's `18` §8 id — never synthesised.</param>
+    /// <param name="value">The fire-time, scaled value of this application.</param>
+    /// <param name="duration">The effect's duration block, or <c>null</c> for none authored.</param>
+    /// <param name="stacking">The effect's own stacking block, or <c>null</c> to take the default.</param>
+    /// <param name="sourceEffectId">The firing effect's id — never synthesised.</param>
     void Apply(
         IReadOnlyList<IEffectActorView> targets, EffectOp op, StatId stat, double value,
         EffectDuration? duration, EffectStacking? stacking, string sourceEffectId);
 }
 
-/// <summary>
-/// 🔒 `18` §1.1 — the effect's <c>value</c> after <c>valueScale</c>, and <b>nothing else</b>. The
-/// seam <b>M2-06</b> implements.
-/// </summary>
+/// <summary>The effect's <c>value</c> after <c>valueScale</c>, and nothing else.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The M2-03 / M2-06 split, stated once so the two tasks cannot both implement it.</b> An
-/// effect's magnitude is two multiplications in a fixed order:
-/// </para>
-/// <code>
-/// authored value  ──× steps──▶  scaled value  ──× basis──▶  the number the op applies
-///                   (18 §1.1)                   (18 §2.2)
-///                    M2-06                        M2-03
-/// </code>
-/// <para>
-/// <c>valueScale</c> reads live state (<em>"any condition function from §4"</em>) and is M2-06's;
-/// <c>valueMode</c> says what the result is <em>a multiple of</em>, which is a property of the op —
-/// `05` §4.2 makes <c>DAMAGE</c>'s value an <c>AttackMultiplier</c> and `18` §2.2 makes
-/// <c>HEAL_LEECH</c>'s a fraction of damage dealt — and is M2-03's. Composing them in the other
-/// order would scale a fraction-of-Max-HP by a step count taken against the pre-scaled value.
-/// </para>
+/// An effect's magnitude is two multiplications in a fixed order: authored value × steps (this
+/// reader, reading live state) → × basis (the op, applying a per-op meaning). Composing them in the
+/// other order would scale a fraction-of-Max-HP by a step count taken against the pre-scaled value.
 /// </remarks>
 internal interface IScaledValueReader
 {
-    /// <summary>`18` §1.1's <c>effectiveValue = value × steps</c>, before any `18` §2.2 value mode.</summary>
+    /// <summary>The effective value: <c>value × steps</c>, before any op-specific value mode.</summary>
     double ScaledValue(EffectDefinition effect);
 }
 
-/// <summary>What one `05` §4 <c>ResolveAttack</c> produced.</summary>
-/// <param name="Missed">The defender dodged (`05` §4 step 1). Everything else is then zero/false.</param>
-/// <param name="Crit">The hit critted (step 4).</param>
-/// <param name="Blocked">The hit was blocked and halved (step 5).</param>
+/// <summary>What one <c>ResolveAttack</c> produced.</summary>
+/// <param name="Missed">The defender dodged. Everything else is then zero/false.</param>
+/// <param name="Crit">The hit critted.</param>
+/// <param name="Blocked">The hit was blocked and halved.</param>
 /// <param name="Basis">
-/// 🔒 `05` §4 step 8's <em>"on-damage basis"</em> — the post-mitigation, post-floor hit
-/// <b>before</b> ward absorption. Lifesteal and thorns read this, not <see cref="HpLost"/>.
+/// The post-mitigation, post-floor hit before ward absorption. Lifesteal and thorns read this, not
+/// <see cref="HpLost"/>.
 /// </param>
-/// <param name="HpLost">What actually came off HP after absorption (step 9).</param>
+/// <param name="HpLost">What actually came off HP after absorption.</param>
 internal readonly record struct AttackResolution(
     bool Missed, bool Crit, bool Blocked, double Basis, double HpLost);
 
-/// <summary>
-/// 🔒 `05` §4, §4.1 and §4.3 — the damage, ward and healing engine every `18` §2.2 op routes into.
-/// The seam <b>M2-09</b> implements.
-/// </summary>
+/// <summary>The damage, ward and healing engine every damage/heal op routes into.</summary>
 /// <remarks>
-/// <para>
-/// `05` §4.2 is the routing table this interface exists to make executable, and each member below is
-/// one of its rows. The ops decide <em>the number</em>; this decides <em>what happens to it</em> —
-/// which is where dodge, mitigation, crit, block, DR, the floor and wards live, none of which the
-/// DSL layer may know about.
-/// </para>
+/// The ops decide the number; this decides what happens to it — dodge, mitigation, crit, block, DR,
+/// the floor and wards all live here, none of which the DSL layer may know about.
 /// </remarks>
 internal interface IAttackPipeline
 {
-    /// <summary>
-    /// 🔒 `05` §4.2 — <c>DAMAGE</c>: <em>"the full <c>ResolveAttack</c> pipeline — dodge,
-    /// mitigation, crit, block, DR, floor, wards"</em>.
-    /// </summary>
-    /// <param name="attacker">
-    /// The source actor. `05` §4.2: <em>"the source's stats are used; a pet ability uses the hero's
-    /// ATK but the <b>pet's</b> own CRIT (0 unless granted)"</em> — a rule about how M2-09 builds
-    /// this actor's stat block, not one the DSL layer can apply.
-    /// </param>
+    /// <summary><c>DAMAGE</c>: the full pipeline — dodge, mitigation, crit, block, DR, floor, wards.</summary>
+    /// <param name="attacker">The source actor.</param>
     /// <param name="defender">The actor taking the hit.</param>
-    /// <param name="attackMultiplier">
-    /// 🔒 `05` §4 / §4.2 — <em>"a DSL <c>DAMAGE</c> op invoking this pipeline: the op's <c>value</c>
-    /// <b>is</b> the AttackMultiplier for that resolved attack"</em>. Not a damage amount.
-    /// </param>
-    /// <param name="sourceEffectId">
-    /// The `18` §8 effect id, for the log and for `05` §4's ascending-effect-id orderings.
-    /// </param>
+    /// <param name="attackMultiplier">The op's value, used directly as the AttackMultiplier for this resolved attack.</param>
+    /// <param name="sourceEffectId">The effect id, for the log and for ascending-effect-id orderings.</param>
     AttackResolution ResolveAttack(
         IEffectActorView attacker, IEffectActorView defender, double attackMultiplier, string sourceEffectId);
 
-    /// <summary>
-    /// 🔒 `05` §4.2 — <c>DAMAGE_TRUE</c>: <em>"bypasses everything: no dodge, mitigation, crit,
-    /// block, DR, <c>DAMAGE_TAKEN_MULT</c>, floor or wards. HP is reduced directly; the phase check
-    /// still runs; no lifesteal or thorns."</em>
-    /// </summary>
-    /// <param name="amount">The HP to remove, rounded to 4 dp (`05` §1.1).</param>
+    /// <summary><c>DAMAGE_TRUE</c>: bypasses everything — no dodge, mitigation, crit, block, DR, floor or wards. No lifesteal or thorns.</summary>
+    /// <param name="amount">The HP to remove, rounded to 4 dp.</param>
     void DealTrueDamage(IEffectActorView target, double amount, string sourceEffectId);
 
-    /// <summary>
-    /// 🔒 `05` §4.2 — <c>DAMAGE_MAXHP_PCT</c>: <em>"no dodge, crit, block, mitigation or floor;
-    /// <c>DR%</c> and <c>DAMAGE_TAKEN_MULT</c> <b>do</b> apply; wards absorb; no lifesteal or
-    /// thorns."</em>
-    /// </summary>
+    /// <summary><c>DAMAGE_MAXHP_PCT</c>: no dodge, crit, block, mitigation or floor; DR% and DAMAGE_TAKEN_MULT do apply; wards absorb; no lifesteal or thorns.</summary>
     /// <param name="bypassesWards">
-    /// 🔒 `05` §4.1's bypass list <b>(b)</b> — <em>"self-inflicted costs (cursed-perk drawbacks such
-    /// as <c>CP_BLOOD_PRICE</c> / <c>CP_TIMEBOUND</c>) … wards must not silently delete perk
-    /// drawbacks"</em>. The marker is `18` §7.5's reserved <c>drawback</c> tag; the op reads it
-    /// (<see cref="EffectTagging"/>) and states it here rather than M2-09 re-deriving it, so that
-    /// one reading of the tag serves the whole engine.
+    /// True for a self-inflicted cost (e.g. a cursed-perk drawback) — wards must not silently delete
+    /// perk drawbacks. The op reads and reports this rather than the pipeline re-deriving it.
     /// </param>
     void DealMaxHpPctDamage(
         IEffectActorView target, double amount, bool bypassesWards, string sourceEffectId);
 
-    /// <summary>
-    /// 🔒 `05` §4.3 — <c>Heal()</c>: <em>"healed = min(amount × target.HEALPct, MaxHP − HP)"</em>,
-    /// with the overheal discarded unless an effect consumes it. `05` §4.2 routes both <c>HEAL</c>
-    /// and <c>HEAL_LEECH</c> here, and <em>"<c>HEAL%</c> applies"</em>.
-    /// </summary>
-    /// <param name="amount">The pre-<c>HEAL%</c> amount, rounded to 4 dp.</param>
+    /// <summary><c>Heal()</c>: <c>healed = min(amount × target.HEALPct, MaxHP − HP)</c>, overheal discarded unless an effect consumes it. Routes both <c>HEAL</c> and <c>HEAL_LEECH</c>.</summary>
+    /// <param name="amount">The pre-HEAL% amount, rounded to 4 dp.</param>
     void Heal(IEffectActorView target, double amount, string sourceEffectId);
 
-    /// <summary>
-    /// 🔒 `05` §4.2 — <c>SHIELD</c>: <em>"a ward grant (§4.1)"</em>.
-    /// </summary>
+    /// <summary><c>SHIELD</c>: a ward grant.</summary>
     /// <param name="sourceCapPct">
-    /// `18` §2.2 — <em>"the total unbroken ward contributed by that effect instance is clamped at
-    /// <c>sourceCapPct × Max HP</c>"</em> (<c>PK_TRANSFUSION</c>, 20%). <c>null</c> where the effect
-    /// authors none, which is not the same as 0 and must not be coerced to one.
+    /// The total unbroken ward this effect instance may contribute, as a fraction of Max HP.
+    /// <c>null</c> where the effect authors none — not the same as 0 and must not be coerced to one.
     /// </param>
-    /// <param name="sourceEffectId">
-    /// 🔒 `05` §4.1 makes this part of the ward <em>segment</em> (<c>{amount, expiresAt?,
-    /// sourceEffectId}</c>) — it is what a per-instance <paramref name="sourceCapPct"/> is measured
-    /// against, so it is not merely a log label here.
-    /// </param>
+    /// <param name="sourceEffectId">Part of the ward segment itself, not just a log label — what a per-instance cap is measured against.</param>
     void GrantWard(
         IEffectActorView target, double amount, double? sourceCapPct, string sourceEffectId);
 
-    /// <summary>
-    /// 🔒 `05` §4.2 — <c>REFLECT</c>: <em>"adds to <c>THORN</c> for its duration"</em>. R4: `18`
-    /// §2.2 gives the meaning (<em>"return a % of incoming damage"</em>) and `05` §4.2 gives the
-    /// implementation; they are one rule, not a contradiction.
-    /// </summary>
-    /// <param name="fraction">The addition to <c>THORN</c>, which `05` §1 types as a fraction.</param>
+    /// <summary><c>REFLECT</c>: adds to <c>THORN</c> for its duration.</summary>
+    /// <param name="fraction">The addition to <c>THORN</c>, as a fraction.</param>
     void AddThorns(
         IEffectActorView target, double fraction, EffectDuration? duration, string sourceEffectId);
 }
 
-/// <summary>
-/// 🔒 `05` §5's twelve statuses — the six `18` §2.3 ops. The seam <b>M2-10</b> implements.
-/// </summary>
+/// <summary>The twelve statuses — the six status ops.</summary>
 internal interface IStatusEngine
 {
-    /// <summary>`18` §2.3 — <c>APPLY_STATUS</c>. <paramref name="potency"/> is the status's own X.</summary>
+    /// <summary><c>APPLY_STATUS</c>. <paramref name="potency"/> is the status's own X.</summary>
     /// <param name="applier">
-    /// 🔒 The actor whose effect fired — <c>EffectOpContext.Holder</c>, <em>"the source of every op's
-    /// number"</em>. Widened by <b>M2-10</b>, because two of `05` §5's units are stated against it and
-    /// cannot be resolved without it: <c>BURN</c> is <em>"X% of <b>attacker</b> ATK per second"</em>
-    /// and <c>BLEED</c> is <em>"set at application as X% of the <b>applier's</b> ATK"</em>. The
-    /// applier can be dead by the time a cadence tick lands, which is why `05` §3.1 fixes the potency
-    /// at application — so the number has to be resolvable here or not at all.
-    /// `STATUS_POWER_PCT`, which §2.3 scopes to <em>"statuses <b>this actor applies</b>"</em>, is
-    /// read off the same actor for the same reason.
+    /// The actor whose effect fired. Needed because some status potencies are stated against the
+    /// applier's own stats at application time (e.g. a percent of the applier's ATK), and the
+    /// applier can be dead by the time a later cadence tick lands.
     /// </param>
     /// <param name="target">The actor receiving the status.</param>
-    /// <param name="statusId">One of `05` §5's twelve.</param>
-    /// <param name="potency">The status's X, after `18` §1.1's <c>valueScale</c>.</param>
-    /// <param name="duration">The application's D (`18` §6), or <c>null</c>.</param>
-    /// <param name="stacking">The effect's own `18` §6 block, or <c>null</c> to take `05` §5's.</param>
-    /// <param name="sourceEffectId">The `18` §8 id, for `05` §3.1's ascending-effect-id orderings.</param>
+    /// <param name="statusId">One of the twelve statuses.</param>
+    /// <param name="potency">The status's X, after <c>valueScale</c>.</param>
+    /// <param name="duration">The application's duration, or <c>null</c>.</param>
+    /// <param name="stacking">The effect's own stacking block, or <c>null</c> to take the status's default.</param>
+    /// <param name="sourceEffectId">The effect id, for ascending-effect-id orderings.</param>
     void Apply(
         IEffectActorView applier, IEffectActorView target, string statusId, double potency,
         EffectDuration? duration, EffectStacking? stacking, string sourceEffectId);
 
-    /// <summary>
-    /// 🔒 M2-R3 — whether <paramref name="statusId"/> carries `05` §5's own literal potency (e.g.
-    /// FREEZE's fixed −50% ASPD), rather than taking one from the applying effect's <c>value</c>.
-    /// </summary>
+    /// <summary>Whether <paramref name="statusId"/> carries its own fixed potency (e.g. a status with a fixed stat penalty), rather than taking one from the applying effect's value.</summary>
     /// <remarks>
-    /// <para>
-    /// The seam that lets <c>StatusOps.Apply</c> (<c>Rules.Effects.Ops</c>, the bottom of R17's
-    /// intra-<c>Rules</c> layering) know a fact that only <c>StatusCatalogue</c>
-    /// (<c>Rules.Combat.Status</c>, one layer up) holds, without <c>Rules.Effects</c> naming
-    /// <c>Rules.Combat</c> directly — the same seam-not-a-direct-reference shape as
-    /// <see cref="IResolvedStatReader"/> for <c>STAT_COPY</c>'s start-of-tick snapshot.
-    /// </para>
-    /// <para>
-    /// A value-less <c>APPLY_STATUS</c> is, by default, exactly as much an authoring hole as a
-    /// value-less stat op (steering S6) — <see cref="ValueScaleEvaluator.Value"/>'s guard refuses it.
-    /// The one narrowed exception is a status whose own row supplies the number, and this member is
-    /// how the op layer learns that <b>before</b> deciding whether to demand a value at all, rather
-    /// than after the guard has already thrown.
-    /// </para>
+    /// Lets the op layer learn this before deciding whether to demand a value at all, rather than
+    /// after a generic "no value" guard has already thrown.
     /// </remarks>
-    /// <param name="statusId">One of `05` §5's twelve.</param>
+    /// <param name="statusId">One of the twelve statuses.</param>
     bool HasFixedPotency(string statusId);
 
-    /// <summary>`18` §2.3 — <c>REMOVE_STATUS</c>, the <c>statusId</c> form.</summary>
+    /// <summary><c>REMOVE_STATUS</c>, the <c>statusId</c> form.</summary>
     void Remove(IEffectActorView target, string statusId, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.3 — <c>REMOVE_STATUS</c>, the <c>statusTag</c> form: every status on the target
-    /// carrying the label. 🔒 A <see cref="StatusTag"/>, never an <see cref="AuthorTag"/>.
-    /// </summary>
+    /// <summary><c>REMOVE_STATUS</c>, the <c>statusTag</c> form: every status on the target carrying the label.</summary>
     void RemoveByTag(IEffectActorView target, StatusTag tag, string sourceEffectId);
 
-    /// <summary>`18` §2.3 — <c>EXTEND_STATUS</c>: <paramref name="seconds"/> added to a live status.</summary>
+    /// <summary><c>EXTEND_STATUS</c>: <paramref name="seconds"/> added to a live status.</summary>
     void Extend(IEffectActorView target, string statusId, double seconds, string sourceEffectId);
 
-    /// <summary>`18` §2.3 — <c>IMMUNE_STATUS</c>.</summary>
+    /// <summary><c>IMMUNE_STATUS</c>.</summary>
     void GrantImmunity(
         IEffectActorView target, string statusId, EffectDuration? duration, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.3 — <c>STATUS_POWER_PCT</c>: <em>"scale the potency of statuses <b>this actor
-    /// applies</b>"</em> — outgoing.
-    /// </summary>
+    /// <summary><c>STATUS_POWER_PCT</c>: scale the potency of statuses this actor applies (outgoing).</summary>
     void ScaleOutgoingPower(
         IEffectActorView target, double fraction, EffectDuration? duration, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.3 — <c>STATUS_DURATION_PCT</c>: <em>"scale duration of statuses <b>applied to this
-    /// actor</b>"</em> — incoming. 🔒 The opposite direction from
-    /// <see cref="ScaleOutgoingPower"/>, and the two rows of §2.3 are the only place that is said.
-    /// </summary>
+    /// <summary><c>STATUS_DURATION_PCT</c>: scale duration of statuses applied to this actor (incoming).</summary>
     void ScaleIncomingDuration(
         IEffectActorView target, double fraction, EffectDuration? duration, string sourceEffectId);
 }
 
-/// <summary>
-/// 🔒 `18` §2.4's per-actor flow state — charges, summons, priorities and the two death saves. The
-/// seam <b>M2-08</b> implements.
-/// </summary>
+/// <summary>Per-actor flow state — charges, summons, priorities and the two death saves.</summary>
 internal interface ICombatFlowSink
 {
-    /// <summary>`18` §2.4 — <c>EXTRA_ATTACK</c>: <em>"perform an additional attack immediately"</em>.</summary>
+    /// <summary><c>EXTRA_ATTACK</c>: perform an additional attack immediately.</summary>
     void ExtraAttack(IEffectActorView attacker, IEffectActorView target, int attacks, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 — <c>ATTACK_MULT_NEXT</c>. 🔒 `05` §4: the charges are
-    /// <em>"consumed in ascending effect-id order"</em>, which is why the id travels with them.
-    /// </summary>
+    /// <summary><c>ATTACK_MULT_NEXT</c>. The id travels with the charges since they're consumed in ascending effect-id order.</summary>
     void GrantAttackMultiplierCharges(
         IEffectActorView holder, double multiplier, int charges, string sourceEffectId);
 
-    /// <summary>`18` §2.4 — <c>FORCE_CRIT_NEXT</c>: the next <paramref name="charges"/> attacks always crit.</summary>
+    /// <summary><c>FORCE_CRIT_NEXT</c>: the next <paramref name="charges"/> attacks always crit.</summary>
     void GrantForcedCritCharges(IEffectActorView holder, int charges, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 — <c>REDUCE_COOLDOWN</c>: <em>"reduce pet/boss ability cooldowns"</em> by
-    /// <paramref name="fraction"/> of their remaining time.
-    /// </summary>
+    /// <summary><c>REDUCE_COOLDOWN</c>: reduce pet/boss ability cooldowns by <paramref name="fraction"/> of their remaining time.</summary>
     void ReduceCooldowns(IEffectActorView target, double fraction, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 — <c>SURVIVE_LETHAL</c>: arms a save that leaves the actor at
-    /// <paramref name="hp"/>. 🔒 `05` §3.1: it <em>"fires at most its authored <c>once</c> count per
-    /// battle"</em>, and `18` §3 is explicit that the actor never died, so no <c>ON_REVIVE</c>.
-    /// </summary>
+    /// <summary><c>SURVIVE_LETHAL</c>: arms a save that leaves the actor at <paramref name="hp"/>. Does not fire <c>ON_REVIVE</c> — the actor never died.</summary>
     void ArmSurviveLethal(IEffectActorView holder, double hp, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 — <c>REVIVE</c>: arms a return from 0 HP at <paramref name="hp"/>. Unlike
-    /// <see cref="ArmSurviveLethal"/> this <b>does</b> fire <c>ON_REVIVE</c> (`18` §3).
-    /// </summary>
+    /// <summary><c>REVIVE</c>: arms a return from 0 HP at <paramref name="hp"/>. Unlike <see cref="ArmSurviveLethal"/> this does fire <c>ON_REVIVE</c>.</summary>
     void ArmRevive(IEffectActorView holder, double hp, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 / §7.8 — <c>SUMMON</c>: spawn <paramref name="count"/> of
-    /// <paramref name="archetype"/>, at most <paramref name="maxAlive"/> alive at once.
-    /// </summary>
+    /// <summary><c>SUMMON</c>: spawn <paramref name="count"/> of <paramref name="archetype"/>, at most <paramref name="maxAlive"/> alive at once.</summary>
     void Summon(
         IEffectActorView summoner, string archetype, int count, int? maxAlive, string sourceEffectId);
 
-    /// <summary>
-    /// 🔒 `18` §2.4 / §10.1 E6 — <c>RANDOM_OUTCOME</c>'s single winner: the effect the op's <b>one</b>
-    /// draw picked out of its <c>outcomes</c> table, handed over by id.
-    /// </summary>
-    /// <param name="holder">The actor whose effect rolled — `17` §9's Dicelord.</param>
+    /// <summary><c>RANDOM_OUTCOME</c>'s single winner: the effect the op's one draw picked, handed over by id.</summary>
+    /// <param name="holder">The actor whose effect rolled.</param>
     /// <param name="chosenEffectId">
-    /// 🔒 The `18` §8 id of the <b>one</b> effect that fires. A <b>sibling</b> reference — an id the
-    /// same owning content declares — never an embedded effect (<see cref="RandomOutcomeEntry"/>
-    /// states why). Resolving it is the engine's, which is what makes the outcomes mutually
-    /// exclusive: one call per roll, one effect per call.
+    /// The id of the one effect that fires — a sibling reference, never an embedded effect.
+    /// Resolving it is the engine's, which is what keeps the outcomes mutually exclusive.
     /// </param>
     /// <param name="sourceEffectId">The <c>RANDOM_OUTCOME</c> effect's own id, for the log.</param>
     void RandomOutcome(IEffectActorView holder, string chosenEffectId, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 — <c>CLEAR_SUMMONS</c>: <em>"despawn all living summons owned by the target. Despawned
-    /// ≠ killed: no <c>ON_DEATH</c>, no <c>ON_KILL</c>, no on-death explosions, no rewards."</em>
-    /// </summary>
+    /// <summary><c>CLEAR_SUMMONS</c>: despawn all living summons owned by the target. Despawned, not killed — no death triggers, explosions or rewards.</summary>
     void ClearSummons(IEffectActorView owner, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 — <c>SET_TARGET_PRIORITY</c>. `05` §3.2: the default is <c>0</c>, <c>-1</c>
-    /// deprioritises and <c>+1</c> forces focus, ties broken by lowest current HP.
-    /// </summary>
+    /// <summary><c>SET_TARGET_PRIORITY</c>. Default 0, -1 deprioritises, +1 forces focus, ties broken by lowest current HP.</summary>
     void SetTargetPriority(IEffectActorView target, double priority, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 — <c>DAMAGE_TAKEN_MULT</c>. 🔒 `05` §4 step 6 takes the <b>product</b> of all
-    /// active ones in ascending effect-id order, which is why they accumulate rather than replace.
-    /// </summary>
+    /// <summary><c>DAMAGE_TAKEN_MULT</c>. Accumulates as a product of all active ones in ascending effect-id order, rather than replacing.</summary>
     void AddDamageTakenMultiplier(
         IEffectActorView target, double multiplier, EffectDuration? duration, string sourceEffectId);
 
-    /// <summary>
-    /// `18` §2.4 — <c>STAT_COPY</c>'s write: <em>"onto the <b>holder</b> as a percent-bucket add for
-    /// <c>duration</c>"</em>, i.e. a <c>STAT_ADD_PCT</c> that `18` §8 step 5 will pick up.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 R13 — the holder, <b>not</b> the effect's <c>target</c>. See
-    /// <see cref="StatCopyOp"/> for the inversion and why it is not a bug to be fixed.
-    /// </remarks>
+    /// <summary><c>STAT_COPY</c>'s write: onto the holder as a percent-bucket add for <c>duration</c>, i.e. a <c>STAT_ADD_PCT</c> aggregation will pick up.</summary>
+    /// <remarks>The holder, not the effect's <c>target</c> — see <see cref="StatCopyOp"/> for why that inversion is intentional.</remarks>
     void AddPercentBucket(
         IEffectActorView holder, StatId stat, double fraction, EffectDuration? duration, string sourceEffectId);
 }
 
-/// <summary>
-/// 🔒 `18` §2.4's <c>STAT_COPY</c> reading: an actor's <b>final resolved</b> stat, as of the
-/// start-of-tick snapshot. The seam <b>M2-08</b> implements over M2-07's aggregated block.
-/// </summary>
+/// <summary><c>STAT_COPY</c> reading: an actor's final resolved stat, as of the start-of-tick snapshot.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The snapshot is this interface's contract, not the op's.</b> `18` §2.4:
-/// <em>"reads the start-of-tick snapshot, so mutual copies cannot recurse"</em>. An op cannot
-/// enforce that — it would have to know how the simulator stores stats — so the obligation is stated
-/// here and pinned by
-/// <c>StatCopyOpTests.Two_actors_copying_each_other_both_read_the_start_of_tick_snapshot</c>, which
-/// runs the real op against a frozen reader and shows neither copy sees the other's output.
-/// </para>
-/// <para>
-/// It is a <em>reading</em> seam rather than a direct use of M2-07's <c>ActorStats</c> because R17
-/// forbids <c>Rules.Effects</c> naming <c>Rules.Stats</c>. <see cref="StatId"/> is
-/// <c>Core.Content</c> and is below both.
-/// </para>
+/// The snapshot is this interface's contract, not the op's: reads the start-of-tick snapshot so
+/// mutual copies can't recurse. An op can't enforce that itself — it would have to know how the
+/// simulator stores stats — so the obligation is stated here instead.
 /// </remarks>
 internal interface IResolvedStatReader
 {
-    /// <summary>The actor's post-`18` §8 value for a stat, from the start-of-tick snapshot.</summary>
+    /// <summary>The actor's post-aggregation value for a stat, from the start-of-tick snapshot.</summary>
     double FinalStat(IEffectActorView actor, StatId stat);
 
-    /// <summary>
-    /// `18` §2.4's <c>HIGHEST_PCT_BONUS</c> — <em>"whichever stat carries the largest percent bucket
-    /// at copy time"</em> (Cogitator's Recalibrate, `17` §7).
-    /// </summary>
+    /// <summary><c>HIGHEST_PCT_BONUS</c> — whichever stat carries the largest percent bucket at copy time.</summary>
     StatId HighestPercentBonusStat(IEffectActorView actor);
 }
 
-/// <summary>
-/// 🔒 `18` §2.5 — the queue a combat trigger's run/board op is appended to. <b>M2-08</b> translates
-/// each call into `05` §7's <c>RunEffectQueued</c>; <b>M3</b> drains it.
-/// </summary>
+/// <summary>The queue a combat trigger's run/board op is appended to. Translated into a queued event; drained by the run controller.</summary>
 /// <remarks>
-/// <para>
-/// `18` §2.5: <em>"these are resolved by the run controller, never by the combat simulator … the
-/// simulator still never resolves it: it appends a <c>RunEffectQueued</c> event to the combat log
-/// and the run controller applies the queued ops in log order when the battle resolves."</em>
-/// </para>
-/// <para>
-/// 🔒 <b>This seam is where "declared but not resolved" is made mechanical.</b> The thirteen §2.5
-/// ops have no resolver in M2 and are not supposed to get one — A4. What they do have is a boundary:
-/// they must be well-formed, they must validate, and reaching one from a combat trigger must produce
-/// exactly this call and no mutation anywhere else.
-/// </para>
+/// These ops are resolved by the run controller, never by the combat simulator — the simulator only
+/// ever appends an event to the combat log. This seam is where "declared but not resolved" is made
+/// mechanical: an op reaching here must be well-formed and must produce exactly this call and no
+/// mutation anywhere else.
 /// </remarks>
 internal interface IRunEffectQueue
 {
-    /// <summary>Queues one `18` §2.5 op for the run controller.</summary>
+    /// <summary>Queues one run/board op for the run controller.</summary>
     /// <param name="effect">The authored effect. Every argument it carries is already on it.</param>
-    /// <param name="source">The actor whose effect fired — `05` §7's <c>SourceId</c>.</param>
+    /// <param name="source">The actor whose effect fired.</param>
     /// <param name="argument">
-    /// `05` §7 — the op's <b>one</b> runtime-resolved scalar, or <c>0</c> when every argument is
-    /// authored. A <c>CombatEvent</c> has exactly one slot for it; an op needing two cannot be
-    /// smuggled through by packing them.
+    /// The op's one runtime-resolved scalar, or <c>0</c> when every argument is authored. A combat
+    /// event has exactly one slot for it; an op needing two cannot be smuggled through by packing them.
     /// </param>
     void Queue(EffectDefinition effect, IEffectActorView source, double argument);
 }
 
 // ══════════════════════════════════════════════════════════════════ strict defaults
 
-/// <summary>
-/// The `18` §1.1 reader M2-03 ships: the authored <c>value</c>, unscaled — and a refusal naming
-/// M2-06 the moment a <c>valueScale</c> arrives.
-/// </summary>
+/// <summary>The unscaled reader: the authored <c>value</c>, and a refusal the moment a <c>valueScale</c> arrives.</summary>
 /// <remarks>
-/// The same shape, and the same reasoning, as M2-07's <c>AuthoredEffectValue</c>: `18` §1.1
-/// evaluates <c>fn</c> against live state, which this layer does not hold, and
-/// <c>ValueScale.EffectiveValue</c> already owns the arithmetic. ⚠️ It does <b>not</b> refuse a
-/// <c>valueMode</c> — that half is M2-03's own and is applied per op by <see cref="OpValue"/>.
+/// Refusing rather than evaluating, since <c>valueScale</c> reads live state this layer doesn't
+/// hold. Does not refuse a <c>valueMode</c> — that's applied per op by <see cref="OpValue"/>.
 /// </remarks>
 internal sealed class AuthoredScaledValue : IScaledValueReader
 {
@@ -514,7 +317,7 @@ internal sealed class AuthoredScaledValue : IScaledValueReader
     }
 }
 
-/// <summary>The `05` §4 engine M2-03 ships: none, stated as a refusal naming M2-09.</summary>
+/// <summary>The attack pipeline, unwired: every member refuses, naming what it would have done.</summary>
 internal sealed class UnwiredAttackPipeline : IAttackPipeline
 {
     /// <summary>The single instance.</summary>
@@ -561,7 +364,7 @@ internal sealed class UnwiredAttackPipeline : IAttackPipeline
             "EffectOpSeams with a real IAttackPipeline.");
 }
 
-/// <summary>The `05` §5 status engine M2-03 ships: none, stated as a refusal naming M2-10.</summary>
+/// <summary>The status engine, unwired: every member refuses.</summary>
 internal sealed class UnwiredStatusEngine : IStatusEngine
 {
     /// <summary>The single instance.</summary>
@@ -616,7 +419,7 @@ internal sealed class UnwiredStatusEngine : IStatusEngine
             "IStatusEngine.");
 }
 
-/// <summary>The `18` §2.4 flow state M2-03 ships: none, stated as a refusal naming M2-08.</summary>
+/// <summary>The combat-flow sink, unwired: every member refuses.</summary>
 internal sealed class UnwiredCombatFlow : ICombatFlowSink
 {
     /// <summary>The single instance.</summary>
@@ -687,7 +490,7 @@ internal sealed class UnwiredCombatFlow : ICombatFlowSink
             "an EffectOpSeams with a real ICombatFlowSink.");
 }
 
-/// <summary>The `18` §2.4 stat reading M2-03 ships: none, stated as a refusal.</summary>
+/// <summary>The resolved-stat reader, unwired: every member refuses.</summary>
 internal sealed class UnwiredStatReader : IResolvedStatReader
 {
     /// <summary>The single instance.</summary>
@@ -713,7 +516,7 @@ internal sealed class UnwiredStatReader : IResolvedStatReader
             "every copy copy nothing.");
 }
 
-/// <summary>The M2-R1 triggered-stat sink M2-03 shipped none of: a refusal naming M2-R1.</summary>
+/// <summary>The triggered-stat sink, unwired: refuses.</summary>
 internal sealed class UnwiredTriggeredStatSink : ITriggeredStatSink
 {
     /// <summary>The single instance.</summary>
@@ -736,7 +539,7 @@ internal sealed class UnwiredTriggeredStatSink : ITriggeredStatSink
             "real ITriggeredStatSink.");
 }
 
-/// <summary>The `18` §2.5 queue M2-03 ships: none, stated as a refusal naming M2-08.</summary>
+/// <summary>The run/board op queue, unwired: refuses.</summary>
 internal sealed class UnwiredRunQueue : IRunEffectQueue
 {
     /// <summary>The single instance.</summary>

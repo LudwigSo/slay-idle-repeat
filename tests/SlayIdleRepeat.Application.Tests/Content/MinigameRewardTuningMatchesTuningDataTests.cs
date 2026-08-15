@@ -4,24 +4,18 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>
-/// 🔒 M3-03c, `03` §6.1 — the minigame reward tables and <c>game-data/tuning/currencies.json</c>
-/// cannot drift apart.
-/// </summary>
+/// <summary>Checks that the minigame reward tables in <c>tuning/currencies.json</c> and Core's <c>MinigameRewardTuning</c> reader agree.</summary>
 /// <remarks>
-/// The same seam, the same reason and the same mechanism as
-/// <see cref="LoginCalendarTuningMatchesTuningDataTests"/>: <c>Core.Tests</c> is hermetic and
-/// mirrors the shipped file in <c>TuningDocuments</c>, and
-/// <c>SlayIdleRepeat.Core.Content.MinigameRewardTuning</c> is <c>internal</c> to <c>Core</c>, so
-/// neither half can see whether the other is reading the real numbers. This is the half that reads
-/// the checkout.
+/// The same seam as <see cref="LoginCalendarTuningMatchesTuningDataTests"/>: <c>Core.Tests</c> is
+/// hermetic and the reader is internal to Core, so neither half can see whether the other reads the
+/// real numbers.
 /// </remarks>
 public sealed class MinigameRewardTuningMatchesTuningDataTests
 {
     private const string CurrenciesDocument = "tuning/currencies.json";
     private const string RewardsPointer = CurrenciesDocument + "#/minigameRewards";
 
-    /// <summary>`03` §6.1 — the four minigame ids and the tier count each authors.</summary>
+    /// <summary>The four minigame ids and the tier count each authors.</summary>
     public static TheoryData<string, int> ExpectedTierCounts => new()
     {
         { "MG_CHEST_PICK", 3 },
@@ -30,11 +24,7 @@ public sealed class MinigameRewardTuningMatchesTuningDataTests
         { "MG_MEMORY_RUNE", 3 },
     };
 
-    /// <summary>
-    /// 🔒 The tier count <c>Core.Tests</c>' hermetic fixture authors for each minigame is exactly
-    /// the shipped row count — a drift here leaves every hermetic Core test green while the shipped
-    /// server accepts (or refuses) a tier the fixture never exercised.
-    /// </summary>
+    /// <summary>The tier count Core.Tests' hermetic fixture authors matches the shipped row count exactly.</summary>
     [Theory]
     [MemberData(nameof(ExpectedTierCounts))]
     public void The_shipped_row_count_matches_the_hermetic_fixtures_TierCount(string minigameId, int expectedTierCount)
@@ -65,10 +55,7 @@ public sealed class MinigameRewardTuningMatchesTuningDataTests
         }
     }
 
-    /// <summary>
-    /// 🔒 `03` §7a's <c>adBundleScalar</c> — the chapter-scaling factor `03` §6.1 shares with ad
-    /// bundles, the login calendar and the shop's scaled material offers.
-    /// </summary>
+    /// <summary>adBundleScalar is the chapter-scaling factor shared with ad bundles, the login calendar, and the shop's scaled material offers.</summary>
     [Fact]
     public void The_shipped_adBundleScalar_is_0_35()
     {
@@ -86,10 +73,7 @@ public sealed class MinigameRewardTuningMatchesTuningDataTests
                 "the wrong factor.");
     }
 
-    /// <summary>
-    /// 🔒 `03` §6.1's own worked numbers, spot-checked against the row this handler pays a
-    /// Chapter-1 <c>MG_CHEST_PICK</c> gold-tier resolution from.
-    /// </summary>
+    /// <summary>The worked numbers, spot-checked against the row this handler pays a Chapter-1 MG_CHEST_PICK gold-tier resolution from.</summary>
     [Fact]
     public void MG_CHEST_PICKs_gold_tier_matches_03_section_6_1s_authored_row()
     {

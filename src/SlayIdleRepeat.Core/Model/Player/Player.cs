@@ -8,97 +8,57 @@ using SlayIdleRepeat.Core.Primitives;
 namespace SlayIdleRepeat.Core.Model;
 
 /// <summary>
-/// 🔒 The <c>Player</c> aggregate root (`30` §4) — profile, the seven player-scoped currencies,
-/// the two Energy banks, FTUE progress and the daily/weekly counter mechanism.
+/// The <c>Player</c> aggregate root — profile, the seven player-scoped currencies, the two Energy
+/// banks, FTUE progress and the daily/weekly counter mechanism.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Why this type lives in <c>Core/Model/Player/</c> but in namespace
-/// <c>SlayIdleRepeat.Core.Model</c>.</b> Measured before a line of it was written: a namespace
-/// <c>SlayIdleRepeat.Core.Model.Player</c> containing a type <c>Player</c> makes the type
-/// <b>unnameable</b> from anywhere inside <c>SlayIdleRepeat.Core.Model</c> — the child namespace
-/// shadows it, and the compiler answers <c>error CS0118: 'Player' is a namespace but is used like
-/// a type</c>. That is not hypothetical: `30` §4.1 writes <c>WorldSlice(Player Player, Run? Run,
-/// …)</c> and puts it in <c>Model/</c>, so <b>M1-06 would have hit it on its first line</b>, as
-/// would M1-05's <c>Run</c> under a mirrored <c>Model/Run/</c>. `30` §11.4's structure block draws
-/// <b>directories</b> (<c>Model/ ├── Player/ Run/ Guild/</c>) and never says the namespace mirrors
-/// them; <c>Model/Snapshots/</c> keeps its own namespace because <c>Snapshots</c> collides with
-/// nothing. The directory is the file layout; the namespace is the layer.
+/// Lives in <c>Core/Model/Player/</c> but in namespace <c>SlayIdleRepeat.Core.Model</c>, not
+/// <c>...Model.Player</c>: a child namespace named <c>Player</c> would shadow the type
+/// <c>Player</c>, making it unnameable from anywhere inside <c>Model</c> (<c>error CS0118</c>). The
+/// directory is the file layout; the namespace is the layer.
 /// </para>
 /// <para>
-/// 🔒 <b>Public getters, private constructor, <c>internal</c> mutators</b> (`30` §11.2): <em>"The
-/// only public way to change state in this game is <c>GameRules.Apply</c>. Everything else the
-/// outside world can see is a getter."</em> The two public methods that are not getters are
-/// <see cref="ToSnapshot"/> and <see cref="Rehydrate"/> — `30` §11.3's validating factory pair,
-/// which is the one hole <c>internal</c> would otherwise leave, since the Postgres adapter has to
-/// be able to rebuild a player from a row without <c>InternalsVisibleTo</c>.
+/// Public getters, private constructor, <c>internal</c> mutators: the only public way to change state
+/// is <c>GameRules.Apply</c>. <see cref="ToSnapshot"/> and <see cref="Rehydrate"/> are the exception,
+/// the validating factory pair the persistence adapter needs to rebuild a player from a row.
 /// </para>
 /// <para>
-/// 🔒 <b>It holds state and invariants; it does not compute</b> (`30` §11.5). Nothing here calls
-/// <c>EnergyMath</c> — <c>Model</c> may not reference <c>Rules</c>, so it could not — and there is
-/// no <c>Power</c>, no <c>XpToNextLevel</c>, no levelling curve. A handler computes and hands the
-/// answer to <see cref="SetEnergy"/>; the aggregate's job is to refuse an answer that would break
-/// an invariant. The two invariants `30` §11.5 names that are in scope here are <em>"a currency
-/// never goes negative"</em> and <em>"Energy never exceeds max + reserve"</em>.
+/// It holds state and invariants; it does not compute. A handler computes and hands the answer to
+/// <see cref="SetEnergy"/>; the aggregate's job is to refuse an answer that would break an invariant
+/// — a currency never goes negative, and Energy never exceeds max + reserve.
 /// </para>
 /// <para>
-/// ⚠️ <b>The energy invariant is enforced on mutation, not on rehydration, and that is forced.</b>
-/// <c>EnergyMath.Deposit</c> states plainly that banks above the current maximum <em>"are possible
-/// after a balance patch that lowered <c>baseMax</c>"</em> and that the player <em>"drains back
-/// under the cap by playing"</em>. If <see cref="Rehydrate"/> refused such a row, lowering a
-/// tuning number would stop every already-full player from loading — a balance patch turning into
-/// an account outage. So the rule this aggregate holds is the one that makes both documents true:
-/// <b>a mutation may never push a bank past its cap, and may never make an over-cap bank worse.</b>
-/// A player already above the cap stays loadable and drains.
+/// The energy invariant is enforced on mutation, not on rehydration, and that is forced: a balance
+/// patch that lowers the Energy cap leaves real players above the new one, and refusing to load such
+/// a row would turn a tuning change into an account outage. So the rule is: a mutation may never push
+/// a bank past its cap, and may never make an over-cap bank worse. A player already above the cap
+/// stays loadable and drains by playing.
 /// </para>
 /// <para>
-/// 🔒 <b>One seam for currency.</b> <see cref="MoveBalance"/> is the only method outside the
-/// constructor that writes <c>_wallet</c>, and it is also the only one that writes <c>_energy</c>.
-/// That is deliberate rather than tidy:
-/// <c>DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged</c> is an IL scan that
-/// requires any method writing a currency-carrying field to <b>construct</b> a
-/// <c>CurrencyChanged</c>, and routing the Energy write through the same method puts the Energy
-/// path under that guard too — <c>_energy</c> is typed <c>EnergyBanks</c>, so the rule's own field
-/// predicate (a <c>CurrencyId</c>-typed or <c>*wallet*</c>/<c>*currenc*</c>-named field) would
-/// never have found it on its own.
+/// <see cref="MoveBalance"/> is the only method outside the constructor that writes <c>_wallet</c>,
+/// and it is also the only one that writes <c>_energy</c> — an IL-scanning test requires any method
+/// writing a currency-carrying field to construct a <c>CurrencyChanged</c>, and routing Energy through
+/// the same method puts it under that guard too.
 /// </para>
 /// <para>
-/// ⚠️ <b>What this aggregate deliberately does not carry.</b> `30` §4 lists inventory, gear
-/// instances, the unopened-container shelf (`24` §4.0), pity counters (`24`) and lifetime feat
-/// counters (`28` D) among <c>Player</c>'s contents. All four are deferred with an entry in
-/// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, each keyed on a type that must not yet
-/// exist, so the build fails on the day each becomes writable. Entitlement is absent for a
-/// different reason: `30` §3 and `12` §2.1 put it on the <b>session</b>, and it reaches the domain
-/// as <c>GameContext.Entitlements</c>. And there is no factory for a <em>new</em> player: a
-/// starting Energy value, a starting daily boundary and the level a player begins at are decisions
-/// `10` §3 and `07` §1 leave to the milestone that creates accounts (M4-10 / M1-11), and inventing
-/// them here to make a convenient constructor is exactly what steering S6 forbids.
-/// <see cref="Rehydrate"/> is the only way to obtain one, which is precisely what `30` §11.3 says
-/// it should be.
+/// Deliberately absent: inventory, gear instances, the unopened-container shelf, pity counters and
+/// lifetime feat counters — each deferred with a <c>GapRegister</c> entry keyed on a type that must
+/// not yet exist, so the build fails the day one becomes writable without a home here. Entitlement
+/// lives on the session instead, reached as <c>GameContext.Entitlements</c>. There is no factory for a
+/// new player either: starting values are a later milestone's decision, and <see cref="Rehydrate"/> is
+/// the only way to obtain one.
 /// </para>
 /// </remarks>
 public sealed class Player
 {
-    /// <summary>
-    /// 🔒 The <b>six</b> player-scoped wallet currencies, in <see cref="CurrencyId"/> order.
-    /// </summary>
+    /// <summary>The six player-scoped wallet currencies, in <see cref="CurrencyId"/> order.</summary>
     /// <remarks>
-    /// `10` §1 fixes eight currencies. <c>GOLD</c> is <c>RUN</c>-scoped (milestone assumption A3)
-    /// and belongs to <c>Run</c>; <c>ENERGY</c> is player-scoped but has two banks, so it is held
-    /// as <see cref="EnergyBanks"/> rather than as a wallet row — six plus Energy is the seven
-    /// currencies this aggregate owns. Written out rather than filtered from
-    /// <see cref="Enum.GetValues{TEnum}()"/>: a ninth currency appended to the enum has to be
-    /// placed here deliberately, and a filter would silently adopt it into every player's wallet
-    /// and every <c>stateHash</c> in existence.
-    /// </remarks>
-    /// <remarks>
-    /// 🔒 Wrapped in <see cref="Array.AsReadOnly{T}"/>, which is the house idiom
-    /// (<c>RngStreams.FixedNames</c>, <c>ContentSnapshot.DocumentPaths</c>, <c>RejectionReasons</c>)
-    /// and here is load-bearing rather than tidy: a bare array behind an
-    /// <see cref="IReadOnlyList{T}"/> casts straight back to <c>CurrencyId[]</c>, so a caller could
-    /// rewrite what a wallet <em>is</em>, process-wide, on the one type that goes furthest to make
-    /// its state unreachable — and <c>Apply_is_the_only_public_mutation</c> inspects setters,
-    /// fields, constructors and mutating methods, not exposed collections, so it would not see it.
+    /// <c>GOLD</c> is run-scoped and belongs to <c>Run</c>; <c>ENERGY</c> is player-scoped but held
+    /// as <see cref="EnergyBanks"/> since it has two banks. Written out explicitly rather than
+    /// filtered from every <c>CurrencyId</c>, so a new currency has to be adopted here deliberately.
+    /// Wrapped in <see cref="Array.AsReadOnly{T}"/> rather than exposed as a bare array, so a caller
+    /// cannot cast it back to <c>CurrencyId[]</c> and rewrite what a wallet is process-wide.
     /// </remarks>
     public static IReadOnlyList<CurrencyId> WalletCurrencies { get; } = Array.AsReadOnly(new[]
     {
@@ -110,16 +70,11 @@ public sealed class Player
         CurrencyId.HONOR,
     });
 
-    /// <summary>
-    /// 🔒 The wallet. Replaced <b>wholesale</b> on every movement rather than mutated in place.
-    /// </summary>
+    /// <summary>The wallet. Replaced wholesale on every movement rather than mutated in place.</summary>
     /// <remarks>
-    /// Two reasons, and the second is the load-bearing one. It lets <see cref="Wallet"/> hand out
-    /// the live object with no per-read allocation and no way for a caller to reach a mutable
-    /// dictionary underneath. And <c>Every_currency_mutation_emits_CurrencyChanged</c> watches for
-    /// a <c>stfld</c> to this field: a wallet mutated in place would emit no field write at all
-    /// after construction, so the rule the whole `30` §7 attribution chain rests on would be
-    /// awake, pointed at a real field, and still unable to see a single balance change.
+    /// Lets <see cref="Wallet"/> hand out the live object with no per-read allocation and no way to
+    /// reach a mutable dictionary underneath. A wallet mutated in place would emit no field write for
+    /// the IL scan that requires every currency mutation to construct a <c>CurrencyChanged</c> to see.
     /// </remarks>
     private IReadOnlyDictionary<CurrencyId, long> _wallet;
 
@@ -134,24 +89,16 @@ public sealed class Player
     private int _loginCalendarDay;
     private bool _loginCalendarDayClaimed;
 
-    /// <summary>
-    /// The daily counters, and the read-only view handed out by <see cref="DailyCounters"/>.
-    /// </summary>
-    /// <remarks>
-    /// Mutated in place — unlike <c>_wallet</c>, which the currency rule requires to be replaced —
-    /// so the view is built once and stays valid across every increment and reset. A counter is not
-    /// a currency and emits no event; there is nothing for a field write to prove.
-    /// </remarks>
+    /// <summary>The daily counters, and the read-only view handed out by <see cref="DailyCounters"/>.</summary>
+    /// <remarks>Mutated in place, unlike <c>_wallet</c>, so the view stays valid across every increment and reset.</remarks>
     private readonly Dictionary<string, long> _dailyCounters;
     private readonly ReadOnlyDictionary<string, long> _dailyCountersView;
     private readonly Dictionary<string, long> _weeklyCounters;
     private readonly ReadOnlyDictionary<string, long> _weeklyCountersView;
 
     /// <summary>
-    /// 🔒 M3-13, SchemaVersion 7, `02` §5.3 — the (Chapter, Tier) pairs this player has cleared at
-    /// least once (a Boss kill), keyed <c>"{chapterId}:{tier}"</c> — the same open-map shape
-    /// <see cref="_dailyCounters"/> uses, for the same reason: gating a one-time grant is a count/flag
-    /// mechanism, not a currency. The value is always 1; only the key's presence is read.
+    /// The (Chapter, Tier) pairs this player has cleared at least once, keyed
+    /// <c>"{chapterId}:{tier}"</c>. The value is always 1; only the key's presence is read.
     /// </summary>
     private readonly Dictionary<string, long> _clearedChapterTiers;
 
@@ -160,16 +107,7 @@ public sealed class Player
 
     private long _legendXp;
 
-    /// <summary>
-    /// The one constructor. Private, and it <b>trusts</b>: every value has already been checked by
-    /// <see cref="Rehydrate"/>, which is the only caller.
-    /// </summary>
-    /// <remarks>
-    /// Validation lives in one place rather than two. A constructor that re-checked would either
-    /// duplicate the rules — two lists that drift — or throw where `30` §11.3 promises a
-    /// <see cref="Result{T}"/>, which is the difference between a corrupt row failing at the seam
-    /// with a description and a corrupt row failing three rules later with a stack trace.
-    /// </remarks>
+    /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
     private Player(
         PlayerId id,
         string displayName,
@@ -213,73 +151,52 @@ public sealed class Player
         _clearedChapterTiersView = new ReadOnlyDictionary<string, long>(clearedChapterTiers);
     }
 
-    /// <summary>The aggregate root's identity (`30` §4).</summary>
+    /// <summary>The aggregate root's identity.</summary>
     public PlayerId Id { get; }
 
-    /// <summary>
-    /// The player's display name, exactly as it was persisted. ⚠️ Never null or blank, and
-    /// otherwise never interpreted: the name lifecycle is `16` <b>O34</b> and the profanity filter
-    /// is M4-10's (`07` §1).
-    /// </summary>
+    /// <summary>The player's display name, exactly as it was persisted. Never null or blank; otherwise never interpreted.</summary>
     public string DisplayName { get; }
 
-    /// <summary>The player's Legend Level. `07` §1.1 runs it 1..200.</summary>
-    /// <remarks>
-    /// Get-only, with no mutator anywhere in M1: the levelling curve, the level-up grants and the
-    /// unlock ladder are all M4-10's (`07` §1), and a setter with no rule behind it is where a
-    /// level gets awarded without its grants.
-    /// </remarks>
+    /// <summary>The player's Legend Level.</summary>
+    /// <remarks>Get-only, with no mutator anywhere yet: the levelling curve and unlock ladder are a later milestone's.</remarks>
     public int LegendLevel { get; }
 
-    /// <summary>
-    /// Lifetime Legend XP. Never negative. Mutated by <see cref="GrantLegendXp"/> — M3-13's run-end
-    /// payout is the first grantor; the levelling curve that turns it into <see cref="LegendLevel"/>
-    /// is still M4-10's.
-    /// </summary>
+    /// <summary>Lifetime Legend XP. Never negative. Mutated by <see cref="GrantLegendXp"/>.</summary>
     public long LegendXp => _legendXp;
 
-    /// <summary>
-    /// 🔒 `02` §2's <c>runCounter</c> — the player's lifetime runs-started counter, and the fourth
-    /// argument of <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>.
-    /// </summary>
+    /// <summary>The player's lifetime runs-started counter — the fourth argument fed into <c>runSeed</c> derivation.</summary>
     /// <remarks>
-    /// It is what makes two runs started in the same second on the same chapter and tier draw
-    /// different boards, so `02` §2's determinism claim depends on it being monotonic and never
-    /// reset. M1-05's <c>START_RUN</c> reads it and <see cref="BeginRun"/> advances it.
+    /// Must be monotonic and never reset: two runs started in the same second draw different boards
+    /// only because this advances. <see cref="BeginRun"/> is the sole mutator.
     /// </remarks>
     public long RunsStarted => _runsStarted;
 
     /// <summary>
-    /// The six player-scoped wallet balances (`10` §1). Read-only, and every currency in
+    /// The six player-scoped wallet balances. Read-only, and every currency in
     /// <see cref="WalletCurrencies"/> is present — a missing key is a corrupt row, not a zero.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>A frozen view, unlike <see cref="DailyCounters"/>.</b> The wallet is replaced wholesale
-    /// on every movement, so the object a caller holds is a snapshot of the balances at the moment
-    /// it read them and never changes afterwards. The two counter maps are the opposite. The
-    /// asymmetry is forced by the currency rule (see the field's remarks) rather than chosen, and
-    /// it is stated on both getters so a caller does not have to infer it.
+    /// A frozen view, unlike <see cref="DailyCounters"/>: the wallet is replaced wholesale on every
+    /// movement, so an object a caller holds never changes afterwards.
     /// </remarks>
     public IReadOnlyDictionary<CurrencyId, long> Wallet => _wallet;
 
-    /// <summary>The two Energy banks (`10` §3, `28` C) — where the <c>ENERGY</c> currency lives.</summary>
+    /// <summary>The two Energy banks — where the <c>ENERGY</c> currency lives.</summary>
     public EnergyBanks Energy => _energy;
 
-    /// <summary>
-    /// The instant Energy regeneration has been accrued up to (recorded assumption <b>A1</b>).
-    /// </summary>
+    /// <summary>The instant Energy regeneration has been accrued up to.</summary>
     public DateTimeOffset EnergyAnchorUtc => _energyAnchorUtc;
 
-    /// <summary>`30` §2.3's <c>state.LastAppliedAtUtc</c> — where <c>AdvanceTime</c> rolls forward from.</summary>
+    /// <summary>The instant the last command was applied to this player, which <c>AdvanceTime</c> rolls forward from.</summary>
     public DateTimeOffset LastAppliedAtUtc => _lastAppliedAtUtc;
 
-    /// <summary>`19` D7's <c>beatId</c> — the tutorial beat this player has reached.</summary>
+    /// <summary>The tutorial beat this player has reached.</summary>
     public FtueBeat FtueBeat => _ftueBeat;
 
-    /// <summary>`19` D7's <c>completedAtUtc</c>. <c>null</c> until beat 10's spend commits.</summary>
+    /// <summary>When the tutorial completed. <c>null</c> until beat 10's spend commits.</summary>
     public DateTimeOffset? FtueCompletedAtUtc => _ftueCompletedAtUtc;
 
-    /// <summary>Whether the tutorial is finished, which `19` D7 defines as <c>completedAtUtc</c> being set.</summary>
+    /// <summary>Whether the tutorial is finished, defined as <c>completedAtUtc</c> being set.</summary>
     public bool IsFtueComplete => _ftueCompletedAtUtc is not null;
 
     /// <summary>The 05:00 UTC game-day boundary <see cref="DailyCounters"/> were last reset at.</summary>
@@ -287,65 +204,40 @@ public sealed class Player
 
     /// <summary>The daily counters for the current game day. Read-only; empty is the normal state.</summary>
     /// <remarks>
-    /// ⚠️ <b>A live view, unlike <see cref="Wallet"/>.</b> The counters are mutated in place, so a
-    /// caller holding this reference across a <c>CountDaily</c> or a <c>ResetDailyCounters</c> sees
-    /// the new values — a handler that captured it before <c>AdvanceTime</c> would find it empty
-    /// afterwards. Read it, do not hold it. <see cref="ToSnapshot"/> hands out a copy for exactly
-    /// this reason.
+    /// A live view, unlike <see cref="Wallet"/>: the counters are mutated in place, so a caller
+    /// holding this reference across a reset sees the new values. Read it, do not hold it.
     /// </remarks>
     public IReadOnlyDictionary<string, long> DailyCounters => _dailyCountersView;
 
-    /// <summary>The Monday 05:00 UTC game-week boundary <see cref="WeeklyCounters"/> were last reset at (A2).</summary>
+    /// <summary>The Monday 05:00 UTC game-week boundary <see cref="WeeklyCounters"/> were last reset at.</summary>
     public DateTimeOffset WeeklyPeriodStartUtc => _weeklyPeriodStartUtc;
 
     /// <summary>The weekly counters for the current game week. Read-only.</summary>
-    /// <remarks>⚠️ A live view, like <see cref="DailyCounters"/> and unlike <see cref="Wallet"/>.</remarks>
+    /// <remarks>A live view, like <see cref="DailyCounters"/> and unlike <see cref="Wallet"/>.</remarks>
     public IReadOnlyDictionary<string, long> WeeklyCounters => _weeklyCountersView;
 
-    /// <summary>
-    /// 🔒 `19` Part G — the login-calendar day currently <b>open</b>: the one the player may claim,
-    /// counted from 1.
-    /// </summary>
+    /// <summary>The login-calendar day currently open: the one the player may claim, counted from 1.</summary>
     /// <remarks>
-    /// ⚠️ <b>Open, not "the last one claimed"</b>, and the distinction is the whole rule. `19` G
-    /// advances at <c>BEGIN_SESSION</c> <em>"at most once per game day, and only when the currently
-    /// open day has been claimed"</em>, so a player who misses a day finds the same day still open —
-    /// <em>"nothing is skipped or lost"</em>. A field holding "the last day claimed" would answer the
-    /// pause question only by adding one to it, and would have nothing to say about a brand-new
-    /// player who has claimed none.
+    /// Open, not "the last one claimed" — a missed day leaves the same day open rather than skipping
+    /// it, and a "last claimed" field would have nothing to say about a brand-new player.
     /// </remarks>
     public int LoginCalendarDay => _loginCalendarDay;
 
-    /// <summary>
-    /// 🔒 `19` Part G — whether <see cref="LoginCalendarDay"/> has been claimed. The <b>pause</b>
-    /// flag: while it is <see langword="false"/> the calendar does not advance.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ <b>Nothing in M1 sets it, and that is a deferral with a named owner rather than a hole.</b>
-    /// `19` G puts claiming on <c>CLAIM_CALENDAR</c>, whose dispatch row is <c>Deferred</c> to
-    /// <b>M4-09</b> — so an M1 player's calendar is correctly and permanently paused on day 1, which
-    /// is exactly what `19` G specifies for a player who has not claimed. The <em>advance</em> arm is
-    /// reachable all the same: <see cref="Rehydrate"/> is `30` §11.3's one validated construction
-    /// path and is public, so a persisted row with a claimed day drives it — which is how M1-09's
-    /// suite proves both arms rather than only the one M1 can reach through a command.
-    /// </remarks>
+    /// <summary>Whether <see cref="LoginCalendarDay"/> has been claimed. While false, the calendar does not advance.</summary>
     public bool LoginCalendarDayClaimed => _loginCalendarDayClaimed;
 
-    /// <summary>🔒 M3-13 — the (Chapter, Tier) pairs cleared at least once. See <see cref="_clearedChapterTiers"/>.</summary>
+    /// <summary>The (Chapter, Tier) pairs cleared at least once. See <see cref="_clearedChapterTiers"/>.</summary>
     internal IReadOnlyDictionary<string, long> ClearedChapterTiers => _clearedChapterTiersView;
 
-    /// <summary>🔒 M3-13, `02` §5.3 — the key <see cref="ClearedChapterTiers"/> is stored under.</summary>
+    /// <summary>The key <see cref="ClearedChapterTiers"/> is stored under.</summary>
     internal static string ChapterTierKey(int chapterId, DifficultyTier tier) =>
         chapterId.ToString(CultureInfo.InvariantCulture) + ":" + tier;
 
-    /// <summary>🔒 M3-13, `02` §5.3 — whether (<paramref name="chapterId"/>, <paramref name="tier"/>) has been cleared before.</summary>
+    /// <summary>Whether (<paramref name="chapterId"/>, <paramref name="tier"/>) has been cleared before.</summary>
     internal bool HasClearedChapterTier(int chapterId, DifficultyTier tier) =>
         _clearedChapterTiers.ContainsKey(ChapterTierKey(chapterId, tier));
 
-    /// <summary>
-    /// 🔒 M3-13, `02` §5.3 — records that (<paramref name="chapterId"/>, <paramref name="tier"/>) has
-    /// now been cleared. Idempotent, for the reason <c>Run.ClearDraftPending</c> is.
-    /// </summary>
+    /// <summary>Records that (<paramref name="chapterId"/>, <paramref name="tier"/>) has now been cleared. Idempotent.</summary>
     internal void MarkChapterTierCleared(int chapterId, DifficultyTier tier) =>
         _clearedChapterTiers[ChapterTierKey(chapterId, tier)] = 1;
 
@@ -355,9 +247,8 @@ public sealed class Player
     /// <param name="currency">One of <see cref="WalletCurrencies"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="currency"/> is <c>GOLD</c> (run-scoped), <c>ENERGY</c> (held as
-    /// <see cref="Energy"/>) or undefined. Each is refused with the reason, rather than answering
-    /// zero — a zero here reads as "the player has none", which for <c>GOLD</c> is a lie about the
-    /// wrong aggregate.
+    /// <see cref="Energy"/>) or undefined. Each is refused with the reason rather than answering
+    /// zero, which would read as "the player has none" for a balance on the wrong aggregate.
     /// </exception>
     public long BalanceOf(CurrencyId currency)
     {
@@ -368,28 +259,17 @@ public sealed class Player
 
     /// <summary>The current count of a daily counter, or zero when nothing has registered it.</summary>
     /// <param name="counterKey">The counter's key. Never null, empty or whitespace.</param>
-    /// <remarks>
-    /// Zero for an unknown key is correct here and is not the "hole coerced to a default" S6
-    /// forbids: a counter that has never been incremented in this game day genuinely stands at
-    /// zero, and the alternative — every system pre-registering its keys at reset — would need the
-    /// closed catalogue of counters that `30` §2.3's five systems do not yet have.
-    /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="counterKey"/> is blank.</exception>
     public long DailyCount(string counterKey) => CountIn(_dailyCounters, counterKey);
 
     /// <inheritdoc cref="DailyCount"/>
     public long WeeklyCount(string counterKey) => CountIn(_weeklyCounters, counterKey);
 
-    /// <summary>
-    /// 🔒 `30` §11.3 — the persisted shape of this aggregate, stamped with the <b>current</b>
-    /// <see cref="SnapshotSchema.SchemaVersion"/>.
-    /// </summary>
+    /// <summary>The persisted shape of this aggregate, stamped with the current <see cref="SnapshotSchema.SchemaVersion"/>.</summary>
     /// <remarks>
-    /// The counter dictionaries are <b>copied</b>; the wallet is not. That asymmetry is the
-    /// storage decision showing through: <c>_wallet</c> is replaced wholesale on every movement, so
-    /// the object handed out here can never change afterwards, while the counter dictionaries are
-    /// mutated in place and a shared reference would let a later increment rewrite a snapshot
-    /// already handed to a persistence adapter.
+    /// The counter dictionaries are copied; the wallet is not — the wallet is already replaced
+    /// wholesale on every movement, so the object handed out here can never change afterwards, while
+    /// a shared counter reference would let a later increment rewrite an already-handed-out snapshot.
     /// </remarks>
     public PlayerSnapshot ToSnapshot() => new(
         SnapshotSchema.SchemaVersion,
@@ -412,36 +292,21 @@ public sealed class Player
         _loginCalendarDayClaimed,
         Copy(_clearedChapterTiers));
 
-    /// <summary>
-    /// 🔒 `30` §11.3 — the one validated entry point for a persisted player: <em>"a corrupt row
-    /// fails loudly at the seam rather than silently three rules later."</em>
-    /// </summary>
+    /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
     /// <param name="content">
-    /// The version-stamped content snapshot the command is reading (`30` §3). The Legend Level
-    /// range is a 📐 tunable, so validating a row needs the data set the row is validated against.
+    /// The version-stamped content snapshot the command is reading; the Legend Level range is a
+    /// tunable read from it.
     /// </param>
     /// <returns>
-    /// The rehydrated aggregate, or a failure listing <b>every</b> validation the row failed —
-    /// not just the first. A corrupt row is usually corrupt in more than one way, and one round
-    /// trip per defect is one round trip too many when the row is already in production.
+    /// The rehydrated aggregate, or a failure listing every validation the row failed, not just the
+    /// first.
     /// </returns>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>An unknown <see cref="PlayerSnapshot.SchemaVersion"/> hard-fails, loudly.</b> The M1
-    /// kickoff ruled that no migration code is written before soft launch and that written
-    /// migrations become mandatory at M18. Until then a row from another schema version has no
-    /// reader, and guessing that "close enough" layouts are compatible is how a field silently
-    /// shifts by one position across an entire player base. It is checked <b>first and alone</b>:
-    /// every validation below reads fields whose meaning the version defines.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>A bad <em>content</em> set throws rather than failing.</b> A missing or unauthorised
-    /// tunable raises the <c>ContentException</c> family out of this method, and that is the right
-    /// channel: a corrupt row is one player's problem and belongs in a <see cref="Result{T}"/>; a
-    /// data set that cannot answer "what is the maximum Legend Level" is every player's problem and
-    /// belongs at the composition root that loaded it.
-    /// </para>
+    /// An unknown <see cref="PlayerSnapshot.SchemaVersion"/> hard-fails first and alone: no migration
+    /// code exists yet, so a row from another version has no reader and "close enough" layouts would
+    /// silently shift a field. A bad content set throws rather than failing: a missing or unauthorised
+    /// tunable is every player's problem and belongs at the composition root, not in a per-row Result.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="snapshot"/> or <paramref name="content"/> is null.</exception>
     /// <exception cref="MissingContentException">The content set is missing a tunable this validation needs.</exception>
@@ -467,18 +332,9 @@ public sealed class Player
         var legend = LegendTuning.Read(content);
         var faults = new List<string>();
 
-        // ⚠️ There is no energy check here, and that is deliberate twice over.
-        //
-        // The UPPER bound is enforced on mutation instead — see the type's remarks:
-        // EnergyMath.Deposit makes banks above the current maximum a reachable, legitimate state
-        // after a balance patch that lowered baseMax, so refusing to LOAD such a row would turn a
-        // tuning change into an outage for every player who was full.
-        //
-        // The LOWER bound needs no check at all: EnergyBanks refuses a negative amount in its own
-        // property initialisers, and — unlike default(PlayerId), whose Value is an invalid null —
-        // default(EnergyBanks) is (0, 0), a legitimate state and the one a player who just spent
-        // their last run is in. A guard here would be a branch no input can reach, which is
-        // steering S1's defect rather than defence in depth.
+        // No energy check here, deliberately: the upper bound is enforced on mutation instead (see
+        // the type's remarks), and the lower bound needs none — EnergyBanks refuses negative amounts
+        // itself, and default(EnergyBanks) is (0, 0), a legitimate state.
         RequireIdentity(snapshot, faults);
         RequireProfile(snapshot, legend, faults);
         var wallet = ReadWallet(snapshot, faults);
@@ -489,9 +345,8 @@ public sealed class Player
         RequireLoginCalendar(snapshot, faults);
         var clearedChapterTiers = ReadClearedChapterTiers(snapshot.ClearedChapterTiers, faults);
 
-        // The three `is null` arms are unreachable while `faults` is empty — every path that
-        // returns null also adds a fault — but they are written as a pattern rather than as three
-        // `!` operators so the correlation is checked rather than asserted at the compiler.
+        // The `is null` arms are unreachable while `faults` is empty — every path that returns null
+        // also adds a fault — but written as a pattern so the correlation is checked, not asserted.
         if (faults.Count > 0 || wallet is null || daily is null || weekly is null || clearedChapterTiers is null)
         {
             return Result<Player>.Failure(
@@ -520,23 +375,18 @@ public sealed class Player
             clearedChapterTiers));
     }
 
-    /// <summary>
-    /// 🔒 Moves one player-scoped wallet currency and produces the `30` §7 <c>CurrencyChanged</c>
-    /// that attributes it.
-    /// </summary>
+    /// <summary>Moves one player-scoped wallet currency and produces the <c>CurrencyChanged</c> that attributes it.</summary>
     /// <param name="currency">One of <see cref="WalletCurrencies"/>.</param>
     /// <param name="delta">Signed: positive is income, negative is a spend. Zero is permitted.</param>
     /// <param name="reason">
-    /// 🔒 Why it moved — the attribution column of `21` §8.3's <c>income_attribution.csv</c>.
-    /// A stable <c>lower_snake_case</c> token. Never blank; <c>CurrencyChanged</c> refuses that.
+    /// Why it moved — a stable <c>lower_snake_case</c> token. Never blank; <c>CurrencyChanged</c>
+    /// refuses that.
     /// </param>
     /// <returns>The event, with <see cref="DomainEvent.Sequence"/> left at <c>DomainEvent.UnstampedSequence</c>.</returns>
     /// <remarks>
-    /// <c>internal</c>, so the only public route to it is <c>GameRules.Apply</c> (`30` §11.2).
-    /// Throws rather than returning a <see cref="Result{T}"/> on an unaffordable spend: refusing a
-    /// player's request is a <c>RejectionReason</c> the handler produces <em>before</em> it gets
-    /// here, so a negative balance reaching this point is a rule that forgot to check, not a
-    /// player who cannot pay.
+    /// <c>internal</c>; the only public route is <c>GameRules.Apply</c>. Throws rather than returning
+    /// a <see cref="Result{T}"/> on an unaffordable spend: the handler is expected to have refused it
+    /// as a <c>RejectionReason</c> before it reaches here.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="currency"/> is not player-scoped, or the movement would overflow.
@@ -549,9 +399,7 @@ public sealed class Player
 
         var balance = _wallet[currency];
 
-        // Checked, because `long.MaxValue + 1` wraps to a large negative in the default unchecked
-        // context — a grant that silently bankrupts the player, straight past the guard below that
-        // exists to stop exactly that.
+        // Checked: unchecked overflow would wrap a large grant to a negative balance silently.
         long next;
         try
         {
@@ -581,12 +429,9 @@ public sealed class Player
     }
 
     /// <summary>
-    /// 🔒 M3-13, `02` §5.1a / §5.2 — grants Legend XP from a run's <c>FinalPayout</c>. Not a
-    /// <see cref="CurrencyId"/> movement (`10` §1 does not list Legend XP among the eight wallet
-    /// currencies), so it emits no <c>CurrencyChanged</c> — the same reasoning
-    /// <c>Run.BankRewards</c> states for the banking half of this seam. Turning the new total into a
-    /// <see cref="LegendLevel"/> is still M4-10's levelling curve; this seam only ever raises the
-    /// lifetime total.
+    /// Grants Legend XP from a run's <c>FinalPayout</c>. Not a <see cref="CurrencyId"/> movement, so
+    /// it emits no <c>CurrencyChanged</c>. Turning the new total into a <see cref="LegendLevel"/> is a
+    /// later milestone's levelling curve; this seam only ever raises the lifetime total.
     /// </summary>
     /// <param name="amount">Legend XP to add. Never negative.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is negative, or the total would overflow.</exception>
@@ -613,28 +458,20 @@ public sealed class Player
         }
     }
 
-    /// <summary>
-    /// 🔒 Writes the two Energy banks a rule computed, and produces the <c>CurrencyChanged</c> that
-    /// attributes the movement (<c>ENERGY</c> is one of `10` §1's currencies).
-    /// </summary>
+    /// <summary>Writes the two Energy banks a rule computed, and produces the attributing <c>CurrencyChanged</c>.</summary>
     /// <param name="banks">
-    /// The banks after the rule — <c>EnergyMath.Accrue(...).Banks</c>, <c>EnergyMath.Grant(...)</c>
-    /// or <c>EnergyMath.Spend(...).Banks</c>. The aggregate does not compute them (`30` §11.5); it
-    /// refuses them if they break the invariant.
+    /// The banks after the rule. The aggregate does not compute them; it refuses them if they break
+    /// the invariant.
     /// </param>
     /// <param name="tuning">The energy numbers, so the caps can be derived for this Legend Level.</param>
     /// <param name="reason">Why Energy moved. A stable <c>lower_snake_case</c> token.</param>
     /// <returns>
     /// A <c>CurrencyChanged</c> for <see cref="CurrencyId.ENERGY"/> whose <c>Delta</c> is the change
-    /// in the two banks <b>together</b>. Overflow into the Reserve is a movement within one
-    /// currency, not two movements, so `21` §8.3 sees one row.
+    /// in both banks together — overflow into the Reserve is one movement, not two.
     /// </returns>
     /// <remarks>
-    /// 🔒 <b>The ceiling is <c>max(cap, where the bank already is)</c>, not <c>cap</c>.</b> See the
-    /// type's remarks: a balance patch that lowers <c>baseMax</c> leaves real players above the new
-    /// cap, and <c>EnergyMath.Deposit</c> is written to leave them there and let them drain. A flat
-    /// <c>&lt;= cap</c> assertion here would make the first accrual after such a patch throw for
-    /// every one of them, on a value the rule deliberately did not change.
+    /// The ceiling is <c>max(cap, where the bank already is)</c>, not <c>cap</c>: a balance patch that
+    /// lowers the cap must not throw on a player who was already full and has not been touched.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="reason"/> is blank.</exception>
@@ -654,33 +491,17 @@ public sealed class Player
         return MoveBalance(CurrencyId.ENERGY, delta, delta, banks, reason);
     }
 
-    /// <summary>
-    /// 🔒 `10` §3 / `28` C2 — the <b>one</b> accrual seam: writes the regenerated banks and moves
-    /// the anchor by the span that produced them, in one call.
-    /// </summary>
+    /// <summary>The one accrual seam: writes the regenerated banks and moves the anchor by the span that produced them, in one call.</summary>
     /// <param name="banks"><c>EnergyMath.Accrue(...).Banks</c>.</param>
-    /// <param name="anchorAdvance">
-    /// <c>EnergyMath.Accrue(...).AnchorAdvance</c> — the <b>same</b> accrual's, never another's.
-    /// </param>
+    /// <param name="anchorAdvance"><c>EnergyMath.Accrue(...).AnchorAdvance</c> — the same accrual's, never another's.</param>
     /// <param name="tuning">The energy numbers, so the ceiling can be derived for this Legend Level.</param>
     /// <param name="reason">Why Energy moved. A stable <c>lower_snake_case</c> token.</param>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>It takes both halves of one accrual, and that is the invariant.</b>
-    /// <c>EnergyMath.Accrue</c> answers with the banks <em>and</em> the anchor advance because they
-    /// are one fact; a caller that wrote the banks and forgot the anchor would re-grant the same
-    /// span of regeneration on every subsequent command — unbounded Energy — and no aggregate-level
-    /// invariant could catch it, because each of the two writes is individually legal. Making the
-    /// anchor unreachable except through here is what makes that unrepresentable rather than merely
-    /// discouraged. <see cref="SetEnergy"/> stays for grants and spends, which legitimately move a
-    /// balance without moving the anchor.
-    /// </para>
-    /// <para>
-    /// ⚠️ It takes the two values rather than <c>EnergyAccrual</c> itself for a layering reason, not
-    /// an ergonomic one: <c>EnergyAccrual</c> lives in <c>Core/Rules/Economy/</c>, and naming it in
-    /// a <c>Model</c> signature is exactly the <c>Model → Rules</c> reference `30` §11.4 forbids —
-    /// <c>Core_internal_layering_holds</c> reads method signatures.
-    /// </para>
+    /// Takes both halves of one accrual because they are one fact: writing the banks but forgetting
+    /// the anchor would re-grant the same span of regeneration on every later command, and no
+    /// aggregate-level invariant could catch it since each write is individually legal.
+    /// <see cref="SetEnergy"/> stays for grants and spends, which legitimately move a balance without
+    /// moving the anchor.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="reason"/> is blank.</exception>
@@ -689,8 +510,7 @@ public sealed class Player
     internal CurrencyChanged AccrueEnergy(
         EnergyBanks banks, TimeSpan anchorAdvance, EnergyTuning tuning, string reason)
     {
-        // The anchor is checked FIRST so a negative advance cannot leave the banks written and the
-        // anchor not — the same ordering reason MoveBalance builds its event before writing.
+        // Checked first so a negative advance cannot leave the banks written and the anchor not.
         RequireForwardAnchor(anchorAdvance);
 
         var change = SetEnergy(banks, tuning, reason);
@@ -700,15 +520,8 @@ public sealed class Player
         return change;
     }
 
-    /// <summary>
-    /// Advances the regeneration anchor by the span a rule actually accrued — recorded assumption
-    /// <b>A1</b>: <c>wholeUnits × regenInterval</c>, never to the instant asked about.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <c>private</c>, reachable only through <see cref="AccrueEnergy"/>. See its remarks: the
-    /// anchor and the banks are one fact, and an internal mutator that moved only one of them would
-    /// let a caller re-grant the same span forever with every individual call legal.
-    /// </remarks>
+    /// <summary>Advances the regeneration anchor by the span a rule actually accrued.</summary>
+    /// <remarks><c>private</c>, reachable only through <see cref="AccrueEnergy"/> — see its remarks.</remarks>
     private void AdvanceEnergyAnchor(TimeSpan accrued)
     {
         RequireForwardAnchor(accrued);
@@ -729,20 +542,11 @@ public sealed class Player
         }
     }
 
-    /// <summary>
-    /// 🔒 `02` §2 — advances the lifetime runs-started counter and answers the value the run being
-    /// started is seeded with.
-    /// </summary>
-    /// <returns>
-    /// The counter <b>after</b> the increment, which is the <c>runCounter</c> argument to
-    /// <c>runSeed = Hash64(playerId, chapterId, tierId, utcUnixSeconds, runCounter)</c>.
-    /// </returns>
+    /// <summary>Advances the lifetime runs-started counter and answers the value the run being started is seeded with.</summary>
+    /// <returns>The counter after the increment — the <c>runCounter</c> argument to <c>runSeed</c> derivation.</returns>
     /// <remarks>
-    /// It returns the value rather than leaving the caller to read <see cref="RunsStarted"/> back,
-    /// so that "the counter this run was seeded with" and "the counter now stored" cannot be two
-    /// different numbers — a second <c>START_RUN</c> interleaving between the increment and the
-    /// read would silently seed both runs the same way, which is the one thing `02` §2's counter
-    /// exists to prevent.
+    /// Returns the value rather than leaving the caller to read <see cref="RunsStarted"/> back, so an
+    /// interleaved second <c>START_RUN</c> cannot seed two runs the same way.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The counter would overflow a 64-bit count.</exception>
     internal long BeginRun()
@@ -758,27 +562,15 @@ public sealed class Player
         return ++_runsStarted;
     }
 
-    /// <summary>`30` §2.3 — records that a command has been applied at <paramref name="nowUtc"/>.</summary>
+    /// <summary>Records that a command has been applied at <paramref name="nowUtc"/>.</summary>
     /// <param name="nowUtc">
     /// <c>GameContext.NowUtc</c>. Must carry a zero offset and must not precede
     /// <see cref="LastAppliedAtUtc"/>.
     /// </param>
     /// <remarks>
-    /// ⚠️ Equal is allowed, strictly-earlier is not. Two commands can legitimately share an instant
-    /// — the server stamps <c>NowUtc</c> once per command and a client can send two inside the same
-    /// millisecond — whereas an earlier instant means a clock moved backwards.
-    /// <para>
-    /// 🔒 <b>Corrected in M1-12, and the correction is carried-forward item 20.</b> This paragraph
-    /// used to end <em>"and M1-08's <c>AdvanceTime</c> is specified to clamp that rather than pass it
-    /// on"</em> — which was false in the only way that matters: <c>AdvanceTime</c> clamps the
-    /// <em>energy span</em>, and nothing clamped the instant handed to this method, so under host
-    /// clock skew this throw came straight out of <c>GameRules.Apply</c> and violated `30` §2.1's
-    /// <b>P3</b>. <c>GameRules.MarkApplied</c> now floors the value it passes here, so the clamp the
-    /// sentence promised exists. ⚠️ The refusal below is deliberately <b>kept</b>: an anchor moving
-    /// backwards inside the model is a persistence defect, and accepting it silently is what
-    /// <c>EnergyMath.Accrue</c>'s remarks warn about — it would make an anchor stored in the future,
-    /// which never self-corrects, indistinguishable from skew.
-    /// </para>
+    /// Equal is allowed, strictly-earlier is not: two commands can legitimately share an instant, but
+    /// an earlier one means a clock moved backwards — a persistence defect this method refuses rather
+    /// than silently accepting, since a backwards anchor would never self-correct.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="nowUtc"/> is offset or goes backwards.</exception>
     internal void MarkApplied(DateTimeOffset nowUtc)
@@ -798,18 +590,15 @@ public sealed class Player
         _lastAppliedAtUtc = nowUtc;
     }
 
-    /// <summary>
-    /// 🔒 `30` §2.3 — clears the daily counters and records the 05:00 UTC boundary they were
-    /// cleared at. The daily half of the mechanism M1-08's <c>AdvanceTime</c> drives.
-    /// </summary>
+    /// <summary>Clears the daily counters and records the 05:00 UTC boundary they were cleared at.</summary>
     /// <param name="periodStartUtc">
     /// The game-day boundary now in force: 05:00:00.000 UTC exactly, offset zero, and never before
     /// the boundary already recorded.
     /// </param>
     /// <remarks>
-    /// The aggregate does not work out <em>which</em> boundary that is — computing it from
-    /// <c>NowUtc</c> is arithmetic, and `30` §11.5 keeps arithmetic out of <c>Model</c>. It holds
-    /// the invariant that whatever it is handed is a boundary the game actually has.
+    /// The aggregate does not work out which boundary that is — computing it is arithmetic, and stays
+    /// out of <c>Model</c>. It holds the invariant that whatever it is handed is a boundary the game
+    /// actually has.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">Not a 05:00 UTC boundary, or it goes backwards.</exception>
     internal void ResetDailyCounters(DateTimeOffset periodStartUtc)
@@ -817,11 +606,8 @@ public sealed class Player
         RequireGameDayBoundary(periodStartUtc, nameof(periodStartUtc));
         RequireNotBefore(periodStartUtc, _dailyPeriodStartUtc, nameof(periodStartUtc), "daily");
 
-        // 🔒 The boundary already in force is a NO-OP, not a clear. 30 §2.3 runs lazy catch-up as
-        // the first step of EVERY command, so M1-08 calls this on every command a player sends —
-        // and clearing on equality would wipe the day's ad caps, dungeon entries and quest progress
-        // several times an hour, which is the exact outcome RequireNotBefore's message is about.
-        // Only a boundary that is genuinely LATER starts a new period.
+        // The boundary already in force is a no-op, not a clear: this runs as lazy catch-up on every
+        // command, and clearing on equality would wipe the day's progress several times an hour.
         if (periodStartUtc == _dailyPeriodStartUtc)
         {
             return;
@@ -831,20 +617,14 @@ public sealed class Player
         _dailyPeriodStartUtc = periodStartUtc;
     }
 
-    /// <summary>
-    /// 🔒 The weekly half. Milestone assumption <b>A2</b> (derived from `27` §4): the game week
-    /// starts <b>Monday 05:00 UTC</b>.
-    /// </summary>
+    /// <summary>The weekly half. The game week starts Monday 05:00 UTC.</summary>
     /// <param name="periodStartUtc">A Monday at 05:00:00.000 UTC, offset zero, never going backwards.</param>
     /// <exception cref="ArgumentOutOfRangeException">Not a Monday 05:00 UTC boundary, or it goes backwards.</exception>
     internal void ResetWeeklyCounters(DateTimeOffset periodStartUtc)
     {
         RequireGameDayBoundary(periodStartUtc, nameof(periodStartUtc));
 
-        // The weekday is GameCalendar.WeekStart's, for the reason RequireGameDayBoundary records:
-        // GameRules.AdvanceTime computes the Monday this refuses anything but, and Model may not
-        // reference Rules — so one definition, read by both. The message names MONDAY in prose
-        // because it is quoting A2, not restating the constant.
+        // The weekday is GameCalendar.WeekStart's, the same definition GameRules.AdvanceTime reads.
         if (periodStartUtc.DayOfWeek != GameCalendar.WeekStart)
         {
             throw new ArgumentOutOfRangeException(
@@ -868,43 +648,15 @@ public sealed class Player
         _weeklyPeriodStartUtc = periodStartUtc;
     }
 
-    /// <summary>
-    /// 🔒 `19` Part G — advances the login calendar to the next day, which becomes <b>open and
-    /// unclaimed</b>. The pointer only; nothing is paid out.
-    /// </summary>
-    /// <param name="tuning">
-    /// The calendar numbers, so `19` G's <em>"after day 28 it restarts at day 1"</em> is read from
-    /// <c>tuning/currencies.json</c> rather than transcribed here (`21` §3.1).
-    /// </param>
+    /// <summary>Advances the login calendar to the next day, which becomes open and unclaimed. The pointer only; nothing is paid out.</summary>
+    /// <param name="tuning">The calendar numbers, so the cycle wrap is read from tuning rather than hard-coded.</param>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>The pause rule is enforced here, not left to the caller.</b> `19` G advances
-    /// <em>"only when the currently open day has been claimed; a missed day — or an unclaimed one —
-    /// pauses the calendar. Nothing is skipped or lost."</em> A mutator that advanced unconditionally
-    /// would let any future caller skip a day the player never received, and the loss would be
-    /// invisible: the pointer would simply be further along than the rewards paid. So an unclaimed
-    /// day is a <b>silent no-op</b> rather than a refusal — the pause is the specified behaviour, not
-    /// an error, and <c>BEGIN_SESSION</c> arriving on a paused calendar is the normal case.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>"At most once per game day" is deliberately NOT here.</b> That half of `19` G is about
-    /// how often the calendar is <em>asked</em>, and the aggregate has no way to know: it holds no
-    /// game day of its own and `30` §11.5 keeps the arithmetic that would compute one out of
-    /// <c>Model</c>. <c>Handlers/BeginSession</c> owns it, through the per-game-day idempotence that
-    /// gates the whole daily block — one mechanism for three effects, rather than a second, weaker
-    /// copy of it hidden in the aggregate.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>It emits no event.</b> A calendar day is not a currency and nothing moved: `30` §7's
-    /// vocabulary has no row for a pointer, and the grant that <em>will</em> move currency is
-    /// <c>CLAIM_CALENDAR</c>'s (M4-09), which pays from the day this opened.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>It returns nothing, deliberately.</b> A <c>bool</c> "did it move" would be a second way
-    /// to ask a question <see cref="LoginCalendarDay"/> and <see cref="LoginCalendarDayClaimed"/>
-    /// already answer, and a caller that trusted the flag instead of the state is exactly how a test
-    /// ends up asserting the return value of the method under test rather than what it did.
-    /// </para>
+    /// The pause rule is enforced here: it advances only when the currently open day has been
+    /// claimed, so an unclaimed day is a silent no-op rather than a refusal — nothing is skipped or
+    /// lost. "At most once per game day" is deliberately not checked here; that is the caller's
+    /// per-game-day idempotence to enforce. It emits no event (a calendar day is not a currency) and
+    /// returns nothing, since <see cref="LoginCalendarDay"/> and <see cref="LoginCalendarDayClaimed"/>
+    /// already answer whether it moved.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
     internal void AdvanceLoginCalendar(LoginCalendarTuning tuning)
@@ -920,16 +672,8 @@ public sealed class Player
         _loginCalendarDayClaimed = false;
     }
 
-    /// <summary>
-    /// Registers and advances a daily counter — the increment half of the mechanism. The counter
-    /// comes into existence on its first increment; nothing has to declare it in advance.
-    /// </summary>
-    /// <param name="counterKey">
-    /// A stable <c>lower_snake_case</c> key owned by the system that counts. ⚠️ Deliberately not a
-    /// closed enum: `30` §2.3's five daily-reset systems (quest expiry, the wheel's free spin, ad
-    /// caps, dungeon entries, daily-shop stock) do not exist yet, and freezing their vocabulary
-    /// here would invent it (S6).
-    /// </param>
+    /// <summary>Registers and advances a daily counter. The counter comes into existence on its first increment.</summary>
+    /// <param name="counterKey">A stable <c>lower_snake_case</c> key owned by the system that counts. Deliberately not a closed enum.</param>
     /// <param name="amount">How much to add. Never negative — a counter counts, it does not settle.</param>
     /// <exception cref="ArgumentException"><paramref name="counterKey"/> is blank.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is negative, or the count overflows.</exception>
@@ -940,17 +684,9 @@ public sealed class Player
     internal void CountWeekly(string counterKey, long amount) =>
         Count(_weeklyCounters, counterKey, amount, "weekly");
 
-    /// <summary>
-    /// `19` D7 — advances the tutorial to the next beat, <em>"server-side as each beat's
-    /// interaction completes"</em>.
-    /// </summary>
+    /// <summary>Advances the tutorial to the next beat, as each beat's interaction completes.</summary>
     /// <param name="beat">The beat now reached. Strictly after the current one.</param>
-    /// <remarks>
-    /// ⚠️ Strictly forwards, and refused outright once the tutorial is complete. `19` D7's resume
-    /// table only ever re-presents the <em>current</em> beat, and `19` D6 says the skip is
-    /// <em>"never re-offered after completion"</em> — so a beat moving backwards, or moving at all
-    /// after <c>completedAtUtc</c>, is a replayed or duplicated command, not a player.
-    /// </remarks>
+    /// <remarks>Strictly forwards, and refused outright once the tutorial is complete.</remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="beat"/> is undefined or not later.</exception>
     /// <exception cref="InvalidOperationException">The tutorial is already complete.</exception>
     internal void AdvanceFtue(FtueBeat beat)
@@ -984,10 +720,7 @@ public sealed class Player
         _ftueBeat = beat;
     }
 
-    /// <summary>
-    /// `19` D7 — completes the tutorial. <em>"The FTUE is complete when beat 10's spend commits;
-    /// <c>completedAtUtc</c> is set and no FTUE surface ever appears again."</em>
-    /// </summary>
+    /// <summary>Completes the tutorial. Set once beat 10's spend commits; no FTUE surface appears again after.</summary>
     /// <param name="atUtc">When it completed. Offset zero.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="atUtc"/> carries a non-zero offset.</exception>
     /// <exception cref="InvalidOperationException">The tutorial is not at beat 10, or is already complete.</exception>
@@ -1013,32 +746,17 @@ public sealed class Player
         _ftueCompletedAtUtc = atUtc;
     }
 
-    /// <summary>
-    /// 🔒 The <b>one</b> place a balance changes, and therefore the one place that has to attribute
-    /// the change.
-    /// </summary>
+    /// <summary>The one place a balance changes, and therefore the one place that attributes the change.</summary>
     /// <remarks>
-    /// <para>
-    /// Both currency stores are written here — <c>_wallet</c> for the six wallet rows,
-    /// <c>_energy</c> for <c>ENERGY</c> — so
-    /// <c>DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged</c> covers both. That
-    /// rule finds this method by its <c>stfld</c> to <c>_wallet</c> and then requires a
-    /// <c>newobj</c> on <c>CurrencyChanged</c> in the same method body; deleting the construction
-    /// below turns the build red, which is the demonstration this design exists for.
-    /// </para>
-    /// <para>
-    /// Validation is the callers' — <see cref="MoveCurrency"/> and <see cref="SetEnergy"/> — so
-    /// that this method has exactly one job and cannot grow a branch that writes without emitting.
-    /// </para>
+    /// Both currency stores are written here — <c>_wallet</c> for the wallet rows, <c>_energy</c> for
+    /// <c>ENERGY</c> — so the IL scan requiring a <c>CurrencyChanged</c> on every currency-field write
+    /// covers both. Validation belongs to the callers, so this method has exactly one job.
     /// </remarks>
     private CurrencyChanged MoveBalance(
         CurrencyId currency, long delta, long balance, EnergyBanks banks, string reason)
     {
-        // 🔒 Built BEFORE the write, not after. CurrencyChanged refuses a blank Reason in its own
-        // property initialiser, so constructing it second would leave the balance already moved and
-        // the throw unrecoverable — a currency movement with no attribution, which is the one
-        // outcome 30 §7 and this whole seam exist to make impossible. The newobj and the stfld stay
-        // in the same method body either way, which is what the IL rule reads.
+        // Built before the write: CurrencyChanged refuses a blank Reason in its own initialiser, so
+        // constructing it after the write would leave the balance moved with no attribution.
         var change = new CurrencyChanged(DomainEvent.UnstampedSequence, currency, delta, reason);
 
         if (currency == CurrencyId.ENERGY)
@@ -1047,8 +765,8 @@ public sealed class Player
         }
         else
         {
-            // `balance` is the value MoveCurrency already added in a CHECKED context. Re-adding
-            // here would put the overflow back, in an unchecked one, a guard away from the caller.
+            // `balance` is already the CHECKED sum MoveCurrency computed; re-adding here would redo
+            // it unchecked, past the overflow guard the caller already ran.
             var next = new Dictionary<CurrencyId, long>(_wallet) { [currency] = balance };
             _wallet = new ReadOnlyDictionary<CurrencyId, long>(next);
         }
@@ -1150,18 +868,11 @@ public sealed class Player
             parameterName);
     }
 
-    /// <summary>
-    /// 🔒 The 05:00 UTC invariant, asked of <see cref="GameCalendar"/> rather than restated.
-    /// </summary>
+    /// <summary>The 05:00 UTC invariant, asked of <see cref="GameCalendar"/> rather than restated.</summary>
     /// <remarks>
-    /// This aggregate held its own <c>GameDayStart = TimeSpan.FromHours(5)</c> until M1-08 needed
-    /// the <em>same</em> number to compute a boundary in <c>GameRules.AdvanceTime</c>. `30` §11.4
-    /// forbids <c>Model</c> from referencing <c>Rules</c>, so the computing half could not have
-    /// called into here — the two would have been two transcriptions of one number, and the failure
-    /// mode of drift is not a wrong answer but an <see cref="ArgumentOutOfRangeException"/> thrown
-    /// from this very guard, out of <c>GameRules.Apply</c>, on every command that crosses a
-    /// boundary. <c>Primitives</c> sits beneath <c>Model</c> and <c>Rules</c> alike, so both read
-    /// one definition. The number is still not a 📐 tunable — see <see cref="GameCalendar.DayStart"/>.
+    /// This aggregate held its own copy of the boundary hour until <c>GameRules.AdvanceTime</c>
+    /// needed the same number and could not call into <c>Model</c> from <c>Rules</c>; both now read
+    /// one definition from <c>Primitives</c>.
     /// </remarks>
     private static void RequireGameDayBoundary(DateTimeOffset boundary, string parameterName)
     {
@@ -1216,8 +927,7 @@ public sealed class Player
 
     private static void RequireIdentity(PlayerSnapshot snapshot, List<string> faults)
     {
-        // default(PlayerId) runs no constructor, so its Value is null rather than validated —
-        // PlayerId's own remarks name Rehydrate as the seam that has to catch it.
+        // default(PlayerId) runs no constructor, so its Value is null rather than validated.
         if (string.IsNullOrWhiteSpace(snapshot.Id.Value))
         {
             faults.Add(
@@ -1331,9 +1041,7 @@ public sealed class Player
             RequireUtc(completed, nameof(PlayerSnapshot.FtueCompletedAtUtc), faults);
         }
 
-        // The boundary checks run only on an instant already known to be UTC: "05:00 on a clock two
-        // hours ahead" is not a game-day boundary, and reporting it as one as well as as an offset
-        // would be two faults for one defect.
+        // Runs only once the instant is confirmed UTC, so one defect reports once, not twice.
         if (snapshot.DailyPeriodStartUtc.Offset == TimeSpan.Zero &&
             !GameCalendar.IsGameDayBoundary(snapshot.DailyPeriodStartUtc))
         {
@@ -1343,9 +1051,7 @@ public sealed class Player
                 "(30 §2.3).");
         }
 
-        // ⚠️ Both halves of the failure are named, because the guard fires on either. Reporting only
-        // the weekday for a Monday-at-06:00 row would read "…, a Monday. The game week starts MONDAY
-        // 05:00 UTC" — self-contradictory, and pointing the reader at the one field that is correct.
+        // Both halves of the failure are named, since the guard can fire on either.
         if (snapshot.WeeklyPeriodStartUtc.Offset == TimeSpan.Zero &&
             !GameCalendar.IsGameWeekBoundary(snapshot.WeeklyPeriodStartUtc))
         {
@@ -1391,18 +1097,11 @@ public sealed class Player
         }
     }
 
-    /// <summary>
-    /// 🔒 `19` Part G — the login calendar's floor, and <b>only</b> its floor.
-    /// </summary>
+    /// <summary>The login calendar's floor, and only its floor.</summary>
     /// <remarks>
-    /// ⚠️ <b>There is no upper bound here, and that is the same ruling the energy banks carry.</b>
-    /// <c>cycleDays</c> is a 📐 tunable, so a balance patch that <em>shortens</em> the cycle leaves
-    /// real players standing on a day the new table no longer has — and refusing to <b>load</b> such
-    /// a row would turn a tuning change into an account outage for every one of them, which is
-    /// precisely why <see cref="Rehydrate"/> also does not bound the Energy banks.
-    /// <c>LoginCalendarTuning.DayAfter</c> wraps them to day 1 on the next advance instead.
-    /// A checked upper bound would additionally need the <em>calendar</em> tuning here, which would
-    /// make loading any player fail on a data set that authors no calendar at all.
+    /// No upper bound here either: a shortened cycle from a balance patch would otherwise turn a
+    /// tuning change into an outage. <c>LoginCalendarTuning.DayAfter</c> wraps on the next advance
+    /// instead of failing to load.
     /// </remarks>
     private static void RequireLoginCalendar(PlayerSnapshot snapshot, List<string> faults)
     {
@@ -1425,10 +1124,8 @@ public sealed class Player
             return null;
         }
 
-        // Copied into an ORDINAL dictionary rather than kept: the caller may hold a mutable
-        // reference to the map it handed in, and CanonicalStateWriter orders string keys ordinally,
-        // so a map that compared its keys any other way would round-trip to a different hash than
-        // the one it was stored under.
+        // Copied into an ORDINAL dictionary: CanonicalStateWriter orders string keys ordinally, so
+        // any other comparer would round-trip to a different hash than the one it was stored under.
         var copy = new Dictionary<string, long>(counters.Count, StringComparer.Ordinal);
         var faulted = false;
 
@@ -1456,13 +1153,8 @@ public sealed class Player
         return faulted ? null : copy;
     }
 
-    /// <summary>
-    /// 🔒 M3-13, SchemaVersion 7 — reads <see cref="PlayerSnapshot.ClearedChapterTiers"/>. Unlike
-    /// <see cref="ReadCounters"/>, <c>null</c> is <b>not</b> a fault here: this field was appended
-    /// after <see cref="PlayerSnapshot.WeeklyCounters"/> with a defaulted parameter (the same pattern
-    /// M3-05 used for <c>RunSnapshot.Phase</c>), so a row from before this bump has no opinion on it
-    /// and reads as "nothing cleared yet" rather than a corrupt row.
-    /// </summary>
+    /// <summary>Reads <see cref="PlayerSnapshot.ClearedChapterTiers"/>. Unlike <see cref="ReadCounters"/>, <c>null</c> is not a fault.</summary>
+    /// <remarks>This field was appended with a defaulted parameter, so a row from before it existed reads as "nothing cleared yet".</remarks>
     private static Dictionary<string, long>? ReadClearedChapterTiers(
         IReadOnlyDictionary<string, long>? clearedChapterTiers, List<string> faults)
     {
@@ -1474,38 +1166,19 @@ public sealed class Player
         return ReadCounters(clearedChapterTiers, nameof(PlayerSnapshot.ClearedChapterTiers), faults);
     }
 
-    /// <summary>
-    /// The empty counter map every snapshot of a player with no counters shares.
-    /// </summary>
-    /// <remarks>
-    /// Safe to share precisely because it is read-only and empty: nothing can write to it, and two
-    /// snapshots holding the same empty map are indistinguishable from two holding their own.
-    /// </remarks>
+    /// <summary>The empty counter map every snapshot of a player with no counters shares.</summary>
+    /// <remarks>Safe to share: it is read-only and empty, so nothing can distinguish a shared instance from a private one.</remarks>
     private static readonly ReadOnlyDictionary<string, long> NoCounters =
         new(new Dictionary<string, long>(0, StringComparer.Ordinal));
 
     /// <summary>An ordinal copy of a counter map, so no caller shares the aggregate's dictionary.</summary>
-    /// <remarks>
-    /// Short-circuits on empty, which is the normal state today and is on a hot path: `14` §2.4 has
-    /// the <b>client</b> recompute a <c>stateHash</c> — and therefore call
-    /// <see cref="ToSnapshot"/> — on every command, on a mid-range handset, and none of `30`
-    /// §2.3's five counter systems exists yet.
-    /// </remarks>
+    /// <remarks>Short-circuits on empty, the normal state — this runs on every command, since the client recomputes its own state hash too.</remarks>
     private static ReadOnlyDictionary<string, long> Copy(Dictionary<string, long> counters) =>
         counters.Count == 0
             ? NoCounters
             : new ReadOnlyDictionary<string, long>(new Dictionary<string, long>(counters, StringComparer.Ordinal));
 
-    /// <summary>
-    /// 🔒 Renders a value with <see cref="CultureInfo.InvariantCulture"/>.
-    /// </summary>
-    /// <remarks>
-    /// Same reason <see cref="EnergyTuning"/> has one: `14` §8.2 wants <c>Core</c> reading
-    /// identically everywhere, and a bare interpolation renders <c>12.08.2026 05:00:00 +00:00</c>
-    /// on a German laptop and <c>08/12/2026 05:00:00 +00:00</c> in the container — two diagnostics
-    /// for one corrupt row, and a message a reader cannot grep. Enums and strings are interpolated
-    /// directly; their rendering does not consult a culture.
-    /// </remarks>
+    /// <summary>Renders a value with <see cref="CultureInfo.InvariantCulture"/>, so messages read the same on every host.</summary>
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <inheritdoc cref="Text(int)"/>

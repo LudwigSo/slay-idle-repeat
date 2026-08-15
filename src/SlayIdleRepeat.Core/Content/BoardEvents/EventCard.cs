@@ -2,23 +2,19 @@ using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Content.BoardEvents;
 
-/// <summary>
-/// 🔒 `19` Part A / `03` §5 — one in-run event card a <c>TILE_EVENT</c> can draw.
-/// </summary>
+/// <summary>One in-run event card a <c>TILE_EVENT</c> can draw.</summary>
 /// <remarks>
-/// ⚠️ <b>A <em>board</em> event, not a live-ops one.</b> <c>game-data/README.md</c>:
-/// <em>"<c>board_events/</c> and <c>liveops_events/</c> are two different things that the design docs
-/// both call 'events'. The first is a tile you land on mid-run; the second is a two-week live-ops
-/// package."</em> This namespace is the first; `26` §2's packages are M13-06's and share nothing with
-/// it but the <c>EVT_</c> prefix.
+/// A board event, not a live-ops one: <c>board_events/</c> and <c>liveops_events/</c> are two
+/// different things that both get called "events" — the first is a tile you land on mid-run, the
+/// second a live-ops package. They share nothing but the <c>EVT_</c> prefix.
 /// </remarks>
 /// <param name="Id">The card id, e.g. <c>EVT_WELL</c>.</param>
-/// <param name="Title">`19` Part A's Title column.</param>
-/// <param name="Body">`19` Part A's Body column — the flavour line.</param>
-/// <param name="MinChapter">The first chapter this card may be drawn in (`19` Part A's A1/A2/A3 bands).</param>
+/// <param name="Title">The Title column.</param>
+/// <param name="Body">The Body column — the flavour line.</param>
+/// <param name="MinChapter">The first chapter this card may be drawn in.</param>
 /// <param name="MaxChapter">The last chapter this card may be drawn in. Never below <paramref name="MinChapter"/>.</param>
 /// <param name="Options">
-/// The two or three options, in the document's order. 🔒 The order is the wire contract:
+/// The two or three options, in the document's order. The order is the wire contract:
 /// <c>EventChooseCommand.ChoiceIndex</c> names an option by its position here.
 /// </param>
 internal sealed record EventCard(
@@ -34,10 +30,10 @@ internal sealed record EventCard(
 }
 
 /// <summary>One option of an event card — what the player may choose.</summary>
-/// <param name="Label">`19` Part A's bolded option text.</param>
+/// <param name="Label">The bolded option text.</param>
 /// <param name="CostCurrency">
-/// What taking this option costs, or <c>null</c> when it is free. 🔒 Paid by the
-/// <c>EVENT_CHOOSE</c> handler <b>before</b> the outcome is drawn, and refused with
+/// What taking this option costs, or <c>null</c> when it is free. Paid by the
+/// <c>EVENT_CHOOSE</c> handler before the outcome is drawn, and refused with
 /// <c>INSUFFICIENT_FUNDS</c> when the player cannot afford it — never by the resolver, which is only
 /// responsible for the outcome.
 /// </param>
@@ -46,9 +42,9 @@ internal sealed record EventCard(
 /// when <paramref name="CostCurrency"/> is.
 /// </param>
 /// <param name="Outcomes">
-/// The weighted branches. 🔒 Exactly <b>one</b> weighted layer: where `19` Part A describes a
-/// guaranteed cost followed by a split, the guaranteed part is repeated in every branch's effect list
-/// rather than nested, so one draw resolves one option.
+/// The weighted branches. Exactly one weighted layer: where a guaranteed cost is followed by a
+/// split, the guaranteed part is repeated in every branch's effect list rather than nested, so one
+/// draw resolves one option.
 /// </param>
 internal sealed record EventOption(
     string Label,
@@ -57,7 +53,7 @@ internal sealed record EventOption(
     IReadOnlyList<EventOutcome> Outcomes);
 
 /// <summary>One weighted branch of an option.</summary>
-/// <param name="Weight">Its share of the draw off `14` §8.1's <c>events</c> stream. Always positive.</param>
+/// <param name="Weight">Its share of the draw. Always positive.</param>
 /// <param name="Effects">Applied in order, all of them, once this branch is drawn. Never empty.</param>
 internal sealed record EventOutcome(double Weight, IReadOnlyList<EventEffect> Effects);
 
@@ -72,8 +68,8 @@ internal sealed record EventOutcome(double Weight, IReadOnlyList<EventEffect> Ef
 /// <param name="HpPct"><see cref="EventEffectOp.HpPct"/> only: the signed share of Max HP.</param>
 /// <param name="CurseId"><see cref="EventEffectOp.CurseReward"/> only: whose paired reward is paid.</param>
 /// <param name="Note">
-/// <see cref="EventEffectOp.Unsupported"/> only: what `19` Part A authored and which milestone owns
-/// it. Written for a human reading the content file, never parsed.
+/// <see cref="EventEffectOp.Unsupported"/> only: what was authored and which milestone owns it.
+/// Written for a human reading the content file, never parsed.
 /// </param>
 internal sealed record EventEffect(
     EventEffectOp Op,
@@ -85,7 +81,7 @@ internal sealed record EventEffect(
     string? Note);
 
 /// <summary>
-/// 🔒 The closed vocabulary an event outcome's effects are drawn from. Extending it is a new resolver
+/// The closed vocabulary an event outcome's effects are drawn from. Extending it is a new resolver
 /// branch, not a new content row.
 /// </summary>
 internal enum EventEffectOp
@@ -97,17 +93,17 @@ internal enum EventEffectOp
     HpPct,
 
     /// <summary>
-    /// ⚠️ Pay a curse's authored paired reward (`19` Part E) and <b>nothing else</b> — the curse
-    /// itself is not applied or persisted. See <c>CurseRewards</c> and M3-11's <c>Curses</c> gap.
+    /// Pay a curse's authored paired reward and nothing else — the curse itself is not applied or
+    /// persisted. See <c>CurseRewards</c>.
     /// </summary>
     CurseReward,
 
-    /// <summary>A deliberate no-op — `19` Part A's "Walk away", "Leave it", "Decline".</summary>
+    /// <summary>A deliberate no-op — "Walk away", "Leave it", "Decline".</summary>
     None,
 
     /// <summary>
-    /// 🔒 A mechanic `19` Part A authors and <c>Core</c> cannot execute yet. The resolver applies
-    /// nothing, which is correct rather than a bug: see the schema's own remarks and steering S6.
+    /// A mechanic authored in content that <c>Core</c> cannot execute yet. The resolver applies
+    /// nothing, which is correct rather than a bug.
     /// </summary>
     Unsupported,
 }

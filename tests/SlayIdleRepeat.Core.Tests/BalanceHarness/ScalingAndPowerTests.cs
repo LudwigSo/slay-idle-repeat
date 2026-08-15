@@ -9,9 +9,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
-/// <summary>
-/// 🔒 `29` §2.1's derived <c>K_POWER</c> and `29` §2.5.3's scaling rule.
-/// </summary>
+/// <summary>The derived <c>K_POWER</c> constant and the scaling rule.</summary>
 [Collection(WallClockSensitive.Name)]
 public sealed class ScalingAndPowerTests
 {
@@ -20,7 +18,7 @@ public sealed class ScalingAndPowerTests
     {
         var kPower = ShippedHarness.Runner.KPower;
 
-        // 🔒 The definition: PlayerPower(referenceParBuild) := 1000, so K_POWER = 1000 / PowerIndex.
+        // The definition: PlayerPower(referenceParBuild) := 1000, so K_POWER = 1000 / PowerIndex.
         // Restated here from the two authored inputs rather than taken from the type under test.
         var calibration = CalibrationBuilds.Read(ShippedHarness.Content);
         var index = PowerCalculator.PowerIndex(
@@ -30,24 +28,22 @@ public sealed class ScalingAndPowerTests
         kPower.ReferencePowerIndex.ShouldBe(index);
         kPower.Value.ShouldBe(1000.0 / index, tolerance: 1e-12);
 
-        // `29` §2.1: "expected magnitude ≈ 5.3". A transcription check on every weight PowerIndex
-        // reads, not a tight assertion — the band is wide on purpose and is still discriminating,
-        // because getting a weight wrong moves this by a factor, not by a percent.
+        // A transcription check on every weight PowerIndex reads, not a tight assertion — the band is
+        // wide on purpose but still discriminating, since getting a weight wrong moves this by a
+        // factor, not a percent.
         kPower.Value.ShouldBeInRange(4.0, 7.0);
     }
 
     [Fact]
     public void K_POWER_cancels_out_of_the_target_it_produces()
     {
-        // 🔒 The property the whole harness rests on: PowerIndex targets are ratios, so the constant
-        // is irrelevant to every guardrail. Placing the reference build at ParPower(1, NORMAL) = 1000
-        // must return it to its own power index, whatever K_POWER is.
+        // PowerIndex targets are ratios, so the constant is irrelevant to every guardrail.
         var runner = ShippedHarness.Runner;
 
         runner.KPower.TargetPowerIndex(1000.0)
             .ShouldBe(runner.KPower.ReferencePowerIndex, tolerance: 1e-9);
 
-        // Second shape: four times the power is four times the index, exactly.
+        // Four times the power is four times the index, exactly.
         runner.KPower.TargetPowerIndex(4000.0)
             .ShouldBe(4.0 * runner.KPower.ReferencePowerIndex, tolerance: 1e-9);
     }
@@ -55,16 +51,12 @@ public sealed class ScalingAndPowerTests
     [Fact]
     public void Compute_still_throws_on_the_shipped_data_and_that_is_why_PowerIndex_is_used()
     {
-        // 🔒 tuning/power_model.json#/kPower is authored null and PowerCalculator.Compute throws by
-        // design. If it ever stopped throwing, someone filled the hole and the harness's derivation
-        // needs revisiting rather than silently disagreeing with the file.
+        // tuning/power_model.json#/kPower is authored null and PowerCalculator.Compute throws by
+        // design. If it stopped throwing, someone filled the hole and the derivation needs revisiting.
         var stats = CalibrationBuilds.Read(ShippedHarness.Content).ReferenceParBuild.ToActorStats();
 
-        // 🔴 The IDENTITY of the refusal, not merely that something threw. `Compute` documents four
-        // separate failure paths — ArgumentNullException, MissingContentException,
-        // ContentTypeMismatchException and this one — so `Should.Throw<Exception>` would stay green if
-        // the weights document went missing, if a pointer were misspelled, or if the whole read broke.
-        // What this case claims is narrower: the ONE authored hole is still a hole, at its pointer.
+        // The identity of the refusal, not merely that something threw — Compute has several
+        // documented failure paths, and this claims the narrower one: the authored hole is still a hole.
         Should.Throw<UnauthorisedTunableException>(
                 () => PowerCalculator.Compute(stats, 10, ShippedHarness.Content))
             .Reference.ShouldBe("tuning/power_model.json#/kPower");
@@ -85,8 +77,7 @@ public sealed class ScalingAndPowerTests
         {
             var scaled = runner.ParHero(chapter, tier, archetype.Stats);
 
-            // `29` §2.5.3 — "to within 0.1%". The 4-dp rounding of s afterwards moves it a little
-            // further, so the assertion is the authored tolerance with room for that one rounding.
+            // The authored tolerance (0.1%) with room for the 4-dp rounding of s afterward.
             scaled.AchievedRatio.ShouldBeInRange(0.99, 1.01);
             scaled.Level.ShouldBe(runner.Enemies.Level(chapter, tier));
 
@@ -141,9 +132,8 @@ public sealed class ScalingAndPowerTests
     [Fact]
     public void The_evaluation_level_changes_the_power_a_statline_scores()
     {
-        // 05 §4's mitigation denominator carries 20 × attackerLevel, so a level-blind implementation
-        // of the scaling rule would place a hero at the wrong power for every chapter but one. Two
-        // very different levels, because adjacent ones differ by little.
+        // The mitigation denominator carries the attacker level, so a level-blind scaling rule would
+        // place a hero at the wrong power for every chapter but one.
         var archetype = ShippedHarness.Runner.Calibration.Archetype("ARCH_CRIT");
         var stats = archetype.Stats.ToActorStats();
 
@@ -191,18 +181,15 @@ public sealed class ScalingAndPowerTests
         HarnessRounding.Round(1.00004999).ShouldBe(1.0);
         HarnessRounding.Round(1.23456789).ShouldBe(1.2346);
 
-        // 🔒 MidpointRounding.ToEven, probed on values that are EXACT binary midpoints at four
-        // decimal places — 0.15625 is 5/32 and 0.65625 is 21/32, so the tie is real rather than an
-        // artefact of a decimal literal that is not representable. Both round DOWN to the even digit,
-        // where AwayFromZero rounds up; the second half of each pair is the negative control that
-        // shows the two modes genuinely disagree here.
+        // MidpointRounding.ToEven, probed on exact binary midpoints (5/32, 21/32) so the tie is real
+        // rather than a decimal-literal artefact. AwayFromZero rounds up on the same inputs.
         HarnessRounding.Round(0.15625).ShouldBe(0.1562);
         Math.Round(0.15625, 4, MidpointRounding.AwayFromZero).ShouldBe(0.1563);
 
         HarnessRounding.Round(0.65625).ShouldBe(0.6562);
         Math.Round(0.65625, 4, MidpointRounding.AwayFromZero).ShouldBe(0.6563);
 
-        // 🔒 The -0.0 normalisation, which is the clause ActorStats.From rejects without.
+        // The -0.0 normalisation, which is the clause ActorStats.From rejects without.
         var negativeZero = HarnessRounding.Round(-0.00004);
         negativeZero.ShouldBe(0.0);
         double.IsNegative(negativeZero).ShouldBeFalse();

@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>🔒 M3-06, `14` §2.3 — <c>SKIP_DRAFT</c>, driven through the production dispatch table.</summary>
+/// <summary>SKIP_DRAFT, driven through the production dispatch table.</summary>
 public sealed class SkipDraftTests
 {
     private const long SkipGoldReward = SlayIdleRepeat.Core.Tests.Content.InRunIncomeDocuments.ShippedSkipGoldReward;

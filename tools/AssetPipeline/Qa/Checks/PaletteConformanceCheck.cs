@@ -2,27 +2,23 @@ using SkiaSharp;
 
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 5: <em>"Palette conforms to the biome's locked six colours + neutrals"</em>.
-/// </summary>
+/// <summary>Checklist item 5: palette conforms to the biome's locked six colours + neutrals.</summary>
 /// <remarks>
 /// <para>
-/// The permitted set is the row's six `15` §A5 hues, plus §A3's outline colour, plus
+/// The permitted set is the row's six locked hues, plus the outline colour, plus
 /// <see cref="ThresholdKeys.PaletteNeutrals"/>. A visible pixel further than
 /// <see cref="ThresholdKeys.PaletteMatchTolerance"/> from every member of that set counts toward
 /// <see cref="OffPaletteCountMeasurement"/>.
 /// </para>
 /// <para>
-/// 🔒 <b>"+ neutrals" is the hole.</b> `15` §A5 writes the phrase and never enumerates them, so
-/// there is no list to check against and this project refuses to invent one — five greys would be
-/// as defensible as three, and whichever it picked would then be enforced on 328 biome-scoped rows
-/// as though a doc had said so. Both keys ship null and this check reports
-/// <see cref="QaVerdict.Uncalibrated"/> naming whichever is missing.
+/// "+ neutrals" is never enumerated anywhere, so there is no list to check against and this project
+/// refuses to invent one — whichever greys it picked would then be enforced as though a doc had
+/// said so. Both keys ship null and this check reports <see cref="QaVerdict.Uncalibrated"/> naming
+/// whichever is missing.
 /// </para>
 /// <para>
-/// 🔒 Non-biome rows are <see cref="QaVerdict.Pass"/> with a stated reason, matching `15` §B4 step
-/// 3's "(biome assets only)". 646 of the 974 rows carry no palette, and grading the UI kit against a
-/// biome's six hues would reject all of it.
+/// Non-biome rows are <see cref="QaVerdict.Pass"/> with a stated reason: grading the UI kit against
+/// a biome's six hues would reject all of it.
 /// </para>
 /// </remarks>
 public sealed class PaletteConformanceCheck : IQaCheck
@@ -53,7 +49,6 @@ public sealed class PaletteConformanceCheck : IQaCheck
     {
         ArgumentNullException.ThrowIfNull(subject);
 
-        // 🔒 `15` §B4 step 3 is "(biome assets only)" and 646 of the 974 rows carry no palette.
         // Stated as a pass with a reason rather than skipped: a silent skip and a clean grade look
         // identical in a report.
         if (!subject.Spec.IsBiomeScoped)
@@ -78,8 +73,8 @@ public sealed class PaletteConformanceCheck : IQaCheck
     }
 
     /// <summary>
-    /// The colours a biome-scoped asset may be painted from: the row's six `15` §A5 hues, plus §A3's
-    /// outline colour, plus whatever somebody has stated for §A5's unenumerated "+ neutrals".
+    /// The colours a biome-scoped asset may be painted from: the row's six locked hues, plus the
+    /// outline colour, plus whatever somebody has stated for the unenumerated "+ neutrals".
     /// </summary>
     /// <param name="subject">The asset under judgement.</param>
     private static IReadOnlyList<SKColor> Permitted(QaSubject subject)
@@ -101,11 +96,10 @@ public sealed class PaletteConformanceCheck : IQaCheck
 
     /// <summary>The distance from a colour to the nearest of the permitted set.</summary>
     /// <remarks>
-    /// 🔒 A loop rather than <c>permitted.Min(hue =&gt; …)</c>. This runs once per visible pixel, and
-    /// M8-10 drives roughly 942 assets through it: a LINQ enumerator and a closure per pixel is a
-    /// quarter of a billion allocations across a batch for an answer a five-line loop gives for free.
+    /// A loop rather than <c>permitted.Min(hue =&gt; …)</c>: this runs once per visible pixel across
+    /// a large batch, and a LINQ enumerator and closure per pixel is far costlier than a plain loop.
     /// </remarks>
-    /// <param name="permitted">The permitted set. Never empty — it always holds §A3's outline colour.</param>
+    /// <param name="permitted">The permitted set. Never empty — it always holds the outline colour.</param>
     /// <param name="colour">The pixel's colour.</param>
     private static double NearestDistance(IReadOnlyList<SKColor> permitted, SKColor colour)
     {

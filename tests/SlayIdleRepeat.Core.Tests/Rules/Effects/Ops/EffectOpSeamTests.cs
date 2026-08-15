@@ -6,68 +6,50 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 <see cref="EffectOpSeams.Strict"/> — every unwired seam <b>throws naming the task that owns
-/// it</b>, and none of them quietly does nothing.
-/// </summary>
+/// <summary>Every unwired seam throws naming the task that owns it, rather than quietly doing nothing.</summary>
 /// <remarks>
-/// The defect this suite exists to prevent is specific and has a name in this project: a no-op
-/// default turns "M2-09 has not landed" into "this perk does nothing", which the balance harness
-/// (`05` §9) would attribute to the content and which no test would catch. So each case asserts the
-/// <b>owner</b> in the message (steering S2), not merely that something threw.
+/// A no-op default would turn "the seam hasn't landed" into "this perk does nothing", which nothing
+/// else would catch — so each case asserts the owner named in the message, not merely that it threw.
 /// </remarks>
 public sealed class EffectOpSeamTests
 {
-    /// <summary>
-    /// Every `18` §2.2 op names <b>M2-09</b> rather than resolving to nothing.
-    /// </summary>
+    /// <summary>Every damage/healing op names <b>M2-09</b> rather than resolving to nothing.</summary>
     /// <remarks>
-    /// 🔒 The families are <b>enumerated</b>, not hand-listed. A hand-written <c>InlineData</c> list
-    /// is a subject set that silently loses a member: this suite shipped one short of §2.2 and one
-    /// short of §2.4 until the review counted them, so <c>HEAL_LEECH</c>'s and <c>STAT_COPY</c>'s
-    /// unwired paths were untested while the summary claimed "every op".
+    /// The families are enumerated via the classifier, not hand-listed — a hand-written list can
+    /// silently lose a member and still claim "every op".
     /// </remarks>
     [Theory]
     [MemberData(nameof(DamageAndHealingOps))]
     public void An_unwired_damage_or_healing_op_names_M2_09(EffectOp op) => Unwired(op, "M2-09");
 
-    /// <summary>Every `18` §2.3 op names <b>M2-10</b>.</summary>
+    /// <summary>Every status op names <b>M2-10</b>.</summary>
     [Theory]
     [MemberData(nameof(StatusOps))]
     public void An_unwired_status_op_names_M2_10(EffectOp op) => Unwired(op, "M2-10");
 
     /// <summary>
-    /// Every `18` §2.4 op names <b>M2-08</b> — including <c>STAT_COPY</c>, whose unwired path is the
-    /// stat-snapshot reader rather than the flow sink.
+    /// Every combat-flow op names <b>M2-08</b> — including <c>STAT_COPY</c>, whose unwired path is
+    /// the stat-snapshot reader rather than the flow sink.
     /// </summary>
-    /// <remarks>
-    /// 🔒 <b>The Phase 1a exclusion is gone.</b> <c>RANDOM_OUTCOME</c> was excluded while its
-    /// handler was a stub that threw before it ever reached a seam; M2-12's implementation phase
-    /// landed the handler, so the twelfth op is back inside the enumerated family and its unwired
-    /// path is asserted here alongside the other eleven.
-    /// </remarks>
     [Theory]
     [MemberData(nameof(CombatFlowOps))]
     public void An_unwired_combat_flow_op_names_M2_08(EffectOp op) => Unwired(op, "M2-08");
 
-    /// <summary>`18` §2.2's seven, off the family classifier.</summary>
+    /// <summary>Damage/healing family: seven ops, off the family classifier.</summary>
     public static TheoryData<EffectOp> DamageAndHealingOps() => Family(EffectOpFamily.DAMAGE_AND_HEALING, 7);
 
-    /// <summary>`18` §2.3's six.</summary>
+    /// <summary>Status family: six ops.</summary>
     public static TheoryData<EffectOp> StatusOps() => Family(EffectOpFamily.STATUS, 6);
 
-    /// <summary>`18` §2.4's twelve, `18` §10.1 E6's <c>RANDOM_OUTCOME</c> included.</summary>
+    /// <summary>Combat-flow family: twelve ops, including <c>RANDOM_OUTCOME</c>.</summary>
     public static TheoryData<EffectOp> CombatFlowOps() => Family(EffectOpFamily.COMBAT_FLOW, 12);
 
-    /// <summary>
-    /// 🔒 M2-R1 — a FIRED `18` §2.1 basic stat op names <b>M2-R1</b> rather than resolving to
-    /// nothing, exactly like every other family's unwired seam.
-    /// </summary>
+    /// <summary>A fired basic stat op names <b>M2-R1</b> rather than resolving to nothing.</summary>
     [Theory]
     [MemberData(nameof(FiredStatOps))]
     public void An_unwired_fired_stat_op_names_M2_R1(EffectOp op) => Unwired(op, "M2-R1");
 
-    /// <summary>`18` §2.1's four basic ops that a trigger can fire — excludes STAT_CONVERT/STAT_CAP_OVERRIDE.</summary>
+    /// <summary>The four basic stat ops that a trigger can fire — excludes STAT_CONVERT/STAT_CAP_OVERRIDE.</summary>
     public static TheoryData<EffectOp> FiredStatOps()
     {
         var data = new TheoryData<EffectOp>();
@@ -82,7 +64,7 @@ public sealed class EffectOpSeamTests
         return data;
     }
 
-    /// <summary>`18` §1.1's <c>valueScale</c> still names M2-06 — M2-03 owns only the value mode.</summary>
+    /// <summary><c>valueScale</c> still names M2-06 — M2-03 owns only the value mode.</summary>
     [Fact]
     public void A_valueScale_names_M2_06_and_not_M2_03()
     {
@@ -117,23 +99,12 @@ public sealed class EffectOpSeamTests
         var thrown = Should.Throw<EffectContextException>(
             () => EffectOpResolver.Resolve(valueless, bench.Context(EffectTestBattle.Context(hero, hero))));
 
-        // S2 — the token alone is not the identity: the missing-value rule, the valueScale rule, the
-        // missing-target rule and every unwired seam all carry it.
+        // Every refusal rule — missing value, valueScale, missing target, unwired seam — carries the token too.
         thrown.Token.ShouldBe("PK_NO_VALUE");
         thrown.Message.ShouldContain("with no value", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔴 <b>M2-02's ruling 2, at the op layer: an op that authors no <c>target</c> resolves against
-    /// the holder.</b> This test previously asserted the opposite — that the op was <em>refused</em>
-    /// with M2-02 named as the owner of the open question — and is inverted here rather than deleted,
-    /// because it is the one that pins which way the ruling went.
-    /// </summary>
-    /// <remarks>
-    /// <c>EffectDefaults</c> carries the ruling and the clause: `18` §2.4's <c>CLEAR_SUMMONS</c> row,
-    /// <em>"(default <c>SELF</c>)"</em> — the only default target `18` states. A <c>HEAL</c> with no
-    /// target therefore heals the holder, which is what §7.5's and §7.6's untargeted clauses mean.
-    /// </remarks>
+    /// <summary>An op that authors no <c>target</c> resolves against the holder.</summary>
     [Fact]
     public void An_op_with_no_authored_target_resolves_against_the_holder()
     {
@@ -144,20 +115,15 @@ public sealed class EffectOpSeamTests
 
         EffectOpResolver.Resolve(untargeted, bench.Context(EffectTestBattle.Context(hero, hero)));
 
-        // S2 — not merely "something happened": the heal landed on the HOLDER by name, which is the
-        // whole content of ruling 2. A CURRENT_TARGET default would have thrown (this context has
-        // none) and any enemy default would name a different actor here.
+        // Confirms the heal landed on the HOLDER specifically: a CURRENT_TARGET default would have
+        // thrown here (no target in context), and any enemy default would name someone else.
         bench.Only("Heal").Actor.ShouldBe("HERO");
     }
 
-    /// <summary>
-    /// 🔒 Ruling 2 stated directly, and against the two `18` examples it is read from — so the
-    /// resolver above and the op layer cannot disagree about what an absent target means.
-    /// </summary>
+    /// <summary>An absent target resolves to <c>SELF</c>, matching the resolver's own default.</summary>
     [Fact]
     public void An_absent_target_is_SELF_per_18_2_4s_CLEAR_SUMMONS_row()
     {
-        // `18` §7.4's PK_UNBREAKABLE clause 1 and §7.6's Avatar of War: no target authored.
         var surviveLethal = new EffectDefinition
         {
             Id = "PK_UNBREAKABLE", Op = EffectOp.SURVIVE_LETHAL, Value = 1, ValueMode = ValueMode.FLAT,
@@ -171,15 +137,12 @@ public sealed class EffectOpSeamTests
     }
 
     /// <summary>
-    /// 🔒 S3 — every family is read off <see cref="EffectOps.FamilyOf"/> with a floor, so a member
-    /// cannot go missing from a theory without the count going red first.
+    /// Every family is read off <see cref="EffectOps.FamilyOf"/> with a floor, so a missing member
+    /// turns the count red first.
     /// </summary>
-    /// <param name="family">The `18` §2 family.</param>
-    /// <param name="expected">Its full size — the floor, asserted BEFORE anything is excluded.</param>
-    /// <param name="except">
-    /// 🔴 A PHASE 1a exclusion, named rather than filtered silently: the op whose handler is still a
-    /// stub and therefore never reaches a seam at all.
-    /// </param>
+    /// <param name="family">The op family.</param>
+    /// <param name="expected">Its full size — the floor, asserted before anything is excluded.</param>
+    /// <param name="except">An op to exclude, named rather than filtered silently.</param>
     private static TheoryData<EffectOp> Family(EffectOpFamily family, int expected, EffectOp? except = null)
     {
         var ops = EffectOps.All.Where(op => EffectOps.FamilyOf(op) == family).ToArray();
@@ -209,16 +172,14 @@ public sealed class EffectOpSeamTests
         var hero = EffectTestBattle.Hero();
         var enemy = EffectTestBattle.Enemy("EN_1", 1);
 
-        // 🔒 The SAME exemplar table the resolver and validation suites use, so the three cannot
-        //    disagree about what an authorable effect of a given op looks like — and so no exemplar
-        //    here carries a key the schema would reject.
+        // The same exemplar table the resolver and validation suites use, so all three agree on
+        // what an authorable effect of a given op looks like.
         var effect = OpFixtures.Exemplar(op);
 
-        // FLAT keeps the basis out of the assertion for the ops that admit it. The five that do not
-        // each take their own default — DAMAGE's value IS the multiplier, HEAL_LEECH reads the damage
-        // basis, DAMAGE_MAXHP_PCT and REVIVE are Max-HP fractions, and RANDOM_OUTCOME (18 §10.1 E6)
-        // carries no value at all, so no mode of reading one — so those are left unset rather than
-        // forced into a mode their own 18 §2 row rules out.
+        // FLAT keeps the basis out of the assertion for ops that admit it. The rest take their own
+        // default — DAMAGE's value IS the multiplier, HEAL_LEECH reads the damage basis,
+        // DAMAGE_MAXHP_PCT/REVIVE are Max-HP fractions, RANDOM_OUTCOME carries no value at all — so
+        // those are left unset rather than forced into a mode their own op rules out.
         if (op is not (EffectOp.DAMAGE or EffectOp.HEAL_LEECH
                        or EffectOp.DAMAGE_MAXHP_PCT or EffectOp.REVIVE or EffectOp.FORCE_CRIT_NEXT
                        or EffectOp.RANDOM_OUTCOME))
@@ -231,9 +192,8 @@ public sealed class EffectOpSeamTests
             CurrentTarget = enemy,
             Attacker = enemy,
 
-            // `14` §8.1's combat stream. RANDOM_OUTCOME draws before it names its winner across the
-            // flow sink, so without one it would be refused for the missing stream and never reach
-            // the seam this theory is about — the wrong refusal, which is steering S2's whole point.
+            // RANDOM_OUTCOME draws before naming its winner; without a stream it would be refused for
+            // the missing stream instead of reaching the seam this theory is about.
             Rng = EffectTestBattle.CombatRng(6),
         };
 

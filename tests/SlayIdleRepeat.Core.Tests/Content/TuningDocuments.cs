@@ -3,24 +3,24 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// Hermetic <c>tuning/currencies.json</c> fixtures — `19` Part G's <c>loginCalendar</c> block — and
+/// Hermetic <c>tuning/currencies.json</c> fixtures — the <c>loginCalendar</c> block — and
 /// the <b>combined</b> snapshot a command reading more than one tuning document needs.
 /// </summary>
 /// <remarks>
-/// 🔒 <c>Core.Tests</c> is hermetic, so this <em>mirrors</em> the shipped file rather than reading it;
+/// <c>Core.Tests</c> is hermetic, so this mirrors the shipped file rather than reading it;
 /// an <c>Application.Tests</c> rule pins the two halves together. Neither is sufficient alone: this
 /// proves the rules are right about the numbers, that one proves those are the numbers we ship.
 /// <para>
-/// ⚠️ Only <c>cycleDays</c> is authored — transcribing the twenty-eight reward rows would imply
-/// something reads them, and nothing does until <c>CLAIM_CALENDAR</c> (M4-09).
+/// Only <c>cycleDays</c> is authored — transcribing the twenty-eight reward rows would imply
+/// something reads them, and nothing does yet.
 /// </para>
 /// </remarks>
 internal static class TuningDocuments
 {
-    /// <summary>The document `19` G's calendar block lives in.</summary>
+    /// <summary>Where the calendar block lives.</summary>
     internal const string CurrenciesPath = "tuning/currencies.json";
 
-    /// <summary>`19` G — the calendar runs 28 days and then restarts at day 1.</summary>
+    /// <summary>The calendar runs 28 days and then restarts at day 1.</summary>
     /// <remarks>
     /// <c>const</c> rather than <c>static readonly</c> so <c>[InlineData]</c> can take it: a wrap
     /// test that restated 28 as a literal would keep passing after the data moved.
@@ -28,8 +28,8 @@ internal static class TuningDocuments
     internal const int ShippedCycleDays = 28;
 
     /// <summary>
-    /// The whole shipped tuning set this milestone reads: the energy and Legend Level blocks of
-    /// <c>progression.json</c>, plus `19` G's calendar block of <c>currencies.json</c>.
+    /// The whole shipped tuning set these readers use: the energy and Legend Level blocks of
+    /// <c>progression.json</c>, plus the calendar block of <c>currencies.json</c>.
     /// </summary>
     internal static ContentSnapshot Shipped { get; } = With();
 
@@ -68,17 +68,17 @@ internal static class TuningDocuments
     /// <remarks>
     /// The "missing document" case, which is a different failure from "the pointer holds null" and
     /// from "the value is unusable" — three doors into <c>LoginCalendarTuning.Read</c>, and the whole
-    /// point of `30` §3's typed readers is that they are told apart.
+    /// point of typed readers is that they are told apart.
     /// </remarks>
     internal static ContentSnapshot WithoutCurrencies() => ProgressionDocuments.Shipped;
 
-    /// <summary>`03` §7a — `03` §6.1's chapter-scaling factor, shared with ad bundles and the shop.</summary>
+    /// <summary>The chapter-scaling factor, shared with ad bundles and the shop.</summary>
     internal const double ShippedAdBundleScalar = 0.35;
 
-    /// <summary>`03` §3.1 — the fork-bias boost multiplier, as shipped. M3-01's judgment call.</summary>
+    /// <summary>The fork-bias boost multiplier, as shipped.</summary>
     internal const double ShippedForkBiasPlusMultiplier = 2.5;
 
-    /// <summary>`03` §3.1 — the fork-bias suppression multiplier, as shipped. M3-01's judgment call.</summary>
+    /// <summary>The fork-bias suppression multiplier, as shipped.</summary>
     internal const double ShippedForkBiasMinusMultiplier = 0.2;
 
     private static ContentDocument Currencies(ContentValue? cycleDays)
@@ -125,7 +125,7 @@ internal static class TuningDocuments
             }));
     }
 
-    /// <summary>`03` §6.1's per-minigame reward array, in (gold, crowns, beastFeed, enhanceStones, rerollCharges) order.</summary>
+    /// <summary>Per-minigame reward array, in (gold, crowns, beastFeed, enhanceStones, rerollCharges) order.</summary>
     private static ContentValue Rewards(params (int Gold, int Crowns, int BeastFeed, int EnhanceStones, int RerollCharges)[] rows) =>
         ContentValue.Array(rows.Select(row => ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {

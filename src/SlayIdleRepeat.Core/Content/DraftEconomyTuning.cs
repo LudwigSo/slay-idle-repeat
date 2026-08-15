@@ -3,32 +3,16 @@ using System.Globalization;
 namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
-/// 🔒 M3-06, `06` §1 — the perk draft's skip/reroll economy, read out of
-/// <c>tuning/currencies.json#/draftEconomy</c>.
+/// The perk draft's skip/reroll economy, read out of <c>tuning/currencies.json#/draftEconomy</c>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Authored by this task; no such block existed before it.</b> <c>SkipDraftCommand</c>'s own
-/// XML doc comment cited "`06` §1: skipping is allowed and pays 60 Gold plus a free reroll" as
-/// prose — nothing in <c>currencies.json</c> or any other tuning file carried the number.
-/// <see cref="SkipGoldReward"/> is that one figure, transcribed rather than re-derived.
-/// <see cref="RerollGoldCost"/> has no authored figure anywhere in the repository; this is the
-/// judgment call recorded in the task's own report: the smallest defensible extension is to reuse
-/// the one known magnitude (60) rather than invent an unrelated second number, flagged here as a
-/// placeholder for the balance team to retune against the simulator (`10` §9), not a design ruling.
-/// </para>
-/// <para>
-/// ⚠️ <b>The "free reroll" half of the doc comment is deliberately not modelled as a mechanic.</b>
-/// <c>SkipDraftCommand</c>'s own summary is "take none of the offered perks" — a close of the
-/// draft, not a continuation of it — so this task reads "plus a free reroll" as descriptive colour
-/// for the fact a skipped draft costs the player nothing but Gold (no perk lost, another draft
-/// arrives after the next win), rather than as a second currency-free reroll grant that would need
-/// its own persisted state. Recorded as an assumption, not silently resolved.
-/// </para>
+/// <see cref="RerollGoldCost"/> has no separately authored figure anywhere; it reuses the known
+/// skip-reward magnitude as a placeholder for the balance team to retune, rather than inventing an
+/// unrelated number.
 /// </remarks>
 internal sealed class DraftEconomyTuning
 {
-    /// <summary>The document `06` §1's skip/reroll economy lives in.</summary>
+    /// <summary>The document the skip/reroll economy lives in.</summary>
     internal const string DocumentPath = "tuning/currencies.json";
 
     private const string Pointer = DocumentPath + "#/draftEconomy";
@@ -45,14 +29,14 @@ internal sealed class DraftEconomyTuning
         RerollGoldCost = rerollGoldCost;
     }
 
-    /// <summary>`06` §1 — the Gold reward for skipping a draft. 60 as shipped.</summary>
+    /// <summary>The Gold reward for skipping a draft. 60 as shipped.</summary>
     internal long SkipGoldReward { get; }
 
-    /// <summary>M3-06's judgment call — the Gold cost of a reroll. 60 as shipped.</summary>
+    /// <summary>The Gold cost of a reroll. 60 as shipped.</summary>
     internal long RerollGoldCost { get; }
 
     /// <summary>Reads the draft economy block. Throws rather than defaulting on anything unusable.</summary>
-    /// <param name="content">The version-stamped snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped snapshot the command is reading.</param>
     /// <exception cref="MissingContentException">The document or a pointer is not there.</exception>
     /// <exception cref="UnauthorisedTunableException">A pointer holds a deliberate <c>null</c>.</exception>
     /// <exception cref="ContentTypeMismatchException">A leaf holds the wrong shape.</exception>

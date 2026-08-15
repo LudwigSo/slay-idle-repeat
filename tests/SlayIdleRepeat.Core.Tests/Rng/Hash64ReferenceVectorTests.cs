@@ -4,15 +4,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
-/// <summary>
-/// 🔒 The committed reference-vector table of `14` §8.0, asserted row by row.
-/// </summary>
+/// <summary>The committed reference-vector table, asserted row by row.</summary>
 /// <remarks>
-/// <b>A failure here is a determinism break, never a test fix.</b> The rows were generated from
-/// <c>System.IO.Hashing.XxHash64</c> — a second, independent XXH64 — driven by an encoder transcribed
-/// from the spec table. If a row moves, every seed derivation, board layout, die roll and drop the game
-/// has produced for a given seed moved with it. This is the table the cross-platform determinism job
-/// re-asserts on each runtime.
+/// A failure here is a determinism break, never a test fix. The rows were generated from
+/// <c>System.IO.Hashing.XxHash64</c>, a second independent XXH64. If a row moves, every seed
+/// derivation, board layout, die roll and drop the game has produced for a given seed moved with it.
 /// </remarks>
 public sealed class Hash64ReferenceVectorTests
 {
@@ -63,11 +59,11 @@ public sealed class Hash64ReferenceVectorTests
         rows.ShouldNotBeEmpty();
     }
 
-    /// <summary>The table must still carry the two derivations of `02` §2 and `14` §8.1.</summary>
-    /// <remarks>
-    /// <c>ContainSingle</c> rather than <c>Row(id)</c> inside a <c>NotThrow</c>: the same teeth, and
-    /// a failure names the missing id instead of reporting that some call threw something.
-    /// </remarks>
+    /// <summary>
+    /// The table must still carry the two seed derivations. <c>ContainSingle</c> rather than
+    /// <c>Row(id)</c> inside a <c>NotThrow</c>, so a failure names the missing id instead of
+    /// reporting that some call threw something.
+    /// </summary>
     [Theory]
     [InlineData("derivation-runseed")]
     [InlineData("derivation-battleseed-0")]
@@ -77,11 +73,10 @@ public sealed class Hash64ReferenceVectorTests
     }
 
     /// <summary>
-    /// 🔒 The <b>published</b> xxHash sanity rows must keep their teeth too. Nothing guarded them
-    /// before: the argument-type guard above only covers the canonical rows, so an edit could have
-    /// trimmed these nine to one and left a suite that still passed while no longer checking the
-    /// 32-byte accumulator loop (length 222), the sub-4-byte tail (length 1), the empty input, or
-    /// the PRIME32 hash seed — which is the only thing that exercises accumulator initialisation.
+    /// The published xxHash sanity rows must keep their teeth too: the argument-type guard above
+    /// only covers the canonical rows, so an edit could trim these nine to one and leave a suite
+    /// that still passed while no longer checking the 32-byte accumulator loop, the sub-4-byte
+    /// tail, the empty input, or the PRIME32 hash seed.
     /// </summary>
     [Theory]
     [InlineData(0, 0x0000000000000000UL)]
@@ -111,11 +106,9 @@ public sealed class Hash64ReferenceVectorTests
     }
 
     /// <summary>
-    /// 🔒 And the nine <see cref="DeterministicRng"/> draw rows. Only <c>combat-0</c>,
-    /// <c>drops-99</c> and <c>shrine-near-max</c> are referenced by id anywhere, so trimming the
-    /// table to those three would have passed everything while deleting the only seed-0 rows, the
-    /// only <c>minigame:{index}</c> row, and the only <c>board</c> and <c>draft</c> rows — the
-    /// failure a pinned table is least able to announce.
+    /// The nine <see cref="DeterministicRng"/> draw rows. Only three are referenced by id anywhere
+    /// else, so trimming the table to those three would pass everything while deleting the only
+    /// seed-0 rows and the only <c>minigame:{index}</c>, <c>board</c> and <c>draft</c> rows.
     /// </summary>
     [Theory]
     [InlineData("dice-0")]

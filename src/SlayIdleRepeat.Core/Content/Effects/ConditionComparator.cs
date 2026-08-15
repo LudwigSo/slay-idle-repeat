@@ -1,13 +1,11 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>🔒 The seven comparators of `18` §4: <c>eq · neq · lt · lte · gt · gte · between</c>.</summary>
+/// <summary>The seven comparators: <c>eq · neq · lt · lte · gt · gte · between</c>.</summary>
 /// <remarks>
-/// ⚠️ <b>The JSON spelling is lower-case</b> (`18` §4's worked conditions write
-/// <c>"op": "gte"</c>), unlike every other enum in the DSL, which is <c>SCREAMING_SNAKE</c>. The
-/// member names here are upper-case because that is the repository's enum convention
-/// (<see cref="Primitives.CurrencyId"/>); <c>game-data/schema/effect.schema.json</c> enumerates the
-/// lower-case tokens, and a parity test asserts the two agree case-insensitively so the mapping
-/// cannot silently drift.
+/// The JSON spelling is lower-case (<c>"op": "gte"</c>), unlike every other enum in the DSL, which
+/// is <c>SCREAMING_SNAKE</c>. The member names here are upper-case to match the repository's enum
+/// convention; a parity test asserts the two agree case-insensitively so the mapping cannot
+/// silently drift.
 /// </remarks>
 public enum ConditionComparator
 {

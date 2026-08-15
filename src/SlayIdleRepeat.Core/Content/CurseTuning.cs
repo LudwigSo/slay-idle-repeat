@@ -2,32 +2,25 @@ using System.Globalization;
 
 namespace SlayIdleRepeat.Core.Content;
 
-/// <summary>
-/// 🔒 `19` Part E — the twelve-curse catalogue and its chapter gate, read out of
-/// <c>content/curses/curses.json</c>.
-/// </summary>
+/// <summary>The twelve-curse catalogue and its chapter gate, read out of <c>content/curses/curses.json</c>.</summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>This is a reader, not the curse engine.</b> `19` Part E's <c>effect</c> and <c>reward</c>
-/// columns are the design document's own <b>prose</b> — the content file's own <c>_doc</c> says so —
-/// and nothing here parses either. The mechanical engine (no stacking, the paired-reward payout, the
-/// <c>AD_SKIP_CURSE</c> hook, mount immunity) is M3-11's, tracked by <c>GapRegister</c>'s
-/// <c>Curses</c> entry; this type exists so M3-03's <c>TILE_CURSE</c> resolver can pick a
-/// chapter-eligible row rather than inventing one.
+/// This is a reader, not the curse engine: the <c>effect</c> and <c>reward</c> columns are the
+/// design document's own prose, and nothing here parses either. The mechanical engine (stacking,
+/// the paired-reward payout, the skip hook, mount immunity) is a later milestone's; this type only
+/// lets the curse-tile resolver pick a chapter-eligible row.
 /// </para>
 /// <para>
-/// ⚠️ <b>Named <c>CurseTileRow</c> and not <c>Curse</c>/<c>CurseDefinition</c>, deliberately.</b>
-/// <c>GapRegister</c>'s <c>Curses</c> entry is keyed on the simple name <c>CurseDefinition</c> and
-/// fails the build the day one exists in <c>Core</c> — that is the mechanism that makes M3-11's
-/// deferral expire on time. A row of an authored table is not that type.
+/// Named <c>CurseTileRow</c> and not <c>Curse</c>/<c>CurseDefinition</c> deliberately, so a row of
+/// an authored table is not confused with the future engine's own type.
 /// </para>
 /// </remarks>
 internal sealed class CurseTuning
 {
-    /// <summary>The document `19` Part E is transcribed into.</summary>
+    /// <summary>The document the curse catalogue is transcribed into.</summary>
     internal const string DocumentPath = "content/curses/curses.json";
 
-    /// <summary>`19` Part E — the twelve-row catalogue.</summary>
+    /// <summary>The twelve-row catalogue.</summary>
     internal const string CursesReference = DocumentPath + "#/curses";
 
     private CurseTuning(IReadOnlyList<CurseTileRow> all)
@@ -37,9 +30,9 @@ internal sealed class CurseTuning
 
     /// <summary>Every authored curse, in the order the document lists them.</summary>
     /// <remarks>
-    /// 🔒 The order is load-bearing: <see cref="AvailableFrom"/> preserves it and the resolver draws
-    /// by index off `14` §8.1's stream, so re-ordering the file changes which curse every existing
-    /// run seed draws.
+    /// The order is load-bearing: <see cref="AvailableFrom"/> preserves it and the resolver draws
+    /// by index off the run's random stream, so re-ordering the file changes which curse every
+    /// existing run seed draws.
     /// </remarks>
     internal IReadOnlyList<CurseTileRow> All { get; }
 
@@ -47,13 +40,10 @@ internal sealed class CurseTuning
     /// The curses a run in <paramref name="chapterId"/> may draw — those whose
     /// <c>availableFromChapter</c> has been reached — in the document's order.
     /// </summary>
-    /// <param name="chapterId">`02` §1's chapter, from 1.</param>
+    /// <param name="chapterId">The chapter, from 1.</param>
     /// <remarks>
-    /// 🔒 The comparison is <c>availableFromChapter &lt;= chapterId</c>: the column is the
-    /// <em>earliest</em> chapter a curse opens in and a curse stays available afterwards. A strict
-    /// <c>&lt;</c> would make every curse unreachable in the chapter it is authored to open in, and
-    /// dropping the filter entirely would let a chapter-1 run draw <c>CUR_HUNTED</c>, whose reward is
-    /// a per-Elite gear drop no system can pay.
+    /// The comparison is <c>availableFromChapter &lt;= chapterId</c>: the column is the earliest
+    /// chapter a curse opens in and a curse stays available afterwards.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="chapterId"/> is below 1.</exception>
     internal IReadOnlyList<CurseTileRow> AvailableFrom(int chapterId)
@@ -81,7 +71,7 @@ internal sealed class CurseTuning
     }
 
     /// <summary>Reads the curse catalogue. Throws rather than defaulting on anything unusable.</summary>
-    /// <param name="content">The version-stamped snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped snapshot the command is reading.</param>
     /// <exception cref="MissingContentException">The document or a pointer is not there.</exception>
     /// <exception cref="UnauthorisedTunableException">A pointer holds a deliberate <c>null</c>.</exception>
     /// <exception cref="ContentTypeMismatchException">A leaf holds the wrong shape.</exception>
@@ -122,10 +112,8 @@ internal sealed class CurseTuning
                     "would be unreachable by id.");
             }
 
-            // Both columns are 19 Part E's prose, and both are blank-checked for the reason the id
-            // is: nothing in Core parses them, so a blank one is invisible until it reaches a player
-            // as an empty curse description or defeats CurseRewardsTests' cross-check of the reward
-            // amounts against this prose.
+            // Both columns are free-form prose and are blank-checked for the same reason as the id:
+            // nothing parses them, so a blank one is invisible until it reaches a player.
             var effect = RequiredText(entry, "effect", pointer);
             var reward = RequiredText(entry, "reward", pointer);
             var availableFrom = Member(entry, "availableFromChapter", pointer)
@@ -165,20 +153,13 @@ internal sealed class CurseTuning
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 }
 
-/// <summary>One authored row of `19` Part E's curse catalogue.</summary>
-/// <remarks>
-/// ⚠️ See <see cref="CurseTuning"/> for why this is not called <c>Curse</c> or
-/// <c>CurseDefinition</c>: both are architecture-test sentinels for M3-11's engine.
-/// </remarks>
+/// <summary>One authored row of the curse catalogue.</summary>
 /// <param name="Id">The curse id, e.g. <c>CUR_SLIPPERY</c>.</param>
-/// <param name="Effect">
-/// `19` Part E's Effect column, <b>verbatim prose</b>. Nothing in <c>Core</c> parses it — applying it
-/// is M3-11's.
-/// </param>
+/// <param name="Effect">The Effect column, verbatim prose. Nothing in <c>Core</c> parses it.</param>
 /// <param name="Reward">
-/// `19` Part E's Reward column, <b>verbatim prose</b> — a curse pays, the debuff is never free.
-/// ⚠️ Nothing here parses it either; <c>CurseRewards</c> carries a narrow, named table for the four
-/// rows M3-03 can actually pay, rather than a grammar nobody has specified.
+/// The Reward column, verbatim prose — a curse pays, the debuff is never free. Nothing here parses
+/// it either; <see cref="CurseRewards"/> carries a narrow, named table for the rows that can
+/// actually be paid.
 /// </param>
 /// <param name="AvailableFromChapter">The earliest chapter this curse can be drawn in.</param>
 internal readonly record struct CurseTileRow(

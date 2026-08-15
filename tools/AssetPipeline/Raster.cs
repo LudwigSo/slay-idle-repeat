@@ -9,11 +9,10 @@ namespace SlayIdleRepeat.AssetPipeline;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 Everything here is <see cref="SKColorType.Rgba8888"/> / <see cref="SKAlphaType.Unpremul"/>.
-/// Straight alpha is `15` §C's delivery format and round-trips bit-for-bit through Skia's PNG
-/// encoder; a premultiplied surface anywhere in the chain destroys colour in low-alpha pixels,
-/// which is exactly the halo `15` §B4 step 1 exists to remove. <see cref="From"/> therefore refuses
-/// any other surface rather than converting one silently.
+/// Everything here is <see cref="SKColorType.Rgba8888"/> / <see cref="SKAlphaType.Unpremul"/>. A
+/// premultiplied surface anywhere in the chain destroys colour in low-alpha pixels, which is
+/// exactly the halo the background-removal step exists to remove, so <see cref="From"/> refuses any
+/// other surface rather than converting one silently.
 /// </para>
 /// <para>
 /// The bytes are tightly packed (no row padding) so an index is pure arithmetic; Skia's own buffer
@@ -220,9 +219,8 @@ internal sealed class Raster
     /// naming the text that is not one.
     /// </summary>
     /// <remarks>
-    /// 🔒 One parser for both readers of these strings — `15` §B4 step 3 and Part F item 5 read the
-    /// same six hues and the same stated neutrals, and <c>SKColor.Parse</c> on its own throws without
-    /// saying which of the two lists the bad text came out of or what it was.
+    /// One parser for every reader of these strings: <c>SKColor.Parse</c> on its own throws without
+    /// saying which list the bad text came out of or what it was.
     /// </remarks>
     /// <param name="hex">A hex colour, e.g. <c>#231A2E</c>.</param>
     internal static SKColor ParseColour(string hex) => SKColor.TryParse(hex, out var colour)

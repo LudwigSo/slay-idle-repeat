@@ -5,21 +5,13 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// `15` §D1: <c>{category}_{subcategory}_{id}[_{variant}][_{state}].png</c>, snake_case — the
-/// grammar half of Part F item 10.
-/// </summary>
+/// <summary>Grammar: <c>{category}_{subcategory}_{id}[_{variant}][_{state}].png</c>, snake_case.</summary>
 public sealed class AssetNamingTests
 {
-    /// <summary>
-    /// Every example `15` §D1 prints under its grammar, verbatim.
-    /// </summary>
     /// <remarks>
-    /// 🔒 The doc's own examples, not a set chosen to suit the implementation. Two of them are the
-    /// awkward ones and both are deliberate: <c>ui_panel_main_9slice.png</c> has a segment starting
-    /// with a digit, and <c>chr_hero_weapon_blade_s.png</c> has five segments where
-    /// <c>pet_stormfang_idle.png</c> has three — so a rule about segment counts would reject the
-    /// doc.
+    /// Includes deliberately awkward cases: a segment starting with a digit
+    /// (<c>ui_panel_main_9slice.png</c>) and a five-segment name (<c>chr_hero_weapon_blade_s.png</c>)
+    /// so a rule based on segment counts would fail here.
     /// </remarks>
     public static TheoryData<string> Doc15D1Examples() => new()
     {
@@ -41,7 +33,6 @@ public sealed class AssetNamingTests
         "die_face_star_default.png",
     };
 
-    /// <summary>Malformed names and the `15` §D1 rule each one breaks.</summary>
     public static TheoryData<string, AssetNameRejection> MalformedNames() => new()
     {
         { "IconCurCrown.png", AssetNameRejection.NotSnakeCase },
@@ -66,10 +57,7 @@ public sealed class AssetNamingTests
         result.Stem.ShouldBe(stem);
     }
 
-    /// <summary>
-    /// 🔒 Steering rule S2. "Not a §D1 name" is four defects with four fixes, and a reviewer holding
-    /// a batch of rejected files needs to know which one they have.
-    /// </summary>
+    /// <summary>A rejection names which of the four naming defects it is, not just "invalid".</summary>
     [Theory]
     [MemberData(nameof(MalformedNames))]
     public void Validate_rejects_a_malformed_name_naming_the_D1_rule_it_broke(
@@ -82,10 +70,6 @@ public sealed class AssetNamingTests
         result.Reason.ShouldNotBeNullOrWhiteSpace();
     }
 
-    /// <summary>
-    /// 🔒 Driven off a real shipped row, so the grammar is tested against the register rather than
-    /// only against the doc's sixteen examples. M8-10 delivers 942 files named this way.
-    /// </summary>
     [Fact]
     public void Validate_accepts_a_shipped_manifest_rows_id_with_the_png_extension()
     {
@@ -97,11 +81,6 @@ public sealed class AssetNamingTests
         result.Stem.ShouldBe(row.Id);
     }
 
-    /// <summary>
-    /// 🔒 The whole shipped register, not one row of it. A grammar that accepted the doc's sixteen
-    /// examples and rejected fifty real ids would be a grammar nobody could ship against, and this
-    /// is the case that would say so.
-    /// </summary>
     [Fact]
     public void Validate_accepts_every_id_in_the_shipped_register()
     {
@@ -117,9 +96,8 @@ public sealed class AssetNamingTests
     }
 
     /// <summary>
-    /// 🔒 The prefix list is M8-09's and there is not a second one. This asserts the dependency
-    /// rather than assuming it: a prefix added to <see cref="ManifestValidator.IdPrefixes"/> must
-    /// become nameable here without an edit to this project.
+    /// A prefix added to <see cref="ManifestValidator.IdPrefixes"/> must become nameable here
+    /// without an edit to this project.
     /// </summary>
     [Fact]
     public void Validate_accepts_every_category_prefix_M8_09_declares()
@@ -144,11 +122,7 @@ public sealed class AssetNamingTests
         AssetNaming.CategoryOf(assetId).ShouldBe(expected);
     }
 
-    /// <summary>
-    /// 🔒 An id whose prefix `15` §D1 does not declare is a loud failure, not a category of one. A
-    /// silently accepted prefix would give the silhouette registry a bucket nothing else ever joins,
-    /// and every asset in it would be maximally distinguishable forever.
-    /// </summary>
+    /// <summary>An undeclared prefix must fail loudly, not silently join its own singleton bucket.</summary>
     [Fact]
     public void CategoryOf_fails_loudly_for_a_prefix_15_D1_does_not_declare()
     {

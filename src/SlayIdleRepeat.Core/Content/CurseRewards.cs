@@ -3,61 +3,51 @@ using SlayIdleRepeat.Core.Primitives;
 namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
-/// 🔒 `19` Part E — the paired reward for the four chapter-1 curses, as a <b>narrow, named table</b>
-/// keyed on curse id.
+/// The paired reward for the four chapter-1 curses, as a narrow, named table keyed on curse id.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Deliberately not a parser.</b> `19` Part E's <c>reward</c> column is prose — <c>"+250
-/// Gold"</c>, <c>"+2 Enhance Stones"</c>, but also <c>"+12% ATK"</c>, <c>"+2 Reroll Charges"</c> and
-/// <c>"+1 gear drop per Elite"</c> — and no document specifies a grammar for it. Writing a
-/// general reward-string parser would be inventing that grammar and would silently mis-pay every row
-/// it guessed wrong (steering <b>S6</b>). This table names the four rows M3-03 can actually pay and
-/// refuses every other id, so an unpayable reward is a loud refusal at the seam rather than a
-/// plausible number.
+/// Deliberately not a parser: the reward column is free-form prose ("+250 Gold", "+12% ATK", "+2
+/// Reroll Charges", ...) with no specified grammar. Writing a general parser would be inventing
+/// that grammar and would silently mis-pay any row it guessed wrong. This table instead names the
+/// four rows that can actually be paid and refuses every other id.
 /// </para>
 /// <para>
-/// ⚠️ <b>The four are exactly `19` Part E's <c>availableFromChapter: 1</c> rows</b> — the only ones a
-/// chapter-1 or chapter-2 run can draw at all, which is the reachable scope of M3-03's board — and
-/// they are also, not coincidentally, the four whose reward is a flat currency amount. The other
-/// eight open from chapter 3 or 5 and pay percentages, reroll charges or gear drops, none of which
-/// has a system to grant it yet.
+/// The four are exactly the curses reachable from chapter 1, and also, not coincidentally, the
+/// four whose reward is a flat currency amount — the rest pay percentages, reroll charges or gear
+/// drops that no system yet exists to grant.
 /// </para>
 /// <para>
-/// 🔒 <b>The amounts are transcribed, not derived</b>, and they are cross-checked against
-/// <c>content/curses/curses.json</c>'s own <c>reward</c> prose by
-/// <c>CurseRewardsTests</c> — so a content edit that changed <c>"+250 Gold"</c> to something else
-/// fails the build instead of leaving this table quietly wrong.
+/// The amounts are transcribed, not derived, and are cross-checked against
+/// <c>content/curses/curses.json</c>'s own reward prose by <c>CurseRewardsTests</c>.
 /// </para>
 /// </remarks>
 internal static class CurseRewards
 {
-    /// <summary>`19` Part E — <c>CUR_SLIPPERY</c>'s reward, <c>"+250 Gold"</c>.</summary>
+    /// <summary><c>CUR_SLIPPERY</c>'s reward, <c>"+250 Gold"</c>.</summary>
     internal const string Slippery = "CUR_SLIPPERY";
 
-    /// <summary>`19` Part E — <c>CUR_MARKED</c>'s reward, <c>"+2 Enhance Stones"</c>.</summary>
+    /// <summary><c>CUR_MARKED</c>'s reward, <c>"+2 Enhance Stones"</c>.</summary>
     internal const string Marked = "CUR_MARKED";
 
-    /// <summary>`19` Part E — <c>CUR_DIZZY</c>'s reward, <c>"+180 Gold"</c>.</summary>
+    /// <summary><c>CUR_DIZZY</c>'s reward, <c>"+180 Gold"</c>.</summary>
     internal const string Dizzy = "CUR_DIZZY";
 
-    /// <summary>`19` Part E — <c>CUR_FRACTURED</c>'s reward, <c>"+500 Gold"</c>.</summary>
+    /// <summary><c>CUR_FRACTURED</c>'s reward, <c>"+500 Gold"</c>.</summary>
     internal const string Fractured = "CUR_FRACTURED";
 
-    /// <summary>Whether this curse's `19` Part E reward is one this table can pay.</summary>
+    /// <summary>Whether this curse's reward is one this table can pay.</summary>
     internal static bool IsPayable(string? curseId) => curseId switch
     {
         Slippery or Marked or Dizzy or Fractured => true,
         _ => false,
     };
 
-    /// <summary>The four ids this table pays, in `19` Part E's own order.</summary>
+    /// <summary>The four ids this table pays, in the design document's own order.</summary>
     internal static IReadOnlyList<string> PayableIds { get; } =
         Array.AsReadOnly(new[] { Slippery, Marked, Dizzy, Fractured });
 
-    /// <summary>
-    /// The currency and amount `19` Part E pairs with this curse.
-    /// </summary>
+    /// <summary>The currency and amount paired with this curse.</summary>
     /// <param name="curseId">One of <see cref="PayableIds"/>.</param>
     /// <exception cref="ArgumentException">
     /// The curse has no payable reward — see this type's remarks. A defect rather than a rejection:

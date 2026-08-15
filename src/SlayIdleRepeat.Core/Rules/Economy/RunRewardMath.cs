@@ -5,12 +5,12 @@ using SlayIdleRepeat.Core.Rules.Board;
 namespace SlayIdleRepeat.Core.Rules.Economy;
 
 /// <summary>
-/// 🔒 M3-13, `02` §5 / `03` §7a.1 — the pure reward-banking and run-end payout formulas: Gold per
-/// kill (immediate), Legend XP and Soul Shards per kill (banked), and the run-end
+/// The pure reward-banking and run-end payout formulas: Gold per kill (immediate), Legend XP and
+/// Soul Shards per kill (banked), and the run-end
 /// <c>FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier</c>.
 /// </summary>
 /// <remarks>
-/// `30` §11.5 keeps computation off the aggregates: <c>Handlers.ConfirmBattleResult</c> calls
+/// Keeps computation off the aggregates: <c>Handlers.ConfirmBattleResult</c> calls
 /// <see cref="ForKill"/> and hands the two immediate/banked halves to <c>Run.MoveCurrency</c> and
 /// <c>Run.BankRewards</c>; <c>Handlers.EndRun</c>/<c>Handlers.AbandonRun</c> call
 /// <see cref="FinalPayoutFor"/> and hand the result to <c>Player.GrantLegendXp</c> and
@@ -19,13 +19,13 @@ namespace SlayIdleRepeat.Core.Rules.Economy;
 internal static class RunRewardMath
 {
     /// <summary>
-    /// 🔒 `03` §7a.1 / `02` §5.1a — the reward one kill pays: immediate Gold, banked Legend XP, and
-    /// (Boss only) banked Soul Shards.
+    /// The reward one kill pays: immediate Gold, banked Legend XP, and (Boss only) banked Soul
+    /// Shards.
     /// </summary>
     /// <param name="kind">The tile kind fought — <see cref="TileKind.Enemy"/>, <see cref="TileKind.Elite"/> or <see cref="TileKind.Boss"/>.</param>
-    /// <param name="chapterId">`02` §1's chapter, from 1.</param>
+    /// <param name="chapterId">The chapter, from 1.</param>
     /// <param name="tier">The run's difficulty tier.</param>
-    /// <param name="content">The version-stamped content snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped content snapshot the command is reading.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not Enemy, Elite or Boss.</exception>
     internal static KillReward ForKill(TileKind kind, int chapterId, DifficultyTier tier, ContentSnapshot content)
     {
@@ -57,7 +57,7 @@ internal static class RunRewardMath
         };
     }
 
-    /// <summary>`02` §5.1a — the banked Legend XP a run's Victory bonus adds, before <see cref="FinalPayoutFor"/>.</summary>
+    /// <summary>The banked Legend XP a run's Victory bonus adds, before <see cref="FinalPayoutFor"/>.</summary>
     internal static long VictoryBonus(int chapterId, DifficultyTier tier, ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -65,7 +65,7 @@ internal static class RunRewardMath
         return RunXpTuning.Read(content).LegendXpFor(RunXpTuning.RunVictoryBonusSource, chapterId, tier);
     }
 
-    /// <summary>`02` §5.3 — the one-time Soul Shard grant for a Chapter/Tier's first clear.</summary>
+    /// <summary>The one-time Soul Shard grant for a Chapter/Tier's first clear.</summary>
     internal static long FirstClearBonus(ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -74,14 +74,14 @@ internal static class RunRewardMath
     }
 
     /// <summary>
-    /// 🔒 `02` §5.2 — <c>FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier</c>,
-    /// rounded to a whole unit (<see cref="MidpointRounding.AwayFromZero"/>).
+    /// <c>FinalPayout = BankedRewards * CompletionMultiplier * AdDoubleMultiplier</c>, rounded to a
+    /// whole unit (<see cref="MidpointRounding.AwayFromZero"/>).
     /// </summary>
     /// <param name="bankedLegendXp">The run's accumulated banked Legend XP.</param>
     /// <param name="bankedSoulShards">The run's accumulated banked Soul Shards.</param>
     /// <param name="outcome">How the run ended.</param>
     /// <param name="watchedAd">Whether the run-end rewarded ad was watched.</param>
-    /// <param name="content">The version-stamped content snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped content snapshot the command is reading.</param>
     internal static FinalPayout FinalPayoutFor(
         long bankedLegendXp,
         long bankedSoulShards,
@@ -103,7 +103,7 @@ internal static class RunRewardMath
 
         return scaled switch
         {
-            < 0 => 0, // A CompletionMultiplier/AdDoubleMultiplier product is never negative; guarded anyway (S6: never a silent negative payout).
+            < 0 => 0, // A CompletionMultiplier/AdDoubleMultiplier product is never negative; guarded anyway against a silent negative payout.
             > long.MaxValue => long.MaxValue,
             _ => (long)scaled,
         };

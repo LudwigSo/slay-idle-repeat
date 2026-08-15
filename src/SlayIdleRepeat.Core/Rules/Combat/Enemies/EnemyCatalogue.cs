@@ -6,31 +6,15 @@ using SlayIdleRepeat.Core.Rules.Stats;
 namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 
 /// <summary>
-/// 🔒 <c>content/enemies/enemies.json</c>, read — the whole of `05` §6–§6.2 and §6.4.
+/// <c>content/enemies/enemies.json</c>, read.
 /// </summary>
 /// <remarks>
-/// <para>
-/// `05` §6, §6.1a and §6.2 each say their rows <em>"live in <c>data/enemies.json</c>"</em>. The
-/// repository path is <c>game-data/content/enemies/enemies.json</c> — a single document under
-/// <c>content/</c>, not a seventeenth <c>tuning/</c> file, because doc 21's catalogue fixes that
-/// directory at sixteen and these are content identity and combat balance rather than economy dials.
-/// <c>TunableMarkerAudit.NonEconomyDataFiles</c> already records the same ruling and already names
-/// <c>enemies.json</c>.
-/// </para>
-/// <para>
-/// 🔒 <b>Nothing here has a default.</b> Every value goes through <see cref="ContentSnapshot"/>'s
-/// readers, which throw <c>MissingContentException</c> on an absent pointer and
-/// <c>UnauthorisedTunableException</c> on a <c>null</c> — with two <em>declared</em> exceptions where
-/// `05` authorises no value and the null is the mechanism: a <c>CASTER</c> row's
-/// <c>maxStacks</c> and <c>CURSED</c>'s <c>curseId</c>. Both are read through
-/// <see cref="ContentSnapshot.IsAuthorised"/> and carried as <c>null</c>, and both have a
-/// <c>Require…</c> accessor that throws by name when something tries to use them.
-/// </para>
-/// <para>
-/// The pointers are written out per block rather than assembled from a loop wherever a reader could
-/// otherwise silently read nothing, so that <c>grep enemies.json</c> over the source finds every
-/// read of the file.
-/// </para>
+/// Nothing here has a default: every value goes through <see cref="ContentSnapshot"/>'s readers,
+/// which throw <c>MissingContentException</c> on an absent pointer and
+/// <c>UnauthorisedTunableException</c> on a <c>null</c> — with two declared exceptions where the
+/// null is the mechanism: a <c>CASTER</c> row's <c>maxStacks</c> and <c>CURSED</c>'s <c>curseId</c>.
+/// Both are read through <see cref="ContentSnapshot.IsAuthorised"/> and carried as <c>null</c>, and
+/// both have a <c>Require…</c> accessor that throws by name when something tries to use them.
 /// </remarks>
 internal sealed record EnemyCatalogue(
     EnemyDerivationConstants Derivation,
@@ -51,55 +35,53 @@ internal sealed record EnemyCatalogue(
     /// <summary>The snapshot-relative path of the document.</summary>
     internal const string Document = "content/enemies/enemies.json";
 
-    /// <summary>`05` §6 — the <c>0.60</c> term of <c>MaxHP</c>.</summary>
+    /// <summary>The <c>0.60</c> term of <c>MaxHP</c>.</summary>
     internal const string HpPerPowerPointer = Document + "#/derivation/hpPerPower";
 
-    /// <summary>`05` §6 — the <c>0.045</c> term of <c>ATK</c>.</summary>
+    /// <summary>The <c>0.045</c> term of <c>ATK</c>.</summary>
     internal const string AtkPerPowerPointer = Document + "#/derivation/atkPerPower";
 
-    /// <summary>`05` §6 — the <c>0.030</c> term of <c>DEF</c>.</summary>
+    /// <summary>The <c>0.030</c> term of <c>DEF</c>.</summary>
     internal const string DefPerPowerPointer = Document + "#/derivation/defPerPower";
 
-    /// <summary>`05` §6 — the <c>1.00</c> term of <c>ASPD</c>.</summary>
+    /// <summary>The <c>1.00</c> term of <c>ASPD</c>.</summary>
     internal const string BaseAspdPointer = Document + "#/derivation/baseAspd";
 
-    /// <summary>`05` §6 — <em>"every term rounded to 4 dp"</em>, as authored.</summary>
+    /// <summary>Every term's rounding, as authored.</summary>
     internal const string RoundingDecimalsPointer = Document + "#/derivation/roundingDecimals";
 
-    /// <summary>`05` §6.2 — the <c>2.2</c> elite power multiplier.</summary>
+    /// <summary>The elite power multiplier.</summary>
     internal const string ElitePowerMultiplierPointer = Document + "#/elites/powerMultiplier";
 
-    /// <summary>`05` §6.2 — <em>"plus one Elite Modifier"</em>.</summary>
+    /// <summary>The modifiers granted per Elite.</summary>
     internal const string ModifiersPerElitePointer = Document + "#/elites/modifiersPerElite";
 
-    /// <summary>🔒 `05` §6.2 — the no-repeat rule's own switch.</summary>
+    /// <summary>The no-repeat rule's own switch.</summary>
     internal const string NoRepeatPointer = Document + "#/elites/noRepeatWithPreviousEliteInRun";
 
-    /// <summary>`05` §3.2 — the default target priority.</summary>
+    /// <summary>The default target priority.</summary>
     internal const string DefaultTargetPriorityPointer = Document + "#/targetPriority/default";
 
-    /// <summary>`05` §3.2 — the deprioritising value.</summary>
+    /// <summary>The deprioritising value.</summary>
     internal const string DeprioritisedTargetPriorityPointer = Document + "#/targetPriority/deprioritised";
 
-    /// <summary>`05` §3.2 — the focus-forcing value.</summary>
+    /// <summary>The focus-forcing value.</summary>
     internal const string ForcedTargetPriorityPointer = Document + "#/targetPriority/forced";
 
-    /// <summary>The pointer holding one of `05` §6's six per-archetype-invariant stats.</summary>
+    /// <summary>The pointer holding one of the six per-archetype-invariant stats.</summary>
     internal static string FixedStatPointer(StatId stat) => $"{Document}#/derivation/fixedStats/{stat}";
 
-    /// <summary>The pointer holding one tier's `05` §6.0 level bonus.</summary>
+    /// <summary>The pointer holding one tier's level bonus.</summary>
     internal static string TierBonusPointer(string tier) => $"{Document}#/enemyLevel/tierBonus/{tier}";
 
     /// <summary>
-    /// 🔒 The six stats `05` §6 gives every archetype the same value, named in code rather than
-    /// discovered from whatever keys the file holds.
+    /// The six stats every archetype gives the same value, named in code rather than discovered from
+    /// whatever keys the file holds.
     /// </summary>
     /// <remarks>
     /// A stat that vanished from the data would otherwise be indistinguishable from a stat the
-    /// derivation computes, and the derivation would fall through to
-    /// <see cref="EnemyDerivation"/>'s completeness check with a message about the wrong thing.
-    /// ⚠️ A <see cref="List{T}"/> initialiser, not <c>[ … ]</c> and not <c>new[] { … }</c> — the
-    /// global-namespace synthesis trap <c>CombatCaps.CappedStats</c> records.
+    /// derivation computes. A <see cref="List{T}"/> initialiser, not <c>[ … ]</c>, since a collection
+    /// expression here synthesises a global-namespace helper that fails the build.
     /// </remarks>
     internal static IReadOnlyList<StatId> FixedStats { get; } = new List<StatId>
     {
@@ -128,9 +110,8 @@ internal sealed record EnemyCatalogue(
             content.ReadInt32(RoundingDecimalsPointer),
             fixedStats);
 
-        // 🔒 Three authored values that would otherwise be dials nothing turns. A key that LOOKS
-        // retunable and is not is worse than no key: the next balance edit silently no-ops. Each is
-        // checked against the code that would have to change with it, so a divergence is loud.
+        // Authored values that would otherwise be dials nothing turns, checked against the code
+        // they describe so a divergence is loud rather than silently no-oping.
         RequireAgreement(
             RoundingDecimalsPointer, derivation.RoundingDecimals, StatRounding.Decimals,
             "05 §1.1's rounding is the locked determinism rule and StatRounding is its one " +
@@ -161,7 +142,7 @@ internal sealed record EnemyCatalogue(
             content.ReadInt32(ForcedTargetPriorityPointer));
     }
 
-    /// <summary>The row for one of `05` §6.1's eight shapes.</summary>
+    /// <summary>The row for one of the eight shapes.</summary>
     /// <exception cref="KeyNotFoundException">The catalogue holds no row for it.</exception>
     internal ArchetypeRow Archetype(EnemyArchetype archetype)
     {
@@ -178,8 +159,8 @@ internal sealed record EnemyCatalogue(
     }
 
     /// <summary>
-    /// `05` §6.1a — the status this archetype applies on a landed hit in this chapter, or
-    /// <c>null</c> where the shape applies none.
+    /// The status this archetype applies on a landed hit in this chapter, or <c>null</c> where the
+    /// shape applies none.
     /// </summary>
     /// <exception cref="KeyNotFoundException">
     /// The archetype is a <c>CASTER</c> and the chapter has no biome row.
@@ -203,7 +184,7 @@ internal sealed record EnemyCatalogue(
         };
     }
 
-    /// <summary>`05` §6.2 — the authored row for one modifier.</summary>
+    /// <summary>The authored row for one modifier.</summary>
     /// <exception cref="KeyNotFoundException">The catalogue holds no row for it.</exception>
     internal EliteModifierRow Modifier(EliteModifier modifier)
     {
@@ -291,18 +272,13 @@ internal sealed record EnemyCatalogue(
     }
 
     /// <remarks>
-    /// 🔒 <c>maxStacks</c> is the one member read through <see cref="ContentSnapshot.IsAuthorised"/>.
-    /// `05` §6.1a states a stack count for five of its eight <c>CASTER</c> rows and defers the rest
-    /// to `05`'s status catalogue, which says nothing at all about <c>FREEZE</c> — so that row is
-    /// <c>null</c> and stays <c>null</c>. Coercing it here would be the exact bug the null convention
-    /// exists to prevent; <see cref="OnHitStatus.RequireMaxStacks"/> is where it surfaces.
+    /// <c>maxStacks</c> is the one member read through <see cref="ContentSnapshot.IsAuthorised"/>: a
+    /// stack count is authored for most <c>CASTER</c> rows but not for FREEZE, which stays
+    /// <c>null</c> — see <see cref="OnHitStatus.RequireMaxStacks"/>.
     /// </remarks>
     /// <param name="casterRow">
-    /// True for one of `05` §6.1a's eight per-chapter <c>CASTER</c> rows. It decides <b>two</b>
-    /// things, and they are two halves of the same fact: a <c>CASTER</c> row carries a
-    /// <c>flavourName</c> (the biome skin's name) and carries <b>no</b> <c>refreshOnReapply</c>,
-    /// because §6.1a states that only for the <c>WARDEN</c> set. The <c>WARDEN</c> row is the mirror
-    /// image: no flavour name, an authored refresh flag.
+    /// True for one of the per-chapter <c>CASTER</c> rows. A <c>CASTER</c> row carries a
+    /// <c>flavourName</c> and no <c>refreshOnReapply</c>; the <c>WARDEN</c> row is the mirror image.
     /// </param>
     private static OnHitStatus ReadOnHit(ContentSnapshot content, string pointer, bool casterRow)
     {
@@ -315,9 +291,8 @@ internal sealed record EnemyCatalogue(
             ParsePotencyBasis(content.ReadText(pointer + "/potencyBasis"), pointer + "/potencyBasis"),
             content.ReadDouble(pointer + "/durationSeconds"),
             content.IsAuthorised(maxStacksPointer) ? content.ReadInt32(maxStacksPointer) : null,
-            // 🔒 05 §6.1a states "refresh on reapply" for the WARDEN set ONLY. The CASTER rows carry
-            // no such key, so the value is null there rather than false: authoring a false would
-            // decide, on 05's behalf, that reapplying a biome status extends it instead.
+            // "Refresh on reapply" is authored for the WARDEN set only; CASTER rows carry null
+            // rather than a decided false.
             casterRow ? null : content.ReadBoolean(pointer + "/refreshOnReapply"),
             casterRow ? content.ReadText(pointer + "/flavourName") : null);
     }
@@ -332,20 +307,17 @@ internal sealed record EnemyCatalogue(
             var pointer = $"{Document}#/elites/modifiers/{i.ToString(CultureInfo.InvariantCulture)}";
             var row = rows.Items[i];
 
-            // Read through the snapshot rather than off the raw node: this file's contract is that
-            // every value goes through a reader that throws on an absent pointer, and the `_` filter
-            // is the same one DeclaredRules and ContentInvariants apply to a documentation member.
             var authored = content.Read(pointer + "/parameters");
             var parameters = new Dictionary<string, double>(StringComparer.Ordinal);
 
+            // A leading underscore marks a documentation-only member, e.g. "_doc".
             foreach (var name in authored.MemberNames.Where(n => !n.StartsWith('_')))
             {
                 parameters[name] = content.ReadDouble($"{pointer}/parameters/{name}");
             }
 
-            // 🔒 CURSED is the only row that carries curseId, and it carries it as null: 05 §6.2
-            // names no curse and content/curses/ is empty. Absent and null are the same fact here —
-            // "the documents authorise none" — and neither is coerced to an id.
+            // CURSED is the only row that carries curseId, and carries it as null: the curse
+            // catalogue does not exist yet, so nothing is coerced to a fabricated id.
             var curseIdPointer = pointer + "/curseId";
             var curseId = content.IsAuthorised(curseIdPointer) ? content.ReadText(curseIdPointer) : null;
 
@@ -405,7 +377,7 @@ internal sealed record EnemyCatalogue(
     }
 
     /// <summary>
-    /// 🔒 An authored number that has to agree with the code it describes, or the key is a dial
+    /// An authored number that has to agree with the code it describes, or the key is a dial
     /// nothing turns.
     /// </summary>
     /// <exception cref="ContentTypeMismatchException">The two have diverged.</exception>
@@ -424,7 +396,6 @@ internal sealed record EnemyCatalogue(
 
     // ------------------------------------------------------------------ vocabulary parsing
 
-    // 🔒 The predicate is EnemyArchetypes.TryParse's, stated once; the message is this reader's.
     private static EnemyArchetype ParseArchetype(string name, string pointer) =>
         EnemyArchetypes.TryParse(name, out var archetype)
             ? archetype

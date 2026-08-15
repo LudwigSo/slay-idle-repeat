@@ -5,21 +5,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 `14` §8.1 — the stream registry. "This table is the complete stream registry — a system
-/// that needs randomness draws from one of these streams or gets a new row here."
+/// The stream registry: a system that needs randomness draws from one of these streams or gets a
+/// new row here. A stream name is a compile-time constant rather than a string literal scattered
+/// through call sites — a typo in a literal would silently open a different, valid sequence
+/// instead of failing.
 /// </summary>
-/// <remarks>
-/// The registry exists so a stream name is a compile-time constant rather than a string literal
-/// scattered through forty call sites. A typo in a literal does not fail — it silently opens a
-/// <i>different, perfectly valid</i> sequence, and the run it corrupts is unreproducible by
-/// definition.
-/// </remarks>
 public sealed class RngStreamsTests
 {
-    /// <summary>
-    /// The eight fixed rows of `14` §8.1, spelled out. If this test has to change, the design
-    /// document changed with it — that is the point of writing the table twice.
-    /// </summary>
     [Fact]
     public void The_registry_holds_exactly_the_eight_fixed_streams_of_the_specification()
     {
@@ -79,9 +71,8 @@ public sealed class RngStreamsTests
     }
 
     /// <summary>
-    /// 🔒 The typos that must not pass. <c>minigame:03</c> is the sharpest one: it is a
-    /// different string from <c>minigame:3</c> and would therefore be a different sequence for
-    /// what every human reading it would call the same minigame.
+    /// The typos that must not pass. <c>minigame:03</c> is the sharpest one: it differs from
+    /// <c>minigame:3</c> and would be a different sequence for the "same" minigame.
     /// </summary>
     [Theory]
     [InlineData("")]

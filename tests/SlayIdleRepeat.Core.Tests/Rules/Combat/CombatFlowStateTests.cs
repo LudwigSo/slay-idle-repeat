@@ -5,15 +5,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 `18` §2.4's per-actor flow state — the charges, saves and multipliers `05` §4 reads.
-/// </summary>
+/// <summary>Per-actor flow state: the charges, saves and multipliers combat resolution reads.</summary>
 public sealed class CombatFlowStateTests
 {
-    /// <summary>
-    /// 🔒 `05` §4 — <em>"<c>AttackMultiplier</c>, base 1.0 on every basic attack"</em>, and it resets
-    /// after every resolved attack because it is never stored.
-    /// </summary>
+    /// <summary>Base attack multiplier is 1.0 and resets after every resolved attack.</summary>
     [Fact]
     public void The_attack_multiplier_is_1_with_nothing_armed_and_returns_to_1_after_a_charge_is_spent()
     {
@@ -27,11 +22,7 @@ public sealed class CombatFlowStateTests
         flow.ConsumeAttackMultiplier().ShouldBe(1.0);
     }
 
-    /// <summary>
-    /// 🔒 <em>"consumed in ascending effect-id order"</em> — and every armed grant applies to the same
-    /// swing, which is the recorded ruling. The order is what the low bits depend on, and `11` §6
-    /// compares those bits.
-    /// </summary>
+    /// <summary>Charges are consumed in ascending effect-id order, not arming order.</summary>
     [Fact]
     public void Every_armed_charge_applies_to_one_swing_in_ascending_effect_id_order()
     {
@@ -41,7 +32,7 @@ public sealed class CombatFlowStateTests
         flow.GrantAttackMultiplier(0.6, charges: 1, "PK_GAMBLER");
         flow.GrantAttackMultiplier(3.0, charges: 1, "PK_OPENER");
 
-        // 1.0 × 3.0 (PK_GAMBLER > PK_OPENER ordinally? no: 'G' < 'O', so GAMBLER first)
+        // Both grants apply to the same swing: 0.6 * 3.0 = 1.8.
         flow.ConsumeAttackMultiplier().ShouldBe(1.8);
         flow.ConsumeAttackMultiplier().ShouldBe(1.0);
     }
@@ -59,7 +50,7 @@ public sealed class CombatFlowStateTests
         flow.ConsumeAttackMultiplier().ShouldBe(1.0);
     }
 
-    /// <summary>`18` §2.4 — <c>FORCE_CRIT_NEXT</c>, spent one swing at a time.</summary>
+    /// <summary><c>FORCE_CRIT_NEXT</c> charges are spent one swing at a time.</summary>
     [Fact]
     public void Forced_crits_are_spent_one_at_a_time()
     {
@@ -73,10 +64,7 @@ public sealed class CombatFlowStateTests
         flow.ForcedCritCharges.ShouldBe(0);
     }
 
-    /// <summary>
-    /// 🔒 `05` §4 step 6 — <em>"<c>Π defender.DamageTakenMult</c> … product, ascending effect-id
-    /// order"</em>, so they accumulate rather than replace.
-    /// </summary>
+    /// <summary>Damage-taken multipliers accumulate as a product rather than replacing.</summary>
     [Fact]
     public void Damage_taken_multipliers_are_a_product_and_not_a_last_writer_wins()
     {
@@ -90,10 +78,7 @@ public sealed class CombatFlowStateTests
         flow.DamageTakenMultiplier().ShouldBe(1.2);
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.1's anti-loop rule — <em>"<c>SURVIVE_LETHAL</c> / <c>REVIVE</c> effects fire at most
-    /// their authored <c>once</c> count per battle"</em>.
-    /// </summary>
+    /// <summary>Anti-loop rule: a death save fires at most its authored <c>once</c> count per battle.</summary>
     [Fact]
     public void A_once_death_save_fires_exactly_once_per_battle()
     {
@@ -118,8 +103,8 @@ public sealed class CombatFlowStateTests
     }
 
     /// <summary>
-    /// A <c>SURVIVE_LETHAL</c> is not a <c>REVIVE</c>: `18` §3 is explicit that the first fires no
-    /// <c>ON_REVIVE</c> because the actor never died, so the two are drawn from separately.
+    /// A <c>SURVIVE_LETHAL</c> is not a <c>REVIVE</c>: it fires no <c>ON_REVIVE</c> because the
+    /// actor never died, so the two are drawn from separately.
     /// </summary>
     [Fact]
     public void A_survive_lethal_is_not_offered_where_a_revive_is_asked_for()
@@ -131,9 +116,7 @@ public sealed class CombatFlowStateTests
         flow.ConsumeDeathSave(revive: false).ShouldNotBeNull();
     }
 
-    /// <summary>
-    /// 🔒 `18` §2.4's <c>HIGHEST_PCT_BONUS</c>, with the errata tie-break: `05` §1's table order.
-    /// </summary>
+    /// <summary><c>HIGHEST_PCT_BONUS</c>, with an exact tie falling to the stat table order.</summary>
     [Fact]
     public void The_highest_percent_bucket_is_named_and_an_exact_tie_falls_to_the_05_1_table_order()
     {
@@ -146,8 +129,8 @@ public sealed class CombatFlowStateTests
 
         flow.HighestPercentBonusStat().ShouldBe(StatId.ATK);
 
-        // Tied at 0.25 — ATK is row 2 of `05` §1 and DEF is row 3, so ATK keeps it. The answer must
-        // not depend on which was written first, which a Dictionary walk would.
+        // Tied at 0.25 — ATK precedes DEF in table order, and the answer must not depend on which
+        // was written first, which a Dictionary walk would.
         flow.AddPercentBucket(StatId.DEF, 0.15);
         flow.PercentBuckets[StatId.DEF].ShouldBe(0.25);
         flow.HighestPercentBonusStat().ShouldBe(StatId.ATK);

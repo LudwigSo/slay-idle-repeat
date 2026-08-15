@@ -7,19 +7,15 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 
-/// <summary>
-/// 🔒 `05` §3.1's DoT/HoT cadence and `05` §5's twelve, driven through a real fight.
-/// </summary>
+/// <summary>The DoT/HoT cadence and stat-debuff rules, driven through a real fight.</summary>
 /// <remarks>
-/// Through <c>BattleSimulation</c> rather than the timeline directly, because half of what §3.1
-/// fixes is <em>which slot</em> the work happens in — "deals that tick first, then expires" is bought
-/// entirely by slot 1 running before slot 2.
+/// Through <c>BattleSimulation</c> rather than the timeline directly, because half of what's being
+/// tested is <em>which slot</em> the work happens in — "deals that tick first, then expires" is
+/// bought entirely by slot 1 running before slot 2.
 /// </remarks>
 public sealed class StatusTimelineTests
 {
-    /// <summary>
-    /// 🔴 `05` §3.1 — reapplication <em>"never re-anchors the cadence"</em>.
-    /// </summary>
+    /// <summary>Reapplication adds a stack and never re-anchors the cadence.</summary>
     /// <remarks>
     /// Applied tick 7, reapplied tick 17: anchored at 7 the boundaries are 27/47/67, re-anchoring
     /// moves them to 37/57/77. At 0 and 20 both readings give 20/40/60 and the test could not fail.
@@ -42,10 +38,7 @@ public sealed class StatusTimelineTests
         ticks.ShouldNotContain(57);
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.1 — <em>"per-tick amount = per-second potency × current stack count, <b>read at the
-    /// moment the tick lands</b>"</em>.
-    /// </summary>
+    /// <summary>The per-tick amount is per-second potency times the stack count read at the moment the tick lands.</summary>
     /// <remarks>
     /// The second stack lands at tick 30 — after the first boundary, before the second — so the tick
     /// at 47 must be 10 rather than 5. Resolving the amount at application time, or caching it at the
@@ -71,14 +64,10 @@ public sealed class StatusTimelineTests
         second[0].Amount.ShouldBe(10.0, "the second stack landed at tick 30, before this boundary");
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.1 slot 2 — <em>"a DoT expiring exactly on a cadence boundary deals that tick first,
-    /// then expires"</em>.
-    /// </summary>
+    /// <summary>A DoT expiring exactly on a cadence boundary deals that tick first, then expires.</summary>
     /// <remarks>
     /// The duration makes the two collide exactly at tick 27. Expiring in slot 1, or ordering expiry
-    /// before the cadence, deals <b>zero</b> — a whole second of a one-second DoT, on every DoT whose
-    /// duration is a whole number of seconds, which is all of them in `05` §6.1a.
+    /// before the cadence, deals zero — a whole second of a one-second DoT.
     /// </remarks>
     [Fact]
     public void A_DoT_expiring_on_a_cadence_boundary_deals_that_tick_first_then_expires()
@@ -99,10 +88,7 @@ public sealed class StatusTimelineTests
         expiries[0].Tick.ShouldBe(27, "slot 2 expires it on the same tick slot 1 ticked it");
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.1 — a DoT tick is <em>"a damage event, not an attack"</em>, so it takes `05` §4.2's
-    /// route and never <c>ResolveAttack</c>.
-    /// </summary>
+    /// <summary>A DoT tick is a damage event, not an attack, so it never routes through <c>ResolveAttack</c>.</summary>
     /// <remarks>
     /// Asserted on <em>which</em> pipeline member was called: checking only that the target lost HP
     /// would pass an implementation that dodged, crit, blocked and floored the tick.
@@ -117,10 +103,7 @@ public sealed class StatusTimelineTests
         bench.Pipeline.Heals.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.1 — HoT ticks route through <c>Heal()</c>, so <c>HEAL%</c> applies and
-    /// <c>ON_HEAL</c> fires.
-    /// </summary>
+    /// <summary>HoT ticks route through <c>Heal()</c>, so <c>HEAL%</c> applies and <c>ON_HEAL</c> fires.</summary>
     /// <remarks>
     /// The amount is asserted as well as the route: a HoT reaching <c>Heal</c> with the raw fraction
     /// would heal 0.1 HP a second and look like a routing success.
@@ -139,10 +122,7 @@ public sealed class StatusTimelineTests
         bench.Pipeline.Dots.ShouldBeEmpty("a HoT is not a damage event");
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 — <c>POISON</c> is X% of <b>target</b> Max HP, <c>BURN</c> X% of <b>attacker</b>
-    /// ATK. Two different bases, and the difference is observable.
-    /// </summary>
+    /// <summary><c>POISON</c> is X% of target Max HP, <c>BURN</c> X% of attacker ATK.</summary>
     /// <remarks>
     /// Same authored X, same applier, same target, different numbers — so this tests the basis rather
     /// than the arithmetic. One basis for both agrees with one row and fails the other.
@@ -157,9 +137,7 @@ public sealed class StatusTimelineTests
         poison.Pipeline.Dots[0].Amount.ShouldBe(250.0, "0.5 x the target's 500 Max HP");
     }
 
-    /// <summary>
-    /// 📐 `05` §5 — <c>BLEED</c>'s tick is <em>"that amount × (1 + target's missing-HP fraction)"</em>.
-    /// </summary>
+    /// <summary><c>BLEED</c>'s tick is the flat amount times (1 + target's missing-HP fraction).</summary>
     /// <remarks>
     /// At full health the fraction is 0 and the tick is the flat amount, which ignoring the term also
     /// produces — the wounded row is the discriminating one. The coefficient is read from the
@@ -177,9 +155,7 @@ public sealed class StatusTimelineTests
         wounded.Pipeline.Dots[0].Amount.ShouldBe(17.5);
     }
 
-    /// <summary>
-    /// 🔒 `05` §5's stat debuffs reach `18` §8's aggregation — a <c>FREEZE</c> really is −50% ASPD.
-    /// </summary>
+    /// <summary>Stat debuffs reach the stat aggregation — a <c>FREEZE</c> really is -50% ASPD.</summary>
     /// <remarks>
     /// Asserted on the actor's aggregated ASPD, not the timeline's bookkeeping: a status recorded
     /// correctly and never collected by step 1 does nothing, and every internals test still passes.
@@ -194,9 +170,7 @@ public sealed class StatusTimelineTests
         enemy.Stats[StatId.ASPD].ShouldBe(1.0, "05 §5's FREEZE is -50% ASPD");
     }
 
-    /// <summary>
-    /// 🔒 A stat debuff stops applying once it expires — the aggregation is not a one-way write.
-    /// </summary>
+    /// <summary>A stat debuff stops applying once it expires — the aggregation is not a one-way write.</summary>
     /// <remarks>
     /// The control an implementation writing into <c>CombatFlowState</c>'s percent buckets would fail:
     /// those carry no duration, so a <c>FREEZE</c> there halves ASPD for the rest of the fight.
@@ -211,11 +185,9 @@ public sealed class StatusTimelineTests
         enemy.Stats[StatId.ASPD].ShouldBe(2.0, "the FREEZE expired at tick 27");
     }
 
-    /// <summary>
-    /// 🔒 A stat debuff that expires and is applied again debuffs again.
-    /// </summary>
+    /// <summary>A stat debuff that expires and is applied again debuffs again.</summary>
     /// <remarks>
-    /// 🔴 The path <c>StatModifiers</c>' fast-out could break, and which neither test above covers: it
+    /// The path <c>StatModifiers</c>' fast-out could break, and which neither test above covers: it
     /// reads a per-actor count rather than walking the set. A count that failed to decrement on expiry
     /// keeps aggregating a dead <c>FREEZE</c>; one that failed to increment silently stops aggregating
     /// a live one — and apply-only and expire-only cases each pass either way. Apply → expire → apply,
@@ -251,12 +223,10 @@ public sealed class StatusTimelineTests
         });
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 — <c>SUNDER</c> <em>"stacks to 5"</em>, and the aggregate is the sum of the stacks.
-    /// </summary>
+    /// <summary><c>SUNDER</c> stacks to 5, and the aggregate is the sum of the stacks.</summary>
     /// <remarks>
-    /// Six applications, ceiling of five: `18` §6 drops the surplus rather than evicting. Ignoring the
-    /// ceiling gives −30%, never stacking gives −5%, and only 5 × −5% is right.
+    /// Six applications, ceiling of five: the surplus is dropped rather than evicting an existing
+    /// stack. Ignoring the ceiling gives -30%, never stacking gives -5%, and only 5 x -5% is right.
     /// </remarks>
     [Fact]
     public void SUNDER_stacks_to_five_and_the_surplus_application_is_dropped()
@@ -275,7 +245,7 @@ public sealed class StatusTimelineTests
     }
 
     /// <summary>
-    /// 🔒 `05` §5's <c>WARD</c> is deferred wholly to §4.1 — applying it grants a ward segment and
+    /// <c>WARD</c> is deferred wholly to the ward pool — applying it grants a ward segment and
     /// creates no second pool here.
     /// </summary>
     [Fact]
@@ -291,10 +261,7 @@ public sealed class StatusTimelineTests
             "05 §4.1's pool is M2-09's and this timeline keeps no second copy of it");
     }
 
-    /// <summary>
-    /// 🔒 `05` §3.1 — <em>"one instance per <c>statusId</c> per target"</em>: two appliers share one
-    /// instance and one cadence.
-    /// </summary>
+    /// <summary>One instance per statusId per target: two appliers share one instance and one cadence.</summary>
     /// <remarks>
     /// Two distinct effect ids apply <c>BURN</c> ten ticks apart. Separate instances would give two
     /// anchors and two boundary series; the section says one, anchored on the first.
@@ -312,13 +279,10 @@ public sealed class StatusTimelineTests
             .ShouldBe(new[] { 27, 47, 67, 87, 107, 127, 147, 167, 187 });
     }
 
-    /// <summary>
-    /// 🔒 One phase check and one <c>ON_LOW_HP</c> per DoT HP change, and no more.
-    /// </summary>
+    /// <summary>One phase check and one <c>ON_LOW_HP</c> per DoT HP change, and no more.</summary>
     /// <remarks>
-    /// 🔴 <em>Exactly</em> one, not <em>at least</em> one: <c>ON_LOW_HP</c> is a crossing, so a doubled
-    /// observation is a doubled firing — and calling <c>AfterHpDecrease</c> from the tick as well as
-    /// letting `05` §4 step 9 do it is exactly two.
+    /// Exactly one, not at least one: <c>ON_LOW_HP</c> is a crossing, so a doubled observation is a
+    /// doubled firing.
     /// </remarks>
     [Fact]
     public void Each_DoT_HP_change_runs_the_phase_check_and_ON_LOW_HP_exactly_once()
@@ -327,17 +291,12 @@ public sealed class StatusTimelineTests
 
         bench.Pipeline.Dots.Count.ShouldBe(2, "boundaries at ticks 27 and 47");
 
-        // 🔴 Counted on the PHASE CONTROLLER, not on the pipeline double — review found a
-        // pipeline-side counter blind to the exact defect this test exists for. A timeline calling
-        // _services.AfterHpDecrease in addition to routing through `05` §4 step 9 leaves Dots.Count
-        // and any pipeline counter at 2, and doubles only this.
+        // Counted on the phase controller, not the pipeline double — a pipeline-side counter would
+        // be blind to a timeline that calls AfterHpDecrease twice for one HP change.
         bench.Phases.HpDecreaseCalls.ShouldBe(2);
     }
 
-    /// <summary>
-    /// 🔒 `05` §7 — a DoT tick emits <c>StatusTick</c> naming the status, so the replayer can tell it
-    /// from a hit.
-    /// </summary>
+    /// <summary>A DoT tick emits <c>StatusTick</c> naming the status, so the replayer can tell it from a hit.</summary>
     [Fact]
     public void A_cadence_tick_emits_StatusTick_naming_the_status()
     {
@@ -351,13 +310,10 @@ public sealed class StatusTimelineTests
         ticks[0].DataId.ShouldBe(StatusLogId.Of("BURN"));
     }
 
-    /// <summary>
-    /// 🔒 `05` §5's <c>STUN</c> through the tick loop: slot 4a's <em>"and not stunned"</em>.
-    /// </summary>
+    /// <summary><c>STUN</c> gates swings through the tick loop's "and not stunned" check.</summary>
     /// <remarks>
-    /// 🔴 Asserted on slot 4's output, not on <c>CanAct</c> at the last tick — that is a statement the
-    /// stun <em>ended</em>, and an engine never consulting the gate passed it. A 1.0-ASPD enemy
-    /// stunned at tick 0 for the capped 1.5 s loses its tick-0 and tick-20 swings and resumes at 30.
+    /// Asserted on the swing output, not on <c>CanAct</c> at the last tick — that only states the
+    /// stun ended, and an engine never consulting the gate would still pass it.
     /// </remarks>
     [Fact]
     public void A_stunned_actor_does_not_swing_while_the_stun_lasts()
@@ -448,10 +404,8 @@ public sealed class StatusTimelineTests
 
     /// <summary>A timeline that is the real one, plus a script applying statuses at named ticks.</summary>
     /// <remarks>
-    /// 🔒 It <b>delegates every member</b>: the subject is <see cref="StatusTimeline"/>, and a
-    /// decorator answering <c>CanAct</c> or <c>StacksOn</c> itself would test the decorator. The script
-    /// runs before the delegated <c>AdvanceTimers</c>, which can only make the cadence harder to get
-    /// right, never easier.
+    /// It delegates every member: the subject is <see cref="StatusTimeline"/>, and a decorator
+    /// answering <c>CanAct</c> or <c>StacksOn</c> itself would test the decorator.
     /// </remarks>
     private sealed class ScriptedApplications : IStatusTimeline
     {
@@ -497,14 +451,12 @@ public sealed class StatusTimelineTests
             var hero = actors.Single(a => a.Id == "HERO");
             var enemy = actors.Single(a => a.Id == "ENEMY_0");
 
-            // The applier's ATK is what `05` §5's BURN and BLEED read, so it is set on the applier
-            // rather than passed alongside — the seam reads the actor, and a test that handed the
-            // number in separately would not exercise that.
-            // Conductor edit at merge: M2-09 changed SetStats to take the whole AggregatedStats
-            // rather than an ActorStats, to satisfy M2-07's ward-cap obligation — `05` §4.1 caps the
-            // pool on Max HP "as it stood after `18` §8 step 7", so an actor that kept only Final
-            // would cap every CP_GLASS_HEART ward at 1 HP silently. Only ATK moves here, and ATK
-            // takes no multiplier in this fixture, so the post-step-7 Max HP is carried unchanged.
+            // The applier's ATK is what BURN and BLEED read, so it is set on the applier rather than
+            // passed alongside — the seam reads the actor, and a test that handed the number in
+            // separately would not exercise that. SetStats takes the whole AggregatedStats (not just
+            // ActorStats) because the ward cap is computed from post-aggregation Max HP; an actor
+            // that kept only Final would cap wards silently wrong. Only ATK changes here and it
+            // takes no multiplier in this fixture, so Max HP carries through unchanged.
             hero.SetStats(hero.Aggregated with { Final = hero.Stats.With(StatId.ATK, step.ApplierAtk) });
 
             _inner.Apply(

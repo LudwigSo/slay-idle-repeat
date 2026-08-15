@@ -5,20 +5,21 @@ using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 
 /// <summary>
-/// `05` §6–§6.2 and §6.4 as the shipped <c>enemies.json</c> authors them, restated for the suite that
-/// tests the derivation's arithmetic.
+/// The shipped <c>enemies.json</c> data, restated for the suite that tests the derivation's
+/// arithmetic.
 /// </summary>
 /// <remarks>
-/// ⚠️ Restated here because <c>Core.Tests</c> has no JSON reader. The copy cannot drift: the shipped file
-/// is asserted against `05` §6 separately by <c>EnemiesDataTests</c> in the <c>Application</c> suite.
-/// What is tested here is the derivation's arithmetic; what is tested there is the transcription.
+/// Restated here because <c>Core.Tests</c> has no JSON reader. The copy cannot drift: the shipped
+/// file is asserted against the design doc separately by <c>EnemiesDataTests</c> in the
+/// <c>Application</c> suite. What is tested here is the derivation's arithmetic; what is tested
+/// there is the transcription.
 /// </remarks>
 internal static class EnemyFixtures
 {
-    /// <summary>The document path `05` §6 names, as the repository holds it.</summary>
+    /// <summary>The document path, as the repository holds it.</summary>
     internal const string Document = "content/enemies/enemies.json";
 
-    /// <summary>`05` §6.1 — the eight rows, as coefficients only.</summary>
+    /// <summary>The eight rows, as coefficients only.</summary>
     internal static IReadOnlyList<ArchetypeRow> Archetypes { get; } = new List<ArchetypeRow>
     {
         new(EnemyArchetype.GRUNT, 1.00, 1.00, 1.00, 1.00, 0.05, 0.50, 0.02, 0.00, 1, ArchetypeOnHit.None),
@@ -35,7 +36,7 @@ internal static class EnemyFixtures
     internal static ArchetypeRow Row(EnemyArchetype archetype) =>
         Archetypes.Single(a => a.Id == archetype);
 
-    /// <summary>`05` §6 — the derivation constants and the six per-archetype-invariant stats.</summary>
+    /// <summary>The derivation constants and the six per-archetype-invariant stats.</summary>
     internal static EnemyDerivationConstants Constants() =>
         new(0.60, 0.045, 0.030, 1.00, 4, new Dictionary<StatId, double>
         {
@@ -56,7 +57,7 @@ internal static class EnemyFixtures
         return full with { FixedStats = fixedStats };
     }
 
-    /// <summary>`05` §6.0 — the chapter-based level table.</summary>
+    /// <summary>The chapter-based level table.</summary>
     internal static EnemyLevelTable Levels() =>
         EnemyLevelTable.From(
             new Dictionary<int, int>
@@ -65,7 +66,7 @@ internal static class EnemyFixtures
             },
             new List<int> { 0, 10, 20 });
 
-    /// <summary>`05` §6.2 — the eight modifiers, with the authored parameters.</summary>
+    /// <summary>The eight modifiers, with the authored parameters.</summary>
     internal static IReadOnlyList<EliteModifierRow> Modifiers { get; } = new List<EliteModifierRow>
     {
         new(EliteModifier.ENRAGED, "loc.elite_modifier.enraged.name",
@@ -86,7 +87,7 @@ internal static class EnemyFixtures
             new Dictionary<string, double>(StringComparer.Ordinal) { ["thorns"] = 0.25 }, null),
     };
 
-    /// <summary>`05` §6.4 — Chapter 1's pool, the row with the authored <c>REAVER</c> zero.</summary>
+    /// <summary>Chapter 1's pool, the row with the authored <c>REAVER</c> zero.</summary>
     internal static ChapterEnemyPool ChapterOnePool() =>
         ChapterEnemyPool.From(
             1,
@@ -222,7 +223,7 @@ internal static class EnemyFixtures
             [new ContentDocument(Document, root)]);
     }
 
-    /// <summary>`05` §6.2 — the sixteen identities, in the document's order.</summary>
+    /// <summary>The sixteen identities, in the document's order.</summary>
     internal static IReadOnlyList<KeyValuePair<string, EnemyArchetype>> Identities { get; } =
         new List<KeyValuePair<string, EnemyArchetype>>
         {
@@ -244,7 +245,7 @@ internal static class EnemyFixtures
             new("EL_VOIDCALF", EnemyArchetype.LEECH),
         };
 
-    /// <summary>`05` §6.4 — the eight weight rows, in archetype order.</summary>
+    /// <summary>The eight weight rows, in archetype order.</summary>
     internal static IReadOnlyList<int[]> PoolWeights { get; } = new List<int[]>
     {
         new[] { 40, 20, 15, 10, 5, 5, 5, 0 },

@@ -6,29 +6,21 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Targeting;
 
-/// <summary>
-/// 🔒 `18` §5 — the eleven target tokens, each resolved relative to the effect's <b>holder</b>.
-/// </summary>
+/// <summary>The eleven target tokens, each resolved relative to the effect's holder.</summary>
 public sealed class TargetResolverTests
 {
-    // ------------------------------------------------------------------ R10: holder-relative
+    // ------------------------------------------------------------------ holder-relative
     //
     // The ruling this whole task turns on, and the reason it is the first test in the file.
 
     /// <summary>
-    /// 🔒 `18` §7.10's Volatile elite, verbatim: an <c>ON_DEATH</c> <c>DAMAGE_MAXHP_PCT</c> targeting
-    /// <c>ALL_ENEMIES</c>, whose prose is <em>"explodes on death for 15% of <b>hero</b> Max HP"</em>.
+    /// The Volatile elite: an <c>ON_DEATH</c> <c>DAMAGE_MAXHP_PCT</c> targeting <c>ALL_ENEMIES</c>,
+    /// whose prose is "explodes on death for 15% of hero Max HP". The effect sits on an enemy actor,
+    /// so it only does what its own prose says if <c>ALL_ENEMIES</c> means the actors hostile to the
+    /// holder — nowhere stated directly, and every boss, elite and summon in the game depends on it.
+    /// Written so the naive reading fails: under "enemies always means the hero's enemies" the
+    /// exploding elite would hit the grunts and itself and never the hero.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The effect sits on an <b>enemy</b> actor, so it only does what its own prose says if
-    /// <c>ALL_ENEMIES</c> means <em>the actors hostile to the holder</em>. `18` §5 never states this,
-    /// and every boss, elite and summon in the game depends on it.
-    /// <para>
-    /// ⚠️ Written so the naive reading fails: under "enemies always means the hero's enemies" the
-    /// exploding elite would hit the grunts and itself and never the hero. The assertion is exactly
-    /// that pair — the hero <em>is</em> selected, the other enemies are <em>not</em>.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void ALL_ENEMIES_on_the_Volatile_elite_selects_the_hero_not_the_other_enemies()
     {
@@ -65,12 +57,12 @@ public sealed class TargetResolverTests
         hit.Select(a => a.Id).ShouldBe(["GRUNT_A", "GRUNT_B"]);
     }
 
-    /// <summary>🔒 …and the ruling covers <b>every</b> enemy token, not just <c>ALL_ENEMIES</c>.</summary>
-    /// <remarks>
-    /// ⚠️ Without this, special-casing <c>ALL_ENEMIES</c> as holder-relative and computing the other
-    /// four as <c>Side == BattleSide.ENEMY</c> passes the whole suite — and Sporequeen's sporelings and
-    /// every boss <c>LOWEST_HP_ENEMY</c> would target their own side.
-    /// </remarks>
+    /// <summary>
+    /// …and the ruling covers every enemy token, not just <c>ALL_ENEMIES</c>. Without this,
+    /// special-casing <c>ALL_ENEMIES</c> as holder-relative and computing the other four as
+    /// <c>Side == BattleSide.ENEMY</c> passes the whole suite — and Sporequeen's sporelings and every
+    /// boss <c>LOWEST_HP_ENEMY</c> would target their own side.
+    /// </summary>
     [Theory]
     [InlineData(EffectTarget.ALL_ENEMIES)]
     [InlineData(EffectTarget.OTHER_ENEMIES)]
@@ -94,10 +86,7 @@ public sealed class TargetResolverTests
 
     // ------------------------------------------------------------------ the set tokens
 
-    /// <summary>
-    /// `05` §3.1 step 6 — <em>"An actor whose HP reaches 0 stops acting and being targetable at that
-    /// moment"</em> — and `05` §3.2 — <em>"Pets cannot be targeted or killed."</em>
-    /// </summary>
+    /// <summary>An actor whose HP reaches 0 stops being targetable at that moment, and pets cannot be targeted or killed.</summary>
     [Fact]
     public void An_enemy_set_holds_neither_the_dead_nor_any_pet()
     {
@@ -114,7 +103,7 @@ public sealed class TargetResolverTests
         hit.Select(a => a.Id).ShouldBe(["GRUNT_ALIVE"]);
     }
 
-    /// <summary>🔒 Results come back in `05` §3.1's fixed actor-index order, not roster order.</summary>
+    /// <summary>Results come back in fixed actor-index order, not roster order.</summary>
     [Fact]
     public void An_enemy_set_is_returned_in_ascending_actor_index_order()
     {
@@ -123,7 +112,7 @@ public sealed class TargetResolverTests
         var first = EffectTestBattle.Enemy("GRUNT_A", 1);
         var second = EffectTestBattle.Enemy("GRUNT_B", 2);
 
-        // Handed in deliberately out of order: the resolver imposes 05 §3.1's order, it does not
+        // Handed in deliberately out of order: the resolver imposes its own fixed order, it does not
         // inherit whatever order the caller happened to build the roster in.
         var hit = TargetResolver.Resolve(
             EffectTarget.ALL_ENEMIES,
@@ -132,10 +121,7 @@ public sealed class TargetResolverTests
         hit.Select(a => a.Id).ShouldBe(["GRUNT_A", "GRUNT_B", "GRUNT_C"]);
     }
 
-    /// <summary>
-    /// `18` §5 / §7.10 — <c>PK_CLEAVE</c>: <em>"all enemies except the attack's primary target — the
-    /// splash no longer double-hits its primary."</em>
-    /// </summary>
+    /// <summary><c>PK_CLEAVE</c>: all enemies except the attack's primary target — the splash no longer double-hits its primary.</summary>
     [Fact]
     public void OTHER_ENEMIES_excludes_the_attacks_primary_target()
     {
@@ -154,14 +140,11 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// 🔒 <c>OTHER_ENEMIES</c> excludes the primary by <b>actor index</b>, not by id — so a pack
-    /// spawned from one archetype does not vanish from the splash.
+    /// <c>OTHER_ENEMIES</c> excludes the primary by actor index, not by id — so a pack spawned from
+    /// one archetype does not vanish from the splash. Several units can share an archetype's id, and
+    /// only the index is unique; an id-based exclusion would drop all three swarm units from
+    /// <c>PK_CLEAVE</c>'s splash instead of only the primary.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ `05` §6.4 spawns several units from one archetype draw and nothing promises a per-battle-unique
-    /// id — only the <b>index</b> is authorised as unique. An id-based exclusion would drop <b>all
-    /// three</b> swarm units from <c>PK_CLEAVE</c>'s splash instead of only the primary.
-    /// </remarks>
     [Fact]
     public void OTHER_ENEMIES_excludes_only_the_primary_when_a_pack_shares_one_id()
     {
@@ -181,8 +164,8 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// `18` §5 — <em>"Valid only inside an attack context; elsewhere it degrades to
-    /// <c>ALL_ENEMIES</c>."</em> One of the two degradations the document actually authors.
+    /// Valid only inside an attack context; elsewhere it degrades to <c>ALL_ENEMIES</c>. One of the
+    /// two authored degradations.
     /// </summary>
     [Fact]
     public void OTHER_ENEMIES_degrades_to_ALL_ENEMIES_outside_an_attack_context()
@@ -199,9 +182,7 @@ public sealed class TargetResolverTests
             .ShouldBe(["GRUNT_A", "GRUNT_B"]);
     }
 
-    /// <summary>
-    /// `05` §3.2 — <em>"a pet's targeted ability selects the enemy with the highest current HP"</em>.
-    /// </summary>
+    /// <summary>A pet's targeted ability selects the enemy with the highest current HP.</summary>
     [Fact]
     public void HIGHEST_and_LOWEST_HP_ENEMY_pick_by_current_HP_not_by_fraction()
     {
@@ -222,9 +203,9 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// 🔒 `18` §5 authors no tie-break, and a tie-break that varied would be a `14` §8.2 determinism
-    /// break. Ties fall to `05` §3.1's fixed actor index — the one actor ordering the documents
-    /// authorise (steering S6: reused, not invented).
+    /// No tie-break is authored, and one that varied would be a determinism break. Ties fall to the
+    /// fixed actor index — the one actor ordering already established elsewhere, reused rather than
+    /// invented.
     /// </summary>
     [Fact]
     public void An_HP_tie_breaks_by_ascending_actor_index_for_both_directions()
@@ -261,14 +242,12 @@ public sealed class TargetResolverTests
     // ------------------------------------------------------------------ RANDOM_ENEMY
 
     /// <summary>
-    /// 🔒 The draw protocol exactly: <c>candidates[rng.Range(0, candidates.Count)]</c> over the living
-    /// enemies in `05` §3.1 index order, consuming exactly one draw.
+    /// The draw protocol exactly: <c>candidates[rng.Range(0, candidates.Count)]</c> over the living
+    /// enemies in index order, consuming exactly one draw. Asserted against an independently
+    /// constructed stream at the same battle seed rather than a hard-coded index, so it states the
+    /// protocol and cannot be satisfied by a resolver that draws a different number of times or walks
+    /// the candidates differently.
     /// </summary>
-    /// <remarks>
-    /// Asserted against an <b>independently constructed</b> stream at the same battle seed rather than
-    /// a hard-coded index, so it states the protocol and cannot be satisfied by a resolver that draws a
-    /// different number of times or walks the candidates differently.
-    /// </remarks>
     [Theory]
     [InlineData(1UL)]
     [InlineData(42UL)]
@@ -294,13 +273,10 @@ public sealed class TargetResolverTests
 
     /// <summary>
     /// It genuinely draws — a resolver returning the first candidate satisfies the protocol test above
-    /// by accident of one seed and fails this outright.
+    /// by accident of one seed and fails this outright. Kept although the three seeds happen to reach
+    /// all three candidates today: that is a property of those literals, not of the rule. Change one
+    /// seed for an unrelated reason and the coverage silently collapses to a single candidate.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Kept although the three seeds happen to reach all three candidates today: that is a property
-    /// of those literals, not of the rule. Change one seed for an unrelated reason and the coverage
-    /// silently collapses to a single candidate.
-    /// </remarks>
     [Fact]
     public void RANDOM_ENEMY_reaches_every_candidate_across_seeds()
     {
@@ -327,7 +303,7 @@ public sealed class TargetResolverTests
         reached.OrderBy(id => id, StringComparer.Ordinal).ShouldBe(["GRUNT_A", "GRUNT_B", "GRUNT_C"]);
     }
 
-    /// <summary>An empty candidate set is empty, and — 🔒 — takes no draw with it.</summary>
+    /// <summary>An empty candidate set is empty, and takes no draw with it.</summary>
     [Fact]
     public void RANDOM_ENEMY_over_no_living_enemy_is_empty_and_consumes_no_draw()
     {
@@ -346,7 +322,7 @@ public sealed class TargetResolverTests
 
     // ------------------------------------------------------------------ the single-actor tokens
 
-    /// <summary>`18` §5 — <c>SELF</c> is the holder, whichever side the holder is on.</summary>
+    /// <summary><c>SELF</c> is the holder, whichever side the holder is on.</summary>
     [Fact]
     public void SELF_is_the_holder()
     {
@@ -361,8 +337,8 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// 🔒 <c>SELF</c> still resolves on an actor at 0 HP: `05` §3.1 step 6 fires <c>ON_DEATH</c>
-    /// before removal, and `18` §7.10's Volatile explosion is that effect.
+    /// <c>SELF</c> still resolves on an actor at 0 HP: <c>ON_DEATH</c> fires before removal, and the
+    /// Volatile explosion is that effect.
     /// </summary>
     [Fact]
     public void SELF_resolves_on_a_dying_holder()
@@ -374,7 +350,7 @@ public sealed class TargetResolverTests
             .Select(a => a.Id).ShouldBe(["ELITE_VOLATILE"]);
     }
 
-    /// <summary>`18` §7.3 — <c>PK_FLURRY</c>'s extra attack lands on the current target.</summary>
+    /// <summary><c>PK_FLURRY</c>'s extra attack lands on the current target.</summary>
     [Fact]
     public void CURRENT_TARGET_is_the_holders_target()
     {
@@ -391,12 +367,11 @@ public sealed class TargetResolverTests
             .Select(a => a.Id).ShouldBe(["GRUNT_PRIMARY"]);
     }
 
-    // ------------------------------------------------------------------ M2-R3: CURRENT_TARGET on an enemy holder
+    // ------------------------------------------------------------------ CURRENT_TARGET on an enemy holder
 
     /// <summary>
-    /// 🔒 A boss <c>PERIODIC</c> carries no attack context (slot 3 hands in <c>target: null</c>), so
-    /// <c>CURRENT_TARGET</c> used to throw for all eight faulting boss effects. `05` §3.2 —
-    /// <em>"Enemies always target the Hero"</em> — makes an <c>ENEMY</c> holder's
+    /// A boss <c>PERIODIC</c> carries no attack context, so <c>CURRENT_TARGET</c> used to throw for
+    /// every faulting boss effect. "Enemies always target the Hero" makes an <c>ENEMY</c> holder's
     /// <c>CURRENT_TARGET</c> unambiguous in or out of an attack context.
     /// </summary>
     [Fact]
@@ -413,9 +388,9 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// 🔒 The second shape: a hero pet and another enemy are on the roster too, so the resolution has
-    /// to be picking the hero <em>specifically</em> — not merely "the only other actor", and not the
-    /// holder's own side.
+    /// The second shape: a hero pet and another enemy are on the roster too, so the resolution has to
+    /// be picking the hero specifically — not merely "the only other actor", and not the holder's own
+    /// side.
     /// </summary>
     [Fact]
     public void CURRENT_TARGET_on_an_enemy_holder_picks_the_hero_over_its_own_pet_and_side()
@@ -432,9 +407,9 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// 🔒 <c>STAT_COPY</c>'s R13 dependency: Cogitator's Recalibrate names <c>CURRENT_TARGET</c> as
-    /// its copy SOURCE, and the op reads exactly one actor. The naming-token contract — one actor, not
-    /// a set — must hold for the enemy-holder fallback exactly as it does for the ordinary case.
+    /// <c>STAT_COPY</c>'s dependency: Cogitator's Recalibrate names <c>CURRENT_TARGET</c> as its copy
+    /// SOURCE, and the op reads exactly one actor. The naming-token contract — one actor, not a set —
+    /// must hold for the enemy-holder fallback exactly as it does for the ordinary case.
     /// </summary>
     [Fact]
     public void CURRENT_TARGET_on_an_enemy_holder_resolves_to_exactly_one_actor()
@@ -449,10 +424,9 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// 🔒 The negative control the fix must NOT touch: a <c>HERO</c> holder's <c>CURRENT_TARGET</c>
-    /// outside an attack context is genuinely ambiguous (`05` §3.2's target-priority machinery can
-    /// pick a different living enemy from one basic attack to the next), so it still throws exactly as
-    /// it did before M2-R3.
+    /// The negative control the fix must NOT touch: a <c>HERO</c> holder's <c>CURRENT_TARGET</c>
+    /// outside an attack context is genuinely ambiguous (target-priority machinery can pick a
+    /// different living enemy from one basic attack to the next), so it still throws.
     /// </summary>
     [Fact]
     public void CURRENT_TARGET_on_a_HERO_holder_with_no_current_target_still_throws()
@@ -469,7 +443,7 @@ public sealed class TargetResolverTests
         thrown.Token.ShouldBe(nameof(EffectTarget.CURRENT_TARGET));
     }
 
-    /// <summary>`18` §7.10 — <c>PK_STALWART</c> reacts to whoever hit the holder.</summary>
+    /// <summary><c>PK_STALWART</c> reacts to whoever hit the holder.</summary>
     [Fact]
     public void ATTACKER_is_the_actor_that_dealt_the_hit()
     {
@@ -486,7 +460,7 @@ public sealed class TargetResolverTests
             .Select(a => a.Id).ShouldBe(["ELITE_HITTER"]);
     }
 
-    /// <summary>`18` §5 — <em>"a sporeling's owner is Sporequeen"</em>.</summary>
+    /// <summary>A sporeling's owner is Sporequeen.</summary>
     [Fact]
     public void OWNER_is_the_summoner_of_the_holder()
     {
@@ -505,9 +479,8 @@ public sealed class TargetResolverTests
     }
 
     /// <summary>
-    /// `18` §5 — <em>"On an actor that is not a summon, the effect is skipped."</em> The second of
-    /// the document's two authored degradations, and — deliberately — a different failure mode from
-    /// <c>OTHER_ENEMIES</c>'s.
+    /// On an actor that is not a summon, the effect is skipped. The second of the two authored
+    /// degradations, and — deliberately — a different failure mode from <c>OTHER_ENEMIES</c>'s.
     /// </summary>
     [Fact]
     public void OWNER_on_an_actor_that_is_not_a_summon_is_skipped()
@@ -542,8 +515,8 @@ public sealed class TargetResolverTests
     // ------------------------------------------------------------------ ALL_PETS
 
     /// <summary>
-    /// <c>ALL_PETS</c> is the holder's side's pets — `PK_PACK_LEADER` buffs its own pets, never the
-    /// opposing hero's (`05` §3.3 puts pets on both sides of a duel).
+    /// <c>ALL_PETS</c> is the holder's side's pets — <c>PK_PACK_LEADER</c> buffs its own pets, never
+    /// the opposing hero's (a duel puts pets on both sides).
     /// </summary>
     [Fact]
     public void ALL_PETS_is_the_holders_own_side()
@@ -573,15 +546,12 @@ public sealed class TargetResolverTests
     // ------------------------------------------------------------------ selection vs. naming
 
     /// <summary>
-    /// 🔒 `05` §3.1 step 6's living-only filter governs <b>selection</b>, not <b>naming</b>: the five
-    /// set tokens filter by liveness, the four naming tokens do not.
+    /// The living-only filter governs selection, not naming: the five set tokens filter by liveness,
+    /// the four naming tokens do not. <c>SELF</c>, <c>CURRENT_TARGET</c>, <c>ATTACKER</c> and
+    /// <c>OWNER</c> pick nothing — each names an actor the caller already has. Filtering them breaks
+    /// the cases that matter most: an <c>ON_DEATH</c> effect targeting <c>SELF</c>, and thorns or an
+    /// <c>ON_HIT_TAKEN</c> reaction against an attacker that died in the same tick.
     /// </summary>
-    /// <remarks>
-    /// <c>SELF</c>, <c>CURRENT_TARGET</c>, <c>ATTACKER</c> and <c>OWNER</c> pick nothing — each names an
-    /// actor the caller already has. Filtering them breaks the cases that matter most: an
-    /// <c>ON_DEATH</c> effect targeting <c>SELF</c>, and thorns or an <c>ON_HIT_TAKEN</c> reaction
-    /// against an attacker that died in the same tick.
-    /// </remarks>
     [Fact]
     public void The_naming_tokens_still_resolve_a_subject_that_has_died()
     {
@@ -616,12 +586,12 @@ public sealed class TargetResolverTests
             .Select(a => a.Id).ShouldBe(["BOSS_SPOREQUEEN"]);
     }
 
-    /// <summary><c>ALL_PETS</c> is a set token, so it filters by liveness with the rest.</summary>
-    /// <remarks>
-    /// `05` §3.2 makes pets unkillable, so this is unreachable through the game — which is why it is
-    /// pinned rather than left to whichever branch happens to be written. A set token that filtered
-    /// inconsistently would be a rule with two spellings.
-    /// </remarks>
+    /// <summary>
+    /// <c>ALL_PETS</c> is a set token, so it filters by liveness with the rest. Pets are unkillable, so
+    /// this is unreachable through the game — which is why it is pinned rather than left to whichever
+    /// branch happens to be written. A set token that filtered inconsistently would be a rule with two
+    /// spellings.
+    /// </summary>
     [Fact]
     public void ALL_PETS_filters_by_liveness_like_every_other_set_token()
     {

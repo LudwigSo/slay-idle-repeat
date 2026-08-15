@@ -4,33 +4,19 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `30` §2.1 <b>P3</b> — <em>"every command on every state returns a result rather than
-/// throwing"</em>, on the one path where a host clock behind the persisted anchor used to reach
-/// <c>Apply</c>'s caller as an <c>ArgumentOutOfRangeException</c>.
+/// Every command on every state returns a result rather than throwing, on the one path where a
+/// host clock behind the persisted anchor used to reach <c>Apply</c>'s caller as an
+/// <c>ArgumentOutOfRangeException</c>.
 /// </summary>
 /// <remarks>
-/// 🔴 A real contradiction between two halves of one ruling: the energy span was clamped and both reset
-/// guards written as <c>&gt;=</c>, all citing P3 — while <c>GameRules.MarkApplied</c> handed
-/// <c>context.NowUtc</c> straight to <c>Player.MarkApplied</c>, which <em>throws</em> on an earlier
-/// instant. <c>Player.MarkApplied</c>'s own remarks asserted the protection that did not exist.
-/// <para>
-/// 🔒 It was never hypothetical for want of a rewindable harness: the state needs only a stored
-/// aggregate and a host whose clock is behind the instant it was last written at — one
-/// <c>Rehydrate</c> away, and what every composition root that is not the harness does on every command.
-/// </para>
-/// <para>
-/// 🔒 The aggregate invariant is unchanged: both <c>MarkApplied</c>s still refuse a backwards instant,
-/// because an anchor moving backwards inside the model is a persistence defect and accepting it would
-/// replay every reset boundary in between. What changed is that <c>Apply</c> no longer hands them one —
-/// the same shape as the energy clamp, for the same reason: clamping in the rule would make a
-/// persistence defect indistinguishable from skew.
-/// </para>
+/// The aggregate invariant is unchanged: both <c>MarkApplied</c>s still refuse a backwards instant,
+/// because an anchor moving backwards inside the model is a persistence defect. What changed is
+/// that <c>Apply</c> no longer hands them one — the same shape as the energy clamp, for the same
+/// reason: clamping in the rule would make a persistence defect indistinguishable from skew.
 /// </remarks>
 public sealed class GameRulesBackwardsClockTests
 {
-    /// <summary>
-    /// `30` §2.1 P3 — a host clock behind the player's stored anchor returns a result.
-    /// </summary>
+    /// <summary>A host clock behind the player's stored anchor returns a result.</summary>
     [Fact]
     public void A_clock_behind_the_players_anchor_returns_a_result_rather_than_throwing()
     {
@@ -45,14 +31,10 @@ public sealed class GameRulesBackwardsClockTests
     }
 
     /// <summary>
-    /// `14` §16.3 / `30` §2.1 P3 — the clamp leaves the TTL anchor where it was.
+    /// The clamp leaves the TTL anchor where it was, the half that makes the clamp safe rather than
+    /// merely quiet: the anchor measures the sliding run TTL, so letting skew walk it backwards
+    /// would hand a client a way to hold a run open.
     /// </summary>
-    /// <remarks>
-    /// The half that makes the clamp safe rather than merely quiet. `14` §16.3 measures the sliding
-    /// 48-hour run TTL from this instant, so letting skew walk it backwards would hand a client a way
-    /// to hold a run open. Floored at the stored value, a backwards clock does neither — the same
-    /// sentence M1-08 wrote about energy: it costs the player nothing and grants them nothing.
-    /// </remarks>
     [Fact]
     public void A_backwards_clock_leaves_the_stored_anchor_where_it_was()
     {
@@ -72,19 +54,10 @@ public sealed class GameRulesBackwardsClockTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.3 / P3 — the <b>run's</b> anchor is floored too, on a <c>CommandKind.Run</c> command.
+    /// The run's anchor is floored too, on a <c>CommandKind.Run</c> command. Without this the run
+    /// half of the clamp is untested: every other test here drives a <c>Meta</c> command against a
+    /// run-less slice, so <c>MarkApplied</c>'s run branch is never entered.
     /// </summary>
-    /// <remarks>
-    /// 🔴 Without this the run half of the clamp is untested and reverting it leaves every suite green.
-    /// Every other test here drives a <c>Meta</c> command against a run-less slice, so
-    /// <c>MarkApplied</c>'s run branch is never entered — and all 19 run rows are <c>Deferred</c>, so no
-    /// production command reaches it either. It is also the sharper consequence: `14` §16.3 measures the
-    /// sliding 48-hour run TTL off <em>this</em> field.
-    /// <para>
-    /// ⚠️ <c>Worlds.Context</c> rather than <c>Worlds.Drawing</c>: a run command handed a seed is a
-    /// different defect with a different fixture.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void A_clock_behind_the_runs_anchor_is_floored_too()
     {
@@ -109,15 +82,10 @@ public sealed class GameRulesBackwardsClockTests
     }
 
     /// <summary>
-    /// `30` §2.1 P3 / `14` §16.3 — the ordinary forwards case still advances, so the clamp is a floor
-    /// and not a freeze.
+    /// The ordinary forwards case still advances, so the clamp is a floor and not a freeze — the
+    /// contrast half, without which both assertions above pass just as happily over an <c>Apply</c>
+    /// that had stopped writing the anchor at all.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The contrast half, without which both assertions above pass just as happily over an
-    /// <c>Apply</c> that had stopped writing the anchor at all — which is one line away from the
-    /// clamp, and is the failure <c>GameRules.MarkApplied</c>'s own remarks describe: every command
-    /// re-accruing from the same instant forever.
-    /// </remarks>
     [Fact]
     public void A_clock_ahead_of_the_anchor_still_advances_it()
     {

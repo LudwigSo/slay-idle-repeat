@@ -6,15 +6,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
-/// <summary>
-/// `30` §4 — <see cref="PlayerId"/> and <see cref="RunId"/>, the two aggregate-root identities
-/// M1 needs.
-/// </summary>
+/// <summary><see cref="PlayerId"/> and <see cref="RunId"/>, the two aggregate-root identities.</summary>
 /// <remarks>
-/// The property that matters is that they are <b>not interchangeable</b>. A bare <c>string</c>
-/// playerId handed to a method expecting a runId compiles and then loads the wrong aggregate; two
-/// distinct types make that a compile error. The compiler enforces it — what these tests pin is
-/// the one thing that would quietly switch the compiler off: a conversion operator.
+/// The property that matters is that they are not interchangeable: a bare <c>string</c> playerId
+/// handed to a method expecting a runId compiles and then loads the wrong aggregate, while two
+/// distinct types make that a compile error. What these tests pin is the one thing that would
+/// quietly switch that protection off: a conversion operator.
 /// </remarks>
 public sealed class IdentityTests
 {
@@ -38,14 +35,10 @@ public sealed class IdentityTests
     }
 
     /// <summary>
-    /// An id is a <c>readonly record struct</c>, not a <c>record</c> class.
+    /// An id is a <c>readonly record struct</c>, not a <c>record</c> class — the one shape decision
+    /// every other case in this file passes either way, since a record class would carry its value,
+    /// print it, compare by it and reject a blank one exactly the same.
     /// </summary>
-    /// <remarks>
-    /// This is the one shape decision in `30` §4 that <b>every other case in this file passes either
-    /// way</b> — a record class carries its value, prints it, compares by it and rejects a blank one
-    /// exactly as the struct does. The difference is in the bytes and in the nulls, so it needs its
-    /// own case or nothing in the suite reads it.
-    /// </remarks>
     [Theory]
     [InlineData(typeof(PlayerId))]
     [InlineData(typeof(RunId))]

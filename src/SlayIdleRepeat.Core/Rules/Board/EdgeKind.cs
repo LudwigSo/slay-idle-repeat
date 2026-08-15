@@ -9,6 +9,6 @@ internal enum EdgeKind
     /// <summary>The spine's own next node, or a branch's internal chain, or a branch's rejoin.</summary>
     Continue,
 
-    /// <summary>A junction's entry into its fork branch. `03` §1.1: this is the edge a <c>CHOOSE_FORK</c> leaves by, when it is not taken.</summary>
+    /// <summary>A junction's entry into its fork branch — the edge a <c>CHOOSE_FORK</c> leaves by, when it is not taken.</summary>
     Branch,
 }

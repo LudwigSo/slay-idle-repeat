@@ -5,21 +5,17 @@ using Xunit;
 namespace SlayIdleRepeat.AssetPlaceholders.Tests;
 
 /// <summary>
-/// The split between what this generator states so `15` §B4 can run, and what it refuses to state
-/// so `15` Part F stays honest.
+/// The split between what this generator states so its pipeline can run, and what it refuses to
+/// state so QA stays honest.
 /// </summary>
 /// <remarks>
-/// 🔒 This is steering rule S6's load-bearing case for M8-10. Nine of the seventeen holes are inputs
-/// a §B4 step throws without; the other eight are acceptance cutoffs, and turning one of those into
-/// a number would turn an <c>Uncalibrated</c> verdict into a <c>Pass</c> that nobody measured. The
-/// two sets are pinned <b>by name</b>, not by count: a set of the right size holding the wrong keys
-/// is exactly the failure this guards.
+/// Nine of the seventeen holes are inputs a pipeline step throws without; the other eight are
+/// acceptance cutoffs, and turning one of those into a number would turn an <c>Uncalibrated</c>
+/// verdict into a <c>Pass</c> nobody measured. The two sets are pinned <b>by name</b>, not by count.
 /// </remarks>
 public sealed class PlaceholderThresholdsTests
 {
-    /// <summary>
-    /// The nine keys `15` §B4's steps cannot run without, and which this generator therefore states.
-    /// </summary>
+    /// <summary>The nine keys the pipeline's steps cannot run without, and which this generator states.</summary>
     private static readonly string[] StatedByThePipeline =
     [
         ThresholdKeys.BackgroundKeyTolerance,
@@ -45,8 +41,7 @@ public sealed class PlaceholderThresholdsTests
 
         stated.ShouldBe(StatedByThePipeline, ignoreOrder: true);
 
-        // Named, not counted. The eight below are `15` Part F's own cutoffs and the `15` §A4
-        // silhouette gate's, and every one of them must stay null in both sets.
+        // Named, not counted: the eight below are QA's own cutoffs and must stay null in both sets.
         open.ShouldBe(
             [
                 ThresholdKeys.OutlineWidthUniformityTolerance,
@@ -79,9 +74,8 @@ public sealed class PlaceholderThresholdsTests
     [Fact]
     public void The_neutral_list_is_stated_empty_rather_than_invented()
     {
-        // 🔒 `15` §A5 says "these six hues plus neutrals" and never enumerates the neutrals. This
-        // generator writes none, so the stated list is empty — a fact about the batch, not a claim
-        // about what §A5's neutrals are.
+        // The palette spec never enumerates the neutrals, so this generator writes none — a fact
+        // about the batch, not a claim about what the real neutrals are.
         PlaceholderThresholds.PaletteNeutrals.ShouldBeEmpty();
 
         PlaceholderThresholds.ForPipeline()

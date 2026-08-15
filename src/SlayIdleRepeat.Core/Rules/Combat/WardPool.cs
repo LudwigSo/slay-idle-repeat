@@ -3,76 +3,55 @@ using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §4.1 — one segment of an actor's ward pool: <c>{amount, expiresAt?, sourceEffectId}</c>.
-/// </summary>
+/// <summary>One segment of an actor's ward pool: <c>{amount, expiresAt?, sourceEffectId}</c>.</summary>
 /// <param name="Amount">What is left of this segment. Never negative; a spent segment is removed.</param>
-/// <param name="ExpiresAtTick">
-/// 🔒 `05` §4.1's <c>expiresAt?</c>, as a tick. <c>null</c> for a segment with no timer, which
-/// <see cref="WardPool.Absorb"/> puts <b>last</b>.
-/// </param>
+/// <param name="ExpiresAtTick">The expiry, as a tick. <c>null</c> for a segment with no timer, which <see cref="WardPool.Absorb"/> puts last.</param>
 /// <param name="SourceEffectId">
-/// 🔒 The `18` §8 effect id that granted it. Not a log label: `18` §2.2 caps <em>"the total unbroken
-/// ward contributed by that effect <b>instance</b>"</em>, so the id is what a
-/// <c>sourceCapPct</c> is measured against.
+/// The effect id that granted it. Not a log label: a per-instance ward cap is measured against the
+/// total unbroken ward contributed by that effect instance, so the id is what it is measured against.
 /// </param>
 /// <param name="GrantOrder">
-/// 🔒 `05` §4.1's tie-break — <em>"ties broken by grant order (oldest first)"</em>. A monotonic
-/// counter rather than the tick the grant landed on: two grants in one tick are ordinary (pre-tick
-/// 0b fires every <c>ON_BATTLE_START</c> in one go) and a tick would tie them again.
+/// The tie-break — ties broken by grant order (oldest first). A monotonic counter rather than the tick
+/// the grant landed on: two grants in one tick are ordinary (a battle-start sweep fires many at once)
+/// and a tick would tie them again.
 /// </param>
 internal readonly record struct WardSegment(
     double Amount, int? ExpiresAtTick, string SourceEffectId, long GrantOrder);
 
-/// <summary>
-/// 🔒 `05` §4.1 — one actor's absorb pool: the segments, the cap, the absorption order, and the one
-/// distinction the whole section turns on (<c>WardBroken</c> is damage, expiry is not).
-/// </summary>
+/// <summary>One actor's absorb pool: the segments, the cap, the absorption order, and the one distinction the whole section turns on (<c>WardBroken</c> is damage, expiry is not).</summary>
 /// <remarks>
 /// <para>
-/// `05` §4 step 9 writes <c>dmg = defender.Wards.Absorb(dmg)</c>, and this is that object. It holds
-/// segments and nothing else: it does not know what HP is, it never logs, and it never decides
-/// whether a hit bypasses it — <see cref="AttackPipeline"/> owns all three, because `05` §4.1's
-/// bypass list is a property of the <em>damage</em> and not of the pool.
+/// This is the object the damage pipeline calls <c>Absorb</c> on. It holds segments and nothing else:
+/// it does not know what HP is, it never logs, and it never decides whether a hit bypasses it — that is
+/// a property of the damage, decided by <see cref="AttackPipeline"/>.
 /// </para>
-/// <para>
-/// ═══ 🔒 <b>THE FOUR RULES, AND WHY EACH IS HERE RATHER THAN AT THE CALL SITE</b> ═══
-/// </para>
+/// <para>The four rules, and why each is here rather than at the call site:</para>
 /// <list type="number">
 ///   <item>
-///     <b>Pool cap</b> — 📐 <c>wardCapPct</c> × the actor's Max HP <em>"as it stood after `18` §8
-///     step 7"</em> (post-multiplier, pre-<c>STAT_SET</c>), which is
-///     <c>AggregatedStats.PostMultiplierMaxHp</c>. <em>"A grant that would exceed the cap is
-///     clipped."</em> The basis is handed in per grant rather than held, because
-///     <c>AggregatedStats</c> is re-read on every re-aggregation — `05` §3.1's <c>SYS_ENRAGE</c>
-///     adds a <c>STAT_MULT</c> every second from 70 s, so a boss's post-step-7 Max HP is not a
-///     battle constant and a pool that cached it would cap against a stale number.
+///     <b>Pool cap</b> — a content-authored fraction of the actor's Max HP as it stood after step-7
+///     stat aggregation (post-multiplier, pre-<c>STAT_SET</c>). A grant that would exceed the cap is
+///     clipped. The basis is handed in per grant rather than held, because a boss's post-step-7 Max HP
+///     is not a battle constant — a cached basis would cap against a stale number after an enrage.
 ///   </item>
 ///   <item>
-///     <b>Absorption order</b> — <em>"soonest-expiring segment first; ties broken by grant order
-///     (oldest first); non-expiring segments last. Deterministic, and expiring wards are used before
-///     they are wasted."</em> Imposed here, on every absorb, so no caller can absorb in insertion
-///     order.
+///     <b>Absorption order</b> — soonest-expiring segment first; ties broken by grant order (oldest
+///     first); non-expiring segments last. Imposed here, on every absorb, so no caller can absorb in
+///     insertion order.
 ///   </item>
 ///   <item>
-///     🔒 <b><c>WardBroken</c> is <em>through damage</em> only.</b> <see cref="Absorb"/> reports it;
-///     <see cref="ExpireDue"/> never does. `05` §4.1: <em>"segment expiry silently removes its
-///     remainder (<c>StatusExpired</c>), and does <b>not</b> fire <c>WardBroken</c>"</em> — the
-///     distinction `18` §6's <c>until: WARD_BROKEN</c> terminator is built on (`17` §4's Ossify).
-///     Blurring it would end Ossify's DR buff on a timer nobody watched.
+///     <b><c>WardBroken</c> is through damage only.</b> <see cref="Absorb"/> reports it;
+///     <see cref="ExpireDue"/> never does — segment expiry silently removes its remainder and does not
+///     fire <c>WardBroken</c>, since a "until ward broken" duration terminator is built on that
+///     distinction. Blurring it would end that buff on a timer nobody watched.
 ///   </item>
 ///   <item>
-///     <b>Per-source cap</b> — `18` §2.2: <em>"the total <b>unbroken</b> ward contributed by that
-///     effect instance is clamped at <c>sourceCapPct × Max HP</c>"</em> (<c>PK_TRANSFUSION</c>, 20%).
-///     A running total over the segments still in the pool, which is why it lives here: a cap
-///     applied per grant at the call site would let four 20% segments stack.
+///     <b>Per-source cap</b> — the total unbroken ward contributed by one effect instance is clamped at
+///     its own authored fraction of Max HP. A running total over the segments still in the pool, which
+///     is why it lives here: a cap applied per grant at the call site would let repeated small grants
+///     stack past it.
 ///   </item>
 /// </list>
-/// <para>
-/// ⚠️ <b>A stateful class under <c>Rules/</c></b>, on <c>CombatLog</c>'s and
-/// <c>CombatFlowState</c>'s precedent and for their reason — a ward outlives the hit that failed to
-/// break it. One instance per <see cref="BattleActor"/>, never shared, never static.
-/// </para>
+/// <para>A stateful class, on <c>CombatLog</c>'s and <c>CombatFlowState</c>'s precedent: a ward outlives the hit that failed to break it. One instance per <see cref="BattleActor"/>, never shared, never static.</para>
 /// </remarks>
 internal sealed class WardPool
 {
@@ -95,15 +74,11 @@ internal sealed class WardPool
         }
     }
 
-    /// <summary>The live segments, in `05` §4.1's absorption order.</summary>
+    /// <summary>The live segments, in absorption order.</summary>
     /// <remarks>
-    /// Ordered rather than raw: a reader that saw insertion order would draw the wrong one first.
-    /// <para>
-    /// ⚠️ <b>An assertion surface, not a hot path.</b> It copies and sorts on every get, and nothing
-    /// in production reads it — <see cref="Absorb"/> and <see cref="ExpireDue"/> both walk the list
-    /// directly. It exists so that <c>WardPoolTests</c> can state `05` §4.1's ordering rule over the
-    /// segments themselves rather than inferring it from which ones survived a damage number.
-    /// </para>
+    /// Ordered rather than raw: a reader that saw insertion order would draw the wrong one first. Not a
+    /// hot path — it copies and sorts on every get; it exists so tests can state the ordering rule over
+    /// the segments themselves rather than inferring it from which ones survived a damage number.
     /// </remarks>
     internal IReadOnlyList<WardSegment> Segments
     {
@@ -116,29 +91,25 @@ internal sealed class WardPool
         }
     }
 
-    /// <summary>
-    /// 🔒 `05` §4.1 — adds a segment, clipped by the pool cap and by the granting effect's own
-    /// <c>sourceCapPct</c>.
-    /// </summary>
+    /// <summary>Adds a segment, clipped by the pool cap and by the granting effect's own per-source cap.</summary>
     /// <param name="amount">The ward the effect authored, before either clip.</param>
     /// <param name="sourceCapPct">
-    /// `18` §2.2's per-instance ceiling as a fraction of <paramref name="maxHpBasis"/>, or
-    /// <c>null</c> where the effect authors none. 🔒 <c>null</c> is <b>not</b> 0 and is not coerced
-    /// to one — a 0 would make every <c>SHIELD</c> without the field grant nothing.
+    /// The per-instance ceiling as a fraction of <paramref name="maxHpBasis"/>, or <c>null</c> where
+    /// the effect authors none. <c>null</c> is not 0 and is not coerced to one — a 0 would make every
+    /// shield without the field grant nothing.
     /// </param>
-    /// <param name="sourceEffectId">The `18` §8 id the segment carries.</param>
-    /// <param name="expiresAtTick">`05` §4.1's <c>expiresAt?</c>, or <c>null</c> for no timer.</param>
-    /// <param name="wardCapPct">📐 <c>combat_caps.json#/wardCapPct</c>.</param>
+    /// <param name="sourceEffectId">The effect id the segment carries.</param>
+    /// <param name="expiresAtTick">The expiry, or <c>null</c> for no timer.</param>
+    /// <param name="wardCapPct">The pool cap fraction, from content.</param>
     /// <param name="maxHpBasis">
-    /// 🔒 <c>AggregatedStats.PostMultiplierMaxHp</c> — Max HP as it stood after `18` §8 step 7.
-    /// <b>Not</b> <c>Final[MAX_HP]</c>: `18` §9.1's <c>CP_GLASS_HEART</c> is
-    /// <c>STAT_MULT ALL_COMBAT ×2</c> plus <c>STAT_SET MAX_HP 1</c>, so the final block says 1 HP and
-    /// every ward on that build would be capped at 1.
+    /// Max HP as it stood after step-7 stat aggregation. Not the final aggregated Max HP: an effect
+    /// that inflates ATK/DMG while setting Max HP to 1 would otherwise cap every ward on that build at
+    /// 1 HP.
     /// </param>
     /// <returns>
     /// What was actually added, after both clips — <c>0</c> when the pool is already at its cap.
-    /// `05` §4.1 fires <c>Shield</c> on <b>every</b> grant, so the caller logs regardless; this is
-    /// the number it logs.
+    /// <c>Shield</c> fires on every grant regardless, so the caller logs regardless; this is the number
+    /// it logs.
     /// </returns>
     internal double Grant(
         double amount,
@@ -160,8 +131,8 @@ internal sealed class WardPool
                 "neither cap, then reach CombatLog as a Shield value it refuses.");
         }
 
-        // A negative grant is not a ward and is not a way to remove one: `18` §2.3's REMOVE_STATUS is.
-        // Clamped to zero rather than refused, because a valueScale can legitimately drive an authored
+        // A negative grant is not a ward and is not a way to remove one — REMOVE_STATUS is. Clamped
+        // to zero rather than refused, because a valueScale can legitimately drive an authored
         // magnitude to zero and a fight must not end on it.
         var granted = Math.Max(0.0, amount);
 
@@ -184,16 +155,12 @@ internal sealed class WardPool
         return granted;
     }
 
-    /// <summary>
-    /// 🔒 `05` §4 step 9 / §4.1 — absorbs what it can, in <b>soonest-expiring-first</b> order, and
-    /// returns the remainder that reaches HP.
-    /// </summary>
-    /// <param name="damage">The post-floor hit (`05` §4 step 7). Already rounded.</param>
+    /// <summary>Absorbs what it can, in soonest-expiring-first order, and returns the remainder that reaches HP.</summary>
+    /// <param name="damage">The post-floor hit. Already rounded.</param>
     /// <param name="brokenByDamage">
-    /// 🔒 <c>true</c> exactly when this call took the pool from a positive total to <c>0</c> —
-    /// `05` §4.1's <em>"the moment the pool reaches 0 <b>through damage</b>"</em>. <c>false</c> when
-    /// the pool was already empty, which is not a break and must not end an <c>until:
-    /// WARD_BROKEN</c> buff a second time.
+    /// <c>true</c> exactly when this call took the pool from a positive total to <c>0</c> — the pool
+    /// reaching 0 through damage. <c>false</c> when the pool was already empty, which is not a break
+    /// and must not end an "until ward broken" buff a second time.
     /// </param>
     /// <returns>The damage left over. Equal to <paramref name="damage"/> when the pool is empty.</returns>
     internal double Absorb(double damage, out bool brokenByDamage)
@@ -220,24 +187,17 @@ internal sealed class WardPool
 
         _segments.RemoveAll(static s => s.Amount <= 0.0);
 
-        // 🔒 The pool was non-empty on entry (the early return above), so an empty one here is a
-        // break through damage. `05` §4.1 is explicit that this is the ONLY thing that fires
-        // WardBroken; ExpireDue below reaches the same state and reports nothing.
+        // The pool was non-empty on entry (the early return above), so an empty one here is a break
+        // through damage. This is the ONLY thing that fires WardBroken; ExpireDue below reaches the
+        // same state and reports nothing.
         brokenByDamage = _segments.Count == 0;
 
         return remaining;
     }
 
-    /// <summary>
-    /// 🔒 `05` §4.1 — drops every segment whose timer has run out, and returns the remainders that
-    /// were dropped.
-    /// </summary>
+    /// <summary>Drops every segment whose timer has run out, and returns the remainders that were dropped.</summary>
     /// <param name="tick">The tick being run. A segment expires when <c>expiresAt &lt;= tick</c>.</param>
-    /// <returns>
-    /// The removed segments, in absorption order. `05` §4.1: <em>"segment expiry silently removes its
-    /// remainder (<c>StatusExpired</c>)"</em> — so the caller emits <c>StatusExpired</c> per entry
-    /// and 🔒 <b>never <c>WardBroken</c></b>, even when the pool is emptied.
-    /// </returns>
+    /// <returns>The removed segments, in absorption order. The caller emits <c>StatusExpired</c> per entry and never <c>WardBroken</c>, even when the pool is emptied.</returns>
     internal IReadOnlyList<WardSegment> ExpireDue(int tick)
     {
         var dropped = new List<WardSegment>();
@@ -249,7 +209,7 @@ internal sealed class WardPool
 
         _segments.Sort(AbsorptionOrder);
 
-        // 🔒 ONE predicate, used for both the report and the removal. Written twice — once to collect
+        // ONE predicate, used for both the report and the removal. Written twice — once to collect
         // the remainders and once inside RemoveAll — they are one edit away from disagreeing, and the
         // symptom would be a StatusExpired carrying a remainder that is still in the pool.
         for (var i = 0; i < _segments.Count; i++)
@@ -270,10 +230,7 @@ internal sealed class WardPool
         bool Due(WardSegment segment) => segment.ExpiresAtTick is { } expiry && expiry <= tick;
     }
 
-    /// <summary>
-    /// `18` §2.2's <em>"total <b>unbroken</b> ward contributed by that effect instance"</em> — what
-    /// is still in the pool from one source.
-    /// </summary>
+    /// <summary>The total unbroken ward still in the pool from one source.</summary>
     internal double LiveFrom(string sourceEffectId)
     {
         var total = 0.0;
@@ -288,16 +245,12 @@ internal sealed class WardPool
         return StatRounding.Round(total);
     }
 
-    /// <summary>
-    /// 🔒 `05` §4.1's absorption order: soonest-expiring first, ties by grant order (oldest first),
-    /// non-expiring last.
-    /// </summary>
+    /// <summary>The absorption order: soonest-expiring first, ties by grant order (oldest first), non-expiring last.</summary>
     /// <remarks>
-    /// A total order over two integers, deliberately — no string comparison, so nothing here can
-    /// reach the ambient collation (`18` §8, <c>StringOrderingRuleTests</c>). The
-    /// <see cref="WardSegment.GrantOrder"/> tie-break is what makes it total: two segments granted in
-    /// one pre-tick with the same expiry would otherwise be ordered by whatever
-    /// <see cref="List{T}.Sort"/> happened to do, and `05` §4.1 asks for the older one first.
+    /// A total order over two integers, deliberately — no string comparison, so nothing here can reach
+    /// the ambient collation. The <see cref="WardSegment.GrantOrder"/> tie-break is what makes it
+    /// total: two segments granted in one pre-tick with the same expiry would otherwise be ordered by
+    /// whatever <see cref="List{T}.Sort"/> happened to do.
     /// </remarks>
     private static int AbsorptionOrder(WardSegment left, WardSegment right)
     {

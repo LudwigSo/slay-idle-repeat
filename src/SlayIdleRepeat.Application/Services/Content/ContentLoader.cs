@@ -5,27 +5,22 @@ namespace SlayIdleRepeat.Application.Services.Content;
 
 /// <summary>
 /// Turns the bytes behind an <see cref="IContentSourcePort"/> into an immutable, version-stamped
-/// <c>ContentSnapshot</c>: parse → layer overrides → validate against
-/// <c>game-data/schema/</c> → check cross-file invariants → stamp.
+/// <c>ContentSnapshot</c>: parse → layer overrides → validate against <c>game-data/schema/</c> →
+/// check cross-file invariants → stamp.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 Deterministic by construction. Documents are processed in ordinal path order, object
-/// members are held ordinal-sorted, and the stamp is computed over a canonical serialisation — so
-/// the same bytes always produce the same snapshot and the same stamp, on any machine. The stamp
-/// may end up carried inside a snapshot, in which case a non-deterministic one would move
-/// <c>stateHash</c>; it is a separate encoding from `14` §16.6's, which is <c>Core</c>'s
-/// <c>CanonicalStateWriter</c>, and the two never share bytes.
+/// Deterministic by construction. Documents are processed in ordinal path order, object members
+/// are held ordinal-sorted, and the stamp is computed over a canonical serialisation — so the same
+/// bytes always produce the same snapshot and the same stamp, on any machine.
 /// </para>
 /// <para>
-/// The directory convention it reads, from `game-data/README.md`:
+/// The directory convention it reads:
 /// <list type="bullet">
 /// <item><c>schema/*.json</c> — JSON Schema, never content.</item>
 /// <item><c>loc/*.json</c> — governed by <c>schema/loc.schema.json</c>.</item>
-/// <item><c>tuning/experiments/*.json</c> — override patches. 🔒 Never part of a snapshot; the
-/// experiments README is explicit that they are "never shipped, never served from the content
-/// endpoint, and never part of a <c>ContentSnapshot</c>". They load only when named in
-/// <see cref="ContentLoadOptions.OverrideDocuments"/>.</item>
+/// <item><c>tuning/experiments/*.json</c> — override patches. Never part of a snapshot; they load
+/// only when named in <see cref="ContentLoadOptions.OverrideDocuments"/>.</item>
 /// <item><c>content/&lt;type&gt;/*.json</c> — many files of one type, all governed by that type's
 /// one schema, declared in <see cref="ContentLayout.ContentTypeSchemas"/>.</item>
 /// <item>everything else — governed by <c>schema/&lt;stem&gt;.schema.json</c>.</item>
@@ -35,67 +30,43 @@ namespace SlayIdleRepeat.Application.Services.Content;
 public static class ContentLoader
 {
     /// <summary>
-    /// 🔒 The only schemas allowed to govern nothing, because the content they describe has an
-    /// owner and a date rather than a doubt.
+    /// The only schemas allowed to govern nothing, because the content they describe has an owner
+    /// and a date rather than a doubt.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// `14` §6 requires every content file to be validated and — read the other way — every schema
-    /// to describe something. M0-10 authored two content-type schemas ahead of the content itself,
-    /// which is the right order: the schema is the specification the authoring milestone works to.
-    /// </para>
-    /// <para>
-    /// The exemption is self-expiring. A schema listed here that <em>does</em> govern a data file
+    /// The exemption is self-expiring: a schema listed here that <em>does</em> govern a data file
     /// fails the build as a stale exemption, so removing the entry is forced rather than
-    /// remembered — the same mechanism <c>build/ci/test-suites.json</c> uses for empty suites.
-    /// </para>
+    /// remembered.
     /// </remarks>
     public static IReadOnlyList<string> SchemasAwaitingContent { get; } =
     [
-        // 26 §2 — one live-ops event package. The first authored package is EVT_EMBERFALL,
-        // tracker task M13-06. M11-05 does an event *weights* first pass, which is tuning
-        // data (tuning/events.json, governed by events.schema.json) and not this schema.
-        // 26 §2 requires this schema to ship in the client before any event exists, so that
-        // running an event never needs an app update — which is why it is authored first.
+        // First authored live-ops event package (EVT_EMBERFALL) lands under this schema before
+        // any event exists, so running an event never needs an app update.
         "schema/event.schema.json",
     ];
 
     /// <summary>
-    /// 🔒 Schemas that describe a <em>shape other schemas are written to</em>, not a file. They
-    /// govern nothing permanently and by design — which is a different claim from
-    /// <see cref="SchemasAwaitingContent"/>'s, and is why it is a different list.
+    /// Schemas that describe a <em>shape other schemas are written to</em>, not a file. They govern
+    /// nothing permanently and by design, which is a different claim from
+    /// <see cref="SchemasAwaitingContent"/>'s self-expiring one.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// <see cref="SchemasAwaitingContent"/> promises the content <em>"has an owner and a date rather
-    /// than a doubt"</em>, and its exemption really does expire: the build fails the day the schema
-    /// governs a file. Filing a permanently-unpaired schema in that list would make the promise
-    /// untrue for the entries where it still holds, and would leave two entries that expire sitting
-    /// next to one that cannot. Two lists, two honest contracts.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>The cost of being in this list, stated plainly:</b> there is no mechanical expiry here
-    /// at all. What guards it instead is
+    /// There is no mechanical expiry here. What guards it instead is
     /// <c>EffectSchemaTests.No_other_schema_restates_the_effect_vocabulary</c>, which fails on the
-    /// commit that copies this shape into a content-type schema — the duplication being the thing
-    /// that would actually go wrong, since <see cref="JsonSchemaValidator"/> resolves same-document
-    /// pointers only and no content schema can <c>$ref</c> across files.
-    /// </para>
+    /// commit that copies this shape into a content-type schema — <see cref="JsonSchemaValidator"/>
+    /// resolves same-document pointers only, so no content schema can <c>$ref</c> across files.
     /// </remarks>
     public static IReadOnlyList<string> VocabularySchemas { get; } =
     [
-        // 18 §1 — the EffectDefinition shape (M2-01). An effect is never a file: it is always
-        // embedded in the perk, talent, pet, mount, curse or boss script that owns it, so no data
-        // file will ever pair with this under the stem rule. It is authored anyway because 18 §10
-        // makes it the thing a new op must be added to, and because it is the specification M2-07
-        // and M3 author their content-type schemas against.
+        // The EffectDefinition shape. An effect is never a file: it is always embedded in the
+        // perk, talent, pet, mount, curse or boss script that owns it.
         "schema/effect.schema.json",
     ];
 
     /// <summary>Loads the canonical content with no overrides.</summary>
     public static ContentLoadResult Load(IContentSourcePort source) => Load(source, ContentLoadOptions.Canonical);
 
-    /// <summary>Loads content, layering the named sparse override patches (`21` §3.3).</summary>
+    /// <summary>Loads content, layering the named sparse override patches.</summary>
     public static ContentLoadResult Load(IContentSourcePort source, ContentLoadOptions options)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -135,10 +106,9 @@ public static class ContentLoader
                 "holds no schema files, so no data file can be validated against anything (14 §6)."));
         }
 
-        // 🔒 Sweep each schema for keywords this validator does not implement, and for known
-        // keywords whose value is the wrong shape, ONCE — before any instance is validated, not
-        // once per data file, and not only where an instance happens to walk. A keyword in a branch
-        // no document reaches is still a keyword nobody is enforcing.
+        // Sweep each schema for unimplemented/malformed keywords ONCE, before any instance is
+        // validated — not once per data file, and not only where an instance happens to walk. A
+        // keyword in a branch no document reaches is still a keyword nobody is enforcing.
         var unusable = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (var (schemaPath, schema) in schemas.OrderBy(s => s.Key, StringComparer.Ordinal))
@@ -146,10 +116,9 @@ public static class ContentLoader
             var found = JsonSchemaValidator.CheckSchemaKeywords(schema, schemaPath);
             if (found.Count > 0)
             {
-                // A schema that failed its own sweep is not a schema to validate against. Walking
-                // an instance through `"minimum": "2"` reaches an AsNumber() and throws, replacing a
-                // located finding that names the schema pointer with a stack trace that names
-                // neither. The sweep's finding is the honest one and it has already been recorded.
+                // A schema that failed its own sweep is not a schema to validate against —
+                // walking an instance through it would replace a located finding with a bare
+                // stack trace.
                 unusable.Add(schemaPath);
             }
 
@@ -161,9 +130,8 @@ public static class ContentLoader
         var pairing = Pair(data, schemas, issues);
         var bindings = ValidateAgainstSchemas(data, schemas, pairing, unusable, issues);
 
-        // The cross-file rules read schema-validated shapes: a `"chapter": 1.5` that the schema has
-        // already rejected would reach an AsInt32() and throw, replacing a located, actionable
-        // finding with a stack trace naming neither document nor pointer.
+        // The cross-file rules read schema-validated shapes: an already-rejected value reaching an
+        // AsInt32() would throw, replacing a located, actionable finding with a bare stack trace.
         if (issues.Count == 0)
         {
             issues.AddRange(ContentInvariants.Check(data, bindings, schemas, options));
@@ -234,8 +202,8 @@ public static class ContentLoader
     }
 
     /// <summary>
-    /// `14` §6 — every data file is governed by a schema, and every schema governs a data file.
-    /// A schema that outlived its content is as much a defect as content nobody validates.
+    /// Every data file is governed by a schema, and every schema governs a data file. A schema
+    /// that outlived its content is as much a defect as content nobody validates.
     /// </summary>
     private static Dictionary<string, string> Pair(
         IReadOnlyDictionary<string, ContentValue> data,

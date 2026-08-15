@@ -8,15 +8,14 @@ using SlayIdleRepeat.Core.Tests.Rules.Stats;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// Runs a fight through <see cref="CombatSimulator.SimulateDuel"/> — a <b>public</b> entry point —
-/// and reads the result out of <see cref="SimulationResult.Log"/>.
+/// Runs a fight through <see cref="CombatSimulator.SimulateDuel"/> — a public entry point — and
+/// reads the result out of <see cref="SimulationResult.Log"/>.
 /// </summary>
 /// <remarks>
 /// A duel rather than <see cref="CombatSimulator.Simulate"/> because it takes
-/// <c>attackerEffects</c>/<c>defenderEffects</c>, so `18` §1 effects are reachable without a caller
-/// touching <c>HeldEffect</c> or any other <c>Rules.Effects</c> type — and both levels, which `05`
-/// §4's <c>20 × attackerLevel</c> term needs. Constants are varied as content, never as an internal
-/// <c>StatCaps</c>/<c>MitigationConstants</c>.
+/// <c>attackerEffects</c>/<c>defenderEffects</c> and both levels, without a caller touching
+/// <c>HeldEffect</c> or any other <c>Rules.Effects</c> type. Constants are varied as content, never
+/// as an internal <c>StatCaps</c>/<c>MitigationConstants</c>.
 /// <para>
 /// <see cref="AttackPipelineBench"/> is the other tool: it reaches through <c>BattlePlan.Seams</c> to
 /// the internal pipeline, and is for the few claims a log cannot show.
@@ -25,12 +24,12 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 internal static class PublicFightBench
 {
     /// <summary>
-    /// One tick of `05` §3's 20 Hz clock. Both sides swing at tick 0 and an ASPD of 1.0 puts the
-    /// next swing 20 ticks away, so this isolates a single attack from each actor.
+    /// One tick of the 20 Hz clock. Both sides swing at tick 0 and an ASPD of 1.0 puts the next
+    /// swing 20 ticks away, so this isolates a single attack from each actor.
     /// </summary>
     internal const double OneTick = 0.05;
 
-    /// <summary>An arbitrary but fixed `14` §8.1 battle seed — every case pins its own outcome.</summary>
+    /// <summary>An arbitrary but fixed battle seed — every case pins its own outcome.</summary>
     internal const ulong Seed = 1UL;
 
     /// <summary>Runs one duel through the public entry point.</summary>
@@ -56,7 +55,7 @@ internal static class PublicFightBench
             attackerEffects: attackerEffects,
             defenderEffects: defenderEffects);
 
-    /// <summary>The two documents a public fight reads — `05` §1/§4's constants and §5's statuses.</summary>
+    /// <summary>The two documents a public fight reads: combat constants and statuses.</summary>
     internal static ContentSnapshot Content(
         IReadOnlyDictionary<StatId, decimal>? capOverrides = null,
         (decimal Flat, decimal PerLevel)? mitigation = null) =>
@@ -64,8 +63,8 @@ internal static class PublicFightBench
             StatFixtures.CombatCapsSnapshot(capOverrides: capOverrides, mitigation: mitigation));
 
     /// <summary>
-    /// A `05` §1 block with the named stats set, <c>ASPD</c> and <c>HEAL_PCT</c> at their `05` §2
-    /// bases, and every other stat at zero.
+    /// A stat block with the named stats set, <c>ASPD</c> and <c>HEAL_PCT</c> at their bases, and
+    /// every other stat at zero.
     /// </summary>
     internal static ActorStats Stats(double maxHp, params (StatId Stat, double Value)[] rest) =>
         AttackPipelineBench.Stats(maxHp, rest);
@@ -74,15 +73,10 @@ internal static class PublicFightBench
         StatFixtures.Effect(id, op, stat, value);
 
     /// <summary>
-    /// 🔒 The attacker's <b>aggregated</b> <c>ATK</c>, read back out of a public fight.
+    /// The attacker's aggregated <c>ATK</c>, read back out of a public fight. At <c>DEF = 0</c>
+    /// mitigation is 0 and every other step is off, so the <c>Hit</c> carries the aggregated ATK
+    /// itself at 4 decimals.
     /// </summary>
-    /// <remarks>
-    /// At <c>DEF = 0</c> step 3's mitigation is <c>0 / 140 = 0</c>, so step 2's <c>raw</c> reaches the
-    /// log untouched; every other step is off (no crit, block, dodge, DR or ward, and the floor is
-    /// 10% of a raw the hit exceeds). The <c>Hit</c> therefore carries the post-`18`-§8 <c>ATK</c>
-    /// itself, at the 4 decimals `05` §1.1 rounds to — enough to keep a case that discriminates two
-    /// readings in the fourth decimal intact through a real fight.
-    /// </remarks>
     internal static double AggregatedAtk(double baseAtk, params EffectDefinition[] effects) =>
         Duel(
             Stats(500.0, (StatId.ATK, baseAtk)),

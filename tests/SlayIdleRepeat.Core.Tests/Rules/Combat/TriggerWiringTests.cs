@@ -8,21 +8,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §3.1 — the tick loop against M2-04's wiring contract: which slot asks the registry what.
-/// </summary>
+/// <summary>The tick loop against the trigger registry's wiring contract: which slot asks the registry what.</summary>
 public sealed class TriggerWiringTests
 {
     /// <summary>
-    /// 🔒 <b>R8</b> — a phase-scoped <c>PERIODIC</c> anchors once at the phase entry and never
-    /// re-anchors, however many further HP decreases arrive.
+    /// A phase-scoped <c>PERIODIC</c> anchors once at the phase entry and never re-anchors, however
+    /// many further HP decreases arrive: the phase check runs after every boss HP decrease, so a
+    /// controller that re-registered on each one would push the anchor forward every swing.
     /// </summary>
-    /// <remarks>
-    /// The discriminating case: `05` §3.1's phase check runs after <b>every</b> boss HP decrease, so a
-    /// controller that re-registered on each one would push the anchor forward on every swing and the
-    /// mechanic would never fire. Here the boss takes 89 hits after entering phase 2 and the periodic
-    /// still lands exactly 20 ticks after the entry.
-    /// </remarks>
     [Fact]
     public void A_phase_scoped_PERIODIC_anchors_once_at_the_phase_entry_and_never_re_anchors()
     {
@@ -70,8 +63,8 @@ public sealed class TriggerWiringTests
 
         var anchor = phases.AnchoredAt!.Value;
 
-        // 🔒 R8: startDelay is absent, so the interval runs from the anchor — the first firing is
-        // exactly 20 ticks (1.0 s) after the phase entry, and every subsequent one is 20 apart.
+        // startDelay is absent, so the interval runs from the anchor — the first firing is exactly
+        // 20 ticks (1.0 s) after the phase entry, and every subsequent one is 20 apart.
         fired.ShouldNotBeEmpty();
         fired[0].ShouldBe(anchor + 20);
         fired.Zip(fired.Skip(1), (a, b) => b - a).ShouldAllBe(gap => gap == 20);
@@ -81,8 +74,8 @@ public sealed class TriggerWiringTests
     }
 
     /// <summary>
-    /// 🔒 R8 — a <c>BATTLE</c>-scoped periodic anchors at <b>battle start</b>, which is what makes
-    /// <c>SYS_ENRAGE</c>'s <c>startDelay: 70.0</c> mean 70 seconds of battle.
+    /// A <c>BATTLE</c>-scoped periodic anchors at battle start, which is what makes an enrage's
+    /// <c>startDelay: 70.0</c> mean 70 seconds of battle.
     /// </summary>
     [Fact]
     public void SYS_ENRAGE_anchors_at_battle_start_so_its_startDelay_is_70_seconds_of_battle()
@@ -115,7 +108,7 @@ public sealed class TriggerWiringTests
                 Statuses = new TickCapturingStatusEngine(fired, services),
             }));
 
-        // 🔴 Tick 1400 is 70.0 s exactly — the BattleClock case, reached through the real loop.
+        // Tick 1400 is 70.0 s exactly.
         fired[0].ShouldBe(1400);
         BattleClock.SecondsAt(fired[0]).ShouldBe(70.0);
 
@@ -124,10 +117,7 @@ public sealed class TriggerWiringTests
         fired[^1].ShouldBe(1780);
     }
 
-    /// <summary>
-    /// 🔒 <c>PeriodicDue</c> is the <b>only</b> <c>PERIODIC</c> path — the registry throws on the
-    /// other, so a loop that reached for <c>Evaluate</c> could not run at all.
-    /// </summary>
+    /// <summary><c>PeriodicDue</c> is the only <c>PERIODIC</c> path — the registry throws on the other.</summary>
     [Fact]
     public void A_PERIODIC_evaluated_through_the_moment_path_is_refused_by_the_registry()
     {
@@ -152,10 +142,7 @@ public sealed class TriggerWiringTests
             .Message.ShouldContain("PeriodicDue");
     }
 
-    /// <summary>
-    /// 🔒 Slot 6 — <c>ON_DEATH</c> fires before removal, and `18` §7.10's Volatile elite is the
-    /// worked case: an enemy explodes on its own death.
-    /// </summary>
+    /// <summary><c>ON_DEATH</c> fires before removal — a Volatile-shaped enemy explodes on its own death.</summary>
     [Fact]
     public void ON_DEATH_fires_at_slot_6_before_the_actor_is_removed()
     {
@@ -189,8 +176,8 @@ public sealed class TriggerWiringTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.3 — <c>ON_KILL</c> triggers <em>"never fire in duels"</em>, and the switch is
-    /// <see cref="CombatRules.OnKillTriggersFire"/> rather than a branch in slot 4.
+    /// <c>ON_KILL</c> triggers never fire in duels, and the switch is
+    /// <see cref="CombatRules.OnKillTriggersFire"/> rather than a branch in the swing slot.
     /// </summary>
     [Fact]
     public void ON_KILL_fires_in_PvE_and_not_when_the_rules_turn_it_off()
@@ -215,8 +202,8 @@ public sealed class TriggerWiringTests
                             Target = EffectTarget.SELF,
                             Trigger = new EffectTrigger { Kind = TriggerKind.ON_KILL },
                         },
-                        // 🔒 An ON_KILL instance id is the RUN's, not a battle-local mint: `18` §3
-                        // makes its counter run-scoped.
+                        // An ON_KILL instance id is the RUN's, not a battle-local mint: its counter
+                        // is run-scoped.
                         EffectInstanceId.Of("RUN#PERK_SLOT_1"))),
                     BattleTestBench.Enemy(0, BattleTestBench.Stats(maxHp: 10)),
                 },
@@ -232,9 +219,8 @@ public sealed class TriggerWiringTests
     }
 
     /// <summary>
-    /// 🔒 <c>TriggerRegistry</c>'s minting rule, at the half a roster can enforce: an <c>ON_KILL</c>
-    /// effect with no instance id would take a battle-local one and reset <c>PK_MIDAS</c> every
-    /// fight.
+    /// An <c>ON_KILL</c> effect with no instance id would take a battle-local one and reset its
+    /// counter every fight — refused instead.
     /// </summary>
     [Fact]
     public void An_ON_KILL_effect_without_a_run_owned_instance_id_is_refused()
@@ -258,16 +244,11 @@ public sealed class TriggerWiringTests
     }
 
     /// <summary>
-    /// 🔒 <c>ON_BATTLE_END</c> — <c>TriggerRegistry</c>'s contract: <em>"after slot 8's break, at the
-    /// fight's last tick, with <c>TriggerOccurrence.HeroWon</c> set from the outcome. It is the only
-    /// kind that reads that field."</em>
+    /// <c>ON_BATTLE_END</c> fires after the loop breaks, at the fight's last tick, with
+    /// <c>TriggerOccurrence.HeroWon</c> set from the outcome. The <c>onlyIfWon</c> arm is what makes
+    /// this discriminating: a loop that fired the kind but left <c>HeroWon</c> unset would fire the
+    /// loser's effect and skip the winner's.
     /// </summary>
-    /// <remarks>
-    /// The <c>onlyIfWon</c> arm is what makes this discriminating rather than a smoke test: `18`
-    /// §9.2's <c>PET_DICEBEAST</c> grants only on a win, so a loop that fired the kind but left
-    /// <c>HeroWon</c> unset would fire the loser's effect and skip the winner's — a legal-looking log
-    /// and the wrong rewards.
-    /// </remarks>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -310,15 +291,10 @@ public sealed class TriggerWiringTests
     }
 
     /// <summary>
-    /// 🔒 `05` §3.1's phase check runs after <b>every</b> HP decrease — and a shrinking <c>MAX_HP</c>
-    /// that clips current HP is one.
+    /// The phase check runs after every HP decrease, and a shrinking <c>MAX_HP</c> that clips
+    /// current HP is one: a boss clipped below a phase threshold that way must enter the next phase
+    /// there, not on whatever unrelated swing lands next.
     /// </summary>
-    /// <remarks>
-    /// `18` §9.1's <c>CP_GLASS_HEART</c> re-bases Max HP mid-fight. A boss clipped below a phase
-    /// threshold that way must enter the next phase there, not on whatever unrelated swing lands
-    /// next. Driven through <see cref="IStatusTimeline"/> because that is the slot a status-driven
-    /// Max HP change lands in.
-    /// </remarks>
     [Fact]
     public void A_MAX_HP_shrink_that_clips_current_HP_runs_the_phase_check()
     {
@@ -350,8 +326,7 @@ public sealed class TriggerWiringTests
         // tick 21, which is where the check is owed.
         phases.Calls.ShouldContain("check:ENEMY_0@21");
 
-        // 🔒 And it is the only check after tick 0. The two on tick 0 are the opening swings — the
-        // recording pipeline routes AfterHpDecrease for every resolved hit, damage or not — so
+        // And it is the only check after tick 0 — the two on tick 0 are the opening swings, so
         // pinning the set rather than the count is what stops an unrelated call from satisfying the
         // assertion above.
         phases.Calls.Where(c => c.StartsWith("check:", StringComparison.Ordinal))
@@ -360,10 +335,7 @@ public sealed class TriggerWiringTests
             .ShouldBe(new[] { "check:ENEMY_0@0", "check:ENEMY_0@21", "check:HERO@0" });
     }
 
-    /// <summary>
-    /// 🔒 One registry per battle over the <b>run's</b> counters — which is what makes `18` §3's
-    /// <em>"<c>ON_KILL</c> counters persist across battles"</em> true structurally.
-    /// </summary>
+    /// <summary>One registry per battle over the run's counters, so an <c>ON_KILL</c> counter persists across battles.</summary>
     [Fact]
     public void The_ON_KILL_counter_survives_a_battle_boundary_when_the_run_counters_are_reused()
     {
@@ -408,16 +380,11 @@ public sealed class TriggerWiringTests
     }
 }
 
-/// <summary>
-/// A slot-1 timeline that re-bases one actor's <c>MAX_HP</c> on a given tick — `18` §9.1's
-/// <c>CP_GLASS_HEART</c>, through the production path.
-/// </summary>
+/// <summary>A slot-1 timeline that re-bases one actor's <c>MAX_HP</c> on a given tick, through the production path.</summary>
 /// <remarks>
-/// 🔒 It writes a <b>percent bucket</b> and invalidates, which is exactly what
-/// <c>ICombatFlowSink.AddPercentBucket</c> does, rather than calling <c>SetStats</c> directly. That
-/// matters: the aggregation is what clips current HP, and the phase check hangs off
-/// <c>RefreshStats</c> observing that clip. A double that assigned the block itself would test
-/// nothing but itself.
+/// It writes a percent bucket and invalidates, rather than calling <c>SetStats</c> directly: the
+/// aggregation is what clips current HP, and the phase check hangs off observing that clip. A double
+/// that assigned the block itself would test nothing but itself.
 /// </remarks>
 internal sealed class MaxHpRebaseAtTick : IStatusTimeline
 {

@@ -5,10 +5,7 @@ using RunAggregate = SlayIdleRepeat.Core.Model.Run;
 
 namespace SlayIdleRepeat.Core.Tests.Model;
 
-/// <summary>
-/// 🔒 M3-06 — <c>Run.UpsertPerkTier</c> and <c>Run.DraftedPerks</c>: `06` §1.1's tier-upgrade
-/// bookkeeping on the aggregate itself.
-/// </summary>
+/// <summary><c>Run.UpsertPerkTier</c> and <c>Run.DraftedPerks</c>: the perk tier-upgrade bookkeeping on the aggregate itself.</summary>
 public sealed class RunDraftedPerksTests
 {
     private static RunAggregate NewRun() => RunAggregate.Rehydrate(RunSnapshots.Valid).Value;
@@ -131,9 +128,9 @@ public sealed class RunDraftedPerksTests
     // ------------------------------------------------------------------ ReadOwnedPerkTiers via Rehydrate (M3-06)
 
     /// <summary>
-    /// 🔒 Pins the deliberate asymmetry with <c>AdUses</c>/<c>ResolvedMinigames</c>: those two refuse a
-    /// null map, but <c>OwnedPerkTiers</c> is a trailing-defaulted M3-06 field, so a pre-M3-06 row's
-    /// null is accepted as "no perks drafted yet", not refused.
+    /// Pins the deliberate asymmetry with <c>AdUses</c>/<c>ResolvedMinigames</c>: those two refuse
+    /// a null map, but <c>OwnedPerkTiers</c> is a trailing-defaulted field, so an older row's null
+    /// is accepted as "no perks drafted yet", not refused.
     /// </summary>
     [Fact]
     public void A_null_OwnedPerkTiers_row_is_accepted_as_empty_not_refused()

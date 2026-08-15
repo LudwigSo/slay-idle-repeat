@@ -2,28 +2,22 @@ using SkiaSharp;
 
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 7: <em>"Correct canvas size and pivot per §C"</em>.
-/// </summary>
+/// <summary>Checklist item 7: correct canvas size and pivot.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Fully mechanical, and the only item with no tolerance of any kind.</b> The canvas is an
-/// exact integer comparison against the manifest's delivery size — 511 px is wrong, not nearly
-/// right — and the pivot is verified against the content's alpha bounding box:
-/// <see cref="Doc15Pivots.Center"/> means the content is centred in both axes,
-/// <see cref="Doc15Pivots.BottomCenter"/> means centred horizontally and sitting on the bottom
-/// edge. Both come from the row, so there is nothing here for anybody to calibrate.
+/// Fully mechanical, and the only item with no tolerance: the canvas is an exact integer comparison
+/// against the manifest's delivery size, and the pivot is verified against the content's alpha
+/// bounding box — <see cref="Doc15Pivots.Center"/> means centred in both axes,
+/// <see cref="Doc15Pivots.BottomCenter"/> means centred horizontally and sitting on the bottom edge.
 /// </para>
 /// <para>
-/// 🔒 <b>Order: canvas, then pivot</b> — the first failure is the reported one. A pivot offset
-/// measured against a canvas that is already the wrong size is not a second defect, it is a
-/// consequence of the first, and reporting both would send a reviewer looking for two problems.
+/// Canvas is checked before pivot, and the first failure is the reported one: a pivot offset
+/// measured against a wrong-sized canvas is a consequence of that, not a second defect.
 /// </para>
 /// <para>
-/// 🔒 Pivot is checked against the <em>content</em>, not against a declaration. `15` §C says the
-/// pivot is "declared in the atlas metadata", and a declaration that disagrees with where the
-/// subject actually sits is the failure this item exists to catch: it lands as a limb sunk into the
-/// board or a hero floating above it, on every screen the asset appears on.
+/// Pivot is checked against the <em>content</em>, not a declaration — a declaration that disagrees
+/// with where the subject actually sits is the failure this item exists to catch: it lands as a
+/// limb sunk into the board or a hero floating above it.
 /// </para>
 /// </remarks>
 public sealed class CanvasAndPivotCheck : IQaCheck
@@ -71,9 +65,8 @@ public sealed class CanvasAndPivotCheck : IQaCheck
             new(PivotOffsetMeasurement, offset, "px", DocReference),
         };
 
-        // 🔒 Canvas first. A pivot offset measured against a canvas that is already the wrong size
-        // is a consequence of that, not a second defect, and reporting both sends a reviewer looking
-        // for two problems (steering rule S2).
+        // Canvas is checked first: a pivot offset against an already-wrong-sized canvas is a
+        // consequence of that, not a second defect.
         if (image.Width != target.Width)
         {
             return Failed(
@@ -114,23 +107,14 @@ public sealed class CanvasAndPivotCheck : IQaCheck
     }
 
     /// <summary>
-    /// How far the content's bounding box sits from where the row's `15` §C pivot puts it, as the
-    /// distance between where its top-left corner is and where it would be.
+    /// How far the content's bounding box sits from where the row's pivot puts it, as the distance
+    /// between where its top-left corner is and where it would be.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 Measured against the content, not against a declaration. §C says the pivot is "declared in
-    /// the atlas metadata", and a declaration that disagrees with where the subject actually sits is
-    /// the failure this item exists to catch.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The centring tie is broken the same way <see cref="TrimToCanvasStep"/> breaks it</b> —
-    /// integer division, so the odd pixel goes to the right and to the bottom. An asset whose content
-    /// is one pixel narrower or shorter than the canvas in parity cannot be centred exactly, and
-    /// expecting a half-pixel here would make item 7 unsatisfiable for every such row rather than
-    /// exact for any of them. This is not a tolerance: the comparison is still an exact integer one,
-    /// against the placement `15` §B4 step 2 actually produces.
-    /// </para>
+    /// The centring tie is broken the same way <see cref="TrimToCanvasStep"/> breaks it — integer
+    /// division, so the odd pixel goes to the right and to the bottom. An asset whose content is one
+    /// pixel narrower or shorter than the canvas in parity cannot be centred exactly, so expecting a
+    /// half-pixel here would make this item unsatisfiable for every such row.
     /// </remarks>
     /// <param name="image">The processed image.</param>
     /// <param name="content">The content's bounding box.</param>
@@ -142,7 +126,7 @@ public sealed class CanvasAndPivotCheck : IQaCheck
             return 0d;
         }
 
-        // Horizontally centred for both of `15` §C's pivots; only the vertical rule differs.
+        // Horizontally centred for both pivots; only the vertical rule differs.
         var expectedLeft = (image.Width - content.Width) / 2;
         var expectedTop = pivot switch
         {

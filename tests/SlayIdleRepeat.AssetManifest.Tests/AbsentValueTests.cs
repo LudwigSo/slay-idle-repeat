@@ -4,33 +4,18 @@ using Xunit;
 namespace SlayIdleRepeat.AssetManifest.Tests;
 
 /// <summary>
-/// The population of values the design docs authorise nothing for.
+/// The population of values the register deliberately omits rather than encoding as JSON null.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Why these are absences and not JSON nulls.</b> `game-data/README.md` says a hole should be
-/// <c>null</c> and greppable, and in <c>tuning/</c> that is exactly right: each of those 96 nulls is
-/// a missing <em>number</em> somebody could quietly fill with a plausible zero, and M0-09's
-/// <c>RealDataNegativeCaseTests</c> pins the population — total and per file — so that filling one
-/// is a deliberate act. But that guard counts nulls across the <b>whole snapshot</b>, and
-/// <c>game-data/assets/*.json</c> is in the snapshot. A 974-row register carrying "§C states no
-/// pivot for a 9-slice panel" as a null would have added roughly 3,500 to a population of 96 and
-/// destroyed the guard's meaning.
-/// </para>
-/// <para>
-/// So the register omits the member instead, and this file supplies the same discipline scoped to
-/// the register: every absence population is pinned, so filling one — or opening a new one — fails
-/// here and has to be argued for. The reader still surfaces an absent member as <c>null</c>, so the
-/// C# side of S6 is unchanged.
-/// </para>
+/// <c>RealDataNegativeCaseTests</c> pins the snapshot-wide null population at 96, which includes
+/// <c>game-data/assets/*.json</c>. If this ~974-row register used null for its own unauthorised
+/// values instead of omitting the member, it would inflate that population and destroy the guard's
+/// meaning — so every absence here is an omitted member, with each population pinned per field
+/// below, while the reader still surfaces an absent member as <c>null</c> to callers.
 /// </remarks>
 public sealed class AbsentValueTests
 {
-    /// <summary>
-    /// 🔒 The register contributes ZERO JSON nulls to the ContentSnapshot. If this ever fails,
-    /// M0-09's 96-hole population test fails with it, and its per-file breakdown stops meaning
-    /// anything.
-    /// </summary>
+    /// <summary>The register contributes zero JSON nulls to the ContentSnapshot — see the class remarks.</summary>
     [Theory]
     [InlineData("assets/asset_manifest_art.json")]
     [InlineData("assets/asset_manifest_audio.json")]
@@ -56,10 +41,10 @@ public sealed class AbsentValueTests
         // subject — E10 24 parallax layers · E11 60 boots/ring/amulet · E17 83 · E19 32 · E20 49 · E21 13
         art.Count(a => a.Subject is null).ShouldBe(261);
 
-        // deliverySize — E10 4 scene backgrounds · E17 86 (§C: "variable, 9-slice") · E20 49 · E21 5
+        // deliverySize — E10 4 scene backgrounds · E17 86 (variable, 9-slice) · E20 49 · E21 5
         art.Count(a => a.DeliverySize is null).ShouldBe(144);
 
-        // pivot — E9 112 · E10 28 · E16 11 · E17 86 · E19 32 · E21 15. §C names only two classes.
+        // pivot — E9 112 · E10 28 · E16 11 · E17 86 · E19 32 · E21 15 (only two pivot classes exist)
         art.Count(a => a.Pivot is null).ShouldBe(284);
 
         // atlas — E8 14 (DSC_TILE_ATLAS) · E10 28 ("not atlased") · E20 49 · E21 15
@@ -95,11 +80,7 @@ public sealed class AbsentValueTests
         audio.Count(a => a.DucksMusic is null).ShouldBe(12, "20 §5's ducking row is about SFX");
     }
 
-    /// <summary>
-    /// 🔒 An absent member and a member the reader forgot must not look the same. Every row still
-    /// declares the five fields that are always meaningful, and dropping one is a read-time failure
-    /// (proved by ManifestValidatorTests).
-    /// </summary>
+    /// <summary>An absent member and a forgotten one must not look the same: the fields below are never optional, and dropping one is a read-time failure.</summary>
     [Fact]
     public void Every_row_declares_the_members_that_are_never_optional()
     {

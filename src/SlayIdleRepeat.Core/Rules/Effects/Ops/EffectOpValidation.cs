@@ -3,33 +3,17 @@ using SlayIdleRepeat.Core.Content.Effects;
 
 namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 Whether an effect is <b>well-formed for its op</b> — the in-code counterpart of
-/// <c>game-data/schema/effect.schema.json</c>'s seventeen key-shape branches, answerable without a
-/// battle.
-/// </summary>
+/// <summary>Whether an effect is well-formed for its op — the in-code counterpart of the content schema's key-shape branches, answerable without a battle.</summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>The schema is the authority; this is not a second one.</b> M2-01 records the reason it
-/// exists: <em>"anything that builds an effect in code rather than loading authored JSON — the
-/// balance harness (`05` §9), a test, <c>InMemoryGame</c> — is outside that enforcement, and is
-/// responsible for building shapes the schema would accept."</em> This is how such a caller checks,
-/// and it deliberately covers <b>only</b> the op-to-key partition — not id shape, not enum
-/// membership, not numeric ranges, all of which the schema states once and the C# types state again
-/// by being enums.
+/// The schema is the authority; this is not a second one. Anything that builds an effect in code
+/// rather than loading authored JSON (the balance harness, a test, <c>InMemoryGame</c>) is outside
+/// that enforcement and needs its own check — this covers only the op-to-key partition, not id
+/// shape, enum membership or numeric ranges, all of which the C# types already enforce by being enums.
 /// </para>
 /// <para>
-/// 🔒 <b>Why the thirteen §2.5 ops are the point of this class.</b> A4: the run and board ops are
-/// <em>declared, validated and unit-tested — but not wired</em>. With no resolver, "does it
-/// validate" is the only question that can be asked of them at all in M2, and it is a real one: it
-/// is what makes the difference between an op that M3 can pick up and an op that was never
-/// authorable.
-/// </para>
-/// <para>
-/// ⚠️ <b>The resolver does not trust this.</b> <see cref="EffectOpResolver"/> re-checks every key it
-/// uses, and throws its own <see cref="EffectContextException"/>. A resolver that assumed a prior
-/// validation would be a guard whose subject set is "whoever remembered to call it" — steering S3's
-/// failure shape exactly.
+/// The resolver does not trust this: <see cref="EffectOpResolver"/> re-checks every key it uses and
+/// throws its own <see cref="EffectContextException"/>, rather than assuming a prior validation ran.
 /// </para>
 /// </remarks>
 internal static class EffectOpValidation
@@ -77,10 +61,8 @@ internal static class EffectOpValidation
                 }
                 else if (effect.ToStat is not null)
                 {
-                    // 🔒 Only a redirect has a destination. ⚠️ effect.schema.json cannot state this —
-                    //    JsonSchemaValidator implements no `not` and no if/then/else, so a
-                    //    conditional-required rule is not expressible there. Recorded as a known
-                    //    limit of the schema and closed here.
+                    // Only a redirect has a destination; the JSON schema can't express this
+                    // conditional-required rule, so it's checked here instead.
                     problems.Add($"a {effect.CapKind} override carries toStat, which belongs to " +
                                  "REDIRECT_EXCESS alone — a raise and a heal ceiling send nothing anywhere");
                 }
@@ -178,8 +160,6 @@ internal static class EffectOpValidation
             case EffectOp.CLEAR_SUMMONS:
                 break;
 
-            // 🔒 18 §10.1 E6 — the forty-fourth op. Every rule below is checkable without a battle,
-            //    and each one has its own message so a test can pin WHICH fired (steering S2).
             case EffectOp.RANDOM_OUTCOME:
                 RequireOutcomes(effect, problems);
                 if (effect.Value is not null)
@@ -191,9 +171,8 @@ internal static class EffectOpValidation
 
                 break;
 
-            // 🔒 §2.5 — A4. Every argument these need beyond the eight-part shape is UNAUTHORED, and
-            //    M3 authors it when it builds the resolvers. What is checkable today is the shape:
-            //    the op is declared, it is a run/board op, and nothing combat-side is asked of it.
+            // These ops have no resolver yet; what's checkable today is the shape — the op is
+            // declared, it's a run/board op, and nothing combat-side is asked of it.
             case EffectOp.GRANT_CURRENCY:
             case EffectOp.GRANT_ITEM:
             case EffectOp.GRANT_PERK:
@@ -222,9 +201,8 @@ internal static class EffectOpValidation
                 break;
         }
 
-        // 🔒 Keys that belong to exactly one op, checked against every OTHER op — the schema's
-        //    additionalProperties: false, restated for the code path. Without this a
-        //    {"op":"STAT_ADD_PCT","charges":3} built in code would validate and silently ignore the 3.
+        // Keys that belong to exactly one op, checked against every other op — without this a
+        // {"op":"STAT_ADD_PCT","charges":3} built in code would validate and silently ignore the 3.
         Exclusive(effect, problems, effect.ToStat is not null, "toStat",
             EffectOp.STAT_CONVERT, EffectOp.STAT_CAP_OVERRIDE);
         Exclusive(effect, problems, effect.Charges is not null, "charges",
@@ -239,22 +217,11 @@ internal static class EffectOpValidation
         Exclusive(effect, problems, effect.Scope is not null, "scope", EffectOp.MODIFY_DIE_FACE);
         Exclusive(effect, problems, effect.Outcomes is not null, "outcomes", EffectOp.RANDOM_OUTCOME);
 
-        // 🔒 The last two op-specific keys. The schema admits `valueMode` on nine ops and `statusId`
-        //    on four; without these, {"op":"EXTRA_ATTACK","valueMode":"FLAT"} and
-        //    {"op":"DAMAGE","statusId":"BURN"} were well-formed in code and rejected by the schema —
-        //    the two enforcement paths disagreeing about the same effect.
-        //    ⚠️ These two are stated as PREDICATES rather than as the `params` array the other ten
-        //    use, and it is not a style choice: an array literal of four or more constants makes
-        //    Roslyn emit a `<PrivateImplementationDetails>/__StaticArrayInitTypeSize=N` blob in the
-        //    GLOBAL namespace, which
-        //    AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace reports as
-        //    an undocumented `30` §11.4 namespace (the nested blob type carries no
-        //    CompilerGeneratedAttribute, so the rule's filter misses it). Recorded as errata against
-        //    that rule; the ten short lists below are under the threshold and are unaffected.
-        //    ⚠️ REVIVE is EXCLUDED although RulesFor gives it a row. 18 §10.1 records E4 —
-        //    SURVIVE_LETHAL's valueMode — as taken for that op ALONE, and the schema's REVIVE branch
-        //    omits the key accordingly. Having a value-mode table entry is not the same as admitting
-        //    an authored valueMode: the table is what the op falls back to, not a key it takes.
+        // The last two op-specific keys, checked as predicates rather than as the params array the
+        // other ten use: an array literal of four-plus constants here would emit a compiler-generated
+        // type into the global namespace that trips the namespace-boundary test.
+        // REVIVE is excluded even though RulesFor gives it a row — its valueMode is SURVIVE_LETHAL's
+        // alone; having a value-mode table entry isn't the same as admitting an authored valueMode.
         ExclusiveTo(
             effect, problems, effect.ValueMode is not null, "valueMode",
             "STAT_SET, the six 18 §2.2 ops, SHIELD and SURVIVE_LETHAL",
@@ -267,9 +234,9 @@ internal static class EffectOpValidation
             effect.Op is EffectOp.APPLY_STATUS or EffectOp.REMOVE_STATUS
                       or EffectOp.EXTEND_STATUS or EffectOp.IMMUNE_STATUS);
 
-        // 🔒 And which of 18 §2.2's eight the op actually admits — a rule the schema cannot state at
-        //    all, because the sets differ per op inside one branch. Without it
-        //    {"op":"HEAL_LEECH","valueMode":"ATK_MULT"} is "well-formed" and throws at fire time.
+        // Which value modes the op actually admits — the schema can't state this since the sets
+        // differ per op inside one branch. Without it a mode mismatch is well-formed here and throws
+        // only at fire time.
         RequireAdmittedMode(effect, problems);
 
         return problems;
@@ -278,14 +245,8 @@ internal static class EffectOpValidation
     /// <summary>True when the effect's keys are the ones its op takes.</summary>
     internal static bool IsWellFormed(EffectDefinition effect) => Problems(effect).Count == 0;
 
-    /// <summary>
-    /// The op's own `18` §2.2 admitted-mode set, from the one table
-    /// (<see cref="OpValueRules"/>) the resolver uses.
-    /// </summary>
-    /// <remarks>
-    /// Read from the same table rather than restated, so a mode admitted at fire time and refused
-    /// here — or the reverse — cannot happen.
-    /// </remarks>
+    /// <summary>The op's own admitted-mode set, from the one table (<see cref="OpValueRules"/>) the resolver uses.</summary>
+    /// <remarks>Read from the same table rather than restated, so a mode admitted at fire time and refused here can't happen.</remarks>
     private static void RequireAdmittedMode(EffectDefinition effect, List<string> problems)
     {
         if (effect.ValueMode is not { } mode)
@@ -302,7 +263,7 @@ internal static class EffectOpValidation
         }
     }
 
-    /// <summary>The `18` §2.2 rules for the ops that have them; <c>null</c> for the rest.</summary>
+    /// <summary>The value-mode rules for the ops that have them; <c>null</c> for the rest.</summary>
     private static OpValueRules? RulesFor(EffectOp op) => op switch
     {
         EffectOp.DAMAGE => OpValueRules.Damage,
@@ -375,16 +336,11 @@ internal static class EffectOpValidation
     }
 
     /// <summary>
-    /// 🔒 `18` §10.1 E6 — <c>RANDOM_OUTCOME</c>'s <c>outcomes</c> table, checked against everything
-    /// `14` §8.0's <see cref="Rng.DeterministicRng.WeightedPick{T}"/> would refuse at fire time,
-    /// plus the two rules only this op has: a choice needs two rows, and a row may not name the
-    /// roll itself.
+    /// <c>RANDOM_OUTCOME</c>'s <c>outcomes</c> table, checked against everything
+    /// <see cref="Rng.DeterministicRng.WeightedPick{T}"/> would refuse at fire time, plus two rules
+    /// only this op has: a choice needs two rows, and a row may not name the roll itself.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Each rule adds its <b>own</b> message. A single "the outcomes table is malformed" would
-    /// make a test asserting the rejection unable to say which rule fired (steering S2) — and five
-    /// of these are reachable at once from one badly authored table.
-    /// </remarks>
+    /// <remarks>Each rule adds its own message, since several are reachable at once from one badly authored table.</remarks>
     private static void RequireOutcomes(EffectDefinition effect, List<string> problems)
     {
         if (effect.Outcomes is not { } outcomes)
@@ -418,11 +374,8 @@ internal static class EffectOpValidation
                 total += outcome.Weight;
             }
 
-            // 🔴 The id's own rule, and the two below it read the id — so a blank one stops here
-            //    rather than being reported three times over. A RandomOutcomeEntry is a record
-            //    struct, so `default` (and a JSON row that omits effectId) carries a null id; without
-            //    this rule, BossEncounterBuilder's O1 lookup raises a bare ArgumentNullException that
-            //    names neither the rule, the boss nor the phase (steering S2).
+            // The two checks below also read the id, so a blank one stops here rather than being
+            // reported three times over.
             if (string.IsNullOrWhiteSpace(outcome.EffectId))
             {
                 problems.Add("a RANDOM_OUTCOME row names no effectId; 18 §10.1 E6's rows ARE effect " +
@@ -453,11 +406,10 @@ internal static class EffectOpValidation
     }
 
     /// <remarks>
-    /// ⚠️ The owner list is joined <b>inside</b> the failure and not on the way into it. This runs
-    /// seventeen times per <see cref="Problems"/> call and <see cref="Problems"/> is now on a battle
-    /// path — <c>CombatFlowOps.RandomOutcome</c> re-reads its own table before every draw — so an
-    /// eagerly built message was seventeen strings allocated per roll to describe a failure that had
-    /// not happened.
+    /// The owner list is joined inside the failure, not on the way in — this runs many times per
+    /// <see cref="Problems"/> call, and <see cref="Problems"/> is on a battle path
+    /// (<c>CombatFlowOps.RandomOutcome</c> re-reads its own table before every draw), so an eagerly
+    /// built message would allocate strings per roll to describe a failure that never happened.
     /// </remarks>
     private static void Exclusive(
         EffectDefinition effect, List<string> problems, bool present, string key, params EffectOp[] owners)

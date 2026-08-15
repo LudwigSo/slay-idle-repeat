@@ -4,38 +4,27 @@ using SlayIdleRepeat.Core.Rng;
 namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 
 /// <summary>One archetype's draw weight in a chapter's pool.</summary>
-/// <param name="Archetype">The `05` §6.1 shape.</param>
+/// <param name="Archetype">The shape.</param>
 /// <param name="Weight">
-/// Its weight in this chapter. 🔒 A zero is <b>authored intent</b>, not an absence: Chapter 1 has no
-/// <c>REAVER</c> — <em>"no 30%-crit spikes in the tutorial chapter"</em> — and Chapter 6 no
-/// <c>LEECH</c> — <em>"machines do not drink"</em>.
+/// Its weight in this chapter. A zero is authored intent, not an absence — e.g. no REAVER in the
+/// tutorial chapter.
 /// </param>
 internal readonly record struct ArchetypeWeight(EnemyArchetype Archetype, double Weight);
 
 /// <summary>
-/// 🔒 One chapter's enemy pool — the weight table a <c>TILE_ENEMY</c> battle draws from, and the two
+/// One chapter's enemy pool — the weight table a <c>TILE_ENEMY</c> battle draws from, and the two
 /// elites the chapter's <c>elitePool</c> holds.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A <c>TILE_ENEMY</c> battle draws <b>one</b> entry by weight, and a <c>SWARM</c> draw spawns its
-/// three units (<see cref="ArchetypeRow.UnitsPerDraw"/>). Elites come only from
-/// <see cref="ElitePool"/> — never from the weight table — and the tiers reuse the same pool,
-/// because tier difficulty comes from the Power multiplier and the enemy level, not from
-/// composition.
+/// A <c>TILE_ENEMY</c> battle draws one entry by weight, and a <c>SWARM</c> draw spawns its three
+/// units. Elites come only from <see cref="ElitePool"/>, never from the weight table, and every tier
+/// reuses the same pool — difficulty comes from the Power multiplier and enemy level, not composition.
 /// </para>
 /// <para>
-/// 🔒 <b>All eight shapes are present in every row, including the zeros.</b> The weight table is
-/// stated over the closed archetype set rather than over "whatever the data holds", so an archetype
-/// that disappears from a chapter is a load failure. A rule that only checked the row's total would
-/// let Chapter 1's <c>REAVER</c> zero be edited into a five and Chapter 6's <c>LEECH</c> zero into a
-/// five, with the sum still 100 and two authored design statements silently gone.
-/// </para>
-/// <para>
-/// ⚠️ <b>The draw is one <c>WeightedPick</c> and the seed is handed in.</b> `14` §8.0/§8.1: every
-/// call consumes exactly one draw index, and the caller opens
-/// <c>new DeterministicRng(battleSeed, RngStreams.Combat)</c>. Nothing here derives or holds a
-/// <c>runSeed</c>.
+/// All eight shapes are present in every row, including the zeros: the weight table is stated over
+/// the closed archetype set rather than over whatever the data holds, so an archetype missing from a
+/// chapter is a load failure rather than a silently edited-out design statement.
 /// </para>
 /// </remarks>
 internal sealed class ChapterEnemyPool
@@ -65,13 +54,13 @@ internal sealed class ChapterEnemyPool
     /// <summary>The chapter this pool belongs to.</summary>
     internal int Chapter { get; }
 
-    /// <summary>The eight weights, in `05` §6.1's archetype order.</summary>
+    /// <summary>The eight weights, in archetype order.</summary>
     internal IReadOnlyList<ArchetypeWeight> Weights { get; }
 
     /// <summary>The chapter's two elite identities. Elites are drawn from here and nowhere else.</summary>
     internal IReadOnlyList<string> ElitePool { get; }
 
-    /// <summary>The sum of the row's weights. `05` §6.4 states every row totals 100.</summary>
+    /// <summary>The sum of the row's weights. Every row totals 100.</summary>
     internal double TotalWeight { get; }
 
     /// <summary>Builds a pool, over the whole archetype set.</summary>
@@ -82,7 +71,7 @@ internal sealed class ChapterEnemyPool
     /// An archetype is missing or repeated, a weight is negative or not finite, or every weight is
     /// zero.
     /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">The chapter is outside `05` §6's range.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The chapter is out of range.</exception>
     internal static ChapterEnemyPool From(
         int chapter, IReadOnlyList<ArchetypeWeight> weights, IReadOnlyList<string> elitePool)
     {
@@ -141,10 +130,7 @@ internal sealed class ChapterEnemyPool
                 nameof(weights));
         }
 
-        // 🔒 The elite pool gets the same treatment as the weight table, and it has to: 05 §6.2 says
-        // elites come ONLY from here, so an empty pool is a chapter that can present no elite and a
-        // repeated id is a chapter with one elite wearing two hats. The schema stops both for the
-        // shipped file; a Core caller building a pool from anything else has no schema at all.
+        // Elites come only from here, so an empty pool is a chapter that can present no elite.
         if (elitePool.Count == 0)
         {
             throw new ArgumentException(
@@ -170,7 +156,7 @@ internal sealed class ChapterEnemyPool
     }
 
     /// <summary>
-    /// Draws one archetype by weight — `14` §8.0: exactly one draw index, whatever the table holds.
+    /// Draws one archetype by weight — exactly one draw index, whatever the table holds.
     /// </summary>
     /// <param name="rng">
     /// The encounter's combat stream, <c>new DeterministicRng(battleSeed, RngStreams.Combat)</c>.
@@ -183,7 +169,7 @@ internal sealed class ChapterEnemyPool
     }
 
     /// <summary>One archetype's weight in this chapter.</summary>
-    /// <exception cref="ArgumentOutOfRangeException">The archetype is not one of `05` §6.1's eight.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The archetype is not one of the eight.</exception>
     internal double WeightOf(EnemyArchetype archetype)
     {
         foreach (var weight in Weights)

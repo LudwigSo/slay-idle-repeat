@@ -7,10 +7,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Perks;
 
-/// <summary>
-/// 🔒 M3-06, `06` §4 — <c>DraftRarityWeights.For</c>, the transcribed <c>RarityWeights(stage,
-/// isElite, isBoss)</c> table.
-/// </summary>
+/// <summary><c>DraftRarityWeights.For</c>, the <c>RarityWeights(stage, isElite, isBoss)</c> table.</summary>
 public sealed class DraftRarityWeightsTests
 {
     private static double WeightOf(PerkRarity rarity, IReadOnlyList<(PerkRarity Rarity, double Weight)> table) =>

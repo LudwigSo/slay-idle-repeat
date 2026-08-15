@@ -5,29 +5,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Rules.Economy;
 
-/// <summary>
-/// 🔒 `21` §3.1 — the energy math and <c>game-data/tuning/</c> cannot drift apart.
-/// </summary>
+/// <summary>Checks that the energy math and <c>tuning/progression.json</c> cannot drift apart.</summary>
 /// <remarks>
-/// <para>
 /// <c>SlayIdleRepeat.Core.Rules.Economy.EnergyTuning</c> reads six pointers out of
 /// <c>progression.json</c>'s <c>energy</c> block and <c>EnergyMath</c> computes from what it finds.
-/// Neither half can see the other: <c>Core.Tests</c> is hermetic, so it proves the math against a
-/// fixture that <em>mirrors</em> the shipped file, and the reader is <c>internal</c> to <c>Core</c>,
-/// so this suite cannot call it (<c>InternalsVisibleTo</c> names <c>SlayIdleRepeat.Core.Tests</c>
-/// alone, `30` §11.3).
-/// </para>
-/// <para>
-/// What is left is the seam between them, and that is what these cases close: the real file still
-/// authors those pointers, with the numbers `10` §3 and `28` C2 write out, in a type the reader can
-/// actually read. Renaming <c>regenMinutesPerPoint</c> in the data would otherwise leave the Core
-/// fixture green and the shipped game throwing <c>MissingContentException</c> on the first command.
-/// </para>
-/// <para>
-/// It reads files, which is why it is here rather than in <c>Core.Tests</c> — the same reason and
-/// the same mechanism as <c>CurrencyIdMatchesTuningDataTests</c>. No adapter, no port, no container,
-/// no network: <see cref="RepoData"/> over the checkout the test runs from.
-/// </para>
+/// <c>Core.Tests</c> is hermetic and proves the math against a fixture that mirrors the shipped
+/// file, and the reader is internal to Core, so this suite reads the real file directly instead.
+/// Renaming a pointer in the data would otherwise leave the Core fixture green and the shipped game
+/// throwing <c>MissingContentException</c> on the first command.
 /// </remarks>
 public sealed class EnergyTuningMatchesTuningDataTests
 {
@@ -35,18 +20,17 @@ public sealed class EnergyTuningMatchesTuningDataTests
     private const string CurrenciesDocument = "tuning/currencies.json";
 
     /// <summary>
-    /// The six leaves <c>EnergyTuning</c> reads, with the values `10` §3 and `28` C2 author.
-    /// 🔒 Keep in step with <c>EnergyTuningTests.The_pointers_the_reader_reads_are_the_documented_ones</c>
-    /// in <c>SlayIdleRepeat.Core.Tests</c>: that case pins the strings the reader passes, this one
-    /// pins the file they resolve against.
+    /// The six leaves <c>EnergyTuning</c> reads. Keep in step with
+    /// <c>EnergyTuningTests.The_pointers_the_reader_reads_are_the_documented_ones</c> in
+    /// <c>SlayIdleRepeat.Core.Tests</c>, which pins the strings the reader passes; this one pins the
+    /// file they resolve against.
     /// </summary>
     /// <remarks>
-    /// The <c>WholeNumber</c> column is not decoration. Five of the six reach
-    /// <c>ContentSnapshot.ReadInt32</c>, which throws <c>ContentTypeMismatchException</c> on a
-    /// fraction — and <c>progression.schema.json</c> types <c>perLegendLevel</c> and
-    /// <c>reserveMultipleOfMax</c> as <c>number</c>, so <c>2.5</c> validates, ships, and takes down
-    /// the first command of every session. Only the regeneration interval is legitimately
-    /// fractional; minutes are a duration.
+    /// The <c>WholeNumber</c> column is not decoration: five of the six reach
+    /// <c>ContentSnapshot.ReadInt32</c>, which throws on a fraction, but
+    /// <c>progression.schema.json</c> types two of them as <c>number</c>, so a fractional value
+    /// would validate, ship, and take down the first command of every session. Only the
+    /// regeneration interval is legitimately fractional.
     /// </remarks>
     public static TheoryData<string, decimal, bool, string> AuthoredEnergyNumbers => new()
     {
@@ -59,10 +43,10 @@ public sealed class EnergyTuningMatchesTuningDataTests
     };
 
     /// <summary>
-    /// `10` §3.1's source table. M1-10 models the <b>amounts</b> — <c>EnergyMath.Grant</c> and
-    /// <c>RefillToFull</c> — and none of the per-day <b>caps</b>: those need a daily counter and the
-    /// 05:00 UTC reset, which belong to the commands that grant, not to the arithmetic. Pinned here
-    /// so the deferral is visible and the numbers stay greppable (S6).
+    /// The energy source table. <c>EnergyMath</c> models the amounts (<c>Grant</c> and
+    /// <c>RefillToFull</c>) and none of the per-day caps: those need a daily counter and a reset,
+    /// which belong to the granting commands, not the arithmetic. Pinned here so the deferral is
+    /// visible and the numbers stay greppable.
     /// </summary>
     public static TheoryData<string, decimal?, int?> AuthoredEnergySources => new()
     {
@@ -145,10 +129,9 @@ public sealed class EnergyTuningMatchesTuningDataTests
     }
 
     /// <summary>
-    /// 🔒 S3 — the floor. Every case above is a lookup into one object, so the set that matters is
-    /// "the six leaves the reader reads are all there", not a count: the block also holds
-    /// <c>_doc</c>, <c>dungeonCost</c>, <c>sources</c> and three flags, and a count floor of six
-    /// holds while all six authored leaves vanish.
+    /// Floor: the set that matters is "the six leaves the reader reads are all there", not a count
+    /// — the block also holds several other keys, so a count floor of six would hold even if all
+    /// six authored leaves vanished.
     /// </summary>
     [Fact]
     public void Every_leaf_the_energy_reader_reads_is_present_in_the_block()
@@ -163,16 +146,13 @@ public sealed class EnergyTuningMatchesTuningDataTests
             "data moved — fix the reader, do not delete the case.");
     }
 
-    /// <summary>
-    /// 🔒 `10` §3 and `28` C2 — the three structural facts the math is written against.
-    /// </summary>
+    /// <summary>The three structural facts the energy math is written against.</summary>
     /// <remarks>
-    /// The two Reserve flags are also <c>"const"</c>-pinned by <c>progression.schema.json</c>, so
-    /// they only move if the schema moves with them; they are here because the schema and the data
-    /// are edited by the same hand. <c>regenWhileOffline</c> is <b>not</b> const-pinned — it is a
-    /// free boolean — and it is the one <c>EnergyMath.Accrue</c>'s whole signature rests on: taking
-    /// an arbitrary elapsed span only makes sense because `10` §3 calls offline regeneration "the
-    /// <em>only</em> offline accrual in the game".
+    /// The two Reserve flags are also const-pinned by <c>progression.schema.json</c>, so they only
+    /// move if the schema moves with them. <c>regenWhileOffline</c> is not const-pinned — it's a
+    /// free boolean — and it's the one <c>EnergyMath.Accrue</c>'s whole signature rests on: taking
+    /// an arbitrary elapsed span only makes sense because offline regeneration is the only offline
+    /// accrual in the game.
     /// </remarks>
     [Fact]
     public void The_reserve_receives_overflow_only_never_regenerates_and_energy_accrues_offline()
@@ -199,26 +179,15 @@ public sealed class EnergyTuningMatchesTuningDataTests
                 "because of this row. Turn it off and the signature is wrong.");
     }
 
-    /// <summary>
-    /// 🔒 `10` §3.1 / §5.1 — the Soul Shard energy refill ladder is authored, and M1-10 deliberately
-    /// does not read it.
-    /// </summary>
+    /// <summary>The Soul Shard energy refill ladder is authored, and deliberately not read by the energy math.</summary>
     /// <remarks>
-    /// <para>
-    /// ⚠️ This case originally asserted the ladder was <em>unauthored</em>, searching for a
-    /// <c>SOUL_SHARD_REFILL</c> key under <c>progression.json#/energy/sources</c>. It was green, and
-    /// wrong twice over: the ladder has been authored in <c>currencies.json</c> since before this
-    /// branch, and a price could never have lived at the pointer it searched —
-    /// <c>progression.schema.json</c> constrains every <c>sources</c> entry to
-    /// <c>{amount, capPerDay}</c> with <c>additionalProperties: false</c>. A permanently green
-    /// assertion over an impossible question, whose failure message would have told a future reader
-    /// that nobody had authored a number somebody had. Restated as what is true.
-    /// </para>
-    /// <para>
-    /// M1-10 models the energy side of a refill (<c>EnergyMath.RefillToFull</c>) and not the price.
-    /// The escalation is per <em>use per day</em> and resets daily — shop state and a daily counter,
-    /// not energy arithmetic — so it belongs to the Daily-tab command that spends it.
-    /// </para>
+    /// This case originally asserted the ladder was unauthored, searching for a key under
+    /// <c>progression.json#/energy/sources</c> — a permanently green assertion over an impossible
+    /// question, since <c>progression.schema.json</c> constrains every <c>sources</c> entry to
+    /// <c>{amount, capPerDay}</c> and no price could ever have lived at that pointer. Restated as
+    /// what is true: the energy math models the amount of a refill (<c>EnergyMath.RefillToFull</c>),
+    /// not the price, which escalates per use per day and resets daily — shop state, not energy
+    /// arithmetic.
     /// </remarks>
     [Fact]
     public void The_soul_shard_refill_ladder_is_authored_in_currencies_and_not_read_by_the_energy_math()
@@ -247,14 +216,8 @@ public sealed class EnergyTuningMatchesTuningDataTests
             "and must not grow one by reading it from here.");
     }
 
-    /// <summary>
-    /// Reads a member, failing with a diagnostic rather than throwing <c>KeyNotFoundException</c>.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <c>JsonElement.GetProperty</c> throws before any <c>Shouldly</c> message can be printed,
-    /// so a renamed key produced "The given key was not present in the dictionary" and none of the
-    /// carefully written consequences below it.
-    /// </remarks>
+    /// <summary>Reads a member, failing with a diagnostic rather than throwing <c>KeyNotFoundException</c>.</summary>
+    /// <remarks><c>JsonElement.GetProperty</c> throws before any Shouldly message can print, so a renamed key would produce a bare "key not present" error instead of the diagnostics below.</remarks>
     private static JsonElement Read(JsonElement parent, string member, string parentPointer)
     {
         parent.TryGetProperty(member, out var value).ShouldBeTrue(

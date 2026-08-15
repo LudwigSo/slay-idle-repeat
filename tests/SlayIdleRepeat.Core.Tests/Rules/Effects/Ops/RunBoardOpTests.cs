@@ -6,25 +6,17 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 `18` §2.5's thirteen run and board ops, tested at the <b>boundary</b>: declared, well-formed, and
-/// queued rather than resolved.
-/// </summary>
+/// <summary>The thirteen run and board ops, tested at the boundary: declared, well-formed, and queued rather than resolved.</summary>
 /// <remarks>
-/// A4 — <em>"a declared op with no resolver is the correct end state"</em>, and §2.5 says so itself:
-/// these are resolved by the run controller, never the simulator. So there is nothing to assert about
-/// what <c>GRANT_CURRENCY</c> <em>does</em>; what there is to assert is that reaching one from a combat
-/// trigger produces exactly one queue entry and touches nothing else.
-/// <para>
-/// 🔒 The count is 13: §2.5's table has twelve rows because <c>APPLY_CURSE</c>/<c>CLEANSE_CURSE</c> share
-/// one. The sweep enumerates the <em>family</em> rather than listing the ops, so a fourteenth is covered
-/// the day it is declared.
-/// </para>
+/// These are resolved by the run controller, never the simulator, so there is nothing to assert about
+/// what <c>GRANT_CURRENCY</c> does — only that reaching one from a combat trigger produces exactly one
+/// queue entry and touches nothing else.
+/// <para>The sweep enumerates the family rather than listing the ops, so a new one is covered the day it is declared.</para>
 /// </remarks>
 public sealed class RunBoardOpTests
 {
     /// <summary>
-    /// Every §2.5 op, driven through the <b>resolver</b> — the same entry point a combat trigger
+    /// Every run/board op, driven through the resolver — the same entry point a combat trigger
     /// uses — and each one queues, resolves nothing, and reports
     /// <see cref="OpDisposition.QUEUED_FOR_RUN"/>.
     /// </summary>
@@ -33,7 +25,7 @@ public sealed class RunBoardOpTests
     {
         var runOps = EffectOps.All.Where(EffectOps.IsRunAndBoard).ToArray();
 
-        // S3 — the floor under the loop below. An empty family would make every assertion vacuous.
+        // The floor under the loop below: an empty family would make every assertion vacuous.
         runOps.Length.ShouldBe(13, "18 §2.5 — twelve table rows, and APPLY_CURSE/CLEANSE_CURSE are two ops");
 
         foreach (var op in runOps)
@@ -53,14 +45,12 @@ public sealed class RunBoardOpTests
     }
 
     /// <summary>
-    /// 🔒 `18` §2.5's sanctioned combat-context exception, end to end: the Dicelord's <em>Scramble</em>
-    /// fires <c>MODIFY_DIE_FACE</c> from a <c>PERIODIC</c> trigger, and the simulator queues it.
+    /// The sanctioned combat-context exception: the Dicelord's Scramble fires <c>MODIFY_DIE_FACE</c>
+    /// from a <c>PERIODIC</c> trigger, and the simulator queues it.
     /// </summary>
     /// <remarks>
-    /// The one case the document names by hand. It is the reason
-    /// <see cref="EffectOps.IsRunAndBoard"/> is a property of the <b>op</b> and never of the trigger:
-    /// a rule that forbade a run op on a combat trigger would be wrong, and would have to be undone
-    /// by M2-13.
+    /// This is why <see cref="EffectOps.IsRunAndBoard"/> is a property of the op and never of the
+    /// trigger: a rule that forbade a run op on a combat trigger would be wrong.
     /// </remarks>
     [Fact]
     public void A_run_op_on_a_COMBAT_trigger_is_queued_rather_than_resolved()
@@ -85,14 +75,10 @@ public sealed class RunBoardOpTests
         bench.Calls.ShouldBe(["Queue(BOSS_DICELORD_SCRAMBLE, MODIFY_DIE_FACE)"], Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 With no queue supplied — <see cref="EffectOpSeams.Strict"/> — a §2.5 op <b>throws naming
-    /// M3</b>, and never silently does nothing.
-    /// </summary>
+    /// <summary>With no queue supplied, a run/board op throws naming M3, and never silently does nothing.</summary>
     /// <remarks>
-    /// The distinction A4 rests on. "Declared but not wired" is only a correct end state if reaching
-    /// one without a queue is loud; a no-op default would make an unwired run op indistinguishable
-    /// from a resolved one that had no effect.
+    /// "Declared but not wired" is only a correct end state if reaching one without a queue is loud —
+    /// a no-op default would make an unwired run op indistinguishable from a resolved one with no effect.
     /// </remarks>
     [Fact]
     public void A_run_op_with_no_queue_supplied_names_the_run_controller_rather_than_no_opping()
@@ -115,31 +101,25 @@ public sealed class RunBoardOpTests
     }
 
     /// <summary>
-    /// Every §2.5 op with only the eight-part shape is <b>well-formed</b> — the whole of what can be
-    /// asserted about them while their arguments are unauthored.
+    /// Every run/board op with only the eight-part shape is well-formed — the whole of what can be
+    /// asserted while their arguments are unauthored.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ §2.5 writes no JSON example for any op but <c>MODIFY_DIE_FACE</c> and promises keys the shape
-    /// does not carry — which currency <c>GRANT_CURRENCY</c> grants, which perk <c>GRANT_PERK</c> picks.
-    /// Those are M3's to author <b>with</b> the resolvers that need them; inventing them here would be
-    /// five vocabularies nobody agreed. This says the ops are authorable today, not that they are
-    /// complete.
-    /// </remarks>
+    /// <remarks>This says the ops are authorable today, not that they are complete.</remarks>
     [Fact]
     public void Every_run_and_board_op_is_authorable_with_the_eight_part_shape_alone()
     {
         var offenders = new List<string>();
         var runOps = EffectOps.All.Where(EffectOps.IsRunAndBoard).ToArray();
 
-        // S3 — the floor. EffectOps.FamilyOf is a hand-written switch; edit one arm and this loop
-        // runs zero times and reports success over nothing.
+        // The floor: EffectOps.FamilyOf is a hand-written switch; edit one arm and this loop runs
+        // zero times and reports success over nothing.
         runOps.Length.ShouldBe(13, "18 §2.5");
 
         foreach (var op in runOps)
         {
             var effect = OpFixtures.Effect($"TILE_{op}", op, 1.0, EffectTarget.RUN) with
             {
-                // MODIFY_DIE_FACE is the one §2.5 op with authored keys, and it needs its replacement.
+                // MODIFY_DIE_FACE is the one run/board op with authored keys, and it needs its replacement.
                 NewFace = op == EffectOp.MODIFY_DIE_FACE ? new DieFaceSpec("Star") : null,
             };
 

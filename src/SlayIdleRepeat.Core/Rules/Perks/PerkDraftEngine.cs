@@ -5,51 +5,41 @@ using SlayIdleRepeat.Core.Rng;
 namespace SlayIdleRepeat.Core.Rules.Perks;
 
 /// <summary>
-/// 🔒 M3-06 — one offered draft option: which perk, its rarity band (the drawn band, which is what
-/// `06` §4's composition rules key on), its category, and whether taking it upgrades an
-/// already-owned copy rather than granting a fresh one.
+/// One offered draft option: which perk, its rarity band (the drawn band, which is what the
+/// composition rules key on), its category, and whether taking it upgrades an already-owned copy
+/// rather than granting a fresh one.
 /// </summary>
-/// <param name="PerkId">The `06` §3 perk id offered.</param>
+/// <param name="PerkId">The perk id offered.</param>
 /// <param name="Rarity">The rarity band this option was drawn under.</param>
-/// <param name="Category">`06` §2's category — the (stubbed) diversity rule's own key.</param>
+/// <param name="Category">The perk's category — the (stubbed) diversity rule's own key.</param>
 /// <param name="IsUpgrade">
-/// True when the player already owns <paramref name="PerkId"/> below its max tier — `06` §1.1's
-/// gold-border "UPGRADE" option — false for a fresh grant.
+/// True when the player already owns <paramref name="PerkId"/> below its max tier — a gold-border
+/// "UPGRADE" option — false for a fresh grant.
 /// </param>
 /// <param name="NewTier">The tier taking this option lands on: 1 for a fresh grant, else the owned tier + 1.</param>
 internal readonly record struct DraftOption(
     string PerkId, PerkRarity Rarity, PerkCategory Category, bool IsUpgrade, int NewTier);
 
 /// <summary>
-/// 🔒 M3-06, `06` §1-§4 — draws one 3-option perk draft.
+/// Draws one 3-option perk draft.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Deterministic, one draw per slot.</b> Each of the three slots draws exactly one rarity
-/// (<see cref="DraftRarityWeights.For"/>, via <see cref="DeterministicRng.WeightedPick{T}"/>) and
-/// exactly one perk within that rarity (a second <c>WeightedPick</c>, uniform over the eligible
-/// pool) — two draw-stream indices per slot, six for a full draft. Calling this against the same
-/// <c>draft</c>-stream position with the same catalogue and the same owned perks always produces
-/// the same three options, which is what lets <c>PICK_PERK</c>/<c>REROLL_DRAFT</c>/<c>SKIP_DRAFT</c>
-/// regenerate "what the client is looking at" without persisting it (14 §8.1: combat, board and
-/// drafting stay byte-identical for a given seed).
-/// </para>
-/// <para>
-/// 🔒 <b>Tier III removal is real, not a composition-rule stub.</b> `06` §1.1's "once a perk is at
-/// Tier III it is removed from that run's draft pool" is applied here directly — a perk owned at its
-/// max tier is excluded from <see cref="EligiblePerks"/> — because it is a base drafting rule, not
-/// one of `06` §4's eight LuckService-owned composition rules (<see cref="DraftCompositionRules"/>).
-/// </para>
+/// Deterministic, one draw per slot: each slot draws exactly one rarity and exactly one perk within
+/// it, two draw-stream indices per slot. Calling this against the same stream position with the same
+/// catalogue and owned perks always produces the same three options, which is what lets the client
+/// regenerate "what it's looking at" without persisting it. Tier III removal is applied directly here
+/// — a perk owned at its max tier is excluded from <see cref="EligiblePerks"/> — since it's a base
+/// drafting rule, not one of the composition rules in <see cref="DraftCompositionRules"/>.
 /// </remarks>
 internal static class PerkDraftEngine
 {
-    /// <summary>`06` §1 — a draft always offers three options.</summary>
+    /// <summary>A draft always offers three options.</summary>
     internal const int OptionCount = 3;
 
     /// <summary>Draws <see cref="OptionCount"/> options from <paramref name="rng"/>.</summary>
-    /// <param name="catalogue">`06` §3's authored perks.</param>
+    /// <param name="catalogue">The authored perks.</param>
     /// <param name="owned">The run's currently-owned perks and their tiers.</param>
-    /// <param name="rng">The run's <c>draft</c> stream (`14` §8.1), continued — never restarted.</param>
+    /// <param name="rng">The run's draft RNG stream, continued — never restarted.</param>
     /// <param name="stage">1, 2 or 3, ignored when <paramref name="isBoss"/> is true.</param>
     /// <param name="isElite">Whether the just-won battle was an Elite tile.</param>
     /// <param name="isBoss">Whether the just-won battle was the Boss tile.</param>
@@ -79,9 +69,8 @@ internal static class PerkDraftEngine
             options[i] = DrawOption(catalogue, owned, rng, rarity);
         }
 
-        // 🔒 06 §4 / 24 §4.7's eight composition rules — every one a documented no-op until M4-01's
-        // LuckService exists. Called so the seam is exercised (and greppable) even though nothing
-        // here changes `options` yet; see DraftCompositionRules' own remarks for the consequence.
+        // The eight composition rules — every one a documented no-op today. Called so the seam is
+        // exercised even though nothing here changes `options` yet; see DraftCompositionRules.
         _ = DraftCompositionRules.NoDuplicateOptions();
         _ = DraftCompositionRules.CategoryDiversity();
         _ = DraftCompositionRules.OwnedUpgradeBias();
@@ -101,10 +90,8 @@ internal static class PerkDraftEngine
 
         if (pool.Count == 0)
         {
-            // 🔒 Fallback across every rarity band, in enum-declaration (ascending) order, so the
-            // draw stays deterministic even when the drawn band is exhausted. Only reachable once a
-            // whole rarity band is owned at max tier, which the 46-row starter catalogue cannot
-            // produce (see this type's remarks).
+            // Fallback across every rarity band, in enum-declaration (ascending) order, so the draw
+            // stays deterministic even when the drawn band is exhausted.
             foreach (var candidate in Enum.GetValues<PerkRarity>())
             {
                 pool = EligiblePerks(catalogue, owned, candidate);

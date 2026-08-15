@@ -8,21 +8,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>
-/// 🔒 M1's exit criterion, driven: <em>"<c>InMemoryGame</c> drives a multi-day player through
-/// commands with the day cycle, energy and currencies working."</em>
-/// </summary>
-/// <remarks>
-/// 🔒 Every assertion here is about something a <b>rule</b> decided, not a number the harness stored:
-/// <c>game.State(player).Player.Energy</c> equalling what a fixture just granted proves the
-/// dictionary works.
-/// <para>
-/// ⚠️ Only <c>BEGIN_SESSION</c> is <c>Handled</c>, and it is also the command that grants the daily
-/// refill — so every observation of <em>pure</em> regeneration has to be made in the event list,
-/// where the catch-up's row precedes the handler's. That is why `30` §6 calls the event list "the
-/// assertion surface".
-/// </para>
-/// </remarks>
+/// <summary>Drives a multi-day player through commands, checking the day cycle, energy and
+/// currencies.</summary>
+/// <remarks>Only <c>BEGIN_SESSION</c> is <c>Handled</c>, and it is also the command that grants the
+/// daily refill, so pure regeneration can only be observed in the event list — the catch-up's row
+/// precedes the handler's.</remarks>
 public sealed class InMemoryGameDayCycleTests
 {
     /// <summary>The Energy a run costs, and the two capacities, read from the tuning the rules use.</summary>
@@ -31,20 +21,8 @@ public sealed class InMemoryGameDayCycleTests
     private static int ReserveCapacity =>
         Harnesses.Tuning.ReserveCapacityAt(ProgressionDocuments.ShippedLegendLevelMin);
 
-    /// <summary>
-    /// 🔒 `30` §6's own claim — <em>"energy regenerates by RULE, not by waiting"</em>: eight hours
-    /// advanced on a clock nothing is watching fills an empty bar exactly.
-    /// </summary>
-    /// <remarks>
-    /// The two events in order with their attributions are the assertion: <c>energy_regen</c> first
-    /// because it happened first, then <c>daily_free_refill</c> carrying <b>zero</b> — the bar the
-    /// regeneration just filled leaves the refill nothing to do, which is the deficit-only reading and
-    /// A6's "published, not filtered" in one row.
-    /// <para>
-    /// 🔒 The expected amount is derived from the tuning rather than written as 120: a literal would
-    /// keep passing after the data moved.
-    /// </para>
-    /// </remarks>
+    /// <summary>Energy regenerates by rule, not by waiting: eight hours advanced on a clock nothing
+    /// is watching fills an empty bar exactly, and the refill that follows finds no deficit.</summary>
     [Fact]
     public void Eight_hours_of_advanced_clock_fills_an_empty_bar_by_rule_before_the_refill_runs()
     {
@@ -83,14 +61,8 @@ public sealed class InMemoryGameDayCycleTests
         game.State(player).Player.Energy.ShouldBe(new EnergyBanks(MaxEnergy, 0));
     }
 
-    /// <summary>
-    /// 🔒 `28` C2 — regeneration past a full bar overflows into the Reserve, through the harness.
-    /// </summary>
-    /// <remarks>
-    /// Twelve hours is one and a half bars at the shipped rate, so the split states itself. A single
-    /// <c>CurrencyChanged</c> covers both: overflow into the Reserve is a movement <em>within</em> one
-    /// currency, and `21` §8.3 must see one row rather than two.
-    /// </remarks>
+    /// <summary>Regeneration past a full bar overflows into the Reserve as a single
+    /// <c>CurrencyChanged</c> row, since the overflow is a movement within one currency.</summary>
     [Fact]
     public void Regeneration_past_a_full_bar_overflows_into_the_Reserve()
     {
@@ -112,17 +84,10 @@ public sealed class InMemoryGameDayCycleTests
         game.State(player).Player.Energy.ShouldBe(new EnergyBanks(MaxEnergy, accrued - MaxEnergy));
     }
 
-    /// <summary>
-    /// 🔒 <b>A1</b> through the harness: the anchor advances by <c>wholeUnits × interval</c> and never
-    /// to the instant asked about, so the sub-unit remainder survives across commands.
-    /// </summary>
-    /// <remarks>
-    /// The naive implementation — floor the elapsed time, then set the anchor to now — fails this while
-    /// passing every test that advances the clock once. Five minutes accrues one unit and leaves one
-    /// over; three more is under the interval alone, and only accrues a second unit if that minute
-    /// survived. ⚠️ Asserted on the <b>anchor</b>, because the banks are refilled by the same command
-    /// and would hide it.
-    /// </remarks>
+    /// <summary>The regeneration anchor advances by <c>wholeUnits × interval</c>, never snapping to
+    /// the instant asked about, so the sub-unit remainder survives across commands.</summary>
+    /// <remarks>Asserted on the anchor rather than the banks, which are refilled by the same command
+    /// and would hide a remainder-discarding implementation.</remarks>
     [Fact]
     public void The_regeneration_anchor_moves_in_whole_units_so_the_remainder_survives()
     {
@@ -152,22 +117,10 @@ public sealed class InMemoryGameDayCycleTests
             "implementation that snapped the anchor to NowUtc would have thrown away.");
     }
 
-    /// <summary>
-    /// 🔒 A1's consequence the hard way: <b>many small advances accrue as much as one large one</b>,
-    /// and land on the same anchor.
-    /// </summary>
-    /// <remarks>
-    /// 480 one-minute steps against one eight-hour step: three in four commands accrue <em>nothing</em>,
-    /// and a remainder-discarding implementation would leave the busy player with zero — which is
-    /// exactly the player `10` §3.2 wants never stopped by Energy.
-    /// <para>
-    /// ⚠️ The two players do <b>not</b> end with the same Energy, and that is correct: the busy player's
-    /// first command arrives with an empty bar so the refill fills it and the regeneration lands in the
-    /// Reserve, while the idle player's refill finds no deficit. Same income, different placement — A1
-    /// claims the total and the anchor, and asserting a total the rules do not produce would be
-    /// asserting the fixture.
-    /// </para>
-    /// </remarks>
+    /// <summary>Many small advances accrue exactly as much Energy as one large one, landing on the
+    /// same anchor.</summary>
+    /// <remarks>The two players do not end with the same Energy — placement differs by where the
+    /// refill lands each of them — but the total income and the anchor must agree.</remarks>
     [Fact]
     public void Many_small_advances_accrue_exactly_as_much_as_one_large_one()
     {
@@ -203,17 +156,9 @@ public sealed class InMemoryGameDayCycleTests
         busyIncome.ShouldBeGreaterThan(0L, "…and the comparison is not two zeroes.");
     }
 
-    /// <summary>
-    /// 🔒 `30` §2.3 — <c>BEGIN_SESSION</c>'s daily effects are idempotent per game day, driven with
-    /// <b>many commands per day</b> across many days.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 The cadence is the test: a suite sending one command per day cannot tell "grants once per
-    /// day" from "grants on every command". Twelve a day for fourteen days is 168 commands and 14
-    /// grants; re-granting produces 168 refill rows, granting once ever produces 1. The counter is
-    /// asserted alongside because the rows say how often the <em>grant</em> ran and the counter says
-    /// the <em>guard</em> is being reset and re-set rather than never cleared.
-    /// </remarks>
+    /// <summary><c>BEGIN_SESSION</c>'s daily effects are idempotent per game day, driven with many
+    /// commands per day across many days — the cadence needed to tell "grants once per day" apart
+    /// from "grants on every command".</summary>
     [Fact]
     public void BEGIN_SESSION_grants_once_per_game_day_however_many_commands_arrive()
     {
@@ -238,15 +183,9 @@ public sealed class InMemoryGameDayCycleTests
             "read 12 would mean the handler was re-running its daily block all day.");
     }
 
-    /// <summary>
-    /// 🔒 `19` Part G — the login calendar correctly sits on <b>day 1 forever</b> in M1. Specified
-    /// behaviour, not to be "fixed".
-    /// </summary>
-    /// <remarks>
-    /// §G advances <em>"only when the currently open day has been claimed"</em>, and claiming is
-    /// <c>CLAIM_CALENDAR</c>'s (M4-09). Driven over more than one full cycle so a reader can see the
-    /// claim is about the pause and not the wrap.
-    /// </remarks>
+    /// <summary>The login calendar sits on day 1 forever in M1 — specified behaviour, since it only
+    /// advances once the open day is claimed and no M1 command can claim it. Driven over more than
+    /// one full cycle so the assertion is about the pause and not the wrap.</summary>
     [Fact]
     public void The_login_calendar_stays_on_day_one_because_nothing_in_M1_can_claim_it()
     {
@@ -266,15 +205,9 @@ public sealed class InMemoryGameDayCycleTests
         state.LoginCalendarDayClaimed.ShouldBeFalse();
     }
 
-    /// <summary>
-    /// 🔒 A2 — the weekly boundary moves on <b>Monday 05:00 UTC</b>, not seven days after whatever day
-    /// the simulation started on.
-    /// </summary>
-    /// <remarks>
-    /// The fixture starts on a Wednesday deliberately: from a Monday the two readings coincide. The
-    /// wrong arithmetic surfaces as an exception out of <c>Apply</c> on six days in seven — a P3
-    /// violation rather than a wrong number.
-    /// </remarks>
+    /// <summary>The weekly boundary moves on Monday 05:00 UTC, not seven days after whatever day the
+    /// simulation started on. The fixture starts on a Wednesday deliberately — from a Monday the two
+    /// readings would coincide.</summary>
     [Fact]
     public void The_weekly_boundary_lands_on_Monday_and_not_seven_days_after_the_start()
     {
@@ -299,23 +232,15 @@ public sealed class InMemoryGameDayCycleTests
         settled.ShouldBeGreaterThan(openingWeek, "ten days is more than one week; it moved.");
     }
 
-    /// <summary>
-    /// 🔒 <b>A6</b>, both arms: an idle player at a full tank emits <b>one zero-delta</b>
-    /// <c>energy_regen</c> row per command sent more than one interval apart — and <b>none</b> for a
-    /// command sent inside one.
-    /// </summary>
-    /// <remarks>
-    /// A cost of the design rather than a feature, pinned so nobody optimises it away without re-reading
-    /// the ruling: filtering it would reintroduce the constructed-then-discarded shape, and `21` §8.3
-    /// distinguishes "did not log in" from "logged in full" by exactly this row's presence. Both arms,
-    /// because a filter suppressing the first would also pass a test that only checked the second.
-    /// </remarks>
+    /// <summary>An idle player at a full tank emits one zero-delta <c>energy_regen</c> row per
+    /// command sent more than one interval apart, and none for a command sent inside one. The zero
+    /// row must still be published, not filtered — its presence is how a consumer tells "did not log
+    /// in" from "logged in full".</summary>
     [Fact]
     public void An_idle_player_at_a_full_tank_emits_one_zero_delta_regen_row_per_command_apart()
     {
         var (game, player) = Harnesses.WithPlayer();
 
-        // A day of regeneration fills both banks: 24h at the shipped rate is more than max + reserve.
         game.Clock.Advance(TimeSpan.FromDays(1));
         game.Send(player, Harnesses.BeginSession);
 
@@ -345,16 +270,9 @@ public sealed class InMemoryGameDayCycleTests
             "no event is constructed at all — which is what makes the row above affordable.");
     }
 
-    /// <summary>
-    /// 🔒 `30` §2.3's daily reset happens <b>whether or not anyone logs in</b>: a hundred days away
-    /// comes back to one day's boundary, not a hundred.
-    /// </summary>
-    /// <remarks>
-    /// The counter half is what a returning player notices; the boundary half is the structural claim,
-    /// that the period recorded is the one the calendar computes for <em>now</em>, reached in one step.
-    /// ⚠️ The player is driven for a day first so the counter is genuinely set before the gap —
-    /// otherwise "the counter is 1 after the return" is true of a harness that never reset anything.
-    /// </remarks>
+    /// <summary>The daily reset happens whether or not anyone logs in: a hundred days away comes back
+    /// to one day's boundary, not a hundred. Driven for a day first so the counter is genuinely set
+    /// before the gap, rather than starting from an already-clear state.</summary>
     [Fact]
     public void A_hundred_day_absence_lands_on_one_boundary_and_clears_the_days_counters()
     {

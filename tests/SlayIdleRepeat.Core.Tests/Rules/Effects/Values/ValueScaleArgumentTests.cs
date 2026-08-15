@@ -8,25 +8,21 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Values;
 
 /// <summary>
-/// 🔴 <b>The `18` §1.1 gap, closed.</b> §1.1 offers <c>valueScale</c> <em>"any condition function from
-/// §4"</em> and names two that take an argument, while <see cref="ValueScale"/> carried only
-/// <c>fn</c>/<c>per</c>/<c>cap</c> — so scales driven by either were unexpressible.
+/// The <c>valueScale</c> gap, closed. <c>valueScale</c> accepts any condition function, and some of
+/// those take an argument, while <see cref="ValueScale"/> once carried only
+/// <c>fn</c>/<c>per</c>/<c>cap</c> — so scales driven by an argument-taking function were unexpressible.
 /// </summary>
 /// <remarks>
-/// Closed by giving <see cref="ValueScale"/> the <b>same three optional argument keys</b> a §4 condition
-/// term already carries. No new vocabulary: the names, types and meanings are §4's.
-/// <para>
-/// ⚠️ <see cref="ValueScale"/> cannot carry <c>ConditionArguments</c> itself — it is <c>public</c> in
-/// <c>Core.Content.Effects</c> and `30` §11.4 forbids <c>Content</c> naming <c>Rules</c>. The evaluator
-/// converts the scale into the <em>same</em> type the condition path uses, so there is one argument type
-/// in the codebase and one place that reads it.
-/// </para>
+/// Closed by giving <see cref="ValueScale"/> the same three optional argument keys a condition term
+/// already carries. No new vocabulary: the names, types and meanings are the condition layer's.
+/// <see cref="ValueScale"/> cannot carry <c>ConditionArguments</c> itself, since it is <c>public</c> in
+/// <c>Core.Content.Effects</c> and production forbids <c>Content</c> naming <c>Rules</c>. The evaluator
+/// converts the scale into the same type the condition path uses, so there is one argument type in the
+/// codebase and one place that reads it.
 /// </remarks>
 public sealed class ValueScaleArgumentTests
 {
-    /// <summary>
-    /// A scale over <c>STATUS_STACKS</c> — one step per stack. `05` §5's <c>SUNDER</c> stacks to 5.
-    /// </summary>
+    /// <summary>A scale over <c>STATUS_STACKS</c> — one step per stack. <c>SUNDER</c> stacks to 5.</summary>
     [Fact]
     public void A_scale_over_STATUS_STACKS_reads_the_status_it_names()
     {
@@ -47,7 +43,7 @@ public sealed class ValueScaleArgumentTests
             0.0, "the scale names SUNDER, and the actor carries none");
     }
 
-    /// <summary>A scale over <c>DIE_FACE_COUNT</c> — `04` §1's face kinds, counted on the run's dice.</summary>
+    /// <summary>A scale over <c>DIE_FACE_COUNT</c> — the die face kinds, counted on the run's dice.</summary>
     [Fact]
     public void A_scale_over_DIE_FACE_COUNT_reads_the_face_kind_it_names()
     {
@@ -68,8 +64,8 @@ public sealed class ValueScaleArgumentTests
     }
 
     /// <summary>
-    /// A scale over <c>PERK_COUNT</c>, which `18` §4 types <em>"int, optionally by category"</em> —
-    /// so the same key is optional here too, and its absence counts every perk.
+    /// A scale over <c>PERK_COUNT</c>, whose category is optional — the same key is optional here
+    /// too, and its absence counts every perk.
     /// </summary>
     [Fact]
     public void A_scale_over_PERK_COUNT_honours_the_optional_category()
@@ -95,15 +91,11 @@ public sealed class ValueScaleArgumentTests
     }
 
     /// <summary>
-    /// 🔒 The gap the extension closes, stated as the failure it used to be: a scale over
+    /// The gap the extension closes, stated as the failure it used to be: a scale over
     /// <c>STATUS_STACKS</c> that names no status is refused, loudly, rather than counting every
-    /// status or reading zero.
+    /// status or reading zero — the same refusal <c>ConditionEvaluator</c> already gives a condition
+    /// term with no <c>statusId</c>, reached through the same code.
     /// </summary>
-    /// <remarks>
-    /// This is the same refusal <c>ConditionEvaluator</c> already gives a condition term with no
-    /// <c>statusId</c> — reached through the <em>same</em> code, which is what "reuse the seam"
-    /// means in practice.
-    /// </remarks>
     [Fact]
     public void A_scale_over_STATUS_STACKS_that_names_no_status_is_refused()
     {
@@ -118,8 +110,8 @@ public sealed class ValueScaleArgumentTests
     }
 
     /// <summary>
-    /// 🔒 One argument type, not two. The scale's keys reach the evaluator as the <b>same</b>
-    /// <c>ConditionArguments</c> a `18` §4 term produces, so a function can never read an argument
+    /// One argument type, not two. The scale's keys reach the evaluator as the same
+    /// <c>ConditionArguments</c> a condition term produces, so a function can never read an argument
     /// one way from a condition and another way from a scale.
     /// </summary>
     [Fact]
@@ -145,15 +137,13 @@ public sealed class ValueScaleArgumentTests
     }
 
     /// <summary>
-    /// The three keys are all optional, so every scale `18` §1.1 already authored keeps working
-    /// untouched — <c>PK_BERSERK</c> and <c>PK_HOARD</c> name no argument and need none.
+    /// The three keys are all optional, so every scale already authored keeps working untouched —
+    /// <c>PK_BERSERK</c> and <c>PK_HOARD</c> name no argument and need none. Reading the three
+    /// properties back off the record they were never set on cannot fail for any behavioural bug;
+    /// what can is the conversion: an argumentless scale has to reach the shared seam as
+    /// <see cref="ConditionArguments.None"/>, so <c>SELF_MISSING_HP_PCT</c> is read against no
+    /// argument rather than a manufactured one.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Reading the three properties back off the record they were never set on cannot fail for
-    /// any behavioural bug. What can is the <em>conversion</em>: an argumentless scale has to reach
-    /// the shared seam as <see cref="ConditionArguments.None"/>, so that
-    /// <c>SELF_MISSING_HP_PCT</c> is read against no argument rather than a manufactured one.
-    /// </remarks>
     [Fact]
     public void The_argument_keys_are_optional()
     {

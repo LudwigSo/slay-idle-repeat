@@ -8,29 +8,26 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `18` §2.4 / §10.1 <b>E6</b> — <c>RANDOM_OUTCOME</c> end to end: the op takes <b>one</b> draw
-/// and names one effect id, <see cref="IBossOutcomes"/> resolves it, and `17` §9's two authored
-/// tables run through the identical code path with no engine branch between them.
+/// <c>RANDOM_OUTCOME</c> end to end: the op takes one draw and names one effect id,
+/// <see cref="IBossOutcomes"/> resolves it, and the Dicelord's two authored tables run through the
+/// identical code path with no engine branch between them.
 /// </summary>
 public sealed class BossOutcomeTests
 {
     private const string RollInstance = "BOSS_DICELORD#P1#BOSS_DICELORD_ROLL_OF_FATE_P1";
 
     /// <summary>
-    /// Phase 1 is entered at pre-tick 0c, so R8 anchors the roll at 0 and its 10 s period first fires
-    /// at tick 200.
+    /// Phase 1 is entered at pre-tick 0c, so the roll is anchored at 0 and its 10 s period first
+    /// fires at tick 200.
     /// </summary>
     private const int FiringTick = 200;
 
-    /// <summary>`14` §8.1's battle seed, pinned so every "which row won" assertion is computable.</summary>
+    /// <summary>The battle seed, pinned so every "which row won" assertion is computable.</summary>
     private const ulong DefaultSeed = 0xC0FFEE_1234_5678UL;
 
     // ════════════════════════════════════════════════════ 1 · the seam
 
-    /// <summary>
-    /// 🔒 The strict default refuses, naming the tasks that own it — <see cref="EffectOpSeams"/>'
-    /// doctrine, because an op only reaches a seam because authored content rolled.
-    /// </summary>
+    /// <summary>The strict default refuses, naming the tasks that own it, because an op only reaches a seam because authored content rolled.</summary>
     [Fact]
     public void The_strict_seam_refuses_a_RANDOM_OUTCOME_naming_M2_12_and_M2_13()
     {
@@ -49,8 +46,8 @@ public sealed class BossOutcomeTests
     }
 
     /// <summary>
-    /// 🔒 The seam is the <b>seventh</b> member of <see cref="BattleSeams"/>, and its strict default
-    /// is <see cref="NoBossOutcomes"/> — the same shape <see cref="NoSummons"/> uses.
+    /// The seam is the seventh member of <see cref="BattleSeams"/>, and its strict default is
+    /// <see cref="NoBossOutcomes"/> — the same shape <see cref="NoSummons"/> uses.
     /// </summary>
     [Fact]
     public void BattleSeams_carries_the_outcome_seam_alongside_the_other_six()
@@ -66,9 +63,8 @@ public sealed class BossOutcomeTests
     // ════════════════════════════════════════════════════ 2 · end to end, through the tick loop
 
     /// <summary>
-    /// 🔴 <b>The single-draw proof, end to end.</b> One <c>PERIODIC</c> firing of `17` §9's <em>Roll of
-    /// Fate</em> costs the combat stream <b>exactly one</b> draw index and resolves <b>exactly one</b>
-    /// outcome.
+    /// The single-draw proof, end to end. One <c>PERIODIC</c> firing of the Dicelord's <em>Roll of
+    /// Fate</em> costs the combat stream exactly one draw index and resolves exactly one outcome.
     /// </summary>
     /// <remarks>
     /// Three <c>chance</c>-gated effects would be three <b>independent</b> draws — all three can fire, or
@@ -97,9 +93,9 @@ public sealed class BossOutcomeTests
             "cumulative 2. An assertion that accepted any of the three would pass on an op that " +
             "always answered with row 1");
 
-        // 🔴 THE SINGLE-DRAW PROOF, which is what this case is named for. Without it the name
-        //    promises an assertion the body never made: three chance-gated effects would resolve
-        //    one winner just as often as this does, while spending THREE indices.
+        // The single-draw proof, which is what this case is named for. Without it the name
+        // promises an assertion the body never made: three chance-gated effects would resolve
+        // one winner just as often as this does, while spending three indices.
         run.Driver.RngPositionAt(FiringTick).ShouldBe(
             0UL,
             "the control: nothing in this fight has drawn before the roll, so the roll IS combat " +
@@ -115,9 +111,9 @@ public sealed class BossOutcomeTests
     }
 
     /// <summary>
-    /// 🔒 The negative control for the single-draw proof: on a tick with <b>no</b> firing the stream
-    /// advances by <b>zero</b>. Without it, <em>"the position was 1 after the roll"</em> is equally
-    /// consistent with a stream that advances once per tick regardless.
+    /// The negative control for the single-draw proof: on a tick with no firing the stream advances
+    /// by zero. Without it, "the position was 1 after the roll" is equally consistent with a stream
+    /// that advances once per tick regardless.
     /// </summary>
     [Fact]
     public void A_tick_with_no_roll_advances_the_draw_stream_by_nothing()
@@ -129,8 +125,8 @@ public sealed class BossOutcomeTests
     }
 
     /// <summary>
-    /// 🔒 `14` §8.1 — the same fight on a <b>different</b> battle seed reaches a different row, which
-    /// is what proves the case above pinned a <em>draw</em> and not a row the op always answers with.
+    /// The same fight on a different battle seed reaches a different row, which is what proves the
+    /// case above pinned a draw and not a row the op always answers with.
     /// </summary>
     [Fact]
     public void A_different_battle_seed_over_the_same_table_reaches_a_different_row()
@@ -147,15 +143,14 @@ public sealed class BossOutcomeTests
     }
 
     /// <summary>
-    /// 🔒 `17` §9's <b>two</b> authored tables are driven by the <b>same</b> op through the <b>same</b>
-    /// seam — the whole claim of E6: the boss script is data, and there is no branch between the phases.
+    /// The Dicelord's two authored tables are driven by the same op through the same seam: the boss
+    /// script is data, and there is no branch between the phases.
     /// </summary>
     /// <remarks>
-    /// 🔴 Both rows run on the SAME battle seed and the winners differ: seed 1 draws unit <c>0.4852</c>,
-    /// and over phase 1's <c>2/2/2</c> the threshold falls to the <b>second</b> row while over phase 2's
-    /// <c>4/2</c> the same threshold falls to the <b>first</b>. One draw, one walk, two data shapes, two
-    /// answers — where an assertion of the form <em>"the winner is in the table"</em> was true of every
-    /// implementation.
+    /// Both rows run on the same battle seed and the winners differ: seed 1 draws unit 0.4852, and
+    /// over phase 1's 2/2/2 the threshold falls to the second row while over phase 2's 4/2 the same
+    /// threshold falls to the first. One draw, one walk, two data shapes, two answers — where an
+    /// assertion of the form "the winner is in the table" was true of every implementation.
     /// </remarks>
     [Theory]
     [InlineData("BOSS_DICELORD_ROLL_OF_FATE_P1", 3, BossTestBench.FateHeroAtk)]
@@ -182,16 +177,16 @@ public sealed class BossOutcomeTests
             "'no engine branch between them' means");
     }
 
-    // 🔴 A case that asserted "the outcome rows are on the boss's own plan" against a plan THIS FILE
-    //    had just built stood here, and it could not fail: the fixture put the rows on, and the
-    //    assertion read them back. The claim is real and is now made where production decides it —
-    //    BossEncounterBuilderTests.Outcome_rows_that_are_siblings_of_the_same_script_are_accepted_
-    //    and_land_on_the_plan builds through BossEncounterBuilder. Steering S1.
+    // A case asserting "the outcome rows are on the boss's own plan" against a plan this file
+    // built could not fail: the fixture put the rows on, and the assertion read them back. That
+    // claim is made instead where production decides it —
+    // BossEncounterBuilderTests.Outcome_rows_that_are_siblings_of_the_same_script_are_accepted_
+    // and_land_on_the_plan, which builds through the real BossEncounterBuilder.
 
     /// <summary>
-    /// 🔒 An outcome id the boss does not hold is <b>refused</b>, not dropped: `18` §10.1 E6 hands
-    /// the seam one id per roll, so a silently ignored one makes the Dicelord roll a d6 with no
-    /// faces — visible, deliberate, and doing nothing.
+    /// An outcome id the boss does not hold is refused, not dropped: the seam is handed one id per
+    /// roll, so a silently ignored one makes the Dicelord roll a d6 with no faces — visible,
+    /// deliberate, and doing nothing.
     /// </summary>
     [Fact]
     public void An_outcome_id_the_boss_does_not_hold_is_refused()
@@ -214,13 +209,13 @@ public sealed class BossOutcomeTests
 
     /// <summary>
     /// The positive control for the case above: the same fight with the authored rows on the plan
-    /// resolves rather than throwing, and the resolved effect reaches `18` §2.3's engine.
+    /// resolves rather than throwing, and the resolved effect reaches the status engine.
     /// </summary>
     /// <remarks>
-    /// 🔒 The winner is pinned as a <b>literal at a pinned seed</b>, and the pair of rows below is
-    /// what makes it a draw rather than a constant. An assertion of the form <em>"the applied id is
-    /// one of the three"</em> stood here and could not fail: an implementation that always fired the
-    /// first row satisfied it exactly (steering S1).
+    /// The winner is pinned as a literal at a pinned seed, and the pair of rows below is what makes
+    /// it a draw rather than a constant. An assertion of the form "the applied id is one of the
+    /// three" stood here and could not fail: an implementation that always fired the first row
+    /// satisfied it exactly.
     /// </remarks>
     [Theory]
     [InlineData(DefaultSeed, BossTestBench.FateBossAtk, "unit 0.2902859852621159 → row 1")]
@@ -239,15 +234,14 @@ public sealed class BossOutcomeTests
     // ════════════════════════════════════════════════════ 3 · determinism
 
     /// <summary>
-    /// 🔒 `14` §8.2 — the boss engine adds a draw and two event kinds to the fight, so the fight has
-    /// to replay: the <b>same</b> battle seed over the <b>same</b> roster produces byte-identical
-    /// logs, the same <c>LogHash</c>, and the same drawn row.
+    /// The boss engine adds a draw and two event kinds to the fight, so the fight has to replay:
+    /// the same battle seed over the same roster produces byte-identical logs, the same
+    /// <c>LogHash</c>, and the same drawn row.
     /// </summary>
     /// <remarks>
-    /// 🔴 <c>LogHash</c> is what `14` §8.2 compares across x64 and ARM64 and what `11` §6 compares as
-    /// an anti-tamper check, so this is the assertion the whole feature's determinism claim reduces
-    /// to. The floors below are what stop it passing on two empty logs — a fight that threw its
-    /// hands up twice hashes identically too.
+    /// <c>LogHash</c> is the determinism gate and anti-tamper check, so this is the assertion the
+    /// whole feature's determinism claim reduces to. The floors below are what stop it passing on
+    /// two empty logs — a fight that threw its hands up twice hashes identically too.
     /// </remarks>
     [Fact]
     public void The_same_battle_seed_replays_a_boss_fight_to_the_same_LogHash()
@@ -294,7 +288,7 @@ public sealed class BossOutcomeTests
         },
         LeadSecondsOfInstance = new Dictionary<EffectInstanceId, double>(),
 
-        // No mechanic here authors a wind-up, so nothing is announced in any phase.
+        // No mechanic authors a wind-up here, so nothing is announced.
         AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
     };
 

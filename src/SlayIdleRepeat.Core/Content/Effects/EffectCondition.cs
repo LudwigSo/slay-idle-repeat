@@ -1,13 +1,13 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
 /// <summary>
-/// A node of a `18` §4 condition tree: a <see cref="ConditionTerm"/>, or one of the combinators
+/// A node of a condition tree: a <see cref="ConditionTerm"/>, or one of the combinators
 /// <c>all · any · not</c>.
 /// </summary>
 /// <remarks>
-/// `18` §4: <em>"Conditions gate an effect without changing when it is evaluated. All are pure
-/// functions of current state."</em> Nothing in this type evaluates anything — M2-05 does, against
-/// the same tree.
+/// Conditions gate an effect without changing when it is evaluated; all are pure functions of
+/// current state. Nothing in this type evaluates anything — a separate evaluator does, against the
+/// same tree.
 /// </remarks>
 public sealed record EffectCondition
 {
@@ -46,11 +46,9 @@ public sealed record EffectCondition
         ArgumentNullException.ThrowIfNull(operand);
 
         // `new[] { … }` rather than the collection expression `[operand]`: for a single element
-        // targeting IReadOnlyList<T>, Roslyn synthesises <>z__ReadOnlySingleElementList in the
-        // GLOBAL namespace without a CompilerGeneratedAttribute, and
-        // AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace — which
-        // filters on that attribute — reports it as an undocumented Core namespace. An array
-        // allocation is the same cost and leaves no type behind.
+        // targeting IReadOnlyList<T>, Roslyn synthesises a compiler-generated list type in the
+        // global namespace without a CompilerGeneratedAttribute, which an architecture test flags
+        // as an undocumented namespace. An array allocation is the same cost and leaves no type behind.
         return new EffectCondition { Kind = ConditionKind.NOT, Operands = new[] { operand } };
     }
 
@@ -60,7 +58,7 @@ public sealed record EffectCondition
 
         if (operands.Length == 0)
         {
-            // 🔒 An empty `all` is vacuously true and an empty `any` vacuously false, so a
+            // An empty `all` is vacuously true and an empty `any` vacuously false, so a
             // combinator that lost its operands would gate nothing while still reading as a gate.
             throw new ArgumentException(
                 $"a {kind} combinator with no operands gates nothing — an empty 'all' is vacuously " +

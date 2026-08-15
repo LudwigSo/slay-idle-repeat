@@ -1,20 +1,12 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 2: <em>"Readable at the smallest in-game display size"</em>.
-/// </summary>
+/// <summary>Checklist item 2: readable at the smallest in-game display size.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Human.</b> "Readable" is not a predicate over pixels. `15` §A3's detail budget says
-/// <em>"If a detail is not readable at 64 px, remove it"</em> — a sentence addressed to an artist,
-/// and one that presupposes somebody deciding what counts as a detail.
-/// </para>
-/// <para>
-/// What this emits is <see cref="ContrastRetentionMeasurement"/>: how much of the asset's contrast
-/// survives a downscale to the smallest size the manifest ships it at. It is evidence for a
+/// Human: "readable" is not a predicate over pixels, and presupposes somebody deciding what counts
+/// as a detail. What this emits is <see cref="ContrastRetentionMeasurement"/>: how much of the
+/// asset's contrast survives a downscale to the smallest size it ships at. It is evidence for a
 /// reviewer sorting a batch, and it gates nothing — the verdict is always
 /// <see cref="QaVerdict.HumanGapOnly"/>.
-/// </para>
 /// </remarks>
 public sealed class ReadabilityCheck : IQaCheck
 {
@@ -46,16 +38,10 @@ public sealed class ReadabilityCheck : IQaCheck
     /// <inheritdoc/>
     public string? HumanGap => ReadabilityHumanGap;
 
-    /// <summary>
-    /// `15` §A3's detail budget: <em>"If a detail is not readable at 64 px, remove it."</em> The one
-    /// size the doc itself attaches to readability, and the size this measurement downscales to.
-    /// </summary>
+    /// <summary>The size this measurement downscales to — an alias, not a second copy of the constant.</summary>
     /// <remarks>
-    /// 🔒 An authorised number, not an invented one — so it lives in <see cref="Doc15Authorised"/>
-    /// with the sentence that states it, and this is an alias rather than a second copy. It is the
-    /// size a <em>detail</em> is judged at, not "the smallest in-game display size", which `15` never
-    /// states per row. The measurement is therefore evidence about detail survival and not an answer
-    /// to item 2.
+    /// This is the size a <em>detail</em> is judged at, not "the smallest in-game display size" —
+    /// the measurement is evidence about detail survival, not an answer to item 2.
     /// </remarks>
     private const int DetailBudgetSize = Doc15Authorised.DetailBudgetSize;
 
@@ -102,8 +88,8 @@ public sealed class ReadabilityCheck : IQaCheck
     }
 
     /// <summary>
-    /// The luminance spread after a box downscale to `15` §A3's detail budget, over the cells that
-    /// hold any visible pixel at all.
+    /// The luminance spread after a box downscale to the detail budget, over the cells that hold
+    /// any visible pixel at all.
     /// </summary>
     /// <remarks>
     /// A box average rather than a resampler: this measures how much contrast neighbouring pixels

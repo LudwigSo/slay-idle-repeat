@@ -1,13 +1,11 @@
 namespace SlayIdleRepeat.AssetPipeline;
 
-/// <summary>
-/// A per-pixel boolean set, with the handful of set operations `15` §B4's steps need.
-/// </summary>
+/// <summary>A per-pixel boolean set, with the set operations the pipeline steps need.</summary>
 /// <remarks>
-/// 🔒 Morphology is expressed through one exact Euclidean distance transform rather than through a
-/// hand-rolled structuring-element loop: dilation by <c>r</c> is "within <c>r</c> of the set" and
-/// erosion by <c>r</c> is "further than <c>r</c> from the complement", which is the same definition
-/// written twice and is exact at every radius instead of approximating a disc with a square.
+/// Morphology is expressed through one exact Euclidean distance transform rather than a hand-rolled
+/// structuring-element loop: dilation by <c>r</c> is "within <c>r</c> of the set" and erosion by
+/// <c>r</c> is "further than <c>r</c> from the complement" — exact at every radius instead of
+/// approximating a disc with a square.
 /// </remarks>
 internal sealed class PixelMask
 {
@@ -59,10 +57,9 @@ internal sealed class PixelMask
     /// this project relies on that — but writing outside it is a loud failure.
     /// </summary>
     /// <remarks>
-    /// 🔒 The asymmetry is deliberate. "Nothing is set beyond the frame" is a true and useful answer
-    /// to a read; there is no correspondingly true write, and the row-major index is not injective
-    /// across the edges — <c>[-1, y]</c> lands on the last cell of row <c>y - 1</c>, so an unguarded
-    /// write would silently corrupt a neighbouring row instead of failing.
+    /// The asymmetry is deliberate: there is no correspondingly true answer for a write, and the
+    /// row-major index is not injective across the edges — <c>[-1, y]</c> lands on the last cell of
+    /// row <c>y - 1</c>, so an unguarded write would silently corrupt a neighbouring row.
     /// </remarks>
     /// <param name="x">The column.</param>
     /// <param name="y">The row.</param>
@@ -130,9 +127,8 @@ internal sealed class PixelMask
 
     /// <summary>This mask without the listed pixels.</summary>
     /// <remarks>
-    /// 🔒 The list overload exists because <see cref="Except(PixelMask)"/> costs a whole frame per
-    /// call, and `15` §B4 step 4 subtracts one small connected group at a time from a proposal that
-    /// can hold a hundred of them.
+    /// The list overload exists because <see cref="Except(PixelMask)"/> costs a whole frame per
+    /// call, and callers often subtract one small connected group at a time from a much larger set.
     /// </remarks>
     /// <param name="pixels">The pixels to clear. Each must be inside the mask.</param>
     internal PixelMask Without(IReadOnlyList<(int X, int Y)> pixels)

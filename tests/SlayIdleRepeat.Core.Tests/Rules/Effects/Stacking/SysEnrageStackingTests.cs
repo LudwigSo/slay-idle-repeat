@@ -9,20 +9,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Stacking;
 
 /// <summary>
-/// 🔒 `05` §3.1 fixes <c>SYS_ENRAGE</c> as <c>PERIODIC {interval: 1.0, startDelay: 70.0}</c> →
-/// <c>STAT_MULT ATK ×1.08</c>, <b>multiplicative stacking, uncapped, <c>BATTLE</c> scope</b>. Under R1
-/// three seconds against a 100 ATK boss is <c>100 × 1.08³ = 125.9712</c>.
+/// <c>SYS_ENRAGE</c> is <c>PERIODIC {interval: 1.0, startDelay: 70.0}</c> → <c>STAT_MULT ATK ×1.08</c>,
+/// multiplicative stacking, uncapped, <c>BATTLE</c> scope. Three seconds against a 100 ATK boss is
+/// <c>100 × 1.08³ = 125.9712</c>.
 /// </summary>
 /// <remarks>
-/// <c>StatAggregationTests</c> pins the same number for three <em>separately authored</em> effects. What
-/// is pinned here is the stacking path: <b>one</b> effect id with three <c>MULTIPLICATIVE</c> stacks has
-/// to reach the same answer, because §3.1 authors <c>SYS_ENRAGE</c> as one effect that stacks.
+/// <c>StatAggregationTests</c> pins the same number for three separately authored effects. What is
+/// pinned here is the stacking path: one effect id with three <c>MULTIPLICATIVE</c> stacks has to reach
+/// the same answer, because <c>SYS_ENRAGE</c> is authored as one effect that stacks.
 /// </remarks>
 public sealed class SysEnrageStackingTests
 {
-    /// <summary>
-    /// The pin: three seconds of enrage is 125.9712, and it is not 899.8912.
-    /// </summary>
+    /// <summary>The pin: three seconds of enrage is 125.9712, and it is not 899.8912.</summary>
     [Fact]
     public void Three_seconds_of_SYS_ENRAGE_is_125_9712_through_the_stacking_path()
     {
@@ -39,22 +37,14 @@ public sealed class SysEnrageStackingTests
     }
 
     /// <summary>
-    /// 🔒 <b>The stack combiner must NOT round to 4 dp, and this is the case that shows why.</b>
+    /// The stack combiner must NOT round to 4 dp, and this is the case that shows why. The rounded
+    /// accumulation points are after each damage calculation, each heal, and each stat aggregation
+    /// step; the product of a multiplicative stack set is none of the three. Rounding the combined
+    /// multiplier as well is not belt-and-braces — it is a second, earlier accumulation point that
+    /// changes the answer: <c>1.08³ = 1.259712</c> exactly, but rounded to 4 dp it is <c>1.2597</c>,
+    /// and <c>100 × 1.2597 = 125.97</c> — the enrage quietly weakened in the fourth decimal place,
+    /// every second, for the rest of the fight.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// `05` §1.1's accumulation points are <em>"after each damage calculation, each heal, and each
-    /// stat aggregation step"</em>. The product of a multiplicative stack set is none of the three:
-    /// `18` §8 <b>step 7</b> is the accumulation point, and <c>StatAggregation</c> already rounds
-    /// there. Rounding the combined multiplier as well is not belt-and-braces — it is a second,
-    /// earlier accumulation point that `05` §1.1 does not authorise, and it changes the answer.
-    /// </para>
-    /// <para>
-    /// <c>1.08³ = 1.259712</c> exactly; rounded to 4 dp it is <c>1.2597</c>, and
-    /// <c>100 × 1.2597 = 125.97</c> — the enrage quietly weakened in the fourth decimal place, every
-    /// second, for the rest of the fight.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_combined_multiplier_is_not_rounded_before_it_reaches_step_7()
     {
@@ -62,7 +52,7 @@ public sealed class SysEnrageStackingTests
 
         combined.ShouldBe(1.259712, 1e-15, "1.08^3");
 
-        // 🔒 The property this test is named for, stated directly rather than demonstrated: the
+        // The property this test is named for, stated directly rather than demonstrated: the
         // combiner's answer still carries digits past the fourth decimal place. A combiner that
         // rounded would return 1.2597, which IS its own 4-dp rounding.
         combined.ShouldNotBe(
@@ -74,10 +64,7 @@ public sealed class SysEnrageStackingTests
             125.97, "18 §8 step 7 is the accumulation point, and it is the only one on this path");
     }
 
-    /// <summary>
-    /// `05` §3.1's <c>SYS_ENRAGE</c> is <em>"uncapped"</em>, so the enrage keeps compounding for the
-    /// rest of the fight rather than plateauing after one stack.
-    /// </summary>
+    /// <summary><c>SYS_ENRAGE</c> is uncapped, so it keeps compounding for the rest of the fight rather than plateauing after one stack.</summary>
     [Fact]
     public void SYS_ENRAGE_keeps_compounding_because_it_is_uncapped()
     {
@@ -90,15 +77,12 @@ public sealed class SysEnrageStackingTests
     }
 
     /// <summary>
-    /// `05` §3.1 gives <c>SYS_ENRAGE</c> <c>BATTLE</c> scope, and the enrage therefore does not
-    /// follow the hero out of the fight.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ The claim is about <em>this effect's</em> duration, so it is read off the effect rather
-    /// than asserted of the <c>BATTLE</c> scope in the abstract — that second reading is
+    /// <c>SYS_ENRAGE</c> has <c>BATTLE</c> scope, and therefore does not follow the hero out of the
+    /// fight. The claim is about this effect's duration, so it is read off the effect rather than
+    /// asserted of the <c>BATTLE</c> scope in the abstract — that second reading is
     /// <c>DurationEvaluatorTests.A_battle_bounded_scope_does_not_outlive_the_battle</c>'s, and
     /// restating it here would pass unchanged if <c>SYS_ENRAGE</c> were re-authored as <c>RUN</c>.
-    /// </remarks>
+    /// </summary>
     [Fact]
     public void SYS_ENRAGE_is_BATTLE_scoped()
     {
@@ -137,7 +121,7 @@ public sealed class SysEnrageStackingTests
         return stacks;
     }
 
-    /// <summary>`05` §3.1's built-in <c>SYS_ENRAGE</c>, with <paramref name="seconds"/> stacks on it.</summary>
+    /// <summary>The built-in <c>SYS_ENRAGE</c>, with <paramref name="seconds"/> stacks on it.</summary>
     private static EffectDefinition EnrageEffect(int seconds) =>
         new()
         {

@@ -8,35 +8,29 @@ using SlayIdleRepeat.Core.Rules.Board.Resolution;
 namespace SlayIdleRepeat.Core.Handlers;
 
 /// <summary>
-/// 🔒 M3-03, `03` §5 / `19` Part A — the <c>EVENT_CHOOSE</c> handler: takes one option of the card
-/// <c>RESOLVE_TILE</c> already drew, charges its cost, and applies one drawn outcome.
+/// The <c>EVENT_CHOOSE</c> handler: takes one option of the card <c>RESOLVE_TILE</c> already drew,
+/// charges its cost, and applies one drawn outcome.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>The cost is paid here, not in the resolver, and the order is the point.</b> Affordability is
-/// checked <em>before</em> anything is spent or drawn, so an unaffordable choice costs the player
-/// nothing and — because a rejected command's <c>RunRngScope</c> is discarded with the clone —
-/// consumes no `14` §8.1 draw index either. A resolver that charged its own cost could only throw on
-/// an unaffordable one, which is a defect's answer to a player's legal question.
+/// Affordability is checked before anything is spent or drawn, so an unaffordable choice costs the
+/// player nothing and consumes no RNG draw index either.
 /// </para>
 /// <para>
-/// ⚠️ <b>The pending tile is cleared whatever the outcome was</b>, including when every effect of
-/// the drawn outcome was <c>UNSUPPORTED</c> and nothing observable happened. The player has made
-/// their choice and `19` Part A gives them no second one; leaving the tile pending would let them
-/// re-draw the outcome.
+/// The pending tile is cleared whatever the outcome was, including when the drawn outcome was
+/// unsupported and nothing observable happened — the player has made their choice and gets no second
+/// one.
 /// </para>
 /// </remarks>
 internal static class EventChoose
 {
     /// <summary>
-    /// 🔒 The `30` §7 attribution token an event option's cost is logged under, distinct from
-    /// <see cref="EventTileResolver.Reason"/> so that `21` §8.3's <c>income_attribution.csv</c> can
-    /// tell what event cards <em>take</em> from what they <em>pay</em>. Netting the two into one
-    /// token would hide a card that charges 200 Gold to pay 250.
+    /// Income-attribution token for an event option's cost, kept distinct from
+    /// <see cref="EventTileResolver.Reason"/> so what a card takes can be told apart from what it pays.
     /// </summary>
     internal const string CostReason = "event_choice_cost";
 
-    /// <summary>`03` §5 — applies <c>EVENT_CHOOSE</c>.</summary>
+    /// <summary>Applies <c>EVENT_CHOOSE</c>.</summary>
     /// <param name="command">Which option, by its index in the card's authored order.</param>
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
     /// <returns>
@@ -51,9 +45,6 @@ internal static class EventChoose
 
         var run = input.Run;
 
-        // 🔒 All three conditions are one question — "is this run waiting on an event choice?" — and
-        // they answer with one reason: 14 §16.2 has no finer-grained value, and inventing a
-        // distinction here would put a vocabulary on the wire that the registry does not have.
         if (!run.HasPendingTile ||
             (TileKind)run.PendingTileKindValue != TileKind.Event ||
             run.PendingEventCardId is null)
@@ -73,8 +64,7 @@ internal static class EventChoose
 
         if (option.CostCurrency is { } currency && option.CostAmount is { } amount)
         {
-            // 🔒 Checked BEFORE the debit and before the outcome draw. GOLD is the run's own currency
-            // (10 §1); every other cost currency is a META wallet row on the Player.
+            // Gold is the run's own currency; every other cost currency lives on the Player wallet.
             var balance = currency == CurrencyId.GOLD
                 ? run.BalanceOf(currency)
                 : input.Player.BalanceOf(currency);

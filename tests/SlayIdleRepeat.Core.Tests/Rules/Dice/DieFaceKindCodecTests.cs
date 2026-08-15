@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Dice;
 
-/// <summary>The seam between `18`'s wire-facing <c>DieFaceSpec.Kind</c> string and the real enum.</summary>
+/// <summary>The seam between the wire-facing <c>DieFaceSpec.Kind</c> string and the real enum.</summary>
 public sealed class DieFaceKindCodecTests
 {
     [Theory]

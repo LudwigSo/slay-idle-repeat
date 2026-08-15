@@ -6,20 +6,11 @@ namespace SlayIdleRepeat.Core.Tests.TestSupport;
 
 /// <summary>
 /// Pins <see cref="WildcardMessageAssertions.ShouldMatchWildcard"/> against the exception-message
-/// wildcard behaviour it replaced.
+/// wildcard behaviour it replaced. The negative cases matter more than the positive ones: each
+/// asserts a pattern that must not match, and every one is a way a sloppy implementation could have
+/// been written — a substring check (loses anchoring), a <c>ShouldContain</c> pair (loses order), a
+/// raw regex (metacharacters stop being literal).
 /// </summary>
-/// <remarks>
-/// 🔒 The helper is the one part of the migration that is <b>new code</b> rather than a translation, and
-/// it carries 19 assertions that pin <i>which rule fired</i>. A helper that matched everything would take
-/// all 19 green with nothing going red.
-/// <para>
-/// So the negative cases matter more than the positive ones: each asserts a pattern that must <b>not</b>
-/// match, and every one is a way a sloppy implementation could have been written — a substring check
-/// (loses anchoring), a <c>ShouldContain</c> pair (loses order), a raw regex (metacharacters stop being
-/// literal). The expectations were measured against the real assertion before the library was removed,
-/// not inferred from its documentation.
-/// </para>
-/// </remarks>
 public sealed class WildcardMessageAssertionsTests
 {
     // ------------------------------------------------------------------ matching
@@ -53,16 +44,12 @@ public sealed class WildcardMessageAssertionsTests
         Should.NotThrow(() => actual.ShouldMatchWildcard(pattern));
 
     [Theory]
-    // 🔒 Anchoring. A pattern with no leading/trailing '*' is NOT a substring check. This is the
-    // row that fails if the helper is quietly reimplemented as ShouldContain.
+    // Anchoring: a pattern with no leading/trailing '*' is not a substring check.
     [InlineData("abcdef", "abc")]
     [InlineData("abcdef", "def")]
-    // 🔒 Order across an internal wildcard. This is the row that fails if the helper is
-    // reimplemented as two independent ShouldContain calls — and order is what makes these
-    // patterns pin which rule fired rather than merely which words appeared (steering S2).
+    // Order across an internal wildcard — fails if reimplemented as two independent ShouldContain calls.
     [InlineData("alpha then beta", "*beta*alpha*")]
-    // 🔒 Metacharacters stay literal. This is the row that fails if the pattern is handed to
-    // Regex unescaped, which would make "*16.6*" match "16X6".
+    // Metacharacters stay literal — fails if the pattern is handed to Regex unescaped.
     [InlineData("abc", "*a.c*")]
     [InlineData("16X6", "*16.6*")]
     [InlineData("aab", "*a+b*")]

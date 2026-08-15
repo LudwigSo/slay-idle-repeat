@@ -1,15 +1,10 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 4: <em>"Key light from upper left, consistent with the batch"</em>.
-/// </summary>
+/// <summary>Checklist item 4: key light from upper left, consistent with the batch.</summary>
 /// <remarks>
-/// 🔒 <b>Human, with no proxy at all.</b> Light direction cannot be recovered from a finished 2D
-/// asset: a chibi drawn with two-tone cel shading (`15` §A3) carries a shadow whose placement is an
-/// artistic choice, not a physical shading of a known geometry, and inferring a light vector from it
-/// would need a normal map nobody has. "Consistent with the batch" is worse — it compares against a
-/// set whose own lighting is the thing in question. This check emits no measurement, because a
-/// number here would be read as evidence and there is none.
+/// Human, with no proxy: light direction cannot be recovered from a finished 2D asset, since a
+/// chibi's cel-shaded shadow is an artistic choice rather than a physical shading of known geometry.
+/// This check emits no measurement, because a number here would be read as evidence and there is none.
 /// </remarks>
 public sealed class KeyLightCheck : IQaCheck
 {
@@ -51,15 +46,11 @@ public sealed class KeyLightCheck : IQaCheck
     }
 }
 
-/// <summary>
-/// `15` Part F item 9: <em>"Proportions match the Style Anchor Sheet (2.5–3 heads)"</em>.
-/// </summary>
+/// <summary>Checklist item 9: proportions match the Style Anchor Sheet (2.5-3 heads).</summary>
 /// <remarks>
-/// 🔒 <b>Human, with no proxy at all.</b> A head count needs the head found first, and finding a
-/// chibi's head in a silhouette whose whole design premise is "big head, small body, tiny or no
-/// neck" (`15` §A3) is the hard half of the problem. A bounding-box aspect ratio would correlate
-/// with head count across a batch and be wrong on exactly the assets that matter — a crouching pose,
-/// a mount, a boss with a tail.
+/// Human, with no proxy: a head count needs the head found first, and locating a chibi's head is the
+/// hard half of the problem. A bounding-box aspect ratio would correlate across a batch and be wrong
+/// on exactly the assets that matter — a crouching pose, a mount, a boss with a tail.
 /// </remarks>
 public sealed class ProportionsCheck : IQaCheck
 {
@@ -102,13 +93,12 @@ public sealed class ProportionsCheck : IQaCheck
 }
 
 /// <summary>
-/// `15` Part F item 11: <em>"Side-by-side comparison against 3 previously-approved assets in the
-/// same category shows no style drift"</em>.
+/// Checklist item 11: side-by-side comparison against 3 previously-approved assets in the same
+/// category shows no style drift.
 /// </summary>
 /// <remarks>
-/// 🔒 <b>Human, and the item says so itself.</b> "Side-by-side comparison … shows no style drift"
-/// names the method as well as the criterion, and the method is a person looking at four images at
-/// once. <see cref="SilhouetteRegistry"/> holds what a reviewer would put beside the new asset, but
+/// Human, and the item names its own method: a person looking at four images at once.
+/// <see cref="SilhouetteRegistry"/> holds what a reviewer would put beside the new asset, but
 /// nothing here performs the comparison.
 /// </remarks>
 public sealed class StyleDriftCheck : IQaCheck
@@ -139,9 +129,8 @@ public sealed class StyleDriftCheck : IQaCheck
     {
         ArgumentNullException.ThrowIfNull(subject);
 
-        // 🔒 The count of what a reviewer would have to put beside this asset, and not a step toward
-        // comparing them. Item 11 names its own method — a person looking at four images at once —
-        // so the only honest thing a machine adds here is how many are available to look at.
+        // The only honest thing a machine adds is how many comparison assets are available, not a
+        // step toward performing the comparison itself.
         var category = AssetNaming.CategoryOf(subject.Asset.Id);
         var available = subject.Registry.InCategory(category).Count;
 

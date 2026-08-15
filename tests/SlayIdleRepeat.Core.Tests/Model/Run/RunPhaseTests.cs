@@ -7,8 +7,8 @@ using RunAggregate = SlayIdleRepeat.Core.Model.Run;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 M3-05 — <c>Run</c>'s new phase/battle/draft/reroll/stage-gate seams, exercised directly on the
-/// aggregate (the handler-level legality checks that guard each seam are
+/// <c>Run</c>'s phase/battle/draft/reroll/stage-gate seams, exercised directly on the aggregate
+/// (the handler-level legality checks that guard each seam are
 /// <c>StartBattleTests</c>/<c>ConfirmBattleResultTests</c>'s).
 /// </summary>
 public sealed class RunPhaseTests
@@ -171,7 +171,7 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.RerollChargesSpentThisStage));
     }
 
-    // ------------------------------------------------------------------ RequirePendingFork faults (M3-02)
+    // ------------------------------------------------------------------ RequirePendingFork faults
 
     /// <summary>One half of the pair present without the other is not a row `Run.BeginPendingFork` could write.</summary>
     [Fact]
@@ -196,7 +196,7 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.PendingForkJunctionPosition), Case.Sensitive);
     }
 
-    /// <summary>`03` §1.1: zero movement left at a junction never prompts CHOOSE_FORK in the first place.</summary>
+    /// <summary>Zero movement left at a junction never prompts CHOOSE_FORK in the first place.</summary>
     [Fact]
     public void Rehydrate_refuses_a_pending_fork_with_zero_remaining_steps()
     {
@@ -215,7 +215,7 @@ public sealed class RunPhaseTests
             .IsSuccess.ShouldBeTrue();
     }
 
-    // ------------------------------------------------------------------ RequireDraftBattle faults (M3-06)
+    // ------------------------------------------------------------------ RequireDraftBattle faults
 
     /// <summary>ClearDraftPending resets both fields to their sentinels; a stale value with no draft pending is a fault.</summary>
     [Fact]
@@ -228,7 +228,7 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.DraftBattleKind), Case.Sensitive);
     }
 
-    /// <summary>A battle's tile kind is Enemy, Elite or Boss — all non-negative `03` §2 values.</summary>
+    /// <summary>A battle's tile kind is Enemy, Elite or Boss — all non-negative values.</summary>
     [Fact]
     public void Rehydrate_refuses_a_negative_draft_battle_kind_while_pending()
     {
@@ -239,7 +239,7 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.DraftBattleKind), Case.Sensitive);
     }
 
-    /// <summary>`03` §1's three stages plus the boss node are the only legal values while a draft is pending.</summary>
+    /// <summary>The three stages plus the boss node are the only legal values while a draft is pending.</summary>
     [Fact]
     public void Rehydrate_refuses_a_draft_battle_stage_outside_the_four_while_pending()
     {

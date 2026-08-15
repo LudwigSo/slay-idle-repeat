@@ -9,12 +9,12 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// One registered effect instance on one actor, with the two things every trigger moment needs of it
 /// without a registry lookup: which kind it fires on, and where it sorts.
 /// </summary>
-/// <param name="Id">The `18` §3 instance id it is registered under.</param>
-/// <param name="EffectId">The authored effect id — `18` §8's ordinal sort key.</param>
+/// <param name="Id">The instance id it is registered under.</param>
+/// <param name="EffectId">The authored effect id — the ordinal sort key.</param>
 /// <param name="Kind">The trigger kind, so a moment can skip it without resolving the instance.</param>
 internal readonly record struct HeldInstance(EffectInstanceId Id, string EffectId, TriggerKind Kind)
 {
-    /// <summary>`18` §8's ordinal effect-id order, tie-broken by the instance id.</summary>
+    /// <summary>Ordinal effect-id order, tie-broken by the instance id.</summary>
     internal static IComparer<HeldInstance> Order { get; } = new ByEffectThenInstanceId();
 
     private sealed class ByEffectThenInstanceId : IComparer<HeldInstance>
@@ -31,29 +31,24 @@ internal readonly record struct HeldInstance(EffectInstanceId Id, string EffectI
 }
 
 /// <summary>
-/// 🔒 One actor's live state for the length of a fight — the mutable half of <see cref="ActorPlan"/>,
-/// and the <see cref="IEffectActorView"/> every `18` §4 condition and `18` §5 target reads.
+/// One actor's live state for the length of a fight — the mutable half of <see cref="ActorPlan"/>, and
+/// the <see cref="IEffectActorView"/> every condition and target reads.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>One view of one battle, not two.</b> <see cref="IEffectActorView"/>'s own remarks are
-/// explicit that M2-07's stat block was <em>"expected to IMPLEMENT this, not to restate it"</em>,
-/// because <em>"two views of one battle are two chances for <c>ENEMY_COUNT</c> and a stat aggregation
-/// to disagree about who is alive"</em>. This is that single view: the loop, the conditions, the
-/// targets and the ops all read the same object.
+/// One view of one battle, not two: the loop, the conditions, the targets and the ops all read the
+/// same object, so a stat aggregation and a roster scan can never disagree about who is alive.
 /// </para>
 /// <para>
-/// 🔒 <b><see cref="IsAlive"/> goes false the moment HP reaches 0, not at slot 6.</b> `05` §3.1 step
-/// 6: <em>"An actor whose HP reaches 0 stops acting and being targetable at that moment — only its
-/// death <i>resolution</i> (<c>ON_DEATH</c>, removal) waits for this slot."</em> So an enemy killed by
-/// the hero at slot 4 is already out of the enemy list when the next enemy in the same slot picks a
-/// target, and <see cref="DeathResolved"/> is what slot 6 uses to find the bodies it has not buried.
+/// <see cref="IsAlive"/> goes false the moment HP reaches 0, not when death is resolved: an actor whose
+/// HP reaches 0 stops acting and being targetable at that moment, and only its death resolution
+/// (<c>ON_DEATH</c>, removal) waits for the death-resolution slot. So an enemy killed mid-tick is
+/// already out of the enemy list for the next actor's target selection, and <see cref="DeathResolved"/>
+/// is what the death-resolution slot uses to find the bodies it has not buried.
 /// </para>
 /// <para>
-/// ⚠️ <b>A stateful class under <c>Rules/</c></b>, which `30` §11.4 annotates as <em>"internal,
-/// static, stateless calculators"</em> — recorded rather than hidden, on <c>CombatLog</c>'s
-/// precedent and for its reason: a 1800-tick loop has to keep HP and a cooldown somewhere. It is
-/// per-battle, owned by exactly one caller, never shared and never static.
+/// A stateful class, on <c>CombatLog</c>'s precedent: a 1800-tick loop has to keep HP and a cooldown
+/// somewhere. It is per-battle, owned by exactly one caller, never shared and never static.
 /// </para>
 /// </remarks>
 internal sealed class BattleActor : IEffectActorView
@@ -64,9 +59,7 @@ internal sealed class BattleActor : IEffectActorView
 
     /// <summary>Builds the live state for one actor from its plan.</summary>
     /// <param name="plan">The actor as it enters the fight.</param>
-    /// <param name="timeline">
-    /// The `05` §5 status store — <see cref="StatusStacks"/> is a reading of it, not a second copy.
-    /// </param>
+    /// <param name="timeline">The status store — <see cref="StatusStacks"/> is a reading of it, not a second copy.</param>
     internal BattleActor(ActorPlan plan, IStatusTimeline timeline)
     {
         ArgumentNullException.ThrowIfNull(plan);
@@ -78,10 +71,9 @@ internal sealed class BattleActor : IEffectActorView
         LogId = plan.LogId;
         TargetPriority = plan.TargetPriority;
 
-        // 🔒 Before `18` §8 has run, an actor's stats ARE its base block — and its post-step-7 Max HP
-        // is that block's, because no multiplier has been applied to it yet. Aggregation replaces
-        // this at pre-tick 0a; it is set here so that no window exists in which Aggregated is null
-        // and a reader has to decide what to do about it (steering S6).
+        // Before any effect aggregation has run, an actor's stats ARE its base block, and its
+        // post-step-7 Max HP is that block's — set here so no window exists where Aggregated is
+        // null and a reader has to decide what to do about it.
         Aggregated = new AggregatedStats(
             plan.BaseStats, plan.BaseStats[StatId.MAX_HP], Array.Empty<string>());
         Flow = new CombatFlowState();
@@ -106,13 +98,11 @@ internal sealed class BattleActor : IEffectActorView
         StandingEffects = standing;
     }
 
-    /// <summary>
-    /// Whether this actor holds any <c>PERIODIC</c> at all — slot 3's early-out.
-    /// </summary>
+    /// <summary>Whether this actor holds any <c>PERIODIC</c> at all — the tick loop's early-out.</summary>
     /// <remarks>
-    /// <c>TriggerRegistry.PeriodicDue</c> allocates a set, a list and a sort per call, and slot 3
-    /// asks it once per actor on every one of 1800 ticks. An actor holding twenty perks and no
-    /// periodic paid all of that to be told nothing was due.
+    /// Periodic-due resolution allocates a set, a list and a sort per call, asked once per actor on
+    /// every tick; an actor holding twenty perks and no periodic would otherwise pay all of that to be
+    /// told nothing was due.
     /// </remarks>
     internal bool HoldsAPeriodic { get; private set; }
 
@@ -124,12 +114,12 @@ internal sealed class BattleActor : IEffectActorView
 
     /// <inheritdoc />
     /// <remarks>
-    /// 🔒 Assigned by <see cref="BattleSimulation"/> and not read from the plan after construction: a
-    /// summon takes <em>"the end of the enemy index list"</em> (`05` §3.1), which is a roster fact.
+    /// Assigned by <see cref="BattleSimulation"/>, not read from the plan after construction: a summon
+    /// takes the end of the enemy index list, which is a roster fact.
     /// </remarks>
     public int Index { get; }
 
-    /// <summary>The `05` §7 log id — what a <see cref="CombatEvent"/> carries in its actor slots.</summary>
+    /// <summary>The combat-log id — what a <see cref="CombatEvent"/> carries in its actor slots.</summary>
     internal byte LogId { get; }
 
     /// <inheritdoc />
@@ -150,121 +140,92 @@ internal sealed class BattleActor : IEffectActorView
     /// <inheritdoc />
     public string? OwnerId => Plan.OwnerId;
 
-    /// <summary>
-    /// 🔒 <b>The whole `18` §8 result of the last aggregation, not just its <c>Final</c> block.</b>
-    /// </summary>
+    /// <summary>The whole result of the last stat aggregation, not just its final block.</summary>
     /// <remarks>
     /// <para>
-    /// 🔒 This is M2-07's <b>first</b> stated obligation on M2-09, discharged here:
-    /// <c>AggregatedStats</c>' own remarks are that <em>"a consumer that keeps <see cref="Stats"/>
-    /// and discards the wrapper caps every <c>CP_GLASS_HEART</c> ward at 1 HP with nothing going
-    /// red — the one loss in this record that is not reported"</em>. Holding the record rather than
-    /// the block is what makes <see cref="PostMultiplierMaxHp"/> reachable at all.
+    /// Holding the record rather than just the final block is what makes
+    /// <see cref="PostMultiplierMaxHp"/> reachable at all — a consumer that kept only the final stats
+    /// and discarded the wrapper would cap every ward at whatever the final Max HP happened to be.
     /// </para>
     /// <para>
-    /// 🔒 And the <b>second</b>: it is replaced on <em>every</em> re-aggregation
-    /// (<see cref="SetStats"/>, called by <c>BattleSimulation.RefreshStats</c> on every tick an
-    /// actor is stale or state-dependent), never cached at battle start. `05` §3.1's
-    /// <c>SYS_ENRAGE</c> adds a <c>STAT_MULT</c> every second from 70 s, so a boss's post-step-7
-    /// Max HP is not a battle constant and a ward cap taken once at tick 0 would be wrong for the
-    /// last 20 seconds of every boss fight.
+    /// It is replaced on every re-aggregation, never cached at battle start: a boss can gain a stat
+    /// multiplier mid-fight, so its post-step-7 Max HP is not a battle constant and a ward cap taken
+    /// once at tick 0 would be wrong for the rest of a long boss fight.
     /// </para>
     /// </remarks>
     internal AggregatedStats Aggregated { get; private set; }
 
-    /// <summary>
-    /// 🔒 `18` §8's aggregated block as of the last aggregation — <b>this actor's final stats</b>,
-    /// re-read at fire time by everything that fires (`05` §3.1 slot 4a reads ASPD here).
-    /// </summary>
+    /// <summary>The aggregated block as of the last aggregation — this actor's final stats, re-read at fire time.</summary>
     internal ActorStats Stats => Aggregated.Final;
 
     /// <summary>
-    /// 🔒 `05` §4.1's ward-cap basis — Max HP <b>as it stood after `18` §8 step 7</b>
-    /// (post-multiplier, pre-<c>STAT_SET</c>), re-read from <see cref="Aggregated"/> on every call.
+    /// The ward-cap basis — Max HP as it stood after step-7 stat aggregation (post-multiplier,
+    /// pre-<c>STAT_SET</c>), re-read from <see cref="Aggregated"/> on every call.
     /// </summary>
     /// <remarks>
-    /// A property over the live record rather than a stored double, deliberately: a field would be
-    /// one assignment away from being set once at pre-tick 0a, which is exactly the failure
-    /// <c>AggregatedStats</c> asks M2-09 to avoid and the one nothing else can detect.
+    /// A property over the live record rather than a stored double, deliberately: a field would be one
+    /// assignment away from being set once at battle start and never refreshed.
     /// </remarks>
     internal double PostMultiplierMaxHp => Aggregated.PostMultiplierMaxHp;
 
-    /// <summary>
-    /// 🔒 `05` §4.1's absorb pool — <em>"one absorb pool per actor, made of segments"</em>. The
-    /// object `05` §4 step 9 names: <c>dmg = defender.Wards.Absorb(dmg)</c>.
-    /// </summary>
+    /// <summary>The absorb pool — one per actor, made of segments.</summary>
     internal WardPool Wards { get; } = new();
 
     /// <summary>
-    /// 🔒 `18` §2.4's <c>STAT_COPY</c> reading — <em>"the start-of-tick snapshot, so mutual copies
-    /// cannot recurse"</em>. Frozen at the top of every tick, before slot 1.
+    /// A <c>STAT_COPY</c> reading — the start-of-tick snapshot, so mutual copies cannot recurse.
+    /// Frozen at the top of every tick, before status timers advance.
     /// </summary>
     internal ActorStats StartOfTickStats { get; private set; } = null!;
 
-    /// <summary>`18` §2.4's per-actor flow state — charges, saves, buckets, multipliers.</summary>
+    /// <summary>Per-actor flow state — charges, saves, buckets, multipliers.</summary>
     internal CombatFlowState Flow { get; }
 
     /// <summary>
-    /// 🔒 `05` §3.1 slot 4 — seconds until this actor's next basic attack. <c>0</c> for every
-    /// battle-opening actor (pre-tick 0a: <em>"the first basic attack lands on tick 0"</em>), and
-    /// <c>1.0 / ASPD</c> for a summon, which <em>"never attacks on its spawn tick"</em>.
+    /// Seconds until this actor's next basic attack. <c>0</c> for every battle-opening actor (the
+    /// first basic attack lands on tick 0), and <c>1.0 / ASPD</c> for a summon, which never attacks on
+    /// its spawn tick.
     /// </summary>
     internal double AttackCooldown { get; set; }
 
-    /// <summary>
-    /// 🔒 `05` §3.2's live <c>targetPriority</c>. Opens at <see cref="ActorPlan.TargetPriority"/>
-    /// and is rewritten by `18` §2.4's <c>SET_TARGET_PRIORITY</c>.
-    /// </summary>
+    /// <summary>The live target priority. Opens at <see cref="ActorPlan.TargetPriority"/> and can be rewritten mid-fight.</summary>
     internal double TargetPriority { get; set; }
 
-    /// <summary>
-    /// 🔒 Every effect instance this actor holds, kept in `05` §3.1's <b>ascending effect-id
-    /// order</b>, tie-broken by instance id.
-    /// </summary>
+    /// <summary>Every effect instance this actor holds, in ascending effect-id order, tie-broken by instance id.</summary>
     /// <remarks>
     /// <para>
-    /// 🔒 The actor → instances map is the loop's, deliberately: <c>TriggerRegistry</c> is actor-blind
-    /// <em>"because `05` §3.1's actor order is the loop's to maintain as actors spawn and die, and a
-    /// second copy of it here would be a second thing to keep in step"</em>.
+    /// The actor → instances map is the loop's, deliberately: the trigger registry is actor-blind,
+    /// because the loop's actor order is its own to maintain as actors spawn and die, and a second copy
+    /// here would be a second thing to keep in step.
     /// </para>
     /// <para>
-    /// 🔒 <b>Sorted on insert, not on read.</b> `05` §3.1 keys on ascending effect-id order at every
-    /// trigger moment, and there are six or more per swing plus one after every HP change — M2-09's
-    /// hits and M2-10's DoT ticks included. Re-sorting per moment is the same answer computed
-    /// thousands of times from a list that only changes when an effect is registered. The order is
-    /// still the rule and not the caller's: <see cref="AddInstance"/> imposes it.
+    /// Sorted on insert, not on read: there are six or more trigger moments per swing plus one after
+    /// every HP change, and re-sorting per moment recomputes the same order thousands of times from a
+    /// list that only changes when an effect is registered. The order is still the rule and not the
+    /// caller's — <see cref="AddInstance"/> imposes it.
     /// </para>
     /// </remarks>
     internal List<HeldInstance> Instances { get; } = new();
 
     /// <summary>
-    /// The <c>PERIODIC</c> subset of <see cref="Instances"/>, in the same order — slot 3's candidate
-    /// list. See <see cref="HoldsAPeriodic"/>.
+    /// The <c>PERIODIC</c> subset of <see cref="Instances"/>, in the same order — the periodic-due
+    /// candidate list. See <see cref="HoldsAPeriodic"/>.
     /// </summary>
     internal List<EffectInstanceId> Periodics { get; } = new();
 
-    /// <summary>
-    /// 🔒 M2-R1 — this actor's live <b>fired</b> `18` §2.1 stat ops, keyed by the firing effect's
-    /// `18` §8 id. The other half of `18` §8 step 1 — see <see cref="TriggeredStatInstance"/>.
-    /// </summary>
+    /// <summary>This actor's live fired stat ops, keyed by the firing effect's id.</summary>
     /// <remarks>
-    /// Empty for almost every actor in almost every fight: only a target of a <c>SYS_ENRAGE</c> or a
-    /// boss's own triggered stat mechanic ever populates it, which is why
-    /// <c>BattleSimulation.RefreshStats</c> early-outs on <see cref="Dictionary{TKey,TValue}.Count"/>
-    /// before walking it, exactly as it does for <see cref="CombatFlowState.PercentBuckets"/>.
+    /// Empty for almost every actor in almost every fight: only a target of a triggered stat mechanic
+    /// ever populates it, which is why the refresh path early-outs on the count before walking it.
     /// </remarks>
     internal Dictionary<string, TriggeredStatInstance> TriggeredStatFirings { get; } =
         new(StringComparer.Ordinal);
 
-    /// <summary>
-    /// Records a registered instance, in `05` §3.1's ascending effect-id order.
-    /// </summary>
+    /// <summary>Records a registered instance, in ascending effect-id order.</summary>
     /// <param name="id">The instance id it was registered under.</param>
     /// <param name="effect">The authored effect. It carries a trigger, or it would not be registered.</param>
     /// <remarks>
-    /// 🔒 The tie-break is the instance id, and it is load-bearing for
-    /// <c>TriggerRegistry.Ordered</c>'s reason: one actor can hold two copies of one effect (`18`
-    /// §3), and a stable sort would then let registration order decide which ward lands first.
+    /// The tie-break is the instance id: one actor can hold two copies of one effect, and a stable sort
+    /// would then let registration order decide which one lands first.
     /// </remarks>
     internal void AddInstance(EffectInstanceId id, EffectDefinition effect)
     {
@@ -301,87 +262,63 @@ internal sealed class BattleActor : IEffectActorView
     /// <inheritdoc />
     public double MaxHp => Stats[StatId.MAX_HP];
 
-    /// <summary>
-    /// 🔒 `05` §3's timeout rule — <em>"the side with the higher <b>remaining HP fraction</b>
-    /// wins"</em>. <c>0</c> once dead; <c>1</c> at full health.
-    /// </summary>
+    /// <summary>The timeout rule's HP fraction — the side with the higher one wins. <c>0</c> once dead; <c>1</c> at full health.</summary>
     internal double HpFraction =>
         MaxHp <= 0.0 ? 0.0 : StatRounding.Round(_currentHp / MaxHp);
 
     /// <inheritdoc />
     /// <remarks>
-    /// 🔒 <b>Pets are always alive.</b> `05` §3.2: <em>"Pets cannot be targeted or killed."</em> The
-    /// rule is stated here rather than left to every reader, because <c>BattleRoster</c> filters on
-    /// <c>Kind</c> while `05` §3.1's slot 6 filters on HP, and a pet with a stat block whose MAX_HP
-    /// happened to be 0 would otherwise be a corpse the death sweep tried to bury every tick.
+    /// Pets are always alive — they cannot be targeted or killed. Stated here rather than left to every
+    /// reader, because the roster filters on <c>Kind</c> while the death sweep filters on HP, and a pet
+    /// with a zero-MAX_HP stat block would otherwise be a corpse the death sweep tried to bury every tick.
     /// </remarks>
     public bool IsAlive => Kind == EffectActorKind.PET || (_currentHp > 0.0 && !Removed);
 
-    /// <summary>Whether slot 6 has already fired this actor's <c>ON_DEATH</c> and removed it.</summary>
+    /// <summary>Whether the death sweep has already fired this actor's <c>ON_DEATH</c> and removed it.</summary>
     internal bool DeathResolved { get; private set; }
 
-    /// <summary>Whether the actor has left the fight — removed at slot 6, or despawned.</summary>
+    /// <summary>Whether the actor has left the fight — removed at death resolution, or despawned.</summary>
     internal bool Removed { get; private set; }
 
-    /// <summary>
-    /// 🔒 Whether <c>CLEAR_SUMMONS</c> despawned this actor — <b>distinct from dead</b>, and the
-    /// distinction is load-bearing at the timeout.
-    /// </summary>
+    /// <summary>Whether <c>CLEAR_SUMMONS</c> despawned this actor — distinct from dead, and the distinction matters at the timeout.</summary>
     /// <remarks>
-    /// `18` §2.4: <em>"despawned ≠ killed: no <c>ON_DEATH</c>, no <c>ON_KILL</c>, no on-death
-    /// explosions, no rewards"</em> — so a despawned summon keeps its HP rather than dropping to 0.
-    /// `05` §3's timeout is decided on the side's <em>remaining</em> HP fraction, and an actor that
-    /// left the fight has none: counting a killed one at <c>0/max</c> is right, and counting a
-    /// despawned one at <c>max/max</c> would hand the timeout to the side whose summons were
-    /// cleared. Without this flag the two are indistinguishable, because both set
-    /// <see cref="Removed"/> and <see cref="DeathResolved"/>.
+    /// Despawned ≠ killed: no <c>ON_DEATH</c>, no <c>ON_KILL</c>, no on-death explosions, no rewards —
+    /// so a despawned summon keeps its HP rather than dropping to 0. The timeout is decided on the
+    /// side's remaining HP fraction, and a despawned actor has none to count: counting it at
+    /// <c>max/max</c> would hand the timeout to whichever side had its summons cleared. Without this
+    /// flag the two are indistinguishable, because both set <see cref="Removed"/> and <see cref="DeathResolved"/>.
     /// </remarks>
     internal bool Despawned { get; private set; }
 
-    /// <summary>
-    /// Whether this actor's `18` §8 aggregation reads live state — a <c>valueScale</c> or a `18` §4
-    /// condition — and must therefore be re-run every tick rather than only when marked stale.
-    /// </summary>
+    /// <summary>Whether this actor's aggregation reads live state and must be re-run every tick rather than only when marked stale.</summary>
     internal bool StatsDependOnLiveState { get; set; }
 
-    /// <summary>
-    /// 🔒 The actor's <b>untriggered</b> effects — the standing modifiers `18` §8 aggregates. Fixed
-    /// for the fight, because <see cref="ActorPlan.Effects"/> is.
-    /// </summary>
+    /// <summary>The actor's untriggered effects — the standing modifiers aggregation reads. Fixed for the fight.</summary>
     /// <remarks>
-    /// Materialised once rather than filtered per aggregation: <see cref="BattleSimulation"/>
-    /// re-aggregates a state-dependent actor on every one of 1800 ticks, and rebuilding a constant
-    /// list each time was measurable against `05`'s &lt; 5 ms budget. See
-    /// <c>BattleSimulation.RefreshStats</c> for why triggered effects are excluded.
+    /// Materialised once rather than filtered per aggregation: a state-dependent actor re-aggregates on
+    /// every one of 1800 ticks, and rebuilding a constant list each time was measurable against the
+    /// fight's time budget.
     /// </remarks>
     internal IReadOnlyList<EffectDefinition> StandingEffects { get; }
 
-    /// <summary>
-    /// Whether this actor's `18` §8 aggregation is out of date. See
-    /// <see cref="BattleSimulation"/> for when it is raised and why the re-aggregation is not
-    /// unconditional.
-    /// </summary>
+    /// <summary>Whether this actor's aggregation is out of date.</summary>
     internal bool StatsAreStale { get; private set; } = true;
 
     /// <inheritdoc />
     public int StatusStacks(string statusId) => _timeline.StacksOn(this, statusId);
 
     /// <summary>
-    /// Replaces the aggregated block. Called by <see cref="BattleSimulation"/> only, at pre-tick 0a
+    /// Replaces the aggregated block. Called by <see cref="BattleSimulation"/> only, at battle start
     /// and whenever <see cref="StatsAreStale"/>.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>HP is clamped, never scaled.</b> `18` §9.1's <c>CP_GLASS_HEART</c> re-bases Max HP
-    /// mid-fight and `05` §4.1 is explicit that the ward cap follows the new value; nothing in `05`
-    /// or `18` says current HP moves with it, so a shrinking Max HP clips current HP down to it and a
-    /// growing one leaves current HP alone. Scaling it would heal the actor for free every time a
-    /// buff landed.
+    /// HP is clamped, never scaled: a re-based Max HP moves the ward cap with it, but nothing says
+    /// current HP should move too, so a shrinking Max HP clips current HP down to it and a growing one
+    /// leaves current HP alone. Scaling it would heal the actor for free every time a buff landed.
     /// </remarks>
     /// <returns>
-    /// 🔒 Whether the new block <b>clipped current HP</b>. That is an HP <em>decrease</em>, so
-    /// <see cref="BattleSimulation"/> owes it `05` §3.1's phase check and <c>ON_LOW_HP</c> exactly as
-    /// it owes them to a hit — a boss re-based below 66% by <c>CP_GLASS_HEART</c> must enter phase 2
-    /// there and not on whatever unrelated swing lands next.
+    /// Whether the new block clipped current HP. That is an HP decrease, so the caller owes it the
+    /// phase check and <c>ON_LOW_HP</c> exactly as it owes them to a hit.
     /// </returns>
     internal bool SetStats(AggregatedStats stats)
     {
@@ -406,18 +343,14 @@ internal sealed class BattleActor : IEffectActorView
     /// <summary>Marks the aggregation out of date — any change to the effects that feed it.</summary>
     internal void InvalidateStats() => StatsAreStale = true;
 
-    /// <summary>Freezes <see cref="StartOfTickStats"/> — the top of every tick, before slot 1.</summary>
+    /// <summary>Freezes <see cref="StartOfTickStats"/> — the top of every tick, before status timers advance.</summary>
     internal void FreezeStartOfTick() => StartOfTickStats = Stats;
 
-    /// <summary>
-    /// Sets current HP, clamped to <c>0..MaxHp</c> and rounded to `05` §1.1's four decimals.
-    /// </summary>
+    /// <summary>Sets current HP, clamped to <c>0..MaxHp</c> and rounded to four decimals.</summary>
     /// <remarks>
-    /// 🔒 <b>The clamp is here and nowhere else.</b> <c>CombatLog.Complete</c> refuses a negative
-    /// <c>HeroHpRemaining</c> on the grounds that <em>"`05` §4's damage pipeline and §4.3's healing
-    /// keep HP at or above 0 by construction"</em> — this method is that construction. Letting HP go
-    /// negative would also make <see cref="HpFraction"/> negative and hand `05` §3's timeout to the
-    /// wrong side.
+    /// The clamp is here and nowhere else: HP is kept at or above 0 by construction, and this is that
+    /// construction. Letting HP go negative would also make <see cref="HpFraction"/> negative and hand
+    /// the timeout to the wrong side.
     /// </remarks>
     internal void SetCurrentHp(double value)
     {
@@ -430,24 +363,20 @@ internal sealed class BattleActor : IEffectActorView
                 "the clamp below would pass it straight through.");
         }
 
-        // Math.Max on the ceiling, because Math.Clamp throws when min > max: `05` §1 declares no
-        // floor under MAX_HP, so a STAT_ADD_PCT below -100% reaches here, and an argument-order
-        // exception out of the BCL would report as a bug in this method rather than in the
-        // aggregation that produced the block.
+        // Math.Max on the ceiling, because Math.Clamp throws when min > max: there is no floor under
+        // MAX_HP, so a percent reduction below -100% can reach here, and an argument-order exception
+        // out of the BCL would report as a bug in this method rather than in the aggregation upstream.
         _currentHp = StatRounding.Round(Math.Clamp(value, 0.0, Math.Max(0.0, MaxHp)));
     }
 
-    /// <summary>Records that slot 6 has resolved this actor's death and removed it.</summary>
+    /// <summary>Records that the death sweep has resolved this actor's death and removed it.</summary>
     internal void MarkDeathResolved()
     {
         DeathResolved = true;
         Removed = true;
     }
 
-    /// <summary>
-    /// `18` §2.4's <c>CLEAR_SUMMONS</c> — <em>"despawned ≠ killed: no <c>ON_DEATH</c>, no
-    /// <c>ON_KILL</c>, no on-death explosions, no rewards."</em>
-    /// </summary>
+    /// <summary><c>CLEAR_SUMMONS</c> — despawned ≠ killed: no <c>ON_DEATH</c>, no <c>ON_KILL</c>, no on-death explosions, no rewards.</summary>
     internal void Despawn()
     {
         Removed = true;
@@ -455,25 +384,11 @@ internal sealed class BattleActor : IEffectActorView
         Despawned = true;
     }
 
-    /// <summary>
-    /// 🔒 The roster's own actor behind an `18` §4/§5 view — <b>the one statement of that cast and
-    /// of its diagnosis</b>.
-    /// </summary>
+    /// <summary>The roster's own actor behind an effect view — the one statement of that cast and of its diagnosis.</summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 A cast with a message rather than a silent one. <c>BattleRoster</c> is typed over
-    /// <see cref="IEffectActorView"/> because `18` §4 and §5 are, but a battle's roster is built by
-    /// <see cref="BattleSimulation"/> out of <see cref="BattleActor"/>s exclusively — see
-    /// <see cref="IEffectActorView"/>'s <em>"two views of one battle are two chances to disagree"</em>.
-    /// A foreign view reaching a combat rule is a second roster, which is the defect that remark is
-    /// about.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>One diagnosis, not two.</b> <c>AttackPipeline</c> and <c>TargetSelection</c> each carried
-    /// their own copy of this cast with the same invariant and two different sentences, so the same
-    /// defect read differently depending on which rule tripped over it first. M2 review made this the
-    /// statement and both of those forwarders.
-    /// </para>
+    /// A battle's roster is built out of <see cref="BattleActor"/>s exclusively; a foreign view reaching
+    /// a combat rule would mean a second roster exists, which is exactly the defect that would let two
+    /// roster-scanning conditions disagree about the same battle.
     /// </remarks>
     /// <param name="view">The view a combat rule was handed.</param>
     /// <exception cref="ArgumentNullException"><paramref name="view"/> is null.</exception>

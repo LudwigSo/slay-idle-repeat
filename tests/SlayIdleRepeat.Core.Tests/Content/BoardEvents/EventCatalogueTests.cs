@@ -9,19 +9,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.BoardEvents;
 
-/// <summary>
-/// 🔒 `19` Part A — <see cref="EventCatalogue"/>, against the <b>real</b>
-/// <c>game-data/content/board_events/board_events.json</c>.
-/// </summary>
+/// <summary><see cref="EventCatalogue"/>, against the real <c>game-data/content/board_events/board_events.json</c>.</summary>
 /// <remarks>
-/// ⚠️ <b>This is the one class in M3-03's suite that reads the shipped tree rather than a hermetic
-/// fixture, and the exception is deliberate.</b> The claim being made is "all thirty authored cards
-/// load and are well formed", which a fixture mirroring thirty cards could not make — it would only
-/// say that thirty cards <em>I wrote in this file</em> load. <c>GameDataLoaderTests</c> is the
-/// existing precedent for reaching the tree from <c>Core.Tests</c>, through
-/// <see cref="GameDataLoader"/>, which the test project already references for exactly this. The
-/// reader's own <em>refusals</em> are tested hermetically below, where a malformed document has to be
-/// constructed.
+/// This is the one class in this suite that reads the shipped tree rather than a hermetic fixture:
+/// the claim "all thirty authored cards load and are well formed" cannot be made by a fixture that
+/// only mirrors thirty cards written in this file. The reader's own refusals are tested hermetically
+/// below, where a malformed document is constructed.
 /// </remarks>
 public sealed class EventCatalogueTests
 {
@@ -29,7 +22,7 @@ public sealed class EventCatalogueTests
 
     private static readonly EventCatalogue Shipped = EventCatalogue.Read(RealData);
 
-    /// <summary>🔒 `19` Part A authors thirty cards and all thirty load.</summary>
+    /// <summary>All thirty authored cards load.</summary>
     [Fact]
     public void All_thirty_authored_cards_load()
     {
@@ -49,7 +42,7 @@ public sealed class EventCatalogueTests
         }
     }
 
-    /// <summary>Every card carries the title and body `19` Part A gives it.</summary>
+    /// <summary>Every card carries a title and a body.</summary>
     [Fact]
     public void Every_card_carries_a_title_and_a_body()
     {
@@ -60,7 +53,7 @@ public sealed class EventCatalogueTests
         }
     }
 
-    /// <summary>`19` Part A gives every card two or three options, each with at least one outcome.</summary>
+    /// <summary>Every card offers two or three options, each with at least one outcome.</summary>
     [Fact]
     public void Every_card_offers_two_or_three_options_with_real_outcomes()
     {
@@ -83,8 +76,8 @@ public sealed class EventCatalogueTests
     }
 
     /// <summary>
-    /// 🔒 Every card's chapter band is one of `19` Part A's own three (A1 1-3, A2 3-6, A3 6-8), and
-    /// together they cover every chapter `02` §1 runs.
+    /// Every card's chapter band is one of three (1-3, 3-6, 6-8), and together they cover every
+    /// chapter the run can reach.
     /// </summary>
     [Fact]
     public void Every_card_sits_in_one_of_part_As_three_chapter_bands()
@@ -101,8 +94,8 @@ public sealed class EventCatalogueTests
     }
 
     /// <summary>
-    /// 🔒 The band filter is inclusive at both ends — chapters 3 and 6 sit in two bands each, which
-    /// is `19` Part A's own overlap and not a transcription slip.
+    /// The band filter is inclusive at both ends — chapters 3 and 6 sit in two bands each, which is
+    /// intentional and not a transcription slip.
     /// </summary>
     [Fact]
     public void The_chapter_bands_overlap_at_three_and_six()
@@ -135,7 +128,7 @@ public sealed class EventCatalogueTests
     }
 
     /// <summary>
-    /// 🔒 Every <c>UNSUPPORTED</c> effect carries a note. ⚠️ The note is what separates a deliberate
+    /// Every <c>UNSUPPORTED</c> effect carries a note. The note is what separates a deliberate
     /// deferral from an unfinished row, so an empty one would make the whole op meaningless.
     /// </summary>
     [Fact]
@@ -154,15 +147,11 @@ public sealed class EventCatalogueTests
         }
     }
 
-    /// <summary>
-    /// 🔒 The <c>chapterScaled</c> convention holds across all thirty: GOLD amounts are flat and
-    /// metacurrency amounts scale.
-    /// </summary>
+    /// <summary>The <c>chapterScaled</c> convention holds across all thirty: GOLD amounts are flat and metacurrency amounts scale.</summary>
     /// <remarks>
-    /// ⚠️ This is a <b>transcription judgement</b> rather than a design number — `19` Part A's header
-    /// says costs and rewards scale "unless marked flat" and marks nothing flat, so the reading that
-    /// GOLD figures are already at the in-run scale is the authored decision M3-03 recorded. Pinning
-    /// it here is what makes it a decision rather than a drift.
+    /// A transcription judgement rather than a design number: costs and rewards scale "unless marked
+    /// flat" and nothing is marked flat, so GOLD figures being already at the in-run scale is a
+    /// deliberate decision pinned here rather than left to drift.
     /// </remarks>
     [Fact]
     public void Gold_amounts_are_flat_and_metacurrency_amounts_are_chapter_scaled()

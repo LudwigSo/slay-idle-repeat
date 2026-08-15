@@ -7,20 +7,16 @@ using SlayIdleRepeat.Core.Rules.Economy;
 namespace SlayIdleRepeat.Core.Handlers;
 
 /// <summary>
-/// 🔒 M3-13, `14` §2.3 — the <c>ABANDON_RUN</c> handler: closes the run with `02` §5.2's
-/// <c>ABANDON</c> multiplier (0.10) applied to whatever was banked, no matter the run's HP or
-/// whether the Boss is dead.
+/// The <c>ABANDON_RUN</c> handler: closes the run early, applying a 0.10 multiplier to whatever
+/// rewards were banked, regardless of HP or Boss status.
 /// </summary>
 /// <remarks>
-/// ⚠️ <b>"No gear drops are kept" is a no-op today, and that is a scope boundary, not a lost rule.</b>
-/// There is no gear system in this milestone — <c>GapRegister</c>'s inventory/gear-instance entries
-/// are M4's — so there is nothing for this handler to strip. The 0.10 multiplier on
-/// <c>BankedRewards</c> is the whole of what M3-13 can enforce; the day gear exists, its own task
-/// reads this handler's remarks and adds the strip.
+/// Gear drops are not stripped because no gear system exists yet; that lands with whichever task
+/// adds gear.
 /// </remarks>
 internal static class AbandonRun
 {
-    /// <summary>🔒 `02` §5.2 — applies <c>ABANDON_RUN</c>.</summary>
+    /// <summary>Applies <c>ABANDON_RUN</c>.</summary>
     internal static HandlerResult Handle(AbandonRunCommand command, HandlerInput input)
     {
         ArgumentNullException.ThrowIfNull(command);
@@ -57,6 +53,6 @@ internal static class AbandonRun
         return HandlerResult.Accept(events);
     }
 
-    /// <summary>The `21` §8.3 income-attribution reason the abandon-run payout carries.</summary>
+    /// <summary>Income-attribution reason for the abandon-run payout.</summary>
     private const string PayoutReason = "run_abandon_payout";
 }

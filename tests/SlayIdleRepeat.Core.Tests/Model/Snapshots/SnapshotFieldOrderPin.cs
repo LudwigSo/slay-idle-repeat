@@ -3,10 +3,7 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
-/// <summary>
-/// The 🔒 field-order pin of `14` §16.6 — <em>"a CI test pins the field list per
-/// <c>SchemaVersion</c>"</em> — and the comparison that makes it bite.
-/// </summary>
+/// <summary>The field-order pin — a CI test pins the field list per <c>SchemaVersion</c> — and the comparison that makes it bite.</summary>
 /// <remarks>
 /// The subject set is every public snapshot record under <c>Core/Model/Snapshots/</c>. It was empty
 /// until the first record landed, and the rule was written against its final subject anyway — so it
@@ -39,9 +36,9 @@ internal static class SnapshotFieldOrderPin
     /// in <c>Core/Model/Snapshots/</c> or below it.
     /// </summary>
     /// <remarks>
-    /// 🔒 Matched by namespace <b>prefix</b>, as every architecture rule over this directory does. An
-    /// exact match would leave a snapshot one folder deeper outside the subject set, so the rule would
-    /// stay vacuous forever — a pin that never bites and never says why.
+    /// Matched by namespace <b>prefix</b>. An exact match would leave a snapshot one folder deeper
+    /// outside the subject set, so the rule would stay vacuous forever — a pin that never bites and
+    /// never says why.
     /// <para>
     /// Exposed separately from <see cref="SnapshotRecords"/> so the self-tests can prove this half is not
     /// the vacuity source: if this filter reaches nothing, all four pin rules hold over nothing.
@@ -60,11 +57,8 @@ internal static class SnapshotFieldOrderPin
     /// never be empty again.
     /// </summary>
     /// <remarks>
-    /// ⚠️ M1-12 dropped "holds <c>PlayerSnapshot</c> from that commit" rather than extending it to
-    /// name <c>RunSnapshot</c> too. It was true and incomplete from M1-05 onwards, which is the
-    /// shape that goes stale silently — a list of members in prose beside the list that computes
-    /// them. What is durable is the claim: this set is non-empty, and every record in it is pinned.
-    /// The identities are floored in <c>SubjectSetFloorTests</c>, where a rename goes red.
+    /// What is durable is the claim: this set is non-empty, and every record in it is pinned. The
+    /// identities are floored in <c>SubjectSetFloorTests</c>, where a rename goes red.
     /// </remarks>
     internal static IReadOnlyList<Type> SnapshotRecords { get; } =
         PublicTypesUnderSnapshots

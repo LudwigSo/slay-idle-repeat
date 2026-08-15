@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
-/// <summary>
-/// 🔒 The tick arithmetic behind every timed trigger — the guards that keep `05` §3's fixed-tick
-/// simulation from acquiring a floating-point accumulation point.
-/// </summary>
+/// <summary>The tick arithmetic behind every timed trigger — the guards that keep the fixed-tick simulation from acquiring a floating-point accumulation point.</summary>
 public sealed class TriggerScheduleTests
 {
     /// <summary>Whole seconds convert exactly, which is the point of counting in ticks.</summary>
@@ -27,7 +24,7 @@ public sealed class TriggerScheduleTests
     }
 
     /// <summary>
-    /// 🔒 A span that is not a whole number of ticks is refused rather than rounded — the same rule,
+    /// A span that is not a whole number of ticks is refused rather than rounded — the same rule,
     /// for the same reason, that <c>CombatLog.AppendTelegraph</c> applies to a telegraph's lead.
     /// </summary>
     /// <remarks>
@@ -50,14 +47,13 @@ public sealed class TriggerScheduleTests
     }
 
     /// <summary>
-    /// 🔒 A span that cannot be a span at all is refused before the cast — an overflow that wrapped
+    /// A span that cannot be a span at all is refused before the cast — an overflow that wrapped
     /// into a negative tick would read exactly like a trigger that fires immediately.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Each row names the fragment of the guard that must have fired (steering S2). Two different
-    /// rules are in play and the type alone cannot tell them apart: <c>NaN</c> and <c>∞</c> are
-    /// caught by the finite-arithmetic guard and never reach the fight-cap check at all, so a version
-    /// asserting only <c>EffectContextException</c> would stay green with the cap guard deleted.
+    /// Each row names the fragment of the guard that must have fired. Two different rules are in
+    /// play and the type alone cannot tell them apart: <c>NaN</c> and <c>∞</c> are caught by the
+    /// finite-arithmetic guard and never reach the fight-cap check at all.
     /// </remarks>
     [Theory]
     [InlineData(-1.0, "caps a fight at 90 s")]
@@ -75,10 +71,7 @@ public sealed class TriggerScheduleTests
         failure.Message.ShouldContain(expected, Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 Steering S6 — a <c>PERIODIC</c> with no <c>interval</c> is refused, never defaulted. With
-    /// no N there is no <em>"every N seconds"</em>.
-    /// </summary>
+    /// <summary>A <c>PERIODIC</c> with no <c>interval</c> is refused, never defaulted — with no N there is no "every N seconds".</summary>
     [Fact]
     public void A_PERIODIC_with_no_interval_is_refused()
     {
@@ -98,10 +91,7 @@ public sealed class TriggerScheduleTests
             new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 0.0 }));
     }
 
-    /// <summary>
-    /// 🔒 R8 and the <c>startDelay</c> ruling, as arithmetic: the first firing is
-    /// <c>anchor + (startDelay ?? interval)</c>.
-    /// </summary>
+    /// <summary>The first firing is <c>anchor + (startDelay ?? interval)</c>.</summary>
     [Theory]
     [InlineData(8.0, null, 0, 160)]
     [InlineData(8.0, null, 600, 760)]
@@ -121,10 +111,7 @@ public sealed class TriggerScheduleTests
         TriggerSchedule.FirstFiringTick(trigger, anchorTick).ShouldBe(expected);
     }
 
-    /// <summary>
-    /// 🔒 An explicit <c>startDelay: 0</c> is honoured — the absent-means-one-interval ruling is
-    /// about the <b>absence</b>, and an author who writes zero means zero.
-    /// </summary>
+    /// <summary>An explicit <c>startDelay: 0</c> is honoured — the absent-means-one-interval ruling is about the absence, and an author who writes zero means zero.</summary>
     /// <remarks>
     /// The row above proves the arithmetic; this states the distinction, because a default
     /// implemented as <c>StartDelay ?? Interval</c> and one implemented as

@@ -5,8 +5,7 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 
 /// <summary>
-/// <see cref="EffectOp.MODIFY_DIE_FACE"/>'s <c>faceIndex</c> — `18` §7.9's <c>"PLAYER_CHOICE"</c>
-/// and the numbered form over `04` §1's six faces.
+/// <see cref="EffectOp.MODIFY_DIE_FACE"/>'s <c>faceIndex</c>: the <c>"PLAYER_CHOICE"</c> token, and the numbered form over six faces.
 /// </summary>
 public sealed class DieFaceIndexTests
 {
@@ -36,7 +35,7 @@ public sealed class DieFaceIndexTests
         index.ToString().ShouldBe(face.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
-    /// <summary>`04` §1 gives the die six faces, and the numbering is 1-based — recorded as an inference.</summary>
+    /// <summary>The die has six faces, numbered 1-based.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(7)]
@@ -58,14 +57,12 @@ public sealed class DieFaceIndexTests
     }
 
     /// <summary>
-    /// 🔒 A <c>default</c> value names no face, and must not read as <see cref="DieFaceIndex.PlayerChoice"/>.
+    /// A <c>default</c> value names no face, and must not read as <see cref="DieFaceIndex.PlayerChoice"/>.
     /// </summary>
     /// <remarks>
-    /// This is the same hazard every enum in the DSL avoids by having no <c>0</c> member and that
-    /// <see cref="StatSelector"/> avoids by throwing on a default selector. If "player choice" were
-    /// modelled as the <em>absence</em> of a face number, a forgotten assignment would become a real
-    /// instruction to the run controller — a die face replaced at the player's choosing, arrived at
-    /// by accident.
+    /// Same hazard every enum in the DSL avoids by having no <c>0</c> member: if "player choice" were
+    /// modelled as the absence of a face number, a forgotten assignment would silently become a real
+    /// instruction to the run controller.
     /// </remarks>
     [Fact]
     public void A_default_index_is_unset_rather_than_player_choice()
@@ -90,7 +87,6 @@ public sealed class DieFaceIndexTests
         DieFaceIndex.PlayerChoice.ShouldBe(DieFaceIndex.PlayerChoice);
     }
 
-    /// <summary>`18` §7.9's <c>TILE_DICE_FORGE</c>, as a whole effect.</summary>
     [Fact]
     public void TILE_DICE_FORGE_replaces_the_player_chosen_face_with_a_four_pip()
     {
@@ -110,7 +106,7 @@ public sealed class DieFaceIndexTests
         effect.Family.ShouldBe(EffectOpFamily.RUN_AND_BOARD);
     }
 
-    /// <summary>`18` §9.2's <c>PET_DICEBEAST</c> — a <c>Star</c> face with no pip value.</summary>
+    /// <summary>PET_DICEBEAST: a <c>Star</c> face with no pip value.</summary>
     [Fact]
     public void PET_DICEBEAST_grants_a_star_face_for_the_next_three_rolls()
     {

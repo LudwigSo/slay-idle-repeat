@@ -7,27 +7,11 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Events;
 
 /// <summary>
-/// 🔒 `30` §7 — <em>"Every currency movement in the game emits <c>CurrencyChanged</c> with a
-/// reason."</em> This suite covers the event itself: the four things it carries, and the one thing it
-/// refuses.
+/// Every currency movement in the game emits <c>CurrencyChanged</c> with a reason. This suite covers
+/// the event itself: the four things it carries, and the one thing it refuses. The reason is what
+/// turns income attribution into a query over events rather than hand-written bookkeeping that will
+/// disagree — an unattributed row is unusable, which is why a blank one is refused at construction.
 /// </summary>
-/// <remarks>
-/// The rule that every currency <i>mutation</i> emits one is
-/// <c>DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged</c>, an IL scan that predates
-/// this type.
-/// <para>
-/// ⚠️ Authoring this event very nearly switched that rule's own vacuity sentinel off:
-/// <c>CurrencyChanged.Id</c> is a <c>CurrencyId</c>-typed property, so its backing field matched
-/// <c>CurrencyFields()</c> and took the <c>count == 0</c> early return away, leaving the rule looking
-/// awake a milestone before any currency is stored anywhere. <c>CurrencyFields()</c> now skips the
-/// <c>Core/Events/</c> hierarchy — an event is the emission, never the holder.
-/// </para>
-/// <para>
-/// The reason is what turns `21` §8.3's <c>income_attribution.csv</c> into a query over events rather
-/// than thirty pieces of hand-written bookkeeping that will disagree. An unattributed row is a row that
-/// report cannot use, which is why a blank one is refused at construction.
-/// </para>
-/// </remarks>
 public sealed class CurrencyChangedTests
 {
     [Fact]
@@ -42,17 +26,13 @@ public sealed class CurrencyChangedTests
     }
 
     /// <summary>
-    /// It reaches its consumers as a <c>DomainEvent</c>, which is the whole mechanism: `30` §7's
-    /// four consumers read one heterogeneous list, not four bespoke hooks — so the ordinal they
-    /// order that list by has to be the <b>base</b>'s <c>Sequence</c>, carrying what the
-    /// constructor was handed.
+    /// It reaches its consumers as a <c>DomainEvent</c>: consumers read one heterogeneous list, not
+    /// bespoke hooks, so the ordinal they order by has to be the base's <c>Sequence</c>.
     /// </summary>
     [Fact]
     public void A_currency_change_reaches_its_consumers_as_a_DomainEvent()
     {
         // The assignment IS the derivation claim — it stops compiling if the base type goes.
-        // Asserting the runtime type of a variable that was just handed a `new CurrencyChanged`
-        // would be true of every possible value and could not fail for any bug.
         DomainEvent asEvent = new CurrencyChanged(7, CurrencyId.GOLD, -10, "shop_purchase");
 
         asEvent.Sequence.ShouldBe(
@@ -66,10 +46,7 @@ public sealed class CurrencyChangedTests
             "and the animation script (14 §2.4) and the economy log (14 §7.1) would order by the base's.");
     }
 
-    /// <summary>
-    /// 🔒 The reason is not optional. Null, empty and whitespace are all refused, and the message
-    /// names the report that stops working without it rather than reading like a null check.
-    /// </summary>
+    /// <summary>The reason is not optional; null, empty and whitespace are all refused.</summary>
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -83,8 +60,8 @@ public sealed class CurrencyChangedTests
 
         thrown.ParamName.ShouldBe("Reason");
 
-        // Pins WHICH rule fired, not just that an ArgumentException was thrown (steering S2):
-        // several guards in Core throw ArgumentException, and only this one is 30 §7's.
+        // Pins which rule fired, not just that an ArgumentException was thrown — several guards in
+        // Core throw one, and only this one is this rule's.
         thrown.Message.ShouldContain("21 §8.3", Case.Sensitive);
         thrown.Message.ShouldContain("income_attribution", Case.Sensitive);
     }
@@ -97,8 +74,7 @@ public sealed class CurrencyChangedTests
 
     /// <summary>
     /// A spend is a negative delta and stays one. Construction must not clamp, absolute-value or
-    /// reject it: `21` §8.3 nets income against spend, and a report that only ever sees credits
-    /// answers R10 with the wrong number rather than with no number.
+    /// reject it, since income reporting nets income against spend.
     /// </summary>
     [Fact]
     public void A_spend_is_a_negative_delta_and_is_kept_as_one()
@@ -107,10 +83,8 @@ public sealed class CurrencyChangedTests
     }
 
     /// <summary>
-    /// ⚠️ This pins a rule that is deliberately <b>absent</b>. A zero delta is permitted, because
-    /// `30` §7 says every movement emits an event — it does not say every event is a movement, and
-    /// M1-10's energy clamp may well produce one. If a later milestone decides a zero-delta row is
-    /// noise in the economy log, that is a design change and it should cost this edit.
+    /// This pins a rule that is deliberately absent. A zero delta is permitted: every movement emits
+    /// an event, but not every event needs to be a movement (an energy clamp may well produce one).
     /// </summary>
     [Fact]
     public void A_zero_delta_is_permitted()
@@ -119,10 +93,9 @@ public sealed class CurrencyChangedTests
     }
 
     /// <summary>
-    /// One event type covers all eight currencies — including <c>GOLD</c>, which milestone
-    /// assumption <b>A3</b> makes run-scoped while the other seven are player-scoped. That splits
-    /// the <i>storage</i> across the <c>Run</c> and <c>Player</c> aggregates in M1-04/M1-05; it
-    /// does not split this event, or `21` §8.3 would have to union two tables.
+    /// One event type covers all eight currencies, including <c>GOLD</c>, which is run-scoped while
+    /// the other seven are player-scoped. That splits storage across two aggregates; it does not
+    /// split this event.
     /// </summary>
     [Theory]
     [MemberData(nameof(EveryCurrency))]
@@ -131,7 +104,7 @@ public sealed class CurrencyChangedTests
         new CurrencyChanged(1, currency, 1, "test").Id.ShouldBe(currency);
     }
 
-    /// <summary>The floor under the theory above (steering S3): an empty source would run zero cases and pass.</summary>
+    /// <summary>The floor under the theory above: an empty source would run zero cases and pass.</summary>
     [Fact]
     public void The_currency_theory_covers_the_whole_wallet()
     {
@@ -142,9 +115,9 @@ public sealed class CurrencyChangedTests
     }
 
     /// <summary>
-    /// Value equality over all four components. The economy log (`14` §7.1) is append-only and the
-    /// replay script (`14` §2.4) is ordered, so two credits of the same amount for the same reason
-    /// are distinct rows distinguished by nothing but the ordinal.
+    /// Value equality over all four components. The economy log is append-only and the replay script
+    /// is ordered, so two credits of the same amount for the same reason are distinct rows
+    /// distinguished by nothing but the ordinal.
     /// </summary>
     [Fact]
     public void Two_currency_changes_are_equal_only_when_every_component_matches()
@@ -160,19 +133,11 @@ public sealed class CurrencyChangedTests
     }
 
     /// <summary>
-    /// 🔒 `14` §8.2 — the event renders identically under every culture, and a <b>negative</b> delta is
-    /// what makes that a real claim.
+    /// The event renders identically under every culture, and a negative delta is what makes that a
+    /// real claim: under <c>sv-SE</c> a delta of -10 renders with U+2212 rather than U+002D, and the
+    /// boxing in a synthesized <c>PrintMembers</c> hides that from the IL scan. Swedish rather than
+    /// German, since German renders a negative integer with an ordinary hyphen and would prove nothing.
     /// </summary>
-    /// <remarks>
-    /// A record's synthesized <c>PrintMembers</c> appends every member through
-    /// <c>StringBuilder.Append(object)</c>, which formats with the <b>ambient</b> culture: under
-    /// <c>sv-SE</c> a delta of −10 renders with U+2212, against U+002D in the CI container. The boxing
-    /// hides that from the IL scan, which matches a call whose declaring type is <c>System.Int64</c>.
-    /// <para>
-    /// 🔒 Swedish rather than German: <c>de-DE</c> renders a negative integer with an ordinary hyphen, so
-    /// a test written against it would pass and prove nothing.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void ToString_renders_identically_under_any_culture()
     {
@@ -211,7 +176,7 @@ public sealed class CurrencyChangedTests
         }
     }
 
-    /// <summary>The `10` §1 wallet, read off the enum rather than transcribed.</summary>
+    /// <summary>The wallet, read off the enum rather than transcribed.</summary>
     private static readonly CurrencyId[] Wallet = Enum.GetValues<CurrencyId>();
 
     /// <summary>The wallet as theory data.</summary>

@@ -6,15 +6,12 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// `03` §2.1 / §4, `03` §7a, `14` §6 — <c>content/chapters/</c> as the content pipeline sees it:
-/// M3-14's two chapter files (<c>CH_01_GREENWOOD_VALE.json</c>, <c>CH_02_ASHEN_MIRE.json</c>) and
-/// <b>R34</b>, the cross-file rule that keeps a chapter's <c>enemyPool</c> in step with
-/// <c>enemies.json</c>'s producer-side transcription.
+/// Tests <c>content/chapters/</c>'s two shipped chapter files and <b>R34</b>, the cross-file rule
+/// that keeps a chapter's <c>enemyPool</c> in step with <c>enemies.json</c>'s transcription.
 /// </summary>
 /// <remarks>
-/// Chapters 3-8 are M11-02's rows, not this suite's: the schema already spans <c>id</c> 1-8 and
-/// nothing here asserts a chapter count of eight — only that the two chapters M3-14 actually
-/// authored are shaped and cross-referenced correctly.
+/// The schema spans chapter ids 1-8, but only the two chapters actually authored so far are
+/// asserted here; this suite does not assume a chapter count of eight.
 /// </remarks>
 public sealed class ChaptersDataTests
 {
@@ -58,10 +55,7 @@ public sealed class ChaptersDataTests
         data.ReadText($"{document}#/bossId").ShouldBe(bossId, "17 §1.2's chapter column names this boss");
     }
 
-    /// <summary>
-    /// `03` §2.1's reference distribution, transcribed verbatim onto Chapter 1 Stage 1 — the one
-    /// worked example in the design docs, so this pins the numbers rather than merely the sum.
-    /// </summary>
+    /// <summary>Chapter 1 Stage 1's tile weights, pinned exactly rather than just their sum.</summary>
     [Fact]
     public void Chapter_1_stage_1_matches_03_section_2_1s_reference_distribution_exactly()
     {
@@ -83,9 +77,8 @@ public sealed class ChaptersDataTests
     }
 
     /// <summary>
-    /// `03` §2.1: "Later chapters shift weight from TILE_EMPTY toward TILE_ELITE and TILE_CURSE."
-    /// Every one of the six authored stages (Ch1 S2-3, Ch2 S1-3) must honour the trend, strictly,
-    /// against the immediately preceding stage — a guard that fails on a flat or reversed step.
+    /// Empty tile weight must strictly fall and elite/curse weight must strictly rise across every
+    /// authored stage, checked against the immediately preceding stage.
     /// </summary>
     [Fact]
     public void Empty_falls_and_elite_and_curse_rise_monotonically_across_every_authored_stage()
@@ -108,7 +101,7 @@ public sealed class ChaptersDataTests
         }
     }
 
-    /// <summary>Every authored stage's weight table sums to 100, matching `03` §2.1's own row.</summary>
+    /// <summary>Every authored stage's weight table sums to 100.</summary>
     [Theory]
     [InlineData(ChapterOne)]
     [InlineData(ChapterTwo)]
@@ -125,10 +118,7 @@ public sealed class ChaptersDataTests
 
     // ─────────────────────────────────────────────────────── R34
 
-    /// <summary>
-    /// 🔒 <b>R34</b> — a chapter file's <c>enemyPool</c> must be exactly the weight table
-    /// <c>enemies.json#/chapterPools</c> already transcribes for the same chapter id.
-    /// </summary>
+    /// <summary>R34 — a chapter file's enemyPool must exactly match enemies.json#/chapterPools for the same chapter id.</summary>
     [Theory]
     [InlineData(ChapterOne, 0)]
     [InlineData(ChapterTwo, 1)]
@@ -149,10 +139,7 @@ public sealed class ChaptersDataTests
         }
     }
 
-    /// <summary>
-    /// 🔒 <b>R34</b> bites — S1: a guard that cannot fail is a defect, so this edits a real weight
-    /// away from the producer's and proves the rule actually reports it.
-    /// </summary>
+    /// <summary>R34 bites: edits a real weight away from the producer's and checks the rule reports it.</summary>
     [Fact]
     public void R34_refuses_a_chapter_enemy_pool_that_disagrees_with_enemies_json()
     {
@@ -192,7 +179,7 @@ public sealed class ChaptersDataTests
         data.ReadText($"{ChapterTwo}#/unlockCondition/tier").ShouldBe("NORMAL");
     }
 
-    /// <summary>`29` §4.1 — powerTarget must equal parPower[id].NORMAL, which par_power.json ships today.</summary>
+    /// <summary>powerTarget must equal parPower[id].NORMAL, which par_power.json ships today.</summary>
     [Theory]
     [InlineData(ChapterOne, 1000)]
     [InlineData(ChapterTwo, 2000)]

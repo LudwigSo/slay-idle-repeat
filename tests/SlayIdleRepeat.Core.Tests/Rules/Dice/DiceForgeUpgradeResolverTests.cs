@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Dice;
 
-/// <summary>The pure resolver behind <c>TILE_DICE_FORGE</c>'s upgrade — M3-04's gap to fill.</summary>
+/// <summary>The pure resolver behind <c>TILE_DICE_FORGE</c>'s upgrade.</summary>
 public sealed class DiceForgeUpgradeResolverTests
 {
     [Fact]

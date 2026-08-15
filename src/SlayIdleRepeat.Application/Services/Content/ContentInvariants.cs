@@ -7,18 +7,17 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// </summary>
 /// <remarks>
 /// <para>
-/// `14` §6 names five failure classes; a JSON Schema can express two of them on its own
-/// (unknown ids, out-of-range values) and gets duplicate ids only within one array. Orphaned
-/// references, missing icons, duplicate ids across files, and every "these two files must agree"
-/// rule the design docs state live here.
+/// A JSON Schema can express only some of these on its own (unknown ids, out-of-range values), and
+/// gets duplicate ids only within one array. Orphaned references, missing icons, duplicate ids
+/// across files, and every "these two files must agree" rule the design docs state live here.
 /// </para>
 /// <para>
-/// The reference rules are <b>derived from the schemas, not guessed from the data</b>. A schema
+/// The reference rules are derived from the schemas, not guessed from the data. A schema
 /// <c>pattern</c> such as <c>^PET_[A-Z0-9_]+$</c> defines an id space; wherever that pattern
 /// governs an <c>id</c> member the value is a <em>declaration</em>, and wherever the same pattern
 /// governs anything else the value is a <em>reference</em> that must resolve. Inferring id spaces
-/// from the shape of the strings instead would fire on <c>BOSS_KILL</c> and <c>BOTH_ROUNDS</c>,
-/// and a rule that cries wolf is a rule somebody switches off.
+/// from the shape of the strings instead would fire on lookalikes like <c>BOSS_KILL</c> and
+/// <c>BOTH_ROUNDS</c>, and a rule that cries wolf is a rule somebody switches off.
 /// </para>
 /// </remarks>
 public static partial class ContentInvariants
@@ -29,36 +28,32 @@ public static partial class ContentInvariants
     private const string StringsMemberName = "strings";
 
     /// <summary>
-    /// 🔒 Perk ids <c>tuning/calibration_builds.json</c> references from its <c>draftPriority</c>
-    /// rows ahead of the perk that authors them — a forward reference the M2-16 kickoff decision
-    /// named explicitly, not a defect this change introduced.
+    /// Perk ids <c>tuning/calibration_builds.json</c> references from its <c>draftPriority</c> rows
+    /// ahead of the perk that authors them — a known, dated forward reference, not a defect.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// M2-16a wrote <c>calibration_builds.json</c>'s five archetype rows with the full-catalogue
-    /// <c>draftPriority</c> lists 06 §3 implies, while <c>content/perks/</c> was still empty — and
-    /// the kickoff record says so: <em>"The archetypes' frozenPerks/pets reference ids that do not
-    /// exist until M3-07/M4-07"</em>. <c>CheckIdSpaces</c> only turns a schema <c>pattern</c> into a
-    /// checked id space once <em>some</em> document declares an <c>id</c> under it (`14` §6 duplicate
-    /// ids and orphaned references, over the id spaces the schemas define) — so with no perk ever
-    /// authored, <c>^PK_[A-Z0-9_]+$</c> was not yet an id space and every <c>draftPriority</c> string
-    /// validated by shape alone. M3-07 is the commit that authors the FIRST perk, which is also the
-    /// commit that turns the pattern into a real id space and starts checking every reference — a
-    /// consequence of authoring 46 of 06 §3's 82 rows honestly, not a defect in either file.
+    /// <c>calibration_builds.json</c>'s five archetype rows were written with the full-catalogue
+    /// <c>draftPriority</c> lists while <c>content/perks/</c> was still empty. <c>CheckIdSpaces</c>
+    /// only turns a schema <c>pattern</c> into a checked id space once <em>some</em> document
+    /// declares an <c>id</c> under it, so with no perk ever authored, the pattern was not yet an id
+    /// space and every <c>draftPriority</c> string validated by shape alone. The commit that
+    /// authors the first real perk is also the commit that turns the pattern into a checked id
+    /// space and starts validating every reference — a consequence of authoring the rows honestly
+    /// ahead of the content, not a defect in either file.
     /// </para>
     /// <para>
-    /// 🔒 <b>Self-expiring, entry by entry.</b> <c>CheckIdSpaces</c> only consults this set for a
-    /// value that is ALREADY otherwise-orphaned — so the day M3-07b (or M4-07) authors
-    /// <c>PK_KEEN_EYE</c>, that reference resolves on its own and the entry sits here inert. A test
-    /// (<c>ContentInvariantsTests</c>) asserts every entry is REACHED — still exercised by at least
-    /// one live reference in the shipped content set — so a name that stops being referenced, or one
-    /// that gets authored and silently drops out of the failure list, is caught rather than rotting.
+    /// Self-expiring, entry by entry: <c>CheckIdSpaces</c> only consults this set for a value that
+    /// is already otherwise-orphaned, so the day a listed id is authored, that reference resolves
+    /// on its own and the entry sits here inert. A test asserts every entry is still reached by a
+    /// live reference, so a name that stops being referenced — or gets authored and silently drops
+    /// out of the failure list — is caught rather than rotting.
     /// </para>
     /// <para>
-    /// 🔒 Scoped to <c>calibration_builds.json</c>'s <c>draftPriority</c> arrays specifically
-    /// (checked by the caller against <see cref="PatternBinding.Location"/>'s document), not a bare
-    /// id allowlist — an orphaned <c>PK_</c> reference appearing anywhere else in the content set is
-    /// exactly the authoring mistake `14` §6 exists to catch, and this exemption must not swallow it.
+    /// Scoped to <c>calibration_builds.json</c>'s <c>draftPriority</c> arrays specifically, not a
+    /// bare id allowlist — an orphaned <c>PK_</c> reference appearing anywhere else in the content
+    /// set is exactly the authoring mistake this file exists to catch, and this exemption must not
+    /// swallow it.
     /// </para>
     /// </remarks>
     private const string CalibrationBuildsDocument = "tuning/calibration_builds.json";
@@ -66,53 +61,46 @@ public static partial class ContentInvariants
     /// <summary>
     /// The exemption set itself, exposed so a test can assert its self-expiry: every entry must
     /// still be an id that is BOTH referenced from <see cref="CalibrationBuildsDocument"/>'s
-    /// <c>draftPriority</c> arrays AND absent from <c>content/perks/perks.json</c>. An entry for
-    /// which either half stops being true has gone stale — the id was authored, or the reference
-    /// was edited out — and this exemption is the one thing in this file that does not fail on its
-    /// own the way <see cref="ContentLoader.SchemasAwaitingContent"/> does, so the test must ask.
+    /// <c>draftPriority</c> arrays AND absent from <c>content/perks/perks.json</c>.
     /// </summary>
     public static IReadOnlyCollection<string> KnownForwardPerkReferences { get; } = new HashSet<string>(
         StringComparer.Ordinal)
     {
-        // 06 §3.1 Offense — unauthored by M3-07's coverage-driven selection; owner M3-07b.
+        // Offense — unauthored by the current coverage-driven selection.
         "PK_QUICK_HANDS", "PK_KEEN_EYE", "PK_HEAVY_SWING", "PK_PIERCING", "PK_CRIT_CASCADE",
         "PK_IGNITE", "PK_TWIN_STRIKE", "PK_ANNIHILATE",
 
-        // 06 §3.2 Defense.
+        // Defense.
         "PK_TOUGH_HIDE", "PK_IRON_SKIN", "PK_BULWARK", "PK_STOIC", "PK_SECOND_SKIN", "PK_ANCHOR",
         "PK_REACTIVE", "PK_AEGIS",
 
-        // 06 §3.3 Sustain.
+        // Sustain.
         "PK_LEECH", "PK_BLOODLETTER", "PK_FEAST", "PK_HEALERS_TOUCH",
 
-        // 06 §3.6 Trigger/Synergy.
+        // Trigger/Synergy.
         "PK_SYMBIOSIS", "PK_ECHO",
     };
 
-    /// <summary>
-    /// 🔒 Every <c>path#/pointer</c> the declared cross-file rules have looked up so far.
-    /// </summary>
+    /// <summary>Every <c>path#/pointer</c> the declared cross-file rules have looked up so far.</summary>
     /// <remarks>
-    /// A rule whose reference no longer resolves is a rule that has silently stopped holding — and
-    /// the shipped data validates <em>most</em> cleanly when every rule is dead. Exposed so a test
-    /// can assert that every reference resolves against the real data set, and that there are still
-    /// as many of them as there are rules. Populated by running <see cref="Check"/>.
+    /// A rule whose reference no longer resolves is a rule that has silently stopped holding.
+    /// Exposed so a test can assert every reference still resolves against the real data set.
+    /// Populated by running <see cref="Check"/>.
     /// </remarks>
     public static IReadOnlyList<string> DeclaredRuleReferences => DeclaredRules.References;
 
     /// <summary>
-    /// 🔒 Every embedded effect <b>R35</b> has validated against <c>schema/effect.schema.json</c>, as
-    /// <c>path#/pointer</c> — the subject-set floor a test asserts against (steering S3).
+    /// Every embedded effect that has validated against <c>schema/effect.schema.json</c>, as
+    /// <c>path#/pointer</c> — the subject-set floor a test asserts against.
     /// </summary>
     /// <remarks>
-    /// R35's subjects are discovered structurally rather than from a list of content types, so the
-    /// rule itself cannot say how many effects it ought to have seen; a walk that matched nothing
-    /// would pass exactly as loudly as one that validated every boss mechanic in the repository.
-    /// Exposed here for the same reason <see cref="DeclaredRuleReferences"/> is.
+    /// The subjects are discovered structurally rather than from a list of content types, so the
+    /// rule cannot say how many effects it ought to have seen; a walk that matched nothing would
+    /// pass exactly as loudly as one that validated every boss mechanic in the repository.
     /// </remarks>
     public static IReadOnlyList<string> ValidatedEmbeddedEffects => DeclaredRules.ValidatedEmbeddedEffects;
 
-    /// <summary>🔒 `18` §1's effect vocabulary — the schema <b>R35</b> validates against.</summary>
+    /// <summary>The effect vocabulary schema — the authority the embedded-effect rule validates against.</summary>
     public static string EffectSchemaPath => DeclaredRules.EffectSchemaPath;
 
     /// <summary>
@@ -120,12 +108,9 @@ public static partial class ContentInvariants
     /// vocabulary rules read.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The two shorter overloads this class used to carry are gone, deliberately.</b> They took
-    /// no schema set, so the only thing they could do with <c>DeclaredRules</c>' <b>R35</b> was hand
-    /// it an empty one — which makes R35 manufacture a <c>MissingSchema</c> finding for content that
-    /// is perfectly valid. That is the right answer to <em>"validate these effects against nothing"</em>
-    /// and a trap for the first caller who reaches for the short form because it looked convenient.
-    /// Nothing called them; the loader has always passed its schemas. One overload, one meaning.
+    /// One overload, deliberately: a shorter form with no schema set would make the embedded-effect
+    /// rule validate against nothing, manufacturing a <c>MissingSchema</c> finding for perfectly
+    /// valid content. Nothing calls a shorter form; the loader always passes its schemas.
     /// </remarks>
     /// <param name="documents">Data documents by snapshot-relative path. Schemas excluded.</param>
     /// <param name="patternBindings">
@@ -133,10 +118,10 @@ public static partial class ContentInvariants
     /// rules are derived from.
     /// </param>
     /// <param name="schemas">
-    /// The parsed schema set. Only <c>DeclaredRules</c>' <b>R35</b> reads it, and only for
+    /// The parsed schema set. Only the embedded-effect rule reads it, and only for
     /// <c>schema/effect.schema.json</c>: an effect is embedded in the content that owns it, so the
-    /// one file that states `18` §1's op-to-key partition has to be applied to those embedded copies
-    /// from here — an owning schema can neither <c>$ref</c> it nor restate it.
+    /// one file that states the effect op-to-key partition has to be applied to those embedded
+    /// copies from here — an owning schema can neither <c>$ref</c> it nor restate it.
     /// </param>
     /// <param name="options">Which gates to run.</param>
     public static IReadOnlyList<ContentIssue> Check(
@@ -168,19 +153,12 @@ public static partial class ContentInvariants
     }
 
     /// <summary>The sentinel a German value carries until a human has translated it.</summary>
-    /// <remarks>
-    /// `game-data/README.md` and <c>schema/loc.schema.json</c> both state the same
-    /// sentence: <em>"A build that ships to players must fail while any sentinel remains."</em>
-    /// It was declared 🔒 in two places and implemented in neither — the string appeared nowhere in
-    /// production code or CI, only in test fixtures.
-    /// </remarks>
     public const string TranslationSentinel = "##TODO_DE##";
 
     /// <summary>
-    /// 🔒 `16` D20 / X-04: nothing machine-translated reaches a player. This is the mechanism that
-    /// keeps that promise, and it only runs for a build that is going to players
-    /// (<see cref="ContentLoadOptions.ShippingBuild"/>) — every DE value is a sentinel today, so
-    /// running it always would fail M0-M16 by design rather than catching anything.
+    /// Fails a shipping build while any locale value still carries the untranslated sentinel — it
+    /// only runs for <see cref="ContentLoadOptions.ShippingBuild"/> because every DE value is a
+    /// sentinel today, and running it always would fail every dev build by design.
     /// </summary>
     private static void CheckTranslationSentinels(
         IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
@@ -212,9 +190,7 @@ public static partial class ContentInvariants
         }
     }
 
-    /// <summary>
-    /// 🔒 `14` §6 duplicate ids, over every id-bearing collection.
-    /// </summary>
+    /// <summary>Duplicate ids, over every id-bearing collection.</summary>
     /// <remarks>
     /// <para>
     /// <c>uniqueItems</c> cannot carry this: it compares <em>whole objects</em>, so
@@ -222,10 +198,9 @@ public static partial class ContentInvariants
     /// every schema in the repository while declaring the same currency twice.
     /// </para>
     /// <para>
-    /// 🔒 Unauthorised ids are <b>exempt, not duplicates</b>. Several collections are authored with
-    /// most ids <c>null</c> because `19` has not named them yet — 11 of 14 affixes, 4 of 4 sets, 4
-    /// of 4 guild perks. Treating those nulls as equal values would report fifteen duplicate ids
-    /// on data that is exactly as the design docs left it.
+    /// Unauthorised ids are exempt, not duplicates. Several collections are authored with most ids
+    /// <c>null</c> because the design docs have not named them yet. Treating those nulls as equal
+    /// values would report duplicate ids on data that is exactly as the design docs left it.
     /// </para>
     /// </remarks>
     private static void CheckIdUniqueness(
@@ -254,13 +229,13 @@ public static partial class ContentInvariants
             {
                 foreach (var field in IdentityMemberNames.Where(f => entries.All(e => e.TryGetMember(f, out _))))
                 {
-                    // 🔒 Grouped by VALUE, not by ToString(). `IdentityMemberNames` includes
-                    // `chapter`, `day` and `slot`, which are numbers, and ContentValue.ToString()
-                    // for a number is scale-PRESERVING while ContentValue.Equals is deliberately
-                    // scale-INDEPENDENT: {"chapter": 3} beside {"chapter": 3.0} declared the same
-                    // chapter twice and walked straight through this gate. It failed the other way
-                    // too — ToString() for an object emits member NAMES only, so two structurally
-                    // different objects in an identity slot reported as duplicates of each other.
+                    // Grouped by VALUE, not ToString(): identity fields include numeric ones
+                    // (chapter, day, slot), whose ContentValue.ToString() is scale-preserving
+                    // while ContentValue.Equals is scale-independent — {"chapter": 3} beside
+                    // {"chapter": 3.0} would declare the same chapter twice and slip through a
+                    // ToString()-keyed group. It also fails for objects, whose ToString() emits
+                    // member names only, so two structurally different objects in an identity slot
+                    // would report as duplicates of each other.
                     var duplicates = entries
                         .Select(e => { e.TryGetMember(field, out var id); return id!; })
                         .Where(id => !id.IsUnauthorised)
@@ -297,9 +272,7 @@ public static partial class ContentInvariants
         }
     }
 
-    /// <summary>
-    /// `14` §6 duplicate ids and orphaned references, over the id spaces the schemas define.
-    /// </summary>
+    /// <summary>Duplicate ids and orphaned references, over the id spaces the schemas define.</summary>
     private static void CheckIdSpaces(
         IReadOnlyDictionary<string, IReadOnlyList<PatternBinding>> patternBindings,
         List<ContentIssue> issues)
@@ -352,16 +325,13 @@ public static partial class ContentInvariants
         }
     }
 
-    /// <summary>
-    /// 🔒 True when a schema <c>pattern</c> pins a literal prefix, e.g. <c>^WID_[A-Z0-9_]+$</c>.
-    /// </summary>
+    /// <summary>True when a schema <c>pattern</c> pins a literal prefix, e.g. <c>^WID_[A-Z0-9_]+$</c>.</summary>
     /// <remarks>
     /// A prefix is what makes a pattern a <em>namespace</em> rather than a <em>shape</em>.
-    /// <c>^[A-Z][A-Z0-9_]*$</c> describes "an uppercase constant" and is shared by stat names,
-    /// currency ids, dungeon payout classes and guild phrase categories — reading it as one id
-    /// space would demand that <c>DODGE</c>, <c>GREETING</c> and <c>MERGE_DUST</c> all resolve
-    /// against each other, which is nonsense. Two literal characters is the smallest prefix that
-    /// can plausibly name a family.
+    /// <c>^[A-Z][A-Z0-9_]*$</c> describes "an uppercase constant" and is shared by unrelated
+    /// vocabularies (stat names, currency ids, category names) — reading it as one id space would
+    /// demand they all resolve against each other, which is nonsense. Two literal characters is the
+    /// smallest prefix that can plausibly name a family.
     /// </remarks>
     private static bool IsIdNamespace(string pattern)
     {
@@ -386,9 +356,9 @@ public static partial class ContentInvariants
     }
 
     /// <summary>
-    /// `14` §6 missing icons. There is no icon manifest in the data yet (`22` authors it), so the
-    /// rule is stated against the collection itself: where a collection's entries carry icons, an
-    /// entry without one is an entry that will render as a blank square.
+    /// Missing icons. There is no icon manifest in the data yet, so the rule is stated against the
+    /// collection itself: where a collection's entries carry icons, an entry without one is an
+    /// entry that will render as a blank square.
     /// </summary>
     private static void CheckIcons(IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
     {
@@ -450,9 +420,8 @@ public static partial class ContentInvariants
         icon.AsText().Length > 0;
 
     /// <summary>
-    /// `game-data/README.md`: <em>"<c>en.json</c> and <c>de.json</c> must carry an
-    /// identical key set — a key in one and not the other is a string that will render as its own
-    /// key in front of a player."</em>
+    /// <c>en.json</c> and <c>de.json</c> must carry an identical key set — a key in one and not the
+    /// other is a string that will render as its own key in front of a player.
     /// </summary>
     private static void CheckLocaleParity(
         IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
@@ -493,17 +462,14 @@ public static partial class ContentInvariants
     }
 
     /// <summary>
-    /// 🔒 `14` §6's missing-icon class, as this data set actually expresses presentation: every
-    /// <c>loc.*</c> key the content names must exist in <b>every</b> locale, and every string the
-    /// locales carry must be named by something.
+    /// Every <c>loc.*</c> key the content names must exist in <b>every</b> locale, and every string
+    /// the locales carry must be named by something.
     /// </summary>
     /// <remarks>
     /// A <c>displayName</c> that resolves in <c>en</c> and not in <c>de</c> renders as its own key
     /// in front of a German player — the same visible defect as a missing icon, which is why it
-    /// carries the same code. The reverse direction matters too: <c>loc/en.json</c>'s own
-    /// <c>_doc</c> promises <em>"only keys that are genuinely referenced by data in this
-    /// repository today"</em>, and an unreferenced string is a translation somebody will pay for
-    /// twice.
+    /// carries the same code. The reverse direction matters too: an unreferenced string is a
+    /// translation somebody will pay for twice.
     /// </remarks>
     private static void CheckLocaleKeyReferences(
         IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)

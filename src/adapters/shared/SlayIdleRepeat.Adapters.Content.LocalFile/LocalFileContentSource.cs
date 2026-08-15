@@ -11,15 +11,12 @@ namespace SlayIdleRepeat.Adapters.Content.LocalFile;
 /// </summary>
 /// <remarks>
 /// <para>
-/// `14` §6: <em>"Loading JSON is I/O and belongs in an adapter."</em> This is the adapter. It does
-/// nothing but enumerate and read: no parsing, no validation, no caching policy — everything that
-/// could be wrong about the content is decided one layer up, where it can be unit-tested.
+/// Loading JSON is I/O, so this adapter does nothing but enumerate and read: no parsing, no
+/// validation, no caching policy — that all lives one layer up, where it can be unit-tested.
 /// </para>
 /// <para>
-/// 🔒 <b>Read-only, structurally.</b> The port has no write member, and this class opens no stream
-/// for writing. `21` §3.3's "the canonical data is only ever edited when a change is adopted" is
-/// not a convention the loader is trusted to keep — there is simply no code path from a load to a
-/// write.
+/// <b>Read-only, structurally.</b> The port declares no write member and this class opens no
+/// stream for writing — there is no code path from a load to a write.
 /// </para>
 /// <para>
 /// <see cref="Revision"/> is derived from the paths, sizes and last-write times of the files, so a
@@ -75,11 +72,8 @@ public sealed class LocalFileContentSource : IContentSourcePort
 
     /// <inheritdoc/>
     /// <remarks>
-    /// 🔒 One declared failure type for every way a path can fail to be a listed document —
-    /// absent, a directory that does not exist, or an escape attempt. The port declares
-    /// <see cref="MissingContentException"/>; letting <c>File.ReadAllBytes</c>'s
-    /// <c>FileNotFoundException</c> and a path-escape <c>ArgumentException</c> out instead made
-    /// this adapter fail three different ways, none of them the fake's.
+    /// Throws <see cref="MissingContentException"/> for every way a path can fail — missing,
+    /// escaped, or not a file — rather than letting <c>File.ReadAllBytes</c>'s own exceptions leak through.
     /// </remarks>
     public ReadOnlyMemory<byte> ReadDocument(string documentPath)
     {
@@ -87,8 +81,7 @@ public sealed class LocalFileContentSource : IContentSourcePort
 
         var absolute = Path.GetFullPath(Path.Combine(DataRootPath, documentPath));
 
-        // A document path is a key inside the content set, never a way out of it. The trailing
-        // separator matters: a bare prefix test lets a sibling directory `…Data-backup` through.
+        // Trailing separator matters: a bare prefix test would let a sibling dir like Data-backup through.
         var root = DataRootPath.EndsWith(Path.DirectorySeparatorChar)
             ? DataRootPath
             : DataRootPath + Path.DirectorySeparatorChar;

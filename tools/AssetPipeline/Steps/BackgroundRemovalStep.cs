@@ -2,9 +2,7 @@ using SkiaSharp;
 
 namespace SlayIdleRepeat.AssetPipeline;
 
-/// <summary>
-/// `15` §B4 step 1: <em>"Background removal -&gt; true alpha, no halo (matte decontamination on)"</em>.
-/// </summary>
+/// <summary>Background removal: true alpha, no halo (matte decontamination on).</summary>
 /// <remarks>
 /// <para>
 /// A border-seeded flood fill against the sampled border colour, within
@@ -13,24 +11,20 @@ namespace SlayIdleRepeat.AssetPipeline;
 /// <see cref="ThresholdKeys.MatteDecontaminationStrength"/>.
 /// </para>
 /// <para>
-/// 🔒 Both thresholds are uncalibrated. `15` §A3 states the outcome ("fully transparent. No shadow
-/// baked in.") and no number, so asking for either without a stated value throws
+/// Both thresholds are uncalibrated, so asking for either without a stated value throws
 /// <see cref="UncalibratedThresholdException"/> rather than picking something that looks right.
 /// </para>
 /// <para>
-/// 🔒 <b>Decontamination is spatial, not algebraic.</b> The textbook un-mix
-/// <c>F = (C - (1-α)·B) / α</c> assumes the contaminant <em>is</em> the key colour B, and a real
-/// generated halo is not: it is the light matte the subject was composited over, which survives the
-/// key precisely because it is nowhere near B. So the fringe is reconstructed from the clean
-/// foreground beneath it instead, at the stated strength — which also removes a key-coloured fringe,
-/// because that is contamination too.
+/// Decontamination is spatial, not algebraic: the textbook un-mix <c>F = (C - (1-α)·B) / α</c>
+/// assumes the contaminant <em>is</em> the key colour B, and a real generated halo is not — it is
+/// the light matte the subject was composited over, which survives the key precisely because it is
+/// nowhere near B. So the fringe is reconstructed from the clean foreground beneath it instead, at
+/// the stated strength, which also removes a key-coloured fringe since that is contamination too.
 /// </para>
 /// <para>
-/// 🔒 <b>The fringe is two layers, one per side of the boundary.</b> A composited edge contaminates
-/// the background side and the subject side alike — the bright ring straddles the silhouette — so
-/// the band is the outermost retained layer and the layer beneath it. That is a structural choice
-/// about where a boundary is, not a calibrated width: `15` authorises no fringe width, and if real
-/// batches show a wider one, M8-10 is the run that would find out.
+/// The fringe is two layers, one per side of the boundary: a composited edge contaminates the
+/// background side and the subject side alike, so the band is the outermost retained layer and the
+/// layer beneath it. That is a structural choice about where a boundary is, not a calibrated width.
 /// </para>
 /// </remarks>
 public sealed class BackgroundRemovalStep : IAssetStep

@@ -5,13 +5,12 @@ using SlayIdleRepeat.BalanceHarness.Sweep;
 
 namespace SlayIdleRepeat.BalanceHarness.Cli;
 
-/// <summary>`21` §10's three commands.</summary>
 public enum HarnessCommand
 {
-    /// <summary>The full `05` §9 sweep, every guardrail, both experiments and the report. The default.</summary>
+    /// <summary>Runs every guardrail, both experiments and the report. The default.</summary>
     Sweep,
 
-    /// <summary>🔒 Guardrails only, minimal output, NON-ZERO EXIT on a breach. The CI entry point.</summary>
+    /// <summary>Guardrails only, minimal output, non-zero exit on a breach. The CI entry point.</summary>
     Assert,
 
     /// <summary>The deterministic PR-tier subset — the same shape, a small fight count, no experiments.</summary>
@@ -24,10 +23,10 @@ public enum ExperimentSelection
     /// <summary>Both, which is what <c>sweep</c> does by default.</summary>
     All,
 
-    /// <summary>`05` §5's undecayed Thornmaw RAGE only.</summary>
+    /// <summary>Undecayed Thornmaw RAGE only.</summary>
     Rage,
 
-    /// <summary>`17` §1's <c>addsPowerFraction</c> band only.</summary>
+    /// <summary>The <c>addsPowerFraction</c> band only.</summary>
     Adds,
 
     /// <summary>None — what <c>assert</c> and <c>fast</c> do.</summary>
@@ -35,17 +34,16 @@ public enum ExperimentSelection
 }
 
 /// <summary>
-/// 🔒 The harness's own argument parser. `30` §6 / `21` §2 forbid a <c>PackageReference</c>, so a CLI
-/// parsing library is not available and this is written out.
+/// The harness's own argument parser — a <c>PackageReference</c> is not available, so no CLI parsing
+/// library either.
 /// </summary>
 /// <remarks>
-/// 🔒 <b>An unknown argument is an error, never a warning and never ignored.</b> A nightly job invoked
-/// with a mistyped <c>--fights</c> that silently ran the default would report a number nobody asked
-/// for, under a name that says it is something else.
+/// An unknown argument is an error, never a warning and never ignored: a nightly job invoked with a
+/// mistyped <c>--fights</c> must not silently run the default and report a number nobody asked for.
 /// </remarks>
 public sealed record HarnessOptions
 {
-    /// <summary>🔒 `05` §9 — the documented fights per cell, and the default for <c>sweep</c> and <c>assert</c>.</summary>
+    /// <summary>The documented fights per cell, and the default for <c>sweep</c> and <c>assert</c>.</summary>
     public const int DefaultFights = SweepScope.DocumentedFightsPerCell;
 
     /// <summary>The <c>fast</c> subset's fights per cell. Small enough for a PR, large enough to move a rate.</summary>
@@ -81,7 +79,6 @@ public sealed record HarnessOptions
     /// <summary>Set by <c>--help</c>.</summary>
     public bool ShowUsage { get; init; }
 
-    /// <summary>`21` §10's usage block.</summary>
     public static string Usage =>
         """
         BalanceHarness [command] [options]
@@ -157,10 +154,8 @@ public sealed record HarnessOptions
                 return options with { ShowUsage = true };
             }
 
-            // 🔒 `--flag=value` is refused by NAME rather than falling through to the value handling
-            // below, which would otherwise report "expects a value" about an option this harness does
-            // not have — a message that says the flag is real and the value is missing when neither is
-            // true, and that does not name the actual fix.
+            // Rejected by name rather than falling through to the value handling below, which would
+            // otherwise misreport "expects a value" for an option this harness doesn't actually have.
             var equals = name.IndexOf('=', StringComparison.Ordinal);
             if (equals > 0 && name.StartsWith("--", StringComparison.Ordinal))
             {
@@ -170,10 +165,8 @@ public sealed record HarnessOptions
                 return null;
             }
 
-            // 🔒 A repeated option is refused, not last-wins. `--fights 10000 --fights 200` is a
-            // copy-paste left over from local testing, and silently running the last one is the same
-            // "a mistyped flag became a silently wrong number" failure the unknown-option case refuses
-            // one token earlier — except here the flag is real, so nothing else would ever say so.
+            // Refused rather than last-wins: silently keeping only the last value would hide a
+            // copy-paste mistake (e.g. --fights given twice) as a normal run.
             if (!given.Add(name))
             {
                 error =
@@ -190,11 +183,8 @@ public sealed record HarnessOptions
 
             var value = args[++index];
 
-            // 🔒 An option name is never a value. Without this, `--out --help` silently writes a report
-            // to a file called "--help" and `--data --parallel 8` runs against a data root that does not
-            // exist — the same failure class the type remarks refuse for an unknown option, arriving one
-            // token later. The numeric options happen to catch it because "--parallel" is not a number;
-            // --data, --out and --archetypes take any string and would not.
+            // A value starting with "--" is rejected: otherwise `--out --help` would silently write a
+            // report to a file literally named "--help" (--data/--out/--archetypes accept any string).
             if (value.StartsWith("--", StringComparison.Ordinal))
             {
                 error =
@@ -367,31 +357,20 @@ public sealed record HarnessOptions
     }
 
     /// <summary>
-    /// 🔒 A repeated list entry is refused, because the second copy is not a second measurement.
+    /// A repeated list entry is refused: <c>SweepSeeds.CellSeed</c> is a pure function of the cell key,
+    /// so a duplicate (e.g. <c>--chapters 1,1,4</c>) would just rerun the same seeded fights and print
+    /// the identical row twice, reading as agreement between two cells that are really one.
     /// </summary>
-    /// <remarks>
-    /// <c>--chapters 1,1,4</c> builds the <c>(chapter, tier, archetype)</c> cell twice, and
-    /// <c>SweepSeeds.CellSeed</c> is a pure function of that key — so both copies run the SAME seeded
-    /// fights and the per-cell table prints the identical line twice. It reads as two cells agreeing
-    /// with each other, which is the one thing it cannot be, and it doubles the sweep's cost for it.
-    /// This is <see cref="EmptyList"/>'s rule on the other side: a subject set that is not the one the
-    /// caller believes they asked for is refused where it is still nameable.
-    /// </remarks>
     private static string RepeatedEntry(string name, string value, string entry) =>
         $"{name} '{value}' lists '{entry}' more than once. The repeat sweeps the same cell under the " +
         "same key with the same seeds, so it prints a duplicate row that reads as corroboration and " +
         "is the identical run — drop it rather than paying twice for it.";
 
     /// <summary>
-    /// 🔒 An empty list narrows the sweep to nothing rather than to everything.
+    /// An empty list is refused: unlike the <c>null</c> that means "every authored one", it would
+    /// silently narrow the sweep to zero cells and turn every guardrail
+    /// <see cref="Guardrails.GuardrailVerdict.Inconclusive"/> over a subject set nobody chose.
     /// </summary>
-    /// <remarks>
-    /// <c>--chapters ,,</c> splits to zero entries, and a zero-length <c>Chapters</c> is NOT the same as
-    /// the <c>null</c> that means "every authored one": it produces a scope of zero cells, so every
-    /// guardrail comes back <see cref="Guardrails.GuardrailVerdict.Inconclusive"/> over a subject set
-    /// nobody chose. That is the same failure the Inconclusive verdict exists to make loud, so it is
-    /// refused at the argument boundary where it is still nameable.
-    /// </remarks>
     private static string EmptyList(string name, string value) =>
         $"{name} '{value}' lists nothing. An empty list sweeps zero cells rather than all of them — " +
         $"leave {name} off to sweep every authored one.";

@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 The emission contract of <see cref="CombatLog"/> — the rules M2-08, M2-09, M2-10 and M2-12
-/// have to honour, each with the failure that proves it is enforced rather than documented.
-/// </summary>
+/// <summary>The emission contract of <see cref="CombatLog"/>, each rule with the failure that proves it is enforced.</summary>
 public sealed class CombatLogTests
 {
     private const byte Enemy0 = CombatActor.FirstEnemy;
@@ -42,10 +39,7 @@ public sealed class CombatLogTests
         ]);
     }
 
-    /// <summary>
-    /// 🔒 A tick may repeat — `05` §3.1 puts many state changes in one tick — but it may never go
-    /// backwards. That is what makes the log seekable (`05` §8) and what catches a batched flush.
-    /// </summary>
+    /// <summary>A tick may repeat but may never go backwards — that is what makes the log seekable.</summary>
     [Fact]
     public void A_tick_may_repeat_but_never_go_backwards()
     {
@@ -61,7 +55,7 @@ public sealed class CombatLogTests
         refusal.Message.ShouldMatchWildcard("*tick 4*tick 5*05 §3.1*");
     }
 
-    /// <summary>A tick outside the 90 s cap is refused at both ends (`05` §3).</summary>
+    /// <summary>A tick outside the 90 s cap is refused at both ends.</summary>
     [Theory]
     [InlineData(-1)]
     [InlineData(CombatLog.MaxTicks)]
@@ -86,10 +80,7 @@ public sealed class CombatLogTests
 
     // ---------------------------------------------------------------- values
 
-    /// <summary>
-    /// 🔒 `05` §1.1 — a value that reaches the log unrounded is refused, and the refusal names the
-    /// event rather than "some double" (S2).
-    /// </summary>
+    /// <summary>A value that reaches the log unrounded is refused, and the refusal names the event.</summary>
     [Fact]
     public void An_unrounded_value_is_refused_and_the_event_is_named()
     {
@@ -98,17 +89,15 @@ public sealed class CombatLogTests
         var refusal = Should.Throw<InvalidOperationException>(
             () => log.Append(3, CombatEventType.Hit, CombatActor.Hero, Enemy0, 41.25361234));
 
-        // S2 — the refusal has to identify WHICH event, not merely that some double in the log was
-        // unrounded. Ordered, so the message reads as "the Value of a Hit at tick 3 is 41.253…".
+        // Pattern is ordered so the message reads as "the Value of a Hit at tick 3 is 41.253...".
         refusal.Message.ShouldMatchWildcard("*Hit*tick 3*41.25361234*`05` §1.1*");
     }
 
-    /// <summary>NaN and the infinities are not combat numbers.</summary>
-    /// <remarks>
-    /// S2 — the message is asserted, not just the exception type. <c>Math.Round(NaN, 4) != NaN</c>
-    /// is <b>true</b>, so the 4-dp guard also throws on a NaN, with the same type and the wrong
-    /// explanation: deleting the finiteness guard entirely left the NaN case green.
-    /// </remarks>
+    /// <summary>
+    /// NaN and the infinities are not combat numbers. The message is asserted, not just the
+    /// exception type: <c>Math.Round(NaN, 4) != NaN</c> is true, so the 4-dp guard alone would also
+    /// throw on a NaN, with the wrong explanation.
+    /// </summary>
     [Theory]
     [InlineData(double.NaN)]
     [InlineData(double.PositiveInfinity)]
@@ -123,9 +112,8 @@ public sealed class CombatLogTests
     }
 
     /// <summary>
-    /// 🔒 Negative zero is refused. It equals <c>0.0</c> in C# but carries a different bit pattern,
-    /// so two logs the language calls identical would carry different <c>LogHash</c>es — a false
-    /// divergence in `11` §6's tamper check.
+    /// Negative zero is refused: it equals <c>0.0</c> in C# but carries a different bit pattern, so
+    /// two logs the language calls identical could hash to different values.
     /// </summary>
     [Fact]
     public void Negative_zero_is_refused()
@@ -155,14 +143,10 @@ public sealed class CombatLogTests
     // ---------------------------------------------------------------- the bookends
 
     /// <summary>
-    /// 🔒 `05` §3.1 step 0d emits exactly one <c>BattleStart</c>, and the pre-tick's own events —
-    /// the ward grants and opening buffs of step 0b — precede it at the same tick.
+    /// Pre-tick events — opening ward grants and buffs — precede <c>BattleStart</c> at the same tick.
+    /// A replayer that assumed <c>BattleStart</c> was the first entry would drop an opening shield off
+    /// the front of every fight.
     /// </summary>
-    /// <remarks>
-    /// The ordering is counter-intuitive and is the document's, not a convenience: a replayer that
-    /// assumed <c>BattleStart</c> was the first entry would drop <c>PK_WARDED</c>'s opening shield
-    /// off the front of every fight.
-    /// </remarks>
     [Fact]
     public void The_pre_tick_events_precede_BattleStart_at_tick_zero()
     {
@@ -236,10 +220,8 @@ public sealed class CombatLogTests
         result.HeroHpRemaining.ShouldBe(214.5);
         result.Log.Count.ShouldBe(4);
 
-        // 🔒 The WHOLE record, not just Type and Tick. BattleEnd is the last event of every log in
-        // the game and is inside the LogHash `11` §6 compares between client and server — with only
-        // two of its six fields asserted, its actor ids and DataId could be changed to anything and
-        // the entire suite stayed green.
+        // The whole record, not just Type and Tick: BattleEnd is inside the hashed log, so its actor
+        // ids and DataId matter as much as its type.
         result.Log[^1].ShouldBe(new CombatEvent(
             9, CombatEventType.BattleEnd, CombatActor.None, CombatActor.None, 0.0, CombatLog.NoDataId));
 
@@ -247,8 +229,8 @@ public sealed class CombatLogTests
     }
 
     /// <summary>
-    /// 🔒 `05` §7 is a closed vocabulary — an undefined value would be hashed as its ordinal and
-    /// replay as nothing.
+    /// The event type is a closed vocabulary — an undefined value would be hashed as its ordinal
+    /// and replay as nothing.
     /// </summary>
     [Fact]
     public void An_undefined_event_type_is_refused()
@@ -261,14 +243,10 @@ public sealed class CombatLogTests
     }
 
     /// <summary>
-    /// 🔒 The two members with rules of their own cannot be smuggled past those rules through the
-    /// general <see cref="CombatLog.Append"/>.
+    /// The two members with rules of their own cannot be smuggled past those rules through the
+    /// general <see cref="CombatLog.Append"/> — otherwise a raw append could put an out-of-band
+    /// wind-up or a run-effect target with no meaning into the log.
     /// </summary>
-    /// <remarks>
-    /// Without this, <c>Append(new CombatEvent(t, Telegraph, s, d, 99.0, e))</c> put a 99-second
-    /// wind-up in the log with `17` §1's band never consulted, and a <c>RunEffectQueued</c> could
-    /// name an actor target that `18` §5's <c>RUN</c> has no meaning for.
-    /// </remarks>
     [Theory]
     [InlineData(nameof(CombatEventType.Telegraph))]
     [InlineData(nameof(CombatEventType.RunEffectQueued))]
@@ -282,9 +260,8 @@ public sealed class CombatLogTests
     }
 
     /// <summary>
-    /// 🔒 <see cref="CombatEventType.BattleStart"/> names no actor. Enforced because a client that
-    /// filled the slots and a server that did not would compute different <c>LogHash</c>es for an
-    /// identical fight, and `11` §6 reads that as tampering.
+    /// <see cref="CombatEventType.BattleStart"/> names no actor: a client that filled the slots and
+    /// a server that did not would compute different log hashes for an identical fight.
     /// </summary>
     [Theory]
     [InlineData(CombatActor.Hero, CombatActor.None)]
@@ -325,10 +302,7 @@ public sealed class CombatLogTests
         Should.Throw<NotSupportedException>(() => ((IList<CombatEvent>)log.Events).Add(default));
     }
 
-    /// <summary>
-    /// 🔒 `05` §8 — the log is sealed once the result exists. Skip is safe because
-    /// <em>"the outcome is already determined"</em>; a log that can still grow makes that false.
-    /// </summary>
+    /// <summary>The log is sealed once the result exists — a log that can still grow makes replay unsafe.</summary>
     [Fact]
     public void Appending_after_Complete_is_refused()
     {
@@ -367,12 +341,10 @@ public sealed class CombatLogTests
             .Message.ShouldContain("tick 40", Case.Sensitive);
     }
 
-    /// <summary>A duration outside the 90 s cap is refused (`05` §3).</summary>
-    /// <remarks>
-    /// S2 — the message is asserted. <c>0</c> and <c>-1</c> also trip the <i>later</i>
-    /// "shorter than the log it summarises" guard, so without pinning the message two of the three
-    /// cases passed with the range guard deleted.
-    /// </remarks>
+    /// <summary>
+    /// A duration outside the 90 s cap is refused, its own message and not the later
+    /// "shorter than the log it summarises" guard, which <c>0</c> and <c>-1</c> would also trip.
+    /// </summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -384,11 +356,7 @@ public sealed class CombatLogTests
             .Message.ShouldContain($"outside 1..{CombatLog.MaxTicks}", Case.Sensitive);
     }
 
-    /// <summary>The hero's remaining HP obeys every rule a logged number does (`05` §1.1).</summary>
-    /// <remarks>
-    /// The <c>Complete</c> path had only the unrounded case; NaN, the infinities and negative zero
-    /// reach the same guard by different branches and each has its own message.
-    /// </remarks>
+    /// <summary>The hero's remaining HP obeys every rule a logged number does.</summary>
     [Theory]
     [InlineData(double.NaN)]
     [InlineData(double.PositiveInfinity)]
@@ -401,10 +369,7 @@ public sealed class CombatLogTests
             .Message.ShouldContain("heroHpRemaining", Case.Sensitive);
     }
 
-    /// <summary>
-    /// A negative HP total is an unclamped subtraction upstream, not an outcome (`05` §4's floor
-    /// and §4.3 keep HP at or above 0).
-    /// </summary>
+    /// <summary>A negative HP total is an unclamped subtraction upstream, not a legal outcome.</summary>
     [Fact]
     public void A_negative_hero_hp_is_refused()
     {
@@ -414,7 +379,7 @@ public sealed class CombatLogTests
         Should.NotThrow(() => Started().Complete(heroWon: false, 10, 0.0));
     }
 
-    /// <summary>The hero's remaining HP is rounded like every other combat number (`05` §1.1).</summary>
+    /// <summary>The hero's remaining HP is rounded like every other combat number.</summary>
     [Fact]
     public void An_unrounded_hero_hp_is_refused()
     {
@@ -437,7 +402,7 @@ public sealed class CombatLogTests
 
     // ---------------------------------------------------------------- telegraphs
 
-    /// <summary>🔒 `17` §1 — a wind-up inside the 1.0–1.5 s band is admitted.</summary>
+    /// <summary>A wind-up inside the 1.0–1.5 s band is admitted.</summary>
     [Theory]
     [InlineData(1.0)]
     [InlineData(1.2)]
@@ -454,10 +419,7 @@ public sealed class CombatLogTests
         log.Events[^1].DataId.ShouldBe((ushort)41);
     }
 
-    /// <summary>
-    /// 🔒 `17` §1 — and one outside it is refused at both ends. Too short cannot be read; too long
-    /// stops reading as a wind-up.
-    /// </summary>
+    /// <summary>A lead outside the band is refused at both ends: too short cannot be read, too long stops reading as a wind-up.</summary>
     [Theory]
     [InlineData(0.0)]
     [InlineData(0.9)]
@@ -474,13 +436,9 @@ public sealed class CombatLogTests
     }
 
     /// <summary>
-    /// 🔒 A wind-up must be a whole number of ticks. `05` §3's simulation is fixed-tick, so the
-    /// mechanic being announced lands on an integer tick; a fractional lead points between two.
+    /// A wind-up must be a whole number of ticks: the simulation is fixed-tick, so <c>1.0001</c> s
+    /// (inside the band at 4 dp) lands at tick 20.002 and announces nothing.
     /// </summary>
-    /// <remarks>
-    /// The band is stated in seconds and 4 dp are admissible, so <c>1.0001</c> is inside it — and
-    /// <c>1.0001 × 20 = 20.002</c> ticks announces nothing.
-    /// </remarks>
     [Theory]
     [InlineData(1.0001)]
     [InlineData(1.234)]
@@ -497,7 +455,6 @@ public sealed class CombatLogTests
     // ---------------------------------------------------------------- seeking
 
     /// <summary>
-    /// 🔒 `05` §8's speed toggle and skip both seek the log by tick.
     /// <see cref="CombatLog.FirstIndexAtOrAfter"/> finds the first event of a tick, the tick's
     /// whole run of events, and the end of the log for a tick past it.
     /// </summary>
@@ -557,15 +514,9 @@ public sealed class CombatLogTests
     // ---------------------------------------------------------------- the enrage
 
     /// <summary>
-    /// 🔒 `05` §3.1's <c>SYS_ENRAGE</c> — <c>PERIODIC {interval: 1.0, startDelay: 70.0}</c> — fires
-    /// at 1 Hz from 70 s. Across the 90 s cap that is twenty events, not a pathological log.
+    /// <c>SYS_ENRAGE</c> fires at 1 Hz from 70 s: across the 90 s cap that is twenty events, not a
+    /// pathological log.
     /// </summary>
-    /// <remarks>
-    /// Worth pinning because the enrage is the one effect in the game that fires on a fixed wall
-    /// clock rather than in response to something, so it is the one whose log cost can be computed
-    /// exactly rather than estimated: <c>(90 − 70) × 1 Hz = 20</c>. Twenty events against a fight's
-    /// few thousand.
-    /// </remarks>
     [Fact]
     public void Seventy_seconds_of_enrage_stacking_costs_twenty_events()
     {

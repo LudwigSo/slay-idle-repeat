@@ -1,20 +1,10 @@
 namespace SlayIdleRepeat.Core.Content;
 
-/// <summary>
-/// 🔒 The loaded, validated, version-stamped content, immutable for its whole life.
-/// </summary>
+/// <summary>The loaded, validated, version-stamped content, immutable for its whole life.</summary>
 /// <remarks>
-/// <para>
-/// `14` §6 and `30` §3: <em>"Content is loaded once into an immutable, version-stamped
-/// <c>ContentSnapshot</c> and passed to the domain on <c>GameContext</c>. Loading JSON is I/O
-/// and belongs in an adapter; reading content is a rule."</em> This type is the "reading" half:
-/// no I/O, no parsing, no mutation, and no way to construct one that has not been stamped.
-/// </para>
-/// <para>
 /// Hot reload does not mutate a snapshot — it builds a new one and swaps the reference. There is
 /// no setter anywhere on this type for exactly that reason: a snapshot handed to a command must
 /// still describe the same content when that command is replayed.
-/// </para>
 /// </remarks>
 public sealed class ContentSnapshot
 {
@@ -47,12 +37,12 @@ public sealed class ContentSnapshot
         DocumentPaths = Array.AsReadOnly(_paths);
     }
 
-    /// <summary>🔒 The deterministic content hash this snapshot was stamped with.</summary>
+    /// <summary>The deterministic content hash this snapshot was stamped with.</summary>
     public ContentVersion Version { get; }
 
     /// <summary>Every document path, ordinal-sorted.</summary>
     /// <remarks>
-    /// 🔒 A wrapper, not the backing array: an <c>IReadOnlyList&lt;string&gt;</c> that <em>is</em> a
+    /// A wrapper, not the backing array: an <c>IReadOnlyList&lt;string&gt;</c> that <em>is</em> a
     /// <c>string[]</c> can be cast back and written through, and this snapshot promises to describe
     /// the same content for its whole life.
     /// </remarks>
@@ -75,10 +65,10 @@ public sealed class ContentSnapshot
     /// Throws <see cref="MissingContentException"/> when nothing is there.
     /// </summary>
     /// <remarks>
-    /// 🔒 This returns an <see cref="ContentValueKind.Unauthorised"/> value rather than throwing
-    /// when the leaf is <c>null</c> — reading the <em>shape</em> of an unauthorised hole is
-    /// legitimate (that is how a caller checks). Reading its <em>value</em> is not; that is what
-    /// the typed readers below refuse to do.
+    /// Returns an <see cref="ContentValueKind.Unauthorised"/> value rather than throwing when the
+    /// leaf is <c>null</c> — reading the <em>shape</em> of an unauthorised hole is legitimate (that
+    /// is how a caller checks). Reading its <em>value</em> is not; that is what the typed readers
+    /// below refuse to do.
     /// </remarks>
     public ContentValue Read(string reference)
     {
@@ -122,8 +112,8 @@ public sealed class ContentSnapshot
     }
 
     /// <summary>
-    /// 🔒 True when the reference exists <em>and</em> the design docs authorised a value for it.
-    /// The one sanctioned way to ask "may I read this?" without triggering the throw.
+    /// True when the reference exists <em>and</em> the design docs authorised a value for it —
+    /// the way to ask "may I read this?" without triggering the throw.
     /// </summary>
     public bool IsAuthorised(string reference) =>
         TryRead(reference, out var value) && !value!.IsUnauthorised;

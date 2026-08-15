@@ -6,15 +6,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 `14` §8.0 / §8.1 — the counter-based stream. Draw <c>i</c> of stream <c>s</c> over seed
-/// <c>r</c> is <c>Hash64(r, s, i)</c>; <c>Position</c> is the next draw index and the entire
-/// persistable state.
+/// The counter-based stream. Draw <c>i</c> of stream <c>s</c> over seed <c>r</c> is
+/// <c>Hash64(r, s, i)</c>; <c>Position</c> is the next draw index and the entire persistable state.
 /// </summary>
 /// <remarks>
-/// The load-bearing property is <b>one call, one draw index</b>. The wire sends
-/// <c>"rngStreamStates": { "dice": 12, "board": 8 }</c> and means <i>twelve draws consumed</i>;
-/// rehydrating is <c>new DeterministicRng(runSeed, name, position)</c> and nothing else. Every
-/// test below exists to keep that sentence true.
+/// The load-bearing property is one call, one draw index: rehydrating is
+/// <c>new DeterministicRng(runSeed, name, position)</c> and nothing else.
 /// </remarks>
 public sealed class DeterministicRngTests
 {
@@ -37,16 +34,11 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 The identity the rest of the model rests on: draw <c>i</c> of stream <c>s</c> over seed
-    /// <c>r</c> <b>is</b> <c>Hash64(r, s, i)</c> — not another function of the three, and not a
-    /// generator stepped <c>i</c> times.
+    /// The identity the rest of the model rests on: draw <c>i</c> of stream <c>s</c> over seed
+    /// <c>r</c> is <c>Hash64(r, s, i)</c>, not another function of the three and not a generator
+    /// stepped <c>i</c> times. The accessor tests pin against the accessor columns; this joins them
+    /// to the <c>draw</c> column those came from.
     /// </summary>
-    /// <remarks>
-    /// Without it nothing joins the two halves of the committed table: the accessor tests pin against
-    /// the <i>accessor</i> columns, and only the <c>draw</c> column records where those came from. The
-    /// second assertion re-derives one accessor column from the draw, so a row whose columns drifted
-    /// apart fails here rather than silently weakening everything below.
-    /// </remarks>
     [Theory]
     [MemberData(nameof(DrawIds))]
     public void A_draw_is_Hash64_of_the_seed_the_stream_name_and_the_draw_index(string rowId)
@@ -69,10 +61,9 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// <c>(draw &gt;&gt; 11) * 2^-53</c>, asserted on the exact IEEE-754 bits. The construction
-    /// is exact in binary floating point — a 53-bit integer times a power of two — so a
-    /// tolerance here could only hide a real divergence, which is the entire thing `14` §8.2's
-    /// ARM64 job is looking for.
+    /// <c>(draw &gt;&gt; 11) * 2^-53</c>, asserted on the exact IEEE-754 bits. The construction is
+    /// exact in binary floating point — a 53-bit integer times a power of two — so a tolerance
+    /// here could only hide a real divergence.
     /// </summary>
     [Theory]
     [MemberData(nameof(DrawIds))]
@@ -85,10 +76,8 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// ⚠️ <c>NextDouble</c> is a <b>draw</b>, not an accumulation point. `14` §8.2's
-    /// <c>Math.Round(x, 4)</c> rule applies to combat accumulation; rounding here would throw
-    /// away 49 bits of every draw the game makes. This test exists so nobody "fixes" that
-    /// later — it fails the moment someone rounds.
+    /// <c>NextDouble</c> is a draw, not an accumulation point — the 4-decimal rounding rule applies
+    /// to combat accumulation, not here, so rounding here would throw away 49 bits of every draw.
     /// </summary>
     [Fact]
     public void NextDouble_is_not_rounded_to_four_decimal_places()
@@ -115,9 +104,9 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// <c>min + (int)(draw % (ulong)(max - min))</c>, pinned against the committed table. 🔒 The
-    /// modulo bias is <b>accepted</b> by `14` §8.0 — rejection sampling would consume a variable
-    /// number of draws and destroy the one-call-one-index property these rows depend on.
+    /// <c>min + (int)(draw % (ulong)(max - min))</c>, pinned against the committed table. The
+    /// modulo bias is accepted deliberately: rejection sampling would consume a variable number of
+    /// draws and destroy the one-call-one-index property.
     /// </summary>
     [Theory]
     [MemberData(nameof(DrawIds))]
@@ -139,15 +128,11 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 The widest range an <c>int</c> has: <c>max − min</c> is <c>2^32 − 1</c>, which does not fit in
-    /// an <c>int</c>, so the width must be computed in 64 bits.
+    /// The widest range an <c>int</c> has: <c>max − min</c> is <c>2^32 − 1</c>, which does not fit
+    /// in an <c>int</c>, so the width must be computed in 64 bits. Pinned to the exact value,
+    /// because bounds alone prove nothing: an overflowing computation would still return an answer
+    /// that is still an <c>int</c> and still in range.
     /// </summary>
-    /// <remarks>
-    /// Pinned to the exact value, because bounds alone prove nothing: evaluating the expression in
-    /// <c>int</c> arithmetic wraps <c>max − min</c> to −1, takes the modulus against
-    /// <c>ulong.MaxValue</c> — the draw itself — and returns an answer that is still an <c>int</c> and
-    /// still in range. Only the value tells the two apart: −396853717 correct, −17718757 overflowing.
-    /// </remarks>
     [Fact]
     public void Range_spans_the_full_int_range_without_overflowing_its_width()
     {
@@ -189,10 +174,7 @@ public sealed class DeterministicRngTests
         Should.Throw<ArgumentOutOfRangeException>(act);
     }
 
-    /// <summary>
-    /// 🔒 The property the whole persistence model rests on: <b>every call consumes exactly one
-    /// draw index</b>, whichever accessor it is.
-    /// </summary>
+    /// <summary>The property the whole persistence model rests on: every call consumes exactly one draw index.</summary>
     [Fact]
     public void Every_accessor_advances_the_position_by_exactly_one()
     {
@@ -205,8 +187,8 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 <c>Position</c> equals the number of calls ever made on the stream — for any mix of
-    /// them. This is what makes the persisted counter auditable rather than merely monotonic.
+    /// <c>Position</c> equals the number of calls ever made on the stream, for any mix of them —
+    /// what makes the persisted counter auditable rather than merely monotonic.
     /// </summary>
     [Fact]
     public void Position_equals_the_number_of_calls_after_a_mixed_sequence()
@@ -237,9 +219,8 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 Random access. Rehydrating at position 5 gives the sixth value of a stream started at
-    /// zero — a revive replay, a resync or a bug-report reproduction re-derives any draw without
-    /// replaying the ones before it.
+    /// Random access: rehydrating at position 5 gives the sixth value of a stream started at zero,
+    /// so any draw can be re-derived without replaying the ones before it.
     /// </summary>
     [Fact]
     public void A_stream_rehydrated_at_a_position_yields_the_draw_made_there()
@@ -264,10 +245,7 @@ public sealed class DeterministicRngTests
         fromFirst.ShouldBe(fromSecond);
     }
 
-    /// <summary>
-    /// 🔒 Stream independence — the reason there are named streams at all. Consuming
-    /// randomness in one system never shifts another.
-    /// </summary>
+    /// <summary>Stream independence: consuming randomness in one system never shifts another.</summary>
     [Fact]
     public void Consuming_one_stream_does_not_shift_another()
     {
@@ -324,15 +302,11 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 There is no PRNG state to persist, snapshot or restore — the counter is the whole persistable
-    /// state, so nothing may set it but the constructor.
+    /// There is no PRNG state to persist, snapshot or restore — the counter is the whole
+    /// persistable state, so nothing may set it but the constructor. Asserted as a closed set of
+    /// member names, not a denylist, so a re-introduced <c>Fork()</c> or <c>SetPosition</c> cannot
+    /// sail past unnoticed.
     /// </summary>
-    /// <remarks>
-    /// A <b>closed set</b>, not a denylist of four names: a re-introduced <c>Fork()</c>,
-    /// <c>Advance(n)</c> or <c>SetPosition</c> would sail past a denylist, and <c>GetMethods()</c> with
-    /// no <see cref="BindingFlags"/> returns public members only — so an <c>internal Rewind(ulong)</c>
-    /// was invisible to it while <c>Core.Tests</c> holds <c>InternalsVisibleTo</c>.
-    /// </remarks>
     [Fact]
     public void The_type_exposes_no_state_beyond_a_read_only_position()
     {
@@ -349,15 +323,10 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 The final index is <b>reserved</b>: a stream at <c>ulong.MaxValue</c> refuses to draw rather
-    /// than drawing once with nowhere to put the next position.
+    /// The final index is reserved: a stream at <c>ulong.MaxValue</c> refuses to draw rather than
+    /// drawing once with nowhere to put the next position. Wrapping silently would restart a
+    /// stream at draw 0 while the wire still reported a huge position.
     /// </summary>
-    /// <remarks>
-    /// Wrapping silently would restart a stream at draw 0 while the wire still reported a huge
-    /// position — the one way a counter-based model can lie. Allowing that last draw and remembering it
-    /// would mean state beyond the counter, and the counter being the entire persistable state is the
-    /// whole design. One forfeited index out of 2^64 is unimaginably the cheaper side of the trade.
-    /// </remarks>
     [Fact]
     public void A_stream_at_the_reserved_final_index_refuses_to_draw_rather_than_wrapping()
     {
@@ -381,10 +350,9 @@ public sealed class DeterministicRngTests
     }
 
     /// <summary>
-    /// 🔒 A rejected call is not a draw. <c>Position</c> is specified as the number of calls
-    /// ever <i>made</i> on the stream, and an argument the method refused to act on made none —
-    /// otherwise a caller's validation bug would silently desynchronise the persisted counter
-    /// from the sequence it indexes.
+    /// A rejected call is not a draw: <c>Position</c> counts calls actually made, and an argument
+    /// the method refused to act on made none — otherwise a caller's validation bug would silently
+    /// desynchronise the persisted counter from the sequence it indexes.
     /// </summary>
     [Fact]
     public void A_rejected_call_consumes_no_draw_index()
@@ -399,11 +367,7 @@ public sealed class DeterministicRngTests
         rng.Position.ShouldBe(12UL);
     }
 
-    /// <summary>
-    /// 🔒 A stream-name typo must be a caught invariant, not a silently different sequence.
-    /// `14` §8.1's table is the complete registry: a system either draws from one of those
-    /// streams or gets a new row there.
-    /// </summary>
+    /// <summary>A stream-name typo must be a caught invariant, not a silently different sequence.</summary>
     [Theory]
     [InlineData("dcie")]
     [InlineData("Dice")]

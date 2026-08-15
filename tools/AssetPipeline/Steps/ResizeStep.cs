@@ -3,31 +3,25 @@ using SlayIdleRepeat.AssetManifest;
 
 namespace SlayIdleRepeat.AssetPipeline;
 
-/// <summary>
-/// `15` §B4 step 5: <em>"Resize -&gt; to the spec size in the manifest (Lanczos, then sharpen
-/// 0.4)"</em>.
-/// </summary>
+/// <summary>Resize: to the spec size in the manifest (Lanczos, then sharpen 0.4).</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>There is no Lanczos resampler in SkiaSharp.</b> <c>SKFilterMode</c> offers Nearest and
-/// Linear only; the high-quality option is <c>SKSamplingOptions(SKCubicResampler)</c> with
-/// Mitchell (B=C=1/3) or CatmullRom. Shelling out to a native resampler is forbidden, so this step
-/// resamples with the cubic resampler and emits <see cref="LanczosDeviationId"/> saying so.
+/// There is no Lanczos resampler in SkiaSharp: <c>SKFilterMode</c> offers Nearest and Linear only,
+/// so this step resamples with <c>SKSamplingOptions(SKCubicResampler)</c> (Mitchell, B=C=1/3) and
+/// emits <see cref="LanczosDeviationId"/> saying so.
 /// </para>
 /// <para>
-/// 🔒 <b>Sharpen touches RGB only, never alpha.</b> Sharpening the alpha channel re-creates
-/// precisely the semi-transparent fringe step 1 exists to remove. The amount is authorised (§B4:
-/// 0.4, see <see cref="Doc15Authorised.SharpenAmount"/>); the radius is not, and lives as
+/// Sharpen touches RGB only, never alpha: sharpening the alpha channel re-creates precisely the
+/// semi-transparent fringe background removal exists to remove. The amount is authorised (see
+/// <see cref="Doc15Authorised.SharpenAmount"/>); the radius is not, and lives as
 /// <see cref="ThresholdKeys.ResizeSharpenRadius"/>.
 /// </para>
 /// <para>
-/// ⚠️ <b>§C contradicts itself on aspect ratio and this step says so.</b> `15` §C generates on a
-/// <em>square</em> canvas (1024x1024, 2048 for bosses and backgrounds) and delivers several rows at
-/// a <em>non-square</em> size — mounts at 512x384, battle backdrops at 1080x1440. Neither §B4 nor §C
-/// authorises letterboxing, padding or a crop to reconcile them, so the resample is non-uniform and
-/// the asset is stretched. The result carries <see cref="DeliveryAspectContradictionId"/> naming
-/// both sizes, so the collision reaches the report rather than being resolved in silence by whoever
-/// wrote the resizer.
+/// The generation canvas is square but several rows deliver at a non-square size (mounts, battle
+/// backdrops). Nothing authorises letterboxing, padding or a crop to reconcile them, so the
+/// resample is non-uniform and the asset is stretched. The result carries
+/// <see cref="DeliveryAspectContradictionId"/> naming both sizes, so the collision reaches the
+/// report rather than being resolved in silence by whoever wrote the resizer.
 /// </para>
 /// </remarks>
 public sealed class ResizeStep : IAssetStep
@@ -35,10 +29,7 @@ public sealed class ResizeStep : IAssetStep
     /// <summary>The deviation id this step emits for the missing Lanczos resampler.</summary>
     public const string LanczosDeviationId = "DEV_LANCZOS_UNAVAILABLE";
 
-    /// <summary>
-    /// The contradiction id this step emits when `15` §C's square generation canvas has to become a
-    /// non-square §C delivery size.
-    /// </summary>
+    /// <summary>The contradiction id this step emits when the square generation canvas has to become a non-square delivery size.</summary>
     public const string DeliveryAspectContradictionId = "CON_DELIVERY_ASPECT";
 
     /// <summary>The measurement key for the scale factor applied to the width.</summary>
@@ -100,21 +91,17 @@ public sealed class ResizeStep : IAssetStep
     }
 
     /// <summary>
-    /// §C against §C: the square generation canvas against a non-square delivery size, or nothing
-    /// when the two agree.
+    /// The square generation canvas against a non-square delivery size, or nothing when the two
+    /// agree.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Declared, not resolved.</b> `15` authorises no letterbox, no pad and no crop, and
-    /// steering rule S6 forbids inventing one, so this step does the only thing the doc leaves it —
-    /// resamples non-uniformly — and says exactly that. Emitted only when the ratios actually
-    /// differ, unlike <see cref="AtlasPackStep.PageCapContradictionId"/>: the atlas collision is in
-    /// the doc for every atlas, while this one is in the doc only for the rows §C delivers
-    /// off-square, and firing it on a square-to-square resample would drown those rows in noise
-    /// across a 942-asset batch.
+    /// Declared, not resolved: nothing authorises a letterbox, pad or crop, so this step does the
+    /// only thing left to it — resamples non-uniformly — and says exactly that. Emitted only when
+    /// the ratios actually differ, so a square-to-square resample stays quiet.
     /// </remarks>
     /// <param name="spec">The asset's spec, for the id and section the report needs.</param>
-    /// <param name="source">The size the image arrived at — the `15` §C generation canvas.</param>
-    /// <param name="target">The `15` §C delivery size from the manifest.</param>
+    /// <param name="source">The size the image arrived at — the generation canvas.</param>
+    /// <param name="target">The delivery size from the manifest.</param>
     private static IReadOnlyList<DocContradiction> AspectContradictions(
         AssetSpec spec, PixelSize source, PixelSize target)
     {
@@ -149,18 +136,19 @@ public sealed class ResizeStep : IAssetStep
     /// sharpening.
     /// </summary>
     /// <remarks>
-    /// 🔒 Public because the two halves make two different claims and must be separable. "Sharpen
-    /// does not touch alpha" is only checkable against the alpha the resample alone produced.
+    /// Public because the two halves make two different claims and must be separable: "sharpen does
+    /// not touch alpha" is only checkable against the alpha the resample alone produced.
     /// </remarks>
     /// <param name="source">The image to resample.</param>
-    /// <param name="target">The `15` §C delivery size.</param>
+    /// <param name="target">The delivery size.</param>
     public SKBitmap Resample(SKBitmap source, PixelSize target)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(target);
 
-        // 🔒 Rgba8888 / Unpremul on both sides. Letting Skia premultiply for the resample would
-        // destroy colour in low-alpha pixels, which is the halo step 1 spent its run removing.
+        // Rgba8888 / Unpremul on both sides: letting Skia premultiply for the resample would
+        // destroy colour in low-alpha pixels, which is the halo background removal spent its run
+        // removing.
         var info = Raster.InfoFor(target.Width, target.Height);
         return source.Resize(info, new SKSamplingOptions(SKCubicResampler.Mitchell))
                ?? throw new InvalidOperationException(
@@ -172,7 +160,7 @@ public sealed class ResizeStep : IAssetStep
     /// The second half on its own: an unsharp mask over RGB, leaving every alpha byte untouched.
     /// </summary>
     /// <param name="source">The resampled image.</param>
-    /// <param name="amount">`15` §B4's 0.4.</param>
+    /// <param name="amount">The authorised sharpen amount, 0.4.</param>
     /// <param name="radius">The uncalibrated radius the caller has stated.</param>
     public SKBitmap Sharpen(SKBitmap source, double amount, double radius)
     {
@@ -196,7 +184,7 @@ public sealed class ResizeStep : IAssetStep
                 var index = image.IndexOf(x, y) * 3;
                 var colour = image.ColourAt(x, y);
 
-                // 🔒 RGB only. The alpha byte is copied through untouched by construction: nothing
+                // RGB only. The alpha byte is copied through untouched by construction: nothing
                 // below writes it.
                 image.SetRgb(
                     x,
@@ -210,13 +198,11 @@ public sealed class ResizeStep : IAssetStep
         return image.ToBitmap();
     }
 
-    /// <summary>
-    /// A separable Gaussian blur of the colour channels, weighted by alpha.
-    /// </summary>
+    /// <summary>A separable Gaussian blur of the colour channels, weighted by alpha.</summary>
     /// <remarks>
-    /// 🔒 Alpha-weighted so a transparent pixel contributes nothing. An unweighted blur would mix
-    /// the RGB of the fully transparent frame — zero, in straight alpha — into the subject's edge
-    /// and darken it, which is a halo of a different colour rather than no halo at all.
+    /// Alpha-weighted so a transparent pixel contributes nothing: an unweighted blur would mix the
+    /// RGB of the fully transparent frame — zero, in straight alpha — into the subject's edge and
+    /// darken it, which is a halo of a different colour rather than no halo at all.
     /// </remarks>
     /// <param name="image">The image to blur.</param>
     /// <param name="sigma">The Gaussian's standard deviation, in pixels.</param>

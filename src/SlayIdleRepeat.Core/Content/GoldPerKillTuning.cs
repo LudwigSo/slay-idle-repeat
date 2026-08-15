@@ -3,29 +3,27 @@ using System.Globalization;
 namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
-/// 🔒 M3-13, `03` §7a.1 — <c>GoldPerKill(c) = base * G(c)</c>, read out of
+/// <c>GoldPerKill(c) = base * G(c)</c>, read out of
 /// <c>tuning/currencies.json#/inRunIncome/goldPerKill</c>.
 /// </summary>
 /// <remarks>
-/// ⚠️ Gold is paid <b>immediately</b> on the kill, into <c>Run.Gold</c> — it is the run-local wallet
-/// that "vanishes at run end" (`03` §7a.1: <em>"No Gold is paid for run victory"</em>), unlike Legend
-/// XP and Soul Shards, which are banked and pass through the run-end <c>CompletionMultiplier</c>. See
-/// <see cref="RunXpTuning"/>.
+/// Gold is paid immediately on the kill, into <c>Run.Gold</c> — a run-local wallet that vanishes at
+/// run end, unlike Legend XP and Soul Shards, which are banked. See <see cref="RunXpTuning"/>.
 /// </remarks>
 internal sealed class GoldPerKillTuning
 {
-    /// <summary>The document `03` §7a.1's goldPerKill block lives in.</summary>
+    /// <summary>The document the goldPerKill block lives in.</summary>
     internal const string DocumentPath = "tuning/currencies.json";
 
     private const string GoldPerKillPointer = DocumentPath + "#/inRunIncome/goldPerKill";
 
-    /// <summary>`03` §7a.1 — the chapter-1 Gold paid for a normal enemy kill. 40 as shipped.</summary>
+    /// <summary>The chapter-1 Gold paid for a normal enemy kill. 40 as shipped.</summary>
     internal const string BaseReference = GoldPerKillPointer + "/base";
 
-    /// <summary>`03` §7a.1 — the Elite multiplier over <see cref="BaseReference"/>. 3x as shipped.</summary>
+    /// <summary>The Elite multiplier over <see cref="BaseReference"/>. 3x as shipped.</summary>
     internal const string EliteMultiplierReference = GoldPerKillPointer + "/eliteMultiplier";
 
-    /// <summary>`03` §7a.1 — the Boss multiplier over <see cref="BaseReference"/>. 10x as shipped.</summary>
+    /// <summary>The Boss multiplier over <see cref="BaseReference"/>. 10x as shipped.</summary>
     internal const string BossMultiplierReference = GoldPerKillPointer + "/bossMultiplier";
 
     private readonly long _base;
@@ -39,17 +37,17 @@ internal sealed class GoldPerKillTuning
         _bossMultiplier = bossMultiplier;
     }
 
-    /// <summary>`03` §7a.1 — Gold for a normal enemy kill at <paramref name="chapterId"/>, scaled by <c>G(c)</c>.</summary>
+    /// <summary>Gold for a normal enemy kill at <paramref name="chapterId"/>, scaled by <c>G(c)</c>.</summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="chapterId"/> is below 1.</exception>
     internal long ForNormalKill(ChapterScalarTuning scalars, int chapterId) =>
         Scale(scalars, _base, chapterId);
 
-    /// <summary>`03` §7a.1 — Gold for an Elite kill at <paramref name="chapterId"/>.</summary>
+    /// <summary>Gold for an Elite kill at <paramref name="chapterId"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="chapterId"/> is below 1.</exception>
     internal long ForEliteKill(ChapterScalarTuning scalars, int chapterId) =>
         Scale(scalars, _base * _eliteMultiplier, chapterId);
 
-    /// <summary>`03` §7a.1 — Gold for a Boss kill at <paramref name="chapterId"/>.</summary>
+    /// <summary>Gold for a Boss kill at <paramref name="chapterId"/>.</summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="chapterId"/> is below 1.</exception>
     internal long ForBossKill(ChapterScalarTuning scalars, int chapterId) =>
         Scale(scalars, _base * _bossMultiplier, chapterId);

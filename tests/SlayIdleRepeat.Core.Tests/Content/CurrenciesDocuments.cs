@@ -7,10 +7,9 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// in memory.
 /// </summary>
 /// <remarks>
-/// 🔒 <c>Core.Tests</c> is hermetic, so this <em>mirrors</em> the shipped file rather than reading it
-/// — the same shape <see cref="ProgressionDocuments"/> already uses for <c>tuning/progression.json</c>.
-/// The shipped constants below are transcribed from <c>game-data/tuning/currencies.json#/shopTile</c>
-/// as of M3-08's read of it.
+/// <c>Core.Tests</c> is hermetic, so this mirrors the shipped file rather than reading it — the same
+/// shape <see cref="ProgressionDocuments"/> already uses for <c>tuning/progression.json</c>. The
+/// shipped constants below are transcribed from <c>game-data/tuning/currencies.json#/shopTile</c>.
 /// </remarks>
 internal static class CurrenciesDocuments
 {

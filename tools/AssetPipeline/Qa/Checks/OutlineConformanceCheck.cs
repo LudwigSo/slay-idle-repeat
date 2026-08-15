@@ -1,8 +1,6 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 3: <em>"Outline continuous, uniform width, colour #231A2E"</em>.
-/// </summary>
+/// <summary>Checklist item 3: outline continuous, uniform width, colour #231A2E.</summary>
 /// <remarks>
 /// <para>
 /// Three claims, three measurements, each able to fail on its own:
@@ -12,33 +10,24 @@ namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 ///   inward from the frame edge; any interior pixel the flood reaches means the outline does not
 ///   enclose the subject. Zero is continuous.</item>
 ///   <item><b>uniform width</b> — <see cref="OutlineWidthMeasurement"/> and
-///   <see cref="OutlineWidthSpreadMeasurement"/>, graded against `15` §A3's 3-4 px at 512 px
-///   canvas, scaled proportionally to this asset's canvas
-///   (<see cref="Doc15Authorised.OutlineWidthBandFor"/>) and widened by
+///   <see cref="OutlineWidthSpreadMeasurement"/>, graded against the authorised band at this
+///   asset's canvas (<see cref="Doc15Authorised.OutlineWidthBandFor"/>) and widened by
 ///   <see cref="ThresholdKeys.OutlineWidthUniformityTolerance"/>.</item>
 ///   <item><b>colour</b> — <see cref="OutlineColourDistanceMeasurement"/>: mean RGB distance from
 ///   <see cref="Doc15Authorised.OutlineColourHex"/>, against
 ///   <see cref="ThresholdKeys.OutlineColourTolerance"/>.</item>
 /// </list>
 /// <para>
-/// 🔒 <b>Half of this item's numbers are authorised and half are not, and the two halves are kept
-/// visibly apart.</b> §A3 states the colour and the 3-4 px band, so both are
-/// <see cref="Doc15Authorised"/> constants. It states nothing about how far antialiasing may drag a
-/// pixel off that colour, nor how much the width may vary around the band, so both of those are
-/// null thresholds and this check reports <see cref="QaVerdict.Uncalibrated"/> without them.
-/// </para>
-/// <para>
-/// 🔒 <b>Order: colour, then continuity, then width</b> — the first failure is the reported one.
-/// Not Part F's word order, and for a reason: the width and leak measurements are taken over the
+/// Colour is checked before continuity, before width, and the first failure is the reported one —
+/// not the order the claims are listed above: the width and leak measurements are taken over the
 /// colour-seeded outline mask, so an outline painted the wrong colour yields an empty mask and a
-/// measured width of zero. Reporting "width 0" for a black outline would name a symptom of the
-/// colour failure as though it were a second, independent defect (steering rule S2). The colour
-/// measurement itself is taken over the <em>geometric</em> boundary band — the visible pixels
-/// adjacent to the alpha boundary — precisely so that it can be far from #231A2E and say so.
+/// measured width of zero, which would otherwise read as a second, independent defect. The colour
+/// measurement itself is taken over the <em>geometric</em> boundary band, precisely so it can be
+/// far from the target colour and say so.
 /// </para>
 /// <para>
-/// 🔒 Width <em>conformance</em> lives here and not in `15` §B4 step 4, which repairs continuity.
-/// A step that both changed the width and graded it would be marking its own homework.
+/// Width <em>conformance</em> lives here, not in the repair step that fixes continuity — a step
+/// that both changed the width and graded it would be marking its own homework.
 /// </para>
 /// </remarks>
 public sealed class OutlineConformanceCheck : IQaCheck
@@ -52,7 +41,7 @@ public sealed class OutlineConformanceCheck : IQaCheck
     /// <summary>The spread between the outline's thinnest and thickest place, in pixels.</summary>
     public const string OutlineWidthSpreadMeasurement = "outlineWidthSpreadPx";
 
-    /// <summary>Mean RGB distance of the outline pixels from `15` §A3's #231A2E.</summary>
+    /// <summary>Mean RGB distance of the outline pixels from the target colour.</summary>
     public const string OutlineColourDistanceMeasurement = "outlineColourMeanDistance";
 
     /// <inheritdoc/>
@@ -130,20 +119,14 @@ public sealed class OutlineConformanceCheck : IQaCheck
     /// Which of item 3's three claims broke, in the order colour, continuity, width — or null when
     /// none did.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Not Part F's word order, and for a reason. The width and leak measurements are taken over
-    /// the colour-seeded outline mask, which an outline painted the wrong colour leaves empty; a
-    /// measured width of zero is then a symptom of the colour defect, and reporting it as a second
-    /// independent defect would send a reviewer looking for two problems (steering rule S2).
-    /// </remarks>
     /// <param name="measurements">Everything measured, carried on whatever comes back.</param>
     /// <param name="colourDistance">Mean distance of the boundary band from #231A2E.</param>
     /// <param name="colourTolerance">How far antialiasing may drag a pixel off that colour.</param>
     /// <param name="leak">Interior pixels a flood from the frame edge reached.</param>
     /// <param name="width">The outline's measured width.</param>
     /// <param name="spread">The gap between its thinnest and thickest place.</param>
-    /// <param name="bandMin">`15` §A3's band at this canvas, lower bound.</param>
-    /// <param name="bandMax">`15` §A3's band at this canvas, upper bound.</param>
+    /// <param name="bandMin">The authorised band at this canvas, lower bound.</param>
+    /// <param name="bandMax">The authorised band at this canvas, upper bound.</param>
     /// <param name="uniformity">The stated slack around that band.</param>
     private QaOutcome? FirstFailure(
         IReadOnlyList<StepMeasurement> measurements,
@@ -174,8 +157,8 @@ public sealed class OutlineConformanceCheck : IQaCheck
                 "enclose the subject.");
         }
 
-        // §A3 states a band, not a value, and the tolerance widens it on both sides. Both the
-        // width and the spread are graded against that one widened band.
+        // A band, not a single value, and the tolerance widens it on both sides. Both the width
+        // and the spread are graded against that one widened band.
         var floor = bandMin - uniformity;
         var ceiling = bandMax + uniformity;
 
@@ -215,7 +198,7 @@ public sealed class OutlineConformanceCheck : IQaCheck
         return visible;
     }
 
-    /// <summary>Every visible pixel within the tolerance of `15` §A3's outline colour.</summary>
+    /// <summary>Every visible pixel within the tolerance of the target outline colour.</summary>
     /// <param name="image">The processed image.</param>
     /// <param name="tolerance">How far from #231A2E still reads as outline.</param>
     private static PixelMask OutlineMask(Raster image, double tolerance)
@@ -236,18 +219,18 @@ public sealed class OutlineConformanceCheck : IQaCheck
     }
 
     /// <summary>
-    /// The mean distance from `15` §A3's colour over the <em>geometric</em> boundary band — the
-    /// visible pixels lying within §A3's own band width of the edge of the subject.
+    /// The mean distance from the target colour over the <em>geometric</em> boundary band — the
+    /// visible pixels lying within the band width of the edge of the subject.
     /// </summary>
     /// <remarks>
-    /// 🔒 Geometric, not colour-seeded, precisely so that it can be far from #231A2E and say so: a
-    /// band selected by nearness to the outline colour could only ever measure as near to it. The
-    /// outermost visible layer is included whatever §A3's band scales to, because at small canvases
-    /// the band is under a pixel wide and a boundary of no pixels would make any claim true.
+    /// Geometric, not colour-seeded, so it can be far from the target colour and say so: a band
+    /// selected by nearness to the outline colour could only ever measure as near to it. The
+    /// outermost visible layer is always included, because at small canvases the band is under a
+    /// pixel wide and a boundary of no pixels would make any claim true.
     /// </remarks>
     /// <param name="image">The processed image.</param>
     /// <param name="visible">Every visible pixel.</param>
-    /// <param name="bandMax">`15` §A3's band at this canvas, upper bound.</param>
+    /// <param name="bandMax">The authorised band at this canvas, upper bound.</param>
     private static double BoundaryColourDistance(Raster image, PixelMask visible, double bandMax)
     {
         var depth = DepthInside(visible);
@@ -292,11 +275,10 @@ public sealed class OutlineConformanceCheck : IQaCheck
     /// The outline's width and the gap between its thinnest and thickest place, both in pixels.
     /// </summary>
     /// <remarks>
-    /// The width comes from the mean depth of the band, the same relation `15` §B4 step 4 measures
-    /// with: in a band of width <c>w</c> the distance to the nearer edge averages <c>w/4</c>, and
-    /// pixel centres sit half a pixel inside the edge they are measured from. The spread comes from
-    /// the largest disc that fits at each pixel — twice its depth — because "thinnest and thickest
-    /// place" is a local question and the mean cannot answer it.
+    /// The width comes from the mean depth of the band: in a band of width <c>w</c> the distance to
+    /// the nearer edge averages <c>w/4</c>, and pixel centres sit half a pixel inside the edge they
+    /// are measured from. The spread comes from the largest disc that fits at each pixel — twice its
+    /// depth — because "thinnest and thickest place" is a local question the mean cannot answer.
     /// </remarks>
     /// <param name="outline">Every outline pixel. An empty mask measures zero.</param>
     private static (double Width, double Spread) WidthOf(PixelMask outline)
@@ -326,9 +308,9 @@ public sealed class OutlineConformanceCheck : IQaCheck
     /// everything beyond the frame as not held.
     /// </summary>
     /// <remarks>
-    /// 🔒 The frame edge is outside. An outline that runs along the edge of its canvas — every
-    /// nine-slice panel and every full-bleed background does — is bounded there as surely as it is
-    /// by the subject, and measuring its depth only inward would report it twice as thick as it is.
+    /// The frame edge is outside: an outline that runs along the edge of its canvas is bounded there
+    /// as surely as it is by the subject, and measuring its depth only inward would report it twice
+    /// as thick as it is.
     /// </remarks>
     /// <param name="mask">The set to measure inside.</param>
     private static double[] DepthInside(PixelMask mask)

@@ -1,12 +1,12 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>🔒 The five stacking modes of `18` §6.</summary>
+/// <summary>The five stacking modes.</summary>
 public enum StackingMode
 {
     /// <summary>Stacks sum.</summary>
     ADDITIVE = 1,
 
-    /// <summary>Stacks multiply — the enrage's mode (`05` §3.1's <c>SYS_ENRAGE</c>).</summary>
+    /// <summary>Stacks multiply — a built-in enrage status's mode.</summary>
     MULTIPLICATIVE = 2,
 
     /// <summary>A new application replaces the existing one.</summary>

@@ -11,27 +11,20 @@ internal static class ManifestFiles
     private static readonly Lazy<AssetManifestSet> LazySet =
         new(() => AssetManifestReader.Load(DataRoot));
 
-    /// <summary>The repository root.</summary>
     internal static string RepositoryRoot => LazyRoot.Value;
 
-    /// <summary>The <c>game-data</c> root.</summary>
     internal static string DataRoot => Path.Combine(RepositoryRoot, "game-data");
 
-    /// <summary>The manifest directory.</summary>
     internal static string AssetsDirectory =>
         Path.Combine(DataRoot, AssetManifestReader.AssetsDirectory);
 
-    /// <summary>The schema directory.</summary>
     internal static string SchemaDirectory => Path.Combine(DataRoot, "schema");
 
-    /// <summary>The shipped register.</summary>
     internal static AssetManifestSet Shipped => LazySet.Value;
 
-    /// <summary>The art manifest's raw JSON.</summary>
     internal static string ArtJson() =>
         File.ReadAllText(Path.Combine(AssetsDirectory, AssetManifestReader.ArtFileName));
 
-    /// <summary>The audio manifest's raw JSON.</summary>
     internal static string AudioJson() =>
         File.ReadAllText(Path.Combine(AssetsDirectory, AssetManifestReader.AudioFileName));
 

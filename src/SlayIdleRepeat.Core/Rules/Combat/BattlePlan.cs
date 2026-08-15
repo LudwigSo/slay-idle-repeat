@@ -14,112 +14,72 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 internal delegate BattleSeams BattleSeamFactory(BattleServices services);
 
 /// <summary>
-/// 🔒 Everything one <c>Simulate</c> is given — the roster, the seed, `05` §3's bounds, and the four
-/// parts of the engine that are not this task's.
+/// Everything one <c>Simulate</c> is given — the roster, the seed, the fight's bounds, and the engine
+/// parts that live behind seams.
 /// </summary>
 /// <remarks>
-/// <para>
-/// It is the <b>internal</b> face of the simulator. <c>CombatSimulator.Simulate</c>'s public overload
-/// is `05` §1's <c>Simulate(seed, heroSnapshot, enemySnapshot)</c> and can express a plain fight and
-/// nothing else; this is what a boss, a duel or the balance harness needs, and `30` §11.2 keeps it
-/// inside <c>Core</c> on purpose.
-/// </para>
+/// The internal face of the simulator. The public <c>CombatSimulator.Simulate</c> overload can express
+/// a plain fight and nothing else; this is what a boss, a duel or the balance harness needs.
 /// </remarks>
 internal sealed record BattlePlan
 {
-    /// <summary>
-    /// 🔒 `14` §8.1's <c>battleSeed</c>. Combat draw <c>i</c> is <c>Hash64(battleSeed, "combat", i)</c>
-    /// — <c>new DeterministicRng(battleSeed, RngStreams.Combat)</c>, built once per fight.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <b>The <c>runSeed</c> never enters this layer.</b> `02` §2 keeps it on the server; the
-    /// battle seed is derived from it upstream and handed in, which is what lets `11` §6 re-run a duel
-    /// server-side from the same value.
-    /// </remarks>
+    /// <summary>The battle seed. Combat draw <c>i</c> is <c>Hash64(battleSeed, "combat", i)</c>.</summary>
+    /// <remarks>The run seed never enters this layer; the battle seed is derived from it upstream and handed in.</remarks>
     public required ulong BattleSeed { get; init; }
 
-    /// <summary>
-    /// 🔒 The combat stream's opening position — <c>0</c> for every fight that draws nothing before
-    /// the battle starts.
-    /// </summary>
+    /// <summary>The combat stream's opening position — <c>0</c> for every fight that draws nothing before the battle starts.</summary>
     /// <remarks>
     /// <para>
-    /// `05` §6.2's Elite Modifier draw (and, for an encounter, the archetype/elite-identity draws
-    /// that pick the roster in the first place) happen <b>before</b> a <see cref="BattlePlan"/>
-    /// exists — <see cref="BattleSimulation"/> opens its own <c>new DeterministicRng(BattleSeed,
-    /// RngStreams.Combat)</c> at construction, always starting at position <c>0</c>. Without this,
-    /// a caller that pre-draws on a separate <see cref="DeterministicRng"/> instance over the same
-    /// <c>(BattleSeed, "combat")</c> pair and then hands the plan to the simulator would have the
-    /// fight's own stream <b>re-consume the same draw indices</b> the pre-draw already spent — two
-    /// different questions answered from one draw.
+    /// Some draws (an elite-modifier roll, an archetype pick) happen before a <see cref="BattlePlan"/>
+    /// exists, on a separate RNG instance over the same seed. Without moving this pointer, the fight's
+    /// own stream would re-consume the same draw indices the pre-draw already spent.
     /// </para>
-    /// <para>
-    /// Defaulted to <c>0</c> so every existing caller — the plain <c>Simulate</c> overload,
-    /// <c>BossFight</c>, every test bench in the repository — is byte-identical after this member
-    /// was added: none of them draws before the plan exists, so none of them needs to move the
-    /// pointer.
-    /// </para>
+    /// <para>Defaulted to <c>0</c> so every caller that draws nothing before the plan exists is unaffected.</para>
     /// </remarks>
     public ulong RngPosition { get; init; }
 
-    /// <summary>
-    /// Every actor, in `05` §3.1 order: hero, pets in slot order, then enemies by index.
-    /// </summary>
+    /// <summary>Every actor, in order: hero, pets in slot order, then enemies by index.</summary>
     public required IReadOnlyList<ActorPlan> Actors { get; init; }
 
-    /// <summary>`05` §1's caps, before <c>STAT_CAP_OVERRIDE</c> (`18` §8 step 9).</summary>
+    /// <summary>The stat caps, before <c>STAT_CAP_OVERRIDE</c>.</summary>
     public required StatCaps Caps { get; init; }
 
-    /// <summary>
-    /// 🔒 `05` §4's two 📐 dials — <em>"the two most important balance dials in the game. Expose
-    /// them in data."</em> <c>content/combat_caps.json#/mitigation</c>, read by <c>CombatCaps</c>.
-    /// </summary>
+    /// <summary>The two most important balance dials in the game, from content.</summary>
     /// <remarks>
-    /// <b>Required, with no default, and that is steering S6.</b> There is no honest degenerate
-    /// value the way <c>StatCaps.None</c> is one for the caps: `05` §4 step 3 is
-    /// <c>effDef / (effDef + flat + perLevel × level)</c>, so a zeroed pair mitigates <b>100%</b> of
-    /// every hit against any defender with DEF above zero and divides by zero against one without.
-    /// A plausible-looking default here would be the single most damaging silent number in the game.
+    /// Required, with no default: there is no honest degenerate value here the way <c>StatCaps.None</c>
+    /// is one for the caps. A zeroed pair mitigates 100% of every hit against any defender with DEF
+    /// above zero and divides by zero against one without — a plausible-looking default would be the
+    /// single most damaging silent number in the game.
     /// </remarks>
     public required MitigationConstants Mitigation { get; init; }
 
-    /// <summary>
-    /// 🔒 `05` §4.1's 📐 ward pool ceiling, as a fraction of the actor's post-`18` §8-step-7 Max HP.
-    /// <c>content/combat_caps.json#/wardCapPct</c>.
-    /// </summary>
+    /// <summary>The ward pool ceiling, as a fraction of the actor's post-aggregation Max HP.</summary>
     /// <remarks>Required for <see cref="Mitigation"/>'s reason: 0 deletes every shield in the game.</remarks>
     public required double WardCapPct { get; init; }
 
-    /// <summary>`05` §3 / §3.3's bounds. Defaults to <see cref="CombatRules.PvE"/>.</summary>
+    /// <summary>The fight's bounds. Defaults to <see cref="CombatRules.PvE"/>.</summary>
     public CombatRules Rules { get; init; } = CombatRules.PvE;
 
-    /// <summary>
-    /// 🔒 The <b>run's</b> trigger counters, held across battles — not one built per fight. `18` §3:
-    /// <em>"<c>ON_ATTACK</c> counters reset at battle start; <c>ON_KILL</c> counters persist across
-    /// battles."</em> Handing the same instance to every battle of a run is what makes that true
-    /// structurally.
-    /// </summary>
+    /// <summary>The run's trigger counters, held across battles — not one built per fight.</summary>
+    /// <remarks>
+    /// <c>ON_ATTACK</c> counters reset at battle start; <c>ON_KILL</c> counters persist across battles.
+    /// Handing the same instance to every battle of a run is what makes that true structurally.
+    /// </remarks>
     public required IRunTriggerCounters RunCounters { get; init; }
 
-    /// <summary>The run's state for `18` §4's nine run conditions. <c>null</c> in a duel or a sweep.</summary>
+    /// <summary>The run's state for the run-scoped conditions. <c>null</c> in a duel or a sweep.</summary>
     public IRunStateView? Run { get; init; }
 
-    /// <summary>
-    /// The six seams of `05` §3.1. Defaults to <see cref="BattleSeams.For"/> — `05` §4's damage
-    /// pipeline wired, everything M2-10/M2-12 owns still refusing or walking past.
-    /// </summary>
+    /// <summary>The seven engine seams. Defaults to <see cref="BattleSeams.For"/>.</summary>
     public BattleSeamFactory Seams { get; init; } = static services => BattleSeams.For(services);
 
-    /// <summary>
-    /// Checks everything a roster must satisfy before a tick runs, and returns the plan.
-    /// </summary>
+    /// <summary>Checks everything a roster must satisfy before a tick runs, and returns the plan.</summary>
     /// <exception cref="ArgumentException">The roster breaks one of the rules below.</exception>
     /// <remarks>
-    /// 🔒 <b>Checked up front, because every one of these fails silently at run time.</b> A duplicate
-    /// index makes <c>BattleRoster</c>'s tie-breaks non-total and the fight's outcome depend on list
-    /// construction; a duplicate log id makes the replayer draw two actors on one HP bar; a
-    /// battle-local id on an <c>ON_KILL</c> effect resets <c>PK_MIDAS</c> every fight. All three
-    /// produce a legal-looking log.
+    /// Checked up front, because every one of these fails silently at run time: a duplicate index makes
+    /// tie-breaks non-total, a duplicate log id makes the replayer draw two actors on one HP bar, and a
+    /// battle-local id on an <c>ON_KILL</c> effect resets its counter every fight. All three produce a
+    /// legal-looking log.
     /// </remarks>
     internal BattlePlan Validated()
     {
@@ -175,27 +135,19 @@ internal sealed record BattlePlan
         return this;
     }
 
-    /// <summary>
-    /// 🔒 The two `05` §4 / §4.1 constants are real numbers from
-    /// <c>content/combat_caps.json</c> — checked here, because every way of getting them wrong
-    /// produces a legal-looking log rather than an error.
-    /// </summary>
+    /// <summary>The mitigation and ward-cap constants are real numbers — checked here, because every way of getting them wrong produces a legal-looking log rather than an error.</summary>
     /// <remarks>
-    /// A zero <see cref="WardCapPct"/> clips every grant to nothing and `05` §4.1's <c>Shield</c>
-    /// events still fire, so the fight replays with shields that absorb no damage. A zero
-    /// mitigation pair makes `05` §4 step 3's fraction <c>effDef/effDef = 1</c>, so every hit in the
-    /// game deals its 10% floor and nothing else — which the balance harness would read as content
-    /// being uniformly overtuned. Both are refused rather than clamped: `05` §4's own sanity check
-    /// (DEF 120 mitigating 0.46 at attacker level 1) is arithmetic on the shipped values, and a
+    /// A zero <see cref="WardCapPct"/> clips every grant to nothing while <c>Shield</c> still fires, so
+    /// the fight replays with shields that absorb no damage. A zero mitigation pair makes the
+    /// mitigation fraction <c>effDef/effDef = 1</c>, so every hit deals its 10% floor and nothing else —
+    /// which would read as content being uniformly overtuned. Both are refused rather than clamped: a
     /// clamp would silently substitute a game nobody balanced.
     /// </remarks>
     private void RequireSimulatorConstants()
     {
-        // 🔒 STRICTLY positive, and the strictness is the point: 0 is the one value all three of this
-        // check's authorities forbid. game-data/schema/combat_caps.schema.json declares
-        // "exclusiveMinimum": 0 on the pointer, and a zero clips every grant to nothing while `05`
-        // §4.1's Shield event still fires on every one — a fight that replays with shields absorbing
-        // nothing, which is exactly the silent failure the remarks above describe.
+        // Strictly positive, and the strictness is the point: 0 clips every grant to nothing while
+        // the Shield event still fires on every one — a fight that replays with shields absorbing
+        // nothing, which is the silent failure the remarks above describe.
         if (!double.IsFinite(WardCapPct) || WardCapPct <= 0.0)
         {
             throw new ArgumentOutOfRangeException(
@@ -221,23 +173,17 @@ internal sealed record BattlePlan
         }
     }
 
-    /// <summary>
-    /// 🔒 A fight needs a hero and something to fight — checked here, because both failures produce a
-    /// <b>legal-looking one-tick log</b> rather than an error.
-    /// </summary>
+    /// <summary>A fight needs a hero and something to fight — checked here, because both failures produce a legal-looking one-tick log rather than an error.</summary>
     /// <remarks>
     /// <para>
-    /// `05` §3.1's slot 8 breaks when the hero is down or the enemies are cleared, and both questions
-    /// are asked of a roster: with no hero-side <c>HERO</c> the fight ends at tick 0 as a loss, and
-    /// with no killable enemy it ends at tick 0 as a win. Neither throws, both seal a valid log, and
-    /// the balance harness would read a batch of them as content being trivially easy or trivially
-    /// impossible.
+    /// With no hero-side hero the fight ends at tick 0 as a loss; with no killable enemy it ends at
+    /// tick 0 as a win. Neither throws, both seal a valid log, and the balance harness would read a
+    /// batch of them as content being trivially easy or trivially impossible.
     /// </para>
     /// <para>
-    /// ⚠️ <b>Exactly one hero-side hero, and this holds in a duel too.</b> `05` §3.3's Ghost Duel is
-    /// <em>"two hero-shaped sides"</em> — but the defending hero is on <see cref="BattleSide.ENEMY"/>
-    /// (<c>CombatActor</c> puts it at <c>FirstEnemy</c>), so it satisfies the enemy clause rather
-    /// than doubling the hero one.
+    /// Exactly one hero-side hero, and this holds in a duel too: a Ghost Duel puts the defending hero
+    /// on <see cref="BattleSide.ENEMY"/>, so it satisfies the enemy clause rather than doubling the
+    /// hero one.
     /// </para>
     /// </remarks>
     private void RequireTwoSides()
@@ -263,10 +209,7 @@ internal sealed record BattlePlan
         }
     }
 
-    /// <summary>
-    /// 🔒 <c>TriggerRegistry</c>'s minting rule, at the one place that can enforce half of it: an
-    /// <c>ON_KILL</c> effect must arrive with an instance id the run layer owns.
-    /// </summary>
+    /// <summary>An <c>ON_KILL</c> effect must arrive with an instance id the run layer owns — the one place that can enforce it.</summary>
     private static void RequireStableOnKillIds(ActorPlan actor)
     {
         foreach (var held in actor.Effects)

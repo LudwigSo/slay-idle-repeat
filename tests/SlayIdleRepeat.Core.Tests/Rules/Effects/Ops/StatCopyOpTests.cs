@@ -6,22 +6,16 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 `18` §2.4's <c>STAT_COPY</c> — <b>the op whose <c>target</c> names the copy source, not the
-/// recipient</b> (R13).
-/// </summary>
+/// <summary><c>STAT_COPY</c> — the op whose <c>target</c> names the copy source, not the recipient.</summary>
 /// <remarks>
-/// The test names carry the inversion on purpose. `18` never flags it, every other op in the DSL
-/// reads the other way, and the failure mode is a later reader "correcting" it — at which point
-/// <c>PK_PACK_LEADER</c> gives the hero the pets' crit chance (zero) instead of the reverse and
-/// nothing goes red unless a test says so in its own title.
+/// Inverted from every other op in the DSL; the test names carry this on purpose so a later reader
+/// "correcting" it goes red.
 /// </remarks>
 public sealed class StatCopyOpTests
 {
     /// <summary>
-    /// 🔴 R13, stated as arithmetic. `06`: <c>PK_PACK_LEADER</c> is <em>"pets gain <b>your</b> crit
-    /// chance"</em> — the pet holds the effect, the hero is the <c>target</c>, and the bucket lands
-    /// on the pet.
+    /// <c>PK_PACK_LEADER</c>: the pet holds the effect, the hero is the <c>target</c> (copy source),
+    /// and the bucket lands on the pet.
     /// </summary>
     [Fact]
     public void STAT_COPY_reads_the_target_as_the_copy_SOURCE_and_writes_onto_the_HOLDER()
@@ -49,7 +43,7 @@ public sealed class StatCopyOpTests
             "18 §2.4 copies the SOURCE's final resolved stat ONTO THE HOLDER — inverting it would " +
             "give the hero the pet's 0.0 crit, which is what PK_PACK_LEADER must not do");
 
-        // 🔒 "as a percent-bucket add FOR DURATION" — the bucket is not permanent.
+        // The bucket is not permanent — it's scoped to the effect's duration.
         bench.OnlyLifetime("AddPercentBucket:CRIT").Duration!.Scope.ShouldBe(DurationScope.BATTLE);
     }
 
@@ -71,15 +65,12 @@ public sealed class StatCopyOpTests
     }
 
     /// <summary>
-    /// 🔒 `18` §2.4 — <em>"reads the start-of-tick snapshot, so mutual copies cannot recurse"</em>,
-    /// exhibited: two actors copying each other both read the same frozen block, so neither sees the
-    /// other's output.
+    /// STAT_COPY reads the start-of-tick snapshot, so mutual copies cannot recurse: two actors
+    /// copying each other both read the same frozen block, neither sees the other's output.
     /// </summary>
     /// <remarks>
-    /// The property lives on <see cref="IResolvedStatReader"/> and not on the op — an op cannot know
-    /// how the simulator stores stats — so this drives the <b>real</b> op through a reader that is
-    /// literally a fixed map. Under a live reader the second copy would read 0.4 + 0.6 = 1.0 and
-    /// write 1.0, and the pair would ratchet on every subsequent tick.
+    /// Under a live reader the second copy would read 0.4 + 0.6 = 1.0 and write it, ratcheting the
+    /// pair on every subsequent tick.
     /// </remarks>
     [Fact]
     public void Two_actors_copying_each_other_both_read_the_start_of_tick_snapshot()
@@ -107,14 +98,8 @@ public sealed class StatCopyOpTests
             "each read the other's START-OF-TICK crit; a live read would have made the second 1.0");
     }
 
-    /// <summary>
-    /// `18` §2.4 — <c>HIGHEST_PCT_BONUS</c>, <em>"whichever stat carries the largest percent bucket
-    /// at copy time"</em>. Cogitator's <em>Recalibrate</em> (`17` §7).
-    /// </summary>
-    /// <remarks>
-    /// 🔒 Resolved against the <b>copy source</b>, because §2.4 copies <em>"the copy-source's final
-    /// resolved stat"</em> — which bucket is largest is a fact about the actor being copied.
-    /// </remarks>
+    /// <summary><c>HIGHEST_PCT_BONUS</c>: whichever stat carries the largest percent bucket at copy time.</summary>
+    /// <remarks>Resolved against the copy source, not the holder — it's a fact about the actor being copied.</remarks>
     [Fact]
     public void HIGHEST_PCT_BONUS_names_the_copy_sources_largest_bucket_not_the_holders()
     {
@@ -141,9 +126,8 @@ public sealed class StatCopyOpTests
     }
 
     /// <summary>
-    /// 🔒 <c>ALL_COMBAT</c> is refused rather than expanded — §2.4 admits <em>"a stat name or
-    /// <c>HIGHEST_PCT_BONUS</c>"</em>, and expanding would turn Recalibrate into a copy of the whole
-    /// stat block.
+    /// <c>ALL_COMBAT</c> is refused rather than expanded — expanding it would turn a single-stat copy
+    /// into a copy of the whole stat block.
     /// </summary>
     [Fact]
     public void STAT_COPY_refuses_the_ALL_COMBAT_group_selector()
@@ -162,9 +146,7 @@ public sealed class StatCopyOpTests
         var thrown = Should.Throw<EffectContextException>(
             () => StatCopyOp.Resolve(group, bench.Context(evaluation)));
 
-        // 🔒 The EFFECT id, not the op name — every other refusal in the layer names the effect, and
-        //    the review found this one throwing "STAT_COPY" instead, which is the one failure that
-        //    could not be traced back to a content row.
+        // Must name the effect id, not the op name, like every other refusal in this layer.
         thrown.Token.ShouldBe("PK_X");
         thrown.Message.ShouldContain("copy fourteen", Case.Sensitive);
 

@@ -5,13 +5,12 @@ using Xunit;
 namespace SlayIdleRepeat.AssetProvenance.Tests;
 
 /// <summary>
-/// `15` §G and `20` §6 — <em>"Commercial licence for each tool confirmed in writing"</em>, and the
-/// one property of that record that matters most: <b>unset never reads as confirmed</b>.
+/// Commercial licence for each tool must be confirmed in writing — and the one property of that
+/// record that matters most: <b>unset never reads as confirmed</b>.
 /// </summary>
 /// <remarks>
-/// 🔒 M8-01b is ⛔ and the product owner owns it. Nothing an agent can run may set
-/// <c>confirmedInWriting</c>, and no code path in this assembly may default it. Steering S6: the
-/// hole stays a hole, greppable, and is never coerced at read time.
+/// Nothing an agent can run may set <c>confirmedInWriting</c>, and no code path in this assembly
+/// may default it — the hole stays a hole, greppable, and is never coerced at read time.
 /// </remarks>
 public sealed class ToolLicenceTests
 {
@@ -20,15 +19,13 @@ public sealed class ToolLicenceTests
     {
         var midjourney = ProvenanceFixtures.ShippedLicences.ShouldHaveSingleItem();
 
-        // 🔒 Against the CONSTANT, not the literal. MidjourneyProvenance.KindName is both the
-        // record's discriminator and the key ToolsNamed matches against this register; renaming it
-        // on one side alone would turn every Midjourney record into UnknownTool — a different,
-        // quieter failure than the licence rule this file is about.
+        // Against the CONSTANT, not the literal: renaming KindName on one side alone would turn
+        // every Midjourney record into UnknownTool, a different failure than this file is about.
         midjourney.Tool.ShouldBe(MidjourneyProvenance.KindName);
         midjourney.Tool.ShouldBe("midjourney");
         midjourney.AppliesTo.ShouldBe("art");
 
-        // 🔒 The whole point. Not false — UNSET.
+        // The whole point. Not false — UNSET.
         midjourney.ConfirmedInWriting.ShouldBeNull(
             "M8-01b is the product owner's and it is not done. An agent setting this is out of scope " +
             "by ruling, and a default that made it non-null would be the claim 15 §G calls a formality.");
@@ -47,10 +44,7 @@ public sealed class ToolLicenceTests
                 "*not confirmed in writing (confirmedInWriting=<unset>*M8-01b*do not read an absent value as consent*");
     }
 
-    /// <summary>
-    /// 🔒 `15` §G calls the bare claim a formality. A <c>true</c> with nothing filed behind it is
-    /// exactly that, so it is not a confirmation.
-    /// </summary>
+    /// <summary>A bare claim is a formality: a <c>true</c> with nothing filed behind it is not a confirmation.</summary>
     [Fact]
     public void A_true_with_no_written_reference_behind_it_is_not_a_confirmation()
     {
@@ -92,9 +86,8 @@ public sealed class ToolLicenceTests
     }
 
     /// <summary>
-    /// `20` §2.1 — the audio tools are deliberately absent from the register. No Suno, no Udio, no
-    /// ElevenLabs licence is held (M8 kickoff, 2026-08-12), and a row with no confirmation would
-    /// read as a shortlist somebody had settled on.
+    /// The audio tools are deliberately absent from the register. No Suno, no Udio, no ElevenLabs
+    /// licence is held, and a row with no confirmation would read as a shortlist somebody settled on.
     /// </summary>
     [Fact]
     public void No_audio_generation_tool_is_declared_because_none_is_licensed()
@@ -110,7 +103,7 @@ public sealed class ToolLicenceTests
                 $"no licence is held for {banned} (M8 kickoff, 2026-08-12).");
         }
 
-        // 🔒 Shouldly's ShouldAllBe passes on an EMPTY collection, so the floor comes first.
+        // Shouldly's ShouldAllBe passes on an EMPTY collection, so the floor comes first.
         tools.Length.ShouldBeGreaterThanOrEqualTo(1);
         ProvenanceFixtures.ShippedLicences.ShouldAllBe(l => l.AppliesTo == "art");
     }

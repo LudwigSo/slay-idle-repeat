@@ -5,24 +5,19 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 The canonical byte encoding of `14` §8.0 — the half of <c>Hash64</c> that is this project's own,
-/// and the half a correct XXH64 cannot save.
+/// The canonical byte encoding — the half of <c>Hash64</c> that is this project's own, and the
+/// half a correct XXH64 cannot save.
 /// </summary>
 /// <remarks>
 /// Integrals and enums widen to 64 bits (ints sign-extended), 8 bytes little-endian; a string is a
-/// 4-byte little-endian UTF-8 <b>byte</b> count then the bytes.
-/// <para>
-/// These assert the bytes, not just the hash: a hash-only assertion tells you a row moved, a byte-level
-/// one tells you why — and the two failure modes this encoding actually has (zero-extending a negative
-/// int, counting <c>char</c>s instead of UTF-8 bytes) are invisible until someone feeds it a negative
-/// number or a non-ASCII string in production.
-/// </para>
+/// 4-byte little-endian UTF-8 byte count then the bytes. These assert the bytes, not just the
+/// hash: a hash-only assertion tells you a row moved, a byte-level one tells you why.
 /// </remarks>
 public sealed class Hash64EncodingTests
 {
     /// <summary>
-    /// 🔒 The one that bites. A negative <c>int</c> widens by sign extension, so -1 is eight
-    /// <c>0xFF</c> bytes — not four <c>0xFF</c> bytes followed by four zeros.
+    /// A negative <c>int</c> widens by sign extension, so -1 is eight <c>0xFF</c> bytes — not four
+    /// <c>0xFF</c> bytes followed by four zeros.
     /// </summary>
     [Fact]
     public void The_encoding_sign_extends_a_negative_int_rather_than_zero_extending_it()
@@ -91,9 +86,9 @@ public sealed class Hash64EncodingTests
     }
 
     /// <summary>
-    /// 🔒 The prefix counts <b>UTF-8 bytes</b>, not <c>char</c>s. "größe" is five chars and
-    /// seven bytes; a naive implementation writes 5 and produces a hash that is stable, wrong,
-    /// and impossible to reconcile with any other language's implementation.
+    /// The prefix counts UTF-8 bytes, not <c>char</c>s. "größe" is five chars and seven bytes; a
+    /// naive implementation writes 5 and produces a hash that is stable, wrong, and impossible to
+    /// reconcile with any other language's implementation.
     /// </summary>
     [Fact]
     public void The_encoding_counts_UTF8_bytes_not_chars_for_a_non_ASCII_string()
@@ -133,8 +128,8 @@ public sealed class Hash64EncodingTests
     }
 
     /// <summary>
-    /// 🔒 Why the length prefix exists. Without it <c>("ab", "c")</c> and <c>("a", "bc")</c>
-    /// both concatenate to <c>abc</c> and collide — two different draws answering to one hash.
+    /// Why the length prefix exists: without it <c>("ab", "c")</c> and <c>("a", "bc")</c> both
+    /// concatenate to <c>abc</c> and collide.
     /// </summary>
     [Fact]
     public void The_length_prefix_separates_argument_lists_that_would_otherwise_concatenate_alike()
@@ -237,19 +232,12 @@ public sealed class Hash64EncodingTests
     }
 
     /// <summary>
-    /// 🔒 The buffer boundary. Both <c>Of</c> overloads build the canonical buffer on the stack up
-    /// to 256 bytes and on the <b>heap</b> beyond it, and until this theory existed the heap branch
-    /// was dead in the whole suite: the largest canonical buffer any test built was 65 bytes, and
-    /// the 222-byte xxHash sanity vectors hand a pre-built array straight to <c>XxHash64</c>,
-    /// bypassing buffer construction entirely.
+    /// The buffer boundary: both <c>Of</c> overloads build the canonical buffer on the stack up to
+    /// 256 bytes and on the heap beyond it. A single ASCII string of length <c>n</c> encodes to
+    /// <c>4 + n</c> bytes, so 252 is the last length on the stack and 253 the first on the heap.
+    /// The expectation is an explicitly built buffer rather than a second call to <c>Of</c>, so the
+    /// two cannot agree by both being wrong.
     /// </summary>
-    /// <remarks>
-    /// A single ASCII string of length <c>n</c> encodes to <c>4 + n</c> bytes, so 252 is the last
-    /// length on the stack and 253 the first on the heap. A wrong slice offset or a stale
-    /// <c>total</c> in the heap path would hash long arguments differently while all 75 committed
-    /// rows still passed. The expectation is an explicitly built buffer rather than a second call
-    /// to <c>Of</c>, so the two cannot agree by both being wrong.
-    /// </remarks>
     [Theory]
     [InlineData(251)]
     [InlineData(252)]
@@ -291,11 +279,10 @@ public sealed class Hash64EncodingTests
     }
 
     /// <summary>
-    /// 🔒 And the <b>draw</b> overload has its own stack/heap branch, reached at a stream name of
-    /// 237 bytes: <c>8 + (4 + n) + 8</c> passes 256 there. It is reachable — the overload does
-    /// <b>not</b> validate its stream name against <c>RngStreams</c>, so any caller can pass a name
-    /// of any length — and a heap path that disagreed with the general overload would fork the
-    /// stream for exactly those callers.
+    /// The draw overload has its own stack/heap branch, reached at a stream name of 237 bytes:
+    /// <c>8 + (4 + n) + 8</c> passes 256 there. It is reachable because the overload does not
+    /// validate its stream name against <c>RngStreams</c>, so any caller can pass a name of any
+    /// length.
     /// </summary>
     [Theory]
     [InlineData(235)]

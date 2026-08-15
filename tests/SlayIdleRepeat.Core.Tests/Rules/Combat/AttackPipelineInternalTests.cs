@@ -8,16 +8,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// 🔒 The <b>residue</b> of `05` §4 — the claims no <see cref="SimulationResult"/> can report and no
-/// public entry point can provoke. <see cref="DamageResolutionTests"/> is where §4's ten steps are
-/// pinned.
+/// The claims no <see cref="SimulationResult"/> can report and no public entry point can provoke.
+/// <see cref="DamageResolutionTests"/> is where the ten attack-pipeline steps are pinned.
 /// </summary>
 /// <remarks>
-/// Three groups: draw discipline (<c>DeterministicRng.Position</c> is <em>"the entire persistable
-/// state of this stream"</em> and appears in no <c>CombatEvent</c>, yet a spent or skipped draw
-/// desynchronises a client for the rest of the fight); `05` §4.2's non-attack damage routes, whose
-/// whole observable difference is the ward pool's balance; and two guards against a caller the
-/// public entry points cannot be.
+/// Three groups: draw discipline (<c>DeterministicRng.Position</c> appears in no
+/// <c>CombatEvent</c>, yet a spent or skipped draw desynchronises a client for the rest of the
+/// fight); the non-attack damage routes, whose whole observable difference is the ward pool's
+/// balance; and two guards against a caller the public entry points cannot be.
 /// <para>
 /// These use <see cref="AttackPipelineBench"/>, which reaches through <c>BattlePlan.Seams</c> to the
 /// internal pipeline inside a real fight — the sanctioned last resort, not the default.
@@ -31,8 +29,8 @@ public sealed class AttackPipelineInternalTests
     // ══════════════════════════════════════════════════════ the draw discipline
 
     /// <summary>
-    /// 🔒 A resolved attack advances the stream by exactly <b>3</b>, a dodged one by <b>1</b>. Both
-    /// rows are needed: always-three passes the first, lazy-draw passes the second.
+    /// A resolved attack advances the RNG stream by exactly 3, a dodged one by 1. Both rows are
+    /// needed: always-three passes the first, lazy-draw passes the second.
     /// </summary>
     [Theory]
     [InlineData(0.0, 3UL)]
@@ -53,9 +51,9 @@ public sealed class AttackPipelineInternalTests
             });
 
     /// <summary>
-    /// 🔒 `18` §2.4's <c>FORCE_CRIT_NEXT</c> decides step 4's <b>outcome</b> and never its
-    /// <b>draw</b>: a skipped draw would make the stream's position a function of the attacker's
-    /// flow state, diverging any client that had not observed the charge.
+    /// <c>FORCE_CRIT_NEXT</c> decides the crit outcome and never skips its draw: a skipped draw
+    /// would make the RNG position a function of the attacker's flow state, desyncing any client
+    /// that had not observed the charge.
     /// </summary>
     [Fact]
     public void A_forced_crit_crits_without_skipping_step_4s_draw() =>
@@ -74,12 +72,9 @@ public sealed class AttackPipelineInternalTests
                 p.Services.Rng.Position.ShouldBe(6UL);
             });
 
-    // ══════════════════════════════════════════════════════ 05 §4.2's other two routes
+    // ══════════════════════════════════════════════════════ the other two damage routes
 
-    /// <summary>
-    /// 🔒 `05` §4.2 — <c>DAMAGE_TRUE</c> <em>"bypasses everything … no <c>DR%</c>,
-    /// <c>DAMAGE_TAKEN_MULT</c>, floor or wards"</em>, and `05` §4.1's bypass class (a).
-    /// </summary>
+    /// <summary><c>DAMAGE_TRUE</c> bypasses everything: no DR%, damage-taken multiplier, floor or wards.</summary>
     [Fact]
     public void DAMAGE_TRUE_bypasses_DR_the_damage_taken_multiplier_and_the_ward_pool() =>
         Fight(
@@ -97,17 +92,13 @@ public sealed class AttackPipelineInternalTests
             });
 
     /// <summary>
-    /// 🔒 `05` §4.2 — <c>DAMAGE_MAXHP_PCT</c>: <em>"<c>DR%</c> and <c>DAMAGE_TAKEN_MULT</c>
-    /// <b>do</b> apply; wards absorb"</em> — unless `05` §4.1's bypass class <b>(b)</b> says
-    /// otherwise.
+    /// <c>DAMAGE_MAXHP_PCT</c>: DR% and the damage-taken multiplier do apply and wards absorb,
+    /// unless the caller marks it as bypassing wards — a self-inflicted cost (like a drawback perk)
+    /// must not be silently deleted by the holder's own ward.
     /// </summary>
-    /// <remarks>
-    /// R12 — the two rows are the two answers over the same ward: <em>"wards must not silently
-    /// delete perk drawbacks"</em> (<c>CP_BLOOD_PRICE</c>).
-    /// </remarks>
     [Theory]
     [InlineData(false, 5000.0, 950.0)]   // absorbed: the pool pays the 50, HP is untouched
-    [InlineData(true, 4950.0, 1000.0)]   // `05` §4.1 (b): the drawback reaches HP, the pool is untouched
+    [InlineData(true, 4950.0, 1000.0)]   // bypass: the drawback reaches HP, the pool is untouched
     public void DAMAGE_MAXHP_PCT_applies_DR_and_is_absorbed_unless_it_is_a_self_inflicted_cost(
         bool bypassesWards, double expectedHp, double expectedWard) =>
         Fight(
@@ -124,12 +115,12 @@ public sealed class AttackPipelineInternalTests
                 p.Services.Rng.Position.ShouldBe(0UL, "no dodge, no crit, no block — so no draws");
             });
 
-    // ══════════════════════════════════════════════════════ the S6 refusals
+    // ══════════════════════════════════════════════════════ refusals
 
     /// <summary>
-    /// 🔒 A non-finite number is refused <b>by name</b> rather than carried through the ten steps: a
-    /// NaN compares <c>false</c> against every bound in `05` §4, so it would otherwise surface three
-    /// layers later naming the serialiser. Steering S2 — the message is the deliverable.
+    /// A non-finite number is refused by name rather than carried through the pipeline: a NaN
+    /// compares false against every bound, so it would otherwise surface three layers later naming
+    /// the serialiser instead of the effect that produced it.
     /// </summary>
     [Fact]
     public void A_non_finite_number_is_refused_naming_the_effect_that_produced_it() =>
@@ -146,7 +137,7 @@ public sealed class AttackPipelineInternalTests
                 .Message.ShouldContain("PK_TRANSFUSION", Case.Sensitive);
         });
 
-    /// <summary>🔒 A battle has one roster and one view of it — a foreign actor view is refused.</summary>
+    /// <summary>A battle has one roster and one view of it — a foreign actor view is refused.</summary>
     [Fact]
     public void A_foreign_actor_view_is_refused() =>
         Fight(body: p =>

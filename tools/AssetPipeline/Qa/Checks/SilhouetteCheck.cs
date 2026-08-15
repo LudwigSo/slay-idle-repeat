@@ -1,8 +1,6 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 1: <em>"Silhouette test passed at 64 px (characters)"</em>.
-/// </summary>
+/// <summary>Checklist item 1: silhouette test passed at 64 px (characters).</summary>
 /// <remarks>
 /// <para>
 /// Delegates to <see cref="SilhouetteGate"/> and turns its four measurements into a verdict. The
@@ -10,16 +8,15 @@ namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 /// <see cref="QaVerdict.Uncalibrated"/> naming the key — never a pass.
 /// </para>
 /// <para>
-/// 🔒 <b>This item is classified with a human gap even though it is mechanised.</b> `15` §A4's
-/// acceptance test is <em>"If you cannot tell which character it is, regenerate it"</em>. Four pixel
-/// measurements do not perform that test; they catch silhouettes so degenerate that nobody would
-/// need to try. <see cref="HumanGap"/> is non-null on every outcome this check produces, including
-/// the passing ones, so no report can say "§A4 passed" on the strength of a machine.
+/// Classified with a human gap even though it is mechanised: four pixel measurements do not
+/// perform the actual acceptance test, they catch silhouettes so degenerate that nobody would need
+/// to try. <see cref="HumanGap"/> is non-null on every outcome, including the passing ones, so no
+/// report can claim the human test passed on the strength of a machine.
 /// </para>
 /// </remarks>
 public sealed class SilhouetteCheck : IQaCheck
 {
-    /// <summary>The judgement `15` §A4 asks for and this project does not make.</summary>
+    /// <summary>The judgement this project does not make.</summary>
     public const string SilhouetteHumanGap =
         "15 §A4's acceptance test is a human judgement: \"" +
         Doc15PartF.SilhouetteAcceptanceSentence +
@@ -63,9 +60,8 @@ public sealed class SilhouetteCheck : IQaCheck
         }
         catch (UncalibratedThresholdException uncalibrated)
         {
-            // 🔒 The gate throws and this item reports. One open hole must stop item 1 concluding
-            // without aborting the other ten items of a 942-asset batch — and the measurements
-            // travel anyway, because they need no cutoff to be taken.
+            // The gate throws and this item reports, so one open hole doesn't abort the rest of a
+            // batch. Measurements travel anyway, since they need no cutoff to be taken.
             return QaEvidence.Uncalibrated(
                 ItemNumber, uncalibrated, MeasuredWithoutGrading(subject, category), SilhouetteHumanGap);
         }
@@ -79,11 +75,11 @@ public sealed class SilhouetteCheck : IQaCheck
         "own test — see the human gap.";
 
     /// <summary>
-    /// The four `15` §A4 quantities, taken without grading them, so an uncalibrated outcome still
+    /// The four silhouette quantities, taken without grading them, so an uncalibrated outcome still
     /// hands a reviewer the numbers a cutoff would have been compared against.
     /// </summary>
     /// <param name="subject">The asset under judgement.</param>
-    /// <param name="category">The `15` §D1 category the registry is consulted for.</param>
+    /// <param name="category">The category the registry is consulted for.</param>
     private static IReadOnlyList<StepMeasurement> MeasuredWithoutGrading(
         QaSubject subject, string category)
     {

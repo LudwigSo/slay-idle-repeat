@@ -10,26 +10,26 @@ using SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// Fixtures and doubles for the `17` boss-engine suite — the mechanics `17` authors, a driver that
-/// puts a boss on an exact HP fraction at an exact tick, and a sampler that reads the trigger
-/// registry once per tick.
+/// Fixtures and doubles for the boss-engine suite — the authored mechanics, a driver that puts a
+/// boss on an exact HP fraction at an exact tick, and a sampler that reads the trigger registry
+/// once per tick.
 /// </summary>
 /// <remarks>
-/// 🔴 <c>TriggerRegistry.Activate</c> leaves a <b>live</b> instance untouched, so a phase transition
-/// that forgot to <c>Deactivate</c> the exiting phase produces a fight in which every mechanic still
+/// <c>TriggerRegistry.Activate</c> leaves a live instance untouched, so a phase transition that
+/// forgot to <c>Deactivate</c> the exiting phase produces a fight in which every mechanic still
 /// fires — at the wrong anchor. A test asserting "the effect fired" passes either way and cannot
 /// fail. <see cref="InstanceSample"/> carries <c>AnchorTick</c> and <c>NextFiringTick</c>, the two
 /// readings that can.
 /// </remarks>
 internal static class BossTestBench
 {
-    /// <summary>The boss under test — `17` §2's teaching boss.</summary>
+    /// <summary>The boss under test.</summary>
     internal const string Thornmaw = "BOSS_THORNMAW";
 
-    /// <summary>`17` §9's finale, for the <c>RANDOM_OUTCOME</c> cases.</summary>
+    /// <summary>The finale boss, for the <c>RANDOM_OUTCOME</c> cases.</summary>
     internal const string Dicelord = "BOSS_DICELORD";
 
-    /// <summary>`05` §3 — the tick rate, so a test can write seconds and mean ticks.</summary>
+    /// <summary>The tick rate, so a test can write seconds and mean ticks.</summary>
     internal const int TicksPerSecond = CombatLog.TicksPerSecond;
 
     /// <summary>The tick a span of battle-time seconds lands on.</summary>
@@ -40,10 +40,10 @@ internal static class BossTestBench
     /// contract can be asserted literally.
     /// </summary>
     /// <param name="id">The boss's actor id — also <see cref="BossScript.Id"/>.</param>
-    /// <param name="maxHp">Max HP. 1000 makes every `17` §1 threshold a whole number of HP.</param>
+    /// <param name="maxHp">Max HP. 1000 makes every phase threshold a whole number of HP.</param>
     /// <param name="effects">Its holdings, with explicit instance ids.</param>
     /// <remarks>
-    /// ⚠️ ASPD is 0.001 deliberately: these fights are about phases, not swings, and a 1.0-ASPD roster
+    /// ASPD is 0.001 deliberately: these fights are about phases, not swings, and a 1.0-ASPD roster
     /// fills the log with a hit every second. One opening swing lands at tick 0 and the next is 1000 s
     /// away.
     /// </remarks>
@@ -70,20 +70,20 @@ internal static class BossTestBench
     internal static ActorPlan Hero() =>
         BattleTestBench.Hero(BattleTestBench.Stats(maxHp: 100_000.0, aspd: 0.001));
 
-    /// <summary>`05` §3's bounds, shortened so a phase test does not run 1800 ticks.</summary>
+    /// <summary>The tick bound, shortened so a phase test does not run 1800 ticks.</summary>
     /// <param name="maxTicks">How many ticks the fight may run.</param>
     internal static CombatRules Rules(int maxTicks = 200) =>
         new(maxTicks, OnKillTriggersFire: true);
 
-    /// <summary>A held effect under the `17` §1 D2 phase-instance spelling.</summary>
+    /// <summary>A held effect using the phase-instance id spelling.</summary>
     internal static HeldEffect InPhase(string bossId, int phase, EffectDefinition effect) =>
         new(effect, BossBuiltIns.PhaseInstance(bossId, phase, effect.Id));
 
-    /// <summary>A held built-in under the `17` §1 D2 built-in spelling.</summary>
+    /// <summary>A held built-in using the built-in id spelling.</summary>
     internal static HeldEffect BuiltIn(string bossId, EffectDefinition effect) =>
         new(effect, BossBuiltIns.BuiltInInstance(bossId, effect.Id));
 
-    /// <summary>`17` §2 — Thornmaw phase 2's <c>PERIODIC 8 s</c> Root, telegraphed 1.2 s.</summary>
+    /// <summary>Thornmaw phase 2's <c>PERIODIC 8 s</c> Root, telegraphed 1.2 s.</summary>
     internal static EffectDefinition Root() => new()
     {
         Id = "BOSS_THORNMAW_P2_ROOT",
@@ -94,7 +94,7 @@ internal static class BossTestBench
         Trigger = new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 8.0 },
     };
 
-    /// <summary>`17` §9 — the Dicelord's phase-3 <em>All In</em>: 300% ATK, telegraphed 1.5 s.</summary>
+    /// <summary>The Dicelord's phase-3 <em>All In</em>: 300% ATK, telegraphed 1.5 s.</summary>
     internal static EffectDefinition AllIn() => new()
     {
         Id = "BOSS_DICELORD_P3_ALL_IN",
@@ -121,9 +121,9 @@ internal static class BossTestBench
     };
 
     /// <summary>
-    /// 🔒 M2-R1 — a `18` §2.1 basic stat op fired by a boss's own <c>ON_PHASE_ENTER</c>,
-    /// <c>PHASE</c>-scoped — the shape `17`'s authored boss AURAs use (Cindermaw's Overheat,
-    /// Rimehold's Glacial Armour), stated as a fixture so a test can name any stat and any phase.
+    /// A basic stat op fired by a boss's own <c>ON_PHASE_ENTER</c>, <c>PHASE</c>-scoped — the shape
+    /// authored boss AURAs use (Cindermaw's Overheat, Rimehold's Glacial Armour), stated as a
+    /// fixture so a test can name any stat and any phase.
     /// </summary>
     internal static EffectDefinition PhaseStatBuff(string id, int phase, StatId stat, double pct) => new()
     {
@@ -136,10 +136,7 @@ internal static class BossTestBench
         Duration = new EffectDuration { Scope = DurationScope.PHASE },
     };
 
-    /// <summary>
-    /// `17` §6's Rimehold Core, as `17` §11's <em>"<c>Core</c> state flag for damage-amplification
-    /// states"</em>: <c>DAMAGE_TAKEN_MULT ×1.6</c> on the boss's own phase-2 entry.
-    /// </summary>
+    /// <summary>Rimehold Core's damage-amplification flag: <c>DAMAGE_TAKEN_MULT x1.6</c> on the boss's own phase-2 entry.</summary>
     internal static EffectDefinition RimeholdCore() => new()
     {
         Id = "BOSS_RIMEHOLD_P2_CORE",
@@ -150,9 +147,9 @@ internal static class BossTestBench
         Duration = new EffectDuration { Scope = DurationScope.PHASE },
     };
 
-    /// <summary>A <c>SUMMON</c> mechanic — `17` §2's phase-3 adds.</summary>
+    /// <summary>A <c>SUMMON</c> mechanic — phase-3 adds.</summary>
     /// <param name="id">The effect id.</param>
-    /// <param name="maxAlive">`18` §2.4's <c>maxAlive</c>, which `17` §1 caps at 3.</param>
+    /// <param name="maxAlive">The alive cap, authored at 3.</param>
     /// <param name="count">How many adds one firing asks for.</param>
     /// <param name="everySeconds">
     /// When given, a <c>PERIODIC</c> of that period instead of <c>ON_PHASE_ENTER</c> — the shape that
@@ -176,7 +173,7 @@ internal static class BossTestBench
             : new EffectTrigger { Kind = TriggerKind.ON_PHASE_ENTER, Phase = 3 },
     };
 
-    /// <summary>`17` §9 — <em>Roll of Fate</em>, phase 1's three equally weighted outcomes.</summary>
+    /// <summary><em>Roll of Fate</em>, phase 1's three equally weighted outcomes.</summary>
     internal static EffectDefinition RollOfFateP1() => new()
     {
         Id = "BOSS_DICELORD_ROLL_OF_FATE_P1",
@@ -191,7 +188,7 @@ internal static class BossTestBench
         },
     };
 
-    /// <summary>`17` §9 — phase 2's two-row <c>4/2</c> table. The same op, no branch.</summary>
+    /// <summary>Phase 2's two-row <c>4/2</c> table. The same op, no branch.</summary>
     internal static EffectDefinition RollOfFateP2() => new()
     {
         Id = "BOSS_DICELORD_ROLL_OF_FATE_P2",
@@ -205,13 +202,13 @@ internal static class BossTestBench
         },
     };
 
-    /// <summary>`17` §9's <em>1–2: boss gains ATK +25% for 8 s</em>.</summary>
+    /// <summary><em>1-2: boss gains ATK +25% for 8 s</em>.</summary>
     internal const string FateBossAtk = "BOSS_DICELORD_FATE_BOSS_ATK";
 
-    /// <summary>`17` §9's <em>3–4: hero gains ATK +25% for 8 s</em>.</summary>
+    /// <summary><em>3-4: hero gains ATK +25% for 8 s</em>.</summary>
     internal const string FateHeroAtk = "BOSS_DICELORD_FATE_HERO_ATK";
 
-    /// <summary>`17` §9's <em>5–6: both gain ASPD +30% for 8 s</em>.</summary>
+    /// <summary><em>5-6: both gain ASPD +30% for 8 s</em>.</summary>
     internal const string FateBothAspd = "BOSS_DICELORD_FATE_BOTH_ASPD";
 
     /// <summary>One <c>Roll of Fate</c> outcome row, as an effect with no trigger of its own.</summary>
@@ -227,7 +224,7 @@ internal static class BossTestBench
     };
 
     /// <summary>An effect lookup in the shape <see cref="BossEncounterRequest.Effects"/> takes.</summary>
-    /// <param name="effects">The authored effects, keyed by their `18` §8 ids.</param>
+    /// <param name="effects">The authored effects, keyed by their ids.</param>
     internal static IReadOnlyDictionary<string, EffectDefinition> Lookup(
         params EffectDefinition[] effects) =>
         effects.ToDictionary(e => e.Id, e => e, StringComparer.Ordinal);
@@ -238,7 +235,7 @@ internal static class BossTestBench
     internal static BossPhaseBlock Block(int phase, params BossMechanic[] mechanics) =>
         new() { Phase = phase, Mechanics = mechanics };
 
-    /// <summary>A three-block script, in `17` §1.2's shape.</summary>
+    /// <summary>A three-block script.</summary>
     /// <param name="id">The boss id.</param>
     /// <param name="blocks">The blocks. Pass fewer or out of order for a negative case.</param>
     internal static BossScript Script(string id, params BossPhaseBlock[] blocks) =>
@@ -249,11 +246,10 @@ internal static class BossTestBench
             Phases = blocks,
         };
 
-    /// <summary>`17` §1.2's Thornmaw row.</summary>
     internal static BossCoefficients ThornmawCoefficients { get; } = new(2.40, 0.80, 0.80, 0.70);
 
     /// <summary>
-    /// `17` §1.2's baseline secondaries — CRIT 0.05, CDMG 0.50, DODGE 0, LS 0 — carried on an
+    /// The baseline secondaries — CRIT 0.05, CDMG 0.50, DODGE 0, LS 0 — carried on an
     /// <c>ArchetypeRow</c>, whose four coefficients the builder replaces.
     /// </summary>
     internal static ArchetypeRow Baseline { get; } = new(
@@ -262,8 +258,8 @@ internal static class BossTestBench
     /// <summary>A request in the shape M2-13 will build one.</summary>
     /// <param name="script">The boss script.</param>
     /// <param name="effects">The lookup its mechanic ids resolve against.</param>
-    /// <param name="power">`02` §4.3's <c>EnemyPower(i)</c>, <c>StageMult.Boss</c> already inside it.</param>
-    /// <param name="firstClear">`17` §1's first-clear flag.</param>
+    /// <param name="power"><c>EnemyPower(i)</c>, with <c>StageMult.Boss</c> already inside it.</param>
+    /// <param name="firstClear">The first-clear flag.</param>
     internal static BossEncounterRequest Request(
         BossScript script,
         IReadOnlyDictionary<string, EffectDefinition> effects,
@@ -282,7 +278,7 @@ internal static class BossTestBench
             FirstClear = firstClear,
         };
 
-    /// <summary>`05` §6.1's rows and §6's constants, read from the shipped document's shape.</summary>
+    /// <summary>The enemy catalogue's rows and constants, read from the shipped document's shape.</summary>
     internal static EnemyCatalogue Catalogue() => EnemyCatalogue.Read(EnemyFixtures.Snapshot());
 
     /// <summary>
@@ -290,22 +286,21 @@ internal static class BossTestBench
     /// <see cref="BossDriver"/> holding the HP script and the per-tick registry readings, and a
     /// damage engine that deals nothing so the only HP changes in the fight are the scripted ones.
     /// </summary>
-    /// <param name="roster">The actors, in `05` §3.1 index order.</param>
+    /// <param name="roster">The actors, in actor index order.</param>
     /// <param name="encounters">The controller's encounters — one per boss it knows.</param>
     /// <param name="watched">The instance ids <see cref="BossDriver"/> samples every tick.</param>
     /// <param name="script">The HP script: <c>(tick, actorId, hpFraction)</c>.</param>
     /// <param name="statuses">The status engine, when a test needs to read what fired.</param>
-    /// <param name="summons">`18` §2.4's roster half, when a phase block summons.</param>
+    /// <param name="summons">The summon roster, when a phase block summons.</param>
     /// <param name="outcomes">
-    /// E6's resolver, built from the battle — a factory rather than a value because
+    /// The resolver, built from the battle — a factory rather than a value because
     /// <see cref="BossOutcomes"/> needs the fight's own <see cref="BattleServices"/>, which does not
     /// exist until the simulation does.
     /// </param>
-    /// <param name="maxTicks">`05` §3's bound, shortened.</param>
+    /// <param name="maxTicks">The tick bound, shortened.</param>
     /// <param name="battleSeed">
-    /// 🔒 `14` §8.1's battle seed. Pinned by the caller whenever a case asserts <b>which</b> row a
-    /// draw reached, because <c>DeterministicRng(battleSeed, RngStreams.Combat)</c> is what decides
-    /// it.
+    /// The battle seed. Pinned by the caller whenever a case asserts which row a draw reached,
+    /// because <c>DeterministicRng(battleSeed, RngStreams.Combat)</c> is what decides it.
     /// </param>
     internal static BossRun Run(
         IReadOnlyList<ActorPlan> roster,
@@ -364,7 +359,7 @@ internal static class BossTestBench
 /// <param name="Result">The finished simulation.</param>
 /// <param name="Controller">The controller the fight ran on.</param>
 /// <param name="Driver">The driver, with its per-tick registry readings.</param>
-/// <param name="Statuses">The status engine, with what `18` §2.3's ops asked it for.</param>
+/// <param name="Statuses">The status engine, with what the boss ops asked it for.</param>
 internal sealed record BossRun(
     SimulationResult Result,
     BossPhaseController Controller,
@@ -375,21 +370,20 @@ internal sealed record BossRun(
 /// <param name="Tick">The tick the reading was taken on.</param>
 /// <param name="Instance">The instance id.</param>
 /// <param name="IsRegistered">Whether the registry knows it at all.</param>
-/// <param name="IsActive">`18` §6's live flag — <c>false</c> after a <c>Deactivate</c>.</param>
-/// <param name="AnchorTick">🔒 R8's anchor. The reading a de-anchoring test cannot do without.</param>
+/// <param name="IsActive">The live flag — <c>false</c> after a <c>Deactivate</c>.</param>
+/// <param name="AnchorTick">The reading a de-anchoring test cannot do without.</param>
 /// <param name="NextFiringTick">The next tick a <c>PERIODIC</c> is due on.</param>
 internal readonly record struct InstanceSample(
     int Tick, string Instance, bool IsRegistered, bool IsActive, int? AnchorTick, int? NextFiringTick);
 
 /// <summary>
-/// 🔒 The suite's driver: it puts a named actor on an exact HP fraction at an exact tick and routes
-/// `05` §3.1's phase check, and it samples the trigger registry once per tick.
+/// The suite's driver: it puts a named actor on an exact HP fraction at an exact tick and routes
+/// the phase check, and it samples the trigger registry once per tick.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Both jobs live on <see cref="IStatusTimeline"/> because a battle has exactly one, and because
-/// slot 1 is where a DoT-driven HP change legitimately lands — <c>BattleSeams</c> states that M2-10
-/// owes <c>IBossPhases.AfterHpDecrease</c> for exactly this case. Driving HP through the attack
+/// slot 1 is where a DoT-driven HP change legitimately lands. Driving HP through the attack
 /// pipeline instead would tie every scripted change to a swing landing.
 /// </para>
 /// <para>
@@ -425,14 +419,13 @@ internal sealed class BossDriver : IStatusTimeline
     internal List<InstanceSample> Samples { get; } = new();
 
     /// <summary>
-    /// 🔴 <c>DeterministicRng.Position</c> at the <b>top</b> of every tick — the reading that makes
-    /// <em>"one firing costs exactly one draw index"</em> an assertion rather than a sentence in a
-    /// test name.
+    /// <c>DeterministicRng.Position</c> at the top of every tick — the reading that makes
+    /// "one firing costs exactly one draw index" an assertion rather than a sentence in a test name.
     /// </summary>
     /// <remarks>
-    /// `14` §8.1's combat stream is the fight's persisted draw counter, so an op that spent two
-    /// indices where the document says one desynchronises every later draw between client and
-    /// server — a defect invisible in the outcome the roll produced.
+    /// The combat stream is the fight's persisted draw counter, so an op that spends two indices
+    /// where it should spend one desynchronises every later draw between client and server — a
+    /// defect invisible in the outcome the roll produced.
     /// </remarks>
     internal Dictionary<int, ulong> RngPositions { get; } = new();
 
@@ -440,10 +433,7 @@ internal sealed class BossDriver : IStatusTimeline
     /// <param name="tick">The tick.</param>
     internal ulong RngPositionAt(int tick) => RngPositions[tick];
 
-    /// <summary>
-    /// The fight's roster, so a test can read live actor state — `18` §2.4's
-    /// <c>CombatFlowState</c>, which no seam surfaces.
-    /// </summary>
+    /// <summary>The fight's roster, so a test can read live actor state — <c>CombatFlowState</c>, which no seam surfaces.</summary>
     internal IReadOnlyList<BattleActor> Actors => _services.Actors;
 
     /// <summary>The reading of one instance at one tick.</summary>
@@ -471,8 +461,8 @@ internal sealed class BossDriver : IStatusTimeline
             var before = actor.CurrentHp;
             actor.SetCurrentHp(step.Fraction * actor.MaxHp);
 
-            // 🔒 Routed only on a DECREASE. `05` §3.1's phase check is owed to an HP decrease, and a
-            // driver that routed a heal too would let a "phases never revert" test pass because the
+            // Routed only on a decrease. The phase check is owed to an HP decrease, and a driver
+            // that routed a heal too would let a "phases never revert" test pass because the
             // controller was never asked rather than because it answered correctly.
             if (actor.CurrentHp < before)
             {
@@ -494,9 +484,9 @@ internal sealed class BossDriver : IStatusTimeline
 
     /// <inheritdoc />
     /// <remarks>
-    /// This driver scripts HP directly (see the class remarks) and applies no `05` §5 status, so it
-    /// contributes no `18` §8 stat modifier. Returning M2-10's own empty answer rather than throwing
-    /// keeps the boss suites measuring the phase machine and nothing else.
+    /// This driver scripts HP directly (see the class remarks) and applies no status, so it
+    /// contributes no stat modifier. Returning an empty answer rather than throwing keeps the boss
+    /// suites measuring the phase machine and nothing else.
     /// </remarks>
     public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) =>
         Array.Empty<EffectDefinition>();
@@ -520,20 +510,20 @@ internal sealed class BossDriver : IStatusTimeline
     }
 }
 
-/// <summary>A status engine that records what `18` §2.3's ops asked it for, in call order.</summary>
+/// <summary>A status engine that records what the boss ops asked it for, in call order.</summary>
 internal sealed class RecordingStatuses : IStatusEngine
 {
     /// <summary>
-    /// 🔒 M2-R3 — the status ids <see cref="HasFixedPotency"/> answers <c>true</c> for, standing in
-    /// for <c>StatusCatalogue.Of(id).FixedPotency is not null</c>. Defaults to `05` §5's one row —
-    /// FREEZE — since this fake has no catalogue of its own to read.
+    /// The status ids <see cref="HasFixedPotency"/> answers <c>true</c> for, standing in for
+    /// <c>StatusCatalogue.Of(id).FixedPotency is not null</c>. Defaults to one row — FREEZE — since
+    /// this fake has no catalogue of its own to read.
     /// </summary>
     private readonly HashSet<string> _fixedPotencyStatuses = new(StringComparer.Ordinal) { "FREEZE" };
 
     /// <summary>Every call, as <c>"member:statusId(sourceEffectId)"</c>.</summary>
     internal List<string> Calls { get; } = new();
 
-    /// <summary>The <c>IMMUNE_STATUS</c> grants — `17` §1's phase-3 immunity.</summary>
+    /// <summary>The <c>IMMUNE_STATUS</c> grants — phase-3 immunity.</summary>
     internal List<(string Target, string StatusId, DurationScope? Scope, string SourceEffectId)> Immunities
     { get; } = new();
 

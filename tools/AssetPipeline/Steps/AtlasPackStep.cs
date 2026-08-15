@@ -5,11 +5,11 @@ namespace SlayIdleRepeat.AssetPipeline;
 
 /// <summary>One candidate member of an atlas: its manifest row and its processed image.</summary>
 /// <param name="Asset">The manifest row — the packer reads its id, its atlas and its cut ruling.</param>
-/// <param name="Image">The image as it came out of `15` §B4 step 6.</param>
+/// <param name="Image">The image as it came out of the export step.</param>
 public sealed record AtlasPackEntry(ArtAsset Asset, SKBitmap Image);
 
-/// <summary>What `15` §B4 step 7 is given.</summary>
-/// <param name="AtlasId">A `15` §D2 atlas id, or the concrete reference a row carries.</param>
+/// <summary>What the atlas-packing step is given.</summary>
+/// <param name="AtlasId">The atlas id, or the concrete reference a row carries.</param>
 /// <param name="Entries">Every candidate member, in any order — the packer sorts them itself.</param>
 /// <param name="Thresholds">The threshold set, for consistency with the per-asset steps.</param>
 public sealed record AtlasPackInput(
@@ -17,7 +17,7 @@ public sealed record AtlasPackInput(
 
 /// <summary>One asset the packer left out, and why.</summary>
 /// <param name="AssetId">The excluded asset's id.</param>
-/// <param name="Reason">The stated reason — a ruling, or `15` §D2 assigning no atlas.</param>
+/// <param name="Reason">The stated reason — a ruling, or the row being assigned no atlas.</param>
 public sealed record AtlasExclusion(string AssetId, string Reason);
 
 /// <summary>Where one asset landed on a page.</summary>
@@ -30,7 +30,7 @@ public sealed record AtlasExclusion(string AssetId, string Reason);
 public sealed record AtlasPlacement(
     string AssetId, int PageIndex, int X, int Y, int Width, int Height);
 
-/// <summary>One atlas page, at or under `15` §C's 2048x2048 cap.</summary>
+/// <summary>One atlas page, at or under the max single texture cap.</summary>
 /// <param name="Index">Zero-based page index.</param>
 /// <param name="Width">Page width, in pixels.</param>
 /// <param name="Height">Page height, in pixels.</param>
@@ -38,7 +38,7 @@ public sealed record AtlasPlacement(
 public sealed record AtlasPage(
     int Index, int Width, int Height, IReadOnlyList<AtlasPlacement> Placements);
 
-/// <summary>What `15` §B4 step 7 returns.</summary>
+/// <summary>What the atlas-packing step returns.</summary>
 /// <param name="AtlasId">The atlas that was packed.</param>
 /// <param name="Pages">The pages, in index order.</param>
 /// <param name="Placements">Every placement across every page, in the packer's order.</param>
@@ -53,30 +53,27 @@ public sealed record AtlasPackResult(
     IReadOnlyList<DocContradiction> Contradictions,
     IReadOnlyList<DeclaredDeviation> Deviations);
 
-/// <summary>
-/// `15` §B4 step 7: <em>"Atlas pack -&gt; into the category atlas (see §D2)"</em>.
-/// </summary>
+/// <summary>Atlas pack: packs an atlas's members into the category atlas.</summary>
 /// <remarks>
 /// <para>
 /// Deterministic: candidates are ordered by asset id, <b>ordinal</b>, before anything is placed,
 /// so the same set in any input order produces byte-identical placements.
 /// </para>
 /// <para>
-/// Two exclusions, each stated rather than implied: a row a ruling has cut, and a row `15` §D2
-/// assigns no atlas ("Backgrounds are not atlased (they are full-screen and streamed per biome)").
+/// Two exclusions, each stated rather than implied: a row a ruling has cut, and a row assigned no
+/// atlas (backgrounds are streamed full-screen instead).
 /// </para>
 /// <para>
-/// ⚠️ <b>§D2 and §C contradict each other and this step says so.</b> §D2 names <em>one</em> atlas
-/// per category while §C caps a single texture at 2048x2048. <c>atlas_hero</c> alone is 64 rows at
-/// 512x512 — 16.8 M px against a 4.2 M px cap — so multi-page is arithmetically unavoidable, and
-/// no doc authorises a paging convention. The pages are emitted deterministically and the result
-/// carries <see cref="PageCapContradictionId"/> so the collision reaches the report instead of
-/// being resolved in silence by whoever wrote the packer.
+/// The "one atlas per category" rule and the max-single-texture-size cap contradict each other for
+/// a large enough category, making multi-page arithmetically unavoidable with no authorised paging
+/// convention. The pages are emitted deterministically and the result carries
+/// <see cref="PageCapContradictionId"/> so the collision reaches the report instead of being
+/// resolved in silence by whoever wrote the packer.
 /// </para>
 /// </remarks>
 public sealed class AtlasPackStep : IAtlasStep
 {
-    /// <summary>The contradiction id this step emits for §D2 against §C.</summary>
+    /// <summary>The contradiction id this step emits for the atlas/texture-cap conflict.</summary>
     public const string PageCapContradictionId = "CON_ATLAS_PAGE_CAP";
 
     /// <inheritdoc/>
@@ -96,9 +93,8 @@ public sealed class AtlasPackStep : IAtlasStep
         var exclusions = new List<AtlasExclusion>();
         var members = new List<AtlasPackEntry>();
 
-        // 🔒 Ordinal, by asset id, before anything is placed. The same set in any input order has
-        // to produce byte-identical placements: M8-10 packs roughly 942 assets, and an atlas whose
-        // layout follows enumeration order produces different UVs on every run.
+        // Ordinal, by asset id, before anything is placed, so the same set in any input order
+        // produces byte-identical placements rather than different UVs on every run.
         foreach (var entry in input.Entries.OrderBy(entry => entry.Asset.Id, StringComparer.Ordinal))
         {
             var exclusion = ExclusionFor(entry.Asset);
@@ -143,7 +139,7 @@ public sealed class AtlasPackStep : IAtlasStep
     }
 
     /// <summary>
-    /// Shelf-packs the members left to right, top to bottom, opening a page at `15` §C's cap.
+    /// Shelf-packs the members left to right, top to bottom, opening a page at the texture cap.
     /// </summary>
     /// <param name="members">The members, already in the packer's order.</param>
     private static IReadOnlyList<AtlasPlacement> Place(IReadOnlyList<AtlasPackEntry> members)
@@ -192,7 +188,7 @@ public sealed class AtlasPackStep : IAtlasStep
         return placements;
     }
 
-    /// <summary>Groups placements into pages, each at `15` §C's cap.</summary>
+    /// <summary>Groups placements into pages, each at the texture cap.</summary>
     /// <param name="placements">Every placement, in the packer's order.</param>
     private static IReadOnlyList<AtlasPage> Paginate(IReadOnlyList<AtlasPlacement> placements) =>
     [
@@ -207,13 +203,12 @@ public sealed class AtlasPackStep : IAtlasStep
     ];
 
     /// <summary>
-    /// §D2 against §C, with the arithmetic, so the collision reaches the report rather than being
-    /// resolved in silence by whoever wrote the packer.
+    /// The atlas/texture-cap conflict, with the arithmetic, so the collision reaches the report
+    /// rather than being resolved in silence by whoever wrote the packer.
     /// </summary>
     /// <remarks>
-    /// 🔒 Emitted on every pack, not only on the ones that overflow. The contradiction is in the
-    /// doc, not in the batch: a small atlas that happens to fit on one page does not make §D2 and
-    /// §C agree, and reporting it only on overflow would hide the collision behind the input.
+    /// Emitted on every pack, not only on the ones that overflow: the contradiction is in the rules,
+    /// not in the batch, so a small atlas that happens to fit on one page does not make them agree.
     /// </remarks>
     private static DocContradiction PageCapContradiction() => new(
         PageCapContradictionId,

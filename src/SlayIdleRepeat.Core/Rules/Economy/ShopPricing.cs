@@ -3,13 +3,13 @@ using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Core.Rules.Economy;
 
-/// <summary>`03` §7's four shop slots, each drawn from a distinct pool.</summary>
+/// <summary>The four shop slots, each drawn from a distinct pool.</summary>
 internal enum ShopItemKind
 {
     /// <summary>Slot 1 — a rarity-weighted, rarity-priced perk.</summary>
     PERK,
 
-    /// <summary>Slot 2 — one of `03` §7.1's four consumables.</summary>
+    /// <summary>Slot 2 — one of the four consumables.</summary>
     CONSUMABLE,
 
     /// <summary>Slot 3 — a flat stat bonus for the rest of the run.</summary>
@@ -20,39 +20,28 @@ internal enum ShopItemKind
 }
 
 /// <summary>
-/// 🔒 `03` §7 (ruled `16` A7) — the shop pricing formula:
+/// The shop pricing formula:
 /// <c>Price = BasePrice(itemType, rarity) * (1 + 0.25 * stageIndex) * chapterPriceScalar</c>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Gold income and shop prices are both tier-invariant.</b> The Heroic/Mythic Reward
-/// multiplier never touches this formula — there is no <c>DifficultyTier</c> parameter here at
-/// all, deliberately, because a parameter accepted and ignored would tell a future caller this
-/// rule reads the tier when it must not.
-/// </para>
-/// <para>
-/// Pure and static: everything it needs is either a parameter or read off
-/// <see cref="ShopTuning"/>, which is itself a pure read of
-/// <c>tuning/currencies.json#/shopTile</c>. It performs no I/O, holds no state, and does not know
-/// what a <c>Run</c> is.
-/// </para>
-/// <para>
-/// 🔒 <b>Rounded to the nearest whole Gold, ties to even.</b> `03` §7's chapter scalar block calls
-/// its own rounding mode <c>NEAREST_INTEGER</c>; <see cref="MidpointRounding.ToEven"/> is the
-/// platform-independent form of "nearest" the rest of this codebase already states out loud
-/// (<c>DeterminismRounding</c>), so a tie is not left to the default.
-/// </para>
+/// Gold income and shop prices are both tier-invariant: there is no <c>DifficultyTier</c> parameter
+/// here at all, deliberately, since a parameter accepted and ignored would tell a future caller
+/// this rule reads the tier when it must not. Pure and static: everything it needs is either a
+/// parameter or read off <see cref="ShopTuning"/>, which is itself a pure content read. It performs
+/// no I/O, holds no state, and does not know what a <c>Run</c> is. Rounded to the nearest whole
+/// Gold, ties to even — the platform-independent form of "nearest" the rest of this codebase
+/// already uses, so a tie is not left to the default.
 /// </remarks>
 internal static class ShopPricing
 {
-    /// <summary>`03` §7 — Stage 1/2/3 map to stageIndex 0/1/2.</summary>
+    /// <summary>Stage 1/2/3 map to stageIndex 0/1/2.</summary>
     internal const int MinStageIndex = 0;
 
     /// <inheritdoc cref="MinStageIndex"/>
     internal const int MaxStageIndex = 2;
 
     /// <summary>
-    /// 🔒 `03` §7's pricing formula, for one slot.
+    /// The pricing formula, for one slot.
     /// </summary>
     /// <param name="kind">Which of the four pools this slot draws from.</param>
     /// <param name="key">
@@ -62,9 +51,9 @@ internal static class ShopPricing
     /// <see cref="ShopItemKind.HEAL"/> (one flat base price).
     /// </param>
     /// <param name="rarity">The perk's rarity. Required for <see cref="ShopItemKind.PERK"/>; ignored otherwise.</param>
-    /// <param name="stageIndex">03 §1.1's Stage 1/2/3, as 0/1/2. Stage 1 pays the base price.</param>
-    /// <param name="chapterId">The run's chapter, 1-based — `02` §1's range.</param>
-    /// <param name="tuning">The shop's tuning, read off <c>tuning/currencies.json#/shopTile</c>.</param>
+    /// <param name="stageIndex">Stage 1/2/3, as 0/1/2. Stage 1 pays the base price.</param>
+    /// <param name="chapterId">The run's chapter, 1-based.</param>
+    /// <param name="tuning">The shop's tuning.</param>
     /// <returns>The price in run-local Gold, rounded to the nearest whole Gold (ties to even).</returns>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">

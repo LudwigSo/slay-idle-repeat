@@ -1,27 +1,17 @@
 namespace SlayIdleRepeat.Core.Rng;
 
-/// <summary>
-/// 🔒 `14` §8.0 / §8.1 — a counter-based draw stream. Draw <c>i</c> of stream <c>s</c> over seed
-/// <c>r</c> is <c>Hash64(r, s, i)</c>. Stateless but for the counter.
-/// </summary>
+/// <summary>A counter-based draw stream. Draw <c>i</c> of stream <c>s</c> over seed <c>r</c> is <c>Hash64(r, s, i)</c>. Stateless but for the counter.</summary>
 /// <remarks>
+/// There is no generator here — nothing evolves, so <see cref="Position"/> is the entire
+/// persistable state, and rehydrating a stream is <c>new DeterministicRng(runSeed, name,
+/// position)</c> and nothing else.
 /// <para>
-/// There is no generator here. Nothing evolves, so there is nothing to snapshot or restore:
-/// <see cref="Position"/> is the entire persistable state, and rehydrating a stream is
-/// <c>new DeterministicRng(runSeed, name, position)</c> and nothing else. The
-/// <c>"rngStreamStates": { "dice": 12, "board": 8 }</c> on the wire (`14` §2.3) literally means
-/// <i>twelve draws consumed from <c>dice</c>, eight from <c>board</c></i>.
+/// Every call consumes exactly one draw index — <see cref="WeightedPick"/> included — which is
+/// what makes the persisted counter meaningful: <see cref="Position"/> equals the number of calls
+/// ever made on the stream. A rejected call is not a call: every accessor validates its arguments
+/// before it draws.
 /// </para>
-/// <para>
-/// 🔒 <b>Every call consumes exactly one draw index</b> — <see cref="WeightedPick"/> included.
-/// That is what makes the persisted counter meaningful and auditable: <see cref="Position"/>
-/// equals the number of calls ever made on the stream. A rejected call is not a call: every
-/// accessor validates its arguments before it draws.
-/// </para>
-/// <para>
-/// Draws are randomly accessible, which is the point. A revive replay, a resync or a bug-report
-/// reproduction re-derives any draw without replaying the ones before it.
-/// </para>
+/// <para>Draws are randomly accessible by design: a revive replay, a resync or a bug reproduction re-derives any draw without replaying the ones before it.</para>
 /// </remarks>
 public sealed class DeterministicRng
 {
@@ -35,14 +25,11 @@ public sealed class DeterministicRng
     private ulong _position;
 
     /// <summary>Opens a stream over a seed, optionally rehydrated at a persisted position.</summary>
-    /// <param name="seed">
-    /// The run seed (`02` §2), a <c>battleSeed</c> (`14` §8.1), or a server-issued
-    /// <c>CommandSeed</c> for an out-of-run meta command (`30` §3).
-    /// </param>
+    /// <param name="seed">The run seed, a <c>battleSeed</c>, or a server-issued <c>CommandSeed</c> for an out-of-run meta command.</param>
     /// <param name="streamName">A row of <see cref="RngStreams"/>. Anything else is rejected.</param>
     /// <param name="position">The next draw index — the persisted counter. Zero for a fresh stream.</param>
     /// <exception cref="ArgumentNullException">The stream name is null.</exception>
-    /// <exception cref="ArgumentException">The stream name is not in the registry of `14` §8.1.</exception>
+    /// <exception cref="ArgumentException">The stream name is not in the registry.</exception>
     public DeterministicRng(ulong seed, string streamName, ulong position = 0)
     {
         ArgumentNullException.ThrowIfNull(streamName);
@@ -52,8 +39,7 @@ public sealed class DeterministicRng
             throw new ArgumentException(
                 $"'{streamName}' is not a stream in the registry of 14 §8.1. Draw from one of " +
                 $"{string.Join(", ", RngStreams.FixedNames)} or {RngStreams.MinigamePrefix}{{index}}, " +
-                "or add a row to the registry — a name that is merely spelled differently is a " +
-                "different, silently valid sequence.",
+                "or add a row to the registry.",
                 nameof(streamName));
         }
 
@@ -62,57 +48,39 @@ public sealed class DeterministicRng
         _position = position;
     }
 
-    /// <summary>
-    /// 🔒 Opens a stream at an arbitrary, already-known position — <b>added by M3-04</b> so
-    /// <c>Rules.Dice.FairDiceBag.Replay</c> can reopen the <c>dice</c> stream at a past Stage-Gate
-    /// reset point without a <c>newobj DeterministicRng</c> appearing outside <c>Core/Rng/</c>.
-    /// </summary>
+    /// <summary>Opens a stream at an arbitrary, already-known position, so a caller outside <c>Core/Rng/</c> can reopen a stream without a <c>newobj DeterministicRng</c> appearing outside this namespace.</summary>
     /// <remarks>
-    /// Identical to the public constructor in every way but where its IL lives:
-    /// <c>DomainPurityTests.DeterministicRng_is_constructed_only_inside_Core_Rng</c> scans for the
-    /// <b>declaring type of the method containing the <c>newobj</c></b>, not the constructor's own
-    /// declaring type — so a caller outside this namespace invoking the constructor directly would
-    /// still fail that scan even though the constructor is public. This factory's body is the one
-    /// construction site; every caller outside <c>Core/Rng/</c> goes through it instead.
+    /// The architecture scan checks the declaring type of the method containing the <c>newobj</c>,
+    /// not the constructor's own declaring type — so this factory's body is the one construction
+    /// site that satisfies it; every external caller goes through it instead of the constructor.
     /// </remarks>
     public static DeterministicRng OpenAt(ulong seed, string streamName, ulong position) =>
         new(seed, streamName, position);
 
-    /// <summary>
-    /// The <b>next</b> draw index, and the entire persistable state of this stream. Equal to the
-    /// number of calls ever made on it when the stream started at zero.
-    /// </summary>
+    /// <summary>The next draw index, and the entire persistable state of this stream.</summary>
     public ulong Position => _position;
 
     /// <summary>The top 32 bits of the draw.</summary>
     public uint NextUInt() => (uint)(NextDraw() >> 32);
 
-    /// <summary>
-    /// A value in [0,1): <c>(draw &gt;&gt; 11) * 2^-53</c>, the standard 53-bit construction.
-    /// </summary>
+    /// <summary>A value in [0,1): <c>(draw &gt;&gt; 11) * 2^-53</c>, the standard 53-bit construction.</summary>
     /// <remarks>
-    /// ⚠️ This is a <b>draw</b>, not an accumulation point. `14` §8.2's
-    /// <c>Math.Round(x, 4)</c> rule governs accumulated combat values; rounding here would throw
-    /// away 49 of the 53 bits of every draw the game makes. The construction is exact in binary
-    /// floating point — a 53-bit integer times a power of two — so it is already identical on
-    /// every target platform, which is what §8.2's cross-platform job is checking for.
+    /// This is a draw, not an accumulation point — the 4-decimal rounding rule governs accumulated
+    /// combat values, and rounding here would throw away 49 of the 53 bits of every draw. The
+    /// construction is exact in binary floating point (a 53-bit integer times a power of two), so
+    /// it is already identical on every target platform.
     /// </remarks>
     public double NextDouble() => UnitInterval(NextDraw());
 
-    /// <summary>
-    /// A value in <c>[minInclusive, maxExclusive)</c>:
-    /// <c>min + (int)(draw % (ulong)(max - min))</c>.
-    /// </summary>
+    /// <summary>A value in <c>[minInclusive, maxExclusive)</c>: <c>min + (int)(draw % (ulong)(max - min))</c>.</summary>
     /// <remarks>
-    /// 🔒 The modulo bias — below <c>range / 2^64</c> — is <b>accepted</b> by `14` §8.0. Rejection
-    /// sampling would consume a variable number of draw indices per call and destroy the
-    /// one-call-one-index property the whole persistence model rests on. Do not "improve" this:
-    /// a different algorithm here is a determinism break.
+    /// The modulo bias — below <c>range / 2^64</c> — is accepted deliberately: rejection sampling
+    /// would consume a variable number of draw indices per call and destroy the one-call-one-index
+    /// property the persistence model rests on. Do not "improve" this — a different algorithm here
+    /// is a determinism break.
     /// <para>
-    /// The width is computed in 64 bits because the specification's literal expression overflows
-    /// <see cref="int"/> at the extremes (<c>int.MaxValue - int.MinValue</c> is -1 in 32-bit
-    /// arithmetic, which would turn the modulus into <see cref="ulong.MaxValue"/>). The draw and
-    /// the modulo are unchanged; only the intermediate arithmetic is wide enough to be right.
+    /// The width is computed in 64 bits because the naive expression overflows <see cref="int"/> at
+    /// the extremes (<c>int.MaxValue - int.MinValue</c> is -1 in 32-bit arithmetic).
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">The range is empty or inverted.</exception>
@@ -131,14 +99,11 @@ public sealed class DeterministicRng
         return (int)(minInclusive + (long)(NextDraw() % width));
     }
 
-    /// <summary>
-    /// 🔒 One draw: <c>x = unit interval × Σ weights</c>; walk the table <b>in order</b>; the
-    /// first item whose cumulative weight <b>exceeds</b> <c>x</c>.
-    /// </summary>
+    /// <summary>One draw: <c>x = unit interval × Σ weights</c>; walk the table in order; the first item whose cumulative weight exceeds <c>x</c>.</summary>
     /// <remarks>
-    /// One draw, not two. The strict comparison is what makes a zero-weight row unreachable
-    /// wherever it sits in the table — content disables a row by zeroing its weight, and a
-    /// disabled row that could still be picked is a bug that surfaces once in ten thousand runs.
+    /// The strict comparison is what makes a zero-weight row unreachable wherever it sits in the
+    /// table — content disables a row by zeroing its weight, and a disabled row that could still
+    /// be picked is a bug that surfaces once in ten thousand runs.
     /// </remarks>
     /// <exception cref="ArgumentNullException">The table is null.</exception>
     /// <exception cref="ArgumentException">
@@ -153,19 +118,14 @@ public sealed class DeterministicRng
         return Walk(UnitInterval(NextDraw()) * total, table);
     }
 
-    /// <summary>
-    /// The weighted walk on its own, at an explicit unit interval rather than at a draw.
-    /// </summary>
+    /// <summary>The weighted walk on its own, at an explicit unit interval rather than at a draw.</summary>
     /// <remarks>
-    /// Exposed to the domain test suite (`30` §11.3) so the walk's boundaries can be asserted at
-    /// exact values — including the top of the unit interval, 1 − 2^-53, which no seed can be
-    /// searched for.
+    /// Exposed to the test suite so the walk's boundaries can be asserted at exact values,
+    /// including the top of the unit interval, which no seed can be searched for.
     /// <para>
-    /// ⚠️ It is a seam for asserting the walk, <b>not</b> the body of <see cref="WeightedPick"/>.
-    /// Folding the two together — <c>PickAt(UnitInterval(NextDraw()), table)</c> — reads like a
-    /// tidy-up and is a determinism break: it draws before the table is validated, so a call
-    /// rejected for a bad table would consume a draw index and shift every later draw on the
-    /// stream. 🔒 A rejected call is not a call.
+    /// A seam for asserting the walk, not the body of <see cref="WeightedPick"/>: folding the two
+    /// together would draw before the table is validated, so a call rejected for a bad table would
+    /// consume a draw index and shift every later draw on the stream.
     /// </para>
     /// </remarks>
     internal static T PickAt<T>(double unitInterval, IReadOnlyList<(T item, double weight)> table)
@@ -197,18 +157,11 @@ public sealed class DeterministicRng
             }
         }
 
-        // Unreachable while the walk accumulates in the same order TotalWeight summed in — the
-        // final cumulative weight is then bit-identical to the total, and the unit interval is
-        // strictly below 1. It is written out anyway because that invariant lives in two methods
-        // rather than one: should a future edit sum the table differently, this turns a run-time
-        // exception in the middle of a battle into the last weighted row, which is the answer the
-        // specification's own wording gives at the top of the range.
+        // Unreachable while Walk sums in the same order TotalWeight did. Guarded anyway because
+        // that invariant lives in two methods: if they ever drift, this is a named exception
+        // instead of a table[-1] index exception that says nothing about what went wrong.
         if (lastWeighted < 0)
         {
-            // TotalWeight has already proved a positive weight exists, so the only way to get
-            // here is a table that answered differently on the two passes. Named explicitly
-            // because table[-1] would surface it as an index exception from whichever list the
-            // caller happened to pass, which says nothing about what actually went wrong.
             throw new InvalidOperationException(
                 "The weighted table reported no positive weight on the walk after reporting one " +
                 "on the sum. A table must not change while a pick is being taken.");
@@ -217,10 +170,7 @@ public sealed class DeterministicRng
         return table[lastWeighted].item;
     }
 
-    /// <summary>
-    /// Σ weights, validating the table as it goes. Summed left to right, in the same order
-    /// <see cref="Walk"/> accumulates, so the final cumulative weight equals this exactly.
-    /// </summary>
+    /// <summary>Σ weights, validating the table as it goes. Summed in the same order <see cref="Walk"/> accumulates, so the final cumulative weight equals this exactly.</summary>
     private static double TotalWeight<T>(IReadOnlyList<(T item, double weight)> table)
     {
         ArgumentNullException.ThrowIfNull(table);
@@ -257,10 +207,7 @@ public sealed class DeterministicRng
 
     private static double UnitInterval(ulong draw) => (draw >> 11) * FiftyThreeBitUnit;
 
-    /// <summary>
-    /// The one place the counter advances: <c>Hash64(seed, streamName, position)</c>, then
-    /// <c>position + 1</c>.
-    /// </summary>
+    /// <summary>The one place the counter advances: <c>Hash64(seed, streamName, position)</c>, then <c>position + 1</c>.</summary>
     private ulong NextDraw()
     {
         if (_position == ulong.MaxValue)

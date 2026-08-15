@@ -9,14 +9,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `19` D7 — the <c>Player</c> aggregate carries <c>ftueProgress { completedAtUtc | null, beatId }</c>,
+/// The <c>Player</c> aggregate carries <c>ftueProgress { completedAtUtc | null, beatId }</c>,
 /// advanced server-side as each beat's interaction completes.
 /// </summary>
 /// <remarks>
-/// ⚠️ The seven tutorial-only rule flags of `19` D4.3 are deliberately <b>not</b> on this aggregate:
-/// they describe the tutorial, not the player, and are M4-12's <c>ftue.json</c> content package.
-/// Putting them in SchemaVersion 1's pinned field list would make M4-12's first real decision about
-/// them a serialisation change.
+/// The tutorial-only rule flags are deliberately <b>not</b> on this aggregate: they describe the
+/// tutorial, not the player, and belong in a separate content package. Putting them in
+/// SchemaVersion 1's pinned field list would make their first real decision a serialisation change.
 /// </remarks>
 public sealed class PlayerFtueTests
 {
@@ -27,7 +26,7 @@ public sealed class PlayerFtueTests
             .Rehydrate(PlayerSnapshots.With(ftueBeatId: beat, ftueCompletedAtUtc: completed), Content)
             .Value;
 
-    /// <summary>🔒 `19` D7's beat vocabulary is exactly B0…B10 plus B6b — twelve values, in script order.</summary>
+    /// <summary>The beat vocabulary is exactly B0…B10 plus B6b — twelve values, in script order.</summary>
     [Fact]
     public void The_beat_vocabulary_is_the_twelve_beats_19_D7_names()
     {
@@ -38,7 +37,7 @@ public sealed class PlayerFtueTests
     }
 
     /// <summary>
-    /// 🔒 The enum has no zero member, so an uninitialised column cannot read as "at beat 0, about
+    /// The enum has no zero member, so an uninitialised column cannot read as "at beat 0, about
     /// to enter their name" — the same rule <see cref="CurrencyId"/> follows.
     /// </summary>
     [Fact]
@@ -54,7 +53,7 @@ public sealed class PlayerFtueTests
     }
 
     /// <summary>
-    /// 🔒 The wire numbers are 1..12 in script order. <c>CanonicalStateWriter</c> writes the
+    /// The wire numbers are 1..12 in script order. <c>CanonicalStateWriter</c> writes the
     /// number, never the name, so renumbering rewrites every <c>stateHash</c> that has ever carried
     /// a player.
     /// </summary>
@@ -64,7 +63,7 @@ public sealed class PlayerFtueTests
         Enum.GetValues<FtueBeat>().Select(beat => (int)beat)
             .ShouldBe(new[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 });
 
-        // B6b sits between B6 and B7, which is where 19 D3's script puts it.
+        // B6b sits between B6 and B7 in the script.
         ((int)FtueBeat.B6B).ShouldBe((int)FtueBeat.B6 + 1);
         ((int)FtueBeat.B7).ShouldBe((int)FtueBeat.B6B + 1);
     }
@@ -82,10 +81,7 @@ public sealed class PlayerFtueTests
         player.IsFtueComplete.ShouldBeFalse();
     }
 
-    /// <summary>
-    /// `19` D6 — a skip jumps straight to beat 9, so the advance may skip beats. It just may not
-    /// go backwards.
-    /// </summary>
+    /// <summary>A skip jumps straight to beat 9, so the advance may skip beats. It just may not go backwards.</summary>
     [Fact]
     public void A_skip_may_jump_several_beats_forwards()
     {
@@ -97,7 +93,7 @@ public sealed class PlayerFtueTests
     }
 
     /// <summary>
-    /// A beat that does not move forwards is a replayed command — `19` D7's resume table only ever
+    /// A beat that does not move forwards is a replayed command — the resume table only ever
     /// re-presents the current beat.
     /// </summary>
     [Theory]
@@ -120,10 +116,7 @@ public sealed class PlayerFtueTests
               .Message.ShouldMatchWildcard("*B0..B10 plus B6b*");
     }
 
-    /// <summary>
-    /// 🔒 `19` D7 — completion is beat 10's spend committing: <c>completedAtUtc</c> is set, and
-    /// from then on the tutorial is over.
-    /// </summary>
+    /// <summary>Completion is beat 10's spend committing: <c>completedAtUtc</c> is set, and from then on the tutorial is over.</summary>
     [Fact]
     public void The_tutorial_completes_at_beat_ten()
     {
@@ -137,7 +130,7 @@ public sealed class PlayerFtueTests
 
     /// <summary>
     /// Completing before beat 10 is refused: it would skip the forced Talent Point spend that beat
-    /// 10 exists for (`19` D7, `19` D5's level-up lock).
+    /// 10 exists for.
     /// </summary>
     [Theory]
     [InlineData(FtueBeat.B0)]
@@ -152,10 +145,7 @@ public sealed class PlayerFtueTests
         player.IsFtueComplete.ShouldBeFalse();
     }
 
-    /// <summary>
-    /// Completing twice is refused. `19` D7 grants the D5 payout once, keyed on the run; a second
-    /// completion would grant it twice.
-    /// </summary>
+    /// <summary>Completing twice is refused: the payout grants once, keyed on the run; a second completion would grant it twice.</summary>
     [Fact]
     public void Completing_twice_is_refused()
     {
@@ -166,10 +156,7 @@ public sealed class PlayerFtueTests
               .Message.ShouldMatchWildcard("*already completed*granted once*");
     }
 
-    /// <summary>
-    /// `19` D6 — <em>"never re-offered after completion"</em>: no beat moves once the tutorial is
-    /// done.
-    /// </summary>
+    /// <summary>Never re-offered after completion: no beat moves once the tutorial is done.</summary>
     [Fact]
     public void No_beat_advances_after_completion()
     {
@@ -189,7 +176,7 @@ public sealed class PlayerFtueTests
     }
 
     /// <summary>
-    /// 🔒 A persisted row claiming a completed tutorial at any beat but B10 is refused: it claims a
+    /// A persisted row claiming a completed tutorial at any beat but B10 is refused: it claims a
     /// payout was banked at a beat that never reached it.
     /// </summary>
     [Theory]

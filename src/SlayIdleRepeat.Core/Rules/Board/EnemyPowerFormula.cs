@@ -4,36 +4,32 @@ using SlayIdleRepeat.Core.Primitives;
 namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>
-/// 🔒 `02` §4.3 — the enemy power curve a board node's fight is scaled by:
+/// The enemy power curve a board node's fight is scaled by:
 /// <c>EnemyPower(i) = ChapterPowerTarget(c) · TierMult(t) · (1 + 0.035·i) · StageMult(s)</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b><paramref name="chapterPowerTarget"/> is a parameter, not a table read.</b> `02` §4.3's
-/// <c>ChapterPowerTarget(c)</c> is authored nowhere in <c>game-data/tuning/</c> today — it is a
-/// separate, unauthored gap with no owner in this task — so this formula accepts it and lets the
-/// caller supply it. Inventing a chapter table here to make the signature tidier would be exactly
-/// the plausible-looking hole steering <b>S6</b> forbids, and it would be trusted downstream as the
-/// real curve.
+/// <paramref name="chapterPowerTarget"/> is a parameter, not a table read: it is not authored
+/// anywhere in content today, so this formula accepts it from the caller rather than inventing a
+/// chapter table here that would be trusted downstream as the real curve.
 /// </para>
 /// <para>
-/// ⚠️ <b>Nothing is rounded.</b> `14` §8.2's <c>Math.Round(x, 4)</c> rule governs accumulated combat
-/// values, and this is an input to that accumulation rather than a result of it. A caller that needs
-/// an integer rounds at the point it needs one, where the rounding mode is its own decision.
+/// Nothing is rounded — this is an input to the accumulation that gets rounded, not a result of
+/// it. A caller that needs an integer rounds at the point it needs one.
 /// </para>
 /// <para>
-/// ⚠️ <b>The linear index is consumed, never recomputed.</b> <c>BoardNode.LinearIndex</c> is
-/// `03` §1.1's <c>0..42</c> spine-and-boss index, already computed by
-/// <see cref="BoardGenerator"/> under the branch-parallel rule. Recomputing it from a node id here
-/// would be a second source of truth for the one number the whole curve is a function of.
+/// The linear index is consumed, never recomputed: <c>BoardNode.LinearIndex</c> is already
+/// computed by <see cref="BoardGenerator"/> under the branch-parallel rule. Recomputing it from a
+/// node id here would be a second source of truth for the one number the whole curve is a
+/// function of.
 /// </para>
 /// </remarks>
 internal static class EnemyPowerFormula
 {
-    /// <summary>`02` §4.3 — the per-node growth term's coefficient.</summary>
+    /// <summary>The per-node growth term's coefficient.</summary>
     private const double PerNodeGrowth = 0.035;
 
-    /// <summary>`02` §4.3 — <c>StageMult</c> for `03` §1's Stage 1.</summary>
+    /// <summary><c>StageMult</c> for stage 1.</summary>
     private const double Stage1Multiplier = 1.00;
 
     /// <inheritdoc cref="Stage1Multiplier"/>
@@ -42,10 +38,10 @@ internal static class EnemyPowerFormula
     /// <inheritdoc cref="Stage1Multiplier"/>
     private const double Stage3Multiplier = 1.35;
 
-    /// <summary>`02` §4.3 — <c>StageMult</c> for the boss, which belongs to no stage.</summary>
+    /// <summary><c>StageMult</c> for the boss, which belongs to no stage.</summary>
     private const double BossMultiplier = 2.20;
 
-    /// <summary>`02` §4.3 — <c>TierMult</c> for `10` §7's three difficulty tiers.</summary>
+    /// <summary><c>TierMult</c> for the three difficulty tiers.</summary>
     private const double NormalMultiplier = 1.0;
 
     /// <inheritdoc cref="NormalMultiplier"/>
@@ -54,22 +50,20 @@ internal static class EnemyPowerFormula
     /// <inheritdoc cref="NormalMultiplier"/>
     private const double MythicMultiplier = 16.0;
 
-    /// <summary>`02` §4.3 — the enemy power for one node of one run.</summary>
-    /// <param name="chapterPowerTarget">
-    /// `02` §4.3's <c>ChapterPowerTarget(c)</c>. Supplied by the caller — see this type's remarks.
-    /// </param>
-    /// <param name="tier">The run's difficulty tier (`10` §7).</param>
+    /// <summary>The enemy power for one node of one run.</summary>
+    /// <param name="chapterPowerTarget">Supplied by the caller — see this type's remarks.</param>
+    /// <param name="tier">The run's difficulty tier.</param>
     /// <param name="linearIndex">
-    /// `03` §1.1's linear node index — <c>BoardNode.LinearIndex</c>, <c>0..42</c> as the board
-    /// generator computes it. Never negative.
+    /// The linear node index — <c>BoardNode.LinearIndex</c>, <c>0..42</c> as the board generator
+    /// computes it. Never negative.
     /// </param>
     /// <param name="stage">
-    /// `03` §1's stage — <c>1</c>, <c>2</c>, <c>3</c>, or <see cref="BoardGraph.BossStage"/> for the
-    /// boss node.
+    /// The stage — <c>1</c>, <c>2</c>, <c>3</c>, or <see cref="BoardGraph.BossStage"/> for the boss
+    /// node.
     /// </param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="tier"/> is not one of `10` §7's three, <paramref name="linearIndex"/> is
-    /// negative, or <paramref name="stage"/> is not one of the four `03` §1 stages.
+    /// <paramref name="tier"/> is not one of the three tiers, <paramref name="linearIndex"/> is
+    /// negative, or <paramref name="stage"/> is not one of the four stages.
     /// </exception>
     internal static double Compute(
         double chapterPowerTarget, DifficultyTier tier, int linearIndex, int stage)
@@ -93,7 +87,7 @@ internal static class EnemyPowerFormula
                * StageMultiplier(stage);
     }
 
-    /// <summary>`02` §4.3's <c>TierMult(t)</c>.</summary>
+    /// <summary><c>TierMult(t)</c>.</summary>
     private static double TierMultiplier(DifficultyTier tier) => tier switch
     {
         DifficultyTier.NORMAL => NormalMultiplier,
@@ -107,7 +101,7 @@ internal static class EnemyPowerFormula
             "uninitialised field rather than a difficulty the game offers."),
     };
 
-    /// <summary>`02` §4.3's <c>StageMult(s)</c>.</summary>
+    /// <summary><c>StageMult(s)</c>.</summary>
     private static double StageMultiplier(int stage) => stage switch
     {
         1 => Stage1Multiplier,

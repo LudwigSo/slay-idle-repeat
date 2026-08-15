@@ -7,12 +7,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
-/// <summary>🔒 `18` §8 <b>steps 1 and 2</b>, and the composition into steps 3-10.</summary>
+/// <summary>Effect collection and condition gating, and their composition into stat aggregation.</summary>
 /// <remarks>
-/// The composing tests run <c>StatAggregation.Aggregate</c> for real. R17 forbids
-/// <c>Rules.Effects</c> naming <c>Rules.Stats</c> in production; this assembly sees both, which is
-/// where the composition claim belongs — the seam is a list of effects in a defined order, and the
-/// only way to show that is enough is to hand it over.
+/// The composing tests run <c>StatAggregation.Aggregate</c> for real: production code forbids
+/// <c>Rules.Effects</c> naming <c>Rules.Stats</c>, so this test assembly (which sees both) is where the
+/// composition claim belongs — the seam is a list of effects in a defined order, and the only way to
+/// show that is enough is to hand it over.
 /// </remarks>
 public sealed class EffectResolverTests
 {
@@ -47,11 +47,7 @@ public sealed class EffectResolverTests
 
     // ══════════════════════════════════════════════════════ step 1 — collection
 
-    /// <summary>
-    /// 🔒 Step 1 collects from the ten declared sources, and from <b>nothing else</b>. None has a
-    /// real data model yet, so an M2 build reaches the aggregation through whichever slots a caller
-    /// fills with a <c>ListEffectSource</c> — which is the correct end state, not a gap.
-    /// </summary>
+    /// <summary>Collection reads from the ten declared sources, and from nothing else.</summary>
     [Fact]
     public void Step_1_collects_from_the_declared_sources_and_leaves_the_rest_empty()
     {
@@ -65,7 +61,6 @@ public sealed class EffectResolverTests
         resolved.Collected.Select(c => c.Source).ShouldBe(
             new[] { EffectSourceKind.GEAR, EffectSourceKind.PERKS });
 
-        // The eight kinds nobody supplied contributed nothing, and did not throw.
         foreach (var row in EffectSourceCatalogue.Rows)
         {
             if (row.Kind is EffectSourceKind.PERKS or EffectSourceKind.GEAR)
@@ -88,10 +83,7 @@ public sealed class EffectResolverTests
         resolved.GatedOut.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 Two sources claiming one `18` §8 step 1 slot are refused — the same-id tiebreak is
-    /// <c>(source, index)</c> and is total only because a kind names exactly one list.
-    /// </summary>
+    /// <summary>Two sources claiming one slot are refused — the same-id tiebreak is (source, index) and is total only because a kind names exactly one list.</summary>
     [Fact]
     public void Two_sources_claiming_one_slot_are_refused()
     {
@@ -99,20 +91,16 @@ public sealed class EffectResolverTests
             Source(EffectSourceKind.GEAR, Pct("A", 0.1)),
             Source(EffectSourceKind.GEAR, Pct("B", 0.1))));
 
-        // S2 — which rule fired, not merely that one did.
         thrown.Message.ShouldContain("claim 18 §8 step 1's 'GEAR' slot", Case.Sensitive);
     }
 
     /// <summary>
-    /// 🔒 <b>The holding survives the whole pass.</b> `18` §3's <c>everyNth</c> counters live on the
-    /// effect <em>instance</em> and <c>TriggerRegistry.Register</c> refuses a duplicate, so a consumer
-    /// must be able to tell two copies of one authored effect apart without inventing an identity.
+    /// The holding survives the whole pass. Trigger counters live on the effect instance and
+    /// registration refuses a duplicate, so a consumer must be able to tell two copies of one authored
+    /// effect apart without inventing an identity: <c>(Source, IndexInSource)</c> is per-pass and
+    /// renumbers when the build changes, where an <c>EffectInstanceId</c> must survive battle
+    /// boundaries.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ <c>(Source, IndexInSource)</c> is <b>not</b> that identity: it is per-pass and renumbers when
-    /// the build changes, where an <c>EffectInstanceId</c> must survive battle boundaries for
-    /// <c>PK_MIDAS</c>. Both are asserted so the two cannot be conflated.
-    /// </remarks>
     [Fact]
     public void The_holding_each_effect_came_from_survives_into_the_resolved_set()
     {
@@ -128,15 +116,15 @@ public sealed class EffectResolverTests
         resolved.Active.Select(c => c.Instance.Value)
                 .ShouldBe(new[] { "gear:helm:affix0", "gear:boots:affix0" });
 
-        // 🔒 One authored id, two holdings — and the ordering pair is the OTHER key.
+        // One authored id, two holdings — and the ordering pair is the OTHER key.
         resolved.Active.Select(c => c.Effect.Id).ShouldBe(new[] { "AFF_KEEN", "AFF_KEEN" });
         resolved.Active.Select(c => c.IndexInSource).ShouldBe(new[] { 0, 1 });
     }
 
     /// <summary>
-    /// 🔒 A source that reports an effect with <b>no</b> holding is refused by the collector, not
-    /// only by <c>ListEffectSource</c>'s constructor — <see cref="IEffectSource"/> is the extension
-    /// point ten later implementations satisfy.
+    /// A source that reports an effect with no holding is refused by the collector, not only by
+    /// <c>ListEffectSource</c>'s constructor — <see cref="IEffectSource"/> is the extension point ten
+    /// later implementations satisfy.
     /// </summary>
     [Fact]
     public void A_source_reporting_an_effect_with_no_holding_is_refused_by_the_collector()
@@ -145,7 +133,6 @@ public sealed class EffectResolverTests
             () => EffectResolver.Resolve(
                 EffectSourceSet.Of(new UnnamedHoldingSource()), AllActive.Instance));
 
-        // S2 — which rule fired: the holding, not the effect and not the kind.
         thrown.Message.ShouldContain("names no holding", Case.Sensitive);
         thrown.Message.ShouldContain("AFF_UNHELD", Case.Sensitive);
     }
@@ -164,15 +151,10 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// 🔒 A source whose kind is outside `18` §8 step 1's ten is refused <b>at the set</b>, not left
-    /// for <c>Collect</c> to walk past.
+    /// A source whose kind is outside the declared ten is refused at the set, not left for
+    /// <c>Collect</c> to walk past: <c>Collect</c> iterates the catalogue, so an out-of-catalogue
+    /// source would be stored, never visited, and contribute nothing silently.
     /// </summary>
-    /// <remarks>
-    /// <c>Collect</c> iterates the catalogue, so an out-of-catalogue source would be stored, never
-    /// visited and contribute nothing — silently. <c>ListEffectSource</c> validates in its own
-    /// constructor, but <see cref="IEffectSource"/> is an extension point for ten implementations by
-    /// seven later milestones, none of them obliged to.
-    /// </remarks>
     [Fact]
     public void A_source_whose_kind_is_outside_the_ten_is_refused_rather_than_silently_skipped()
     {
@@ -198,11 +180,10 @@ public sealed class EffectResolverTests
         };
     }
 
-    // ══════════════════════════════════════════════════════ R5 — collection order is immaterial
+    // ══════════════════════════════════════════════════════ collection order is immaterial
 
     /// <summary>
-    /// 🔒 <b>R5.</b> Step 1's <em>"(in draft order)"</em> is the collection order; §8's closing
-    /// <em>"not draft order"</em> is the application order. The resolver sorts, so the order the
+    /// Collection order and application order are different things: the resolver sorts, so the order
     /// effects arrive in cannot reach anything downstream.
     /// </summary>
     [Fact]
@@ -221,9 +202,8 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// 🔒 The order is <b>ordinal</b>, never the ambient collation. Under <c>en-US</c>
-    /// <c>"PK_A"</c> sorts before <c>"PKA"</c>; ordinally <c>'_'</c> (U+005F) is above <c>'A'</c>
-    /// (U+0041), so it sorts after.
+    /// The order is ordinal, never the ambient collation: under <c>en-US</c> <c>"PK_A"</c> sorts before
+    /// <c>"PKA"</c>, but ordinally <c>'_'</c> (U+005F) is above <c>'A'</c> (U+0041), so it sorts after.
     /// </summary>
     [Fact]
     public void The_resolution_order_is_ordinal_not_culture_aware()
@@ -241,21 +221,15 @@ public sealed class EffectResolverTests
     // ══════════════════════════════════════════════════════ the duplicate-id ruling
 
     /// <summary>
-    /// 🔴 The duplicate-id ruling, proved where it is observable: two effects sharing one id — the same
-    /// affix from two gear slots — resolve in a documented order rather than arrival order. `18` §8
-    /// step 8 is "last writer wins", so a same-id <c>STAT_SET</c> pair at two values is the shape that
-    /// would otherwise resolve differently.
+    /// Two effects sharing one id — the same affix from two gear slots — resolve in a documented order
+    /// rather than arrival order ("last writer wins"), proved through the real
+    /// <c>StatAggregation.Aggregate</c> so the ruling is shown to survive that handoff.
     /// </summary>
     /// <remarks>
-    /// 🔒 Runs the <b>real</b> <c>StatAggregation.Aggregate</c>: the claim is that the ruling survives
-    /// the handoff into steps 3-10, which depends on that method's re-sort being stable.
-    /// <para>
-    /// ⚠️ <b>This test alone does not prove the tiebreak works.</b> Removing the tiebreak entirely left
-    /// it green — <c>Collect</c> already walks in step 1's order, and two elements are below
-    /// <c>Array.Sort</c>'s insertion-sort threshold. What it pins is <b>which</b> source wins. The
-    /// tiebreak is held by
+    /// This test alone does not prove the tiebreak works: with two elements, below
+    /// <c>Array.Sort</c>'s insertion-sort threshold, removing the tiebreak entirely still leaves it
+    /// green. What it pins is which source wins; the tiebreak itself is held by
     /// <see cref="The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements"/>.
-    /// </para>
     /// </remarks>
     [Fact]
     public void The_later_18_8_step_1_source_is_the_last_writer_for_a_shared_id()
@@ -272,49 +246,36 @@ public sealed class EffectResolverTests
             Source(EffectSourceKind.PERKS, fromPerk),
             Source(EffectSourceKind.GEAR, fromGear)));
 
-        // 🔒 PERKS is source 10 of 18 §8 step 1 and GEAR is source 1, so the perk's STAT_SET is the
-        //    LAST writer under step 8 — whichever order the caller happened to build the set in.
+        // PERKS sorts after GEAR, so the perk's STAT_SET is the last writer regardless of build order.
         oneWay.Final[StatId.MAX_HP].ShouldBe(99.0);
         otherWay.Final[StatId.MAX_HP].ShouldBe(99.0);
     }
 
-    /// <summary>
-    /// 🔒 The same ruling inside <b>one</b> source: index within the source is the second tiebreak,
-    /// so two slots of one gear list resolve in slot order.
-    /// </summary>
+    /// <summary>The same ruling inside one source: index within the source is the second tiebreak.</summary>
     [Fact]
     public void Two_effects_with_one_id_in_one_source_resolve_in_list_order()
     {
         var result = Aggregate(EffectSourceSet.Of(
             Source(EffectSourceKind.GEAR, Set("AFF_FRAIL", 10.0), Set("AFF_FRAIL", 42.0))));
 
-        result.Final[StatId.MAX_HP].ShouldBe(42.0, "index 1 is the last writer under 18 §8 step 8");
+        result.Final[StatId.MAX_HP].ShouldBe(42.0, "index 1 is the last writer");
     }
 
     /// <summary>
-    /// 🔴 The test that actually holds the duplicate-id ruling: twenty effects sharing one id, above
-    /// <c>Array.Sort</c>'s insertion-sort threshold, so the sort genuinely permutes equal elements and
-    /// only a <em>total</em> comparer restores step 1's order.
+    /// The test that actually holds the duplicate-id ruling: twenty effects sharing one id, above
+    /// <c>Array.Sort</c>'s insertion-sort threshold (16), so the sort genuinely permutes equal elements
+    /// and only a total comparer restores collection order. Below that threshold a broken tiebreak is
+    /// invisible because arrival order survives by accident — removing the tiebreak left the
+    /// two-element tests green.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Twenty is load-bearing: .NET's introsort runs insertion sort at 16 or fewer, which is stable
-    /// in practice, so below that a broken tiebreak is invisible because arrival order survives and
-    /// happens to be right. Found by removing the tiebreak and watching the two-element tests stay
-    /// green. Deterministic, not probabilistic — <c>Array.Sort</c> is a pure function of its input and
-    /// comparer.
-    /// </remarks>
     [Fact]
     public void The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements()
     {
-        // Twenty STAT_SETs on one id, at ascending values — 18 §8 step 8 is "last writer wins", so
-        // the answer names exactly which of the twenty the order put last.
         var shared = Enumerable.Range(0, 20).Select(i => Set("AFF_FRAIL", 100.0 + i)).ToArray();
 
         var resolved = EffectResolver.Resolve(
             EffectSourceSet.Of(Source(EffectSourceKind.GEAR, shared)), AllActive.Instance);
 
-        // Step 1's index within the source is the second tiebreak, so the twenty come back in list
-        // order and the last writer is index 19.
         resolved.Collected.Select(c => c.IndexInSource).ShouldBe(Enumerable.Range(0, 20));
         resolved.ActiveDefinitions.Select(e => e.Value).ShouldBe(shared.Select(e => e.Value));
 
@@ -324,15 +285,14 @@ public sealed class EffectResolverTests
 
         result.Final[StatId.MAX_HP].ShouldBe(
             119.0,
-            "18 §8 step 8's last writer is the effect the resolution order put last — index 19 of the " +
-            "GEAR source. Without the (source, index) tiebreak the comparer answers 0 for all twenty " +
-            "and Array.Sort's quicksort leaves them in an order no document states");
+            "the last writer is index 19 of the GEAR source. Without the (source, index) tiebreak the " +
+            "comparer answers 0 for all twenty and Array.Sort's quicksort leaves them in an undefined " +
+            "order");
     }
 
     /// <summary>
-    /// 🔒 <b>The comparer is TOTAL.</b> Stated directly, over the two pairs the tiebreak exists to
-    /// separate — and this one depends on no sort at all, so it holds even if <c>Array.Sort</c>'s
-    /// internals change.
+    /// The comparer is total. Stated directly, over the two pairs the tiebreak exists to separate, and
+    /// this one depends on no sort at all so it holds even if <c>Array.Sort</c>'s internals change.
     /// </summary>
     [Fact]
     public void The_resolution_order_never_calls_two_distinct_collected_effects_equal()
@@ -360,8 +320,8 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// 🔒 Both copies survive. The ruling fixes the <em>order</em>, and de-duplicating would halve a
-    /// legitimate build — two slots of the same affix are two bonuses.
+    /// Both copies survive. The ruling fixes the order, and de-duplicating would halve a legitimate
+    /// build — two slots of the same affix are two bonuses.
     /// </summary>
     [Fact]
     public void Two_effects_with_one_id_both_apply()
@@ -369,20 +329,17 @@ public sealed class EffectResolverTests
         var result = Aggregate(EffectSourceSet.Of(
             Source(EffectSourceKind.GEAR, Pct("AFF_KEEN", 0.05), Pct("AFF_KEEN", 0.05))));
 
-        // 100 × (1 + 0.05 + 0.05) — 18 §8 step 5 sums the bucket, then multiplies base once.
+        // 100 × (1 + 0.05 + 0.05) — the bucket is summed, then base is multiplied once.
         result.Final[StatId.ATK].ShouldBe(110.0);
     }
 
     // ══════════════════════════════════════════════════════ step 2 — the condition gate
 
-    /// <summary>
-    /// 🔒 Step 2 filters by condition against current state, and reports what it removed rather than
-    /// dropping it silently.
-    /// </summary>
+    /// <summary>Condition gating filters against current state, and reports what it removed rather than dropping it silently.</summary>
     [Fact]
     public void Step_2_filters_by_condition_and_reports_what_it_removed()
     {
-        // 18 §7.2's PK_EXECUTIONER: +25% DMG% while the target is below 30% HP.
+        // PK_EXECUTIONER: +25% DMG% while the target is below 30% HP.
         var executioner = Pct("PK_EXECUTIONER", 0.25, StatId.DMG_PCT) with
         {
             Condition = EffectCondition.Of(
@@ -411,12 +368,12 @@ public sealed class EffectResolverTests
         againstWounded.ActiveDefinitions.Select(e => e.Id).ShouldBe(new[] { "PK_EXECUTIONER", "PK_SHARP_EDGE" });
         againstWounded.GatedOut.ShouldBeEmpty();
 
-        // 🔒 Step 1 collected both in BOTH cases. Filtering is step 2's, and a source that
-        //    pre-filtered would cache an answer that is wrong on the next tick.
+        // Collection gathers both in BOTH cases; filtering happens later, so a source that
+        // pre-filtered would cache an answer that is wrong on the next tick.
         againstHealthy.Collected.Count.ShouldBe(2);
     }
 
-    /// <summary>`18` §1's <c>"condition": null</c> — an ungated effect is active.</summary>
+    /// <summary>An effect with no condition is active.</summary>
     [Fact]
     public void An_effect_with_no_condition_is_active()
     {
@@ -430,9 +387,9 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// 🔒 A condition that cannot resolve is <b>not</b> swallowed. `18` §9.3 rules that a clause with
-    /// no meaning here is <em>"simply skipped"</em> by an authored <c>IS_PVP</c> condition, so one
-    /// that reaches an incompatible context is content that failed to skip itself.
+    /// A condition that cannot resolve is not swallowed: an authored <c>IS_PVP</c> guard is expected to
+    /// skip itself in an incompatible context, so one that reaches such a context is content that
+    /// failed to skip itself, not a case to paper over.
     /// </summary>
     [Fact]
     public void A_condition_that_cannot_resolve_fails_loudly_rather_than_dropping_the_effect()
@@ -446,7 +403,7 @@ public sealed class EffectResolverTests
                 }),
         };
 
-        // 05 §3.3 gives a duel no run, so GOLD_HELD has no subject.
+        // A duel has no run, so GOLD_HELD has no subject.
         var thrown = Should.Throw<EffectContextException>(() => EffectResolver.Resolve(
             EffectSourceSet.Of(Source(EffectSourceKind.GEAR, goldGated)),
             EffectTestBattle.Duel()));
@@ -457,15 +414,13 @@ public sealed class EffectResolverTests
     // ══════════════════════════════════════════════════════ ruling 1 — the absent trigger
 
     /// <summary>
-    /// 🔴 <b>Ruling 1: an absent <c>trigger</c> is <c>ALWAYS</c>.</b> Read from `18` §1.1's
-    /// exhaustive partition — <em>"at every resolution pass for <c>ALWAYS</c> effects, at fire time
-    /// for triggered ones"</em>. `18` §9.1's <c>CP_GLASS_HEART</c> authors both its clauses with no
-    /// trigger; under any other reading a `18` §8 pass would not see them at all.
+    /// An absent trigger is <c>ALWAYS</c>: effects are evaluated at every resolution pass for
+    /// <c>ALWAYS</c> effects, at fire time for triggered ones, and an effect authored with neither a
+    /// trigger nor a target relies on that default to be seen at all.
     /// </summary>
     [Fact]
     public void An_effect_with_no_trigger_is_an_ALWAYS_passive()
     {
-        // 18 §9.1, verbatim: no trigger, no target.
         var glassHeart = new EffectDefinition
         {
             Id = "CP_GLASS_HEART_1", Op = EffectOp.STAT_MULT, Stat = StatSelector.AllCombat, Value = 2.0,
@@ -475,7 +430,7 @@ public sealed class EffectResolverTests
         EffectDefaults.IsAlwaysActive(glassHeart).ShouldBeTrue();
         EffectDefaults.TriggerOf(glassHeart).Kind.ShouldBe(TriggerKind.ALWAYS);
 
-        // 🔒 And it reaches a 18 §8 pass, which is the whole consequence.
+        // And it reaches a resolution pass, which is the whole consequence.
         var resolved = EffectResolver.Resolve(
             EffectSourceSet.Of(Source(EffectSourceKind.PERKS, glassHeart)), AllActive.Instance);
 
@@ -483,7 +438,7 @@ public sealed class EffectResolverTests
                       .ShouldHaveSingleItem().Id.ShouldBe("CP_GLASS_HEART_1");
     }
 
-    /// <summary>🔒 An authored trigger is never overridden by the default.</summary>
+    /// <summary>An authored trigger is never overridden by the default.</summary>
     [Fact]
     public void An_authored_trigger_is_left_alone()
     {
@@ -498,35 +453,35 @@ public sealed class EffectResolverTests
         var resolved = EffectResolver.Resolve(
             EffectSourceSet.Of(Source(EffectSourceKind.PERKS, onHit)), AllActive.Instance);
 
-        // 🔒 Collected and gated like any other effect — 18 §8 step 1 is "all active effects", and
-        //    WHEN each fires is the trigger layer's (M2-04), not step 1's.
+        // Collected and gated like any other effect — collection is "all active effects", and WHEN
+        // each fires is the trigger layer's concern, not collection's.
         resolved.ActiveDefinitions.ShouldHaveSingleItem().Id.ShouldBe("PK_CLEAVE");
         EffectResolver.ActiveOfKind(resolved, TriggerKind.ALWAYS).ShouldBeEmpty();
     }
 
-    // ══════════════════════════════════════════════════════ the composition into steps 3-10
+    // ══════════════════════════════════════════════════════ the composition into stat aggregation
 
     /// <summary>
-    /// 🔒 The whole of `18` §8: steps 1-2 here, steps 3-10 in M2-07's <c>StatAggregation</c>, joined
-    /// by a list of effects in a defined order and nothing else.
+    /// Collection and gating feed <c>StatAggregation</c> through a list of effects in a defined order
+    /// and nothing else.
     /// </summary>
     [Fact]
     public void The_resolver_output_is_what_StatAggregation_consumes()
     {
-        // 18 §7.1's PK_SHARP_EDGE (+12% ATK) and a gear affix (+5% ATK) on a 100 ATK base.
+        // PK_SHARP_EDGE (+12% ATK) and a gear affix (+5% ATK) on a 100 ATK base.
         var result = Aggregate(EffectSourceSet.Of(
             Source(EffectSourceKind.GEAR, Pct("AFF_KEEN", 0.05)),
             Source(EffectSourceKind.PERKS, Pct("PK_SHARP_EDGE", 0.12))));
 
-        // 18 §8 step 5: sum the bucket, then multiply base ONCE — 100 × (1 + 0.17).
+        // Sum the bucket, then multiply base ONCE — 100 × (1 + 0.17).
         result.Final[StatId.ATK].ShouldBe(117.0);
     }
 
     /// <summary>
-    /// 🔒 <b>One gate, both step 2s.</b> <c>StatAggregation</c> re-applies the step-2 filter and its
-    /// remarks require the second evaluation to agree with the first. Handing it the resolver's own
-    /// gate makes that structural: a conditional effect the resolver admitted is admitted again, and
-    /// the strict default's refusal is never reached.
+    /// One gate, both filter passes. <c>StatAggregation</c> re-applies the condition filter and
+    /// requires the second evaluation to agree with the first; handing it the resolver's own gate makes
+    /// that structural — a conditional effect the resolver admitted is admitted again, and the strict
+    /// default's refusal is never reached.
     /// </summary>
     [Fact]
     public void The_same_gate_serves_both_step_2s()
@@ -544,8 +499,8 @@ public sealed class EffectResolverTests
                 }),
         };
 
-        // 🔒 The CONTEXT overload — the one a caller reaches for — and the gate it built comes back
-        //    on the result. Nothing here constructs a second gate, which is the whole claim.
+        // The CONTEXT overload — the gate it built comes back on the result, and nothing here
+        // constructs a second gate.
         var resolved = EffectResolver.Resolve(
             EffectSourceSet.Of(Source(EffectSourceKind.PERKS, conditional)), context);
 
@@ -559,13 +514,13 @@ public sealed class EffectResolverTests
 
         result.Final[StatId.ATK].ShouldBe(103.0);
 
-        // 🔒 And the refusal it replaced is real — proof this test is not passing for free.
+        // And the refusal it replaced is real — proof this test is not passing for free.
         Should.Throw<EffectContextException>(() => StatAggregation.Aggregate(
             StatFixtures.Block((StatId.ATK, 100)), resolved.ActiveDefinitions, StatFixtures.Caps(),
             StatAggregationSeams.Strict));
     }
 
-    /// <summary>Runs `18` §8 end to end over a 100/100 base with everything active.</summary>
+    /// <summary>Runs collection through aggregation over a 100/100 base with everything active.</summary>
     private static AggregatedStats Aggregate(EffectSourceSet sources)
     {
         var resolved = EffectResolver.Resolve(sources, AllActive.Instance);

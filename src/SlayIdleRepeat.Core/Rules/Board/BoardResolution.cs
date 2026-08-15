@@ -3,33 +3,18 @@ using SlayIdleRepeat.Core.Rng;
 
 namespace SlayIdleRepeat.Core.Rules.Board;
 
-/// <summary>
-/// 🔒 M3-02 — the one seam every movement handler (<c>Handlers.RollDice</c>,
-/// <c>Handlers.ChooseFork</c>) uses to get at a run's board, shared so the same replay rule cannot
-/// drift between the two.
-/// </summary>
+/// <summary>The one seam every movement handler uses to get at a run's board, so the replay rule cannot drift between callers.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Generated at most <em>once</em>, ever, on the run's committed <c>board</c> stream —
-/// every later command replays the identical layout instead of drawing again.</b>
-/// <see cref="RngStreams.Board"/> serves two purposes in sequence (`14` §8.1: "Board layout
-/// generation; Portal jump draws") — <see cref="BoardGenerator.GenerateBoard"/>'s own draws first,
-/// then any real Portal jump draw after them — so the SAME committed position cannot be replayed
-/// through <em>and</em> continued from without colliding the two.
-/// </para>
-/// <para>
-/// The fix mirrors <c>Rules.Dice.FairDiceBag.Replay</c> exactly: on this run's <b>first</b> need for
-/// a board (<c>run.StreamPosition(RngStreams.Board) == 0</c>, meaning nothing has ever drawn from
-/// it), generation runs for real on the tracked, committed stream — <c>rngScope.Stream(Board)</c> —
-/// so its draw count becomes the run's committed <c>board</c> position once <c>Apply</c> folds it
-/// back. On every later command that position is already past generation, so re-running
-/// <c>GenerateBoard</c> on the tracked stream would draw <em>different</em> numbers and produce a
-/// different board — instead, generation is replayed on an ephemeral, uncommitted
-/// <see cref="DeterministicRng.OpenAt"/> stream reopened at draw 0, which is a pure function of
-/// <see cref="Run.RunSeed"/> and this chapter's content and therefore reconstructs the identical
-/// graph every time, leaving the tracked stream free for whatever real Portal draw this command
-/// might still need.
-/// </para>
+/// Generated at most once, ever, on the run's committed <c>board</c> stream — every later command
+/// replays the identical layout instead of drawing again. <see cref="RngStreams.Board"/> is later
+/// reused for Portal jump draws, so the same committed position cannot be replayed through and
+/// continued from without colliding the two. On this run's first need for a board
+/// (<c>run.StreamPosition(RngStreams.Board) == 0</c>), generation runs for real on the tracked
+/// stream so its draw count becomes the committed position. On every later call, replaying
+/// generation on that same tracked stream would draw different numbers and produce a different
+/// board — so generation is instead replayed on an ephemeral <see cref="DeterministicRng.OpenAt"/>
+/// stream reopened at draw 0, a pure function of the run seed and chapter content that
+/// reconstructs the identical graph, leaving the tracked stream free for any real Portal draw.
 /// </remarks>
 internal static class BoardResolution
 {

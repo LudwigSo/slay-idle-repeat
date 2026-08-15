@@ -6,26 +6,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>
-/// 🔒 All 44 ops of `18` §2 reach a route, and each family's disposition is the one the document
-/// gives it.
-/// </summary>
+/// <summary>Every op reaches a route, and each family's disposition matches what it should be.</summary>
 /// <remarks>
-/// <para>
-/// Steering S3 — the resolver's <c>switch</c> has a <c>default</c> arm only because C# requires one
-/// on an enum switch, so it cannot be what catches a forty-fifth op: that op would fall into it and
-/// throw in whichever battle first authored one. These tests enumerate
-/// <see cref="EffectOps.All"/> and are what catch it at build time.
-/// </para>
-/// <para>
-/// 🔒 <b>The Phase 1a accommodation is gone.</b> Both loops used to tolerate a
-/// <see cref="NotSupportedException"/> from <c>CombatFlowOps.RandomOutcome</c> and record the op as
-/// <em>stubbed</em>/<em>unproven</em>, because its handler had not been written; the remark then said
-/// the accommodation is deleted when the handler lands, and M2-12's implementation phase landed it.
-/// Every one of the 44 is now resolved for real and its disposition asserted — which is the stronger
-/// claim, and the reason the loops below hand in a `14` §8.1 combat draw stream: the forty-fourth op
-/// takes one draw, and an evaluation carrying no stream is refused rather than answered.
-/// </para>
+/// The resolver's <c>switch</c> has a <c>default</c> arm only because C# requires one on an enum
+/// switch — it must not be what silently catches an unrouted op. These tests enumerate
+/// <see cref="EffectOps.All"/> so a new op can't fall through unnoticed. The loops hand in a combat
+/// draw stream because <c>RANDOM_OUTCOME</c> draws once and refuses an evaluation carrying none.
 /// </remarks>
 public sealed class EffectOpResolverTests
 {
@@ -54,9 +40,7 @@ public sealed class EffectOpResolverTests
                 CurrentTarget = enemy,
                 Attacker = enemy,
 
-                // `14` §8.1's combat stream — RANDOM_OUTCOME takes exactly one draw and refuses an
-                // evaluation that carries none, so without this the routing claim could not be made
-                // for the forty-fourth op at all.
+                // RANDOM_OUTCOME takes exactly one draw and refuses an evaluation that carries none.
                 Rng = EffectTestBattle.CombatRng(6),
             };
 
@@ -77,9 +61,8 @@ public sealed class EffectOpResolverTests
     }
 
     /// <summary>
-    /// The three dispositions, each over the family the document assigns it — so that "resolved",
-    /// "queued for the run controller" and "applied by `18` §8's aggregation" cannot be confused
-    /// with "did nothing".
+    /// The three dispositions, each over its family — so "resolved", "queued for the run controller"
+    /// and "applied by aggregation" cannot be confused with "did nothing".
     /// </summary>
     [Fact]
     public void The_disposition_of_every_op_is_the_one_its_family_carries()
@@ -105,11 +88,9 @@ public sealed class EffectOpResolverTests
 
             var expected = op switch
             {
-                // 🔒 M2-R1 — 18 §8 applies STAT_CONVERT and STAT_CAP_OVERRIDE ONLY, at steps 6 and
-                //    9; a firing effect never does, because their arithmetic needs a
-                //    post-aggregation value. The other four 18 §2.1 ops now resolve THROUGH
-                //    ITriggeredStatSink when a trigger fires them — see FiredStat's remarks.
-                //    STAT_COPY is in §2.4, resolves to a percent-bucket add, and IS resolved here.
+                // STAT_CONVERT/STAT_CAP_OVERRIDE apply only via aggregation — their arithmetic needs
+                // a post-aggregation value a firing effect doesn't have. Other stat ops route
+                // through ITriggeredStatSink instead.
                 EffectOp.STAT_CONVERT or EffectOp.STAT_CAP_OVERRIDE => OpDisposition.AGGREGATED,
                 _ when EffectOps.FamilyOf(op) == EffectOpFamily.RUN_AND_BOARD => OpDisposition.QUEUED_FOR_RUN,
                 _ => OpDisposition.RESOLVED,
@@ -128,11 +109,7 @@ public sealed class EffectOpResolverTests
         wrong.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 <c>STAT_CONVERT</c> and <c>STAT_CAP_OVERRIDE</c> reaching the resolver mutate nothing at
-    /// all — `18` §8's steps 6 and 9 own them, and their arithmetic needs a post-aggregation value
-    /// neither a trigger nor this resolver has in hand.
-    /// </summary>
+    /// <summary><c>STAT_CONVERT</c> and <c>STAT_CAP_OVERRIDE</c> mutate nothing at the resolver — aggregation owns them.</summary>
     [Fact]
     public void STAT_CONVERT_and_STAT_CAP_OVERRIDE_reach_no_seam()
     {
@@ -151,10 +128,8 @@ public sealed class EffectOpResolverTests
     }
 
     /// <summary>
-    /// 🔒 M2-R1 — a FIRED `18` §2.1 basic stat op reaches exactly one seam,
-    /// <c>ITriggeredStatSink</c>, and no other: it must not also mutate HP, a status, the flow state
-    /// or the run queue, which is what would happen if the routing accidentally fell through to
-    /// another op family.
+    /// A fired basic stat op reaches exactly one seam, <c>ITriggeredStatSink</c>, and no other — not
+    /// HP, a status, the flow state or the run queue.
     /// </summary>
     [Fact]
     public void A_fired_basic_stat_op_reaches_only_the_triggered_stat_sink()
@@ -166,7 +141,7 @@ public sealed class EffectOpResolverTests
             EffectOp.STAT_ADD_FLAT, EffectOp.STAT_ADD_PCT, EffectOp.STAT_MULT, EffectOp.STAT_SET,
         };
 
-        // S3 — the floor: the two lists above plus this one are 18 §2.1's whole six.
+        // The floor: the two lists above plus this one make up the whole family.
         (firedStatOps.Length + 2).ShouldBe(6, "18 §2.1");
 
         foreach (var op in firedStatOps)

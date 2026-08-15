@@ -7,7 +7,7 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// built as a <see cref="ContentSnapshot"/> in memory.
 /// </summary>
 /// <remarks>
-/// 🔒 <c>Core.Tests</c> is hermetic, so this <em>mirrors</em> the shipped file rather than reading it;
+/// <c>Core.Tests</c> is hermetic, so this mirrors the shipped file rather than reading it;
 /// <c>EnergyTuningMatchesTuningDataTests</c> in <c>Application.Tests</c> pins the two together by
 /// reading the real file at the same JSON pointers. Neither half is sufficient alone: this proves the
 /// math is right about the numbers, that one proves those are the numbers we ship.
@@ -17,25 +17,25 @@ internal static class ProgressionDocuments
     /// <summary>The document path the energy tunables live at.</summary>
     internal const string DocumentPath = "tuning/progression.json";
 
-    /// <summary>`10` §3 — 120 Energy at Legend Level 0.</summary>
+    /// <summary>120 Energy at Legend Level 0.</summary>
     internal const int ShippedBaseMax = 120;
 
-    /// <summary>`10` §3 — +2 Max Energy per Legend Level.</summary>
+    /// <summary>+2 Max Energy per Legend Level.</summary>
     internal const int ShippedPerLegendLevel = 2;
 
-    /// <summary>`10` §3 — Max Energy stops growing at 200.</summary>
+    /// <summary>Max Energy stops growing at 200.</summary>
     internal const int ShippedMaxCap = 200;
 
-    /// <summary>`10` §3 — one Energy per four minutes (15/hour).</summary>
+    /// <summary>One Energy per four minutes (15/hour).</summary>
     internal const int ShippedRegenMinutesPerPoint = 4;
 
-    /// <summary>`10` §3 — a run costs 20 Energy.</summary>
+    /// <summary>A run costs 20 Energy.</summary>
     internal const int ShippedRunCost = 20;
 
-    /// <summary>`28` C2 — the Reserve holds 1× Max Energy.</summary>
+    /// <summary>The Reserve holds 1× Max Energy.</summary>
     internal const int ShippedReserveMultipleOfMax = 1;
 
-    /// <summary>`07` §1.1 — a player starts at Legend Level 1.</summary>
+    /// <summary>A player starts at Legend Level 1.</summary>
     /// <remarks>
     /// <c>const</c> rather than <c>static readonly</c> so <c>[InlineData]</c> can take it: a range
     /// test that restated the two bounds as literals would keep passing after the data moved.
@@ -45,32 +45,32 @@ internal static class ProgressionDocuments
     /// </remarks>
     internal const int ShippedLegendLevelMin = 1;
 
-    /// <summary>`07` §1.1 — the Legend Level ladder ends at 200 in v1.</summary>
+    /// <summary>The Legend Level ladder ends at 200 in v1.</summary>
     /// <inheritdoc cref="ShippedLegendLevelMin"/>
     internal const int ShippedLegendLevelMax = 200;
 
-    /// <summary>`02` §5.1a — <c>BaseXp(c) = baseXpCoefficient * baseXpGrowth^(c-1)</c>'s coefficient, as shipped.</summary>
+    /// <summary><c>BaseXp(c) = baseXpCoefficient * baseXpGrowth^(c-1)</c>'s coefficient, as shipped.</summary>
     internal const int ShippedBaseXpCoefficient = 25;
 
-    /// <summary>`02` §5.1a — the Legend XP growth base, as shipped.</summary>
+    /// <summary>The Legend XP growth base, as shipped.</summary>
     internal const decimal ShippedBaseXpGrowth = 1.55m;
 
-    /// <summary>`02` §5.1a — the Victory completion multiplier, as shipped.</summary>
+    /// <summary>The Victory completion multiplier, as shipped.</summary>
     internal const decimal ShippedVictoryMultiplier = 1.0m;
 
-    /// <summary>`02` §5.2 — the Stage 3 death completion multiplier, as shipped.</summary>
+    /// <summary>The Stage 3 death completion multiplier, as shipped.</summary>
     internal const decimal ShippedStage3DeathMultiplier = 0.6m;
 
-    /// <summary>`02` §5.2 — the Stage 2 death completion multiplier, as shipped.</summary>
+    /// <summary>The Stage 2 death completion multiplier, as shipped.</summary>
     internal const decimal ShippedStage2DeathMultiplier = 0.4m;
 
-    /// <summary>`02` §5.2 — the Stage 1 death completion multiplier, as shipped.</summary>
+    /// <summary>The Stage 1 death completion multiplier, as shipped.</summary>
     internal const decimal ShippedStage1DeathMultiplier = 0.25m;
 
-    /// <summary>`02` §5.2 — the Abandon completion multiplier, as shipped.</summary>
+    /// <summary>The Abandon completion multiplier, as shipped.</summary>
     internal const decimal ShippedAbandonMultiplier = 0.1m;
 
-    /// <summary>`02` §5.2 — the run-end ad-double multiplier, as shipped.</summary>
+    /// <summary>The run-end ad-double multiplier, as shipped.</summary>
     internal const decimal ShippedAdDoubleMultiplier = 2.0m;
 
     /// <summary>A snapshot holding exactly the shipped energy block.</summary>
@@ -111,9 +111,9 @@ internal static class ProgressionDocuments
             ["reserveMultipleOfMax"] = reserveMultipleOfMax ?? ContentValue.Number(ShippedReserveMultipleOfMax),
         });
 
-        // `07` §1.1's range only — not xpCoefficient, xpExponent or talentPointsPerLevel. LegendTuning
-        // reads two leaves because the Player aggregate's invariant needs two; the level-up CURVE is
-        // M4-10's, and a fixture that authored it would imply something reads it.
+        // The range only — not xpCoefficient, xpExponent or talentPointsPerLevel. LegendTuning reads
+        // two leaves because the Player aggregate's invariant needs two; the level-up curve is out of
+        // scope here, and a fixture that authored it would imply something reads it.
         var legendLevel = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
             ["min"] = legendLevelMin ?? ContentValue.Number(ShippedLegendLevelMin),

@@ -2,11 +2,7 @@ using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
-/// <summary>
-/// Board-related test fixtures. <see cref="ChapterOneConfig"/> is transcribed from the shipped
-/// <c>game-data/content/chapters/CH_01_GREENWOOD_VALE.json</c> (M3-14), not invented — the same
-/// numbers a real generation run would use.
-/// </summary>
+/// <summary>Board test fixtures. <see cref="ChapterOneConfig"/> mirrors the shipped chapter 1 config exactly, not invented values.</summary>
 internal static class BoardFixtures
 {
     /// <summary>Chapter 1's real board config: stageLengths [12,14,16], eliteCount [1,2,2].</summary>

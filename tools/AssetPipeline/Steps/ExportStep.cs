@@ -2,16 +2,14 @@ using SkiaSharp;
 
 namespace SlayIdleRepeat.AssetPipeline;
 
-/// <summary>
-/// `15` §B4 step 6: <em>"Export -&gt; PNG-32, then compress with pngquant (quality 80-95)"</em>.
-/// </summary>
+/// <summary>Export: PNG-32, then compress with pngquant (quality 80-95).</summary>
 /// <remarks>
 /// <para>
 /// The authorised, lossless half always runs: encode PNG-32 with straight (unpremultiplied) alpha,
-/// which is `15` §C's delivery format and which round-trips bit-for-bit through Skia.
+/// which round-trips bit-for-bit through Skia.
 /// </para>
 /// <para>
-/// 🔒 <b>There is no pngquant and no PNG-8 palette writer here.</b> pngquant is a native binary and
+/// There is no pngquant and no PNG-8 palette writer here: pngquant is a native binary and
 /// <c>SKPngEncoderOptions</c> controls only the zlib level and the row filter, both lossless. The
 /// managed stand-in is a median-cut to <see cref="ThresholdKeys.ExportColourBudget"/> colours,
 /// accepted only if the measured mean per-channel error is within
@@ -20,10 +18,10 @@ namespace SlayIdleRepeat.AssetPipeline;
 /// and why — rather than skipping it silently and reporting a clean pass.
 /// </para>
 /// <para>
-/// 🔒 The deviation is emitted on <b>both</b> paths, because pngquant runs on neither. Its text
-/// distinguishes them: on the uncalibrated path it names the two holes that stopped the compression
-/// stage; on the calibrated one it says the colours were reduced by a managed substitute that does
-/// not reproduce pngquant's perceptual quality metric and still writes a PNG-32 container.
+/// The deviation is emitted on <b>both</b> paths, because pngquant runs on neither: on the
+/// uncalibrated path it names the two holes that stopped compression; on the calibrated one it says
+/// the colours were reduced by a managed substitute that does not reproduce pngquant's perceptual
+/// quality metric and still writes a PNG-32 container.
 /// </para>
 /// </remarks>
 public sealed class ExportStep : IAssetStep
@@ -40,18 +38,14 @@ public sealed class ExportStep : IAssetStep
     /// <summary>The measurement key for the median cut's mean per-channel error.</summary>
     public const string MeanColourErrorMeasurement = "meanColourError";
 
-    /// <summary>What `15` §B4 step 6 asks for, quoted in every deviation this step emits.</summary>
+    /// <summary>What this step is required to do, quoted in every deviation it emits.</summary>
     private const string Requirement = "Export to PNG-32, then compress with pngquant (quality 80-95).";
 
-    /// <summary>
-    /// The quality argument <c>SKBitmap.Encode</c> requires and PNG ignores.
-    /// </summary>
+    /// <summary>The quality argument <c>SKBitmap.Encode</c> requires and PNG ignores.</summary>
     /// <remarks>
-    /// 🔒 Not a tuning number and not an S6 hole. PNG is lossless, so Skia's PNG encoder does not
-    /// read this at all — the overload simply has no format-agnostic way to say "not applicable".
-    /// The top of the range is passed so nobody reading the call has to wonder whether the export is
-    /// throwing away quality somewhere; `15` §B4 step 6's <em>lossy</em> stage is pngquant's, and it
-    /// is the one this step declares a deviation for.
+    /// Not a tuning number: PNG is lossless, so Skia's PNG encoder does not read this at all, and the
+    /// top of the range is passed so nobody reading the call wonders whether quality is being thrown
+    /// away here rather than in pngquant's stage, which is the one this step declares a deviation for.
     /// </remarks>
     private const int LosslessEncodeQuality = 100;
 
@@ -113,16 +107,13 @@ public sealed class ExportStep : IAssetStep
             encoded);
     }
 
-    /// <summary>
-    /// Encodes PNG-32 with straight alpha — `15` §C's delivery format, and the half of §B4 step 6
-    /// the doc authorises outright.
-    /// </summary>
+    /// <summary>Encodes PNG-32 with straight alpha — the half of this step the doc authorises outright.</summary>
     /// <param name="image">The image to encode.</param>
     private static byte[] EncodePng32(Raster image)
     {
         using var bitmap = image.ToBitmap();
 
-        // 🔒 SKBitmap.Encode, not SKImage.FromBitmap(...).Encode: the bitmap carries
+        // SKBitmap.Encode, not SKImage.FromBitmap(...).Encode: the bitmap carries
         // SKAlphaType.Unpremul and encoding it directly writes those bytes as they stand, which is
         // what makes the round trip bit-exact for a semi-transparent pixel.
         using var data = bitmap.Encode(SKEncodedImageFormat.Png, LosslessEncodeQuality)

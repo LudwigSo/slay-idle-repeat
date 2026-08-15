@@ -5,45 +5,21 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `14` §14 — <em>"Kill switches: remote config flags for PvP, each ad placement, the Plus offer,
-/// and each chapter — so a bad content change is a config edit, not a client patch."</em> That
-/// sentence is the entire authored content of this record.
+/// <c>FeatureFlags</c> is a closed record of exactly four remote-config kill switches (PvP, ad
+/// placements, the Plus offer, chapters) with no general string-keyed bag, so a new flag is a diff
+/// someone has to justify rather than an ungoverned addition.
 /// </summary>
-/// <remarks>
-/// 🔒 The record is deliberately <b>closed</b>: four switches and nothing else, with no general
-/// string-keyed bag — a bag would let any later task introduce an ungoverned flag without a decision,
-/// which is what an enumerated kill-switch list exists to prevent. M5-10 is the task that extends it.
-/// <para>
-/// ⚠️ No flag-key naming scheme is authored anywhere, and no <c>AdPlacementId</c> or <c>ChapterId</c>
-/// type exists yet, so the two set-valued switches hold plain strings compared <b>ordinally</b>. The
-/// identifiers used in these tests are ones the design set already writes down, not a scheme invented
-/// here.
-/// </para>
-/// </remarks>
 public sealed class FeatureFlagsTests
 {
     private const string ElitePlacement = "AD_ELITE_GUARANTEE";
     private const string LuckPlacement = "AD_ENHANCE_LUCK";
     private const string FirstChapter = "CH_01_EMBERFALL";
 
-    /// <summary>
-    /// A chapter identifier no kill switch names. Deliberately not a plausible one: `game-data`
-    /// writes <c>CH_01_EMBERFALL</c> and then an ellipsis, so any second chapter id spelled here
-    /// would be a naming scheme invented by this test — which is M5-10's to decide (steering S6).
-    /// </summary>
     private const string UnnamedChapter = "A_CHAPTER_NO_KILL_SWITCH_NAMES";
 
-    /// <summary>
-    /// 🔒 `14` §14 — the whole public surface, pinned. Four switches and the two membership
-    /// readers, and no fifth flag arrives without this test going red and forcing the decision.
-    /// </summary>
     [Fact]
     public void FeatureFlags_is_closed_at_the_four_kill_switches_of_14_section_14()
     {
-        // Static as well as instance: a `public static FeatureFlags AllEnabled` convenience is both
-        // a fifth member and a pre-decided remote-config fallback, and an instance-only filter
-        // would let it in silently. Whether an unresolved config fails open or closed is M5-10's
-        // decision to make explicitly, not this record's to imply.
         var declared = typeof(FeatureFlags)
             .GetMembers(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly)
             .Select(m => m.Name)
@@ -72,12 +48,7 @@ public sealed class FeatureFlagsTests
             "authorises it.");
     }
 
-    /// <summary>
-    /// 🔒 …and the surface is pinned by <b>type</b>, not only by name. A fifth flag smuggled in by
-    /// widening an existing member — <c>DisabledChapters</c> becoming an
-    /// <c>IReadOnlyList&lt;string&gt;</c>, <c>PvpEnabled</c> becoming a <c>bool?</c> with a third
-    /// "unresolved" state — changes the contract while leaving a name-only pin green.
-    /// </summary>
+    /// <summary>Pinned by type too, not only by name — a member widened in place would pass a name-only pin.</summary>
     [Fact]
     public void The_four_kill_switches_keep_their_declared_types()
     {
@@ -103,11 +74,6 @@ public sealed class FeatureFlagsTests
             .ShouldBe(typeof(IReadOnlySet<string>));
     }
 
-    /// <summary>
-    /// 🔒 `14` §14 — no general string-keyed bag, and no indexer. A <c>bool this[string key]</c> or
-    /// an <c>IReadOnlyDictionary&lt;string, bool&gt; Extra</c> would reopen the closed list through
-    /// the back door while leaving the test above green.
-    /// </summary>
     [Fact]
     public void FeatureFlags_offers_no_general_purpose_flag_bag()
     {
@@ -121,7 +87,6 @@ public sealed class FeatureFlagsTests
                 "has to justify.");
     }
 
-    /// <summary>`14` §14 — the two boolean switches are stored as given.</summary>
     [Theory]
     [InlineData(true, false)]
     [InlineData(false, true)]
@@ -133,12 +98,7 @@ public sealed class FeatureFlagsTests
         flags.PlusOfferEnabled.ShouldBe(plusOffer);
     }
 
-    /// <summary>
-    /// 🔒 The set-valued switches are <b>kill lists</b>, not allow lists: an identifier the config
-    /// has never heard of is <em>enabled</em>. An allow list would need every chapter and all 29
-    /// placements (`12` §4) enumerated in remote config, and the day one was missing the game would
-    /// silently lose a chapter — the opposite of a kill switch, which exists to be the exception.
-    /// </summary>
+    /// <summary>The set-valued switches are kill lists, not allow lists: an unnamed identifier is enabled.</summary>
     [Fact]
     public void An_identifier_no_kill_switch_names_is_enabled()
     {
@@ -148,7 +108,6 @@ public sealed class FeatureFlagsTests
         flags.IsChapterEnabled(FirstChapter).ShouldBeTrue();
     }
 
-    /// <summary>`14` §14 — a named identifier is killed, and only that one.</summary>
     [Fact]
     public void A_named_identifier_is_disabled_and_its_neighbours_are_not()
     {
@@ -160,12 +119,7 @@ public sealed class FeatureFlagsTests
         flags.IsChapterEnabled(UnnamedChapter).ShouldBeTrue();
     }
 
-    /// <summary>
-    /// 🔒 Membership is <b>ordinal</b>. No flag-key naming scheme is authored anywhere (that is
-    /// M5-10's), so the one thing this type can promise is that two spellings are two identifiers:
-    /// a case-insensitive comparison would silently kill a placement whose id merely resembled the
-    /// one operations typed.
-    /// </summary>
+    /// <summary>Membership is ordinal: a case-insensitive comparison could silently kill an unintended near-match.</summary>
     [Fact]
     public void Membership_is_ordinal_so_a_respelling_is_not_a_silent_hit()
     {
@@ -175,11 +129,7 @@ public sealed class FeatureFlagsTests
         flags.IsChapterEnabled("ch_01_emberfall").ShouldBeTrue();
     }
 
-    /// <summary>
-    /// 🔒 The record copies the collections it is handed. The composition root resolves remote
-    /// config once per command; a caller that kept its list and mutated it afterwards would be
-    /// changing a kill switch out from under a rule that had already read it.
-    /// </summary>
+    /// <summary>The record copies the collections it is handed, so a caller mutating its list afterward has no effect.</summary>
     [Fact]
     public void A_kill_list_is_copied_so_the_caller_cannot_change_it_afterwards()
     {
@@ -197,9 +147,8 @@ public sealed class FeatureFlagsTests
     }
 
     /// <summary>
-    /// 🔒 And the exposed set cannot be written through a cast. An
-    /// <c>IReadOnlySet&lt;string&gt;</c> that <em>is</em> a <c>HashSet&lt;string&gt;</c> can be cast
-    /// back and added to — the same trap <c>ContentSnapshot.DocumentPaths</c> documents.
+    /// The exposed set cannot be written through a cast — an <c>IReadOnlySet&lt;string&gt;</c> that
+    /// is actually a <c>HashSet&lt;string&gt;</c> can otherwise be cast back and mutated.
     /// </summary>
     [Fact]
     public void A_kill_list_cannot_be_written_through_a_cast()
@@ -210,10 +159,7 @@ public sealed class FeatureFlagsTests
         Should.Throw<NotSupportedException>(() => ((ICollection<string>)flags.DisabledChapters).Clear());
     }
 
-    /// <summary>
-    /// A duplicate entry is the config saying the same thing twice, not an error. Pinned so the
-    /// answer is a decision rather than whatever the chosen set type happens to do.
-    /// </summary>
+    /// <summary>A duplicate entry is the config saying the same thing twice, not an error.</summary>
     [Fact]
     public void A_repeated_identifier_is_the_same_kill_switch_named_twice()
     {
@@ -223,7 +169,7 @@ public sealed class FeatureFlagsTests
         flags.IsAdPlacementEnabled(ElitePlacement).ShouldBeFalse();
     }
 
-    /// <summary>A missing identifier is a caller bug, not "enabled". Fail loudly (steering S6).</summary>
+    /// <summary>A missing identifier is a caller bug, not "enabled".</summary>
     [Fact]
     public void A_null_identifier_throws_rather_than_reading_as_enabled()
     {
@@ -236,7 +182,6 @@ public sealed class FeatureFlagsTests
             .ParamName.ShouldBe("chapterId");
     }
 
-    /// <summary>`30` §3 — flags are resolved at the composition root; an unresolved list is not a value.</summary>
     [Fact]
     public void FeatureFlags_refuses_a_null_kill_list()
     {
@@ -248,12 +193,8 @@ public sealed class FeatureFlagsTests
     }
 
     /// <summary>
-    /// 🔒 …and a null or blank identifier <em>inside</em> a kill list. A remote-config document with
-    /// an empty array entry is a realistic source, and both <c>HashSet</c> and <c>FrozenSet</c>
-    /// accept one silently — after which the set holds an identifier no lookup can ever match, so
-    /// the switch reads as thrown while killing nothing. Blank is the strongest promise available
-    /// while the naming scheme is unauthored: it is scheme-independent. Refusing at construction is
-    /// the loud failure S6 asks for.
+    /// A blank identifier inside a kill list is refused at construction rather than accepted silently
+    /// — an entry no lookup could ever match would make the switch look armed while killing nothing.
     /// </summary>
     [Theory]
     [InlineData(null)]
@@ -268,7 +209,6 @@ public sealed class FeatureFlagsTests
             .ParamName.ShouldBe("disabledChapters");
     }
 
-    /// <summary>`30` §3 — sealed and read-only, like everything else on the context.</summary>
     [Fact]
     public void FeatureFlags_is_sealed_and_read_only()
     {

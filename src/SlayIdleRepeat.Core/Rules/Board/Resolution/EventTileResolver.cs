@@ -9,20 +9,20 @@ using SlayIdleRepeat.Core.Rng;
 namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 
 /// <summary>
-/// 🔒 `03` §5 / `19` Part A — <c>TILE_EVENT</c>, in its two halves: <c>RESOLVE_TILE</c> draws the
-/// card, and <c>EVENT_CHOOSE</c> resolves the option the player picked.
+/// <c>TILE_EVENT</c>, in its two halves: <c>RESOLVE_TILE</c> draws the card, and
+/// <c>EVENT_CHOOSE</c> resolves the option the player picked.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Two draws per event, both on `14` §8.1's <c>events</c> stream</b> — one to pick the card
-/// and one to pick the chosen option's outcome — and they happen in <b>different commands</b>. That
-/// is what the pending-card id on <c>Run</c> exists for: the card is decided when the player lands,
-/// and it must not be re-drawn when they choose, or a client could reroll an unwanted card by
+/// Two draws per event, both on the <c>events</c> stream — one to pick the card and one to pick
+/// the chosen option's outcome — and they happen in different commands. That is what the
+/// pending-card id on <c>Run</c> exists for: the card is decided when the player lands, and it
+/// must not be re-drawn when they choose, or a client could reroll an unwanted card by
 /// resubmitting.
 /// </para>
 /// <para>
-/// ⚠️ <b>The option's cost is not paid here.</b> <see cref="ResolveChoice"/> only draws and applies
-/// the outcome; affordability and the debit belong to the handler, which is the layer that can answer
+/// The option's cost is not paid here. <see cref="ResolveChoice"/> only draws and applies the
+/// outcome; affordability and the debit belong to the handler, which is the layer that can answer
 /// a player <c>INSUFFICIENT_FUNDS</c> instead of throwing.
 /// </para>
 /// </remarks>
@@ -32,17 +32,16 @@ internal static class EventTileResolver
     internal const string Reason = "event_card_outcome";
 
     /// <summary>
-    /// Draws which `19` Part A card this event tile shows — one draw on `14` §8.1's <c>events</c>
-    /// stream, uniform over the cards this run's chapter can see.
+    /// Draws which card this event tile shows — one draw on the <c>events</c> stream, uniform over
+    /// the cards this run's chapter can see.
     /// </summary>
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
     /// <param name="catalogue">The authored cards, read from this command's content snapshot.</param>
     /// <returns>The drawn card's id, for <c>Run.SetPendingEventCard</c>.</returns>
     /// <remarks>
-    /// 🔒 <b>Uniform, not weighted, and that is the document rather than a default.</b> `19` Part A
-    /// authors no per-card draw weight in any of its three bands — only the chapter banding — so a
-    /// uniform pick over the eligible set is the transcription. A weight column invented here would
-    /// be a distribution nothing specifies (steering <b>S6</b>).
+    /// Uniform, not weighted: no per-card draw weight is authored anywhere, only chapter banding,
+    /// so a uniform pick over the eligible set is the transcription. Inventing a weight column here
+    /// would be a distribution nothing specifies.
     /// </remarks>
     /// <exception cref="InvalidOperationException">The run's chapter has no eligible card.</exception>
     internal static string DrawCard(HandlerInput input, EventCatalogue catalogue)
@@ -65,22 +64,22 @@ internal static class EventTileResolver
     }
 
     /// <summary>
-    /// Draws and applies one outcome of the option the player chose — one draw on `14` §8.1's
-    /// <c>events</c> stream.
+    /// Draws and applies one outcome of the option the player chose — one draw on the <c>events</c>
+    /// stream.
     /// </summary>
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
     /// <param name="card">The card <c>Run.PendingEventCardId</c> named.</param>
     /// <param name="choiceIndex">Which option, by its position in <c>card.Options</c>.</param>
     /// <returns>
     /// Every <see cref="CurrencyChanged"/> the drawn outcome's effects produced, in effect order.
-    /// Empty when the outcome moves no currency — which is the common case, since most of `19` Part
-    /// A's mechanics are <see cref="EventEffectOp.Unsupported"/>.
+    /// Empty when the outcome moves no currency — the common case, since most outcomes are
+    /// <see cref="EventEffectOp.Unsupported"/>.
     /// </returns>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// 🔒 <paramref name="choiceIndex"/> is outside the card's options. A <b>defect</b>, not a
-    /// rejection: the handler answers the player <c>ILLEGAL_STATE</c> for an out-of-range choice
-    /// before ever reaching here, so an index arriving at this method is a miswired caller rather
-    /// than a player asking for an option that does not exist.
+    /// <paramref name="choiceIndex"/> is outside the card's options. A defect, not a rejection: the
+    /// handler answers the player <c>ILLEGAL_STATE</c> for an out-of-range choice before ever
+    /// reaching here, so an index arriving at this method is a miswired caller rather than a player
+    /// asking for an option that does not exist.
     /// </exception>
     internal static IReadOnlyList<DomainEvent> ResolveChoice(
         HandlerInput input, EventCard card, int choiceIndex)
@@ -109,10 +108,9 @@ internal static class EventTileResolver
         var outcome = input.Rng.Stream(RngStreams.Events).WeightedPick(table);
         var events = new List<DomainEvent>(outcome.Effects.Count);
 
-        // 🔒 Read ONCE for the whole outcome, and only when an effect actually scales — the read
-        // resolves three JSON pointers and re-runs their validation, and doing it per effect inside
-        // the loop below would repeat that work for every scaled row of a multi-effect outcome. Both
-        // sibling resolvers hoist it the same way (TreasureResolver, CacheResolver).
+        // Read ONCE for the whole outcome, and only when an effect actually scales — the read
+        // resolves JSON pointers and re-runs validation, so doing it per effect inside the loop
+        // below would repeat that work for every scaled row of a multi-effect outcome.
         var scalars = NeedsChapterScalars(outcome.Effects)
             ? ChapterScalarTuning.Read(input.Context.Content)
             : null;
@@ -127,7 +125,7 @@ internal static class EventTileResolver
 
     /// <summary>
     /// Whether any effect of this outcome is a chapter-scaled currency grant, and therefore whether
-    /// the chapter scalars have to be read at all. Most of `19` Part A's outcomes do not scale.
+    /// the chapter scalars have to be read at all. Most outcomes do not scale.
     /// </summary>
     private static bool NeedsChapterScalars(IReadOnlyList<EventEffect> effects)
     {
@@ -157,10 +155,9 @@ internal static class EventTileResolver
 
             case EventEffectOp.CurseReward:
             {
-                // 🔒 The SAME narrow table CurseTileResolver pays from, called rather than copied:
-                // two switches over four ids would be two places to get 19 Part E's numbers wrong.
-                // ⚠️ And the same limit applies — the reward is paid, the curse is NOT applied. See
-                // CurseTileResolver's remarks and GapRegister's Curses entry (M3-11).
+                // The SAME narrow table CurseTileResolver pays from, called rather than copied —
+                // two switches over the same ids would be two places to get the numbers wrong. The
+                // same limit applies: the reward is paid, the curse is NOT applied.
                 var (currency, amount) = CurseRewards.For(effect.CurseId!);
                 Move(input, currency, amount, events);
                 return;
@@ -168,11 +165,9 @@ internal static class EventTileResolver
 
             case EventEffectOp.None:
             case EventEffectOp.Unsupported:
-                // 🔒 Nothing happens, and for UNSUPPORTED that is the correct behaviour rather than a
-                // missing branch: the effect names a mechanic Core cannot execute (movement, battles,
-                // gear, perks, stat buffs, reveals, consumables) and its `note` says which milestone
-                // owns it. Inventing a substitute payout would be the plausible-looking hole S6
-                // forbids, and it would be indistinguishable downstream from a real reward.
+                // Nothing happens, and for UNSUPPORTED that is correct rather than a missing branch:
+                // the effect names a mechanic Core cannot execute yet. Inventing a substitute payout
+                // would be indistinguishable downstream from a real reward.
                 return;
 
             default:
@@ -193,10 +188,9 @@ internal static class EventTileResolver
 
         if (effect.ChapterScaled)
         {
-            // 🔒 ScaleMeta rather than a multiply by the scalar: 03 §7a rounds the scaled AMOUNT to
-            // a whole currency unit, never the scalar itself — see ChapterScalarTuning.ScaleMeta.
-            // `scalars` is non-null exactly when this branch is reachable: NeedsChapterScalars asks
-            // the same question of the same effects before the loop starts.
+            // ScaleMeta rather than a multiply by the scalar: the scaled amount rounds to a whole
+            // currency unit, never the scalar itself — see ChapterScalarTuning.ScaleMeta. `scalars`
+            // is non-null exactly when this branch is reachable.
             amount = scalars!.ScaleMeta(amount, input.Run.ChapterId);
         }
 
@@ -204,10 +198,10 @@ internal static class EventTileResolver
     }
 
     /// <summary>
-    /// 🔒 <c>GOLD</c> is the run's own currency (`10` §1) and moves through <c>Run</c>; the other
-    /// seven are META wallet currencies and move through <c>Player</c>. A zero amount is skipped
-    /// rather than moved — a <c>CurrencyChanged</c> with delta 0 would be a real, misleading row in
-    /// `21` §8.3's attribution log.
+    /// <c>GOLD</c> is the run's own currency and moves through <c>Run</c>; the other seven are META
+    /// wallet currencies and move through <c>Player</c>. A zero amount is skipped rather than moved
+    /// — a <c>CurrencyChanged</c> with delta 0 would be a real, misleading row in the attribution
+    /// log.
     /// </summary>
     private static void Move(HandlerInput input, CurrencyId currency, long amount, List<DomainEvent> events)
     {
@@ -223,7 +217,7 @@ internal static class EventTileResolver
 
     /// <summary>
     /// Applies an <see cref="EventEffectOp.HpPct"/> — a signed share of Max HP, clamped into
-    /// <c>0..MaxHp</c> here rather than by the aggregate (`30` §11.5).
+    /// <c>0..MaxHp</c> here rather than by the aggregate.
     /// </summary>
     private static void ApplyHpChange(Run run, double share)
     {

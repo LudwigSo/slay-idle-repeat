@@ -5,8 +5,8 @@ using Xunit;
 namespace SlayIdleRepeat.AssetProvenance.Tests;
 
 /// <summary>
-/// The delivery set: what counts as a delivered asset under `15` §D1 and `20` §5, and what the
-/// scan must never quietly treat as "nothing delivered".
+/// The delivery set: what counts as a delivered asset, and what the scan must never quietly treat
+/// as "nothing delivered".
 /// </summary>
 public sealed class DeliveryScanTests
 {
@@ -27,9 +27,9 @@ public sealed class DeliveryScanTests
     }
 
     /// <summary>
-    /// 🔒 The store lives under the delivery root and must not scan as an asset — but nothing else
-    /// is excluded. `15` §D1 / `20` §5 decide what a delivery is; a per-directory allow-list would
-    /// stop covering M8-06's pipeline the first time it renamed its output folder.
+    /// The store lives under the delivery root and must not scan as an asset — but nothing else is
+    /// excluded. A per-directory allow-list would stop covering the pipeline the first time it
+    /// renamed its output folder.
     /// </summary>
     [Fact]
     public void The_provenance_store_itself_is_not_a_delivery()
@@ -38,9 +38,8 @@ public sealed class DeliveryScanTests
         tree.Write("provenance/records/chr_hero_body_idle.json", "{}");
         tree.Write("provenance/README.md", "#");
 
-        // 🔒 A DELIVERY-FORMAT file inside the store. The .json and the .md above are already
-        // dropped by the extension filter, so with only those two the case would stay green after
-        // the exclusion was deleted — it would be proving the filter, not the exclusion.
+        // A DELIVERY-FORMAT file inside the store: the .json and .md above are already dropped by
+        // the extension filter, so without this the case would prove the filter, not the exclusion.
         tree.Write("provenance/records/chr_hero_body_idle.png");
         tree.Write("art/chr_hero_body_idle.png");
 
@@ -48,9 +47,8 @@ public sealed class DeliveryScanTests
     }
 
     /// <summary>
-    /// `15` §D1 — the exclusion is exact. On Linux <c>Provenance/</c> is a different directory from
-    /// the store, and excluding it case-insensitively would drop whatever was put there out of the
-    /// delivery set entirely.
+    /// The exclusion is exact. On Linux <c>Provenance/</c> is a different directory from the store,
+    /// and excluding it case-insensitively would drop whatever was put there from the delivery set.
     /// </summary>
     [Fact]
     public void Only_the_store_directory_itself_is_excluded_and_not_a_differently_cased_neighbour()
@@ -84,9 +82,8 @@ public sealed class DeliveryScanTests
     }
 
     /// <summary>
-    /// 🔒 An absent delivery root is a defect, not an empty delivery set. The two are
-    /// indistinguishable to a caller and only one of them is a pass — which is precisely the
-    /// failure mode that makes a gate over zero assets worth nothing.
+    /// An absent delivery root is a defect, not an empty delivery set — the two are indistinguishable
+    /// to a caller and only one of them is a pass.
     /// </summary>
     [Fact]
     public void A_missing_delivery_root_is_a_loud_failure_rather_than_zero_deliveries()
@@ -112,8 +109,8 @@ public sealed class DeliveryScanTests
     }
 
     /// <summary>
-    /// The committed state, stated as a fact rather than assumed: `15` §E / `20` §3 register 1,080
-    /// slots and <b>zero</b> of them are delivered, because every generating task in M8 is ⛔.
+    /// The committed state, stated as a fact rather than assumed: the register holds 1,080 slots and
+    /// <b>zero</b> of them are delivered.
     /// </summary>
     [Fact]
     public void Nothing_is_delivered_in_this_repository_today()

@@ -4,33 +4,18 @@ using SlayIdleRepeat.Core.Events;
 namespace SlayIdleRepeat.Core.Tests.Events;
 
 /// <summary>
-/// The shape rules `30` §7 puts on the <c>DomainEvent</c> hierarchy, factored out of the tests that
-/// state them so each one's <b>teeth</b> can be proven against a deliberately wrong shape.
+/// The shape rules the <c>DomainEvent</c> hierarchy must follow, factored out of the tests that state
+/// them so each one's teeth can be proven against a deliberately wrong shape. Every predicate takes
+/// its subject as a parameter rather than reading the assembly, so self-tests can drive them with
+/// test-only shapes that violate each rule.
 /// </summary>
-/// <remarks>
-/// The hierarchy is two types today, because four of §7's six events name payload types no milestone
-/// has authored and a fifth has no producer. Every rule is stated over a set that grows through M3, M4,
-/// M12 and M14, and each is written so the <i>next</i> event is governed without a test edit.
-/// <para>
-/// 🔒 A rule over a two-element set proves very little about itself, which is why every predicate takes
-/// its subject as a parameter rather than reading the assembly: the self-tests drive them with
-/// test-only shapes that violate each rule, so "this rule can fail" is demonstrated rather than
-/// asserted.
-/// </para>
-/// </remarks>
 internal static class DomainEventShape
 {
     /// <summary>
-    /// Every concrete event in <c>SlayIdleRepeat.Core.Events</c>: public, non-nested, derived
-    /// from <see cref="DomainEvent"/>.
+    /// Every concrete event in <c>SlayIdleRepeat.Core.Events</c>: public, non-nested, derived from
+    /// <see cref="DomainEvent"/>. This is the subject set of every rule in <c>DomainEventTests</c>
+    /// and must never be allowed to become empty quietly.
     /// </summary>
-    /// <remarks>
-    /// 🔒 This is the subject set of every rule in <c>DomainEventTests</c>, and it must never be
-    /// allowed to become empty quietly (steering S3). Renaming the namespace, or M1-06 making the
-    /// hierarchy internal, would take every rule below permanently green over nothing.
-    /// <c>DomainEventTests.The_hierarchy_this_suite_governs_is_the_one_that_exists</c> is the
-    /// floor under it.
-    /// </remarks>
     internal static IReadOnlyList<Type> ConcreteEvents { get; } =
         typeof(DomainEvent).Assembly
             .GetTypes()
@@ -40,14 +25,11 @@ internal static class DomainEventShape
             .OrderBy(t => t.Name, StringComparer.Ordinal)
             .ToArray();
 
-    /// <summary>Every public, non-nested type declared under <c>Core/Events/</c>, event or not.</summary>
-    /// <remarks>
-    /// Kept separate from <see cref="ConcreteEvents"/> so a type that lands in the namespace
-    /// <i>without</i> deriving from <see cref="DomainEvent"/> — a helper, an enum, a payload
-    /// record — is visible to
-    /// <c>DomainEventTests.Core_Events_holds_the_event_hierarchy_and_nothing_else</c> instead of
-    /// silently falling outside every rule here.
-    /// </remarks>
+    /// <summary>
+    /// Every public, non-nested type declared under <c>Core/Events/</c>, event or not. Kept separate
+    /// from <see cref="ConcreteEvents"/> so a type that lands here without deriving from
+    /// <see cref="DomainEvent"/> is still visible to the rules instead of silently falling outside them.
+    /// </summary>
     internal static IReadOnlyList<Type> PublicTypesUnderEvents { get; } =
         typeof(DomainEvent).Assembly
             .GetTypes()
@@ -56,18 +38,13 @@ internal static class DomainEventShape
             .OrderBy(t => t.Name, StringComparer.Ordinal)
             .ToArray();
 
-    /// <summary>
-    /// 🔒 <c>30</c> §7 — the event's ordinal within one <c>CommandResult</c>'s list, and the first
-    /// thing every constructor takes. Named once here so the rule and its message cannot drift.
-    /// </summary>
+    /// <summary>The event's ordinal within one <c>CommandResult</c>'s list, and the first thing every constructor takes.</summary>
     internal const string SequenceParameter = "Sequence";
 
     /// <summary>
-    /// The clock readings an event must never carry. `30` §9's
-    /// <c>Domain_has_no_ambient_time_or_randomness</c> bans the <i>calls</i> that produce these
-    /// inside <c>Core</c>; nothing banned an event <b>field</b> of one, which a caller outside
-    /// <c>Core</c> could fill from a real clock and which would then travel into the economy log
-    /// and every <c>stateHash</c> downstream of it.
+    /// The clock readings an event must never carry. Another rule bans the calls that produce these
+    /// inside <c>Core</c>, but nothing bans an event field of one, which a caller outside Core could
+    /// fill from a real clock and which would then travel downstream as if the domain had produced it.
     /// </summary>
     private static readonly IReadOnlyList<Type> ClockReadings = new[]
     {
@@ -89,15 +66,10 @@ internal static class DomainEventShape
     }
 
     /// <summary>
-    /// 🔒 `30` §7 — the event takes <c>int Sequence</c> as its <b>first</b> constructor parameter.
-    /// Empty means the rule holds.
+    /// The event takes <c>int Sequence</c> as its first constructor parameter — empty means the rule
+    /// holds. Position is the rule, not just presence: an event that took it second would still
+    /// compile and serialise, and would quietly break any construction that positions it by index.
     /// </summary>
-    /// <remarks>
-    /// The position is the rule, not just the presence. <c>GameRules.Apply</c> (M1-06) is the sole
-    /// assigner, and every one of `30` §7's six events is written <c>(int Sequence, …)</c>; an
-    /// event that took it second would still compile, still serialise, and still read correctly to
-    /// a human — and would quietly break any construction that positions the ordinal by index.
-    /// </remarks>
     internal static IReadOnlyList<string> SequenceParameterViolations(Type candidate)
     {
         var constructor = SoleConstructor(candidate);
@@ -133,14 +105,10 @@ internal static class DomainEventShape
     }
 
     /// <summary>
-    /// 🔒 `30` §7 / `30` §3 — the event carries no clock reading. Empty means the rule holds.
+    /// The event carries no clock reading — empty means the rule holds. Flattened types are
+    /// de-duplicated per property: <c>Flatten</c> reaches a <c>DateTimeOffset?</c> twice, and
+    /// reporting one property as two violations would make a count-based assertion read wrong.
     /// </summary>
-    /// <remarks>
-    /// The flattened types are de-duplicated per property. <c>Flatten</c> reaches a
-    /// <c>DateTimeOffset?</c> twice — once through <see cref="Nullable.GetUnderlyingType"/> and
-    /// once through the generic arguments of <c>Nullable&lt;T&gt;</c> — and reporting one property
-    /// as two violations would make any count-based assertion over this list read wrong.
-    /// </remarks>
     internal static IReadOnlyList<string> ClockReadingViolations(Type candidate) =>
         candidate
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -153,18 +121,11 @@ internal static class DomainEventShape
                 "further out, and it would travel into the 14 §7.1 economy log as if the domain had produced it.")
             .ToArray();
 
-    /// <summary>🔒 The event is immutable. Empty means the rule holds.</summary>
-    /// <remarks>
-    /// An <c>init</c> accessor is construction, not mutation, and is how a positional record is written.
-    /// A real <c>set</c> is not: the same list is an append-only Postgres log, an analytics payload, a
-    /// Feats counter input and the client's animation script, and a consumer that can rewrite it changes
-    /// what the other three see.
-    /// <para>
-    /// 🔒 <b>Accessibility is not the test</b> — any non-<c>init</c> setter is. The mutation this prevents
-    /// would be written <i>in</i> <c>Core</c>, by a handler holding an event it has already emitted, so
-    /// checking <c>IsPublic</c> alone would let the one shape a real author would reach for pass.
-    /// </para>
-    /// </remarks>
+    /// <summary>
+    /// The event is immutable — empty means the rule holds. An <c>init</c> accessor is construction,
+    /// not mutation; a real <c>set</c> is not, at any accessibility, since the mutation this prevents
+    /// would be written inside Core by a handler holding an event it already emitted.
+    /// </summary>
     internal static IReadOnlyList<string> SettablePropertyViolations(Type candidate) =>
         candidate
             .GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -177,14 +138,10 @@ internal static class DomainEventShape
             .ToArray();
 
     /// <summary>
-    /// Whether a type is a <c>record</c>, read off the <c>&lt;Clone&gt;$</c> method the compiler
-    /// emits for every record and for nothing else.
+    /// Whether a type is a record, read off the <c>&lt;Clone&gt;$</c> method the compiler emits for
+    /// every record and nothing else. Checked on <see cref="DomainEvent"/> rather than over
+    /// <see cref="ConcreteEvents"/>, since C# forbids a class from deriving from a record.
     /// </summary>
-    /// <remarks>
-    /// Checked on <see cref="DomainEvent"/> rather than over <see cref="ConcreteEvents"/>, because
-    /// the base is the only place it can fail: C# forbids a class from deriving from a record, so
-    /// every subtype is a record for exactly as long as the base is one.
-    /// </remarks>
     internal static bool IsRecord(Type candidate) =>
         candidate
             .GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance)

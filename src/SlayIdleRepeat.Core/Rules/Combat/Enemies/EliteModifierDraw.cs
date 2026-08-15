@@ -4,37 +4,22 @@ using SlayIdleRepeat.Core.Rng;
 namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 
 /// <summary>
-/// 🔒 `05` §6.2's Elite Modifier draw — one modifier per Elite, never the previous one.
+/// The Elite Modifier draw — one modifier per Elite, never the previous one.
 /// </summary>
 /// <remarks>
 /// <para>
-/// `05` §6.2: <em>"plus <b>one Elite Modifier</b> drawn from"</em> the eight, and 🔒 <em>"No Elite
-/// may draw the same modifier as the immediately preceding Elite in the same run — redraw on
-/// collision."</em>
+/// Redraw, not exclude-then-draw: the two produce the same distribution over eight equally weighted
+/// rows but a different number of draw indices, and the draw index is persisted and auditable — a
+/// replay of the same battle seed must reproduce the same attempts, so collapsing this to a single
+/// draw over seven rows would be a quiet determinism change dressed as a tidy-up.
 /// </para>
 /// <para>
-/// 🔒 <b>Redraw, not exclude-then-draw.</b> The two produce the same distribution over eight equally
-/// weighted rows and a <em>different number of draw indices</em>, and the draw index is persisted
-/// (`14` §8.1) and auditable. `05` §6.2 authors "redraw on collision", so that is what happens: the
-/// stream advances once per attempt, and a replay of the same battle seed reproduces the same
-/// attempts. Collapsing it to a single draw over seven rows would be a quiet determinism change
-/// dressed as a tidy-up.
-/// </para>
-/// <para>
-/// 🔒 <b>The weights are equal because `05` §6.2 states none.</b> It writes the eight names as a
-/// flat list. Inventing a weighting would be exactly the fabricated number `16` R6 forbids — see
-/// <see cref="UniformWeight"/>.
-/// </para>
-/// <para>
-/// ⚠️ <b>The seed is handed in.</b> `14` §8.1 roots the combat stream at a <c>battleSeed</c>;
-/// nothing here derives or holds a <c>runSeed</c>, and the caller opens the stream.
+/// The weights are equal because none are authored — see <see cref="UniformWeight"/>.
 /// </para>
 /// </remarks>
 internal static class EliteModifierDraw
 {
-    /// <summary>
-    /// 🔒 The weight every modifier carries, because `05` §6.2 states no weighting at all.
-    /// </summary>
+    /// <summary>The weight every modifier carries, since no weighting is authored.</summary>
     internal const double UniformWeight = 1.0;
 
     /// <summary>
@@ -42,28 +27,24 @@ internal static class EliteModifierDraw
     /// luck.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Not a rule of `05` §6.2 and not a change to it.</b> With eight equally weighted rows the
-    /// chance of this many consecutive collisions is 8⁻⁶⁴, so no reachable seed hits it — but a pool
-    /// that has been edited down to a single row would loop forever inside the game's hottest path,
-    /// and a hang is the one failure that cannot be diagnosed from a log. This converts it into a
-    /// throw that names the cause. If a future rule really does make a redraw likely, this constant
-    /// is the thing to argue with.
+    /// With eight equally weighted rows the chance of this many consecutive collisions is 8^-64, so
+    /// no reachable seed hits it — but a pool edited down to a single row would loop forever inside
+    /// the game's hottest path, and a hang cannot be diagnosed from a log. This converts it into a
+    /// throw that names the cause.
     /// </remarks>
     internal const int MaxAttempts = 64;
 
     /// <summary>
-    /// `05` §6.2 — draws one modifier, redrawing while it collides with the run's previous one.
+    /// Draws one modifier, redrawing while it collides with the run's previous one.
     /// </summary>
     /// <param name="rng">
-    /// A combat stream opened at the encounter's <c>battleSeed</c> — <c>new DeterministicRng(battleSeed,
-    /// RngStreams.Combat)</c>. Each attempt consumes exactly one draw index.
+    /// A combat stream opened at the encounter's battle seed. Each attempt consumes exactly one draw
+    /// index.
     /// </param>
-    /// <param name="modifiers">`05` §6.2's rows, as authored in <c>content/enemies/enemies.json</c>.</param>
+    /// <param name="modifiers">The rows, as authored in <c>content/enemies/enemies.json</c>.</param>
     /// <param name="history">The run's memory of the previous Elite's modifier.</param>
     /// <param name="noRepeat">
-    /// 🔒 <c>elites.noRepeatWithPreviousEliteInRun</c>, as authored. The rule's own switch, handed in
-    /// rather than assumed: the schema presents it as one, and a data key that looks like a switch
-    /// and is not is worse than no key — the next balance edit silently no-ops.
+    /// <c>elites.noRepeatWithPreviousEliteInRun</c>, as authored. Handed in rather than assumed.
     /// </param>
     /// <returns>The modifier drawn. The caller records it through <paramref name="history"/>.</returns>
     /// <exception cref="ArgumentException">
@@ -102,8 +83,7 @@ internal static class EliteModifierDraw
                 nameof(modifiers));
         }
 
-        // 🔒 Built once, outside the loop: WeightedPick reads the table and consumes one draw index
-        // per call, and rebuilding an identical table per attempt would only allocate.
+        // Built once, outside the loop: rebuilding an identical table per attempt would only allocate.
         var table = new List<(EliteModifier item, double weight)>(modifiers.Count);
         foreach (var row in modifiers)
         {

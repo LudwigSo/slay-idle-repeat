@@ -4,21 +4,15 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Primitives;
 
-/// <summary>
-/// `10` §1 — the eight wallet currencies, and the counters deliberately not among them.
-/// </summary>
+/// <summary>The eight wallet currencies, and the counters deliberately not among them.</summary>
 /// <remarks>
-/// Pinned against the 🔒 design decision as literal names. Its sibling in <c>Application.Tests</c> pins
-/// the same enum against <c>tuning/currencies.json</c> — independent on purpose: this one runs without
-/// a checkout, that one catches the data and the code drifting apart.
-/// <para>
-/// ⚠️ `16` O10 asks whether Merge Dust and Enhance Stones merge into one currency, taking the list from
-/// 8 to 7. Scheduled for M18. Until ruled on, eight.
-/// </para>
+/// Pinned as literal names. Its sibling in <c>Application.Tests</c> pins the same enum against
+/// <c>tuning/currencies.json</c> — independent on purpose: this one runs without a checkout, that
+/// one catches the data and the code drifting apart.
 /// </remarks>
 public sealed class CurrencyIdTests
 {
-    /// <summary>The `10` §1 wallet, in the order <c>tuning/currencies.json</c> declares it.</summary>
+    /// <summary>The wallet, in the order <c>tuning/currencies.json</c> declares it.</summary>
     private static readonly (string Name, int Wire)[] Wallet =
     {
         ("GOLD", 1),
@@ -91,15 +85,12 @@ public sealed class CurrencyIdTests
     }
 
     /// <summary>
-    /// 🔒 `10` §1.1 — counters, not currencies. They live under <c>nonWalletCounters</c> and must
-    /// never become <see cref="CurrencyId"/> members: a counter that gained a wallet slot would
-    /// start emitting <c>CurrencyChanged</c> and land in the income-attribution report as income.
+    /// Counters, not currencies. They live under <c>nonWalletCounters</c> and must never become
+    /// <see cref="CurrencyId"/> members: a counter that gained a wallet slot would start emitting
+    /// <c>CurrencyChanged</c> and land in the income-attribution report as income. One
+    /// <c>[InlineData]</c> row per counter rather than a loop over an array field, since a quietly
+    /// emptied array is a loop that asserts nothing and still passes.
     /// </summary>
-    /// <remarks>
-    /// One <c>[InlineData]</c> row per counter rather than a loop over an array field: an array that
-    /// was quietly emptied is a loop that runs zero times and a case that asserts nothing, and xUnit
-    /// cannot tell that apart from a passing test.
-    /// </remarks>
     [Theory]
     [InlineData("BEAST_MARKS")]
     [InlineData("SET_TOKENS")]

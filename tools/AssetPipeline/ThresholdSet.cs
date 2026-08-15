@@ -4,8 +4,7 @@ namespace SlayIdleRepeat.AssetPipeline;
 
 /// <summary>
 /// A calibrated threshold value. Numeric for sixteen of the seventeen keys; a colour list for
-/// <see cref="ThresholdKeys.PaletteNeutrals"/>, which `15` §A5 names ("+ neutrals") and never
-/// enumerates.
+/// <see cref="ThresholdKeys.PaletteNeutrals"/>, the one left unenumerated.
 /// </summary>
 public abstract record ThresholdValue
 {
@@ -22,79 +21,68 @@ public sealed record NumericThreshold(double Value) : ThresholdValue;
 /// <param name="Colours">The stated colours, in the order the caller stated them.</param>
 public sealed record ColourListThreshold(IReadOnlyList<string> Colours) : ThresholdValue;
 
-/// <summary>
-/// The greppable register of every number `15` does <b>not</b> authorise.
-/// </summary>
-/// <remarks>
-/// 🔒 One name per hole. A step or a QA check asks for a key by one of these constants, so
-/// <c>grep</c> over this file answers "what has nobody calibrated yet?" in one pass.
-/// </remarks>
+/// <summary>The greppable register of every number nobody has calibrated yet.</summary>
 public static class ThresholdKeys
 {
-    /// <summary>Step 1 — how close to the sampled border colour counts as background.</summary>
+    /// <summary>How close to the sampled border colour counts as background.</summary>
     public const string BackgroundKeyTolerance = "backgroundKeyTolerance";
 
-    /// <summary>Step 1 — how hard to un-mix the background colour out of edge pixels.</summary>
+    /// <summary>How hard to un-mix the background colour out of edge pixels.</summary>
     public const string MatteDecontaminationStrength = "matteDecontaminationStrength";
 
-    /// <summary>Step 4, QA 3 — how far from `#231A2E` still reads as outline (antialiasing).</summary>
+    /// <summary>How far from the outline colour still reads as outline (antialiasing).</summary>
     public const string OutlineColourTolerance = "outlineColourTolerance";
 
-    /// <summary>Step 4 — the largest gap treated as a break to close, not a design feature.</summary>
+    /// <summary>The largest gap treated as a break to close, not a design feature.</summary>
     public const string OutlineGapClosureRadius = "outlineGapClosureRadius";
 
-    /// <summary>QA 3 — permitted spread around the `15` §A3 3-4 px band.</summary>
+    /// <summary>Permitted spread around the authorised outline-width band.</summary>
     public const string OutlineWidthUniformityTolerance = "outlineWidthUniformityTolerance";
 
-    /// <summary>Step 3, QA 5 — `15` §A5 says "+ neutrals" and never enumerates them.</summary>
+    /// <summary>The palette's unenumerated "+ neutrals".</summary>
     public const string PaletteNeutrals = "paletteNeutrals";
 
-    /// <summary>Step 3, QA 5 — per-pixel distance at which a colour counts as on-palette.</summary>
+    /// <summary>Per-pixel distance at which a colour counts as on-palette.</summary>
     public const string PaletteMatchTolerance = "paletteMatchTolerance";
 
-    /// <summary>Step 5 — §B4 gives the sharpen amount (0.4) but no radius/sigma.</summary>
+    /// <summary>The resize step's sharpen radius/sigma (the amount is authorised; the radius is not).</summary>
     public const string ResizeSharpenRadius = "resizeSharpenRadius";
 
-    /// <summary>Step 6 — the pngquant substitute's palette size.</summary>
+    /// <summary>The pngquant substitute's palette size.</summary>
     public const string ExportColourBudget = "exportColourBudget";
 
-    /// <summary>Step 6 — the accept/reject floor standing in for pngquant's quality 80.</summary>
+    /// <summary>The accept/reject floor standing in for pngquant's quality setting.</summary>
     public const string ExportMaxMeanError = "exportMaxMeanError";
 
-    /// <summary>QA 6 — permitted semi-transparent fringe.</summary>
+    /// <summary>Permitted semi-transparent fringe.</summary>
     public const string HaloMaxFringeRatio = "haloMaxFringeRatio";
 
-    /// <summary>QA 6 — how white or black a fringe pixel may be.</summary>
+    /// <summary>How white or black a fringe pixel may be.</summary>
     public const string HaloMaxLuminanceDeviation = "haloMaxLuminanceDeviation";
 
-    /// <summary>`15` §A4 gate — minimum share of the frame the silhouette must occupy.</summary>
+    /// <summary>Minimum share of the frame the silhouette must occupy.</summary>
     public const string SilhouetteMinCoverageRatio = "silhouetteMinCoverageRatio";
 
-    /// <summary>`15` §A4 gate — minimum share of its own bounding box the silhouette must fill.</summary>
+    /// <summary>Minimum share of its own bounding box the silhouette must fill.</summary>
     public const string SilhouetteMinBoundingBoxFill = "silhouetteMinBoundingBoxFill";
 
-    /// <summary>`15` §A4 gate — maximum number of 8-connected components.</summary>
+    /// <summary>Maximum number of 8-connected components.</summary>
     public const string SilhouetteMaxComponentCount = "silhouetteMaxComponentCount";
 
-    /// <summary>`15` §A4 gate — minimum distance from an already-accepted silhouette.</summary>
+    /// <summary>Minimum distance from an already-accepted silhouette.</summary>
     public const string SilhouetteMinDistinguishability = "silhouetteMinDistinguishability";
 
-    /// <summary>QA 8 mechanical proxy — corner opacity above which a signature is suspected.</summary>
+    /// <summary>Corner opacity above which a signature is suspected.</summary>
     public const string WatermarkCornerOpacityCeiling = "watermarkCornerOpacityCeiling";
 }
 
-/// <summary>
-/// Asked for a threshold `15` does not authorise and nobody has calibrated.
-/// </summary>
-/// <remarks>
-/// 🔒 Steering rule S6: <em>"Never coerce such a hole to a default at read time; fail loudly."</em>
-/// The message names the key so a failing run says which hole stopped it, not merely that one did.
-/// </remarks>
+/// <summary>Asked for a threshold nobody has calibrated.</summary>
+/// <remarks>Never coerced to a default at read time; fails loudly, naming the key.</remarks>
 public sealed class UncalibratedThresholdException : InvalidOperationException
 {
     /// <summary>Creates the exception for one key.</summary>
     /// <param name="key">The <see cref="ThresholdKeys"/> constant that is null.</param>
-    /// <param name="neededBy">What asked for it, e.g. "15 §B4 step 1".</param>
+    /// <param name="neededBy">What asked for it.</param>
     public UncalibratedThresholdException(string key, string neededBy)
         : base($"Threshold '{key}' is uncalibrated: {neededBy} needs it and `15` authorises no " +
                $"value for it. It ships as null in {ThresholdSet.ThresholdsPath} on purpose " +
@@ -112,48 +100,34 @@ public sealed class UncalibratedThresholdException : InvalidOperationException
     public string NeededBy { get; }
 }
 
-/// <summary>
-/// The seventeen uncalibrated thresholds, and the refusal to default any of them.
-/// </summary>
+/// <summary>The seventeen uncalibrated thresholds, and the refusal to default any of them.</summary>
 /// <remarks>
 /// <para>
 /// The shipped file at <see cref="ThresholdsPath"/> holds every key with the value <c>null</c>.
-/// M8-10 is the first batch that could calibrate them. Until then every read throws
-/// <see cref="UncalibratedThresholdException"/> naming the key.
+/// Until a batch calibrates them, every read throws <see cref="UncalibratedThresholdException"/>
+/// naming the key.
 /// </para>
 /// <para>
-/// 🔒 A caller MAY state a value in code with <see cref="With"/> / <see cref="WithColours"/>. That
-/// is a caller's stated decision, recorded at the call site, not a default — the distinction is
-/// the whole point, and a test that states one must say in a comment why the value is
-/// arbitrary-but-sufficient for the fixture it drives.
+/// A caller MAY state a value in code with <see cref="With"/> / <see cref="WithColours"/>. That is
+/// a caller's stated decision, recorded at the call site, not a default — the distinction is the
+/// whole point.
 /// </para>
 /// </remarks>
 public sealed class ThresholdSet
 {
     /// <summary>Where the shipped register lives, relative to the repository root.</summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <c>assets/</c>, NOT <c>game-data/</c>: <c>LocalFileContentSource</c> enumerates every
-    /// <c>*.json</c> under <c>game-data</c> into the <c>ContentSnapshot</c> whose hash M0-09 makes
-    /// load-bearing for replay, and a pipeline tuning file has no business moving that stamp.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Nothing under <c>assets/pipeline/</c> may be a <c>.png</c>, <c>.ogg</c> or <c>.wav</c>.</b>
-    /// M8-01a's asset provenance gate walks <c>assets/**</c> recursively as the delivery root and
-    /// demands a provenance record for every file it finds with one of those three extensions. A
-    /// <c>.json</c> tuning register is invisible to it, which is why this file is safe here, but an
-    /// image or a sound dropped beside it would be read as an undocumented delivered asset and fail
-    /// the gate. Image output goes to <c>artifacts/</c> (gitignored), never here — nothing this
-    /// pipeline writes belongs under a delivery root.
-    /// </para>
+    /// Under <c>assets/</c>, not <c>game-data/</c>: a pipeline tuning file has no business moving
+    /// the content-hash stamp game data files carry. Nothing under <c>assets/pipeline/</c> may be a
+    /// <c>.png</c>, <c>.ogg</c> or <c>.wav</c> either — those extensions are treated as delivered
+    /// assets requiring provenance elsewhere in the repo, and a <c>.json</c> tuning register is
+    /// invisible to that check, which is why it is safe here.
     /// </remarks>
     public const string ThresholdsPath = "assets/pipeline/thresholds.json";
 
-    /// <summary>
-    /// Every uncalibrated key, in the order the M8-06 handover tabulates them.
-    /// </summary>
+    /// <summary>Every uncalibrated key.</summary>
     /// <remarks>
-    /// 🔒 Literal data rather than a read of the shipped file: the file is checked <em>against</em>
+    /// Literal data rather than a read of the shipped file: the file is checked <em>against</em>
     /// this list, so a key silently dropped from the file is a test failure rather than a shorter
     /// list that agrees with itself.
     /// </remarks>
@@ -181,14 +155,7 @@ public sealed class ThresholdSet
     /// <summary>The one member of a <see cref="ThresholdsPath"/>-shaped file that is not a key.</summary>
     private const string DocMember = "_doc";
 
-    /// <summary>
-    /// What asks for each key, so the refusal says which step or check stopped and where to look.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 Seventeen holes can throw the same exception type. "An uncalibrated threshold stopped the
-    /// batch" tells a reader nothing about which of the seventeen to go and measure, so the message
-    /// carries both the key and its consumer (steering rule S2).
-    /// </remarks>
+    /// <summary>What asks for each key, so the refusal says which step or check stopped and where to look.</summary>
     private static readonly IReadOnlyDictionary<string, string> Consumers =
         new Dictionary<string, string>(StringComparer.Ordinal)
         {

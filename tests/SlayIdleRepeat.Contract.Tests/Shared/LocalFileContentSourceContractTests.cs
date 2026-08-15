@@ -5,13 +5,8 @@ namespace SlayIdleRepeat.Contract.Tests.Shared;
 
 /// <summary>
 /// The same contract, run against the real filesystem adapter — the implementation both hosts
-/// actually boot on.
+/// actually boot on. Writes into a temporary directory of its own and deletes it afterwards.
 /// </summary>
-/// <remarks>
-/// It writes into a temporary directory of its own and deletes it afterwards. `23` §3 keeps the
-/// filesystem out of <c>Application</c>'s tests; this project is where an adapter is allowed to
-/// touch the thing it adapts, and where the two implementations are proven to agree.
-/// </remarks>
 public sealed class LocalFileContentSourceContractTests : IContentSourcePortContractTests
 {
     private readonly string _root =
@@ -32,10 +27,8 @@ public sealed class LocalFileContentSourceContractTests : IContentSourcePortCont
     {
         WriteFile(documentPath, utf8Text);
 
-        // The revision is derived from paths, sizes and last-write ticks. A write inside the
-        // filesystem's timestamp granularity would otherwise produce the same token for different
-        // content — the adapter's own doc flags that, and this keeps the contract case honest
-        // rather than papering over it.
+        // Revision is derived from last-write ticks; push the timestamp forward so a write inside
+        // the filesystem's timestamp granularity doesn't produce the same token as before.
         var stamp = DateTime.UtcNow.AddSeconds(2);
         File.SetLastWriteTimeUtc(Path.Combine(_root, documentPath.Replace('/', Path.DirectorySeparatorChar)), stamp);
     }

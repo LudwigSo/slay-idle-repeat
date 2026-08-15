@@ -11,21 +11,13 @@ using SlayIdleRepeat.BalanceHarness.Sweep;
 
 namespace SlayIdleRepeat.BalanceHarness.Cli;
 
-/// <summary>
-/// 🔒 `21` §10's CLI — what each of the three commands actually does, and the exit code it produces.
-/// </summary>
+/// <summary>The CLI — what each of the three commands does, and the exit code it produces.</summary>
 /// <remarks>
-/// <para>
-/// 🔴 <b><c>assert</c> exits non-zero when a guardrail breaches, and on the shipped data it DOES.</b>
-/// That is the harness working, not a defect. Nothing here softens a band, scales a build, or excludes
-/// a cell to make the exit code zero. `05` §9's numbers are read from
-/// <c>tuning/par_power.json</c> and are asserted as authored.
-/// </para>
-/// <para>
-/// 🔒 A guardrail that could not be measured at all exits non-zero too. See
-/// <see cref="GuardrailVerdict.Inconclusive"/>: an empty subject set satisfies a "for all" assertion
+/// <c>assert</c> exits non-zero when a guardrail breaches, and on the shipped data it does — that is
+/// the harness working, not a defect; nothing here softens a band or excludes a cell to force a zero
+/// exit. A guardrail that could not be measured at all also exits non-zero (see
+/// <see cref="GuardrailVerdict.Inconclusive"/>): an empty subject set satisfies a "for all" assertion
 /// vacuously, and a nightly job that went green because it measured nothing is worse than no job.
-/// </para>
 /// </remarks>
 public static class HarnessRun
 {
@@ -38,13 +30,11 @@ public static class HarnessRun
     /// <summary>The arguments were not understood.</summary>
     public const int ExitBadArguments = 2;
 
-    /// <summary>The tier the two experiments and the diagnostics are measured at.</summary>
-    /// <remarks>
-    /// `29` §4's base tier: it is the one every chapter's first encounter with a boss happens at, and
-    /// it keeps the experiments comparable across chapters. Both experiments are diagnosis, and
-    /// running them at all three tiers would triple their cost for a sensitivity question the base
-    /// tier already answers.
-    /// </remarks>
+    /// <summary>
+    /// The tier the two experiments and the diagnostics are measured at — the base tier every chapter's
+    /// first boss encounter happens at, keeping results comparable across chapters without tripling the
+    /// cost by running all three tiers for a sensitivity question the base tier already answers.
+    /// </summary>
     public const Tier ExperimentTier = Tier.NORMAL;
 
     /// <summary>Fights per arm of the two experiments.</summary>
@@ -58,15 +48,11 @@ public static class HarnessRun
 
     /// <summary>Runs the CLI and returns the process exit code.</summary>
     /// <remarks>
-    /// 🔒 <b>The invariant culture is pinned here, not only in <c>Program</c>.</b> The report is a
-    /// diffable artefact — a nightly job compares it run to run and a design decision is made off it —
-    /// and this checkout's own toolchain output is German. A clear rate that reads <c>62,00%</c> on one
-    /// host and <c>62.00%</c> on another is not diffable, and a decimal comma inside a
-    /// comma-separated table is worse than not diffable. It is set here rather than only at the
-    /// process entry point because <c>SlayIdleRepeat.Core.Tests</c> calls this method directly, and a
-    /// report the suite formats differently from the CLI would make every literal-output assertion a
-    /// statement about the developer's regional settings. <see cref="CultureInfo.DefaultThreadCurrentCulture"/>
-    /// is set too, because the sweep runs on <see cref="Parallel"/>'s thread pool.
+    /// The invariant culture is pinned here (not only in <c>Program</c>) because
+    /// <c>SlayIdleRepeat.Core.Tests</c> calls this method directly, and the report is a diffable
+    /// artefact that must not vary with the developer's regional settings (e.g. <c>62,00%</c> vs
+    /// <c>62.00%</c>). <see cref="CultureInfo.DefaultThreadCurrentCulture"/> is set too, since the
+    /// sweep runs on <see cref="Parallel"/>'s thread pool.
     /// </remarks>
     public static int Run(IReadOnlyList<string> args, TextWriter output)
     {
@@ -95,11 +81,8 @@ public static class HarnessRun
         var report = new StringBuilder();
         int exitCode;
 
-        // 🔴 The buffered report survives ANY fault below, not only a diagnostics one.
-        //    TryWriteDiagnosticsAndExperiments covers the one path M2-16a knew about; every other
-        //    line of Execute — the loader, the sweep, and the report writers themselves — was still
-        //    able to discard a finished half-hour sweep by throwing before `report` reached a writer.
-        //    This is the outermost statement of the same rule: what was measured gets written.
+        // The buffered report survives ANY fault below (not just a diagnostics one): whatever was
+        // measured before the throw still gets written, rather than discarding a finished sweep.
         try
         {
             exitCode = Execute(options, report);
@@ -120,9 +103,8 @@ public static class HarnessRun
 
         if (options.OutputPath is not null && !TryWriteOutputFile(options.OutputPath, text, output))
         {
-            // 🔴 The report reached stdout but not the file the caller asked for. A nightly job
-            //    diffing the artefact would otherwise compare against a stale file and call it
-            //    "no change" — the quietest possible way for this tool to be wrong.
+            // Report reached stdout but not the requested file: force a non-zero exit so a nightly
+            // job diffing the file doesn't compare against a stale copy and call it "no change".
             exitCode = exitCode == ExitSuccess ? ExitGuardrailBreach : exitCode;
         }
 
@@ -130,14 +112,10 @@ public static class HarnessRun
     }
 
     /// <summary>
-    /// Writes the report to <c>--out</c>, reporting a filesystem refusal rather than throwing it.
+    /// Writes the report to <c>--out</c>, reporting a filesystem refusal rather than throwing it — it
+    /// arrives after the report is already on stdout, so an unhandled exception here would replace a
+    /// documented exit code over a failure that cost the run nothing.
     /// </summary>
-    /// <remarks>
-    /// A missing parent directory or a read-only path is a fact about the caller's arguments, not a
-    /// finding about the game, and it arrives AFTER the report has already been written to stdout —
-    /// so letting it propagate would replace one of the three documented exit codes with an unhandled
-    /// exception, over a failure that cost the run nothing.
-    /// </remarks>
     private static bool TryWriteOutputFile(string path, string text, TextWriter output)
     {
         try
@@ -203,9 +181,8 @@ public static class HarnessRun
         report.AppendLine(
             $"total wall clock: {totalStopwatch.Elapsed.TotalSeconds:0.00} s");
 
-        // 🔴 An engine fault counts as a non-pass. A sweep that could not simulate some of its cells
-        // has graded its guardrails over a subject set nobody chose, and a nightly job that went green
-        // on that is exactly the failure the Inconclusive verdict exists to prevent.
+        // An engine fault counts as a non-pass: guardrails graded over a smaller subject set than
+        // asked for must not read as green.
         var breached = guardrails.Any(g => !g.Passed) || !sporequeen.Passed || sweep.Faults.Count > 0
             || diagnosticsFaulted;
 
@@ -324,27 +301,13 @@ public static class HarnessRun
             && TryWriteDiagnosticsAndExperiments(report, options, runner, scope, sweep);
     }
 
-    /// <summary>
-    /// 🔴 The diagnostics and the two experiments, with an engine fault REPORTED rather than thrown.
-    /// </summary>
+    /// <summary>The diagnostics and the two experiments, with an engine fault reported rather than thrown.</summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>Everything above this point is a completed measurement, and an exception here would throw
-    /// all of it away.</b> The report is accumulated into a <see cref="StringBuilder"/> and only written
-    /// to stdout and to <c>--out</c> after <c>Execute</c> returns, so an unhandled fault in a diagnostic
-    /// discards a finished 10 000-fight-per-cell sweep — 120 cells and roughly half an hour of
-    /// simulation — and leaves a stack trace in its place. That is precisely the failure
-    /// <see cref="SweepRunner.TryRunCell"/> exists to prevent one layer down, and the diagnostics were
-    /// the one path still uncovered: <c>StatElasticity.Measure</c> calls <c>RunCell</c> directly, and
-    /// <c>ClearRateCalibration</c>'s own remarks record that raising a hero's power is exactly what
-    /// walks a fight into the boss phase where a script faults.
-    /// </para>
-    /// <para>
-    /// 🔒 The fault is a non-pass, so <c>Execute</c> still exits non-zero: a run whose report is
-    /// incomplete must not look like a run that had nothing to report. The catch filter is
-    /// <see cref="SweepRunner.TryRunCell"/>'s, for its reason — an <see cref="OutOfMemoryException"/> is
-    /// not a finding about the game and there is nothing useful to write after one.
-    /// </para>
+    /// The report only reaches stdout/<c>--out</c> after <c>Execute</c> returns, so an unhandled fault
+    /// here would discard an already-finished, potentially half-hour sweep. <c>StatElasticity.Measure</c>
+    /// calls <c>RunCell</c> directly and was the one path not already covered by
+    /// <see cref="SweepRunner.TryRunCell"/>'s own fault handling. The fault still counts as a non-pass so
+    /// <c>Execute</c> exits non-zero; the catch filter matches <see cref="SweepRunner.TryRunCell"/>'s.
     /// </remarks>
     private static bool TryWriteDiagnosticsAndExperiments(
         StringBuilder report,
@@ -357,10 +320,9 @@ public static class HarnessRun
         {
             var probes = WriteDiagnostics(report, runner, scope, sweep);
 
-            // 🔴 Both experiments target boss PHASE mechanics, and `17` §1's phases are HP bands. The
-            // second arm of each is run at the multiple where the build actually reaches phase 3 —
-            // otherwise the effect under test never fires and the A/B reports a difference of zero
-            // that reads like "it does not matter" and means "it never happened".
+            // The second arm of each experiment runs at the multiple where the build actually reaches
+            // boss phase 3 — otherwise the effect under test never fires and a zero difference reads
+            // as "it does not matter" when it means "it never happened".
             WriteExperiments(report, options, runner, new ShortfallLookup(probes));
 
             return false;
@@ -387,8 +349,8 @@ public static class HarnessRun
         report.AppendLine(
             "target. 21 §3.2 keeps retuning with design: this is evidence, not a proposal.");
 
-        // Over the SWEPT chapters and archetypes rather than every authored one, so that a narrowed
-        // --chapters run does not silently pay for a full-game diagnostic it did not ask for.
+        // Over the swept chapters/archetypes, not every authored one, so a narrowed --chapters run
+        // doesn't silently pay for a full-game diagnostic.
         var probes = new List<ShortfallProbe>();
         foreach (var chapter in scope.Chapters)
         {
@@ -410,12 +372,9 @@ public static class HarnessRun
             $"median shortfall over {probes.Count} probes: {CellResult.Percentile(median, 0.50):0.00} × par " +
             $"(range {median[0]:0.00} – {median[^1]:0.00})");
 
-        // The elasticity table is measured where the fight is close, because at par nothing clears and
-        // every delta would be identically zero. The multiple comes from the probe above.
-        //
-        // ARCH_TANK_THORNS when it is in scope: it is the ONLY archetype that holds THORNS above 0, so
-        // it is the only one whose THORNS row is a 1% step of a real value rather than the labelled
-        // absolute probe — and THORNS is half of what this table exists to say something about.
+        // Measured at the probe's multiple (where the fight is close), not at par, or every delta would
+        // be identically zero. Prefer ARCH_TANK_THORNS when in scope: it's the only archetype whose
+        // THORNS value is nonzero, so its row is a real 1% step rather than the labelled absolute probe.
         var elasticityProbe =
             probes.FirstOrDefault(p => string.Equals(p.ArchetypeId, "ARCH_TANK_THORNS", StringComparison.Ordinal))
             ?? probes[0];
@@ -468,9 +427,8 @@ public static class HarnessRun
     private static void WriteExperiments(
         StringBuilder report, HarnessOptions options, SweepRunner runner, ShortfallLookup shortfall)
     {
-        // 🔒 Two passes for each experiment. The first is `05` §9's own condition — at par — and reports
-        // the null result together with the reason it is null. The second is at each build's own
-        // measured shortfall multiple, which is the only place the effect under test actually fires.
+        // Two passes: at par (reports the null result with the reason it's null), and at each build's
+        // own measured shortfall multiple, the only place the effect under test actually fires.
         var passes = new (Func<int, string, double> Multiple, string Label)[]
         {
             ((_, _) => 1.0, "1.00 ×"),
@@ -555,20 +513,11 @@ public static class HarnessRun
         double.IsNaN(phase) ? NoCells : ((int)phase).ToString(CultureInfo.InvariantCulture);
 
     /// <summary>
-    /// 🔴 The maximum of a per-cell reading, or <see cref="double.NaN"/> when the sweep produced no
-    /// cell at all.
+    /// The maximum of a per-cell reading, or <see cref="double.NaN"/> when the sweep produced no cell
+    /// at all — every cell can fault (<c>SweepRunner.TryRunCell</c>), so <c>sweep.Cells</c> can be
+    /// empty while <c>sweep.Faults</c> is full, and <c>Enumerable.Max</c> on empty would throw instead
+    /// of letting the report show the faults. Mirrors <c>CellResult.Percentile</c>'s NaN answer.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔴 <b>Every cell can fault.</b> <c>SweepRunner.TryRunCell</c> records a fault and drops the
-    /// cell, so a systemic engine regression or a <c>--data</c> snapshot that breaks every fight
-    /// leaves <c>sweep.Cells</c> empty while <c>sweep.Faults</c> is full. <c>Enumerable.Max</c> on
-    /// that throws <em>"Sequence contains no elements"</em> — a message that names neither the rule
-    /// nor the input, from inside the writer of a report whose whole purpose at that moment is to
-    /// show the faults. <c>CellResult.Percentile</c> already answers <c>NaN</c> for the same reason
-    /// and this is the same answer for the same question.
-    /// </para>
-    /// </remarks>
     private static double MaxOverCells(SweepResult sweep, Func<CellResult, double> reading)
     {
         var max = double.NaN;

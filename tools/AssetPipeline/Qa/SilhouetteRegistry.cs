@@ -3,42 +3,32 @@ using SkiaSharp;
 namespace SlayIdleRepeat.AssetPipeline.Qa;
 
 /// <summary>One silhouette a reviewer has already accepted, kept so the next one can be told apart from it.</summary>
-/// <param name="AssetId">The accepted asset's `15` §D1 id.</param>
-/// <param name="Category">Its §D1 category prefix — see <see cref="AssetNaming.CategoryOf"/>.</param>
+/// <param name="AssetId">The accepted asset's id.</param>
+/// <param name="Category">Its category prefix — see <see cref="AssetNaming.CategoryOf"/>.</param>
 /// <param name="Mask">
 /// Its 64x64 mask as <see cref="SilhouetteGate.Render"/> produced it. Stored rather than recomputed
-/// so that acceptance records what was actually approved, not what today's renderer would make of
-/// the source again.
+/// so acceptance records what was actually approved, not what today's renderer would make of the
+/// source again.
 /// </param>
 public sealed record AcceptedSilhouette(string AssetId, string Category, SKBitmap Mask);
 
-/// <summary>
-/// The `15` §A4 silhouettes already accepted, keyed by `15` §D1 category.
-/// </summary>
+/// <summary>The silhouettes already accepted, keyed by category.</summary>
 /// <remarks>
 /// <para>
-/// §A4's bar is <em>"If you cannot tell which character it is"</em> — a statement about telling one
-/// asset apart from another, which needs the others. This is the "others": the set a new asset's
-/// <see cref="SilhouetteMeasurement.Distinguishability"/> is measured against.
+/// This is the set a new asset's <see cref="SilhouetteMeasurement.Distinguishability"/> is measured
+/// against, kept per category rather than per batch: a hero body and a currency icon being similar
+/// in silhouette says nothing, and comparing across categories would drown a real collision in noise.
 /// </para>
 /// <para>
-/// 🔒 <b>Per category, not per batch.</b> Part F item 11 says "in the same category" for the same
-/// reason: a hero body and a currency icon being similar in silhouette says nothing, and comparing
-/// across categories would drown a real collision between two enemies in noise.
-/// </para>
-/// <para>
-/// 🔒 Immutable. <see cref="Accept"/> returns a new registry, the same way
-/// <see cref="ThresholdSet.With"/> does, so a check can never widen the set it is being judged
-/// against as a side effect of judging.
+/// Immutable — <see cref="Accept"/> returns a new registry — so a check can never widen the set it
+/// is being judged against as a side effect of judging.
 /// </para>
 /// </remarks>
 public sealed class SilhouetteRegistry
 {
     /// <summary>
-    /// Everything accepted, in acceptance order. One flat list rather than a dictionary of lists:
-    /// the registry is read per category and written once per accepted asset, and a flat list keeps
-    /// both "in the order it was accepted" and "in ordinal category order" derivable rather than
-    /// stored.
+    /// Everything accepted, in acceptance order. A flat list rather than a dictionary of lists
+    /// since both "acceptance order" and "category order" stay cheaply derivable.
     /// </summary>
     private readonly IReadOnlyList<AcceptedSilhouette> accepted;
 
@@ -70,7 +60,7 @@ public sealed class SilhouetteRegistry
     ];
 
     /// <summary>This registry plus one accepted silhouette.</summary>
-    /// <param name="assetId">The accepted asset's `15` §D1 id.</param>
+    /// <param name="assetId">The accepted asset's id.</param>
     /// <param name="mask">Its 64x64 mask, from <see cref="SilhouetteGate.Render"/>.</param>
     /// <returns>A new registry. This one is unchanged.</returns>
     public SilhouetteRegistry Accept(string assetId, SKBitmap mask)
@@ -78,15 +68,14 @@ public sealed class SilhouetteRegistry
         ArgumentNullException.ThrowIfNull(assetId);
         ArgumentNullException.ThrowIfNull(mask);
 
-        // 🔒 Derived, never taken. A caller that could state the category could file a hero under
-        // "icon", and every subsequent hero would be measured against a bucket it does not belong
-        // to — which reads as "maximally distinguishable" and passes forever.
+        // Category is derived, never taken as a parameter, so a caller can't misfile a hero under
+        // "icon" and have it measured against the wrong bucket forever.
         var entry = new AcceptedSilhouette(assetId, AssetNaming.CategoryOf(assetId), mask);
         return new SilhouetteRegistry([.. accepted, entry]);
     }
 
     /// <summary>Everything accepted in one category, in the order it was accepted.</summary>
-    /// <param name="category">A `15` §D1 category prefix. An unknown one yields an empty list.</param>
+    /// <param name="category">A category prefix. An unknown one yields an empty list.</param>
     public IReadOnlyList<AcceptedSilhouette> InCategory(string category)
     {
         ArgumentNullException.ThrowIfNull(category);

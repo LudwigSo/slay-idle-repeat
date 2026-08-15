@@ -3,9 +3,9 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Core.Tests.Content.Perks;
 
 /// <summary>
-/// Hermetic <c>content/perks/perks.json</c> fixtures — a small catalogue spanning every `06` §4
-/// rarity band and more than one `06` §2 category, enough to exercise <c>PerkCatalogue</c> and the
-/// M3-06 draft engine without depending on the shipped 46-row set.
+/// Hermetic <c>content/perks/perks.json</c> fixtures — a small catalogue spanning every rarity band
+/// and more than one category, enough to exercise <c>PerkCatalogue</c> and the draft engine without
+/// depending on the shipped 46-row set.
 /// </summary>
 internal static class PerkDocuments
 {

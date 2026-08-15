@@ -5,26 +5,17 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.BalanceHarness.Content;
 
 /// <summary>
-/// 🔒 <c>tuning/par_power.json</c> — `29` §4's twenty-four authored <c>(chapter, tier)</c> par cells
-/// and `05` §9's clear-rate band.
+/// <c>tuning/par_power.json</c> — the twenty-four authored <c>(chapter, tier)</c> par cells and the
+/// clear-rate band.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The twenty-four cells are read, never recomputed.</b> The file carries a
-/// <c>defaultFill</c> block (<c>1000 × 2^(c-1)</c> and tier multipliers 1/4/16) and says of it in so
-/// many words that <em>"every cell is independently editable and the formula below is the default
-/// fill, not a constraint"</em>. A harness that evaluated the formula would grade the game against a
-/// table nobody may have authored, and would stop noticing the day design edits one cell.
-/// </para>
-/// <para>
-/// 🔒 <c>ChapterPowerTarget(c) × TierMult(t)</c> of `02` §4.3 <b>is</b> this table's cell — that is
-/// what makes <c>EnemyPower(i)</c> computable from authored data with only `02` §4.3's node terms
-/// added. See <c>Rules/NodePower.cs</c>.
-/// </para>
+/// The cells are read, never recomputed: the file's <c>defaultFill</c> block is explicitly documented
+/// as the default fill, not a constraint, so evaluating it would grade the game against a table nobody
+/// may have actually authored. This table's cell is <c>ChapterPowerTarget(c) × TierMult(t)</c>, which
+/// is what makes <c>EnemyPower(i)</c> computable — see <c>Rules/NodePower.cs</c>.
 /// </remarks>
 public sealed class ParPowerTable
 {
-    /// <summary>`29` §4-5 — the document.</summary>
     public const string Document = "tuning/par_power.json";
 
     private readonly IReadOnlyDictionary<(int Chapter, Tier Tier), double> _cells;
@@ -46,13 +37,13 @@ public sealed class ParPowerTable
     /// <summary>The authored chapters, ascending. Eight of them.</summary>
     public IReadOnlyList<int> Chapters { get; }
 
-    /// <summary>`05` §9 — <c>clearRateAtPar.target</c>. Authored 0.70.</summary>
+    /// <summary><c>clearRateAtPar.target</c>. Authored 0.70.</summary>
     public double ClearRateTarget { get; }
 
-    /// <summary>🔒 `05` §9 — <c>clearRateAtPar.assertionMin</c>. Authored 0.62.</summary>
+    /// <summary><c>clearRateAtPar.assertionMin</c>. Authored 0.62.</summary>
     public double ClearRateMin { get; }
 
-    /// <summary>🔒 `05` §9 — <c>clearRateAtPar.assertionMax</c>. Authored 0.78.</summary>
+    /// <summary><c>clearRateAtPar.assertionMax</c>. Authored 0.78.</summary>
     public double ClearRateMax { get; }
 
     /// <summary>Reads the document.</summary>
@@ -87,7 +78,7 @@ public sealed class ParPowerTable
             content.ReadDouble($"{Document}#/clearRateAtPar/assertionMax"));
     }
 
-    /// <summary>🔒 `29` §4 — <c>ParPower(c, t)</c>, straight off the authored cell.</summary>
+    /// <summary><c>ParPower(c, t)</c>, straight off the authored cell.</summary>
     /// <exception cref="KeyNotFoundException">The cell is not in the table.</exception>
     public double Power(int chapter, Tier tier) =>
         _cells.TryGetValue((chapter, tier), out var power)

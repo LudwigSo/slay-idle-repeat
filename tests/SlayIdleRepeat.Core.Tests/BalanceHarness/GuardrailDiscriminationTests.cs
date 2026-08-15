@@ -8,26 +8,11 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 /// <summary>
-/// 🔴 <b>The discriminating controls.</b> Every guardrail here is shown to <b>fire</b> on a subject
-/// that breaches it and to <b>pass</b> on one that does not.
+/// The discriminating controls: every guardrail here is shown to fire on a subject that breaches it
+/// and to pass on one that does not. Each is probed with synthetic subjects pinning the assertion's
+/// boundary exactly, and with real simulations of deliberately over/under-powered builds proving the
+/// simulator can actually move the number the assertion reads.
 /// </summary>
-/// <remarks>
-/// 🔒 A statistical assertion is the easiest cannot-fail test there is — <em>"clear rate in [62%,
-/// 78%]"</em> passes for a great many broken simulators, and on the shipped data guardrails 3 and 4
-/// have <b>no cleared fights to evaluate</b>. Each is probed in two shapes:
-/// <list type="number">
-///   <item><b>Synthetic subjects</b> pinning the assertion's boundary exactly — one tick either side of
-///   12 s and 70 s, one fight either side of the band. These test the <em>assertion</em>.</item>
-///   <item><b>Real simulations</b> of deliberately over- and under-powered builds, which must breach the
-///   floor and the ceiling for real. These test that the <em>simulator</em> can move the number the
-///   assertion reads.</item>
-/// </list>
-/// <para>
-/// ⚠️ The real controls use <c>heroPowerMultiple</c>, never anything but 1.0 in the sweep itself, and
-/// the multiples are measured: 200 × par clears 100% in 3.35 s, and the slow-wall build at 8 × par
-/// clears 100% with every clear above 75 s.
-/// </para>
-/// </remarks>
 [Collection(WallClockSensitive.Name)]
 public sealed class GuardrailDiscriminationTests
 {
@@ -59,9 +44,7 @@ public sealed class GuardrailDiscriminationTests
     [Fact]
     public void Guardrail_1_fires_on_a_REAL_over_powered_build_and_on_a_REAL_under_powered_one()
     {
-        // 🔴 The control that shows the simulator can actually move the number. Both must FAIL, and
-        // they must fail from opposite ends: an over-powered build above the band, an at-par build
-        // below it.
+        // Both must fail, from opposite ends: an over-powered build above the band, an at-par one below it.
         var overPowered = RealCell("ARCH_TANK_THORNS", multiple: 200.0, fights: 30);
         var underPowered = RealCell("ARCH_CRIT", multiple: 1.0, fights: 30);
 
@@ -75,16 +58,9 @@ public sealed class GuardrailDiscriminationTests
     [Fact]
     public void Guardrail_1_passes_a_REAL_build_that_sits_inside_the_band()
     {
-        // 🔴 The other half of the control: a real simulated cell that is genuinely inside [62%, 78%],
-        // so "guardrail 1 fails on the shipped data" is a statement about the data and not about an
-        // assertion that can never pass. ARCH_LIFESTEAL at 2.42 × par measures 73.0% over 200 seeded
-        // fights; the seeds are fixed, so this number is reproducible rather than sampled.
-        //
-        // 🔴 M2-R1 — re-measured after fired triggered stat ops (SYS_ENRAGE and boss ON_PHASE_ENTER
-        // stat buffs) started applying for the first time. Before this fix 2.4 × par measured 74.0%;
-        // SYS_ENRAGE now actually raises boss ATK, so 2.4 × par dropped to 59.0% (outside the band —
-        // bosses got harder, exactly as the fix predicts) and 2.42 × par is the nearby multiple that
-        // lands back inside it. Not a game-data retune: the multiple, not the content, moved.
+        // A real simulated cell genuinely inside [62%, 78%], so "fails on the shipped data" is a
+        // statement about the data, not about an assertion that can never pass. Seeds are fixed, so
+        // this number is reproducible rather than sampled.
         var cell = RealCell("ARCH_LIFESTEAL", multiple: 2.42, fights: 200);
 
         cell.ClearRate.ShouldBeInRange(0.62, 0.78);
@@ -118,8 +94,7 @@ public sealed class GuardrailDiscriminationTests
     [Fact]
     public void Guardrail_3_fires_on_a_REAL_hugely_over_powered_build()
     {
-        // 🔴 A build at 200 × par clears in about 3.35 s, well under the floor. Without this control
-        // guardrail 3 would be a green tick over an empty set on the shipped data.
+        // Without this control the guardrail would be a green tick over an empty set on shipped data.
         var cell = RealCell("ARCH_TANK_THORNS", multiple: 200.0, fights: 30);
 
         cell.ClearCount.ShouldBe(30);
@@ -157,8 +132,7 @@ public sealed class GuardrailDiscriminationTests
     [Fact]
     public void Guardrail_4_fires_on_a_REAL_barely_winning_build()
     {
-        // 🔴 A slow-wall build — ARCH_TANK_THORNS with ATK at 30% and MAX_HP at 4× — placed at 8 × par.
-        // It clears every fight and every clear takes over 75 s, so the ceiling is breached for real
+        // A slow-wall build (low ATK, high MAX_HP) placed at 8 × par breaches the ceiling for real
         // rather than by a fabricated duration.
         var cell = RealCell(SlowWall(), "SLOW_WALL", multiple: 8.0, fights: 24);
 
@@ -168,16 +142,15 @@ public sealed class GuardrailDiscriminationTests
 
         SweepGuardrails.HardCeiling([cell]).Verdict.ShouldBe(GuardrailVerdict.Fail);
 
-        // The same cell does NOT breach the floor, which is what makes the two guardrails separate
-        // assertions rather than one restated twice.
+        // The same cell does not breach the floor — the two guardrails are separate assertions.
         SweepGuardrails.HardFloor([cell]).Verdict.ShouldBe(GuardrailVerdict.Pass);
     }
 
     [Fact]
     public void Guardrails_3_and_4_over_cells_that_cleared_nothing_are_inconclusive_rather_than_passes()
     {
-        // 🔴 The exact failure mode Shouldly's ShouldAllBe has on an empty collection, and the shipped
-        // data's actual state: 120 cells, zero clears. "Every clear is above 12 s" is vacuously true.
+        // ShouldAllBe passes vacuously on an empty collection — "every clear is above 12 s" would be
+        // trivially true over zero clears.
         var nothingCleared = SyntheticCell(clears: 0, fights: 50);
 
         var floor = SweepGuardrails.HardFloor([nothingCleared]);
@@ -194,7 +167,7 @@ public sealed class GuardrailDiscriminationTests
     // ── the Sporequeen band ────────────────────────────────────────────────────────────────────
 
     [Theory]
-    [InlineData(700, GuardrailVerdict.Pass)]  // 35.00 s — the bottom of 17 §1's band
+    [InlineData(700, GuardrailVerdict.Pass)]  // 35.00 s — the bottom of the band
     [InlineData(1200, GuardrailVerdict.Pass)] // 60.00 s — the top
     [InlineData(699, GuardrailVerdict.Fail)]  // 34.95 s
     [InlineData(1201, GuardrailVerdict.Fail)] // 60.05 s
@@ -221,8 +194,6 @@ public sealed class GuardrailDiscriminationTests
     [Fact]
     public void The_Sporequeen_band_fires_on_a_REAL_build_whose_median_falls_outside_it()
     {
-        // 🔴 A real Chapter 7 fight, over-powered so that it clears and clears fast — a median far
-        // below 35 s, which the band must reject.
         var cell = RealCell("ARCH_LIFESTEAL", multiple: 200.0, fights: 24, chapter: 7);
 
         cell.BossId.ShouldBe("BOSS_SPOREQUEEN_VELL");
@@ -254,14 +225,9 @@ public sealed class GuardrailDiscriminationTests
             chapter, Tier.NORMAL, archetypeId, loadout, fights, heroPowerMultiple: multiple);
 
     /// <summary>
-    /// A cell with fabricated fights, for pinning an assertion's boundary to the tick.
+    /// A cell with fabricated fights, for pinning an assertion's boundary to the tick. The fight list
+    /// is constructed, but the <see cref="CellResult"/> and guardrail under test are the shipped ones.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Fabricated <b>outcomes</b>, never a fabricated guardrail: the <see cref="CellResult"/> and
-    /// the guardrail under test are the shipped ones, and only the fight list is constructed. That is
-    /// what lets a case say "239 ticks breaches and 240 does not" without running ten thousand
-    /// simulations to land on the boundary by luck.
-    /// </remarks>
     private static CellResult SyntheticCell(
         int clears,
         int fights,

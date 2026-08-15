@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Dice;
 
-/// <summary>`04` §1 — resolving each face kind into movement and side effect.</summary>
+/// <summary>Resolving each face kind into movement and side effect.</summary>
 public sealed class FaceEffectResolverTests
 {
     [Theory]

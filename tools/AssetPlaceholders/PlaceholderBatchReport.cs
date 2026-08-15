@@ -4,31 +4,26 @@ using SlayIdleRepeat.AssetPipeline.Qa;
 namespace SlayIdleRepeat.AssetPlaceholders;
 
 /// <summary>Why a register row got no placeholder. Exactly one reason, the first that applied.</summary>
-/// <remarks>
-/// 🔒 Steering rule S2: pin the identity, not the symptom. "941 rows were skipped" is three
-/// different facts about `15` with three different owners, and O30 needs the three numbers
-/// separately at M11-01.
-/// </remarks>
 public enum PlaceholderSkipReason
 {
-    /// <summary>A ruling removed the row. All 32 `15` §E19 VFX sheets, after ruling O8.</summary>
+    /// <summary>A ruling removed the row.</summary>
     CutByRuling,
 
     /// <summary>
-    /// `15` §C states no delivery size for the row, so there is no canvas to deliver it on.
+    /// The register states no delivery size for the row, so there is no canvas to deliver it on.
     /// </summary>
     NoDeliverySize,
 
     /// <summary>
-    /// `15` §C authorises a pivot for characters and for icons and for nothing else, and the row is
-    /// neither. §B4 step 2 pads against the pivot, so there is nothing to invent.
+    /// The register authorises a pivot for characters and icons and nothing else, and the row is
+    /// neither. The margin step pads against the pivot, so there is nothing to invent.
     /// </summary>
     NoPivot,
 }
 
 /// <summary>One register row that got no placeholder, and why.</summary>
-/// <param name="AssetId">The `15` §D1 id.</param>
-/// <param name="Section">The `15` §E-section the row was transcribed from.</param>
+/// <param name="AssetId">The register id.</param>
+/// <param name="Section">The register section the row was transcribed from.</param>
 /// <param name="Reason">Which of the three states the row is in.</param>
 /// <param name="Detail">The refusal in the words the register or the pipeline used.</param>
 public sealed record PlaceholderSkip(
@@ -36,41 +31,33 @@ public sealed record PlaceholderSkip(
 
 /// <summary>One row that should have produced a placeholder and threw instead.</summary>
 /// <remarks>
-/// 🔒 Kept apart from <see cref="PlaceholderSkip"/>. A skip is `15` declining to state something; a
-/// failure is a defect in this generator or in the pipeline, and a report that added the two
-/// together would hide the second behind the first.
+/// Kept apart from <see cref="PlaceholderSkip"/>: a skip is the register declining to state
+/// something; a failure is a defect in this generator or in the pipeline.
 /// </remarks>
-/// <param name="AssetId">The `15` §D1 id.</param>
-/// <param name="Section">The `15` §E-section.</param>
+/// <param name="AssetId">The register id.</param>
+/// <param name="Section">The register section.</param>
 /// <param name="ExceptionType">The exception's type name.</param>
 /// <param name="Message">Its message.</param>
 public sealed record PlaceholderFailure(
     string AssetId, string Section, string ExceptionType, string Message);
 
 /// <summary>One placeholder that was generated, delivered and graded.</summary>
-/// <param name="AssetId">The `15` §D1 id.</param>
-/// <param name="FileName">The delivered `15` §D1 file name.</param>
-/// <param name="Atlas">The `15` §D2 atlas the row names, or null where §D2 assigns none.</param>
-/// <param name="EncodedBytes">The size of the PNG-32 `15` §B4 step 6 produced.</param>
+/// <param name="AssetId">The register id.</param>
+/// <param name="FileName">The delivered file name.</param>
+/// <param name="Atlas">The atlas the row names, or null where the register assigns none.</param>
+/// <param name="EncodedBytes">The size of the encoded PNG.</param>
 /// <param name="Stamped">
-/// Whether the asset id was legibly stamped on it. 🔒 False when the card was too small to carry
-/// the stamp at any whole scale — the point of a placeholder is that a missing asset is
-/// self-identifying on screen, so "every placeholder is stamped" must never be claimed on a run
-/// where some are not.
+/// Whether the asset id was legibly stamped on it — false when the card was too small to carry the
+/// stamp at any whole scale, so "every placeholder is stamped" must never be claimed unconditionally.
 /// </param>
-/// <param name="Qa">Every `15` Part F item's outcome for it.</param>
+/// <param name="Qa">Every QA checklist item's outcome for it.</param>
 public sealed record GeneratedPlaceholder(
     string AssetId, string FileName, string? Atlas, int EncodedBytes, bool Stamped, QaBatchResult Qa);
 
 /// <summary>
-/// A place where this generator knowingly does something `15` forbids, because the task it exists
-/// for requires it.
+/// A place where this generator knowingly does something the design docs forbid, because the task
+/// it exists for requires it.
 /// </summary>
-/// <remarks>
-/// 🔒 <b>Data that travels with the report, not a comment in a source file</b> — the same shape, and
-/// for the same reason, as <c>DeclaredDeviation</c> on a `15` §B4 step. A departure nobody can see
-/// in a batch report is a departure the next reader will mistake for something the doc permits.
-/// </remarks>
 /// <param name="Id">A stable id, e.g. <c>DEP_A3_ID_STAMP</c>.</param>
 /// <param name="DocReference">What the doc says, by section.</param>
 /// <param name="Requirement">The requirement, in the doc's own words.</param>
@@ -80,68 +67,52 @@ public sealed record PlaceholderDeparture(
     string Id, string DocReference, string Requirement, string Taken, string Why);
 
 /// <summary>
-/// One generated placeholder that failed a fully mechanical `15` Part F item.
+/// One generated placeholder that failed a fully mechanical QA item.
 /// </summary>
-/// <param name="AssetId">The `15` §D1 id.</param>
+/// <param name="AssetId">The register id.</param>
 /// <param name="Outcome">The failing item's outcome, carrying which item and what it measured.</param>
 public sealed record MechanicalFailure(string AssetId, QaOutcome Outcome);
 
 /// <summary>
-/// What one whole run over M8-09's register did, reconciled against the register's own totals.
+/// What one whole run over the register did, reconciled against the register's own totals.
 /// </summary>
 /// <remarks>
-/// 🔒 <b>The reconciliation is a member, not a paragraph in a report.</b>
 /// <see cref="Reconciles"/> is what stops "641 placeholders generated" being read as "641 of 641":
-/// generated + skipped + failed has to equal the number of art rows the register holds, or one of
-/// the four numbers is wrong and nobody can tell which.
+/// generated + skipped + failed has to equal the number of art rows the register holds.
 /// </remarks>
 public sealed record PlaceholderBatchReport
 {
-    /// <summary>Every art row in M8-09's register — cut, size-less, pivot-less and generatable alike.</summary>
+    /// <summary>Every art row in the register — cut, size-less, pivot-less and generatable alike.</summary>
     public required int ArtRowsInRegister { get; init; }
 
-    /// <summary>Every audio row in M8-09's register. 🔒 Out of scope; carried so the 1,080 reconciles.</summary>
+    /// <summary>Every audio row in the register. Out of scope; carried so the totals reconcile.</summary>
     public required int AudioRowsInRegister { get; init; }
 
-    /// <summary>The placeholders that were generated, in `15` §D1 id order.</summary>
+    /// <summary>The placeholders that were generated, in id order.</summary>
     public required IReadOnlyList<GeneratedPlaceholder> Generated { get; init; }
 
-    /// <summary>The rows that got none, in `15` §D1 id order.</summary>
+    /// <summary>The rows that got none, in id order.</summary>
     public required IReadOnlyList<PlaceholderSkip> Skipped { get; init; }
 
-    /// <summary>The rows that threw, in `15` §D1 id order.</summary>
+    /// <summary>The rows that threw, in id order.</summary>
     public required IReadOnlyList<PlaceholderFailure> Failed { get; init; }
 
-    /// <summary>Every `15` §B4 deviation the run took, by id, with how many assets took it.</summary>
+    /// <summary>Every pipeline deviation the run took, by id, with how many assets took it.</summary>
     public required IReadOnlyDictionary<string, int> Deviations { get; init; }
 
-    /// <summary>Every `15` contradiction the run ran into, by id, with how many assets hit it.</summary>
+    /// <summary>Every contradiction the run ran into, by id, with how many assets hit it.</summary>
     public required IReadOnlyDictionary<string, int> Contradictions { get; init; }
 
     /// <summary>Every atlas that was packed, with its page count and placement count.</summary>
     public required IReadOnlyList<AtlasPackResult> Atlases { get; init; }
 
     /// <summary>
-    /// Every place this generator knowingly departs from `15`, empty when it drew nothing.
+    /// Every place this generator knowingly departs from the design docs, empty when it drew nothing.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 Exactly one departure exists and it is the id stamp. `15` §A3 says <em>"Never render text
-    /// inside a generated image"</em> and Part F item 8 says <em>"No text, watermark or signature
-    /// anywhere in the image"</em>; every placeholder carries its asset id in text. That is
-    /// authorised for placeholders specifically by the M8 kickoff — a placeholder exists so a
-    /// missing asset is identifiable on screen, and an unlabelled grey box tells nobody which of
-    /// hundreds of slots is empty.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>It is reported here because nothing else reports it.</b> Part F item 8 is
-    /// <see cref="QaClassification.Human"/> and returns <see cref="QaVerdict.HumanGapOnly"/> on every
-    /// asset, so a batch report that carried only the pipeline's own deviations would say this run
-    /// departed from `15` nowhere.
-    /// </para>
-    /// <para>
-    /// 🔒 Empty on a run that generated nothing, because a departure nothing took is not one.
-    /// </para>
+    /// Exactly one departure exists: the id stamp, authorised for placeholders specifically by the
+    /// M8 kickoff so a missing asset is identifiable on screen. It is reported here because the QA
+    /// checklist's own text-in-image item is a human-review item that returns no verdict of its own.
     /// </remarks>
     public IReadOnlyList<PlaceholderDeparture> Departures => Generated.Count == 0
         ? []
@@ -151,9 +122,9 @@ public sealed record PlaceholderBatchReport
     /// The generated placeholders whose card was too small to carry a legible id stamp.
     /// </summary>
     /// <remarks>
-    /// 🔒 The counter <see cref="PlaceholderRenderer"/> defers to. An illegible smear would be worse
-    /// than no stamp, so the renderer draws nothing rather than something unreadable — and this is
-    /// what stops that silent choice being read as "every placeholder is stamped".
+    /// An illegible smear would be worse than no stamp, so the renderer draws nothing rather than
+    /// something unreadable — this is what stops that silent choice reading as "every placeholder
+    /// is stamped".
     /// </remarks>
     public IReadOnlyList<string> Unstamped =>
     [
@@ -179,21 +150,11 @@ public sealed record PlaceholderBatchReport
     public bool Reconciles => Accounted == ArtRowsInRegister;
 
     /// <summary>
-    /// The worst `15` Part F decision any generated placeholder reached — the batch's decision.
+    /// The worst QA decision any generated placeholder reached — the batch's decision.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 Part F gates <em>a batch</em> (<em>"Before an asset batch is accepted"</em>), and a
-    /// batch's decision is the worst of its assets'. The order is
-    /// <see cref="QaDecision.Rejected"/> ▸ <see cref="QaDecision.BlockedByUncalibratedThreshold"/> ▸
-    /// <see cref="QaDecision.AwaitingHumanReview"/> ▸ <see cref="QaDecision.Accepted"/>, which is
-    /// <see cref="QaBatchResult.Decision"/>'s own precedence lifted from one asset to many.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>A run holding no graded asset has no decision</b>, and says so rather than answering
-    /// <see cref="QaDecision.Accepted"/> over nothing (steering rule S3). That is the shape a
-    /// generator that silently produced no output would otherwise take.
-    /// </para>
+    /// A run holding no graded asset has no decision, and says so rather than answering Accepted
+    /// over an empty batch — the shape a generator that silently produced nothing would otherwise take.
     /// </remarks>
     public QaDecision Decision => Generated.Count > 0
         ? Generated
@@ -205,15 +166,13 @@ public sealed record PlaceholderBatchReport
             "that produced nothing passes.");
 
     /// <summary>
-    /// Every generated placeholder whose `15` Part F item 7 (canvas size and pivot) or item 10
-    /// (§D1 naming and atlas membership) returned <see cref="QaVerdict.Fail"/>.
+    /// Every generated placeholder whose fully mechanical QA items (canvas/pivot and naming/atlas)
+    /// returned <see cref="QaVerdict.Fail"/>.
     /// </summary>
     /// <remarks>
-    /// 🔒 These two items are the only fully <see cref="QaClassification.Mechanical"/> ones on the
-    /// checklist, and they are the two this generator entirely controls: the canvas it draws, the
-    /// pivot it centres against, the name it writes and the atlas it packs into. A failure here is a
-    /// defect in this tool, never an uncalibrated threshold and never a missing human. Everything
-    /// else on Part F is either blocked on a number nobody has stated or waiting for a person.
+    /// These two items are the only ones this generator entirely controls — the canvas, the pivot,
+    /// the name and the atlas it packs into — so a failure here is a defect in this tool, never an
+    /// uncalibrated threshold or a missing human.
     /// </remarks>
     public IReadOnlyList<MechanicalFailure> MechanicalFailures =>
     [
@@ -226,14 +185,11 @@ public sealed record PlaceholderBatchReport
     ];
 
     /// <summary>
-    /// How bad a `15` Part F decision is, so a batch can take the worst of its assets'.
+    /// How bad a QA decision is, so a batch can take the worst of its assets'.
     /// </summary>
     /// <remarks>
-    /// 🔒 An explicit map, <b>not</b> the enum's declaration order. <see cref="QaDecision"/> is
-    /// declared Accepted, Rejected, BlockedByUncalibratedThreshold, AwaitingHumanReview — so
-    /// <c>Max()</c> over the enum would rank "a human has not looked yet" above "an item failed",
-    /// and a batch holding one rejected asset would report as merely awaiting review. The order
-    /// below is <see cref="QaBatchResult.Decision"/>'s own precedence, lifted from one asset to many.
+    /// An explicit map, not the enum's declaration order — ranking by declaration order would put
+    /// "not yet reviewed" above "an item failed".
     /// </remarks>
     /// <param name="decision">The decision to rank.</param>
     private static int Severity(QaDecision decision) => decision switch
@@ -248,20 +204,18 @@ public sealed record PlaceholderBatchReport
     };
 
     /// <summary>
-    /// `15` Part F's two fully mechanical items: 7 (canvas size and pivot) and 10 (naming and atlas).
+    /// The checklist's two fully mechanical items: canvas/pivot and naming/atlas membership.
     /// </summary>
     /// <remarks>
-    /// 🔒 Not a hardcoded pair of literals sitting beside the checklist that decides the same thing:
-    /// this asks <see cref="QaChecklist"/> which of its items are
-    /// <see cref="QaClassification.Mechanical"/>, so an item that changed classification cannot
-    /// leave this list saying otherwise.
+    /// Asked from <see cref="QaChecklist"/> rather than hardcoded, so an item that changed
+    /// classification cannot leave this list saying otherwise.
     /// </remarks>
     public static IReadOnlySet<int> MechanicalItems { get; } = new HashSet<int>(
         new QaChecklist()
             .OfClassification(QaClassification.Mechanical)
             .Select(item => item.ItemNumber));
 
-    /// <summary>The one departure from `15` this generator takes. See <see cref="Departures"/>.</summary>
+    /// <summary>The one departure this generator takes. See <see cref="Departures"/>.</summary>
     public static PlaceholderDeparture IdStampDeparture { get; } = new(
         "DEP_A3_ID_STAMP",
         "15 §A3, Part F item 8",

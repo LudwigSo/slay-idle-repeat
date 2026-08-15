@@ -4,34 +4,18 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 `05` §4.1 — the ward pool's four rules, stated over <see cref="WardPool"/> itself.
-/// </summary>
-/// <remarks>
-/// The pool is asserted here without a battle, because none of its four rules mentions one: they are
-/// about segments, an order, two ceilings and one distinction. What a battle adds — the
-/// <c>Shield</c>/<c>WardBroken</c> events, the post-step-7 cap basis and the bypass list — is
-/// <c>DamageResolutionTests</c> and <c>WardCapTests</c>.
-/// </remarks>
+/// <summary>The ward pool's rules, stated over <see cref="WardPool"/> itself without a battle.</summary>
 public sealed class WardPoolTests
 {
     /// <summary>
-    /// 📐 <c>combat_caps.json#/wardCapPct</c> as shipped. ⚠️ <b>Not "uncapped"</b>: against the
-    /// 1000-point basis below every case in this file runs under a real 1000-point ceiling, which is
-    /// why <see cref="A_grant_is_clipped_at_wardCapPct_times_the_Max_HP_basis"/> carries a 0.25 row —
-    /// at 1.0 the ceiling and the basis are numerically the same number.
+    /// Not "uncapped": at 1.0 the ceiling and the Max HP basis are numerically the same number, which
+    /// is why the grant-clip case below also carries a 0.25 row to discriminate the two.
     /// </summary>
     private const double ShippedCapPct = 1.0;
 
-    /// <summary>The post-`18` §8-step-7 Max HP every case measures its ceilings against.</summary>
     private const double Thousand = 1000.0;
 
-    /// <summary>🔒 `05` §4.1 — <em>"a grant that would exceed the cap is clipped"</em>.</summary>
-    /// <remarks>
-    /// Two shapes, because one would not discriminate: at <c>wardCapPct = 1.0</c> the cap is
-    /// numerically the Max HP basis, so a pool that ignored the percentage entirely would pass. The
-    /// 0.25 row is what separates "clips at the cap" from "clips at Max HP".
-    /// </remarks>
+    /// <summary>A grant that would exceed the cap is clipped.</summary>
     [Theory]
     [InlineData(1.0, 1000.0, 400.0)]
     [InlineData(0.25, 250.0, 0.0)]
@@ -50,14 +34,10 @@ public sealed class WardPoolTests
     }
 
     /// <summary>
-    /// 🔒 `05` §4.1 — <em>"soonest-expiring segment first; ties broken by grant order (oldest
-    /// first); non-expiring segments last."</em>
+    /// Absorption order: soonest-expiring segment first, ties broken by grant order (oldest first),
+    /// non-expiring segments last. Each rule has its own case below; this is the composite that
+    /// would catch any of them being applied in the wrong sequence.
     /// </summary>
-    /// <remarks>
-    /// One damage number walks the whole order, so the assertion is which segments survive. The
-    /// three rules are separable and each has its own case below; this is the composite that would
-    /// catch any of them being applied in the wrong sequence.
-    /// </remarks>
     [Fact]
     public void Absorption_takes_the_soonest_expiring_first_then_grant_order_then_the_non_expiring()
     {
@@ -85,14 +65,10 @@ public sealed class WardPoolTests
     }
 
     /// <summary>
-    /// 🔒 `05` §4.1 — the grant-order tie-break alone, with the two segments' <b>insertion</b> order
-    /// swapped between the rows.
+    /// The grant-order tie-break alone, with the two segments' insertion order swapped between rows —
+    /// the negative control for the composite above. Tie-breaking on effect id instead would give
+    /// both rows the same answer and one would be wrong.
     /// </summary>
-    /// <remarks>
-    /// The negative control for the composite above. If the pool tie-broke on anything other than
-    /// grant order — the effect id, say, which is the tie-break `05` §4 uses everywhere else — the
-    /// two rows would give the same answer and one of them would be wrong.
-    /// </remarks>
     [Theory]
     [InlineData("EFF_Z", "EFF_A", "EFF_A")]
     [InlineData("EFF_A", "EFF_Z", "EFF_Z")]
@@ -109,10 +85,7 @@ public sealed class WardPoolTests
         pool.Segments.Single().SourceEffectId.ShouldBe(survivor);
     }
 
-    /// <summary>
-    /// 🔒 `05` §4.1 — <em>"<c>WardBroken</c> the moment the pool reaches 0 <b>through
-    /// damage</b>"</em>, with both negative controls.
-    /// </summary>
+    /// <summary><c>WardBroken</c> fires the moment the pool reaches 0 through damage, and only once.</summary>
     [Fact]
     public void The_pool_reaching_zero_through_damage_is_a_break()
     {
@@ -133,15 +106,10 @@ public sealed class WardPoolTests
     }
 
     /// <summary>
-    /// 🔒 `05` §4.1 — <em>"segment expiry silently removes its remainder (<c>StatusExpired</c>), and
-    /// does <b>not</b> fire <c>WardBroken</c>."</em>
+    /// Segment expiry silently removes its remainder and does not fire <c>WardBroken</c>: the two
+    /// halves of this case reach the same empty-pool end state by different routes, showing the
+    /// report is about the route and not the state.
     /// </summary>
-    /// <remarks>
-    /// 🔒 <b>The distinction `18` §6's <c>until: WARD_BROKEN</c> is built on</b> (`17` §4's Ossify,
-    /// which M2-06 shipped against exactly this). The two halves of the case reach the <em>same
-    /// end state</em> — an empty pool — by the two different routes, which is the only way to show
-    /// that the report is about the route and not about the state.
-    /// </remarks>
     [Fact]
     public void Segment_expiry_empties_the_pool_and_is_not_a_break()
     {
@@ -167,15 +135,10 @@ public sealed class WardPoolTests
     }
 
     /// <summary>
-    /// 🔒 `18` §2.2 — <em>"the total <b>unbroken</b> ward contributed by that effect instance is
-    /// clamped at <c>sourceCapPct × Max HP</c>"</em> (<c>PK_TRANSFUSION</c>, 20%).
+    /// The source cap is a running total over what is still <em>unbroken</em> in the pool, so a
+    /// source whose segment has been spent may grant again. A cap applied to the lifetime total
+    /// would instead leave a source dead after one big overheal.
     /// </summary>
-    /// <remarks>
-    /// The word doing the work is <em>unbroken</em>: the cap is a running total over what is still
-    /// in the pool, so a source whose segment has been spent may grant again. A cap applied per
-    /// grant would let four 20% segments stack; a cap applied to the lifetime total would leave
-    /// <c>PK_TRANSFUSION</c> dead after one big overheal.
-    /// </remarks>
     [Fact]
     public void A_source_cap_clamps_the_live_total_from_one_effect_and_frees_up_as_it_is_spent()
     {
@@ -199,13 +162,9 @@ public sealed class WardPoolTests
     }
 
     /// <summary>
-    /// 🔒 <c>null</c> is not 0 — `18` §2.2 authors <c>sourceCapPct</c> on two effects in the whole
-    /// game, and every other <c>SHIELD</c> has none.
+    /// A <c>null</c> source cap is not 0: coercing the absent value to zero would make every
+    /// unadorned <c>SHIELD</c> grant nothing, silently.
     /// </summary>
-    /// <remarks>
-    /// The negative control for the case above, and steering S6's shape: coercing the absent value
-    /// to a zero would make every unadorned <c>SHIELD</c> in the game grant nothing, silently.
-    /// </remarks>
     [Fact]
     public void An_absent_source_cap_is_not_a_zero_one()
     {

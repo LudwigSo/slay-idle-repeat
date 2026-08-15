@@ -3,15 +3,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// C8 — `15` §B4 step 7: <em>"Atlas pack -&gt; into the category atlas (see §D2)"</em>.
-/// </summary>
 public sealed class AtlasPackStepTests
 {
     /// <summary>
-    /// 🔒 Determinism is not decoration here: M8-10 packs roughly 942 assets and an atlas whose
-    /// layout depends on enumeration order produces a different texture and different UVs on every
-    /// run. Asserted over placements, in order, not over a count.
+    /// An atlas whose layout depends on enumeration order produces a different texture and
+    /// different UVs on every run, so this asserts placements in order, not just a count.
     /// </summary>
     [Fact]
     public void Run_places_the_same_members_identically_whatever_order_they_arrive_in()
@@ -31,11 +27,8 @@ public sealed class AtlasPackStepTests
         first.Placements.Count.ShouldBe(forwards.Length);
         Describe(first).ShouldBe(Describe(second));
 
-        // 🔒 Stable is not the same claim as stable-in-the-stated-way. The locked design is
-        // "ordered by asset id, ordinal", and a packer that sorted by area would also produce the
-        // same layout twice — but a different one, and the three rows below are deliberately
-        // 32/64/96 px so the two orderings disagree: ordinal gives beast_feed, crown, energy while
-        // area gives beast_feed, energy, crown.
+        // Ordering must be by asset id, not by area: the rows are deliberately 32/64/96 px so an
+        // area-sorted packer would also be stable but would disagree with this expected order.
         first.Placements.Select(placement => placement.AssetId).ToArray().ShouldBe(
             [
                 ManifestRows.NonBiomeUiIconThird,
@@ -60,12 +53,7 @@ public sealed class AtlasPackStepTests
         result.Exclusions[0].Reason.ShouldContain(cut.Cut, Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 `15` §D2: <em>"Backgrounds are not atlased (they are full-screen and streamed per
-    /// biome)."</em> The row chosen carries no atlas AND no ruling, so the reason the packer states
-    /// can only be §D2 — an exclusion that fired for the wrong rule would still leave the asset out
-    /// and would still look correct from the outside.
-    /// </summary>
+    /// <summary>The row carries no atlas and no ruling, so the stated exclusion reason can only be the missing atlas.</summary>
     [Fact]
     public void Run_excludes_a_row_15_D2_assigns_no_atlas_and_says_so()
     {
@@ -84,11 +72,9 @@ public sealed class AtlasPackStepTests
     }
 
     /// <summary>
-    /// 🔒 §D2 names one atlas per category; §C caps a single texture at 2048x2048. <c>atlas_hero</c>
-    /// alone is 64 rows at 512x512 — 16.8 M px against a 4.2 M px cap — so multi-page is
-    /// arithmetically unavoidable and no doc authorises a paging convention. The result carries the
-    /// collision so it reaches the report instead of being resolved in silence by whoever wrote the
-    /// packer.
+    /// <c>atlas_hero</c> alone is 64 rows at 512x512 (16.8 M px) against the 4.2 M px single-texture
+    /// cap, so multi-page is arithmetically unavoidable; the collision must reach the report rather
+    /// than be resolved silently.
     /// </summary>
     [Fact]
     public void Run_reports_that_15_D2_and_15_C_cannot_both_be_satisfied()
@@ -103,10 +89,6 @@ public sealed class AtlasPackStepTests
         contradiction.SecondReference.ShouldContain("§C", Case.Sensitive);
     }
 
-    /// <summary>
-    /// The arithmetic the contradiction above rests on, read from the shipped register rather than
-    /// asserted from memory.
-    /// </summary>
     [Fact]
     public void The_hero_atlas_really_does_exceed_15_Cs_single_texture_cap()
     {

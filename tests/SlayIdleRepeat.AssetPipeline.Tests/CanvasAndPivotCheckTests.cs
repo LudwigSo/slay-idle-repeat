@@ -5,10 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetPipeline.Tests;
 
-/// <summary>
-/// C13 — `15` Part F item 7: <em>"Correct canvas size and pivot per §C"</em>. Fully mechanical, so
-/// there is no <see cref="QaVerdict.Uncalibrated"/> case here and there must never be one.
-/// </summary>
+/// <summary>Fully mechanical check, so there is no <see cref="QaVerdict.Uncalibrated"/> case here and there must never be one.</summary>
 public sealed class CanvasAndPivotCheckTests
 {
     private const int Canvas = 64;
@@ -32,10 +29,7 @@ public sealed class CanvasAndPivotCheckTests
         outcome.HumanGap.ShouldBeNull();
     }
 
-    /// <summary>
-    /// 🔒 `15` §C's delivery size is an exact integer, not a target to land near: an atlas built on
-    /// a 48 px sprite where the metadata says 64 misplaces every reference to it.
-    /// </summary>
+    /// <summary>The delivery size is an exact integer, not a target to land near.</summary>
     [Fact]
     public void Evaluate_fails_naming_the_canvas_it_measured_when_the_size_is_not_the_manifests()
     {
@@ -53,10 +47,7 @@ public sealed class CanvasAndPivotCheckTests
             .Value.ShouldBe(WrongCanvas);
     }
 
-    /// <summary>
-    /// 🔒 The canvas is right and the content is in the wrong place — the failure a check that only
-    /// compared sizes would wave through, and the one that lands as a hero floating above the board.
-    /// </summary>
+    /// <summary>The canvas is right and only the content position is wrong, so a size-only check would wave this through.</summary>
     [Fact]
     public void Evaluate_fails_naming_the_pivot_offset_when_a_bottom_centre_subject_is_centred()
     {
@@ -74,11 +65,7 @@ public sealed class CanvasAndPivotCheckTests
             .Value.ShouldBeGreaterThan(0d);
     }
 
-    /// <summary>
-    /// 🔒 The pivot check must be able to accept <c>center</c> too. Without this the previous case
-    /// would also pass an implementation that simply demanded bottom alignment of everything, and
-    /// 362 of the 974 shipped rows are <c>center</c>.
-    /// </summary>
+    /// <summary>Without this the previous case would also pass an implementation demanding bottom alignment of everything.</summary>
     [Fact]
     public void Evaluate_passes_a_centred_subject_when_the_row_declares_the_center_pivot()
     {
@@ -92,23 +79,14 @@ public sealed class CanvasAndPivotCheckTests
     }
 
     /// <summary>
-    /// 🔒 Content whose dimension has the OPPOSITE PARITY to the canvas — the case every other
-    /// fixture here misses, because 32 and 24 on a 64 px canvas are all even and centre exactly.
+    /// Content whose dimension has the opposite parity to the canvas: every other fixture here uses
+    /// even dimensions that centre exactly, missing this case.
     /// </summary>
     /// <remarks>
-    /// <para>
     /// A 31 px subject on a 64 px canvas cannot be centred: 33 px of padding does not halve.
-    /// <c>TrimToCanvasStep</c> pads with integer division, so the odd pixel goes right and bottom
-    /// and the content lands at 16, not 16.5. Item 7 briefly computed the expected origin in
-    /// floating point and demanded 16.5, which no image the pipeline itself produces can satisfy —
-    /// so item 7 was unsatisfiable for roughly half of the 974 shipped rows, on assets that were
-    /// in fact correct. The two must agree, and this case is what holds them together.
-    /// </para>
-    /// <para>
-    /// Both pivots are driven because they divide on different axes: <c>center</c> halves the
-    /// padding vertically as well, while <c>bottom-center</c> subtracts and only the horizontal
-    /// axis can disagree.
-    /// </para>
+    /// <c>TrimToCanvasStep</c> pads with integer division, so the odd pixel goes right/bottom and
+    /// the content lands at 16, not 16.5 — the check must expect the same integer origin, not a
+    /// floating-point one, or it rejects correct assets on odd-sized content.
     /// </remarks>
     [Theory]
     [InlineData(Doc15Pivots.Center)]
@@ -118,8 +96,6 @@ public sealed class CanvasAndPivotCheckTests
         const int OddContentWidth = 31;
         const int OddContentHeight = 25;
 
-        // The premise of the case: both dimensions must genuinely fail to halve against this
-        // canvas, or it degenerates into a duplicate of the even-parity cases above.
         ((Canvas - OddContentWidth) % 2).ShouldBe(1);
         ((Canvas - OddContentHeight) % 2).ShouldBe(1);
 
@@ -135,12 +111,7 @@ public sealed class CanvasAndPivotCheckTests
             .Value.ShouldBe(0d);
     }
 
-    /// <summary>
-    /// 🔒 Item 7 reads nothing out of <see cref="ThresholdSet"/>, so an entirely uncalibrated set
-    /// must not change its answer. A mechanical item that went <see cref="QaVerdict.Uncalibrated"/>
-    /// would make the two items that can actually conclude something depend on a calibration nobody
-    /// owes.
-    /// </summary>
+    /// <summary>This check reads nothing out of <see cref="ThresholdSet"/>, so an uncalibrated set must not change its answer.</summary>
     [Fact]
     public void Evaluate_still_concludes_with_an_entirely_uncalibrated_threshold_set()
     {

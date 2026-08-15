@@ -4,7 +4,7 @@ using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Application.Services.Content.Tunables;
 
-/// <summary>Finds every 📐 TUNABLE marker in one design document.</summary>
+/// <summary>Finds every TUNABLE marker in one design document.</summary>
 public static partial class TunableMarkerScanner
 {
     /// <summary>The marker itself. One character, and the whole rule hangs off it.</summary>
@@ -159,7 +159,7 @@ public static partial class SchemaCitationScanner
 
     /// <summary>
     /// True when this schema object asserts a numeric type — directly, or as an array of numbers,
-    /// or as a map whose values are numbers. Those are the keys that hold 📐 numbers.
+    /// or as a map whose values are numbers. Those are the keys that hold tunable numbers.
     /// </summary>
     private static bool DeclaresANumber(ContentValue schema)
     {
@@ -257,10 +257,10 @@ public static partial class SchemaCitationScanner
     /// though the referring object declares no <c>type</c> of its own.
     /// </summary>
     /// <remarks>
-    /// 🔒 <c>CultureInvariant</c> is load-bearing next to <c>IgnoreCase</c>. Without it the casing
-    /// rules come from the current culture, and under <c>tr-TR</c> an uppercase <c>I</c> does not
-    /// fold to <c>i</c> — <c>rarityCostMap</c> would stop matching and <c>GovernsNumericKey</c>
-    /// would flip, quietly shrinking the audited set on one developer's machine.
+    /// <c>CultureInvariant</c> is load-bearing next to <c>IgnoreCase</c>: without it, casing rules
+    /// come from the current culture, and under <c>tr-TR</c> an uppercase <c>I</c> does not fold to
+    /// <c>i</c> — <c>rarityCostMap</c> would stop matching, quietly shrinking the audited set on one
+    /// developer's machine.
     /// </remarks>
     [GeneratedRegex(
         "(cost|rate|curve|scalar|share|weight|multiplier|pity|price|power|amount|map|value|assertion)",
@@ -272,67 +272,55 @@ public static partial class SchemaCitationScanner
 }
 
 /// <summary>
-/// 🔒 `14` §6's build-time check: <em>"a build-time check enumerates every 📐 marker in the
-/// documentation set against the schema keys and fails on a mismatch. That check is what stops the
-/// tuning surface eroding over eighteen months."</em>
+/// The build-time check that stops the tuning surface eroding: enumerates every tunable marker in
+/// the documentation set against the schema keys and fails on a mismatch.
 /// </summary>
 /// <remarks>
 /// It runs in three directions:
 /// <list type="number">
-/// <item><b>Marker → schema.</b> Every 📐 marker's doc section must be cited by some schema key.</item>
-/// <item><b>Schema → marker.</b> Every doc section cited by a <c>tuning/</c> schema must carry a 📐
+/// <item><b>Marker → schema.</b> Every marker's doc section must be cited by some schema key.</item>
+/// <item><b>Schema → marker.</b> Every doc section cited by a <c>tuning/</c> schema must carry a
 /// marker. A tuning key nobody marked tunable is the same erosion running the other way.</item>
-/// <item><b>Location.</b> An economy-affecting 📐 number must name a file under <c>tuning/</c>.</item>
+/// <item><b>Location.</b> An economy-affecting tunable number must name a file under <c>tuning/</c>.</item>
 /// </list>
 /// </remarks>
 public static class TunableMarkerAudit
 {
     private const string TuningDirectory = "tuning/";
 
-    /// <summary>
-    /// 🔒 The <b>only</b> data files a 📐 marker may name from outside <c>tuning/</c>.
-    /// </summary>
+    /// <summary>The only data files a tunable marker may name from outside <c>tuning/</c>.</summary>
     /// <remarks>
     /// <para>
-    /// `14` §6's locked scope is <em>"every <b>economy-affecting</b> tunable lives specifically in
-    /// <c>game-data/tuning/</c>"</em>. Balance and content-identity numbers are neither
-    /// economy nor sweepable by `21`, and the `21` §3.1 catalogue — the authority on what
-    /// <c>tuning/</c> contains — does not list them. Each entry below is a file the design docs
-    /// name explicitly, with the milestone that authors it.
+    /// Balance and content-identity numbers are neither economy nor sweepable, and the tuning
+    /// catalogue does not list them. Each entry below is a file the design docs name explicitly,
+    /// with the milestone that authors it.
     /// </para>
     /// <para>
-    /// This list is <b>code, and pinned by a test</b> (<c>TunableMarkerAuditTests</c>) that asserts
-    /// its exact contents and its length. Growing it means editing production code <em>and</em>
-    /// changing an assertion that spells out why — which is the point. An escape hatch that widens
-    /// quietly defeats the entire rule; `game-data/README.md`: <em>"Eighteen months of
-    /// small, reasonable exceptions is how a tuning surface stops existing."</em>
+    /// This list is code, pinned by a test (<c>TunableMarkerAuditTests</c>) that asserts its exact
+    /// contents. Growing it means editing production code <em>and</em> changing an assertion that
+    /// spells out why — an escape hatch that widens quietly would defeat the entire rule.
     /// </para>
     /// </remarks>
     public static IReadOnlyList<string> NonEconomyDataFiles { get; } =
     [
-        // 05 §2 — the combat caps (crit, dodge, mitigation, ward). Balance, not economy: the 21
-        // simulator grades income and progression, and no sweep of these changes a currency rate.
-        // 21 §3.1's catalogue does not list the file. Authored by M2-07 under content/.
+        // The combat caps (crit, dodge, mitigation, ward). Balance, not economy — the simulator
+        // grades income and progression, and no sweep of these changes a currency rate.
         "combat_caps.json",
 
-        // 05 §6-6.2 — enemy archetype statlines, biome-status rows and elite assignments. Content
-        // identity (which enemy is which), not an economic dial. Authored by M2 under
-        // content/enemies/.
+        // Enemy archetype statlines, biome-status rows and elite assignments. Content identity
+        // (which enemy is which), not an economic dial.
         "enemies.json",
 
-        // 28 Part D — the feat catalogue. Achievement definitions are content identity; their
-        // Crown payouts are economy and live in currencies.json. Authored by M11 under
-        // content/feats/.
+        // The feat catalogue. Achievement definitions are content identity; their Crown payouts
+        // are economy and live in currencies.json.
         "feats.json",
 
-        // 19 Part D — the first-time-user-experience script: which tutorial beat fires when, and
-        // the fixed tutorial-shop row 16 A7 rules is NOT derived from 03 §7. Sequencing, not
-        // economy; 21 sweeps nothing in it. Authored by M10.
+        // The first-time-user-experience script: which tutorial beat fires when. Sequencing, not
+        // economy.
         "ftue.json",
 
-        // 17 §1.2 — boss definitions: phases, mechanics, HP shape. Content identity and combat
-        // balance; the Crown and material payouts for killing one are economy and live in
-        // currencies.json. Authored by M3 under content/bosses/.
+        // Boss definitions: phases, mechanics, HP shape. Content identity and combat balance; the
+        // Crown and material payouts for killing one are economy and live in currencies.json.
         "bosses.json",
     ];
 
@@ -362,13 +350,12 @@ public static class TunableMarkerAudit
     }
 
     /// <summary>Runs the audit.</summary>
-    /// <param name="markers">Every 📐 marker in the documentation set.</param>
+    /// <param name="markers">Every tunable marker in the documentation set.</param>
     /// <param name="citations">Every doc-section citation in the schema set.</param>
     /// <param name="baseline">The committed record of accepted mismatches.</param>
     /// <param name="tuningFileNames">
     /// The bare file names of <c>tuning/</c> (e.g. <c>luck.json</c>). The design docs name a tuning
-    /// file three ways — <c>data/tuning/luck.json</c>, <c>tuning/luck.json</c> and plain
-    /// <c>luck.json</c> — so the location rule resolves a bare name against the real catalogue
+    /// file several ways, so the location rule resolves a bare name against the real catalogue
     /// rather than assuming the docs write a path.
     /// </param>
     public static TunableAuditReport Run(
@@ -384,9 +371,9 @@ public static class TunableMarkerAudit
         var catalogue = (tuningFileNames ?? []).ToHashSet(StringComparer.Ordinal);
         var issues = new List<ContentIssue>();
 
-        // 🔒 The reverse direction is stated over the schema keys that hold NUMBERS. A description
-        // on a container, an id or a `_doc` field records provenance; demanding a 📐 marker for
-        // every section a schema ever mentions would bury the real mismatches in citations.
+        // The reverse direction is stated over schema keys that hold numbers only — a description
+        // on a container, id or `_doc` field records provenance, and demanding a marker for every
+        // section a schema mentions would bury the real mismatches in citations.
         var tuningCitations = citations.Where(c => c.GovernsTuningFile && c.GovernsNumericKey).ToArray();
 
         var unmatchedMarkers = markers

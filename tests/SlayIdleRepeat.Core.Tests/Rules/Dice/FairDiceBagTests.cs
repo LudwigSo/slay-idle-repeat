@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Dice;
 
-/// <summary>`04` §4's Fair-Dice weighted bag: decay 0.55, boost 0.12, clamp [0.25, 2.0].</summary>
+/// <summary>The Fair-Dice weighted bag: decay 0.55, boost 0.12, clamp [0.25, 2.0].</summary>
 public sealed class FairDiceBagTests
 {
     private const ulong Seed = 0x1122334455667788UL;
@@ -101,10 +101,8 @@ public sealed class FairDiceBagTests
     }
 
     /// <summary>
-    /// S1 — the decay/boost/clamp constants are the whole point of this type; mutate each and prove
-    /// the tests above actually notice, then confirm they pass again once reverted (via re-reading the
-    /// production file after the check — see the M3-04 completion report for the literal before/after
-    /// captured while these were live).
+    /// S1 — the decay/boost/clamp constants are the whole point of this type; mutate each and
+    /// prove the tests above actually notice, then confirm they pass again once reverted.
     /// </summary>
     [Fact]
     public void Decay_and_boost_constants_are_04_4s_own_numbers()

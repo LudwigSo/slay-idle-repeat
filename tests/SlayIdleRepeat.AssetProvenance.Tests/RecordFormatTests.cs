@@ -4,10 +4,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetProvenance.Tests;
 
-/// <summary>
-/// The record format itself: the three kinds `15` §B0 / `20` §2 need, and the loud failures that
-/// keep a half-written record out of the store.
-/// </summary>
+/// <summary>The record format itself: the three kinds needed, and the loud failures that keep a half-written record out of the store.</summary>
 public sealed class RecordFormatTests
 {
     [Fact]
@@ -40,7 +37,7 @@ public sealed class RecordFormatTests
         read.Parameters.Count.ShouldBe(2);
         read.Parameters["width"].ShouldBe("512");
 
-        // 🔒 The fields that only fit a generated asset are not on this type at all — they cannot
+        // The fields that only fit a generated asset are not on this type at all — they cannot
         // be left blank here, because there is nowhere to leave them.
         read.GetType().GetProperty("Seed").ShouldBeNull();
         read.GetType().GetProperty("JobId").ShouldBeNull();
@@ -72,9 +69,9 @@ public sealed class RecordFormatTests
     }
 
     /// <summary>
-    /// 🔒 There is no per-record "licence confirmed" member, and no writer emits one. The M8
-    /// kickoff put that concept on the tool, unset, in <c>tool-licences.json</c>; a per-asset copy
-    /// would be 1,080 places for a default to read as consent.
+    /// There is no per-record "licence confirmed" member, and no writer emits one — that concept
+    /// lives on the tool, unset, in <c>tool-licences.json</c>. A per-asset copy would be 1,080
+    /// places for a default to read as consent.
     /// </summary>
     [Fact]
     public void No_record_kind_carries_a_licence_confirmed_member()
@@ -147,7 +144,7 @@ public sealed class RecordFormatTests
     }
 
     /// <summary>
-    /// 🔒 `20` §2.1 asks for the tool AND its version. Half of the pair is not a lesser record, it
+    /// The tool and its version are asked for together. Half of the pair is not a lesser record, it
     /// is a different fact, and the store refuses it rather than reading the missing half as null.
     /// </summary>
     [Theory]

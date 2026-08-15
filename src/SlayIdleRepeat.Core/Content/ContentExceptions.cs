@@ -4,11 +4,10 @@ namespace SlayIdleRepeat.Core.Content;
 /// The base of every fault raised while <em>reading</em> a <see cref="ContentSnapshot"/>.
 /// </summary>
 /// <remarks>
-/// `30` §2.1's "an illegal move is data, never an exception" governs <em>player commands</em>.
-/// These are not commands: a rule that reads a tunable which does not exist, holds the wrong
-/// type, or was never authorised is a content or programming defect, and the only safe
-/// behaviour is to stop. `14` §6's whole point is that the economy is data — a silent default
-/// in the read path would produce a plausible, wrong economy that nothing would ever flag.
+/// A rule that reads a tunable which does not exist, holds the wrong type, or was never
+/// authorised has hit a content or programming defect, and the only safe behaviour is to stop —
+/// a silent default in the read path would produce a plausible, wrong economy that nothing would
+/// ever flag.
 /// </remarks>
 public abstract class ContentException : Exception
 {
@@ -34,9 +33,8 @@ public sealed class MissingContentException : ContentException
 }
 
 /// <summary>
-/// 🔒 Raised when a rule reads a leaf that is <see cref="ContentValueKind.Unauthorised"/> —
-/// a <c>null</c> in the data files, which `game-data/README.md` defines as
-/// <em>"the design docs do not authorise a value here"</em>.
+/// Raised when a rule reads a leaf that is <see cref="ContentValueKind.Unauthorised"/> — a
+/// deliberate <c>null</c> in the data files, meaning no value was authorised there.
 /// </summary>
 /// <remarks>
 /// This is the loudest failure in the content pipeline on purpose. The alternative — reading
@@ -59,25 +57,16 @@ public sealed class UnauthorisedTunableException : ContentException
 }
 
 /// <summary>
-/// 🔒 Raised when a tunable is present, authorised and of the right type, but holds a value the
+/// Raised when a tunable is present, authorised and of the right type, but holds a value the
 /// rule reading it cannot work with — a Max Energy of zero, a cap below the base, a regeneration
 /// interval that is not a positive span.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The fourth member of the family, and the one that completes it: <see cref="MissingContentException"/>
-/// is "nothing there", <see cref="UnauthorisedTunableException"/> is "a deliberate <c>null</c>",
+/// The fourth member of the family: <see cref="MissingContentException"/> is "nothing there",
+/// <see cref="UnauthorisedTunableException"/> is "a deliberate <c>null</c>",
 /// <see cref="ContentTypeMismatchException"/> is "the wrong kind", and this is "the right kind, an
-/// impossible value". Without it a reader's own range check has to throw something outside the
-/// family, and a composition root catching <see cref="ContentException"/> to report a bad data set
-/// at start-up misses exactly the errors a balance patch introduces.
-/// </para>
-/// <para>
-/// The <paramref name="detail"/> is the reading rule's, not this type's: only the rule knows that
-/// `10` §3 authors 120 and that zero is therefore impossible. Public, like the rest of the family,
-/// because <see cref="Reference"/> is what a host logs and the domain's readers are
-/// <c>internal</c>.
-/// </para>
+/// impossible value". The <paramref name="detail"/> is the reading rule's, not this type's — only
+/// the rule knows what range is actually valid.
 /// </remarks>
 public sealed class InvalidTunableException : ContentException
 {

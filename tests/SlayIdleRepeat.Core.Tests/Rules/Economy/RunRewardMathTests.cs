@@ -9,8 +9,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
 
 /// <summary>
-/// 🔒 M3-13, `02` §5 / `03` §7a.1 — the pure reward-banking and run-end payout formulas, pinned to
-/// exact hand-computed values (not just "greater than before").
+/// The pure reward-banking and run-end payout formulas, pinned to exact hand-computed values
+/// (not just "greater than before").
 /// </summary>
 public sealed class RunRewardMathTests
 {
@@ -29,7 +29,7 @@ public sealed class RunRewardMathTests
         reward.SoulShards.ShouldBe(0);
     }
 
-    /// <summary>Elite: Gold = 40*3 = 120; Legend XP = 25 * 3 = 75 (03 §7a.1 / 02 §5.1a).</summary>
+    /// <summary>Elite: Gold = 40*3 = 120; Legend XP = 25 * 3 = 75.</summary>
     [Fact]
     public void An_elite_kill_pays_triple_gold_and_triple_xp()
     {

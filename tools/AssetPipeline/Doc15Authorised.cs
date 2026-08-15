@@ -2,91 +2,63 @@ using SkiaSharp;
 
 namespace SlayIdleRepeat.AssetPipeline;
 
-/// <summary>
-/// The numbers `15` actually authorises, and nothing else.
-/// </summary>
+/// <summary>The small, closed set of numeric constants the pipeline treats as authorised.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 Steering rule S6: <em>"If the design docs do not authorise a number, leave it absent and
-/// greppable (null), and say so."</em> This type is the other half of that rule — the small,
-/// closed set of values a doc DOES state, each carrying the section it came from, so that a reader
-/// can tell an authorised constant from an invented one at a glance. Everything else the seven
-/// steps need is either read per row from the manifest (delivery size, pivot, atlas, biome
-/// palette) or is a hole in <see cref="ThresholdSet"/> whose value is <c>null</c>.
-/// </para>
-/// <para>
-/// Do not add a number here without quoting the sentence of `15` that states it.
-/// </para>
+/// Everything else the steps need is either read per row from the manifest (delivery size, pivot,
+/// atlas, biome palette) or is a hole in <see cref="ThresholdSet"/> whose value is <c>null</c>.
 /// </remarks>
 public static class Doc15Authorised
 {
-    /// <summary>
-    /// `15` §A3: the outline colour, "never pure black".
-    /// </summary>
+    /// <summary>The outline colour (never pure black).</summary>
     public const string OutlineColourHex = "#231A2E";
 
-    /// <summary>`15` §A3's outline colour as a Skia colour.</summary>
     public static SKColor OutlineColour { get; } = new(0x23, 0x1A, 0x2E);
 
-    /// <summary>
-    /// `15` §A3: outline weight is "3-4 px at 512 px canvas, scaled proportionally" — this is the
-    /// lower bound of the band, at the reference canvas.
-    /// </summary>
+    /// <summary>Lower bound of the outline-weight band, at the reference canvas.</summary>
     public const double OutlineWidthMinAtReferenceCanvas = 3d;
 
-    /// <summary>`15` §A3: the upper bound of the outline-weight band, at the reference canvas.</summary>
+    /// <summary>Upper bound of the outline-weight band, at the reference canvas.</summary>
     public const double OutlineWidthMaxAtReferenceCanvas = 4d;
 
-    /// <summary>`15` §A3: the canvas width the 3-4 px band is stated against.</summary>
+    /// <summary>The canvas width the outline-weight band is stated against.</summary>
     public const int OutlineWidthReferenceCanvas = 512;
 
-    /// <summary>
-    /// `15` §C: <em>"Generation resolution 1024×1024"</em> — the baseline generation long edge.
-    /// </summary>
+    /// <summary>Baseline generation long edge.</summary>
     public const int GenerationLongEdge = 1024;
 
-    /// <summary>
-    /// `15` §C: <em>"(upscale to 2048 for bosses and backgrounds)"</em> — the upscaled long edge.
-    /// </summary>
+    /// <summary>The upscaled generation long edge used for bosses and backgrounds.</summary>
     /// <remarks>
-    /// 🔒 The same number as <see cref="MaxSingleTextureWidth"/> and a different statement: §C caps
-    /// a delivered <em>texture</em> at 2048 and generates bosses and backgrounds <em>at</em> 2048.
-    /// Kept apart so a day when one of the two sentences changes does not silently move the other.
+    /// Same number as <see cref="MaxSingleTextureWidth"/> but a different meaning — a delivered
+    /// texture cap vs. a generation size — kept as separate constants so one can change without
+    /// silently moving the other.
     /// </remarks>
     public const int GenerationUpscaledLongEdge = 2048;
 
-    /// <summary>`15` §C: "max single texture 2048x2048" — the width half.</summary>
+    /// <summary>Max single texture width.</summary>
     public const int MaxSingleTextureWidth = 2048;
 
-    /// <summary>`15` §C: "max single texture 2048x2048" — the height half.</summary>
+    /// <summary>Max single texture height.</summary>
     public const int MaxSingleTextureHeight = 2048;
 
     /// <summary>
-    /// `15` §B4 step 5: "Resize -> to the spec size in the manifest (Lanczos, then sharpen 0.4)".
-    /// The amount is authorised; the radius/sigma is not, and lives as an uncalibrated threshold.
+    /// The resize step's sharpen amount. The amount is authorised; the radius/sigma is not, and
+    /// lives as an uncalibrated threshold instead.
     /// </summary>
     public const double SharpenAmount = 0.4d;
 
-    /// <summary>
-    /// `15` §A4: "fill it 100% black, <b>scale to 64 px</b>". The size of the silhouette mask —
-    /// stated by the doc, so it is a constant here and not a threshold.
-    /// </summary>
+    /// <summary>The silhouette mask size in pixels.</summary>
     public const int SilhouetteMaskSize = 64;
 
-    /// <summary>
-    /// `15` §A3 detail budget: <em>"If a detail is not readable at 64 px, remove it."</em>
-    /// </summary>
+    /// <summary>The size a detail must remain readable at.</summary>
     /// <remarks>
-    /// 🔒 The same number as <see cref="SilhouetteMaskSize"/> and a different statement: §A4 scales
-    /// the <em>silhouette</em> to 64 px, §A3 judges a <em>detail</em> at 64 px. Kept apart so that a
-    /// day when one of the two sentences changes does not silently move the other, and kept here
-    /// rather than inside the check that reads it so that every number `15` states lives in one file.
+    /// Same number as <see cref="SilhouetteMaskSize"/> but a different meaning — kept as a separate
+    /// constant so one can change without silently moving the other.
     /// </remarks>
     public const int DetailBudgetSize = 64;
 
     /// <summary>
     /// The authorised outline-width band at an arbitrary canvas width, scaled proportionally from
-    /// the §A3 statement at <see cref="OutlineWidthReferenceCanvas"/>.
+    /// <see cref="OutlineWidthReferenceCanvas"/>.
     /// </summary>
     /// <param name="canvasWidth">The canvas width in pixels.</param>
     /// <returns>The inclusive minimum and maximum outline width in pixels.</returns>
@@ -106,20 +78,15 @@ public static class Doc15Authorised
     }
 }
 
-/// <summary>
-/// The two pivot values `15` §C authorises: "Characters: bottom-center. Icons: center."
-/// </summary>
+/// <summary>The two pivot values in use: characters use bottom-center, icons use center.</summary>
 /// <remarks>
-/// 🔒 §C names these two and nothing else, and 284 of the 974 manifest rows carry no pivot at all.
 /// <see cref="AssetSpec.Resolve"/> refuses both an absent pivot and an unrecognised one rather
 /// than inventing a third convention.
 /// </remarks>
 public static class Doc15Pivots
 {
-    /// <summary>`15` §C: "Icons: center."</summary>
     public const string Center = "center";
 
-    /// <summary>`15` §C: "Characters: bottom-center."</summary>
     public const string BottomCenter = "bottom-center";
 
     /// <summary>Both authorised pivots, for a caller that wants to validate against the closed set.</summary>

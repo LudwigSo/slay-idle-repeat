@@ -7,13 +7,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
 
 /// <summary>
-/// 🔒 `03` §7 (ruled `16` A7) — the shop pricing formula:
+/// The shop pricing formula:
 /// <c>Price = BasePrice(itemType, rarity) * (1 + 0.25 * stageIndex) * chapterPriceScalar</c>.
 /// </summary>
 /// <remarks>
-/// Steering <b>S1</b> — the formula's three multiplicative factors are each probed with a mutation
-/// literally applied and reverted (documented in this task's completion report), so this suite is
-/// shown to fail when the formula it protects is wrong, not merely to pass when it is right.
+/// The formula's three multiplicative factors are each probed with a mutation literally applied
+/// and reverted, so this suite is shown to fail when the formula it protects is wrong, not
+/// merely to pass when it is right.
 /// </remarks>
 public sealed class ShopPricingTests
 {

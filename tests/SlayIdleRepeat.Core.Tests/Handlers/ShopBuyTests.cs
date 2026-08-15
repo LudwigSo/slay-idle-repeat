@@ -7,10 +7,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
 /// <summary>
-/// 🔒 `03` §7 / M3-08 — <c>SHOP_BUY</c>: dispatched through the production table, and refused for
-/// every slot index today. See <c>Handlers.ShopBuy</c>'s remarks for why every otherwise-legal
-/// call is <see cref="RejectionReason.ILLEGAL_STATE"/> until M3-01/M3-03/M3-06/M3-07 land the
-/// board's stage boundaries, the shop-visit state and the perk catalogue.
+/// SHOP_BUY: dispatched through the production table, and refused for every slot index today,
+/// pending the board's stage boundaries, shop-visit state and perk catalogue.
 /// </summary>
 public sealed class ShopBuyTests
 {
@@ -41,7 +39,7 @@ public sealed class ShopBuyTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>🔒 P4: a rejected command's state is the caller's own slice, unchanged.</summary>
+    /// <summary>A rejected command's state is the caller's own slice, unchanged.</summary>
     [Fact]
     public void A_rejection_leaves_the_run_untouched()
     {

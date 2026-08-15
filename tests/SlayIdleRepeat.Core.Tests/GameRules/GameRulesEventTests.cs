@@ -6,30 +6,20 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `30` §7 — <c>DomainEvent.Sequence</c> is the event's <b>ordinal within one
-/// <c>CommandResult</c>'s list</b>, and <c>GameRules.Apply</c> is what assigns it.
+/// <c>DomainEvent.Sequence</c> is the event's ordinal within one <c>CommandResult</c>'s list,
+/// assigned by <c>GameRules.Apply</c> — never by a constructor or a caller. It is not the wire
+/// <c>sequence</c> in <c>SlayIdleRepeat.Contracts</c>, which is the per-run/per-player command
+/// counter on the request envelope.
 /// </summary>
-/// <remarks>
-/// The ruling M1-03 recorded when it authored <c>DomainEvent(int Sequence)</c>: assigned by
-/// <c>Apply</c>, <b>never</b> by a constructor and never by a caller. ⚠️ It is not `14` §16.3's wire
-/// <c>sequence</c>, which is the per-run/per-player <b>command</b> counter on the request envelope
-/// and lives in <c>SlayIdleRepeat.Contracts</c>.
-/// </remarks>
 public sealed class GameRulesEventTests
 {
     private static CurrencyChanged Unstamped(long delta, string reason) =>
         new(DomainEvent.UnstampedSequence, CurrencyId.GOLD, delta, reason);
 
     /// <summary>
-    /// 🔒 The ordinal runs 1, 2, 3 in the order the handler produced the events — and it starts at
-    /// <b>1</b>, not 0.
+    /// The ordinal runs 1, 2, 3 in production order and starts at 1, not 0 — the floor that keeps
+    /// it distinguishable from <c>DomainEvent.UnstampedSequence</c> (0).
     /// </summary>
-    /// <remarks>
-    /// The floor is what makes <c>DomainEvent.UnstampedSequence</c> (which is 0) mean something:
-    /// M1-03's remarks require <c>Apply</c> to be able to tell an unstamped event from a first one,
-    /// and a 0-based stamp would make the two identical — at which point the refusal below could
-    /// never fire on a genuinely-first event.
-    /// </remarks>
     [Fact]
     public void Apply_stamps_each_event_with_its_ordinal_within_this_result()
     {
@@ -47,15 +37,7 @@ public sealed class GameRulesEventTests
             .ShouldBe(new[] { "first", "second", "third" });
     }
 
-    /// <summary>
-    /// 🔒 The ordinal is <b>per result</b>, not a counter that runs across commands: a second
-    /// <c>Apply</c> starts again at 1.
-    /// </summary>
-    /// <remarks>
-    /// This is the assertion that fails if <c>Sequence</c> is ever confused with `14` §16.3's wire
-    /// <c>sequence</c>. Conflating the two would make the economy log unorderable within a command
-    /// and the idempotency protocol wrong at the same time — two different numbers, one word.
-    /// </remarks>
+    /// <summary>The ordinal is per result, not a counter across commands: a second <c>Apply</c> starts again at 1.</summary>
     [Fact]
     public void The_ordinal_restarts_for_every_command_and_is_not_the_wire_sequence()
     {
@@ -71,14 +53,9 @@ public sealed class GameRulesEventTests
     }
 
     /// <summary>
-    /// 🔒 A handler that stamped its own <c>Sequence</c> is a <b>defect</b>. It is refused rather
-    /// than silently overwritten.
+    /// A handler that stamped its own <c>Sequence</c> is a defect and is refused rather than
+    /// silently overwritten.
     /// </summary>
-    /// <remarks>
-    /// Overwriting would let the mistake pass unnoticed until the economy log (`14` §7.1) and the
-    /// animation script (`14` §2.4) disagreed about the order of one command's effects — and by then
-    /// the rows are in Postgres. The refusal names the event type, so a reader knows which producer.
-    /// </remarks>
     [Fact]
     public void An_event_that_arrives_already_stamped_is_refused()
     {
@@ -123,11 +100,7 @@ public sealed class GameRulesEventTests
         result.Events.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 The event list is handed out read-only. `14` §7.1 appends it to Postgres, `14` §2.4
-    /// replays it and `28` D counts it; a consumer that could rewrite it changes what the other two
-    /// see.
-    /// </summary>
+    /// <summary>The event list is handed out read-only; multiple independent consumers read the same list.</summary>
     [Fact]
     public void The_event_list_cannot_be_written_through()
     {
@@ -152,16 +125,10 @@ public sealed class GameRulesEventTests
     }
 
     /// <summary>
-    /// 🔒 …and the <b>empty</b> list is not written through either: <c>Apply</c> hands back its own
-    /// shared empty list, never the one the handler happened to return.
+    /// The empty list is not written through either: <c>Apply</c> hands back its own shared empty
+    /// list, never the one the handler happened to return — otherwise a handler still holding its
+    /// list could append to it after <c>Apply</c> returned.
     /// </summary>
-    /// <remarks>
-    /// The rule above only covers the path where a stamped array is built and wrapped. A handler
-    /// that returned a <c>List&lt;DomainEvent&gt;</c> it still holds — the natural shape for one
-    /// that builds events conditionally and this time built none — could otherwise append to
-    /// <c>CommandResult.Events</c> after <c>Apply</c> had returned, and `14` §7.1's economy log
-    /// would carry rows for a command that never produced them.
-    /// </remarks>
     [Fact]
     public void An_empty_event_list_is_not_the_handlers_own_list()
     {
@@ -182,15 +149,9 @@ public sealed class GameRulesEventTests
     }
 
     /// <summary>
-    /// 🔒 The stamp is applied through <c>with</c>, which reaches every subtype through the abstract
-    /// record's virtual <c>&lt;Clone&gt;$</c> — and every other component survives it unchanged.
+    /// The stamp is applied through <c>with</c> (reaching every subtype via the abstract record's
+    /// virtual <c>&lt;Clone&gt;$</c>), and every other component survives it unchanged.
     /// </summary>
-    /// <remarks>
-    /// M1-03 verified the mechanism and deliberately left <c>Sequence</c> as <c>init</c> for this,
-    /// while making <c>CurrencyChanged.Reason</c> get-only. This is the assertion that the
-    /// <c>with</c> did not quietly drop the attribution `21` §8.3's <c>income_attribution.csv</c>
-    /// groups by.
-    /// </remarks>
     [Fact]
     public void Stamping_preserves_every_other_component()
     {
@@ -210,7 +171,7 @@ public sealed class GameRulesEventTests
     }
 
     /// <summary>
-    /// 🔒 A refused command carries no events, whatever its handler built before the rule refused —
+    /// A refused command carries no events, whatever its handler built before the rule refused —
     /// they belong to a state that was discarded with the rejection.
     /// </summary>
     [Fact]

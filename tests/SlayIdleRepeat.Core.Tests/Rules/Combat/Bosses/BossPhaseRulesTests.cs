@@ -7,15 +7,12 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `17` §1 — the two phase boundaries, the <c>&lt;=</c> that <em>"triggered at 66%"</em> means,
-/// and the first-clear extension read as a wider HP band rather than a longer fight.
+/// The two phase boundaries, the &lt;= that "triggered at 66%" means, and the first-clear
+/// extension read as a wider HP band rather than a longer fight.
 /// </summary>
 public sealed class BossPhaseRulesTests
 {
-    /// <summary>
-    /// 🔒 `17` §1 — <em>"exactly 3, triggered at 100%, 66% and 33% Max HP"</em>. Read as a reading:
-    /// a fraction at or below a boundary is already in the lower phase.
-    /// </summary>
+    /// <summary>A fraction at or below a boundary is already in the lower phase.</summary>
     [Theory]
     [InlineData(1.00, 1)]
     [InlineData(0.67, 1)]
@@ -31,9 +28,8 @@ public sealed class BossPhaseRulesTests
     }
 
     /// <summary>
-    /// 🔴 `17` §1's first-clear extension: <em>"phase 1 lasts 20% longer"</em>. A phase is an HP
-    /// band, and at constant DPS its duration is proportional to its width — so the band widens by
-    /// 20% and the boundary moves to <c>1.0 − 1.2 × (1.0 − 0.66) = 0.5920</c>.
+    /// A phase is an HP band; at constant DPS its duration is proportional to its width, so a 20%
+    /// longer phase 1 widens the band and moves the boundary to 1.0 - 1.2 x (1.0 - 0.66) = 0.5920.
     /// </summary>
     [Fact]
     public void A_first_clear_widens_phase_1s_band_by_20_percent()
@@ -49,8 +45,8 @@ public sealed class BossPhaseRulesTests
     }
 
     /// <summary>
-    /// 🔒 The extension reaches phase 1 <b>only</b>: at 66% a first clear is still in phase 1, and
-    /// `17` §1's 33% boundary is untouched, so phase 2 absorbs the whole difference.
+    /// The extension reaches phase 1 only: at 66% a first clear is still in phase 1, and the 33%
+    /// boundary is untouched, so phase 2 absorbs the whole difference.
     /// </summary>
     [Theory]
     [InlineData(0.6600, 1)]
@@ -67,16 +63,10 @@ public sealed class BossPhaseRulesTests
     }
 
     /// <summary>
-    /// The widened boundary is <b>derived</b> from `17` §1's two authored numbers rather than being a
-    /// fourth constant somebody could retune independently.
+    /// The widened boundary is derived from the two authored constants rather than being a fourth
+    /// constant somebody could retune independently; the literal 0.5920 is pinned separately by
+    /// <see cref="A_first_clear_widens_phase_1s_band_by_20_percent"/>.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The expectation is computed here from the authored constants, so a change to either one
-    /// moves both sides together and this case keeps meaning <em>"the derivation is that
-    /// formula"</em> rather than <em>"the number is 0.5920"</em>. The literal 0.5920 is pinned by
-    /// <see cref="A_first_clear_widens_phase_1s_band_by_20_percent"/>, which is the case that fails
-    /// if the constants drift from the document.
-    /// </remarks>
     [Fact]
     public void The_widened_boundary_is_the_authored_band_times_the_authored_widening()
     {
@@ -87,10 +77,6 @@ public sealed class BossPhaseRulesTests
         BossPhaseRules.Phase2HpFraction(firstClear: true).ShouldBe(widened);
     }
 
-    /// <summary>
-    /// 🔒 `17` §1 gives every boss <b>exactly three</b> phases, and the log's <c>PhaseChange</c> can
-    /// carry only <c>1</c>, <c>2</c> or <c>3</c> (<c>CombatEvent</c>'s slot contract).
-    /// </summary>
     [Fact]
     public void There_are_exactly_three_phases_and_the_log_can_name_all_of_them()
     {

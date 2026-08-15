@@ -9,19 +9,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 M3-05 — <c>GameRules.Execute</c>'s <c>RunPhase</c> gate: the one place the state-set ruling on
-/// <c>Primitives.RunPhase</c> is actually enforced, over the production dispatch table.
+/// <c>GameRules.Execute</c>'s <c>RunPhase</c> gate: the one place <c>Primitives.RunPhase</c> is
+/// actually enforced, over the production dispatch table.
 /// </summary>
 public sealed class GameRulesRunPhaseGateTests
 {
     // ------------------------------------------------------------------ RunPhase.Ended
 
     /// <summary>
-    /// 🔒 No command in this milestone ever produces <see cref="RunPhase.Ended"/> — M3-13's
-    /// <c>END_RUN</c>/<c>ABANDON_RUN</c> do, once they land — but the gate this task builds must
-    /// already answer <c>RUN_ALREADY_ENDED</c> the day a run reaches it, which is exactly what
-    /// <c>GapRegister</c>'s discharged <c>RunPhase</c> entry named as the consequence of authoring
-    /// the enum at all.
+    /// No command in this milestone ever produces <see cref="RunPhase.Ended"/> yet, but the gate
+    /// must already answer <c>RUN_ALREADY_ENDED</c> the day a run reaches it.
     /// </summary>
     [Fact]
     public void A_run_command_against_an_Ended_run_is_RUN_ALREADY_ENDED()

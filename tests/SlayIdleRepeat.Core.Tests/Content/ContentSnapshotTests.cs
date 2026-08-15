@@ -5,8 +5,7 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// `14` §6 / `30` §3 — <em>"Content is loaded once into an immutable, version-stamped
-/// <c>ContentSnapshot</c> … reading content is a rule."</em> These are the reading rules.
+/// Content is loaded once into an immutable, version-stamped <see cref="ContentSnapshot"/>; these are its reading rules.
 /// </summary>
 public sealed class ContentSnapshotTests
 {
@@ -254,9 +253,8 @@ public sealed class ContentSnapshotTests
             .Select(t => t.GetGenericTypeDefinition())
             .ToArray();
 
-        // 🔒 The floor. This rule is only ever as good as its subject set, and that set is
-        // built by reflection: if ContentSnapshot ever stops exposing a generic-typed
-        // property, "none of them is mutable" becomes true of nothing and passes forever.
+        // This rule is only as good as its subject set: if ContentSnapshot stops exposing any
+        // generic-typed property, "none of them is mutable" becomes vacuously true and passes forever.
         genericPropertyTypes.ShouldNotBeEmpty(
             "ContentSnapshot exposes no generic-typed property, so the mutable-collection "
             + "rule below is asserting over an empty set and can no longer fail");

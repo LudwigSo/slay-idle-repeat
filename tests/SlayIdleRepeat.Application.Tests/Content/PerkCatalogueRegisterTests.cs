@@ -6,58 +6,49 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// M3-07's task charter: "Rows the selection rule doesn't reach go in a register (this becomes
-/// M3-07b's input) recording which 06 §3 ids are unauthored, checkable in both directions." This
-/// is that check, over <c>.claude/handovers/M3-07-unauthored-perks-register.json</c>.
+/// Checks the register at <c>.claude/handovers/M3-07-unauthored-perks-register.json</c>, which
+/// records which standard-catalogue perk ids are unauthored.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The universe is 06 §3.1-3.6's 82 standard-catalogue ids, transcribed by hand below — the only
-/// way an "undeclared" direction can work, on <c>GapRegister.Surfaces</c>' own precedent: a list
-/// derived from the shipped content would say the catalogue is complete because the content says
-/// so. Cursed Perks (06 §3.7) and the 8 Dice &amp; Board rows that live in 04 §5 are outside this
-/// universe entirely (the task's own "drawn only from the 06 §3 catalogue" scope).
-/// </para>
-/// <para>
-/// Both directions: every catalogue id is in exactly one of "authored in perks.json" or
-/// "unauthored, in the register" — never neither (undeclared), never both (double-claimed) — and
-/// neither file names an id outside the catalogue (a stray).
-/// </para>
+/// The 82-id catalogue is transcribed by hand below rather than derived from shipped content — a
+/// list derived from the content would trivially say the catalogue is complete. Every catalogue id
+/// must be in exactly one of "authored in perks.json" or "registered as unauthored" — never
+/// neither, never both — and neither file may name an id outside the catalogue.
 /// </remarks>
 public sealed class PerkCatalogueRegisterTests
 {
     private const string RegisterRelativePath = ".claude/handovers/M3-07-unauthored-perks-register.json";
 
     /// <summary>
-    /// 06 §3.1-3.6, hand-transcribed. 82 ids: Offense 22, Defense 18, Sustain 12, Dice &amp; Board 4
-    /// (06's own — the other 8 of the category's 12 live in 04 §5), Economy 10, Trigger/Synergy 16.
+    /// The 82-id catalogue, hand-transcribed: Offense 22, Defense 18, Sustain 12, Dice &amp; Board 4
+    /// (the category's other 8 rows live elsewhere), Economy 10, Trigger/Synergy 16.
     /// </summary>
     private static readonly string[] Catalogue =
     [
-        // 06 §3.1 Offense (22)
+        // Offense (22)
         "PK_SHARP_EDGE", "PK_QUICK_HANDS", "PK_KEEN_EYE", "PK_HEAVY_SWING", "PK_PIERCING",
         "PK_BRUTALITY", "PK_EXECUTIONER", "PK_FLURRY", "PK_OVERPOWER", "PK_CRIT_CASCADE",
         "PK_RUPTURE", "PK_IGNITE", "PK_GIANT_SLAYER", "PK_MOMENTUM_ATK", "PK_CLEAVE",
         "PK_DEATHMARK", "PK_BERSERK", "PK_TWIN_STRIKE", "PK_SUNDERING", "PK_APEX",
         "PK_ANNIHILATE", "PK_CHAIN_DEATH",
 
-        // 06 §3.2 Defense (18)
+        // Defense (18)
         "PK_TOUGH_HIDE", "PK_IRON_SKIN", "PK_NIMBLE", "PK_BULWARK", "PK_STOIC", "PK_THORNS",
         "PK_SECOND_SKIN", "PK_WARDED", "PK_EVASIVE", "PK_STALWART", "PK_ANCHOR", "PK_REACTIVE",
         "PK_IMMOVABLE", "PK_AEGIS", "PK_LAST_STAND", "PK_MIRROR", "PK_UNBREAKABLE", "PK_FORTRESS",
 
-        // 06 §3.3 Sustain (12)
+        // Sustain (12)
         "PK_LEECH", "PK_REGEN", "PK_VITAL_SURGE", "PK_BLOODLETTER", "PK_FEAST", "PK_HEALERS_TOUCH",
         "PK_SANGUINE", "PK_RESTORATION", "PK_UNDYING", "PK_TRANSFUSION", "PK_PHOENIX", "PK_ETERNAL",
 
-        // 06 §3.4 Dice & Board (4 — 06's own; the other 8 of the 12 live in 04 §5)
+        // Dice & Board (4 — the other 8 of the 12 live elsewhere)
         "PK_PATHFINDER", "PK_SCOUT", "PK_LEAPFROG", "PK_CARTOGRAPHER",
 
-        // 06 §3.5 Economy (10)
+        // Economy (10)
         "PK_GREED", "PK_HAGGLER", "PK_SCAVENGER", "PK_LUCKY_FIND", "PK_PROSPECTOR",
         "PK_MERCHANT_FRIEND", "PK_BOUNTY", "PK_ALCHEMY", "PK_MIDAS", "PK_HOARD",
 
-        // 06 §3.6 Trigger/Synergy (16)
+        // Trigger/Synergy (16)
         "PK_GLASS", "PK_TURTLE", "PK_JUGGERNAUT", "PK_DUELIST", "PK_SWARMBANE", "PK_OPENER",
         "PK_CLOSER", "PK_PACK_LEADER", "PK_SYMBIOSIS", "PK_ECHO", "PK_MOMENTUM_CH", "PK_GAMBLER",
         "PK_ARSENAL", "PK_PERFECTIONIST", "PK_AVATAR", "PK_SINGULARITY",
@@ -87,7 +78,7 @@ public sealed class PerkCatalogueRegisterTests
             .ToArray();
     }
 
-    /// <summary>Floor — the transcription itself has not been trimmed (steering S3).</summary>
+    /// <summary>Floor: the transcription itself has not been trimmed.</summary>
     [Fact]
     public void The_catalogue_transcription_holds_82_ids_across_6_categories()
     {
@@ -109,10 +100,7 @@ public sealed class PerkCatalogueRegisterTests
         AuthoredIds().Length.ShouldBe(46);
     }
 
-    /// <summary>
-    /// 🔒 Direction 1 (undeclared) — every catalogue id is authored or registered; none falls
-    /// through both.
-    /// </summary>
+    /// <summary>Direction 1 (undeclared): every catalogue id is authored or registered; none falls through both.</summary>
     [Fact]
     public void Every_catalogue_id_is_either_authored_or_registered_as_unauthored()
     {
@@ -126,10 +114,7 @@ public sealed class PerkCatalogueRegisterTests
             $"found in neither: {string.Join(", ", neither)}");
     }
 
-    /// <summary>
-    /// 🔒 Direction 2 (double-claimed) — no id is both authored and registered as unauthored; that
-    /// would be two disagreeing claims about the same row.
-    /// </summary>
+    /// <summary>Direction 2 (double-claimed): no id is both authored and registered as unauthored — that would be two disagreeing claims about the same row.</summary>
     [Fact]
     public void No_id_is_both_authored_and_registered_as_unauthored()
     {
@@ -141,7 +126,7 @@ public sealed class PerkCatalogueRegisterTests
         both.ShouldBeEmpty($"claimed by both perks.json and the register: {string.Join(", ", both)}");
     }
 
-    /// <summary>🔒 No stray — every authored id is really in 06 §3's catalogue, never invented.</summary>
+    /// <summary>No stray: every authored id is really in the catalogue, never invented.</summary>
     [Fact]
     public void Every_authored_id_is_drawn_from_the_06_section_3_catalogue()
     {
@@ -151,7 +136,7 @@ public sealed class PerkCatalogueRegisterTests
         strays.ShouldBeEmpty($"authored but not in 06 §3.1-3.6: {string.Join(", ", strays)}");
     }
 
-    /// <summary>🔒 No stray in the register either — it must not name an id nobody asked about.</summary>
+    /// <summary>No stray in the register either — it must not name an id nobody asked about.</summary>
     [Fact]
     public void Every_registered_id_is_drawn_from_the_06_section_3_catalogue()
     {
@@ -162,10 +147,9 @@ public sealed class PerkCatalogueRegisterTests
     }
 
     /// <summary>
-    /// 🔒 Self-expiry for <c>ContentInvariants.KnownForwardPerkReferences</c> — the
-    /// <c>tuning/calibration_builds.json</c> forward-reference exemption this task's schema change
-    /// required. Every entry must be BOTH still referenced from that file AND still unauthored, or
-    /// it has gone stale (per its own remarks, since nothing else fails on it automatically).
+    /// Self-expiry for <c>ContentInvariants.KnownForwardPerkReferences</c>: every entry must be
+    /// both still referenced from <c>tuning/calibration_builds.json</c> and still unauthored, or it
+    /// has gone stale (nothing else fails on it automatically).
     /// </summary>
     [Fact]
     public void Every_known_forward_perk_reference_is_still_genuinely_unresolved()

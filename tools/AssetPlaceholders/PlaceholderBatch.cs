@@ -6,18 +6,14 @@ using SlayIdleRepeat.AssetPipeline.Qa;
 namespace SlayIdleRepeat.AssetPlaceholders;
 
 /// <summary>How one run behaves.</summary>
-/// <param name="OutputDirectory">
-/// 🔒 Where the images, the provenance records and the atlas metadata go. Must be under
-/// <c>artifacts/</c>. See <see cref="PlaceholderOutput"/> for why that is a rule and not a habit.
-/// </param>
+/// <param name="OutputDirectory">Where the images, provenance records and atlas metadata go. Must be under <c>artifacts/</c>; see <see cref="PlaceholderOutput"/>.</param>
 /// <param name="RepoCommit">This repository's full 40-hex commit, for the provenance records.</param>
 /// <param name="ThresholdRegisterJson">
 /// The contents of <c>assets/pipeline/thresholds.json</c>, verbatim.
 /// </param>
 /// <param name="Include">
-/// Which register rows to consider. Null means all of them. 🔒 A filter narrows what is
-/// <em>attempted</em>; it never changes the register totals a report reconciles against, so a
-/// filtered run reports plainly that it did not cover the register.
+/// Which register rows to consider. Null means all of them. A filter narrows what is attempted; it
+/// never changes the register totals a report reconciles against.
 /// </param>
 public sealed record PlaceholderBatchOptions(
     string OutputDirectory,
@@ -25,60 +21,46 @@ public sealed record PlaceholderBatchOptions(
     string ThresholdRegisterJson,
     Func<ArtAsset, bool>? Include = null)
 {
-    /// <summary>The register `15` Part F is graded against.</summary>
+    /// <summary>The register the QA gate is graded against.</summary>
     /// <remarks>
-    /// 🔒 <b>Built here and nowhere else, so no caller can hand the gate anything but the shipped
-    /// file.</b> Three of the nine processing values <see cref="PlaceholderThresholds.ForPipeline"/>
-    /// states — the outline colour tolerance, the palette match tolerance and the neutral list — are
-    /// read by `15` Part F items 3 and 5 as well as by §B4 steps 3 and 4. Passing the pipeline's set
-    /// here would flip both items from <see cref="AssetPipeline.Qa.QaVerdict.Uncalibrated"/> to
-    /// graded-against-the-generator's-own-numbers, which is exactly the S6 violation the split
-    /// exists to prevent — and while this was a constructor parameter, one line at one call site was
-    /// all it took. A key somebody calibrates in the shipped file is still honoured, because the
-    /// file is read rather than the keys enumerated.
+    /// Built here and nowhere else, so no caller can hand the gate anything but the shipped file —
+    /// passing the pipeline's own processing thresholds here would let the generator grade itself.
     /// </remarks>
     public ThresholdSet QaThresholds { get; } =
         PlaceholderThresholds.ForQualityAssurance(ThresholdRegisterJson);
 }
 
 /// <summary>
-/// Generates one placeholder per runtime art slot in M8-09's register and drives every one of them
-/// through `15` §B4's seven steps and Part F's checklist.
+/// Generates one placeholder per runtime art slot in the register and drives every one of them
+/// through the pipeline's processing steps and QA checklist.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Three refusals are honoured, never worked around.</b> A row a ruling cut, a row `15` §C
-/// states no delivery size for, and a row §C authorises no pivot for each come back as a
+/// A row a ruling cut, a row with no delivery size, and a row with no pivot each come back as a
 /// <see cref="PlaceholderSkip"/> with the reason named. <see cref="ArtAsset.RequireDeliverySize"/>
-/// and <see cref="AssetSpec.Resolve"/> throw by design (steering rule S6), and this type asks the
-/// register the same questions <em>before</em> resolving so that the skip is a decision rather than
-/// a caught exception — but it never defaults a hole, and the counts go into the report because
-/// they are a gap in `15` that O30 needs at M11-01.
+/// and <see cref="AssetSpec.Resolve"/> throw by design, and this type asks the register the same
+/// questions before resolving so the skip is a decision rather than a caught exception.
 /// </para>
 /// <para>
-/// 🔒 <b>The run is grouped by atlas, and that is a memory decision.</b> `15` Part F item 10 needs
-/// the §B4 step 7 pack the asset was placed by, so every member of an atlas has to exist at the same
-/// moment. All 641 delivery images at once is roughly 450 MB of native surfaces; the largest single
-/// §D2 atlas — <c>atlas_hero</c>, 64 rows at 512×512 — is roughly 67 MB.
+/// The run is grouped by atlas, and that is a memory decision: every member of an atlas has to
+/// exist at the same moment to be packed and graded together, and drawing every delivery image at
+/// once would be far more native memory than a batch run needs to hold.
 /// </para>
 /// <para>
-/// 🔒 <b>Disposal goes through <see cref="PipelineRun.DistinctOutputs"/>.</b> A step that skips
-/// returns the instance it was handed and <see cref="PipelineRun.Intermediates"/> aliases
-/// <see cref="PipelineRun.Steps"/>, so one native <see cref="SKBitmap"/> appears several times per
-/// run and the obvious <c>foreach (var step in run.Steps) step.Image.Dispose()</c> is a double free.
-/// Over hundreds of assets that is loud in both directions.
+/// Disposal goes through <see cref="PipelineRun.DistinctOutputs"/> rather than per-step. A step
+/// that skips returns the instance it was handed, and <see cref="PipelineRun.Intermediates"/>
+/// aliases <see cref="PipelineRun.Steps"/>, so one native <see cref="SKBitmap"/> appears several
+/// times per run and the obvious <c>foreach (var step in run.Steps) step.Image.Dispose()</c> is a
+/// double free.
 /// </para>
 /// </remarks>
 public sealed class PlaceholderBatch
 {
-    /// <summary>The key a row `15` §D2 assigns no atlas is grouped under.</summary>
-    /// <remarks>
-    /// 🔒 Not a valid `15` §D1 atlas id, and deliberately not one: it must never be written into a
-    /// pack, a file name or a placement, and a name with a space in it cannot be mistaken for one.
-    /// </remarks>
+    /// <summary>The key a row with no atlas is grouped under.</summary>
+    /// <remarks>Deliberately not a valid atlas id: a name with a space in it cannot be mistaken for one written into a pack, a file name or a placement.</remarks>
     private const string NoAtlasGroup = "(no atlas)";
 
-    /// <summary>A full git object name: 40 hex digits. The shape M8-01a's validator demands.</summary>
+    /// <summary>A full git object name: 40 hex digits.</summary>
     private const int FullCommitLength = 40;
 
     private readonly PlaceholderBatchOptions options;
@@ -94,11 +76,9 @@ public sealed class PlaceholderBatch
         ArgumentNullException.ThrowIfNull(options);
         PlaceholderOutput.RequireArtifactsPath(options.OutputDirectory);
 
-        // 🔒 Checked once, here, rather than 641 times inside M8-01a's validator AFTER each asset
-        // has already been drawn and pushed through all seven `15` §B4 steps. The record's shape is
-        // the validator's to judge; that the run has a commit to record at all is this
-        // constructor's, and a run that discovered a typo per asset would spend eleven minutes
-        // failing the same way 641 times.
+        // Checked once, here, rather than once per asset after it has already been drawn and
+        // pushed through the whole pipeline — a run that discovered a typo per asset would fail
+        // the same way hundreds of times before reporting it.
         if (options.RepoCommit is null
             || options.RepoCommit.Length != FullCommitLength
             || !options.RepoCommit.All(char.IsAsciiHexDigitLower))
@@ -170,14 +150,10 @@ public sealed class PlaceholderBatch
             }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
-                // 🔒 The same argument as the per-asset catch, one level up. `15` §B4 step 7 and
-                // Part F both run per atlas, and three things after the asset loop throw by design:
-                // a member over §C's 2048 cap, a duplicate §D1 id, and atlas metadata naming an
-                // absent member. Without this, one bad atlas discarded the report for all fourteen
-                // — 640 generated placeholders and their Part F grades, thrown away, with nothing
-                // printed at all.
+                // Atlas packing and QA both run per group and can throw after the asset loop, so
+                // without this a single bad atlas would discard the whole report.
                 //
-                // 🔒 The group's own partial results are DISCARDED rather than merged: an asset
+                // The group's own partial results are DISCARDED rather than merged: an asset
                 // graded before the throw would otherwise appear in both columns and the report
                 // would account for more rows than the register holds.
                 foreach (var member in group)
@@ -205,17 +181,10 @@ public sealed class PlaceholderBatch
     /// Why this row gets no placeholder, or null when it gets one.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 The order matches <see cref="AssetSpec.Resolve"/>'s — cut, then size, then pivot — so a
-    /// row missing both a size and a pivot is reported under the same reason the pipeline would have
-    /// refused it for. Reporting a row under the second of two true reasons would put 95 of them in
-    /// the wrong column of the gap O30 reconciles.
-    /// </para>
-    /// <para>
-    /// 🔒 Public so the CLI's <c>plan</c> command asks this rather than deciding the same three-way
-    /// split with its own switch. Two copies of an ordering whose whole point is that drifting
-    /// misfiles 95 rows is the duplicate mechanism steering S12 exists to prevent.
-    /// </para>
+    /// The order matches <see cref="AssetSpec.Resolve"/>'s — cut, then size, then pivot — so a row
+    /// missing both a size and a pivot is reported under the same reason the pipeline would refuse
+    /// it for. Public so the CLI's <c>plan</c> command asks this rather than re-deriving the same
+    /// three-way split.
     /// </remarks>
     /// <param name="asset">The register row.</param>
     public static PlaceholderSkip? SkipFor(ArtAsset asset)
@@ -258,16 +227,14 @@ public sealed class PlaceholderBatch
     }
 
     /// <summary>
-    /// Draws, processes, packs and grades one `15` §D2 atlas's worth of rows.
+    /// Draws, processes, packs and grades one atlas's worth of rows.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>The two outcome lists are the group's own, and the caller merges them only on
-    /// success.</b> Everything after the asset loop can throw, and the caller records every member
-    /// of a failed group as failed — appending directly to the batch's lists would then count an
-    /// asset that had already been graded twice, once in each column, and
-    /// <see cref="PlaceholderBatchReport.Reconciles"/> would report a total larger than the register.
+    /// The two outcome lists are the group's own, merged into the batch's lists only on success:
+    /// everything after the asset loop can throw, and the caller records every member of a failed
+    /// group as failed, so appending directly here would double-count an asset.
     /// </remarks>
-    /// <param name="groupKey">The `15` §D2 atlas reference, or <see cref="NoAtlasGroup"/>.</param>
+    /// <param name="groupKey">The atlas reference, or <see cref="NoAtlasGroup"/>.</param>
     /// <param name="members">The rows in this group.</param>
     /// <param name="generated">This group's graded placeholders. Written, never read.</param>
     /// <param name="failed">This group's per-asset failures. Written, never read.</param>
@@ -290,8 +257,7 @@ public sealed class PlaceholderBatch
         try
         {
             // Ordered by id so `processed`, and therefore the atlas metadata and the progress
-            // output, read the same way every run. `15` §B4 step 7 sorts its own entries — that
-            // sort is the packer's determinism contract and this one does not stand in for it.
+            // output, read the same way every run.
             foreach (var asset in members.OrderBy(asset => asset.Id, StringComparer.Ordinal))
             {
                 try
@@ -301,9 +267,7 @@ public sealed class PlaceholderBatch
                 }
                 catch (Exception exception) when (exception is not OutOfMemoryException)
                 {
-                    // 🔒 Recorded and counted, never swallowed. This generator is the pipeline's
-                    // first real caller, so a throw here is evidence rather than noise, and a run
-                    // that stopped at the first one would find exactly one bug per run.
+                    // Recorded and counted, never swallowed, so a run finds more than one bug per run.
                     failed.Add(new PlaceholderFailure(
                         asset.Id, asset.Section, exception.GetType().Name, exception.Message));
                 }
@@ -314,10 +278,9 @@ public sealed class PlaceholderBatch
             {
                 packs.Add(pack);
 
-                // 🔒 Step 7's deviations and contradictions are folded into the same two tallies
-                // steps 1-6 report through. CON_ATLAS_PAGE_CAP lives only on the pack result, and a
-                // batch report that counted only the per-asset ones would say the run hit no
-                // contradiction while §D2 and §C were colliding on every atlas it packed.
+                // Atlas packing's own deviations and contradictions are folded into the same two
+                // tallies the per-asset steps report through, so the batch report doesn't miss ones
+                // that only show up at pack time.
                 foreach (var deviation in pack.Deviations)
                 {
                     deviations[deviation.Id] = deviations.GetValueOrDefault(deviation.Id) + 1;
@@ -365,9 +328,7 @@ public sealed class PlaceholderBatch
         }
     }
 
-    /// <summary>
-    /// Draws one placeholder, runs `15` §B4 steps 1-6 over it, and writes what came out.
-    /// </summary>
+    /// <summary>Draws one placeholder, runs the pipeline's processing steps over it, and writes what came out.</summary>
     private ProcessedPlaceholder Process(
         ArtAsset asset,
         Dictionary<string, int> deviations,
@@ -430,13 +391,11 @@ public sealed class PlaceholderBatch
         }
         finally
         {
-            // 🔒 DistinctOutputs, and the survivor held back. Steps hand the same instance on when
-            // they skip and Intermediates aliases Steps, so disposing per reference is a double
-            // free — and the last step's image is the one Part F item 7 and step 7 are about to
-            // read. 🔒 In a `finally`, because five statements above can throw and RunGroup records
-            // the failure and moves to the next asset: without this, every §B4 surface of a failing
-            // asset became unreachable, and a systematically failing run leaked one set per row.
-            // On the throw path `kept` is still null, so nothing survives.
+            // In a `finally`, because the statements above can throw and RunGroup records the
+            // failure and moves to the next asset. Steps hand the same instance on when they skip
+            // and Intermediates aliases Steps, so disposing per reference is a double free — this
+            // disposes every surface except the kept output and the original input. On the throw
+            // path `kept` is still null, so nothing survives.
             foreach (var image in run.DistinctOutputs)
             {
                 if (!ReferenceEquals(image, kept) && !ReferenceEquals(image, drawn))
@@ -447,12 +406,12 @@ public sealed class PlaceholderBatch
         }
     }
 
-    /// <summary>Runs `15` §B4 step 7 over one atlas's members.</summary>
+    /// <summary>Packs one atlas's members.</summary>
     /// <remarks>
-    /// 🔒 The pack is keyed on the reference the <em>rows</em> carry (<c>atlas_biome_3</c>), not on
-    /// §D2's template id (<c>atlas_biome_{n}</c>). `15` Part F item 10 compares
+    /// The pack is keyed on the reference the rows carry (e.g. <c>atlas_biome_3</c>), not on a
+    /// template id (<c>atlas_biome_{n}</c>) — the QA naming check compares
     /// <see cref="AtlasPackResult.AtlasId"/> against <see cref="ArtAsset.Atlas"/> by ordinal
-    /// equality, so a pack labelled with the template would fail all 192 biome-scoped rows.
+    /// equality, so a pack labelled with the template would fail every biome-scoped row.
     /// </remarks>
     private AtlasPackResult? Pack(string atlasId, IReadOnlyList<ProcessedPlaceholder> members) =>
         members.Count == 0
@@ -462,13 +421,13 @@ public sealed class PlaceholderBatch
                 [.. members.Select(entry => new AtlasPackEntry(entry.Asset, entry.Image))],
                 pipelineThresholds));
 
-    /// <summary>One placeholder after `15` §B4 steps 1-6, held until its atlas is packed.</summary>
+    /// <summary>One placeholder after processing, held until its atlas is packed.</summary>
     /// <param name="Asset">The register row.</param>
     /// <param name="Spec">Its manifest-derived spec.</param>
-    /// <param name="FileName">The delivered `15` §D1 file name.</param>
-    /// <param name="EncodedBytes">How many bytes step 6 wrote.</param>
+    /// <param name="FileName">The delivered file name.</param>
+    /// <param name="EncodedBytes">How many bytes the export step wrote.</param>
     /// <param name="Stamped">Whether the id stamp fitted on the card.</param>
-    /// <param name="Image">Step 6's output. Owned by <see cref="RunGroup"/>, disposed by it.</param>
+    /// <param name="Image">The processed output. Owned by <see cref="RunGroup"/>, disposed by it.</param>
     private sealed record ProcessedPlaceholder(
         ArtAsset Asset,
         AssetSpec Spec,

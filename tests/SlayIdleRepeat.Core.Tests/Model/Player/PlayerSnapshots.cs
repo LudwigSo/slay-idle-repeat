@@ -6,7 +6,7 @@ using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Tests.Model;
 
-// 🔒 Namespace SlayIdleRepeat.Core.Tests.Model, not ...Tests.Model.Player, and the files still sit
+// Namespace SlayIdleRepeat.Core.Tests.Model, not ...Tests.Model.Player, and the files still sit
 // under Model/Player/. Same reason the production aggregate does it: a child namespace named
 // `Player` shadows the type `Player` for everything inside SlayIdleRepeat.Core.Tests.Model, so a
 // test written here could not name the very class it is testing (CS0118).
@@ -19,15 +19,15 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 /// A test that built a whole snapshot inline would restate fourteen fields to change one, and the
 /// reader could not tell which it was asserting about.
 /// <para>
-/// 🔒 Every instant is UTC with a zero offset and every period boundary is 05:00 UTC, because
+/// Every instant is UTC with a zero offset and every period boundary is 05:00 UTC, because
 /// <c>Player.Rehydrate</c> refuses anything else. <see cref="Monday"/> and <see cref="Wednesday"/> are
 /// real weekdays checked against the calendar, since a fixture quietly naming the wrong one would make
-/// the A2 assertion pass for the wrong reason.
+/// the Monday-boundary assertions pass for the wrong reason.
 /// </para>
 /// </remarks>
 internal static class PlayerSnapshots
 {
-    /// <summary>2026-08-10 05:00 UTC — a Monday, so a legal game-<b>week</b> boundary (A2).</summary>
+    /// <summary>2026-08-10 05:00 UTC — a Monday, so a legal game-<b>week</b> boundary.</summary>
     internal static readonly DateTimeOffset Monday = new(2026, 8, 10, 5, 0, 0, TimeSpan.Zero);
 
     /// <summary>2026-08-12 05:00 UTC — a Wednesday, so a legal game-<b>day</b> boundary only.</summary>
@@ -143,11 +143,9 @@ internal static class PlayerSnapshots
             weeklyPeriodStartUtc ?? Monday,
             weeklyCounters ?? Counters(),
 
-            // 🔒 19 G's starting calendar: day 1 open and UNCLAIMED, which is where a brand-new
-            // player stands and — because CLAIM_CALENDAR is deferred to M4-09 — where every M1
-            // player stays. A fixture that defaulted to `claimed` would make the paused arm the
-            // exception rather than the rule, and M1-09's suite drives the advance arm by asking for
-            // it explicitly.
+            // The starting calendar: day 1 open and UNCLAIMED, which is where a brand-new player
+            // stands. A fixture that defaulted to `claimed` would make the paused arm the
+            // exception rather than the rule.
             loginCalendarDay ?? LoginCalendarTuning.FirstDay,
             loginCalendarDayClaimed ?? false,
             clearedChapterTiers ?? Counters());

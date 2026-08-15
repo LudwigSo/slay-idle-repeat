@@ -7,17 +7,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
-/// The three seams M2-07 leaves open in `18` §8, and the refusals that stand in for them until
-/// M2-03, M2-05 and M2-06 land.
+/// The seams left open, and the refusals that stand in for them until they're implemented.
 /// </summary>
 /// <remarks>
-/// 🔒 Every one of these throws rather than guessing, and each case pins <b>which</b> refusal fired
-/// and which task owns it. A seam that quietly no-opped would be indistinguishable from a seam that
-/// worked, and the difference only shows up as a balance bug months later.
+/// Every one of these throws rather than guessing, and each case pins which refusal fired. A
+/// seam that quietly no-opped would be indistinguishable from a seam that worked, and the
+/// difference only shows up as a balance bug months later.
 /// </remarks>
 public sealed class StatAggregationSeamTests
 {
-    // ────────────────────────────────────────────── step 2 · the condition gate (M2-05)
+    // ────────────────────────────────────────────── step 2 · the condition gate
 
     [Fact]
     public void An_unconditional_effect_passes_the_step_2_gate()
@@ -80,7 +79,7 @@ public sealed class StatAggregationSeamTests
         rejected.Final[StatId.ATK].ShouldBe(100.0);
     }
 
-    // ───────────────────────────────────────── value · valueScale and valueMode (M2-06/M2-03)
+    // ───────────────────────────────────────── value · valueScale and valueMode
 
     [Fact]
     public void An_authored_value_with_no_scale_is_read_as_written()
@@ -111,8 +110,8 @@ public sealed class StatAggregationSeamTests
     }
 
     /// <summary>
-    /// <c>FLAT</c> is the one <c>valueMode</c> `18` puts on a stat op — §9.1's
-    /// <c>STAT_SET MAX_HP</c>. The other seven are damage- and heal-relative.
+    /// <c>FLAT</c> is the one <c>valueMode</c> a stat op uses — <c>STAT_SET MAX_HP</c>. The other
+    /// seven are damage- and heal-relative.
     /// </summary>
     [Fact]
     public void FLAT_is_accepted_and_the_other_seven_value_modes_are_refused()
@@ -150,20 +149,12 @@ public sealed class StatAggregationSeamTests
               .Message.ShouldContain("PK_NO_VALUE", Case.Sensitive);
     }
 
-    // ───────────────────────────────────────────── steps 6 and 9 · op behaviour (M2-03)
+    // ───────────────────────────────────────────── steps 6 and 9 · op behaviour
 
     /// <summary>
     /// The empty case, which is what the two ops' <b>content</b> set still is: no
     /// <c>STAT_CONVERT</c> and no <c>STAT_CAP_OVERRIDE</c> is authored anywhere yet.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ M2-07's version of this test drove <c>UnimplementedStatOps</c>, the strict default that
-    /// refused both steps because neither op was implementable as authored. M2-03 closed both under
-    /// `18` §10 — <c>toStat</c>, <c>STAT_MAX</c>, <c>REDIRECT_EXCESS</c> — so that class is gone and
-    /// this drives the real behaviour. The two <c>*_is_refused_until_M2_03_*</c> tests it replaced
-    /// were the deferral, and a deferral that has been satisfied has to be deleted rather than left
-    /// asserting a refusal that no longer exists (steering S4).
-    /// </remarks>
     [Fact]
     public void No_conversions_and_no_cap_overrides_is_a_no_op()
     {
@@ -207,9 +198,6 @@ public sealed class StatAggregationSeamTests
         conversions.Seen![StatId.ATK].ShouldBe(20.0, "step 5 doubled ATK before step 6 was asked");
         conversions.Seen[StatId.DEF].ShouldBe(100.0);
 
-        // 🔒 BOTH conversions arrive in one call, against ONE block, in effect-id order — so the
-        // second cannot see the first's output however the seam is implemented. The pipeline hands
-        // over a frozen ActorStats rather than a mutable accumulator; that is the enforcement.
         conversions.Calls.ShouldBe(1);
         conversions.Ids.ShouldBe(["PK_JUGGERNAUT_I", "PK_TURTLE_I"]);
 

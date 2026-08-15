@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetPlaceholders.Tests;
 
-/// <summary>
-/// The four claims the renderer makes about the pixels it writes, each of which a `15` §B4 step or
-/// a Part F item depends on.
-/// </summary>
+/// <summary>The four claims the renderer makes about the pixels it writes.</summary>
 public sealed class PlaceholderRendererTests
 {
     [Fact]
@@ -18,8 +15,8 @@ public sealed class PlaceholderRendererTests
         var (spec, canvas) = Sample(SampleRows.CurrencyIcon);
         using var drawn = PlaceholderRenderer.Draw(spec, canvas).Image;
 
-        // `15` §C's delivery format is straight alpha, and Raster.From REFUSES any other surface
-        // rather than converting one — so a premultiplied bitmap here would fail every asset.
+        // The delivery format is straight alpha, and Raster.From REFUSES any other surface rather
+        // than converting one — so a premultiplied bitmap here would fail every asset.
         drawn.ColorType.ShouldBe(SKColorType.Rgba8888);
         drawn.AlphaType.ShouldBe(SKAlphaType.Unpremul);
         drawn.Width.ShouldBe(canvas.Width);
@@ -53,9 +50,9 @@ public sealed class PlaceholderRendererTests
             var (spec, canvas) = Sample(id);
             using var drawn = PlaceholderRenderer.Draw(spec, canvas).Image;
 
-            // 🔒 BackgroundRemovalStep keys against the most common OPAQUE colour on the border. An
-            // opaque border pixel would hand step 1 a key colour that also occurs in the subject,
-            // and the flood fill would eat the card.
+            // BackgroundRemovalStep keys against the most common OPAQUE colour on the border. An
+            // opaque border pixel would hand it a key colour that also occurs in the subject, and
+            // the flood fill would eat the card.
             var opaqueBorder = Inspected(drawn, canvas, id)
                 .Where(pixel => pixel.Alpha > 0)
                 .Where(pixel => pixel.X == 0
@@ -87,9 +84,8 @@ public sealed class PlaceholderRendererTests
             var top = opaque.Min(pixel => pixel.Y);
             var bottom = opaque.Max(pixel => pixel.Y);
 
-            // 🔒 This is what makes Part F item 7 come out at exactly zero rather than nearly zero.
-            // §B4 step 5's resampler is symmetric, so a symmetric alpha pattern resamples to a
-            // symmetric one and the content lands exactly where §C's pivot puts it.
+            // The resize step's resampler is symmetric, so a symmetric alpha pattern resamples to a
+            // symmetric one and the content lands exactly on the pivot.
             left.ShouldBe(
                 canvas.Width - 1 - right,
                 $"'{id}' is not horizontally symmetric: the card runs [{left}, {right}] on a " +
@@ -107,8 +103,7 @@ public sealed class PlaceholderRendererTests
         lines[0].ShouldBe(PlaceholderRenderer.Banner);
         lines[^1].ShouldBe($"{spec.TargetSize.Width}x{spec.TargetSize.Height}");
 
-        // The id must be reconstructible from the middle lines — a wrap that dropped a segment
-        // would produce a stamp naming a different asset.
+        // A wrap that dropped a segment would produce a stamp naming a different asset.
         string.Join("_", lines.Skip(1).Take(lines.Count - 2)).ShouldBe(spec.Id);
     }
 
@@ -147,10 +142,9 @@ public sealed class PlaceholderRendererTests
     [Fact]
     public void The_outline_colour_tolerance_separates_every_fill_from_every_antialiased_edge()
     {
-        // 🔒 This is the arithmetic PlaceholderThresholds.OutlineColourTolerance is fixed by, checked
-        // against the register's real palettes rather than against the numbers in its remarks. If a
-        // ninth biome arrives whose base sits between the two bands, step 4 would read either the
-        // whole card as outline or none of the soft edge — and this case says so before a batch does.
+        // The arithmetic PlaceholderThresholds.OutlineColourTolerance is fixed by, checked against
+        // the register's real palettes. A biome whose base sits between the two bands would read
+        // either the whole card as outline or none of the soft edge.
         var outline = SKColor.Parse(Doc15Authorised.OutlineColourHex);
         var fills = PlaceholderFiles.Shipped.Art.Biomes
             .Select(biome => SKColor.Parse(biome.Palette.Base))
@@ -180,14 +174,12 @@ public sealed class PlaceholderRendererTests
     }
 
     /// <summary>
-    /// Every pixel of a drawn placeholder, with an S3 floor on how many were actually inspected.
+    /// Every pixel of a drawn placeholder, with a floor on how many were actually inspected.
     /// </summary>
     /// <remarks>
-    /// 🔒 Every case below asserts an <em>absence</em> — no partial alpha, no opaque border pixel —
-    /// and an absence over an empty sweep is vacuously true. <see cref="Pixels"/> is a hand-rolled
-    /// stride walk over <see cref="SKBitmap.Bytes"/>, so a buffer that came back empty or loop
-    /// bounds that regressed would leave all three cases green while claiming to have looked at four
-    /// million pixels.
+    /// Every case below asserts an <em>absence</em>, which is vacuously true over an empty sweep —
+    /// so a regressed loop bound in <see cref="Pixels"/> would leave every case green while
+    /// claiming to have looked at four million pixels.
     /// </remarks>
     /// <param name="drawn">The placeholder.</param>
     /// <param name="canvas">The canvas it should cover, exactly.</param>
@@ -207,9 +199,8 @@ public sealed class PlaceholderRendererTests
     /// Every pixel of a bitmap, read out of one managed copy of its buffer.
     /// </summary>
     /// <remarks>
-    /// 🔒 <c>SKBitmap.GetPixel</c> is a P/Invoke per call, and the largest sample row generates on a
-    /// 2048×2048 canvas — four million interop transitions per pass, several passes per case. The
-    /// bytes are Rgba8888 and the rows carry a stride, so the offset arithmetic is explicit.
+    /// <c>SKBitmap.GetPixel</c> is a P/Invoke per call, and the largest sample generates on a
+    /// 2048×2048 canvas, so the buffer is read directly instead.
     /// </remarks>
     private static IEnumerable<(int X, int Y, byte Red, byte Green, byte Blue, byte Alpha)> Pixels(
         SKBitmap bitmap)

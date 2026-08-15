@@ -9,10 +9,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model;
 
-/// <summary>
-/// 🔒 `30` §11.5 — <em>"Energy never exceeds max + reserve"</em>, the one invariant of the five
-/// that is about Energy, held by the aggregate rather than computed by it.
-/// </summary>
+/// <summary>Energy never exceeds max + reserve — held by the aggregate rather than computed by it.</summary>
 public sealed class PlayerEnergyTests
 {
     private static ContentSnapshot Content => ProgressionDocuments.Shipped;
@@ -39,8 +36,8 @@ public sealed class PlayerEnergyTests
     }
 
     /// <summary>
-    /// 🔒 The delta is the change in the two banks <b>together</b>: overflow into the Reserve is a
-    /// movement within one currency, so `21` §8.3 sees one row rather than a credit and a debit.
+    /// The delta is the change in the two banks <b>together</b>: overflow into the Reserve is a
+    /// movement within one currency, not a credit and a debit.
     /// </summary>
     [Fact]
     public void The_delta_counts_both_banks_as_one_currency()
@@ -65,8 +62,8 @@ public sealed class PlayerEnergyTests
     }
 
     /// <summary>
-    /// 🔒 `30` §11.5 — the main bar may not be pushed past Max Energy. 120 at Legend Level 1
-    /// (`10` §3: <c>baseMax</c> 120, and <c>MaxEnergy</c> counts levels <em>gained</em>).
+    /// The main bar may not be pushed past Max Energy: 120 at Legend Level 1
+    /// (<c>baseMax</c> 120, and <c>MaxEnergy</c> counts levels <em>gained</em>).
     /// </summary>
     [Fact]
     public void The_main_bar_cannot_be_pushed_past_Max_Energy()
@@ -92,7 +89,7 @@ public sealed class PlayerEnergyTests
         player.Energy.Energy.ShouldBe(120);
     }
 
-    /// <summary>🔒 `28` C2 — and the Reserve may not be pushed past its own capacity either.</summary>
+    /// <summary>The Reserve may not be pushed past its own capacity either.</summary>
     [Fact]
     public void The_reserve_cannot_be_pushed_past_its_capacity()
     {
@@ -105,12 +102,12 @@ public sealed class PlayerEnergyTests
     }
 
     /// <summary>
-    /// 🔒 The ceiling grows with Legend Level, so it is genuinely derived from the player rather
+    /// The ceiling grows with Legend Level, so it is genuinely derived from the player rather
     /// than from a constant: 122 at Legend Level 2, and 200 at the cap.
     /// </summary>
     /// <remarks>
     /// Without this, a hard-coded <c>120</c> would satisfy every other assertion in this file at
-    /// Legend Level 1 — and `10` §3's "+2 per Legend Level" would be silently unimplemented.
+    /// Legend Level 1, and "+2 per Legend Level" would be silently unimplemented.
     /// </remarks>
     [Theory]
     [InlineData(1, 120)]
@@ -130,14 +127,14 @@ public sealed class PlayerEnergyTests
     }
 
     /// <summary>
-    /// 🔒 The ceiling the aggregate enforces is <b>the same number</b> <c>EnergyMath</c> computes,
+    /// The ceiling the aggregate enforces is <b>the same number</b> <c>EnergyMath</c> computes,
     /// across the whole authored Legend Level range.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The formula genuinely exists twice: `30` §11.4 forbids <c>Model</c> referencing <c>Rules</c>,
-    /// so the aggregate cannot call <c>EnergyMath.MaxEnergy</c>. This is the compensating control — both
-    /// sides over all 200 levels, so a change to one that is not mirrored is a red build rather than a
-    /// rule silently accepting a bank the math would never have produced.
+    /// The formula genuinely exists twice: <c>Model</c> may not reference <c>Rules</c>, so the
+    /// aggregate cannot call <c>EnergyMath.MaxEnergy</c>. This is the compensating control — both
+    /// sides over all 200 levels, so a change to one that is not mirrored is a red build rather
+    /// than a rule silently accepting a bank the math would never have produced.
     /// </remarks>
     [Fact]
     public void The_aggregates_ceiling_is_the_same_number_EnergyMath_computes()
@@ -185,22 +182,21 @@ public sealed class PlayerEnergyTests
             "learn the ceiling it must hold. Both read EnergyTuning.MaxEnergyAt; this is what keeps " +
             "that true rather than assumed.");
 
-        // 🔒 A floor on the loop itself: if the two authored bounds ever cross or collapse, the body
-        // runs zero times and the emptiness above is vacuous — S3 inside a test.
+        // A floor on the loop itself: if the two authored bounds ever cross or collapse, the body
+        // runs zero times and the emptiness above is vacuous.
         probed.ShouldBe(
             ProgressionDocuments.ShippedLegendLevelMax - ProgressionDocuments.ShippedLegendLevelMin + 1,
             "every authored Legend Level must actually be probed");
     }
 
     /// <summary>
-    /// 🔒 A player left above the cap by a balance patch still loads, still writes back, and drains
+    /// A player left above the cap by a balance patch still loads, still writes back, and drains
     /// by playing — the case that forces the ceiling to be <c>max(cap, current)</c>.
     /// </summary>
     /// <remarks>
-    /// ⚠️ This is the assertion that would fail under the obvious reading of `30` §11.5. A flat
-    /// <c>&lt;= cap</c> check would make every already-full player throw on their first command
-    /// after a patch that lowered <c>baseMax</c> — a tuning change becoming an account outage —
-    /// and <c>EnergyMath.Deposit</c>'s own remarks say that state is legitimate and self-correcting.
+    /// A flat <c>&lt;= cap</c> check would make every already-full player throw on their first
+    /// command after a patch that lowered <c>baseMax</c> — a tuning change becoming an account
+    /// outage.
     /// </remarks>
     [Fact]
     public void A_player_left_above_the_cap_by_a_balance_patch_loads_and_drains()
@@ -255,8 +251,8 @@ public sealed class PlayerEnergyTests
     }
 
     /// <summary>
-    /// 🔒 An accrual writes the banks and moves the anchor in <b>one</b> call — recorded assumption
-    /// <b>A1</b>: <c>wholeUnits × interval</c>, never to the instant asked about.
+    /// An accrual writes the banks and moves the anchor in <b>one</b> call: the anchor advances by
+    /// <c>wholeUnits × interval</c>, never to the instant asked about.
     /// </summary>
     [Fact]
     public void An_accrual_writes_the_banks_and_moves_the_anchor_together()
@@ -268,7 +264,7 @@ public sealed class PlayerEnergyTests
         var moved = player.AccrueEnergy(accrued.Banks, accrued.AnchorAdvance, Tuning, "energy_regen");
 
         // Two whole 4-minute units in ten minutes: two Energy, the anchor moves 8 minutes, and the
-        // remaining two survive to the next command — which is the whole point of A1.
+        // remaining two survive to the next command.
         accrued.AnchorAdvance.ShouldBe(TimeSpan.FromMinutes(8));
         player.Energy.ShouldBe(new EnergyBanks(2, 0));
         player.EnergyAnchorUtc.ShouldBe(before.AddMinutes(8));
@@ -277,10 +273,9 @@ public sealed class PlayerEnergyTests
     }
 
     /// <summary>
-    /// 🔒 There is <b>no</b> way to move the anchor without writing the banks it accrued. Two
+    /// There is <b>no</b> way to move the anchor without writing the banks it accrued. Two
     /// internal mutators would each be individually legal, and a caller that wrote the banks and
-    /// forgot the anchor would re-grant the same span on every later command — unbounded Energy
-    /// that no aggregate-level invariant could see.
+    /// forgot the anchor would re-grant the same span on every later command.
     /// </summary>
     [Fact]
     public void The_anchor_is_unreachable_except_through_an_accrual()

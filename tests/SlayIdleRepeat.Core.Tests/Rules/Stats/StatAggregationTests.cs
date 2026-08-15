@@ -8,14 +8,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
-/// 🔒 `18` §8 — the resolution order, <em>"must be implemented exactly, or builds will produce
-/// different numbers on client and server."</em>
+/// The resolution order must be implemented exactly, or builds produce different numbers on
+/// client and server.
 /// </summary>
 /// <remarks>
 /// Every case runs a real fight through <see cref="CombatSimulator.SimulateDuel"/>: against a
 /// defender with <c>DEF = 0</c> the mitigation is exactly 0, so the <c>Hit</c> event carries the
-/// attacker's post-`18`-§8 <c>ATK</c> itself, at the 4 decimals `05` §1.1 rounds to. Caps and dials
-/// arrive as content. What no fight can report is in <see cref="StatAggregationInternalTests"/>.
+/// attacker's aggregated <c>ATK</c> itself, rounded to 4 decimals. Caps and dials arrive as
+/// content. What no fight can report is in <see cref="StatAggregationInternalTests"/>.
 /// </remarks>
 public sealed class StatAggregationTests
 {
@@ -29,8 +29,8 @@ public sealed class StatAggregationTests
     // ───────────────────────────────────────────────────────────── R1 · STAT_MULT is Π(value)
 
     /// <summary>
-    /// 🔴 <c>STAT_MULT</c>'s <c>value</c> <b>is</b> the multiplier. `05` §1.1's
-    /// <c>Π (1 + Multiplicative(stat))</c> term is an erratum; `18` §8 step 7 says "product".
+    /// <c>STAT_MULT</c>'s <c>value</c> <b>is</b> the multiplier, not <c>1 + value</c> — an earlier
+    /// formula that read it the other way was an erratum.
     /// </summary>
     [Fact]
     public void SYS_ENRAGE_stacks_multiplicatively_on_the_value_not_on_one_plus_the_value()
@@ -50,7 +50,7 @@ public sealed class StatAggregationTests
             "one-shots the hero three seconds into the enrage");
     }
 
-    /// <summary>🔴 The same erratum from `18` §9.1's side: <c>ALL_COMBAT ×2.0</c> is ×2, not ×3.</summary>
+    /// <summary>The same erratum, from <c>ALL_COMBAT</c>'s side: ×2.0 means ×2, not ×3.</summary>
     [Fact]
     public void CP_GLASS_HEART_doubles_every_combat_stat_exactly()
     {
@@ -60,7 +60,7 @@ public sealed class StatAggregationTests
         doubled.ShouldNotBe(1170.0, "390 x 3 is what Pi(1 + v) would give");
     }
 
-    /// <summary>🔒 The 2.0 is data — `18` §9.1's pre-agreed downgrade to ×1.6 is a one-number edit.</summary>
+    /// <summary>The 2.0 is data — a downgrade to ×1.6 is a one-number edit.</summary>
     [Fact]
     public void The_glass_heart_multiplier_is_data_and_the_pre_agreed_downgrade_is_a_with()
     {
@@ -71,9 +71,8 @@ public sealed class StatAggregationTests
     }
 
     /// <summary>
-    /// 🔒 `18` §9.1 — the step-8 <c>STAT_SET</c> writes <c>MAX_HP</c> and nothing else. The
-    /// <c>MAX_HP</c> half is read as a ward ceiling in
-    /// <see cref="The_ward_cap_reads_the_post_step_7_max_hp_not_the_value_step_8_wrote"/>.
+    /// The step-8 <c>STAT_SET</c> writes <c>MAX_HP</c> and nothing else; that value is read as a
+    /// ward ceiling in <see cref="The_ward_cap_reads_the_post_step_7_max_hp_not_the_value_step_8_wrote"/>.
     /// </summary>
     [Fact]
     public void CP_GLASS_HEART_sets_max_hp_after_the_multiplier_and_leaves_everything_else_doubled() =>
@@ -83,15 +82,15 @@ public sealed class StatAggregationTests
             Effect("CP_GLASS_HEART_SET_HP", EffectOp.STAT_SET, StatId.MAX_HP, 1.0))
             .ShouldBe(780.0, "the set writes MAX_HP only — everything else is still doubled");
 
-    // ─────────────────────────────────────────── 05 §4.1 · the post-step-7 Max HP, read as a ward
+    // ─────────────────────────────────────────── the post-step-7 Max HP, read as a ward
 
     /// <summary>
-    /// 🔒 `05` §4.1 — the ward cap is <c>wardCapPct ×</c> Max HP <b>as it stood after step 7</b>,
-    /// which is what keeps <c>CP_GLASS_HEART</c>'s re-based shields functional (`18` §9.1).
+    /// The ward cap is <c>wardCapPct ×</c> Max HP <b>as it stood after step 7</b>, which is what
+    /// keeps <c>CP_GLASS_HEART</c>'s re-based shields functional.
     /// </summary>
     /// <remarks>
-    /// A <c>SHIELD</c> grant is clamped to the cap and the clamped amount is what `05` §7's
-    /// <c>Shield</c> event carries, so an over-large grant reports the ceiling itself.
+    /// A <c>SHIELD</c> grant is clamped to the cap, and the clamped amount is what the
+    /// <c>Shield</c> event carries — an over-large grant reports the ceiling itself.
     /// </remarks>
     [Fact]
     public void The_ward_cap_reads_the_post_step_7_max_hp_not_the_value_step_8_wrote()
@@ -130,7 +129,7 @@ public sealed class StatAggregationTests
 
     // ───────────────────────────────────────────────────────────── steps 4, 5 and their order
 
-    /// <summary>`05` §1.1 — <c>(Base + Σ FlatAdd) × (1 + Σ PctAdd)</c>.</summary>
+    /// <summary><c>(Base + Σ FlatAdd) × (1 + Σ PctAdd)</c>.</summary>
     [Fact]
     public void Flat_adds_land_before_percent_and_the_percent_bucket_is_additive()
     {
@@ -147,9 +146,8 @@ public sealed class StatAggregationTests
     }
 
     /// <summary>
-    /// 🔒 R5 — `18` §8 step 1's <em>"(in draft order)"</em> is the collection order; the closing
-    /// <em>"effect-id order"</em> is the application order at steps 6–8. Arrival order cannot reach
-    /// the arithmetic.
+    /// Draft order only decides collection order; effect-id order decides application order at
+    /// steps 6-8. Arrival order cannot reach the arithmetic.
     /// </summary>
     [Fact]
     public void Aggregation_does_not_depend_on_the_order_the_effects_arrive_in()
@@ -199,8 +197,8 @@ public sealed class StatAggregationTests
     // ─────────────────────────────────────────────────────── rounding, at every step not just 10
 
     /// <summary>
-    /// 🔒 `05` §1.1 rounds <em>"at every accumulation point"</em>, not only at step 10 — and the two
-    /// readings give different numbers, so they are not interchangeable.
+    /// Rounding happens at every accumulation point, not only at step 10 — the two readings give
+    /// different numbers, so they are not interchangeable.
     /// </summary>
     [Fact]
     public void Rounding_at_step_5_and_rounding_only_at_step_10_are_different_answers()
@@ -244,14 +242,12 @@ public sealed class StatAggregationTests
 
     // ────────────────────────────────────────────────────────────────────── step 9 · the caps
 
-    /// <summary>
-    /// 🔒 `05` §1.1 — <em>"caps are applied after all aggregation"</em>.
-    /// </summary>
+    /// <summary>Caps are applied after all aggregation.</summary>
     /// <remarks>
-    /// <c>DR_PCT</c> is the cap these cases read because it is the one capped stat whose ceiling is
-    /// <em>deterministically</em> visible: `05` §4 step 6 multiplies the hit by <c>(1 − DR%)</c>. The
-    /// other five are draw thresholds, visible only as a rate across many swings. The raw is 100
-    /// throughout, so each expectation is the percentage that survived.
+    /// <c>DR_PCT</c> is the cap these cases read because it is the one capped stat whose ceiling
+    /// is deterministically visible — it multiplies the hit by <c>(1 − DR%)</c>. The other five
+    /// are draw thresholds, visible only as a rate across many swings. The raw is 100 throughout,
+    /// so each expectation is the percentage that survived.
     /// </remarks>
     [Fact]
     public void Caps_are_applied_after_all_aggregation() =>
@@ -290,7 +286,7 @@ public sealed class StatAggregationTests
         landed.ShouldNotBe(70.0, "70 is a 0.30 DR% — capped at step 5 and then halved by step 7");
     }
 
-    /// <summary>🔒 `05` §1 caps <c>THORNS</c> nowhere, and the reflected damage says so.</summary>
+    /// <summary>THORNS is capped nowhere, and the reflected damage says so.</summary>
     [Fact]
     public void An_uncapped_stat_is_never_bound() =>
         PublicFightBench.Duel(
@@ -316,7 +312,7 @@ public sealed class StatAggregationTests
     public void An_empty_effect_list_leaves_the_base_block_alone() =>
         Atk(137.5).ShouldBe(137.5);
 
-    /// <summary>Ops outside `18` §2.1's stat family change no stat, and are not an error.</summary>
+    /// <summary>Ops outside the stat family change no stat, and are not an error.</summary>
     [Fact]
     public void An_op_that_is_not_a_stat_op_changes_nothing() =>
         Atk(
@@ -326,8 +322,8 @@ public sealed class StatAggregationTests
             .ShouldBe(100.0);
 
     /// <summary>
-    /// 🔒 A stat op on one of `18` §2.1's 12 non-combat stats — a "+X% Gold Gain" affix — is
-    /// legitimate content and simply not this block's subject. That it is also <em>reported</em> is
+    /// A stat op on a non-combat stat — a "+X% Gold Gain" affix — is legitimate content, simply
+    /// not this block's subject. That it is also reported is
     /// <see cref="StatAggregationInternalTests"/>'s half.
     /// </summary>
     [Fact]
@@ -405,7 +401,7 @@ public sealed class StatAggregationTests
             defenderEffects: defenderEffects)
         .AttackerHit();
 
-    /// <summary>A `05` §4.1 ward grant of a flat amount, on its holder, at battle start.</summary>
+    /// <summary>A ward grant of a flat amount, on its holder, at battle start.</summary>
     private static EffectDefinition Shield(string id, double amount) =>
         new()
         {

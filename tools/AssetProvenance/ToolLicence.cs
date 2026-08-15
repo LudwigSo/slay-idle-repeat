@@ -1,34 +1,23 @@
 namespace SlayIdleRepeat.AssetProvenance;
 
-/// <summary>
-/// One generation tool and whether its commercial terms have been confirmed in writing —
-/// `15` §G <em>"Confirm the current commercial terms in writing before the first batch"</em> and
-/// `20` §6 <em>"Commercial licence for each tool confirmed in writing"</em>.
-/// </summary>
+/// <summary>One generation tool and whether its commercial terms have been confirmed in writing.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <see cref="ConfirmedInWriting"/> is <c>bool?</c> and it is <b>unset</b> for every tool in the
-/// shipped register. Absent means <em>nobody has confirmed anything</em>, and this assembly
-/// contains no path that turns an absent value into <c>false</c>-that-reads-as-checked or into
-/// <c>true</c>: <see cref="RequireConfirmedInWriting"/> throws, and
-/// <see cref="ProvenanceGate"/> raises <see cref="ViolationCode.UnconfirmedLicence"/>. Steering
-/// S6 — a hole stays a hole, greppable, and is never coerced at read time.
+/// <see cref="ConfirmedInWriting"/> is <c>bool?</c> and unset for every tool in the shipped
+/// register. Absent means nobody has confirmed anything: <see cref="RequireConfirmedInWriting"/>
+/// throws on it and <see cref="ProvenanceGate"/> raises <see cref="ViolationCode.UnconfirmedLicence"/>
+/// — nothing in this assembly coerces an absent value into a pass.
 /// </para>
 /// <para>
-/// <b>M8-01b owns filling this in and no agent may.</b> The M8 kickoff (2026-08-12) recorded it as
-/// ⛔ product-owner-owned: confirming a licence is a legal act, not an engineering task. What
-/// engineering can do — and this is all of it — is make the unconfirmed state fail the build the
-/// moment an asset generated with that tool is delivered.
+/// M8-01b owns filling this in and no agent may: confirming a licence is a legal act, recorded as
+/// product-owner-owned by the M8 kickoff (2026-08-12). What engineering can do is make the
+/// unconfirmed state fail the build the moment an asset generated with that tool is delivered.
 /// </para>
 /// </remarks>
 /// <param name="Tool">The tool's key, matched ordinally against <see cref="ProvenanceRecord.ToolsNamed"/>.</param>
 /// <param name="AppliesTo">What it generates: <c>art</c> or <c>audio</c>.</param>
-/// <param name="ConfirmedInWriting">🔒 Null where nobody has confirmed. Never defaulted.</param>
-/// <param name="ConfirmationRef">
-/// Where the written confirmation is filed. Required the moment
-/// <paramref name="ConfirmedInWriting"/> is true — a bare <c>true</c> with nothing behind it is
-/// the claim `15` §G calls a formality.
-/// </param>
+/// <param name="ConfirmedInWriting">Null where nobody has confirmed. Never defaulted.</param>
+/// <param name="ConfirmationRef">Where the written confirmation is filed. Required the moment <paramref name="ConfirmedInWriting"/> is true.</param>
 /// <param name="Note">What is known today. Something a later reader can falsify.</param>
 public sealed record ToolLicence(
     string Tool,
@@ -40,10 +29,7 @@ public sealed record ToolLicence(
     /// <summary>True only where the confirmation exists AND names where it is filed.</summary>
     public bool IsConfirmed => ConfirmedInWriting == true && !string.IsNullOrWhiteSpace(ConfirmationRef);
 
-    /// <summary>
-    /// The confirmation, or a loud failure. 🔒 There is no overload that takes a default: an unset
-    /// licence coerced to "probably fine" is exactly the outcome `15` §G calls a legal risk.
-    /// </summary>
+    /// <summary>The confirmation, or a loud failure. There is no overload that takes a default.</summary>
     public string RequireConfirmedInWriting() =>
         IsConfirmed
             ? ConfirmationRef!

@@ -8,204 +8,97 @@ using SlayIdleRepeat.Core.Rng;
 namespace SlayIdleRepeat.Core.Model;
 
 /// <summary>
-/// 🔒 The <c>Run</c> aggregate root (`30` §4) — a <b>child</b> of <c>Player</c>: the committed run
-/// seed and the per-stream RNG counters (`14` §8.1), the position, the hero's hit points, the
-/// run-scoped <c>GOLD</c> balance and the per-run ad uses.
+/// The <c>Run</c> aggregate root — a child of <c>Player</c>: the committed run seed and the
+/// per-stream RNG counters, the position, the hero's hit points, the run-scoped <c>GOLD</c> balance
+/// and the per-run ad uses.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Why this type lives in <c>Core/Model/Run/</c> but in namespace
-/// <c>SlayIdleRepeat.Core.Model</c>.</b> The same measurement <c>Player</c> records, and this is the
-/// type it was measured <em>for</em>: a namespace <c>SlayIdleRepeat.Core.Model.Run</c> containing a
-/// type <c>Run</c> makes the type <b>unnameable</b> from anywhere inside
-/// <c>SlayIdleRepeat.Core.Model</c> — the child namespace shadows it and the compiler answers
-/// <c>error CS0118: 'Run' is a namespace but is used like a type</c>. `30` §4.1 writes
-/// <c>WorldSlice(Player Player, Run? Run, …)</c> and puts it in <c>Model/</c>, so <b>M1-06 would hit
-/// it on its first line</b>. `30` §11.4's structure block draws <b>directories</b>
-/// (<c>Model/ ├── Player/ Run/ Guild/</c>) and never says the namespace mirrors them. The directory
-/// is the file layout; the namespace is the layer.
+/// Lives in <c>Core/Model/Run/</c> but in namespace <c>SlayIdleRepeat.Core.Model</c>, not
+/// <c>...Model.Run</c>, for the same reason as <c>Player</c>: a child namespace named <c>Run</c>
+/// would shadow the type <c>Run</c> and make it unnameable from inside <c>Model</c>.
 /// </para>
 /// <para>
-/// 🔒 <b>Public getters, private constructor, <c>internal</c> mutators</b> (`30` §11.2): <em>"The
-/// only public way to change state in this game is <c>GameRules.Apply</c>. Everything else the
-/// outside world can see is a getter."</em> The two public non-getters are <see cref="ToSnapshot"/>
-/// and <see cref="Rehydrate"/> — `30` §11.3's validating factory pair, the one hole <c>internal</c>
-/// would otherwise leave, since the persistence adapter has to rebuild a run from a row without
-/// <c>InternalsVisibleTo</c>.
+/// Public getters, private constructor, <c>internal</c> mutators: the only public way to change
+/// state is <c>GameRules.Apply</c>. <see cref="ToSnapshot"/> and <see cref="Rehydrate"/> are the
+/// exception, the validating factory pair the persistence adapter needs.
 /// </para>
 /// <para>
-/// 🔒 <b>It holds state and invariants; it does not compute</b> (`30` §11.5). There is no dice
-/// arithmetic here, no damage formula and no cap check against <c>ads.json</c>: a handler computes
-/// and hands the answer to <see cref="SetHitPoints"/> or <see cref="CountAdUse"/>, and the
-/// aggregate's job is to refuse an answer that would break an invariant. Overheal is clamped by the
-/// rule that computes it, not accepted here.
+/// It holds state and invariants; it does not compute. There is no dice arithmetic here, no damage
+/// formula, no cap check — a handler computes and hands the answer to <see cref="SetHitPoints"/> or
+/// <see cref="CountAdUse"/>, and the aggregate's job is to refuse an answer that breaks an invariant.
+/// Overheal is clamped by the rule that computes it, not accepted here.
 /// </para>
 /// <para>
-/// ⚠️ <b>There is no factory for a <em>new</em> run.</b> <c>START_RUN</c> is M3-15's, and a starting
-/// position, a starting HP and a starting Gold are decisions `02` §1 and `03` leave to the milestone
-/// that builds the board — inventing them here to make a convenient constructor is exactly what
-/// steering <b>S6</b> forbids. <see cref="Rehydrate"/> is the only way to obtain one, which is
-/// precisely what `30` §11.3 says it should be.
+/// There is no factory for a new run: starting position, HP and Gold are a later milestone's
+/// decisions, and <see cref="Rehydrate"/> is the only way to obtain one.
 /// </para>
 /// <para>
-/// ⚠️ <b>What `30` §4 lists on <c>Run</c> and this aggregate deliberately does not carry.</b> The
-/// drafted perks, the held consumables (with the armed Escape Rope flag) and the curses — three of
-/// §4's ten items — are still deferred with an entry in
-/// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, each keyed on a type that must not yet
-/// exist, so the build fails on the day each becomes writable. The <b>board</b> and the <b>pending
-/// fork choice</b> are M3-02's: the board is never stored (it regenerates deterministically from
-/// <see cref="RunSeed"/> and the run's committed <c>board</c> stream position, `14` §8.1), and the
-/// pending fork choice is <see cref="PendingFork"/>. The run's <b>phase</b> is deferred too, and
-/// that one has a consequence worth stating: without it <c>Apply</c> cannot produce `14` §16.2's
-/// <c>RUN_ALREADY_ENDED</c> or <c>ILLEGAL_STATE</c>, and M3-05 pays a
-/// <see cref="SnapshotSchema.SchemaVersion"/> bump for it.
+/// Deliberately absent: the drafted perks, held consumables (with the armed Escape Rope flag) and
+/// curses, each deferred with a <c>GapRegister</c> entry keyed on a type that must not yet exist. The
+/// board is never stored — it regenerates deterministically from <see cref="RunSeed"/> and the run's
+/// committed <c>board</c> stream position. The pending fork choice is <see cref="PendingFork"/>.
 /// </para>
 /// </remarks>
 public sealed class Run
 {
-    /// <summary>
-    /// 🔒 `03` §1.1 (ruled in `16` A7) — the lowest position a run can stand at: the <b>virtual
-    /// trailhead</b>, one step before node 0.
-    /// </summary>
+    /// <summary>The lowest position a run can stand at: the virtual trailhead, one step before node 0.</summary>
     /// <remarks>
-    /// <para>
-    /// ⚠️ <b>Minus one is an authored position, not a sentinel and not an invented bound.</b> §1.1
-    /// writes it out — <em>"the hero begins every run at a virtual trailhead one step before node 0
-    /// (position −1) … a first roll of <c>1</c> therefore lands on node 0"</em> — and the movement
-    /// arithmetic only closes from there: −1 + 1 = 0, so a run stored at 0 instead would skip node 0
-    /// forever. It is therefore the position <b>every</b> run holds between <c>START_RUN</c> (M3-15)
-    /// and its first <c>ROLL_DICE</c>: exactly the state a player who starts a run and closes the app
-    /// leaves behind, and exactly the state `14` §16.3's sliding 48-hour TTL exists to preserve. A
-    /// floor of zero would refuse to store or rehydrate it.
-    /// </para>
-    /// <para>
-    /// A named constant rather than a literal, so the floor is greppable and the two places that
-    /// hold it — <see cref="MoveTo"/> and <see cref="Rehydrate"/> — cannot drift apart.
-    /// </para>
+    /// An authored position, not an invented bound: the hero begins every run at a virtual trailhead
+    /// one step before node 0 (position -1), so a first roll of 1 lands on node 0. It is the position
+    /// every run holds between <c>START_RUN</c> and its first <c>ROLL_DICE</c> — exactly the state a
+    /// player who starts a run and closes the app leaves behind. A named constant so the two places
+    /// that hold it, <see cref="MoveTo"/> and <see cref="Rehydrate"/>, cannot drift apart.
     /// </remarks>
     internal const int TrailheadPosition = -1;
 
-    /// <summary>
-    /// 🔒 The run's <c>GOLD</c> balance — and the field name is <b>load-bearing</b>, not stylistic.
-    /// </summary>
+    /// <summary>The run's <c>GOLD</c> balance — and the field name is load-bearing, not stylistic.</summary>
     /// <remarks>
-    /// <para>
-    /// <c>DomainPurityTests.CurrencyFields()</c> recognises a currency-carrying field either by its
-    /// <b>type</b> (flattening to <c>CurrencyId</c>, or a type name containing <c>Wallet</c>) or by
-    /// its <b>name</b> (containing <c>currenc</c> or <c>wallet</c>, case-insensitively). A
-    /// <c>long _gold</c> would match <b>neither</b>, so `30` §7's
-    /// <c>Every_currency_mutation_emits_CurrencyChanged</c> would be blind to the game's only
-    /// run-scoped currency — steering <b>S3</b>'s failure mode, arriving through a field name.
-    /// <c>Player</c> solved the same problem for <c>_energy</c> by routing its write through the
-    /// method that writes <c>_wallet</c>; <c>Run</c> has no second currency store to ride on, so the
-    /// name is the hook. It is also accurate English: this is the run's wallet, and `10` §1 puts
-    /// exactly one currency in it.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The fragility is closed, not accepted.</b>
-    /// <c>Every_currency_mutation_emits_CurrencyChanged</c> carries a floor row asserting its
-    /// subject set contains <c>Run::_wallet</c>, beside the existing <c>Player::_wallet</c> one, so
-    /// renaming this field fails the build instead of quietly emptying the rule.
-    /// </para>
-    /// <para>
-    /// ⚠️ Not a one-row <c>IReadOnlyDictionary&lt;CurrencyId, long&gt;</c>: `10` §1 has exactly one
-    /// <c>RUN</c>-scoped currency, so a map would buy generality nothing asks for at the cost of a
-    /// dictionary allocation per kill (`14` §2.4 recomputes the <c>stateHash</c> per command on a
-    /// handset) and two extra field-order pin slots.
-    /// </para>
+    /// An IL scan recognises a currency-carrying field by its type or by a name containing
+    /// <c>currenc</c>/<c>wallet</c>; a bare <c>long _gold</c> would match neither, leaving the game's
+    /// only run-scoped currency invisible to the rule that every currency mutation emits a
+    /// <c>CurrencyChanged</c>. Not a one-row dictionary either: there is exactly one run-scoped
+    /// currency, so a map would buy nothing at the cost of an allocation per kill.
     /// </remarks>
     private long _wallet;
 
-    /// <summary>
-    /// 🔒 `14` §8.1's per-stream draw counters. Replaced <b>wholesale</b> by
-    /// <see cref="CommitStreamPositions"/>, never edited in place and never per key.
-    /// </summary>
+    /// <summary>Per-stream draw counters. Replaced wholesale by <see cref="CommitStreamPositions"/>, never edited in place.</summary>
     /// <remarks>
-    /// <para>
-    /// <b>A map, not nine fields.</b> §8.1's ninth row is <em>parameterised</em> —
-    /// <c>minigame:{index}</c> — so the registry is not a fixed list of names and nine slots could
-    /// not hold <c>minigame:7</c> at all. <c>RngStreams.IsRegistered</c> is already the arbiter of
-    /// what a stream name is (it accepts <c>minigame:3</c>, rejects <c>minigame:03</c>, rejects
-    /// everything else), so an open map validated by that same predicate inherits the registry's
-    /// canonicality for free and is the only shape that spans the fixed eight and the parameterised
-    /// ninth.
-    /// </para>
-    /// <para>
-    /// <b>Sparse; absent means zero.</b> A stream never drawn from genuinely stands at 0 — the same
-    /// reasoning as <c>Player.DailyCount</c>, not the S6 hole-filled-with-a-default — and `14` §2.3's
-    /// wire echo <c>{"dice":12,"board":8}</c> shows only the streams that moved. Storing eager zeros
-    /// for the eight fixed streams would put dead bytes in every <c>stateHash</c>.
-    /// </para>
-    /// <para>
-    /// 🔒 Copied into an <b>ordinal</b> <see cref="ReadOnlyDictionary{TKey,TValue}"/> on commit and
-    /// on rehydrate. <c>CanonicalStateWriter</c> orders string keys ordinally, so a map comparing
-    /// keys any other way would round-trip to a different hash than the one it was stored under —
-    /// <c>Player.ReadCounters</c> says the same thing about the counter maps.
-    /// </para>
+    /// A map, not fixed fields: the ninth stream is parameterised (<c>minigame:{index}</c>), so a
+    /// fixed set of slots could not hold it. Sparse — a stream never drawn from stands at 0, and
+    /// storing eager zeros would put dead bytes in every <c>stateHash</c>. Copied into an ordinal
+    /// dictionary on commit and on rehydrate, since <c>CanonicalStateWriter</c> orders string keys
+    /// ordinally.
     /// </remarks>
     private IReadOnlyDictionary<string, ulong> _streamPositions;
 
-    /// <summary>
-    /// `12` §4.3's per-run ad counts, and the read-only view handed out by <see cref="AdUses"/>.
-    /// </summary>
-    /// <remarks>
-    /// Mutated in place — unlike <see cref="_streamPositions"/>, which is replaced wholesale — so
-    /// the view is built once and stays valid across every increment. Identical in shape to
-    /// <c>Player</c>'s <c>key → long</c> counter mechanism and deliberately so: open keys, a blank
-    /// key refused, a negative amount refused, checked overflow, and
-    /// <see cref="AdUseCount"/> answering 0 for a placement nobody has used.
-    /// </remarks>
+    /// <summary>Per-run ad counts, and the read-only view handed out by <see cref="AdUses"/>.</summary>
+    /// <remarks>Mutated in place, unlike <see cref="_streamPositions"/>, so the view stays valid across every increment.</remarks>
     private readonly Dictionary<string, long> _adUses;
 
     /// <inheritdoc cref="_adUses"/>
     private readonly ReadOnlyDictionary<string, long> _adUsesView;
 
     /// <summary>
-    /// 🔒 M3-03c — `03` §6.2's per-tile legality gate: the linear node index of every tile whose
-    /// minigame has already been resolved this run, mapped to which `03` §6 <c>MG_*</c> id resolved
-    /// there.
+    /// The per-tile minigame legality gate: the linear node index of every tile whose minigame has
+    /// already been resolved this run, mapped to which minigame id resolved there.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// ⚠️ <b>Keyed on <see cref="Position"/> as the tile-instance identity — a recorded assumption,
-    /// not `03` §3's tile system speaking.</b> §6.2 requires "exactly one submission per tile", but
-    /// `RESOLVE_TILE` and the pending-tile-resolution state that would name a tile instance are
-    /// M3-03's, not yet built (<c>GapRegister</c>'s <c>PendingFork</c>/<c>Board</c> entries). The
-    /// run's own linear node index is the one tile-instance proxy that already exists: `03` §1 makes
-    /// movement forward-only with no backtracking, so one position is visited at most once per run,
-    /// and the day M3-03's real pending-tile state lands, a tile instance and a position coincide for
-    /// exactly the tiles this gate protects.
-    /// </para>
-    /// <para>
-    /// A map rather than a count, for the same reason <see cref="_adUses"/> is: `03` §6 has four
-    /// minigames and a run can face more than one, at different positions, in one run.
-    /// <see cref="Handlers.MinigameSubmit"/> also reads <c>Count</c> as the next `14` §8.1
-    /// <c>minigame:{index}</c> stream to draw a server-rolled outcome from — one index per resolved
-    /// instance, the same shape <c>combat</c>'s <c>battleIndex</c> already uses.
-    /// </para>
+    /// Keyed on <see cref="Position"/> as a stand-in for tile-instance identity: movement is
+    /// forward-only with no backtracking, so one position is visited at most once per run, which
+    /// makes the linear node index a safe proxy until a real pending-tile-instance concept exists.
     /// </remarks>
     private readonly Dictionary<int, string> _resolvedMinigames;
 
     /// <inheritdoc cref="_resolvedMinigames"/>
     private readonly ReadOnlyDictionary<int, string> _resolvedMinigamesView;
 
-    /// <summary>
-    /// 🔒 M3-03 — the <c>(int)TileKind</c> of the tile this run has arrived at and not yet resolved,
-    /// or <see cref="NoPendingTile"/>.
-    /// </summary>
+    /// <summary>The tile kind of the tile this run has arrived at and not yet resolved, or <see cref="NoPendingTile"/>.</summary>
     /// <remarks>
-    /// <para>
-    /// Held as an <c>int</c> rather than a <c>TileKind?</c> because <see cref="RunSnapshot"/> carries
-    /// it as one — <c>Rules.Board.TileKind</c> is <c>internal</c> and a <b>public</b> snapshot record
-    /// may not name it, which is the same accessibility wall <c>ResolvedMinigames</c> hits with the
-    /// <c>MG_*</c> ids it stores as strings. The aggregate converts at
-    /// <see cref="PendingTileKind"/> so that no rule outside this file ever sees the raw integer.
-    /// </para>
-    /// <para>
-    /// ⚠️ Three fields rather than one small record, for the reason <see cref="_wallet"/> is a bare
-    /// <c>long</c>: <see cref="RunSnapshot"/> is <em>flat</em> (`30` §11.3), so a nested record would
-    /// buy nothing in storage and would add nested slots to the field-order pin.
-    /// </para>
+    /// Held as an <c>int</c> rather than the tile-kind enum because the enum is <c>internal</c> to
+    /// <c>Rules.Board</c> and this snapshot is public. Three flat fields rather than one nested
+    /// record, since the snapshot is flat and a nested record would only add path depth to the
+    /// field-order pin.
     /// </remarks>
     private int _pendingTileKind;
 
@@ -215,15 +108,11 @@ public sealed class Run
     /// <inheritdoc cref="_pendingTileKind"/>
     private int _pendingTileStage;
 
-    /// <summary>
-    /// 🔒 M3-03 — the `19` Part A card a pending <c>TILE_EVENT</c> has already drawn, or <c>null</c>.
-    /// See <see cref="RunSnapshot.PendingEventCardId"/> for why re-drawing must be impossible.
-    /// </summary>
+    /// <summary>The event card a pending <c>TILE_EVENT</c> has already drawn, or <c>null</c>.</summary>
     /// <remarks>
-    /// <c>null</c> in the aggregate, <c>""</c> in the snapshot: the aggregate's <c>null</c> is the
-    /// language's own "no value" and reads correctly at every call site, while the snapshot's empty
-    /// string keeps <c>CanonicalStateWriter</c> encoding a <c>System.String</c> slot rather than a
-    /// nullable one. <see cref="Rehydrate"/> is the seam that translates between them.
+    /// <c>null</c> here, <c>""</c> in the snapshot: the aggregate's <c>null</c> reads correctly at
+    /// every call site, while the snapshot's empty string keeps the canonical encoding a plain string
+    /// slot rather than a nullable one. <see cref="Rehydrate"/> translates between the two.
     /// </remarks>
     private string? _pendingEventCardId;
 
@@ -232,101 +121,40 @@ public sealed class Run
     private int _currentHp;
     private int _maxHp;
 
-    /// <summary>
-    /// 🔒 M3-05, `02` §1.1 — the subset of the run's state machine that is genuine server-side
-    /// aggregate state. See <see cref="Primitives.RunPhase"/> for the full ruling.
-    /// </summary>
+    /// <summary>The subset of the run's state machine that is genuine server-side aggregate state.</summary>
     private RunPhase _phase;
 
-    /// <summary>
-    /// 🔒 M3-05 — set when <c>CONFIRM_BATTLE_RESULT</c> closes a won battle, and the documented hook
-    /// M3-06's perk-draft trigger reads: a future <c>PickPerkCommand</c>/<c>SkipDraftCommand</c>
-    /// clears it once the draft resolves. <c>Handlers.ConfirmBattleResult</c> is the exact call site
-    /// that sets it — see that type's remarks.
-    /// </summary>
+    /// <summary>Set when a won battle closes and a perk draft is waiting to resolve.</summary>
     private bool _draftPending;
 
-    /// <summary>
-    /// 🔒 M3-06 — the <c>(int)TileKind</c> of the battle <c>CONFIRM_BATTLE_RESULT</c> just closed
-    /// when it set <see cref="_draftPending"/>: Enemy, Elite or Boss. Meaningless while
-    /// <see cref="_draftPending"/> is false — <see cref="ClearDraftPending"/> resets it to
-    /// <see cref="NoDraftBattleKind"/> for the same reason <see cref="ClearPendingTile"/> resets its
-    /// own fields: `30` §11.3's snapshot is flat and hashed whole, so two runs with no draft pending
-    /// must produce the same bytes for this slot. Held as an <c>int</c> rather than
-    /// <c>Rules.Board.TileKind</c> for the same layering reason <see cref="_pendingTileKind"/> is —
-    /// <c>Model</c> may not name <c>Rules</c>' vocabulary (`30` §11.4).
-    /// </summary>
+    /// <summary>The tile kind of the battle that set <see cref="_draftPending"/>. Meaningless while it is false.</summary>
     private int _draftBattleKind;
 
-    /// <summary>
-    /// 🔒 M3-06 — the stage (1, 2, 3, or <see cref="BossStage"/>) the just-closed battle belonged
-    /// to. Meaningless while <see cref="_draftPending"/> is false, reset to 0 alongside
-    /// <see cref="_draftBattleKind"/> for the same reason.
-    /// </summary>
+    /// <summary>The stage the just-closed battle belonged to. Meaningless while <see cref="_draftPending"/> is false.</summary>
     private int _draftBattleStage;
 
-    /// <summary>
-    /// 🔒 M3-06, `30` §4 — the perks this run has drafted: perk id → owned internal tier (1-3).
-    /// M3-06's answer to <c>GapRegister</c>'s <c>DraftedPerks</c> entry (see
-    /// <see cref="Model.DraftedPerks"/>, the public wrapper type this dictionary is exposed through).
-    /// </summary>
+    /// <summary>The perks this run has drafted: perk id → owned internal tier (1-3).</summary>
     private readonly Dictionary<string, int> _ownedPerkTiers;
 
-    /// <summary>
-    /// 🔒 M3-05, `04` §3 — reroll charges spent since the run's current stage began. Reset to 0 at
-    /// every Stage Gate (<see cref="ApplyStageGate"/>); compared against
-    /// <see cref="Rules.Dice.RerollEconomy.TotalCharges"/> by <c>Handlers.UseReroll</c>, which is the
-    /// "a caller with a real spent-count... compares it against TotalCharges" seam
-    /// <see cref="Rules.Dice.RerollEconomy"/>'s own remarks left open.
-    /// </summary>
+    /// <summary>Reroll charges spent since the run's current stage began. Reset to 0 at every Stage Gate.</summary>
     private int _rerollChargesSpentThisStage;
 
-    /// <summary>
-    /// 🔒 M3-05 — the <c>dice</c> stream draw index the run's current stage began at:
-    /// <see cref="Rules.Dice.FairDiceBag.Replay"/>'s <c>resetAtDraw</c> argument, once a real Stage
-    /// Gate exists to feed it (M3-04's handlers hard-coded 0, documented as a placeholder — see
-    /// <c>Handlers.RollDice</c>'s and <c>Handlers.UseReroll</c>'s prior remarks).
-    /// </summary>
+    /// <summary>The <c>dice</c> stream draw index the run's current stage began at.</summary>
     private ulong _stageGateDiceAnchor;
 
-    /// <summary>
-    /// 🔒 M3-02, `03` §1.1 / `30` §4 — a movement paused mid-move at a junction, waiting for
-    /// <c>CHOOSE_FORK</c>. Null on every run that is not, right now, standing at a junction with
-    /// movement still to spend.
-    /// </summary>
+    /// <summary>A movement paused mid-move at a junction, waiting for <c>CHOOSE_FORK</c>. Null except while standing there.</summary>
     private PendingFork? _pendingFork;
 
-    /// <summary>
-    /// 🔒 M3-13, `02` §5.1a — Legend XP banked so far this run, pending the run-end
-    /// <c>CompletionMultiplier</c>/<c>AdDoubleMultiplier</c> payout (<see cref="BankRewards"/>).
-    /// Unlike <see cref="_wallet"/>'s Gold, never paid to <c>Player</c> until the run ends.
-    /// </summary>
+    /// <summary>Legend XP banked so far this run, pending the run-end payout (<see cref="BankRewards"/>).</summary>
     private long _bankedLegendXp;
 
-    /// <summary>
-    /// 🔒 M3-13, `02` §5.3 / `10` §2 — Soul Shards banked so far this run (Boss kills and the
-    /// one-time first-clear grant), pending the same run-end payout as <see cref="_bankedLegendXp"/>.
-    /// </summary>
+    /// <summary>Soul Shards banked so far this run, pending the same run-end payout as <see cref="_bankedLegendXp"/>.</summary>
     private long _bankedSoulShards;
 
-    /// <summary>
-    /// 🔒 M3-13, `02` §5.2 — whether this run's Boss has been killed. The Victory/Death split
-    /// <c>Handlers.EndRun</c> reads to pick a <c>CompletionMultiplier</c> row, and the gate on
-    /// `02` §5.3's first-clear bonus.
-    /// </summary>
+    /// <summary>Whether this run's Boss has been killed.</summary>
     private bool _bossDefeated;
 
-    /// <summary>
-    /// The one constructor. Private, and it <b>trusts</b>: every value has already been checked by
-    /// <see cref="Rehydrate"/>, which is the only caller.
-    /// </summary>
-    /// <remarks>
-    /// Validation lives in one place rather than two — the same reasoning as <c>Player</c>'s private
-    /// constructor. A constructor that re-checked would either duplicate the rules (two lists that
-    /// drift) or throw where `30` §11.3 promises a <see cref="Result{T}"/>, which is the difference
-    /// between a corrupt row failing at the seam with a description and a corrupt row failing three
-    /// rules later with a stack trace.
-    /// </remarks>
+    /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
     private Run(
         RunId id,
         PlayerId playerId,
@@ -389,129 +217,67 @@ public sealed class Run
         _bossDefeated = bossDefeated;
     }
 
-    /// <summary>
-    /// 🔒 M3-03 — what <see cref="RunSnapshot.PendingTileKind"/> holds when no tile is pending.
-    /// </summary>
+    /// <summary>What <see cref="RunSnapshot.PendingTileKind"/> holds when no tile is pending.</summary>
     /// <remarks>
-    /// −1 rather than a nullable, and it is safe rather than lucky: <c>Rules.Board.TileKind</c>'s
-    /// fourteen members are declared with no explicit values and therefore run <c>0..13</c>, so no
-    /// legal kind can ever collide with it. A named constant so the sentinel is greppable and the
-    /// three places that hold it — the constructor's default, <see cref="ClearPendingTile"/> and
-    /// <see cref="Rehydrate"/>'s validation — cannot drift apart.
+    /// -1 rather than a nullable: the tile-kind enum's members run 0..13 with no explicit values, so
+    /// no legal kind can ever collide with it. A named constant so the sentinel is greppable.
     /// </remarks>
     private const int NoPendingTile = -1;
 
-    /// <summary>
-    /// 🔒 M3-06 — what <see cref="_draftBattleKind"/> holds while <see cref="_draftPending"/> is
-    /// false. −1 for the same reason <see cref="NoPendingTile"/> is: <c>Rules.Board.TileKind</c>'s
-    /// members run <c>0..13</c>, so no legal kind can collide with it.
-    /// </summary>
+    /// <summary>What <see cref="_draftBattleKind"/> holds while <see cref="_draftPending"/> is false. -1 for the same reason as <see cref="NoPendingTile"/>.</summary>
     private const int NoDraftBattleKind = -1;
 
-    /// <summary>
-    /// 🔒 M3-03 — `03` §1's stage value for the boss node, which belongs to no stage.
-    /// </summary>
+    /// <summary>The stage value for the boss node, which belongs to no stage.</summary>
     /// <remarks>
-    /// ⚠️ <b>Restated here rather than read off the board graph's own constant, and that is the
-    /// layering rather than duplication for its own sake.</b> `30` §11.4 puts <c>Model</c> below
-    /// <c>Rules</c>, and <c>AccessibilityBoundaryTests</c> scans <b>source</b> as well as metadata
-    /// precisely because the compiler inlines a <c>const</c> and metadata alone cannot see the
-    /// reference. So this aggregate holds its own copy of the value it validates against. The graph's
-    /// constant remains the definition; a test in the <c>Rules</c> layer — which may name both — is
-    /// what holds the two together.
+    /// Restated here rather than read off the board graph's own constant: <c>Model</c> sits below
+    /// <c>Rules</c> in the internal layering, so this aggregate holds its own copy of the value it
+    /// validates against. The graph's constant remains the definition.
     /// </remarks>
     private const int BossStage = 0;
 
-    /// <summary>The aggregate root's identity (`30` §4).</summary>
+    /// <summary>The aggregate root's identity.</summary>
     public RunId Id { get; }
 
-    /// <summary>
-    /// 🔒 The player this run belongs to. `30` §4 makes <c>Run</c> a child of <c>Player</c>, and
-    /// this is where that parentage is held — a run does not exist on its own.
-    /// </summary>
+    /// <summary>The player this run belongs to. A run is a child of its player; it does not exist on its own.</summary>
     public PlayerId PlayerId { get; }
 
-    /// <summary>
-    /// 🔒 `02` §2's committed <c>runSeed</c>. Derived once by <c>SeedDerivation.RunSeed</c> at
-    /// <c>START_RUN</c> and never recomputed: `14` §8.1 makes it authoritative run state, and a
-    /// re-derivation from a different <c>NowUtc</c> would silently hand the player a different
-    /// board on resume.
-    /// </summary>
-    /// <remarks>
-    /// Get-only with no mutator anywhere: nothing in the game legitimately re-seeds a run in flight.
-    /// </remarks>
+    /// <summary>The committed <c>runSeed</c>. Derived once at <c>START_RUN</c> and never recomputed.</summary>
+    /// <remarks>Get-only with no mutator anywhere: nothing in the game legitimately re-seeds a run in flight.</remarks>
     public ulong RunSeed { get; }
 
-    /// <summary>
-    /// The chapter being played. `02` §1 runs chapters 1–8 and <c>chapter.schema.json</c> sets
-    /// <c>"minimum": 1</c>.
-    /// </summary>
+    /// <summary>The chapter being played.</summary>
     /// <remarks>
-    /// ⚠️ <b>No upper bound and no existence check, deliberately.</b> M3-14 landed
-    /// <c>content/chapters/CH_01_GREENWOOD_VALE.json</c> and <c>CH_02_ASHEN_MIRE.json</c>, so
-    /// <c>chapter.schema.json</c> no longer sits on <c>ContentLoader.SchemasAwaitingContent</c> — but
-    /// chapters 3-8 remain M11-02's unauthored rows, so the content set still does not span `02` §1's
-    /// full range. Hard-coding <c>8</c> in <c>Core</c> would put a content bound in code (`21` §3.1)
-    /// and — worse — would be a <em>partial</em> invariant wearing the real one's name, the same trap
-    /// as <see cref="Position"/>. The deferral already has a live, self-expiring mechanism:
-    /// <c>RealDataSetTests.An_exemption_that_outlived_its_milestone_fails_the_build</c> pins the same
-    /// mechanism against <c>event.schema.json</c> now that chapter's own exemption has expired for
-    /// real, so no second mechanism is built here (steering S4).
+    /// No upper bound and no existence check, deliberately: only chapters 1-2 are authored so far, and
+    /// hard-coding a ceiling would put a content bound in code and be a partial invariant wearing the
+    /// real one's name. A self-expiring test mechanism catches the day the exemption outlives its
+    /// milestone.
     /// </remarks>
     public int ChapterId { get; }
 
-    /// <summary>The difficulty tier (`10` §7), and `02` §2's <c>tierId</c> in <see cref="RunSeed"/>.</summary>
+    /// <summary>The difficulty tier, and part of <see cref="RunSeed"/>'s derivation.</summary>
     public DifficultyTier Tier { get; }
 
-    /// <summary>
-    /// 🔒 `14` §16.3 — the instant the last command was applied <b>to this run</b>, which is what
-    /// the 48-hour run TTL slides from.
-    /// </summary>
+    /// <summary>The instant the last command was applied to this run, which the sliding 48-hour run TTL is measured from.</summary>
     /// <remarks>
-    /// Distinct from <c>Player.LastAppliedAtUtc</c> and it has to be: the player's advances on meta
-    /// commands too, so sliding the run's expiry off it would keep a run alive because its owner
-    /// opened the shop. `14` §16.2 makes <c>RUN_EXPIRED</c> a <b>domain-tier</b> rejection returned
-    /// by <c>Apply</c>, so the field the rejection is computed from belongs on the aggregate.
+    /// Distinct from <c>Player.LastAppliedAtUtc</c>, which also advances on meta commands — sliding
+    /// the run's expiry off that would keep a run alive because its owner opened the shop.
     /// </remarks>
     public DateTimeOffset LastAppliedAtUtc => _lastAppliedAtUtc;
 
-    /// <summary>
-    /// The node the run stands on (`14` §2.3's <c>newPosition</c>) — a
-    /// <see cref="Rules.Board.NodeId"/>'s <c>Value</c>, once M3-02's movement engine has generated
-    /// this run's board.
-    /// </summary>
+    /// <summary>The node the run stands on — a board node's linear index, once the board has been generated.</summary>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>M3-02's ruling, recorded here rather than discovered by diffing a wire trace against
-    /// `03` §1.1's prose.</b> The design document calls this "the linear node index" throughout, and
-    /// for every position a run can persist <em>between commands while standing on the spine or the
-    /// boss</em>, it is exactly that: <c>Rules.Board.BoardGenerator</c> assigns every spine node's
-    /// <c>NodeId</c> in increasing linear-index order, before any fork branch is built, so a spine or
-    /// boss node's <c>NodeId.Value</c> and its <see cref="Rules.Board.BoardNode.LinearIndex"/> are the
-    /// same number by construction. They diverge only while a run is genuinely standing <em>inside a
-    /// fork branch</em> — the one case `03` §1.1 itself says a linear index cannot name uniquely
-    /// (<see cref="Rules.Board.BoardNode.LinearIndex"/>'s own remarks): "a branch node shares its
-    /// linear index with the spine node at the same forward distance from its junction." A plain
-    /// linear index stored here could not tell those two nodes apart the moment a
-    /// <c>CHOOSE_FORK</c>'d move ends its command short of the branch's rejoin — so this field is the
-    /// node's actual graph identity, which happens to equal the linear index everywhere a wire reader
-    /// would expect it to.
+    /// The board assigns every spine node's identity in increasing linear-index order before any fork
+    /// branch is built, so a spine or boss node's identity and its linear index are the same number by
+    /// construction. They diverge only while a run stands inside a fork branch, since a branch node
+    /// shares its linear index with the spine node at the same forward distance from its junction —
+    /// so this field is the node's actual graph identity, which happens to equal the linear index
+    /// everywhere a wire reader would expect it to.
     /// </para>
     /// <para>
-    /// ⚠️ <b>Stored, and still checked only against `03` §1.1's trailhead floor.</b> `30` §11.5 names
-    /// <em>"a run's position is a valid node"</em> as an invariant of this aggregate — and `30` §11.4
-    /// forbids <c>Model</c> from referencing <c>Rules</c> at all, so this aggregate structurally
-    /// cannot hold a <see cref="Rules.Board.BoardGraph"/> to check itself against. The real
-    /// enforcement is that <b>only</b> M3-02's movement engine (<c>Handlers.RollDice</c>,
-    /// <c>Handlers.ChooseFork</c>) ever calls <see cref="MoveTo"/>, and it only ever does so with a
-    /// value it has itself just read off a node of the run's own regenerated board — the same shape
-    /// <c>SetHitPoints</c>'s overheal clamp already takes (`30` §11.5: the aggregate refuses an
-    /// impossible answer, the caller that computed it keeps the arithmetic honest).
-    /// </para>
-    /// <para>
-    /// 🔒 The one bound that <b>is</b> checked here is not invented either: see
-    /// <see cref="TrailheadPosition"/>. `03` §1.1 authors −1 as the position every run stands at
-    /// before its first roll, so that — and not zero — is the floor.
+    /// Checked only against the trailhead floor: <c>Model</c> cannot hold a board graph to check
+    /// itself against, so the real enforcement is structural — only the movement engine ever calls
+    /// <see cref="MoveTo"/>, and only with a value it has itself just read off this run's own board.
     /// </para>
     /// </remarks>
     public int Position => _position;
@@ -519,72 +285,43 @@ public sealed class Run
     /// <summary>The hero's current hit points. Never negative, never above <see cref="MaxHp"/>.</summary>
     public int CurrentHp => _currentHp;
 
-    /// <summary>
-    /// The hero's maximum hit points for this run. Never below 1.
-    /// </summary>
+    /// <summary>The hero's maximum hit points for this run. Never below 1.</summary>
     /// <remarks>
     /// Stored rather than derived from the player's build: a resumed run must render its HP bar
-    /// without recomputing the whole power calculation, and `03` §7a.5's <c>SHR_HP</c> shrine raises
-    /// <c>MAX_HP</c> <em>for the run</em>, so the run's maximum is genuinely run state.
+    /// without recomputing the whole power calculation, and a shrine can raise it for the run alone.
     /// </remarks>
     public int MaxHp => _maxHp;
 
-    /// <summary>
-    /// 🔒 The run's <c>GOLD</c> balance — `10` §1's one <c>RUN</c>-scoped currency (assumption
-    /// <b>A3</b>). Never negative.
-    /// </summary>
+    /// <summary>The run's <c>GOLD</c> balance — the one run-scoped currency. Never negative.</summary>
     public long Gold => _wallet;
 
-    /// <summary>
-    /// 🔒 `14` §8.1's per-stream draw counters: stream name → next draw index. Read-only, sparse,
-    /// and ordinal.
-    /// </summary>
+    /// <summary>Per-stream draw counters: stream name → next draw index. Read-only, sparse, ordinal.</summary>
     /// <remarks>
     /// <para>
-    /// ⚠️ <b>A frozen view.</b> <see cref="CommitStreamPositions"/> replaces the map wholesale, so
-    /// the object a caller holds is the positions as they stood when it read them and never changes
-    /// afterwards. <see cref="AdUses"/> is the opposite; the asymmetry is stated on both getters so
-    /// a caller does not have to infer it.
+    /// A frozen view: <see cref="CommitStreamPositions"/> replaces the map wholesale, so the object a
+    /// caller holds never changes afterwards. <see cref="AdUses"/> is the opposite.
     /// </para>
     /// <para>
-    /// 🔒 <b>What <c>combat</c>'s position means, and it is not what the others' means.</b> `14`
-    /// §8.1 derives <c>battleSeed = Hash64(runSeed, "combat", battleIndex)</c>, and combat draw
-    /// <c>i</c> of that battle is <c>Hash64(battleSeed, "combat", i)</c>. So the <c>combat</c> stream
-    /// <b>rooted at <see cref="RunSeed"/></b> is consumed exactly once per battle — to derive that
-    /// battle's seed — which makes its position <b>the number of battles started in this run, i.e.
-    /// the next <c>battleIndex</c></b>, not a count of combat draws. The draws <em>inside</em> a
-    /// battle are rooted at the battle seed, restart at 0 for every battle and are <b>never
-    /// persisted</b>, which is precisely what makes §8.1's <em>"a revived battle restarts from draw 0
-    /// of the same battle stream: reproducible by construction"</em> true. Same type, same
-    /// monotonicity, same seam — different <b>unit</b>.
-    /// </para>
+    /// The <c>combat</c> stream's position means something different from every other row's: it is
+    /// consumed once per battle to derive that battle's seed, so it counts battles started (the next
+    /// <c>battleIndex</c>), not combat draws — the draws inside a battle restart at 0 and are never
+    /// persisted, which is what makes a revived battle replayable from draw 0 of its own stream.
     /// </remarks>
     public IReadOnlyDictionary<string, ulong> RngStreamPositions => _streamPositions;
 
-    /// <summary>
-    /// `12` §4.3's per-run ad uses: placement id → uses so far. Read-only; empty is the normal state.
-    /// </summary>
+    /// <summary>Per-run ad uses: placement id → uses so far. Read-only; empty is the normal state.</summary>
     /// <remarks>
     /// <para>
-    /// ⚠️ <b>A live view, unlike <see cref="RngStreamPositions"/>.</b> The counts are mutated in
-    /// place, so a caller holding this reference across a <see cref="CountAdUse"/> sees the new
-    /// values. Read it, do not hold it; <see cref="ToSnapshot"/> hands out a copy for exactly this
-    /// reason.
+    /// A live view, unlike <see cref="RngStreamPositions"/>: the counts are mutated in place. Read it,
+    /// do not hold it.
     /// </para>
     /// <para>
-    /// 🔒 <b>Open string keys, not a type.</b> The thirteen in-run placement ids are authored in
-    /// <c>game-data/tuning/ads.json</c> under <c>inRunPlacements</c>, and <c>AdPlacementId</c> is an
-    /// <b><c>Application</c>-layer</b> type in `12` §7's port signature — <c>Core</c> may not name
-    /// it. <c>CanonicalStateWriter.KeyOrderFor</c> also defines an ascending order for strings and
-    /// numeric ids only, so a wrapper-keyed map would have no canonical encoding at all.
+    /// Open string keys, not a type: the in-run placement ids are authored in tuning data, and the
+    /// wrapper type they'd otherwise use is an <c>Application</c>-layer type <c>Core</c> may not name.
     /// </para>
     /// <para>
-    /// 🔒 <b>No period anchor and no reset mutator, ever.</b> `12` §4.3 makes in-run caps <em>per
-    /// run</em>, and the run <b>is</b> the period — a run never crosses an in-run cap boundary, so
-    /// there is nothing to reset, and a reset mutator would be a way to hand a player their
-    /// seventeen impressions twice. <c>AD_REVIVE</c> is also what carries `02` §6's once-per-run
-    /// revive; there is no separate <c>RevivesUsed</c> field, because that would be a second source
-    /// of truth for one count.
+    /// No period anchor and no reset mutator: the run is the period, so there is nothing to reset.
+    /// The revive placement also carries the once-per-run revive count, so there is no separate field.
     /// </para>
     /// </remarks>
     public IReadOnlyDictionary<string, long> AdUses => _adUsesView;
@@ -617,51 +354,34 @@ public sealed class Run
     /// <inheritdoc cref="_rerollChargesSpentThisStage"/>
     internal int RerollChargesSpentThisStage => _rerollChargesSpentThisStage;
 
-    /// <summary>🔒 M3-13 — Legend XP banked so far this run. See <see cref="_bankedLegendXp"/>.</summary>
+    /// <summary>Legend XP banked so far this run. See <see cref="_bankedLegendXp"/>.</summary>
     internal long BankedLegendXp => _bankedLegendXp;
 
-    /// <summary>🔒 M3-13 — Soul Shards banked so far this run. See <see cref="_bankedSoulShards"/>.</summary>
+    /// <summary>Soul Shards banked so far this run. See <see cref="_bankedSoulShards"/>.</summary>
     internal long BankedSoulShards => _bankedSoulShards;
 
-    /// <summary>🔒 M3-13 — whether this run's Boss has been killed. See <see cref="_bossDefeated"/>.</summary>
+    /// <summary>Whether this run's Boss has been killed. See <see cref="_bossDefeated"/>.</summary>
     internal bool BossDefeated => _bossDefeated;
 
     /// <inheritdoc cref="_stageGateDiceAnchor"/>
     internal ulong StageGateDiceAnchor => _stageGateDiceAnchor;
 
-    /// <summary>
-    /// The next draw index of one `14` §8.1 stream, or <b>zero</b> for a registered stream this run
-    /// has never drawn from.
-    /// </summary>
-    /// <param name="streamName">A row of <c>RngStreams</c> — one of the eight fixed names, or <c>minigame:{index}</c>.</param>
-    /// <remarks>
-    /// Zero for an undrawn stream is correct rather than the S6 hole-filled-with-a-default: a stream
-    /// nothing has drawn from genuinely stands at draw 0, which is exactly what
-    /// <c>new DeterministicRng(runSeed, name)</c> starts at. An <b>unregistered</b> name is refused
-    /// instead, because there is no such stream to answer about.
-    /// </remarks>
+    /// <summary>The next draw index of one RNG stream, or zero for a registered stream this run has never drawn from.</summary>
+    /// <param name="streamName">A row of the stream registry — one of the eight fixed names, or <c>minigame:{index}</c>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="streamName"/> is null.</exception>
-    /// <exception cref="ArgumentException"><paramref name="streamName"/> is not in the registry of `14` §8.1.</exception>
+    /// <exception cref="ArgumentException"><paramref name="streamName"/> is not in the stream registry.</exception>
     public ulong StreamPosition(string streamName)
     {
-        // Null is checked HERE rather than inside RequireRegisteredStream because here the null is
-        // genuinely the argument, while a null KEY inside CommitStreamPositions' map is not — see
-        // that guard's remarks.
+        // Null is checked here rather than inside RequireRegisteredStream because here the null is
+        // genuinely the argument, while a null KEY inside CommitStreamPositions' map is not.
         ArgumentNullException.ThrowIfNull(streamName);
         RequireRegisteredStream(streamName, nameof(streamName));
 
         return _streamPositions.TryGetValue(streamName, out var position) ? position : 0UL;
     }
 
-    /// <summary>
-    /// How many times one `12` §4.3 in-run ad placement has been used in this run, or zero.
-    /// </summary>
-    /// <param name="placementId">The placement id, as authored in <c>tuning/ads.json</c>. Never blank.</param>
-    /// <remarks>
-    /// Zero for an unknown key, for the same reason <c>Player.DailyCount</c> answers zero: a
-    /// placement nobody has watched genuinely stands at zero, and the alternative — every placement
-    /// pre-registering itself at run start — would put a content list inside the aggregate.
-    /// </remarks>
+    /// <summary>How many times one in-run ad placement has been used in this run, or zero.</summary>
+    /// <param name="placementId">The placement id, as authored in tuning data. Never blank.</param>
     /// <exception cref="ArgumentException"><paramref name="placementId"/> is blank.</exception>
     public long AdUseCount(string placementId)
     {
@@ -670,15 +390,10 @@ public sealed class Run
         return _adUses.TryGetValue(placementId, out var uses) ? uses : 0L;
     }
 
-    /// <summary>
-    /// The balance of one <b>run-scoped</b> currency.
-    /// </summary>
-    /// <param name="currency">Must be <see cref="CurrencyId.GOLD"/>: `10` §1 scopes exactly one currency to the run.</param>
+    /// <summary>The balance of one run-scoped currency.</summary>
+    /// <param name="currency">Must be <see cref="CurrencyId.GOLD"/>: exactly one currency is scoped to the run.</param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="currency"/> is anything but <c>GOLD</c>. Refused with the reason and a pointer
-    /// at <c>Player</c> — the mirror image of <c>Player.RequireWalletCurrency</c>'s refusal of
-    /// <c>GOLD</c> — rather than answered with a zero, which would read as "the run has none" about
-    /// a balance that lives on the other aggregate.
+    /// <paramref name="currency"/> is anything but <c>GOLD</c>.
     /// </exception>
     public long BalanceOf(CurrencyId currency)
     {
@@ -687,16 +402,10 @@ public sealed class Run
         return _wallet;
     }
 
-    /// <summary>
-    /// 🔒 `30` §11.3 — the persisted shape of this aggregate, stamped with the <b>current</b>
-    /// <see cref="SnapshotSchema.SchemaVersion"/>.
-    /// </summary>
+    /// <summary>The persisted shape of this aggregate, stamped with the current <see cref="SnapshotSchema.SchemaVersion"/>.</summary>
     /// <remarks>
-    /// The ad-use dictionary is <b>copied</b>; the stream-position map is not. That asymmetry is the
-    /// storage decision showing through: <c>_streamPositions</c> is replaced wholesale on every
-    /// commit, so the object handed out here can never change afterwards, while the ad counts are
-    /// mutated in place and a shared reference would let a later increment rewrite a snapshot already
-    /// handed to a persistence adapter.
+    /// The ad-use dictionary is copied; the stream-position map is not — the latter is already
+    /// replaced wholesale on every commit, so the object handed out here can never change afterwards.
     /// </remarks>
     public RunSnapshot ToSnapshot() => new(
         SnapshotSchema.SchemaVersion,
@@ -718,8 +427,8 @@ public sealed class Run
         _pendingTileKind,
         _pendingTileLinearIndex,
         _pendingTileStage,
-        // 🔒 null becomes "" on the way out — see _pendingEventCardId for why the two sides of this
-        // seam spell "absent" differently.
+        // null becomes "" on the way out — see _pendingEventCardId for why the two sides spell
+        // "absent" differently.
         _pendingEventCardId ?? string.Empty,
         _phase,
         _draftPending,
@@ -732,40 +441,17 @@ public sealed class Run
         _bankedSoulShards,
         _bossDefeated);
 
-    /// <summary>
-    /// 🔒 `30` §11.3 — the one validated entry point for a persisted run: <em>"a corrupt row fails
-    /// loudly at the seam rather than silently three rules later."</em>
-    /// </summary>
+    /// <summary>The one validated entry point for a persisted run: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
     /// <returns>
-    /// The rehydrated aggregate, or a failure listing <b>every</b> validation the row failed — not
-    /// just the first. A corrupt row is usually corrupt in more than one way, and one round trip per
-    /// defect is one round trip too many when the row is already in production.
+    /// The rehydrated aggregate, or a failure listing every validation the row failed, not just the
+    /// first.
     /// </returns>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>An unknown <see cref="RunSnapshot.SchemaVersion"/> hard-fails, loudly, first and
-    /// alone.</b> The M1 kickoff ruled that no migration code is written before soft launch and that
-    /// written migrations become mandatory at M18. Until then a row from another schema version has
-    /// no reader, and guessing that "close enough" layouts are compatible is how a field silently
-    /// shifts by one position across an entire player base. Every validation below reads fields whose
-    /// meaning the version defines, so the version is checked before any of them runs.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>No <c>ContentSnapshot</c> parameter, and that is a ruling rather than an omission.</b>
-    /// `30` §11.3's sketch carries one because <c>Player</c>'s validation genuinely needs a tunable
-    /// (the Legend Level range). Nothing <see cref="RunSnapshot"/> carries has a content-derived
-    /// bound <em>today</em>: the two that will — position→node and chapter→content — are both
-    /// deferred with named owners (M3-01, M3-14). A parameter accepted and ignored tells every caller
-    /// this validation consults the data set when it does not, and it keeps compiling on the day
-    /// someone needs it and forgets to use it. Adding it later is a compile error inside <c>Core</c>
-    /// and <c>Application</c>, not a persistence break.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Every fault names <em>which</em> field failed and why</b> (steering S2). Several
-    /// validations here can produce a failed result, so a message that only said "this row is
-    /// invalid" would let any one of them be deleted without anything going red.
-    /// </para>
+    /// An unknown <see cref="RunSnapshot.SchemaVersion"/> hard-fails first and alone, for the same
+    /// reason <c>Player.Rehydrate</c> does. No <c>ContentSnapshot</c> parameter: nothing this
+    /// snapshot carries has a content-derived bound today, and a parameter accepted and ignored would
+    /// mislead every caller into thinking this validation consults the data set.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="snapshot"/> is null.</exception>
     public static Result<Run> Rehydrate(RunSnapshot snapshot)
@@ -837,9 +523,8 @@ public sealed class Run
             snapshot.PendingTileKind,
             snapshot.PendingTileLinearIndex,
             snapshot.PendingTileStage,
-            // 🔒 "" becomes null on the way in, and a blank-but-not-empty string ("  ") does too:
-            // both mean "no card has been drawn", and carrying whitespace through would give
-            // SetPendingEventCard's own blank check something to disagree with.
+            // "" becomes null on the way in, and a blank-but-not-empty string does too: both mean
+            // "no card has been drawn".
             string.IsNullOrWhiteSpace(snapshot.PendingEventCardId) ? null : snapshot.PendingEventCardId,
             snapshot.Phase,
             snapshot.DraftPending,
@@ -853,7 +538,7 @@ public sealed class Run
             snapshot.BossDefeated));
     }
 
-    /// <summary>🔒 M3-13 — the two banked-reward pools are never negative.</summary>
+    /// <summary>The two banked-reward pools are never negative.</summary>
     private static void RequireBankedRewards(RunSnapshot snapshot, List<string> faults)
     {
         if (snapshot.BankedLegendXp < 0)
@@ -871,27 +556,11 @@ public sealed class Run
         }
     }
 
-    /// <summary>
-    /// 🔒 Moves the run's <c>GOLD</c> and produces the `30` §7 <c>CurrencyChanged</c> that attributes
-    /// it. The <b>one</b> place <c>_wallet</c> is written outside the constructor.
-    /// </summary>
+    /// <summary>Moves the run's <c>GOLD</c> and produces the attributing <c>CurrencyChanged</c>. The one place <c>_wallet</c> is written outside the constructor.</summary>
     /// <param name="currency">Must be <see cref="CurrencyId.GOLD"/>.</param>
     /// <param name="delta">Signed: positive is income, negative is a spend. Zero is permitted.</param>
-    /// <param name="reason">
-    /// 🔒 Why it moved — the attribution column of `21` §8.3's <c>income_attribution.csv</c>. A
-    /// stable <c>lower_snake_case</c> token. Never blank; <c>CurrencyChanged</c> refuses that.
-    /// </param>
+    /// <param name="reason">Why it moved — a stable <c>lower_snake_case</c> token. Never blank.</param>
     /// <returns>The event, with <see cref="DomainEvent.Sequence"/> left at <c>DomainEvent.UnstampedSequence</c>.</returns>
-    /// <remarks>
-    /// <c>internal</c>, so the only public route to it is <c>GameRules.Apply</c> (`30` §11.2). It
-    /// throws rather than returning a <see cref="Result{T}"/> on an unaffordable spend: refusing a
-    /// player's request is a <c>RejectionReason</c> the handler produces <em>before</em> it gets
-    /// here, so a negative balance reaching this point is a rule that forgot to check, not a player
-    /// who cannot pay. The <c>CurrencyChanged</c> is constructed <b>before</b> the field write, as
-    /// <c>Player.MoveBalance</c> does and for the same reason: the event refuses a blank reason in
-    /// its own initialiser, so building it second would leave the balance moved and the throw
-    /// unrecoverable — a currency movement with no attribution.
-    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="currency"/> is not run-scoped, or the movement would overflow.
     /// </exception>
@@ -903,9 +572,7 @@ public sealed class Run
 
         var balance = _wallet;
 
-        // Checked, because `long.MaxValue + 1` wraps to a large negative in the default unchecked
-        // context — a grant that silently bankrupts the run, straight past the guard below that
-        // exists to stop exactly that.
+        // Checked: unchecked overflow would wrap a large grant to a negative balance silently.
         long next;
         try
         {
@@ -931,12 +598,8 @@ public sealed class Run
                 "reaching here means a rule debited without checking.");
         }
 
-        // 🔒 Built BEFORE the write, not after. CurrencyChanged refuses a blank Reason in its own
-        // property initialiser, so constructing it second would leave the balance already moved and
-        // the throw unrecoverable — a currency movement with no attribution, which is the one
-        // outcome 30 §7 and this whole seam exist to make impossible. The newobj and the stfld stay
-        // in the same method body either way, which is what
-        // DomainPurityTests.Every_currency_mutation_emits_CurrencyChanged reads.
+        // Built before the write: CurrencyChanged refuses a blank Reason in its own initialiser, so
+        // constructing it after the write would leave the balance moved with no attribution.
         var change = new CurrencyChanged(DomainEvent.UnstampedSequence, currency, delta, reason);
 
         _wallet = next;
@@ -944,31 +607,13 @@ public sealed class Run
         return change;
     }
 
-    /// <summary>
-    /// `14` §2.3 — records the node index the run has moved to.
-    /// </summary>
-    /// <param name="position">
-    /// The new linear node index. Never below <see cref="TrailheadPosition"/>, `03` §1.1's virtual
-    /// trailhead.
-    /// </param>
+    /// <summary>Records the node index the run has moved to.</summary>
+    /// <param name="position">The new linear node index. Never below <see cref="TrailheadPosition"/>.</param>
     /// <remarks>
-    /// <para>
-    /// ⚠️ The trailhead floor is the <b>whole</b> check, and see <see cref="Position"/> for why: `30`
-    /// §11.5's <em>"a run's position is a valid node"</em> needs the specific board a specific run
-    /// stands on, which is M3-02's to compute and check before calling <see cref="MoveTo"/> — node
-    /// identity itself (M3-01's half) already exists.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>There is no monotonicity guard either — and the reason is that same deferral, not a
-    /// claim about the board.</b> `03` §1 is explicit the other way (<em>"movement is always forward.
-    /// There is no backtracking"</em>, and §1.1 lists Portal jumps under <em>forward</em> movement),
-    /// so a forwards-only rule would refuse nothing the design authorises. It is still not written
-    /// here: which index may follow which is a property of the board graph, and this aggregate holds
-    /// no graph — a rule about the direction of travel would be the same partial invariant wearing
-    /// the real one's name that a range check would be. Movement legality is M3-01's (the graph) and
-    /// M3-02's (the movement engine, including `03` §1.1's junction pause); this seam records the
-    /// index they computed.
-    /// </para>
+    /// The trailhead floor is the whole check; there is no monotonicity guard either, even though
+    /// movement is always forward. Which index may follow which is a property of the board graph, and
+    /// this aggregate holds no graph — the movement engine is the only caller and only ever supplies a
+    /// value it has itself just read off the run's own board.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="position"/> is below <see cref="TrailheadPosition"/>.
@@ -994,25 +639,14 @@ public sealed class Run
         _position = position;
     }
 
-    /// <summary>
-    /// 🔒 The <b>one</b> HP seam: writes the current and maximum hit points a rule computed, in one
-    /// call.
-    /// </summary>
+    /// <summary>The one HP seam: writes the current and maximum hit points a rule computed, in one call.</summary>
     /// <param name="current">The hero's hit points after the rule. Never negative, never above <paramref name="max"/>.</param>
     /// <param name="max">The run's maximum hit points after the rule. Never below 1.</param>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>It takes both halves, and that is the invariant.</b> The same reasoning as
-    /// <c>Player.AccrueEnergy</c> taking both halves of one accrual: a caller that raised
-    /// <see cref="MaxHp"/> and forgot <see cref="CurrentHp"/> — or the reverse — would leave the pair
-    /// in a state neither individual write is illegal in, and no aggregate-level invariant could
-    /// catch it afterwards. `03` §7a.5's <c>SHR_HP</c> raises the maximum <em>and</em> heals, which
-    /// is exactly one fact with two components.
-    /// </para>
-    /// <para>
-    /// ⚠️ Overheal is <b>clamped by the rule that computes it</b>, not accepted and trimmed here
-    /// (`30` §11.5): a silent clamp would make a healing rule that over-delivered look correct.
-    /// </para>
+    /// Takes both halves because that is the invariant: a caller that raised <see cref="MaxHp"/> and
+    /// forgot <see cref="CurrentHp"/> — or the reverse — would leave the pair in a state neither
+    /// individual write is illegal in. Overheal is clamped by the rule that computes it, not accepted
+    /// and trimmed here.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="max"/> is below 1, <paramref name="current"/> is negative, or
@@ -1057,27 +691,12 @@ public sealed class Run
         _maxHp = max;
     }
 
-    /// <summary>
-    /// `14` §16.3 — records that a command has been applied to this run at
-    /// <paramref name="nowUtc"/>, which is what the sliding 48-hour TTL is measured from.
-    /// </summary>
+    /// <summary>Records that a command has been applied to this run at <paramref name="nowUtc"/>, which the sliding 48-hour TTL is measured from.</summary>
     /// <param name="nowUtc">
     /// <c>GameContext.NowUtc</c>. Must carry a zero offset and must not precede
     /// <see cref="LastAppliedAtUtc"/>.
     /// </param>
-    /// <remarks>
-    /// ⚠️ Equal is allowed, strictly-earlier is not — the same rule and the same message shape as
-    /// <c>Player.MarkApplied</c>. Two commands can legitimately share an instant, whereas an earlier
-    /// instant means a clock moved backwards, and moving this field backwards would extend a run's
-    /// TTL past the point `14` §16.3 expires it.
-    /// <para>
-    /// 🔒 <b>M1-12 — <c>GameRules.MarkApplied</c> floors the instant it passes here</b>, so host
-    /// clock skew reaches this method as the stored value rather than as a throw out of
-    /// <c>Apply</c> (`30` §2.1's <b>P3</b>, carried-forward item 20). The refusal below is kept for
-    /// the reason <c>Player.MarkApplied</c>'s remarks record: the clamp belongs to the caller, and
-    /// this aggregate goes on treating a backwards anchor as the persistence defect it would be.
-    /// </para>
-    /// </remarks>
+    /// <remarks>Equal is allowed, strictly-earlier is not — the same rule as <c>Player.MarkApplied</c>.</remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="nowUtc"/> is offset or goes backwards.</exception>
     internal void MarkApplied(DateTimeOffset nowUtc)
     {
@@ -1096,20 +715,10 @@ public sealed class Run
         _lastAppliedAtUtc = nowUtc;
     }
 
-    /// <summary>
-    /// `12` §4.3 — registers and advances one in-run ad placement's count. The placement comes into
-    /// existence on its first use; nothing declares it in advance.
-    /// </summary>
-    /// <param name="placementId">
-    /// The placement id as authored in <c>tuning/ads.json</c>'s <c>inRunPlacements</c>. Never blank.
-    /// ⚠️ Deliberately an open string and not a closed type — see <see cref="AdUses"/>.
-    /// </param>
+    /// <summary>Registers and advances one in-run ad placement's count. The placement comes into existence on its first use.</summary>
+    /// <param name="placementId">The placement id as authored in tuning data. Never blank; deliberately an open string, not a closed type.</param>
     /// <param name="amount">How much to add. Never negative — a use counter counts, it does not settle.</param>
-    /// <remarks>
-    /// ⚠️ <b>The cap is not enforced here.</b> `12` §4.3's per-run caps and the <c>CAP_REACHED</c>
-    /// rejection belong to the handler that reads <c>ads.json</c>; `30` §11.5 keeps that computation
-    /// out of the aggregate, which holds the count and refuses a count that is not a count.
-    /// </remarks>
+    /// <remarks>The cap is not enforced here — that belongs to the handler that reads the tuning data; this aggregate only holds the count.</remarks>
     /// <exception cref="ArgumentException"><paramref name="placementId"/> is blank.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is negative, or the count overflows.</exception>
     internal void CountAdUse(string placementId, long amount)
@@ -1144,98 +753,53 @@ public sealed class Run
         }
     }
 
-    /// <summary>
-    /// 🔒 M3-03c, `03` §6.2 — whether a minigame has already been resolved at
-    /// <paramref name="position"/> this run. See <see cref="_resolvedMinigames"/> for why the
-    /// position stands in for a tile instance.
-    /// </summary>
+    /// <summary>Whether a minigame has already been resolved at <paramref name="position"/> this run.</summary>
     internal bool HasResolvedMinigameAt(int position) => _resolvedMinigames.ContainsKey(position);
 
-    /// <summary>
-    /// 🔒 M3-03 — whether this run has arrived at a tile it has not yet resolved.
-    /// </summary>
-    /// <remarks>
-    /// The gate every one of `14` §2.3's tile-resolution commands checks first: <c>RESOLVE_TILE</c>,
-    /// <c>EVENT_CHOOSE</c> and <c>CAMPFIRE_CHOOSE</c> all answer <c>ILLEGAL_STATE</c> when there is
-    /// nothing pending, rather than resolving a tile the run is not standing on.
-    /// </remarks>
+    /// <summary>Whether this run has arrived at a tile it has not yet resolved.</summary>
+    /// <remarks>The gate every tile-resolution command checks first, answering <c>ILLEGAL_STATE</c> when there is nothing pending.</remarks>
     internal bool HasPendingTile => _pendingTileKind != NoPendingTile;
 
-    /// <summary>
-    /// 🔒 M3-03 — which `03` §2 tile kind is pending, as its <b>underlying integer</b>.
-    /// </summary>
+    /// <summary>Which tile kind is pending, as its underlying integer.</summary>
     /// <remarks>
-    /// <para>
-    /// ⚠️ <b>An <c>int</c> and not the tile-kind enum, and the reason is the layering rather than
-    /// taste.</b> `30` §11.4 orders <c>Core</c> as Handlers → Rules → Model → Content → Primitives,
-    /// and <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c> enforces it in both
-    /// metadata <em>and</em> source — so <c>Model</c> may not name the tile vocabulary, which lives
-    /// under <c>Rules</c>. The aggregate therefore holds the value and the <c>Rules</c>/<c>Handlers</c>
-    /// layer above it does the interpreting, which is also `30` §11.5's division: this type holds
-    /// state and invariants, it does not compute.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>The consequence, stated rather than discovered.</b> This aggregate cannot check the value
-    /// is one of `03` §2's fourteen — it cannot see them — so it checks only that it is not below
-    /// the "nothing pending" sentinel. An out-of-vocabulary value therefore survives
-    /// <see cref="Rehydrate"/> and is caught one layer up, by <c>Handlers.ResolveTile</c>'s switch,
-    /// which throws rather than accepting it as a tile that does nothing. That is the same shape as
-    /// <see cref="Position"/>'s board bound: the real check needs a layer this one may not name.
-    /// </para>
+    /// An <c>int</c> rather than the tile-kind enum for a layering reason: <c>Model</c> may not name
+    /// the tile vocabulary, which lives under <c>Rules</c>. This aggregate can therefore only check
+    /// that the value is not below the sentinel; an out-of-vocabulary value survives here and is
+    /// caught one layer up, by the handler's switch.
     /// </remarks>
     /// <exception cref="InvalidOperationException">No tile is pending.</exception>
     internal int PendingTileKindValue =>
         HasPendingTile ? _pendingTileKind : throw NothingPending(nameof(PendingTileKindValue));
 
-    /// <summary>🔒 M3-03 — the pending tile's `03` §1.1 linear node index.</summary>
+    /// <summary>The pending tile's linear node index.</summary>
     /// <exception cref="InvalidOperationException">No tile is pending.</exception>
     internal int PendingTileLinearIndex =>
         HasPendingTile ? _pendingTileLinearIndex : throw NothingPending(nameof(PendingTileLinearIndex));
 
-    /// <summary>🔒 M3-03 — the pending tile's `03` §1 stage, or <c>BoardGraph.BossStage</c>.</summary>
+    /// <summary>The pending tile's stage, or <c>BoardGraph.BossStage</c>.</summary>
     /// <exception cref="InvalidOperationException">No tile is pending.</exception>
     internal int PendingTileStage =>
         HasPendingTile ? _pendingTileStage : throw NothingPending(nameof(PendingTileStage));
 
-    /// <summary>
-    /// 🔒 M3-03 — the `19` Part A card a pending <c>TILE_EVENT</c> has drawn, or <c>null</c>.
-    /// </summary>
+    /// <summary>The event card a pending <c>TILE_EVENT</c> has drawn, or <c>null</c>.</summary>
     /// <remarks>
-    /// ⚠️ Answers <c>null</c> rather than throwing when nothing is pending, unlike the three getters
-    /// above, and the asymmetry is deliberate: those three describe a tile and have no meaning
-    /// without one, whereas "no card has been drawn" is a real answer that <c>EVENT_CHOOSE</c>'s
-    /// legality check asks for <em>before</em> it knows whether a tile is pending.
+    /// Answers <c>null</c> rather than throwing when nothing is pending, unlike the three getters
+    /// above: "no card has been drawn" is a real answer a legality check needs before it even knows
+    /// whether a tile is pending.
     /// </remarks>
     internal string? PendingEventCardId => _pendingEventCardId;
 
-    /// <summary>
-    /// 🔒 M3-03 — records that the run has arrived at a tile, which is what makes it resolvable.
-    /// </summary>
-    /// <param name="kind">
-    /// The `03` §2 tile kind landed on, as its underlying integer — see
-    /// <see cref="PendingTileKindValue"/> for why this aggregate takes an <c>int</c> and what it can
-    /// therefore not check about it. Never negative: the caller has a real tile.
-    /// </param>
-    /// <param name="linearIndex">
-    /// The tile's `03` §1.1 linear node index. ⚠️ Checked against a floor of 0 and <b>no ceiling</b>,
-    /// for exactly the reason <see cref="Position"/> is checked against its trailhead floor and
-    /// nothing else: the real bound is a property of the specific board this run generated, which is
-    /// M3-02's to compute, and "a range check invented here would be a partial invariant wearing the
-    /// real one's name".
-    /// </param>
-    /// <param name="stage">
-    /// The tile's `03` §1 stage — 1, 2, 3, or <c>Rules.Board.BoardGraph.BossStage</c>.
-    /// </param>
+    /// <summary>Records that the run has arrived at a tile, which is what makes it resolvable.</summary>
+    /// <param name="kind">The tile kind landed on, as its underlying integer. Never negative.</param>
+    /// <param name="linearIndex">The tile's linear node index. Checked against a floor of 0 and no ceiling, for the reason <see cref="Position"/> is.</param>
+    /// <param name="stage">The tile's stage — 1, 2, 3, or <see cref="BossStage"/>.</param>
     /// <remarks>
-    /// A second arrival with one already pending is a <b>defect</b>, not a rejection — the same shape
-    /// <see cref="RecordMinigameResolution"/>'s duplicate guard takes, and for the same reason: the
-    /// caller (M3-02's movement engine, once it exists) is what decides a run may move, and moving
-    /// onto a second tile while the first is unresolved is a miswired engine rather than a player
-    /// asking twice.
+    /// A second arrival with one already pending is a defect, not a rejection: the caller decides a
+    /// run may move, and moving onto a second tile while the first is unresolved is a miswired engine.
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="kind"/> is not one of `03` §2's fourteen, <paramref name="linearIndex"/> is
-    /// negative, or <paramref name="stage"/> is not one of the four.
+    /// <paramref name="kind"/> is negative, <paramref name="linearIndex"/> is negative, or
+    /// <paramref name="stage"/> is not one of the four.
     /// </exception>
     /// <exception cref="InvalidOperationException">A tile is already pending.</exception>
     internal void ArriveAtTile(int kind, int linearIndex, int stage)
@@ -1293,25 +857,12 @@ public sealed class Run
         _pendingEventCardId = null;
     }
 
-    /// <summary>
-    /// 🔒 M3-03 — records which `19` Part A card the pending <c>TILE_EVENT</c> drew, so that
-    /// <c>EVENT_CHOOSE</c> resolves the card the player was shown and no resubmission can draw a new
-    /// one.
-    /// </summary>
+    /// <summary>Records which event card the pending <c>TILE_EVENT</c> drew, so a resubmission cannot draw a new one.</summary>
     /// <param name="cardId">The drawn card's id. Never blank.</param>
     /// <remarks>
-    /// <para>
-    /// Both refusals are <b>defects</b>: <c>RESOLVE_TILE</c>'s handler checks the tile kind and the
-    /// already-drawn state itself, and answers the player <c>ILLEGAL_STATE</c>, before this seam is
-    /// reached.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>It does not check the pending tile is an <em>event</em> tile, and cannot.</b> That
-    /// would mean naming `03` §2's tile vocabulary, which lives under <c>Rules</c> and which `30`
-    /// §11.4 forbids <c>Model</c> from reaching — see <see cref="PendingTileKindValue"/>. The check
-    /// is real and lives one layer up, in <c>Handlers.ResolveTile</c>, which only reaches this seam
-    /// from inside its own <c>Event</c> branch.
-    /// </para>
+    /// Both refusals are defects, already checked by the handler as a <c>RejectionReason</c> before
+    /// reaching here. It does not check the pending tile is specifically an event tile — that would
+    /// mean naming the tile vocabulary <c>Model</c> may not reach.
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="cardId"/> is blank.</exception>
     /// <exception cref="InvalidOperationException">
@@ -1350,25 +901,19 @@ public sealed class Run
         _pendingEventCardId = cardId;
     }
 
-    /// <summary>
-    /// 🔒 M3-03 — clears the pending tile once it has resolved. Idempotent.
-    /// </summary>
+    /// <summary>Clears the pending tile once it has resolved. Idempotent.</summary>
     /// <remarks>
-    /// ⚠️ <b>Safe to call with nothing pending, deliberately, and the choice is recorded rather than
-    /// left to the reader.</b> The alternative — throwing — would make every caller ask
-    /// <see cref="HasPendingTile"/> first, and the one thing this method promises is a
-    /// <em>postcondition</em> ("no tile is pending"), not a transition. That postcondition is
-    /// already true when nothing is pending, so refusing would be refusing to do what has been done.
-    /// It is the opposite call from <see cref="ArriveAtTile"/>'s, which refuses a duplicate because
-    /// arriving twice destroys information; clearing twice destroys none.
+    /// Safe to call with nothing pending: this method promises a postcondition ("no tile is
+    /// pending"), not a transition, and the postcondition is already true when nothing is pending.
+    /// The opposite call from <see cref="ArriveAtTile"/>, which refuses a duplicate because arriving
+    /// twice destroys information; clearing twice destroys none.
     /// </remarks>
     internal void ClearPendingTile()
     {
         _pendingTileKind = NoPendingTile;
 
-        // 🔒 Reset to 0 rather than left where they were: RunSnapshot is hashed whole (14 §16.6), so
-        // two runs that both have no pending tile must produce the same bytes for these slots. Stale
-        // values would give the same logical state two different stateHashes.
+        // Reset to 0 rather than left where they were: RunSnapshot is hashed whole, so two runs that
+        // both have no pending tile must produce the same bytes for these slots.
         _pendingTileLinearIndex = 0;
         _pendingTileStage = 0;
         _pendingEventCardId = null;
@@ -1380,19 +925,10 @@ public sealed class Run
             "tile-resolution handler checks before anything else, and answering a default here " +
             "would let a rule resolve a tile the run is not standing on.");
 
-    /// <summary>
-    /// 🔒 M3-03c, `03` §6.2 — records that <paramref name="minigameId"/> was resolved at
-    /// <paramref name="position"/>, closing the legality gate for that tile.
-    /// </summary>
+    /// <summary>Records that <paramref name="minigameId"/> was resolved at <paramref name="position"/>, closing the legality gate for that tile.</summary>
     /// <param name="position">The run's node index at resolution — see <see cref="_resolvedMinigames"/>.</param>
-    /// <param name="minigameId">`03` §6's <c>MG_*</c> id that resolved.</param>
-    /// <remarks>
-    /// A defect, not a rejection, on a duplicate: <see cref="Handlers.MinigameSubmit"/> calls
-    /// <see cref="HasResolvedMinigameAt"/> and answers the player <c>ILLEGAL_STATE</c> itself before
-    /// this seam is ever reached, exactly as <c>StartRun.Handle</c> rejects an already-active run
-    /// before <see cref="HandlerInput.OpenRun"/>. Reaching here with a duplicate means that check was
-    /// skipped, which is a miswired handler and not a player asking for something twice.
-    /// </remarks>
+    /// <param name="minigameId">The minigame id that resolved.</param>
+    /// <remarks>A defect, not a rejection, on a duplicate: the handler checks and refuses it as <c>ILLEGAL_STATE</c> before this seam is ever reached.</remarks>
     /// <exception cref="ArgumentException"><paramref name="minigameId"/> is blank.</exception>
     /// <exception cref="InvalidOperationException">A minigame is already recorded at <paramref name="position"/>.</exception>
     internal void RecordMinigameResolution(int position, string minigameId)
@@ -1418,17 +954,9 @@ public sealed class Run
         _resolvedMinigames[position] = minigameId;
     }
 
-    /// <summary>
-    /// 🔒 M3-02, `03` §1.1 — pauses movement at a junction, waiting for <c>CHOOSE_FORK</c>. Called by
-    /// the movement engine (<c>Handlers.RollDice</c>, <c>Handlers.ChooseFork</c>) instead of
-    /// finishing the move.
-    /// </summary>
+    /// <summary>Pauses movement at a junction, waiting for <c>CHOOSE_FORK</c>. Called by the movement engine instead of finishing the move.</summary>
     /// <param name="pending">The junction and the movement still unspent once it is left.</param>
-    /// <remarks>
-    /// A defect, not a rejection, on a run that already has one pending: `03` §1.1 pauses only when
-    /// movement must leave a junction, and a run cannot be mid-move at two junctions at once — the
-    /// caller resolves (or never opened) any prior pause before it can reach a second one.
-    /// </remarks>
+    /// <remarks>A defect, not a rejection, on a run that already has one pending: a run cannot be mid-move at two junctions at once.</remarks>
     /// <exception cref="InvalidOperationException">A fork is already pending.</exception>
     internal void BeginPendingFork(PendingFork pending)
     {
@@ -1444,15 +972,8 @@ public sealed class Run
         _pendingFork = pending;
     }
 
-    /// <summary>
-    /// 🔒 M3-02, `03` §1.1 — clears a resolved <see cref="PendingFork"/>, once <c>CHOOSE_FORK</c> has
-    /// taken the chosen edge and finished the interrupted movement.
-    /// </summary>
-    /// <remarks>
-    /// A defect, not a rejection, on a run with nothing pending: <c>Handlers.ChooseFork</c> refuses
-    /// that as <c>RejectionReason.ILLEGAL_STATE</c> before this seam is ever reached, exactly as
-    /// <c>RecordMinigameResolution</c>'s own duplicate check is refused earlier by its caller.
-    /// </remarks>
+    /// <summary>Clears a resolved <see cref="PendingFork"/>, once <c>CHOOSE_FORK</c> has taken the chosen edge and finished the interrupted movement.</summary>
+    /// <remarks>A defect, not a rejection, on a run with nothing pending — refused earlier by the caller's own legality check.</remarks>
     /// <exception cref="InvalidOperationException">No fork is pending.</exception>
     internal void ClearPendingFork()
     {
@@ -1468,18 +989,11 @@ public sealed class Run
         _pendingFork = null;
     }
 
-    /// <summary>
-    /// 🔒 M3-05 — opens a battle: <see cref="Phase"/> moves from <see cref="RunPhase.InProgress"/> to
-    /// <see cref="RunPhase.BattlePending"/>. Called by <c>Handlers.StartBattle</c> after it has
-    /// itself checked the pending tile is an <c>Enemy</c>/<c>Elite</c>/<c>Boss</c> — this seam cannot
-    /// make that check (30 §11.4 forbids <c>Model</c> from naming the tile vocabulary), so it only
-    /// enforces what it can see.
-    /// </summary>
+    /// <summary>Opens a battle: <see cref="Phase"/> moves from <see cref="RunPhase.InProgress"/> to <see cref="RunPhase.BattlePending"/>.</summary>
     /// <remarks>
-    /// A defect, not a rejection, on either failure: <c>Handlers.StartBattle</c>'s own legality
-    /// checks (a pending fight tile, and <c>GameRules.Execute</c>'s phase gate) are what are supposed
-    /// to refuse an illegal <c>START_BATTLE</c> as a <c>RejectionReason</c> before this seam is ever
-    /// reached — the same shape <see cref="BeginPendingFork"/> draws for a second pending fork.
+    /// Called after the caller has itself checked the pending tile is a battle kind — this seam
+    /// cannot make that check, since <c>Model</c> may not name the tile vocabulary, so it only
+    /// enforces what it can see. A defect, not a rejection, on either failure.
     /// </remarks>
     /// <exception cref="InvalidOperationException">
     /// <see cref="Phase"/> is not <see cref="RunPhase.InProgress"/>, or no tile is pending.
@@ -1508,12 +1022,7 @@ public sealed class Run
         _phase = RunPhase.BattlePending;
     }
 
-    /// <summary>
-    /// 🔒 M3-05 — closes a battle: <see cref="Phase"/> moves back from
-    /// <see cref="RunPhase.BattlePending"/> to <see cref="RunPhase.InProgress"/>. Called by
-    /// <c>Handlers.ConfirmBattleResult</c>. Does <b>not</b> clear the pending tile — the caller calls
-    /// <see cref="ClearPendingTile"/> itself, once it has applied whatever outcome the battle had.
-    /// </summary>
+    /// <summary>Closes a battle: <see cref="Phase"/> moves back to <see cref="RunPhase.InProgress"/>. Does not clear the pending tile.</summary>
     /// <exception cref="InvalidOperationException"><see cref="Phase"/> is not <see cref="RunPhase.BattlePending"/>.</exception>
     internal void ExitBattle()
     {
@@ -1529,18 +1038,8 @@ public sealed class Run
         _phase = RunPhase.InProgress;
     }
 
-    /// <summary>
-    /// 🔒 M3-05 — the documented hook for M3-06's perk draft: records that a won battle has a draft
-    /// waiting. <c>Handlers.ConfirmBattleResult</c> is the exact call site (see its remarks); a
-    /// future M3-06 command (<c>PICK_PERK</c>/<c>REROLL_DRAFT</c>/<c>SKIP_DRAFT</c>) reads
-    /// <see cref="DraftPending"/> and calls <see cref="ClearDraftPending"/> once the draft resolves.
-    /// </summary>
-    /// <param name="battleKind">
-    /// 🔒 M3-06 — the <c>(int)TileKind</c> of the battle just closed (Enemy, Elite or Boss), so
-    /// M3-06's <c>RarityWeights(stage, isElite, isBoss)</c> can tell which table to draw from once
-    /// <see cref="Handlers.ConfirmBattleResult"/> has already cleared <c>PendingTileKind</c>. Never
-    /// negative — the caller reads it off <see cref="PendingTileKindValue"/> before clearing it.
-    /// </param>
+    /// <summary>Records that a won battle has a perk draft waiting. A later command clears it once the draft resolves.</summary>
+    /// <param name="battleKind">The tile kind of the battle just closed (Enemy, Elite or Boss). Never negative.</param>
     /// <param name="battleStage">The stage the battle belonged to — 1, 2, 3, or <see cref="BossStage"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="battleKind"/> is negative, or <paramref name="battleStage"/> is not one of the four.
@@ -1580,22 +1079,19 @@ public sealed class Run
         _draftBattleStage = battleStage;
     }
 
-    /// <summary>🔒 M3-05 — clears the draft-pending hook. Idempotent, for the reason <see cref="ClearPendingTile"/> is.</summary>
+    /// <summary>Clears the draft-pending hook. Idempotent, for the reason <see cref="ClearPendingTile"/> is.</summary>
     internal void ClearDraftPending()
     {
         _draftPending = false;
 
-        // 🔒 Reset for the same determinism reason ClearPendingTile resets its own fields: two runs
-        // with no draft pending must hash identically (30 §11.3's snapshot is flat and hashed whole).
+        // Reset for the same determinism reason ClearPendingTile resets its own fields: two runs with
+        // no draft pending must hash identically.
         _draftBattleKind = NoDraftBattleKind;
         _draftBattleStage = 0;
     }
 
-    /// <summary>
-    /// 🔒 M3-06, `06` §1.1 — grants or upgrades a drafted perk: a fresh grant at Tier I, or an
-    /// upgrade to <paramref name="newTier"/> for a perk already owned one tier below it.
-    /// </summary>
-    /// <param name="perkId">The `06` §3 perk id. Never blank.</param>
+    /// <summary>Grants or upgrades a drafted perk: a fresh grant at Tier I, or an upgrade to <paramref name="newTier"/> for a perk owned one tier below it.</summary>
+    /// <param name="perkId">The perk id. Never blank.</param>
     /// <param name="newTier">1 for a fresh grant, or the perk's next tier (2 or 3) for an upgrade.</param>
     /// <exception cref="ArgumentException"><paramref name="perkId"/> is blank.</exception>
     /// <exception cref="ArgumentOutOfRangeException">
@@ -1633,17 +1129,16 @@ public sealed class Run
         _ownedPerkTiers[perkId] = newTier;
     }
 
-    /// <summary>🔒 M3-06 — the "nothing pending" refusal for the draft hook, on <see cref="NothingPending"/>'s pattern.</summary>
+    /// <summary>The "nothing pending" refusal for the draft hook, on <see cref="NothingPending"/>'s pattern.</summary>
     private static InvalidOperationException NoDraftPending(string member) =>
         new("Run." + member + " describes the battle a pending perk draft was opened by, and this " +
             "run has no draft pending. Ask Run.DraftPending first.");
 
-    /// <summary>
-    /// 🔒 M3-13, `02` §5.1a / §5.3 — banks Legend XP and/or Soul Shards a kill (or a Victory/first-clear
-    /// bonus) just earned. Unlike <see cref="MoveCurrency"/>, this is <b>not</b> a currency movement —
-    /// nothing has yet reached <c>Player</c>'s wallet — so it emits no <c>CurrencyChanged</c>; the real
-    /// currency movement happens once at run end, in <see cref="EndRun"/>'s caller.
-    /// </summary>
+    /// <summary>Banks Legend XP and/or Soul Shards a kill (or a Victory/first-clear bonus) just earned.</summary>
+    /// <remarks>
+    /// Unlike <see cref="MoveCurrency"/>, not a currency movement — nothing has reached <c>Player</c>'s
+    /// wallet yet — so it emits no <c>CurrencyChanged</c>; the real movement happens once at run end.
+    /// </remarks>
     /// <param name="legendXp">Legend XP to add to <see cref="BankedLegendXp"/>. Never negative.</param>
     /// <param name="soulShards">Soul Shards to add to <see cref="BankedSoulShards"/>. Never negative.</param>
     /// <exception cref="ArgumentOutOfRangeException">Either amount is negative, or either pool would overflow.</exception>
@@ -1664,9 +1159,8 @@ public sealed class Run
         long nextLegendXp;
         long nextSoulShards;
 
-        // 🔒 Both sums computed into locals before either field is written — the same "validate/compute
-        // fully before mutating" discipline SetHitPoints/MoveCurrency/CommitStreamPositions all follow,
-        // so a second-sum overflow can never leave _bankedLegendXp written while this call still throws.
+        // Both sums computed into locals before either field is written, so a second-sum overflow
+        // can never leave _bankedLegendXp written while this call still throws.
         try
         {
             nextLegendXp = checked(_bankedLegendXp + legendXp);
@@ -1686,12 +1180,7 @@ public sealed class Run
         _bankedSoulShards = nextSoulShards;
     }
 
-    /// <summary>
-    /// 🔒 M3-13, `02` §5.2 — records that this run's Boss has been killed. Called by
-    /// <c>Handlers.ConfirmBattleResult</c> the instant a Boss-kind battle is won; read by
-    /// <c>Handlers.EndRun</c> to pick the <c>VICTORY</c> row of <c>CompletionMultiplier</c> and by the
-    /// first-clear gate to know a clear actually happened.
-    /// </summary>
+    /// <summary>Records that this run's Boss has been killed.</summary>
     /// <exception cref="InvalidOperationException">The Boss is already recorded as defeated.</exception>
     internal void MarkBossDefeated()
     {
@@ -1705,13 +1194,7 @@ public sealed class Run
         _bossDefeated = true;
     }
 
-    /// <summary>
-    /// 🔒 M3-13, `02` §1.1 — closes the run: <see cref="Phase"/> moves to <see cref="RunPhase.Ended"/>,
-    /// the terminal phase authored (with no producer) by M3-05. <c>GameRules.Execute</c>'s phase gate
-    /// already refuses every <c>CommandKind.Run</c> command against a run at this phase as
-    /// <c>RUN_ALREADY_ENDED</c>. Called by <c>Handlers.EndRun</c> and <c>Handlers.AbandonRun</c>, after
-    /// each has computed and paid the run's <c>FinalPayout</c>.
-    /// </summary>
+    /// <summary>Closes the run: <see cref="Phase"/> moves to the terminal <see cref="RunPhase.Ended"/>. Called after the run's final payout has been computed and paid.</summary>
     /// <exception cref="InvalidOperationException">This run has already ended.</exception>
     internal void EndRun()
     {
@@ -1726,71 +1209,42 @@ public sealed class Run
         _phase = RunPhase.Ended;
     }
 
-    /// <summary>
-    /// 🔒 M3-05, `04` §3 — records that one reroll charge was spent this stage.
-    /// <c>Handlers.UseReroll</c> calls this only after checking
-    /// <see cref="Rules.Dice.RerollEconomy.CanAffordReroll"/> itself.
-    /// </summary>
+    /// <summary>Records that one reroll charge was spent this stage. Called only after the caller has itself confirmed the reroll is affordable.</summary>
     internal void SpendReroll() => _rerollChargesSpentThisStage++;
 
     /// <summary>
-    /// 🔒 M3-05, `03` §1.1 — applies a Stage Gate: heals to the caller-computed hit points (`21`
-    /// §3.1's tunable percentage of Max HP, computed by the caller — this seam does not compute, `30`
-    /// §11.5), refreshes reroll charges to the stage's base allotment, and advances the Fair-Dice
-    /// bag's reset anchor to this stage's start.
+    /// Applies a Stage Gate: heals to the caller-computed hit points, refreshes reroll charges to the
+    /// stage's base allotment, and advances the Fair-Dice bag's reset anchor to this stage's start.
     /// </summary>
-    /// <param name="healedCurrentHp">
-    /// The hero's hit points after the Stage Gate heal — already computed and clamped by the caller.
-    /// </param>
-    /// <param name="diceStreamPositionAtGate">
-    /// The <c>dice</c> stream's draw index at the instant the gate fired — <see cref="StageGateDiceAnchor"/>'s
-    /// new value, and the <c>resetAtDraw</c> a subsequent <see cref="Rules.Dice.FairDiceBag.Replay"/>
-    /// call reads.
-    /// </param>
+    /// <param name="healedCurrentHp">The hero's hit points after the Stage Gate heal — already computed and clamped by the caller.</param>
+    /// <param name="diceStreamPositionAtGate">The <c>dice</c> stream's draw index at the instant the gate fired.</param>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="healedCurrentHp"/> is negative or above <see cref="MaxHp"/>.</exception>
     internal void ApplyStageGate(int healedCurrentHp, ulong diceStreamPositionAtGate)
     {
-        // 🔒 Reuses SetHitPoints rather than writing _currentHp directly: one seam validates the
-        // pair, and a Stage Gate heal is not exempt from "never above MaxHp" just because it is a
-        // gate rather than a tile reward.
+        // Reuses SetHitPoints rather than writing _currentHp directly: one seam validates the pair.
         SetHitPoints(healedCurrentHp, _maxHp);
         _rerollChargesSpentThisStage = 0;
         _stageGateDiceAnchor = diceStreamPositionAtGate;
     }
 
-    /// <summary>
-    /// 🔒 `14` §8.1 — the <b>one</b> seam that writes the per-stream draw counters: it replaces the
-    /// whole map, and it refuses a map that is not a superset of the one already committed.
-    /// </summary>
+    /// <summary>The one seam that writes the per-stream draw counters: it replaces the whole map, and refuses a map that is not a superset of the one already committed.</summary>
     /// <param name="positions">
-    /// The scope's final positions for <b>every</b> stream this run has ever drawn from, plus any it
-    /// has newly opened. Every key must be a row of <c>RngStreams</c>.
+    /// The scope's final positions for every stream this run has ever drawn from, plus any it has
+    /// newly opened. Every key must be a row of the stream registry.
     /// </param>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>It refuses a partial map.</b> Every key already committed must be present in
-    /// <paramref name="positions"/>. A dropped key would silently reset that stream to 0, and the
-    /// next draw from it would repeat a sequence the player has already played — an unreproducible
-    /// run, which is the one failure `14` §8.1's whole counter model exists to prevent. This is also
-    /// what makes "<c>Apply</c> folds the scope's final positions into the new <c>Run</c>" the
-    /// <em>only</em> expressible call: a handler that wanted to hand-write one position would have to
-    /// reconstruct the entire committed set to do it.
+    /// Refuses a partial map: every key already committed must be present, since a dropped key would
+    /// silently reset that stream to 0 and the next draw from it would repeat an already-played
+    /// sequence.
     /// </para>
     /// <para>
-    /// 🔒 <b>Monotone or throw, and it throws rather than rejecting.</b> A value below the committed
-    /// one raises an <see cref="InvalidOperationException"/>: a draw counter going backwards is a
-    /// <b>determinism defect</b>, not a request to refuse. A <c>RejectionReason</c> would hand a
-    /// corrupt scope back to the player as a polite "no" and leave the run in it.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Registry-validated keys.</b> A key <c>RngStreams.IsRegistered</c> rejects raises an
-    /// <see cref="ArgumentException"/> naming the key and the registry — the same predicate
-    /// <c>DeterministicRng</c>'s constructor uses, because a name that cannot be drawn from cannot be
-    /// persisted either.
+    /// Monotone or throw: a value below the committed one is a determinism defect, not a request to
+    /// refuse, so it throws rather than producing a <c>RejectionReason</c>.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="positions"/> is null.</exception>
-    /// <exception cref="ArgumentException">A key is not a row of the `14` §8.1 registry.</exception>
+    /// <exception cref="ArgumentException">A key is not a row of the stream registry.</exception>
     /// <exception cref="InvalidOperationException">
     /// A committed stream is missing from <paramref name="positions"/>, or its position moved
     /// backwards.
@@ -1799,11 +1253,9 @@ public sealed class Run
     {
         ArgumentNullException.ThrowIfNull(positions);
 
-        // 🔒 Copied into an ORDINAL dictionary rather than adopted. The caller may hold a mutable
-        // reference to the map it handed in, and it may have built it with any comparer at all —
-        // under OrdinalIgnoreCase the key "DICE" IS "dice", so a run that adopted the caller's
-        // comparer would answer for a stream 14 §8.1 does not have. CanonicalStateWriter orders
-        // string keys ordinally, so the stateHash follows that order too.
+        // Copied into an ORDINAL dictionary rather than adopted: the caller's map may use any
+        // comparer, and under OrdinalIgnoreCase "DICE" IS "dice" — a run that adopted it would answer
+        // for a stream the registry does not have. CanonicalStateWriter orders keys ordinally too.
         var next = new Dictionary<string, ulong>(positions.Count, StringComparer.Ordinal);
 
         foreach (var (streamName, position) in positions)
@@ -1844,16 +1296,8 @@ public sealed class Run
             : new ReadOnlyDictionary<string, ulong>(next);
     }
 
-    /// <summary>
-    /// The empty stream map every run that has drawn nothing shares, and the empty ad-use map every
-    /// snapshot of a run with no impressions shares.
-    /// </summary>
-    /// <remarks>
-    /// Safe to share precisely because they are read-only and empty: nothing can write to them, and
-    /// two runs holding the same empty map are indistinguishable from two holding their own. Worth
-    /// having because `14` §2.4 has the <b>client</b> recompute a <c>stateHash</c> — and therefore
-    /// call <see cref="ToSnapshot"/> — on every command, on a mid-range handset.
-    /// </remarks>
+    /// <summary>The empty stream map every run that has drawn nothing shares, and the empty ad-use map every snapshot of a run with no impressions shares.</summary>
+    /// <remarks>Safe to share: read-only and empty, so nothing can distinguish a shared instance from a private one.</remarks>
     private static readonly ReadOnlyDictionary<string, ulong> NoStreamPositions =
         new(new Dictionary<string, ulong>(0, StringComparer.Ordinal));
 
@@ -1862,11 +1306,7 @@ public sealed class Run
         new(new Dictionary<string, long>(0, StringComparer.Ordinal));
 
     /// <summary>An ordinal copy of the ad counts, so no caller shares the aggregate's dictionary.</summary>
-    /// <remarks>
-    /// Short-circuits on empty, which is the normal state: most runs never watch an ad, and this
-    /// runs once per <c>stateHash</c>. <see cref="_streamPositions"/> needs no equivalent — it is
-    /// replaced wholesale, so the object handed out can never change afterwards.
-    /// </remarks>
+    /// <remarks>Short-circuits on empty, the normal state — this runs once per <c>stateHash</c>.</remarks>
     private static ReadOnlyDictionary<string, long> CopyAdUses(Dictionary<string, long> adUses) =>
         adUses.Count == 0
             ? NoAdUses
@@ -1891,11 +1331,7 @@ public sealed class Run
             ? NoOwnedPerkTiers
             : new ReadOnlyDictionary<string, int>(new Dictionary<string, int>(ownedPerkTiers, StringComparer.Ordinal));
 
-    /// <summary>
-    /// 🔒 <c>GOLD</c> is the one <c>RUN</c>-scoped currency (`10` §1, assumption <b>A3</b>). The
-    /// mirror image of <c>Player.RequireWalletCurrency</c>, and it names the aggregate that does
-    /// hold the currency rather than answering a zero about the wrong one.
-    /// </summary>
+    /// <summary><c>GOLD</c> is the one run-scoped currency. Names the aggregate that does hold a currency rather than answering a zero about the wrong one.</summary>
     private static void RequireRunCurrency(CurrencyId currency, string parameterName)
     {
         if (currency == CurrencyId.GOLD)
@@ -1914,26 +1350,7 @@ public sealed class Run
         throw new ArgumentOutOfRangeException(parameterName, currency, because);
     }
 
-    /// <summary>
-    /// 🔒 The same <c>RngStreams.IsRegistered</c> predicate <c>DeterministicRng</c>'s constructor
-    /// uses: a name that cannot be drawn from cannot be read or persisted either.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The offending key is quoted <b>exactly</b> as it arrived, case and all. The registry is
-    /// ordinal, so <c>DICE</c> and <c>dice</c> are two different questions, and a message that
-    /// normalised the key would point a reader at a row the data does not carry.
-    /// </para>
-    /// <para>
-    /// ⚠️ It takes a <c>string?</c> and answers a <b>membership</b> question about null, exactly as
-    /// <c>RngStreams.IsRegistered</c> does, rather than raising
-    /// <see cref="ArgumentNullException"/>. Its two callers differ: <see cref="StreamPosition"/>'s
-    /// null <em>is</em> the argument and checks for it itself, whereas a null <b>key</b> inside
-    /// <see cref="CommitStreamPositions"/>' map is a bad row of a perfectly present map — reporting
-    /// that as "positions is null" would send the reader looking for a map that is right in front of
-    /// them.
-    /// </para>
-    /// </remarks>
+    /// <summary>The same registry predicate <c>DeterministicRng</c>'s constructor uses: a name that cannot be drawn from cannot be read or persisted either.</summary>
     private static void RequireRegisteredStream(string? streamName, string parameterName)
     {
         if (RngStreams.IsRegistered(streamName))
@@ -1985,8 +1402,8 @@ public sealed class Run
 
     private static void RequireIdentity(RunSnapshot snapshot, List<string> faults)
     {
-        // default(RunId) runs no constructor, so its Value is null rather than validated — RunId's
-        // own remarks name Rehydrate as the seam that has to catch it. Same for PlayerId.
+        // default(RunId)/default(PlayerId) run no constructor, so their Value is null rather than
+        // validated — Rehydrate is the seam that has to catch it.
         if (string.IsNullOrWhiteSpace(snapshot.Id.Value))
         {
             faults.Add(
@@ -2072,9 +1489,7 @@ public sealed class Run
                 "the floor and a legal state rather than a defect.");
         }
 
-        // 🔒 Only when the maximum is itself valid, so ONE defect produces ONE fault. Comparing a
-        // current against a maximum the row does not have would report two problems for one, and a
-        // reader handed two faults for one defect fixes the wrong one (steering S2).
+        // Only when the maximum is itself valid, so ONE defect produces ONE fault.
         else if (maxIsValid && snapshot.CurrentHp > snapshot.MaxHp)
         {
             faults.Add(
@@ -2110,8 +1525,8 @@ public sealed class Run
             return null;
         }
 
-        // Copied into an ORDINAL dictionary rather than kept — the caller may hold a mutable
-        // reference to the map it handed in, and CanonicalStateWriter orders string keys ordinally.
+        // Copied into an ORDINAL dictionary rather than kept — CanonicalStateWriter orders string
+        // keys ordinally.
         var copy = new Dictionary<string, ulong>(snapshot.RngStreamPositions.Count, StringComparer.Ordinal);
         var faulted = false;
 
@@ -2217,11 +1632,9 @@ public sealed class Run
     }
 
     /// <summary>
-    /// 🔒 M3-02 — <see cref="RunSnapshot.PendingForkJunctionPosition"/> and
-    /// <see cref="RunSnapshot.PendingForkRemainingSteps"/> are one fact stored as a pair (the same
-    /// shape <see cref="SetHitPoints"/> takes both halves for): both null, or both present and in
-    /// range. One present without the other is a row no <see cref="BeginPendingFork"/> call could
-    /// have written.
+    /// <see cref="RunSnapshot.PendingForkJunctionPosition"/> and
+    /// <see cref="RunSnapshot.PendingForkRemainingSteps"/> are one fact stored as a pair: both null,
+    /// or both present and in range.
     /// </summary>
     private static void RequirePendingFork(RunSnapshot snapshot, List<string> faults)
     {
@@ -2263,15 +1676,8 @@ public sealed class Run
     /// <inheritdoc cref="Text(int)"/>
     private static string TextOrNull(int? value) => value is { } v ? Text(v) : "null";
 
-    /// <summary>
-    /// 🔒 M3-03 — validates the four pending-tile fields as one fact, because that is what they are.
-    /// </summary>
-    /// <remarks>
-    /// Every fault names <em>which</em> field failed and why (steering <b>S2</b>), and the checks are
-    /// written so that <b>one</b> defect produces <b>one</b> fault: the index, stage and card id are
-    /// only compared against a pending tile when the kind itself is a legal one, since a reader handed
-    /// four faults for one corrupt column fixes the wrong one.
-    /// </remarks>
+    /// <summary>Validates the four pending-tile fields as one fact, because that is what they are.</summary>
+    /// <remarks>The checks compare the index, stage and card id against a pending tile only when the kind is itself legal, so one defect produces one fault.</remarks>
     private static void RequirePendingTile(RunSnapshot snapshot, List<string> faults)
     {
         var kind = snapshot.PendingTileKind;
@@ -2304,10 +1710,9 @@ public sealed class Run
 
         if (!pending)
         {
-            // 🔒 With no tile pending the other three carry no meaning, and ClearPendingTile zeroes
-            // them precisely so that one logical state has one encoding (14 §16.6). A row that left
-            // them populated would hash differently from an identical run — so it is refused rather
-            // than normalised on the way in, which would edit persisted state at the seam.
+            // With no tile pending the other three carry no meaning, and ClearPendingTile zeroes them
+            // so that one logical state has one encoding. A row that left them populated would hash
+            // differently from an identical run, so it is refused rather than normalised on the way in.
             if (snapshot.PendingTileLinearIndex != 0 || snapshot.PendingTileStage != 0)
             {
                 faults.Add(
@@ -2350,13 +1755,11 @@ public sealed class Run
                 "them, carried as stage " + Text(BossStage) + ".");
         }
 
-        // ⚠️ That a stored card id belongs specifically to an EVENT tile is NOT checked here, for
-        // the same reason the kind's upper bound is not: it would mean naming 03 §2's vocabulary,
-        // which 30 §11.4 puts above this layer. EventChoose is what checks the pairing, and it
-        // answers ILLEGAL_STATE rather than resolving a card against the wrong tile.
+        // Whether a stored card id belongs specifically to an EVENT tile is NOT checked here, for the
+        // same layering reason the kind's upper bound is not — EventChoose checks the pairing.
     }
 
-    /// <summary>🔒 M3-05 — <see cref="RunSnapshot.Phase"/> must be a defined <see cref="RunPhase"/>.</summary>
+    /// <summary><see cref="RunSnapshot.Phase"/> must be a defined <see cref="RunPhase"/>.</summary>
     private static void RequirePhase(RunSnapshot snapshot, List<string> faults)
     {
         if (!Enum.IsDefined(snapshot.Phase))
@@ -2368,7 +1771,6 @@ public sealed class Run
         }
     }
 
-    /// <summary>🔒 M3-05 — <see cref="RunSnapshot.RerollChargesSpentThisStage"/> is never negative.</summary>
     private static void RequireRerollCharges(RunSnapshot snapshot, List<string> faults)
     {
         if (snapshot.RerollChargesSpentThisStage < 0)
@@ -2380,9 +1782,9 @@ public sealed class Run
     }
 
     /// <summary>
-    /// 🔒 M3-06 — <see cref="RunSnapshot.DraftBattleKind"/>/<see cref="RunSnapshot.DraftBattleStage"/>
-    /// are meaningless while <see cref="RunSnapshot.DraftPending"/> is false, and must then stand at
-    /// their reset values — the same pairing discipline <see cref="RequirePendingFork"/> checks.
+    /// <see cref="RunSnapshot.DraftBattleKind"/>/<see cref="RunSnapshot.DraftBattleStage"/> are
+    /// meaningless while <see cref="RunSnapshot.DraftPending"/> is false, and must then stand at
+    /// their reset values.
     /// </summary>
     private static void RequireDraftBattle(RunSnapshot snapshot, List<string> faults)
     {
@@ -2421,11 +1823,9 @@ public sealed class Run
 
     private static Dictionary<string, int>? ReadOwnedPerkTiers(RunSnapshot snapshot, List<string> faults)
     {
-        // 🔒 Unlike AdUses/ResolvedMinigames, null IS a legitimate empty answer here rather than a
-        // fault: OwnedPerkTiers is a trailing DEFAULTED positional field (default null) added by
-        // M3-06 so every pre-M3-06 positional RunSnapshot construction still compiles — the same
-        // reason Phase/DraftPending/RerollChargesSpentThisStage/StageGateDiceAnchor default to their
-        // own "run implicitly held this" values rather than faulting a caller that predates them.
+        // Unlike AdUses/ResolvedMinigames, null IS a legitimate empty answer here rather than a
+        // fault: OwnedPerkTiers is a trailing defaulted positional field added after RunSnapshot
+        // already existed, so every construction that predates it still compiles.
         if (snapshot.OwnedPerkTiers is null)
         {
             return new Dictionary<string, int>(StringComparer.Ordinal);
@@ -2459,16 +1859,7 @@ public sealed class Run
         return faulted ? null : copy;
     }
 
-    /// <summary>
-    /// 🔒 Renders a value with <see cref="CultureInfo.InvariantCulture"/>.
-    /// </summary>
-    /// <remarks>
-    /// The same reason <c>Player</c> has one: `14` §8.2 wants <c>Core</c> reading identically
-    /// everywhere, and a bare interpolation renders <c>12.08.2026 05:00:00 +00:00</c> on a German
-    /// laptop and <c>08/12/2026 05:00:00 +00:00</c> in the container — two diagnostics for one
-    /// corrupt row, and a message a reader cannot grep. Enums and strings are rendered directly;
-    /// their rendering does not consult a culture.
-    /// </remarks>
+    /// <summary>Renders a value with <see cref="CultureInfo.InvariantCulture"/>, so messages read the same on every host.</summary>
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <inheritdoc cref="Text(int)"/>

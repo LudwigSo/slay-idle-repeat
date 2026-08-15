@@ -6,8 +6,8 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 
 /// <summary>
-/// 🔒 `18` §8's effect-id order — <em>"the ascending lexicographic order of effect IDs, not draft
-/// order. This removes the last source of order-dependence between client and server."</em>
+/// Effect-id order: the ascending lexicographic order of effect IDs, not draft order — this removes
+/// the last source of order-dependence between client and server.
 /// </summary>
 public sealed class EffectOrderTests
 {
@@ -43,10 +43,7 @@ public sealed class EffectOrderTests
         new[] { Underscored, Bare }.InEffectIdOrder().ShouldBe([Bare, Underscored]);
     }
 
-    /// <summary>
-    /// The same divergence over <see cref="EffectDefinition"/>s, through the extension the nine
-    /// call sites of `05` §3.1 and `18` §8 actually use.
-    /// </summary>
+    /// <summary>The same divergence over <see cref="EffectDefinition"/>s, through the extension real call sites use.</summary>
     [Fact]
     public void Effects_sort_by_id_ordinally()
     {
@@ -127,10 +124,7 @@ public sealed class EffectOrderTests
             () => ((IEnumerable<string>)null!).InEffectIdOrder().ToArray());
     }
 
-    /// <summary>
-    /// The ordering is stable in the sense `18` §8 needs: the same set produces the same sequence
-    /// regardless of the order it was collected in — <em>"not draft order"</em>.
-    /// </summary>
+    /// <summary>The ordering is stable: the same set produces the same sequence regardless of the order it was collected in.</summary>
     [Fact]
     public void The_order_does_not_depend_on_the_order_the_effects_were_collected_in()
     {

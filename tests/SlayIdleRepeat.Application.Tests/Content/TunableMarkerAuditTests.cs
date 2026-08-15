@@ -6,11 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>
-/// `14` §6 🔒 — <em>"a build-time check enumerates every 📐 marker in the documentation set against
-/// the schema keys and fails on a mismatch. That check is what stops the tuning surface eroding
-/// over eighteen months."</em>
-/// </summary>
+/// <summary>Tests the build-time check that enumerates every TUNABLE marker in the docs against the schema keys and fails on a mismatch.</summary>
 public sealed class TunableMarkerAuditTests
 {
     private const string Marker = "\U0001F4D0";
@@ -330,23 +326,23 @@ public sealed class TunableMarkerAuditTests
     {
         TunableMarkerAudit.NonEconomyDataFiles.ShouldBe(
         [
-            // 05 §2 — combat caps are balance, not economy. 14 §6's locked scope is
-            // "every ECONOMY-AFFECTING tunable lives specifically in tuning/". Authored by M2-07.
+            // Combat caps are balance, not economy — every economy-affecting tunable lives in
+            // tuning/ specifically.
             "combat_caps.json",
 
-            // 05 §6-6.2 — enemy archetype statlines and elite assignments are content identity
-            // (content/enemies/), not an economic dial the 21 simulator sweeps. Authored by M2.
+            // Enemy archetype statlines and elite assignments are content identity, not an
+            // economic dial the simulator sweeps.
             "enemies.json",
 
-            // 28 Part D — feat definitions. Their Crown payouts are economy and stay in
-            // currencies.json; the definitions are content. Authored by M11.
+            // Feat definitions are content; their Crown payouts are economy and stay in
+            // currencies.json.
             "feats.json",
 
-            // 19 Part D — the tutorial script. Sequencing, not economy. Authored by M10.
+            // The tutorial script is sequencing, not economy.
             "ftue.json",
 
-            // 17 §1.2 — boss phases and mechanics. Combat balance and content identity; the kill
-            // rewards are economy and stay in currencies.json. Authored by M3.
+            // Boss phases and mechanics are combat balance and content identity; the kill rewards
+            // are economy and stay in currencies.json.
             "bosses.json",
         ],
         "14 §6's rule survives only while this list is short enough to read in one glance and " +
@@ -382,10 +378,7 @@ public sealed class TunableMarkerAuditTests
         excluded.ClosedBy.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 The failure <c>--write-baseline</c> used to ship silently. A literal <c>"TODO"</c> owner
-    /// satisfied every assertion in reach, because the only one was <c>ClosedBy.Length &gt; 0</c>.
-    /// </summary>
+    /// <summary>The failure <c>--write-baseline</c> used to ship silently: a literal "TODO" owner satisfied every assertion in reach.</summary>
     [Fact]
     public void A_regenerated_baseline_nobody_wrote_the_reasons_into_is_refused_by_name()
     {

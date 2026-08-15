@@ -11,18 +11,8 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>
-/// 🔒 `30` §6 — the harness's surface: construction, <c>CreatePlayer</c>, <c>Send</c>,
-/// <c>State</c> and the event list.
-/// </summary>
-/// <remarks>
-/// ⚠️ Several assertions here are about <c>CreatePlayer</c>'s own contract rather than about a rule.
-/// That is legitimate where the constructor <em>is</em> the subject, but it is called out because
-/// <c>game.State(player).Player.Energy</c> equalling what the harness just stored proves only that
-/// the harness stored a number. Everything the <b>rules</b> decide is in
-/// <c>InMemoryGameDayCycleTests</c>, and the determinism of the whole in
-/// <c>InMemoryGameDeterminismTests</c>.
-/// </remarks>
+/// <summary>The harness's surface: construction, <c>CreatePlayer</c>, <c>Send</c>, <c>State</c> and
+/// the event list. What the rules decide belongs in <c>InMemoryGameDayCycleTests</c> instead.</summary>
 public sealed class InMemoryGameTests
 {
     /// <summary>The two arguments with no sensible absence are refused at construction.</summary>
@@ -38,15 +28,8 @@ public sealed class InMemoryGameTests
             .ParamName.ShouldBe("clock");
     }
 
-/// <summary>
-/// 🔒 The harness never loads: it takes a pre-built <see cref="ContentSnapshot"/>, and the one it
-/// was handed is the one every command reads.
-/// </summary>
-/// <remarks>
-/// The identity comparison is the point. Copying or re-stamping the snapshot would break `30` §3's
-/// guarantee that a replayed command reproduces its outcome after a balance patch — a stamp the
-/// harness invented is a stamp no adapter produced.
-/// </remarks>
+/// <summary>The harness never loads: it takes a pre-built <see cref="ContentSnapshot"/>, and the one
+/// it was handed — by identity, not a copy — is the one every command reads.</summary>
     [Fact]
     public void The_content_set_is_the_one_it_was_handed()
     {
@@ -58,10 +41,8 @@ public sealed class InMemoryGameTests
         game.Clock.NowUtc.ShouldBe(Harnesses.Start);
     }
 
-    /// <summary>
-    /// 🔒 The defaults are the <b>absence</b> of a thing: no Plus, no kill switch thrown — and both
-    /// are overridable, because `21` §9 sweeps 14 profiles.
-    /// </summary>
+    /// <summary>The defaults are the absence of a thing: no Plus, no kill switch thrown — and both
+    /// are overridable.</summary>
     [Fact]
     public void The_session_defaults_are_no_Plus_and_no_kill_switch_thrown()
     {
@@ -87,22 +68,12 @@ public sealed class InMemoryGameTests
         plus.Flags.DisabledChapters.ShouldContain("CH_07");
     }
 
-/// <summary>
-/// 🔒 A created player starts at the <b>authored</b> Legend Level floor holding <b>nothing</b> —
-/// six wallet rows at zero and both Energy banks at zero.
-/// </summary>
-/// <remarks>
-/// Zero is forced, not chosen: `30` §7 requires every currency movement to carry a
-/// <c>CurrencyChanged</c>, so a player who <em>started</em> with a balance would hold currency no
-/// row attributes. A starting grant needs a rule, a reason token and an event, and M4-10 owns
-/// writing one.
-/// <para>
-/// ⚠️ The Legend Level assertion compares against the shipped floor of 1, which cannot tell a
-/// tuning read from a literal —
-/// <see cref="A_created_player_reads_its_Legend_Level_from_the_content_set"/> is the discriminating
-/// half; this one pins the shipped value.
-/// </para>
-/// </remarks>
+/// <summary>A created player starts at the authored Legend Level floor holding nothing — six wallet
+/// rows at zero and both Energy banks at zero, since every currency movement must carry a
+/// <c>CurrencyChanged</c> and a starting balance would have none.</summary>
+/// <remarks>Pins the shipped Legend Level value;
+/// <see cref="A_created_player_reads_its_Legend_Level_from_the_content_set"/> is the half that
+/// discriminates a tuning read from a hard-coded literal.</remarks>
     [Fact]
     public void A_created_player_starts_at_the_authored_floor_holding_nothing()
     {
@@ -132,19 +103,10 @@ public sealed class InMemoryGameTests
         game.CommandsIssued.ShouldBe(0L);
     }
 
-/// <summary>
-/// 🔒 A created player's Legend Level comes from the <b>content set</b>, not from a literal.
-/// </summary>
-/// <remarks>
-/// The floor is authored at <c>progression.json#/legendLevel/min</c> (`07` §1.1) and is a 📐 tunable
-/// (`21` §3.1). Asserting the read needs a content set whose floor is <b>not</b> the shipped one:
-/// the shipped value is 1, and so is the literal anyone would have written. Five is arbitrary and
-/// that is the point — no document authors it and no default produces it.
-/// <para>
-/// The Energy assertion beside it is why it matters: `10` §3's Max Energy is derived from the
-/// Legend Level, so a hard-coded level hands every simulated player the wrong tank.
-/// </para>
-/// </remarks>
+/// <summary>A created player's Legend Level comes from the content set, not a literal — asserted
+/// against an unshipped floor (5) so a hard-coded 1 could not accidentally pass. The Energy
+/// assertion beside it matters because Max Energy is derived from the Legend Level, so a hard-coded
+/// level would hand every simulated player the wrong tank.</summary>
     [Fact]
     public void A_created_player_reads_its_Legend_Level_from_the_content_set()
     {
@@ -169,16 +131,9 @@ public sealed class InMemoryGameTests
             "from a literal would give every simulated player the wrong tank.");
     }
 
-/// <summary>
-/// 🔒 A created player is already <b>inside</b> the game day and week the clock is in.
-/// </summary>
-/// <remarks>
-/// Left at a default, the first command would clear a period the player never played — and a
-/// boundary <em>earlier</em> than the stored one makes <c>Player.RequireNotBefore</c> throw out of
-/// <c>Apply</c>, a `30` §2.1 <b>P3</b> violation reported as a crash. Compared against
-/// <c>GameCalendar</c>'s own answer, the one definition both the invariant and <c>AdvanceTime</c>
-/// read.
-/// </remarks>
+/// <summary>A created player is already inside the game day and week the clock is in. Left at a
+/// default, the first command would clear a period the player never played, and a boundary earlier
+/// than the stored one makes <c>Player.RequireNotBefore</c> throw out of <c>Apply</c>.</summary>
     [Fact]
     public void A_created_player_sits_in_the_game_day_and_week_the_clock_is_in()
     {
@@ -198,13 +153,9 @@ public sealed class InMemoryGameTests
             "not tell the two apart.");
     }
 
-/// <summary>Players are distinct, deterministic and independent.</summary>
-/// <remarks>
-/// The identities are a counter rather than a <c>Guid</c> — `14` §8.1 bans the latter in
-/// <c>Core</c>, and `02` §2 hashes the player id into every <c>runSeed</c>. Independence is asserted
-/// through a command rather than construction: two players sharing one slice is the defect a
-/// dictionary keyed on the wrong thing produces.
-/// </remarks>
+/// <summary>Players are distinct, deterministic and independent. Independence is asserted through a
+/// command rather than construction: two players sharing one slice is the defect a dictionary keyed
+/// on the wrong thing produces.</summary>
     [Fact]
     public void Two_players_have_distinct_identities_and_independent_state()
     {
@@ -215,10 +166,8 @@ public sealed class InMemoryGameTests
 
         first.ShouldNotBe(second);
 
-        // 🔒 In CREATION ORDER, not ignoreOrder: Players is an insertion-ordered list precisely
-        // because Dictionary.Keys leaves the order unspecified, and `21` §9's sweep is the consumer
-        // that would iterate it. An ignoreOrder comparison would pass over the shape this was
-        // changed away from.
+        // In creation order, not ignoreOrder: Players is an insertion-ordered list, not a
+        // Dictionary.Keys view whose order is unspecified.
         game.Players.ShouldBe(new[] { first, second });
 
         game.State(second).Player.DisplayName.ShouldBe("Ludwig the Unhurried");
@@ -263,25 +212,19 @@ public sealed class InMemoryGameTests
             "leave a player nobody can name.");
     }
 
-/// <summary>
-/// 🔒 An id this harness never issued is a <b>defect</b>, not a rejection — at both doors.
-/// </summary>
-/// <remarks>
-/// The line `30` §2.1's <b>P3</b> draws: a player asking for something they cannot have is a
-/// <c>RejectionReason</c>; a caller naming a player that does not exist is miswired, and
-/// <c>ILLEGAL_STATE</c> would tell the wrong person that a rule said no. <c>default(PlayerId)</c> is
-/// asserted alongside a plausible id because it is what an unassigned field produces.
-/// </remarks>
+/// <summary>An id this harness never issued is a defect, not a rejection, at both doors: a player
+/// asking for something they cannot have is a <c>RejectionReason</c>, but a caller naming a player
+/// that does not exist is miswired and should throw rather than return <c>ILLEGAL_STATE</c>.
+/// <c>default(PlayerId)</c> is asserted alongside a plausible id since it's what an unassigned field
+/// produces.</summary>
     [Fact]
     public void An_id_this_harness_never_issued_is_a_defect_at_both_doors()
     {
         var game = Harnesses.New();
         var stranger = new PlayerId("PLAYER_99999999");
 
-        // 🔒 The fragment is pinned at all three doors, not only the first. `Send` can raise
-        // InvalidOperationException from a SECOND place on this branch — GameRules' CommandKind.Run
-        // loading defect, pinned by its own test below — so the exception type alone does not say
-        // which guard fired, and the two have opposite fixes (S2).
+        // Message pinned at all three doors: Send can also throw InvalidOperationException from the
+        // CommandKind.Run loading defect below, which has a different fix.
         Should.Throw<InvalidOperationException>(() => game.State(stranger))
             .Message.ShouldContain("holds no player", Case.Sensitive);
 
@@ -292,23 +235,12 @@ public sealed class InMemoryGameTests
             .Message.ShouldContain("holds no player", Case.Sensitive);
     }
 
-/// <summary>
-/// 🔒 `30` §2.1's <b>P3</b>, through the harness: a <c>Deferred</c> command is <b>refused</b> with
-/// <c>ILLEGAL_STATE</c> and does not throw.
-/// </summary>
-/// <remarks>
-/// Several rows, owned by different milestones, so the claim is about the mechanism rather than
-/// whichever command the test picked. The state comparison is the half that matters: <b>P4</b>
-/// makes a rejected command provably state-free, and a harness that stored the working copy would
-/// silently hand the player regeneration they were refused.
-/// <para>
-/// 🔴 Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not <c>PlayerSnapshot</c>
-/// record equality: a record compares its dictionary components by <b>reference</b>, so
-/// <c>ToSnapshot().ShouldBe(before)</c> is trivially true of the wallet and both counter maps
-/// whatever they hold. The player is driven for a day first and the gap crosses a boundary for the
-/// same reason — otherwise there is nothing a stored catch-up could have moved.
-/// </para>
-/// </remarks>
+/// <summary>A <c>Deferred</c> command is refused with <c>ILLEGAL_STATE</c>, not thrown, and changes
+/// nothing — several rows from different milestones, so the claim is about the mechanism rather than
+/// whichever command was picked.</summary>
+/// <remarks>Compared through <c>CanonicalStateWriter.HashMetaCommandState</c>, not
+/// <c>PlayerSnapshot</c> record equality: a record compares its dictionary components by reference,
+/// so <c>ToSnapshot().ShouldBe(before)</c> would be trivially true regardless of their contents.</remarks>
     [Fact]
     public void A_deferred_command_is_refused_with_ILLEGAL_STATE_and_changes_nothing()
     {
@@ -330,9 +262,8 @@ public sealed class InMemoryGameTests
             "the driven day produced rows, so 'the refusals added none' is a comparison against " +
             "something rather than two zeroes (S3).");
 
-        // More than a day, so every refused command below crosses a 05:00 UTC boundary as well as
-        // several regeneration intervals. Both are things AdvanceTime would move if the working copy
-        // survived a rejection.
+        // 25h so every refused command below crosses a day boundary and several regen intervals —
+        // things AdvanceTime would move if the working copy survived a rejection.
         game.Clock.Advance(TimeSpan.FromHours(25));
 
         GameCommand[] deferred =
@@ -367,25 +298,14 @@ public sealed class InMemoryGameTests
         game.CommandsIssued.ShouldBe(7L, "a refused command is still a command that was issued.");
     }
 
-/// <summary>
-/// 🔒 A <c>CommandKind.Run</c> row still <c>Deferred</c> is <c>CommandKind.Run</c> and the harness
-/// carries no run, so it is a <b>loading defect</b> — an exception, not <c>ILLEGAL_STATE</c>.
-/// </summary>
-/// <remarks>
-/// `30` §4.1 makes loading the right slice the Application layer's job and `14` §16.2's
-/// <c>RUN_NOT_FOUND</c> is a transport value <c>Apply</c> may not return. It proves too that the
-/// harness passes the slice straight through rather than pre-screening it.
-/// <para>
-/// ⚠️ <b>M3-15 CORRECTED THIS TEST'S OWN EXAMPLE.</b> It used to probe with <c>START_RUN</c> — the
-/// one <c>CommandKind.Run</c> row whose whole job is to create the <c>Run</c> this guard would
-/// otherwise demand. M3-15 gave that row <c>CommandRegistration.OpensRun = true</c>, the one-row
-/// exemption from exactly this guard, so <c>START_RUN</c> now SUCCEEDS on the harness's run-less
-/// slice — see <see cref="A_START_RUN_command_succeeds_on_the_harnesss_run_less_slice_with_no_harness_change"/>
-/// for the positive claim this test used to be the negative half of. This probes two rows that stay
-/// <c>Deferred</c> instead, of two different shapes (no payload, and one payload field), so the
-/// claim is still about the KIND rather than about a row that no longer demonstrates it.
-/// </para>
-/// </remarks>
+/// <summary>A <c>CommandKind.Run</c> command sent when the harness carries no run is a loading
+/// defect — an exception, not <c>ILLEGAL_STATE</c> — since loading the right slice is the
+/// Application layer's job and <c>Apply</c> may not return a transport-level "not found". Probed
+/// with two rows of different payload shapes, since the claim is about the kind rather than one
+/// row.</summary>
+/// <remarks><c>START_RUN</c> is exempt from this guard (<c>CommandRegistration.OpensRun</c>) since
+/// its whole job is to create the <c>Run</c> this guard would otherwise demand; see
+/// <see cref="A_START_RUN_command_succeeds_on_the_harnesss_run_less_slice_with_no_harness_change"/>.</remarks>
     [Fact]
     public void A_run_command_with_no_run_in_the_slice_is_a_defect_the_harness_does_not_soften()
     {
@@ -398,43 +318,22 @@ public sealed class InMemoryGameTests
         defect.Message.ShouldContain("ROLL_DICE", Case.Sensitive);
         defect.Message.ShouldContain("carries no Run", Case.Sensitive);
 
-        // 🔒 …and the throw left the harness untouched. Send increments its counters and appends the
-        // events AFTER Apply returns, so none of it runs — but "it does not run" and "nothing
-        // asserts that it does not run" are different states, and the clock's own guard is pinned
-        // this way one file over.
+        // The throw left the harness untouched: Send increments counters and appends events only
+        // after Apply returns.
         game.CommandsIssued.ShouldBe(0L);
         game.Events.ShouldBeEmpty();
         game.State(player).ShouldBeSameAs(before);
 
-        // 🔒 AND IT IS NOT ONLY ROLL_DICE. Every CommandKind.Run row but START_RUN hits the same
-        // guard, because the harness's slice never carries a Run. Driven over a second row, of a
-        // different shape (a payload field), so the claim is about the KIND rather than about the
-        // row that was picked.
         Should.Throw<InvalidOperationException>(() => game.Send(player, new ChooseForkCommand(0)))
             .Message.ShouldContain("CHOOSE_FORK", Case.Sensitive);
     }
 
-/// <summary>
-/// 🔒 M3-15's positive claim, over the real harness: <c>START_RUN</c> now succeeds on the run-less
-/// slice every other <c>CommandKind.Run</c> row still throws on — and <c>InMemoryGame</c> required
-/// <b>zero</b> changes to reach it, exactly as the M1 finding this task settles said it would not.
-/// </summary>
-/// <remarks>
-/// <para>
-/// 🔒 <b>Why zero changes was even plausible.</b> <c>InMemoryGame.CreatePlayer</c> already builds a
-/// <c>WorldSlice(player, null)</c> for a fresh player — the M1 finding's own words, "(player, null)
-/// is already right" — so the harness was never the thing standing between <c>START_RUN</c> and a
-/// caller. What stood in the way was <c>GameRules.Execute</c>'s own guard, throwing before dispatch
-/// on every <c>CommandKind.Run</c> row including this one; M3-15 exempted this one row
-/// (<c>CommandRegistration.OpensRun</c>) rather than opening an injection door on the harness — the
-/// wrong answer this finding explicitly ruled out.
-/// </para>
-/// <para>
-/// This asserts the full shape: acceptance, a <c>Run</c> now present with the requested chapter and
-/// tier, the trailhead position, no events (`30` §7 names none for a run's own creation), and the
-/// player's lifetime run counter advanced by exactly one.
-/// </para>
-/// </remarks>
+/// <summary><c>START_RUN</c> succeeds on the run-less slice every other <c>CommandKind.Run</c> row
+/// still throws on, with no harness change required: <c>CreatePlayer</c> already builds a
+/// <c>WorldSlice(player, null)</c>, so what stood in the way was <c>GameRules.Execute</c>'s own
+/// pre-dispatch guard, and <c>CommandRegistration.OpensRun</c> exempts this one row from it. Asserts
+/// the full shape: acceptance, a <c>Run</c> with the requested chapter and tier, the trailhead
+/// position, no events, and the lifetime run counter advanced by one.</summary>
     [Fact]
     public void A_START_RUN_command_succeeds_on_the_harnesss_run_less_slice_with_no_harness_change()
     {
@@ -458,14 +357,9 @@ public sealed class InMemoryGameTests
         game.State(player).Run.ShouldNotBeNull("Send persists the accepted result back onto the harness.");
     }
 
-/// <summary>
-/// 🔒 The event list is the assertion surface and cannot be written through.
-/// </summary>
-/// <remarks>
-/// The same hole <c>Player.WalletCurrencies</c> and <c>GameRules.Stamp</c> each close: an
-/// <c>IReadOnlyList&lt;T&gt;</c> that <em>is</em> a <c>List&lt;T&gt;</c> casts straight back. Worse
-/// here than elsewhere — a test could pass by appending to its own evidence.
-/// </remarks>
+/// <summary>The event list is the assertion surface and cannot be written through: an
+/// <c>IReadOnlyList&lt;T&gt;</c> that is actually a <c>List&lt;T&gt;</c> casts straight back, which
+/// here would let a test pass by appending to its own evidence.</summary>
     [Fact]
     public void The_event_list_cannot_be_written_through()
     {
@@ -476,28 +370,20 @@ public sealed class InMemoryGameTests
 
         game.Events.ShouldNotBeEmpty();
 
-        // 🔒 ShouldBeAssignableTo rather than `as … ?.`: a null-conditional swallows the assertion
-        // entirely when the cast fails, so an Events that stopped being an ICollection<T> would skip
-        // this check rather than fail it (S1).
+        // ShouldBeAssignableTo rather than `as ... ?.`: a null-conditional would silently skip this
+        // check if the cast ever failed, instead of failing it.
         game.Events.ShouldBeAssignableTo<ICollection<DomainEvent>>()!.IsReadOnly.ShouldBeTrue();
 
         (game.Events as DomainEvent[]).ShouldBeNull("a bare array casts back and is writable.");
         (game.Events as List<DomainEvent>).ShouldBeNull("a bare List casts back and is writable.");
 
-        // …and the same for Players, which M1-11's review turned from Dictionary.Keys — whose order
-        // the BCL leaves unspecified — into an insertion-ordered list behind a read-only wrapper.
         game.Players.ShouldBeAssignableTo<ICollection<PlayerId>>()!.IsReadOnly.ShouldBeTrue();
         (game.Players as List<PlayerId>).ShouldBeNull();
     }
 
-/// <summary>
-/// 🔒 The event list is <b>live</b>, and accumulates in command order across commands.
-/// </summary>
-/// <remarks>
-/// The <c>Sequence</c> assertion pins what the ordinal means: a position within <b>one</b>
-/// <c>Apply</c> call's list, from 1 — not a running counter across the simulation. Renumbering would
-/// break `14` §7.1's economy log and `14` §2.4's animation script at once.
-/// </remarks>
+/// <summary>The event list is live, and accumulates in command order across commands. The
+/// <c>Sequence</c> assertion pins what the ordinal means: a position within one <c>Apply</c> call's
+/// list, from 1 — not a running counter across the simulation.</summary>
     [Fact]
     public void The_event_list_accumulates_in_command_order_and_keeps_each_commands_own_sequence()
     {
@@ -513,9 +399,7 @@ public sealed class InMemoryGameTests
         game.Events.Take(first.Events.Count).ShouldBe(first.Events);
         game.Events.Skip(first.Events.Count).ShouldBe(second.Events);
 
-        // 🔒 Both lists numbered exactly, not a `>= 1` predicate over the accumulation: each
-        // command's list is numbered 1..n on its own — Apply stamps within one result, not across
-        // the simulation (30 §7) — and a running counter would satisfy any weaker check.
+        // Each command's list is numbered 1..n on its own, not a running counter across the sim.
         first.Events.Select(e => e.Sequence).ShouldBe(Enumerable.Range(1, first.Events.Count));
         second.Events.Select(e => e.Sequence).ShouldBe(Enumerable.Range(1, second.Events.Count));
 
@@ -523,15 +407,9 @@ public sealed class InMemoryGameTests
         second.Events.ShouldNotBeEmpty();
     }
 
-/// <summary>
-/// 🔒 The harness carries the session forward: command <c>n + 1</c> starts where <c>n</c> left off.
-/// </summary>
-/// <remarks>
-/// <b>P4</b> makes <c>Apply</c> return a <em>new</em> slice, so a harness re-sending against the
-/// slice it started with would run a first command N times — the one shape that cannot tell "grants
-/// once per game day" from "grants on every command". <c>ShouldNotBeSameAs</c> plus the advancing
-/// timestamp, because "it stored something" and "it stored the result" are different claims.
-/// </remarks>
+/// <summary>The harness carries the session forward: command <c>n + 1</c> starts where <c>n</c> left
+/// off, since <c>Apply</c> returns a new slice each time and a harness that kept re-sending against
+/// the original slice would run the first command over and over.</summary>
     [Fact]
     public void The_slice_the_harness_holds_is_the_one_Apply_returned()
     {
@@ -558,20 +436,11 @@ public sealed class InMemoryGameTests
             .ParamName.ShouldBe("command");
     }
 
-/// <summary>
-/// 🔒 `14` §8.2 — the generated <see cref="PlayerId"/> is the same string under every culture.
-/// </summary>
-/// <remarks>
-/// `02` §2 hashes the player id into every <c>runSeed</c>, so an id rendering its counter
-/// differently on a Swedish laptop would draw different boards from M3 onwards.
-/// <para>
-/// 🔒 <c>sv-SE</c> rather than <c>de-DE</c>: German renders a negative integer with an ordinary
-/// hyphen, Swedish with U+2212. The first assertion re-establishes that the runtime actually
-/// <em>has</em> a Swedish culture — under globalization-invariant mode
-/// <c>new CultureInfo("sv-SE")</c> silently returns the invariant one and everything below would
-/// hold over nothing.
-/// </para>
-/// </remarks>
+/// <summary>The generated <see cref="PlayerId"/> is the same string under every culture — checked
+/// against Swedish, whose negative-number glyph (U+2212) differs from an ordinary hyphen. The first
+/// assertion re-establishes that the runtime actually has a Swedish culture: under
+/// globalization-invariant mode, <c>new CultureInfo("sv-SE")</c> silently returns the invariant one
+/// and everything below would hold over nothing.</summary>
     [Fact]
     public void A_generated_player_id_reads_identically_under_any_culture()
     {

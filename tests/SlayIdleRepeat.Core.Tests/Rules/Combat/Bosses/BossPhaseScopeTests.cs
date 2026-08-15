@@ -9,25 +9,24 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔴 <b>R3</b> — `18` §6's <c>PHASE</c> scope, closed: <em>"ends when the boss exits the phase in which
-/// the effect was applied"</em>, driven end to end through the real <see cref="StatusTimeline"/> and
+/// The <c>PHASE</c> scope, closed: ends when the boss exits the phase in which the effect was
+/// applied, driven end to end through the real <see cref="StatusTimeline"/> and
 /// <c>DurationEvaluator</c>.
 /// </summary>
 /// <remarks>
-/// The evaluator implemented §6's boundary correctly all along, but <b>nothing filled either field</b> —
-/// no seam could answer <em>"what phase is this fight in?"</em> — so both were <c>null</c> at every call
-/// site and §6's <em>"outside a boss fight it behaves as <c>BATTLE</c>"</em> fallback was taken
-/// <b>inside</b> boss fights too. R3 makes every boss <c>AURA</c> <c>PHASE</c>-scoped, so the scope
-/// covered the whole boss content set and did nothing at all, silently.
+/// The evaluator implemented the boundary correctly all along, but nothing filled either field —
+/// no seam could answer "what phase is this fight in?" — so both were <c>null</c> at every call
+/// site and the "outside a boss fight it behaves as <c>BATTLE</c>" fallback was taken inside boss
+/// fights too, so the scope covered the whole boss content set and did nothing at all, silently.
 /// <para>
-/// 🔴 Every case carries a <c>BATTLE</c>-scoped twin, applied by the same call at the same tick to the
+/// Every case carries a <c>BATTLE</c>-scoped twin, applied by the same call at the same tick to the
 /// same actor: without it, "the <c>PHASE</c> status is gone after the phase-3 entry" is equally
-/// consistent with <em>everything</em> having expired. The twin distinguishes the boundary from the
+/// consistent with everything having expired. The twin distinguishes the boundary from the
 /// apocalypse.
 /// </para>
 /// <para>
-/// ⚠️ The phase source is <see cref="ScriptedPhases"/> rather than <c>BossPhaseController</c>: the
-/// subject is §6's <b>scope</b>, and coupling them would make this red for the controller's
+/// The phase source is <see cref="ScriptedPhases"/> rather than <c>BossPhaseController</c>: the
+/// subject is the scope, and coupling them would make this red for the controller's
 /// implementation phase rather than green for the wiring it is about.
 /// </para>
 /// </remarks>
@@ -35,15 +34,15 @@ public sealed class BossPhaseScopeTests
 {
     private const string Boss = "BOSS_THORNMAW";
 
-    /// <summary>The <c>PHASE</c>-scoped subject — `18` §6's boss <c>AURA</c> shape.</summary>
+    /// <summary>The <c>PHASE</c>-scoped subject — the boss <c>AURA</c> shape.</summary>
     private const string PhaseScoped = "SUNDER";
 
     /// <summary>The <c>BATTLE</c>-scoped twin — the negative control. See the class remarks.</summary>
     private const string BattleScoped = "WEAKEN";
 
     /// <summary>
-    /// 🔒 <b>Shape 1 — it does NOT end on a phase-2-internal tick.</b> A boundary that fired early
-    /// would be indistinguishable from `18` §6 working, in a log where the aura simply stopped.
+    /// Shape 1: it does not end on a phase-2-internal tick. A boundary that fired early would be
+    /// indistinguishable from the scope working, in a log where the aura simply stopped.
     /// </summary>
     [Fact]
     public void A_PHASE_scoped_status_applied_in_phase_2_survives_every_tick_inside_phase_2()
@@ -62,9 +61,9 @@ public sealed class BossPhaseScopeTests
     }
 
     /// <summary>
-    /// 🔴 <b>Shape 2 — it ends on entry to phase 3, and the twin does not.</b> That pair of readings
-    /// is the whole of R3: one status ends because the boss changed phase, the other does not,
-    /// inside one fight, from one application call.
+    /// Shape 2: it ends on entry to phase 3, and the twin does not. That pair of readings is the
+    /// whole rule: one status ends because the boss changed phase, the other does not, inside one
+    /// fight, from one application call.
     /// </summary>
     [Fact]
     public void A_PHASE_scoped_status_ends_on_entry_to_phase_3_while_its_BATTLE_scoped_twin_survives()
@@ -89,8 +88,8 @@ public sealed class BossPhaseScopeTests
     }
 
     /// <summary>
-    /// 🔒 And the other side of <em>"the phase it was applied in"</em>: a status applied <b>in phase
-    /// 3</b> is untouched by later phase-3 ticks, because phase 3 is never exited (`05` §3.1).
+    /// The other side of "the phase it was applied in": a status applied in phase 3 is untouched
+    /// by later phase-3 ticks, because phase 3 is never exited.
     /// </summary>
     /// <remarks>
     /// It is the case that separates <em>"ends when the phase changes"</em> from <em>"ends when the
@@ -109,14 +108,11 @@ public sealed class BossPhaseScopeTests
         run.StacksAt(70, BattleScoped).ShouldBe(1, "and the twin agrees, as it must here");
     }
 
-    /// <summary>
-    /// 🔒 `18` §6's fallback, unchanged: <b>outside</b> a boss fight a <c>PHASE</c> scope behaves as
-    /// <c>BATTLE</c>. The same script with a plain enemy in the boss's place ends nothing.
-    /// </summary>
+    /// <summary>The fallback, unchanged: outside a boss fight a <c>PHASE</c> scope behaves as <c>BATTLE</c>. The same script with a plain enemy in the boss's place ends nothing.</summary>
     /// <remarks>
-    /// 🔴 The floor under everything above. If <c>CurrentBossPhase</c> answered a phase for
-    /// <em>every</em> fight, the two cases above would pass for the wrong reason and every non-boss
-    /// battle in the game would silently acquire a phase boundary.
+    /// The floor under everything above. If <c>CurrentBossPhase</c> answered a phase for every
+    /// fight, the two cases above would pass for the wrong reason and every non-boss battle in the
+    /// game would silently acquire a phase boundary.
     /// </remarks>
     [Fact]
     public void Outside_a_boss_fight_a_PHASE_scoped_status_behaves_as_BATTLE()
@@ -174,10 +170,10 @@ public sealed class BossPhaseScopeTests
     }
 
     /// <summary>
-    /// 🔒 `17` §1's three bands, as a phase <b>source</b> and nothing else: it reads HP on
+    /// The three phase bands, as a phase source and nothing else: it reads HP on
     /// <c>AfterHpDecrease</c> and never reverts. It is not a second <c>BossPhaseController</c> — it
     /// registers nothing, activates nothing and logs nothing, because the subject of this file is
-    /// `18` §6's scope rather than `05` §3.1's transition.
+    /// the scope rather than the transition.
     /// </summary>
     private sealed class ScriptedPhases : IBossPhases
     {
@@ -192,11 +188,11 @@ public sealed class BossPhaseScopeTests
                 return;
             }
 
-            // 🔒 Literals, not BossPhaseRules: that method is a Phase 1b stub, and a scope test that
-            //    took its thresholds from the code under construction would be measuring nothing.
+            // Literals, not BossPhaseRules: that method is a Phase 1b stub, and a scope test that
+            // took its thresholds from the code under construction would be measuring nothing.
             var reading = actor.HpFraction <= 0.33 ? 3 : actor.HpFraction <= 0.66 ? 2 : 1;
 
-            // `05` §3.1 — phases never revert.
+            // Phases never revert.
             _phase[actor.Id] = Math.Max(_phase.GetValueOrDefault(actor.Id, 1), reading);
         }
 
@@ -209,8 +205,8 @@ public sealed class BossPhaseScopeTests
     }
 
     /// <summary>
-    /// Slot 1's seat: it drives the enemy's HP down the two `17` §1 thresholds, applies the two
-    /// statuses once, and samples what M2-10's timeline holds at the <b>top</b> of every tick.
+    /// Slot 1's seat: it drives the enemy's HP down the two phase thresholds, applies the two
+    /// statuses once, and samples what the timeline holds at the top of every tick.
     /// </summary>
     /// <remarks>
     /// The sample is taken before the tick's own script runs, so a reading at tick <c>t</c> is the
@@ -281,7 +277,7 @@ public sealed class BossPhaseScopeTests
                 return;
             }
 
-            // 🔒 ONE call site for both, so the two differ in exactly one thing: the scope.
+            // One call site for both, so the two differ in exactly one thing: the scope.
             _inner.Apply(
                 enemy, enemy, PhaseScoped, 0.05,
                 new EffectDuration { Scope = DurationScope.PHASE }, stacking: null, "BOSS_AURA_PHASE");

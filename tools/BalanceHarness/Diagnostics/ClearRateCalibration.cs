@@ -6,29 +6,16 @@ using SlayIdleRepeat.BalanceHarness.Sweep;
 namespace SlayIdleRepeat.BalanceHarness.Diagnostics;
 
 /// <summary>
-/// ⚠️ <b>DIAGNOSIS, NOT ASSERTION.</b> How far a build's power has to move from
-/// <c>ParPower(c, t)</c> before it reaches `05` §9's 70% clear-rate target — the quantitative form of
-/// "guardrail 1 failed, and by how much".
+/// Diagnosis, not assertion: how far a build's power has to move from <c>ParPower(c, t)</c> before it
+/// reaches the 70% clear-rate target — the quantitative form of "guardrail 1 failed, and by how much".
+/// It changes and recommends nothing; retuning stays a design decision.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>This changes nothing and recommends nothing.</b> `21` §3.2 makes retuning a design decision;
-/// the harness reports evidence. What this produces is a number — <em>"ARCH_CRIT reaches 70% at
-/// 4.6 × par in Chapter 1 Normal"</em> — which is exactly the evidence a design decision about the
-/// par table, the boss coefficients or `02` §4.3's stage multiplier needs, and which a bare
-/// <em>"clear rate 0%"</em> does not give.
-/// </para>
-/// <para>
-/// It is also what makes the guardrail-6 elasticity table informative. At par nothing clears, so
-/// every stat's Δ clear rate is identically 0 and a table of zeros says nothing about whether THORNS
-/// matters in a real fight. Measured at the multiple where the build is near the target, a stat that
-/// moves the fight moves the number.
-/// </para>
-/// <para>
-/// The search is a bisection on the hero's power multiple, which is monotone in clear rate up to
-/// sampling noise; the sample size is small on purpose, so the answer is a <b>bracket</b> and is
-/// reported to two decimal places rather than as a precise figure.
-/// </para>
+/// This is also what makes the guardrail-6 elasticity table informative: at par nothing clears, so
+/// every stat's Δ clear rate is identically zero, but measured at the multiple where the build is near
+/// the target, a stat that moves the fight moves the number. The search is a bisection on the hero's
+/// power multiple; the sample size per step is small on purpose, so the answer is a bracket reported
+/// to two decimal places, not a precise figure.
 /// </remarks>
 public static class ClearRateCalibration
 {
@@ -46,11 +33,9 @@ public static class ClearRateCalibration
     /// <paramref name="targetClearRate"/>.
     /// </summary>
     /// <remarks>
-    /// 🔴 A step the engine cannot simulate ENDS the search rather than killing the run, and the probe
-    /// comes back carrying the fault. Chapter 8's <c>BOSS_DICELORD_P3_ALL_IN</c> is the live case: the
-    /// search raises the hero's power until the fight reaches boss phase 3, and phase 3 is exactly
-    /// where that script faults. Reporting "the shortfall could not be measured, because the engine
-    /// faults above N × par" is a finding; crashing is not.
+    /// A step the engine cannot simulate ends the search rather than crashing the run; the probe comes
+    /// back carrying the fault instead (e.g. chapter 8's <c>BOSS_DICELORD_P3_ALL_IN</c>, whose script
+    /// faults once the search raises power enough to reach boss phase 3).
     /// </remarks>
     public static ShortfallProbe Find(
         SweepRunner runner,
@@ -99,7 +84,7 @@ public static class ClearRateCalibration
     }
 }
 
-/// <summary>⚠️ One diagnostic probe. Evidence for a design decision; not a guardrail.</summary>
+/// <summary>One diagnostic probe. Evidence for a design decision; not a guardrail.</summary>
 /// <param name="Chapter">The chapter.</param>
 /// <param name="Tier">The tier.</param>
 /// <param name="ArchetypeId">The build.</param>
@@ -107,7 +92,7 @@ public static class ClearRateCalibration
 /// <param name="ClearRateAtMultiple">The clear rate measured there.</param>
 /// <param name="TargetClearRate">What was being searched for.</param>
 /// <param name="FightsPerStep">Sample size per bisection step — small, so this is a bracket.</param>
-/// <param name="Fault">🔴 The engine fault that ended the search early, or <c>null</c>.</param>
+/// <param name="Fault">The engine fault that ended the search early, or <c>null</c>.</param>
 public sealed record ShortfallProbe(
     int Chapter,
     Tier Tier,

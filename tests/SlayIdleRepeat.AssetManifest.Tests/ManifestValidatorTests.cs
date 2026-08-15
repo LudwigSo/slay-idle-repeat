@@ -3,22 +3,13 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetManifest.Tests;
 
-/// <summary>
-/// Every <see cref="ManifestValidator"/> rule, proven to fire.
-/// </summary>
+/// <summary>Every <see cref="ManifestValidator"/> rule, proven to fire.</summary>
 /// <remarks>
-/// <para>
-/// 🔒 A test that cannot fail is a defect, not a weak test — M0's single largest defect class. Each
-/// case below therefore takes the real shipped manifest, applies one surgical textual mutation,
-/// and asserts the rule fires. <c>ManifestFiles.WithArtEdit</c> throws when its search string
-/// matches nothing, so a mutation that silently stopped applying — after a regeneration renames a
-/// field, say — fails loudly instead of quietly testing nothing.
-/// </para>
-/// <para>
-/// 🔒 Each case pins <b>which</b> rule fired, by code AND by location, not merely that the issue
-/// list was non-empty. Several of these rules can produce a <see cref="ManifestIssueCode.CountMismatch"/>,
-/// and a case that only checked the code would pass while a different rule fired somewhere else.
-/// </para>
+/// Each case takes the real shipped manifest, applies one surgical textual mutation via
+/// <c>ManifestFiles.WithArtEdit</c> (which throws if the search string matches nothing, so a
+/// mutation that silently stopped applying fails loudly rather than testing nothing), and pins
+/// which rule fired by code AND location — several rules can produce the same
+/// <see cref="ManifestIssueCode.CountMismatch"/>, so a bare code check would pass for the wrong rule.
 /// </remarks>
 public sealed class ManifestValidatorTests
 {
@@ -32,10 +23,7 @@ public sealed class ManifestValidatorTests
             string.Join("\n", issues.Select(i => i.ToString())));
     }
 
-    /// <summary>
-    /// S3 floor. Every rule below iterates a collection; if the register were empty they would all
-    /// pass forever, and so would the case above.
-    /// </summary>
+    /// <summary>Every rule below iterates a collection; if the register were empty they would all pass forever, and so would the case above.</summary>
     [Fact]
     public void The_validator_actually_has_subjects_to_rule_over()
     {
@@ -52,13 +40,9 @@ public sealed class ManifestValidatorTests
     }
 
     /// <summary>
-    /// 🔒 S4, for the records the validator does NOT self-expire. Only <c>DSC_E&lt;n&gt;_COUNT</c>,
-    /// <c>DSC_E1_TOTAL</c> and <c>DSC_AUDIO_TOTALS</c> go stale on their own; the other eleven are
-    /// prose about a transcription decision and no rule can recompute them. With only a
-    /// <c>Count &gt; 5</c> floor guarding them, eight of the fourteen could be deleted and every
-    /// other case here would stay green — including <c>DSC_TILE_ATLAS</c> and
-    /// <c>DSC_UNASSIGNED_ATLASES</c>, which <see cref="ArtFieldTests"/> cites as the evidence for
-    /// its null-atlas rule. Pinning the identities makes adding or dropping one a deliberate act.
+    /// Most discrepancy records are prose about a transcription decision that no rule can recompute
+    /// or self-expire, so pinning the exact identities (not just a count floor) makes adding or
+    /// dropping one a deliberate act.
     /// </summary>
     [Fact]
     public void The_recorded_discrepancies_are_exactly_the_ones_this_transcription_argued_for()
@@ -76,8 +60,7 @@ public sealed class ManifestValidatorTests
             "DSC_STINGER_LENGTH", "DSC_SFX_BAND", "DSC_DUCKING_SET", "DSC_SHARED_DESCRIPTORS",
         ], ignoreOrder: true);
 
-        // A record with an empty claim, observation or detail records nothing. The reader only
-        // rejects a null, so the emptiness has to be pinned here.
+        // The reader only rejects a null field, not an empty one, so emptiness is pinned here.
         var all = art.Concat(audio).ToArray();
         all.Length.ShouldBe(14);
         all.ShouldAllBe(d => d.SourceSection.Length > 0);
@@ -123,10 +106,7 @@ public sealed class ManifestValidatorTests
             i.Message.Contains("holds 14 rows", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// 🔒 The flag must match the arithmetic. This is the rule that stops a regeneration flipping
-    /// <c>countsAgree</c> to true and hiding §E20's real disagreement behind a stored boolean.
-    /// </summary>
+    /// <summary>The <c>countsAgree</c> flag must match the arithmetic, so a regeneration can't hide a real disagreement behind a stored boolean.</summary>
     [Fact]
     public void A_countsAgree_flag_that_contradicts_the_arithmetic_is_reported()
     {
@@ -142,11 +122,7 @@ public sealed class ManifestValidatorTests
             i.Message.Contains("stores countsAgree=True", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// 🔒 The self-expiry direction (S4). Flipping E20's claim to 49 makes the counts agree — at
-    /// which point <c>DSC_E20_COUNT</c> is describing a disagreement that no longer exists, and
-    /// must fail rather than sit here looking meaningful.
-    /// </summary>
+    /// <summary>Flipping E20's claim to 49 makes the counts agree, so <c>DSC_E20_COUNT</c> now describes a disagreement that no longer exists and must fail.</summary>
     [Fact]
     public void A_discrepancy_record_that_stopped_being_true_is_reported_as_stale()
     {
@@ -164,10 +140,7 @@ public sealed class ManifestValidatorTests
         stale.Message.ShouldContain("Delete the record", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 And the other direction: a real disagreement nobody wrote down. Deleting the E20 record
-    /// while the counts still disagree must go red — that record is O30's evidence at M11-01.
-    /// </summary>
+    /// <summary>The other direction: deleting the E20 discrepancy record while the counts still disagree must go red.</summary>
     [Fact]
     public void A_count_disagreement_with_no_discrepancy_record_is_reported()
     {
@@ -195,16 +168,12 @@ public sealed class ManifestValidatorTests
             i.Message.Contains("records 975 but the data holds 974", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// 🔒 Removing the O8 cut from a row must move the active total — which is the whole reason
-    /// the cut rows were kept in the data instead of deleted.
-    /// </summary>
+    /// <summary>Removing a row's cut flag must move the active total — the whole reason cut rows are kept in the data instead of deleted.</summary>
     [Fact]
     public void Un_cutting_an_E19_row_moves_the_active_total_and_is_reported()
     {
-        // 🔒 Anchored on `idSource`, which only asset rows carry. The bare `"cut": "O8 …"` string
-        // first occurs in the SECTIONS block, so a naive mutation would edit E19's section-level
-        // ruling and prove nothing about a row.
+        // Anchored on idSource (asset rows only) — the bare cut string also occurs in the
+        // sections block first, so a naive mutation would edit the section ruling instead of a row.
         var mutated = ManifestFiles.WithArtEdit(
             "\"idSource\": \"convention\",\n      \"cut\": \"O8 — procedural in-engine, ruled 2026-08-12\"",
             "\"idSource\": \"convention\",\n      \"cut\": null");
@@ -236,9 +205,8 @@ public sealed class ManifestValidatorTests
     {
         var mutated = ManifestFiles.WithArtEdit("\"atlas\": \"atlas_hero\"", "\"atlas\": \"atlas_heroes\"");
 
-        // 🔒 Located on the row that was mutated, not merely "some row somewhere": the same edit
-        // also drifts atlas_hero's stored count, and an unlocated assertion would not distinguish
-        // the undeclared-atlas rule from anything else that emits InconsistentRow.
+        // Located on the mutated row specifically: the same edit also drifts atlas_hero's stored
+        // count, and an unlocated assertion couldn't tell this rule apart from that one.
         var issues = ManifestValidator.Validate(mutated);
 
         issues.ShouldContain(i =>
@@ -248,14 +216,12 @@ public sealed class ManifestValidatorTests
             i.Message.Contains("15 §D2 does not declare", StringComparison.Ordinal));
     }
 
-    /// <summary>A biome-scoped row must carry that biome's locked six from `15` §A5, not another's.</summary>
+    /// <summary>A biome-scoped row must carry that biome's own locked six hues, not another's.</summary>
     [Fact]
     public void A_row_carrying_the_wrong_biome_palette_is_reported()
     {
-        // 🔒 Anchored on the row's own `biome`/`palette` pair. The bare `"base": "#5FBF5F"` string
-        // first occurs in the BIOMES header block, so a naive mutation would redefine greenwood
-        // itself and fire this rule from all 112 of its rows at once — proving the header check,
-        // not the row check this case is named for.
+        // Anchored on the row's own biome/palette pair — the bare base-hue string first occurs in
+        // the biomes header block, so a naive mutation would redefine the biome itself instead.
         var mutated = ManifestFiles.WithArtEdit(
             "\"biome\": \"greenwood\",\n      \"palette\": {\n        \"base\": \"#5FBF5F\",",
             "\"biome\": \"greenwood\",\n      \"palette\": {\n        \"base\": \"#C4462A\",");
@@ -290,11 +256,8 @@ public sealed class ManifestValidatorTests
             "\"id\": \"dice\",\n      \"label\": \"Dice\",\n      \"claimedCount\": 11,\n      \"transcribedCount\": 11",
             "\"id\": \"dice\",\n      \"label\": \"Dice\",\n      \"claimedCount\": 11,\n      \"transcribedCount\": 10");
 
-        // 🔒 Two distinct rules emit CountMismatch under `families/dice`: the stored-vs-actual
-        // compare at `families/dice/transcribedCount`, and the countsAgree-vs-arithmetic check at
-        // `families/dice`. A prefix filter plus a bare code assertion could not tell them apart, so
-        // this pins the exact location and message of the one the case is named for — and pins the
-        // second one too, since this edit is supposed to trip both.
+        // Two distinct rules emit CountMismatch under families/dice; this edit trips both, so
+        // both locations are pinned rather than relying on a prefix filter to tell them apart.
         Only(mutated, ManifestIssueCode.CountMismatch, "families/dice/transcribedCount")
             .Message.ShouldContain("records 10 but the data holds 11", Case.Sensitive);
 
@@ -302,11 +265,7 @@ public sealed class ManifestValidatorTests
             .Message.ShouldContain("stores countsAgree=True", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 Doc 20's totals all agree today, so <c>DSC_AUDIO_TOTALS</c> is deliberately absent. Break
-    /// the agreement and its absence must be reported — otherwise "we checked and it agreed" and
-    /// "we never checked" look identical in the artefact.
-    /// </summary>
+    /// <summary>The audio totals agree today, so <c>DSC_AUDIO_TOTALS</c> is deliberately absent; breaking the agreement must make its absence get reported.</summary>
     [Fact]
     public void An_audio_total_that_starts_disagreeing_with_no_record_is_reported()
     {
@@ -335,10 +294,7 @@ public sealed class ManifestValidatorTests
             i.Message.Contains("does not start with 'mus_'", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// 🔒 A missing required member must throw at read time, not become <c>default</c>.
-    /// `game-data/README.md`: a hole filled with a plausible value is invisible.
-    /// </summary>
+    /// <summary>A missing required member must throw at read time, not silently become <c>default</c>.</summary>
     [Fact]
     public void A_missing_required_member_fails_loudly_at_read_time_rather_than_defaulting()
     {

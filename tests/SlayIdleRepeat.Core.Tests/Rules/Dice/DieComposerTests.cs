@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Dice;
 
-/// <summary>`04` §2's run-start die composition pipeline.</summary>
+/// <summary>The run-start die composition pipeline.</summary>
 public sealed class DieComposerTests
 {
     [Fact]

@@ -3,22 +3,15 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetManifest.Tests;
 
-/// <summary>
-/// The art register against `15` §E1's summary table, section by section.
-/// </summary>
+/// <summary>The art register against the design doc's summary table, section by section.</summary>
 /// <remarks>
-/// 🔒 The expected numbers below are written out here, read from `15` by hand, rather than taken
-/// from the manifest's own <c>claimedCount</c> fields. A test that sourced both sides of its
-/// comparison from the artefact under test would pass for any self-consistent file, including one
-/// that transcribed the wrong document.
+/// The expected numbers below are transcribed by hand rather than taken from the manifest's own
+/// <c>claimedCount</c> fields — sourcing both sides of the comparison from the artefact under test
+/// would pass for any self-consistent file, including one that transcribed the wrong document.
 /// </remarks>
 public sealed class ArtTranscriptionTests
 {
-    /// <summary>
-    /// `15` §E1 claim vs what §E2–§E21 actually enumerate. 🔒 E20 is the one disagreement: its
-    /// heading says 50 and its list holds 49. It is recorded, never reconciled — O30 owns the
-    /// reconciliation at M11-01.
-    /// </summary>
+    /// <summary>The doc's claimed count vs what each section actually enumerates. E20 is the one disagreement (heading says 50, list holds 49) and is recorded rather than reconciled.</summary>
     [Theory]
     [InlineData("E2", 64, 64)]
     [InlineData("E3", 128, 128)]
@@ -61,10 +54,7 @@ public sealed class ArtTranscriptionTests
             .ShouldBe(Enumerable.Range(2, 20).Select(n => $"E{n}"), ignoreOrder: true);
     }
 
-    /// <summary>
-    /// 🔒 The mismatch this task exists to surface, pinned by identity. If a second section ever
-    /// disagrees with §E1, this fails and names it rather than letting it hide behind a total.
-    /// </summary>
+    /// <summary>The mismatch pinned by identity — a second disagreeing section fails here and is named, rather than hiding behind a total.</summary>
     [Fact]
     public void Exactly_one_section_disagrees_with_15_E1_and_it_is_E20()
     {
@@ -76,10 +66,7 @@ public sealed class ArtTranscriptionTests
         disagreeing.ShouldBe(["E20 (claims 50, transcribes 49)"]);
     }
 
-    /// <summary>
-    /// `15` §E1's TOTAL is 975; the sections enumerate 974. The gap is entirely §E20's missing
-    /// fiftieth icon, and both numbers stay in the data so the arithmetic is checkable.
-    /// </summary>
+    /// <summary>The claimed total is 975; the sections enumerate 974 — the gap is E20's missing fiftieth icon, and both numbers stay in the data so the arithmetic is checkable.</summary>
     [Fact]
     public void The_total_disagrees_with_15_E1_by_exactly_the_E20_shortfall()
     {
@@ -94,11 +81,7 @@ public sealed class ArtTranscriptionTests
         (totals.ClaimedBySummaryTable - totals.Transcribed).ShouldBe(shortfall);
     }
 
-    /// <summary>
-    /// 🔒 O8, ruled at the M8 kickoff on 2026-08-12: the 32 §E19 VFX sheets are cut because VFX are
-    /// procedural in-engine. The rows are kept and flagged so the post-cut total is derivable from
-    /// the data rather than asserted in prose.
-    /// </summary>
+    /// <summary>The 32 E19 VFX sheets are cut (VFX are procedural in-engine); rows are kept and flagged so the post-cut total is derivable from the data.</summary>
     [Fact]
     public void Every_E19_row_is_cut_by_the_O8_ruling_and_nothing_else_is()
     {
@@ -110,10 +93,7 @@ public sealed class ArtTranscriptionTests
         cut.ShouldAllBe(a => a.Cut!.Contains("2026-08-12", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// The ruling's arithmetic was 975 − 32 = 943. The data yields 942, because the transcription
-    /// holds 974 rather than §E1's claimed 975. Both are recorded; neither was adjusted to match.
-    /// </summary>
+    /// <summary>The ruling's arithmetic was 975 − 32 = 943; the data yields 942 because the transcription holds 974 rather than the claimed 975. Both are recorded; neither was adjusted to match.</summary>
     [Fact]
     public void The_active_total_is_the_transcribed_total_less_the_O8_cut()
     {
@@ -127,10 +107,7 @@ public sealed class ArtTranscriptionTests
             "the kickoff ruling's 943 is 975−32, which is why it differs from the data's 942");
     }
 
-    /// <summary>
-    /// `15` §E18 is 0 assets (D14), so it has no row to flag. The cut is recorded on the section,
-    /// consistently with E19 — both sections carry a `cut` string.
-    /// </summary>
+    /// <summary>E18 is 0 assets so it has no row to flag; the cut is recorded on the section instead, consistently with E19.</summary>
     [Fact]
     public void The_two_cut_sections_are_E18_and_E19_and_both_record_the_ruling()
     {
@@ -150,10 +127,7 @@ public sealed class ArtTranscriptionTests
         e19.Cut.ShouldNotBeNull().ShouldContain("O8", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 The derived flag exists so a reconciliation can find every id no human authored. These
-    /// are the only two sections where `15` gives a count without naming the individual assets.
-    /// </summary>
+    /// <summary>The derived flag lets a reconciliation find every id no human authored — the only two sections where the doc gives a count without naming individual assets.</summary>
     [Fact]
     public void Derived_rows_come_only_from_E9_decor_and_the_four_unnamed_E17_subgroups()
     {
@@ -168,7 +142,7 @@ public sealed class ArtTranscriptionTests
         ManifestFiles.Shipped.Art.Totals.Derived.ShouldBe(derived.Length);
     }
 
-    /// <summary>Every derived id was constructed from §D1 — none of them is written in a doc.</summary>
+    /// <summary>Every derived id was constructed, not written in a doc.</summary>
     [Fact]
     public void No_derived_row_claims_a_doc_authored_id()
     {
@@ -178,10 +152,7 @@ public sealed class ArtTranscriptionTests
         derived.ShouldAllBe(a => a.IdSource == "convention");
     }
 
-    /// <summary>
-    /// S3 floor: every collection this suite reasons over must be non-trivially populated, or the
-    /// rules above pass forever over an empty set.
-    /// </summary>
+    /// <summary>Every collection this suite reasons over must be non-trivially populated, or the rules above pass forever over an empty set.</summary>
     [Fact]
     public void The_register_is_populated()
     {

@@ -3,18 +3,14 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Application.Services.Content;
 
 /// <summary>
-/// Layers a sparse override patch on top of canonical content, in memory, at load time.
+/// Layers a sparse override patch on top of canonical content, in memory, at load time. Experiments
+/// and what-ifs all run this way, never as edits to the canonical files, so <c>git diff</c> on
+/// <c>game-data</c> stays a record of decisions rather than a record of attempts.
 /// </summary>
 /// <remarks>
 /// <para>
-/// `21` §3.3 / `14` §6: <em>"Experiments and what-ifs run as sparse override patches layered on
-/// top of the canonical files, never as edits to them. This keeps <c>git diff</c> on
-/// <c>game-data</c> a record of decisions rather than a record of attempts."</em>
-/// </para>
-/// <para>
-/// 🔒 Nothing here writes. The patch produces a new <see cref="ContentValue"/> tree; the canonical
-/// bytes on disk are read once and never touched. The <c>IContentSourcePort</c> has no write
-/// member at all, which is the structural version of the same guarantee.
+/// Nothing here writes. The patch produces a new <see cref="ContentValue"/> tree; the canonical
+/// bytes on disk are read once and never touched.
 /// </para>
 /// <para>
 /// Merge semantics, chosen so a typo cannot pass for an experiment:
@@ -33,8 +29,8 @@ namespace SlayIdleRepeat.Application.Services.Content;
 public static class OverridePatch
 {
     /// <summary>
-    /// Splits an override document (`21` §3.3 shape: keyed by canonical file name) into per-file
-    /// patches, resolving each file name to a snapshot-relative document path.
+    /// Splits an override document (an object keyed by canonical file name) into per-file patches,
+    /// resolving each file name to a snapshot-relative document path.
     /// </summary>
     public static IReadOnlyList<ContentIssue> Split(
         string overrideDocumentPath,

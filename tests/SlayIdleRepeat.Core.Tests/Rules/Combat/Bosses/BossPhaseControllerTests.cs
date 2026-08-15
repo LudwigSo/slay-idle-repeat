@@ -8,11 +8,11 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `05` §3.1's phase check and pre-tick 0c, `17` §1's three phases — the entry sequence, the R8
-/// anchors it moves, and the two things it must never do.
+/// The phase check and pre-tick 0c, the three phases — the entry sequence, the anchors it moves,
+/// and the two things it must never do.
 /// </summary>
 /// <remarks>
-/// 🔴 Every anchoring case asserts <c>AnchorTick</c> and/or <c>NextFiringTick</c>, never merely "the
+/// Every anchoring case asserts <c>AnchorTick</c> and/or <c>NextFiringTick</c>, never merely "the
 /// effect fired": <c>TriggerRegistry.Activate</c> leaves a live instance untouched, so a controller
 /// omitting the <c>Deactivate</c> half of a transition still produces a fight in which every mechanic
 /// fires — at the wrong anchor, in a log nothing distinguishes from correct.
@@ -24,7 +24,7 @@ public sealed class BossPhaseControllerTests
     private const string Phase2EnterInstance = "BOSS_THORNMAW#P2#Z_P2_SNAP";
     private const string Phase3EnterInstance = "BOSS_THORNMAW#P3#A_P3_BLOOM";
 
-    // 🔒 The ids are chosen so ascending effect-id order and phase order DISAGREE: `A_P3_BLOOM`
+    // The ids are chosen so ascending effect-id order and phase order disagree: `A_P3_BLOOM`
     // sorts before `Z_P2_SNAP`. A controller that swept both entries as one occurrence, or that
     // entered the phases in the wrong order, would produce the alphabetical order instead.
     private const string Phase1Effect = "Z_P1_BASK";
@@ -34,9 +34,9 @@ public sealed class BossPhaseControllerTests
     // ════════════════════════════════════════════════════ 1 · pre-tick 0c
 
     /// <summary>
-    /// 🔒 `05` §3.1 — pre-tick 0c runs <b>after</b> 0b's <c>ON_BATTLE_START</c> sweep and
-    /// <b>before</b> 0d's <c>BattleStart</c>, so phase 1's entry effects land on an arena that is
-    /// already in its opening state and the replayer's banner covers all of it.
+    /// Pre-tick 0c runs after 0b's <c>ON_BATTLE_START</c> sweep and before 0d's
+    /// <c>BattleStart</c>, so phase 1's entry effects land on an arena that is already in its
+    /// opening state and the replayer's banner covers all of it.
     /// </summary>
     [Fact]
     public void Pre_tick_0c_enters_phase_1_after_the_ON_BATTLE_START_sweep_and_before_BattleStart()
@@ -63,14 +63,14 @@ public sealed class BossPhaseControllerTests
     }
 
     /// <summary>
-    /// 🔴 <b>THE DE-ANCHORING.</b> Pre-tick 0a registers <b>every</b> plan effect at activation tick
-    /// 0, phase-2 and phase-3 blocks included — so 0c has to drop those clocks, or Thornmaw's 8 s
-    /// Root ticks from t = 8 s while the boss is still basking.
+    /// The de-anchoring: pre-tick 0a registers every plan effect at activation tick 0, phase-2 and
+    /// phase-3 blocks included — so 0c has to drop those clocks, or Thornmaw's 8 s Root ticks from
+    /// t = 8 s while the boss is still basking.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The mutant this discriminates against:</b> remove the <c>Deactivate</c> from
+    /// The mutant this discriminates against: remove the <c>Deactivate</c> from
     /// <c>EnterInitialPhase</c> and the instance is live at tick 0 with <c>AnchorTick == 0</c> and
-    /// <c>NextFiringTick == 160</c> (8 s × 20). Asserting only that the Root fired would pass either
+    /// <c>NextFiringTick == 160</c> (8 s x 20). Asserting only that the Root fired would pass either
     /// way.
     /// </remarks>
     [Fact]
@@ -97,9 +97,9 @@ public sealed class BossPhaseControllerTests
     }
 
     /// <summary>
-    /// 🔴 The other half of the same claim: entering phase 2 <b>re-anchors</b> its block at the entry
-    /// tick — R8's <em>"the clock starts when the owning effect becomes active"</em>, which for a
-    /// phase block is `17` §1.1's <em>"fires every N seconds from phase entry"</em>.
+    /// The other half of the same claim: entering phase 2 re-anchors its block at the entry tick —
+    /// the clock starts when the owning effect becomes active, which for a phase block means
+    /// "fires every N seconds from phase entry".
     /// </summary>
     [Fact]
     public void Entering_phase_2_anchors_its_PERIODIC_at_the_entry_tick()
@@ -117,9 +117,8 @@ public sealed class BossPhaseControllerTests
     // ════════════════════════════════════════════════════ 2 · the entry sequence
 
     /// <summary>
-    /// 🔴 <b>The two-threshold burst.</b> `05` §3.1: <em>"a burst from 70% to 20% therefore fires
-    /// phase 2's entry, then phase 3's"</em> — two entries inside <b>one</b> HP decrease, in that
-    /// order.
+    /// The two-threshold burst: a burst from 70% to 20% fires phase 2's entry, then phase 3's —
+    /// two entries inside one HP decrease, in that order.
     /// </summary>
     [Fact]
     public void A_burst_from_70_to_20_percent_fires_phase_2s_entry_then_phase_3s()
@@ -150,8 +149,8 @@ public sealed class BossPhaseControllerTests
     }
 
     /// <summary>
-    /// 🔴 <b>Phases never revert.</b> `05` §3.1: healing back above a threshold does not re-enter,
-    /// and the exited phases' `18` §6 <c>PHASE</c>-scoped effects stay dead.
+    /// Phases never revert: healing back above a threshold does not re-enter, and the exited
+    /// phases' <c>PHASE</c>-scoped effects stay dead.
     /// </summary>
     [Fact]
     public void A_boss_healed_back_above_a_threshold_does_not_re_enter_a_phase()
@@ -179,8 +178,8 @@ public sealed class BossPhaseControllerTests
     }
 
     /// <summary>
-    /// 🔒 `18` §6's <c>PHASE</c> scope — <em>"ends when the boss exits the phase in which the effect
-    /// was applied"</em>. The exit is the entry of the next phase, and nothing else ends it.
+    /// A <c>PHASE</c>-scoped effect ends when the boss exits the phase it was applied in. The exit
+    /// is the entry of the next phase, and nothing else ends it.
     /// </summary>
     [Fact]
     public void A_PHASE_scoped_block_ends_at_the_exit_of_its_own_phase()
@@ -198,9 +197,8 @@ public sealed class BossPhaseControllerTests
     }
 
     /// <summary>
-    /// 🔒 <c>CombatEvent</c>'s slot contract for <c>PhaseChange</c>, stated exhaustively there
-    /// because a slot left to the emitter's judgement is a slot `11` §6 reads as tampering:
-    /// <em>"the boss · the boss · the phase entered (1, 2 or 3) · 0"</em>.
+    /// <c>CombatEvent</c>'s slot contract for <c>PhaseChange</c>: the boss, the boss, the phase
+    /// entered (1, 2 or 3), 0.
     /// </summary>
     [Fact]
     public void PhaseChange_names_the_boss_in_both_slots_and_carries_the_phase_as_its_value()
@@ -227,15 +225,11 @@ public sealed class BossPhaseControllerTests
 
     // ════════════════════════════════════════════════════ 3 · what the check ignores
 
-    /// <summary>
-    /// 🔒 The check is handed <b>every</b> actor — <em>"'is this a boss' is the controller's
-    /// question"</em> — and answers nothing for one that is not a boss.
-    /// </summary>
+    /// <summary>The check is handed every actor, and answers nothing for one that is not a boss.</summary>
     /// <remarks>
-    /// 🔴 The two floors are what make the emptiness a rule rather than an accident. A script step
+    /// The two floors are what make the emptiness a rule rather than an accident. A script step
     /// whose actor id matched nothing would leave every HP untouched and no check ever asked, and
-    /// <em>"one PhaseChange"</em> would then be true for a reason that has nothing to do with `05`
-    /// §3.1's question (steering S1/S3).
+    /// "one PhaseChange" would then be true for a reason unrelated to the actual question.
     /// </remarks>
     [Fact]
     public void An_HP_decrease_on_a_non_boss_actor_enters_no_phase()
@@ -262,10 +256,9 @@ public sealed class BossPhaseControllerTests
     }
 
     /// <summary>
-    /// 🔒 A boss on the roster that this controller has no <see cref="BossEncounter"/> for is a
-    /// <b>wiring gap</b>, refused at pre-tick 0c — the same shape <c>NoBossPhases</c> uses, and for
-    /// its reason: a boss whose mechanics are silently absent reads to the balance harness as a boss
-    /// that is weak.
+    /// A boss on the roster that this controller has no <see cref="BossEncounter"/> for is a
+    /// wiring gap, refused at pre-tick 0c: a boss whose mechanics are silently absent reads to the
+    /// balance harness as a boss that is weak.
     /// </summary>
     [Fact]
     public void A_boss_with_no_encounter_is_refused_at_pre_tick_0c()
@@ -280,9 +273,9 @@ public sealed class BossPhaseControllerTests
                 },
                 rules: BossTestBench.Rules(maxTicks: 5))));
 
-        // 🔒 Steering S2 — WHICH rule fired, not merely that something did. EffectContextException is
-        //    thrown by a dozen independent rules in this layer, so the type alone discriminates
-        //    nothing; the boss's id and the missing encounter are what name this one.
+        // Which rule fired, not merely that something did. EffectContextException is thrown by a
+        // dozen independent rules in this layer, so the type alone discriminates nothing; the
+        // boss's id and the missing encounter are what name this one.
         thrown.Message.ShouldStartWith(EffectContextException.Marker, Case.Sensitive);
         thrown.Message.ShouldContain("BOSS_UNSCRIPTED", Case.Sensitive, "which boss");
         thrown.Message.ShouldContain("encounter", Case.Insensitive, "and what it is missing");
@@ -296,15 +289,15 @@ public sealed class BossPhaseControllerTests
     // ════════════════════════════════════════════════════ 4 · the first-clear extension
 
     /// <summary>
-    /// 🔴 `17` §1 — <em>"the first time a player fights a boss, phase 1 lasts 20% longer"</em>. On a
-    /// repeat clear the boundary is 0.66; on a first clear it is 0.5920, and 0.66 enters nothing.
+    /// On the first fight of a boss phase 1 lasts 20% longer. On a repeat clear the boundary is
+    /// 0.66; on a first clear it is 0.5920, and 0.66 enters nothing.
     /// </summary>
     /// <remarks>
-    /// 🔴 The expectation is the <b>whole</b> <c>PhaseChange</c> sequence, not a count of the 2s.
+    /// The expectation is the whole <c>PhaseChange</c> sequence, not a count of the 2s.
     /// <c>Count(e =&gt; e.Value == 2.0).ShouldBe(0)</c> stood here for the first-clear row and passed
     /// on an empty log — a controller that entered no phase at all, logged nothing, or was never
-    /// reached satisfied it exactly (steering S1). Pinning the sequence floors phase 1's own entry,
-    /// which no first-clear rule touches.
+    /// reached satisfied it exactly. Pinning the sequence floors phase 1's own entry, which no
+    /// first-clear rule touches.
     /// </remarks>
     [Theory]
     [InlineData(false, new[] { 1.0, 2.0 })]
@@ -326,8 +319,8 @@ public sealed class BossPhaseControllerTests
     }
 
     /// <summary>
-    /// 🔴 And the widened boundary is reached at 0.5920 exactly, while `17` §1's phase-3 boundary is
-    /// untouched: <b>only phase 1 is extended</b>, so phase 2 absorbs the difference.
+    /// The widened boundary is reached at 0.5920 exactly, while the phase-3 boundary is untouched:
+    /// only phase 1 is extended, so phase 2 absorbs the difference.
     /// </summary>
     [Fact]
     public void A_first_clear_enters_phase_2_at_0_5920_and_phase_3_still_at_0_33()
@@ -350,8 +343,8 @@ public sealed class BossPhaseControllerTests
     // ════════════════════════════════════════════════════ fixtures
 
     /// <summary>
-    /// `17` §2's Thornmaw as a plan: a phase-1 aura, a phase-2 <c>ON_PHASE_ENTER</c> plus the 8 s
-    /// Root, a phase-3 <c>ON_PHASE_ENTER</c>, and <c>SYS_ENRAGE</c>.
+    /// Thornmaw as a plan: a phase-1 aura, a phase-2 <c>ON_PHASE_ENTER</c> plus the 8 s Root, a
+    /// phase-3 <c>ON_PHASE_ENTER</c>, and <c>SYS_ENRAGE</c>.
     /// </summary>
     private static ActorPlan BossPlan(bool opener) =>
         BossTestBench.Boss(
@@ -395,9 +388,9 @@ public sealed class BossPhaseControllerTests
             Plan = BossPlan(opener),
             FirstClear = firstClear,
 
-            // 🔒 Literals, not BossPhaseRules.Phase2HpFraction: a controller test that took its
+            // Literals, not BossPhaseRules.Phase2HpFraction: a controller test that took its
             // expectation from the same method the controller reads would agree with a wrong
-            // threshold. BossPhaseRulesTests pins the method against `17` §1 separately.
+            // threshold. BossPhaseRulesTests pins the method against the authored numbers separately.
             Phase2HpFraction = firstClear ? 0.5920 : 0.66,
             Phase3HpFraction = 0.33,
             PhaseOfInstance = new Dictionary<EffectInstanceId, int>
@@ -413,7 +406,7 @@ public sealed class BossPhaseControllerTests
             AnnouncingOfPhase = new Dictionary<int, IReadOnlyList<EffectInstanceId>>(),
         };
 
-    /// <summary>One scripted fight against `17` §2's Thornmaw.</summary>
+    /// <summary>One scripted fight against Thornmaw.</summary>
     private static BossRun Fight(
         RecordingStatuses? statuses = null,
         bool firstClear = false,

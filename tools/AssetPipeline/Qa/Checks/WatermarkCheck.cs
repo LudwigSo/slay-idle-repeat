@@ -1,28 +1,19 @@
 namespace SlayIdleRepeat.AssetPipeline.Qa.Checks;
 
-/// <summary>
-/// `15` Part F item 8: <em>"No text, watermark or signature anywhere in the image"</em>.
-/// </summary>
+/// <summary>Checklist item 8: no text, watermark or signature anywhere in the image.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Human — and this deviates from what the task was dispatched expecting.</b> Deciding
-/// whether an image contains rendered text needs OCR, which means either a downloaded model or a
-/// native binary, and both are forbidden here. There is no managed, hermetic way to answer the
-/// question the item actually asks, and "anywhere in the image" is the part that cannot be faked:
-/// a signature across the chest of a character is the same defect as one in a corner.
+/// Human: deciding whether an image contains rendered text needs OCR, which means a downloaded
+/// model or a native binary, both forbidden here. "Anywhere in the image" is the part that cannot
+/// be faked — a signature across the chest of a character is the same defect as one in a corner.
 /// </para>
 /// <para>
 /// What ships instead is <see cref="CornerOpacityMeasurement"/>, a proxy for the single most common
 /// version of the failure — a generator's signature sitting in a corner of an otherwise transparent
-/// frame. It is evidence, it is graded against
+/// frame. It is evidence, graded against
 /// <see cref="ThresholdKeys.WatermarkCornerOpacityCeiling"/>, and it gates nothing: the
 /// classification stays <see cref="QaClassification.Human"/> and the verdict is always
 /// <see cref="QaVerdict.HumanGapOnly"/>.
-/// </para>
-/// <para>
-/// 🔒 Assumption A5 forbids dressing a heuristic up as the real test. Classifying this item
-/// mechanical because a corner heuristic exists would mean a batch could be accepted with text
-/// across the middle of every asset in it, reported as "item 8 passed".
 /// </para>
 /// </remarks>
 public sealed class WatermarkCheck : IQaCheck
@@ -62,15 +53,10 @@ public sealed class WatermarkCheck : IQaCheck
     /// <inheritdoc/>
     public string? HumanGap => WatermarkHumanGap;
 
-    /// <summary>
-    /// The four corner regions are the image's four quadrants.
-    /// </summary>
+    /// <summary>The four corner regions are the image's four quadrants.</summary>
     /// <remarks>
-    /// 🔒 Quadrants because they are the only corner decomposition with no free parameter. "The
-    /// corner" of an image is a size somebody has to choose, and `15` chooses none — an eighth would
-    /// be as defensible as a sixteenth, and whichever this picked would become a number nobody could
-    /// justify sitting in the middle of a proxy. Halving each axis is a statement about the image
-    /// rather than about signatures.
+    /// Quadrants because they are the only corner decomposition with no free parameter to justify —
+    /// halving each axis is a statement about the image rather than about signatures.
     /// </remarks>
     private const int QuadrantsPerAxis = 2;
 
@@ -100,14 +86,11 @@ public sealed class WatermarkCheck : IQaCheck
             WatermarkHumanGap);
     }
 
-    /// <summary>
-    /// What the proxy saw, said in a way that cannot be read as a verdict.
-    /// </summary>
+    /// <summary>What the proxy saw, said in a way that cannot be read as a verdict.</summary>
     /// <remarks>
-    /// 🔒 "Above the ceiling" is a fact about one corner's alpha, not a finding of a watermark, and
-    /// "below it" is not a finding that there is none — the item asks about text <em>anywhere</em>
-    /// in the image. An uncalibrated ceiling is reported as ungraded rather than filled in
-    /// (steering rule S6); it changes nothing, because the proxy gates nothing.
+    /// "Above the ceiling" is a fact about one corner's alpha, not a finding of a watermark — the
+    /// item asks about text <em>anywhere</em> in the image. An uncalibrated ceiling is reported as
+    /// ungraded rather than filled in; it changes nothing, since the proxy gates nothing.
     /// </remarks>
     /// <param name="thresholds">The threshold set.</param>
     /// <param name="opacity">The worst corner's mean opacity.</param>

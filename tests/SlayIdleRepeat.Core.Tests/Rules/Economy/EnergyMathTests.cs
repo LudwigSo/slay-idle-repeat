@@ -9,12 +9,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
 
 /// <summary>
-/// `10` §3 and `28` Part C — Max Energy, regeneration, overflow routing, grants, refills and the
-/// main-bar-first spend order.
+/// Max Energy, regeneration, overflow routing, grants, refills and the main-bar-first spend
+/// order.
 /// </summary>
 /// <remarks>
-/// The accrual rule itself — whole units only, anchor advanced by <c>units × interval</c> and never
-/// to "now" — is <see cref="EnergyAccrualPropertyTests"/>'. This covers the arithmetic around it.
+/// The accrual rule itself — whole units only, anchor advanced by <c>units × interval</c> and
+/// never to "now" — is <see cref="EnergyAccrualPropertyTests"/>'. This covers the arithmetic
+/// around it.
 /// </remarks>
 public sealed class EnergyMathTests
 {
@@ -22,12 +23,12 @@ public sealed class EnergyMathTests
 
     // ------------------------------------------------------------------ Max Energy
 
-    /// <summary>`10` §3 — Max Energy is 120 (+2 per Legend Level, cap 200).</summary>
+    /// <summary>Max Energy is 120 (+2 per Legend Level, cap 200).</summary>
     /// <remarks>
-    /// 🔒 Row <c>(1, 120)</c> is the headline. The increment counts levels <em>gained</em>, so a
-    /// starting player (`07` §1.1 begins at Legend Level 1) has exactly the 120 `10` §3 authors —
-    /// which is what makes §3's "8 hours from empty" and "6 runs on a full tank" exact rather than
-    /// approximate. Row <c>(41, 200)</c> is where the cap first binds.
+    /// Row <c>(1, 120)</c> is the headline. The increment counts levels <em>gained</em>, so a
+    /// starting player at Legend Level 1 has exactly 120 — which is what makes "8 hours from
+    /// empty" and "6 runs on a full tank" exact rather than approximate. Row <c>(41, 200)</c> is
+    /// where the cap first binds.
     /// </remarks>
     [Theory]
     [InlineData(1, 120)]
@@ -41,10 +42,9 @@ public sealed class EnergyMathTests
         EnergyMath.MaxEnergy(Shipped, legendLevel).ShouldBe(expected);
 
     /// <summary>
-    /// 🔒 The three `10` §3 numbers that are arithmetic on Max Energy, checked against a
-    /// <b>starting</b> player rather than against a level no player occupies. All three are exact,
-    /// and all three are off by one increment if the formula ever counts levels <em>held</em>
-    /// instead of levels gained.
+    /// The three numbers that are arithmetic on Max Energy, checked against a starting player
+    /// rather than a level no player occupies. All three are off by one increment if the formula
+    /// ever counts levels held instead of levels gained.
     /// </summary>
     [Fact]
     public void A_starting_players_tank_makes_every_10_3_number_exact()
@@ -59,8 +59,8 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 `28` C2 — the Reserve holds <b>1× Max Energy</b>, not a hard-coded 200. At a low Legend
-    /// Level the two are 120, and a reader that had baked in the cap would say 200 here.
+    /// The Reserve holds 1× Max Energy, not a hard-coded 200. At a low Legend Level the two are
+    /// 120, and a reader that had baked in the cap would say 200 here.
     /// </summary>
     [Theory]
     [InlineData(1, 120)]
@@ -75,7 +75,7 @@ public sealed class EnergyMathTests
             .ShouldBe(EnergyMath.MaxEnergy(Shipped, legendLevel));
     }
 
-    /// <summary>`28` C2's 📐 dial: raise the multiple and the Reserve grows with it.</summary>
+    /// <summary>Raising the reserve multiple dial grows the Reserve with it.</summary>
     [Fact]
     public void Raising_the_reserve_multiple_raises_the_reserve_capacity()
     {
@@ -92,9 +92,8 @@ public sealed class EnergyMathTests
     /// (the nested <c>MaxEnergy</c> still throws) and no test notices.
     /// </summary>
     /// <remarks>
-    /// 🔒 Zero is refused, not just negatives: the increment counts levels <em>gained</em>, so Legend
-    /// Level 0 would subtract one and hand back 118 — a plausible number for a state `07` §1.1 says
-    /// cannot exist.
+    /// Zero is refused, not just negatives: the increment counts levels gained, so Legend Level 0
+    /// would subtract one and hand back 118 — a plausible number for a state that cannot exist.
     /// </remarks>
     [Theory]
     [MemberData(nameof(EveryEntryPoint))]
@@ -149,10 +148,10 @@ public sealed class EnergyMathTests
     };
 
     /// <summary>
-    /// 🔒 `21` §12 calls every economy number a placeholder and the simulator sweeps them. The
-    /// 64-bit widening in <c>MaxEnergy</c> and the <c>int.MaxValue</c> clamp in
-    /// <c>ReserveCapacity</c> both carry a written rationale and neither was reachable from this
-    /// suite — reverting either to 32-bit arithmetic left everything green.
+    /// Every economy number is swept by a placeholder-sweeping simulator. The 64-bit widening in
+    /// <c>MaxEnergy</c> and the <c>int.MaxValue</c> clamp in <c>ReserveCapacity</c> were both
+    /// unreachable from this suite before this case — reverting either to 32-bit arithmetic left
+    /// everything green.
     /// </summary>
     [Fact]
     public void A_swept_per_level_increment_cannot_wrap_max_energy_negative()
@@ -166,7 +165,7 @@ public sealed class EnergyMathTests
         EnergyMath.MaxEnergy(swept, legendLevel: 200).ShouldBe(200);
     }
 
-    /// <summary>🔒 The companion clamp: `28` C2's dial cannot multiply the Reserve past an int.</summary>
+    /// <summary>The companion clamp: the reserve multiple dial cannot multiply the Reserve past an int.</summary>
     [Fact]
     public void A_swept_reserve_multiple_clamps_rather_than_wrapping()
     {
@@ -178,13 +177,11 @@ public sealed class EnergyMathTests
 
     // ------------------------------------------------------------------ accrual arithmetic
 
-    /// <summary>
-    /// `10` §3 — "Full refill time: 8 hours from empty", at a <b>starting</b> player's tank.
-    /// </summary>
+    /// <summary>Full refill time is 8 hours from empty, at a starting player's tank.</summary>
     /// <remarks>
-    /// 🔒 Eight hours is exactly 120 units and a starting maximum is exactly 120, so the bar fills to
-    /// the brim and not one unit past or short. Under <c>× legendLevel</c> the same case would leave
-    /// them on 120 of 122.
+    /// Eight hours is exactly 120 units and a starting maximum is exactly 120, so the bar fills
+    /// to the brim and not one unit past or short. Under <c>× legendLevel</c> the same case would
+    /// leave them on 120 of 122.
     /// </remarks>
     [Fact]
     public void Eight_hours_fills_a_starting_players_empty_bar_exactly()
@@ -203,7 +200,7 @@ public sealed class EnergyMathTests
             .Banks.ShouldBe(new EnergyBanks(119, 0));
     }
 
-    /// <summary>`10` §3 — one Energy per four minutes, and nothing for the three minutes before it.</summary>
+    /// <summary>One Energy per four minutes, and nothing for the three minutes before it.</summary>
     [Theory]
     [InlineData(0, 0)]
     [InlineData(3, 0)]
@@ -221,9 +218,9 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 `28` C1 — the case the Reserve exists for. Two days away regenerates 720 Energy; before
-    /// the Reserve, 520 of it was discarded. Now 200 sits in the bar and 200 in the Reserve, and
-    /// only the remaining 320 is lost — `28` C2's "maximum banked value: 400 Energy".
+    /// The case the Reserve exists for. Two days away regenerates 720 Energy; before the
+    /// Reserve, 520 of it was discarded. Now 200 sits in the bar and 200 in the Reserve, and only
+    /// the remaining 320 is lost, matching the maximum banked value of 400 Energy.
     /// </summary>
     [Fact]
     public void Two_days_offline_banks_a_full_bar_and_a_full_reserve()
@@ -236,9 +233,9 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 The overflow is discarded past the Reserve cap rather than growing it without bound.
-    /// Three weeks away is 7,560 Energy; `28` C2 is explicit that a player returning after three
-    /// weeks must not find a month of content stacked up.
+    /// The overflow is discarded past the Reserve cap rather than growing it without bound:
+    /// three weeks away is 7,560 Energy, and a player returning must not find a month of content
+    /// stacked up.
     /// </summary>
     [Fact]
     public void Overflow_past_the_reserve_cap_is_discarded_and_the_reserve_does_not_grow()
@@ -258,14 +255,14 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 `28` C2 — <em>"Regenerates: ❌ Never on its own. The Reserve only ever receives what the main
-    /// bar could not hold."</em>
+    /// The Reserve never regenerates on its own — it only ever receives what the main bar could
+    /// not hold.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Stated from a state where the Reserve has <b>room</b> and the main bar is <b>not</b> full,
-    /// the only shape that can tell the difference. Accruing into two already-full banks asserts
-    /// nothing: a Reserve given its own regeneration term is still capped, so the full pair reports
-    /// the same answer either way.
+    /// Stated from a state where the Reserve has room and the main bar is not full, the only
+    /// shape that can tell the difference: accruing into two already-full banks asserts nothing,
+    /// since a Reserve with its own regeneration term is still capped and reports the same
+    /// answer either way.
     /// </remarks>
     [Fact]
     public void The_reserve_never_regenerates_on_its_own()
@@ -311,8 +308,8 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 `28` C2 — the Reserve "fills only while the main bar is at maximum". A partially full bar
-    /// takes everything up to its own maximum before a single point reaches the Reserve.
+    /// The Reserve fills only while the main bar is at maximum: a partially full bar takes
+    /// everything up to its own maximum before a single point reaches the Reserve.
     /// </summary>
     [Fact]
     public void The_main_bar_fills_before_the_reserve_takes_anything()
@@ -325,8 +322,8 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// A Reserve multiple of zero is the "no Reserve" configuration. Everything the bar cannot hold
-    /// is discarded, exactly as `10` §3 read before `28` C resolved it.
+    /// A Reserve multiple of zero is the "no Reserve" configuration: everything the bar cannot
+    /// hold is discarded.
     /// </summary>
     [Fact]
     public void With_no_reserve_authored_the_overflow_is_simply_discarded()
@@ -352,13 +349,13 @@ public sealed class EnergyMathTests
 
     // ------------------------------------------------------------------ grants
 
-    // ⚠️ The three cases below use `10` §3.1's amounts (40 / 20 / 10) as literals, and they are
-    // named for the cascade rather than for the source: nothing here reads
+    // The three cases below use the authored amounts (40 / 20 / 10) as literals, and are named
+    // for the cascade rather than for the source: nothing here reads
     // `progression.json#/energy/sources`, so retuning AD_ENERGY to 30 must not turn a case called
     // "an ad grant of forty" red for the wrong reason. The authored amounts and their per-day caps
-    // are pinned where they live, by EnergyTuningMatchesTuningDataTests in Application.Tests.
+    // are pinned separately, by EnergyTuningMatchesTuningDataTests in Application.Tests.
 
-    /// <summary>`10` §3.1 — a fixed grant fills the main bar before anything else.</summary>
+    /// <summary>A fixed grant fills the main bar before anything else.</summary>
     [Fact]
     public void A_grant_fills_the_bar_first()
     {
@@ -368,8 +365,8 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// `28` C2 — "`AD_ENERGY` grants +40 to the main bar and overflows into the Reserve exactly like
-    /// any other source". Twenty of the forty do not fit, and they bank rather than vanish.
+    /// A grant overflows into the Reserve exactly like any other source. Twenty of the forty do
+    /// not fit, and they bank rather than vanish.
     /// </summary>
     [Fact]
     public void A_grant_the_bar_cannot_hold_overflows_into_the_reserve()
@@ -388,7 +385,7 @@ public sealed class EnergyMathTests
         granted.ShouldBe(new EnergyBanks(200, 200));
     }
 
-    /// <summary>Every `10` §3.1 source routes through the one cascade; only the amount differs.</summary>
+    /// <summary>Every source routes through the one cascade; only the amount differs.</summary>
     [Theory]
     [InlineData(20, 100, 120)]
     [InlineData(10, 100, 110)]
@@ -417,9 +414,7 @@ public sealed class EnergyMathTests
 
     // ------------------------------------------------------------------ refill to full
 
-    /// <summary>
-    /// `10` §3.1 — the daily free refill and the Legend Level-up refill both grant "to full".
-    /// </summary>
+    /// <summary>The daily free refill and the Legend Level-up refill both grant "to full".</summary>
     [Fact]
     public void A_refill_to_full_tops_the_main_bar_up()
     {
@@ -432,10 +427,9 @@ public sealed class EnergyMathTests
     /// <b>zero</b>, so such a refill grants nothing and therefore overflows nothing.
     /// </summary>
     /// <remarks>
-    /// The alternative — a refill granting a whole Max Energy regardless of the bar, so a full-bar
-    /// player banks a second tank — would require inventing an amount no document authors. `28` C2's
-    /// list names the sources that <em>route through</em> the overflow cascade, not sources that
-    /// always produce overflow.
+    /// The alternative — a refill granting a whole Max Energy regardless of the bar, so a
+    /// full-bar player banks a second tank — would require inventing an amount nothing authors.
+    /// The listed sources route through the overflow cascade; they don't always produce overflow.
     /// </remarks>
     [Fact]
     public void A_refill_of_an_already_full_bar_grants_nothing_and_banks_nothing()
@@ -446,9 +440,8 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// The refill routes through the same cascade as every other source, which is the half of
-    /// `28` C2's sentence that is true: one point short of full, the refill grants exactly that one
-    /// point and the Reserve is untouched.
+    /// The refill routes through the same cascade as every other source: one point short of
+    /// full, the refill grants exactly that one point and the Reserve is untouched.
     /// </summary>
     [Fact]
     public void A_refill_grants_exactly_the_deficit_and_never_more()
@@ -478,7 +471,7 @@ public sealed class EnergyMathTests
         spend.DrawnFromReserve.ShouldBe(0);
     }
 
-    /// <summary>`28` C2 — "then from the Reserve for any shortfall. There is no button and no decision."</summary>
+    /// <summary>The Reserve covers any shortfall automatically — no button and no decision.</summary>
     [Fact]
     public void The_reserve_covers_only_the_shortfall()
     {
@@ -501,8 +494,8 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 Unaffordable is a value, not an exception (`30` §2.1), and it leaves both banks exactly
-    /// where they were — a partial draw would charge a player for a run they never got.
+    /// Unaffordable is a value, not an exception, and it leaves both banks exactly where they
+    /// were — a partial draw would charge a player for a run they never got.
     /// </summary>
     [Fact]
     public void A_cost_the_two_banks_together_cannot_cover_is_refused_and_takes_nothing()
@@ -534,11 +527,11 @@ public sealed class EnergyMathTests
         EnergyMath.Spend(new EnergyBanks(10, 9), 20).IsAffordable.ShouldBeFalse();
     }
 
-    /// <summary>`10` §3 — "Runs on a full tank: 6", at a starting player's 120 and 20 per run.</summary>
+    /// <summary>Runs on a full tank: 6, at a starting player's 120 and 20 per run.</summary>
     /// <remarks>
-    /// 🔒 The <c>left</c> assertion is the half that matters: 120 ÷ 20 strands nothing. Under
+    /// The <c>left</c> assertion is the half that matters: 120 ÷ 20 strands nothing. Under
     /// <c>× legendLevel</c> a starting player holds 122 and finishes with 2 Energy they can never
-    /// spend — six runs by count, but not the clean tank `10` §3 describes.
+    /// spend — six runs by count, but not a clean tank.
     /// </remarks>
     [Fact]
     public void A_starting_players_full_tank_pays_for_exactly_six_runs_with_nothing_left()
@@ -551,8 +544,8 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// `28` C2 — "Maximum banked value: 400 Energy = 20 runs". The bar and the Reserve both full at
-    /// the cap pay for twenty runs and not a twenty-first.
+    /// Maximum banked value: 400 Energy = 20 runs. The bar and the Reserve both full at the cap
+    /// pay for twenty runs and not a twenty-first.
     /// </summary>
     [Fact]
     public void A_full_bar_and_a_full_reserve_pay_for_exactly_twenty_runs()
@@ -600,10 +593,10 @@ public sealed class EnergyMathTests
     // ------------------------------------------------------------------ banks as a value
 
     /// <summary>
-    /// 🔒 S2 — the two guards are separate, so each case pins which one fired. Collapsing them into
-    /// one that always reports <c>Energy</c> would otherwise stay green with a wrong diagnostic.
-    /// The names are capitalised because they are positional-record <em>parameters</em>, which is
-    /// the shape <c>CanonicalStateWriter</c> requires (`14` §16.6).
+    /// The two guards are separate, so each case pins which one fired. Collapsing them into one
+    /// that always reports <c>Energy</c> would otherwise stay green with a wrong diagnostic. The
+    /// names are capitalised because they are positional-record parameters, the shape
+    /// <c>CanonicalStateWriter</c> requires.
     /// </summary>
     [Theory]
     [InlineData(-1, 0, "Energy")]
@@ -616,11 +609,10 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 `28` C2's UI reading, and the three hand-written <c>PrintMembers</c> overrides that
-    /// produce it. Each replaces a synthesized one — <c>EnergyBanks</c>' would print nothing at all,
-    /// both its members being <c>internal</c> — and until this case only a <em>failing</em>
-    /// assertion ever invoked them. The repo's precedent is
-    /// <c>GameContextTests.ToString_renders_identically_under_any_culture</c>.
+    /// The UI reading, and the three hand-written <c>PrintMembers</c> overrides that produce it.
+    /// Each replaces a synthesized one — <c>EnergyBanks</c>' would print nothing at all, both its
+    /// members being <c>internal</c> — and until this case only a failing assertion ever invoked
+    /// them.
     /// </summary>
     [Fact]
     public void The_three_energy_values_render_their_own_diagnostics()
@@ -643,10 +635,10 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 `30` §11.5 puts "Energy never exceeds max + reserve" on the <b>aggregate</b>, not here.
-    /// A balance patch that lowered <c>baseMax</c> would otherwise make every rule throw for every
-    /// player already above the new maximum. The rules neither confiscate the excess nor add to it:
-    /// the headroom is simply zero, and the player drains back under the cap by playing.
+    /// "Energy never exceeds max + reserve" is enforced on the aggregate, not here. A balance
+    /// patch that lowered <c>baseMax</c> would otherwise make every rule throw for every player
+    /// already above the new maximum. The rules neither confiscate the excess nor add to it: the
+    /// headroom is simply zero, and the player drains back under the cap by playing.
     /// </summary>
     [Fact]
     public void Banks_above_the_current_maximum_are_left_alone_rather_than_confiscated()
@@ -660,11 +652,9 @@ public sealed class EnergyMathTests
     }
 
     /// <summary>
-    /// 🔒 X-02 / `30` §3 — energy is not a Plus benefit. `28` C2: "`AD_ENERGY` … capped, and
-    /// identical for Plus." Nothing in this surface takes an entitlement, and
+    /// Energy is not a Plus benefit: nothing in this surface takes an entitlement, and
     /// <c>IsolationTests.Entitlements_are_unreachable_from_the_rules_and_the_power_computation</c>
-    /// enforces that structurally from this commit onward — this case states the intent the
-    /// architecture rule protects.
+    /// enforces that structurally — this case states the intent the architecture rule protects.
     /// </summary>
     [Fact]
     public void No_energy_rule_takes_an_entitlement_or_a_game_context()
@@ -684,11 +674,9 @@ public sealed class EnergyMathTests
             .Select(p => p.ParameterType.Name)
             .ToArray();
 
-        // 🔒 The floor, and it is the ENTRY POINTS rather than a count. `ShouldNotBeEmpty` was the
-        // floor here and could not fail: without DeclaredOnly, GetMethods returns object.Equals and
-        // the compiler-generated record-struct plumbing, so deleting every authored method from all
-        // five types still left the array non-empty. Naming the six operations that 10 §3 and 28
-        // Part C between them specify is a floor a rename or a deletion actually breaks.
+        // The floor is the entry points, not a count: without DeclaredOnly, GetMethods returns
+        // object.Equals and record-struct plumbing, so deleting every authored method still left
+        // the array non-empty. Naming the six operations is a floor a rename or deletion breaks.
         methods
             .Where(m => m.DeclaringType == typeof(EnergyMath) && m.IsAssembly && m.IsStatic)
             .Select(m => m.Name)

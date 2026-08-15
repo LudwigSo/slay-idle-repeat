@@ -6,15 +6,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 
-/// <summary>
-/// 🔒 `05` §6's <c>EnemyStats(power, archetype)</c> — the claim that the derivation is
-/// <em>total</em>, checked term by term.
-/// </summary>
+/// <summary><c>EnemyStats(power, archetype)</c> — the claim that the derivation is total, checked term by term.</summary>
 public sealed class EnemyDerivationTests
 {
-    /// <summary>
-    /// `05` §6's four Power-derived terms, at a Power the arithmetic is legible at.
-    /// </summary>
+    /// <summary>The four Power-derived terms, at a Power the arithmetic is legible at.</summary>
     [Fact]
     public void The_four_power_derived_terms_are_05_section_6s_formula()
     {
@@ -27,8 +22,8 @@ public sealed class EnemyDerivationTests
     }
 
     /// <summary>
-    /// 🔒 The four secondaries are the archetype's own values, <b>not</b> scaled by Power — which is
-    /// what makes a <c>REAVER</c> a crit spiker at every chapter rather than only at the last.
+    /// The four secondaries are the archetype's own values, not scaled by Power — which is what
+    /// makes a <c>REAVER</c> a crit spiker at every chapter rather than only at the last.
     /// </summary>
     [Fact]
     public void The_four_secondaries_are_taken_from_the_row_and_never_scaled_by_power()
@@ -47,10 +42,7 @@ public sealed class EnemyDerivationTests
         weak[StatId.CDMG].ShouldBe(1.20, "05 §6.1 — REAVER critDamage, preserved exactly from prose");
     }
 
-    /// <summary>
-    /// 🔒 `05` §6's six invariant stats, including the one that matters: <c>HEAL%</c> is 1.0, and
-    /// `05` §4.3 multiplies every heal by it.
-    /// </summary>
+    /// <summary>The six invariant stats, including the one that matters: <c>HEAL%</c> is 1.0, and every heal is multiplied by it.</summary>
     [Fact]
     public void The_six_stats_05_section_6_fixes_are_the_same_for_every_archetype()
     {
@@ -69,12 +61,9 @@ public sealed class EnemyDerivationTests
         EnemyFixtures.Archetypes.Count.ShouldBe(8, "05 §6.1's table has eight rows and this loop must cover them");
     }
 
-    /// <summary>
-    /// 🔒 A fixed stat that disappeared from the data is a failure, not a zero. `05` §2: <em>"an
-    /// unstated stat is a bug, not a zero."</em>
-    /// </summary>
+    /// <summary>A fixed stat that disappeared from the data is a failure, not a zero.</summary>
     /// <remarks>
-    /// 🔒 The <c>ParamName</c> is what pins which rule fired: <see cref="ActorStats.From"/>'s own
+    /// The <c>ParamName</c> is what pins which rule fired: <see cref="ActorStats.From"/>'s own
     /// missing-stat message carries the same stat name and the same sentence, so deleting
     /// <see cref="EnemyDerivation"/>'s guard entirely would leave this green on <c>ActorStats</c>'s
     /// throw. The document path appears in this message only.
@@ -93,10 +82,7 @@ public sealed class EnemyDerivationTests
         thrown.Message.ShouldContain("an unstated stat is a bug, not a zero", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 `05` §6: <em>"every term rounded to 4 dp (§1.1)"</em>. A block whose terms are not rounded
-    /// cannot be built at all — <see cref="ActorStats"/> refuses it.
-    /// </summary>
+    /// <summary>Every term is rounded to 4 dp. A block whose terms are not rounded cannot be built at all — <see cref="ActorStats"/> refuses it.</summary>
     /// <remarks>
     /// The Power is chosen so that <c>power × 0.045 × 0.85</c> has a fifth decimal place:
     /// <c>1234.5678 × 0.045 × 0.85 = 47.2209...</c>, which rounds and would not otherwise be
@@ -108,11 +94,10 @@ public sealed class EnemyDerivationTests
         var stats = EnemyDerivation.Derive(
             1234.5678, EnemyFixtures.Row(EnemyArchetype.SKIRMISHER), EnemyFixtures.Constants());
 
-        // ⚠️ The loop below cannot fail on its own, and that is recorded rather than pretended
+        // The loop below cannot fail on its own, and that is recorded rather than pretended
         // otherwise: ActorStats.From already refuses an unrounded value, so a derivation that
         // stopped rounding would throw out of Derive rather than reach here. It is kept as the
-        // statement of the claim, FLOORED so it cannot also quantify over nothing — which is the
-        // failure mode it would otherwise have. The assertions that can actually fail are below it.
+        // statement of the claim, floored so it cannot also quantify over nothing.
         stats.Values.Count().ShouldBe(14, "05 §1's actor block is fourteen stats wide");
 
         foreach (var (stat, value) in stats.Values)
@@ -124,10 +109,7 @@ public sealed class EnemyDerivationTests
         stats[StatId.ATK].ShouldNotBe(1234.5678 * 0.045 * 0.85, "the unrounded product would defeat the point");
     }
 
-    /// <summary>
-    /// 🔒 `05` §6.2 — <c>Elite = base archetype × 2.2 power</c>, and the elite multiplier is the
-    /// only thing it multiplies by.
-    /// </summary>
+    /// <summary><c>Elite = base archetype x 2.2 power</c>, and the elite multiplier is the only thing it multiplies by.</summary>
     [Fact]
     public void An_elite_is_its_base_archetypes_statline_at_2_2_power()
     {
@@ -139,7 +121,7 @@ public sealed class EnemyDerivationTests
         var normal = EnemyDerivation.Derive(1000.0, brute, EnemyFixtures.Constants());
         var elite = EnemyDerivation.Derive(elitePower, brute, EnemyFixtures.Constants());
 
-        // ⚠️ Literals, not `normal[stat] * 2.2`. The production order is round-the-power-then-derive
+        // Literals, not `normal[stat] * 2.2`. The production order is round-the-power-then-derive
         // and the derived-then-multiplied order agrees only because BRUTE's coefficients happen to
         // be exact; asserting the second order would drift from the first for an archetype whose
         // product has a fifth decimal place, with no bug present.
@@ -154,9 +136,9 @@ public sealed class EnemyDerivationTests
     }
 
     /// <summary>
-    /// 🔒 `05` §6.3 / `17` §1: a boss's Power <b>already</b> includes its stage multiplier and must
-    /// not be multiplied again. This is stated as an <em>absence</em>: the derivation takes Power as
-    /// a parameter and has no stage term to apply.
+    /// A boss's Power already includes its stage multiplier and must not be multiplied again. This
+    /// is stated as an absence: the derivation takes Power as a parameter and has no stage term to
+    /// apply.
     /// </summary>
     [Fact]
     public void The_derivation_takes_power_as_given_and_has_no_second_stage_multiplier()

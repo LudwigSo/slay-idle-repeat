@@ -8,7 +8,7 @@ public enum ViolationCode
     /// <summary>The register is smaller than its floor, or a canary id has vanished from it.</summary>
     ManifestFloor,
 
-    /// <summary>An asset is delivered and no provenance record names it (`15` §G, `20` §6).</summary>
+    /// <summary>An asset is delivered and no provenance record names it.</summary>
     MissingProvenance,
 
     /// <summary>A record names an asset id the register does not contain.</summary>
@@ -50,10 +50,7 @@ public sealed record ProvenanceViolation(ViolationCode Code, string Subject, str
 }
 
 /// <summary>How much of the register has actually been delivered.</summary>
-/// <remarks>
-/// 🔒 Three states, not a boolean, so that "nothing is delivered" can never be reported with the
-/// same word as "everything is delivered and every one of them has a record".
-/// </remarks>
+/// <remarks>Three states, not a boolean, so "nothing is delivered" can never read the same as "everything is delivered and verified".</remarks>
 public enum DeliveryCoverage
 {
     /// <summary>Zero assets delivered. Declared by <see cref="DeliveryDeclaration"/>.</summary>
@@ -87,10 +84,9 @@ public sealed record ProvenanceGateReport(
     /// over a populated one.
     /// </summary>
     /// <remarks>
-    /// 🔒 <see cref="DeliveredAssets"/> counts FILES; <see cref="CoveredSlots"/> counts distinct
+    /// <see cref="DeliveredAssets"/> counts FILES; <see cref="CoveredSlots"/> counts distinct
     /// uncut register slots those files fill. Only the second may be compared with
-    /// <see cref="ActiveAssets"/> — a thousand copies of one asset, or a thousand files whose stems
-    /// name nothing, must never let this line say COMPLETE.
+    /// <see cref="ActiveAssets"/> — a thousand copies of one asset must never let this say COMPLETE.
     /// </remarks>
     public string Headline() => Coverage switch
     {
@@ -111,77 +107,51 @@ public sealed record ProvenanceGateReport(
     };
 }
 
-/// <summary>
-/// 🔒 The gate: <b>no delivered asset without a provenance record, and no provenance record for an
-/// unknown asset id</b>. `15` §G and `20` §2.1 both call the record a legal prerequisite; this is
-/// the thing that makes it one.
-/// </summary>
+/// <summary>The gate: no delivered asset without a provenance record, and no provenance record for an unknown asset id.</summary>
 /// <remarks>
 /// <para>
-/// <b>Both directions, deliberately.</b> M0-10 established that orphan checking in this repository
-/// runs both ways, and the reason generalises: a one-directional check is how an orphan hides. A
-/// forward-only gate is silent about a record for an asset that was renamed, cut or never existed
-/// — and a record whose asset id nothing resolves is a licence claim about nothing.
+/// Both directions, deliberately: a forward-only gate is silent about a record for an asset that
+/// was renamed, cut or never existed, and a record whose asset id resolves to nothing is a licence
+/// claim about nothing.
 /// </para>
 /// <para>
-/// <b>Cut assets are handled explicitly rather than by accident.</b> The O8 ruling cut all 32 `15`
-/// §E19 sprite sheets (VFX became procedural in-engine work). A cut asset is never delivered, so
-/// the forward direction would never mention it — but a record for one is a defect the reverse
-/// direction has to name as such, not lump in with "unknown id". They mean different things: an
-/// unknown id is a typo or a rename; a cut id is provenance for work that was called off.
+/// Cut assets are handled explicitly rather than lumped in with "unknown". An unknown id is a typo
+/// or a rename; a cut id is provenance for work that was called off — they mean different things.
 /// </para>
 /// </remarks>
 public static class ProvenanceGate
 {
-    /// <summary>
-    /// 🔒 The floor on the subject set (steering S3). M8-09 transcribed 974 art + 106 audio rows =
-    /// 1,080; the floor sits below that so an ordinary correction does not trip it, and far enough
-    /// above zero that a register that failed to load, or one narrowed to a handful of rows, cannot
-    /// let every other rule here pass over nothing.
-    /// </summary>
+    /// <summary>The floor on the subject set, sitting below the register's real size so an ordinary correction does not trip it, and well above zero so a register that failed to load cannot pass every rule below.</summary>
     public const int MinimumRegisteredAssets = 1000;
 
-    /// <summary>
-    /// Named members the register must still contain — the other half of S3. A count alone is
-    /// satisfied by a thousand rows of anything; these are ids `15` §D1 and `20` §3 write out
-    /// literally, so a register that stopped being <em>this</em> register fails even at full size.
-    /// </summary>
+    /// <summary>Named members the register must still contain — a count alone is satisfied by a thousand rows of anything; these are ids the design docs name literally.</summary>
     public static IReadOnlyList<string> CanaryAssetIds { get; } =
     [
-        "chr_hero_body_idle",     // 15 §D1's first worked example
-        "ui_panel_main_9slice",   // 15 §D1, and 15 Part H step 3's gate on all screen work
-        "tile_icon_treasure",     // 15 §D1
-        "mus_home",               // 20 §7 step 1 — the track that defines the audio palette
-        "sfx_crit",               // 20 §5's ducking row names it by id
+        "chr_hero_body_idle",
+        "ui_panel_main_9slice",
+        "tile_icon_treasure",
+        "mus_home",
+        "sfx_crit",
     ];
 
-    /// <summary>
-    /// A cut asset that must still be present-and-cut, so that <see cref="ViolationCode.CutAsset"/>
-    /// keeps having a subject. 🔒 If the O8 ruling is ever reversed this floor fails, which is the
-    /// correct moment to revisit the rule rather than to discover it has been inert for a year.
-    /// </summary>
+    /// <summary>A cut asset that must still be present-and-cut, so <see cref="ViolationCode.CutAsset"/> keeps having a subject.</summary>
     public const string CanaryCutAssetId = "vfx_bleed_loop_sheet";
 
-    /// <summary>
-    /// Where the register lives, for a failure message a reader can act on. 🔒 Qualified with
-    /// <c>game-data/</c>: <see cref="AssetManifestReader.AssetsDirectory"/> and
-    /// <see cref="DeliveredAssets.AssetsDirectory"/> are both the bare string <c>assets</c> and mean
-    /// different directories — the register's is under <c>game-data/</c>, the delivery root is at
-    /// the repository root — and a violation that printed the bare name would send a reader to the
-    /// wrong one.
-    /// </summary>
+    /// <summary>Where the register lives, for a failure message a reader can act on.</summary>
+    /// <remarks>
+    /// Qualified with <c>game-data/</c>: <see cref="AssetManifestReader.AssetsDirectory"/> and
+    /// <see cref="DeliveredAssets.AssetsDirectory"/> are both the bare string <c>assets</c> but mean
+    /// different directories.
+    /// </remarks>
     public const string RegisterLocation = "game-data/" + AssetManifestReader.AssetsDirectory;
 
     /// <summary>Runs the gate.</summary>
-    /// <param name="manifest">M8-09's register — the single source of the asset-id vocabulary.</param>
+    /// <param name="manifest">The register — the single source of the asset-id vocabulary.</param>
     /// <param name="store">The provenance store.</param>
     /// <param name="delivered">The delivery set, from <see cref="DeliveredAssets.Scan"/>.</param>
     /// <param name="awaitingFirstDelivery">
-    /// The declared delivery state. 🔒 Defaults to
-    /// <see cref="DeliveryDeclaration.AwaitingFirstDelivery"/>, which is what every real caller
-    /// uses; it is a parameter only so that the cases can drive the declaration in both directions
-    /// without committing a false one. Taking it as a parameter rather than reading the constant
-    /// directly is the same construction <c>GapRegister.Expired</c> uses, and for the same reason.
+    /// The declared delivery state. Defaults to <see cref="DeliveryDeclaration.AwaitingFirstDelivery"/>;
+    /// taken as a parameter only so tests can drive the declaration in both directions.
     /// </param>
     public static ProvenanceGateReport Run(
         AssetManifestSet manifest,
@@ -218,7 +188,6 @@ public static class ProvenanceGate
             violations);
     }
 
-    /// <summary>🔒 Steering S3 — the subject set has a floor, in both count and membership.</summary>
     private static void CheckRegisterFloor(
         List<ProvenanceViolation> violations,
         AssetManifestSet manifest,
@@ -301,7 +270,7 @@ public static class ProvenanceGate
         }
     }
 
-    /// <summary>`20` §6 — "commercial licence for each tool confirmed in writing".</summary>
+    /// <summary>Commercial licence for each named tool, confirmed in writing.</summary>
     private static void CheckLicences(
         List<ProvenanceViolation> violations,
         ProvenanceRecordSet store,
@@ -323,10 +292,8 @@ public static class ProvenanceGate
                 continue;
             }
 
-            // 🔒 A licence is scoped. `15` §B0 locks Midjourney for ART; whatever eventually
-            // licenses audio (20 §2.1 — nothing does today) will be a separate confirmation with
-            // separate terms. Without this, the day M8-01b confirms Midjourney's art terms, an
-            // audio record naming Midjourney would ride in on an art confirmation.
+            // A licence is scoped by medium: an art confirmation is not evidence about audio, and
+            // an audio record naming a tool licensed only for art must not ride in on that confirmation.
             var expected = medium == AssetMedium.Art ? "art" : "audio";
             if (!string.Equals(licence.AppliesTo, expected, StringComparison.Ordinal))
             {
@@ -360,11 +327,9 @@ public static class ProvenanceGate
     /// something the register knows about.
     /// </summary>
     /// <returns>
-    /// The distinct uncut register slots the delivery set fills, and how many of those slots have
-    /// a provenance record. 🔒 Both are counted over distinct ASSET IDS rather than over files: two
-    /// copies of one asset are one slot, and a file whose stem names no slot fills none. Comparing
-    /// a file count with the register's size is how a report comes to say COMPLETE over a thousand
-    /// misnamed files.
+    /// The distinct uncut register slots the delivery set fills, and how many of those slots have a
+    /// provenance record — both counted over distinct asset ids rather than over files, so two
+    /// copies of one asset are one slot and a misnamed file fills none.
     /// </returns>
     private static (HashSet<string> Covered, int Paired) CheckDeliveries(
         List<ProvenanceViolation> violations,
@@ -392,10 +357,9 @@ public static class ProvenanceGate
                 continue;
             }
 
-            // 🔒 A DELIVERED cut asset, reported here rather than as a missing record. Demanding
+            // A DELIVERED cut asset is reported here rather than as a missing record — demanding
             // provenance for it would contradict the reverse direction, which refuses a record for
-            // a cut asset — the gate would then be telling the author to write a file it also
-            // refuses. The problem is the delivery, not the paperwork.
+            // a cut asset. The problem is the delivery, not the paperwork.
             if (cutIds.Contains(asset.Id))
             {
                 violations.Add(new ProvenanceViolation(
@@ -431,14 +395,10 @@ public static class ProvenanceGate
         return (covered, paired.Count);
     }
 
-    /// <summary>
-    /// The delivered file's format against what the register says the slot is. `15` §D1 delivers
-    /// art as <c>.png</c>; `20` §5 gives music OGG and SFX WAV-in-source/OGG-shipped.
-    /// </summary>
+    /// <summary>The delivered file's format against what the register says the slot is.</summary>
     /// <remarks>
-    /// 🔒 The music rule reads <see cref="AudioAsset.IsMusic"/> rather than re-deriving "starts
-    /// with <c>mus_</c>". The register is the vocabulary (S12), and `20` §5's format column is
-    /// prose that must not be parsed.
+    /// The music rule reads <see cref="AudioAsset.IsMusic"/> rather than re-deriving it from the id
+    /// prefix — the register is the single vocabulary for that distinction.
     /// </remarks>
     private static void CheckDeliveredFormat(
         List<ProvenanceViolation> violations,
@@ -480,9 +440,6 @@ public static class ProvenanceGate
         }
     }
 
-    /// <summary>
-    /// 🔒 Steering S4 — the declared empty-delivery state expires by itself, in both directions.
-    /// </summary>
     private static DeliveryCoverage CheckDeclaration(
         List<ProvenanceViolation> violations,
         bool awaitingFirstDelivery,
@@ -513,9 +470,8 @@ public static class ProvenanceGate
                 "true, or deliver the asset the commit that flipped it was for."));
         }
 
-        // 🔒 COMPLETE is decided by covered SLOTS, never by the file count. Only "nothing at all
-        // was delivered" may be read off the file count, because zero files is zero slots either
-        // way and the distinction the declaration guards is exactly that one.
+        // COMPLETE is decided by covered SLOTS, never by the file count; only "nothing at all was
+        // delivered" may be read off the file count, since zero files is zero slots either way.
         return deliveredCount switch
         {
             0 => DeliveryCoverage.AwaitingFirstDelivery,
@@ -524,11 +480,8 @@ public static class ProvenanceGate
         };
     }
 
-    /// <summary>
-    /// Which register an id belongs to, or null where neither does. 🔒 Resolved through
-    /// <see cref="AssetManifestSet"/> rather than by looking at the id's prefix: the register is
-    /// the vocabulary, and a prefix rule here would be a second, quietly divergent one (S12).
-    /// </summary>
+    /// <summary>Which register an id belongs to, or null where neither does.</summary>
+    /// <remarks>Resolved through <see cref="AssetManifestSet"/> rather than by looking at the id's prefix, since the register is the single vocabulary.</remarks>
     private static AssetMedium? MediumOf(AssetManifestSet manifest, string assetId) =>
         manifest.FindArt(assetId) is not null ? AssetMedium.Art
         : manifest.FindAudio(assetId) is not null ? AssetMedium.Audio

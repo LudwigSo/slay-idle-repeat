@@ -8,35 +8,26 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
-// 🔒 Namespace SlayIdleRepeat.Core.Tests.Rules.Board, not ...Rules.Board.Resolution, and the file
-// still sits under Rules/Board/Resolution/. The same measurement Worlds.cs and Run.cs both record: a
-// child namespace named `Resolution` shadows SlayIdleRepeat.Core.Rules.Board.Resolution for
-// everything inside SlayIdleRepeat.Core.Tests.Rules.Board, so a test written there could not name
-// the very resolver it is testing. The directory is the file layout; the namespace is the layer.
+// Namespace is SlayIdleRepeat.Core.Tests.Rules.Board, not ...Rules.Board.Resolution, even though
+// the file sits under Rules/Board/Resolution/: a child namespace named `Resolution` here would
+// shadow SlayIdleRepeat.Core.Rules.Board.Resolution, so a test written there could not name the
+// very resolver it is testing. The directory is the file layout; the namespace is the layer.
 
-/// <summary>
-/// 🔒 `03` §7a.5 — <c>ShrineResolver</c>'s two-distinct-options draw and its cleanse rule, observed
-/// through <c>RESOLVE_TILE</c>'s effect on the run's `14` §8.1 <c>shrine</c> counter.
-/// </summary>
+/// <summary>Tests <c>ShrineResolver</c>'s two-distinct-options draw and its cleanse rule.</summary>
 /// <remarks>
-/// ⚠️ The resolver itself is reached through the handler rather than called directly, because the
-/// draw's whole observable consequence today is <b>the stream position</b> — the offer is returned,
-/// not persisted, and a heal has no domain event. The counter is what a client replaying this tile
-/// has to agree with, so it is the honest subject.
+/// The resolver is reached through the handler rather than called directly, because the draw's
+/// only observable consequence today is the RNG stream position — the offer is returned, not
+/// persisted, and a heal has no domain event.
 /// </remarks>
 public sealed class ShrineResolverTests
 {
     private static CommandResult Resolve(WorldSlice state) =>
         SlayIdleRepeat.Core.GameRules.Apply(state, new ResolveTileCommand(), TileWorlds.Context);
 
-    /// <summary>
-    /// 🔒 With no cleansable curse, a shrine takes exactly TWO draws — `03` §7a.5's two distinct
-    /// options.
-    /// </summary>
+    /// <summary>With no cleansable curse, a shrine takes exactly two draws (its two distinct options).</summary>
     /// <remarks>
-    /// ⚠️ This is the mutation probe's target. Inverting the cleanse condition makes this one draw,
-    /// and the cleanse case below two — so the pair fails together and neither can be satisfied by
-    /// the other's behaviour.
+    /// Inverting the cleanse condition would make this one draw and the cleanse case below two, so
+    /// the pair fails together and neither can be satisfied by the other's behaviour.
     /// </remarks>
     [Fact]
     public void A_shrine_with_no_cleansable_curse_takes_two_draws()
@@ -46,15 +37,11 @@ public sealed class ShrineResolverTests
         result.NewState.Run!.StreamPosition(RngStreams.Shrine).ShouldBe(2UL);
     }
 
-    /// <summary>
-    /// 🔒 …and the cleanse branch takes exactly ONE, because slot 2 is DECIDED rather than drawn.
-    /// </summary>
+    /// <summary>The cleanse branch takes exactly one draw, because slot 2 is decided rather than drawn.</summary>
     /// <remarks>
-    /// ⚠️ <b>The handler passes <c>hasCleansableCurse: false</c> today and cannot pass anything
-    /// else</b> — <c>Run</c> holds no curse list (M3-11's <c>Curses</c> gap) — so this case is
-    /// asserted against the resolver's parameter directly. It is the branch that will go live the day
-    /// M3-11 lands, and drawing-and-discarding instead would desync the stream from a client that
-    /// also skips it, for the rest of the run.
+    /// <c>Run</c> holds no curse list yet, so the handler always passes <c>hasCleansableCurse: false</c>
+    /// and this case is asserted against the resolver's parameter directly. Drawing-and-discarding
+    /// instead of skipping would desync the RNG stream from a client that also skips it.
     /// </remarks>
     [Fact]
     public void A_shrine_with_a_cleansable_curse_takes_one_draw_and_offers_a_cleanse()
@@ -85,14 +72,11 @@ public sealed class ShrineResolverTests
         scope.FinalPositions()[RngStreams.Shrine].ShouldBe(2UL);
     }
 
-    /// <summary>
-    /// 🔒 `03` §7a.5's "2 DISTINCT options" — the two slots are never the same buff, whatever the
-    /// seed.
-    /// </summary>
+    /// <summary>The two offered slots are never the same buff, whatever the seed.</summary>
     /// <remarks>
-    /// ⚠️ This is what the sampling-without-replacement remap exists for, and the seeds are swept
-    /// rather than fixed because the remap's off-by-one only bites when the second reduced draw lands
-    /// at or above the first index — a single seed would miss it most of the time.
+    /// This is what the sampling-without-replacement remap exists for. Seeds are swept rather than
+    /// fixed because the remap's off-by-one only bites when the second reduced draw lands at or
+    /// above the first index — a single seed would miss it most of the time.
     /// </remarks>
     [Fact]
     public void The_two_offered_buffs_are_always_distinct()
@@ -109,10 +93,7 @@ public sealed class ShrineResolverTests
         }
     }
 
-    /// <summary>
-    /// 🔒 …and the second slot genuinely reaches every OTHER index, including the one immediately
-    /// after the first — the value the remap has to step past.
-    /// </summary>
+    /// <summary>The second slot reaches every other index, including the one immediately after the first.</summary>
     [Fact]
     public void The_second_slot_reaches_every_other_buff()
     {
@@ -131,7 +112,7 @@ public sealed class ShrineResolverTests
         seen.Count.ShouldBe(10, "every one of 03 §7a.5's ten buffs must be reachable in slot 2");
     }
 
-    /// <summary>🔒 The draw is deterministic for a fixed seed.</summary>
+    /// <summary>The draw is deterministic for a fixed seed.</summary>
     [Fact]
     public void The_shrine_draw_is_deterministic_for_a_fixed_seed()
     {
@@ -150,7 +131,7 @@ public sealed class ShrineResolverTests
     }
 
     /// <summary>
-    /// 🔒 A drawn healing row heals immediately — <c>SHR_HEAL</c> (40% of Max HP) and <c>SHR_HP</c>
+    /// A drawn healing row heals immediately — <c>SHR_HEAL</c> (40% of Max HP) and <c>SHR_HP</c>
     /// (18%) are the two rows that carry an <c>immediateHealPctMaxHp</c>.
     /// </summary>
     [Fact]
@@ -168,15 +149,10 @@ public sealed class ShrineResolverTests
         healed.ShouldContain(10, "…and one that offered neither healing row heals nothing");
     }
 
-    /// <summary>
-    /// 🔒 `03` §7a.5 offers TWO options and applies exactly ONE — a shrine never heals twice.
-    /// </summary>
+    /// <summary>A shrine offers two options and applies exactly one — it never heals twice.</summary>
     /// <remarks>
-    /// ⚠️ <b>The regression test for a real over-payment.</b> The resolver used to apply the
-    /// immediate heal of BOTH drawn rows, so an offer of <c>SHR_HEAL</c> (40%) beside <c>SHR_HP</c>
-    /// (18%) healed 58% of the bar — more than any single option pays, and a state §7a.5 has no
-    /// reading under which a player reaches: they take one of the two. 40% of a 100 HP bar from 10
-    /// is the most any shrine can leave, so a 68 anywhere in this sweep is that bug returning.
+    /// Regression test for a real bug: the resolver used to apply the immediate heal of BOTH
+    /// drawn rows, so <c>SHR_HEAL</c> (40%) beside <c>SHR_HP</c> (18%) healed 58% of the bar.
     /// </remarks>
     [Fact]
     public void A_shrine_applies_exactly_one_of_its_two_offers()
@@ -192,7 +168,7 @@ public sealed class ShrineResolverTests
         }
     }
 
-    /// <summary>🔒 …and an immediate heal is clamped at Max HP rather than overhealing.</summary>
+    /// <summary>An immediate heal is clamped at Max HP rather than overhealing.</summary>
     [Fact]
     public void An_immediate_heal_never_exceeds_max_hp()
     {
@@ -205,10 +181,7 @@ public sealed class ShrineResolverTests
         }
     }
 
-    /// <summary>
-    /// 🔒 A shrine moves no currency, ever — the stat half of `03` §7a.5's buffs is deliberately not
-    /// applied and pays nothing in its place.
-    /// </summary>
+    /// <summary>A shrine moves no currency, ever.</summary>
     [Fact]
     public void A_shrine_moves_no_currency()
     {

@@ -4,7 +4,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Dice;
 
-/// <summary>`04` §1's <c>DieFace</c> struct: Pip faces carry a value, special faces carry a tier.</summary>
+/// <summary>The <c>DieFace</c> struct: Pip faces carry a value, special faces carry a tier.</summary>
 public sealed class DieFaceTests
 {
     [Theory]

@@ -1,36 +1,23 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
-/// <summary>
-/// 🔒 The 44 operations of `18` §2 — the complete verb vocabulary of the effect DSL.
-/// </summary>
+/// <summary>The 44 operations — the complete verb vocabulary of the effect DSL.</summary>
 /// <remarks>
 /// <para>
-/// `18`'s headnote is what this enum exists to make true: <em>"There is no per-perk, per-talent or
-/// per-boss code. If a design cannot be expressed in this DSL, the DSL is extended — the design is
-/// never special-cased."</em> A closed enum is the mechanism: an op that is not a member cannot be
-/// authored, and `18` §10 step 1 makes that the intended failure — <em>"write the design as JSON
-/// using a new op name and let the schema validation fail"</em>.
+/// There is no per-perk, per-talent or per-boss code. If a design cannot be expressed in this DSL,
+/// the DSL is extended — the design is never special-cased. A closed enum is the mechanism: an op
+/// that is not a member cannot be authored, and adding one means writing the design as JSON with a
+/// new op name and letting schema validation fail until the enum, schema and resolver all extend.
 /// </para>
 /// <para>
-/// 🔒 <b>44, in five families.</b> `18` §11 fixes the count and its arithmetic: <em>"44 ops = 41 +
-/// <c>CLEAR_SUMMONS</c> + <c>STAT_COPY</c> + <c>RANDOM_OUTCOME</c>"</em>. The families are §2.1 stat
-/// (6), §2.2 damage and healing (7), §2.3 status (6), §2.4 combat-flow (12) and §2.5 run and board
-/// (13) — 6+7+6+12+13. Two §2.5 ops share one table row (<c>APPLY_CURSE</c> /
-/// <c>CLEANSE_CURSE</c>), which is why a row count of the tables gives 43 and the op count gives 44.
+/// The numbers are wire values, on the same rule as <see cref="Primitives.CurrencyId"/>: append,
+/// never renumber, never reuse. No <c>0</c> member, so an uninitialised field cannot read as a real
+/// op. The declaration order below is documentation only — nothing in the game orders effects by
+/// op; effects are ordered by effect id, ordinally, through <see cref="EffectOrder"/>.
 /// </para>
 /// <para>
-/// 🔒 <b>The numbers are wire values</b>, on the same rule as
-/// <see cref="Primitives.CurrencyId"/>: append, never renumber, never reuse. No <c>0</c> member, so
-/// an uninitialised field cannot read as a real op. The declaration order is `18` §2's, which is
-/// documentation only — nothing in the game orders effects by op. `18` §8 orders by <em>effect
-/// id</em>, ordinally, through <see cref="EffectOrder"/>.
-/// </para>
-/// <para>
-/// ⚠️ Declaring an op is not implementing it. M2-01 declares 43 and M2-12 the forty-fourth; §2.5's
-/// thirteen run and board
-/// ops are <em>"resolved by the run controller, never by the combat simulator"</em>, and that
-/// controller is M3 over an aggregate that is M1-05. A declared op with no resolver is the correct
-/// state until then.
+/// Declaring an op is not implementing it: the run-and-board family is resolved by the run
+/// controller, never by the combat simulator, and a declared op with no resolver yet is a correct,
+/// intermediate state.
 /// </para>
 /// </remarks>
 public enum EffectOp
@@ -80,7 +67,7 @@ public enum EffectOp
 
     // ---------------------------------------------------------------- §2.3 status (6)
 
-    /// <summary>Apply one of the 12 statuses of `05` §5.</summary>
+    /// <summary>Apply one of the 12 statuses.</summary>
     APPLY_STATUS = 14,
 
     /// <summary>Clear a status or a tag group.</summary>
@@ -122,30 +109,28 @@ public enum EffectOp
     SUMMON = 26,
 
     /// <summary>
-    /// Adjust targeting weight (Sporequeen — `17` §8). `05` §3.2: the hero targets the enemy with
-    /// the highest <c>targetPriority</c>, ties broken by lowest current HP; the default is 0,
-    /// <c>-1</c> deprioritises (sporelings) and <c>+1</c> forces focus.
+    /// Adjust targeting weight. The hero targets the enemy with the highest
+    /// <c>targetPriority</c>, ties broken by lowest current HP; the default is 0, <c>-1</c>
+    /// deprioritises and <c>+1</c> forces focus.
     /// </summary>
     SET_TARGET_PRIORITY = 27,
 
     /// <summary>
-    /// Multiply incoming damage (Rimehold's Core — `17` §6). A state flag on the actor, not a
-    /// second actor: ×1.6 incoming, with no change to targeting.
+    /// Multiply incoming damage. A state flag on the actor, not a second actor: e.g. ×1.6 incoming,
+    /// with no change to targeting.
     /// </summary>
     DAMAGE_TAKEN_MULT = 28,
 
     /// <summary>
     /// Despawn all living summons owned by the target (default <c>SELF</c>). Despawned ≠ killed: no
-    /// <c>ON_DEATH</c>, no <c>ON_KILL</c>, no on-death explosions, no rewards (Ossuary King's Rise
-    /// Again — `17` §4).
+    /// <c>ON_DEATH</c>, no <c>ON_KILL</c>, no on-death explosions, no rewards.
     /// </summary>
     CLEAR_SUMMONS = 29,
 
     /// <summary>
-    /// Copy <c>value</c> × the copy-source's <b>final resolved</b> stat onto the holder as a
-    /// percent-bucket add for <c>duration</c>. Reads the start-of-tick snapshot, so mutual copies
-    /// cannot recurse. <c>stat</c> may be a stat name or <c>HIGHEST_PCT_BONUS</c> (Cogitator's
-    /// Recalibrate — `17` §7; <c>PK_PACK_LEADER</c> copying the hero's CRIT to pets).
+    /// Copy <c>value</c> × the copy-source's final resolved stat onto the holder as a percent-bucket
+    /// add for <c>duration</c>. Reads the start-of-tick snapshot, so mutual copies cannot recurse.
+    /// <c>stat</c> may be a stat name or <c>HIGHEST_PCT_BONUS</c>.
     /// </summary>
     STAT_COPY = 30,
 
@@ -190,33 +175,30 @@ public enum EffectOp
     /// <summary>Run-scoped curse handling — cleanse.</summary>
     CLEANSE_CURSE = 43,
 
-    // ------------------------------------------------- §2.4 combat-flow, the 18 §10 E6 extension
+    // ------------------------------------------------- §2.4 combat-flow, a later extension
     //
-    // 🔒 Declared HERE and not among its family above because the numbers are wire values: append,
+    // Declared HERE and not among its family above because the numbers are wire values: append,
     //    never renumber (see the type remarks). Its family is COMBAT_FLOW all the same —
     //    EffectOps.FamilyOf is the authority, never the position in this file.
 
     /// <summary>
-    /// 🔒 <b>The forty-fourth op, added by M2-12 under `18` §10 (extension E6).</b> Draw <b>one</b>
-    /// value from the battle's combat stream over the <c>outcomes</c> weight table and fire the
-    /// single effect it names — `17` §9's Dicelord <em>Roll of Fate</em>, one visible d6 with three
-    /// <b>mutually exclusive</b> weighted outcomes.
+    /// The forty-fourth op. Draws one value from the battle's combat stream over the
+    /// <c>outcomes</c> weight table and fires the single effect it names — one visible die with
+    /// mutually exclusive weighted outcomes.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>Why three <c>chance</c>-gated effects are not this op.</b> `18` §4's conditions are
-    /// <em>"pure functions of current state"</em> and a draw is not state, so three gated effects are
-    /// three <b>independent</b> draws: all three can fire, or none can, and neither is a d6. They
-    /// would also spend <b>three</b> draw indices where `14` §8.0's <c>WeightedPick</c> spends
-    /// <b>one</b>, and the draw counter is the persisted state of the stream — so the two readings
-    /// desynchronise every later draw of the battle.
+    /// Why three <c>chance</c>-gated effects are not this op: conditions are pure functions of
+    /// current state and a draw is not state, so three gated effects are three independent draws —
+    /// all three can fire, or none can, and neither is a die roll. They would also spend three draw
+    /// indices where a single weighted pick spends one, desynchronising every later draw of the
+    /// battle.
     /// </para>
     /// <para>
-    /// ⚠️ Carries <b>no <c>value</c></b>: the table is the new <c>outcomes</c> key
-    /// (<see cref="EffectDefinition.Outcomes"/>), and each row names a <b>sibling</b> effect id —
-    /// declared by the same owning content — rather than embedding an effect object inside an effect
-    /// (<see cref="RandomOutcomeEntry"/> states why). Its own number is the <b>1-based index</b> of
-    /// the row that won.
+    /// Carries no <c>value</c>: the table is the new <c>outcomes</c> key
+    /// (<see cref="EffectDefinition.Outcomes"/>), and each row names a sibling effect id rather than
+    /// embedding an effect object inside an effect (<see cref="RandomOutcomeEntry"/> states why).
+    /// Its own number is the 1-based index of the row that won.
     /// </para>
     /// </remarks>
     RANDOM_OUTCOME = 44,

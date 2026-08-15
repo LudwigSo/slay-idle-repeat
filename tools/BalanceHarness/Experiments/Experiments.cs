@@ -5,54 +5,34 @@ using SlayIdleRepeat.BalanceHarness.Sweep;
 
 namespace SlayIdleRepeat.BalanceHarness.Experiments;
 
-/// <summary>
-/// 🔒 `21` §3.2's two measurements — <b>measure, never retune</b>.
-/// </summary>
+/// <summary>Two balance measurements — measure, never retune.</summary>
 /// <remarks>
-/// Both experiments report a difference and stop. Neither writes a number anywhere, neither proposes
-/// one, and neither is an assertion: `21` §3.2 keeps tuning out of code, and steering S6 forbids
-/// filling a documented hole with a plausible value. The output is evidence for a design decision.
+/// Both experiments report a difference and stop; neither writes a number anywhere or proposes one.
+/// The output is evidence for a design decision, not the decision itself.
 /// </remarks>
 public static class BalanceExperiments
 {
-    /// <summary>🔒 `17` §2 — Thornmaw's phase-3 RAGE effect, the subject of the `05` §5 hole.</summary>
+    /// <summary>Thornmaw's phase-3 RAGE effect, whose decay curve is not authored.</summary>
     public const string ThornmawRageEffectId = "BOSS_THORNMAW_P3_RAGE";
 
     /// <summary>The script that carries it.</summary>
     public const string ThornmawScriptId = "BOSS_THORNMAW";
 
-    /// <summary>🔒 `17` §1 — the three points of the authored 25-35% adds band.</summary>
+    /// <summary>The three points of the authored 25-35% adds band.</summary>
     public static IReadOnlyList<double> AddsFractionProbes { get; } = [0.25, 0.30, 0.35];
 
     /// <summary>
-    /// 🔒 <b>The <c>RAGE</c> hole.</b> A/B Thornmaw at par with the shipped script against one whose
-    /// phase-3 <c>RAGE</c> is removed.
+    /// The <c>RAGE</c> hole: A/B Thornmaw at par with the shipped script against one whose phase-3
+    /// <c>RAGE</c> is removed.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// `05` §5 says <c>RAGE</c> <em>"decays over D s"</em> and states no curve; M2-10 left the decay
-    /// <c>null</c> and greppable rather than inventing one. Thornmaw's phase 3 authors a
-    /// <c>RAGE +30% ATK</c> with a <c>PHASE</c>-scoped duration, so what actually runs is a buff at
-    /// full strength for the whole of phase 3 — <b>stronger than `05` §5 specifies</b>, because the
-    /// decay that would weaken it does not exist. Chapter 1's guardrails 3 and 4 are therefore
-    /// measuring a fight with an over-strong buff in it.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>This quantifies the hole; it does not fill it.</b> Removing the effect is not a proposal
-    /// to remove it — it is the only way to bound how much of Chapter 1's measured duration is the
-    /// missing decay curve. The difference between the two arms is an upper bound on what authoring
-    /// any decay could change.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>Why the multiple is a parameter and why it must not always be 1.0.</b> `17` §1's phases
-    /// are HP bands — phase 2 at 66% boss HP, phase 3 at 33% — so a hero that dies having removed 14%
-    /// of the boss's health never reaches the phase the <c>RAGE</c> lives in, and the A/B measures a
-    /// difference of exactly <b>zero</b> because the effect never fires. That is what happens at par
-    /// on the shipped data. The experiment is therefore run twice: once at par, which is what `05` §9
-    /// asks and which reports the null result together with its cause; and once at the multiple where
-    /// the build actually reaches phase 3, which is the only place the question <em>"how much is the
-    /// undecayed RAGE worth?"</em> has an answer at all.
-    /// </para>
+    /// Thornmaw's phase 3 authors a <c>RAGE +30% ATK</c> with a PHASE-scoped duration but no decay
+    /// curve, so what runs is a buff at full strength for all of phase 3 — stronger than intended.
+    /// Removing the effect is not a proposal to remove it; it bounds how much of the measured duration
+    /// is the missing decay. Boss phases are HP bands, so a build that dies before phase 3 never
+    /// triggers the effect and the A/B reads a difference of exactly zero for the wrong reason — the
+    /// experiment therefore runs once at par (reporting that null result and its cause) and once at
+    /// the multiple where the build actually reaches phase 3.
     /// </remarks>
     /// <param name="runner">The sweep runner.</param>
     /// <param name="dataRoot">The <c>game-data</c> root the override is layered over.</param>
@@ -90,9 +70,7 @@ public static class BalanceExperiments
         var arms = new List<ExperimentArm>();
         foreach (var archetype in runner.Calibration.Archetypes)
         {
-            // 🔒 The SAME multiple for both arms of one archetype, so the pair differs only in the
-            // effect. Different archetypes get different multiples because they reach phase 3 at
-            // different powers, which is what the pairing is protecting.
+            // Same multiple for both arms of one archetype, so the pair differs only in the effect.
             var multiple = multipleFor(chapter, archetype.Id);
 
             arms.Add(Arm(
@@ -111,19 +89,12 @@ public static class BalanceExperiments
             arms);
     }
 
-    /// <summary>
-    /// 🔒 <b><c>addsPowerFraction</c>.</b> Every summoning boss at par at 0.25 / 0.30 / 0.35.
-    /// </summary>
+    /// <summary><c>addsPowerFraction</c>: every summoning boss at par at 0.25 / 0.30 / 0.35.</summary>
     /// <remarks>
-    /// `17` §1 gives a 25-35% band and names no number; all five summoners are authored at the 0.30
-    /// midpoint, and M2-13 recorded the choice as <em>"the harness's to retune"</em>. This measures
-    /// the clear-rate and median-duration sensitivity across the band and reports it. It changes
-    /// nothing: `21` §3.2 keeps tuning out of code, and the decision is design's.
-    /// <para>
-    /// 🔴 The same reason as <see cref="Rage"/>'s: four of the five summons are <c>ON_PHASE_ENTER</c>
-    /// phase 2 or 3, so at par they never fire and all three fractions measure identically. Run at
-    /// par <b>and</b> at the multiple that reaches the later phases.
-    /// </para>
+    /// Measures clear-rate and median-duration sensitivity across the band; changes nothing. As with
+    /// <see cref="Rage"/>, four of the five summons are <c>ON_PHASE_ENTER</c> phase 2 or 3, so at par
+    /// they never fire and all three fractions measure identically — run at par and at the multiple
+    /// that reaches the later phases.
     /// </remarks>
     /// <param name="runner">The sweep runner.</param>
     /// <param name="dataRoot">The <c>game-data</c> root the override is layered over.</param>
@@ -183,8 +154,8 @@ public static class BalanceExperiments
     }
 
     /// <summary>
-    /// 🔴 One arm, or a fault line in its place — an engine fault in one arm must not delete the
-    /// other arms' evidence.
+    /// One arm, or a fault line in its place — an engine fault in one arm must not delete the other
+    /// arms' evidence.
     /// </summary>
     private static ExperimentArm Arm(string label, (CellResult? Cell, string? Fault) run) =>
         run.Cell is null
@@ -198,14 +169,10 @@ public static class BalanceExperiments
             cell.MaxBossPhaseReached, cell.Phase3Share);
 
     /// <summary>
-    /// ⚠️ The median over <b>every</b> fight, cleared or not.
+    /// The median over every fight, cleared or not — reported alongside the cleared median because
+    /// when nothing clears, the cleared median is <c>NaN</c> for both arms and would hide a real A/B
+    /// difference. Not what guardrails 3 and 4 are stated over.
     /// </summary>
-    /// <remarks>
-    /// Reported alongside the cleared median because on the shipped data no arm clears anything, and
-    /// the cleared median is then <c>NaN</c> for both arms — which would make an A/B that genuinely
-    /// moved the fight look like it moved nothing. Time-to-death is a real and comparable quantity
-    /// even when the clear rate is zero. It is NOT what guardrails 3 and 4 are stated over.
-    /// </remarks>
     private static double MedianAllSeconds(CellResult cell)
     {
         var all = cell.Fights.Select(f => f.Seconds).ToArray();
@@ -232,9 +199,9 @@ public sealed record ExperimentComparison(string Title, IReadOnlyList<Experiment
 /// <param name="P90ClearedSeconds">p90 over cleared fights.</param>
 /// <param name="Clears">How many cleared.</param>
 /// <param name="Fights">How many ran.</param>
-/// <param name="MedianAllSeconds">⚠️ Median over ALL fights — see the remarks on the producer.</param>
-/// <param name="MaxBossPhase">🔴 The highest boss phase any fight in the arm reached.</param>
-/// <param name="Phase3Share">🔴 The share of fights that reached phase 3.</param>
+/// <param name="MedianAllSeconds">Median over ALL fights — see the remarks on the producer.</param>
+/// <param name="MaxBossPhase">The highest boss phase any fight in the arm reached.</param>
+/// <param name="Phase3Share">The share of fights that reached phase 3.</param>
 public sealed record ExperimentArm(
     string Label,
     double ClearRate,

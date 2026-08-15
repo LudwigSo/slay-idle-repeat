@@ -4,83 +4,39 @@ using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Core;
 
-/// <summary>
-/// 🔒 `30` §3 — everything ambient, as data. <em>"This is the part that most often gets missed, and
-/// it is where 'playable in memory' is actually won or lost."</em>
-/// </summary>
+/// <summary>Everything ambient a rule might need, as data rather than a call.</summary>
 /// <remarks>
 /// <para>
-/// 🔒 The rule that generalises the whole type (`30` §3): <b>if a rule needs to know something
-/// about the outside world, that something is an argument, not a call.</b> Five members, and each
-/// of them is a value precisely because the alternative is a call:
-/// </para>
-/// <list type="bullet">
-///   <item><b>Time</b> is <see cref="NowUtc"/>, not <c>IClockPort</c>. Energy regeneration, the
-///   05:00 UTC daily resets, event windows (`26` §4), guild weeks (`27` §4), PvP seasons
-///   (`11` §5.3) and subscription expiry (`12` §2.2) are all time-dependent rules, and a rule that
-///   calls a clock is not pure. <c>IClockPort</c> remains — the <b>composition root</b> calls it and
-///   puts the answer here. There is deliberately no <c>GameContext.Now()</c>.</item>
-///   <item><b>Randomness</b> is <see cref="CommandSeed"/>, and only for meta commands — see its own
-///   remarks.</item>
-///   <item><b>Content</b> is a version-stamped <see cref="ContentSnapshot"/>. Loading JSON is I/O
-///   and belongs in an adapter; <em>reading</em> content is a rule (`14` §6). The stamp is what
-///   makes a replayed command reproduce its original outcome after a balance patch.</item>
-///   <item><b>Entitlement</b> is a read-only <see cref="Core.Entitlements"/> the server resolved —
-///   readable by the ad-grant cap rule alone (`30` §3).</item>
-///   <item><b>Feature flags</b> are a resolved <see cref="FeatureFlags"/> value. The domain must
-///   not call a config service mid-rule.</item>
-/// </list>
-/// <para>
-/// 🔒 The guards live in the <c>init</c> accessors, not in property initializers, so they run on the
-/// <c>with</c> path too. An initializer runs only in the primary constructor; the synthesized copy
-/// constructor copies backing fields and then calls the plain <c>init</c> setters, so
-/// <c>context with { Content = null! }</c> would otherwise produce a context with a hole — and the
-/// guarantee below would be false exactly where nobody was looking.
+/// Time, randomness, content, entitlement and flags are all values resolved once by the
+/// composition root, not calls a rule can make mid-execution — the thing that keeps rules pure
+/// and replayable. There is deliberately no <c>GameContext.Now()</c> or similar.
 /// </para>
 /// <para>
-/// ⚠️ <b>Value equality here is shallow, and the shallowness is stated rather than fixed.</b>
-/// <see cref="NowUtc"/> and <see cref="CommandSeed"/> compare by value; <see cref="Content"/>,
-/// <see cref="Core.Entitlements"/> and <see cref="Flags"/> declare no equality of their own and so
-/// compare <b>by reference</b>. Two contexts describing the same ambience but built from separately
-/// constructed members are <em>not</em> equal. <c>Entitlements</c> cannot have value equality at all
-/// (see its own remarks), and nothing in the domain compares two contexts. Code that must compare a
-/// replayed context against a recorded one compares <c>Content.Version</c> and the flag members
-/// explicitly.
+/// The guards live in the <c>init</c> accessors rather than property initializers, so they still
+/// run on the <c>with</c> path (a synthesized copy constructor calls the <c>init</c> setters, not
+/// the initializers, so <c>context with { Content = null! }</c> would otherwise slip through).
+/// </para>
+/// <para>
+/// Equality here is shallow: <see cref="NowUtc"/> and <see cref="CommandSeed"/> compare by value,
+/// but <see cref="Content"/>, <see cref="Core.Entitlements"/> and <see cref="Flags"/> compare by
+/// reference. Two contexts describing the same ambience but built from separate instances are not
+/// equal; nothing in the domain compares two contexts.
 /// </para>
 /// </remarks>
-/// <param name="NowUtc">
-/// The instant this command is being applied at, as the composition root read it from
-/// <c>IClockPort</c>. A value, never a call (`30` §3). 🔒 Must carry a zero offset — see
-/// <c>RequireUtc</c>.
-/// </param>
+/// <param name="NowUtc">The instant this command is being applied at. Must carry a zero UTC offset.</param>
 /// <param name="CommandSeed">
-/// 🔒 The server-issued per-command seed. <b>Meta commands only — <c>null</c> on every run
-/// command</b>, and the nullability is load-bearing (`14` §8.1, `30` §3).
-/// <para>
-/// Two regimes. <b>In-run draws never touch this.</b> Draw <c>i</c> of stream <c>s</c> is
-/// <c>Hash64(runSeed, s, i)</c>, where the <c>Run</c> aggregate holds <c>runSeed</c> and the
-/// persisted per-stream counters — both authoritative run state, not ambience. <b>Meta draws</b> —
-/// wheel spins, container opens, the <c>BEGIN_SESSION</c> quest and Daily-shop draw — are
-/// <c>Hash64(CommandSeed, s, i)</c> with <c>i</c> starting at 0 for each command and no persisted
-/// counter; the command is atomic and idempotency replays its stored outcome, so a meta draw can
-/// never be re-rolled by resubmission.
-/// </para>
-/// <para>
-/// The seed is generated by the server host and <b>never by the domain</b>: the invariant behind
-/// both regimes is that the domain never invents entropy. A non-nullable <c>ulong</c> here would
-/// make "no seed" unrepresentable and force the host to invent one for the run commands that must
-/// not have one — and <c>0</c> is a legitimate seed, not an absence. The pairing rule — which
-/// commands carry a seed — is pinned by <c>CommandSeedPinTests</c> in
-/// <c>SlayIdleRepeat.Core.Tests</c>, and has been live over all 49 rows of `14` §2.3 since M1-02:
-/// every <c>CommandKind.Run</c> row is refused a seed, and exactly the nine ⚄ meta rows require one.
-/// </para>
+/// The server-issued per-command seed, present only for meta commands (<c>null</c> on every run
+/// command). In-run draws never touch this — they derive from the run's own seed and persisted
+/// per-stream counters. Meta draws (wheel spins, container opens, etc.) derive from this seed with
+/// a counter that starts at 0 each command and is never persisted, since the command is atomic and
+/// idempotency replays its stored outcome rather than re-rolling on resubmission.
 /// </param>
 /// <param name="Content">The loaded, validated, version-stamped content this command reads.</param>
 /// <param name="Entitlements">
-/// The subscription entitlement the server resolved. Read-only to the domain, and readable at all
-/// by exactly one rule (`30` §3).
+/// The subscription entitlement the server resolved. Read-only to the domain, and readable by
+/// exactly one rule.
 /// </param>
-/// <param name="Flags">The `14` §14 kill switches, resolved at the composition root.</param>
+/// <param name="Flags">The kill switches, resolved at the composition root.</param>
 public sealed record GameContext(
     DateTimeOffset NowUtc,
     ulong? CommandSeed,
@@ -126,30 +82,10 @@ public sealed record GameContext(
     }
 
     /// <summary>
-    /// 🔒 Renders the context with <see cref="CultureInfo.InvariantCulture"/> and the round-trip
-    /// <c>"O"</c> format, so a context reads the same on a German laptop and in the Linux container.
+    /// Renders the context with <see cref="CultureInfo.InvariantCulture"/> and the round-trip
+    /// <c>"O"</c> format, so it reads the same regardless of the host's locale. Entitlements are
+    /// deliberately not rendered; content is shown as its version stamp only.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// A record's synthesized <c>PrintMembers</c> appends <see cref="NowUtc"/> through
-    /// <c>StringBuilder.Append(object)</c>, which formats with the <em>ambient</em> culture:
-    /// <c>12.08.2026 05:00:00 +00:00</c> under <c>de-DE</c> against <c>08/12/2026 …</c> invariant.
-    /// The boxing hides that from
-    /// <c>AmbientApiTests.Core_and_Application_contain_no_culture_sensitive_formatting</c>, which
-    /// matches a call whose declaring type is <c>System.DateTimeOffset</c>. `14` §8.2 wants `Core`
-    /// rendering identically everywhere, so it is fixed here rather than left in the one place that
-    /// rule cannot see.
-    /// </para>
-    /// <para>
-    /// The entitlement is deliberately <b>not</b> rendered: no diagnostic needs it, and reading it
-    /// here would put a read of the Plus flag into a `Core` method for nothing. Content is rendered
-    /// as its version stamp, which is the only part of a snapshot that identifies it.
-    /// </para>
-    /// <para>
-    /// <c>private</c>, not <c>protected override</c>: this record is <c>sealed</c>, and the compiler
-    /// requires the sealed form of the hook (CS8879).
-    /// </para>
-    /// </remarks>
     private bool PrintMembers(StringBuilder builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
@@ -170,20 +106,14 @@ public sealed record GameContext(
         value ?? throw new ArgumentNullException(parameterName);
 
     /// <summary>
-    /// 🔒 Refuses an instant that is not stated in UTC. <c>DateTimeOffset</c> keeps its offset, and
-    /// every wall-clock rule in the game — the 05:00 UTC daily reset above all — reads components
-    /// off this value, so <c>06:00 +02:00</c> and <c>06:00 +00:00</c> are two different game days
-    /// while naming instants two hours apart. Normalising silently would hide a miswired adapter;
-    /// this names it at the boundary where it was introduced.
+    /// Refuses an instant not stated in UTC. Wall-clock rules read components off this value
+    /// directly, so a non-zero offset would silently roll the game day early rather than fail loudly.
     /// </summary>
     private static DateTimeOffset RequireUtc(DateTimeOffset nowUtc) =>
         nowUtc.Offset == TimeSpan.Zero
             ? nowUtc
-            // 🔒 ArgumentOutOfRangeException, matching Player.RequireZeroOffset,
-            // Run.RequireZeroOffset and VirtualClock.RequireStart — all four guard the identical
-            // condition, and this one alone threw a different type, so a host catching the family
-            // to map "a bad instant crossed the boundary" caught three of the four. It also carries
-            // the offending value, which ArgumentException drops.
+            // Matches Player.RequireZeroOffset, Run.RequireZeroOffset and VirtualClock.RequireStart
+            // in throw type, so a host catching the family sees all four consistently.
             : throw new ArgumentOutOfRangeException(
                 nameof(NowUtc),
                 nowUtc,

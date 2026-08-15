@@ -10,14 +10,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// 🔒 `30` §11.3 — <c>Player.Rehydrate</c> is <em>"one validated entry point for every persisted state
-/// in the game — a corrupt row fails loudly at the seam rather than silently three rules later."</em>
-/// One assertion per way a row can be wrong.
+/// <c>Player.Rehydrate</c> is one validated entry point for every persisted state: a corrupt row
+/// fails loudly at the seam rather than silently three rules later. One assertion per way a row
+/// can be wrong.
 /// </summary>
 /// <remarks>
-/// 🔒 Every failure assertion pins <b>which</b> validation fired. <c>Rehydrate</c> reports every fault
-/// it finds rather than the first, so a test that only checked <c>IsFailure</c> would pass for a row
-/// invalid in some entirely different way.
+/// Every failure assertion pins <b>which</b> validation fired. <c>Rehydrate</c> reports every
+/// fault it finds rather than the first, so a test that only checked <c>IsFailure</c> would pass
+/// for a row invalid in some entirely different way.
 /// </remarks>
 public sealed class PlayerRehydrateTests
 {
@@ -67,25 +67,23 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 An unknown <c>SchemaVersion</c> hard-fails, and the message says there is no migration rather
-    /// than reading the row anyway.
+    /// An unknown <c>SchemaVersion</c> hard-fails, and the message says there is no migration
+    /// rather than reading the row anyway.
     /// </summary>
     /// <remarks>
     /// Both directions — a row from the future (a client that downgraded) and one from the past.
     /// Reading either against the current layout shifts every field after the first change by one.
     /// <para>
-    /// 🔒 The "one past the current" row is an expression, not a literal: as <c>[InlineData(2)]</c> it
-    /// silently stopped being a wrong version when the schema bumped to 2, and a literal 3 would have
-    /// kept passing while asserting nothing about the boundary it names.
+    /// The "one past the current" row is an expression, not a literal: a hard-coded literal would
+    /// silently stop being a wrong version the next time the schema bumped, and would keep passing
+    /// while asserting nothing about the boundary it names.
     /// </para>
     /// </remarks>
     [Theory]
     [InlineData(0)]
 
-    // 🔒 The version this build ORPHANS. M1-09 bumped 1 -> 2 with no migration, so a row stamped 1
-    // is real on-disk data this build cannot read — the exact case SnapshotSchema's history
-    // paragraph and SnapshotFieldOrder.json's preamble both claim is "refused loudly". Nothing
-    // asserted it until the M1-09 review asked.
+    // The version this build orphans: a row stamped with the previous schema version is real
+    // on-disk data this build cannot read without a migration.
     [InlineData(SnapshotSchema.SchemaVersion - 1)]
     [InlineData(SnapshotSchema.SchemaVersion + 1)]
     [InlineData(int.MaxValue)]
@@ -101,14 +99,13 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 The version check runs <b>first and alone</b>: a row from another schema is refused for
+    /// The version check runs <b>first and alone</b>: a row from another schema is refused for
     /// being from another schema, not for whatever its fields happen to look like under this
     /// layout.
     /// </summary>
     /// <remarks>
-    /// Steering <b>S2</b>. Without this, a wrong-version row that also had, say, a blank display
-    /// name could report the blank name and let a reader "fix" the row instead of the version —
-    /// and the test above would still pass, because its fragment would be in the joined message.
+    /// Without this, a wrong-version row that also had, say, a blank display name could report the
+    /// blank name and let a reader "fix" the row instead of the version.
     /// </remarks>
     [Fact]
     public void A_wrong_SchemaVersion_is_reported_alone_and_not_alongside_field_faults()
@@ -133,10 +130,7 @@ public sealed class PlayerRehydrateTests
             .IsSuccess.ShouldBeTrue();
     }
 
-    /// <summary>
-    /// 🔒 <c>default(PlayerId)</c> never ran <c>PlayerId</c>'s constructor, so its <c>Value</c> is
-    /// null. <c>PlayerId</c>'s own remarks name this seam as the one that has to catch it.
-    /// </summary>
+    /// <summary><c>default(PlayerId)</c> never ran <c>PlayerId</c>'s constructor, so its <c>Value</c> is null.</summary>
     [Fact]
     public void A_default_PlayerId_is_refused_because_its_constructor_never_ran()
     {
@@ -147,9 +141,9 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// A blank display name is refused — and nothing else about the name is. ⚠️ `16` <b>O34</b>
-    /// leaves the name lifecycle open and M4-10 owns the profanity filter, so a rule here would be
-    /// inventing one (S6).
+    /// A blank display name is refused — and nothing else about the name is. The name lifecycle
+    /// and profanity filter are open questions owned elsewhere, so a rule here would be inventing
+    /// one.
     /// </summary>
     [Theory]
     [InlineData("")]
@@ -165,9 +159,9 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// ⚠️ The converse, and it is the assertion that keeps the name rule honest: a name this
-    /// milestone has no authority to judge is <b>accepted</b>. Duplicates, punctuation, mixed
-    /// scripts and 400 characters all load, because `16` O34 has not ruled and M1-04 must not.
+    /// The converse, and it is the assertion that keeps the name rule honest: a name outside this
+    /// aggregate's authority is <b>accepted</b>. Duplicates, punctuation, mixed scripts and 400
+    /// characters all load.
     /// </summary>
     [Theory]
     [InlineData("x")]
@@ -181,12 +175,12 @@ public sealed class PlayerRehydrateTests
             .Rehydrate(PlayerSnapshots.With(displayName: displayName), Content)
             .Value;
 
-        player.DisplayName.ShouldBe(displayName, "16 O34 is open: the name is stored, never edited.");
+        player.DisplayName.ShouldBe(displayName, "the name is stored, never edited.");
     }
 
     /// <summary>
-    /// `07` §1.1 — a Legend Level outside the authored range is refused, and the message quotes
-    /// the JSON pointers the range came from rather than a constant in code.
+    /// A Legend Level outside the authored range is refused, and the message quotes the JSON
+    /// pointers the range came from rather than a constant in code.
     /// </summary>
     [Theory]
     [InlineData(0)]
@@ -216,13 +210,13 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 The range is read from the content set, not hard-coded: a data set that authors a
+    /// The range is read from the content set, not hard-coded: a data set that authors a
     /// different maximum moves what this seam accepts.
     /// </summary>
     /// <remarks>
     /// The half that proves <c>LegendTuning</c> is actually consulted. Without it, a
     /// <c>const int MaxLegendLevel = 200</c> in the aggregate would satisfy every other assertion
-    /// in this file — and `21` §3.1 calls a tunable in code a bug.
+    /// in this file.
     /// </remarks>
     [Fact]
     public void The_Legend_Level_range_comes_from_the_content_set_and_not_from_a_constant()
@@ -241,7 +235,7 @@ public sealed class PlayerRehydrateTests
         Core.Model.Player.Rehydrate(atFiftyOne, Content).IsSuccess.ShouldBeTrue();
     }
 
-    /// <summary>Legend XP is lifetime banked income (`02` §5.1a); it is never negative.</summary>
+    /// <summary>Legend XP is lifetime banked income; it is never negative.</summary>
     [Fact]
     public void Negative_Legend_XP_is_refused()
     {
@@ -252,13 +246,12 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 `02` §2's <c>runCounter</c> — the lifetime runs-started counter — is never negative, and
-    /// <c>BeginRun</c> advances it and answers the value the run is seeded with.
+    /// The lifetime runs-started counter is never negative, and <c>BeginRun</c> advances it and
+    /// answers the value the run is seeded with.
     /// </summary>
     /// <remarks>
-    /// It is on <c>Player</c> and nowhere else: <c>runSeed = Hash64(playerId, chapterId, tierId,
-    /// utcUnixSeconds, runCounter)</c> needs it before the <c>Run</c> exists and after it ends, and
-    /// a period-cleared counter map would reset it. M1-05 cannot write <c>START_RUN</c> without it.
+    /// It is on <c>Player</c> and nowhere else: <c>runSeed</c> needs it before the <c>Run</c>
+    /// exists and after it ends, and a period-cleared counter map would reset it.
     /// </remarks>
     [Fact]
     public void The_lifetime_runs_started_counter_advances_and_is_never_negative()
@@ -275,7 +268,7 @@ public sealed class PlayerRehydrateTests
         player.ToSnapshot().RunsStarted.ShouldBe(42);
     }
 
-    /// <summary>The counter refuses to wrap: `02` §2 feeds it into <c>runSeed</c>.</summary>
+    /// <summary>The counter refuses to wrap: it feeds into <c>runSeed</c>.</summary>
     [Fact]
     public void The_lifetime_runs_started_counter_refuses_to_wrap()
     {
@@ -289,9 +282,9 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// ⚠️ A <b>content</b> defect throws rather than failing. A corrupt row is one player's
-    /// problem and belongs in a <c>Result</c>; a data set with no authored Legend Level range is
-    /// every player's problem and belongs at the composition root that loaded it.
+    /// A <b>content</b> defect throws rather than failing. A corrupt row is one player's problem
+    /// and belongs in a <c>Result</c>; a data set with no authored Legend Level range is every
+    /// player's problem and belongs at the composition root that loaded it.
     /// </summary>
     [Fact]
     public void An_unauthorised_tunable_throws_rather_than_becoming_a_row_level_failure()
@@ -316,8 +309,8 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 Every fault the row has is reported, not just the first. A row is usually corrupt in
-    /// more than one way, and one round trip per defect is one too many once it is in production.
+    /// Every fault the row has is reported, not just the first. A row is usually corrupt in more
+    /// than one way, and one round trip per defect is one too many once it is in production.
     /// </summary>
     [Fact]
     public void Every_fault_is_reported_rather_than_only_the_first()

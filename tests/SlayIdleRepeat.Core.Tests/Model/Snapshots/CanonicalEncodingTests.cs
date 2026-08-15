@@ -6,9 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
-/// <summary>
-/// 🔒 The scalar rules of the `14` §16.6 table, asserted as <b>bytes</b> rather than as hashes.
-/// </summary>
+/// <summary>The scalar encoding rules, asserted as <b>bytes</b> rather than as hashes.</summary>
 /// <remarks>
 /// A hash test tells you something moved; a byte test tells you what. The shapes easiest to get
 /// subtly right-looking and wrong — a negative integer zero-extended, a string counted in characters,
@@ -16,7 +14,6 @@ namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 /// </remarks>
 public sealed class CanonicalEncodingTests
 {
-    /// <summary>🔒 An integer is widened to 8 bytes little-endian.</summary>
     [Fact]
     public void CanonicalBytes_widens_an_int_to_eight_little_endian_bytes()
     {
@@ -26,9 +23,8 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 A <b>negative</b> int is <b>sign</b>-extended, never zero-extended. The single easiest
-    /// rule in §16.6 to implement plausibly and wrongly: a zero-extending encoder produces stable,
-    /// self-consistent hashes that disagree with every other implementation.
+    /// A <b>negative</b> int is <b>sign</b>-extended, never zero-extended. A zero-extending encoder
+    /// produces stable, self-consistent hashes that disagree with every other implementation.
     /// </summary>
     [Fact]
     public void CanonicalBytes_sign_extends_a_negative_int()
@@ -47,7 +43,7 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).ShouldBe("feffffffffffffff");
     }
 
-    /// <summary>`14` §16.6 — an unsigned integer is zero-extended, the mirror of the rule above.</summary>
+    /// <summary>An unsigned integer is zero-extended, the mirror of the rule above.</summary>
     [Fact]
     public void CanonicalBytes_zero_extends_an_unsigned_int()
     {
@@ -56,7 +52,7 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).ShouldBe("ffffffff00000000");
     }
 
-    /// <summary>`14` §16.6 — every integral width widens to the same 8 bytes for the same value.</summary>
+    /// <summary>Every integral width widens to the same 8 bytes for the same value.</summary>
     [Theory]
     [InlineData((sbyte)-1)]
     [InlineData((short)-1)]
@@ -69,7 +65,7 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).ShouldBe("ffffffffffffffff");
     }
 
-    /// <summary>`14` §16.6 — a <see cref="ulong"/> survives its full range, uninterpreted.</summary>
+    /// <summary>A <see cref="ulong"/> survives its full range, uninterpreted.</summary>
     [Fact]
     public void CanonicalBytes_writes_the_full_ulong_range()
     {
@@ -78,7 +74,7 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).ShouldBe("ffffffffffffffff");
     }
 
-    /// <summary>🔒 A boolean is <b>one</b> byte — not a widened integer.</summary>
+    /// <summary>A boolean is <b>one</b> byte — not a widened integer.</summary>
     [Theory]
     [InlineData(true, "01")]
     [InlineData(false, "00")]
@@ -89,7 +85,7 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).ShouldBe(expected);
     }
 
-    /// <summary>🔒 An enum is its numeric value, 8 bytes — never its name and never its ordinal.</summary>
+    /// <summary>An enum is its numeric value, 8 bytes — never its name and never its ordinal.</summary>
     [Fact]
     public void CanonicalBytes_writes_an_enum_as_its_numeric_value()
     {
@@ -116,10 +112,7 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).ShouldBe("ffffffffffffffff");
     }
 
-    /// <summary>
-    /// An enum and the plain integer of the same value encode identically. §16.6 pins the value,
-    /// not the declared type — so the table's rows for the two must agree, and here they do.
-    /// </summary>
+    /// <summary>An enum and the plain integer of the same value encode identically — only the value is pinned, not the declared type.</summary>
     [Fact]
     public void CanonicalBytes_writes_an_enum_and_its_numeric_value_identically()
     {
@@ -130,7 +123,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 A string is a 4-byte little-endian <b>byte</b> count then the UTF-8 bytes. The count is
+    /// A string is a 4-byte little-endian <b>byte</b> count then the UTF-8 bytes. The count is
     /// bytes, not characters: this input is 9 characters and 15 bytes, so a <c>char</c>-counting
     /// encoder writes <c>09</c> here and is wrong in a way no ASCII test can see.
     /// </summary>
@@ -163,7 +156,7 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).ShouldBe("01" + "00000000");
     }
 
-    /// <summary>🔒 An empty string and an absent string are different states and different bytes.</summary>
+    /// <summary>An empty string and an absent string are different states and different bytes.</summary>
     [Fact]
     public void CanonicalBytes_keeps_an_empty_string_and_an_absent_string_apart()
     {
@@ -188,7 +181,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 A timestamp is Unix <b>milliseconds</b> UTC, 8 bytes little-endian. 2024-06-01T12:04:56.789Z
+    /// A timestamp is Unix <b>milliseconds</b> UTC, 8 bytes little-endian. 2024-06-01T12:04:56.789Z
     /// is 1717243496789 ms, whose little-endian pattern is the literal below.
     /// </summary>
     [Fact]
@@ -212,7 +205,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 Milliseconds, not seconds. One second past the epoch is 1000, and an encoder that wrote
+    /// Milliseconds, not seconds. One second past the epoch is 1000, and an encoder that wrote
     /// seconds would produce <c>01</c> here — a difference no epoch-only test can see.
     /// </summary>
     [Fact]
@@ -235,8 +228,8 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 The same instant expressed in a different offset is the same bytes — "UTC" in §16.6 means
-    /// the instant, not the local wall clock the value happens to be wearing.
+    /// The same instant expressed in a different offset is the same bytes — "UTC" means the
+    /// instant, not the local wall clock the value happens to be wearing.
     /// </summary>
     [Fact]
     public void CanonicalBytes_normalises_a_timestamp_offset_to_the_same_instant()
@@ -265,7 +258,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 A <see cref="DateTime"/> that is not UTC is refused. A <c>Local</c> or
+    /// A <see cref="DateTime"/> that is not UTC is refused. A <c>Local</c> or
     /// <c>Unspecified</c> value names a different instant on a server in Frankfurt than on a
     /// handset in Auckland, so it has no canonical encoding at all.
     /// </summary>
@@ -281,7 +274,7 @@ public sealed class CanonicalEncodingTests
         Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*Utc*");
     }
 
-    /// <summary>🔒 A present optional is the presence byte <c>0x01</c>, then the value.</summary>
+    /// <summary>A present optional is the presence byte <c>0x01</c>, then the value.</summary>
     [Fact]
     public void CanonicalBytes_writes_a_present_optional_as_one_then_the_value()
     {
@@ -290,7 +283,7 @@ public sealed class CanonicalEncodingTests
         Hex(bytes).ShouldBe("01" + "0100000000000000");
     }
 
-    /// <summary>🔒 An absent optional is the presence byte <c>0x00</c> and nothing else.</summary>
+    /// <summary>An absent optional is the presence byte <c>0x00</c> and nothing else.</summary>
     [Fact]
     public void CanonicalBytes_writes_an_absent_optional_as_a_single_zero_byte()
     {
@@ -300,7 +293,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 A present <b>zero</b> is not an absence. The bug this catches — writing nothing for a
+    /// A present <b>zero</b> is not an absence. The bug this catches — writing nothing for a
     /// default value — leaves a state where "no gold recorded" and "zero gold" hash alike.
     /// </summary>
     [Fact]
@@ -323,7 +316,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 A double is the IEEE-754 bit pattern of the stored value, 8 bytes little-endian. The
+    /// A double is the IEEE-754 bit pattern of the stored value, 8 bytes little-endian. The
     /// expectation is the literal pattern, not <c>BitConverter</c> re-run over the same input —
     /// restating the encoding with the primitive the writer itself uses proves nothing.
     /// </summary>
@@ -336,10 +329,10 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 The writer <b>never rounds</b>, and never re-derives a double from its decimal text.
+    /// The writer <b>never rounds</b>, and never re-derives a double from its decimal text.
     /// <c>0.1</c> is already at 4 dp yet has no exact binary representation, so its stored pattern
     /// ends <c>…999a</c>; a writer that round-tripped through a decimal form, or rounded again,
-    /// would emit a neighbouring pattern and hide the very drift the determinism CI exists to catch.
+    /// would emit a neighbouring pattern and hide the drift determinism checks exist to catch.
     /// </summary>
     [Fact]
     public void CanonicalBytes_writes_the_exact_stored_pattern_of_a_double_binary_cannot_represent()
@@ -350,13 +343,12 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 §16.6 — <c>-0.0</c> is <b>refused</b>. It is the one value where record equality and
+    /// <c>-0.0</c> is <b>refused</b>. It is the one value where record equality and
     /// <c>stateHash</c> disagree (<c>-0.0 == 0.0</c> is <c>true</c> in C#), so two snapshots the
-    /// language calls identical would carry different hashes. Encoding it is a false divergence in
-    /// the parity checks; normalising it is the writer silently editing state on its way out.
+    /// language calls identical would carry different hashes.
     /// </summary>
     /// <remarks>
-    /// Reachable from `14` §8.2's own rounding rule, not only a hand-written literal:
+    /// Reachable from the rounding rule itself, not only a hand-written literal:
     /// <c>Math.Round(-0.00004, 4)</c> yields <c>-0.0</c> and .NET preserves the sign. Built through
     /// <see cref="BitConverter"/> because the compiler folds a <c>-0.0</c> literal in some positions.
     /// </remarks>
@@ -376,7 +368,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// The way <c>-0.0</c> actually arrives: `14` §8.2 rounds at every accumulation point, and
+    /// The way <c>-0.0</c> actually arrives: rounding happens at every accumulation point, and
     /// <c>Math.Round(-0.00004, 4)</c> is a negative zero. A stat that drifts a hair below zero on
     /// one host and not the other must fail loudly here, not diverge quietly downstream.
     /// </summary>
@@ -392,8 +384,8 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 And <c>+0.0</c> is unaffected — eight zero bytes, as before. The refusal above is about
-    /// the sign bit alone, not about zero.
+    /// <c>+0.0</c> is unaffected — eight zero bytes, as before. The refusal above is about the
+    /// sign bit alone, not about zero.
     /// </summary>
     [Fact]
     public void CanonicalBytes_writes_positive_zero_as_eight_zero_bytes()
@@ -404,9 +396,9 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 §16.6 — a double that is not already rounded to 4 dp is a bug at its accumulation point,
-    /// and the writer says so in debug builds rather than encoding it. Asserted through a
-    /// conditional throwing guard rather than <c>Debug.Assert</c>, which would kill the test host.
+    /// A double that is not already rounded to 4 dp is a bug at its accumulation point, and the
+    /// writer says so in debug builds rather than encoding it. Asserted through a conditional
+    /// throwing guard rather than <c>Debug.Assert</c>, which would kill the test host.
     /// </summary>
     [Fact]
     public void CanonicalBytes_refuses_a_double_that_is_not_rounded_to_four_decimal_places()
@@ -434,7 +426,7 @@ public sealed class CanonicalEncodingTests
         Should.NotThrow(act);
     }
 
-    /// <summary>🔒 §16.6 — NaN is forbidden in state. CI fails on it; so does the writer.</summary>
+    /// <summary>NaN is forbidden in state. CI fails on it; so does the writer.</summary>
     [Fact]
     public void CanonicalBytes_refuses_NaN()
     {
@@ -443,7 +435,7 @@ public sealed class CanonicalEncodingTests
         Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*NaN*");
     }
 
-    /// <summary>🔒 §16.6 — the infinities are forbidden in state, both of them.</summary>
+    /// <summary>The infinities are forbidden in state, both of them.</summary>
     [Theory]
     [InlineData(double.PositiveInfinity)]
     [InlineData(double.NegativeInfinity)]
@@ -469,7 +461,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 Fields are written in <b>declaration order</b>, depth-first: the root's fields in order,
+    /// Fields are written in <b>declaration order</b>, depth-first: the root's fields in order,
     /// descending into each nested record where it is declared rather than after the root's own.
     /// </summary>
     [Fact]
@@ -488,7 +480,7 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 Moving a field between two records changes the byte stream even when the flattened field
+    /// Moving a field between two records changes the byte stream even when the flattened field
     /// list would look the same. Depth-first means the shape is part of the encoding.
     /// </summary>
     [Fact]
@@ -531,24 +523,17 @@ public sealed class CanonicalEncodingTests
         _ => throw new InvalidOperationException($"No fixture for {value.GetType()}."),
     };
 
-    /// <summary>
-    /// 🔒 <c>EnergyBanks</c> (M1-10) has the positional shape `14` §16.6 requires, so
-    /// <c>PlayerSnapshot</c> can carry it.
-    /// </summary>
+    /// <summary><c>EnergyBanks</c> has the positional shape a snapshot requires, so <c>PlayerSnapshot</c> can carry it.</summary>
     /// <remarks>
-    /// <para>
     /// This is the case the type's <b>shape</b> exists for, and it is asserted rather than assumed.
-    /// <c>EnergyBanks</c> was first written as an <c>internal</c> record struct with <c>internal</c>
-    /// properties, which <see cref="CanonicalStateWriter.CanonicalProperties"/> refuses — a
+    /// A type first written as an <c>internal</c> record struct with <c>internal</c> properties
+    /// would be refused by <see cref="CanonicalStateWriter.CanonicalProperties"/> — a
     /// <c>BindingFlags.Public</c> lookup finds neither property, the type falls off the closed
     /// allowlist, and the first person to put one in a snapshot discovers it has no canonical
-    /// encoding. <c>PlayerId</c>'s remarks record the same trap; this pins the answer for the type
-    /// M1-04 will actually persist.
-    /// </para>
+    /// encoding.
     /// <para>
     /// Two banks, two 8-byte little-endian fields, in <b>constructor</b> order — <c>Energy</c> then
-    /// <c>Reserve</c>. Swapping the two parameters moves these bytes, which is exactly the
-    /// <c>SchemaVersion</c> change `14` §16.6 wants to be impossible to make silently.
+    /// <c>Reserve</c>. Swapping the two parameters moves these bytes.
     /// </para>
     /// </remarks>
     [Fact]
@@ -568,9 +553,9 @@ public sealed class CanonicalEncodingTests
     }
 
     /// <summary>
-    /// 🔒 The converse, and the reason a byte test beats a "does it throw" test: neither bank is
+    /// The converse, and the reason a byte test beats a "does it throw" test: neither bank is
     /// silently omitted. A field that contributed zero bytes would let two states record equality
-    /// calls different share a <c>stateHash</c> — the one failure a state hash may never have.
+    /// calls different share a <c>stateHash</c>.
     /// </summary>
     [Fact]
     public void CanonicalBytes_distinguishes_EnergyBanks_that_differ_in_either_bank()
@@ -582,8 +567,8 @@ public sealed class CanonicalEncodingTests
         Hex(Bytes(new EnergyBanks(138, 201))).ShouldNotBe(
             baseline, "the Energy Reserve contributed no bytes.");
 
-        // 🔒 And the two banks are not interchangeable: (138, 200) and (200, 138) hold different
-        // amounts of spendable Energy in different places and must not collide.
+        // The two banks are not interchangeable: (138, 200) and (200, 138) hold different amounts
+        // of spendable Energy in different places and must not collide.
         Hex(Bytes(new EnergyBanks(200, 138))).ShouldNotBe(baseline);
 
         static byte[] Bytes(EnergyBanks banks) =>

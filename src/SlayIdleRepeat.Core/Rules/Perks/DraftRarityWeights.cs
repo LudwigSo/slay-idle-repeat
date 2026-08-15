@@ -3,24 +3,15 @@ using SlayIdleRepeat.Core.Content.Perks;
 namespace SlayIdleRepeat.Core.Rules.Perks;
 
 /// <summary>
-/// 🔒 M3-06, `06` §4 — <c>RarityWeights(stage, isElite, isBoss)</c>, transcribed verbatim from the
-/// spec table. Pure data-driven weighting; no <c>LuckService</c> involved (that milestone's eight
-/// composition rules are <see cref="DraftCompositionRules"/>'s, not this table's).
+/// <c>RarityWeights(stage, isElite, isBoss)</c>, transcribed verbatim from the design table. Pure
+/// data-driven weighting; no luck-protection service involved.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The elite shift is implemented literally, not derived.</b> `06` §4's own text for an elite
-/// battle is <em>"shift one band upward (Commons halved, Legendary ×2)"</em> — a description of the
-/// net effect, followed by exactly two concrete operations. Rare and Epic are not given deltas, so
-/// this reads the two stated operations and leaves Rare/Epic at the stage's base weight rather than
-/// inventing a redistribution the spec does not write down (steering S6). If a future kickoff rules
-/// a fuller shift, this is the one place that changes.
-/// </para>
-/// <para>
-/// A boss battle's table ignores <paramref name="stage"/> entirely — `06` §4 authors one boss table,
-/// not one per stage, and the boss node carries no stage of its own (<c>Run.PendingTileStage</c>'s
-/// <c>BossStage</c> sentinel).
-/// </para>
+/// The elite shift is implemented literally, not derived: the design describes it as "shift one
+/// band upward" but gives only two concrete operations (Commons halved, Legendary ×2), so Rare and
+/// Epic are left at the stage's base weight rather than inventing a redistribution the design
+/// doesn't specify. A boss battle's table ignores <paramref name="stage"/> entirely, since the boss
+/// node carries no stage of its own.
 /// </remarks>
 internal static class DraftRarityWeights
 {
@@ -48,7 +39,7 @@ internal static class DraftRarityWeights
             (PerkRarity.Epic, 55), (PerkRarity.Legendary, 45),
         });
 
-    /// <summary>`06` §4's weight table for one draft slot.</summary>
+    /// <summary>The weight table for one draft slot.</summary>
     /// <param name="stage">1, 2 or 3. Ignored when <paramref name="isBoss"/> is true.</param>
     /// <param name="isElite">Whether the just-won battle was an Elite tile.</param>
     /// <param name="isBoss">Whether the just-won battle was the Boss tile. Wins over <paramref name="isElite"/>.</param>

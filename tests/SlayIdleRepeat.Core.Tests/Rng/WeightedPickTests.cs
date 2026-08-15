@@ -5,14 +5,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rng;
 
 /// <summary>
-/// 🔒 `14` §8.0 — <c>WeightedPick</c>. <b>ONE draw</b>: <c>x = unit interval × Σ weights</c>;
-/// walk the table in order; the first item whose cumulative weight <i>exceeds</i> <c>x</c>.
+/// <c>WeightedPick</c>: one draw. <c>x = unit interval × Σ weights</c>; walk the table in order;
+/// the first item whose cumulative weight exceeds <c>x</c>.
 /// </summary>
 /// <remarks>
 /// Two draws would be the natural implementation (one to choose, one to break a tie) and would
-/// quietly break the persisted counter for every stream a weighted pick ever touches. The
-/// walk's semantics matter as much: strict <c>&gt;</c> is what makes a zero-weight row
-/// unreachable rather than reachable-only-at-exactly-zero.
+/// quietly break the persisted counter for every stream a weighted pick ever touches. Strict
+/// <c>&gt;</c> in the walk is what makes a zero-weight row unreachable rather than
+/// reachable-only-at-exactly-zero.
 /// </remarks>
 public sealed class WeightedPickTests
 {
@@ -21,7 +21,6 @@ public sealed class WeightedPickTests
     /// <summary>The largest value <c>NextDouble</c> can produce: 1 − 2^-53.</summary>
     private const double TopOfUnitInterval = 1.0 - (1.0 / 9007199254740992.0);
 
-    /// <summary>🔒 One draw, not two.</summary>
     [Fact]
     public void WeightedPick_consumes_exactly_one_draw_index()
     {
@@ -63,9 +62,8 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// 🔒 A zero-weight row is unreachable — anywhere in the table, at any draw. Content leaves
-    /// weights at zero to disable a row, and a disabled row that can still be picked is a bug
-    /// that surfaces once in ten thousand runs.
+    /// A zero-weight row is unreachable, anywhere in the table, at any draw — content leaves
+    /// weights at zero to disable a row.
     /// </summary>
     [Theory]
     [InlineData(0)]
@@ -107,14 +105,10 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// 🔒 The top of the range must still land on the last weighted item — never on nothing, never on
-    /// an exception.
+    /// The top of the range must still land on the last weighted item, never on nothing and never
+    /// on an exception: whether <c>x = (1 − 2^-53) × Σ</c> stays strictly below the final
+    /// cumulative weight is not guaranteed by the arithmetic, and a naive walk can run off the end.
     /// </summary>
-    /// <remarks>
-    /// The terminating case is the one the arithmetic cannot guarantee: whether
-    /// <c>x = (1 − 2^-53) × Σ</c> stays strictly below the final cumulative weight depends on the order
-    /// Σ was accumulated in versus the order the walk goes, and a naive walk can run off the end.
-    /// </remarks>
     [Fact]
     public void The_walk_does_not_fall_off_the_end_at_the_top_of_the_unit_interval()
     {
@@ -171,15 +165,10 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// 🔒 The pick is taken at <b>this draw's</b> unit interval — the value <c>NextDouble</c> would have
-    /// returned, not some other function of the draw.
+    /// The pick is taken at this draw's unit interval — the value <c>NextDouble</c> would have
+    /// returned, not some other function of the draw. Deriving <c>x</c> from <c>NextUInt</c>, or
+    /// from <c>draw % Σ</c>, would satisfy every other test here.
     /// </summary>
-    /// <remarks>
-    /// Nothing else pins that link: deriving <c>x</c> from <c>NextUInt</c>, or from <c>draw % Σ</c>,
-    /// satisfies every other test here and still moves every drop, draft and treasure table in the
-    /// game. The table is ten equal rows so a pick at the wrong interval lands on a different row
-    /// rather than coincidentally agreeing.
-    /// </remarks>
     [Theory]
     [MemberData(nameof(DrawIds))]
     public void WeightedPick_picks_at_this_draws_unit_interval(string rowId)

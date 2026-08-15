@@ -2,64 +2,51 @@ using System.Globalization;
 
 namespace SlayIdleRepeat.Core.Content;
 
-/// <summary>
-/// `03` §7 — the in-run shop tile's pricing numbers, read out of
-/// <c>tuning/currencies.json#/shopTile</c>.
-/// </summary>
+/// <summary>The in-run shop tile's pricing numbers, read out of <c>tuning/currencies.json#/shopTile</c>.</summary>
 /// <remarks>
-/// <para>
-/// `21` §3.1: <em>"A 📐 TUNABLE number that is not in this directory is a bug."</em> Every number
-/// <see cref="Rules.Economy.ShopPricing"/> uses is authored in
-/// <c>game-data/tuning/currencies.json#/shopTile</c> and reaches the rules through this type, the
-/// same shape <see cref="EnergyTuning"/> already uses for `10` §3.
-/// </para>
-/// <para>
-/// ⚠️ <b>What this deliberately does not carry.</b> The rarity-weighted <em>draw</em> for the
-/// Perk slot needs the 98-perk catalogue's rarity distribution, which is M3-06/M3-07's — nothing
-/// in <c>tuning/currencies.json</c> authors it, so nothing here invents one (steering S6). This
-/// type prices a perk <em>by rarity</em> (`03` §7's <c>BasePrice(itemType, rarity)</c>), which is
-/// all the pricing formula itself needs.
-/// </para>
+/// Deliberately does not carry a rarity-weighted <em>draw</em> for the Perk slot: that needs the
+/// full perk catalogue's rarity distribution, which does not exist here, so nothing here invents
+/// one. This type only prices a perk by rarity, which is all the pricing formula needs.
 /// </remarks>
 internal sealed class ShopTuning
 {
-    /// <summary>The document `03` §7's shop block lives in.</summary>
+    /// <summary>The document the shop block lives in.</summary>
     internal const string DocumentPath = "tuning/currencies.json";
 
     private const string ShopPointer = DocumentPath + "#/shopTile";
     private const string BasePricePointer = ShopPointer + "/basePrice";
 
-    /// <summary>`03` §7 — the shop's slot count. 4 as shipped.</summary>
+    /// <summary>The shop's slot count. 4 as shipped.</summary>
     internal const string SlotsReference = ShopPointer + "/slots";
 
-    /// <summary>`03` §7 — free refreshes per shop visit before the ad-gated ones. 1 as shipped.</summary>
+    /// <summary>Free refreshes per shop visit before the ad-gated ones. 1 as shipped.</summary>
     internal const string FreeRefreshesPerVisitReference = ShopPointer + "/freeRefreshesPerVisit";
 
-    /// <summary>`03` §7 (ruled `16` A7) — the per-stage price step. 0.25 as shipped.</summary>
+    /// <summary>The per-stage price step. 0.25 as shipped.</summary>
     internal const string StagePriceStepReference = ShopPointer + "/stagePriceStep";
 
-    /// <summary>`03` §7 (ruled `16` A7) — the per-chapter price scalar array, one entry per chapter.</summary>
+    /// <summary>The per-chapter price scalar array, one entry per chapter.</summary>
     internal const string ChapterPriceScalarReference = ShopPointer + "/chapterPriceScalar";
 
-    /// <summary>`03` §7 — the Heal slot's healed share of Max HP. 0.35 as shipped.</summary>
+    /// <summary>The Heal slot's healed share of Max HP. 0.35 as shipped.</summary>
     internal const string HealPctMaxHpReference = ShopPointer + "/healPctMaxHp";
 
-    /// <summary>`03` §7 — a telemetry alarm threshold, not a rule input. 0.2 as shipped.</summary>
+    /// <summary>A telemetry alarm threshold, not a rule input. 0.2 as shipped.</summary>
     internal const string LeftoverGoldAlarmShareReference = ShopPointer + "/leftoverGoldAlarmShare";
 
-    /// <summary>`03` §7 — the Perk slot's base price table, keyed by <see cref="ShopRarity"/>.</summary>
+    /// <summary>The Perk slot's base price table, keyed by <see cref="ShopRarity"/>.</summary>
     internal const string PerkBasePriceReference = BasePricePointer + "/PERK";
 
-    /// <summary>`03` §7.1 — the Consumable slot's base price table, keyed by consumable id.</summary>
+    /// <summary>The Consumable slot's base price table, keyed by consumable id.</summary>
     internal const string ConsumableBasePriceReference = BasePricePointer + "/CONSUMABLE";
 
-    /// <summary>`03` §7 — the Run Buff slot's base price table, keyed by run buff id.</summary>
+    /// <summary>The Run Buff slot's base price table, keyed by run buff id.</summary>
     internal const string RunBuffBasePriceReference = BasePricePointer + "/RUN_BUFF";
 
-    /// <summary>`03` §7 — the Heal slot's base price. 150 as shipped.</summary>
+    /// <summary>The Heal slot's base price. 150 as shipped.</summary>
     internal const string HealBasePriceReference = BasePricePointer + "/HEAL";
 
-    /// <summary>`03` §7 — the three authored run buffs (Whetstone, Heartroot Tonic, Hawk's Eye).</summary>
+    /// <summary>The three authored run buffs (Whetstone, Heartroot Tonic, Hawk's Eye).</summary>
     internal const string RunBuffsReference = ShopPointer + "/runBuffs";
 
     private static readonly ShopRarity[] PerkRarities =
@@ -97,31 +84,28 @@ internal sealed class ShopTuning
         LeftoverGoldAlarmShare = leftoverGoldAlarmShare;
     }
 
-    /// <summary>`03` §7 — the shop's slot count.</summary>
+    /// <summary>The shop's slot count.</summary>
     internal int Slots { get; }
 
-    /// <summary>`03` §7 — free refreshes per visit before the ad-gated ones.</summary>
+    /// <summary>Free refreshes per visit before the ad-gated ones.</summary>
     internal int FreeRefreshesPerVisit { get; }
 
-    /// <summary>`03` §7 (ruled `16` A7) — the per-stage price step (0.25 means Stage 3 is +50%).</summary>
+    /// <summary>The per-stage price step (0.25 means Stage 3 is +50%).</summary>
     internal decimal StagePriceStep { get; }
 
-    /// <summary>
-    /// `03` §7 (ruled `16` A7) — <c>chapterPriceScalar[c-1]</c> for chapter <c>c</c>. One entry per
-    /// authored chapter.
-    /// </summary>
+    /// <summary><c>chapterPriceScalar[c-1]</c> for chapter <c>c</c>. One entry per authored chapter.</summary>
     internal IReadOnlyList<decimal> ChapterPriceScalar { get; }
 
-    /// <summary>`03` §7 — the Heal slot's base price, before the stage/chapter scalars.</summary>
+    /// <summary>The Heal slot's base price, before the stage/chapter scalars.</summary>
     internal long HealBasePrice { get; }
 
-    /// <summary>`03` §7 — the Heal slot's healed share of Max HP.</summary>
+    /// <summary>The Heal slot's healed share of Max HP.</summary>
     internal decimal HealPctMaxHp { get; }
 
-    /// <summary>`03` §7 — the three authored run buffs, in the order the document lists them.</summary>
+    /// <summary>The three authored run buffs, in the order the document lists them.</summary>
     internal IReadOnlyList<ShopRunBuffDefinition> RunBuffs { get; }
 
-    /// <summary>`03` §7 — a telemetry alarm threshold. Not consumed by any rule.</summary>
+    /// <summary>A telemetry alarm threshold. Not consumed by any rule.</summary>
     internal decimal LeftoverGoldAlarmShare { get; }
 
     /// <summary>The Perk slot's base price for one rarity, before the stage/chapter scalars.</summary>
@@ -175,7 +159,7 @@ internal sealed class ShopTuning
     /// Reads the shop block. Throws rather than defaulting on anything missing, unauthorised,
     /// mistyped or nonsensical.
     /// </summary>
-    /// <param name="content">The version-stamped snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped snapshot the command is reading.</param>
     /// <exception cref="MissingContentException">The document or a pointer is not there.</exception>
     /// <exception cref="UnauthorisedTunableException">A pointer holds a deliberate <c>null</c>.</exception>
     /// <exception cref="ContentTypeMismatchException">A leaf holds the wrong shape.</exception>
@@ -375,31 +359,27 @@ internal sealed class ShopTuning
     private static string Render(decimal value) => value.ToString(CultureInfo.InvariantCulture);
 }
 
-/// <summary>
-/// `03` §7's four Perk rarities, for shop <b>pricing</b> only.
-/// </summary>
+/// <summary>Four Perk rarities, for shop pricing only.</summary>
 /// <remarks>
-/// ⚠️ Not the perk catalogue's own rarity type — that is M3-06/M3-07's, and does not exist yet
-/// (steering S6). This enum carries no more than `03` §7's pricing table needs: which of four
-/// buckets a priced perk falls in. When the real catalogue lands, aligning the two — or replacing
-/// this one — is that milestone's call, not a decision frozen here.
+/// Not the perk catalogue's own rarity type, which does not exist yet. This enum carries no more
+/// than the pricing table needs: which of four buckets a priced perk falls in.
 /// </remarks>
 internal enum ShopRarity
 {
-    /// <summary>`03` §7 — the cheapest tier.</summary>
+    /// <summary>The cheapest tier.</summary>
     COMMON,
 
-    /// <summary>`03` §7.</summary>
+    /// <summary>The second tier.</summary>
     RARE,
 
-    /// <summary>`03` §7.</summary>
+    /// <summary>The third tier.</summary>
     EPIC,
 
-    /// <summary>`03` §7 — the most expensive tier.</summary>
+    /// <summary>The most expensive tier.</summary>
     LEGENDARY,
 }
 
-/// <summary>One authored run buff (`03` §7): a flat stat bonus for the rest of the run.</summary>
+/// <summary>One authored run buff: a flat stat bonus for the rest of the run.</summary>
 /// <param name="Id">The shop base-price table's key, e.g. <c>WHETSTONE</c>.</param>
 /// <param name="DisplayName">The localisation key.</param>
 /// <param name="Stat">The stat it raises, e.g. <c>ATK</c>, <c>MAX_HP</c>, <c>CRIT</c>.</param>

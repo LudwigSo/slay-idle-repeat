@@ -10,24 +10,21 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Every rule is <b>vacuous when its documents are absent</b>, the same discipline
-/// <c>SlayIdleRepeat.Architecture.Tests</c> uses: a rule waiting for M2's content passes over an
-/// empty subject set rather than being switched off, and bites the day the data lands.
+/// Every rule is vacuous when its documents are absent: a rule waiting for later content passes
+/// over an empty subject set rather than being switched off, and bites the day the data lands.
 /// </para>
 /// <para>
-/// 🔒 A rule must never treat an unauthorised value as zero. Where a leaf is
-/// <see cref="ContentValueKind.Unauthorised"/> the rule <em>skips</em>: the design docs have not
-/// authorised a number, so there is nothing to compare and inventing one would be the exact bug
-/// the null convention exists to prevent.
+/// A rule must never treat an unauthorised (null) value as zero — where a leaf is unauthorised the
+/// rule skips, since the design docs have not authorised a number and inventing one would be the
+/// exact bug the null convention exists to prevent.
 /// </para>
 /// <para>
 /// Rules deliberately <b>not</b> stated, because the data contradicts them today and the conflict
 /// is documented rather than accidental:
 /// <list type="bullet">
-/// <item><c>forge#/inventory/maxCapacity == maxCapacityReachableFromLadder</c> — 400 vs 320, the
-/// `08` §5 versus `10` §4 / `16` A7 conflict that <c>forge.json</c>'s own <c>_doc</c> flags. The
-/// weaker true form is stated instead.</item>
-/// <item><c>totalRewardedPerDaySoftCap &gt;= maxInRun + maxMeta</c> — 44 vs 53; the soft cap sits
+/// <item><c>forge#/inventory/maxCapacity == maxCapacityReachableFromLadder</c> — a documented
+/// conflict <c>forge.json</c>'s own <c>_doc</c> flags; the weaker true form is stated instead.</item>
+/// <item><c>totalRewardedPerDaySoftCap &gt;= maxInRun + maxMeta</c> — the soft cap sits
 /// deliberately below the theoretical maximum.</item>
 /// <item><c>hasPlus =&gt; ad rates are null</c> — <c>Plus_Lapsed</c> watches ads by design.</item>
 /// </list>
@@ -58,42 +55,35 @@ internal static class DeclaredRules
         EmbeddedEffectsValidateAgainstTheEffectSchema(documents, schemas, issues);
     }
 
-    /// <summary>
-    /// 🔒 The <c>schema/</c> path of `18` §1's effect vocabulary — <b>R35</b>'s authority.
-    /// </summary>
+    /// <summary>The <c>schema/</c> path of the effect vocabulary — the embedded-effect rule's authority.</summary>
     internal const string EffectSchemaPath = "schema/effect.schema.json";
 
     /// <summary>
-    /// 🔒 `18` §1's one universal key — the member whose presence makes an object an effect.
+    /// The one universal key — the member whose presence makes an object an effect.
     /// <c>effect.schema.json</c> requires it on all seventeen of its branches, which is what lets
-    /// <b>R35</b> find an embedded effect without knowing what its owner calls the list.
+    /// the rule find an embedded effect without knowing what its owner calls the list.
     /// </summary>
     private const string OpMemberName = "op";
 
     /// <summary>
-    /// 🔒 `18` §1's OTHER universal key, required alongside <see cref="OpMemberName"/> on every one
-    /// of the seventeen branches — required together because <c>op</c> alone collides with `18` §4's
-    /// OWN vocabulary. A condition's comparison node is <c>{"fn", "op", "value"}</c> (the comparator
-    /// is spelled <c>op</c> there too), so a walk keyed on <c>op</c> alone finds a perk's own
-    /// <c>condition</c> block and reports it against the top-level effect <c>oneOf</c> — which no
-    /// condition node can ever satisfy, since none of the seventeen branches is shaped like one. M3-07
-    /// hit this on its first perk with a non-null <c>condition</c>; no earlier content (bosses.json)
-    /// ever authored one, which is why nothing caught it sooner. Both keys together are still exactly
-    /// `18` §1's universal pair and still nothing a condition node, a <c>duration</c> block or a
-    /// <c>stacking</c> block can accidentally satisfy.
+    /// The other universal key, required alongside <see cref="OpMemberName"/> — required together
+    /// because <c>op</c> alone collides with the condition vocabulary's own comparator, also
+    /// spelled <c>op</c>. A walk keyed on <c>op</c> alone would find a perk's nested
+    /// <c>condition</c> block too and report it against the top-level effect <c>oneOf</c>, which no
+    /// condition node can ever satisfy. <c>id</c> is required on every effect branch and never on a
+    /// condition, duration or stacking shape, so the pair together is unambiguous.
     /// </summary>
     private const string IdMemberName = "id";
 
     /// <summary>
-    /// 🔒 Every embedded effect <b>R35</b> has validated so far, as
-    /// <c>path#/pointer</c> — the subject-set floor a test asserts against (steering S3).
+    /// Every embedded effect the rule has validated so far, as <c>path#/pointer</c> — the
+    /// subject-set floor a test asserts against.
     /// </summary>
     /// <remarks>
-    /// The rule's subject set is discovered structurally rather than from a list of content types,
-    /// so nothing in the rule itself says how many effects it <em>ought</em> to have seen. Without
+    /// The subject set is discovered structurally rather than from a list of content types, so
+    /// nothing in the rule itself says how many effects it <em>ought</em> to have seen. Without
     /// this, a walk that silently matched nothing would pass exactly as loudly as one that validated
-    /// every boss mechanic in the repository — which is the vacuous pass the whole file is written
-    /// against. Populated by running <see cref="Check"/>, on <see cref="References"/>' pattern.
+    /// everything. Populated by running <see cref="Check"/>.
     /// </remarks>
     internal static IReadOnlyList<string> ValidatedEmbeddedEffects =>
         ValidatedEffects.Keys.OrderBy(e => e, StringComparer.Ordinal).ToArray();
@@ -101,48 +91,27 @@ internal static class DeclaredRules
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> ValidatedEffects =
         new(StringComparer.Ordinal);
 
-    /// <summary>
-    /// 🔒 <b>R35 · `14` §6 / `18` §1</b> — every effect <b>embedded</b> in an owning content file
-    /// validates against <c>schema/effect.schema.json</c>.
-    /// </summary>
+    /// <summary>Every effect embedded in an owning content file validates against <c>schema/effect.schema.json</c>.</summary>
     /// <remarks>
     /// <para>
-    /// ═══ 🔒 <b>WHY THIS IS A CROSS-FILE RULE AND NOT A <c>$ref</c></b> ═══
+    /// <b>Why this is a cross-file rule and not a <c>$ref</c>:</b> the effect shape is a closed
+    /// <c>oneOf</c> partition written in exactly one file. An owning content schema cannot reach it
+    /// two ways — <see cref="JsonSchemaValidator"/> resolves same-document pointers only, so it
+    /// cannot reference the partition across files, and a duplicate-vocabulary test fails any schema
+    /// outside that file restating it, so it cannot restate it either. Together those leave an
+    /// embedded effect validated only as "an object with an id and an op" unless something walks the
+    /// embedded effects and runs the real schema over each one — which is what this rule does.
     /// </para>
     /// <para>
-    /// `18` §1's effect shape is a closed <c>oneOf</c> partition of the 44 ops into seventeen
-    /// key-shapes, and it is written in exactly one file. An owning content schema — a boss script's,
-    /// and M3's perk, talent, pet, mount and curse schemas after it — cannot reach it two ways:
-    /// <list type="number">
-    ///   <item><see cref="JsonSchemaValidator"/> resolves <b>same-document</b> pointers only, and
-    ///   refuses a <c>$ref</c> that does not start with <c>#/</c> — <em>"a cross-file <c>$ref</c>
-    ///   would make the schema set a graph nobody can review file by file"</em>. So it cannot
-    ///   <b>reference</b> the partition.</item>
-    ///   <item><c>EffectSchemaTests.No_other_schema_restates_the_effect_vocabulary</c> fails any
-    ///   schema outside that file naming three or more op tokens. So it cannot <b>restate</b>
-    ///   it either.</item>
-    /// </list>
-    /// <para>
-    /// Both constraints are right, and together they leave an embedded effect validated only as
-    /// <em>an object with an id and an op</em> — which would ship a boss mechanic whose op-specific
-    /// keys nobody checked. This rule closes that: it walks the embedded effects and runs the real
-    /// schema over each one, so the partition stays in one file and still governs every effect in
-    /// the repository. `14` §6's guarantee is delivered by the pair.
-    /// </para>
+    /// The subject set is structural, not a list of content types: any array whose items are objects
+    /// declaring an <c>op</c> is one, wherever it sits, so new content types are covered on the day
+    /// they land rather than on the day somebody remembers to add them here.
     /// </para>
     /// <para>
-    /// 🔒 <b>The subject set is structural, not a list of content types.</b> Any <c>effects</c> array
-    /// whose items are objects declaring an <c>op</c> is one, wherever it sits — so M3's perks and
-    /// talents are covered on the day they land rather than on the day somebody remembers to add
-    /// them here. `18` §1: an effect <em>"is always embedded in the perk, talent, pet, mount, curse
-    /// or boss script that owns it"</em>, and they all spell that list the same way.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>An embedded effect with no effect schema to check it against is a finding, not a
-    /// skip.</b> Every other rule here is vacuous when its documents are absent, because an absent
-    /// document means there is nothing to disagree about. That reading does not transfer: the
-    /// subject is present and it is the <em>authority</em> that is missing, so skipping would report
-    /// success over unvalidated content — the one outcome this rule exists to prevent.
+    /// An embedded effect with no effect schema to check it against is a finding, not a skip. Every
+    /// other rule here is vacuous when its documents are absent, because an absent document means
+    /// there is nothing to disagree about — that reading does not transfer here, since the subject
+    /// is present and it is the authority that is missing.
     /// </para>
     /// </remarks>
     private static void EmbeddedEffectsValidateAgainstTheEffectSchema(
@@ -152,10 +121,9 @@ internal static class DeclaredRules
     {
         var embedded = new List<(string Location, ContentValue Effect)>();
 
-        // 🔒 content/ only. `18` §1's list of owners — perk, talent, pet, mount, curse, boss script
-        // — lives entirely under content/, and the walk's signature is a bare `op` member, so
-        // sweeping tuning/ and loc/ too would let a future tuning key innocently called "op" fail
-        // with a oneOf message about an effect vocabulary it has nothing to do with.
+        // content/ only: every effect owner lives under content/, and the walk's signature is a
+        // bare `op` member, so sweeping tuning/ and loc/ too would let a future tuning key
+        // innocently called "op" fail with an unrelated oneOf message.
         foreach (var (path, root) in documents
                      .Where(d => d.Key.StartsWith(ContentLayout.ContentDirectory, StringComparison.Ordinal))
                      .OrderBy(d => d.Key, StringComparer.Ordinal))
@@ -183,9 +151,6 @@ internal static class DeclaredRules
 
         foreach (var (location, effect) in embedded)
         {
-            // ⚠️ Recorded after the call rather than before it. Both orders produce the SAME set —
-            // Validate returns findings and does not throw — so this buys nothing mechanically and
-            // is not load-bearing; it is written this way so the set reads as what it is named.
             issues.AddRange(JsonSchemaValidator.Validate(effect, effectSchema!, location));
 
             ValidatedEffects.TryAdd(location, 0);
@@ -198,34 +163,23 @@ internal static class DeclaredRules
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>The signature is the <c>id</c>+<c>op</c> PAIR, NOT the member name the list is spelled
-    /// under, and NOT <c>op</c> alone.</b> Keying on <c>effects</c> looked equivalent and is not: `18`
-    /// §7.7 spells a pet's list <c>aura</c>, and a curse or a mount catalogue may well spell it
-    /// something else again — so a name-keyed walk would let a whole content type ship unvalidated
-    /// while <see cref="ValidatedEmbeddedEffects"/> stayed comfortably non-empty, which is the one
-    /// failure the floor test cannot see. <c>id</c> and <c>op</c> together are what `18` §1 makes
-    /// universal and what <c>effect.schema.json</c> requires of every one of its seventeen branches,
-    /// so the pair is the signature that actually means <em>this is an effect</em>.
+    /// The signature is the <c>id</c>+<c>op</c> pair, not the member name the list is spelled under
+    /// and not <c>op</c> alone. Different owners spell their effect list differently (<c>effects</c>,
+    /// <c>aura</c>, etc.), so a name-keyed walk would let a whole content type ship unvalidated while
+    /// the floor test stayed comfortably non-empty.
     /// </para>
     /// <para>
-    /// 🔴 <b><c>op</c> ALONE IS NOT ENOUGH, and M3-07 is the commit that found out why.</b> `18` §4's
-    /// own condition vocabulary spells its comparator <c>op</c> too — a comparison node is
-    /// <c>{"fn", "op", "value", …}</c> — so a perk (or talent, pet, mount, curse, boss script) whose
-    /// effect carries a non-null <c>condition</c> nests a SECOND object with an <c>op</c> member
-    /// several keys down, and a walk keyed on <c>op</c> alone finds it too and reports it against the
-    /// top-level effect <c>oneOf</c>, which no condition node can ever satisfy — none of the
-    /// seventeen branches is shaped like one. Every earlier embedder (bosses.json) happened to author
-    /// no <c>condition</c> at all, so nothing exposed this until M3-07's perks — several of 06 §3's
-    /// rows are literally conditional damage bonuses ("+X% damage to enemies below 30% health") and
-    /// could not be authored honestly without one. <c>id</c> is the key that tells the two apart: every
-    /// effect branch requires it and no condition, duration or stacking shape ever carries one.
+    /// <c>op</c> alone is not enough: the condition vocabulary's own comparator is also spelled
+    /// <c>op</c>, so an effect with a non-null <c>condition</c> nests a second object with an
+    /// <c>op</c> member several keys down. A walk keyed on <c>op</c> alone would find that node too
+    /// and report it against the top-level effect <c>oneOf</c>, which no condition node can ever
+    /// satisfy. <c>id</c> is the key that tells the two apart: every effect branch requires it and no
+    /// condition, duration or stacking shape ever carries one.
     /// </para>
     /// <para>
-    /// ⚠️ No double-counting: an effect is added when it is reached, and the walk then descends into
-    /// it — but <c>effect.schema.json</c> is <c>additionalProperties: false</c> on every branch and no
-    /// branch nests a SECOND <c>id</c>+<c>op</c> pair at its own top level, so there is nothing
-    /// shaped like an effect inside one to double-count. (A <c>condition</c> block CAN nest a bare
-    /// <c>op</c>, which is exactly the collision above — it just never nests an <c>id</c> beside it.)
+    /// No double-counting: <c>effect.schema.json</c> is <c>additionalProperties: false</c> on every
+    /// branch and no branch nests a second <c>id</c>+<c>op</c> pair at its own top level, so nothing
+    /// shaped like an effect sits inside one.
     /// </para>
     /// </remarks>
     private static void CollectEmbeddedEffects(
@@ -262,7 +216,7 @@ internal static class DeclaredRules
 
     private static readonly IReadOnlyList<Rule> Rules =
     [
-        // ── R1/R2 · `24` §6.1-6.2 — forge.json holds the forge-screen view of numbers luck.json owns.
+        // forge.json holds the forge-screen view of numbers luck.json owns.
         Mirrors("24 §6.1 (reforge is one set of numbers, viewed twice)",
             "tuning/forge.json#/reforge/costByRarity", "tuning/luck.json#/reforge/costByRarity"),
         Mirrors("24 §6.1", "tuning/forge.json#/reforge/currency", "tuning/luck.json#/reforge/currency"),
@@ -271,7 +225,7 @@ internal static class DeclaredRules
         Mirrors("24 §6.2", "tuning/forge.json#/retune/lockCostMultiplier",
             "tuning/luck.json#/retune/lockCostMultiplier"),
 
-        // ── R3 · `10` §4 — the inventory ladder and the capacity it reaches are one fact.
+        // The inventory ladder and the capacity it reaches are one fact.
         Derives("10 §4 (baseCapacity + maxPurchases x slotsPerPurchase)",
             "tuning/forge.json#/inventory/maxCapacityReachableFromLadder",
             d => Number(d, "tuning/forge.json#/inventory/baseCapacity") is { } capacity &&
@@ -286,60 +240,60 @@ internal static class DeclaredRules
             "tuning/currencies.json#/crowns/inventoryExpansionLadder",
             d => Number(d, "tuning/currencies.json#/crowns/inventoryExpansionMaxPurchases")),
 
-        // ── R4 · `10` §1 — every currency named anywhere is a wallet currency.
+        // Every currency named anywhere is a wallet currency.
         ValuesResolve("10 §1 (the wallet is the closed currency vocabulary)",
             "tuning/dungeons.json#/dungeons", "currency", WalletIds),
         ValuesResolve("10 §1", "tuning/currencies.json#/shop/dailyTab/staples", "currency", WalletIds),
         ValuesResolve("10 §1", "tuning/currencies.json#/shop/dailyTab/rotatingPool", "currency", WalletIds),
         KeysResolveIn("10 §1", "tuning/currencies.json#/shop/materialsTab", WalletIds),
 
-        // ── R5 · `24` §3 — "the validator fails the build if a grant source has no class".
+        // Every grant source has a source class.
         KeysResolveIn("24 §3 (every container is classified in luck.json)",
             "tuning/drops.json#/containerContents", SourceClassIds),
         ItemsResolveIn("24 §5 (Focus applies only to classified gear sources)",
             "tuning/luck.json#/focus/appliesToClasses", SourceClassIds),
         ValuesResolve("24 §3", "tuning/currencies.json#/loginCalendar/days", "chest", SourceClassIds),
 
-        // ── R6 · `12` §4 — every ad placement named anywhere is in the catalogue.
+        // Every ad placement named anywhere is in the catalogue.
         ValueResolves("12 §4 (the ad-placement catalogue is closed)",
             "tuning/dungeons.json#/entries/adPlacementId", AdPlacementIds),
         KeysResolveIn("12 §4", "tuning/ads.json#/placementRewardValues", AdPlacementIds),
         KeysResolveIn("12 §5", "tuning/ads.json#/rewardScaling/baseValue", AdPlacementIds),
 
-        // ── R7 · `21` §5.4 — the three ad-behaviour groups partition the catalogue exactly.
+        // The three ad-behaviour groups partition the catalogue exactly.
         AdPlacementGroupsPartitionTheCatalogue,
 
-        // ── R8 · `12` §1 — a global cap that is not the sum of its parts is unenforceable.
+        // A global cap that is not the sum of its parts is unenforceable.
         SumOfEquals("12 §1 (the in-run global cap is the sum of its placements)",
             "tuning/ads.json#/inRunPlacements", "cap", "tuning/ads.json#/globalCaps/maxInRunImpressionsPerRun"),
         SumOfEquals("12 §1 (the meta global cap is the sum of its placements)",
             "tuning/ads.json#/metaPlacements", "cap", "tuning/ads.json#/globalCaps/maxMetaImpressionsPerDay"),
 
-        // ── R9 · `12` §5 — every material bundle is worth the same in Crowns.
+        // Every material bundle is worth the same in Crowns.
         AdBundlesShareOneCrownEquivalence,
         Mirrors("12 §5 (one chapter scalar, authored twice)",
             "tuning/ads.json#/rewardScaling/chapterScalar", "tuning/currencies.json#/chapterScalars/adBundleScalar"),
 
-        // ── R10 · `12` §3 — the fairness contract and the assertion that grades it are one number.
+        // The fairness contract and the assertion that grades it are one number.
         FairnessContractMatchesAssertionA3,
 
-        // ── R11 · `21` §5.4 — the profile vocabulary is shared by three files.
+        // The behavioural profile vocabulary is shared by three files.
         ProfileNamesAgreeAcrossFiles,
 
-        // ── R12 · `29` §6 — expected power never goes down, and every ladder resolves.
+        // Expected power never goes down, and every ladder resolves.
         ExpectedProgressionIsWellFormed,
 
-        // ── R13 · `29` §2-5 — the par table is its own default fill.
+        // The par table is its own default fill.
         ParPowerTableMatchesItsDefaultFill,
 
-        // ── R14 · `29` §2.5 — K_POWER is defined as Chapter 1 Normal par.
+        // K_POWER is defined as Chapter 1 Normal par.
         Mirrors("29 §2.5.1 (K_POWER := Chapter 1 Normal par)",
             "tuning/calibration_builds.json#/referenceParBuild/targetPower",
             "tuning/par_power.json#/defaultFill/chapterPowerTargetBase"),
         MirrorsFieldsOf("29 §2.2 (the reference opponent promoted to a live actor)",
             "tuning/power_model.json#/referenceOpponent", "tuning/calibration_builds.json#/standardDummy"),
 
-        // ── R15 · `29` §2.5 — the dummy's output per second is derived from its own stat block.
+        // The dummy's output per second is derived from its own stat block.
         Derives("29 §2.5 (atk x aspd x (1 + crit x critDamage))",
             "tuning/calibration_builds.json#/measurementProtocol/dummyOutputPerSecond",
             d => Number(d, "tuning/calibration_builds.json#/standardDummy/atk") is { } atk &&
@@ -349,19 +303,19 @@ internal static class DeclaredRules
                 ? atk * aspd * (1m + (crit * critDamage))
                 : null),
 
-        // ── R16 · `08` §3.0a — a null slot coefficient means "read percentStatsByRarity instead".
+        // A null slot coefficient means "read percentStatsByRarity instead".
         PercentStatTableMirrorsNullSlotCoefficients,
 
-        // ── R17 · `08` §6 — drop bands tile every chapter exactly once.
+        // Drop bands tile every chapter exactly once.
         DropBandsTileEveryChapterExactlyOnce,
 
-        // ── R18 · `24` §4 — a soft pity that sits above its hard pity protects nothing.
+        // A soft pity that sits above its hard pity protects nothing.
         SoftPitySitsBelowItsHardPity,
 
-        // ── R19 · `25` §3-4 — the dungeon's tiles, payouts and entry budget are one shape.
+        // The dungeon's tiles, payouts and entry budget are one shape.
         DungeonStructureIsInternallyClosed,
 
-        // ── R20 · `10` §7 — progression.json#/unlocks is the single source of truth for gates.
+        // progression.json#/unlocks is the single source of truth for gates.
         Mirrors("10 §7 (the dungeon gate is authored once)",
             "tuning/dungeons.json#/entries/unlockLegendLevel", "tuning/progression.json#/unlocks/DUNGEONS"),
         Mirrors("27 §1 (the guild gate is authored once)",
@@ -374,7 +328,7 @@ internal static class DeclaredRules
         ValuesResolve("27 §3 (a quest gate names an unlock)",
             "tuning/guilds.json#/quests/pool", "gatedOn", d => Keys(d, "tuning/progression.json#/unlocks")),
 
-        // ── R21 · `10` §2 — the energy grants agree with the systems that own them.
+        // The energy grants agree with the systems that own them.
         Mirrors("12 §4 (the ad energy grant is authored once)",
             "tuning/progression.json#/energy/sources/AD_ENERGY/amount",
             "tuning/ads.json#/placementRewardValues/AD_ENERGY/energy"),
@@ -384,7 +338,7 @@ internal static class DeclaredRules
         Mirrors("25 §4 (the dungeon energy cost is authored once)",
             "tuning/progression.json#/energy/dungeonCost", "tuning/dungeons.json#/structure/energyCost"),
 
-        // ── R22 · `10` §2 — the Soul-Shard container prices are authored three times.
+        // The Soul-Shard container prices are authored three times.
         Mirrors("10 §2 / 07 §2.3 (the pet-egg price)",
             "tuning/currencies.json#/soulShards/sinks/PET_EGG",
             "tuning/beasts.json#/containerPrices/petEggSoulShards"),
@@ -392,82 +346,67 @@ internal static class DeclaredRules
             "tuning/currencies.json#/soulShards/sinks/MOUNT_CRATE",
             "tuning/beasts.json#/containerPrices/mountCrateSoulShards"),
 
-        // ── R23 · the ladders the docs call ordered and no keyword can.
+        // Ladders the docs call ordered and no keyword can express.
         StrictlyAscending("08 §4.2 (enhance stone costs)", "tuning/forge.json#/enhance/stoneCostPerLevel"),
         StrictlyAscending("10 §4 (the inventory ladder)",
             "tuning/currencies.json#/crowns/inventoryExpansionLadder"),
         StrictlyAscending("03 §7 (the chapter price scalar)", "tuning/currencies.json#/shopTile/chapterPriceScalar"),
         StrictlyAscending("29 §6 (the checkpoint days)", "tuning/expected_progression.json#/checkpointDays"),
 
-        // ── R24 · `08` §4.2 — the enhance ladder is self-consistent.
+        // The enhance ladder is self-consistent.
         EnhanceLadderIsSelfConsistent,
 
-        // ── R25 · `02` §5.1a / `10` §4 — one chapter growth rate, authored twice.
+        // One chapter growth rate, authored twice.
         Mirrors("02 §5.1a (XP and gold grow at the same rate)",
             "tuning/progression.json#/runXp/baseXpGrowth", "tuning/currencies.json#/chapterScalars/goldGrowth"),
 
-        // ── R26 · `26` §3 — the event calendar's two shares are a partition.
+        // The event calendar's two shares are a partition.
         SharesSumTo("26 §3 (every major event is one archetype or the other)", 1m,
             "tuning/events.json#/calendar/chapterEventShare",
             "tuning/events.json#/calendar/collectionEventShare"),
 
-        // ── R27 · `26`/`25`/`27` — one daily reset, or the day boundary fragments.
+        // One daily reset, or the day boundary fragments.
         Mirrors("26 §3 / 25 §4 (one daily reset time)",
             "tuning/events.json#/calendar/startEndUtc", "tuning/dungeons.json#/entries/refreshUtc"),
         Mirrors("27 §3 (one daily reset time)",
             "tuning/guilds.json#/quests/drawUtc", "tuning/dungeons.json#/entries/refreshUtc"),
 
-        // ── R28 · `10` §4.2 — the daily shop draw has to be satisfiable.
+        // The daily shop draw has to be satisfiable.
         ShopDailyDrawIsSatisfiable,
 
-        // ── R29 · `27` §3.1 — the guild quest pool has to be drawable.
+        // The guild quest pool has to be drawable.
         GuildQuestPoolIsDrawable,
 
-        // ── R30 · `05` §4 / `29` §2.3 — the two mitigation dials are one pair of numbers, written
-        // twice. `05` §4 states them for the simulator ("expose them in data") and `29` §2.3 uses
-        // the same formula for MitigationVsReference, which is what grades the simulator. If the
-        // pair ever diverges, the power model predicts a mitigation the fight does not produce and
-        // `05` §9's assertion A10 — the closed form tracking EmpiricalPower within ±12% — becomes
-        // unfalsifiable rather than false. Stated as a rule rather than solved by deleting one copy:
-        // combat_caps.json is what the simulator loads, power_model.json is what `21` sweeps, and
-        // neither file may reach into the other's directory.
-        // Stated over the two BLOCKS rather than as two scalar mirrors, so that a third dial added
-        // to one side and not the other is caught as well as a value that drifts. Mirrors ignores
-        // `_`-prefixed members, so combat_caps.json's `_doc` is not compared against nothing.
+        // The two mitigation dials are one pair of numbers, written twice: combat_caps.json is
+        // what the simulator loads, power_model.json is what the sweep reads, and if the pair ever
+        // diverges the power model predicts a mitigation the fight does not produce. Stated over
+        // the two blocks rather than as scalar mirrors so a dial added to one side and not the
+        // other is caught too.
         Mirrors("05 §4 / 29 §2.3 (one pair of mitigation dials, authored twice)",
             "content/combat_caps.json#/mitigation", "tuning/power_model.json#/mitigation"),
 
-        // ── R31 · `05` §6.4 — a chapter's enemy pool is a weight table over the eight archetypes,
-        // and 05 §6.4 states "Weights per row sum to 100". No JSON Schema keyword can add up an
-        // object's values, so the total is stated here. ⚠️ The two authored ZEROS — Chapter 1's
-        // REAVER and Chapter 6's LEECH — are NOT checked by the total: a row that moved five points
-        // from GRUNT to REAVER still sums to 100 and would erase "no 30%-crit spikes in the tutorial
-        // chapter" in silence. They are pinned by name in EnemiesDataTests instead, which is where
-        // the rest of the transcription is asserted.
+        // A chapter's enemy pool is a weight table over the eight archetypes; weights per row sum
+        // to 100. No JSON Schema keyword can add up an object's values, so the total is stated
+        // here. Two authored zero-weight rows are deliberately NOT checked by this total — a row
+        // that moved points between two other archetypes would still sum to 100 and silently erase
+        // that zero. Those are pinned by name in EnemiesDataTests instead.
         ChapterPoolWeightsSumToOneHundred,
 
-        // ── R32 · `05` §6.2/§6.4 — each chapter's elitePool is exactly its two biome elites, and
-        // elites come only from it. Every identity therefore belongs to exactly one pool: an
-        // identity in none is an elite nothing can ever draw, and one in two is a biome leak.
+        // Each chapter's elitePool is exactly its two biome elites, and elites come only from it —
+        // an identity in none is an elite nothing can ever draw, and one in two is a biome leak.
         EliteIdentitiesAreEachInExactlyOneChapterPool,
 
-        // ── R33 · `05` §6.0 — EnemyLevel(c, t) needs a base level for every chapter that has a
-        // pool, or the chapter derives level-0 enemies and 05 §4's mitigation denominator reads an
-        // attacker that never grows.
-        // ⚠️ Stated honestly: on the SHIPPED shape this is belt-and-braces rather than coverage.
-        // enemies.schema.json pins both arrays to 8 rows with `chapter` 1..8 and required, and
-        // ContentInvariants treats `chapter` as an identity member, so the two sets are already
-        // forced to be exactly {1..8}. It bites the day either array's bounds are relaxed — which is
-        // exactly what an eighth-chapter-plus content pack would do — and it costs one pass.
+        // Every chapter that has an enemy pool needs a base level, or the chapter derives level-0
+        // enemies and the mitigation denominator reads an attacker that never grows. On the
+        // shipped shape this is belt-and-braces rather than coverage — the schema already pins
+        // both arrays to the same fixed chapter range — but it bites the day either array's bounds
+        // are relaxed.
         EveryChapterWithAPoolHasABaseEnemyLevel,
 
-        // ── R34 · `05` §6.4 / `03` §4 — the pool weights are authored TWICE.
-        // enemies.json#/chapterPools is M2-11's producer-side transcription; each chapter's own
-        // `enemyPool` field (chapter.schema.json) is what the board actually draws from. M3-14
-        // landed chapters 1-2 (content/chapters/CH_01_GREENWOOD_VALE.json,
-        // CH_02_ASHEN_MIRE.json), so this rule is armed for those two today and stays vacuous for
-        // chapters 3-8 until M11-02 lands their rows — the only moment each pair can start to
-        // disagree.
+        // The pool weights are authored twice: enemies.json#/chapterPools is the producer-side
+        // transcription, and each chapter file's own enemyPool is what the board actually draws
+        // from. Vacuous for chapters whose file has not landed yet — the only moment a pair can
+        // start to disagree.
         ChapterFilesAgreeWithTheProducerSideEnemyPool,
     ];
 
@@ -753,7 +692,7 @@ internal static class DeclaredRules
             return;
         }
 
-        // 🔒 A null coefficient means "read percentStatsByRarity instead" — the null is the
+        // A null coefficient means "read percentStatsByRarity instead" — the null is the
         // mechanism, so this rule must read it as data, never coerce it, and never skip it.
         var unauthorised = new HashSet<string>(StringComparer.Ordinal);
         var authored = new HashSet<string>(StringComparer.Ordinal);
@@ -857,8 +796,8 @@ internal static class DeclaredRules
             var softPity = Find(documents, $"tuning/luck.json#/{block}/softPity");
             var hardPity = Find(documents, $"tuning/luck.json#/{block}/hardPity");
 
-            // 🔒 A null softPity means 24 §4.2 does not authorise one here (Apex needs none at that
-            // density). Skipping is correct; reading it as "threshold 0" would invent a guarantee.
+            // A null softPity means none is authorised here. Skipping is correct; reading it as
+            // "threshold 0" would invent a guarantee.
             if (softPity is null || softPity.IsUnauthorised || hardPity is null ||
                 !softPity.TryGetMember("target", out var target) ||
                 !softPity.TryGetMember("missThreshold", out var threshold) ||
@@ -1089,10 +1028,9 @@ internal static class DeclaredRules
             "tuning/guilds.json#/structure/baseMemberCap")(documents, issues);
     }
 
-    /// <summary>The document `05` §6's tables live in.</summary>
     private const string EnemiesDocument = "content/enemies/enemies.json";
 
-    /// <summary>`05` §6.4 — <em>"Weights per row sum to 100."</em></summary>
+    /// <summary>Weights per chapter-pool row sum to 100.</summary>
     private static void ChapterPoolWeightsSumToOneHundred(
         IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
     {
@@ -1117,9 +1055,8 @@ internal static class DeclaredRules
             {
                 weights.TryGetMember(name, out var weight);
 
-                // 🔒 An unauthorised weight is skipped, not read as zero — and it would then fail
-                // the total, which is the right way round: a null weight is a hole and the row it
-                // sits in cannot be said to sum to anything.
+                // An unauthorised weight is skipped, not read as zero: a null weight is a hole and
+                // the row it sits in cannot be said to sum to anything.
                 if (weight!.Kind == ContentValueKind.Number)
                 {
                     total += weight.AsNumber();
@@ -1136,7 +1073,7 @@ internal static class DeclaredRules
         }
     }
 
-    /// <summary>`05` §6.2 — each chapter's <c>elitePool</c> is exactly its two biome elites.</summary>
+    /// <summary>Each chapter's <c>elitePool</c> is exactly its two biome elites.</summary>
     private static void EliteIdentitiesAreEachInExactlyOneChapterPool(
         IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
     {
@@ -1178,7 +1115,7 @@ internal static class DeclaredRules
         }
     }
 
-    /// <summary>`05` §6.0 — every chapter that fields enemies has a <c>BaseEnemyLevel</c>.</summary>
+    /// <summary>Every chapter that fields enemies has a <c>BaseEnemyLevel</c>.</summary>
     private static void EveryChapterWithAPoolHasABaseEnemyLevel(
         IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
     {
@@ -1210,13 +1147,10 @@ internal static class DeclaredRules
         }
     }
 
-    /// <summary>
-    /// `05` §6.4 / `03` §4 — a chapter file's <c>enemyPool</c> is the same weight table
-    /// <c>enemies.json</c> transcribes for that chapter.
-    /// </summary>
+    /// <summary>A chapter file's <c>enemyPool</c> is the same weight table <c>enemies.json</c> transcribes for it.</summary>
     /// <remarks>
-    /// Keyed on the chapter file's own <c>id</c> rather than on its path, because the file names are
-    /// M3-14's to choose. A chapter file whose <c>id</c> matches no <c>chapterPools</c> row is left
+    /// Keyed on the chapter file's own <c>id</c> rather than on its path, since the file names are
+    /// author-chosen. A chapter file whose <c>id</c> matches no <c>chapterPools</c> row is left
     /// alone here — the id space and range rules already own that.
     /// </remarks>
     private static void ChapterFilesAgreeWithTheProducerSideEnemyPool(
@@ -1264,9 +1198,9 @@ internal static class DeclaredRules
     {
         var classes = FieldValues(documents, "tuning/luck.json#/sourceClasses", "id").ToHashSet(StringComparer.Ordinal);
 
-        // 🔒 `27` §8 / `24` §3: the guild chest is classified as "24 does not apply", which is an
-        // explicit classification and not a hole. Without the sentinel a guild chest would either
-        // have to fake a class it does not have or fail the very rule that exists to catch holes.
+        // The guild chest is classified as "does not apply", an explicit classification rather
+        // than a hole — without the sentinel it would either fake a class it does not have or fail
+        // the very rule that exists to catch holes.
         if (classes.Count > 0)
         {
             classes.Add("CHEST_NONE");
@@ -1306,24 +1240,13 @@ internal static class DeclaredRules
 
     // ------------------------------------------------------------------------------ helpers
 
-    /// <summary>
-    /// 🔒 Every <c>path#/pointer</c> these rules have ever looked up, in ordinal order.
-    /// </summary>
+    /// <summary>Every <c>path#/pointer</c> these rules have ever looked up, in ordinal order.</summary>
     /// <remarks>
-    /// <para>
-    /// <see cref="Find"/> returns <c>null</c> for two very different facts: "the document is absent"
-    /// — correct, and the reason a rule waiting on M2's content is vacuous rather than switched off
-    /// — and "the pointer is a typo in a document that is present", which disables the rule in
-    /// silence. Nothing could tell them apart, and
-    /// <c>The_shipped_data_set_validates_with_no_issues</c> passes <em>hardest</em> when every rule
-    /// is dead.
-    /// </para>
-    /// <para>
-    /// Recorded at lookup rather than restated in a list, so a reference composed at run time
-    /// (<c>tuning/luck.json#/{block}/softPity</c>, <c>…/tierMultiplier/{tier}</c>) is covered too —
-    /// a hand-maintained list would miss exactly those. The set only ever grows to the literals in
-    /// this file, and a test asserts every one of them resolves against the shipped data.
-    /// </para>
+    /// <see cref="Find"/> returns <c>null</c> both for an absent document (fine — the rule is
+    /// vacuous) and for a typo'd pointer in a present document (which silently disables the rule),
+    /// and nothing can tell them apart — so a test asserts every reference here resolves against
+    /// the shipped data. Recorded at lookup rather than restated in a list, so references composed
+    /// at run time are covered too.
     /// </remarks>
     internal static IReadOnlyList<string> References =>
         Referenced.Keys.OrderBy(r => r, StringComparer.Ordinal).ToArray();
@@ -1542,7 +1465,7 @@ internal static class DeclaredRules
 
             for (var i = 0; i < array.Items.Count; i++)
             {
-                // 🔒 A null here means "the docs authorise no value", not "an unknown value".
+                // A null here means "the docs authorise no value", not "an unknown value".
                 if (array.Items[i].TryGetMember(field, out var value) &&
                     value!.Kind == ContentValueKind.Text && !known.Contains(value.AsText()))
                 {

@@ -6,14 +6,14 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// 🔒 `19` Part E — <see cref="CurseTuning"/>'s read of <c>content/curses/curses.json</c> and
+/// <see cref="CurseTuning"/>'s read of <c>content/curses/curses.json</c>, and
 /// <see cref="CurseRewards"/>' narrow four-row payout table.
 /// </summary>
 public sealed class CurseTuningTests
 {
     private static readonly CurseTuning Shipped = CurseTuning.Read(InRunIncomeDocuments.Shipped);
 
-    /// <summary>🔒 The twelve rows, in the document's own order.</summary>
+    /// <summary>The twelve rows, in the document's own order.</summary>
     [Fact]
     public void Every_curse_row_comes_from_the_curses_document()
     {
@@ -30,8 +30,8 @@ public sealed class CurseTuningTests
     }
 
     /// <summary>
-    /// 🔒 `19` Part E's chapter gate — the column is the EARLIEST chapter a curse opens in, so the
-    /// comparison is <c>availableFromChapter &lt;= chapterId</c> and a curse stays available after.
+    /// The chapter gate: the column is the EARLIEST chapter a curse opens in, so the comparison is
+    /// <c>availableFromChapter &lt;= chapterId</c> and a curse stays available after.
     /// </summary>
     [Theory]
     [InlineData(1, 4)]
@@ -46,7 +46,7 @@ public sealed class CurseTuningTests
     }
 
     /// <summary>
-    /// 🔒 The gate genuinely EXCLUDES a later curse from an earlier chapter — the half of the filter
+    /// The gate genuinely EXCLUDES a later curse from an earlier chapter — the half of the filter
     /// that a missing or inverted comparison would break, and the one that matters: <c>CUR_HUNTED</c>
     /// pays a per-Elite gear drop no system can grant.
     /// </summary>
@@ -64,7 +64,7 @@ public sealed class CurseTuningTests
         Shipped.AvailableFrom(5).Select(c => c.Id).ShouldContain("CUR_HUNTED");
     }
 
-    /// <summary>🔒 The four chapter-1 curses are exactly `19` Part E's, in its order.</summary>
+    /// <summary>The four chapter-1 curses, in their authored order.</summary>
     [Fact]
     public void Chapter_one_opens_exactly_the_four_authored_curses()
     {
@@ -72,7 +72,7 @@ public sealed class CurseTuningTests
             .ShouldBe(["CUR_SLIPPERY", "CUR_MARKED", "CUR_DIZZY", "CUR_FRACTURED"]);
     }
 
-    /// <summary>A chapter below `02` §1's floor has no eligible set to compute.</summary>
+    /// <summary>A chapter below the game's floor has no eligible set to compute.</summary>
     [Fact]
     public void A_chapter_below_one_is_refused()
     {
@@ -106,12 +106,12 @@ public sealed class CurseTuningTests
     // ------------------------------------------------------------------ CurseRewards
 
     /// <summary>
-    /// 🔒 The four-row payout table pays exactly what `19` Part E's <c>reward</c> prose says —
-    /// asserted against the <b>content's own string</b>, so a content edit that changed "+250 Gold"
+    /// The four-row payout table pays exactly what the content's <c>reward</c> prose says —
+    /// asserted against the content's own string, so a content edit that changed "+250 Gold"
     /// fails the build rather than leaving this table quietly wrong.
     /// </summary>
     /// <remarks>
-    /// ⚠️ This is the test that earns <see cref="CurseRewards"/> the right to be a hardcoded table
+    /// This is the test that earns <see cref="CurseRewards"/> the right to be a hardcoded table
     /// rather than a parser: the numbers are transcribed once and checked against their source, which
     /// is a far narrower claim than a grammar for a prose column nothing specifies.
     /// </remarks>
@@ -128,7 +128,7 @@ public sealed class CurseTuningTests
         Shipped.All.Single(c => c.Id == curseId).Reward.ShouldBe(authoredProse);
     }
 
-    /// <summary>🔒 Exactly four ids are payable — the table is narrow on purpose.</summary>
+    /// <summary>Exactly four ids are payable — the table is narrow on purpose.</summary>
     [Fact]
     public void Only_the_four_chapter_one_curses_are_payable()
     {
@@ -141,10 +141,7 @@ public sealed class CurseTuningTests
         }
     }
 
-    /// <summary>
-    /// A curse whose `19` Part E reward is a percentage, a reroll charge or a gear drop is refused
-    /// rather than paid a guessed amount.
-    /// </summary>
+    /// <summary>A curse whose reward is a percentage, a reroll charge, or a gear drop is refused rather than paid a guessed amount.</summary>
     [Theory]
     [InlineData("CUR_HUNTED")]
     [InlineData("CUR_FAMISHED")]

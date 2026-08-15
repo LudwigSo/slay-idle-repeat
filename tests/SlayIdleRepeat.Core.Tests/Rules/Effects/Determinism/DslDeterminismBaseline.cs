@@ -6,21 +6,12 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 /// <summary>One individually pinned permutation, as the committed table holds it.</summary>
 internal sealed record BaselineRow(string Id, int Permutation, string Hash, string Why);
 
-/// <summary>
-/// Reads <c>DslDeterminismBaseline.json</c> — the committed `18` §8 determinism baseline — out of
-/// this assembly's embedded resources.
-/// </summary>
+/// <summary>Reads <c>DslDeterminismBaseline.json</c> — the committed determinism baseline — out of this assembly's embedded resources.</summary>
 /// <remarks>
-/// 🔴 <b>Not a reference-vector table</b> in <c>Hash64ReferenceVectors</c>' sense, and it must not be
-/// described as one: those were validated against externally published vectors, and there is no
-/// published authority for <em>build permutation → hash</em>. This table is self-generated and proves
-/// <b>stability</b>, not correctness. Steering S5 cannot be satisfied here; saying so is the
-/// alternative to appearing to satisfy it.
-/// <para>
-/// ⚠️ <see cref="Validate"/> refuses an unreviewed table, an incomplete review block, and any named
-/// row with no <c>why</c> — so a regenerated table nobody hand-edited fails on the next run, which is
-/// the whole point.
-/// </para>
+/// Not a reference-vector table: there is no published authority for build permutation → hash. This
+/// table is self-generated and proves stability, not correctness. <see cref="Validate"/> refuses an
+/// unreviewed table, an incomplete review block, and any named row with no <c>why</c> — so a
+/// regenerated table nobody hand-edited fails on the next run, which is the whole point.
 /// </remarks>
 internal static class DslDeterminismBaseline
 {
@@ -48,7 +39,7 @@ internal static class DslDeterminismBaseline
     /// <summary>The corpus seed the committed table names, as hexadecimal.</summary>
     internal static string BaselineSeed { get; } = Table.GetProperty("baselineSeed").GetString()!;
 
-    /// <summary>🔒 The one hash over all 100 chunks.</summary>
+    /// <summary>The one hash over all 100 chunks.</summary>
     internal static string Aggregate { get; } = Table.GetProperty("aggregate").GetString()!;
 
     /// <summary>The 100 chunk hashes, in ordinal order.</summary>
@@ -95,12 +86,12 @@ internal static class DslDeterminismBaseline
         return reader.ReadToEnd();
     }
 
-    /// <summary>🔒 The three refusals, in one place a test can reach.</summary>
-    /// <remarks>
-    /// Separated from the static initialiser deliberately: while these lived inline in the loader, the
-    /// only thing that could exercise them was the committed file, which passes — so the tests over
-    /// them were asserting conditions the loader had already guaranteed, and could not fail.
-    /// </remarks>
+    /// <summary>
+    /// The three refusals, in one place a test can reach. Separated from the static initialiser
+    /// deliberately: while these lived inline in the loader, the only thing that could exercise them
+    /// was the committed file, which passes — so the tests over them were asserting conditions the
+    /// loader had already guaranteed, and could not fail.
+    /// </summary>
     /// <exception cref="FormatException">The table is unreviewed, or a reason is missing.</exception>
     internal static JsonDocument Validate(JsonDocument document)
     {

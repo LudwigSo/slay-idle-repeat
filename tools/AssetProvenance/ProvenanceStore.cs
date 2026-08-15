@@ -8,33 +8,25 @@ namespace SlayIdleRepeat.AssetProvenance;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Not under <c>game-data/</c>, and that is a ruling rather than a preference.</b>
-/// <c>LocalFileContentSource</c> enumerates every <c>*.json</c> under <c>game-data/</c> into the
-/// <c>ContentSnapshot</c>, so a store there would move <c>ContentHashing.Compute</c>'s content
-/// version — which `14` §6 makes load-bearing for replay and <c>CONTENT_VERSION_MISMATCH</c> —
-/// once per generated asset, 1,048 times. <c>assets/</c> is the art/audio production area;
-/// <c>game-data/</c> is runtime game content. <c>ProvenanceLayoutTests</c> holds the separation.
+/// Not under <c>game-data/</c>: that directory is enumerated into the content hash used for the
+/// runtime's replay compatibility check, and a provenance file there would move that hash once per
+/// generated asset. <c>assets/</c> is the art/audio production area; <c>game-data/</c> is runtime
+/// game content.
 /// </para>
 /// <para>
-/// 🔒 <b>One file per asset id, named <c>{assetId}.json</c>.</b> Provenance is authored by
-/// generation sessions that run in batches over months; a single array file would put every one of
-/// them in the same merge conflict, and the store is the last place where "resolve it by taking
-/// theirs" should ever be tempting.
+/// One file per asset id, named <c>{assetId}.json</c>, rather than a single array file — provenance
+/// is authored by generation sessions running in batches over months, and a shared array file would
+/// put every session in the same merge conflict.
 /// </para>
 /// <para>
-/// Parsing is explicit and member-by-member, the same way <c>AssetManifestReader</c> does it and
-/// for the same reason: a deserialiser turns an absent member into <c>default</c>, and a
-/// provenance record whose seed silently became <c>""</c> is worse than one that fails to load.
+/// Parsing is explicit and member-by-member: a deserialiser turns an absent member into
+/// <c>default</c>, and a provenance record whose seed silently became <c>""</c> is worse than one
+/// that fails to load.
 /// </para>
 /// </remarks>
 public static class ProvenanceStore
 {
-    /// <summary>
-    /// The store's own directory name, below the production area. 🔒 Named once: the delivery
-    /// scan excludes this directory and <see cref="RootFor"/> builds a path out of it, and three
-    /// spellings of one path is how the scan and the store come to disagree about which files are
-    /// deliveries.
-    /// </summary>
+    /// <summary>The store's own directory name, below the production area.</summary>
     public const string DirectoryName = "provenance";
 
     /// <summary>The store directory, relative to the repository root.</summary>
@@ -59,9 +51,8 @@ public static class ProvenanceStore
     /// <summary>Loads the whole store from its root directory.</summary>
     /// <exception cref="ProvenanceFormatException">
     /// The store, its records directory or its licence register is missing, or a record is
-    /// malformed. 🔒 A missing store is a failure, never an empty result: "there are no records"
-    /// and "the records moved" must not look the same to a gate whose whole job is to notice the
-    /// difference.
+    /// malformed. A missing store is a failure, never an empty result — "there are no records" and
+    /// "the records moved" must not look the same to a gate whose job is to notice the difference.
     /// </exception>
     public static ProvenanceRecordSet Load(string storeRoot)
     {
@@ -97,11 +88,10 @@ public static class ProvenanceStore
                 "register would pass every tool.");
         }
 
-        // 🔒 The store is flat. A record filed one directory deep would be neither loaded nor
-        // reported by a TopDirectoryOnly scan — a quiet place to hide a record in a store whose
-        // whole premise is that a missing one is loud. Recursing instead would be worse: two
-        // records for one asset could then live at two paths and only the duplicate check would
-        // notice. So the shape is refused outright.
+        // The store is flat. A record filed one directory deep would be neither loaded nor
+        // reported by a TopDirectoryOnly scan — a quiet place to hide a record. Recursing instead
+        // would let two records for one asset live at two paths with only the duplicate check
+        // noticing, so the shape is refused outright.
         var strays = Directory.GetDirectories(recordsDirectory);
         if (strays.Length > 0)
         {
@@ -123,11 +113,7 @@ public static class ProvenanceStore
         return new ProvenanceRecordSet(records, ReadLicences(File.ReadAllText(licencePath)));
     }
 
-    /// <summary>
-    /// Parses one record's JSON. <paramref name="expectedId"/> is the file stem the record must
-    /// agree with — 🔒 a record filed under one id that claims another is the one corruption that
-    /// makes both directions of the gate lie at once.
-    /// </summary>
+    /// <summary>Parses one record's JSON. <paramref name="expectedId"/> is the file stem the record must agree with.</summary>
     public static ProvenanceRecord ReadRecord(string json, string expectedId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(json);
@@ -247,11 +233,9 @@ public static class ProvenanceStore
             members.Add(new("toolVersion", tooling.Version));
         }
 
-        // 🔒 The relaxed encoder, not the default. A provenance record is read by a human auditing
-        // a licence claim, and a §B1 prompt full of `§` and `<` is evidence nobody can
-        // read. "Unsafe" here means "not escaped for embedding in HTML"; these are files on disk,
-        // written by this tool and read by people and by ReadRecord, never injected into a page —
-        // and game-data/ already stores § unescaped for the same reason.
+        // The relaxed encoder, not the default: these files are read by a human auditing a licence
+        // claim, never injected into a page, and the default HTML-safe encoder would escape a
+        // prompt full of punctuation into something nobody can read.
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(
                    buffer,
@@ -299,7 +283,7 @@ public static class ProvenanceStore
             licences.Add(new ToolLicence(
                 tool,
                 Text(entry, "appliesTo", tool),
-                // 🔒 Absent stays null. There is no `?? false` and there is no `?? true` here.
+                // Absent stays null. No `?? false` and no `?? true` here.
                 NullableBool(entry, "confirmedInWriting", tool),
                 NullableText(entry, "confirmationRef", tool),
                 Text(entry, "note", tool)));

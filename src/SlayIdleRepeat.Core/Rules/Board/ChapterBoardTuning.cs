@@ -4,38 +4,31 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>
-/// 🔒 `14` §6 / `03` §3 — reads one chapter's <c>content/chapters/CH_*.json</c> document into the
-/// <see cref="ChapterBoardConfig"/> <see cref="BoardGenerator.GenerateBoard"/> needs. The seam
-/// M3-02's movement engine calls to turn a <c>Run.ChapterId</c> into the config a board is
-/// generated from.
+/// Reads one chapter's <c>content/chapters/CH_*.json</c> document into the
+/// <see cref="ChapterBoardConfig"/> <see cref="BoardGenerator.GenerateBoard"/> needs.
 /// </summary>
 /// <remarks>
-/// Lives under <c>Rules/Board/</c>, not <c>Content/</c>: `30` §11.4 puts <c>Content</c> below
-/// <c>Rules</c> in the layering, and this reader's return type — <see cref="ChapterBoardConfig"/> —
-/// is itself a <c>Rules.Board</c> type, so a reader that produced it could never live one layer
-/// lower. <see cref="Combat.Enemies.EnemyCatalogue"/> and <see cref="Stats.PowerCalculator"/> read
+/// Lives under <c>Rules/Board/</c>, not <c>Content/</c>: <c>Content</c> sits below <c>Rules</c> in
+/// the layering, and this reader's return type — <see cref="ChapterBoardConfig"/> — is itself a
+/// <c>Rules.Board</c> type, so a reader that produced it could never live one layer lower.
+/// <see cref="Combat.Enemies.EnemyCatalogue"/> and <see cref="Stats.PowerCalculator"/> read
 /// <see cref="ContentSnapshot"/> from <c>Rules</c> for the identical reason.
 /// </remarks>
 internal static class ChapterBoardTuning
 {
-    /// <summary>`14` §6 — every chapter document lives here, one file per chapter.</summary>
     private const string ChaptersDirectory = "content/chapters/";
 
-    /// <summary>`03` §1 — every chapter fixes exactly 3 stages.</summary>
+    /// <summary>Every chapter fixes exactly 3 stages.</summary>
     private const int StageCount = 3;
 
-    /// <summary>
-    /// `03` §3.1 — the fork-bias multipliers, global rather than per-chapter (the document's table
-    /// is one table, not one per chapter). M3-01's judgment-call magnitude, authored as content per
-    /// the milestone-review architecture pass rather than a Core constant.
-    /// </summary>
+    /// <summary>The fork-bias multipliers, global rather than per-chapter — one table, not one per chapter.</summary>
     private const string BoardGenerationPointer = "tuning/currencies.json#/boardGeneration";
 
     /// <summary>
     /// Reads chapter <paramref name="chapterId"/>'s board-relevant content.
     /// </summary>
     /// <param name="content">The loaded content set.</param>
-    /// <param name="chapterId">`14` §6's chapter number.</param>
+    /// <param name="chapterId">The chapter number.</param>
     /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
     /// <exception cref="MissingContentException">
     /// No document under <see cref="ChaptersDirectory"/> declares <c>id == chapterId</c>.
@@ -61,7 +54,7 @@ internal static class ChapterBoardTuning
     /// Finds the <c>content/chapters/</c> document whose <c>id</c> equals <paramref name="chapterId"/>.
     /// </summary>
     /// <remarks>
-    /// A scan, not a naming convention: `14` §6's files are named after the chapter's biome
+    /// A scan, not a naming convention: files are named after the chapter's biome
     /// (<c>CH_01_GREENWOOD_VALE.json</c>), so the chapter number cannot be recovered from the path
     /// alone — only from the document's own <c>id</c> field.
     /// </remarks>

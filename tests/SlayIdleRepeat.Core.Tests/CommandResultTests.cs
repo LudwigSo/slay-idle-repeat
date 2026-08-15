@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>
-/// 🔒 `30` §2 — <see cref="CommandResult"/>'s guards, and the tier boundary it is the last place to
-/// enforce.
-/// </summary>
+/// <summary><see cref="CommandResult"/>'s construction guards and the transport/domain tier boundary.</summary>
 public sealed class CommandResultTests
 {
     private static readonly IReadOnlyList<DomainEvent> NoEvents = Array.Empty<DomainEvent>();
@@ -18,19 +15,9 @@ public sealed class CommandResultTests
 
     private static CurrencyChanged AnyEvent() => new(1, CurrencyId.GOLD, 1L, "fixture");
 
-    // ------------------------------------------------------- the tier boundary of 30 §2
+    // ------------------------------------------------------- the tier boundary
 
-    /// <summary>
-    /// 🔒 `30` §2 / `14` §16.2 — a <b>transport-tier</b> reason cannot be put in a
-    /// <c>CommandResult</c> at all. It is refused at construction, so no seam has to remember to
-    /// check.
-    /// </summary>
-    /// <remarks>
-    /// Stated over <b>every</b> transport-tier value rather than one representative, and read off
-    /// <c>RejectionReasons.TransportTier</c> rather than transcribed: a value appended to `14` §16.2
-    /// and classified transport is covered on the commit that adds it, and a rule that named
-    /// <c>RATE_LIMITED</c> alone would have said nothing about the other nine.
-    /// </remarks>
+    /// <summary>A transport-tier reason is refused at construction — no seam has to remember to check.</summary>
     [Theory]
     [MemberData(nameof(TransportTierReasons))]
     public void A_transport_tier_rejection_is_refused(RejectionReason reason)
@@ -43,7 +30,6 @@ public sealed class CommandResultTests
         thrown.Message.ShouldContain(reason.ToString(), Case.Sensitive);
     }
 
-    /// <summary>Every domain-tier reason is accepted — the rule above must not refuse the whole enum.</summary>
     [Theory]
     [MemberData(nameof(DomainTierReasons))]
     public void A_domain_tier_rejection_is_accepted(RejectionReason reason)
@@ -51,17 +37,7 @@ public sealed class CommandResultTests
         CommandResult.Reject(reason, AnySlice()).Rejection.ShouldBe(reason);
     }
 
-    /// <summary>
-    /// 🔒 A value `14` §16.2 has no row for — an uninitialised field, or a number cast in from the
-    /// wire — is refused rather than quietly acquiring a tier.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 Which rule refused it is pinned, not merely that one did (steering <b>S2</b>). Both this
-    /// and the transport-tier guard above raise <c>ArgumentOutOfRangeException</c> out of the same
-    /// call, and they are different findings with different fixes: this one says the value is not in
-    /// the catalogue at all — <c>RejectionReasons.TierOf</c>, <c>ParamName</c> <c>reason</c> — and
-    /// the other says a catalogued value belongs to the wrong producer.
-    /// </remarks>
+    /// <summary>An undeclared enum value is refused rather than quietly acquiring a tier.</summary>
     [Theory]
     [InlineData((RejectionReason)0)]
     [InlineData((RejectionReason)999)]
@@ -74,10 +50,7 @@ public sealed class CommandResultTests
         thrown.Message.ShouldContain("This is not a rejection reason", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 The tier guard runs on <b>every</b> construction path, not just the factory — which is why
-    /// every component is <c>get</c>-only and there is no <c>with</c> path around it.
-    /// </summary>
+    /// <summary>The tier guard runs on the constructor too, not just the factory — no <c>with</c> path skirts it.</summary>
     [Fact]
     public void The_tier_guard_runs_on_the_constructor_too()
     {
@@ -87,10 +60,7 @@ public sealed class CommandResultTests
 
     // ------------------------------------------------------- the three-way agreement
 
-    /// <summary>
-    /// 🔒 <c>Accepted</c> is exactly "there is no <c>Rejection</c>". Each illegal combination is a
-    /// different defect and says which (steering S2).
-    /// </summary>
+    /// <summary><c>Accepted</c> is exactly "there is no <c>Rejection</c>"; each illegal combination reports which.</summary>
     [Fact]
     public void Accepted_and_Rejection_are_two_halves_of_one_answer()
     {
@@ -103,10 +73,7 @@ public sealed class CommandResultTests
             .Message.ShouldContain("A REFUSED result carries no Rejection", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 A refused command carries no events: it changed nothing, so there is nothing for `14` §7.1
-    /// to log, `14` §2.4 to animate or `28` D to count.
-    /// </summary>
+    /// <summary>A refused command carries no events: it changed nothing.</summary>
     [Fact]
     public void A_refused_result_carries_no_events()
     {
@@ -124,7 +91,6 @@ public sealed class CommandResultTests
 
     // ------------------------------------------------------- absent values
 
-    /// <summary>The resulting state is never null — a rejection carries the slice it was handed.</summary>
     [Fact]
     public void A_result_always_carries_the_resulting_state()
     {
@@ -132,10 +98,7 @@ public sealed class CommandResultTests
             .ParamName.ShouldBe("NewState");
     }
 
-    /// <summary>
-    /// An <b>empty</b> event list is how a command that produced none says so; a null is not an
-    /// empty list, and four consumers would each have to invent an answer for it.
-    /// </summary>
+    /// <summary>An empty event list is how a command that produced none says so; null is not the same thing.</summary>
     [Fact]
     public void A_null_event_list_is_not_an_empty_one()
     {
@@ -144,15 +107,10 @@ public sealed class CommandResultTests
     }
 
     /// <summary>
-    /// 🔒 <c>default(CommandResult)</c> is not a result, and says so rather than answering
-    /// <c>null</c> three frames from the uninitialised field it came out of.
+    /// <c>CommandResult</c> is a readonly record struct, so the language can hand out an
+    /// uninitialised instance the constructor never ran. <c>default</c> throws instead of silently
+    /// answering null.
     /// </summary>
-    /// <remarks>
-    /// `30` §2 specifies a <c>readonly record struct</c>, so the language can hand out an instance
-    /// that ran no constructor — carrying <c>Accepted = false</c> with no <c>Rejection</c>, a
-    /// combination the constructor refuses. <c>Result&lt;T&gt;</c> answered the same problem by
-    /// being a class; the shape here is specified, so the accessors are where it is answered.
-    /// </remarks>
     [Fact]
     public void The_default_struct_is_not_a_result_and_says_so()
     {
@@ -165,10 +123,7 @@ public sealed class CommandResultTests
             .Message.ShouldContain("default(CommandResult)", Case.Sensitive);
     }
 
-    /// <summary>
-    /// …and rendering it does not raise. A diagnostic that threw out of a debugger tooltip would
-    /// make the very state this guard exists to describe the hardest one to look at.
-    /// </summary>
+    /// <summary>...and rendering the default struct does not itself throw, so it stays inspectable in a debugger.</summary>
     [Fact]
     public void The_default_struct_still_renders()
     {
@@ -178,20 +133,9 @@ public sealed class CommandResultTests
     // ------------------------------------------------------- rendering
 
     /// <summary>
-    /// 🔒 The result renders through <b>its own</b> <c>PrintMembers</c> and not the compiler's — it names
-    /// the two absent-capable components rather than dereferencing them.
+    /// Renders through a hand-written <c>PrintMembers</c>, not the compiler's synthesized one — the
+    /// synthesized version would dump the whole <c>WorldSlice</c> and throw out of <c>default</c>.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The exact text is the load-bearing assertion, and the culture pair is not: a
-    /// <c>CommandResult</c> carries a <c>bool</c>, an enum name, a literal word and a non-negative count,
-    /// all of which read identically under every culture — so a "renders the same under de-DE"
-    /// comparison would hold for the synthesized <c>PrintMembers</c> too. The exact string does not: the
-    /// compiler's would dump the whole <c>WorldSlice</c> and raise out of <c>default</c>.
-    /// <para>
-    /// The culture round trip is kept as the guard for the <em>next</em> member — the day one that
-    /// formats culture-sensitively is appended, it starts carrying the `14` §8.2 claim.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_result_renders_through_its_own_PrintMembers_and_not_the_synthesized_one()
     {

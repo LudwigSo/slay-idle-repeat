@@ -6,24 +6,15 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>
-/// 🔒 `30` §2.1 <b>P4</b> (immutable) and <b>P1</b> (pure) — what <c>Apply</c> does to the slice it
-/// is handed, and what it must never do to it.
-/// </summary>
+/// <summary>Immutable and pure: what <c>Apply</c> does to the slice it is handed, and what it must never do to it.</summary>
 public sealed class GameRulesStateTests
 {
-    // ------------------------------------------------------------------ P4 · immutability
+    // ------------------------------------------------------------------ immutability
 
     /// <summary>
-    /// 🔒 <b>P4</b> — an <b>accepted</b> command leaves the caller's slice untouched. The aggregates
-    /// in <c>NewState</c> are different objects, and the ones the caller passed in still hold their
-    /// original values.
+    /// An accepted command leaves the caller's slice untouched. The aggregates in <c>NewState</c>
+    /// are different objects, and the ones the caller passed in still hold their original values.
     /// </summary>
-    /// <remarks>
-    /// The handler here moves Gold, which is a real mutation through a real internal mutator — not a
-    /// no-op that would make any implementation pass. Asserting the caller's balance is what
-    /// distinguishes "the slice was copied" from "the same objects came back".
-    /// </remarks>
     [Fact]
     public void The_input_slice_is_unchanged_by_an_accepted_command()
     {
@@ -45,16 +36,9 @@ public sealed class GameRulesStateTests
     }
 
     /// <summary>
-    /// 🔒 <b>P4</b> — a <b>rejected</b> command returns the caller's own slice, unchanged, even when
-    /// the handler mutated state before the rule refused.
+    /// A rejected command returns the caller's own slice, unchanged, even when the handler mutated
+    /// state before the rule refused. The handler below gets a long way.
     /// </summary>
-    /// <remarks>
-    /// This is the half that makes P4 worth having: `30` §2.1 sells it as making <em>"replay,
-    /// rollback, speculation and the client's optimistic prediction trivial rather than
-    /// dangerous"</em>, and what the Application layer actually needs is to keep the state it loaded
-    /// across a refusal without reasoning about how far a rejected handler got. The handler below
-    /// gets a long way.
-    /// </remarks>
     [Fact]
     public void The_input_slice_is_unchanged_by_a_rejected_command()
     {
@@ -84,19 +68,11 @@ public sealed class GameRulesStateTests
     }
 
     /// <summary>
-    /// 🔒 <b>P1</b> — the same slice, command and context produce the same answer. The clone is what
-    /// makes this assertable twice over one fixture at all.
+    /// Pure: the same slice, command and context produce the same answer. Compared through the
+    /// canonical state hash rather than the snapshot records, because a snapshot carries
+    /// <c>IReadOnlyDictionary</c> components which a record compares by reference, so two
+    /// separately rehydrated aggregates holding identical state would otherwise compare unequal.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Without the clone the first call would have moved the input's Gold to 100 and the second would
-    /// answer 160. Determinism over the <em>draws</em> is <c>GameRulesRngTests</c>'.
-    /// <para>
-    /// 🔒 Compared through `14` §16.6's <c>stateHash</c> rather than the snapshot records: a snapshot
-    /// carries <c>IReadOnlyDictionary</c> components which a record compares by <b>reference</b>, so two
-    /// separately rehydrated aggregates holding identical state compare <em>unequal</em>. The hash is
-    /// what the client and the parity test actually compare, and it reads the values.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void Apply_is_deterministic_over_identical_inputs()
     {
@@ -116,7 +92,7 @@ public sealed class GameRulesStateTests
             "would be true of an Apply that did nothing at all.");
     }
 
-    /// <summary>`14` §16.6's state hash over a result's slice.</summary>
+    /// <summary>The canonical state hash over a result's slice.</summary>
     private static string StateHash(CommandResult result) =>
         CanonicalStateWriter.HashRunCommandState(
             result.NewState.Player.ToSnapshot(), result.NewState.Run!.ToSnapshot());
@@ -139,12 +115,9 @@ public sealed class GameRulesStateTests
         result.NewState.Run.ShouldBeNull();
     }
 
-    // ------------------------------------------------------------------ 14 §16.3 · the TTL anchors
+    // ------------------------------------------------------------------ the TTL anchors
 
-    /// <summary>
-    /// 🔒 `14` §16.3 — an accepted <b>run</b> command advances both anchors: the player's and the
-    /// run's.
-    /// </summary>
+    /// <summary>An accepted run command advances both anchors: the player's and the run's.</summary>
     [Fact]
     public void An_accepted_run_command_advances_both_applied_timestamps()
     {
@@ -159,15 +132,10 @@ public sealed class GameRulesStateTests
     }
 
     /// <summary>
-    /// 🔒 `14` §16.3 — an accepted <b>meta</b> command advances the player's anchor and leaves the
-    /// run's where it was.
+    /// An accepted meta command advances the player's anchor and leaves the run's where it was: the
+    /// run TTL is sliding, measured from the last accepted command to that run, and sliding it off
+    /// the player's anchor would keep a run alive because its owner opened the shop.
     /// </summary>
-    /// <remarks>
-    /// This is the reason M1-05 put a second <c>LastAppliedAtUtc</c> on <c>Run</c> at all: the run
-    /// TTL is <em>sliding, measured from the last accepted command <b>to that run</b></em>, and
-    /// sliding it off the player's anchor would keep a run alive because its owner opened the shop.
-    /// A test that only checked the player's would pass under exactly that bug.
-    /// </remarks>
     [Fact]
     public void An_accepted_meta_command_does_not_slide_the_runs_TTL()
     {
@@ -182,9 +150,8 @@ public sealed class GameRulesStateTests
     }
 
     /// <summary>
-    /// 🔒 A <b>refused</b> command advances neither anchor: it changed nothing, so it must not
-    /// extend a TTL either — otherwise a client could hold a run open indefinitely by sending
-    /// commands it knows will be refused.
+    /// A refused command advances neither anchor: otherwise a client could hold a run open
+    /// indefinitely by sending commands it knows will be refused.
     /// </summary>
     [Fact]
     public void A_refused_command_advances_no_timestamp()
@@ -208,15 +175,11 @@ public sealed class GameRulesStateTests
     // ------------------------------------------------------------------ round-trip defects
 
     /// <summary>
-    /// 🔒 An aggregate that cannot rebuild itself from its own snapshot is a <b>defect</b>, raised
-    /// where it happened rather than one command later inside a persistence adapter.
+    /// An aggregate that cannot rebuild itself from its own snapshot is a defect, raised where it
+    /// happened rather than one command later inside a persistence adapter. Driven through the
+    /// content snapshot: a tuning context whose Legend Level range excludes the fixture player
+    /// makes the round trip fail for a real, described reason.
     /// </summary>
-    /// <remarks>
-    /// Driven through the content snapshot, which is the one input to the clone a test can make
-    /// legitimately wrong: <c>Player.Rehydrate</c> validates Legend Level against `07` §1.1's range,
-    /// read from <c>tuning/progression.json</c>, so a context whose tuning puts the range out of
-    /// reach of the player it is handed makes the round trip fail for a real, described reason.
-    /// </remarks>
     [Fact]
     public void An_aggregate_that_does_not_round_trip_is_a_defect()
     {

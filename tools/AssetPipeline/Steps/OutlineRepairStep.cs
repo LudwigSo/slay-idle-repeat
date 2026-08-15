@@ -1,9 +1,6 @@
 namespace SlayIdleRepeat.AssetPipeline;
 
-/// <summary>
-/// `15` §B4 step 4: <em>"Outline repair -&gt; ensure the outline is continuous and uniform
-/// width"</em>.
-/// </summary>
+/// <summary>Outline repair: ensures the outline is continuous and of uniform width.</summary>
 /// <remarks>
 /// <para>
 /// Builds the outline mask (within <see cref="ThresholdKeys.OutlineColourTolerance"/> of
@@ -12,24 +9,22 @@ namespace SlayIdleRepeat.AssetPipeline;
 /// resulting width as a <see cref="StepMeasurement"/>.
 /// </para>
 /// <para>
-/// 🔒 This step repairs <em>continuity</em>. <em>Width conformance</em> against `15` §A3's 3-4 px
-/// band is QA item 3's job, and the two are kept apart on purpose: a step that both changed the
-/// width and judged it would be marking its own homework.
+/// This step repairs <em>continuity</em>; width <em>conformance</em> is the QA check's job, kept
+/// apart on purpose — a step that both changed the width and judged it would be marking its own
+/// homework.
 /// </para>
 /// <para>
-/// 🔒 <b>"Continuous" is an enclosure claim, so the repair is one too.</b> The closing proposes
-/// pixels; only the connected groups that restore an enclosure the break had opened are painted. A
-/// group whose removal changes nothing was never a break — it is a concavity the disc rounded off,
-/// or a shape smaller than the disc that the closing filled in — and painting it would thicken the
-/// art rather than repair it. On an outline that is already continuous the step is a no-op, which is
-/// what keeps a closure radius large relative to the subject from quietly redrawing it.
+/// "Continuous" is an enclosure claim, so the repair is one too: the closing proposes pixels, and
+/// only the connected groups that restore an enclosure the break had opened are painted. A group
+/// whose removal changes nothing was never a break — it is a concavity the disc rounded off, or a
+/// shape smaller than the disc that the closing filled in — and painting it would thicken the art
+/// rather than repair it. On an outline that is already continuous the step is a no-op.
 /// </para>
 /// <para>
-/// 🔒 <b>The bridge is then widened to the band's own width</b>, because §B4 asks for continuous
-/// <em>and uniform width</em> and a closing leaves the bridge thinner than the band it joins: the
-/// disc reaches a break in a thin band obliquely, and shaves the outer layers of the bridge off. The
-/// widening is measured from the outline's own mean width and is confined to the neighbourhood of
-/// the bridge, so it restores what the break took and touches nothing else.
+/// The bridge is then widened to the band's own width, because a closing leaves the bridge thinner
+/// than the band it joins: the disc reaches a break in a thin band obliquely, and shaves the outer
+/// layers of the bridge off. The widening is confined to the bridge's neighbourhood, so it restores
+/// what the break took and touches nothing else.
 /// </para>
 /// </remarks>
 public sealed class OutlineRepairStep : IAssetStep
@@ -45,12 +40,11 @@ public sealed class OutlineRepairStep : IAssetStep
 
     /// <summary>The measurement key this step records the measured outline width under.</summary>
     /// <remarks>
-    /// 🔒 The same key as `15` Part F item 3's, and deliberately not the same number: this one
+    /// The same key as the outline QA check's, and deliberately not the same number: this one
     /// measures depth inside the frame, so an outline running along the canvas edge reads as twice
-    /// as thick here, while item 3 pads the frame and treats its edge as an outside boundary. Item 3
-    /// grades width against §A3 and needs the true one; this step only needs a width to restore its
-    /// own bridge to, and the bridge is never at the canvas edge. Compare the two across a step and a
-    /// check and they will disagree on a full-bleed asset — by construction, not by accident.
+    /// as thick here, while the check pads the frame and treats its edge as an outside boundary.
+    /// This step only needs a width to restore its own bridge to, and the bridge is never at the
+    /// canvas edge, so the two will disagree on a full-bleed asset — by construction, not by accident.
     /// </remarks>
     public const string OutlineWidthMeasurement = "outlineWidthPx";
 
@@ -93,7 +87,7 @@ public sealed class OutlineRepairStep : IAssetStep
             []);
     }
 
-    /// <summary>Every visible pixel within the tolerance of `15` §A3's outline colour.</summary>
+    /// <summary>Every visible pixel within the tolerance of the target outline colour.</summary>
     /// <param name="image">The image to read.</param>
     /// <param name="tolerance">How far from #231A2E still reads as outline.</param>
     private static PixelMask OutlineMask(Raster image, double tolerance)
@@ -174,8 +168,8 @@ public sealed class OutlineRepairStep : IAssetStep
     /// <remarks>
     /// The band is "everything within the measured width of what the sealed outline encloses", which
     /// is what a uniform-width outline around a subject <em>is</em>. Confined to the bridge's own
-    /// neighbourhood: away from the break the outline is whatever the artist drew, and §A3 width
-    /// conformance is `15` Part F item 3's judgement to make, not this step's.
+    /// neighbourhood: away from the break the outline is whatever the artist drew, and width
+    /// conformance is the QA check's judgement to make, not this step's.
     /// </remarks>
     /// <param name="outline">The outline mask.</param>
     /// <param name="bridge">The load-bearing repair.</param>
@@ -238,10 +232,9 @@ public sealed class OutlineRepairStep : IAssetStep
     /// The mask's 8-connected components, in row-major discovery order, each as its own pixels.
     /// </summary>
     /// <remarks>
-    /// 🔒 Pixel lists, not masks. A closing around a real subject proposes a group at every concavity
-    /// — a hundred of them is unremarkable — and a full-frame <see cref="PixelMask"/> per group would
-    /// allocate a hundred frames to hold a few hundred pixels, and would make <see cref="Touches"/>
-    /// scan the whole frame to look at three of them. M8-10 drives roughly 942 assets through this.
+    /// Pixel lists, not masks: a closing around a real subject proposes a group at every concavity,
+    /// and a full-frame <see cref="PixelMask"/> per group would allocate a hundred frames to hold a
+    /// few hundred pixels, and would make <see cref="Touches"/> scan the whole frame to look at three.
     /// </remarks>
     /// <param name="mask">The mask to group.</param>
     private static IReadOnlyList<IReadOnlyList<(int X, int Y)>> Groups(PixelMask mask)

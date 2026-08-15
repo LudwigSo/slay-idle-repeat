@@ -4,48 +4,36 @@ using SlayIdleRepeat.Core.Rng;
 namespace SlayIdleRepeat.Core.Rules.Dice;
 
 /// <summary>
-/// 🔒 `04` §4 — the Fair-Dice weighted bag, verbatim: <c>w[6]</c> initialised to 1.0, a draw's face
-/// decays its own weight by 0.55 and boosts every other by 0.12, both clamped to <c>[0.25, 2.0]</c>,
-/// reset at each Stage Gate.
+/// The Fair-Dice weighted bag: <c>w[6]</c> initialised to 1.0, a draw's face decays its own weight
+/// and boosts every other, both clamped, reset at each Stage Gate.
 /// </summary>
 /// <remarks>
-/// <para>
-/// ⚠️ <b>The weight vector is not persisted, and it does not need to be.</b> <c>RngStreams.Dice</c>'s
-/// own remarks say the stream carries "die rolls and the fair-bag weights" — because
-/// <see cref="DeterministicRng"/> draws are randomly accessible (`14` §8.1: "a revived battle
-/// restarts from draw 0... reproducible by construction"), the weight vector after <c>N</c> draws is
-/// a <b>pure function</b> of <c>N</c> alone: replay draws 0..N-1 through <see cref="Step"/> from the
-/// initial vector and the result is deterministic and byte-identical every time. <see cref="Replay"/>
-/// does exactly that, so <c>Run</c> needs no new field to carry this — only the draw count
-/// <c>Run.RngStreamPositions["dice"]</c> already holds.
-/// </para>
-/// <para>
-/// ⚠️ <b>The Stage Gate reset is a genuine, stated gap.</b> `04` §4 resets the bag at each Stage
-/// Gate, but no stage-boundary concept exists on <c>Run</c> yet (`03`'s board and `02`'s run-phase
-/// state machine are both still <c>GapRegister</c> entries, M3-01/M3-05). <see cref="Replay"/> takes
-/// the reset point as a parameter for exactly this reason: it accepts 0 today (replay the whole run),
-/// and the day a stage-gate draw index exists, the caller passes that instead — no change to this
-/// type. Recorded here rather than invented as a silent "always resets to 0" behaviour.
-/// </para>
+/// The weight vector is not persisted, and doesn't need to be: since RNG draws are randomly
+/// accessible, the weight vector after N draws is a pure function of N alone — replaying draws
+/// 0..N-1 through <see cref="Step"/> from the initial vector is deterministic and byte-identical
+/// every time. <see cref="Replay"/> does exactly that, so <c>Run</c> needs no new field, only the
+/// draw count it already tracks. The Stage Gate reset point is not yet wired to any stage-boundary
+/// concept on <c>Run</c>, so <see cref="Replay"/> takes it as a parameter (0 today) rather than this
+/// type assuming a reset always means index 0.
 /// </remarks>
 internal static class FairDiceBag
 {
-    /// <summary>`04` §4 — every face starts at weight 1.0.</summary>
+    /// <summary>Every face starts at weight 1.0.</summary>
     public const double InitialWeight = 1.0;
 
-    /// <summary>`04` §4 — a drawn face's own weight is multiplied by this.</summary>
+    /// <summary>A drawn face's own weight is multiplied by this.</summary>
     public const double DecayFactor = 0.55;
 
-    /// <summary>`04` §4 — every OTHER face's weight is increased by this.</summary>
+    /// <summary>Every other face's weight is increased by this.</summary>
     public const double BoostAmount = 0.12;
 
-    /// <summary>`04` §4 — the floor every weight is clamped to.</summary>
+    /// <summary>The floor every weight is clamped to.</summary>
     public const double MinWeight = 0.25;
 
-    /// <summary>`04` §4 — the ceiling every weight is clamped to.</summary>
+    /// <summary>The ceiling every weight is clamped to.</summary>
     public const double MaxWeight = 2.0;
 
-    /// <summary>The number of faces the bag weighs — `04` §1's die has six.</summary>
+    /// <summary>The number of faces the bag weighs.</summary>
     public const int FaceCount = 6;
 
     /// <summary>The bag's initial weight vector: six faces, all at <see cref="InitialWeight"/>.</summary>
@@ -54,7 +42,7 @@ internal static class FairDiceBag
 
     /// <summary>
     /// One draw: picks a face by <paramref name="weights"/> and returns the drawn face (1..6) plus
-    /// the bag's weights after `04` §4's decay/boost/clamp update. Consumes exactly one draw from
+    /// the bag's weights after the decay/boost/clamp update. Consumes exactly one draw from
     /// <paramref name="rng"/>.
     /// </summary>
     /// <exception cref="ArgumentNullException"><paramref name="rng"/> or <paramref name="weights"/> is null.</exception>
@@ -89,7 +77,7 @@ internal static class FairDiceBag
     /// <c>dice</c> stream, counting from a reset point at <paramref name="resetAtDraw"/> — see the
     /// type remarks for why this is a replay rather than stored state.
     /// </summary>
-    /// <param name="runSeed">The run's committed seed (`02` §2).</param>
+    /// <param name="runSeed">The run's committed seed.</param>
     /// <param name="resetAtDraw">
     /// The draw index the bag last reset at (a Stage Gate). 0 until stage-gate tracking exists.
     /// </param>

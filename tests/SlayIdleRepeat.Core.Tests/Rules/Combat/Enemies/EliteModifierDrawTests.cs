@@ -5,10 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Enemies;
 
-/// <summary>
-/// 🔒 `05` §6.2's Elite Modifier draw — <em>"No Elite may draw the same modifier as the immediately
-/// preceding Elite in the same run — redraw on collision."</em>
-/// </summary>
+/// <summary>No Elite may draw the same modifier as the immediately preceding Elite in the same run.</summary>
 public sealed class EliteModifierDrawTests
 {
     private const ulong BattleSeed = 0xE117E_5EED_9001UL;
@@ -28,9 +25,6 @@ public sealed class EliteModifierDrawTests
         drawn.Count.ShouldBe(8, "05 §6.2's list is flat, so an unconstrained draw reaches every row");
     }
 
-    /// <summary>
-    /// 🔒 The rule itself. Over many battle seeds, the drawn modifier is never the previous one.
-    /// </summary>
     [Fact]
     public void The_drawn_modifier_is_never_the_immediately_preceding_one()
     {
@@ -48,9 +42,8 @@ public sealed class EliteModifierDrawTests
     }
 
     /// <summary>
-    /// 🔒 <b>Redraw, not exclude-then-draw.</b> `05` §6.2 authors a redraw, and the two differ in
-    /// draw indices consumed — which is persisted (`14` §8.1) and auditable. This exhibits a seed
-    /// where the first attempt collides and the stream therefore advances twice.
+    /// Redraw, not exclude-then-draw: the two differ in draw indices consumed. This exhibits a
+    /// seed where the first attempt collides and the stream therefore advances twice.
     /// </summary>
     [Fact]
     public void A_collision_consumes_a_draw_index_because_05_section_6_2_authors_a_redraw()
@@ -67,7 +60,7 @@ public sealed class EliteModifierDrawTests
             "a collision redraws, and 14 §8.0 makes each attempt exactly one draw index");
     }
 
-    /// <summary>Without a collision the draw is a single index, as `14` §8.0 states.</summary>
+    /// <summary>Without a collision the draw is a single index.</summary>
     [Fact]
     public void A_draw_that_does_not_collide_consumes_exactly_one_draw_index()
     {
@@ -95,10 +88,7 @@ public sealed class EliteModifierDrawTests
         Draw().ShouldBe(Draw());
     }
 
-    /// <summary>
-    /// 🔒 `05` §6.2 states no weighting at all, so every row carries the same weight. A weighted
-    /// list here would be a fabricated number (`16` R6).
-    /// </summary>
+    /// <summary>Every row carries the same weight; a weighted list would be a fabricated number.</summary>
     [Fact]
     public void Every_modifier_carries_the_same_weight_because_05_section_6_2_states_none()
     {
@@ -135,7 +125,7 @@ public sealed class EliteModifierDrawTests
     }
 
     /// <summary>
-    /// 🔒 A pool of one, where the one is the previous modifier, is the editing mistake that would
+    /// A pool of one, where the one is the previous modifier, is the editing mistake that would
     /// otherwise hang the redraw forever inside the game's hottest path.
     /// </summary>
     [Fact]
@@ -154,14 +144,10 @@ public sealed class EliteModifierDrawTests
     }
 
     /// <summary>
-    /// 🔒 <c>elites.noRepeatWithPreviousEliteInRun</c> really is the rule's switch: with it off the
-    /// draw is unconstrained, and the previous modifier can come up again.
+    /// <c>elites.noRepeatWithPreviousEliteInRun</c> is the rule's switch: with it off the draw is
+    /// unconstrained. The seed is chosen so the same call would redraw with the switch on, so this
+    /// can't pass by the seed simply not colliding.
     /// </summary>
-    /// <remarks>
-    /// This is what stops the flag being a data key nothing reads. The seed is one whose first draw
-    /// is <c>ENRAGED</c>, so with the rule on this exact call would redraw — which is asserted
-    /// alongside, so the case cannot pass by the seed simply not colliding.
-    /// </remarks>
     [Fact]
     public void With_the_no_repeat_switch_off_the_previous_modifier_can_be_drawn_again()
     {
@@ -186,9 +172,9 @@ public sealed class EliteModifierDrawTests
     }
 
     /// <summary>
-    /// 🔒 S3 — the floor under this file's subject set. Every rule above enumerates
-    /// <see cref="EnemyFixtures.Modifiers"/>; if it shrank, the distribution rule and the
-    /// never-the-previous rule would both quantify over less while still passing.
+    /// The floor under this file's subject set: every rule above enumerates
+    /// <see cref="EnemyFixtures.Modifiers"/>; if it shrank, the rules above would quantify over
+    /// less while still passing.
     /// </summary>
     [Fact]
     public void The_fixture_pool_is_05_section_6_2s_eight_rows()

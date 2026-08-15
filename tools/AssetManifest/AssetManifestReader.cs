@@ -6,30 +6,14 @@ namespace SlayIdleRepeat.AssetManifest;
 /// Reads <c>game-data/assets/*.json</c> into the typed model.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 Explicit member-by-member parsing, not reflection binding. `game-data/README.md`: <em>"null
-/// means the design docs do not authorise a value here … a hole that is null is greppable, and a
-/// hole filled with a plausible-looking number is invisible."</em> A deserialiser silently turns an
-/// absent member into <c>default</c>, which is exactly the coercion that rule forbids — so every
-/// required member is fetched by name and a missing one throws
-/// <see cref="AssetManifestFormatException"/> naming the pointer.
-/// </para>
-/// <para>
-/// The schema in <c>game-data/schema/</c> is the authority on shape and is enforced at build time
-/// by <c>tools/ContentValidator</c>, which validates every <c>*.json</c> under <c>game-data</c>.
-/// This reader therefore fails loudly rather than defensively: if it throws, the schema and the
-/// reader disagree, and that is a defect in one of them.
-/// </para>
+/// Every required member is fetched by name and a missing one throws
+/// <see cref="AssetManifestFormatException"/> naming the pointer, rather than a deserialiser
+/// silently turning an absent member into <c>default</c> and hiding the hole.
 /// </remarks>
 public static class AssetManifestReader
 {
-    /// <summary>The manifest directory, relative to the <c>game-data</c> root.</summary>
     public const string AssetsDirectory = "assets";
-
-    /// <summary>The art manifest's file name.</summary>
     public const string ArtFileName = "asset_manifest_art.json";
-
-    /// <summary>The audio manifest's file name.</summary>
     public const string AudioFileName = "asset_manifest_audio.json";
 
     /// <summary>Loads both manifests from a <c>game-data</c> root directory.</summary>
@@ -49,11 +33,7 @@ public static class AssetManifestReader
         return LoadFrom(ReadFile(directory, ArtFileName), ReadFile(directory, AudioFileName));
     }
 
-    /// <summary>
-    /// 🔒 A missing manifest FILE is located the same way a missing directory is. A rename is the
-    /// likeliest way this breaks, and <c>ManifestLayoutTests</c> pins the stem pairing precisely
-    /// because of it — a bare <see cref="FileNotFoundException"/> would name no register at all.
-    /// </summary>
+    /// <summary>A missing file fails the same way a missing directory does, naming the register.</summary>
     private static string ReadFile(string directory, string fileName)
     {
         var path = Path.Combine(directory, fileName);
@@ -147,10 +127,8 @@ public static class AssetManifestReader
                 continue;
             }
 
-            // 🔒 Scalars only, and a structured value is a loud failure rather than a raw-JSON
-            // blob stuffed into a string dictionary. The schema's additionalProperties:false plus
-            // its per-member types make an object or array here impossible — so if one arrives,
-            // schema and reader have drifted, which this type's remarks say must be reported.
+            // Scalars only: the schema forbids an object/array here, so one arriving means the
+            // schema and reader have drifted.
             extra[member.Name] = member.Value.ValueKind switch
             {
                 JsonValueKind.String => member.Value.GetString()!,
@@ -258,11 +236,7 @@ public static class AssetManifestReader
                 owner, $"has no member '{name}'. The schema requires it; a reader that defaulted it " +
                        "would hide the hole instead of reporting it.");
 
-    /// <summary>
-    /// A required array member. 🔒 Wrong-typed, not just absent: <c>EnumerateArray()</c> on a
-    /// non-array throws a <see cref="InvalidOperationException"/> that names no pointer, and this
-    /// type's whole contract is that a failure says where in the manifest it is.
-    /// </summary>
+    /// <summary>A required array member; throws with a located message rather than an unlocated one.</summary>
     private static JsonElement.ArrayEnumerator Items(
         JsonElement parent, string name, string owner = "(root)")
     {
@@ -290,18 +264,9 @@ public static class AssetManifestReader
                        "consumer dereferences.");
 
     /// <summary>
-    /// An optional member: 🔒 <b>absent means the design docs authorise no value here</b>, and the
-    /// caller receives <c>null</c>.
+    /// An optional member: absent or JSON <c>null</c> both mean no authorised value and return
+    /// <c>null</c>; a wrong-typed value still throws.
     /// </summary>
-    /// <remarks>
-    /// The manifest omits such members rather than writing JSON <c>null</c>, because these files
-    /// enter the <c>ContentSnapshot</c> and M0-09's
-    /// <c>RealDataNegativeCaseTests.The_shipped_data_set_still_carries_exactly_its_96_unauthorised_holes</c>
-    /// pins the population of nulls across the whole snapshot at 96 — every one of them a tuning
-    /// number somebody might fill with a plausible zero. Three thousand categorical absences from a
-    /// register would swamp that guard. A literal <c>null</c> is still accepted here so the
-    /// distinction never becomes a parsing trap. A member of the WRONG kind is not that, and throws.
-    /// </remarks>
     private static string? NullableText(JsonElement parent, string name, string owner)
     {
         if (Optional(parent, name) is not { } value)

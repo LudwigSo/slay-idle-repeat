@@ -6,30 +6,19 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>
-/// 🔒 The shipped <c>content/statuses.json</c> against `05` §5 — the transcription, asserted where
-/// the real file can actually be read.
-/// </summary>
+/// <summary>Tests the shipped <c>content/statuses.json</c> values against the numbers the design docs authorise.</summary>
 /// <remarks>
-/// <para>
-/// <c>SlayIdleRepeat.Core.Tests</c> owns the <em>behaviour</em> of the cadence, the stun window and
-/// the catalogue reader; it references <c>SlayIdleRepeat.Core</c> and nothing else, so it has no JSON
-/// reader and cannot see this document. This suite is where the document's numbers meet the design
-/// section that authorises them — <c>game-data/README.md</c>: <em>"a number nobody can trace to a
-/// section is a number nobody will defend."</em>
-/// </para>
-/// <para>
-/// 🔒 Every value is read with a <see cref="ContentSnapshot"/> reader, which throws on a
-/// <c>null</c> — so a constant that was quietly nulled fails here rather than reading as zero. The
-/// one deliberate <c>null</c> is asserted through <see cref="ContentSnapshot.IsAuthorised"/>, which
-/// is the only way to observe it without throwing.
-/// </para>
+/// <c>SlayIdleRepeat.Core.Tests</c> references only <c>SlayIdleRepeat.Core</c> and has no JSON
+/// reader, so it can't see this document; this suite is where the numbers get checked. Every value
+/// is read with a <see cref="ContentSnapshot"/> reader, which throws on null, so a quietly nulled
+/// constant fails here rather than reading as zero. The one deliberate null is asserted through
+/// <see cref="ContentSnapshot.IsAuthorised"/>.
 /// </remarks>
 public sealed class StatusesDataTests
 {
     private const string Document = "content/statuses.json";
 
-    /// <summary>`05` §5's twelve, in the order the section's table prints them.</summary>
+    /// <summary>The twelve statuses, in the order the design doc's table prints them.</summary>
     private static readonly string[] StatusOrder =
     {
         "BURN", "POISON", "BLEED", "FREEZE", "STUN", "WEAKEN",
@@ -38,14 +27,8 @@ public sealed class StatusesDataTests
 
     private static ContentSnapshot Data() => ContentLoader.Load(RepoData.Source()).Require();
 
-    /// <summary>
-    /// 🔒 `05` §5's catalogue is a <c>content/</c> document, not a seventeenth <c>tuning/</c> file.
-    /// </summary>
-    /// <remarks>
-    /// Doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug; these are
-    /// combat balance constants rather than economy dials the economy simulator sweeps. The same
-    /// ruling <c>combat_caps.json</c> and <c>enemies.json</c> already record.
-    /// </remarks>
+    /// <summary>The status catalogue is a content/ document, not a seventeenth tuning/ file.</summary>
+    /// <remarks>These are combat balance constants, not economy dials the economy simulator sweeps — the same ruling combat_caps.json and enemies.json already record.</remarks>
     [Fact]
     public void The_document_is_in_the_snapshot_and_under_content_rather_than_tuning()
     {
@@ -55,13 +38,11 @@ public sealed class StatusesDataTests
         snapshot.DocumentPaths.ShouldNotContain("tuning/statuses.json");
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 fixes <b>twelve</b> statuses, by these ids, in this order.
-    /// </summary>
+    /// <summary>Fixes twelve statuses, by these ids, in this order.</summary>
     /// <remarks>
-    /// The order is part of the assertion because `05` §7's status <c>dataId</c> is the row's position
-    /// in this table and the ordinal is inside <c>LogHash</c> — reordering the rows would silently
-    /// renumber every status event in every committed reference log.
+    /// The order is part of the assertion: a status's <c>dataId</c> is its row position in this
+    /// table, and that ordinal is inside <c>LogHash</c> — reordering would silently renumber every
+    /// status event in every committed reference log.
     /// </remarks>
     [Fact]
     public void The_file_carries_05_section_5s_twelve_statuses_in_the_sections_order()
@@ -78,26 +59,16 @@ public sealed class StatusesDataTests
         }).ShouldBe(StatusOrder);
     }
 
-    /// <summary>
-    /// 🔒 The status vocabulary is enclosed twice and the two copies are equal — this catalogue and
-    /// the effect schema's own enum.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 <b>Two closed sets of twelve that must agree, with something making them.</b> `18` §2.3
-    /// refers to the twelve rather than restating them, and the effect schema encloses them so an
-    /// authored op cannot name a thirteenth; this file is the catalogue those ids are drawn from. A
-    /// status added to one and not the other is authorable-but-unimplemented, or
-    /// implemented-but-unauthorable, and neither fails anywhere else.
-    /// </remarks>
+    /// <summary>The status vocabulary is enclosed twice — this catalogue and the effect schema's own enum — and the two copies must agree.</summary>
+    /// <remarks>A status added to one and not the other is authorable-but-unimplemented, or implemented-but-unauthorable, and neither fails anywhere else.</remarks>
     [Fact]
     public void The_catalogues_ids_are_exactly_the_effect_schemas_status_vocabulary()
     {
-        // 🔴 BOTH DIRECTIONS, over the PARSED enum — the first version scanned the schema's raw text
-        // for each of this test's own hard-coded ids, which review showed caught nothing in the
-        // other direction: a thirteenth id added to $defs/statusId passed, and an id appearing only
-        // in a description would have satisfied the substring scan.
+        // Both directions, over the PARSED enum — a raw-text substring scan caught nothing in the
+        // other direction (a thirteenth id added to $defs/statusId would pass, and an id only in a
+        // description would satisfy the scan).
         //
-        // Read from the raw document set rather than the snapshot: a ContentSnapshot holds the DATA
+        // Read from the raw document set rather than the snapshot: a ContentSnapshot holds the data
         // documents a build ships, and schemas govern them from outside it.
         using var schema = JsonDocument.Parse(RepoData.Documents["schema/effect.schema.json"]);
 
@@ -126,24 +97,15 @@ public sealed class StatusesDataTests
         shipped.Length.ShouldBe(12, "05 §5 fixes twelve");
     }
 
-    /// <summary>
-    /// 📐 `05` §5 — <c>BLEED</c>'s missing-HP scaling term, the one 📐 TUNABLE the section carries.
-    /// </summary>
-    /// <remarks>
-    /// `05` §5 states the tick as <em>"that amount × (1 + target's missing-HP fraction)"</em>, so the
-    /// authored coefficient is the multiplier on the missing-HP fraction and <c>1.0</c> is that
-    /// expression written out. It is the key whose citation closes this section's 📐 baseline entry.
-    /// </remarks>
+    /// <summary>BLEED's missing-HP scaling term.</summary>
+    /// <remarks>The tick is "that amount × (1 + target's missing-HP fraction)", so the authored coefficient is the multiplier on the missing-HP fraction and 1.0 is that expression written out.</remarks>
     [Fact]
     public void BLEEDs_missing_HP_scaling_term_is_the_one_05_section_5_states()
     {
         Data().ReadDouble(Document + "#/bleedMissingHpScaling").ShouldBe(1.0);
     }
 
-    /// <summary>
-    /// 🔒 `05` §5's <c>STUN</c> literals — <em>"Max 1.5 s per application, with a 3 s immunity window
-    /// after"</em>.
-    /// </summary>
+    /// <summary>STUN's cap and immunity window: max 1.5 s per application, with a 3 s immunity window after.</summary>
     [Fact]
     public void STUNs_cap_and_immunity_window_are_the_two_numbers_05_section_5_states()
     {
@@ -153,14 +115,8 @@ public sealed class StatusesDataTests
         data.ReadDouble(Document + "#/stun/immunityWindowSeconds").ShouldBe(3.0);
     }
 
-    /// <summary>
-    /// 🔒 `05` §5's stack ceilings — stated for five of the twelve and for no others.
-    /// </summary>
-    /// <remarks>
-    /// The absences are asserted as well as the numbers. `05` §5 fixes no stacking for the other
-    /// seven, so `18` §6's per-effect block governs them and a ceiling appearing here would be this
-    /// file deciding on the section's behalf.
-    /// </remarks>
+    /// <summary>Stack ceilings, stated for five of the twelve statuses and for no others.</summary>
+    /// <remarks>The absences are asserted as well as the numbers: the other seven have no stacking rule here, so a per-effect block governs them instead, and a ceiling appearing here would be this file overriding that.</remarks>
     [Theory]
     [InlineData("BURN", 5)]
     [InlineData("POISON", 3)]
@@ -193,10 +149,7 @@ public sealed class StatusesDataTests
         ceiling.ShouldBeNull("05 §5 states no stack ceiling for " + id);
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 — <c>BLEED</c> <em>"does not stack; reapplication refreshes"</em>, which is `18`
-    /// §6's <c>NONE</c> plus <c>refreshOnReapply</c>.
-    /// </summary>
+    /// <summary>BLEED does not stack; reapplication refreshes — the NONE mode plus refreshOnReapply.</summary>
     [Fact]
     public void BLEED_is_the_authored_user_of_NONE_plus_refreshOnReapply()
     {
@@ -213,10 +166,7 @@ public sealed class StatusesDataTests
         scales!.AsBoolean().ShouldBeTrue();
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 states <c>FREEZE</c>'s potency as a literal <em>−50% ASPD</em>, and it is the only
-    /// row that carries one.
-    /// </summary>
+    /// <summary>FREEZE's potency is a literal −50% ASPD, and it is the only row that carries one.</summary>
     [Fact]
     public void FREEZE_is_the_only_row_whose_potency_the_section_states_as_a_literal()
     {
@@ -229,16 +179,12 @@ public sealed class StatusesDataTests
         withLiterals.ShouldBe(new[] { "FREEZE" });
     }
 
-    /// <summary>
-    /// 🔒 `05` §5 says <c>RAGE</c> <em>"decays over D s"</em> and states no curve — the one
-    /// unauthorised value in this file, and it stays <c>null</c>.
-    /// </summary>
+    /// <summary>RAGE decays over an unstated shape — the one unauthorised value in this file, and it stays null.</summary>
     /// <remarks>
-    /// Steering S6 / `16` R6: a plausible linear ramp here would be a balance decision invented by
-    /// the implementer and invisible afterwards. <c>RAGE</c> is the only row carrying the key, and it
-    /// carries it so the hole is greppable rather than absent. Counted by
-    /// <c>RealDataNegativeCaseTests</c>'s population guard; filling it changes that number in the
-    /// same commit.
+    /// A plausible linear ramp would be a balance decision invented by the implementer and
+    /// invisible afterwards. RAGE is the only row carrying the key, so the hole is greppable rather
+    /// than absent; filling it must change <c>RealDataNegativeCaseTests</c>'s population count in
+    /// the same commit.
     /// </remarks>
     [Fact]
     public void RAGEs_decay_curve_is_null_and_stays_null()
@@ -256,15 +202,8 @@ public sealed class StatusesDataTests
         StatusOrder.Where(id => Row(id).TryGetMember("decayCurve", out _)).ShouldBe(new[] { "RAGE" });
     }
 
-    /// <summary>
-    /// 🔒 The six statuses `05` §5 states as a percentage of a stat name that stat, and the other six
-    /// name none.
-    /// </summary>
-    /// <remarks>
-    /// `05` §5's <em>"−X% healing received"</em> is <c>HEAL_PCT</c>, which `05` §2 bases at 1.0 as a
-    /// multiplier on all healing received — so a <c>SPORE</c> pointed at any other stat would be a
-    /// different debuff wearing the same name.
-    /// </remarks>
+    /// <summary>The six statuses stated as a percentage of a stat name that stat, and the other six name none.</summary>
+    /// <remarks>"−X% healing received" is HEAL_PCT, a multiplier on all healing received — so SPORE pointed at any other stat would be a different debuff wearing the same name.</remarks>
     [Theory]
     [InlineData("FREEZE", "ASPD")]
     [InlineData("HASTE", "ASPD")]

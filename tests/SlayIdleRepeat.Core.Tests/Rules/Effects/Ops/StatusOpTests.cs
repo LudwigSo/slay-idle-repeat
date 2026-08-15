@@ -6,13 +6,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>🔒 `18` §2.3's six status ops, each on its own number and its own direction.</summary>
+/// <summary>The six status ops, each on its own number and its own direction.</summary>
 public sealed class StatusOpTests
 {
-    /// <summary>
-    /// `18` §7.7 — <c>PET_STORMFANG</c>'s active applies <c>STUN</c> to every enemy. The potency is
-    /// the status's own X (`05` §5) and is not reinterpreted by a value mode.
-    /// </summary>
+    /// <summary><c>PET_STORMFANG</c>'s active: potency is the status's own X, not reinterpreted by a value mode.</summary>
     [Fact]
     public void APPLY_STATUS_applies_the_authored_potency_to_every_target_the_token_names()
     {
@@ -37,13 +34,13 @@ public sealed class StatusOpTests
             ],
             Case.Sensitive);
 
-        // 🔒 The 18 §6 block travels with the status. Without this the op could pass null and every
-        //    RAGE in the game would last a tick.
+        // The duration block travels with the status; without it the op could pass null and every
+        // RAGE in the game would last a tick.
         bench.Lifetimes.ShouldAllBe(l => l.Duration!.Seconds == 999 && l.Duration.Scope == DurationScope.BATTLE);
         bench.Lifetimes.Count.ShouldBe(2, "ShouldAllBe passes on an empty collection");
     }
 
-    /// <summary>`18` §1.1's <c>valueScale</c> is still refused by the strict reader — M2-06's half.</summary>
+    /// <summary><c>valueScale</c> is still refused by the strict reader.</summary>
     [Fact]
     public void A_status_potency_carrying_a_valueScale_names_M2_06_rather_than_guessing()
     {
@@ -62,7 +59,7 @@ public sealed class StatusOpTests
         thrown.Message.ShouldContain("M2-06", Case.Sensitive);
     }
 
-    /// <summary>🔒 R12 — <c>REMOVE_STATUS</c>'s <c>statusId</c> form.</summary>
+    /// <summary><c>REMOVE_STATUS</c>'s <c>statusId</c> form.</summary>
     [Fact]
     public void REMOVE_STATUS_by_statusId_clears_that_one_status()
     {
@@ -80,9 +77,8 @@ public sealed class StatusOpTests
     }
 
     /// <summary>
-    /// 🔒 R12 — <c>REMOVE_STATUS</c>'s <b>tag-group</b> form goes through a
-    /// <see cref="StatusTag"/>, which is a different type from the effect's own author
-    /// <see cref="AuthorTag"/>s.
+    /// <c>REMOVE_STATUS</c>'s tag-group form goes through a <see cref="StatusTag"/>, a different type
+    /// from the effect's own author <see cref="AuthorTag"/>s.
     /// </summary>
     [Fact]
     public void REMOVE_STATUS_by_statusTag_clears_a_STATUS_tag_group_and_not_the_effects_own_tags()
@@ -94,8 +90,8 @@ public sealed class StatusOpTests
         {
             StatusTag = new StatusTag("control"),
 
-            // 🔒 The effect's own tags include the RESERVED ward-bypass marker. It must not be
-            //    reachable as a status tag group — that is the whole point of the two types.
+            // The effect's own tags include the reserved ward-bypass marker; it must not be
+            // reachable as a status tag group.
             Tags = ["drawback", "defence"],
         };
 
@@ -105,10 +101,7 @@ public sealed class StatusOpTests
         EffectTagging.IsDrawback(cleanse).ShouldBeTrue("the author tag is untouched by the status form");
     }
 
-    /// <summary>
-    /// `18` §2.3 offers <em>"a status <b>or</b> a tag group"</em>. Neither is an effect that removes
-    /// nothing and reports success; both is two removals with no authored precedence.
-    /// </summary>
+    /// <summary>Neither statusId nor statusTag removes nothing and reports success; both is ambiguous with no authored precedence.</summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, true)]
@@ -130,7 +123,6 @@ public sealed class StatusOpTests
         bench.Calls.ShouldBeEmpty();
     }
 
-    /// <summary>`18` §2.3.</summary>
     [Fact]
     public void EXTEND_STATUS_adds_its_value_in_seconds()
     {
@@ -170,7 +162,6 @@ public sealed class StatusOpTests
         bench.Calls.ShouldBeEmpty();
     }
 
-    /// <summary>`18` §2.3.</summary>
     [Fact]
     public void IMMUNE_STATUS_grants_immunity_to_the_named_status()
     {
@@ -187,16 +178,13 @@ public sealed class StatusOpTests
 
         bench.Calls.ShouldBe(["GrantImmunity:STUN(HERO, 0, PK_STEADFAST)"], Case.Sensitive);
 
-        // 🔒 IMMUNE_STATUS carries no magnitude at all — its ONLY number is how long the immunity
-        //    lasts, so a recorder that dropped the duration would leave this op with no numeric
-        //    assertion whatever.
+        // IMMUNE_STATUS carries no magnitude at all — its only number is how long immunity lasts.
         bench.OnlyLifetime("GrantImmunity:STUN").Duration!.Seconds.ShouldBe(3.0);
     }
 
     /// <summary>
-    /// 🔒 The two bulk ops point in <b>opposite</b> directions, and §2.3's two rows are the only
-    /// place that is said: <c>STATUS_POWER_PCT</c> scales what the actor <em>applies</em>,
-    /// <c>STATUS_DURATION_PCT</c> what is <em>applied to</em> it.
+    /// The two bulk ops point in opposite directions: <c>STATUS_POWER_PCT</c> scales what the actor
+    /// applies, <c>STATUS_DURATION_PCT</c> scales what is applied to it.
     /// </summary>
     [Fact]
     public void STATUS_POWER_PCT_is_outgoing_and_STATUS_DURATION_PCT_is_incoming()
@@ -215,21 +203,15 @@ public sealed class StatusOpTests
             ["ScaleOutgoingPower(HERO, 0.2, TAL_KINDLING)", "ScaleIncomingDuration(HERO, -0.35, PK_TENACITY)"], Case.Sensitive);
     }
 
-    // ───────────────────────────────────────────── M2-R3: value-less APPLY_STATUS
+    // ───────────────────────────────────────────── value-less APPLY_STATUS
 
     /// <summary>
-    /// 🔒 M2-R3 (3b) — `05` §5's FREEZE is stated as a literal (<em>"−50% ASPD"</em>), not as an
-    /// authored X, so <c>BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE</c> carries no <c>value</c> at all. A
-    /// status whose definition carries <c>FixedPotency</c> narrows <see cref="ValueScaleEvaluator"/>'s
-    /// otherwise-universal "no value is a hole" guard to exactly this case.
+    /// A status whose definition carries <c>FixedPotency</c> may author no <c>value</c> at all — this
+    /// narrows the usual "no value is a hole" guard to exactly that case.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The <c>0</c> potency asserted here is the M2-R3 <b>sentinel</b>, not the applied number —
-    /// <c>StatusTimeline.Apply</c>'s <c>definition.FixedPotency ?? …</c> never reads it once
-    /// <c>FixedPotency</c> is set. The −50 % actually reaching the actor's ASPD is asserted end to end
-    /// in <c>ValueLessFreezeAppliesNumericallyTests</c>, against the real <c>StatusTimeline</c> and the
-    /// shipped catalogue — this test is the op layer's own claim: it does not throw and it does not
-    /// invent the number.
+    /// The <c>0</c> potency asserted here is a sentinel, not the applied number — this is the op
+    /// layer's own claim (it does not throw); the real number reaching ASPD is asserted elsewhere.
     /// </remarks>
     [Fact]
     public void APPLY_STATUS_with_no_value_and_a_FixedPotency_status_does_not_throw()
@@ -250,10 +232,9 @@ public sealed class StatusOpTests
     }
 
     /// <summary>
-    /// 🔒 M2-R3's negative control — the narrowing is for FREEZE's shape (a status carrying
-    /// <c>FixedPotency</c>) and nothing wider. A value-less <c>APPLY_STATUS</c> naming a status with
-    /// no <c>FixedPotency</c> — BURN, whose X is authored per effect — is exactly the authoring hole
-    /// `18` §1.1's guard exists to catch, and must still throw.
+    /// The narrowing is for a <c>FixedPotency</c> status specifically, not wider. A value-less
+    /// <c>APPLY_STATUS</c> naming a status with no <c>FixedPotency</c> (BURN, whose X is authored
+    /// per effect) is exactly the authoring hole the guard exists to catch, and must still throw.
     /// </summary>
     [Fact]
     public void APPLY_STATUS_with_no_value_and_no_FixedPotency_status_still_throws()

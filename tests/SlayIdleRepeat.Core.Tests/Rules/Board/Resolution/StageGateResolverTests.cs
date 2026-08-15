@@ -11,10 +11,9 @@ using RunAggregate = SlayIdleRepeat.Core.Model.Run;
 namespace SlayIdleRepeat.Core.Tests.Rules.Board.Resolution;
 
 /// <summary>
-/// 🔒 M3-05, `03` §1.1 — <c>StageGateResolver</c>: the heal, the reroll-charge reset and the
-/// Fair-Dice bag anchor, over a hand-built <c>HandlerInput</c> — the same shape
-/// <c>Handlers.RollDice</c>/<c>Handlers.ChooseFork</c> hand it, without needing to steer a real
-/// board to a stage boundary.
+/// Tests <c>StageGateResolver</c>: the heal, the reroll-charge reset and the Fair-Dice bag anchor,
+/// over a hand-built <c>HandlerInput</c> — the same shape <c>Handlers.RollDice</c>/
+/// <c>Handlers.ChooseFork</c> hand it, without needing to steer a real board to a stage boundary.
 /// </summary>
 public sealed class StageGateResolverTests
 {
@@ -25,7 +24,7 @@ public sealed class StageGateResolverTests
         return new HandlerInput(state, TileWorlds.Context, rng);
     }
 
-    /// <summary>🔒 `21` §3.1 — the heal is the shipped 15% of Max HP, read from content rather than hardcoded.</summary>
+    /// <summary>The heal is the shipped 15% of Max HP, read from content rather than hardcoded.</summary>
     [Fact]
     public void Apply_heals_the_shipped_percentage_of_max_hp()
     {

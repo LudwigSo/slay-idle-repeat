@@ -5,9 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.BalanceHarness;
 
-/// <summary>
-/// 🔒 `21` §10's CLI — the three commands, every option, and the exit codes CI keys on.
-/// </summary>
+/// <summary>The harness CLI: the three commands, every option, and the exit codes CI keys on.</summary>
 [Collection(WallClockSensitive.Name)]
 public sealed class HarnessCliTests
 {
@@ -79,8 +77,7 @@ public sealed class HarnessCliTests
     public void An_argument_that_is_not_understood_is_an_error_and_never_a_silent_default(
         params string[] args)
     {
-        // 🔒 A nightly job invoked with a mistyped --fights that silently ran the default would report
-        // a number nobody asked for, under a name that says it is something else.
+        // A mistyped --fights that silently ran the default would report a number nobody asked for.
         var options = HarnessOptions.Parse(args, out var error);
 
         options.ShouldBeNull();
@@ -113,10 +110,8 @@ public sealed class HarnessCliTests
     [Fact]
     public void Assert_exits_NON_ZERO_on_the_shipped_data_because_guardrail_1_really_does_breach()
     {
-        // 🔴 The CI contract, and the single most important assertion in this file. On the shipped
-        // data guardrail 1 breaches — the par build dies to every boss — and `assert` MUST fail. A
-        // change that softened the band, scaled a build or excluded a cell to make the nightly job
-        // green would turn this red, which is the point.
+        // The CI contract: on the shipped data guardrail 1 breaches (the par build dies to every
+        // boss), and `assert` must fail. Softening the band to make the nightly job green turns this red.
         var output = new StringWriter();
 
         var exit = HarnessRun.Run(
@@ -128,15 +123,9 @@ public sealed class HarnessCliTests
 
         var text = output.ToString();
 
-        // 🔴 GUARDRAIL 1's OWN LINE, not "somewhere in the report there is a FAIL". Guardrails 5 and 6
-        // also breach on the shipped data, so `[FAIL` and `guardrail 1` asserted separately are both
-        // satisfied by a report in which guardrail 1 PASSED and only its neighbours failed — which is
-        // exactly what happens if the band check is neutered. Measured: with
-        // `SweepGuardrails.ClearRateAtPar`'s breach test forced to false, this case stayed green while
-        // every one of guardrail 1's own discrimination cases went red.
-        //
-        // The summary below is a breaching guardrail 1's and nothing else's: the breach count, the
-        // authored band, and the clear rate that produced it.
+        // Guardrail 1's own line, not just "somewhere in the report there is a FAIL" — guardrails 5
+        // and 6 also breach on shipped data, so those two assertions alone wouldn't catch a neutered
+        // band check where only the neighbours failed.
         text.ShouldContain(
             "1/1 cells outside [62.00%, 78.00%]", Case.Sensitive,
             "guardrail 1's own breach count over its own authored band");
@@ -150,7 +139,7 @@ public sealed class HarnessCliTests
     [Fact]
     public void The_scope_line_states_the_cells_and_the_fight_count_that_were_actually_run()
     {
-        // Steering S3 — a run that silently swept nothing must be visible in its own output.
+        // A run that silently swept nothing must be visible in its own output.
         var output = new StringWriter();
 
         HarnessRun.Run(

@@ -1,13 +1,9 @@
-// The `15` §B4 post-processing pipeline's CLI. The library half is the part that matters —
-// M8-10 drives it in-process over the whole manifest — and the entry point exists because the
-// other tools/ projects are Exe for the same reason: a human runs a batch by hand.
+// The asset post-processing pipeline's CLI. The library half is what actually matters; this entry
+// point exists for a human to run a batch by hand.
 //
-// 🔒 What this CLI deliberately does NOT do is process a batch. Six of M8's eight original tasks
-// are capability-blocked, so at the time of writing there is no generated art to run through the
-// seven steps; M8-10 is the first task that produces any. Until then the two things a human
-// actually needs from a command line are "what does the pipeline consist of" and "which of the
-// seventeen holes has anybody calibrated" — and a batch command that silently processed nothing
-// would be worse than no batch command at all.
+// Deliberately does NOT process a batch yet: there is no generated art to run through the steps.
+// Until then a human just needs "what does the pipeline consist of" and "which thresholds are
+// calibrated" — a batch command that silently processed nothing would be worse than none at all.
 using System.Globalization;
 using SlayIdleRepeat.AssetPipeline;
 

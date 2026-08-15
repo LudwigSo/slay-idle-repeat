@@ -3,25 +3,18 @@ using System.Globalization;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 The `14` §8.1 / `30` §3 <c>CommandSeed</c> invariant: <b>a command carries a server-issued
-/// <c>CommandSeed</c> exactly when it draws out-of-run randomness, and <c>GameContext.CommandSeed</c>
-/// is <c>null</c> on every other command.</b>
+/// The <c>CommandSeed</c> invariant: a command carries a server-issued <c>CommandSeed</c> exactly
+/// when it draws out-of-run randomness; <c>GameContext.CommandSeed</c> is <c>null</c> on every other
+/// command. Run draws hash off the aggregate's committed seed and persisted per-stream counters, so
+/// they need no seed of their own; meta draws are atomic (idempotency replays the stored outcome) and
+/// hash off this seed from <c>i = 0</c> with no persisted counter.
 /// </summary>
 /// <remarks>
-/// Two regimes. <b>Run draws</b> are <c>Hash64(runSeed, stream, i)</c> off the aggregate's committed
-/// seed and persisted counters — state, not ambience — so <c>CommandSeed</c> must be <c>null</c>.
-/// <b>Meta draws</b> are <c>Hash64(CommandSeed, stream, i)</c> from <c>i = 0</c> with no persisted
-/// counter; the command is atomic and idempotency replays its stored outcome, so a meta draw cannot
-/// be re-rolled by resubmission.
-/// <para>
-/// ⚠️ Still not asserted: the invariant where a <see cref="GameContext"/> is actually <em>paired</em>
-/// with a command — nothing checks at <c>Apply</c> time that this context's seed matches this
-/// command's classification. <b>Owner: M1-09</b>, the first task with a real pairing to check.
-/// </para>
+/// Not yet asserted: that a <see cref="GameContext"/> is actually paired with a command — nothing
+/// checks at <c>Apply</c> time that this context's seed matches this command's classification.
 /// </remarks>
 internal static class CommandSeedPin
 {
-    /// <summary>What a violation means, said plainly, so a failure is not "fixed" in the test.</summary>
     internal const string Consequence =
         "CommandSeed is server-issued and META-ONLY (14 §8.1, 30 §3). The domain never invents " +
         "entropy: an in-run draw comes from the Run aggregate's committed runSeed and its persisted " +
@@ -29,13 +22,10 @@ internal static class CommandSeedPin
         "composition root that built the context, never this rule.";
 
     /// <summary>
-    /// 🔒 The nine meta commands that draw randomness and therefore carry a <c>CommandSeed</c>.
+    /// The nine meta commands that draw randomness and therefore carry a <c>CommandSeed</c>. The run
+    /// commands are deliberately not enumerated anywhere here — sweeps read that half off the dispatch
+    /// table's <c>CommandKind</c> so the two sources can't agree with each other instead of the registry.
     /// </summary>
-    /// <remarks>
-    /// <b>The 19 run-command names are deliberately not enumerated here</b>: the sweeps read the run
-    /// half off the dispatch table's <c>CommandKind</c>, so transcribing it would give those rules a
-    /// second source and let the two agree with each other instead of with the registry.
-    /// </remarks>
     internal static IReadOnlySet<string> SeedBearingMetaCommands { get; } =
         new HashSet<string>(StringComparer.Ordinal)
         {
@@ -50,34 +40,15 @@ internal static class CommandSeedPin
             "START_DUEL",
         };
 
-    /// <summary>The namespace `30` §11.4 reserves for the command vocabulary.</summary>
     internal const string CommandsNamespace = "SlayIdleRepeat.Core.Commands";
 
-    /// <summary>Every <b>concrete</b> non-nested command type.</summary>
-    /// <remarks>
-    /// 🔒 Concrete, because a base with no wire name and no seed is not a command anybody sends —
-    /// counting it would wake this file's rules over a vocabulary of one abstraction.
-    /// <para>
-    /// 🔒 This is a namespace filter, and a namespace filter goes quiet on a move rather than red, so
-    /// the backstops matter: <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c> reads the
-    /// assembly with Cecil wherever the type is declared, and <c>CommandVocabularyTests</c> pins the
-    /// registry against a hand-transcribed list. ⚠️ <c>SubjectSetFloorTests</c>' row is <b>not</b> one
-    /// of them — it watches only that the namespace exists.
-    /// </para>
-    /// </remarks>
+    /// <summary>
+    /// Every concrete non-nested command type. Filtered by namespace only, not accessibility — handlers
+    /// and rules are internal here, so an <c>IsPublic</c> filter would silence the rule entirely.
+    /// </summary>
     internal static IReadOnlyList<Type> CommandTypes { get; } = ConcreteTypesUnder(CommandsNamespace);
 
-    /// <summary>
-    /// Every non-nested, non-abstract type declared in <c>Core</c> under a namespace or below it.
-    /// </summary>
-    /// <remarks>
-    /// Exposed rather than inlined so the self-tests can prove this half is not the vacuity source.
-    /// <para>
-    /// ⚠️ Accessibility is deliberately <b>not</b> filtered: `30` §11.2 makes handlers and rules
-    /// internal, so an internal command vocabulary is plausible — and an <c>IsPublic</c> filter would
-    /// silence the rule and its tripwire together, on the same accessibility choice.
-    /// </para>
-    /// </remarks>
+    /// <summary>Every non-nested, non-abstract type declared in <c>Core</c> under a namespace or below it.</summary>
     internal static IReadOnlyList<Type> ConcreteTypesUnder(string namespacePrefix) =>
         typeof(GameContext).Assembly
             .GetTypes()
@@ -93,21 +64,10 @@ internal static class CommandSeedPin
          candidate.StartsWith(prefix + ".", StringComparison.Ordinal));
 
     /// <summary>
-    /// 🔒 The `14` §2.3 wire name a command type <b>declares</b>, or <c>null</c> when no dispatch row
-    /// names the type.
+    /// The wire name a command type declares on its dispatch row, or <c>null</c> when no row names it.
+    /// Read off the registration rather than derived from the type name, which used to produce
+    /// mangled names like <c>OpenPvPCommand</c> → <c>OPEN_PV_P</c>.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Read, not guessed. This was a heuristic — strip <c>Command</c>, split on capitals, upper-case
-    /// — which turned <c>OpenPvPCommand</c> into <c>OPEN_PV_P</c>. The dispatch table now declares the
-    /// name, so a heuristic beside it would be a second answer to a question that has one.
-    /// <para>
-    /// ⚠️ A type declaring no row answers <c>null</c>: <c>Every_command_type_is_handled_by_Apply</c>
-    /// fails the build for that, and duplicating the complaint would be a second mechanism for one
-    /// rule.
-    /// </para>
-    /// </remarks>
-    /// <param name="commandType">A concrete <c>GameCommand</c> subtype.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="commandType"/> is null.</exception>
     internal static string? WireNameOf(Type commandType)
     {
         ArgumentNullException.ThrowIfNull(commandType);
@@ -116,14 +76,10 @@ internal static class CommandSeedPin
     }
 
     /// <summary>
-    /// 🔒 The invariant itself: everything wrong with pairing <paramref name="commandName"/> with
-    /// <paramref name="context"/>'s <c>CommandSeed</c>. Empty means the pairing is legal.
+    /// Everything wrong with pairing <paramref name="commandName"/> with <paramref name="context"/>'s
+    /// <c>CommandSeed</c>; empty means the pairing is legal. The two failure messages are worded
+    /// distinctly since they are opposite defects with opposite fixes.
     /// </summary>
-    /// <remarks>
-    /// The two failures carry distinct wording: "a run command was handed a seed" and "a meta draw was
-    /// handed none" are opposite defects with opposite fixes, and a test pinning only "it failed"
-    /// would pass while the wrong one fired.
-    /// </remarks>
     internal static IReadOnlyList<string> Violations(string commandName, GameContext context)
     {
         ArgumentNullException.ThrowIfNull(commandName);

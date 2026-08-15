@@ -3,17 +3,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetManifest.Tests;
 
-/// <summary>
-/// Where the manifest lives, and how M0-09's content pipeline sees it.
-/// </summary>
+/// <summary>Where the manifest lives, and how the content pipeline sees it.</summary>
 /// <remarks>
-/// 🔒 <c>game-data/assets/</c> is NOT outside the existing validator's reach.
-/// <c>LocalFileContentSource</c> enumerates every <c>*.json</c> under <c>game-data</c> recursively,
-/// and <c>ContentLayout.SchemaFor</c> falls through to the stem rule for any directory that is not
-/// <c>loc/</c> or a declared content type. <c>ContentLoader.Pair</c> then enforces the pairing in
-/// BOTH directions: a data file with no schema is <c>MissingSchema</c>, and a schema governing no
-/// data file is <c>OrphanSchema</c>. These cases pin the stem pairing that keeps both green, so a
-/// rename cannot quietly drop the manifest out of build-time validation.
+/// <c>game-data/assets/</c> is not outside the existing validator's reach: it falls through to the
+/// stem pairing rule, which enforces a schema for every data file and vice versa. These cases pin
+/// that pairing so a rename cannot quietly drop the manifest out of build-time validation.
 /// </remarks>
 public sealed class ManifestLayoutTests
 {
@@ -26,10 +20,7 @@ public sealed class ManifestLayoutTests
             .ShouldBeTrue($"game-data/assets/{fileName} is the register three M8 tasks read");
     }
 
-    /// <summary>
-    /// 🔒 The stem rule: <c>assets/X.json</c> is governed by <c>schema/X.schema.json</c>. Renaming
-    /// one without the other fails the content-validation CI job — this case says so first.
-    /// </summary>
+    /// <summary>The stem rule: <c>assets/X.json</c> is governed by <c>schema/X.schema.json</c>; renaming one without the other fails the content-validation CI job.</summary>
     [Theory]
     [InlineData("asset_manifest_art")]
     [InlineData("asset_manifest_audio")]
@@ -78,10 +69,7 @@ public sealed class ManifestLayoutTests
         schema.ShouldContain("\"additionalProperties\": false", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 `game-data/README.md`: UTF-8 without BOM, LF line endings. A CRLF here would turn every
-    /// later one-line change into a whole-file diff.
-    /// </summary>
+    /// <summary>UTF-8 without BOM, LF line endings — a CRLF here would turn every later one-line change into a whole-file diff.</summary>
     [Theory]
     [InlineData("assets/asset_manifest_art.json")]
     [InlineData("assets/asset_manifest_audio.json")]
@@ -95,8 +83,7 @@ public sealed class ManifestLayoutTests
         (bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF)
             .ShouldBeFalse("game-data/README.md: UTF-8, no BOM");
 
-        // S3 floor: the scan below asserts once per newline, so a file with no newline at all
-        // would satisfy the LF rule vacuously.
+        // A file with no newline at all would satisfy the LF-only check below vacuously.
         bytes.Count(b => b == (byte)'\n')
             .ShouldBeGreaterThan(100, $"{relativePath} is a pretty-printed multi-line JSON file");
 
@@ -122,10 +109,7 @@ public sealed class ManifestLayoutTests
         json.ShouldContain("\"_doc\":", Case.Sensitive);
     }
 
-    /// <summary>
-    /// The manifest is loadable from the <c>game-data</c> root alone — the entry point M8-01a,
-    /// M8-06 and M8-10 will each call.
-    /// </summary>
+    /// <summary>The manifest is loadable from the <c>game-data</c> root alone.</summary>
     [Fact]
     public void The_register_loads_from_the_game_data_root()
     {

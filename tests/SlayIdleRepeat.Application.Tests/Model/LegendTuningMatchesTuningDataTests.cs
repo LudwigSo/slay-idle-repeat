@@ -5,40 +5,24 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Model;
 
-/// <summary>
-/// 🔒 `21` §3.1 — the <c>Player</c> aggregate's Legend Level invariant and
-/// <c>game-data/tuning/</c> cannot drift apart.
-/// </summary>
+/// <summary>Checks that the Player aggregate's Legend Level invariant and <c>tuning/progression.json</c> cannot drift apart.</summary>
 /// <remarks>
-/// <para>
-/// `30` §11.5 puts <em>"a Legend Level is inside the authored range"</em> on the aggregate, and
-/// `07` §1.1 authors that range at <c>progression.json#/legendLevel/min</c> and <c>/max</c>.
-/// <c>LegendTuning</c> reads exactly those two pointers, and <c>Player.Rehydrate</c> refuses a row
-/// outside them.
-/// </para>
-/// <para>
-/// Neither half can see the other, for the reason its energy sibling documents: <c>Core.Tests</c>
-/// is hermetic and proves the invariant against a fixture that <em>mirrors</em> the shipped file,
-/// while <c>LegendTuning</c> is <c>internal</c> to <c>Core</c> so this suite cannot call it. This
-/// file closes the seam — the real file still authors those pointers, with the numbers `07` §1.1
-/// states, as whole numbers the reader can actually read. Renaming <c>max</c> in the data would
-/// otherwise leave the Core fixture green and every rehydration in the shipped game throwing
-/// <c>MissingContentException</c>.
-/// </para>
-/// <para>
-/// Same mechanism as <c>Rules/Economy/EnergyTuningMatchesTuningDataTests</c>: it reads files, which
-/// is why it lives here. No adapter, no port, no container, no network.
-/// </para>
+/// The aggregate requires a Legend Level to be inside the authored range; <c>LegendTuning</c> reads
+/// that range from <c>progression.json#/legendLevel/min</c> and <c>/max</c>, and
+/// <c>Player.Rehydrate</c> refuses a row outside it. <c>Core.Tests</c> is hermetic and proves the
+/// invariant against a fixture that mirrors the shipped file, and the reader is internal to Core,
+/// so this suite reads the real file directly via <see cref="RepoData"/> instead. Renaming a bound
+/// in the data would otherwise leave the Core fixture green and every rehydration in the shipped
+/// game throwing <c>MissingContentException</c>.
 /// </remarks>
 public sealed class LegendTuningMatchesTuningDataTests
 {
     private const string ProgressionDocument = "tuning/progression.json";
 
     /// <summary>
-    /// The two leaves <c>LegendTuning</c> reads, with the values `07` §1.1 authors.
-    /// 🔒 Keep in step with <c>ProgressionDocuments.ShippedLegendLevelMin</c>/<c>Max</c> in
-    /// <c>SlayIdleRepeat.Core.Tests</c>: those drive the Core-side range assertions, this pins the
-    /// file they claim to mirror.
+    /// The two leaves <c>LegendTuning</c> reads. Keep in step with
+    /// <c>ProgressionDocuments.ShippedLegendLevelMin</c>/<c>Max</c> in <c>SlayIdleRepeat.Core.Tests</c>,
+    /// which drive the Core-side range assertions this file claims to mirror.
     /// </summary>
     public static TheoryData<string, int, string> AuthoredLegendLevelBounds => new()
     {
@@ -71,10 +55,9 @@ public sealed class LegendTuningMatchesTuningDataTests
     }
 
     /// <summary>
-    /// 🔒 S3 — the floor. Both leaves the reader reads are present, stated as a set rather than a
-    /// count: the block also holds <c>xpCoefficient</c>, <c>xpExponent</c>,
-    /// <c>xpExponentSweepRange</c> and <c>talentPointsPerLevel</c>, so a count floor of two holds
-    /// while both authored bounds vanish.
+    /// Floor: both leaves the reader reads are present, stated as a set rather than a count — the
+    /// block also holds four other keys, so a count floor of two would hold even if both authored
+    /// bounds vanished.
     /// </summary>
     [Fact]
     public void Every_leaf_the_legend_level_reader_reads_is_present_in_the_block()
@@ -89,25 +72,18 @@ public sealed class LegendTuningMatchesTuningDataTests
             "fix the reader, do not delete the case.");
     }
 
-    /// <summary>
-    /// ⚠️ The level-up <b>curve</b> is authored and deliberately <b>not</b> read by the aggregate.
-    /// </summary>
-    /// <remarks>
-    /// `30` §11.5 keeps computation off the aggregate, and `07` §1's curve, grants and unlock ladder
-    /// are M4-10's. Pinned here so the deferral is visible and the numbers stay greppable (S6) —
-    /// and because `21` §12 calls <c>xpExponent</c> "the highest-suspicion number in the whole
-    /// economy", which makes an accidental read of it from a validation path worth catching.
-    /// </remarks>
+    /// <summary>The level-up curve is authored and deliberately not read by the aggregate.</summary>
+    /// <remarks>Computation stays off the aggregate; the curve, grants and unlock ladder belong to a level-up command. Pinned here so the deferral is visible and the numbers stay greppable.</remarks>
     [Fact]
     public void The_level_up_curve_is_authored_and_belongs_to_M4_10_rather_than_to_the_aggregate()
     {
         var block = LegendLevelBlock();
 
         Read(block, "xpCoefficient").GetDecimal().ShouldBe(120m, "07 §1.1 — Level 2 needs 120 XP.");
-        // ⚠️ Asserted as a RANGE, not as 1.05. 21 §12 calls this "the highest-suspicion number in
-        // the whole economy — sweep it first", and progression.json authors its own sweep bounds
-        // beside it. Pinning the exact value would turn the first balance sweep red inside a file
-        // about the Player aggregate's Legend Level invariant, which reads nothing here.
+        // Asserted as a RANGE, not a fixed value: this is a balance-sensitive number expected to be
+        // swept, and progression.json authors its own sweep bounds beside it. Pinning the exact
+        // value would turn a balance sweep red in a file about the Legend Level invariant, which
+        // reads nothing here.
         var sweep = Read(block, "xpExponentSweepRange");
         var exponent = Read(block, "xpExponent").GetDecimal();
 

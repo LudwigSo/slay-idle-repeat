@@ -7,25 +7,11 @@ using Xunit;
 namespace SlayIdleRepeat.Contract.Tests.Shared;
 
 /// <summary>
-/// 🔒 The one suite that states what <see cref="IContentSourcePort"/> <em>means</em>, run against
-/// <b>every</b> implementation including the fake (`23` §5 A8, `14` §13).
+/// States what <see cref="IContentSourcePort"/> <em>means</em>, run against every implementation
+/// including the fake — written once against the interface so every implementation inherits it,
+/// instead of each adapter drifting on its own (as the two already had: differing exception types
+/// for an unlisted/escaping path before this suite existed).
 /// </summary>
-/// <remarks>
-/// <para>
-/// This is the first port the project shipped, and it shipped without this suite. The two
-/// implementations had already drifted: the port documented <em>"Throws when the path is not
-/// listed"</em>, while <c>InMemoryContentSource</c> threw <c>KeyNotFoundException</c> and
-/// <c>LocalFileContentSource</c> threw <c>ArgumentException</c> for an escaping path and let
-/// <c>File.ReadAllBytes</c>'s <c>FileNotFoundException</c> out otherwise. Only one of them
-/// validated path escape at all.
-/// </para>
-/// <para>
-/// The point of the shape is that a case is written <b>once</b>, against the interface, and every
-/// implementation inherits it. A case written against the fake alone passes and says nothing about
-/// the adapter the game actually runs on — which is the whole reason `23` §5 A8 exists, and the
-/// precedent M1's ~10 further ports will follow.
-/// </para>
-/// </remarks>
 public abstract class IContentSourcePortContractTests : IDisposable
 {
     private bool _disposed;
@@ -64,16 +50,10 @@ public abstract class IContentSourcePortContractTests : IDisposable
     }
 
     /// <summary>
-    /// 🔒 <b>Ordinal</b>, not culture-aware and not "whatever the filesystem returned". The
-    /// loader's determinism is stated over this order, and the stamp is stated over the loader.
+    /// Ordinal order, not culture-aware: the hyphen in <c>a-b</c> sorts before <c>ab</c> under
+    /// ordinal comparison but after it under the invariant-culture comparer, which treats hyphens
+    /// as ignorable punctuation.
     /// </summary>
-    /// <remarks>
-    /// The hyphen is the discriminator: ordinal sorts <c>a-b</c> before <c>ab</c> because
-    /// <c>'-'</c> &lt; <c>'b'</c>, while the invariant <em>culture</em> comparer treats the hyphen
-    /// as ignorable punctuation and puts <c>ab</c> first. Case cannot be used for this — a
-    /// case-insensitive filesystem cannot hold both spellings, so it would test the platform
-    /// rather than the contract.
-    /// </remarks>
     [Fact]
     public void ListDocuments_is_ordinal_sorted()
     {
@@ -89,8 +69,7 @@ public abstract class IContentSourcePortContractTests : IDisposable
 
         listed.ShouldBeInOrder(SortDirection.Ascending, StringComparer.Ordinal);
 
-        // An ordered SUBSEQUENCE, which is what ContainInOrder asserted: every expected path
-        // appears, and each one after the previous. Not equality — the source may list more.
+        // Ordered subsequence, not equality: every expected path appears, each after the previous.
         var expectedInOrder = new[]
         {
             "loc/en.json", "schema/a.schema.json", "tuning/a-b.json", "tuning/ab.json",
@@ -137,11 +116,7 @@ public abstract class IContentSourcePortContractTests : IDisposable
         }
     }
 
-    /// <summary>
-    /// 🔒 The <b>same declared exception type</b> from every implementation. The port names
-    /// <see cref="MissingContentException"/>; an implementation that throws its own favourite type
-    /// makes every caller written against another one wrong.
-    /// </summary>
+    /// <summary>The same declared exception type from every implementation, not each adapter's own favourite.</summary>
     [Fact]
     public void ReadDocument_of_a_path_the_source_does_not_list_throws_the_declared_exception()
     {
@@ -153,11 +128,7 @@ public abstract class IContentSourcePortContractTests : IDisposable
             .Reference.ShouldBe("tuning/nope.json");
     }
 
-    /// <summary>
-    /// 🔒 A document path is a key inside the content set, never a way out of it — and it fails the
-    /// same way as any other unlisted path. Only one implementation checked this at all before this
-    /// suite existed, so a traversal that the real adapter rejected was silently fine on the fake.
-    /// </summary>
+    /// <summary>A path that escapes the content set fails the same way as any other unlisted path.</summary>
     [Theory]
     [InlineData("../outside.json")]
     [InlineData("tuning/../../outside.json")]

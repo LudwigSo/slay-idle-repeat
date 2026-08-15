@@ -1,19 +1,13 @@
 namespace SlayIdleRepeat.Core.Content.Effects;
 
 /// <summary>
-/// `18` §6's <c>duration</c> block: <c>{"seconds": 4.0, "scope": "BATTLE"}</c>, optionally with an
-/// early terminator.
+/// The <c>duration</c> block: <c>{"seconds": 4.0, "scope": "BATTLE"}</c>, optionally with an early
+/// terminator.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <see cref="Seconds"/> is optional because §7.10's Bog Air writes <c>{"scope": "PHASE"}</c> with
-/// no timer at all — the scope alone ends it.
-/// </para>
-/// <para>
-/// 🔒 <em>"<c>until</c> fields fire whichever comes first, terminator or timer."</em> Both may be
-/// present (Ossify's <c>{"seconds": 6.0, "scope": "BATTLE", "until": "WARD_BROKEN"}</c>), and
-/// neither overrides the other.
-/// </para>
+/// <see cref="Seconds"/> is optional: some effects write only a scope, with no timer at all, and
+/// the scope alone ends them. When both a timer and an <see cref="Until"/> terminator are present,
+/// whichever fires first ends the effect; neither overrides the other.
 /// </remarks>
 public sealed record EffectDuration
 {

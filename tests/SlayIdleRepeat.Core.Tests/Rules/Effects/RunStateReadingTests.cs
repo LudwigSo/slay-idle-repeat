@@ -8,12 +8,6 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 /// <see cref="RunStateReading"/> run through the shared <see cref="IRunStateView"/> contract, plus
 /// the two rules that are its own rather than the interface's.
 /// </summary>
-/// <remarks>
-/// 🔒 M1-05's <c>Run</c> projection and M3's run controller derive from
-/// <see cref="RunStateViewContract"/> the same way. That is the whole point of the base class: the
-/// contract is written once and every implementation is measured against the same rules (steering
-/// S7).
-/// </remarks>
 public sealed class RunStateReadingTests : RunStateViewContract
 {
     private protected override IRunStateView Create(RunStateFacts facts) =>
@@ -30,15 +24,11 @@ public sealed class RunStateReadingTests : RunStateViewContract
         };
 
     /// <summary>
-    /// 🔒 The two <b>positional</b> readings have no default: <c>STAGE_INDEX</c> and <c>CHAPTER</c>
-    /// are <c>required</c>, so a caller cannot omit them and get a plausible stage 1.
+    /// The two positional readings have no default: <c>STAGE_INDEX</c> and <c>CHAPTER</c> are
+    /// <c>required</c>, so a caller cannot omit them and get a plausible stage 1. The counters do
+    /// default to zero — no perks and no gold are real readings of a fresh run, whereas no stage is
+    /// not a position.
     /// </summary>
-    /// <remarks>
-    /// The counters do default to zero, and the difference is the rule (steering S6): no perks and
-    /// no gold are real readings of a fresh run, whereas <em>no stage</em> is not a position — `18`
-    /// §4 types <c>STAGE_INDEX</c> as <c>1..3</c>, so there is no zero to fall back to and inventing
-    /// a 1 would be arguing from the hole to a filled value.
-    /// </remarks>
     [Fact]
     public void The_positional_readings_are_required_and_the_counters_default_to_zero()
     {
@@ -61,14 +51,11 @@ public sealed class RunStateReadingTests : RunStateViewContract
     }
 
     /// <summary>
-    /// 🔒 <c>DISTINCT_PERK_CATEGORIES</c> is derived from the perk table, so no instance of this
-    /// record can report a category count that disagrees with its own perks.
+    /// <c>DISTINCT_PERK_CATEGORIES</c> is derived from the perk table, so no instance of this record
+    /// can report a category count that disagrees with its own perks. Asserted on the type — a record
+    /// with an independently-settable count could report perks and categories that disagree and still
+    /// pass a per-instance test.
     /// </summary>
-    /// <remarks>
-    /// Asserted as a property of the type rather than of one instance: a record with both a table and
-    /// an independently-settable count can be built reporting three perks across five categories, and
-    /// every test written against it would still pass.
-    /// </remarks>
     [Fact]
     public void The_category_count_cannot_disagree_with_the_perk_table()
     {

@@ -7,33 +7,18 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
-/// 🔒 `14` §8.1 / `30` §3 — <c>CommandSeed</c> is server-issued and <b>meta-only</b>: <c>null</c> on
-/// all 19 run commands, non-null on the nine meta commands that draw.
+/// <c>CommandSeed</c> is server-issued and meta-only: <c>null</c> on all 19 run commands, non-null on
+/// the nine meta commands that draw. Every sweep below takes its subject set from the dispatch
+/// table's <c>CommandKind</c> rather than from <see cref="CommandSeedPin.Violations"/> itself, so the
+/// rule can't end up agreeing with its own list.
 /// </summary>
-/// <remarks>
-/// 🔒 Every sweep takes its subject set from the dispatch table's <c>CommandKind</c>, and that
-/// separation is what stops the file agreeing with itself. The first draft of the meta sweep asked
-/// <see cref="CommandSeedPin.Violations"/> which rows draw and compared the answer to the list
-/// <c>Violations</c> consults — one source on both sides, so the rule held over any list at all;
-/// adding <c>"EQUIP"</c> to the nine left it green. It is now written as the <b>complement</b>: the
-/// 21 meta rows the document does not mark.
-/// <para>
-/// <see cref="DrawsNothing"/> is deliberately not one of the forty-nine, so the classifier's own
-/// teeth-checks stay independent of the vocabulary they are also driven over.
-/// </para>
-/// </remarks>
 public sealed class CommandSeedPinTests
 {
-    /// <summary>
-    /// A command name that is not one of the nine, and deliberately not one of the forty-nine
-    /// either — so the classifier's teeth-checks below stay independent of the vocabulary the
-    /// sweeps drive over.
-    /// </summary>
+    /// <summary>Not one of the nine, and deliberately not one of the forty-nine either.</summary>
     private const string DrawsNothing = "A_COMMAND_THAT_DRAWS_NOTHING";
 
     private const ulong AnySeed = 0x0123456789ABCDEFUL;
 
-    /// <summary>The nine meta commands the M1 kickoff froze as seed-bearing.</summary>
     public static TheoryData<string> SeedBearingCommands()
     {
         var data = new TheoryData<string>();
@@ -48,11 +33,6 @@ public sealed class CommandSeedPinTests
 
     // ------------------------------------------------------------------ the classifier's teeth
 
-    /// <summary>
-    /// 🔒 `14` §8.1 — a meta command that draws and was handed no seed is a violation. Without a
-    /// seed its draws have nothing to hash, and the only ways out are for the domain to invent
-    /// entropy or to silently skip the draw.
-    /// </summary>
     [Theory]
     [MemberData(nameof(SeedBearingCommands))]
     public void A_meta_command_that_draws_must_carry_a_CommandSeed(string commandName)
@@ -63,7 +43,6 @@ public sealed class CommandSeedPinTests
             .ShouldContain("must carry the server-issued seed", Case.Sensitive);
     }
 
-    /// <summary>The negative half: the same command with a seed is clean.</summary>
     [Theory]
     [MemberData(nameof(SeedBearingCommands))]
     public void A_meta_command_that_draws_is_clean_when_it_carries_one(string commandName)
@@ -72,10 +51,8 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §8.1 — the other direction, and the one that matters most: a command that draws
-    /// nothing out of run must be handed <c>null</c>. A seed on a run command is a second source of
-    /// entropy alongside the <c>Run</c> aggregate's committed <c>runSeed</c>, and the two would
-    /// diverge between client and server the first time a replay used the stored one.
+    /// A seed on a command that draws nothing is a second source of entropy alongside the run's
+    /// committed seed, and the two would diverge the first time a replay used the stored one.
     /// </summary>
     [Fact]
     public void A_command_that_draws_nothing_must_not_carry_a_CommandSeed()
@@ -86,17 +63,13 @@ public sealed class CommandSeedPinTests
             .ShouldContain("must be null", Case.Sensitive);
     }
 
-    /// <summary>The negative half: the same command with no seed is clean.</summary>
     [Fact]
     public void A_command_that_draws_nothing_is_clean_with_no_seed()
     {
         CommandSeedPin.Violations(DrawsNothing, GameContexts.WithSeed(null)).ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 The two failures are told apart, not merely counted (steering S2). A rule whose message
-    /// said only "CommandSeed is wrong" would pass its own test while catching the opposite defect.
-    /// </summary>
+    /// <summary>The two failures are told apart, not merely counted.</summary>
     [Fact]
     public void The_two_failures_say_which_one_fired()
     {
@@ -113,11 +86,7 @@ public sealed class CommandSeedPinTests
         spurious.ShouldContain("14 §8.1", Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 Zero is a seed. The check is <c>is null</c>, not <c>== 0</c>: a host that legitimately
-    /// issued <c>0</c> must not read as "no seed", and a run command handed <c>0</c> must still be
-    /// caught. This is the assertion that fails if the nullability is ever collapsed to a sentinel.
-    /// </summary>
+    /// <summary>Zero is a seed: the check is <c>is null</c>, not <c>== 0</c>, so it survives a collapse to a sentinel.</summary>
     [Fact]
     public void A_zero_seed_is_a_seed_and_not_an_absent_one()
     {
@@ -128,14 +97,9 @@ public sealed class CommandSeedPinTests
     // ------------------------------------------------------- floors under the classifier's inputs
 
     /// <summary>
-    /// 🔒 Steering S3 — a floor under the set every rule here quantifies over, pinned by <b>identity</b>
-    /// rather than cardinality: a count-only floor is satisfied by swapping one of the nine for a run
-    /// command, leaving the whole file green with a run command classified as seed-bearing.
+    /// Pinned by identity rather than cardinality: a count-only floor would still pass if one of the
+    /// nine were swapped for a run command.
     /// </summary>
-    /// <remarks>
-    /// The nine are `14` §2.3's ⚄-marked rows. Changing this list is a vocabulary decision, not a test
-    /// edit.
-    /// </remarks>
     [Fact]
     public void The_seed_bearing_set_is_the_nine_the_command_vocabulary_freezes()
     {
@@ -152,11 +116,10 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 Membership is ordinal, asserted <b>through the classifier</b> rather than through the
-    /// set. Shouldly's collection <c>ShouldContain</c>/<c>ShouldNotContain</c> compare with
-    /// <c>EqualityComparer&lt;T&gt;.Default</c> and never consult a <c>HashSet</c>'s own comparer,
-    /// so a set-level assertion here would pass unchanged if the set were rebuilt
-    /// <c>OrdinalIgnoreCase</c> — which is exactly the defect this rule exists to catch.
+    /// Asserted through the classifier rather than the set: Shouldly's collection assertions compare
+    /// with <c>EqualityComparer&lt;T&gt;.Default</c> and never consult a <c>HashSet</c>'s own
+    /// comparer, so a set-level assertion would pass unchanged if the set were rebuilt
+    /// <c>OrdinalIgnoreCase</c>.
     /// </summary>
     [Fact]
     public void The_seed_bearing_set_matches_ordinally()
@@ -169,15 +132,7 @@ public sealed class CommandSeedPinTests
             "case-insensitive set would classify it as seed-bearing and let a run command carry a seed.");
     }
 
-    /// <summary>
-    /// 🔒 `14` §2.3 — the wire name is <b>read off the dispatch row that declares it</b>, not derived
-    /// from the type's name.
-    /// </summary>
-    /// <remarks>
-    /// The predecessor pinned a heuristic that turned <c>OpenPvPCommand</c> into <c>OPEN_PV_P</c>. This
-    /// drives the real lookup against a table built here, so the mechanism is proven before the 49 rows
-    /// exist to prove it on.
-    /// </remarks>
+    /// <summary>The wire name is read off the dispatch row that declares it, not derived from the type's name.</summary>
     [Fact]
     public void A_wire_name_is_read_off_the_dispatch_row_that_declares_it()
     {
@@ -188,22 +143,13 @@ public sealed class CommandSeedPinTests
         dispatch.For(typeof(PinFixtureCommand))!.WireName.ShouldBe("A_FIXTURE_COMMAND");
     }
 
-    /// <summary>
-    /// 🔒 A type the dispatch table does not name has no declared wire name, and says <c>null</c>
-    /// rather than inventing one.
-    /// </summary>
-    /// <remarks>
-    /// The assertion that fails if the heuristic is ever reintroduced beside the declaration: a guesser
-    /// would answer <c>PIN_FIXTURE</c>. The unregistered command itself is reported by
-    /// <c>DomainPurityTests.Every_command_type_is_handled_by_Apply</c>.
-    /// </remarks>
+    /// <summary>An unregistered type has no declared wire name and answers <c>null</c> rather than inventing one.</summary>
     [Fact]
     public void An_unregistered_command_type_has_no_declared_wire_name()
     {
         CommandSeedPin.WireNameOf(typeof(PinFixtureCommand)).ShouldBeNull();
     }
 
-    /// <summary>A missing type is a caller bug, not an empty wire name.</summary>
     [Fact]
     public void WireNameOf_refuses_a_null_type()
     {
@@ -212,10 +158,8 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 Steering S3 — the selector that builds <see cref="CommandSeedPin.CommandTypes"/> is not
-    /// itself the reason that set is empty. Pointed at a namespace that exists today it reaches
-    /// real types; if it did not, the vacuous rule below would stay green on the day M1-02 lands
-    /// the whole vocabulary, which is the one failure a vacuous rule cannot announce.
+    /// The selector that builds <see cref="CommandSeedPin.CommandTypes"/> is not itself the reason
+    /// that set could be empty — proven by pointing it at a namespace known to exist today.
     /// </summary>
     [Fact]
     public void The_command_type_selector_reaches_a_namespace_that_exists_today()
@@ -233,19 +177,11 @@ public sealed class CommandSeedPinTests
     // --------------------------------------------------- live over the real vocabulary from M1-02
 
     /// <summary>
-    /// 🔒 <b>Every one of the 19 run commands is handed <c>null</c></b>, driven over the wire names the
-    /// <b>dispatch table</b> carries for <c>CommandKind.Run</c> rows.
+    /// Every one of the 19 run commands is handed <c>null</c>, driven over the wire names the
+    /// dispatch table carries for <c>CommandKind.Run</c> rows — a subject set
+    /// <see cref="CommandSeedPin.SeedBearingMetaCommands"/> has never seen, so the rule can't agree
+    /// with the classifier's own list.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The subject set comes from the table's <c>CommandKind</c>, which
-    /// <see cref="CommandSeedPin.SeedBearingMetaCommands"/> has never seen — a rule deriving "does it
-    /// draw?" from the same list the classifier consults would agree with itself over any list. Put
-    /// <c>ROLL_DICE</c> into the nine and this fails, naming it.
-    /// <para>
-    /// A seed on a run command is a <b>second source of entropy</b> beside the aggregate's committed
-    /// <c>runSeed</c>, and the two diverge the first time a replay uses the stored one.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void No_run_command_in_the_registry_may_carry_a_CommandSeed()
     {
@@ -279,15 +215,9 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 `14` §2.3's meta table has 30 rows and marks <b>nine</b> ⚄. This is the other twenty-one:
-    /// each must be handed <c>null</c>, and a seed on one is a violation.
+    /// Written as the complement of the nine, because the obvious form (asking the classifier which
+    /// rows draw) cannot fail against itself.
     /// </summary>
-    /// <remarks>
-    /// 🔒 Written as the complement because the obvious form cannot fail — see the class remarks. The
-    /// complement has two genuinely independent sources (<c>CommandKind.Meta</c> minus the nine) and is
-    /// driven <b>two-armed</b>: each must be clean with no seed <em>and</em> refused when handed one. A
-    /// meta command that quietly joined the nine drops out of this set and fails the count.
-    /// </remarks>
     [Fact]
     public void The_twenty_one_meta_commands_that_do_not_draw_may_not_carry_a_CommandSeed()
     {
@@ -328,13 +258,9 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 The count that closes the arithmetic: <b>19 run + 30 meta = 49</b>, with the nine ⚄ rows all
-    /// inside the meta half.
+    /// Separate from the two sweeps above because it is the one assertion that would notice a row
+    /// vanishing from the table altogether — the sweeps only quantify over what the table has.
     /// </summary>
-    /// <remarks>
-    /// Separate from the two sweeps because it is the one assertion that would notice a row vanishing
-    /// from the table altogether — both sweeps quantify over what the table <em>has</em>.
-    /// </remarks>
     [Fact]
     public void The_two_kinds_partition_the_whole_registry()
     {
@@ -353,15 +279,10 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// 🔒 Every seed-bearing name is registered <c>CommandKind.Meta</c> — `30` §3 puts
-    /// <c>CommandSeed</c> on meta commands only, so a run command in the nine is the invariant
-    /// inverted.
+    /// Not redundant with the two sweeps above: those quantify over the table's rows and would stay
+    /// green if one of the nine named no registered command at all. This asserts the kind of the row
+    /// each of the nine actually resolves to.
     /// </summary>
-    /// <remarks>
-    /// Not redundant with the two sweeps: those quantify over the table's rows and would both stay
-    /// green if one of the nine named no registered command at all. This asserts the <b>kind</b> of the
-    /// row each of the nine resolves to.
-    /// </remarks>
     [Fact]
     public void Every_seed_bearing_command_is_registered_as_a_meta_command()
     {
@@ -393,17 +314,7 @@ public sealed class CommandSeedPinTests
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
-    /// <summary>
-    /// 🔒 Every one of the nine seed-bearing names names a command type that actually exists — what
-    /// catches a typo in the nine or a rename on the other side.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ The earlier version carried a <c>declared.Count == 0</c> arm so an empty subject set produced
-    /// no offenders. That arm is <b>gone</b>: the floor below now distinguishes "the vocabulary is
-    /// gone" (a count of 0, reported as itself) from "one of the nine is misspelled" (a named
-    /// offender), and a dead branch under a floor that makes it unreachable would be a second answer
-    /// to a question with one.
-    /// </remarks>
+    /// <summary>Catches a typo in the nine, or a rename on the dispatch side.</summary>
     [Fact]
     public void Every_seed_bearing_command_name_names_a_real_command_type()
     {
@@ -433,10 +344,6 @@ public sealed class CommandSeedPinTests
         offenders.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// A command shape for driving the dispatch table's lookup. Deliberately <b>not</b> named after
-    /// any of `14` §2.3's 49 rows and deliberately not under <c>Core/Commands/</c>: the vocabulary
-    /// is M1-02's, and a fixture that borrowed a real name would read as one.
-    /// </summary>
+    /// <summary>A command shape for driving the dispatch table's lookup — not under Core/Commands/ or named after a real row.</summary>
     private sealed record PinFixtureCommand : GameCommand;
 }

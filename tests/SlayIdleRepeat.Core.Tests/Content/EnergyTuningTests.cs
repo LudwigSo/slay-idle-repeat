@@ -6,13 +6,13 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
-/// `21` §3.1 — 🔒 every energy number is read from <c>game-data/tuning/</c>, never written as a C#
-/// constant. This is the reader: which pointer each number comes from, and what happens when one of
-/// them is missing, mistyped or deliberately unauthorised.
+/// Every energy number is read from tuning data, never written as a C# constant. This is the
+/// reader: which pointer each number comes from, and what happens when one is missing, mistyped,
+/// or deliberately unauthorised.
 /// </summary>
 public sealed class EnergyTuningTests
 {
-    /// <summary>The six pointers `10` §3 and `28` C2 author, in the order this suite states them.</summary>
+    /// <summary>The six energy pointers, in the order this suite states them.</summary>
     private static readonly string[] DocumentedPointers =
     {
         "tuning/progression.json#/energy/baseMax",
@@ -110,11 +110,10 @@ public sealed class EnergyTuningTests
     }
 
     /// <summary>
-    /// `10` §3 authors whole Energy points. A fractional base, cap, per-level increment, run cost
-    /// or reserve multiple would make Max Energy or the Reserve capacity fractional, and no
-    /// document authors a rounding rule for either — so the read fails rather than inventing one
-    /// (S6). The regeneration interval is deliberately absent from this list: minutes are a
-    /// duration, and <c>4.5</c> is a perfectly meaningful one.
+    /// Energy points are whole numbers: a fractional base, cap, per-level increment, run cost, or
+    /// reserve multiple would make Max Energy or Reserve capacity fractional with no rounding rule
+    /// to apply, so the read fails rather than inventing one. The regeneration interval is exempt —
+    /// minutes are a duration, and <c>4.5</c> is meaningful.
     /// </summary>
     [Theory]
     [InlineData("baseMax", 120.5)]
@@ -160,7 +159,7 @@ public sealed class EnergyTuningTests
         thrown.Message.ShouldMatchWildcard("*119*120*");
     }
 
-    /// <summary>`10` §3's cap of 200 equals the base of 120 plus 40 levels of +2; equal is legal.</summary>
+    /// <summary>200 equals 120 plus 40 levels of +2; equal to the base max is legal.</summary>
     [Fact]
     public void A_max_cap_equal_to_the_base_max_is_legal()
     {
@@ -178,10 +177,7 @@ public sealed class EnergyTuningTests
         thrown.Message.ShouldMatchWildcard("*shrink*Legend Level*");
     }
 
-    /// <summary>
-    /// Zero is legal: it is the configuration in which Max Energy does not grow at all, which is
-    /// what `10` §3's 📐 marker would produce if the +2 dial were turned to nothing.
-    /// </summary>
+    /// <summary>Zero is legal: Max Energy simply does not grow if the +2 dial is turned to nothing.</summary>
     [Fact]
     public void A_per_legend_level_increment_of_zero_is_legal()
     {
@@ -255,10 +251,7 @@ public sealed class EnergyTuningTests
         thrown.Message.ShouldMatchWildcard("*28*C2*");
     }
 
-    /// <summary>
-    /// `28` C2's 📐 marker calls the 1× cap "the dial", so raising it must work — the reader may
-    /// not have hard-coded the shipped 1.
-    /// </summary>
+    /// <summary>The 1× cap is a dial, not a hard-coded constant — raising it must work.</summary>
     [Fact]
     public void The_reserve_multiple_is_a_dial_and_not_a_constant()
     {
@@ -268,10 +261,7 @@ public sealed class EnergyTuningTests
         tuning.ReserveMultipleOfMax.ShouldBe(3);
     }
 
-    /// <summary>
-    /// Zero is the "no Reserve at all" configuration — what `10` §3 described before `28` C
-    /// resolved the contradiction. Legal, and the accrual suite proves it discards overflow.
-    /// </summary>
+    /// <summary>Zero means no Reserve at all; legal, and the accrual suite proves it discards overflow.</summary>
     [Fact]
     public void A_reserve_multiple_of_zero_is_legal_and_means_no_reserve()
     {

@@ -4,32 +4,20 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.BalanceHarness.Content;
 
 /// <summary>
-/// 🔒 <c>content/bosses/bosses.json</c>'s script list, reduced to what `05` §9's sweep needs: which
-/// script a chapter's boss node runs, its `17` §1.2 coefficients, and whether it summons.
+/// <c>content/bosses/bosses.json</c>'s script list, reduced to what the sweep needs: which script a
+/// chapter's boss node runs, its coefficients, and whether it summons.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b><c>BOSS_FTUE</c> is excluded from the sweep, and the exclusion is a data fact rather than a
-/// name check.</b> It is the only script with <b>no <c>chapter</c></b>, and it carries
-/// <c>fixedPower</c> 900 and <c>fixedLevel</c> 1 instead. `02` §4.3's <c>EnemyPower(i)</c> is
-/// undefined for it — there is no <c>ParPower(c, t)</c> cell to start from and no
-/// <c>EnemyLevel(c, t)</c> to fight at — so a sweep entry for it would have to invent both. The
-/// campaign roster is therefore <em>"every script that states a chapter"</em>, which is the eight of
-/// `17` §2-§9.
-/// </para>
-/// <para>
-/// ⚠️ <c>effects</c> and <c>phases</c> are not modelled here. The harness never interprets a boss
-/// script — <c>CombatSimulator.SimulateBossFight</c> does, off the same snapshot. What this reader
-/// provides is the <em>index</em>: id, chapter, DEF coefficient (guardrail 5) and
-/// <c>addsPowerFraction</c> (the `17` §1 experiment).
-/// </para>
+/// <c>BOSS_FTUE</c> is excluded from the sweep because it is the only script with no <c>chapter</c> —
+/// it carries <c>fixedPower</c>/<c>fixedLevel</c> instead, so there is no <c>ParPower(c, t)</c> cell to
+/// start from. <c>effects</c> and <c>phases</c> are not modelled here; the harness never interprets a
+/// boss script itself (<c>CombatSimulator.SimulateBossFight</c> does). This reader is just the index.
 /// </remarks>
 public sealed class BossRoster
 {
-    /// <summary>`17` §1.2 and §2-9 — the document.</summary>
     public const string Document = "content/bosses/bosses.json";
 
-    /// <summary>🔒 The FTUE mini-boss, excluded from the sweep. See the type remarks.</summary>
+    /// <summary>The FTUE mini-boss, excluded from the sweep. See the type remarks.</summary>
     public const string FtueScriptId = "BOSS_FTUE";
 
     private BossRoster(IReadOnlyList<BossEntry> all)
@@ -44,13 +32,13 @@ public sealed class BossRoster
     /// <summary>Every authored script, in authored order.</summary>
     public IReadOnlyList<BossEntry> All { get; }
 
-    /// <summary>🔒 The scripts that state a chapter — the eight the sweep fights, ascending by chapter.</summary>
+    /// <summary>The scripts that state a chapter, ascending by chapter — the ones the sweep fights.</summary>
     public IReadOnlyList<BossEntry> Campaign { get; }
 
     /// <summary>The scripts with no chapter, which the sweep skips. <c>BOSS_FTUE</c> today.</summary>
     public IReadOnlyList<BossEntry> Excluded { get; }
 
-    /// <summary>🔒 The five scripts carrying <c>addsPowerFraction</c> — `17` §1's summoning bosses.</summary>
+    /// <summary>The scripts carrying <c>addsPowerFraction</c> — the summoning bosses.</summary>
     public IReadOnlyList<BossEntry> Summoners =>
         All.Where(b => b.AddsPowerFraction is not null).ToArray();
 
@@ -104,13 +92,12 @@ public sealed class BossRoster
 /// <summary>One boss script's index entry.</summary>
 /// <param name="Id">The script id, e.g. <c>BOSS_SPOREQUEEN_VELL</c>.</param>
 /// <param name="Chapter">The chapter whose boss node runs it, or <c>null</c> for <c>BOSS_FTUE</c>.</param>
-/// <param name="HpCoef">`17` §1.2 — the <c>MaxHP</c> coefficient.</param>
-/// <param name="AtkCoef">`17` §1.2 — the <c>ATK</c> coefficient.</param>
-/// <param name="DefCoef">🔒 `17` §1.2 — the <c>DEF</c> coefficient. Guardrail 5 reads it.</param>
-/// <param name="AspdCoef">`17` §1.2 — the <c>ASPD</c> coefficient.</param>
+/// <param name="HpCoef">The <c>MaxHP</c> coefficient.</param>
+/// <param name="AtkCoef">The <c>ATK</c> coefficient.</param>
+/// <param name="DefCoef">The <c>DEF</c> coefficient. Guardrail 5 reads it.</param>
+/// <param name="AspdCoef">The <c>ASPD</c> coefficient.</param>
 /// <param name="AddsPowerFraction">
-/// 🔒 `17` §1 — the share of the boss's power each add carries, or <c>null</c> for a script that
-/// summons nothing. All five summoners are authored at the 0.30 midpoint of `17` §1's 25-35% band.
+/// The share of the boss's power each add carries, or <c>null</c> for a script that summons nothing.
 /// </param>
 public sealed record BossEntry(
     string Id,

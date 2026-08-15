@@ -6,10 +6,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>
-/// 🔒 M3-05, `14` §2.3 — <c>CONFIRM_BATTLE_RESULT</c>, driven through the production dispatch table
-/// by <c>GameRules.Apply</c>.
-/// </summary>
+/// <summary>CONFIRM_BATTLE_RESULT, driven through the production dispatch table by GameRules.Apply.</summary>
 public sealed class ConfirmBattleResultTests
 {
     private static CommandResult Confirm(WorldSlice state, string logHash) =>
@@ -94,7 +91,7 @@ public sealed class ConfirmBattleResultTests
         result.NewState.Run!.HasPendingTile.ShouldBeFalse();
     }
 
-    /// <summary>🔒 The M3-06 hook: closing a battle marks a draft as pending.</summary>
+    /// <summary>Closing a battle marks a draft as pending.</summary>
     [Fact]
     public void Closing_a_battle_marks_a_draft_pending()
     {
@@ -106,9 +103,9 @@ public sealed class ConfirmBattleResultTests
     }
 
     /// <summary>
-    /// 🔒 M3-13 — a WON battle pays Gold immediately and banks Legend XP; HP is untouched.
-    /// Chapter 1, NORMAL tier, a normal Enemy kill: Gold = 40 * G(1) = 40 (03 §7a.1); Legend XP =
-    /// 25 * 1.55^0 * 1.0 (NORMAL tier) * 1 (NORMAL_ENEMY_KILL) = 25 (02 §5.1a).
+    /// A WON battle pays Gold immediately and banks Legend XP; HP is untouched.
+    /// Chapter 1, NORMAL tier, a normal Enemy kill: Gold = 40 * G(1) = 40; Legend XP =
+    /// 25 * 1.55^0 * 1.0 (NORMAL tier) * 1 (NORMAL_ENEMY_KILL) = 25.
     /// </summary>
     [Fact]
     public void Winning_a_battle_pays_gold_and_banks_legend_xp()
@@ -124,7 +121,7 @@ public sealed class ConfirmBattleResultTests
         result.Events.ShouldNotBeEmpty();
     }
 
-    /// <summary>🔒 M3-13 — a LOST battle sets HP to zero, pays nothing, and leaves the tile pending for a revive.</summary>
+    /// <summary>A LOST battle sets HP to zero, pays nothing, and leaves the tile pending for a revive.</summary>
     [Fact]
     public void Losing_a_battle_sets_HP_to_zero_and_pays_nothing()
     {
@@ -142,8 +139,8 @@ public sealed class ConfirmBattleResultTests
     }
 
     /// <summary>
-    /// 🔒 M3-13 — a Boss kill's banked Soul Shards = per-chapter Boss rate (15 at chapter 1 NORMAL)
-    /// PLUS the 450 first-clear grant, the first time this (Chapter, Tier) is cleared.
+    /// A Boss kill's banked Soul Shards = per-chapter Boss rate (15 at chapter 1 NORMAL) plus the
+    /// 450 first-clear grant, the first time this (Chapter, Tier) is cleared.
     /// </summary>
     [Fact]
     public void Killing_the_boss_marks_it_defeated_and_banks_soul_shards()
@@ -157,8 +154,8 @@ public sealed class ConfirmBattleResultTests
     }
 
     /// <summary>
-    /// 🔒 M3-13, `02` §5.3 — the first-clear grant is a ONE-TIME bonus: a player who has already
-    /// cleared this (Chapter, Tier) pair banks only the per-kill Boss Soul Shards, not the 450 again.
+    /// The first-clear grant is one-time: a player who has already cleared this (Chapter, Tier) pair
+    /// banks only the per-kill Boss Soul Shards, not the 450 again.
     /// </summary>
     [Fact]
     public void First_clear_bonus_does_not_repeat_for_an_already_cleared_chapter_tier()

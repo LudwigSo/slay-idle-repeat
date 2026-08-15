@@ -13,14 +13,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
-/// <summary>
-/// 🔒 `03` §1.1 — <c>CHOOSE_FORK</c> (M3-02), plus <c>ROLL_DICE</c>'s own junction-pause wiring.
-/// </summary>
+/// <summary>CHOOSE_FORK, plus ROLL_DICE's own junction-pause wiring.</summary>
 /// <remarks>
-/// Every scenario is checked against the ACTUAL board <c>Rules.Board.BoardGenerator</c> produces for
-/// a fixed seed and a small test-only chapter (<see cref="ChapterDocuments.TinyChapterDocument"/>) —
-/// computed independently in each test, the same way the handler computes it — rather than a
-/// hand-picked magic position, so nothing here depends on guessing what the generator drew.
+/// Every scenario is checked against the actual board BoardGenerator produces for a fixed seed,
+/// computed independently in each test the same way the handler computes it, rather than a
+/// hand-picked magic position.
 /// </remarks>
 public sealed class ChooseForkTests
 {
@@ -43,10 +40,7 @@ public sealed class ChooseForkTests
         return BoardGenerator.GenerateBoard(config, DeterministicRng.OpenAt(Seed, RngStreams.Board, 0));
     }
 
-    /// <summary>
-    /// The first junction the board's spine reaches — `03` §3 guarantees at least one per stage on a
-    /// board this size (12+ nodes/stage), so this always finds one.
-    /// </summary>
+    /// <summary>The first junction the board's spine reaches (guaranteed on a board this size).</summary>
     private static NodeId FirstJunction(BoardGraph board)
     {
         for (var linearIndex = 0; ; linearIndex++)
@@ -278,13 +272,9 @@ public sealed class ChooseForkTests
         afterFirstRoll.Accepted.ShouldBeTrue();
         var boardDrawsAfterFirstRoll = afterFirstRoll.NewState.Run!.StreamPosition(RngStreams.Board);
 
-        // 🔒 M3-05 — ROLL_DICE now arrives at whatever tile the first roll landed on
-        // (Run.ArriveAtTile) and a second roll is refused while it is pending. This test is about
-        // board-stream replay stability, not tile-resolution legality, so the pending tile is
-        // cleared directly on the snapshot rather than through whichever RESOLVE_TILE branch the
-        // landed tile kind happens to take — some kinds (Enemy/Shop/Minigame/...) stay pending past
-        // RESOLVE_TILE by design (Handlers.ResolveTile's remarks), which would leave this test
-        // coupled to what the generator happened to draw.
+        // ROLL_DICE arrives at whatever tile the first roll landed on and refuses a second roll while
+        // it is pending, so the pending tile is cleared directly on the snapshot here — this test is
+        // about board-stream replay stability, not tile-resolution legality.
         var clearedSnapshot = afterFirstRoll.NewState.Run!.ToSnapshot() with
         {
             PendingTileKind = RunSnapshots.NoPendingTile,

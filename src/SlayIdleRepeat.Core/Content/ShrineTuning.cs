@@ -3,42 +3,37 @@ using System.Globalization;
 namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
-/// 🔒 `03` §7a.5 — <c>TILE_SHRINE</c>'s pool of ten buffs, read out of
+/// <c>TILE_SHRINE</c>'s pool of ten buffs, read out of
 /// <c>tuning/currencies.json#/inRunIncome/shrineBuffPool</c>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// §7a.5: <em>"a shrine offers 2 distinct options drawn seeded (stream 'shrine', equal weights) from
-/// this pool of 10. Buffs are permanent for the run and stack additively. Cleanse rule: with at
-/// least one active cleansable curse, option slot 2 is always a Cleanse."</em>
+/// A shrine offers 2 distinct options drawn seeded from this pool. Buffs are permanent for the run
+/// and stack additively.
 /// </para>
 /// <para>
-/// ⚠️ <b><c>Stat</c> and <c>Magnitude</c> are nullable and the null is authored, not missing.</b>
-/// <c>SHR_HEAL</c> carries <c>"stat": null, "magnitude": null</c> and only an
-/// <c>immediateHealPctMaxHp</c>: it is a heal rather than a stat buff, and
-/// <c>game-data/README.md</c>'s rule — <em>"a hole that is null is greppable, and a hole filled with
-/// a plausible-looking number is invisible"</em> — is why this reader carries the nulls through
-/// instead of defaulting them to <c>0</c>.
+/// <see cref="ShrineBuffPoolEntry.Stat"/> and <see cref="ShrineBuffPoolEntry.Magnitude"/> are
+/// nullable and the null is authored, not missing: <c>SHR_HEAL</c> is a heal rather than a stat
+/// buff, so this reader carries the nulls through instead of defaulting them to <c>0</c>.
 /// </para>
 /// <para>
-/// ⚠️ <b>Nothing in <c>Core</c> consumes the stat half of a buff yet.</b> §7a.5's "permanent for the
-/// run and stack additively" needs a run-scoped stat-aggregation consumer that does not exist —
-/// <c>SubjectSetFloorTests</c>' and <c>GapRegister</c>'s <c>ShrineBuff</c>/M3-11 territory. This
-/// reader therefore reports the whole authored row and <c>ShrineResolver</c> applies only the
-/// immediate-heal component, which is the one part that is mechanically real today.
+/// Nothing in <c>Core</c> consumes the stat half of a buff yet — that needs a run-scoped
+/// stat-aggregation consumer that does not exist. This reader reports the whole authored row, and
+/// <c>ShrineResolver</c> applies only the immediate-heal component, the one part that is
+/// mechanically real today.
 /// </para>
 /// </remarks>
 internal sealed class ShrineTuning
 {
-    /// <summary>The document `03` §7a.5's shrine block lives in.</summary>
+    /// <summary>The document the shrine block lives in.</summary>
     internal const string DocumentPath = "tuning/currencies.json";
 
     private const string PoolPointer = DocumentPath + "#/inRunIncome/shrineBuffPool";
 
-    /// <summary>`03` §7a.5 — the pool of ten buffs.</summary>
+    /// <summary>The pool of ten buffs.</summary>
     internal const string BuffsReference = PoolPointer + "/buffs";
 
-    /// <summary>`03` §7a.5 — how many distinct options a shrine offers. 2 as shipped.</summary>
+    /// <summary>How many distinct options a shrine offers. 2 as shipped.</summary>
     internal const string OptionsOfferedReference = PoolPointer + "/optionsOffered";
 
     private ShrineTuning(IReadOnlyList<ShrineBuffPoolEntry> buffs, int optionsOffered)
@@ -47,18 +42,18 @@ internal sealed class ShrineTuning
         OptionsOffered = optionsOffered;
     }
 
-    /// <summary>`03` §7a.5's pool, in the order the document lists them.</summary>
+    /// <summary>The pool, in the order the document lists them.</summary>
     /// <remarks>
-    /// 🔒 The order is load-bearing: the resolver draws by index off `14` §8.1's <c>shrine</c>
-    /// stream, so re-ordering the pool changes which buff every existing run seed offers.
+    /// The order is load-bearing: the resolver draws by index off the run's random stream, so
+    /// re-ordering the pool changes which buff every existing run seed offers.
     /// </remarks>
     internal IReadOnlyList<ShrineBuffPoolEntry> Buffs { get; }
 
-    /// <summary>`03` §7a.5 — how many distinct options one shrine offers.</summary>
+    /// <summary>How many distinct options one shrine offers.</summary>
     internal int OptionsOffered { get; }
 
     /// <summary>Reads the shrine block. Throws rather than defaulting on anything unusable.</summary>
-    /// <param name="content">The version-stamped snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped snapshot the command is reading.</param>
     /// <exception cref="MissingContentException">The document or a pointer is not there.</exception>
     /// <exception cref="UnauthorisedTunableException">A pointer holds a deliberate <c>null</c>.</exception>
     /// <exception cref="ContentTypeMismatchException">A leaf holds the wrong shape.</exception>
@@ -109,11 +104,9 @@ internal sealed class ShrineTuning
                 throw new InvalidTunableException(pointer + "/id", "A shrine buff id must not be blank.");
             }
 
-            // 🔒 It matters MORE here than in the catalogues that make the same check, and that is
-            // worth stating: ShrineResolver.DistinctSecond guarantees 03 §7a.5's "2 DISTINCT
-            // options" by INDEX, which is only distinctness of the offer if the ids differ too. A
-            // pool carrying one id twice would silently offer the same buff in both slots and the
-            // sampling-without-replacement draw would look like it had worked.
+            // Matters more here than in catalogues making the same check: the resolver guarantees
+            // "2 distinct options" by index, which is only distinctness of the offer if the ids
+            // differ too. A pool carrying one id twice would silently offer the same buff twice.
             if (!ids.Add(id))
             {
                 throw new InvalidTunableException(
@@ -137,11 +130,9 @@ internal sealed class ShrineTuning
                     "carries only immediateHealPctMaxHp.");
             }
 
-            // 🔒 A stat buff is BOTH halves or neither. 03 §7a.5's nine stat rows each author a stat
-            // and the magnitude it is raised by; a row with one and not the other says nothing a
-            // consumer could act on — "raises ATK by nothing", or "raises nothing by 12%" — and is
-            // exactly the plausible-looking hole this reader's own remarks argue against, since it
-            // would pass the all-three-null check above and read as a real buff.
+            // A stat buff is BOTH halves or neither. A row with one and not the other says nothing
+            // a consumer could act on, and would otherwise pass the all-three-null check above and
+            // read as a real buff.
             if (stat is null != magnitude is null)
             {
                 throw new InvalidTunableException(
@@ -204,15 +195,10 @@ internal sealed class ShrineTuning
     private static string Text(double value) => value.ToString(CultureInfo.InvariantCulture);
 }
 
-/// <summary>
-/// One row of `03` §7a.5's shrine pool.
-/// </summary>
+/// <summary>One row of the shrine pool.</summary>
 /// <remarks>
-/// ⚠️ <b>Named <c>ShrineBuffPoolEntry</c> and not <c>ShrineBuff</c>, deliberately.</b>
-/// <c>SlayIdleRepeat.Architecture.Tests</c> watches for the simple name <c>ShrineBuff</c> as the
-/// sentinel for M3-11's run-buff <em>engine</em> — the thing that would actually apply and aggregate
-/// these — and a type of that name appearing in <c>Core</c> would retire that deferral for the wrong
-/// reason. This type is the authored <em>row</em>, not the buff in effect.
+/// Named <c>ShrineBuffPoolEntry</c> and not <c>ShrineBuff</c> deliberately: this is the authored
+/// row, not the future run-buff engine's applied, aggregated buff.
 /// </remarks>
 /// <param name="Id">The buff id, e.g. <c>SHR_ATK</c>.</param>
 /// <param name="DisplayName">The localisation key.</param>

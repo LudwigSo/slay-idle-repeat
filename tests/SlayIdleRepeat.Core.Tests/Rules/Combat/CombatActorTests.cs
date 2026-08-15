@@ -4,16 +4,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
-/// <summary>
-/// 🔒 The actor-id layout of the log — the meaning of a <see cref="byte"/> in
-/// <see cref="CombatEvent.SourceId"/>, which `05` §7 leaves entirely open.
-/// </summary>
+/// <summary>The actor-id layout of the log: the meaning of a <see cref="byte"/> in <see cref="CombatEvent.SourceId"/>.</summary>
 public sealed class CombatActorTests
 {
-    /// <summary>
-    /// 🔒 The layout `05` §3.1's actor order implies: hero, then pets in slot order, then enemies
-    /// by index — with a sentinel above them all.
-    /// </summary>
+    /// <summary>Hero, then pets in slot order, then enemies by index, with a sentinel above them all.</summary>
     [Fact]
     public void The_layout_is_the_documented_actor_order()
     {
@@ -26,14 +20,10 @@ public sealed class CombatActorTests
     }
 
     /// <summary>
-    /// 🔒 The sentinel is above every addressable actor, so no participant can ever be mistaken for
-    /// "no actor" and vice versa.
+    /// The sentinel is above every addressable actor, so no participant can be mistaken for "no
+    /// actor": an off-by-one letting <see cref="CombatActor.MaxId"/> reach the sentinel would make
+    /// the last summon of a long boss fight render as nobody.
     /// </summary>
-    /// <remarks>
-    /// The property that matters, rather than the two constants' values: an off-by-one that let
-    /// <see cref="CombatActor.MaxId"/> reach the sentinel would make the last summon of a long boss
-    /// fight render as nobody.
-    /// </remarks>
     [Fact]
     public void The_sentinel_is_above_every_addressable_actor()
     {
@@ -55,14 +45,10 @@ public sealed class CombatActorTests
     }
 
     /// <summary>
-    /// 🔒 Pet ids are reserved whether or not the slot is filled, so an actor's id is a function of
-    /// its role and not of how many pets the player brought.
+    /// Pet ids are reserved whether or not the slot is filled, so an actor's id is a function of its
+    /// role, not how many pets the player brought — a replayer never has to re-derive "which id is
+    /// the second enemy" from the roster.
     /// </summary>
-    /// <remarks>
-    /// `05` §3.2 makes pets untargetable and unkillable, so a slot never vacates mid-fight — and a
-    /// replayer that had to re-derive "which id is the second enemy" from the roster would be
-    /// holding simulator state, which `05` §8 forbids.
-    /// </remarks>
     [Fact]
     public void Enemy_ids_do_not_move_with_the_pet_count()
     {
@@ -92,15 +78,10 @@ public sealed class CombatActorTests
     }
 
     /// <summary>
-    /// 🔒 The ceiling fails loudly rather than wrapping into the sentinel.
+    /// The ceiling fails loudly rather than wrapping into the sentinel: without this, summon 251
+    /// would be logged as <see cref="CombatActor.None"/> and the replayer would draw its actions as
+    /// happening to nobody.
     /// </summary>
-    /// <remarks>
-    /// The 251 ids above <see cref="CombatActor.FirstEnemy"/> are unreachable by any authored fight
-    /// — `05` §3 seats at most 5 enemies and `17`'s most prolific summoner adds 18 across the 90 s
-    /// cap — but an unreachable ceiling that wraps silently is worse than one that says so. Without
-    /// this, summon 251 would be logged as <see cref="CombatActor.None"/> and the replayer would
-    /// draw its every action as happening to nobody.
-    /// </remarks>
     [Theory]
     [InlineData(251)]
     [InlineData(252)]
@@ -118,15 +99,9 @@ public sealed class CombatActorTests
     }
 
     /// <summary>
-    /// The standing population of the worst authored fight, against the range: 1 hero + 3 pets +
-    /// 5 enemies (`05` §3) plus `17`'s most prolific summoner over the whole 90 s cap.
+    /// The worst authored fight's standing population against the range: 1 hero + 3 pets + 5
+    /// enemies, plus the most prolific boss summoner (2 shards every 10 s) over the 90 s cap.
     /// </summary>
-    /// <remarks>
-    /// Rimehold phase 3 (`17` §6) is <c>PERIODIC 10 s</c> spawning 2 shards — 9 firings across the
-    /// 1800-tick cap, so 18 summons. Ids are never reused, so the highest id any authored fight can
-    /// reach is well inside the range. Written down so the claim in
-    /// <see cref="CombatActor"/>'s remarks is arithmetic rather than assertion.
-    /// </remarks>
     [Fact]
     public void The_worst_authored_fight_is_far_inside_the_range()
     {

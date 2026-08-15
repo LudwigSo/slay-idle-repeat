@@ -4,10 +4,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.AssetProvenance.Tests;
 
-/// <summary>
-/// The field rules — `15` §B0's parameter set, `20` §2.1's tool + version, and the shapes that make
-/// a record auditable by somebody who was not in the generation session.
-/// </summary>
+/// <summary>The field rules that make a record auditable by somebody who was not in the generation session.</summary>
 public sealed class RecordValidatorTests
 {
     [Fact]
@@ -92,10 +89,7 @@ public sealed class RecordValidatorTests
             .ShouldMatchWildcard($"*url is '{url}'*not an absolute http(s) URL*");
     }
 
-    /// <summary>
-    /// 🔒 `20` §2.1 — an AUDIO record must name its tool and version, in both directions: required
-    /// on audio, forbidden on art.
-    /// </summary>
+    /// <summary>An AUDIO record must name its tool and version, in both directions: required on audio, forbidden on art.</summary>
     [Fact]
     public void Audio_requires_20_s2_1s_tool_and_version()
     {

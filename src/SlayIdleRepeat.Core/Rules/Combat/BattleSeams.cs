@@ -4,44 +4,31 @@ using SlayIdleRepeat.Core.Rules.Effects.Ops;
 
 namespace SlayIdleRepeat.Core.Rules.Combat;
 
-/// <summary>
-/// 🔒 The four parts of `05` §3.1 that are <b>not</b> this task's, each stated as a seam the tick
-/// loop calls at the slot the document puts it in.
-/// </summary>
-/// <param name="Attack">`05` §4 / §4.1 / §4.3 — <b>M2-09</b>. Slot 4 calls it; see its remarks.</param>
-/// <param name="Statuses">`18` §2.3's six status ops — <b>M2-10</b>.</param>
-/// <param name="Timeline">`05` §3.1 slots 1 and 2 — <b>M2-10</b>.</param>
-/// <param name="Phases">`05` §3.1's phase check, pre-tick 0c and the enrage — <b>M2-12</b>.</param>
-/// <param name="Summons">`18` §2.4's <c>SUMMON</c> — the roster half is <b>M2-12</b>'s.</param>
-/// <param name="Pets">`05` §3.1 <b>slot 5</b> — pet ability cooldowns. See <see cref="IPetAbilities"/>.</param>
-/// <param name="Outcomes">
-/// `18` §2.4 / §10.1 E6's <c>RANDOM_OUTCOME</c> winner — <b>M2-12/M2-13</b>. See
-/// <see cref="IBossOutcomes"/>.
-/// </param>
+/// <summary>The parts of the tick loop that live behind a seam, each called at the slot the loop reaches it.</summary>
+/// <param name="Attack">The damage pipeline. Called from the basic-attack slot; see its remarks.</param>
+/// <param name="Statuses">The six status ops.</param>
+/// <param name="Timeline">Status timers and expiry.</param>
+/// <param name="Phases">The phase check, the initial phase entry and the enrage.</param>
+/// <param name="Summons">The roster half of <c>SUMMON</c>.</param>
+/// <param name="Pets">Pet ability cooldowns. See <see cref="IPetAbilities"/>.</param>
+/// <param name="Outcomes">The <c>RANDOM_OUTCOME</c> winner. See <see cref="IBossOutcomes"/>.</param>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Why the defaults are not all refusals.</b> <c>EffectOpSeams.Strict</c> throws on every
-/// member, because an op only reaches a seam when authored content asked for it — <em>"M2-09 has not
-/// landed"</em> must not read as <em>"this perk does nothing"</em>. Two of the seams here are the
-/// other shape: slots 1 and 2 run on <b>every tick of every fight</b>, and the phase check runs after
-/// <b>every</b> HP decrease, so a throwing default would make every battle throw rather than making
-/// one missing feature loud.
+/// <b>Why the defaults are not all refusals.</b> A throwing default is right for an op that only
+/// reaches a seam because authored content asked for it — a missing feature should be loud, not read as
+/// "this perk does nothing". But two of the seams here run on every tick of every fight regardless of
+/// content (status timers, the phase check after every HP decrease), so a throwing default there would
+/// make every battle throw rather than making one missing feature loud.
 /// </para>
-/// <para>
-/// So each default below is a refusal <em>at the point content asks for the feature</em>, and a
-/// no-op where the loop merely walks past the slot:
-/// </para>
+/// <para>Each default below is therefore a refusal at the point content asks for the feature, and a no-op where the loop merely walks past the slot:</para>
 /// <list type="bullet">
-///   <item><see cref="NoStatusTimeline"/> advances nothing and answers <c>0</c> stacks — correct for
-///   a fight with no statuses, and unreachable for a fight with one, because applying a status goes
-///   through <see cref="IStatusEngine"/> and <c>UnwiredStatusEngine.Apply</c> throws naming M2-10.
-///   That is the loud failure, one layer earlier; <c>StatusHoleTests</c> pins it.</item>
-///   <item><see cref="NoBossPhases"/> no-ops the check and <b>throws on a boss</b>: `05` §6.3 gives
-///   every boss three phases, so a roster carrying one and a controller that knows no phases is a
-///   wiring gap, not a fight.</item>
-///   <item><see cref="NoSummons"/> throws on every call. A <c>SUMMON</c> reaching it means content
-///   asked, which is <c>EffectOpSeams.Strict</c>'s shape exactly.</item>
-///   <item><see cref="NoBossOutcomes"/> throws on every call, for <see cref="NoSummons"/>' reason: a
+///   <item><see cref="NoStatusTimeline"/> advances nothing and answers <c>0</c> stacks — correct for a
+///   fight with no statuses; applying one goes through a separate engine that throws first, one layer
+///   earlier.</item>
+///   <item><see cref="NoBossPhases"/> no-ops the check and throws on a boss — every boss has three
+///   phases, so a roster carrying one with no phase controller is a wiring gap, not a fight.</item>
+///   <item><see cref="NoSummons"/> throws on every call: a <c>SUMMON</c> reaching it means content asked.</item>
+///   <item><see cref="NoBossOutcomes"/> throws on every call, for the same reason: a
 ///   <c>RANDOM_OUTCOME</c> only reaches it because authored content rolled one.</item>
 /// </list>
 /// </remarks>
@@ -54,18 +41,11 @@ internal sealed record BattleSeams(
     IPetAbilities Pets,
     IBossOutcomes Outcomes)
 {
-    /// <summary>
-    /// 🔒 The seam set M2-08 shipped: <b>every</b> engine absent, the damage pipeline included. Kept
-    /// as the base a test builds a partial engine on top of (<c>Strict with { … }</c>), and as the
-    /// one way to observe M2-03's refusals from inside a fight.
-    /// </summary>
+    /// <summary>Every engine absent, the damage pipeline included. The base a test builds a partial engine on top of.</summary>
     /// <remarks>
-    /// ⚠️ <b>No longer what a battle gets by default.</b> `05` §4 landed in M2-09, so
-    /// <see cref="BattlePlan.Seams"/> defaults to <see cref="For"/> — a plan that took this set
-    /// would refuse the first swing of every fight. The distinction is kept rather than collapsed
-    /// because <c>UnwiredAttackPipeline</c> is still <c>EffectOpSeams.Strict</c>'s default for op
-    /// resolution <em>outside</em> a battle, where there is no <see cref="BattleServices"/> to build
-    /// a real pipeline from.
+    /// No longer what a battle gets by default — once the damage pipeline landed, <see cref="BattlePlan.Seams"/>
+    /// defaults to <see cref="For"/> instead, since a plan taking this set would refuse the first swing
+    /// of every fight.
     /// </remarks>
     internal static BattleSeams Strict { get; } = new(
         UnwiredAttackPipeline.Instance,
@@ -76,346 +56,231 @@ internal sealed record BattleSeams(
         NoPetAbilities.Instance,
         NoBossOutcomes.Instance);
 
-    /// <summary>
-    /// 🔒 The seam set a fight gets by default: `05` §4's damage pipeline <b>wired</b>, and the four
-    /// engines M2-10 and M2-12 own still refusing where content asks and walking past where the loop
-    /// merely steps.
-    /// </summary>
+    /// <summary>The seam set a fight gets by default: the damage pipeline wired, the rest still refusing or walking past where the loop merely steps.</summary>
     /// <remarks>
-    /// <para>
-    /// It is a factory rather than a singleton for <see cref="BattleServices"/>' stated reason:
-    /// <see cref="AttackPipeline"/> writes <c>Hit</c>/<c>Miss</c>/<c>Crit</c> into <em>this</em>
-    /// fight's log, draws from <em>this</em> fight's stream and routes <em>this</em> fight's phase
-    /// check, none of which exists until the battle does. A static instance would be one setter away
-    /// from pointing at the previous battle's log.
-    /// </para>
+    /// A factory rather than a singleton: the attack pipeline writes into <em>this</em> fight's log,
+    /// draws from <em>this</em> fight's stream and routes <em>this</em> fight's phase check, none of
+    /// which exists until the battle does. A static instance would be one setter away from pointing at
+    /// the previous battle's log.
     /// </remarks>
     /// <param name="services">The battle's log, draw stream, roster, dials and HP routing.</param>
     internal static BattleSeams For(BattleServices services) =>
         Strict with { Attack = new AttackPipeline(services) };
 }
 
-/// <summary>
-/// 🔒 `05` §3.1 <b>slots 1 and 2</b> — status timers, DoT/HoT cadence and expiry. The seam
-/// <b>M2-10</b> implements.
-/// </summary>
+/// <summary>Status timers, DoT/HoT cadence and expiry.</summary>
 /// <remarks>
-/// <para>
-/// ═══ 🔒 <b>THE WIRING CONTRACT — WHAT M2-10 INHERITS</b> ═══
-/// </para>
-/// <para>
-/// The tick loop calls exactly three members, at exactly these points, and nothing else about
-/// statuses is the loop's:
-/// </para>
+/// <para>The tick loop calls exactly three members, at exactly these points, and nothing else about statuses is the loop's:</para>
 /// <list type="number">
 ///   <item>
-///     <b>Slot 1, once per actor, in `05` §3.1 actor order</b> (hero, pets in slot order, enemies by
-///     index) — <see cref="AdvanceTimers"/>. `05` §3.1: <em>"Status timers advance by TICK. Every
-///     DoT/HoT instance whose cadence boundary falls on this tick applies its tick."</em> The
-///     cadence rule is 🔒 and is M2-10's whole: one instance per <c>statusId</c> per target, ticking
-///     <em>"on the 20th simulation tick after first application, and every 20 ticks thereafter"</em>,
-///     never re-anchored by reapplication.
+///     <b>Once per actor, in actor order, before expiries</b> — <see cref="AdvanceTimers"/>. Status
+///     timers advance by one tick; every DoT/HoT instance whose cadence boundary falls on this tick
+///     applies its tick. One instance per status per target, ticking on the 20th tick after first
+///     application and every 20 ticks thereafter, never re-anchored by reapplication.
 ///   </item>
 ///   <item>
-///     <b>Slot 2, once per actor, same order</b> — <see cref="ExpireDue"/>, <em>"in ascending
-///     effect-id order. A DoT expiring exactly on a cadence boundary deals that tick first, then
-///     expires. Emit <c>StatusExpired</c>."</em>
+///     <b>Once per actor, same order, right after</b> — <see cref="ExpireDue"/>, in ascending
+///     effect-id order. A DoT expiring exactly on a cadence boundary deals that tick first, then expires.
 ///   </item>
 ///   <item>
-///     <b>Slot 4a, per swing</b> — <see cref="CanAct"/>. `05` §3.1: <em>"if attackCooldown &lt;= 0
-///     and actor.alive <b>and not stunned</b>"</em>. `05` §5's <c>STUN</c> is <em>"cannot act for D
-///     s. Max 1.5 s per application, with a 3 s immunity window after"</em>; the immunity window is
-///     M2-10's, and the loop asks only whether the actor may swing.
+///     <b>Per swing</b> — <see cref="CanAct"/>: cooldown ready, alive, and not stunned. A stun's
+///     immunity window after expiry is this engine's; the loop asks only whether the actor may swing.
 ///   </item>
 /// </list>
-/// <para>
-/// ⚠️ <b>Three obligations the loop cannot check and M2-10 must honour.</b>
-/// </para>
+/// <para>Three obligations the loop cannot check and this engine must honour:</para>
 /// <list type="bullet">
-///   <item><b>Every DoT HP change routes the phase check.</b> `05` §3.1 is explicit that a DoT tick
-///   runs <em>"ward absorption (§4 step 9 …) and the phase check"</em>. The loop has already run its
-///   own check for the attacks it drove; a DoT landing inside slot 1 is M2-10's to route through
-///   <see cref="IBossPhases.AfterHpDecrease"/>.</item>
-///   <item><b><c>ON_LOW_HP</c> after every HP change</b>, DoT ticks included — it is a
-///   <em>crossing</em>, so a skipped observation is a firing lost (<c>TriggerRegistry</c>).</item>
-///   <item><b>HoT ticks go through <c>IAttackPipeline.Heal</c></b> (`05` §4.3), not through the
-///   damage path, so <c>HEAL%</c> and <c>ON_HEAL</c> apply.</item>
+///   <item><b>Every DoT HP change routes the phase check</b> — a DoT tick runs ward absorption and the
+///   phase check exactly as an attack does.</item>
+///   <item><b><c>ON_LOW_HP</c> after every HP change</b>, DoT ticks included — it is a crossing, so a
+///   skipped observation is a firing lost.</item>
+///   <item><b>HoT ticks go through the heal path</b>, not the damage path, so heal percent and
+///   <c>ON_HEAL</c> apply.</item>
 /// </list>
 /// </remarks>
 internal interface IStatusTimeline
 {
-    /// <summary>`05` §3.1 slot 1 — advance this actor's status timers by <c>TICK</c> and apply any
-    /// DoT/HoT cadence tick that lands on <paramref name="tick"/>.</summary>
+    /// <summary>Advance this actor's status timers by one tick and apply any DoT/HoT cadence tick that lands on <paramref name="tick"/>.</summary>
     void AdvanceTimers(BattleActor actor, int tick);
 
-    /// <summary>`05` §3.1 slot 2 — expire this actor's statuses whose duration reached 0, in
-    /// ascending effect-id order.</summary>
+    /// <summary>Expire this actor's statuses whose duration reached 0, in ascending effect-id order.</summary>
     void ExpireDue(BattleActor actor, int tick);
 
-    /// <summary>`05` §3.1 slot 4a's <em>"and not stunned"</em>.</summary>
+    /// <summary>Whether the actor may act — alive, cooldown ready, and not stunned.</summary>
     bool CanAct(BattleActor actor);
 
-    /// <summary>
-    /// How many stacks of a `05` §5 status the actor carries — the single reading behind `18` §4's
-    /// <c>STATUS_STACKS</c> and <c>HAS_STATUS</c>.
-    /// </summary>
+    /// <summary>How many stacks of a status the actor carries.</summary>
     int StacksOn(BattleActor actor, string statusId);
 
-    /// <summary>
-    /// 🔒 `18` §8 step 1 — the <b>active</b> stat modifiers this actor's live `05` §5 statuses
-    /// contribute to its aggregation.
-    /// </summary>
+    /// <summary>The active stat modifiers this actor's live statuses contribute to its aggregation.</summary>
     /// <remarks>
     /// <para>
-    /// ⚠️ <b>The fourth member, added by M2-10, and the wiring contract above is why it had to be.</b>
-    /// That contract lists three calls and says <em>"nothing else about statuses is the loop's"</em> —
-    /// which is true of the tick <em>order</em>, and this is not a slot. It is `18` §8: half of
-    /// §5's twelve are stat modifiers (<c>FREEZE</c> −50% ASPD, <c>WEAKEN</c> −X% ATK,
-    /// <c>SUNDER</c> −X% DEF, <c>SPORE</c> −X% healing received, <c>RAGE</c> +X% ATK, <c>HASTE</c>
-    /// +X% ASPD) and a status that never reaches the aggregation does nothing at all.
+    /// Half of the status vocabulary is stat modifiers (freeze, weaken, sunder, and so on), and a
+    /// status that never reached the aggregation would do nothing at all. The main aggregation path
+    /// reads an actor's untriggered standing effects plus copy-percent buckets, and a live status is
+    /// neither of those — the buckets were the near alternative and are the wrong home twice over: they
+    /// carry no duration, so nothing would ever expire a debuff, and they are scoped to a narrower read
+    /// that would start seeing them too.
     /// </para>
     /// <para>
-    /// 🔒 <b>Why it could not go anywhere else.</b> <c>BattleSimulation.RefreshStats</c> aggregates
-    /// an actor's <b>untriggered standing</b> effects plus `18` §2.4's <c>STAT_COPY</c> percent
-    /// buckets, and records in its own comment that the other half of `18` §8 step 1 — <em>"a
-    /// triggered effect that has fired and whose duration has not ended"</em> — is not wired on that
-    /// branch. A live status is exactly one of those. The <c>STAT_COPY</c> buckets on
-    /// <c>CombatFlowState</c> were the near alternative and are the wrong home twice over: they carry
-    /// no duration, so nothing would ever expire a <c>FREEZE</c>, and R13 scopes them to
-    /// <c>STAT_COPY</c>, whose <c>HIGHEST_PCT_BONUS</c> reading would start seeing debuffs.
-    /// </para>
-    /// <para>
-    /// Returns synthetic <c>STAT_ADD_PCT</c> definitions under ids no authored effect can take, on
-    /// the precedent <c>RefreshStats</c> already set for the <c>STAT_COPY</c> buckets. Empty for an
-    /// actor carrying no stat-modifying status, which is every actor in every fight until one lands.
+    /// Returns synthetic stat-add definitions under ids no authored effect can take. Empty for an actor
+    /// carrying no stat-modifying status, which is every actor in every fight until one lands.
     /// </para>
     /// </remarks>
     IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor);
 }
 
-/// <summary>
-/// 🔒 `05` §3.1's <b>phase check</b>, pre-tick <b>0c</b> and the <b>70 s enrage</b>. The seam
-/// <b>M2-12</b> implements.
-/// </summary>
+/// <summary>The boss phase check, the initial phase entry, and the enrage.</summary>
 /// <remarks>
-/// <para>
-/// ═══ 🔒 <b>THE WIRING CONTRACT — WHAT M2-12 INHERITS</b> ═══
-/// </para>
+/// <para>The tick loop's contract with this interface:</para>
 /// <list type="number">
 ///   <item>
-///     <b>Pre-tick 0c</b> — <see cref="EnterInitialPhase"/>, once per boss, after 0b's
-///     <c>ON_BATTLE_START</c> sweep and before 0d's <c>BattleStart</c>. `05` §3.1: <em>"The boss's
-///     phase 1 counts as entered: fire its <c>ON_PHASE_ENTER(1)</c> effects."</em> Register the
-///     phase-1 block on the battle's <c>TriggerRegistry</c> at tick 0 — that is its R8 anchor — and
-///     evaluate an <c>ON_PHASE_ENTER</c> occurrence with <c>Phase = 1</c>.
+///     <b>Once per boss, before the battle-start events</b> — <see cref="EnterInitialPhase"/>. The
+///     boss's phase 1 counts as entered: fire its <c>ON_PHASE_ENTER(1)</c> effects, and register the
+///     phase-1 block on the battle's trigger registry at tick 0.
 ///   </item>
 ///   <item>
-///     <b>After every HP decrease of any actor</b> — <see cref="AfterHpDecrease"/>. `05` §3.1 is 🔒
-///     that the check runs <em>"immediately after <b>every</b> boss HP decrease (attack, DoT tick,
-///     thorns, true damage), once ward absorption and the floor are settled"</em>. The loop calls it
-///     for the HP changes it drives; M2-09 calls it from inside `05` §4 step 9 and M2-10 from a DoT
-///     tick. It is handed <em>every</em> actor rather than only bosses, because "is this a boss" is
-///     the controller's question and a loop that pre-filtered would be a second copy of it.
+///     <b>After every HP decrease of any actor</b> — <see cref="AfterHpDecrease"/>. The check runs
+///     immediately after every boss HP decrease (attack, DoT tick, thorns, true damage), once ward
+///     absorption and the floor are settled. It is handed every actor rather than only bosses, because
+///     "is this a boss" is the controller's question and a loop that pre-filtered would be a second copy
+///     of it.
 ///   </item>
 ///   <item>
-///     <b>Phases never revert, and a burst crosses them in order.</b> <em>"while <c>currentPhase &lt;
-///     PhaseFor(hp)</c>, enter the next phase <b>in order</b>"</em> — 70% to 20% fires phase 2's
-///     entry, then phase 3's, both inside one call. Healing back above a threshold does not
-///     re-enter, and `PHASE`-scoped effects (`18` §6) are <c>Deactivate</c>d at each exit.
+///     <b>Phases never revert, and a burst crosses them in order.</b> While the boss's HP is below the
+///     next threshold, enter the next phase in order — 70% to 20% fires phase 2's entry, then phase 3's,
+///     both inside one call. Healing back above a threshold does not re-enter, and phase-scoped effects
+///     are deactivated at each exit.
 ///   </item>
 ///   <item>
-///     🔒 <b><c>SYS_ENRAGE</c> is not a phase and does not belong here.</b> It is
-///     <c>PERIODIC {interval: 1.0, startDelay: 70.0}</c> with <c>BATTLE</c> scope (`17` §1), so it is
-///     registered at pre-tick 0a like any other battle-start effect and fires through
-///     <c>TriggerRegistry.PeriodicDue</c> in <b>slot 3</b>. R8 anchors it at battle start, which is
-///     what makes <c>startDelay: 70.0</c> mean 70 s of battle. Putting it on this interface would
-///     re-anchor it at a phase entry and the boss would enrage 70 s after reaching 66% HP.
+///     <b><c>SYS_ENRAGE</c> is not a phase and does not belong here.</b> It is a periodic effect with
+///     its own start delay, registered at battle start like any other battle-start effect and fired
+///     through the ordinary periodic-due path. Putting it on this interface would re-anchor it at a
+///     phase entry instead of battle start.
 ///   </item>
 ///   <item>
-///     <b>Once per actor per tick, between slots 2 and 3</b> — <see cref="AdvanceTick"/>, `17` §1's
-///     telegraph pass. 🔒 <b>Added by M2-12</b>, because `05` §3.1's eight slots make no per-tick
-///     call into this interface and a wind-up is emitted <em>ahead</em> of the firing it announces,
-///     so nothing at the firing can raise it. See the member's own remarks for the alternative that
-///     was rejected.
+///     <b>Once per actor per tick, between the expiry and periodic slots</b> — <see cref="AdvanceTick"/>,
+///     the telegraph pass. Added because the tick loop makes no per-tick call into this interface
+///     otherwise, and a wind-up must be emitted ahead of the firing it announces — nothing at the firing
+///     itself can raise it. See the member's own remarks for the alternative that was rejected.
 ///   </item>
 ///   <item>
-///     <b>Telegraphs and the first-clear extension are M2-12's too</b>, and neither is a call the
-///     loop makes: `17` §1's wind-up is emitted through <c>CombatLog.AppendTelegraph</c> by
-///     <see cref="AdvanceTick"/>, ahead of the mechanic that is about to land.
-///     <para>
-///     🔴 <b>ERRATUM, corrected in place.</b> This paragraph previously read that the first-clear
-///     extension <em>"changes <c>CombatRules.MaxTicks</c> before the fight starts"</em>. It does
-///     not, and it cannot: <c>CombatRules.PvE.MaxTicks</c> already equals <c>CombatLog.MaxTicks</c>
-///     (1800) and <c>BattlePlan.Validated</c> throws above it, so there is no headroom — and
-///     extending the fight would lengthen the <em>whole</em> fight rather than phase 1. `17` §1 says
-///     <em>"phase 1 lasts 20% longer"</em>; a phase is an <b>HP band</b>, and at constant DPS its
-///     duration is proportional to its width, so the first clear widens the band by 20% and moves
-///     the phase-2 boundary from 0.66 to 0.5920. No tunable, no extra HP, no <c>MaxTicks</c> change.
-///     See <c>BossPhaseRules</c>.
-///     </para>
+///     <b>Telegraphs and the first-clear extension both belong here</b> too. A wind-up is emitted
+///     ahead of the mechanic that is about to land. The first-clear extension widens phase 1's HP band
+///     by 20% rather than changing the tick cap or adding HP — see <c>BossPhaseRules</c>.
 ///   </item>
 /// </list>
 /// </remarks>
 internal interface IBossPhases
 {
-    /// <summary>Pre-tick 0c — the boss's phase 1 counts as entered.</summary>
+    /// <summary>The boss's phase 1 counts as entered.</summary>
     void EnterInitialPhase(BattleActor actor, int tick);
 
-    /// <summary>
-    /// 🔒 `05` §3.1's phase check, after an HP decrease that has already settled ward absorption and
-    /// the floor.
-    /// </summary>
+    /// <summary>The phase check, after an HP decrease that has already settled ward absorption and the floor.</summary>
     void AfterHpDecrease(BattleActor actor, int tick);
 
-    /// <summary>
-    /// 🔒 `17` §1 / §11 — the per-tick telegraph pass, once per actor in `05` §3.1 actor order,
-    /// between slots 2 and 3.
-    /// </summary>
+    /// <summary>The per-tick telegraph pass, once per actor in actor order.</summary>
     /// <param name="actor">The actor the loop reached. Most calls are not a boss's.</param>
     /// <param name="tick">The tick being run.</param>
     /// <remarks>
     /// <para>
-    /// 🔒 <b>Why the loop gained a slot rather than the boss gaining a pulse.</b> The alternative was
-    /// a synthetic <c>PERIODIC</c> built-in attached to every boss, so that slot 3 pumped the
-    /// controller with no engine edit at all. It was rejected: a fabricated effect id would enter the
-    /// battle's effect table — which is built from the opening roster and whose <b>positions</b> are
-    /// `05` §7's <c>RunEffectQueued</c> and <c>Telegraph</c> indices — and would therefore shift
-    /// indices that are already inside every committed <c>LogHash</c>. This call site costs four
-    /// lines and perturbs nothing.
+    /// <b>Why the loop gained a slot rather than the boss gaining a synthetic periodic pulse.</b> A
+    /// fabricated effect id would enter the battle's effect table, whose positions are already inside
+    /// every committed log hash — and would therefore shift indices already committed to. This call
+    /// site costs four lines and perturbs nothing.
     /// </para>
-    /// <para>
-    /// <see cref="NoBossPhases"/> no-ops it, which is correct rather than lenient: a fight with no
-    /// boss has no wind-up to announce, and the log of such a fight is byte-identical with and
-    /// without this slot.
-    /// </para>
+    /// <para><see cref="NoBossPhases"/> no-ops it: a fight with no boss has no wind-up to announce, and its log is byte-identical with and without this slot.</para>
     /// </remarks>
     void AdvanceTick(BattleActor actor, int tick);
 
     /// <summary>
-    /// 🔒 `18` §6 — the phase the boss is <b>in</b>, so that a <c>PHASE</c>-scoped effect can end
-    /// <em>"when the boss exits the phase in which the effect was applied"</em>. <c>null</c> outside
-    /// a boss fight, and <c>null</c> for a boss whose phase 1 has not been entered yet.
+    /// The phase the boss is in, so a phase-scoped effect can end when the boss exits the phase in
+    /// which it was applied. <c>null</c> outside a boss fight, and <c>null</c> for a boss whose phase 1
+    /// has not been entered yet.
     /// </summary>
     /// <param name="actor">The boss being asked about.</param>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>R3 — without this member the scope silently did nothing.</b> `18` §6 makes every boss
-    /// <c>AURA</c> <c>PHASE</c>-scoped, and <c>DurationEvaluator</c> has implemented the rule since
-    /// M2-06: it reads <c>EffectApplication.AppliedInPhase</c> and <c>DurationProbe.CurrentPhase</c>
-    /// and ends the effect the moment the second exceeds the first. Both were left <c>null</c> by
-    /// every caller, because nothing in the battle could answer the question — so `18` §6's
-    /// <em>"outside a boss fight it behaves as <c>BATTLE</c>"</em> fallback was taken <b>inside</b>
-    /// boss fights too, and a phase-2 aura survived into phase 3 with nothing going red. This is the
-    /// smallest thing that closes it: one reading, on the seam that already owns the phase.
+    /// Without this member the phase scope silently did nothing: every boss aura is phase-scoped, and
+    /// the duration evaluator has implemented the boundary for a long time, but its two inputs had no
+    /// source and every caller left them <c>null</c> — so the scope fell back to its "outside a boss
+    /// fight" behaviour <em>inside</em> boss fights too, and a phase-2 aura survived into phase 3 with
+    /// nothing going red.
     /// </para>
     /// <para>
-    /// 🔒 <b>A reading, never a transition.</b> It must not consult HP: `05` §3.1's <em>"phases never
-    /// revert"</em> means the current phase is what the controller has <em>entered</em>, and a boss
-    /// healed back above 66% is still in the phase it reached. An implementation that recomputed
-    /// from HP would end a phase-3 aura on a heal.
+    /// A reading, never a transition: it must not consult HP. Phases never revert, so the current phase
+    /// is what the controller has entered, and a boss healed back above a threshold is still in the
+    /// phase it reached. An implementation that recomputed from HP would end a phase-3 aura on a heal.
     /// </para>
     /// </remarks>
     int? CurrentPhase(BattleActor actor);
 }
 
-/// <summary>
-/// 🔒 `18` §2.4 / §10.1 <b>E6</b> — the <b>one</b> effect a <c>RANDOM_OUTCOME</c>'s single draw
-/// picked, handed over by id. The seam <b>M2-12</b> implements and <b>M2-13</b> authors against.
-/// </summary>
+/// <summary>The one effect a <c>RANDOM_OUTCOME</c>'s single draw picked, handed over by id.</summary>
 /// <remarks>
 /// <para>
-/// ═══ 🔒 <b>WHY THE OP CANNOT SIMPLY FIRE THE WINNER ITSELF</b> ═══
+/// <b>Why the op cannot simply fire the winner itself.</b> The intra-<c>Rules</c> layering forbids
+/// <c>Rules/Effects/Ops/</c> from naming a boss type, so the op does what the bottom layer can do —
+/// validate the table and take exactly one weighted RNG pick — and names the winner across a sink
+/// interface; <see cref="BattleSimulation"/> routes it here.
 /// </para>
-/// <para>
-/// R17 fixes the intra-<c>Rules</c> layering as
-/// <c>Rules.Combat ▶ Rules.Stats ▶ Rules.Effects</c> and <c>IntraRulesLayeringRuleTests</c> fails
-/// the build on a violation, so <c>Rules/Effects/Ops/</c> may not name a <c>Rules.Combat.Bosses</c>
-/// type. The op therefore does what the bottom layer can do — validate the table and take exactly
-/// one <c>DeterministicRng.WeightedPick</c> — and names the winner across
-/// <c>ICombatFlowSink.RandomOutcome</c>; <see cref="BattleSimulation"/> routes it here.
-/// </para>
-/// <para>
-/// The split mirrors <see cref="ISummonSource"/>'s exactly: the op knows <em>what was asked for</em>,
-/// the roster half knows <em>what that is</em>.
-/// </para>
+/// <para>The split mirrors <see cref="ISummonSource"/>'s exactly: the op knows what was asked for, the roster half knows what that is.</para>
 /// </remarks>
 internal interface IBossOutcomes
 {
     /// <summary>Fires the single effect the roll drew.</summary>
-    /// <param name="holder">The actor whose effect rolled — `17` §9's Dicelord.</param>
+    /// <param name="holder">The actor whose effect rolled.</param>
     /// <param name="chosenEffectId">
-    /// 🔒 The `18` §8 id of the <b>one</b> effect that fires. A <b>sibling</b> reference — an id the
-    /// same owning boss script declares — never an embedded effect
-    /// (<c>RandomOutcomeEntry</c> states why). That is what makes the outcomes mutually exclusive:
-    /// one call per roll, one effect per call.
+    /// The id of the one effect that fires — a sibling reference the same owning boss script declares,
+    /// never an embedded effect. That is what makes the outcomes mutually exclusive.
     /// </param>
     /// <param name="sourceEffectId">The <c>RANDOM_OUTCOME</c> effect's own id, for the failure message.</param>
     void Resolve(BattleActor holder, string chosenEffectId, string sourceEffectId);
 }
 
-/// <summary>
-/// 🔒 `18` §2.4's <c>SUMMON</c> — the actor a summon spawns. The <b>roster</b> half of the op; the
-/// <b>entry</b> half (`05` §3.1) is this task's, on <see cref="BattleSimulation"/>.
-/// </summary>
+/// <summary>The actor a <c>SUMMON</c> spawns. The roster half of the op; the entry half is the tick loop's.</summary>
 /// <remarks>
 /// <para>
-/// The split follows what each task knows. `05` §3.1 fixes the entry rules and they are the loop's:
-/// <em>"Summons enter at the end of the enemy index list with a full attack cooldown
-/// (<c>1.0 / ASPD</c> — they never attack on their spawn tick) and become targetable at the next
-/// targeting evaluation."</em> What a <c>SUMMON</c> spawns — a `05` §6.1 archetype's derived
-/// statline, at the encounter's power and level — is M2-11's derivation reached through M2-12's boss
-/// authoring, and neither is in the tick loop.
+/// The split follows what each task knows. The entry rules — end of the enemy index list, a full
+/// attack cooldown so summons never attack on their spawn tick, targetable at the next evaluation — are
+/// the loop's. What a <c>SUMMON</c> actually spawns is a content-level derivation reached through boss
+/// authoring, and neither lives in the tick loop.
 /// </para>
 /// <para>
-/// 🔒 <b>The plan it returns carries no index and no log id.</b> Both are the roster's, and
-/// <see cref="BattleSimulation"/> assigns them: <c>CombatActor</c> is 🔒 that a summon
-/// <em>"takes the next free id and never reuses a dead one"</em>, because the log is the replay and
-/// two actors sharing an id would draw the second one resuming the first one's HP bar.
+/// The plan it returns carries no index and no log id — both are the roster's, and
+/// <see cref="BattleSimulation"/> assigns them; a summon takes the next free id and never reuses a dead
+/// one, since the log is the replay and two actors sharing an id would draw the second resuming the
+/// first's HP bar.
 /// </para>
 /// </remarks>
 internal interface ISummonSource
 {
-    /// <summary>
-    /// The actor a <c>SUMMON</c> of <paramref name="archetype"/> spawns, without an
-    /// <see cref="ActorPlan.Index"/> or <see cref="ActorPlan.LogId"/>.
-    /// </summary>
+    /// <summary>The actor a <c>SUMMON</c> of <paramref name="archetype"/> spawns, without an <see cref="ActorPlan.Index"/> or <see cref="ActorPlan.LogId"/>.</summary>
     /// <param name="summoner">The actor whose effect fired — <c>OWNER</c>'s subject.</param>
-    /// <param name="archetype">`05` §6.1's archetype name, as the op authors it.</param>
-    /// <param name="sourceEffectId">The `18` §8 effect id, for the failure message.</param>
+    /// <param name="archetype">The archetype name, as the op authors it.</param>
+    /// <param name="sourceEffectId">The effect id, for the failure message.</param>
     ActorPlan Spawn(BattleActor summoner, string archetype, string sourceEffectId);
 }
 
-/// <summary>
-/// 🔒 `05` §3.1 <b>slot 5</b> — <em>"Pet ability cooldowns advance; ready abilities fire, pets in
-/// slot order."</em>
-/// </summary>
+/// <summary>Pet ability cooldowns advance; ready abilities fire, pets in slot order.</summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>No M2 task owns this, and that is recorded rather than papered over</b> (steering S6). The
-/// milestone's remaining tasks are M2-09 (damage), M2-10 (statuses), M2-12/M2-13 (bosses) and M2-14
-/// (duels); `07` §2.1's pet actives belong to the hero/pet milestone. What `05` §3.1 fixes is that
-/// the slot <b>exists and is fifth</b>, and this seam is that slot — empty, named, and greppable.
+/// This interface fixes that the slot exists and is fifth in the tick loop; what fires in it is a
+/// later milestone's.
 /// </para>
 /// <para>
-/// 🔒 <b>What slot 5 does not do, from <c>TriggerRegistry</c>:</b> <em>"Slot 5 fires nothing of its
-/// own. `18` §7.7's pet actives carry no trigger — the ability's cooldown is the wrapper's — so a pet
-/// ability raises only the <c>ON_HIT</c> family of slot 4, through the damage it resolves."</em> Two
-/// further rules bound the implementer: a pet's damage is a percentage of the <b>hero's</b> ATK but
-/// uses the <b>pet's</b> own CRIT (`05` §4.2), and a pet's <em>targeted</em> ability selects the
-/// <b>highest current HP</b> enemy — <see cref="TargetSelection.ForPetAbility"/>, which is
-/// implemented and tested here.
+/// This slot fires nothing of its own: a pet active carries no trigger — the ability's cooldown is the
+/// wrapper's — so a pet ability raises only the on-hit trigger family, through the damage it resolves. A
+/// pet's damage is a percentage of the hero's ATK but uses the pet's own CRIT, and a pet's targeted
+/// ability selects the highest current HP enemy — see <see cref="TargetSelection.ForPetAbility"/>.
 /// </para>
 /// </remarks>
 internal interface IPetAbilities
 {
-    /// <summary>`05` §3.1 slot 5, for one pet, called in slot order.</summary>
+    /// <summary>The pet-ability slot, for one pet, called in slot order.</summary>
     void Advance(BattleActor pet, int tick);
 }
 
-/// <summary>
-/// The `05` §3.1 slot 1/2 timeline M2-08 ships: no statuses exist, so nothing advances and nothing
-/// expires. See <see cref="BattleSeams"/> for why this is a no-op rather than a refusal.
-/// </summary>
+/// <summary>The status timeline shipped with no statuses: nothing advances and nothing expires.</summary>
 internal sealed class NoStatusTimeline : IStatusTimeline
 {
     /// <summary>The single instance.</summary>
@@ -445,10 +310,7 @@ internal sealed class NoStatusTimeline : IStatusTimeline
     public IReadOnlyList<EffectDefinition> StatModifiers(BattleActor actor) => [];
 }
 
-/// <summary>
-/// The `05` §6.3 phase controller M2-08 ships: no phases, which is correct for every fight that has
-/// no boss — and a refusal naming M2-12 for every fight that has one.
-/// </summary>
+/// <summary>The phase controller shipped with no phases: correct for a fight with no boss, a refusal for one that has one.</summary>
 internal sealed class NoBossPhases : IBossPhases
 {
     /// <summary>The single instance.</summary>
@@ -479,10 +341,9 @@ internal sealed class NoBossPhases : IBossPhases
 
     /// <inheritdoc />
     /// <remarks>
-    /// 🔒 A <b>no-op</b>, not a refusal, and it is the one member of this class that is right rather
-    /// than merely loud: a fight with no boss has no `17` §1 wind-up to announce, and the loop walks
-    /// this slot on every one of 1800 ticks. <see cref="EnterInitialPhase"/> is where a roster
-    /// carrying a boss becomes a wiring gap.
+    /// A no-op, not a refusal: a fight with no boss has no wind-up to announce, and the loop walks this
+    /// slot on every tick. <see cref="EnterInitialPhase"/> is where a roster carrying a boss becomes a
+    /// wiring gap.
     /// </remarks>
     public void AdvanceTick(BattleActor actor, int tick)
     {
@@ -490,22 +351,17 @@ internal sealed class NoBossPhases : IBossPhases
 
     /// <inheritdoc />
     /// <remarks>
-    /// 🔒 <c>null</c>, which is `18` §6's own answer for <em>"outside a boss fight"</em> and is
-    /// therefore correct rather than merely quiet: a fight this controller runs has no phases at
-    /// all, so a <c>PHASE</c>-scoped effect in it behaves as <c>BATTLE</c> exactly as §6 says. A
-    /// roster that <em>does</em> carry a boss never gets this far —
-    /// <see cref="EnterInitialPhase"/> refuses it at pre-tick 0c.
+    /// <c>null</c>, which is correct rather than merely quiet: a fight this controller runs has no
+    /// phases at all, so a phase-scoped effect in it behaves as battle-scoped. A roster that does carry
+    /// a boss never gets this far — <see cref="EnterInitialPhase"/> refuses it first.
     /// </remarks>
     public int? CurrentPhase(BattleActor actor) => null;
 }
 
-/// <summary>
-/// The `18` §10.1 E6 outcome resolver M2-08 ships: none, stated as a refusal naming M2-12/M2-13.
-/// </summary>
+/// <summary>The outcome resolver shipped with none, stated as a refusal.</summary>
 /// <remarks>
-/// A refusal rather than a no-op, on <see cref="NoSummons"/>' reasoning: an op only reaches a seam
-/// because authored content asked for it, and a silently dropped outcome would make `17` §9's
-/// <em>Roll of Fate</em> a d6 with no faces — a boss that rolls, visibly, and does nothing.
+/// A refusal rather than a no-op: an op only reaches a seam because authored content asked for it, and
+/// a silently dropped outcome would make a boss's roll-of-fate mechanic a die with no faces.
 /// </remarks>
 internal sealed class NoBossOutcomes : IBossOutcomes
 {
@@ -528,25 +384,11 @@ internal sealed class NoBossOutcomes : IBossOutcomes
             "`17` §9's Roll of Fate a d6 with no faces. Pass a BattleSeams with a real IBossOutcomes.");
 }
 
-/// <summary>
-/// The `05` §3.1 slot 5 M2-08 ships: the slot runs and no pet ability is authored to fire in it.
-/// </summary>
+/// <summary>The pet-ability slot shipped with no pet ability authored to fire in it.</summary>
 /// <remarks>
 /// <para>
-/// A no-op rather than a refusal, for <see cref="NoStatusTimeline"/>'s reason: `05` §3 makes pets
-/// optional (<em>"Pets (0–3)"</em>) and slot 5 runs on every tick of every fight. A fight with no pet
-/// abilities is the ordinary case, not a wiring gap — and today it is the <em>only</em> case, because
-/// `18` §7.7's pet active is a wrapper holding an effect list plus a cooldown and no such wrapper
-/// type exists anywhere in the repository.
-/// </para>
-/// <para>
-/// 🔒 <b>THE DEFERRAL IS REGISTERED, and this is the pointer to it.</b> No M2 task owns slot 5, so
-/// the obligation is recorded where the repository's one expiring register can fire on it —
-/// <c>SubjectSetFloorTests.Pending</c>, under the name <c>PetAbility</c> (steering S4). Read that
-/// entry before changing this class: it explains why the name is an inference and asks whoever picks
-/// the milestone up to <em>rename</em> the entry rather than delete it if they choose another. This
-/// remark exists because a note addressed to a future milestone is worthless in a test file that
-/// milestone will never open — the precedent <c>DurationScopes</c> set.
+/// A no-op rather than a refusal: pets are optional and this slot runs on every tick of every fight, so
+/// a fight with no pet abilities is the ordinary case, not a wiring gap.
 /// </para>
 /// </remarks>
 internal sealed class NoPetAbilities : IPetAbilities
@@ -564,7 +406,7 @@ internal sealed class NoPetAbilities : IPetAbilities
     }
 }
 
-/// <summary>The `18` §2.4 summon roster M2-08 ships: none, stated as a refusal naming M2-12.</summary>
+/// <summary>The summon roster shipped with none, stated as a refusal.</summary>
 internal sealed class NoSummons : ISummonSource
 {
     /// <summary>The single instance.</summary>

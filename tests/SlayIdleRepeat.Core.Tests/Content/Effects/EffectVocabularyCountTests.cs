@@ -4,19 +4,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 
-/// <summary>
-/// 🔒 The size of every closed set in the effect DSL, pinned against `18` §11's closing note.
-/// </summary>
+/// <summary>The size of every closed set in the effect DSL.</summary>
 /// <remarks>
-/// Steering S3: a rule driven by reflection over an enum needs a floor on its subject set, or it passes
-/// forever over an emptied one. Every parity, partition and totality rule in this area quantifies over
-/// one of these enums, so deleting members would take all of them green together.
-/// <para>
-/// 🔒 <b>Equalities, not floors.</b> These are closed vocabularies fixed by a document, not growing
-/// populations — and an op <em>arriving</em> is as much a change to review as one leaving. `18` §10
-/// requires the op, the schema and the document to move in one commit, and this number is the fourth
-/// thing that has to move with them.
-/// </para>
+/// A rule driven by reflection over an enum needs a floor on its subject set, or it passes forever
+/// over an emptied one. These are closed vocabularies fixed by a document, not growing populations —
+/// an op arriving is as much a change to review as one leaving, and this number is what has to move
+/// with it.
 /// </remarks>
 public sealed class EffectVocabularyCountTests
 {
@@ -31,11 +24,11 @@ public sealed class EffectVocabularyCountTests
     }
 
     [Theory]
-    [InlineData(EffectOpFamily.STAT, 6)]                 // 18 §2.1
-    [InlineData(EffectOpFamily.DAMAGE_AND_HEALING, 7)]   // 18 §2.2
-    [InlineData(EffectOpFamily.STATUS, 6)]               // 18 §2.3
-    [InlineData(EffectOpFamily.COMBAT_FLOW, 12)]         // 18 §2.4, twelfth is 18 §10.1 E6's RANDOM_OUTCOME
-    [InlineData(EffectOpFamily.RUN_AND_BOARD, 13)]       // 18 §2.5
+    [InlineData(EffectOpFamily.STAT, 6)]
+    [InlineData(EffectOpFamily.DAMAGE_AND_HEALING, 7)]
+    [InlineData(EffectOpFamily.STATUS, 6)]
+    [InlineData(EffectOpFamily.COMBAT_FLOW, 12)]         // twelfth is RANDOM_OUTCOME
+    [InlineData(EffectOpFamily.RUN_AND_BOARD, 13)]
     public void Each_family_holds_the_ops_its_section_tabulates(EffectOpFamily family, int expected)
     {
         EffectOps.All.Count(op => EffectOps.FamilyOf(op) == family).ShouldBe(
@@ -111,7 +104,7 @@ public sealed class EffectVocabularyCountTests
 
     /// <summary>
     /// The single-member enums, asserted so that a second member cannot be added without somebody
-    /// deciding it is authorised. Steering S6: `18` writes exactly one token for each.
+    /// deciding it is authorised.
     /// </summary>
     [Fact]
     public void The_single_token_enums_still_hold_exactly_the_one_token_18_authors()
@@ -120,16 +113,11 @@ public sealed class EffectVocabularyCountTests
         Enum.GetValues<DieFaceScope>().ShouldBe([DieFaceScope.NEXT_3_ROLLS]);
     }
 
-    /// <summary>
-    /// 🔒 <see cref="StatCapKind"/> left that set in M2-03, and this is the decision that moved it.
-    /// </summary>
+    /// <summary>Three cap kinds; a fourth is a decision, not a drift.</summary>
     /// <remarks>
-    /// `18` writes one <c>capKind</c> — <c>HEAL_CEILING</c> (§7.6's <em>Avatar of War</em>) — and it
-    /// is a ceiling on <c>Heal()</c> (`05` §4.3), <b>not</b> one of `05` §1's six stat caps. With
-    /// only that token the op could satisfy neither half of its own §2.1 description, <em>"raise or
-    /// redirect a stat cap"</em>, and `09` §4's <em>Perfect Strike</em> — the one authored redirect
-    /// in the game — had no JSON anywhere. Both were added under `18` §10's procedure (op, schema
-    /// and document in one commit); the count is asserted so a fourth is a decision too.
+    /// <c>HEAL_CEILING</c> is a ceiling on <c>Heal()</c>, not one of the ordinary stat caps — with
+    /// only that token the op could not "raise or redirect a stat cap", so <c>STAT_MAX</c> and
+    /// <c>REDIRECT_EXCESS</c> were added alongside their schema and document changes.
     /// </remarks>
     [Fact]
     public void There_are_three_cap_kinds_after_the_18_10_extension()

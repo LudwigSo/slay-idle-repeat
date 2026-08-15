@@ -18,9 +18,8 @@ public sealed class PlaceholderOutputTests
 
         PlaceholderOutput.RequireArtifactsPath(expected).ShouldBe(expected);
 
-        // 🔒 The guard's own remarks say the segment comparison is ORDINAL, because `.gitignore`
-        // ignores lower-case `artifacts/` and, on a case-sensitive filesystem, `Artifacts/` is a
-        // different and tracked directory.
+        // The segment comparison is ORDINAL: `.gitignore` ignores lower-case `artifacts/`, and on a
+        // case-sensitive filesystem `Artifacts/` is a different, tracked directory.
         Should.Throw<InvalidOperationException>(() => PlaceholderOutput.RequireArtifactsPath(
                 Path.Combine(PlaceholderFiles.RepositoryRoot, "Artifacts", "placeholders")))
             .Message.ShouldContain("is not under 'artifacts/'", Case.Sensitive);
@@ -33,7 +32,7 @@ public sealed class PlaceholderOutputTests
             PlaceholderOutput.RequireArtifactsPath(
                 Path.Combine(PlaceholderFiles.RepositoryRoot, "assets", "placeholders")));
 
-        // 🔒 Steering S2 — pin WHICH rule fired. Three separate refusals throw the same type here.
+        // Pin WHICH rule fired: three separate refusals throw the same exception type here.
         thrown.Message.ShouldContain("is under 'assets/'", Case.Sensitive);
         thrown.Message.ShouldContain("M8-01a's provenance gate", Case.Sensitive);
     }
@@ -62,8 +61,8 @@ public sealed class PlaceholderOutputTests
     [Fact]
     public void A_path_that_climbs_back_out_of_artifacts_into_assets_is_refused()
     {
-        // 🔒 The check is on the RESOLVED path's segments, not on whether the word "artifacts"
-        // appears in the string. This is the case that tells the two apart.
+        // The check is on the RESOLVED path's segments, not on whether "artifacts" appears in the
+        // string — this case tells the two apart.
         var thrown = Should.Throw<InvalidOperationException>(() =>
             PlaceholderOutput.RequireArtifactsPath(Path.Combine(
                 PlaceholderFiles.RepositoryRoot, "artifacts", "..", "assets", "placeholders")));
@@ -79,14 +78,11 @@ public sealed class PlaceholderOutputTests
         var thrown = Should.Throw<InvalidOperationException>(() => new PlaceholderBatch(
             new PlaceholderBatchOptions(output, Commit, PlaceholderFiles.ThresholdsJson())));
 
-        // 🔒 Steering S2. RequireArtifactsPath has three separate refusals and they all throw
-        // InvalidOperationException, and so does WriteProvenance on a malformed record — pinning
-        // the type alone would accept any of them.
+        // Several refusals throw the same InvalidOperationException, so pin the message, not just the type.
         thrown.Message.ShouldContain("is under 'assets/'", Case.Sensitive);
 
-        // 🔒 And "before it draws": the guard is in the constructor, so a refused batch must not
-        // have created its output directory. That is what makes this a refusal rather than a late
-        // cleanup.
+        // The guard is in the constructor, so a refused batch must not have created its output
+        // directory — a refusal, not a late cleanup.
         Directory.Exists(output).ShouldBeFalse();
     }
 
@@ -98,10 +94,8 @@ public sealed class PlaceholderOutputTests
     public void A_batch_with_no_usable_repository_commit_refuses_before_it_draws_anything(
         string commit, string why)
     {
-        // 🔒 Checked in the constructor, not per asset inside M8-01a's validator. A run that
-        // discovered a typo'd commit after each of hundreds of seven-step pipeline runs would spend
-        // the whole batch failing the same way, and the commit is the only reproducibility anchor a
-        // procedural record carries.
+        // Checked in the constructor, not per asset: a typo'd commit discovered mid-batch would
+        // otherwise fail hundreds of pipeline runs the same way.
         using var scratch = PlaceholderFiles.Scratch("commit-guard");
 
         var thrown = Should.Throw<ArgumentException>(() => new PlaceholderBatch(
@@ -123,8 +117,8 @@ public sealed class PlaceholderOutputTests
         record.AssetId.ShouldBe(asset.Id);
         record.RepoCommit.ShouldBe(Commit);
 
-        // 🔒 Forbidden on an art record: an art record's tool is named by its kind, and a second
-        // tool field would be two sources of truth for one fact.
+        // Forbidden on an art record: its tool is named by its kind, and a second tool field would
+        // be two sources of truth for one fact.
         record.Tooling.ShouldBeNull();
         record.ToolsNamed.ShouldBeEmpty("a procedural art record's \"tool\" is this repository.");
 
@@ -143,9 +137,8 @@ public sealed class PlaceholderOutputTests
 
         var procedural = read.ShouldBeOfType<ProceduralProvenance>();
 
-        // 🔒 Order-insensitive, because M8-01a's writer sorts the parameter object ordinally by key
-        // so a record's bytes are stable whatever order a generator built the dictionary in. The
-        // claim here is that no parameter was dropped or altered, which is what a round trip is for.
+        // Order-insensitive: the writer sorts parameters ordinally by key, so bytes are stable
+        // whatever order the dictionary was built in. The claim is that none was dropped or altered.
         procedural.Parameters.Count.ShouldBe(record.Parameters.Count);
         foreach (var (key, value) in record.Parameters)
         {
@@ -164,8 +157,7 @@ public sealed class PlaceholderOutputTests
         var canvas = GenerationCanvas.For(spec.TargetSize);
         var parameters = PlaceholderOutput.RecordFor(asset, spec, canvas, Commit).Parameters;
 
-        // 🔒 A provenance record whose parameters do not reproduce the file is not evidence. The
-        // nine stated thresholds are the ones a reader would have to set to get the same bytes.
+        // A provenance record whose parameters do not reproduce the file is not evidence.
         foreach (var key in ThresholdSet.Keys.Where(PlaceholderThresholds.ForPipeline().IsCalibrated))
         {
             parameters.Keys.ShouldContain(key);
@@ -176,6 +168,6 @@ public sealed class PlaceholderOutputTests
         parameters["pivot"].ShouldBe(spec.Pivot);
     }
 
-    /// <summary>A well-formed 40-hex commit. M8-01a's validator refuses anything else.</summary>
+    /// <summary>A well-formed 40-hex commit; the validator refuses anything else.</summary>
     private const string Commit = "0123456789abcdef0123456789abcdef01234567";
 }

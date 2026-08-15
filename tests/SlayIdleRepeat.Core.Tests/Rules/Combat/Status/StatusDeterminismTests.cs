@@ -7,24 +7,22 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 
-/// <summary>
-/// 🔒 `05` §3.1 — a DoT tick is <em>"a damage event, not an attack"</em>, and therefore takes no draw.
-/// </summary>
+/// <summary>A DoT tick is a damage event, not an attack, and therefore takes no draw.</summary>
 /// <remarks>
-/// §4's only three draws are dodge, crit and block, and §3.1 exempts a DoT tick from all three by name.
-/// So the combat stream must be in exactly the same position after a fight full of DoTs as after the
-/// same fight with none — otherwise the status engine has consumed draws no other implementation of
-/// `05` would, and two runs of one battle diverge on the first attack after the first DoT.
+/// The only three draws in a normal attack are dodge, crit and block, and a DoT tick is exempt
+/// from all three. So the combat stream must be in exactly the same position after a fight full of
+/// DoTs as after the same fight with none — otherwise two runs of one battle diverge on the first
+/// attack after the first DoT.
 /// <para>
-/// 🔴 The assertion is on <c>DeterministicRng.Position</c>, not the log: two fights can produce identical
-/// logs while one of them drew, because a draw whose result was never used changes nothing visible
-/// until the next draw that is.
+/// The assertion is on <c>DeterministicRng.Position</c>, not the log: two fights can produce
+/// identical logs while one of them drew, because a draw whose result was never used changes
+/// nothing visible until the next draw that is.
 /// </para>
 /// </remarks>
 public sealed class StatusDeterminismTests
 {
     /// <summary>
-    /// 🔒 A fight in which every kind of status lands and ticks consumes the same number of draws as
+    /// A fight in which every kind of status lands and ticks consumes the same number of draws as
     /// the identical fight with no statuses at all.
     /// </summary>
     [Fact]
@@ -44,7 +42,7 @@ public sealed class StatusDeterminismTests
     /// above.
     /// </summary>
     /// <remarks>
-    /// 🔴 If the simulation drew nothing at all, <c>Position</c> would be <c>0</c> on both sides and
+    /// If the simulation drew nothing at all, <c>Position</c> would be <c>0</c> on both sides and
     /// the rule would pass over a stream nothing touches. It is asserted non-zero so the comparison
     /// is between two real numbers.
     /// </remarks>
@@ -89,7 +87,7 @@ public sealed class StatusDeterminismTests
     }
 
     /// <summary>
-    /// A pipeline that draws once per attack, as `05` §4's dodge roll does — so the stream moves for
+    /// A pipeline that draws once per attack, as the dodge roll does — so the stream moves for
     /// attacks and only for attacks.
     /// </summary>
     private sealed class DrawingPipeline : RecordingStatusPipeline
@@ -102,17 +100,14 @@ public sealed class StatusDeterminismTests
         internal override void OnAttack() => _ = _services.Rng.NextDouble();
     }
 
-    /// <summary>
-    /// Applies all four of `05` §3.1's cadence-driven statuses at tick 7, then delegates.
-    /// </summary>
+    /// <summary>Applies all cadence-driven statuses at tick 7, then delegates.</summary>
     /// <remarks>
-    /// 🔒 <b>The four ticking statuses and no others, and the restriction is the point.</b> The claim
-    /// under test is that the <em>cadence path</em> takes no draw. <c>STUN</c>, <c>FREEZE</c> and
-    /// <c>HASTE</c> legitimately change how many attacks a fight contains — a stunned enemy does not
-    /// swing — and each attack does draw, so including them would make the two fights differ for a
-    /// reason that has nothing to do with the cadence and turn a real result into an unexplained one.
-    /// The catalogue's own <c>Ticks</c> predicate selects them, so a fifth ticking status is covered
-    /// without an edit here.
+    /// The ticking statuses and no others, and the restriction is the point: the claim under test
+    /// is that the cadence path takes no draw. <c>STUN</c>, <c>FREEZE</c> and <c>HASTE</c>
+    /// legitimately change how many attacks a fight contains — a stunned enemy does not swing — and
+    /// each attack does draw, so including them would make the two fights differ for a reason that
+    /// has nothing to do with the cadence. The catalogue's own <c>Ticks</c> predicate selects them,
+    /// so a fifth ticking status is covered without an edit here.
     /// </remarks>
     private sealed class EveryStatusAtTick7 : IStatusTimeline
     {

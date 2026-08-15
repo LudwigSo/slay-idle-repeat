@@ -4,65 +4,47 @@ using SlayIdleRepeat.AssetPipeline;
 namespace SlayIdleRepeat.AssetPlaceholders;
 
 /// <summary>
-/// The working canvas a placeholder is drawn on, before `15` §B4 step 5 resamples it down to the
-/// register's delivery size.
+/// The working canvas a placeholder is drawn on, before it is resampled down to the register's
+/// delivery size.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Ruling <c>CON_DELIVERY_ASPECT</c> (M8, 2026-08-13): the generation canvas takes the
-/// DELIVERY aspect, authorised by `15` §B0.</b> M8-06 found that a square canvas cannot reach §C's
-/// non-square delivery sizes (mounts 512×384, backdrops 1080×1440) without a non-uniform resample,
-/// and no section of `15` authorises letterboxing, padding or a crop. The resolution is that §C's
-/// "1024×1024" is the baseline <em>resolution</em>, not a universal aspect: §B0 already says
-/// <em>"Lock <c>--ar</c> … per category and record them"</em>, and <c>--ar</c> is precisely
-/// Midjourney's aspect control. Reading §C as forcing square would make §B0's <c>--ar</c> dead text.
+/// The canvas takes the delivery aspect ratio, not a fixed square: deliveries are non-square
+/// (mounts 512×384, backdrops 1080×1440), and no uniform resample reaches them from a square canvas.
 /// </para>
 /// <para>
-/// 🔒 <b>The canvas is strictly larger than the delivery size, on purpose.</b> M8-06 built step 5
-/// against synthetic fixtures and never once resampled for real — an identity resize exercises
-/// nothing. Every placeholder therefore arrives on a canvas that step 5 must genuinely reduce.
+/// The canvas is strictly larger than the delivery size, on purpose, so the downstream resample is
+/// a real reduction rather than an identity resize.
 /// </para>
 /// <para>
-/// 🔒 <b>The aspect is exact, not approximate.</b> The delivery size is reduced by its greatest
-/// common divisor and multiplied by a whole number, so
+/// The aspect is exact, not approximate: the delivery size is reduced by its greatest common
+/// divisor and multiplied by a whole number, so
 /// <c>canvas.Width × delivery.Height == canvas.Height × delivery.Width</c> holds in integer
-/// arithmetic — which is the comparison <see cref="AssetPipeline.ResizeStep"/> makes before it
-/// decides whether to emit <c>CON_DELIVERY_ASPECT</c>. An "almost right" aspect would make every
-/// asset in the batch report a doc contradiction that this generator, not `15`, had caused.
+/// arithmetic — the comparison <see cref="AssetPipeline.ResizeStep"/> makes before deciding whether
+/// to emit <c>CON_DELIVERY_ASPECT</c>.
 /// </para>
 /// </remarks>
 public static class GenerationCanvas
 {
-    /// <summary>
-    /// `15` §C: <em>"Generation resolution 1024×1024"</em> — the baseline long edge.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 An alias of <see cref="Doc15Authorised.GenerationLongEdge"/>, not a second copy.
-    /// <c>Doc15Authorised</c> is declared as the one file every number `15` states lives in, and a
-    /// §C number retyped here would be the duplicate mechanism steering S12 exists to prevent.
-    /// </remarks>
+    /// <summary>The baseline generation long edge.</summary>
+    /// <remarks>An alias of <see cref="Doc15Authorised.GenerationLongEdge"/>, not a second copy of the number.</remarks>
     public const int BaselineLongEdge = Doc15Authorised.GenerationLongEdge;
 
-    /// <summary>
-    /// `15` §C: <em>"(upscale to 2048 for bosses and backgrounds)"</em> — the upscaled long edge.
-    /// </summary>
-    /// <remarks>🔒 An alias of <see cref="Doc15Authorised.GenerationUpscaledLongEdge"/>.</remarks>
+    /// <summary>The upscaled generation long edge, used for bosses and backgrounds.</summary>
+    /// <remarks>An alias of <see cref="Doc15Authorised.GenerationUpscaledLongEdge"/>.</remarks>
     public const int UpscaledLongEdge = Doc15Authorised.GenerationUpscaledLongEdge;
 
     /// <summary>
-    /// The delivery long edge at or above which §C's upscaled canvas is used.
+    /// The delivery long edge at or above which the upscaled canvas is used.
     /// </summary>
     /// <remarks>
-    /// 🔒 Derived, not invented. §C names bosses and backgrounds for the 2048 canvas and delivers
-    /// exactly those two categories at a long edge of 1024 or more (bosses 1024×1024, battle
-    /// backdrops 1080×1440); every other row in §C's delivery table is 640 or smaller. Keying on the
-    /// delivery size rather than on a hardcoded list of §E-sections means the rule stays true if a
-    /// third category ever delivers that large, and it never disagrees with the register.
+    /// Keyed on the delivery size rather than a hardcoded list of categories, so the rule stays true
+    /// if a new category ever delivers that large.
     /// </remarks>
     public const int UpscaleAtDeliveryLongEdge = BaselineLongEdge;
 
     /// <summary>The working canvas for one delivery size.</summary>
-    /// <param name="delivery">The `15` §C delivery size the register carries for the row.</param>
+    /// <param name="delivery">The delivery size the register carries for the row.</param>
     /// <returns>A canvas of the same exact aspect, strictly larger in both axes, both edges even.</returns>
     public static PixelSize For(PixelSize delivery)
     {
@@ -87,22 +69,17 @@ public static class GenerationCanvas
 
         var multiple = Math.Max(1, longEdge / Math.Max(aspectWidth, aspectHeight));
 
-        // Strictly larger in both axes: without this a delivery size at or above the baseline would
-        // land on a canvas of its own size and step 5 would be an identity resample — the exact
-        // thing this canvas exists to avoid.
-        // 🔒 Compared in `long`. PixelSize is an unvalidated record of two ints, and at a large
-        // coprime aspect `aspectWidth * multiple` wraps negative on the second iteration — the
-        // condition then stays true across the wrap and the loop spins through hundreds of millions
-        // of iterations as an apparent hang with no message.
+        // Compared in `long`: at a large coprime aspect, `aspectWidth * multiple` in `int` wraps
+        // negative on the second iteration and the loop spins through hundreds of millions of
+        // iterations as an apparent hang with no message.
         while ((long)aspectWidth * multiple <= delivery.Width
                || (long)aspectHeight * multiple <= delivery.Height)
         {
             multiple++;
         }
 
-        // Even in both axes. `15` §B4 step 2 centres by integer division of the slack, so an odd
-        // slack puts the subject half a pixel off centre and Part F item 7 measures exactly that.
-        // Doubling the multiple keeps the aspect exact, which halving or rounding would not.
+        // Even in both axes: centring divides the slack by two, so an odd slack would put the
+        // subject half a pixel off centre. Doubling the multiple keeps the aspect exact.
         if ((aspectWidth * multiple % 2) != 0 || (aspectHeight * multiple % 2) != 0)
         {
             multiple *= 2;
@@ -111,9 +88,8 @@ public static class GenerationCanvas
         var width = (long)aspectWidth * multiple;
         var height = (long)aspectHeight * multiple;
 
-        // 🔒 A canvas is a native surface this generator is about to allocate hundreds of. A
-        // delivery size large enough to overflow the multiplication would wrap to a negative edge
-        // and hand Skia a nonsense allocation, so it is refused with the arithmetic named.
+        // A delivery size large enough to overflow this multiplication would wrap to a negative
+        // edge and hand Skia a nonsense allocation, so it is refused explicitly instead.
         if (width > int.MaxValue || height > int.MaxValue)
         {
             throw new ArgumentOutOfRangeException(

@@ -7,34 +7,17 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.BalanceHarness.Content;
 
 /// <summary>
-/// 🔒 The harness's own <c>game-data</c> → <see cref="ContentSnapshot"/> loader — the one place in
+/// The harness's own <c>game-data</c> → <see cref="ContentSnapshot"/> loader — the one place in
 /// <c>tools/BalanceHarness</c> that knows JSON exists.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Why this exists at all, given that <c>SlayIdleRepeat.Application</c> already has a content
-/// pipeline.</b> `30` §6 and `21` §2 pin this tool to <c>SlayIdleRepeat.Core</c> and nothing else —
-/// no Application, no adapters, no ports, no packages — and
-/// <c>ProjectFileTests.The_simulation_tools_reference_Core_only</c> fails the build on any other
-/// reference. So the harness cannot reach <c>JsonContentReader</c>, and `05` §9's mass simulation
-/// still has to read the authored numbers. <c>System.Text.Json</c> is in the shared framework, so
-/// this adds no dependency.
-/// </para>
-/// <para>
-/// ⚠️ <b>This is not a second content pipeline and must not become one.</b> It does no schema
-/// validation, resolves no cross-document reference and reports no finding set — that is the
-/// pipeline's job and the pipeline is what CI runs over the shipped tree. What this does is the
-/// narrow thing the harness needs: bytes on disk to an immutable, version-stamped snapshot the
-/// <c>Core</c> catalogues can read.
-/// </para>
-/// <para>
-/// 🔒 <b>The two behaviours it shares with the pipeline, because they are the load path's whole
-/// contract.</b> A JSON <c>null</c> becomes <see cref="ContentValue.Unauthorised"/> and never a
-/// zero — <c>game-data/README.md</c>: <em>"a hole that is null is greppable, and a hole filled with
-/// a plausible-looking number is invisible"</em>. And a duplicate key <b>throws</b>: the object
-/// model keeps one of the two and the other simply disappears, which is `14` §6's duplicate-id
-/// failure class arriving in silence.
-/// </para>
+/// This tool is pinned to reference <c>SlayIdleRepeat.Core</c> only (enforced by
+/// <c>ProjectFileTests.The_simulation_tools_reference_Core_only</c>), so it cannot reach
+/// <c>JsonContentReader</c> and has to parse its own. It is deliberately not a second content
+/// pipeline: no schema validation, no cross-document resolution, no finding set — just bytes on disk
+/// to an immutable, version-stamped snapshot. Like the real pipeline, a JSON <c>null</c> becomes
+/// <see cref="ContentValue.Unauthorised"/> (never a silent zero) and a duplicate key throws rather
+/// than silently discarding one of the two values.
 /// </remarks>
 public static class GameDataLoader
 {
@@ -49,12 +32,9 @@ public static class GameDataLoader
     /// assembly's directory.
     /// </summary>
     /// <remarks>
-    /// ⚠️ A method rather than a static initialiser, on
-    /// <c>SlayIdleRepeat.Application.Tests</c>' <c>RepoData</c>'s precedent and for its reason: a run
-    /// where the solution file is not an ancestor of the output directory — a published build, a
-    /// container holding only <c>bin/</c> — would otherwise fail with a
-    /// <c>TypeInitializationException</c> wrapping a <c>.sln</c> message instead of the one legible
-    /// sentence below.
+    /// A method rather than a static initialiser: a run where the solution file is not an ancestor of
+    /// the output directory (a published build, a container holding only <c>bin/</c>) would otherwise
+    /// fail with a <c>TypeInitializationException</c> wrapping the message, instead of the message.
     /// </remarks>
     /// <exception cref="InvalidOperationException">No ancestor holds the solution file.</exception>
     public static string FindRepositoryRoot()
@@ -82,15 +62,10 @@ public static class GameDataLoader
     public static ContentSnapshot Load(string dataRoot) => Build(ReadDocuments(dataRoot));
 
     /// <summary>
-    /// 🔒 The tree with named documents replaced by supplied JSON text — an in-memory experiment,
-    /// never an edit to <c>game-data/</c>.
+    /// The tree with named documents replaced by supplied JSON text — an in-memory experiment, never
+    /// an edit to <c>game-data/</c> (a crash mid-write must not leave the repo holding an unauthored
+    /// number).
     /// </summary>
-    /// <remarks>
-    /// `21` §3.3: an override never edits the canonical files. A harness run that answered "what if
-    /// the adds fraction were 0.25 instead of 0.35?" by writing to <c>game-data/</c> would leave the
-    /// repository holding a number nobody authored the moment it crashed, and the shipped answer
-    /// would depend on whether the last run cleaned up after itself.
-    /// </remarks>
     /// <param name="dataRoot">The directory the document paths are relative to.</param>
     /// <param name="replacements">Document path (e.g. <c>content/bosses/bosses.json</c>) → JSON text.</param>
     /// <exception cref="ArgumentException">A named path is not in the tree.</exception>
@@ -155,29 +130,16 @@ public static class GameDataLoader
     }
 
     /// <summary>
-    /// 🔒 The deterministic stamp of the loaded documents — a real SHA-256 over ordinal-sorted
-    /// <c>path + text</c>, never a constant.
+    /// The deterministic stamp of the loaded documents — a real SHA-256 over ordinal-sorted
+    /// <c>path + text</c>, never a constant, so an <see cref="LoadWith"/> experiment stamps
+    /// differently from the shipped tree.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// A fixed stamp would make two different data trees indistinguishable, and
-    /// <see cref="ContentVersion"/>'s whole reason for existing is that <em>"a replayed command
-    /// reproduces its original outcome after a balance patch"</em>. An experiment run through
-    /// <see cref="LoadWith"/> must therefore stamp differently from the shipped tree, or the two
-    /// runs are one run as far as anything downstream can tell.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>It is NOT the game's <see cref="ContentVersion"/> for the same tree, and the report line
-    /// that prints it must not be matched against a server's.</b> The shipped stamp is
-    /// <c>ContentHashing.Compute</c> in <c>SlayIdleRepeat.Application</c>, which hashes canonical
-    /// bytes behind a canonical-format-version prefix; this one hashes <c>path + "\n" + text + "\n"</c>
-    /// over the raw files. Same tree, two different hexes — deliberately, because reproducing the
-    /// canonical form here would mean a third copy of the canonicaliser in a tool that
-    /// <c>ProjectFileTests.The_simulation_tools_reference_Core_only</c> forbids from referencing
-    /// <c>Application</c>. What this stamp is for is <em>distinguishing harness runs from each other</em>
-    /// (shipped tree vs. <see cref="LoadWith"/> experiment), which it does exactly; what it is not for
-    /// is identifying a content build.
-    /// </para>
+    /// This is NOT the game's <see cref="ContentVersion"/> for the same tree and must not be matched
+    /// against a server's: the shipped stamp hashes canonical bytes behind a format-version prefix
+    /// (<c>ContentHashing.Compute</c>, unreachable here — see the type remarks), while this hashes the
+    /// raw <c>path + text</c>. Same tree, deliberately different hex; this stamp only distinguishes
+    /// harness runs from each other, not content builds.
     /// </remarks>
     private static ContentVersion Stamp(SortedDictionary<string, string> documents)
     {
@@ -201,8 +163,7 @@ public static class GameDataLoader
             JsonValueKind.True => ContentValue.True,
             JsonValueKind.False => ContentValue.False,
 
-            // 🔒 The whole point. `game-data/README.md`: null means "the design docs do not
-            // authorise a value here". It is never zero and never a default.
+            // null means "not authorised" — never zero, never a default.
             JsonValueKind.Null => ContentValue.Unauthorised,
 
             _ => throw new InvalidOperationException(
@@ -217,9 +178,8 @@ public static class GameDataLoader
 
         foreach (var member in element.EnumerateObject())
         {
-            // 🔒 JsonDocument keeps a duplicate silently and one of the two values simply vanishes,
-            // which is 14 §6's duplicate-id failure class arriving with nothing to see. Refuse it
-            // here rather than let ContentValue.Object refuse it without naming the document.
+            // JsonDocument keeps a duplicate silently and one value simply vanishes; refuse it here,
+            // where the document and pointer are still known, rather than downstream.
             if (!seen.Add(member.Name))
             {
                 throw new InvalidOperationException(

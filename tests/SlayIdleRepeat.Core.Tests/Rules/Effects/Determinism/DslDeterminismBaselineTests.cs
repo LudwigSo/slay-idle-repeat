@@ -12,35 +12,32 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Determinism;
 
 /// <summary>
-/// 🔒 `18` §11's last checklist line, read as the product owner ruled it: a <b>committed-baseline
-/// determinism test</b> over 10 000 seeded build permutations resolved through `18` §8 and hashed
+/// A committed-baseline determinism test over 10 000 seeded build permutations resolved and hashed
 /// with <c>CanonicalStateWriter</c>.
 /// </summary>
 /// <remarks>
-/// §11 asks for a <em>"parity test: client and server resolvers agree"</em>. There is <b>one</b>
-/// resolver both sides load, and no client build until M7 — so comparing it with itself would be a
-/// test that cannot fail. As a committed baseline it still catches what the parity line exists to
-/// catch: an accidental order-dependence in `18` §8. Real two-runtime parity is <b>M5-12</b>.
+/// There is one resolver both client and server load, and no client build yet — so comparing it with
+/// itself would be a test that cannot fail. As a committed baseline it still catches what a parity test
+/// exists to catch: an accidental order-dependence in resolution. Real two-runtime parity is a later
+/// milestone.
 /// <para>
-/// 🔴 The baseline is self-generated: <em>build permutation → hash</em> has no publisher, so the table
-/// proves <b>stability</b> — the resolver is a pure function whose output cannot drift unnoticed — and
-/// <b>not</b> that the encoding or resolution order is correct. That is the per-op unit tests'.
+/// The baseline is self-generated: build permutation → hash has no publisher, so the table proves
+/// stability — the resolver is a pure function whose output cannot drift unnoticed — and not that the
+/// encoding or resolution order is correct. That is the per-op unit tests'.
 /// </para>
 /// <para>
-/// 🔴 <b>R18 — `18` §10 step 4 is this file.</b> The extension procedure ends "add the op to the
-/// client/server parity test", and the coverage tests below are what that now means: the generator's
-/// emitted vocabulary is asserted against `18`'s catalogues <b>in both directions</b>, so a 45th op
-/// cannot be added without appearing in the corpus or failing a test.
+/// The coverage tests below assert the generator's emitted vocabulary against the production
+/// catalogues in both directions, so a new op cannot be added without appearing in the corpus or
+/// failing a test.
 /// </para>
 /// </remarks>
 public sealed class DslDeterminismBaselineTests
 {
-    /// <summary>A wall-clock guard against an algorithmic regression, not a performance target.</summary>
-    /// <remarks>
-    /// 10 000 permutations must fit the <b>unit</b> tier — this repository has no integration tier and
-    /// is not getting one. Measured at about 3 s in total; the budget is ~10× that, which leaves room
-    /// for a slow CI agent without letting an accidental O(n²) in `18` §8 through.
-    /// </remarks>
+    /// <summary>
+    /// A wall-clock guard against an algorithmic regression, not a performance target. Measured at
+    /// about 3 s in total; the budget is ~10× that, which leaves room for a slow CI agent without
+    /// letting an accidental O(n²) through.
+    /// </summary>
     private const int BudgetSeconds = 30;
 
     /// <summary>
@@ -54,7 +51,7 @@ public sealed class DslDeterminismBaselineTests
 
     // ══════════════════════════════════════════════════════ the committed table
 
-    /// <summary>🔒 The headline: 10 000 permutations, one hash, unchanged.</summary>
+    /// <summary>The headline: 10 000 permutations, one hash, unchanged.</summary>
     [Fact]
     public void The_committed_aggregate_hash_still_covers_the_whole_corpus()
     {
@@ -137,13 +134,12 @@ public sealed class DslDeterminismBaselineTests
         DslDeterminismBaseline.Named.Where(row => row.Id == id).ShouldHaveSingleItem();
     }
 
-    /// <summary>The review block's <em>shape</em>, which the reader's refusals do not check.</summary>
-    /// <remarks>
-    /// ⚠️ Deliberately not <c>ReviewStatus.ShouldBe("reviewed")</c>:
-    /// <see cref="DslDeterminismBaseline.Validate"/> has already refused that, so the assertion could
-    /// not fail. What is left is what nothing else checks — that the date is a date, in the
-    /// timezone-free form a committed artefact carries.
-    /// </remarks>
+    /// <summary>
+    /// The review block's shape, which the reader's refusals do not check. Deliberately not
+    /// <c>ReviewStatus.ShouldBe("reviewed")</c>: <see cref="DslDeterminismBaseline.Validate"/> has
+    /// already refused that, so the assertion could not fail. What is left is that the date is a date,
+    /// in the timezone-free form a committed artefact carries.
+    /// </summary>
     [Fact]
     public void The_committed_table_carries_a_reviewers_date_in_the_form_a_committed_artefact_uses()
     {
@@ -157,13 +153,8 @@ public sealed class DslDeterminismBaselineTests
             "not carry the author's timezone — ContentValidator's baseline writer states the same " +
             "rule for recordedOn.");
 
-        // 🔴 A TASK ID, not the literal "M2-17". The rule this case states — "a later regeneration
-        //    names its OWN owner" — was asserted as `ShouldBe("M2-17")`, which says the exact
-        //    opposite: it freezes the first issue's reviewer and makes the documented regeneration
-        //    command impossible to follow, because the regenerated table's reviewer is whoever
-        //    regenerated it. M2-12's boss engine was the first regeneration and hit it. The shape is
-        //    what the sentence actually asks for, and it still fails on an empty string, on a
-        //    person's name, and on anything that is not a milestone task.
+        // A task ID, not a literal fixed value — a later regeneration names its OWN owner, so the
+        // shape is asserted rather than a specific reviewer being pinned forever.
         DslDeterminismBaseline.ReviewedBy.ShouldMatch(
             "^M[0-9]+-[0-9]+[a-z]?$",
             $"review.reviewedBy is '{DslDeterminismBaseline.ReviewedBy}'. It names the TASK that " +
@@ -172,8 +163,8 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// 🔴 <b>Steering S5, stated rather than satisfied.</b> The committed file has to keep saying
-    /// that it is self-generated, because a header nobody checks is a header somebody deletes.
+    /// The self-generated limitation, stated rather than satisfied: the committed file has to keep
+    /// saying it, because a header nobody checks is a header somebody deletes.
     /// </summary>
     [Fact]
     public void The_committed_table_states_the_limitation_it_is_under()
@@ -207,9 +198,9 @@ public sealed class DslDeterminismBaselineTests
             "the seed IS the corpus — a table generated from another one pins another resolver's work");
     }
 
-    // ══════════════════════════════════════════════════════ R18 · vocabulary coverage, both ways
+    // ══════════════════════════════════════════════════════ vocabulary coverage, both ways
 
-    /// <summary>🔴 R18 — all 44 ops of `18` §2 reach the corpus, and nothing outside them does.</summary>
+    /// <summary>All 44 ops reach the corpus, and nothing outside them does.</summary>
     [Fact]
     public void Every_op_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -222,7 +213,7 @@ public sealed class DslDeterminismBaselineTests
             "'add the op to the client/server parity test'");
     }
 
-    /// <summary>🔴 R18 — all 23 trigger kinds of `18` §3.1 reach the corpus.</summary>
+    /// <summary>All 23 trigger kinds reach the corpus.</summary>
     [Fact]
     public void Every_trigger_kind_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -234,7 +225,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §11: '23 triggers = 21 + ON_DEATH + ON_REVIVE'");
     }
 
-    /// <summary>🔴 R18 — all 23 condition functions of `18` §4 reach the corpus.</summary>
+    /// <summary>All 23 condition functions reach the corpus.</summary>
     [Fact]
     public void Every_condition_function_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -249,7 +240,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §11: '23 conditions = 20 + the three ATTACKER_IS_*'");
     }
 
-    /// <summary>🔴 R18 — all 11 targets of `18` §5 reach the corpus.</summary>
+    /// <summary>All 11 targets reach the corpus.</summary>
     [Fact]
     public void Every_target_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -261,7 +252,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §11: '11 targets = 9 + OTHER_ENEMIES + OWNER'");
     }
 
-    /// <summary>🔴 R18 — all 26 stats of `18` §2.1 reach the corpus, the 12 non-combat ones included.</summary>
+    /// <summary>All 26 stats reach the corpus, the 12 non-combat ones included.</summary>
     [Fact]
     public void Every_stat_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -276,7 +267,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §2.1 declares 26 stats, of which 05 §1's actor block holds 14");
     }
 
-    /// <summary>🔴 R18 — all 6 duration scopes of `18` §6 reach the corpus.</summary>
+    /// <summary>All 6 duration scopes reach the corpus.</summary>
     [Fact]
     public void Every_duration_scope_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -288,7 +279,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §11: '6 duration scopes = 5 + PHASE'");
     }
 
-    /// <summary>🔴 R18 — all 5 stacking modes of `18` §6 reach the corpus.</summary>
+    /// <summary>All 5 stacking modes reach the corpus.</summary>
     [Fact]
     public void Every_stacking_mode_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -300,7 +291,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §6 gives five stacking modes");
     }
 
-    /// <summary>🔴 R18 — all 8 value modes of `18` §2.2 reach the corpus.</summary>
+    /// <summary>All 8 value modes reach the corpus.</summary>
     [Fact]
     public void Every_value_mode_18_declares_is_emitted_by_the_permutation_generator()
     {
@@ -312,10 +303,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §11 and 18 §2.2: eight value modes");
     }
 
-    /// <summary>
-    /// 🔴 R18's substance — every `18` §10.1 extension key, and the <b>four</b> that arrived on the
-    /// same rule without a §10.1 row, reaches the corpus.
-    /// </summary>
+    /// <summary>Every extension key reaches the corpus, including the ones that arrived without a catalogue row.</summary>
     [Fact]
     public void Every_18_10_1_extension_reaches_the_permutation_corpus()
     {
@@ -328,9 +316,9 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// 🔴 R18's floor. The extension keys have no closed enum behind them, so this hand-written list
-    /// is the independent third statement — deleting a constant from
-    /// <see cref="EffectVocabularyEmissionSets"/> has to fail against something that is not itself.
+    /// The floor. The extension keys have no closed enum behind them, so this hand-written list is the
+    /// independent third statement — deleting a constant from <see cref="EffectVocabularyEmissionSets"/>
+    /// has to fail against something that is not itself.
     /// </summary>
     [Theory]
     [InlineData(EffectVocabularyEmissionSets.ToStatOnStatConvert)]
@@ -352,8 +340,8 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// The count, with `18` §10.1's arithmetic spelled out — the floor `EffectVocabularyCountTests`
-    /// gives the eight enum vocabularies, for the one vocabulary that has no enum.
+    /// The count, arithmetic spelled out — the floor <c>EffectVocabularyCountTests</c> gives the eight
+    /// enum vocabularies, for the one vocabulary that has no enum.
     /// </summary>
     [Fact]
     public void The_extension_key_vocabulary_is_18_10_1s_arithmetic()
@@ -367,7 +355,7 @@ public sealed class DslDeterminismBaselineTests
         EffectVocabularyEmissionSets.ExtensionKeys.ShouldBeUnique();
     }
 
-    /// <summary>All four `18` §4 combinator kinds reach the corpus, not only bare terms.</summary>
+    /// <summary>All four combinator kinds reach the corpus, not only bare terms.</summary>
     [Fact]
     public void Every_condition_combinator_kind_reaches_the_permutation_corpus()
     {
@@ -378,7 +366,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §4's condition tree is TERM plus three combinators");
     }
 
-    /// <summary>All seven `18` §4 comparators reach the corpus, <c>BETWEEN</c> included.</summary>
+    /// <summary>All seven comparators reach the corpus, <c>BETWEEN</c> included.</summary>
     [Fact]
     public void Every_condition_comparator_reaches_the_permutation_corpus()
     {
@@ -389,7 +377,7 @@ public sealed class DslDeterminismBaselineTests
             "18 §4 gives seven comparators");
     }
 
-    /// <summary>Every one of `18` §8 step 1's ten sources is populated somewhere in the corpus.</summary>
+    /// <summary>Every one of the ten sources is populated somewhere in the corpus.</summary>
     [Fact]
     public void Every_18_8_step_1_source_is_populated_somewhere_in_the_corpus()
     {
@@ -416,9 +404,7 @@ public sealed class DslDeterminismBaselineTests
 
     // ══════════════════════════════════════════════════════ the corpus's own shape
 
-    /// <summary>
-    /// 🔒 Above the introsort threshold, in most of the corpus — M2-02's blind spot, at scale.
-    /// </summary>
+    /// <summary>Above the introsort threshold, in most of the corpus — the blind spot, at scale.</summary>
     [Fact]
     public void Most_of_the_corpus_exceeds_the_16_element_introsort_threshold()
     {
@@ -450,15 +436,11 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// Duplicate ids, <b>surviving step 2</b>, above the threshold, in a documented fraction of the
-    /// corpus.
+    /// Duplicate ids, surviving the condition gate, above the threshold, in a documented fraction of
+    /// the corpus. A separate floor from the &gt;16-effect fraction, because these are different
+    /// claims: the generator puts a duplicate pair in every permutation, the gate is free to remove
+    /// either half, and this counts what survived.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ A separate floor from the &gt;16-effect fraction, because these are different claims: the
-    /// generator puts a duplicate pair in every permutation, step 2 is free to gate either half out,
-    /// and this counts what <em>survived</em>. Reusing one constant would make the looser claim look
-    /// like it followed from the tighter one.
-    /// </remarks>
     [Fact]
     public void Duplicate_effect_ids_survive_step_2_above_the_introsort_threshold()
     {
@@ -482,7 +464,7 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// `18` §8 step 2 does real work over the corpus, and does not gate it empty. The two failure
+    /// Condition gating does real work over the corpus, and does not gate it empty. The two failure
     /// modes are opposite and both silent: a gate that admits everything and a gate that admits
     /// nothing each produce a perfectly stable hash.
     /// </summary>
@@ -517,9 +499,9 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// 🔒 The property everything else rests on: the hash is <b>order-sensitive</b>. A hash that
-    /// ignored the order of the resolved set could not notice the tiebreak's removal, and every row
-    /// in the committed table would be green for the wrong reason.
+    /// The property everything else rests on: the hash is order-sensitive. A hash that ignored the
+    /// order of the resolved set could not notice the tiebreak's removal, and every row in the
+    /// committed table would be green for the wrong reason.
     /// </summary>
     [Fact]
     public void The_permutation_hash_distinguishes_two_orders_of_one_resolved_set()
@@ -540,8 +522,8 @@ public sealed class DslDeterminismBaselineTests
     // ══════════════════════════════════════════════════════ the two M2-02 rulings
 
     /// <summary>
-    /// 🔒 M2-02 ruling 1 — an absent <c>trigger</c> <b>is</b> <c>ALWAYS</c>. Established and pinned:
-    /// the resolver does not distinguish them, so the hash must not either.
+    /// An absent <c>trigger</c> is <c>ALWAYS</c>. Established and pinned: the resolver does not
+    /// distinguish them, so the hash must not either.
     /// </summary>
     [Fact]
     public void An_absent_trigger_and_an_authored_ALWAYS_produce_the_same_hash()
@@ -564,7 +546,7 @@ public sealed class DslDeterminismBaselineTests
             "authoring change 18 §8 is indifferent to.");
     }
 
-    /// <summary>🔒 M2-02 ruling 1's other half — an absent <c>target</c> <b>is</b> <c>SELF</c>.</summary>
+    /// <summary>The other half of the same ruling — an absent <c>target</c> is <c>SELF</c>.</summary>
     [Fact]
     public void An_absent_target_and_an_authored_SELF_produce_the_same_hash()
     {
@@ -584,21 +566,13 @@ public sealed class DslDeterminismBaselineTests
     }
 
     /// <summary>
-    /// 🔒 The tiebreak above the introsort threshold with duplicate ids — the case whose removal a
-    /// 16-element test cannot detect.
+    /// The tiebreak above the introsort threshold with duplicate ids — the case whose removal a
+    /// 16-element test cannot detect. Twenty entries, five ids, four <c>(source, index)</c> pairs
+    /// each, asserted three ways: the two arrival orders agree, the result is the literal order the
+    /// ruling describes, and the input really was above the threshold. It extends
+    /// <c>EffectResolverTests</c>' single-id version with a 5 × 4 cross product, the shape a corpus of
+    /// ten thousand builds actually produces.
     /// </summary>
-    /// <remarks>
-    /// Twenty entries, five ids, four <c>(source, index)</c> pairs each, asserted three ways: the two
-    /// arrival orders agree, the result is the literal order the ruling describes, and the input really
-    /// was above the threshold. The literal expectation is what pins <em>which</em> order rather than
-    /// merely <em>some</em> order.
-    /// <para>
-    /// ⚠️ It extends <c>EffectResolverTests</c>' single-id version with a 5 × 4 cross product, the shape
-    /// a corpus of ten thousand builds actually produces. It lives here because it is the localised
-    /// half of a baseline failure: when the aggregate hash moves, this says whether the tiebreak is
-    /// why, without which the only signal is 113 red rows.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_documented_tiebreak_survives_a_sort_above_the_introsort_threshold()
     {
@@ -660,9 +634,7 @@ public sealed class DslDeterminismBaselineTests
 
         if (destination is { Length: > 0 })
         {
-            // 🔒 An exported variable cannot send a render anywhere but the one committed table.
-            //    See DslDeterminismBaselineWriter.CanonicalPath for why a [Fact] behind an ambient
-            //    environment variable needs this where ContentValidator's CLI flag does not.
+            // An exported variable cannot send a render anywhere but the one committed table.
             DslDeterminismBaselineWriter.NamesTheCommittedBaseline(destination).ShouldBeTrue(
                 $"{DslDeterminismBaselineWriter.DestinationVariable} is '{destination}', which is not " +
                 $"{DslDeterminismBaselineWriter.CanonicalPath}. Regeneration replaces the committed " +
@@ -674,13 +646,10 @@ public sealed class DslDeterminismBaselineTests
 
         rendered.ShouldNotContain("\r", Case.Sensitive, "the table is LF-only on every platform M5-12 runs on");
 
-        // 🔒 The whole text, not three values lifted out of the object it was rendered from. An
-        //    earlier draft asserted rendered.aggregate == Corpus.Aggregate, which RenderTable had
-        //    just copied from Corpus — three assertions that could not fail, leaving the committed
-        //    file's FORMAT pinned by nothing: a change to a key name, the indentation or the
-        //    trailing-comma handling would have surfaced only at the next regeneration.
-        //    The two hand-written regions are normalised out of both sides, because the writer is
-        //    not their author.
+        // The whole text, not three values lifted out of the object it was rendered from — an
+        // earlier draft compared just aggregate/etc, which cannot fail, leaving the committed file's
+        // FORMAT pinned by nothing. The two hand-written regions are normalised out of both sides,
+        // because the writer is not their author.
         WithoutHandWrittenRegions(rendered).ShouldBe(
             WithoutHandWrittenRegions(DslDeterminismBaseline.RawText),
             "the committed table is exactly what this build's regeneration command would write, byte " +
@@ -755,17 +724,13 @@ public sealed class DslDeterminismBaselineTests
         }
     }
 
-    /// <summary>
-    /// 🔒 Steering S3 over one vocabulary axis — <b>three</b> comparisons, because two would be
-    /// circular.
-    /// </summary>
+    /// <summary>Three comparisons over one vocabulary axis, because two would be circular.</summary>
     /// <param name="emitted">What the generator actually put into the 10 000 permutations.</param>
     /// <param name="declared"><see cref="EffectVocabularyEmissionSets"/>'s hand-written list.</param>
     /// <param name="catalogue">
-    /// 🔒 The independent authority: `18`'s own closed enum. The emitted set is compared against
-    /// <em>this</em>, never against <paramref name="declared"/> — comparing the emission set with
-    /// itself means deleting an op deletes it from both sides, and the two-directional check stays
-    /// green.
+    /// The independent authority: production's own closed enum. The emitted set is compared against
+    /// this, never against <paramref name="declared"/> — comparing the emission set with itself means
+    /// deleting an op deletes it from both sides, and the two-directional check stays green.
     /// </param>
     /// <param name="subject">What the tokens are, for the failure message.</param>
     /// <param name="citation">The document sentence being defended.</param>
@@ -779,8 +744,8 @@ public sealed class DslDeterminismBaselineTests
     {
         BothDirections(emitted, catalogue, subject, citation);
 
-        // And the declared emission set is `18`'s vocabulary too — so a 45th op cannot be added to
-        // the enum and quietly left out of the generator's reach.
+        // And the declared emission set is the production vocabulary too — so a new op cannot be
+        // added to the enum and quietly left out of the generator's reach.
         BothDirections(declared, catalogue, $"declared {subject}", citation);
     }
 

@@ -9,40 +9,24 @@ using SlayIdleRepeat.Core.Rules.Combat;
 namespace SlayIdleRepeat.BalanceHarness.Sweep;
 
 /// <summary>
-/// 🔒 `05` §9's sweep — every <c>(chapter, tier, buildArchetype)</c> cell, each build placed at
-/// <c>ParPower(c, t)</c> by `29` §2.5.3's scaling rule and run against that chapter's boss node.
+/// The sweep — every <c>(chapter, tier, buildArchetype)</c> cell, each build placed at
+/// <c>ParPower(c, t)</c> by the scaling rule and run against that chapter's boss node.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Cells are independent and every fight is seeded, so the sweep is order-independent.</b> A
-/// cell's fights depend only on <c>(chapter, tier, archetype, fightIndex)</c> through
-/// <see cref="SweepSeeds"/>; no cell reads another's result and nothing accumulates across them. That
-/// is what makes <see cref="Run"/> safe to parallelise, and
-/// <c>SweepDeterminismTests</c> pins it by running the same cell at one and at many threads and
-/// comparing <c>LogHash</c> fight by fight.
-/// </para>
-/// <para>
-/// 🔒 <b>The hero is built once per cell, not once per fight.</b> <c>ActorStats.From</c> allocates and
-/// validates a fourteen-entry dictionary, and the bisection behind
-/// <see cref="LoadoutScaling.ToPowerIndex"/> evaluates <c>PowerIndex</c> tens of times. At 10 000
-/// fights per cell that work would dominate the measurement it is supposed to be setting up.
-/// </para>
-/// <para>
-/// ⚠️ <b>What "clears (c, t)" means here, and what it does not.</b> `05` §9's guardrail 1 is stated
-/// over a player clearing content at par. This harness measures it over the chapter's <b>boss
-/// fight</b> at par, because that is the only encounter the repository authorises: the full-run
-/// definition needs M3's board layer, <c>game-data/content/chapters/</c> is empty, and node
-/// composition — how many enemies of which archetype stand between the player and the boss — is
-/// unauthored. Inventing an encounter ladder to walk is exactly the harness-side invention `05` §9
-/// forbids. A boss-only clear rate is an <b>upper bound</b> on a true run clear rate, since a real
-/// run also has to survive 42 spine nodes to reach the boss, and the report says so.
-/// </para>
+/// Cells are independent and every fight is seeded through <see cref="SweepSeeds"/>, depending only on
+/// <c>(chapter, tier, archetype, fightIndex)</c> — no cell reads another's result, which is what makes
+/// <see cref="Run"/> safe to parallelise (<c>SweepDeterminismTests</c> pins this by comparing
+/// <c>LogHash</c> at one thread vs. many). The hero is built once per cell, not per fight, since
+/// <see cref="LoadoutScaling.ToPowerIndex"/>'s bisection evaluates <c>PowerIndex</c> tens of times and
+/// would otherwise dominate the measurement. "Clears (c, t)" is measured over the chapter's boss fight
+/// at par only — the full-run definition needs a board layer that isn't authored yet — so the measured
+/// rate is an upper bound on a true run clear rate.
 /// </remarks>
 public sealed class SweepRunner
 {
     private readonly ContentSnapshot _content;
 
-    /// <summary>Reads every catalogue the sweep needs and derives `29` §2.1's constant.</summary>
+    /// <summary>Reads every catalogue the sweep needs and derives the calibration constant.</summary>
     public SweepRunner(ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -58,34 +42,29 @@ public sealed class SweepRunner
     /// <summary>The loaded snapshot the heroes are graded against.</summary>
     public ContentSnapshot Content => _content;
 
-    /// <summary>`29` §2.5's reference build, the five archetypes and the scaling rule.</summary>
+    /// <summary>The reference build, the five archetypes and the scaling rule.</summary>
     public CalibrationBuilds Calibration { get; }
 
-    /// <summary>`29` §4's twenty-four par cells and `05` §9's clear-rate band.</summary>
+    /// <summary>The twenty-four par cells and the clear-rate band.</summary>
     public ParPowerTable ParPower { get; }
 
-    /// <summary>`05` §6's enemy level table and derivation coefficients.</summary>
+    /// <summary>The enemy level table and derivation coefficients.</summary>
     public EnemyModel Enemies { get; }
 
-    /// <summary>`17`'s boss scripts, indexed by chapter.</summary>
+    /// <summary>The boss scripts, indexed by chapter.</summary>
     public BossRoster Bosses { get; }
 
-    /// <summary>🔒 `29` §2.1's derived calibration constant. Reported, never written back.</summary>
+    /// <summary>The derived calibration constant. Reported, never written back.</summary>
     public DerivedKPower KPower { get; }
 
-    /// <summary>
-    /// 🔒 `29` §2.5.3 — places a loadout at <c>ParPower(c, t)</c> at level <c>EnemyLevel(c, t)</c>.
-    /// </summary>
+    /// <summary>Places a loadout at <c>ParPower(c, t)</c> at level <c>EnemyLevel(c, t)</c>.</summary>
     /// <param name="chapter">The chapter, which picks the par cell and the level.</param>
     /// <param name="tier">The tier.</param>
     /// <param name="loadout">The unscaled statline.</param>
     /// <param name="powerMultiple">
-    /// ⚠️ A multiple of par. <b>1.0 is the only value `05` §9's guardrails are stated at</b>, and the
-    /// sweep never passes anything else. It exists for two things that must not be confused with a
-    /// guardrail measurement: the discriminating controls, which deliberately place a build far above
-    /// or below par so that the assertions are <em>known</em> to fire; and the shortfall diagnostic,
-    /// which searches for the multiple at which a build reaches the 70% target and reports it as
-    /// evidence. Neither is an assertion and neither retunes anything.
+    /// A multiple of par. 1.0 is the only value any guardrail is stated at; the sweep never passes
+    /// anything else. Used only by the discriminating controls (deliberately far above/below par, so
+    /// the assertion is known to fire) and the shortfall diagnostic — neither is itself an assertion.
     /// </param>
     public ScaledLoadout ParHero(int chapter, Tier tier, StatLine loadout, double powerMultiple = 1.0) =>
         LoadoutScaling.ToPowerIndex(
@@ -110,15 +89,14 @@ public sealed class SweepRunner
     /// </param>
     /// <param name="fights">How many seeded fights to run.</param>
     /// <param name="fightContent">
-    /// 🔒 The snapshot the <b>fight</b> reads, which is the shipped one for the sweep and a
+    /// The snapshot the fight reads: the shipped one for the sweep, or a
     /// <c>GameDataLoader.LoadWith</c> override for an experiment. The hero is always scaled against
-    /// the <em>shipped</em> snapshot, so an override that changes a boss cannot silently move par.
+    /// the shipped snapshot, so an override that changes a boss cannot silently move par.
     /// </param>
     /// <param name="heroPowerMultiple">
-    /// ⚠️ See <see cref="ParHero"/>. 1.0 — par — is the only value the sweep and every guardrail use.
-    /// 🔒 The <b>boss</b> power is unaffected: it is always <c>EnemyPower(42)</c> of the authored par
-    /// cell, so a control that makes the hero stronger is a stronger hero at the same content and not
-    /// a different fight.
+    /// See <see cref="ParHero"/>. 1.0 (par) is the only value the sweep and every guardrail use. The
+    /// boss power is unaffected — always <c>EnemyPower(42)</c> of the authored par cell — so a control
+    /// that makes the hero stronger is a stronger hero at the same content, not a different fight.
     /// </param>
     public CellResult RunCell(
         int chapter,
@@ -158,15 +136,13 @@ public sealed class SweepRunner
                 content);
             var elapsed = Stopwatch.GetTimestamp() - start;
 
-            // 🔴 The highest phase the boss entered, off the log's own PhaseChange events. Phase 1 is
-            // entered in the pre-tick and is not logged as a change, so the floor is 1. See
-            // FightOutcome's remarks for why this is measured at all.
+            // Highest phase the boss entered, off the log's own PhaseChange events. Phase 1 is entered
+            // in the pre-tick and not logged as a change, so the floor is 1.
             //
-            // ⚠️ Indexed, not foreach. SimulationResult.Log is an IReadOnlyList<CombatEvent>, so a
-            // foreach here allocates a boxed enumerator through the interface — once per fight, which is
-            // 1.2 M heap allocations over `05` §9's full sweep, all of them garbage. The log itself is
-            // NOT retained: only the six fields of FightOutcome survive the iteration, which is what
-            // keeps a 1.2 M-fight sweep inside memory at all.
+            // Indexed, not foreach: SimulationResult.Log is an IReadOnlyList<CombatEvent>, and a
+            // foreach here would allocate a boxed enumerator once per fight — millions of heap
+            // allocations over a full sweep. The log itself is not retained; only FightOutcome's six
+            // fields survive the iteration, which keeps a million-fight sweep inside memory at all.
             var maxPhase = 1;
             var log = result.Log;
             for (var e = 0; e < log.Count; e++)
@@ -191,24 +167,13 @@ public sealed class SweepRunner
             chapter, tier, archetypeId, boss.Id, parPower, bossPower, enemyLevel, hero, outcomes);
     }
 
-    /// <summary>
-    /// 🔴 Runs one cell, returning the engine fault instead of propagating it.
-    /// </summary>
+    /// <summary>Runs one cell, returning the engine fault instead of propagating it.</summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>A balance harness that dies on the first engine fault reports nothing about the other
-    /// 119 cells, and this is not hypothetical.</b> M2-16a's first run crashed on Chapter 3 —
-    /// <c>BOSS_OSSUARY_KING</c> summons on <c>ON_PHASE_ENTER</c> phase 1 and the pre-tick walked the
-    /// roster with a <c>foreach</c> — and its second crashed on Chapter 8, where
-    /// <c>BOSS_DICELORD_P3_ALL_IN</c> is a <c>PERIODIC DAMAGE</c> on <c>CURRENT_TARGET</c> and a
-    /// periodic's context carries no current target. A fault is a <b>finding</b>: it is caught here,
+    /// A balance harness that dies on the first engine fault (a live risk — real boss scripts have
+    /// faulted the engine before) reports nothing about the other cells; a fault is caught here,
     /// named in the report, and counted as a non-pass so <c>assert</c> still exits non-zero.
-    /// </para>
-    /// <para>
-    /// ⚠️ <see cref="RunCell"/> itself does NOT catch, and must not: the test suite asserts on real
-    /// exceptions, and a swallowed <c>ArgumentException</c> from <c>ActorStats.From</c> would turn a
-    /// scaling bug into a silently empty cell.
-    /// </para>
+    /// <see cref="RunCell"/> itself does not catch, and must not: the test suite asserts on real
+    /// exceptions, and swallowing one there would turn a scaling bug into a silently empty cell.
     /// </remarks>
     public (CellResult? Cell, string? Fault) TryRunCell(
         int chapter,
@@ -235,13 +200,10 @@ public sealed class SweepRunner
         }
     }
 
-    /// <summary>
-    /// 🔒 The whole sweep, parallelised across cells.
-    /// </summary>
+    /// <summary>The whole sweep, parallelised across cells.</summary>
     /// <remarks>
-    /// Results are written into a pre-sized array by cell index, so the returned order is the
-    /// scope's order regardless of the order the threads finished in. Nothing is appended to a shared
-    /// list and no result depends on scheduling.
+    /// Results are written into a pre-sized array by cell index, so the returned order is the scope's
+    /// order regardless of which thread finished when.
     /// </remarks>
     public SweepResult Run(SweepScope scope)
     {
@@ -289,15 +251,9 @@ public sealed class SweepRunner
     }
 
     /// <summary>
-    /// ⚠️ A short SINGLE-THREADED cost sample, because the per-fight timings inside a parallel sweep
-    /// are contended and overstate what `05`'s &lt; 5 ms budget is about.
+    /// A short single-threaded cost sample, because the per-fight timings inside a parallel sweep are
+    /// contended and overstate the per-simulation budget the client cares about (one fight, one core).
     /// </summary>
-    /// <remarks>
-    /// The budget is a statement about one simulation on one core — the client running a fight
-    /// locally (`14` §2.4). Under <c>n</c> threads on <c>n</c> cores, memory bandwidth, GC and the
-    /// timer itself inflate each measurement, so the parallel numbers are reported as what they are
-    /// and this uncontended sample is reported beside them.
-    /// </remarks>
     private (string Cell, IReadOnlyList<double> Sample) MeasureUncontendedCost(SweepScope scope)
     {
         var chapter = scope.Chapters[^1];
@@ -323,7 +279,7 @@ public sealed class SweepRunner
 /// <param name="Chapters">The chapters, ascending.</param>
 /// <param name="Tiers">The tiers.</param>
 /// <param name="ArchetypeIds">The build archetype ids.</param>
-/// <param name="Fights">🔒 Fights per cell. `05` §9's figure is 10 000.</param>
+/// <param name="Fights">Fights per cell. The documented figure is 10 000.</param>
 /// <param name="MaxDegreeOfParallelism">Threads. 1 makes the run strictly sequential.</param>
 public sealed record SweepScope(
     IReadOnlyList<int> Chapters,
@@ -332,7 +288,7 @@ public sealed record SweepScope(
     int Fights,
     int MaxDegreeOfParallelism)
 {
-    /// <summary>🔒 `05` §9 — <em>"10 000 seeded fights per (chapter, tier, buildArchetype)"</em>.</summary>
+    /// <summary>10 000 seeded fights per (chapter, tier, buildArchetype).</summary>
     public const int DocumentedFightsPerCell = 10_000;
 
     /// <summary>Fights in the single-threaded cost sample. Enough for a p90, cheap enough to always run.</summary>
@@ -353,11 +309,11 @@ public sealed record SweepScope(
 /// <summary>Everything the sweep measured.</summary>
 /// <param name="Cells">One per <c>(chapter, tier, archetype)</c> that ran, in scope order.</param>
 /// <param name="Faults">
-/// 🔴 One line per cell the engine could not simulate at all. A non-empty list is a FINDING and makes
+/// One line per cell the engine could not simulate at all. A non-empty list is a finding and makes
 /// <c>assert</c> exit non-zero — a sweep that quietly covered fewer cells than it was asked for would
 /// otherwise report guardrails over a subject set nobody chose.
 /// </param>
-/// <param name="KPower">`29` §2.1's derived constant.</param>
+/// <param name="KPower">The derived calibration constant.</param>
 /// <param name="Elapsed">Wall-clock of the parallel sweep.</param>
 /// <param name="DegreeOfParallelism">Threads it ran on.</param>
 /// <param name="UncontendedCostSampleMicroseconds">Ascending single-threaded per-fight costs.</param>

@@ -4,15 +4,13 @@ using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
-/// <summary>
-/// Shared fixtures for the `05` §1–2 / `18` §8 suite.
-/// </summary>
+/// <summary>Shared fixtures for the stat aggregation suite.</summary>
 /// <remarks>
-/// 🔒 Every stat block these helpers build goes through <see cref="ActorStats.From"/> over
+/// Every stat block these helpers build goes through <see cref="ActorStats.From"/> over
 /// <see cref="StatIds.Combat"/> — none of them has a shortcut past the completeness rule. That is
-/// deliberate: a test fixture that could build a partial block would be the one place `05` §2's
-/// "an unstated stat is a bug, not a zero" did not hold, and it is exactly where a fifteenth stat
-/// would first fail to be noticed.
+/// deliberate: a fixture that could build a partial block would be the one place "an unstated
+/// stat is a bug, not a zero" did not hold, and it is exactly where a fifteenth stat would first
+/// fail to be noticed.
 /// </remarks>
 internal static class StatFixtures
 {
@@ -22,10 +20,9 @@ internal static class StatFixtures
 
     /// <summary>A complete block with every combat stat at zero except the ones named.</summary>
     /// <remarks>
-    /// ⚠️ A <b>synthetic</b> block for arithmetic cases, not an actor. Every unnamed stat is zero,
-    /// including <c>HEAL_PCT</c>, whose real `05` §2 default is 1.0 — the point of these cases is
-    /// which step touches which number, and a block of zeros makes that legible. Anything asserting
-    /// a <em>default</em> uses <see cref="HeroCurve"/>, which is the `05` §2 curve.
+    /// A synthetic block for arithmetic cases, not an actor: every unnamed stat is zero, including
+    /// <c>HEAL_PCT</c> whose real default is 1.0. Anything asserting a default uses
+    /// <see cref="HeroCurve"/> instead.
     /// </remarks>
     internal static ActorStats Block(params (StatId Stat, double Value)[] values)
     {
@@ -42,18 +39,16 @@ internal static class StatFixtures
     internal static EffectDefinition Effect(string id, EffectOp op, StatId stat, double value) =>
         new() { Id = id, Op = op, Stat = StatSelector.Of(stat), Value = value };
 
-    /// <summary>One stat-op effect over `18` §9.1's <c>ALL_COMBAT</c> selector.</summary>
+    /// <summary>One stat-op effect over the <c>ALL_COMBAT</c> selector.</summary>
     internal static EffectDefinition AllCombatEffect(string id, EffectOp op, double value) =>
         new() { Id = id, Op = op, Stat = StatSelector.AllCombat, Value = value };
 
-    /// <summary>
-    /// `05` §2's hero base curve as the shipped <c>content/combat_caps.json</c> authors it.
-    /// </summary>
+    /// <summary>The hero base curve as the shipped <c>content/combat_caps.json</c> authors it.</summary>
     /// <remarks>
-    /// ⚠️ Restated here because <c>Core.Tests</c> has no JSON reader. The copy cannot drift: the shipped
-    /// file is asserted against `05` §2 separately by <c>CombatCapsDataTests</c> in the
-    /// <c>Application</c> suite. What is tested here is the curve's arithmetic; what is tested there is
-    /// the transcription.
+    /// Restated here because <c>Core.Tests</c> has no JSON reader; the copy's agreement with the
+    /// shipped file is asserted separately by <c>CombatCapsDataTests</c> in the
+    /// <c>Application</c> suite. What is tested here is the curve's arithmetic; what is tested
+    /// there is the transcription.
     /// </remarks>
     internal static HeroBaseCurve HeroCurve() =>
         HeroBaseCurve.From(
@@ -77,7 +72,7 @@ internal static class StatFixtures
             1,
             200);
 
-    /// <summary>`05` §1's six caps.</summary>
+    /// <summary>The six stat caps.</summary>
     internal static StatCaps Caps() =>
         StatCaps.From(new Dictionary<StatId, double>
         {
@@ -89,18 +84,14 @@ internal static class StatFixtures
             [StatId.DR_PCT] = 0.60,
         });
 
-    /// <summary>
-    /// 🔒 `05` §4's two 📐 dials as the shipped document authors them — <c>120</c> and <c>20</c>.
-    /// </summary>
+    /// <summary>The two mitigation dials as the shipped document authors them — <c>120</c> and <c>20</c>.</summary>
     /// <remarks>
-    /// ⚠️ A restatement for <see cref="HeroCurve"/>'s reason and with its safeguard: the shipped document
-    /// is asserted against `05` §4 by <c>CombatCapsDataTests</c>, and a content build rule mirrors it
-    /// against <c>tuning/power_model.json</c>.
+    /// Restated here for <see cref="HeroCurve"/>'s reason; the shipped document is asserted
+    /// against this copy by <c>CombatCapsDataTests</c>.
     /// </remarks>
     internal static MitigationConstants Mitigation() => new(Flat: 120, PerLevel: 20);
 
-    /// <summary>🔒 `05` §4.1's 📐 <c>wardCapPct</c>, as the shipped document authors it.</summary>
-    /// <remarks>See <see cref="Mitigation"/> for why a restatement here is safe.</remarks>
+    /// <summary>The shipped <c>wardCapPct</c>, restated for the reason in <see cref="Mitigation"/>.</summary>
     internal const double WardCapPct = 1.0;
 
     /// <summary>
@@ -108,18 +99,14 @@ internal static class StatFixtures
     /// with optional mutations.
     /// </summary>
     /// <param name="drop">A pointer segment path to remove, for a negative case.</param>
-    /// <param name="capOverrides">`05` §1 ceilings to author differently, by <see cref="StatId"/>.</param>
-    /// <param name="mitigation">`05` §4's two dials, if not the shipped <c>(120, 20)</c> pair.</param>
+    /// <param name="capOverrides">Ceilings to author differently, by <see cref="StatId"/>.</param>
+    /// <param name="mitigation">The two mitigation dials, if not the shipped <c>(120, 20)</c> pair.</param>
     /// <remarks>
-    /// 🔒 Both overrides are how a fight's constants are varied from <em>outside</em> <c>Core.Rules</c>:
-    /// they are 📐 data, so a test needing a different game asks for a different document rather than
-    /// reaching for the internal <c>StatCaps</c>/<c>MitigationConstants</c> the public entry points
-    /// deliberately do not accept.
-    /// <para>
-    /// ⚠️ The ceilings are what make a draw forceable: a stat of <c>1.0</c> always fires only if the
-    /// ceiling lets it survive `18` §8 step 9, and against the shipped 0.50 <c>DODGE</c> cap an "always
-    /// dodges" case is unreachable.
-    /// </para>
+    /// Both overrides let a fight's constants be varied from outside <c>Core.Rules</c>: a test
+    /// needing a different game asks for a different document rather than reaching for the
+    /// internal <c>StatCaps</c>/<c>MitigationConstants</c> the public entry points deliberately do
+    /// not accept. The ceilings are also what make a draw forceable — against the shipped 0.50
+    /// <c>DODGE</c> cap, an "always dodges" case is unreachable.
     /// </remarks>
     internal static ContentSnapshot CombatCapsSnapshot(
         string[]? drop = null,
@@ -205,6 +192,6 @@ internal static class StatFixtures
             [new ContentDocument(CombatCapsDocument, root)]);
     }
 
-    /// <summary>The document path `05` §1.1 and `11` §4.3 name, as the repository holds it.</summary>
+    /// <summary>The <c>combat_caps.json</c> document path, as the repository holds it.</summary>
     internal const string CombatCapsDocument = "content/combat_caps.json";
 }

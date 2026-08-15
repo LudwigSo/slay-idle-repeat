@@ -5,22 +5,18 @@ using SlayIdleRepeat.Core.Rules.Stats;
 namespace SlayIdleRepeat.Core.Rules.Combat.Status;
 
 /// <summary>
-/// 🔒 `05` §5's statuses on <b>one</b> actor — <em>"one instance per <c>statusId</c> per
-/// target"</em>, keyed exactly that way.
+/// The statuses on one actor — one instance per status id per target, keyed exactly that way.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>A dictionary keyed on the status id is the "one instance per <c>statusId</c>" rule made
-/// structural.</b> A list would let two <c>BURN</c>s coexist, at which point they would have two
-/// cadence anchors and the section's first sentence would be false with nothing to notice it.
+/// A dictionary keyed on the status id makes "one instance per status id" structural: a list would
+/// let two <c>BURN</c>s coexist, each with its own cadence anchor.
 /// </para>
 /// <para>
-/// 🔒 <b><see cref="Ordered"/> materialises.</b> `05` §3.1 slot 2 walks the statuses expiring them,
-/// and an expiry removes from this collection; slot 1's cadence can kill an actor, whose
-/// <c>ON_DEATH</c> effects can apply or remove one. Both mutate under the walk. The order itself is
-/// `18` §8's ordinal effect-id order, through <c>EffectOrder.IdComparer</c> — a bare
-/// <c>OrderBy(x =&gt; x.Id)</c> would consult the ambient collation, which
-/// <c>StringOrderingRuleTests</c> fails the build on.
+/// <see cref="Ordered"/> materialises rather than returning a live view, because expiry can mutate
+/// the underlying set while a caller is walking it. The order is the ordinal effect-id order,
+/// through <c>EffectOrder.IdComparer</c> rather than a bare <c>OrderBy</c>, which would consult the
+/// ambient collation.
 /// </para>
 /// </remarks>
 internal sealed class ActorStatuses
@@ -30,8 +26,8 @@ internal sealed class ActorStatuses
     private readonly List<TimedFraction> _outgoingPower = new();
     private readonly List<TimedFraction> _incomingDuration = new();
 
-    /// <summary>Builds an empty set, with this fight's `05` §5 stun limits.</summary>
-    /// <param name="stun">`05` §5's per-application cap and mandatory immunity window.</param>
+    /// <summary>Builds an empty set, with this fight's stun limits.</summary>
+    /// <param name="stun">The per-application cap and mandatory immunity window.</param>
     /// <exception cref="ArgumentNullException"><paramref name="stun"/> is null.</exception>
     internal ActorStatuses(StunWindow stun)
     {
@@ -40,11 +36,11 @@ internal sealed class ActorStatuses
         Stun = stun;
     }
 
-    /// <summary>`05` §5's <c>STUN</c> state for this actor — the cap and the immunity window.</summary>
+    /// <summary>The <c>STUN</c> state for this actor — the cap and the immunity window.</summary>
     internal StunWindow Stun { get; }
 
     /// <summary>
-    /// Every live instance, in `05` §3.1's ascending effect-id order, materialised.
+    /// Every live instance, in ascending effect-id order, materialised.
     /// </summary>
     internal IReadOnlyList<StatusInstance> Ordered()
     {
@@ -70,10 +66,8 @@ internal sealed class ActorStatuses
         {
             var byEffect = EffectOrder.IdComparer.Compare(left.SourceEffectId, right.SourceEffectId);
 
-            // 🔒 Total, and the tie-break is the status id. Two statuses applied by ONE effect share
-            // its id — `18` §7.10's blocks do exactly that — and a tie left to the dictionary's
-            // enumeration order would make slot 2's expiry order depend on hash layout, which is a
-            // `14` §8.2 determinism break that reproduces only sometimes.
+            // Total order: a tie left to dictionary enumeration order would make expiry order
+            // depend on hash layout, a determinism break that reproduces only sometimes.
             return byEffect != 0
                 ? byEffect
                 : string.CompareOrdinal(left.Definition.Id, right.Definition.Id);
@@ -127,48 +121,35 @@ internal sealed class ActorStatuses
     }
 
     /// <summary>
-    /// `05` §3.1's <em>"current stack count"</em> for one status — <c>0</c> when it is not carried.
+    /// The current stack count for one status — <c>0</c> when it is not carried.
     /// </summary>
     internal int Stacks(string statusId) =>
         _instances.TryGetValue(statusId, out var found) ? found.Stacks.Count : 0;
 
     /// <summary>
-    /// How many live instances feed `18` §8's aggregation — the six
-    /// <see cref="StatusPotencyBasis.TargetStatPct"/> rows of `05` §5.
+    /// How many live instances feed stat aggregation.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>A counter, and it is a performance rule rather than a convenience.</b>
-    /// <c>BattleSimulation.RefreshStats</c> asks <c>IStatusTimeline.StatModifiers</c> for every
-    /// state-dependent actor on every one of 1800 ticks, and `05` gives a whole fight a &lt; 5 ms
-    /// budget. Answering that question by sorting <see cref="Ordered"/> would allocate a list and run
-    /// a comparison sort per actor per tick for a fight in which the commonest answer is <em>none</em>
-    /// — a <c>BURN</c> and a <c>REGEN</c> feed no stat at all. This makes the empty case a single
-    /// integer read and leaves the sorted walk to the ticks that actually have something to
-    /// aggregate.
-    /// <para>
-    /// It is maintained in <see cref="Add"/> and <see cref="Remove"/>, which are the only two members
-    /// that change the set, so it cannot drift from <see cref="_instances"/> without one of them
-    /// being bypassed.
-    /// </para>
+    /// A counter rather than a query, for performance: this is asked for every state-dependent actor
+    /// on every one of 1800 ticks in a fight budgeted under 5 ms, and the commonest answer is none.
+    /// Maintained in <see cref="Add"/> and <see cref="Remove"/>, the only members that change the set.
     /// </remarks>
     internal int StatModifierCount { get; private set; }
 
     /// <summary>
-    /// How many live instances `05` §3.1's cadence drives — the <c>DoT</c> and <c>HoT</c> rows.
+    /// How many live instances the cadence drives — the DoT and HoT rows.
     /// </summary>
     /// <remarks>
-    /// 🔒 <see cref="StatModifierCount"/>'s twin, and it exists for the same measured reason. Slot 1
-    /// and slot 2 each call <see cref="Ordered"/> for every actor on every one of 1800 ticks; review
-    /// found that an actor carrying any status at all — a lone <c>FREEZE</c>, which never ticks —
-    /// paid two list allocations and two comparison sorts per tick to be told nothing was due. This
-    /// makes slot 1's early-out an integer read.
+    /// <see cref="StatModifierCount"/>'s twin, for the same reason: an actor carrying any status at
+    /// all (e.g. a lone FREEZE, which never ticks) would otherwise pay a list allocation and a sort
+    /// per tick to be told nothing was due.
     /// </remarks>
     internal int TickingCount { get; private set; }
 
-    /// <summary>`18` §2.3's <c>IMMUNE_STATUS</c>, for one status, until a battle time.</summary>
+    /// <summary>An <c>IMMUNE_STATUS</c> grant, for one status, until a battle time.</summary>
     /// <remarks>
-    /// A grant with no <c>duration.seconds</c> lasts the fight: `18` §6 makes an absent timer an
-    /// effect that ends at its scope's boundary, and the battle is this evaluator's outermost one.
+    /// A grant with no <c>duration.seconds</c> lasts the fight: an absent timer is an effect that
+    /// ends at its scope's boundary, and the battle is this evaluator's outermost one.
     /// </remarks>
     internal void GrantImmunity(string statusId, int tick, EffectDuration? duration)
     {
@@ -182,31 +163,28 @@ internal sealed class ActorStatuses
                 : until;
     }
 
-    /// <summary>Whether `18` §2.3's <c>IMMUNE_STATUS</c> is refusing this status right now.</summary>
+    /// <summary>Whether an <c>IMMUNE_STATUS</c> grant is refusing this status right now.</summary>
     internal bool IsImmuneTo(string statusId, int tick) =>
         _immuneUntilSeconds.TryGetValue(statusId, out var until) &&
         BattleClock.SecondsAt(tick) < until;
 
-    /// <summary>`18` §2.3's <c>STATUS_POWER_PCT</c> — outgoing.</summary>
+    /// <summary><c>STATUS_POWER_PCT</c> — outgoing.</summary>
     internal void AddOutgoingPower(double fraction, double? seconds, int tick) =>
         _outgoingPower.Add(TimedFraction.Of(fraction, seconds, tick));
 
-    /// <summary>`18` §2.3's <c>STATUS_DURATION_PCT</c> — incoming.</summary>
+    /// <summary><c>STATUS_DURATION_PCT</c> — incoming.</summary>
     internal void AddIncomingDuration(double fraction, double? seconds, int tick) =>
         _incomingDuration.Add(TimedFraction.Of(fraction, seconds, tick));
 
     /// <summary>
-    /// The multiplier `18` §2.3's <c>STATUS_POWER_PCT</c> puts on a status this actor applies.
+    /// The multiplier <c>STATUS_POWER_PCT</c> puts on a status this actor applies.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>An additive percent bucket, not a product.</b> The op's name ends <c>_PCT</c>, which is
-    /// `18` §2.1's <c>STAT_ADD_PCT</c> family rather than its <c>STAT_MULT</c> one, and R1 scopes
-    /// <em>the value IS the multiplier</em> to <c>STAT_MULT</c>. Two +20% grants are therefore ×1.4,
-    /// not ×1.44.
+    /// An additive percent bucket, not a product: two +20% grants are x1.4, not x1.44.
     /// </remarks>
     internal double OutgoingPowerScale(int tick) => Scale(_outgoingPower, tick);
 
-    /// <summary>The multiplier `18` §2.3's <c>STATUS_DURATION_PCT</c> puts on an incoming duration.</summary>
+    /// <summary>The multiplier <c>STATUS_DURATION_PCT</c> puts on an incoming duration.</summary>
     internal double IncomingDurationScale(int tick) => Scale(_incomingDuration, tick);
 
     private static double Scale(List<TimedFraction> grants, int tick)
@@ -219,8 +197,7 @@ internal sealed class ActorStatuses
         var now = BattleClock.SecondsAt(tick);
         var total = 0.0;
 
-        // By index rather than through LINQ: `18` §8's whole point is that two implementations of one
-        // rule produce the same double, and a fold's order is part of its answer in floating point.
+        // By index rather than through LINQ: a fold's order is part of its answer in floating point.
         for (var i = 0; i < grants.Count; i++)
         {
             if (now < grants[i].UntilSeconds)
@@ -243,28 +220,17 @@ internal sealed class ActorStatuses
 }
 
 /// <summary>
-/// 🔒 `05` §7's <c>dataId</c> for a status event — which of `05` §5's twelve the event names.
+/// The <c>dataId</c> for a status event — which of the twelve statuses the event names.
 /// </summary>
 /// <remarks>
 /// <para>
-/// A <c>CombatEvent</c> has one <c>ushort</c> to spend and `05` §5's ids are strings, so the event
-/// carries the status's <b>position in `05` §5's table</b>, one-based. One-based because
-/// <c>CombatLog.NoDataId</c> is <c>0</c> and means <em>"names no content"</em>: a zero-based
-/// <c>BURN</c> would be indistinguishable from an event that names nothing.
+/// A <c>CombatEvent</c> has one <c>ushort</c> to spend and status ids are strings, so the event
+/// carries the status's position in this table, one-based (zero means "names no content").
 /// </para>
 /// <para>
-/// 🔴 <b>A HARD-CODED TABLE, and it has to be — the earlier version of this remark claimed the
-/// opposite and review caught it.</b> It said the ordinals were "read from the ids the catalogue
-/// loaded … so the data file and the log agree by construction". They are not: the dictionary below
-/// is exactly the second list in code that sentence denied, and a maintainer trusting it would
-/// reorder <c>content/statuses.json</c> believing the log followed.
-/// <para>
-/// The ordinals are inside <c>LogHash</c>, so they are a <b>wire format</b> and cannot be derived
-/// from a file that may legitimately be reordered — deriving them is precisely what would silently
-/// renumber every status event in every committed reference log. A thirteenth status is APPENDED
-/// here, never inserted.
-/// <c>StatusCatalogueTests.Every_status_has_a_distinct_one_based_05_section_7_dataId</c> pins the
-/// twelve positions and that the set matches the catalogue exactly.
+/// A hard-coded table, deliberately: the ordinals are inside <c>LogHash</c>, a wire format that
+/// cannot be derived from a file that may legitimately be reordered. A thirteenth status is
+/// appended here, never inserted.
 /// </para>
 /// </remarks>
 internal static class StatusLogId
@@ -286,11 +252,11 @@ internal static class StatusLogId
             ["REGEN"] = 12,
         };
 
-    /// <summary>Every status id this mapping covers — the S3 floor's subject.</summary>
+    /// <summary>Every status id this mapping covers.</summary>
     internal static IReadOnlyCollection<string> All { get; } = Ordinals.Keys.ToList();
 
     /// <summary>The <c>dataId</c> a status event carries.</summary>
-    /// <exception cref="EffectContextException">The id is outside `05` §5's twelve.</exception>
+    /// <exception cref="EffectContextException">The id is outside the twelve.</exception>
     internal static ushort Of(string statusId) =>
         Ordinals.TryGetValue(statusId, out var ordinal)
             ? ordinal

@@ -5,10 +5,8 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// `14` §6 — <em>"In editor/dev builds, content hot-reloads without restarting."</em>
-/// The property that matters is that reloading <b>replaces</b> the snapshot rather than editing
-/// it: immutability has to survive hot-reload, or `14` §6's replay guarantee only holds until the
-/// first reload.
+/// Tests hot-reload: reloading must replace the snapshot rather than editing it in place, so
+/// immutability survives across reloads.
 /// </summary>
 public sealed class ContentProviderTests
 {
@@ -171,10 +169,9 @@ public sealed class ContentProviderTests
     }
 
     /// <summary>
-    /// 🔒 The <c>Try*</c> contract, on the branch that could reach it. The policy gate returns
-    /// before the revision is even read, so a shipping host whose content <em>had</em> changed used
-    /// to be one line away from a <see cref="ContentReloadNotPermittedException"/> thrown out of a
-    /// method whose own doc says it never throws for such a host.
+    /// The policy gate returns before the revision is even read, so a shipping host whose content
+    /// had changed was one line away from throwing <see cref="ContentReloadNotPermittedException"/>
+    /// out of a method documented as never throwing for such a host.
     /// </summary>
     [Fact]
     public void TryReloadIfChanged_reports_nothing_to_do_on_a_shipping_host_whose_content_did_change()
@@ -194,10 +191,8 @@ public sealed class ContentProviderTests
     }
 
     /// <summary>
-    /// 🔒 A dev host asked to reload content that has become invalid. The load exception is the
-    /// right outcome — the dev asked for a rebuild and it failed — but <c>Current</c> must still
-    /// be the last snapshot that was actually good, or a half-typed JSON file leaves the game
-    /// running on nothing.
+    /// When invalid content throws, Current must still be the last good snapshot — a half-typed
+    /// JSON file must not leave the game running on nothing.
     /// </summary>
     [Fact]
     public void TryReloadIfChanged_over_content_that_became_invalid_throws_and_leaves_Current_last_good()

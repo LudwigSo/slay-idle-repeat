@@ -9,10 +9,10 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Economy;
 
 /// <summary>
-/// 🔒 <b>Assumption A1</b> — the accrual rule `10` §3 does not state, and the bug it prevents.
+/// <b>Assumption A1</b> — the accrual rule the spec does not state, and the bug it prevents.
 /// </summary>
 /// <remarks>
-/// §3 gives "1 per 4 minutes" and specifies no rounding. The obvious implementation floors
+/// The spec gives "1 per 4 minutes" and specifies no rounding. The obvious implementation floors
 /// <c>elapsed / 4 min</c> on every call and then moves the anchor to <em>now</em>, discarding the
 /// remainder once per call — so a player sending a hundred commands in an hour accrues far <b>less</b>
 /// than one sending a single command. A frequency-dependent economy bug that punishes the most engaged
@@ -41,10 +41,9 @@ public sealed class EnergyAccrualPropertyTests
     private static readonly EnergyTuning Shipped = EnergyTuning.Read(ProgressionDocuments.Shipped);
 
     /// <summary>
-    /// 🔒 <b>The highest-value case in M1-10.</b> N successive accruals over sub-intervals that sum
-    /// to T accrue exactly what one accrual over T accrues, and leave the anchor in exactly the same
-    /// place — for every randomised split, of every randomised interval, from every randomised
-    /// starting state.
+    /// N successive accruals over sub-intervals that sum to T accrue exactly what one accrual
+    /// over T accrues, and leave the anchor in exactly the same place — for every randomised
+    /// split, of every randomised interval, from every randomised starting state.
     /// </summary>
     [Fact]
     public void Splitting_an_interval_never_changes_what_it_accrues()
@@ -131,8 +130,8 @@ public sealed class EnergyAccrualPropertyTests
     }
 
     /// <summary>
-    /// 🔒 The same defect as a single, seed-free case: `10` §3's hour of regeneration is 15 Energy
-    /// whether the player sent one command in that hour or a hundred.
+    /// The same defect as a single, seed-free case: an hour of regeneration is 15 Energy whether
+    /// the player sent one command in that hour or a hundred.
     /// </summary>
     [Theory]
     [InlineData(1)]

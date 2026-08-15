@@ -5,9 +5,8 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// `21` §3.3 / `14` §6 — <em>"An override file is a sparse JSON patch applied on top of the
-/// canonical data at load time. Sweeps, experiments and what-ifs all run as overrides, so the
-/// canonical data is only ever edited when a change is adopted."</em>
+/// Tests override files: sparse JSON patches applied on top of canonical data at load time, so
+/// canonical data is only ever edited when a change is adopted.
 /// </summary>
 public sealed class OverridePatchTests
 {
@@ -136,9 +135,8 @@ public sealed class OverridePatchTests
     [Fact]
     public void An_override_that_nulls_a_value_the_schema_does_not_permit_null_on_is_rejected()
     {
-        // 🔒 The de-authorising direction. An override is the one mechanism that rewrites content at
-        // load time, so it is the one place a null could reach a key the docs DID authorise — and a
-        // rule already reading that key would then see "unauthorised" where a number used to be.
+        // The de-authorising direction: an override is the one mechanism that rewrites content at
+        // load time, so it's the one place a null could reach a key the docs DID authorise.
         var source = SourceWithOverride("""
         { "widgets.json": { "merge": { "statBonusPerLevel": null } } }
         """);

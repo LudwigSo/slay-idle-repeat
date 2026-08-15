@@ -1,69 +1,27 @@
 namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 
 /// <summary>
-/// 🔒 The <b>run-scoped</b> memory `05` §6.2's no-repeat rule needs — read <b>and</b> write.
+/// The run-scoped memory the no-repeat rule needs — read and write.
 /// </summary>
 /// <remarks>
 /// <para>
-/// `05` §6.2, 🔒: <em>"No Elite may draw the same modifier as the immediately preceding Elite in the
-/// same run — redraw on collision."</em> That is one fact about a <em>run</em>, and a battle cannot
-/// hold it: two Elite encounters are two battles.
+/// No Elite may draw the same modifier as the immediately preceding Elite in the same run; that is
+/// a fact about a run, and a battle cannot hold it, since two Elite encounters are two battles. This
+/// declares the seam; <see cref="EliteModifierHistory"/> is the in-<c>Core</c> implementation, and
+/// the real run-scoped implementation belongs on the run-controller side as a projection over the
+/// run's state, not on whatever service later applies pity/luck rules — those are a different rule
+/// over a different subject.
 /// </para>
 /// <para>
-/// 🔒 <b>This is a cross-milestone contract, shaped after <c>IRunStateView</c> and
-/// <c>IRunTriggerCounters</c>.</b> `24` §4.10's B2 protection owns the rule and <c>LuckService</c>
-/// (M4-01) is what implements it; the run state itself lives on the <c>Run</c> aggregate (M1-05)
-/// under the run controller (M3). None of the three exists here, and the M2 kickoff's A4 ruling is
-/// that the run layer is <b>declared, not wired</b>. So M2-11 declares this seam, ships
-/// <see cref="EliteModifierHistory"/> as the in-<c>Core</c> implementation, and runs both through
-/// the shared contract suite in the same change (steering S7).
+/// Contract for any implementation: one instance per run, handed to every Elite encounter in it (a
+/// fresh instance per battle would make <see cref="PreviousEliteModifier"/> permanently <c>null</c>
+/// and silently disable the rule); <c>null</c> means no Elite has been fought in this run yet, not
+/// an error; <see cref="RecordEliteModifier"/> is called once per encounter with the modifier
+/// actually used, after any redraw.
 /// </para>
 /// <para>
-/// 🔒 <b>What M4-01 must honour, stated plainly, because this is the whole contract.</b>
-/// </para>
-/// <list type="number">
-/// <item><b>One instance per run, handed to every Elite encounter in it.</b> A fresh instance per
-/// battle makes <see cref="PreviousEliteModifier"/> permanently <c>null</c>, the redraw never
-/// fires, and the rule is silently off while every test of the draw still passes.</item>
-/// <item><b><c>null</c> means "no Elite has been fought in this run yet"</b> — a reading, not an
-/// error. The first Elite of a run draws from all eight.</item>
-/// <item><b><see cref="RecordEliteModifier"/> is called with the modifier that was actually used</b>,
-/// once per Elite encounter, after the draw. Recording a rejected redraw would ratchet the
-/// exclusion onto the wrong modifier.</item>
-/// <item><b>It is the run's snapshot that persists it.</b> Nothing here writes to disk, and there is
-/// deliberately no placeholder run controller in M2.</item>
-/// <item><b>M4-01 must not fold this into a pity ladder.</b> `05` §6.2 is a hard exclusion of one
-/// value, not a probability nudge; <c>24</c>'s pity mechanisms are a different rule over a different
-/// subject, and no pity mechanism is invented here.</item>
-/// </list>
-/// <para>
-/// ⚠️ 🔒 <b>WHERE the implementation may live, and it is not where you would first put it.</b>
-/// `24` §11 and `30` §11.4 place <c>LuckService</c> in <c>Core/Rules/Luck/</c>. This seam is in
-/// <c>Core/Rules/Combat/Enemies/</c>, so a <c>LuckService : IEliteModifierHistory</c> would create a
-/// <c>Rules.Luck → Rules.Combat</c> edge — and that is the <em>wrong way round</em>: a battle grants
-/// loot <em>through</em> <c>LuckService</c>, so <c>Rules.Combat → Rules.Luck</c> is the edge the
-/// later milestones will want, and having both is the namespace cycle R17 exists to prevent. R17's
-/// table (<c>IntraRulesLayeringRuleTests.ForbiddenEdges</c>) declares three edges today and
-/// <c>Rules.Luck</c> is in none of them, so nothing would go red.
-/// </para>
-/// <para>
-/// So: <b>implement this on the run-controller side</b> (M3), as a projection over the run's state,
-/// exactly as <c>RunStateReading</c> is for the read-only view — <em>not</em> on <c>LuckService</c>
-/// itself. <c>LuckService</c>'s part is the <c>24</c> §4.10 B2 protection over the value; it reads
-/// and writes through this interface rather than being it. ⚠️ Whichever milestone adds a
-/// <c>Rules.Luck</c> namespace should add its edges to R17's table in the same commit — recorded as
-/// errata for the milestone conductor, because M2-11 must not edit another agent's rule file.
-/// </para>
-/// <para>
-/// ⚠️ The <c>Run</c> aggregate cannot implement this directly and must not try: `30` §11.4 states
-/// that <em>"<c>Model</c> never references <c>Rules</c>"</em> and
-/// <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c> enforces it. M3 honours it with a
-/// projection on this side of the seam, exactly as <c>RunStateReading</c> is for the read-only view.
-/// </para>
-/// <para>
-/// 🔒 <b>Narrow, and to stay narrow.</b> Two members. `05` §6.2 needs the <em>immediately</em>
-/// preceding modifier and nothing else — not a history, not a count, not a per-modifier tally. A
-/// wider interface here becomes the forced shape of M4-01's service.
+/// Narrow, and to stay narrow: two members, since only the immediately preceding modifier is needed
+/// — not a history, not a count, not a per-modifier tally.
 /// </para>
 /// </remarks>
 internal interface IEliteModifierHistory
@@ -96,7 +54,7 @@ internal sealed class EliteModifierHistory : IEliteModifierHistory
 
     /// <inheritdoc />
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="modifier"/> is not one of `05` §6.2's eight.
+    /// <paramref name="modifier"/> is not one of the eight.
     /// </exception>
     public void RecordEliteModifier(EliteModifier modifier)
     {
@@ -115,7 +73,7 @@ internal sealed class EliteModifierHistory : IEliteModifierHistory
     /// <summary>Rehydrates a run's memory from what its snapshot carried.</summary>
     /// <param name="previous">The persisted previous modifier, or <c>null</c>.</param>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="previous"/> has a value that is not one of `05` §6.2's eight.
+    /// <paramref name="previous"/> has a value that is not one of the eight.
     /// </exception>
     internal static EliteModifierHistory Restore(EliteModifier? previous)
     {

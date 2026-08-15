@@ -4,25 +4,14 @@ using Xunit;
 namespace SlayIdleRepeat.AssetProvenance.Tests;
 
 /// <summary>
-/// 🔒 <b>Ruling A8 (M8, 2026-08-12), held mechanically.</b> The provenance store lives at
-/// <c>assets/provenance/</c> and <b>not</b> under <c>game-data/</c>.
+/// <b>Ruling A8, held mechanically.</b> The provenance store lives at <c>assets/provenance/</c>
+/// and <b>not</b> under <c>game-data/</c>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// <c>LocalFileContentSource</c> recursively enumerates every <c>*.json</c> under
-/// <c>game-data/</c> into the <c>ContentSnapshot</c>, and therefore into
-/// <c>ContentHashing.Compute</c>. Provenance records grow by one per generated asset, so a store
-/// under <c>game-data/</c> would move the content version stamp — which `14` §6 makes load-bearing
-/// for replay and <c>CONTENT_VERSION_MISMATCH</c> — 1,048 times over the life of the pipeline, once
-/// per asset, for a file the game never reads.
-/// </para>
-/// <para>
-/// A ruling recorded only in a kickoff note is a ruling the next agent re-derives from scratch or
-/// breaks. These cases are the difference. They also check the second, subtler way back in: a
-/// schema pairing. `14` §6 pairs <c>game-data/&lt;x&gt;.json</c> with
-/// <c>game-data/schema/&lt;x&gt;.schema.json</c>, so a schema authored for the store would be the
-/// invitation to move the data next to it.
-/// </para>
+/// <c>LocalFileContentSource</c> recursively enumerates every <c>*.json</c> under <c>game-data/</c>
+/// into the content version stamp used for replay, so a store there would move that stamp once per
+/// generated asset. Also guards the subtler way back in: a schema authored for the store under
+/// <c>game-data/schema/</c> would be the invitation to move the data next to it.
 /// </remarks>
 public sealed class ProvenanceLayoutTests
 {
@@ -50,16 +39,16 @@ public sealed class ProvenanceLayoutTests
     }
 
     /// <summary>
-    /// `14` §6 — nothing under <c>game-data/</c> is a provenance artefact, in either direction: no
-    /// record, no licence register, and no schema that would pair one back in.
+    /// Nothing under <c>game-data/</c> is a provenance artefact, in either direction: no record, no
+    /// licence register, and no schema that would pair one back in.
     /// </summary>
     [Fact]
     public void Nothing_under_game_data_is_a_provenance_artefact()
     {
         var files = Directory.GetFiles(ProvenanceFixtures.DataRoot, "*", SearchOption.AllDirectories);
 
-        // 🔒 Steering S3 — floor the subject set. A game-data tree that moved or emptied would
-        // otherwise satisfy this rule forever by having nothing to look at.
+        // Floored: a game-data tree that moved or emptied would otherwise satisfy this rule forever
+        // by having nothing to look at.
         files.Length.ShouldBeGreaterThan(50);
 
         var offenders = files
@@ -74,9 +63,8 @@ public sealed class ProvenanceLayoutTests
     }
 
     /// <summary>
-    /// `15` §G / `20` §2.1 — the store directory is committed even while it is empty, so that a
-    /// missing store is a defect rather than a state. Git does not track empty directories, hence
-    /// the <c>.gitkeep</c>.
+    /// The store directory is committed even while empty, so a missing store is a defect rather
+    /// than a state. Git does not track empty directories, hence the <c>.gitkeep</c>.
     /// </summary>
     [Fact]
     public void The_records_directory_is_committed_empty_rather_than_absent()
@@ -99,9 +87,8 @@ public sealed class ProvenanceLayoutTests
     }
 
     /// <summary>
-    /// `15` §G — the store carries its own README. The ruling, the record format and the ⛔ on
-    /// <c>tool-licences.json</c> have to be findable from the directory itself, not only from a
-    /// milestone note.
+    /// The store carries its own README: the ruling, the record format and the block on
+    /// <c>tool-licences.json</c> have to be findable from the directory itself.
     /// </summary>
     [Fact]
     public void The_store_documents_the_ruling_that_put_it_here()

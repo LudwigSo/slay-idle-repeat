@@ -4,23 +4,14 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Rules.Effects.Duration;
 
 /// <summary>
-/// 🔒 `18` §6 — whether an applied effect has ended, and which boundary ended it.
+/// Whether an applied effect has ended, and which boundary ended it.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>A pure function of one application and one probe.</b> It holds no timers, no registry and no
-/// clock: `05` §3.1's tick loop (M2-08) and its cadence engine (M2-10) both drive it, and neither
-/// should have to agree with the other about how an effect's remaining time is stored. Battle time
-/// arrives as a number on the probe, because `30` §3 keeps every clock out of <c>Core</c>.
-/// </para>
-/// <para>
-/// 🔒 <b>Order of the checks, and why it is the order `18` §6 writes.</b> <c>INSTANT</c> first,
-/// because it never persists to be timed at all. Then the <c>until</c> terminator and the timer —
-/// <em>"<c>until</c> fields fire whichever comes first, terminator or timer"</em>, and a probe is a
-/// snapshot, so when both are true on the same probe the terminator is reported: it is the
-/// instantaneous event (`05` §4.1's <c>WardBroken</c> fires at a moment), while the timer is a
-/// threshold that stays crossed. Then the scope, which is what ends an effect that neither fired for.
-/// </para>
+/// A pure function of one application and one probe — no timers, no registry, no clock, so
+/// different drivers of the tick loop can't disagree about how remaining time is stored. Checks run
+/// in order: <c>INSTANT</c> first (it never persists to be timed), then the <c>until</c> terminator
+/// and the timer together — when both are true on the same probe the terminator wins, since it's the
+/// instantaneous event while the timer is a threshold that stays crossed — then the scope.
 /// </remarks>
 internal static class DurationEvaluator
 {
@@ -35,10 +26,8 @@ internal static class DurationEvaluator
     /// </exception>
     internal static DurationOutcome Evaluate(EffectApplication application, DurationProbe probe)
     {
-        // 🔒 `18` §1 writes "duration": null on the canonical passive — a STAT_ADD_PCT ALWAYS perk
-        // that lasts as long as its source is equipped. That is not a timed instance at all, and the
-        // battle evaluator has no boundary to end it at. Reading the absence as INSTANT would delete
-        // every passive in the game on the tick it was applied.
+        // A null duration means "not duration-governed" (e.g. an ALWAYS passive), not INSTANT —
+        // reading it as INSTANT would end every passive on the tick it was applied.
         if (application.Duration is not { } duration)
         {
             return Running;
@@ -65,11 +54,8 @@ internal static class DurationEvaluator
             DurationScope.BATTLE => Battle(probe),
             DurationScope.PHASE => Phase(application, probe),
 
-            // 🔒 The run layer's three. They outlive a battle by definition, so the battle-scoped
-            // evaluator never ends one — and does not pretend to. The controller that does is M3's,
-            // over M1-05's Run aggregate (kickoff A4, `18` §2.5). A placeholder here would be a
-            // second mechanism to find and delete later; a declared scope with no consumer is the
-            // correct end state, and DurationScopes.OutlivesTheBattle is what M3 keys on.
+            // These three outlive a battle by definition, so the battle-scoped evaluator never ends
+            // one — a run-level controller does, keyed on DurationScopes.OutlivesTheBattle.
             DurationScope.STAGE or DurationScope.RUN or DurationScope.PERMANENT => Running,
 
             _ => throw new EffectContextException(
@@ -83,24 +69,13 @@ internal static class DurationEvaluator
         probe.BattleEnded ? new DurationOutcome(true, DurationEndReason.BattleEnded) : Running;
 
     /// <summary>
-    /// 🔒 `18` §6: <c>PHASE</c> <em>"ends when the boss exits the phase in which the effect was
-    /// applied"</em>, and <em>"outside a boss fight it behaves as <c>BATTLE</c>"</em>.
+    /// <c>PHASE</c> ends when the boss exits the phase the effect was applied in; outside a boss
+    /// fight it behaves as <c>BATTLE</c>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>R3 — every boss <c>AURA</c> mechanic is <c>PHASE</c>-scoped.</b> §6 says so by
-    /// definition and §7.10 authors Gulgrot's Bog Air that way; `18` §7.8's Thornmaw phase-3 RAGE is
-    /// authored as <c>{"seconds": 999, "scope": "BATTLE"}</c> and is a <b>pre-<c>PHASE</c>
-    /// artifact</b> — `18` §11 records <c>PHASE</c> arriving with the A7 batch. The two are equivalent
-    /// for Thornmaw <em>only</em> because phase 3 is never exited, which is why it survived review.
-    /// Erratum on §7.8; M2-13 authors the data, and this method is what makes the idiom unnecessary.
-    /// </para>
-    /// <para>
-    /// 🔒 <b><see cref="EffectApplication.AppliedInPhase"/> is the sole discriminator of "inside a
-    /// boss fight".</b> Not the probe's phase, and not a separate flag: §6 states the fallback in
-    /// terms of where the effect was <em>applied</em>, and two sources of truth for one fact would let
-    /// a caller that set one and not the other silently pick the other branch.
-    /// </para>
+    /// <see cref="EffectApplication.AppliedInPhase"/> is the sole discriminator of "inside a boss
+    /// fight" — not the probe's current phase and not a separate flag — so there's one source of
+    /// truth for the fallback rather than two that a caller could set inconsistently.
     /// </remarks>
     private static DurationOutcome Phase(EffectApplication application, DurationProbe probe)
     {
@@ -132,35 +107,22 @@ internal static class DurationEvaluator
                 "an exit 18 §6 says ends it.");
         }
 
-        // 🔒 Still inside the applied phase, so the phase boundary has not fired — but PHASE is one of
-        // the three scopes DurationScopes.OutlivesTheBattle rules battle-bounded, so the battle's own
-        // boundary still ends it. Without this a boss AURA applied in phase 3 would answer "not ended"
-        // on the probe that reports the fight over, which is the one answer 18 §6 reserves for the run
-        // layer's three (kickoff A4) — an effect outliving the battle it was scoped to.
+        // Still inside the applied phase, so the phase boundary hasn't fired — but PHASE is
+        // battle-bounded, so the battle's own boundary still ends it if the fight is over.
         return current > appliedIn
             ? new DurationOutcome(true, DurationEndReason.PhaseExited)
             : Battle(probe);
     }
 
     /// <summary>
-    /// 🔒 `05` §4.1 — <c>WardBroken</c> fires <em>"the moment the pool reaches 0 <b>through
-    /// damage</b>"</em>. <em>"Segment expiry silently removes its remainder
-    /// (<c>StatusExpired</c>), and does <b>not</b> fire <c>WardBroken</c>."</em>
+    /// <c>WARD_BROKEN</c> fires only when the ward pool reaches 0 through damage — not on segment
+    /// expiry, which silently removes the remainder instead.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>This is why <see cref="DurationProbe.OwnerWardEvent"/> is a
-    /// <see cref="WardPoolEvent"/> and not a <c>bool</c>.</b> A boolean "the ward broke" would put
-    /// the distinction in the caller's discipline, where it is a comment; as an enum the caller
-    /// cannot say the pool emptied without saying <em>how</em>, and the ruling is enforced here, once,
-    /// for every effect that carries the terminator. An effect terminating on segment expiry would
-    /// end Ossify's DR buff every time a ward simply timed out, which is the opposite of the mechanic.
-    /// <para>
-    /// ⚠️ <b>Whether it fired and what reason it carries are ONE decision, not two.</b> Splitting
-    /// them gave the second half a <c>default</c> arm that no input could ever reach — the first half
-    /// had already thrown for every terminator but <c>WARD_BROKEN</c> — and a guard that cannot fire
-    /// is a guard nothing keeps honest (steering S1). A nullable reason says "did not fire" without
-    /// needing a second switch to say what firing meant.
-    /// </para>
+    /// <see cref="DurationProbe.OwnerWardEvent"/> is a <see cref="WardPoolEvent"/> rather than a
+    /// <c>bool</c> so a caller can't report the pool emptying without saying how — a terminator wired
+    /// to a plain "broke" flag would end an effect on a segment simply timing out, which is the
+    /// opposite of the mechanic.
     /// </remarks>
     /// <returns>The end reason when the terminator fired, or <c>null</c> when it did not.</returns>
     private static DurationEndReason? Fired(
@@ -181,31 +143,19 @@ internal static class DurationEvaluator
 }
 
 /// <summary>
-/// 🔒 `18` §6's scopes, split by the one question the battle simulator has to ask of them: does this
+/// The duration scopes, split by the one question the battle simulator has to ask of them: does this
 /// outlive the fight?
 /// </summary>
 /// <remarks>
-/// <para>
-/// It is a named predicate rather than a comparison scattered across M2-08, M2-09 and M2-10 because
-/// the answer is a <b>ruling</b> (kickoff A4), not a fact about the enum's ordering: <c>STAGE</c>,
-/// <c>RUN</c> and <c>PERMANENT</c> belong to a run controller that M3 builds, and the day it arrives
-/// this is the one place that has to be read.
-/// </para>
-/// <para>
-/// 🔒 <b>TO WHOEVER LANDS M3's RUN CONTROLLER.</b> The three scopes above have had no consumer since
-/// M2-06 declared them, and that deferral is tracked in the repo's one register —
-/// <c>SubjectSetFloorTests.Pending</c>, under the name <c>RunController</c>, which is `18` §2.5's own
-/// noun PascalCased the way that sentence's other noun (<c>CombatSimulator</c>) already was. If the
-/// type you are landing carries that name, the register fires by itself and you delete the entry. If
-/// it carries a different one, <b>rename the entry to match</b> rather than deleting it: the subject
-/// being tracked is "something ends a <c>RUN</c>-scoped effect", not the string, and nothing else in
-/// the repository is watching for it.
-/// </para>
+/// A named predicate rather than a comparison scattered across every caller, since <c>STAGE</c>,
+/// <c>RUN</c> and <c>PERMANENT</c> belong to a run controller not yet built, and this is the one
+/// place that needs to be read once it lands. Tracked as a pending case in
+/// <c>SubjectSetFloorTests.Pending</c> under the name <c>RunController</c> until then.
 /// </remarks>
 internal static class DurationScopes
 {
-    /// <summary>Whether the scope outlives a battle — the run layer's three (kickoff A4).</summary>
-    /// <exception cref="EffectContextException">The scope is outside `18` §6's six.</exception>
+    /// <summary>Whether the scope outlives a battle.</summary>
+    /// <exception cref="EffectContextException">The scope is not a recognized duration scope.</exception>
     internal static bool OutlivesTheBattle(DurationScope scope) =>
         scope switch
         {
@@ -219,28 +169,21 @@ internal static class DurationScopes
         };
 }
 
-/// <summary>One applied effect instance, with the bookkeeping `18` §6 needs to end it.</summary>
+/// <summary>One applied effect instance, with the bookkeeping needed to end it.</summary>
 internal readonly record struct EffectApplication
 {
-    /// <summary>The effect's `18` §8 id — named in every failure (steering S2).</summary>
+    /// <summary>The effect's id — named in every failure.</summary>
     internal required string EffectId { get; init; }
 
-    /// <summary>
-    /// `18` §6's duration block; <c>null</c> for `18` §1's canonical passive, which is not
-    /// duration-governed.
-    /// </summary>
+    /// <summary>The duration block; <c>null</c> for a passive that isn't duration-governed.</summary>
     internal EffectDuration? Duration { get; init; }
 
-    /// <summary>
-    /// Battle time at the moment of application. `18` §6's timer runs from here, not from the start
-    /// of the fight — `18` §7.10's Ossify is granted on a 14 s <c>PERIODIC</c> and lasts 6 s from
-    /// each grant.
-    /// </summary>
+    /// <summary>Battle time at the moment of application. The timer runs from here, not from the fight's start.</summary>
     internal double AppliedAtSeconds { get; init; }
 
     /// <summary>
     /// The boss phase current at application; <c>null</c> outside a boss fight, which is what makes
-    /// `18` §6's <c>PHASE</c> behave as <c>BATTLE</c> there.
+    /// <c>PHASE</c> behave as <c>BATTLE</c> there.
     /// </summary>
     internal int? AppliedInPhase { get; init; }
 }
@@ -248,15 +191,15 @@ internal readonly record struct EffectApplication
 /// <summary>One reading of the battle, taken at the moment a duration is re-evaluated.</summary>
 internal readonly record struct DurationProbe
 {
-    /// <summary>Battle time now. `05` §3 ticks at 20 Hz, so this advances in steps of 0.05.</summary>
+    /// <summary>Battle time now. Ticks at 20 Hz, so this advances in steps of 0.05.</summary>
     internal required double BattleTimeSeconds { get; init; }
 
     /// <summary>The boss's current phase; <c>null</c> outside a boss fight.</summary>
     internal int? CurrentPhase { get; init; }
 
     /// <summary>
-    /// 🔒 The ward-pool event that just occurred to the effect's <b>owner</b>, if any — and
-    /// <em>how</em> the pool emptied, not merely that it did. See <c>DurationEvaluator.Fired</c>.
+    /// The ward-pool event that just occurred to the effect's owner, if any — and how the pool
+    /// emptied, not merely that it did. See <c>DurationEvaluator.Fired</c>.
     /// </summary>
     internal WardPoolEvent? OwnerWardEvent { get; init; }
 
@@ -267,53 +210,37 @@ internal readonly record struct DurationProbe
 /// <summary>Whether an applied effect has ended, and which boundary ended it.</summary>
 /// <param name="HasEnded">Whether the effect is over.</param>
 /// <param name="Reason">
-/// Which `18` §6 boundary ended it, or <see cref="DurationEndReason.NotEnded"/>. Carried so a caller
-/// can log the right `05` §7 event — <c>StatusExpired</c> for a timer, and Ossify's terminator for a
-/// <c>WardBroken</c> — and so a test can pin <em>which</em> rule fired (steering S2).
+/// Which boundary ended it, or <see cref="DurationEndReason.NotEnded"/>. Carried so a caller can log
+/// the right combat event and so a test can pin which rule fired.
 /// </param>
 internal readonly record struct DurationOutcome(bool HasEnded, DurationEndReason Reason);
 
-/// <summary>
-/// 🔒 `05` §4.1 — how a ward pool emptied, which is not one question but two.
-/// </summary>
-/// <remarks>
-/// The two arms are the two halves of `05` §4.1's Events row, and they are a closed set because that
-/// row is: <em>"<c>WardBroken</c> the moment the pool reaches 0 through damage… Segment expiry
-/// silently removes its remainder (<c>StatusExpired</c>), and does not fire <c>WardBroken</c>."</em>
-/// M2-15 already ships both as combat-log events; R17 forbids naming <c>Rules.Combat</c> from here,
-/// so this is the same distinction restated at the layer that has to act on it.
-/// </remarks>
+/// <summary>How a ward pool emptied — not one question but two, and a closed set.</summary>
 internal enum WardPoolEvent
 {
-    /// <summary>
-    /// The pool reached 0 <b>through damage</b> — the only thing that fires `05` §4.1's
-    /// <c>WardBroken</c>, and the only thing that fires `18` §6's <c>until: WARD_BROKEN</c>.
-    /// </summary>
+    /// <summary>The pool reached 0 through damage — the only thing that fires <c>WARD_BROKEN</c>.</summary>
     BrokenByDamage = 1,
 
-    /// <summary>
-    /// A segment expired and its remainder was silently removed (<c>StatusExpired</c>). It empties
-    /// the pool and terminates nothing.
-    /// </summary>
+    /// <summary>A segment expired and its remainder was silently removed. Terminates nothing.</summary>
     SegmentExpired = 2,
 }
 
-/// <summary>Which `18` §6 boundary ended an effect.</summary>
+/// <summary>Which boundary ended an effect.</summary>
 internal enum DurationEndReason
 {
     /// <summary>It has not ended.</summary>
     NotEnded = 0,
 
-    /// <summary>`18` §6's <c>INSTANT</c>: it applied once and did not persist.</summary>
+    /// <summary><c>INSTANT</c>: it applied once and did not persist.</summary>
     Instant = 1,
 
     /// <summary>Its <c>seconds</c> timer ran out.</summary>
     TimerElapsed = 2,
 
-    /// <summary>Its <c>until: WARD_BROKEN</c> terminator fired (`05` §4.1, `18` §7.10's Ossify).</summary>
+    /// <summary>Its <c>until: WARD_BROKEN</c> terminator fired.</summary>
     WardBroken = 3,
 
-    /// <summary>The boss left the phase the effect was applied in (`18` §6, `05` §3.1's phase check).</summary>
+    /// <summary>The boss left the phase the effect was applied in.</summary>
     PhaseExited = 4,
 
     /// <summary>The battle ended.</summary>

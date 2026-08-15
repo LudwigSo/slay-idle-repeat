@@ -1,141 +1,86 @@
 namespace SlayIdleRepeat.Core.Rules.Combat.Bosses;
 
 /// <summary>
-/// 🔒 `17` §1.2 — one boss's power-to-stats row: the four coefficients that replace a shared `05`
-/// §6.1 archetype's.
+/// One boss's power-to-stats row: the four coefficients that replace a shared archetype's.
 /// </summary>
 /// <remarks>
-/// <para>
-/// `17` §1.2: <em>"Bosses use the same <c>EnemyStats(power, archetype)</c> derivation as everything
-/// else (`05` §6), with <c>power = EnemyPower(bossNode)</c> (the 2.20 boss multiplier already inside
-/// it) and a per-boss coefficient row instead of a shared archetype."</em>
-/// </para>
-/// <para>
-/// 🔒 <b>Only the four <em>coefficients</em> are here.</b> `17` §1.2's secondaries — CRIT 0.05,
-/// CDMG 0.50, DODGE 0, LS 0 — are <em>"the baseline"</em> every boss shares, so they are authored
-/// once and handed to <see cref="BossEncounterRequest.Baseline"/> rather than repeated on eight
-/// rows. Anything else <em>"is a phase mechanic in the fight scripts below, never a base stat"</em>.
-/// </para>
+/// Only the four coefficients are here. The secondaries — CRIT, CDMG, DODGE, LIFESTEAL — are the
+/// baseline every boss shares, so they are authored once and handed to
+/// <see cref="BossEncounterRequest.Baseline"/> rather than repeated on every row.
 /// </remarks>
-/// <param name="Hp">`17` §1.2's <c>hpCoef</c> — Thornmaw's 2.40.</param>
-/// <param name="Atk">`17` §1.2's <c>atkCoef</c>.</param>
-/// <param name="Def">`17` §1.2's <c>defCoef</c>.</param>
-/// <param name="Aspd">`17` §1.2's <c>aspdCoef</c> — Thornmaw's 0.70, which §2 calls "ASPD 0.7".</param>
+/// <param name="Hp">The HP coefficient.</param>
+/// <param name="Atk">The ATK coefficient.</param>
+/// <param name="Def">The DEF coefficient.</param>
+/// <param name="Aspd">The ASPD coefficient.</param>
 internal readonly record struct BossCoefficients(double Hp, double Atk, double Def, double Aspd);
 
 /// <summary>
-/// 🔒 One mechanic inside a `17` phase block — an effect named <b>by id</b>, plus the wind-up `17`
-/// §1 requires of a damaging one.
+/// One mechanic inside a phase block — an effect named by id, plus the wind-up a damaging one needs.
 /// </summary>
 /// <param name="EffectId">
-/// 🔒 The `18` §8 id of the authored effect — a <b>sibling</b> of this script, resolved against
-/// <see cref="BossEncounterRequest.Effects"/>, which is the effect set the owning boss content
-/// declares.
-/// <para>
-/// It is a reference and not an embedded effect object for the same reason a
-/// <c>RandomOutcomeEntry</c> row is: the mechanic has to be on <c>ActorPlan.Effects</c> to be
-/// registered, telegraphable and index-resolvable in the battle's effect table, so an embedded copy
-/// would be a second identity for one mechanic. The scope is the <b>script</b>, not a registry —
-/// nothing global is consulted, and an id the script does not declare is refused at build time.
-/// </para>
+/// The id of the authored effect — a sibling of this script, resolved against
+/// <see cref="BossEncounterRequest.Effects"/>. A reference rather than an embedded effect object: the
+/// mechanic has to be on <c>ActorPlan.Effects</c> to be registered, telegraphable and
+/// index-resolvable in the battle's effect table, so an embedded copy would be a second identity for
+/// one mechanic.
 /// </param>
 /// <param name="TelegraphSeconds">
-/// 🔒 `17` §1's <em>"visible 1.0–1.5 s wind-up"</em>, in seconds, or <c>null</c> where the mechanic
-/// needs none.
-/// <para>
-/// ⚠️ <b>The lead is boss-script data, not a DSL key and not an engine constant.</b> `17` authors
-/// 1.2 s (Thornmaw's Root, §2) and 1.5 s (the Dicelord's All In, §9) — one engine constant would be
-/// wrong for one of them, and a <c>trigger</c> key would put a presentation duration inside `18`
-/// §3's firing model. <see cref="BossTelegraphs"/> states the three rules a lead has to satisfy.
-/// </para>
+/// The visible wind-up, in seconds, or <c>null</c> where the mechanic needs none. Boss-script data,
+/// not a DSL key and not an engine constant — see <see cref="BossTelegraphs"/> for the rules a lead
+/// has to satisfy.
 /// </param>
 internal readonly record struct BossMechanic(string EffectId, double? TelegraphSeconds = null);
 
-/// <summary>🔒 One of a boss's three `17` phase blocks — the mechanics live while that phase does.</summary>
+/// <summary>One of a boss's three phase blocks — the mechanics live while that phase does.</summary>
 /// <remarks>
-/// 🔒 <b>Every mechanic in every block goes onto <see cref="ActorPlan.Effects"/>, phases 2 and 3
-/// included</b>, and <see cref="BossPhaseController.EnterInitialPhase"/> then de-anchors the later
-/// two. The alternative — registering a block at its own phase entry — would leave phase 2's and
-/// phase 3's effects out of the battle's effect table, which is built once from the opening roster:
-/// <c>CombatLog.AppendTelegraph</c> could not name them and the replayer could not resolve them.
+/// Every mechanic in every block goes onto <see cref="ActorPlan.Effects"/>, phases 2 and 3 included,
+/// and <see cref="BossPhaseController.EnterInitialPhase"/> then de-anchors the later two — otherwise
+/// phase 2's and phase 3's effects would be missing from the battle's effect table, which is built
+/// once from the opening roster.
 /// </remarks>
 internal sealed record BossPhaseBlock
 {
-    /// <summary>Which phase this block is — <c>1</c>, <c>2</c> or <c>3</c> (`17` §1).</summary>
+    /// <summary>Which phase this block is — <c>1</c>, <c>2</c> or <c>3</c>.</summary>
     public required int Phase { get; init; }
 
-    /// <summary>The block's mechanics. May be empty — Thornmaw's phase 1 is <em>"nothing else"</em>.</summary>
+    /// <summary>The block's mechanics. May be empty.</summary>
     public required IReadOnlyList<BossMechanic> Mechanics { get; init; }
 }
 
 /// <summary>
-/// 🔒 <b>The authoring contract M2-13 writes its eight boss scripts against.</b> `17` §11:
-/// <em>"All 8 bosses expressed purely in the effect DSL — zero bespoke boss code."</em>
+/// The authoring contract each boss script is written against — every boss expressed purely in the
+/// effect DSL, with zero bespoke boss code.
 /// </summary>
 /// <remarks>
-/// <para>
-/// A script is <b>data</b>: an id, `17` §1.2's coefficient row, and exactly three phase blocks whose
-/// mechanics are effect ids. Nothing here is behaviour, and nothing here is per-boss code — the one
-/// <see cref="BossPhaseController"/> drives all eight.
-/// </para>
-/// <para>
-/// 🔒 <b>The two universal built-ins are <em>not</em> authored on a script.</b> <c>SYS_ENRAGE</c>
-/// (`17` §1's 70 s enrage) and the phase-3 <c>STUN</c>/<c>FREEZE</c> immunities (`17` §1) are
-/// <em>"implemented once, applied to all bosses"</em>, so <see cref="BossEncounterBuilder"/> attaches
-/// them to every boss and no script may name them. A per-boss opt-out would be exactly the bespoke
-/// boss code `18` exists to prevent.
-/// </para>
+/// The two universal built-ins are not authored on a script: <c>SYS_ENRAGE</c> and the phase-3
+/// STUN/FREEZE immunities are implemented once and attached to every boss by
+/// <see cref="BossEncounterBuilder"/>, and no script may name them.
 /// </remarks>
 internal sealed record BossScript
 {
-    /// <summary>🔒 `17` §1 — the three phases every boss has, no more and no fewer.</summary>
+    /// <summary>The three phases every boss has, no more and no fewer.</summary>
     internal const int PhaseCount = 3;
 
-    /// <summary>The boss's content id — <c>BOSS_THORNMAW</c> (`17` §1.2). Also its actor id.</summary>
+    /// <summary>The boss's content id — <c>BOSS_THORNMAW</c>. Also its actor id.</summary>
     public required string Id { get; init; }
 
-    /// <summary>`17` §1.2's per-boss row.</summary>
+    /// <summary>The per-boss coefficient row.</summary>
     public required BossCoefficients Coefficients { get; init; }
 
     /// <summary>
-    /// 🔒 `17` §1's <em>"adds use standard archetypes from `05` §6.1 at 25–35% of boss power"</em> —
-    /// the fraction this boss's summons are derived at, or <c>null</c> where it authors none.
+    /// The fraction of boss power this boss's summons are derived at, or <c>null</c> where it
+    /// authors no <c>SUMMON</c>.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>M2-12 left the question open and M2-13 answers it: the fraction is <em>per boss</em>,
-    /// not per mechanic.</b> <see cref="BossAdds"/> recorded both candidates and the evidence that
-    /// decides between them is `17`'s own eight fights:
-    /// </para>
-    /// <list type="number">
-    ///   <item><b>Every summoning boss summons exactly one archetype.</b> `17` §2's Thornmaw spawns
-    ///   <c>SWARM</c> and only <c>SWARM</c>, §4's Ossuary King <c>GRUNT</c>, §6's Rimehold
-    ///   <c>SWARM</c>, §7's Cogitator <c>WARDEN</c>, §8's Sporequeen <c>CASTER</c>. Not one boss
-    ///   mixes two, so there is no fight in which two summons of one boss <em>should</em> differ.</item>
-    ///   <item><b>Three of the five re-summon the <em>same</em> adds.</b> §2's <em>"summons 2
-    ///   more"</em>, §4's <em>"resummons any dead ones"</em> and §8's <em>"resummons 1
-    ///   sporeling"</em> are all top-ups of the bodies an earlier mechanic put on the field. A
-    ///   per-mechanic fraction would let one named add stand on the field at two different powers
-    ///   inside one fight, which is a defect rather than a degree of freedom nobody asked for.</item>
-    /// </list>
-    /// <para>
-    /// ⚠️ <b>The number inside the band is authored, not transcribed, and this is the record of
-    /// that.</b> `17` §1 gives 25–35% and names no value for any boss; the content authors one
-    /// (the band's midpoint, identical on all five, because `17` distinguishes none of them) and
-    /// `05` §9's balance harness is what re-tunes it. <see cref="BossSummonSource"/> still refuses a
-    /// fraction outside the band, so the band remains the engine's and the choice remains content's.
-    /// </para>
-    /// <para>
-    /// 🔒 <c>null</c> where the boss authors no <c>SUMMON</c> — `17` §3's Gulgrot, §5's Cindermaw,
-    /// §9's the Dicelord and the FTUE row. An adds fraction on a boss with no adds is data nothing
-    /// reads, and a plausible-looking one is exactly the hole the null convention exists to keep
-    /// greppable.
-    /// </para>
+    /// Per boss rather than per mechanic: every summoning boss summons exactly one archetype, and
+    /// several re-summon the same adds as top-ups, so a per-mechanic fraction could let one named
+    /// add stand on the field at two different powers inside one fight.
+    /// <see cref="BossSummonSource"/> still refuses a fraction outside the band.
     /// </remarks>
     public double? AddsPowerFraction { get; init; }
 
     /// <summary>
-    /// 🔒 Exactly <see cref="PhaseCount"/> blocks, numbered <c>1</c>, <c>2</c>, <c>3</c>, in that
+    /// Exactly <see cref="PhaseCount"/> blocks, numbered <c>1</c>, <c>2</c>, <c>3</c>, in that
     /// order. <see cref="BossEncounterBuilder"/> refuses anything else.
     /// </summary>
     public required IReadOnlyList<BossPhaseBlock> Phases { get; init; }

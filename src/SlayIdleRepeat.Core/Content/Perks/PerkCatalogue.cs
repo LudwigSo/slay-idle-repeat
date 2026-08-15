@@ -2,21 +2,17 @@ using System.Globalization;
 
 namespace SlayIdleRepeat.Core.Content.Perks;
 
-/// <summary>
-/// 🔒 `06` §3 — the standard drafted perk catalogue, read out of <c>content/perks/perks.json</c>.
-/// </summary>
+/// <summary>The standard drafted perk catalogue, read out of <c>content/perks/perks.json</c>.</summary>
 /// <remarks>
-/// Read per command out of the command's own <c>ContentSnapshot</c>, never cached statically —
-/// the same shape <c>EventCatalogue</c> and <c>MinigameRewardTuning</c> are read in: `30` §3
-/// versions the snapshot per command, so a static cache would serve one command's content to
-/// another.
+/// Read per command out of the command's own <c>ContentSnapshot</c>, never cached statically: the
+/// snapshot is versioned per command, so a static cache would serve one command's content to another.
 /// </remarks>
 public sealed class PerkCatalogue
 {
-    /// <summary>The document `06` §3's catalogue is transcribed into.</summary>
+    /// <summary>The document the catalogue is transcribed into.</summary>
     public const string DocumentPath = "content/perks/perks.json";
 
-    /// <summary>`06` §3 — the authored perk rows.</summary>
+    /// <summary>The authored perk rows.</summary>
     public const string PerksReference = DocumentPath + "#/perks";
 
     private readonly IReadOnlyDictionary<string, PerkCatalogueEntry> _byId;
@@ -51,7 +47,7 @@ public sealed class PerkCatalogue
     /// <summary>Whether <paramref name="id"/> is an authored perk.</summary>
     public bool Contains(string id) => id is not null && _byId.ContainsKey(id);
 
-    /// <summary>Every perk of one `06` §4 rarity band, in the document's order.</summary>
+    /// <summary>Every perk of one rarity band, in the document's order.</summary>
     public IReadOnlyList<PerkCatalogueEntry> OfRarity(PerkRarity rarity)
     {
         var matches = new List<PerkCatalogueEntry>(All.Count);
@@ -68,7 +64,7 @@ public sealed class PerkCatalogue
     }
 
     /// <summary>Reads the perk catalogue. Throws rather than defaulting on anything unusable.</summary>
-    /// <param name="content">The version-stamped snapshot the command is reading (`30` §3).</param>
+    /// <param name="content">The version-stamped snapshot the command is reading.</param>
     /// <exception cref="MissingContentException">The document or a pointer is not there.</exception>
     /// <exception cref="ContentTypeMismatchException">A leaf holds the wrong shape.</exception>
     /// <exception cref="InvalidTunableException">A value is authorised but unusable.</exception>

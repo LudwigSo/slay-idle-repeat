@@ -7,19 +7,16 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model.Snapshots;
 
 /// <summary>
-/// 🔒 The Collections row of the `14` §16.6 table: *"Lists in stored order. Every dictionary/map
-/// in ascending key order — ordinal for strings, numeric for numeric ids. No unordered container
-/// is ever hashed as-is."*
+/// Lists are written in stored order; every dictionary/map in ascending key order — ordinal for
+/// strings, numeric for numeric ids. No unordered container is ever hashed as-is.
 /// </summary>
 /// <remarks>
-/// The last sentence is the one with teeth, and it is enforced structurally rather than by
-/// convention: the writer dispatches over a <b>closed allowlist</b> of shapes and has no
-/// <c>IEnumerable</c> fallback, so a container whose order is undefined cannot be encoded at all.
-/// The refusal tests at the bottom of this file are what keep that allowlist closed.
+/// Enforced structurally rather than by convention: the writer dispatches over a closed allowlist
+/// of shapes with no <c>IEnumerable</c> fallback, so a container whose order is undefined cannot
+/// be encoded at all.
 /// </remarks>
 public sealed class CanonicalCollectionOrderingTests
 {
-    /// <summary>🔒 A list is written in stored order — its order is part of the state.</summary>
     [Fact]
     public void CanonicalBytes_writes_a_list_in_stored_order()
     {
@@ -48,9 +45,9 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// 🔒 The count prefix is what keeps nested collections apart. Without it <c>[[1],[2,3]]</c>
+    /// The count prefix is what keeps nested collections apart. Without it <c>[[1],[2,3]]</c>
     /// and <c>[[1,2],[3]]</c> flatten to the same bytes, and two genuinely different states would
-    /// share a <c>stateHash</c> — the one failure a state hash may never have.
+    /// share a <c>stateHash</c>.
     /// </summary>
     [Fact]
     public void CanonicalBytes_keeps_two_nested_lists_with_the_same_flat_elements_apart()
@@ -89,9 +86,9 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// 🔒 Two dictionaries with identical contents in different insertion orders hash
-    /// <b>identically</b>. This is the whole point of the ascending-key rule: the client and the
-    /// server build their maps by different routes and must still agree.
+    /// Two dictionaries with identical contents in different insertion orders hash
+    /// <b>identically</b> — the client and the server build their maps by different routes and
+    /// must still agree.
     /// </summary>
     [Fact]
     public void CanonicalBytes_writes_two_dictionaries_with_the_same_contents_identically()
@@ -106,10 +103,9 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// 🔒 String keys sort <b>ordinally</b>, not by culture. <c>"B"</c> (0x42) precedes
-    /// <c>"a"</c> (0x61) ordinally; almost every culture-aware comparer says the opposite. A
-    /// culture-sensitive sort makes the byte stream depend on the machine's locale, which is a
-    /// client/server split waiting for its first non-invariant device.
+    /// String keys sort <b>ordinally</b>, not by culture: <c>"B"</c> (0x42) precedes <c>"a"</c>
+    /// (0x61), while almost every culture-aware comparer says the opposite. A culture-sensitive
+    /// sort would make the byte stream depend on the machine's locale.
     /// </summary>
     [Fact]
     public void CanonicalBytes_sorts_string_keys_ordinally_rather_than_by_culture()
@@ -126,11 +122,9 @@ public sealed class CanonicalCollectionOrderingTests
 
     /// <summary>
     /// The fixture keys genuinely separate ordinal ordering from a non-ordinal one, so the test
-    /// above is a real distinction rather than a coincidence of whichever comparer happens to be
-    /// in play. Compared against <see cref="StringComparer.OrdinalIgnoreCase"/> rather than a
-    /// culture-aware comparer on purpose: a culture comparer answers differently under
-    /// globalization-invariant mode, which would make this guard fail on exactly the ARM64 hosts
-    /// the cross-platform determinism job (M5-12) runs on.
+    /// above is a real distinction. Compared against <see cref="StringComparer.OrdinalIgnoreCase"/>
+    /// rather than a culture-aware comparer on purpose: a culture comparer answers differently
+    /// under globalization-invariant mode.
     /// </summary>
     [Fact]
     public void The_fixture_keys_order_differently_under_ordinal_and_case_folding_comparers()
@@ -145,7 +139,7 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// 🔒 Numeric keys sort <b>numerically</b>, not by their string form: <c>-5</c> before
+    /// Numeric keys sort <b>numerically</b>, not by their string form: <c>-5</c> before
     /// <c>2</c> before <c>30</c>, where a textual sort would give <c>-5</c>, <c>30</c>, <c>2</c>.
     /// </summary>
     [Fact]
@@ -161,7 +155,7 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// 🔒 An unsigned key above <see cref="long.MaxValue"/> sorts as the large number it is, not
+    /// An unsigned key above <see cref="long.MaxValue"/> sorts as the large number it is, not
     /// as the negative one its bit pattern would be if compared signed.
     /// </summary>
     [Fact]
@@ -177,7 +171,6 @@ public sealed class CanonicalCollectionOrderingTests
             "ffffffffffffffff" + "0100000000000000");   // ulong.MaxValue last
     }
 
-    /// <summary>An enum-keyed map sorts by the underlying numeric value, like any numeric id.</summary>
     [Fact]
     public void CanonicalBytes_sorts_enum_keys_by_their_numeric_value()
     {
@@ -209,11 +202,8 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// 🔒 A <see cref="SortedDictionary{TKey, TValue}"/> built with a <b>non-ordinal</b> comparer
+    /// A <see cref="SortedDictionary{TKey, TValue}"/> built with a <b>non-ordinal</b> comparer
     /// still encodes ordinally: the writer imposes the order, it never inherits the container's.
-    /// <c>OrdinalIgnoreCase</c> iterates these keys as <c>a</c>, <c>B</c> — the exact reverse of
-    /// the ordinal order the bytes must carry — and, unlike a culture-aware comparer, it says so
-    /// identically on every host and under globalization-invariant mode.
     /// </summary>
     [Fact]
     public void CanonicalBytes_ignores_the_comparer_a_sorted_dictionary_was_built_with()
@@ -242,9 +232,9 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// 🔒 *"No unordered container is ever hashed as-is."* Each of these shapes has no defined
-    /// order — or, for the last two, no pinned encoding at all — and the writer refuses them
-    /// rather than picking one. If any of these ever starts hashing, a fallback branch grew back.
+    /// No unordered container is ever hashed as-is: each of these shapes has no defined order —
+    /// or, for the last two, no pinned encoding at all — and the writer refuses them rather than
+    /// picking one. If any of these ever starts hashing, a fallback branch grew back.
     /// </summary>
     [Theory]
     [MemberData(nameof(UnorderedContainers))]
@@ -256,8 +246,8 @@ public sealed class CanonicalCollectionOrderingTests
     }
 
     /// <summary>
-    /// The scalar shapes §16.6 does not pin are refused too, for the same reason: an encoder that
-    /// invents a byte layout for one of them has invented a second serialisation contract.
+    /// Unpinned scalar shapes are refused too: an encoder that invents a byte layout for one of
+    /// them has invented a second serialisation contract.
     /// </summary>
     [Theory]
     [MemberData(nameof(UnpinnedScalars))]
@@ -268,7 +258,6 @@ public sealed class CanonicalCollectionOrderingTests
         Should.Throw<NotSupportedException>(act).Message.ShouldMatchWildcard("*16.6*");
     }
 
-    /// <summary>The containers with no defined iteration order, one fixture per shape.</summary>
     public static TheoryData<object> UnorderedContainers() => new()
     {
         new UnsupportedSnapshots.WithHashSet(new HashSet<string> { "a" }),
@@ -278,7 +267,6 @@ public sealed class CanonicalCollectionOrderingTests
         new UnsupportedSnapshots.WithUnorderableKey(UnsupportedSnapshots.GuidMap),
     };
 
-    /// <summary>The scalar types §16.6's table does not cover, one fixture per type.</summary>
     public static TheoryData<object> UnpinnedScalars() => new()
     {
         new UnsupportedSnapshots.WithSingle(1f),

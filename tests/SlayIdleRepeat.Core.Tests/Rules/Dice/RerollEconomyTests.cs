@@ -4,7 +4,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Dice;
 
-/// <summary>`04` §3's reroll-charge and Nudge arithmetic.</summary>
+/// <summary>Reroll-charge and Nudge arithmetic.</summary>
 public sealed class RerollEconomyTests
 {
     [Fact]
@@ -18,10 +18,8 @@ public sealed class RerollEconomyTests
     public void Every_bonus_source_adds()
     {
         // Hardcoded literal, not RerollEconomy's own constants — a test that read the constants
-        // back would pass no matter what values production used (S1; the same fix already applied
-        // to FairDiceBagTests.Decay_and_boost_constants_are_04_4s_own_numbers). Kept under
-        // MaxStoredCharges so this asserts addition, not the separately tested cap: base 1 + talent
-        // 1 + Campfire 2 = 4.
+        // back would pass no matter what values production used. Kept under MaxStoredCharges so
+        // this asserts addition, not the separately tested cap: base 1 + talent 1 + Campfire 2 = 4.
         RerollEconomy.TotalCharges(talentBonus: 1, campfireVisited: true, perkBonus: 0, rerollTokensUsed: 0)
             .ShouldBe(4);
     }

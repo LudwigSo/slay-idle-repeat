@@ -5,33 +5,23 @@ using SlayIdleRepeat.Core.Rng;
 
 namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 
-/// <summary>
-/// 🔒 `03` §2 / `19` Part E — <c>TILE_CURSE</c>: draw one chapter-eligible curse and pay its
-/// authored paired reward.
-/// </summary>
+/// <summary><c>TILE_CURSE</c>: draw one chapter-eligible curse and pay its authored paired reward.</summary>
 /// <remarks>
 /// <para>
-/// ⚠️⚠️ <b>THIS RESOLVER DOES NOT APPLY THE CURSE. It pays the reward and stops.</b> That is the
-/// single most important thing to know about it, and it is a scope boundary rather than a bug. `19`
-/// Part E's curses are a <em>rules engine</em> — no stacking, the paired-reward payout, the
-/// <c>AD_SKIP_CURSE</c> hook and mount immunity — and that engine is M3-11's, tracked by
-/// <c>GapRegister</c>'s <c>Curses</c> entry, keyed on a <c>CurseDefinition</c> type that must not yet
-/// exist. <c>Run</c> therefore holds no curse list, and this task deliberately does not add one:
-/// a held-curse list authored now would freeze the curse's shape under all four of those unwritten
-/// rules (steering <b>S6</b>).
+/// This resolver does not apply the curse — it pays the reward and stops. Curses are a full rules
+/// engine (stacking, the paired-reward payout, an ad-skip hook, mount immunity) that does not exist
+/// in this codebase yet, and <c>Run</c> holds no curse list. Authoring a held-curse list now would
+/// freeze the curse's shape under all of those unwritten rules.
 /// </para>
 /// <para>
-/// 🔒 <b>What that means concretely for a player today.</b> Landing on a curse tile is
-/// <em>strictly good</em>: they take the Gold or the Enhance Stones and suffer none of the debuff.
-/// That is a known, temporary imbalance owned by M3-11, not an economy this task is claiming is
-/// correct. The alternative — paying nothing either — would be worse: it would make the tile
-/// mechanically inert and hide the gap behind a tile that appears to work.
+/// What that means for a player today: landing on a curse tile is strictly good — they take the
+/// Gold or Enhance Stones and suffer no debuff. That is a known, temporary imbalance rather than
+/// this tile's real economy; paying nothing instead would be worse, since it would hide the gap
+/// behind a tile that looks like it works.
 /// </para>
 /// <para>
-/// 🔒 <b>The draw happens on the <c>drops</c> stream, and that is a recorded assumption.</b>
-/// `14` §8.1's registry is closed and authors no curse stream; <c>drops</c> is the closest existing
-/// semantic fit, and adding a registry row would be a protocol change (`14` §2.3 puts stream names on
-/// the wire) this task is not authorised to make.
+/// The draw happens on the <c>drops</c> stream — the closest existing semantic fit; there is no
+/// dedicated curse stream.
 /// </para>
 /// </remarks>
 internal static class CurseTileResolver
@@ -39,7 +29,7 @@ internal static class CurseTileResolver
     /// <inheritdoc cref="TreasureResolver.Reason"/>
     internal const string Reason = "curse_tile_reward";
 
-    /// <summary>Resolves a curse tile: draws an eligible curse and pays its `19` Part E reward.</summary>
+    /// <summary>Resolves a curse tile: draws an eligible curse and pays its authored reward.</summary>
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
     /// <returns>
     /// The single <see cref="CurrencyChanged"/> the drawn curse's reward pays — on the <c>Run</c> for
@@ -56,11 +46,10 @@ internal static class CurseTileResolver
         var chapterId = input.Run.ChapterId;
         var catalogue = CurseTuning.Read(input.Context.Content);
 
-        // 🔒 Only the rows this task can honestly resolve: eligible for the chapter AND carrying a
-        // reward CurseRewards has a named row for. The second filter is not a convenience — a curse
-        // whose reward is "+12% ATK" or "+1 gear drop per Elite" has no system to pay it, so drawing
-        // one would mean applying neither the debuff nor the reward, i.e. a tile that did nothing at
-        // all while looking like it resolved.
+        // Only the rows this task can honestly resolve: eligible for the chapter AND carrying a
+        // reward CurseRewards has a named row for — a curse with no payable reward would mean
+        // applying neither the debuff nor the reward, i.e. a tile that did nothing while looking
+        // like it resolved.
         var eligible = new List<CurseTileRow>(CurseRewards.PayableIds.Count);
 
         foreach (var row in catalogue.AvailableFrom(chapterId))

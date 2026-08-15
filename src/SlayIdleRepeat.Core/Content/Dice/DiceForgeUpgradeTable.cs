@@ -1,52 +1,27 @@
 namespace SlayIdleRepeat.Core.Content.Dice;
 
 /// <summary>
-/// 🔒 <b>Authored by M3-04.</b> <c>TILE_DICE_FORGE</c>'s upgrade menu — which faces the tile can
-/// target and what it can turn them into. No document authors this table; `03_BOARD_AND_TILES.md`'s
-/// tile description only implies one exists ("turn a `1` into a `4`, or into a `★`"), and `18` §7.9's
-/// only worked example is one hardcoded outcome. This is content-authoring judgement, grounded in `04`
-/// §1's existing face/tier system — not invented from nothing. See the remarks for the reasoning
-/// behind each row.
+/// <c>TILE_DICE_FORGE</c>'s upgrade menu — which faces the tile can target and what it can turn
+/// them into. No document authors this table verbatim; it is content-authoring judgement, grounded
+/// in the existing face/tier system rather than invented from nothing.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>Only a <see cref="DieFaceKind.Pip"/> face may be the SOURCE.</b> Both of `03`'s own examples
-/// start from a Pip ("turn a `1`..."), and `04` §1 is explicit that <see cref="DieFaceKind.Void"/> is
-/// "Curse-inflicted only, never an upgrade target" — the one kind the design rules out by name. A
-/// face already upgraded to <see cref="DieFaceKind.Star"/>/<see cref="DieFaceKind.Surge"/>/
-/// <see cref="DieFaceKind.Fortune"/>/<see cref="DieFaceKind.Chain"/> is not offered as a further
-/// source: `04` §2's whole upgrade-source table shows every OTHER source targeting a <em>Pip</em>
-/// face specifically (Weighted Faces: 1/3/4; Surging Fate: 2; Sixth Star: 6; Chainweaver: 4; Golden
-/// Fate: 5; Starhoof Stag: 3) — none re-targets an already-special face, so Dice Forge does not
-/// either.
+/// Only a <see cref="DieFaceKind.Pip"/> face may be the source: <see cref="DieFaceKind.Void"/> is
+/// curse-inflicted only and never an upgrade target, and every other existing upgrade source in the
+/// game targets a Pip face specifically, so a face already upgraded to a special kind is not
+/// offered as a further source.
 /// </para>
 /// <para>
-/// 🔒 <b>Every TARGET kind below is one `04` §2 already authors a permanent or mount source
-/// converting a Pip face into</b> — Dice Forge's run-scoped menu is a subset of the game's existing
-/// upgrade vocabulary, not a new one:
+/// Every target kind below is one the game's talents/mounts already convert a Pip face into
+/// elsewhere — this table's run-scoped menu is a subset of the existing upgrade vocabulary, not a
+/// new one: <see cref="DieFaceKind.Star"/>, <see cref="DieFaceKind.Surge"/> (at tier 0, the floor —
+/// no source ties a higher tier to this grant), <see cref="DieFaceKind.Fortune"/>,
+/// <see cref="DieFaceKind.Chain"/>, or a higher Pip value 1..6.
 /// </para>
-/// <list type="bullet">
-///   <item><see cref="DieFaceKind.Star"/> — `03`'s own flavor text names it directly, and the
-///   Sixth Star keystone (`04` §2) already converts a Pip face to it permanently.</item>
-///   <item><see cref="DieFaceKind.Surge"/>, at <b>tier 0</b> — the Surging Fate talent (`04` §2)
-///   converts <c>2→Surge</c>. No document ties a Dice Forge grant to a higher tier, and 0 is the
-///   floor `04` §1 defines — inventing a higher one would be exactly the S6 hole this table exists
-///   to avoid.</item>
-///   <item><see cref="DieFaceKind.Fortune"/> — both the Golden Fate keystone and the Starhoof Stag
-///   mount (`04` §2) convert a Pip face to it.</item>
-///   <item><see cref="DieFaceKind.Chain"/> — the Chainweaver keystone (`04` §2) converts
-///   <c>4→Chain</c>.</item>
-///   <item>A <b>higher Pip value</b>, 1..6 — the Weighted Faces talent's own shape
-///   (<c>1→2</c> rank1, <c>1→3</c> rank3, <c>1→4</c> rank5): a Dice Forge visit lets the player raise
-///   any Pip face to any higher Pip value in one step, `03`'s "turn a `1` into a `4`" example
-///   exactly.</item>
-/// </list>
 /// <para>
-/// 🔒 <b>No cost.</b> `18` §7.9's <c>MODIFY_DIE_FACE</c> shape has no cost key at all (confirmed by
-/// direct read of `18`), and every other single-target board tile in `03` (Shrines, Treasure) is
-/// "spent" by the act of landing on it rather than by a further currency charge. Landing on
-/// <c>TILE_DICE_FORGE</c> is therefore the whole cost, matching the rest of the board's tile economy
-/// rather than inventing a gold price nothing authors.
+/// No cost: landing on the tile is the whole cost, matching every other single-target board tile
+/// that is "spent" by the act of landing on it rather than a further currency charge.
 /// </para>
 /// </remarks>
 public static class DiceForgeUpgradeTable
