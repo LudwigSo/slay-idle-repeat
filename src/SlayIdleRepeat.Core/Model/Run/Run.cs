@@ -49,12 +49,15 @@ namespace SlayIdleRepeat.Core.Model;
 /// </para>
 /// <para>
 /// ⚠️ <b>What `30` §4 lists on <c>Run</c> and this aggregate deliberately does not carry.</b> The
-/// board, the drafted perks, the held consumables (with the armed Escape Rope flag), the pending
-/// fork choice and the curses — five of §4's ten items — are all deferred with an entry in
+/// drafted perks, the held consumables (with the armed Escape Rope flag) and the curses — three of
+/// §4's ten items — are still deferred with an entry in
 /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, each keyed on a type that must not yet
-/// exist, so the build fails on the day each becomes writable. The run's <b>phase</b> is deferred
-/// too, and that one has a consequence worth stating: without it <c>Apply</c> cannot produce
-/// `14` §16.2's <c>RUN_ALREADY_ENDED</c> or <c>ILLEGAL_STATE</c>, and M3-05 pays a
+/// exist, so the build fails on the day each becomes writable. The <b>board</b> and the <b>pending
+/// fork choice</b> are M3-02's: the board is never stored (it regenerates deterministically from
+/// <see cref="RunSeed"/> and the run's committed <c>board</c> stream position, `14` §8.1), and the
+/// pending fork choice is <see cref="PendingFork"/>. The run's <b>phase</b> is deferred too, and
+/// that one has a consequence worth stating: without it <c>Apply</c> cannot produce `14` §16.2's
+/// <c>RUN_ALREADY_ENDED</c> or <c>ILLEGAL_STATE</c>, and M3-05 pays a
 /// <see cref="SnapshotSchema.SchemaVersion"/> bump for it.
 /// </para>
 /// </remarks>
@@ -80,7 +83,7 @@ public sealed class Run
     /// hold it — <see cref="MoveTo"/> and <see cref="Rehydrate"/> — cannot drift apart.
     /// </para>
     /// </remarks>
-    private const int TrailheadPosition = -1;
+    internal const int TrailheadPosition = -1;
 
     /// <summary>
     /// 🔒 The run's <c>GOLD</c> balance — and the field name is <b>load-bearing</b>, not stylistic.
@@ -192,6 +195,13 @@ public sealed class Run
     private int _maxHp;
 
     /// <summary>
+    /// 🔒 M3-02, `03` §1.1 / `30` §4 — a movement paused mid-move at a junction, waiting for
+    /// <c>CHOOSE_FORK</c>. Null on every run that is not, right now, standing at a junction with
+    /// movement still to spend.
+    /// </summary>
+    private PendingFork? _pendingFork;
+
+    /// <summary>
     /// The one constructor. Private, and it <b>trusts</b>: every value has already been checked by
     /// <see cref="Rehydrate"/>, which is the only caller.
     /// </summary>
@@ -215,7 +225,8 @@ public sealed class Run
         long gold,
         IReadOnlyDictionary<string, ulong> streamPositions,
         Dictionary<string, long> adUses,
-        Dictionary<int, string> resolvedMinigames)
+        Dictionary<int, string> resolvedMinigames,
+        PendingFork? pendingFork)
     {
         Id = id;
         PlayerId = playerId;
@@ -232,6 +243,7 @@ public sealed class Run
         _adUsesView = new ReadOnlyDictionary<string, long>(adUses);
         _resolvedMinigames = resolvedMinigames;
         _resolvedMinigamesView = new ReadOnlyDictionary<int, string>(resolvedMinigames);
+        _pendingFork = pendingFork;
     }
 
     /// <summary>The aggregate root's identity (`30` §4).</summary>
@@ -287,24 +299,41 @@ public sealed class Run
     /// </remarks>
     public DateTimeOffset LastAppliedAtUtc => _lastAppliedAtUtc;
 
-    /// <summary>The linear node index the run stands on (`14` §2.3's <c>newPosition</c>).</summary>
+    /// <summary>
+    /// The node the run stands on (`14` §2.3's <c>newPosition</c>) — a
+    /// <see cref="Rules.Board.NodeId"/>'s <c>Value</c>, once M3-02's movement engine has generated
+    /// this run's board.
+    /// </summary>
     /// <remarks>
     /// <para>
-    /// ⚠️ <b>Stored, and still checked only against `03` §1.1's trailhead floor.</b> `30` §11.5 names
-    /// <em>"a run's position is a valid node"</em> as an invariant of this aggregate. M3-01 authored
-    /// node identity (<c>SlayIdleRepeat.Core.Rules.Board.NodeId</c>/<c>Board</c>/
-    /// <c>BoardGenerator.GenerateBoard</c>), which is what this remark used to wait on — but
-    /// validating a specific run's position against a specific node still needs <em>this run's</em>
-    /// generated board, which needs <c>GenerateBoard</c> called over this run's chapter/tier/seed via
-    /// <c>RunRngScope</c> — the movement engine's job, M3-02, not this aggregate's. Inventing a range
-    /// check — "0..42", say — would be a partial invariant that reads like the real one and would be
-    /// trusted as such by everything downstream, which is worse than an absent one. The real
-    /// validation is registered as the <c>Board</c> entry in
-    /// <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c>, now keyed on <c>RollDice</c> (M3-02's
-    /// handler), so the build fails on the day it arrives.
+    /// 🔒 <b>M3-02's ruling, recorded here rather than discovered by diffing a wire trace against
+    /// `03` §1.1's prose.</b> The design document calls this "the linear node index" throughout, and
+    /// for every position a run can persist <em>between commands while standing on the spine or the
+    /// boss</em>, it is exactly that: <c>Rules.Board.BoardGenerator</c> assigns every spine node's
+    /// <c>NodeId</c> in increasing linear-index order, before any fork branch is built, so a spine or
+    /// boss node's <c>NodeId.Value</c> and its <see cref="Rules.Board.BoardNode.LinearIndex"/> are the
+    /// same number by construction. They diverge only while a run is genuinely standing <em>inside a
+    /// fork branch</em> — the one case `03` §1.1 itself says a linear index cannot name uniquely
+    /// (<see cref="Rules.Board.BoardNode.LinearIndex"/>'s own remarks): "a branch node shares its
+    /// linear index with the spine node at the same forward distance from its junction." A plain
+    /// linear index stored here could not tell those two nodes apart the moment a
+    /// <c>CHOOSE_FORK</c>'d move ends its command short of the branch's rejoin — so this field is the
+    /// node's actual graph identity, which happens to equal the linear index everywhere a wire reader
+    /// would expect it to.
     /// </para>
     /// <para>
-    /// 🔒 The one bound that <b>is</b> checked is not invented either: see
+    /// ⚠️ <b>Stored, and still checked only against `03` §1.1's trailhead floor.</b> `30` §11.5 names
+    /// <em>"a run's position is a valid node"</em> as an invariant of this aggregate — and `30` §11.4
+    /// forbids <c>Model</c> from referencing <c>Rules</c> at all, so this aggregate structurally
+    /// cannot hold a <see cref="Rules.Board.BoardGraph"/> to check itself against. The real
+    /// enforcement is that <b>only</b> M3-02's movement engine (<c>Handlers.RollDice</c>,
+    /// <c>Handlers.ChooseFork</c>) ever calls <see cref="MoveTo"/>, and it only ever does so with a
+    /// value it has itself just read off a node of the run's own regenerated board — the same shape
+    /// <c>SetHitPoints</c>'s overheal clamp already takes (`30` §11.5: the aggregate refuses an
+    /// impossible answer, the caller that computed it keeps the arithmetic honest).
+    /// </para>
+    /// <para>
+    /// 🔒 The one bound that <b>is</b> checked here is not invented either: see
     /// <see cref="TrailheadPosition"/>. `03` §1.1 authors −1 as the position every run stands at
     /// before its first roll, so that — and not zero — is the floor.
     /// </para>
@@ -386,6 +415,9 @@ public sealed class Run
 
     /// <inheritdoc cref="_resolvedMinigames"/>
     public IReadOnlyDictionary<int, string> ResolvedMinigames => _resolvedMinigamesView;
+
+    /// <inheritdoc cref="_pendingFork"/>
+    public PendingFork? PendingFork => _pendingFork;
 
     /// <summary>
     /// The next draw index of one `14` §8.1 stream, or <b>zero</b> for a registered stream this run
@@ -470,7 +502,9 @@ public sealed class Run
         _wallet,
         _streamPositions,
         CopyAdUses(_adUses),
-        CopyResolvedMinigames(_resolvedMinigames));
+        CopyResolvedMinigames(_resolvedMinigames),
+        _pendingFork?.JunctionPosition,
+        _pendingFork?.RemainingSteps);
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted run: <em>"a corrupt row fails
@@ -534,6 +568,7 @@ public sealed class Run
         var streams = ReadStreamPositions(snapshot, faults);
         var adUses = ReadAdUses(snapshot, faults);
         var resolvedMinigames = ReadResolvedMinigames(snapshot, faults);
+        RequirePendingFork(snapshot, faults);
 
         // The three `is null` arms are unreachable while `faults` is empty — every path that returns
         // null also adds a fault — but they are written as a pattern rather than as three `!`
@@ -544,6 +579,12 @@ public sealed class Run
                 "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
                 " problem(s)): " + string.Join(" | ", faults));
         }
+
+        // Safe only now: RequirePendingFork already proved the pair is either both absent or both
+        // present and in range, and no fault was added for it (faults.Count == 0, just checked).
+        var pendingFork = snapshot.PendingForkJunctionPosition is { } junctionPosition
+            ? new PendingFork(junctionPosition, snapshot.PendingForkRemainingSteps!.Value)
+            : (PendingFork?)null;
 
         return Result<Run>.Success(new Run(
             snapshot.Id,
@@ -558,7 +599,8 @@ public sealed class Run
             snapshot.Gold,
             streams,
             adUses,
-            resolvedMinigames));
+            resolvedMinigames,
+            pendingFork));
     }
 
     /// <summary>
@@ -673,10 +715,12 @@ public sealed class Run
                 "The lowest position a run can stand at is " + Text(TrailheadPosition) + " — 03 " +
                 "§1.1's virtual trailhead, one step before node 0, where every run stands before " +
                 "its first roll — and " + Text(position) + " is below it. That floor is the WHOLE " +
-                "position check: 30 §11.5's 'a run's position is a valid node' needs the specific " +
-                "board a specific run stands on (M3-02's, over the graph M3-01 already authored) " +
-                "and is registered as the Board entry in the gap register. A range check invented " +
-                "here would be a partial invariant wearing the real one's name.");
+                "check this seam runs: 30 §11.5's 'a run's position is a valid node' is enforced " +
+                "structurally instead, by M3-02's movement engine being the only caller of MoveTo " +
+                "and only ever calling it with a node it has itself just read off this run's own " +
+                "regenerated board — 30 §11.4 forbids Model from referencing Rules at all, so this " +
+                "aggregate cannot check itself against a board even if it wanted to. A range check " +
+                "invented here would be a partial invariant wearing the real one's name.");
         }
 
         _position = position;
@@ -875,6 +919,56 @@ public sealed class Run
         }
 
         _resolvedMinigames[position] = minigameId;
+    }
+
+    /// <summary>
+    /// 🔒 M3-02, `03` §1.1 — pauses movement at a junction, waiting for <c>CHOOSE_FORK</c>. Called by
+    /// the movement engine (<c>Handlers.RollDice</c>, <c>Handlers.ChooseFork</c>) instead of
+    /// finishing the move.
+    /// </summary>
+    /// <param name="pending">The junction and the movement still unspent once it is left.</param>
+    /// <remarks>
+    /// A defect, not a rejection, on a run that already has one pending: `03` §1.1 pauses only when
+    /// movement must leave a junction, and a run cannot be mid-move at two junctions at once — the
+    /// caller resolves (or never opened) any prior pause before it can reach a second one.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">A fork is already pending.</exception>
+    internal void BeginPendingFork(PendingFork pending)
+    {
+        if (_pendingFork is not null)
+        {
+            throw new InvalidOperationException(
+                "This run already has a PendingFork (junction " + Text(_pendingFork.Value.JunctionPosition) +
+                "). 03 §1.1 pauses movement at ONE junction at a time — a caller reaching here with a " +
+                "second pause already open has not resolved (or never checked) the first, which is a " +
+                "miswired handler, not a player mid-move at two junctions.");
+        }
+
+        _pendingFork = pending;
+    }
+
+    /// <summary>
+    /// 🔒 M3-02, `03` §1.1 — clears a resolved <see cref="PendingFork"/>, once <c>CHOOSE_FORK</c> has
+    /// taken the chosen edge and finished the interrupted movement.
+    /// </summary>
+    /// <remarks>
+    /// A defect, not a rejection, on a run with nothing pending: <c>Handlers.ChooseFork</c> refuses
+    /// that as <c>RejectionReason.ILLEGAL_STATE</c> before this seam is ever reached, exactly as
+    /// <c>RecordMinigameResolution</c>'s own duplicate check is refused earlier by its caller.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">No fork is pending.</exception>
+    internal void ClearPendingFork()
+    {
+        if (_pendingFork is null)
+        {
+            throw new InvalidOperationException(
+                "This run has no PendingFork to clear. Handlers.ChooseFork's own legality check is " +
+                "what is supposed to refuse CHOOSE_FORK on a run with nothing pending, as a " +
+                "RejectionReason, before this seam is ever reached. Reaching here means that check " +
+                "was skipped — a miswired handler, not a player choosing a fork that was never open.");
+        }
+
+        _pendingFork = null;
     }
 
     /// <summary>
@@ -1157,10 +1251,10 @@ public sealed class Run
                 nameof(RunSnapshot.Position) + " is " + Text(snapshot.Position) + ", below 03 §1.1's " +
                 "virtual trailhead at " + Text(TrailheadPosition) + " — the position every run " +
                 "stands at before its first roll, and therefore the lowest one a row can carry. ⚠️ " +
-                "That floor is the WHOLE position check: 30 §11.5's 'a run's position is a valid " +
-                "node' needs node identity, which is M3-01's and is registered as the Board entry in " +
-                "the gap register. A range check invented here would be a partial invariant wearing " +
-                "the real one's name.");
+                "That floor is the WHOLE check this validation runs: 30 §11.5's 'a run's position " +
+                "is a valid node' is enforced structurally by M3-02's movement engine (Run.Position's " +
+                "own remarks explain why this aggregate cannot check itself against a board). A " +
+                "range check invented here would be a partial invariant wearing the real one's name.");
         }
 
         var maxIsValid = snapshot.MaxHp >= 1;
@@ -1324,6 +1418,53 @@ public sealed class Run
 
         return faulted ? null : copy;
     }
+
+    /// <summary>
+    /// 🔒 M3-02 — <see cref="RunSnapshot.PendingForkJunctionPosition"/> and
+    /// <see cref="RunSnapshot.PendingForkRemainingSteps"/> are one fact stored as a pair (the same
+    /// shape <see cref="SetHitPoints"/> takes both halves for): both null, or both present and in
+    /// range. One present without the other is a row no <see cref="BeginPendingFork"/> call could
+    /// have written.
+    /// </summary>
+    private static void RequirePendingFork(RunSnapshot snapshot, List<string> faults)
+    {
+        var junctionPosition = snapshot.PendingForkJunctionPosition;
+        var remainingSteps = snapshot.PendingForkRemainingSteps;
+
+        if (junctionPosition is null && remainingSteps is null)
+        {
+            return;
+        }
+
+        if (junctionPosition is null || remainingSteps is null)
+        {
+            faults.Add(
+                nameof(RunSnapshot.PendingForkJunctionPosition) + " is " + TextOrNull(junctionPosition) +
+                " and " + nameof(RunSnapshot.PendingForkRemainingSteps) + " is " + TextOrNull(remainingSteps) +
+                ". A pending fork is one fact stored as a pair — both present or both absent — and a " +
+                "row carrying only one half is not a state Run.BeginPendingFork could have written.");
+            return;
+        }
+
+        if (junctionPosition.Value < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.PendingForkJunctionPosition) + " is " + Text(junctionPosition.Value) +
+                ". A junction is a real node of the board, never negative.");
+        }
+
+        if (remainingSteps.Value < 1)
+        {
+            faults.Add(
+                nameof(RunSnapshot.PendingForkRemainingSteps) + " is " + Text(remainingSteps.Value) +
+                ". 03 §1.1: landing exactly on a junction with zero movement left does not prompt a " +
+                "CHOOSE_FORK, so a pending fork with nothing left to spend could never have been " +
+                "created.");
+        }
+    }
+
+    /// <inheritdoc cref="Text(int)"/>
+    private static string TextOrNull(int? value) => value is { } v ? Text(v) : "null";
 
     /// <summary>
     /// 🔒 Renders a value with <see cref="CultureInfo.InvariantCulture"/>.

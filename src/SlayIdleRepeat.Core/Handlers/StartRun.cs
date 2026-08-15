@@ -160,7 +160,9 @@ internal static class StartRun
             StartingGold,
             NoStreamPositions,
             NoAdUses,
-            NoResolvedMinigames);
+            NoResolvedMinigames,
+            PendingForkJunctionPosition: null,
+            PendingForkRemainingSteps: null);
 
         var run = Run.Rehydrate(snapshot);
 

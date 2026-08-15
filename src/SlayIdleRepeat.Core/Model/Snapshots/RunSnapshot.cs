@@ -109,6 +109,16 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// resolved at it. See <c>Run</c>'s private field of the same name for why the position stands in
 /// for a tile instance no board/pending-tile state exists to name yet.
 /// </param>
+/// <param name="PendingForkJunctionPosition">
+/// 🔒 M3-02, SchemaVersion 4, `03` §1.1 — the paused junction's identity (<see cref="Position"/>'s
+/// own units), or <c>null</c> when this run is not, right now, mid-move at a junction. One fact
+/// stored as a pair with <paramref name="PendingForkRemainingSteps"/>: both null, or both present —
+/// see <c>Run.PendingFork</c>.
+/// </param>
+/// <param name="PendingForkRemainingSteps">
+/// 🔒 M3-02, SchemaVersion 4 — how many steps of the interrupted movement remain unspent once the
+/// chosen edge is taken. <c>null</c> exactly when <paramref name="PendingForkJunctionPosition"/> is.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -127,15 +137,17 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// </para>
 /// <para>
 /// ⚠️ <b>What `30` §4 lists on <c>Run</c> and this record does not carry.</b> §4's Run row
-/// enumerates ten things; five are here (position, HP, run Gold, RNG stream positions, per-run ad
-/// uses) and five are not: the <b>board</b>, the <b>drafted perks</b>, the <b>held consumables and
-/// armed Escape Rope flag</b>, the <b>pending fork choice</b> and the <b>curses</b>. Each is
+/// enumerates ten things; seven are here (position, HP, run Gold, RNG stream positions, per-run ad
+/// uses, and — as of SchemaVersion 4 — the pending fork choice) and three are not: the <b>drafted
+/// perks</b>, the <b>held consumables and armed Escape Rope flag</b> and the <b>curses</b>. Each is
 /// deferred with an entry in <c>SlayIdleRepeat.Architecture.Tests.GapRegister</c> keyed on a type
 /// that must not yet exist, so the build fails on the day each becomes writable rather than the hole
-/// waiting to be noticed. The run's <b>phase</b> (`02` §1.1's state machine) is deferred too, for a
-/// sharper reason: §1.1's diagram is a <em>client presentation</em> machine while `14` §2.3's
-/// <c>ROLL_DICE</c> answers face, movement and landing in one command, so which of its states are
-/// server-side aggregate state is M3-05's ruling.
+/// waiting to be noticed. The <b>board</b> is never stored at all — M3-02 regenerates it
+/// deterministically from <see cref="RunSeed"/> and <see cref="RngStreamPositions"/>'s <c>board</c>
+/// entry on every command, so there is nothing for a snapshot field to hold. The run's <b>phase</b>
+/// (`02` §1.1's state machine) is deferred too, for a sharper reason: §1.1's diagram is a <em>client
+/// presentation</em> machine while `14` §2.3's <c>ROLL_DICE</c> answers face, movement and landing
+/// in one command, so which of its states are server-side aggregate state is M3-05's ruling.
 /// </para>
 /// <para>
 /// ⚠️ <b>Two deliberate omissions with their costs named.</b> There is no <c>sequence</c>: `14`
@@ -167,4 +179,6 @@ public sealed record RunSnapshot(
     long Gold,
     IReadOnlyDictionary<string, ulong> RngStreamPositions,
     IReadOnlyDictionary<string, long> AdUses,
-    IReadOnlyDictionary<int, string> ResolvedMinigames);
+    IReadOnlyDictionary<int, string> ResolvedMinigames,
+    int? PendingForkJunctionPosition,
+    int? PendingForkRemainingSteps);
