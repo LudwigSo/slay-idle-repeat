@@ -37,8 +37,11 @@ public static class SnapshotSchema
     /// so a row stamped 1 is refused loudly by <c>Player.Rehydrate</c> rather than read against the
     /// wrong layout. <b>3</b> — M3-03c added <c>RunSnapshot.ResolvedMinigames</c>, `03` §6.2's
     /// per-tile minigame legality gate (position → the <c>MG_*</c> id resolved there). Same ruling,
-    /// no migration.
+    /// no migration. <b>4</b> — M3-03 added <c>RunSnapshot</c>'s four pending-tile fields
+    /// (<c>PendingTileKind</c>, <c>PendingTileLinearIndex</c>, <c>PendingTileStage</c>,
+    /// <c>PendingEventCardId</c>), the seam between arriving at a tile and resolving it. Same
+    /// ruling, no migration.
     /// </para>
     /// </remarks>
-    public const int SchemaVersion = 3;
+    public const int SchemaVersion = 4;
 }

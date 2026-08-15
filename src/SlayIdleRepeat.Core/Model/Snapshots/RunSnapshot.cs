@@ -109,6 +109,49 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// resolved at it. See <c>Run</c>'s private field of the same name for why the position stands in
 /// for a tile instance no board/pending-tile state exists to name yet.
 /// </param>
+/// <param name="PendingTileKind">
+/// 🔒 M3-03, SchemaVersion 4 — the <c>(int)TileKind</c> of the tile the run has arrived at and not
+/// yet resolved, or <b>−1</b> for "no tile is pending".
+/// <para>
+/// ⚠️ <b>−1 is a safe sentinel rather than a guess:</b> <c>TileKind</c>'s fourteen members run
+/// <c>0..13</c> with no explicit values and therefore no negative member, so no legal kind can
+/// collide with it. A nullable <c>int?</c> would have been the other option and is deliberately not
+/// used — <c>CanonicalStateWriter</c> would gain a nullable slot in the field-order pin for a field
+/// that already has an unambiguous absent value.
+/// </para>
+/// <para>
+/// This is the seam between <em>landing</em> on a tile (M3-02's movement engine, unbuilt) and
+/// <em>resolving</em> it (<c>RESOLVE_TILE</c> / <c>EVENT_CHOOSE</c> / <c>CAMPFIRE_CHOOSE</c>). It is
+/// deliberately <b>not</b> `30` §4's "pending fork choice", which is a different pause at a junction
+/// and stays deferred as <c>GapRegister</c>'s <c>PendingFork</c> entry.
+/// </para>
+/// </param>
+/// <param name="PendingTileLinearIndex">
+/// `03` §1.1's linear node index of the pending tile. Meaningless — and stored as <c>0</c> for
+/// determinism — when <paramref name="PendingTileKind"/> is −1.
+/// <para>
+/// ⚠️ Validated only against a floor of 0, for the same reason <paramref name="Position"/> is
+/// validated only against its trailhead floor: the real upper bound is a property of this run's
+/// generated board, which is M3-02's, and a range check invented here would be a partial invariant
+/// wearing the real one's name.
+/// </para>
+/// </param>
+/// <param name="PendingTileStage">
+/// `03` §1's stage the pending tile belongs to — <c>1</c>, <c>2</c>, <c>3</c>, or
+/// <c>BoardGraph.BossStage</c> for the boss node, which belongs to none. <c>0</c> when no tile is
+/// pending, which is also <c>BossStage</c>'s value and is unambiguous because
+/// <paramref name="PendingTileKind"/> is what says whether a tile is pending at all.
+/// </param>
+/// <param name="PendingEventCardId">
+/// 🔒 The `19` Part A card a pending <c>TILE_EVENT</c> has already drawn, or <c>""</c> when none has
+/// been drawn — <b>never <c>null</c></b>.
+/// <para>
+/// 🔒 <b>It exists so the card cannot be re-drawn.</b> An event resolves across two commands:
+/// <c>RESOLVE_TILE</c> draws the card and <c>EVENT_CHOOSE</c> resolves the chosen option. Without a
+/// stored id, a client that disliked its card could resubmit <c>RESOLVE_TILE</c> and draw again —
+/// a reroll `14` §8.1's whole determinism model exists to make impossible.
+/// </para>
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -167,4 +210,8 @@ public sealed record RunSnapshot(
     long Gold,
     IReadOnlyDictionary<string, ulong> RngStreamPositions,
     IReadOnlyDictionary<string, long> AdUses,
-    IReadOnlyDictionary<int, string> ResolvedMinigames);
+    IReadOnlyDictionary<int, string> ResolvedMinigames,
+    int PendingTileKind,
+    int PendingTileLinearIndex,
+    int PendingTileStage,
+    string PendingEventCardId);

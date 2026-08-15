@@ -1,0 +1,61 @@
+using SlayIdleRepeat.Core.Model;
+
+namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
+
+/// <summary>
+/// 🔒 `03` §2 — <c>TILE_CAMPFIRE</c>'s rest option: heal 40% of Max HP.
+/// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>No RNG at all.</b> The campfire's three options are fixed — there is nothing to draw, and
+/// opening a stream to draw nothing would advance a `14` §8.1 counter and change every later draw in
+/// the run.
+/// </para>
+/// <para>
+/// ⚠️ <b>Only the heal is here.</b> The campfire's other two options — upgrade a perk's tier, gain
+/// 2 Reroll Charges — act on state that does not exist: drafted perks are M3-06's
+/// (<c>GapRegister</c>'s <c>DraftedPerks</c> entry) and reroll charges are tracked nowhere in this
+/// codebase at all. <c>CampfireChoose</c> refuses both with <c>ILLEGAL_STATE</c> rather than
+/// accepting them as silent no-ops, which would tell a player they had rested when nothing happened.
+/// </para>
+/// </remarks>
+internal static class CampfireResolver
+{
+    /// <summary>
+    /// 🔒 `03` §2 — the campfire's healed share of Max HP.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ A recorded assumption, and it is the one number in this file worth arguing about.
+    /// <c>tuning/currencies.json</c> authors the <em>shop's</em> heal
+    /// (<c>shopTile/healPctMaxHp</c>, 0.35) and the <em>shrine's</em>
+    /// (<c>shrineBuffPool</c>'s <c>immediateHealPctMaxHp</c>), but authors <b>no campfire block at
+    /// all</b> — `03` §2's tile table is the only place the campfire's rest is described, and it is
+    /// prose. 0.40 is transcribed from that prose. It is a C# constant rather than a tunable
+    /// <em>because there is no tunable to read</em>, which `21` §3.1 would otherwise forbid; the
+    /// honest fix is a <c>currencies.json#/inRunIncome/campfire</c> block, which is a content change
+    /// this task did not own.
+    /// </remarks>
+    internal const double HealPctMaxHp = 0.40;
+
+    /// <summary>Rests at the campfire, healing <see cref="HealPctMaxHp"/> of Max HP.</summary>
+    /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
+    /// <returns>
+    /// An accepted result with no events: a heal is a <c>Run</c> mutation and there is no HP domain
+    /// event in the game (`30` §7 authors <c>CurrencyChanged</c> and <c>DiceRolled</c> and no third).
+    /// </returns>
+    internal static HandlerResult Heal(HandlerInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+
+        var run = input.Run;
+
+        // ⚠️ Overheal is clamped HERE, by the rule that computes it — Run.SetHitPoints refuses a
+        // current above the maximum rather than trimming it silently (30 §11.5), so a healing rule
+        // that over-delivered could not look correct.
+        var healed = (int)Math.Round(run.MaxHp * HealPctMaxHp, MidpointRounding.ToEven);
+
+        run.SetHitPoints(Math.Min(run.MaxHp, run.CurrentHp + healed), run.MaxHp);
+
+        return HandlerResult.Accept();
+    }
+}

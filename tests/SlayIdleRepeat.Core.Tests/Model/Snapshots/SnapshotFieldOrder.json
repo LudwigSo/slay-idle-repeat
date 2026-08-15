@@ -208,6 +208,69 @@
           "ResolvedMinigames{value}:System.String"
         ]
       }
+    },
+    {
+      "schemaVersion": 4,
+      "_why": [
+        "M3-03 appended FOUR fields to RunSnapshot -- the pending-tile seam between arriving at a",
+        "tile (M3-02's movement engine) and resolving it (RESOLVE_TILE / EVENT_CHOOSE /",
+        "CAMPFIRE_CHOOSE): PendingTileKind, PendingTileLinearIndex, PendingTileStage and",
+        "PendingEventCardId. The four steps in the README above were walked: SchemaVersion went",
+        "3 -> 4, this NEW entry was added, v3 was left exactly as it is, and no migration was",
+        "written -- the M1 kickoff's ruling that no migration code exists before soft launch, with",
+        "Run.Rehydrate refusing a row stamped 3 LOUDLY rather than reading it against this layout.",
+        "PlayerSnapshot did not change and is re-listed unchanged, because a version's entry",
+        "describes the WHOLE layout of that version."
+      ],
+      "snapshots": {
+        "PlayerSnapshot": [
+          "SchemaVersion:System.Int32",
+          "Id.Value:System.String",
+          "DisplayName:System.String",
+          "LegendLevel:System.Int32",
+          "LegendXp:System.Int64",
+          "RunsStarted:System.Int64",
+          "Wallet{key}:SlayIdleRepeat.Core.Primitives.CurrencyId",
+          "Wallet{value}:System.Int64",
+          "Energy.Energy:System.Int32",
+          "Energy.Reserve:System.Int32",
+          "EnergyAnchorUtc:System.DateTimeOffset",
+          "LastAppliedAtUtc:System.DateTimeOffset",
+          "FtueBeatId:SlayIdleRepeat.Core.Primitives.FtueBeat",
+          "FtueCompletedAtUtc:System.Nullable<System.DateTimeOffset>",
+          "DailyPeriodStartUtc:System.DateTimeOffset",
+          "DailyCounters{key}:System.String",
+          "DailyCounters{value}:System.Int64",
+          "WeeklyPeriodStartUtc:System.DateTimeOffset",
+          "WeeklyCounters{key}:System.String",
+          "WeeklyCounters{value}:System.Int64",
+          "LoginCalendarDay:System.Int32",
+          "LoginCalendarDayClaimed:System.Boolean"
+        ],
+        "RunSnapshot": [
+          "SchemaVersion:System.Int32",
+          "Id.Value:System.String",
+          "PlayerId.Value:System.String",
+          "RunSeed:System.UInt64",
+          "ChapterId:System.Int32",
+          "Tier:SlayIdleRepeat.Core.Primitives.DifficultyTier",
+          "LastAppliedAtUtc:System.DateTimeOffset",
+          "Position:System.Int32",
+          "CurrentHp:System.Int32",
+          "MaxHp:System.Int32",
+          "Gold:System.Int64",
+          "RngStreamPositions{key}:System.String",
+          "RngStreamPositions{value}:System.UInt64",
+          "AdUses{key}:System.String",
+          "AdUses{value}:System.Int64",
+          "ResolvedMinigames{key}:System.Int32",
+          "ResolvedMinigames{value}:System.String",
+          "PendingTileKind:System.Int32",
+          "PendingTileLinearIndex:System.Int32",
+          "PendingTileStage:System.Int32",
+          "PendingEventCardId:System.String"
+        ]
+      }
     }
   ]
 }

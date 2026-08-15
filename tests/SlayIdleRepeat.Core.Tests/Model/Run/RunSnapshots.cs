@@ -82,7 +82,11 @@ internal static class RunSnapshots
             0L,
             streams ? null! : Streams(),
             adUses ? null! : AdUses(),
-            resolvedMinigames ? null! : ResolvedMinigames());
+            resolvedMinigames ? null! : ResolvedMinigames(),
+            NoPendingTile,
+            0,
+            0,
+            NoPendingEventCard);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static RunSnapshot With(
@@ -99,7 +103,11 @@ internal static class RunSnapshots
         long? gold = null,
         IReadOnlyDictionary<string, ulong>? rngStreamPositions = null,
         IReadOnlyDictionary<string, long>? adUses = null,
-        IReadOnlyDictionary<int, string>? resolvedMinigames = null) =>
+        IReadOnlyDictionary<int, string>? resolvedMinigames = null,
+        int? pendingTileKind = null,
+        int? pendingTileLinearIndex = null,
+        int? pendingTileStage = null,
+        string? pendingEventCardId = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -114,5 +122,36 @@ internal static class RunSnapshots
             gold ?? 0L,
             rngStreamPositions ?? Streams(),
             adUses ?? AdUses(),
-            resolvedMinigames ?? ResolvedMinigames());
+            resolvedMinigames ?? ResolvedMinigames(),
+            pendingTileKind ?? NoPendingTile,
+            pendingTileLinearIndex ?? 0,
+            pendingTileStage ?? 0,
+            pendingEventCardId ?? NoPendingEventCard);
+
+    /// <summary>
+    /// M3-03 — <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here for
+    /// the reason <c>StartRun</c> restates it: <c>Run</c>'s own constant is private, and this is a
+    /// fixture writing a snapshot.
+    /// </summary>
+    internal const int NoPendingTile = -1;
+
+    /// <summary>M3-03 — <c>RunSnapshot.PendingEventCardId</c>'s "no card drawn" value.</summary>
+    internal const string NoPendingEventCard = "";
+
+    /// <summary>
+    /// The valid row standing on an unresolved tile of <paramref name="tileKind"/>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Takes the tile kind as an <c>int</c> rather than a <c>TileKind</c>, because
+    /// <c>Rules.Board.TileKind</c> is <c>internal</c> to <c>Core</c> and reachable from the test
+    /// assembly only through the `30` §11.3 <c>InternalsVisibleTo</c> grant — the snapshot itself
+    /// stores an <c>int</c> for the same accessibility reason, so the fixture mirrors the row.
+    /// </remarks>
+    internal static RunSnapshot OnPendingTile(
+        int tileKind, int linearIndex = 7, int stage = 1, string? eventCardId = null) =>
+        With(
+            pendingTileKind: tileKind,
+            pendingTileLinearIndex: linearIndex,
+            pendingTileStage: stage,
+            pendingEventCardId: eventCardId ?? NoPendingEventCard);
 }

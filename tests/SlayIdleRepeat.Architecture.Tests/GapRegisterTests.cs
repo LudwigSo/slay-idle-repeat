@@ -423,10 +423,11 @@ public sealed class GapRegisterTests
             .ToArray();
 
         owners.Length.ShouldBe(
-            42,
-            "14 §2.3's registry is 19 run + 30 meta, and 42 of the 49 rows are Deferred since M3-08 " +
-            "landed the SHOP_BUY/SHOP_REFRESH handlers (beside M3-15's START_RUN, M3-03c's " +
-            "MINIGAME_SUBMIT, M3-04's ROLL_DICE/USE_REROLL, and M1-09's BEGIN_SESSION). If this is 0 " +
+            39,
+            "14 §2.3's registry is 19 run + 30 meta, and 39 of the 49 rows are Deferred since M3-03 " +
+            "landed the RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE handlers (beside M3-08's " +
+            "SHOP_BUY/SHOP_REFRESH, M3-15's START_RUN, M3-03c's MINIGAME_SUBMIT, M3-04's " +
+            "ROLL_DICE/USE_REROLL, and M1-09's BEGIN_SESSION). If this is 0 " +
             "the pattern has stopped matching the dispatch table and the comparison below holds over " +
             "nothing; if it shrinks, either a row went away or a row became Handled — in which case " +
             "lower this by exactly that many and raise the Handled floor by the same.");
@@ -436,6 +437,7 @@ public sealed class GapRegisterTests
             {
                 "BEGIN_SESSION", "START_RUN", "MINIGAME_SUBMIT", "ROLL_DICE", "USE_REROLL",
                 "SHOP_BUY", "SHOP_REFRESH",
+                "RESOLVE_TILE", "EVENT_CHOOSE", "CAMPFIRE_CHOOSE",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
@@ -444,7 +446,12 @@ public sealed class GapRegisterTests
             "third; 04 §§1,3-4's ROLL_DICE and USE_REROLL (M3-04) the fourth and fifth; 03 §7's " +
             "SHOP_BUY and SHOP_REFRESH (M3-08) the sixth and seventh — real, dispatched handlers " +
             "that refuse every call today because no Run shaped by today's aggregate can carry an " +
-            "active shop offer yet (see Handlers.ShopBuy's remarks).");
+            "active shop offer yet (see Handlers.ShopBuy's remarks); and 03 §2's RESOLVE_TILE, " +
+            "EVENT_CHOOSE and CAMPFIRE_CHOOSE (M3-03) the eighth, ninth and tenth — one tile-resolver " +
+            "system reached through three commands. ⚠️ EVENT_CHOOSE and CAMPFIRE_CHOOSE were " +
+            "Deferred to 'M3-09' and 'M3-11' respectively, both STALE owners read off an earlier " +
+            "tracker; the M3 kickoff put both under M3-03 with the rest of the tile vocabulary. " +
+            "Their dispatch rows were corrected rather than left to go stale (steering S4).");
 
 
         (owners.Length + handled.Length).ShouldBe(

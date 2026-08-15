@@ -120,19 +120,46 @@ public static class GameRules
     /// <c>START_RUN</c> can create the <c>Run</c> its own guard demanded. M3-15's ruling is
     /// <see cref="CommandRegistration.OpensRun"/> — declared <c>true</c> on this row alone, read by
     /// <c>Execute</c>'s run-less guard to exempt exactly this row and by nothing else, so the other 18
-    /// <c>CommandKind.Run</c> rows still throw on a run-less slice exactly as before. This row is now
-    /// the second of three <c>Handled</c> rows described below — the first, <c>BEGIN_SESSION</c>,
-    /// answers the 29 remaining <c>Deferred</c> meta rows' <c>ILLEGAL_STATE</c> with `30` §2.3's day
-    /// cycle instead, and the third, M3-03c's <c>MINIGAME_SUBMIT</c>, is below it.
+    /// <c>CommandKind.Run</c> rows still throw on a run-less slice exactly as before. This row is one
+    /// of the ten <c>Handled</c> rows described below — the first, <c>BEGIN_SESSION</c>, answers the
+    /// 29 remaining <c>Deferred</c> meta rows' <c>ILLEGAL_STATE</c> with `30` §2.3's day cycle
+    /// instead, and M3-03c's <c>MINIGAME_SUBMIT</c> and M3-03's three tile rows are below it.
     /// </para>
     /// <para>
-    /// 🔒 <b>Forty-six rows are <c>Deferred</c> and three are <c>Handled</c>.</b> M1-09 swapped
+    /// 🔒 <b>Thirty-nine rows are <c>Deferred</c> and ten are <c>Handled</c>.</b>
+    /// <para>
+    /// ⚠️ <b>This sentence said "forty-six / three" until M3-03 and had been wrong for two
+    /// milestones</b> — M3-04's <c>ROLL_DICE</c> and <c>USE_REROLL</c> and M3-08's <c>SHOP_BUY</c> and
+    /// <c>SHOP_REFRESH</c> all landed as <c>Handled</c> rows without anyone updating the count, so the
+    /// true figure was forty-two / seven before this task added three more. It is corrected in place
+    /// with the error named rather than quietly rewritten (steering <b>S4</b>'s known limit), because
+    /// a count nobody can tell has drifted is worse than no count. <c>CommandVocabularyTests</c>'
+    /// deferred-row assertion is the mechanism that actually holds the number, and it is the one that
+    /// caught this.
+    /// </para>
+    /// M1-09 swapped
     /// <c>BEGIN_SESSION</c> — `30` §2.3's day cycle — to <c>Handled</c>, which was the one-line edit
     /// this table's shape was designed for and the first time <see cref="Execute"/>'s
     /// <c>registration.IsHandled</c> arm ran over the production table; M3-15 swapped
-    /// <c>START_RUN</c> the same way, and M3-03c swapped <c>MINIGAME_SUBMIT</c> a third time. ⚠️
+    /// <c>START_RUN</c> the same way, and M3-03c swapped <c>MINIGAME_SUBMIT</c> a third time.
+    /// <b>M3-03 swapped three more together</b> — <c>RESOLVE_TILE</c>, <c>EVENT_CHOOSE</c> and
+    /// <c>CAMPFIRE_CHOOSE</c> — because `03` §2's tile resolvers are one system reached through
+    /// three commands: <c>RESOLVE_TILE</c> branches by tile kind, and the event and campfire tiles
+    /// are the two whose resolution needs a second command to carry the player's choice.
+    /// <para>
+    /// 🔒 <b>Two of those three rows carried a STALE owner, corrected here rather than left to go
+    /// stale (steering <b>S4</b>, the same posture the <c>BEGIN_SESSION</c> paragraph above takes).</b>
+    /// <c>EVENT_CHOOSE</c> said <c>"M3-09"</c> and <c>CAMPFIRE_CHOOSE</c> said <c>"M3-11"</c>, both
+    /// read off an earlier tracker: M3-09 is not a tile task at all, and M3-11's curse engine is only
+    /// <em>adjacent</em> to the campfire (it owns the perk-tier and reroll-charge state the
+    /// campfire's other two options need, which is why <c>CampfireChoose</c> still refuses them).
+    /// The M3 kickoff put both commands' <em>dispatch</em> under M3-03 with the rest of the tile
+    /// vocabulary, and these rows now say so. <c>RESOLVE_TILE</c>'s own <c>"M3-03"</c> was correct
+    /// and simply came due.
+    /// </para>
+    /// ⚠️
     /// <b>The consequence for every handler-shaped rule stated over this table, which used to be
-    /// quantifying over nothing:</b> they now have three subjects rather than one, so a floor by
+    /// quantifying over nothing:</b> they now have ten subjects rather than one, so a floor by
     /// identity rather than by count is what keeps them honest — see
     /// <c>Every_command_type_is_handled_by_Apply</c>. Each row's owner
     /// is the task the tracker gives for the
@@ -157,15 +184,15 @@ public static class GameRules
         .Handled<RollDiceCommand>("ROLL_DICE", CommandKind.Run, RollDice.Handle)
         .Handled<UseRerollCommand>("USE_REROLL", CommandKind.Run, UseReroll.Handle)
         .Deferred<ChooseForkCommand>("CHOOSE_FORK", CommandKind.Run, "M3-02")
-        .Deferred<ResolveTileCommand>("RESOLVE_TILE", CommandKind.Run, "M3-03")
+        .Handled<ResolveTileCommand>("RESOLVE_TILE", CommandKind.Run, ResolveTile.Handle)
         .Deferred<PickPerkCommand>("PICK_PERK", CommandKind.Run, "M3-06")
         .Deferred<RerollDraftCommand>("REROLL_DRAFT", CommandKind.Run, "M3-06")
         .Deferred<SkipDraftCommand>("SKIP_DRAFT", CommandKind.Run, "M3-06")
         .Handled<ShopBuyCommand>("SHOP_BUY", CommandKind.Run, ShopBuy.Handle)
         .Handled<ShopRefreshCommand>("SHOP_REFRESH", CommandKind.Run, ShopRefresh.Handle)
-        .Deferred<EventChooseCommand>("EVENT_CHOOSE", CommandKind.Run, "M3-09")
+        .Handled<EventChooseCommand>("EVENT_CHOOSE", CommandKind.Run, EventChoose.Handle)
         .Handled<MinigameSubmitCommand>("MINIGAME_SUBMIT", CommandKind.Run, MinigameSubmit.Handle)
-        .Deferred<CampfireChooseCommand>("CAMPFIRE_CHOOSE", CommandKind.Run, "M3-11")
+        .Handled<CampfireChooseCommand>("CAMPFIRE_CHOOSE", CommandKind.Run, CampfireChoose.Handle)
         .Deferred<StartBattleCommand>("START_BATTLE", CommandKind.Run, "M3-05")
         .Deferred<ConfirmBattleResultCommand>("CONFIRM_BATTLE_RESULT", CommandKind.Run, "M3-05")
         .Deferred<ReviveCommand>("REVIVE", CommandKind.Run, "M3-13")

@@ -186,6 +186,44 @@ public sealed class Run
     /// <inheritdoc cref="_resolvedMinigames"/>
     private readonly ReadOnlyDictionary<int, string> _resolvedMinigamesView;
 
+    /// <summary>
+    /// 🔒 M3-03 — the <c>(int)TileKind</c> of the tile this run has arrived at and not yet resolved,
+    /// or <see cref="NoPendingTile"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Held as an <c>int</c> rather than a <c>TileKind?</c> because <see cref="RunSnapshot"/> carries
+    /// it as one — <c>Rules.Board.TileKind</c> is <c>internal</c> and a <b>public</b> snapshot record
+    /// may not name it, which is the same accessibility wall <c>ResolvedMinigames</c> hits with the
+    /// <c>MG_*</c> ids it stores as strings. The aggregate converts at
+    /// <see cref="PendingTileKind"/> so that no rule outside this file ever sees the raw integer.
+    /// </para>
+    /// <para>
+    /// ⚠️ Three fields rather than one small record, for the reason <see cref="_wallet"/> is a bare
+    /// <c>long</c>: <see cref="RunSnapshot"/> is <em>flat</em> (`30` §11.3), so a nested record would
+    /// buy nothing in storage and would add nested slots to the field-order pin.
+    /// </para>
+    /// </remarks>
+    private int _pendingTileKind;
+
+    /// <inheritdoc cref="_pendingTileKind"/>
+    private int _pendingTileLinearIndex;
+
+    /// <inheritdoc cref="_pendingTileKind"/>
+    private int _pendingTileStage;
+
+    /// <summary>
+    /// 🔒 M3-03 — the `19` Part A card a pending <c>TILE_EVENT</c> has already drawn, or <c>null</c>.
+    /// See <see cref="RunSnapshot.PendingEventCardId"/> for why re-drawing must be impossible.
+    /// </summary>
+    /// <remarks>
+    /// <c>null</c> in the aggregate, <c>""</c> in the snapshot: the aggregate's <c>null</c> is the
+    /// language's own "no value" and reads correctly at every call site, while the snapshot's empty
+    /// string keeps <c>CanonicalStateWriter</c> encoding a <c>System.String</c> slot rather than a
+    /// nullable one. <see cref="Rehydrate"/> is the seam that translates between them.
+    /// </remarks>
+    private string? _pendingEventCardId;
+
     private DateTimeOffset _lastAppliedAtUtc;
     private int _position;
     private int _currentHp;
@@ -215,7 +253,11 @@ public sealed class Run
         long gold,
         IReadOnlyDictionary<string, ulong> streamPositions,
         Dictionary<string, long> adUses,
-        Dictionary<int, string> resolvedMinigames)
+        Dictionary<int, string> resolvedMinigames,
+        int pendingTileKind,
+        int pendingTileLinearIndex,
+        int pendingTileStage,
+        string? pendingEventCardId)
     {
         Id = id;
         PlayerId = playerId;
@@ -232,7 +274,37 @@ public sealed class Run
         _adUsesView = new ReadOnlyDictionary<string, long>(adUses);
         _resolvedMinigames = resolvedMinigames;
         _resolvedMinigamesView = new ReadOnlyDictionary<int, string>(resolvedMinigames);
+        _pendingTileKind = pendingTileKind;
+        _pendingTileLinearIndex = pendingTileLinearIndex;
+        _pendingTileStage = pendingTileStage;
+        _pendingEventCardId = pendingEventCardId;
     }
+
+    /// <summary>
+    /// 🔒 M3-03 — what <see cref="RunSnapshot.PendingTileKind"/> holds when no tile is pending.
+    /// </summary>
+    /// <remarks>
+    /// −1 rather than a nullable, and it is safe rather than lucky: <c>Rules.Board.TileKind</c>'s
+    /// fourteen members are declared with no explicit values and therefore run <c>0..13</c>, so no
+    /// legal kind can ever collide with it. A named constant so the sentinel is greppable and the
+    /// three places that hold it — the constructor's default, <see cref="ClearPendingTile"/> and
+    /// <see cref="Rehydrate"/>'s validation — cannot drift apart.
+    /// </remarks>
+    private const int NoPendingTile = -1;
+
+    /// <summary>
+    /// 🔒 M3-03 — `03` §1's stage value for the boss node, which belongs to no stage.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Restated here rather than read off the board graph's own constant, and that is the
+    /// layering rather than duplication for its own sake.</b> `30` §11.4 puts <c>Model</c> below
+    /// <c>Rules</c>, and <c>AccessibilityBoundaryTests</c> scans <b>source</b> as well as metadata
+    /// precisely because the compiler inlines a <c>const</c> and metadata alone cannot see the
+    /// reference. So this aggregate holds its own copy of the value it validates against. The graph's
+    /// constant remains the definition; a test in the <c>Rules</c> layer — which may name both — is
+    /// what holds the two together.
+    /// </remarks>
+    private const int BossStage = 0;
 
     /// <summary>The aggregate root's identity (`30` §4).</summary>
     public RunId Id { get; }
@@ -470,7 +542,13 @@ public sealed class Run
         _wallet,
         _streamPositions,
         CopyAdUses(_adUses),
-        CopyResolvedMinigames(_resolvedMinigames));
+        CopyResolvedMinigames(_resolvedMinigames),
+        _pendingTileKind,
+        _pendingTileLinearIndex,
+        _pendingTileStage,
+        // 🔒 null becomes "" on the way out — see _pendingEventCardId for why the two sides of this
+        // seam spell "absent" differently.
+        _pendingEventCardId ?? string.Empty);
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted run: <em>"a corrupt row fails
@@ -534,6 +612,7 @@ public sealed class Run
         var streams = ReadStreamPositions(snapshot, faults);
         var adUses = ReadAdUses(snapshot, faults);
         var resolvedMinigames = ReadResolvedMinigames(snapshot, faults);
+        RequirePendingTile(snapshot, faults);
 
         // The three `is null` arms are unreachable while `faults` is empty — every path that returns
         // null also adds a fault — but they are written as a pattern rather than as three `!`
@@ -558,7 +637,14 @@ public sealed class Run
             snapshot.Gold,
             streams,
             adUses,
-            resolvedMinigames));
+            resolvedMinigames,
+            snapshot.PendingTileKind,
+            snapshot.PendingTileLinearIndex,
+            snapshot.PendingTileStage,
+            // 🔒 "" becomes null on the way in, and a blank-but-not-empty string ("  ") does too:
+            // both mean "no card has been drawn", and carrying whitespace through would give
+            // SetPendingEventCard's own blank check something to disagree with.
+            string.IsNullOrWhiteSpace(snapshot.PendingEventCardId) ? null : snapshot.PendingEventCardId));
     }
 
     /// <summary>
@@ -838,6 +924,235 @@ public sealed class Run
     /// position stands in for a tile instance.
     /// </summary>
     internal bool HasResolvedMinigameAt(int position) => _resolvedMinigames.ContainsKey(position);
+
+    /// <summary>
+    /// 🔒 M3-03 — whether this run has arrived at a tile it has not yet resolved.
+    /// </summary>
+    /// <remarks>
+    /// The gate every one of `14` §2.3's tile-resolution commands checks first: <c>RESOLVE_TILE</c>,
+    /// <c>EVENT_CHOOSE</c> and <c>CAMPFIRE_CHOOSE</c> all answer <c>ILLEGAL_STATE</c> when there is
+    /// nothing pending, rather than resolving a tile the run is not standing on.
+    /// </remarks>
+    internal bool HasPendingTile => _pendingTileKind != NoPendingTile;
+
+    /// <summary>
+    /// 🔒 M3-03 — which `03` §2 tile kind is pending, as its <b>underlying integer</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>An <c>int</c> and not the tile-kind enum, and the reason is the layering rather than
+    /// taste.</b> `30` §11.4 orders <c>Core</c> as Handlers → Rules → Model → Content → Primitives,
+    /// and <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c> enforces it in both
+    /// metadata <em>and</em> source — so <c>Model</c> may not name the tile vocabulary, which lives
+    /// under <c>Rules</c>. The aggregate therefore holds the value and the <c>Rules</c>/<c>Handlers</c>
+    /// layer above it does the interpreting, which is also `30` §11.5's division: this type holds
+    /// state and invariants, it does not compute.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The consequence, stated rather than discovered.</b> This aggregate cannot check the value
+    /// is one of `03` §2's fourteen — it cannot see them — so it checks only that it is not below
+    /// the "nothing pending" sentinel. An out-of-vocabulary value therefore survives
+    /// <see cref="Rehydrate"/> and is caught one layer up, by <c>Handlers.ResolveTile</c>'s switch,
+    /// which throws rather than accepting it as a tile that does nothing. That is the same shape as
+    /// <see cref="Position"/>'s board bound: the real check needs a layer this one may not name.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">No tile is pending.</exception>
+    internal int PendingTileKindValue =>
+        HasPendingTile ? _pendingTileKind : throw NothingPending(nameof(PendingTileKindValue));
+
+    /// <summary>🔒 M3-03 — the pending tile's `03` §1.1 linear node index.</summary>
+    /// <exception cref="InvalidOperationException">No tile is pending.</exception>
+    internal int PendingTileLinearIndex =>
+        HasPendingTile ? _pendingTileLinearIndex : throw NothingPending(nameof(PendingTileLinearIndex));
+
+    /// <summary>🔒 M3-03 — the pending tile's `03` §1 stage, or <c>BoardGraph.BossStage</c>.</summary>
+    /// <exception cref="InvalidOperationException">No tile is pending.</exception>
+    internal int PendingTileStage =>
+        HasPendingTile ? _pendingTileStage : throw NothingPending(nameof(PendingTileStage));
+
+    /// <summary>
+    /// 🔒 M3-03 — the `19` Part A card a pending <c>TILE_EVENT</c> has drawn, or <c>null</c>.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Answers <c>null</c> rather than throwing when nothing is pending, unlike the three getters
+    /// above, and the asymmetry is deliberate: those three describe a tile and have no meaning
+    /// without one, whereas "no card has been drawn" is a real answer that <c>EVENT_CHOOSE</c>'s
+    /// legality check asks for <em>before</em> it knows whether a tile is pending.
+    /// </remarks>
+    internal string? PendingEventCardId => _pendingEventCardId;
+
+    /// <summary>
+    /// 🔒 M3-03 — records that the run has arrived at a tile, which is what makes it resolvable.
+    /// </summary>
+    /// <param name="kind">
+    /// The `03` §2 tile kind landed on, as its underlying integer — see
+    /// <see cref="PendingTileKindValue"/> for why this aggregate takes an <c>int</c> and what it can
+    /// therefore not check about it. Never negative: the caller has a real tile.
+    /// </param>
+    /// <param name="linearIndex">
+    /// The tile's `03` §1.1 linear node index. ⚠️ Checked against a floor of 0 and <b>no ceiling</b>,
+    /// for exactly the reason <see cref="Position"/> is checked against its trailhead floor and
+    /// nothing else: the real bound is a property of the specific board this run generated, which is
+    /// M3-02's to compute, and "a range check invented here would be a partial invariant wearing the
+    /// real one's name".
+    /// </param>
+    /// <param name="stage">
+    /// The tile's `03` §1 stage — 1, 2, 3, or <c>Rules.Board.BoardGraph.BossStage</c>.
+    /// </param>
+    /// <remarks>
+    /// A second arrival with one already pending is a <b>defect</b>, not a rejection — the same shape
+    /// <see cref="RecordMinigameResolution"/>'s duplicate guard takes, and for the same reason: the
+    /// caller (M3-02's movement engine, once it exists) is what decides a run may move, and moving
+    /// onto a second tile while the first is unresolved is a miswired engine rather than a player
+    /// asking twice.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="kind"/> is not one of `03` §2's fourteen, <paramref name="linearIndex"/> is
+    /// negative, or <paramref name="stage"/> is not one of the four.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">A tile is already pending.</exception>
+    internal void ArriveAtTile(int kind, int linearIndex, int stage)
+    {
+        if (kind < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(kind),
+                kind,
+                "A tile kind's underlying value is non-negative — 03 §2's fourteen kinds are declared " +
+                "with no explicit values and therefore run 0..13 — and " + Text(kind) + " is below " +
+                "that, which is where the 'no tile pending' sentinel lives. ⚠️ That floor is the " +
+                "WHOLE check this aggregate can make: 30 §11.4 forbids Model from naming the tile " +
+                "vocabulary, which lives under Rules, so whether the value is one of the fourteen is " +
+                "checked one layer up — see PendingTileKindValue's remarks.");
+        }
+
+        if (linearIndex < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(linearIndex),
+                linearIndex,
+                "03 §1.1's linear node index runs from 0 upwards and " + Text(linearIndex) + " is " +
+                "below it. ⚠️ That floor is the WHOLE index check, for the reason Position's own " +
+                "remarks give: 30 §11.5's 'a run's position is a valid node' needs the specific " +
+                "board a specific run stands on (M3-02's), and a range check invented here would be " +
+                "a partial invariant wearing the real one's name.");
+        }
+
+        if (stage is not (1 or 2 or 3 or BossStage))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(stage),
+                stage,
+                "03 §1 gives a board three stages (1, 2, 3) plus a boss node that belongs to none of " +
+                "them and is carried as stage " + Text(BossStage) + ". " + Text(stage) + " is not " +
+                "one of the four.");
+        }
+
+        if (HasPendingTile)
+        {
+            throw new InvalidOperationException(
+                "This run is already standing on an unresolved tile of kind " +
+                Text(_pendingTileKind) + " at " +
+                "linear index " + Text(_pendingTileLinearIndex) + ". A run resolves the tile it " +
+                "landed on before it moves again (03 §1's forward-only movement gives it no way " +
+                "back), so arriving at a second tile with the first still pending is a miswired " +
+                "movement engine rather than a player asking twice — the same line " +
+                "RecordMinigameResolution draws for a duplicate submission.");
+        }
+
+        _pendingTileKind = kind;
+        _pendingTileLinearIndex = linearIndex;
+        _pendingTileStage = stage;
+        _pendingEventCardId = null;
+    }
+
+    /// <summary>
+    /// 🔒 M3-03 — records which `19` Part A card the pending <c>TILE_EVENT</c> drew, so that
+    /// <c>EVENT_CHOOSE</c> resolves the card the player was shown and no resubmission can draw a new
+    /// one.
+    /// </summary>
+    /// <param name="cardId">The drawn card's id. Never blank.</param>
+    /// <remarks>
+    /// <para>
+    /// Both refusals are <b>defects</b>: <c>RESOLVE_TILE</c>'s handler checks the tile kind and the
+    /// already-drawn state itself, and answers the player <c>ILLEGAL_STATE</c>, before this seam is
+    /// reached.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It does not check the pending tile is an <em>event</em> tile, and cannot.</b> That
+    /// would mean naming `03` §2's tile vocabulary, which lives under <c>Rules</c> and which `30`
+    /// §11.4 forbids <c>Model</c> from reaching — see <see cref="PendingTileKindValue"/>. The check
+    /// is real and lives one layer up, in <c>Handlers.ResolveTile</c>, which only reaches this seam
+    /// from inside its own <c>Event</c> branch.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="cardId"/> is blank.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// No tile is pending, or a card is already drawn.
+    /// </exception>
+    internal void SetPendingEventCard(string cardId)
+    {
+        if (string.IsNullOrWhiteSpace(cardId))
+        {
+            throw new ArgumentException(
+                "A pending event card is recorded against the 19 Part A EVT_* id that was drawn, " +
+                "never blank — a blank id is indistinguishable from 'no card drawn', which is what " +
+                "the absence of one already means.",
+                nameof(cardId));
+        }
+
+        if (!HasPendingTile)
+        {
+            throw new InvalidOperationException(
+                "A pending event card belongs to a pending TILE_EVENT, and this run has no pending " +
+                "tile at all. RESOLVE_TILE's handler branches on the tile kind and answers " +
+                "ILLEGAL_STATE itself before reaching this seam, so arriving here is a miswired " +
+                "handler. ⚠️ That the pending tile is specifically an EVENT tile is checked by that " +
+                "handler and not here — see this method's remarks for the layering reason.");
+        }
+
+        if (_pendingEventCardId is not null)
+        {
+            throw new InvalidOperationException(
+                "This run has already drawn '" + _pendingEventCardId + "' for its pending event " +
+                "tile. Overwriting it would be exactly the re-draw the field exists to prevent: a " +
+                "client that disliked its card could resubmit RESOLVE_TILE until it liked one, " +
+                "which is the unreproducible run 14 §8.1's counter model exists to make impossible.");
+        }
+
+        _pendingEventCardId = cardId;
+    }
+
+    /// <summary>
+    /// 🔒 M3-03 — clears the pending tile once it has resolved. Idempotent.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Safe to call with nothing pending, deliberately, and the choice is recorded rather than
+    /// left to the reader.</b> The alternative — throwing — would make every caller ask
+    /// <see cref="HasPendingTile"/> first, and the one thing this method promises is a
+    /// <em>postcondition</em> ("no tile is pending"), not a transition. That postcondition is
+    /// already true when nothing is pending, so refusing would be refusing to do what has been done.
+    /// It is the opposite call from <see cref="ArriveAtTile"/>'s, which refuses a duplicate because
+    /// arriving twice destroys information; clearing twice destroys none.
+    /// </remarks>
+    internal void ClearPendingTile()
+    {
+        _pendingTileKind = NoPendingTile;
+
+        // 🔒 Reset to 0 rather than left where they were: RunSnapshot is hashed whole (14 §16.6), so
+        // two runs that both have no pending tile must produce the same bytes for these slots. Stale
+        // values would give the same logical state two different stateHashes.
+        _pendingTileLinearIndex = 0;
+        _pendingTileStage = 0;
+        _pendingEventCardId = null;
+    }
+
+    private static InvalidOperationException NothingPending(string member) =>
+        new("Run." + member + " describes the tile this run has arrived at and not yet resolved, " +
+            "and this run has no pending tile. Ask Run.HasPendingTile first — it is the gate every " +
+            "tile-resolution handler checks before anything else, and answering a default here " +
+            "would let a rule resolve a tile the run is not standing on.");
 
     /// <summary>
     /// 🔒 M3-03c, `03` §6.2 — records that <paramref name="minigameId"/> was resolved at
@@ -1323,6 +1638,99 @@ public sealed class Run
         }
 
         return faulted ? null : copy;
+    }
+
+    /// <summary>
+    /// 🔒 M3-03 — validates the four pending-tile fields as one fact, because that is what they are.
+    /// </summary>
+    /// <remarks>
+    /// Every fault names <em>which</em> field failed and why (steering <b>S2</b>), and the checks are
+    /// written so that <b>one</b> defect produces <b>one</b> fault: the index, stage and card id are
+    /// only compared against a pending tile when the kind itself is a legal one, since a reader handed
+    /// four faults for one corrupt column fixes the wrong one.
+    /// </remarks>
+    private static void RequirePendingTile(RunSnapshot snapshot, List<string> faults)
+    {
+        var kind = snapshot.PendingTileKind;
+        var pending = kind != NoPendingTile;
+
+        if (kind < NoPendingTile)
+        {
+            faults.Add(
+                nameof(RunSnapshot.PendingTileKind) + " is " + Text(kind) + ", below " +
+                Text(NoPendingTile) + " — the 'no tile pending' sentinel, and the lowest value this " +
+                "column legitimately holds. ⚠️ That floor is the WHOLE kind check this seam can " +
+                "make: whether a non-negative value is one of 03 §2's fourteen needs the tile " +
+                "vocabulary, which lives under Rules and which 30 §11.4 forbids Model from naming " +
+                "(see Run.PendingTileKindValue). An out-of-vocabulary kind is caught one layer up, " +
+                "by Handlers.ResolveTile's switch, which throws rather than treating it as a tile " +
+                "that does nothing.");
+
+            // The remaining three describe a tile this row does not legibly name, so checking them
+            // against it would report three more problems for one defect.
+            return;
+        }
+
+        if (snapshot.PendingEventCardId is null)
+        {
+            faults.Add(
+                nameof(RunSnapshot.PendingEventCardId) + " is null. The field spells 'no card drawn' " +
+                "as the EMPTY STRING so that CanonicalStateWriter encodes a String slot rather than " +
+                "a nullable one; a null is a row written by something that did not know that.");
+        }
+
+        if (!pending)
+        {
+            // 🔒 With no tile pending the other three carry no meaning, and ClearPendingTile zeroes
+            // them precisely so that one logical state has one encoding (14 §16.6). A row that left
+            // them populated would hash differently from an identical run — so it is refused rather
+            // than normalised on the way in, which would edit persisted state at the seam.
+            if (snapshot.PendingTileLinearIndex != 0 || snapshot.PendingTileStage != 0)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.PendingTileKind) + " is " + Text(NoPendingTile) + " ('no tile " +
+                    "pending') but " + nameof(RunSnapshot.PendingTileLinearIndex) + " is " +
+                    Text(snapshot.PendingTileLinearIndex) + " and " +
+                    nameof(RunSnapshot.PendingTileStage) + " is " + Text(snapshot.PendingTileStage) +
+                    "; both are zero when nothing is pending. 14 §16.6 hashes the whole row, so a " +
+                    "stale index would give two identical runs two different stateHashes.");
+            }
+
+            if (!string.IsNullOrEmpty(snapshot.PendingEventCardId))
+            {
+                faults.Add(
+                    nameof(RunSnapshot.PendingEventCardId) + " is '" + snapshot.PendingEventCardId +
+                    "' but " + nameof(RunSnapshot.PendingTileKind) + " is " + Text(NoPendingTile) +
+                    " ('no tile pending'). A drawn event card belongs to a pending TILE_EVENT; " +
+                    "without one there is no command that could ever resolve it, so the card would " +
+                    "be stranded on the run for the rest of its life.");
+            }
+
+            return;
+        }
+
+        if (snapshot.PendingTileLinearIndex < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.PendingTileLinearIndex) + " is " +
+                Text(snapshot.PendingTileLinearIndex) + ". 03 §1.1's linear node index runs from 0 " +
+                "upwards. ⚠️ That floor is the WHOLE check — the ceiling belongs to the specific " +
+                "board this run generated (M3-02's), and a range invented here would be a partial " +
+                "invariant wearing the real one's name.");
+        }
+
+        if (snapshot.PendingTileStage is not (1 or 2 or 3 or BossStage))
+        {
+            faults.Add(
+                nameof(RunSnapshot.PendingTileStage) + " is " + Text(snapshot.PendingTileStage) +
+                ". 03 §1 gives a board three stages (1, 2, 3) plus a boss node belonging to none of " +
+                "them, carried as stage " + Text(BossStage) + ".");
+        }
+
+        // ⚠️ That a stored card id belongs specifically to an EVENT tile is NOT checked here, for
+        // the same reason the kind's upper bound is not: it would mean naming 03 §2's vocabulary,
+        // which 30 §11.4 puts above this layer. EventChoose is what checks the pairing, and it
+        // answers ILLEGAL_STATE rather than resolving a card against the wrong tile.
     }
 
     /// <summary>

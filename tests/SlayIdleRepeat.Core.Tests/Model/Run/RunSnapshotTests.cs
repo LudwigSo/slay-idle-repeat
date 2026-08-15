@@ -3,6 +3,7 @@ using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.TestSupport;
 using Xunit;
 
@@ -157,6 +158,23 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.AdUses), v, RunSnapshots.With(adUses: RunSnapshots.AdUses(("AD_REVIVE", 1)))),
             (nameof(RunSnapshot.ResolvedMinigames), v,
                 RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames((0, "MG_CHEST_PICK")))),
+
+            // 🔒 M3-03's four pending-tile fields. The three that describe the tile are probed
+            // TOGETHER WITH a pending kind rather than in isolation, because Run.Rehydrate refuses a
+            // row that carries an index or a stage with nothing pending — a probe of the index alone
+            // would move the hash of a row no run could ever be in, which proves nothing about the
+            // rows runs actually persist.
+            (nameof(RunSnapshot.PendingTileKind), v,
+                RunSnapshots.OnPendingTile((int)TileKind.Empty)),
+            (nameof(RunSnapshot.PendingTileLinearIndex),
+                RunSnapshots.OnPendingTile((int)TileKind.Empty, linearIndex: 7),
+                RunSnapshots.OnPendingTile((int)TileKind.Empty, linearIndex: 8)),
+            (nameof(RunSnapshot.PendingTileStage),
+                RunSnapshots.OnPendingTile((int)TileKind.Empty, stage: 1),
+                RunSnapshots.OnPendingTile((int)TileKind.Empty, stage: 2)),
+            (nameof(RunSnapshot.PendingEventCardId),
+                RunSnapshots.OnPendingTile((int)TileKind.Event),
+                RunSnapshots.OnPendingTile((int)TileKind.Event, eventCardId: "EVT_WELL")),
         };
 
         var invisible = probes

@@ -1,0 +1,655 @@
+{
+  "$schema": "../../schema/board_events.schema.json",
+  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed five-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges, none of which exist in Core today, so each such outcome carries one UNSUPPORTED op naming the mechanic and its owning milestone. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
+  "_status": "transcribed",
+  "cards": [
+    {
+      "id": "EVT_WELL",
+      "title": "The Wishing Well",
+      "body": "Coins glitter under black water.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Toss 100 Gold",
+          "cost": { "currency": "GOLD", "amount": 100 },
+          "outcomes": [
+            { "w": 60, "effects": [ { "op": "UNSUPPORTED", "note": "a random perk — the perk draft is M3-06's and the 98-perk catalogue's rarity draw is M3-07's" } ] },
+            { "w": 40, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 40, "chapterScaled": true } ] }
+          ]
+        },
+        {
+          "label": "Reach in",
+          "outcomes": [
+            { "w": 70, "effects": [ { "op": "HP_PCT", "amount": -0.1 }, { "op": "CURRENCY", "currency": "ENHANCE_STONES", "amount": 3, "chapterScaled": true } ] },
+            { "w": 30, "effects": [ { "op": "HP_PCT", "amount": -0.1 }, { "op": "CURSE_REWARD", "curseId": "CUR_SLIPPERY" } ] }
+          ]
+        },
+        { "label": "Walk away", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] }
+      ]
+    },
+    {
+      "id": "EVT_SIGNPOST",
+      "title": "A Rotted Signpost",
+      "body": "Three arms. Two have fallen off.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Follow the standing arm",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "move forward 3 nodes — board movement is M3-02's" } ] } ]
+        },
+        {
+          "label": "Search the fallen ones",
+          "outcomes": [
+            { "w": 75, "effects": [ { "op": "CURRENCY", "currency": "GOLD", "amount": 150, "chapterScaled": false } ] },
+            { "w": 25, "effects": [ { "op": "CURRENCY", "currency": "GOLD", "amount": 150, "chapterScaled": false }, { "op": "CURSE_REWARD", "curseId": "CUR_MARKED" } ] }
+          ]
+        },
+        { "label": "Ignore it", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] }
+      ]
+    },
+    {
+      "id": "EVT_TRAVELLER",
+      "title": "The Tired Traveller",
+      "body": "He offers his pack. He does not offer his name.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Trade 200 Gold",
+          "cost": { "currency": "GOLD", "amount": 200 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "a random B-or-better gear item — the gear system is M4-03's" } ] } ]
+        },
+        {
+          "label": "Rob him",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "GOLD", "amount": 400, "chapterScaled": false }, { "op": "CURSE_REWARD", "curseId": "CUR_MARKED" } ] } ]
+        },
+        {
+          "label": "Share your rations",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.05 }, { "op": "UNSUPPORTED", "note": "+2 Reroll Charges — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_SHRINE_CRACKED",
+      "title": "A Cracked Shrine",
+      "body": "Something used to live in here.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Pray",
+          "outcomes": [
+            { "w": 50, "effects": [ { "op": "UNSUPPORTED", "note": "+15% Max HP for the run — Run.SetHitPoints can raise MaxHp, but nothing authors what CurrentHp does when it moves, so raising it would be a guessed rule" } ] },
+            { "w": 50, "effects": [ { "op": "UNSUPPORTED", "note": "-10% DEF for the run — DEF is not tracked on Run" } ] }
+          ]
+        },
+        {
+          "label": "Repair it",
+          "cost": { "currency": "GOLD", "amount": 150 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+12% Max HP guaranteed — the same unauthored CurrentHp-on-MaxHp-change rule as the Pray branch" } ] } ]
+        },
+        { "label": "Leave", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] }
+      ]
+    },
+    {
+      "id": "EVT_BEEHIVE",
+      "title": "Sunlit Hive",
+      "body": "The buzzing is louder than it should be.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Take the honey",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.08 }, { "op": "UNSUPPORTED", "note": "heal 30% HP after the next battle — no battle-scoped trigger exists; battles are M3-05's" }, { "op": "CURRENCY", "currency": "BEAST_FEED", "amount": 40, "chapterScaled": true } ] } ]
+        },
+        {
+          "label": "Smoke it out",
+          "cost": { "currency": "GOLD", "amount": 100 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "heal 30% HP after the next battle at 40% value — no battle-scoped trigger exists; battles are M3-05's" }, { "op": "CURRENCY", "currency": "BEAST_FEED", "amount": 16, "chapterScaled": true } ] } ]
+        },
+        { "label": "Leave", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] }
+      ]
+    },
+    {
+      "id": "EVT_LOST_PUP",
+      "title": "A Lost Whelp",
+      "body": "It follows you three paces, then stops.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Feed it",
+          "cost": { "currency": "GOLD", "amount": 80 },
+          "outcomes": [
+            { "w": 35, "effects": [ { "op": "UNSUPPORTED", "note": "a Pet Egg — containers are M4-02's (GapRegister's ContainerShelf entry)" } ] },
+            { "w": 65, "effects": [ { "op": "CURRENCY", "currency": "BEAST_FEED", "amount": 60, "chapterScaled": true } ] }
+          ]
+        },
+        { "label": "Leave it", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] },
+        {
+          "label": "Take it with you",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+5% pet aura power this run — pets are M4-07's" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_MERCHANT_CART",
+      "title": "Overturned Cart",
+      "body": "The wheels are still spinning.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Loot it",
+          "outcomes": [
+            { "w": 80, "effects": [ { "op": "CURRENCY", "currency": "GOLD", "amount": 250, "chapterScaled": false } ] },
+            { "w": 20, "effects": [ { "op": "CURRENCY", "currency": "GOLD", "amount": 250, "chapterScaled": false }, { "op": "UNSUPPORTED", "note": "an ambush battle — battles are M3-05's" } ] }
+          ]
+        },
+        {
+          "label": "Right the cart",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.05 }, { "op": "UNSUPPORTED", "note": "the next Shop tile has 6 slots — a shop tile instance is not addressable state" } ] } ]
+        },
+        { "label": "Move on", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] }
+      ]
+    },
+    {
+      "id": "EVT_OLD_SOLDIER",
+      "title": "The Old Soldier",
+      "body": "\"Tried this road once. Didn't like it.\"",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Ask about the road",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles in this stage — board reveal needs the run's generated board, M3-02's" } ] } ]
+        },
+        {
+          "label": "Ask about his armour",
+          "cost": { "currency": "GOLD", "amount": 250 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+15% DEF for the run — DEF is not tracked on Run" } ] } ]
+        },
+        {
+          "label": "Ask nothing",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_MUSHROOM_RING",
+      "title": "A Ring of Mushrooms",
+      "body": "Fairy circle. Or just fungus.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        {
+          "label": "Step inside",
+          "outcomes": [
+            { "w": 40, "effects": [ { "op": "UNSUPPORTED", "note": "teleport forward 5 nodes — board movement is M3-02's" } ] },
+            { "w": 40, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 200, "chapterScaled": true } ] },
+            { "w": 20, "effects": [ { "op": "CURSE_REWARD", "curseId": "CUR_DIZZY" } ] }
+          ]
+        },
+        {
+          "label": "Harvest",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "BEAST_FEED", "amount": 25, "chapterScaled": true } ] } ]
+        },
+        { "label": "Step around", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] }
+      ]
+    },
+    {
+      "id": "EVT_STONE_FACE",
+      "title": "The Weeping Stone",
+      "body": "Water runs from its eyes. It has been doing this a while.",
+      "minChapter": 1,
+      "maxChapter": 3,
+      "options": [
+        { "label": "Drink", "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": 0.25 } ] } ] },
+        {
+          "label": "Chisel it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.1 }, { "op": "CURRENCY", "currency": "ENHANCE_STONES", "amount": 5, "chapterScaled": true } ] } ]
+        },
+        {
+          "label": "Sit with it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+8% Healing Received for the run — Healing Received is not tracked on Run" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_GAMBLER",
+      "title": "The Roadside Gambler",
+      "body": "\"One roll. Your die, my stakes.\"",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Roll high (4+)",
+          "cost": { "currency": "GOLD", "amount": 300 },
+          "outcomes": [
+            { "w": 50, "effects": [ { "op": "CURRENCY", "currency": "GOLD", "amount": 900, "chapterScaled": false } ] },
+            { "w": 50, "effects": [ { "op": "NONE" } ] }
+          ]
+        },
+        {
+          "label": "Roll for a perk",
+          "cost": { "currency": "GOLD", "amount": 500 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "win a random Epic perk or lose the stake — the perk draft is M3-06's, and 19 Part A authors no odds for this roll" } ] } ]
+        },
+        { "label": "Decline", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] }
+      ]
+    },
+    {
+      "id": "EVT_FORGE_COLD",
+      "title": "A Cold Forge",
+      "body": "The coals are out but the tools are good.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Reforge a weapon",
+          "cost": { "currency": "GOLD", "amount": 400 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+20% ATK for the run — ATK is not tracked on Run" } ] } ]
+        },
+        {
+          "label": "Strip it for parts",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "ENHANCE_STONES", "amount": 8, "chapterScaled": true } ] } ]
+        },
+        {
+          "label": "Light it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.12 }, { "op": "UNSUPPORTED", "note": "+10% ATK for the run (half of the Reforge value) — ATK is not tracked on Run" }, { "op": "CURRENCY", "currency": "ENHANCE_STONES", "amount": 4, "chapterScaled": true } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_CAGED",
+      "title": "Something in a Cage",
+      "body": "You cannot tell what it was.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Open it",
+          "outcomes": [
+            { "w": 45, "effects": [ { "op": "UNSUPPORTED", "note": "an elite battle with doubled drops — battles are M3-05's" } ] },
+            { "w": 55, "effects": [ { "op": "UNSUPPORTED", "note": "+10% all stats for the run — no run-scoped stat aggregation exists" } ] }
+          ]
+        },
+        {
+          "label": "Leave it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 100, "chapterScaled": true } ] } ]
+        },
+        {
+          "label": "Feed it",
+          "cost": { "currency": "BEAST_FEED", "amount": 60 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+10% all stats for the run, no risk — no run-scoped stat aggregation exists" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_TWO_DOORS",
+      "title": "Two Doors, One Key",
+      "body": "The key is warm.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Left door",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "a Treasure tile's contents, doubled — needs a targetable treasure tile instance, which is M3-02's board wiring" } ] } ]
+        },
+        {
+          "label": "Right door",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "a free perk draft with upgraded rarity — the perk draft is M3-06's" } ] } ]
+        },
+        {
+          "label": "Melt the key",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "ENHANCE_STONES", "amount": 6, "chapterScaled": true } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_BATTLEFIELD",
+      "title": "An Old Battlefield",
+      "body": "Nobody buried them.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Loot the dead",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "2 random C-B rarity gear items — the gear system is M4-03's" } ] } ]
+        },
+        {
+          "label": "Bury them",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+15% Max HP for the run — nothing authors what CurrentHp does when MaxHp moves" } ] } ]
+        },
+        {
+          "label": "Salt the ground",
+          "cost": { "currency": "GOLD", "amount": 200 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "the next 3 enemies have -20% ATK — enemy modifiers are M3-05's" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_MIRROR",
+      "title": "A Standing Mirror",
+      "body": "Your reflection is a half-second late.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Touch it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "copy the highest stat bonus onto the lowest stat — no run-scoped stat aggregation exists" } ] } ]
+        },
+        {
+          "label": "Break it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "GOLD", "amount": 500, "chapterScaled": false }, { "op": "CURSE_REWARD", "curseId": "CUR_FRACTURED" } ] } ]
+        },
+        { "label": "Turn it around", "outcomes": [ { "w": 1, "effects": [ { "op": "NONE" } ] } ] }
+      ]
+    },
+    {
+      "id": "EVT_TAX",
+      "title": "The Toll Collector",
+      "body": "He has no authority. He does have a large friend.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Pay",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "pay 15% of current Gold to pass, then +1 Reroll Charge — a proportional cost the flat cost field cannot express, and reroll charges are not tracked" } ] } ]
+        },
+        {
+          "label": "Refuse",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "an elite battle, keeping everything — battles are M3-05's" } ] } ]
+        },
+        {
+          "label": "Haggle (roll 4+)",
+          "outcomes": [
+            { "w": 50, "effects": [ { "op": "UNSUPPORTED", "note": "pay half the toll — the same proportional cost as the Pay option" } ] },
+            { "w": 50, "effects": [ { "op": "UNSUPPORTED", "note": "pay double the toll — the same proportional cost as the Pay option" } ] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_SPRING",
+      "title": "A Hot Spring",
+      "body": "Steam, and no one else for miles.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Bathe",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": 0.5 }, { "op": "UNSUPPORTED", "note": "+5% Max HP for the run — nothing authors what CurrentHp does when MaxHp moves" } ] } ]
+        },
+        {
+          "label": "Fill your flask",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "a Health Draught consumable x2 — consumables are M3-08's" } ] } ]
+        },
+        {
+          "label": "Both",
+          "cost": { "currency": "GOLD", "amount": 250 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": 0.5 }, { "op": "UNSUPPORTED", "note": "+5% Max HP and two Health Draughts — see the Bathe and Fill your flask options" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_ARCHIVE",
+      "title": "A Buried Archive",
+      "body": "Wet paper. Some of it legible.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Read the combat notes",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 tier on one owned perk — DraftedPerks is M3-06's" } ] } ]
+        },
+        {
+          "label": "Read the maps",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles for the rest of this stage — board reveal needs the run's generated board, M3-02's" } ] } ]
+        },
+        {
+          "label": "Sell the lot",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 400, "chapterScaled": true } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_STORM",
+      "title": "Gathering Storm",
+      "body": "You have maybe two minutes.",
+      "minChapter": 3,
+      "maxChapter": 6,
+      "options": [
+        {
+          "label": "Run for it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "move forward 4 nodes, skipping their content — board movement is M3-02's" } ] } ]
+        },
+        {
+          "label": "Shelter",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "lose 1 Reroll Charge to heal 20% HP — reroll charges are not tracked, so the cost cannot be taken and the heal is deliberately not paid either" } ] } ]
+        },
+        {
+          "label": "Walk through it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.15 }, { "op": "UNSUPPORTED", "note": "+25% ATK for the rest of the stage — ATK is not tracked on Run" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_ORACLE",
+      "title": "The Blind Oracle",
+      "body": "\"You will roll a four.\" You have not rolled yet.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Ask about the boss",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "the boss starts at 90% HP — battles are M3-05's" } ] } ]
+        },
+        {
+          "label": "Ask about yourself",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 tier on two owned perks — DraftedPerks is M3-06's" } ] } ]
+        },
+        {
+          "label": "Ask about the die",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "one die face upgraded for the run — run-scoped die-face state is M3-04's Dice Forge, which resolves through its own command" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_BARGAIN",
+      "title": "An Even Bargain",
+      "body": "Nothing is written down.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Give 25% Max HP",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.25 }, { "op": "UNSUPPORTED", "note": "+45% ATK for the run — ATK is not tracked on Run" } ] } ]
+        },
+        {
+          "label": "Give 30% ATK",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "-30% ATK for +60% Max HP for the run — neither ATK nor a MaxHp raise is expressible today" } ] } ]
+        },
+        {
+          "label": "Give nothing",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 150, "chapterScaled": true } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_SPORE_FIELD",
+      "title": "A Field of Caps",
+      "body": "They lean toward you.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Walk through",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "3 SPORE stacks — 05 §5's statuses are combat-scoped and battles are M3-05's" }, { "op": "CURRENCY", "currency": "CROWNS", "amount": 600, "chapterScaled": true } ] } ]
+        },
+        {
+          "label": "Burn a path",
+          "cost": { "currency": "GOLD", "amount": 300 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "BEAST_FEED", "amount": 100, "chapterScaled": true } ] } ]
+        },
+        {
+          "label": "Go around",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "lose 2 nodes of progress — board movement is M3-02's, and 03 §1 makes movement forward-only anyway" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_AUTOMATON",
+      "title": "A Stopped Automaton",
+      "body": "One gear short.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Give it a gear",
+          "cost": { "currency": "ENHANCE_STONES", "amount": 6 },
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "it fights alongside you for 3 battles — battles are M3-05's" } ] } ]
+        },
+        {
+          "label": "Strip it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "ENHANCE_STONES", "amount": 10, "chapterScaled": true }, { "op": "CURRENCY", "currency": "CROWNS", "amount": 300, "chapterScaled": true } ] } ]
+        },
+        {
+          "label": "Wind it up",
+          "outcomes": [
+            { "w": 50, "effects": [ { "op": "UNSUPPORTED", "note": "it helps you — battles are M3-05's" } ] },
+            { "w": 50, "effects": [ { "op": "UNSUPPORTED", "note": "it attacks: an elite battle — battles are M3-05's" } ] }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_STARFALL",
+      "title": "Starfall",
+      "body": "Something lands two nodes ahead.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Investigate",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "move to that node for guaranteed S-rarity gear — board movement is M3-02's and gear is M4-03's" } ] } ]
+        },
+        {
+          "label": "Avoid it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+        },
+        {
+          "label": "Watch from here",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+8% all stats for the run — no run-scoped stat aggregation exists" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_DEBT",
+      "title": "A Collector's Ledger",
+      "body": "Your name is in it. You have never been here.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Pay in Gold",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "spend the run's entire Gold balance for +30% all stats — a proportional cost the flat cost field cannot express, and no run-scoped stat aggregation exists" } ] } ]
+        },
+        {
+          "label": "Pay in blood",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.35 }, { "op": "UNSUPPORTED", "note": "2 S-rarity gear items — the gear system is M4-03's" } ] } ]
+        },
+        {
+          "label": "Tear out the page",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "curse Hunted — CUR_HUNTED's paired reward is a gear drop per Elite, which no system can pay, and its ongoing effect is M3-11's" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_TWIN",
+      "title": "Someone Wearing Your Face",
+      "body": "They are also surprised.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Fight",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "duel a copy of your own build for doubled elite-tier rewards — battles are M3-05's" } ] } ]
+        },
+        {
+          "label": "Trade",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "swap your lowest-value gear for a random A item — the gear system is M4-03's" } ] } ]
+        },
+        {
+          "label": "Walk past",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+12% Dodge for the run — Dodge is not tracked on Run" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_CLOCKTOWER",
+      "title": "The Clock That Runs Back",
+      "body": "The hands move the wrong way. Slowly.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Wind it forward",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "skip to the next stage, banking rewards so far — board movement is M3-02's and reward banking is M3-13's" } ] } ]
+        },
+        {
+          "label": "Wind it back",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "replay the last 3 tiles with new contents — board regeneration is M3-02's, and 03 §1 makes movement forward-only" } ] } ]
+        },
+        {
+          "label": "Smash it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 800, "chapterScaled": true }, { "op": "UNSUPPORTED", "note": "curse Untimely — CUR_UNTIMELY's -15% Attack Speed and its paired +300 Crowns are M3-11's; only the four chapter-1 curses have a reward this task can pay" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_LAST_LAMP",
+      "title": "The Last Lamp",
+      "body": "It is the only light for a long way.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Take it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "tile preview +6 and every TILE_CURSE in this stage revealed — board reveal needs the run's generated board, M3-02's" } ] } ]
+        },
+        { "label": "Leave it lit", "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": 0.4 } ] } ] },
+        {
+          "label": "Extinguish it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.1 }, { "op": "UNSUPPORTED", "note": "+40% Crit Damage for the run — Crit Damage is not tracked on Run" } ] } ]
+        }
+      ]
+    },
+    {
+      "id": "EVT_DICELORD_OFFER",
+      "title": "An Offer, Unsigned",
+      "body": "A single golden die on a flat stone.",
+      "minChapter": 6,
+      "maxChapter": 8,
+      "options": [
+        {
+          "label": "Take it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "one die face becomes Star and the boss gains +15% ATK — run-scoped die faces are M3-04's and the boss buff is M3-05's" } ] } ]
+        },
+        {
+          "label": "Roll it",
+          "outcomes": [
+            { "w": 50, "effects": [ { "op": "UNSUPPORTED", "note": "both the Star face and the boss buff — see the Take it option" } ] },
+            { "w": 50, "effects": [ { "op": "NONE" } ] }
+          ]
+        },
+        {
+          "label": "Leave it",
+          "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 1000, "chapterScaled": true } ] } ]
+        }
+      ]
+    }
+  ]
+}
