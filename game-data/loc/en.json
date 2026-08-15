@@ -113,6 +113,22 @@
     "loc.elite_modifier.shielded.name": "Shielded",
     "loc.elite_modifier.swift.name": "Swift",
     "loc.elite_modifier.cursed.name": "Cursed",
-    "loc.elite_modifier.reflective.name": "Reflective"
+    "loc.elite_modifier.reflective.name": "Reflective",
+
+    "loc.chapter.1.name": "Greenwood Vale",
+    "loc.chapter.2.name": "Ashen Mire",
+
+    "loc.curse.slippery.name": "Slippery",
+    "loc.curse.marked.name": "Marked",
+    "loc.curse.dizzy.name": "Dizzy",
+    "loc.curse.fractured.name": "Fractured",
+    "loc.curse.hunted.name": "Hunted",
+    "loc.curse.untimely.name": "Untimely",
+    "loc.curse.famished.name": "Famished",
+    "loc.curse.brittle_bones.name": "Brittle Bones",
+    "loc.curse.miserly.name": "Miserly",
+    "loc.curse.blind.name": "Blind",
+    "loc.curse.leadfoot.name": "Leadfoot",
+    "loc.curse.tithe.name": "Tithe"
   }
 }

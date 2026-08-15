@@ -141,11 +141,12 @@ public sealed class DifficultyTierMatchesTuningDataTests
     /// </summary>
     /// <remarks>
     /// ⚠️ It is a <b>schema</b> rather than a tuning file, and that is why it needs its own case
-    /// rather than riding on the two above: <c>chapter.schema.json</c> sits on
-    /// <c>ContentLoader.SchemasAwaitingContent</c> (<c>content/chapters/</c> is empty until M3-14),
-    /// so <b>no content document is validated against it today</b> and nothing else in this
-    /// repository would notice its tier list drifting away from the enum. A gate authored against a
-    /// tier <c>Core</c> cannot parse is a chapter that never unlocks.
+    /// rather than riding on the two above. M3-14 has since landed
+    /// <c>content/chapters/CH_02_ASHEN_MIRE.json</c>'s <c>unlockCondition.tier: "NORMAL"</c>, so
+    /// <c>ContentLoader</c> now schema-validates one value against this enum — but that only checks
+    /// the one tier an author happened to write, not that the enum still lists all three tiers this
+    /// game has, which is what this case pins directly against the schema text. A gate authored
+    /// against a tier <c>Core</c> cannot parse is a chapter that never unlocks.
     /// </remarks>
     [Fact]
     public void DifficultyTier_is_exactly_the_unlockCondition_tier_enum_of_chapter_schema_json()

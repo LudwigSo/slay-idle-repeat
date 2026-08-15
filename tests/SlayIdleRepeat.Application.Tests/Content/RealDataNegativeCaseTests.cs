@@ -451,7 +451,7 @@ public sealed class RealDataNegativeCaseTests
     /// design decision that changes this number in the same commit — which is what this guard is for.
     /// </para>
     /// <para>
-    /// ⚠️ <b>M2-10 opened the third, and it is the reason this number is now 99.</b>
+    /// ⚠️ <b>M2-10 opened the third, and it is the reason this number was 99.</b>
     /// <c>content/statuses.json#/statuses/8/decayCurve</c> — `05` §5 says <c>RAGE</c> is <em>"+X%
     /// ATK, <b>decays over D s</b>"</em> and states no curve, not linear, not stepped, not
     /// exponential; no boss script, perk row or on-hit row in the content set authors one either.
@@ -462,13 +462,23 @@ public sealed class RealDataNegativeCaseTests
     /// anything tries to use it, and the obligation expires by itself through
     /// <c>SubjectSetFloorTests.Pending</c>'s <c>StatusDecayCurve</c> entry.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>M3-14 opened the fourth, and it is the reason this number is now 100.</b>
+    /// <c>content/chapters/CH_01_GREENWOOD_VALE.json#/unlockCondition</c> is <c>null</c> — but unlike
+    /// the three holes above, this one is not a deferred design decision: <c>chapter.schema.json</c>
+    /// states outright that <em>"Chapter 1 has no prerequisite and carries null"</em>, and `10` §7
+    /// gates chapter <c>c</c> on clearing chapter <c>c-1</c>, which chapter 1 has none of. The
+    /// counter does not distinguish "nobody has decided yet" from "the design decided this is
+    /// unconditional" — both are a JSON <c>null</c> — so it is recorded here for the same reason the
+    /// other three are: a guarded number that does not match the data guards nothing.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_shipped_data_set_still_carries_exactly_its_99_unauthorised_holes()
+    public void The_shipped_data_set_still_carries_exactly_its_100_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(99,
+        CountUnauthorised(snapshot).ShouldBe(100,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -510,6 +520,13 @@ public sealed class RealDataNegativeCaseTests
     // M2-10 — the third hole outside tuning/. 05 §5 says RAGE decays over D s and states no curve;
     // see the remarks on the total above.
     [InlineData("content/statuses.json", 1)]
+
+    // M3-14 — the fourth, and the only one that is not a deferred decision: chapter.schema.json
+    // itself says Chapter 1's unlockCondition is null because it has no prerequisite. See the
+    // remarks on the total above.
+    [InlineData("content/chapters/CH_01_GREENWOOD_VALE.json", 1)]
+    [InlineData("content/chapters/CH_02_ASHEN_MIRE.json", 0)]
+    [InlineData("content/curses/curses.json", 0)]
 
     // M2-13 — the eight boss scripts and the FTUE row, and NO hole, which is worth a line rather
     // than a silence. Where 17 authorises nothing, the boss data omits the key instead of writing

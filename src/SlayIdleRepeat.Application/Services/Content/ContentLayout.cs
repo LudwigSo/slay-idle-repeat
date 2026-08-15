@@ -87,6 +87,12 @@ public static class ContentLayout
 
             // 17 §1.2 / §2-9 — the eight boss scripts and the FTUE row. Authored by M2-13.
             [ContentDirectory + "bosses/"] = SchemaDirectory + "bosses" + SchemaSuffix,
+
+            // 19 Part E — the twelve-curse catalogue and its O13 chapter-gating column. Authored
+            // by M3-14, named here for the same reason bosses/ and enemies/ were: a single file
+            // named after its own directory would resolve correctly under the stem rule with no
+            // entry at all, which is exactly what made those two easy to forget.
+            [ContentDirectory + "curses/"] = SchemaDirectory + "curses" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

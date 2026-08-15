@@ -55,7 +55,7 @@
       "patternProperties": { "^[A-Z][A-Z0-9_]*$": { "type": "number", "minimum": 0 } }
     },
     "elitePool": {
-      "description": "Every id must resolve to an elite definition in content/elites/.",
+      "description": "05 §6.2 — the chapter's two biome elites. game-data/README.md 🔒: content/elites/ is empty and stays empty, because an elite modifier has no identity apart from the enemy it is drawn onto; every id here resolves against content/enemies/enemies.json#/elites/identities instead, which is the single source of truth for the EL_ id space (R32 cross-checks it there). Erratum fixed here: this field used to describe a content/elites/ directory that the README rules out.",
       "type": "array",
       "minItems": 1,
       "uniqueItems": true,
