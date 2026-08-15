@@ -1,0 +1,25 @@
+{
+  "stryker-config": {
+    "solution": "SlayIdleRepeat.sln",
+    "project": "SlayIdleRepeat.Core.csproj",
+    "test-projects": [
+      "tests/SlayIdleRepeat.Core.Tests/SlayIdleRepeat.Core.Tests.csproj"
+    ],
+    "output": "stryker-output",
+    "reporters": [
+      "html",
+      "progress"
+    ],
+    "thresholds": {
+      "high": 80,
+      "low": 60,
+      "break": 0
+    },
+    "ignore-mutations": [
+      "string",
+      "block",
+      "regex",
+      "initializer"
+    ]
+  }
+}
