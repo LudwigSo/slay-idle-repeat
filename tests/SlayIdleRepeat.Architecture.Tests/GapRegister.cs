@@ -220,7 +220,7 @@ internal static class GapRegister
         // Plus the run's PHASE, which 02 §1.1 draws and which is deferred for a sharper reason than
         // "no element type yet": nobody has ruled which of its states are server-side.
 
-        new("Board", "M3-02", "RollDice",
+        new("Board", "M3-02", "ChooseFork",
             "30 §4 lists 'Board' first among the Run aggregate's contents. M3-01 CLOSED THE HALF THIS " +
             "ENTRY ORIGINALLY WAITED ON: SlayIdleRepeat.Core.Rules.Board now has NodeId, BoardNode, " +
             "Board (the DAG) and BoardGenerator.GenerateBoard(config, rng), so node identity exists " +
@@ -231,11 +231,15 @@ internal static class GapRegister
             "chapter/tier/seed via RunRngScope) and then Run.MoveTo, i.e. the movement engine itself. " +
             "Run.Position therefore still stores the linear index and validates only 03 §1.1's " +
             "authored floor (the virtual trailhead at -1) — a range check invented here (0..42, say) " +
-            "would be a PARTIAL invariant wearing the real one's name. Keyed on 'RollDice': M3-02's " +
-            "own tracker row is 'movement engine ... stepwise traversal, junction pause + CHOOSE_FORK, " +
-            "stage clamp, boss-exact rule, chain hops, portal draws' — ROLL_DICE's handler — and " +
-            "Handlers/StartRun.cs + Handlers/BeginSession.cs are the two existing precedents for that " +
-            "file/class naming, so this is the first Core type M3-02 adds, not an invented one."),
+            "would be a PARTIAL invariant wearing the real one's name. ⚠️ Keyed on 'RollDice' until " +
+            "M3-04 landed that exact type in a parallel lane before this entry's own predecessor " +
+            "merged — S12's collision hazard, caught by the deferred-check itself rather than by a " +
+            "human. Re-pointed to 'ChooseFork': M3-02's own tracker row is 'movement engine ... " +
+            "stepwise traversal, junction pause + CHOOSE_FORK, stage clamp, boss-exact rule, chain " +
+            "hops, portal draws' — CHOOSE_FORK's handler, and the one that actually resolves a " +
+            "pending fork, making it a sharper predicate than ROLL_DICE ever was for this entry. " +
+            "Handlers/StartRun.cs, Handlers/BeginSession.cs and Handlers/RollDice.cs are the existing " +
+            "precedents for that file/class naming."),
 
         new("DraftedPerks", "M3-06", "PerkDefinition",
             "30 §4 lists 'drafted perks' on Run. 06 §5 forbids per-perk code — a perk IS DSL data — so " +
@@ -250,7 +254,7 @@ internal static class GapRegister
             "one consumable's state, not a second field on the aggregate — storing a bool for it now " +
             "would fix the Escape Rope's mechanics before M3-08 has chosen them."),
 
-        new("PendingFork", "M3-02", "RollDice",
+        new("PendingFork", "M3-02", "ChooseFork",
             "30 §4 lists 'pending fork choice (mid-move junction pause, 03 §1.1)'. A pending choice " +
             "names the junction node (SlayIdleRepeat.Core.Rules.Board.NodeId, now authored by M3-01) " +
             "and the branches on offer (Board.OutgoingEdges), so the SHAPE it would be stored as now " +
@@ -260,8 +264,11 @@ internal static class GapRegister
             "on the same day (M3-02's), and pointing this one at a different type to make the register " +
             "look more granular would be buying silence with a predicate that does not describe the " +
             "reason. The predicate moved from NodeId to RollDice on the commit that authored NodeId, " +
-            "not to a type invented for the occasion — see the Board entry's Why for the naming " +
-            "precedent (Handlers/StartRun.cs, Handlers/BeginSession.cs)."),
+            "then from RollDice to ChooseFork here — RollDice landed in a parallel M3-04 lane before " +
+            "this entry's own predecessor merged (S12's collision hazard), and ChooseFork is not only " +
+            "un-expired but the sharper predicate: it is CHOOSE_FORK's own handler, the command that " +
+            "actually resolves the pause this entry defers — see the Board entry's Why for the naming " +
+            "precedent (Handlers/StartRun.cs, Handlers/BeginSession.cs, Handlers/RollDice.cs)."),
 
         new("Curses", "M3-11", "CurseDefinition",
             "30 §4 lists 'curses' on Run. 19 E catalogues twelve of them and M3-11 owns the rules " +
