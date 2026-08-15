@@ -219,27 +219,23 @@ internal static class GapRegister
         // position, HP, run Gold, RNG stream positions, per-run ad uses — and these five without.
         // Plus the run's PHASE, which 02 §1.1 draws and which is deferred for a sharper reason than
         // "no element type yet": nobody has ruled which of its states are server-side.
-
-        new("Board", "M3-02", "ChooseFork",
-            "30 §4 lists 'Board' first among the Run aggregate's contents. M3-01 CLOSED THE HALF THIS " +
-            "ENTRY ORIGINALLY WAITED ON: SlayIdleRepeat.Core.Rules.Board now has NodeId, BoardNode, " +
-            "Board (the DAG) and BoardGenerator.GenerateBoard(config, rng), so node identity exists " +
-            "and 03 §1's graph is real. What remains is NOT a missing type but missing WIRING, which " +
-            "is why this entry survives M3-01 rather than being deleted by it: 30 §11.5 names 'a run's " +
-            "position is a valid node' as an invariant, and checking it needs the specific board a " +
-            "specific run stands on — which needs a handler that calls GenerateBoard(over the run's " +
-            "chapter/tier/seed via RunRngScope) and then Run.MoveTo, i.e. the movement engine itself. " +
-            "Run.Position therefore still stores the linear index and validates only 03 §1.1's " +
-            "authored floor (the virtual trailhead at -1) — a range check invented here (0..42, say) " +
-            "would be a PARTIAL invariant wearing the real one's name. ⚠️ Keyed on 'RollDice' until " +
-            "M3-04 landed that exact type in a parallel lane before this entry's own predecessor " +
-            "merged — S12's collision hazard, caught by the deferred-check itself rather than by a " +
-            "human. Re-pointed to 'ChooseFork': M3-02's own tracker row is 'movement engine ... " +
-            "stepwise traversal, junction pause + CHOOSE_FORK, stage clamp, boss-exact rule, chain " +
-            "hops, portal draws' — CHOOSE_FORK's handler, and the one that actually resolves a " +
-            "pending fork, making it a sharper predicate than ROLL_DICE ever was for this entry. " +
-            "Handlers/StartRun.cs, Handlers/BeginSession.cs and Handlers/RollDice.cs are the existing " +
-            "precedents for that file/class naming."),
+        //
+        // 🔒 M3-02 DISCHARGED TWO OF THE FIVE — 'Board' and 'PendingFork' — and this is the OTHER
+        // direction the register's own remarks describe: a subject built rather than merely expired.
+        // Both used to sit here, keyed on 'ChooseFork'; that predicate is now satisfied
+        // (Handlers/ChooseFork.cs exists), which is exactly what forces their removal rather than a
+        // stale re-point.
+        //
+        //   · 'Board' is NOT authored as a Model-namespace type, and never will be: 30 §11.4 forbids
+        //     Model from referencing Rules at all, so a literal 'Board' type living beside PendingFork
+        //     is structurally impossible, not merely unbuilt. The functionality is real —
+        //     Rules.Board.BoardResolution regenerates a run's board deterministically from RunSeed and
+        //     the committed 'board' stream position on every command that needs one — so 'Board' is
+        //     dropped from the 30 §4 Run-contents transcription below entirely, the same move 30 §2.3's
+        //     row makes for its own BUILT-BUT-NOT-TYPE-SHAPED items (see that row's comment).
+        //   · 'PendingFork' IS authored, literally: SlayIdleRepeat.Core.Model.PendingFork (junction
+        //     position + remaining steps, Run.PendingFork's own storage). It stays in the
+        //     transcription below and needs no Deferred entry — Undeclared() finds it authored.
 
         new("DraftedPerks", "M3-06", "PerkDefinition",
             "30 §4 lists 'drafted perks' on Run. 06 §5 forbids per-perk code — a perk IS DSL data — so " +
@@ -253,22 +249,6 @@ internal static class GapRegister
             "armed flag is deferred WITH them rather than beside them, and that is the ruling: it is " +
             "one consumable's state, not a second field on the aggregate — storing a bool for it now " +
             "would fix the Escape Rope's mechanics before M3-08 has chosen them."),
-
-        new("PendingFork", "M3-02", "ChooseFork",
-            "30 §4 lists 'pending fork choice (mid-move junction pause, 03 §1.1)'. A pending choice " +
-            "names the junction node (SlayIdleRepeat.Core.Rules.Board.NodeId, now authored by M3-01) " +
-            "and the branches on offer (Board.OutgoingEdges), so the SHAPE it would be stored as now " +
-            "exists — but the pause itself is still unbuilt: it is M3-02's movement engine, which is " +
-            "what actually reaches a junction mid-move and has something to pend. ⚠️ It shares its " +
-            "predicate with the Board entry DELIBERATELY, same as before M3-01: both become writable " +
-            "on the same day (M3-02's), and pointing this one at a different type to make the register " +
-            "look more granular would be buying silence with a predicate that does not describe the " +
-            "reason. The predicate moved from NodeId to RollDice on the commit that authored NodeId, " +
-            "then from RollDice to ChooseFork here — RollDice landed in a parallel M3-04 lane before " +
-            "this entry's own predecessor merged (S12's collision hazard), and ChooseFork is not only " +
-            "un-expired but the sharper predicate: it is CHOOSE_FORK's own handler, the command that " +
-            "actually resolves the pause this entry defers — see the Board entry's Why for the naming " +
-            "precedent (Handlers/StartRun.cs, Handlers/BeginSession.cs, Handlers/RollDice.cs)."),
 
         new("Curses", "M3-11", "CurseDefinition",
             "30 §4 lists 'curses' on Run. 19 E catalogues twelve of them and M3-11 owns the rules " +
@@ -493,12 +473,16 @@ internal static class GapRegister
             "FeatCounters",
         }),
 
-        new("30 §4 (the Run-contents row, the five items M1-05 did not build)", Domain.ModelNamespace, new[]
+        // 🔒 M3-02 dropped BOTH 'Board' and 'PendingFork' from this row, for two different reasons —
+        // see the M1-05 comment above this array's Run-contents Deferred entries. 'Board' is
+        // BUILT-BUT-NOT-TYPE-SHAPED (the same move 30 §2.3's row below makes for its own items) and
+        // can never be authored as a literal Model-namespace type at all. 'PendingFork' IS a type —
+        // SlayIdleRepeat.Core.Model.PendingFork — and Undeclared() finds it authored directly, so
+        // listing it here would only duplicate what IsAuthoredUnder already proves.
+        new("30 §4 (the Run-contents row, the three items still unbuilt)", Domain.ModelNamespace, new[]
         {
-            "Board",
             "DraftedPerks",
             "HeldConsumables",
-            "PendingFork",
             "Curses",
         }),
 

@@ -36,9 +36,11 @@ public static class SnapshotSchema
     /// migration code exists before soft launch and that written migrations become mandatory at M18,
     /// so a row stamped 1 is refused loudly by <c>Player.Rehydrate</c> rather than read against the
     /// wrong layout. <b>3</b> — M3-03c added <c>RunSnapshot.ResolvedMinigames</c>, `03` §6.2's
-    /// per-tile minigame legality gate (position → the <c>MG_*</c> id resolved there). Same ruling,
-    /// no migration.
+    /// per-tile minigame legality gate (position → the <c>MG_*</c> id resolved there). <b>4</b> —
+    /// M3-02 added <c>RunSnapshot.PendingForkJunctionPosition</c> and
+    /// <c>PendingForkRemainingSteps</c>, `03` §1.1's junction pause (<c>Run.PendingFork</c>). Same
+    /// ruling, no migration.
     /// </para>
     /// </remarks>
-    public const int SchemaVersion = 3;
+    public const int SchemaVersion = 4;
 }

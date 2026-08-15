@@ -26,7 +26,9 @@ public sealed class RunSnapshotTests
         rngStreamPositions: RunSnapshots.Streams(
             (RngStreams.Dice, 12UL), (RngStreams.Board, 8UL), (RngStreams.Combat, 3UL)),
         adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_DICE", 2)),
-        resolvedMinigames: RunSnapshots.ResolvedMinigames((3, "MG_CHEST_PICK"), (11, "MG_TIMING_BAR")));
+        resolvedMinigames: RunSnapshots.ResolvedMinigames((3, "MG_CHEST_PICK"), (11, "MG_TIMING_BAR")),
+        pendingForkJunctionPosition: 19,
+        pendingForkRemainingSteps: 2);
 
     /// <summary>
     /// 🔒 The <c>stateHash</c> of a <b>run</b> command (`14` §16.6): the player snapshot then the
@@ -75,6 +77,8 @@ public sealed class RunSnapshotTests
         round.RngStreamPositions.ShouldBe(Populated.RngStreamPositions, ignoreOrder: true);
         round.AdUses.ShouldBe(Populated.AdUses, ignoreOrder: true);
         round.ResolvedMinigames.ShouldBe(Populated.ResolvedMinigames, ignoreOrder: true);
+        round.PendingForkJunctionPosition.ShouldBe(Populated.PendingForkJunctionPosition);
+        round.PendingForkRemainingSteps.ShouldBe(Populated.PendingForkRemainingSteps);
     }
 
     /// <summary>
@@ -157,6 +161,10 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.AdUses), v, RunSnapshots.With(adUses: RunSnapshots.AdUses(("AD_REVIVE", 1)))),
             (nameof(RunSnapshot.ResolvedMinigames), v,
                 RunSnapshots.With(resolvedMinigames: RunSnapshots.ResolvedMinigames((0, "MG_CHEST_PICK")))),
+            (nameof(RunSnapshot.PendingForkJunctionPosition), v,
+                RunSnapshots.With(pendingForkJunctionPosition: 3)),
+            (nameof(RunSnapshot.PendingForkRemainingSteps), v,
+                RunSnapshots.With(pendingForkRemainingSteps: 1)),
         };
 
         var invisible = probes

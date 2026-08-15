@@ -51,6 +51,7 @@ internal static class TuningDocuments
                 ProgressionDocuments.With(legendLevelMin: legendLevelMin)
                     .GetDocument(ProgressionDocuments.DocumentPath),
                 Currencies(cycleDays),
+                ChapterDocuments.Document(chapterId: 1, ChapterDocuments.ChapterOnePath),
             ]);
 
     /// <summary>

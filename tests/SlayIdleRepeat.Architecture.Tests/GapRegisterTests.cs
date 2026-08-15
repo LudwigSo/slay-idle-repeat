@@ -248,11 +248,13 @@ public sealed class GapRegisterTests
             s => s.Citation.StartsWith("30 §4 (the Run-contents row", StringComparison.Ordinal));
 
         runContents.Subjects.Count.ShouldBe(
-            5,
+            3,
             "30 §4's Run row enumerates ten things; M1-05 built five (position, HP, run Gold, RNG " +
-            "stream positions, per-run ad uses) and this transcription is the other five. Five plus " +
-            "five is the row — if this shrinks, the arithmetic in GapRegister.Surfaces' remarks stops " +
-            "adding up and the dropped item is deferred by nobody.");
+            "stream positions, per-run ad uses), M3-02 built two more (Board — regenerated, never " +
+            "stored, so not type-shaped — and PendingFork, authored directly and therefore no longer " +
+            "carried by THIS transcription either) and this transcription is the three still unbuilt " +
+            "(DraftedPerks, HeldConsumables, Curses). If this shrinks for any reason other than one of " +
+            "those three actually being authored, the dropped item is deferred by nobody.");
 
         runContents.Namespace.ShouldBe(Domain.ModelNamespace);
 
@@ -423,19 +425,19 @@ public sealed class GapRegisterTests
             .ToArray();
 
         owners.Length.ShouldBe(
-            42,
-            "14 §2.3's registry is 19 run + 30 meta, and 42 of the 49 rows are Deferred since M3-08 " +
-            "landed the SHOP_BUY/SHOP_REFRESH handlers (beside M3-15's START_RUN, M3-03c's " +
-            "MINIGAME_SUBMIT, M3-04's ROLL_DICE/USE_REROLL, and M1-09's BEGIN_SESSION). If this is 0 " +
-            "the pattern has stopped matching the dispatch table and the comparison below holds over " +
-            "nothing; if it shrinks, either a row went away or a row became Handled — in which case " +
-            "lower this by exactly that many and raise the Handled floor by the same.");
+            41,
+            "14 §2.3's registry is 19 run + 30 meta, and 41 of the 49 rows are Deferred since M3-02 " +
+            "landed the CHOOSE_FORK handler (beside M3-15's START_RUN, M3-03c's MINIGAME_SUBMIT, " +
+            "M3-04's ROLL_DICE/USE_REROLL, M3-08's SHOP_BUY/SHOP_REFRESH, and M1-09's BEGIN_SESSION). " +
+            "If this is 0 the pattern has stopped matching the dispatch table and the comparison " +
+            "below holds over nothing; if it shrinks, either a row went away or a row became Handled " +
+            "— in which case lower this by exactly that many and raise the Handled floor by the same.");
 
         handled.ShouldBe(
             new[]
             {
                 "BEGIN_SESSION", "START_RUN", "MINIGAME_SUBMIT", "ROLL_DICE", "USE_REROLL",
-                "SHOP_BUY", "SHOP_REFRESH",
+                "SHOP_BUY", "SHOP_REFRESH", "CHOOSE_FORK",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
@@ -444,7 +446,8 @@ public sealed class GapRegisterTests
             "third; 04 §§1,3-4's ROLL_DICE and USE_REROLL (M3-04) the fourth and fifth; 03 §7's " +
             "SHOP_BUY and SHOP_REFRESH (M3-08) the sixth and seventh — real, dispatched handlers " +
             "that refuse every call today because no Run shaped by today's aggregate can carry an " +
-            "active shop offer yet (see Handlers.ShopBuy's remarks).");
+            "active shop offer yet (see Handlers.ShopBuy's remarks); 03 §1.1's CHOOSE_FORK (M3-02) " +
+            "the eighth, resolving the junction pause the same movement engine actually opens.");
 
 
         (owners.Length + handled.Length).ShouldBe(

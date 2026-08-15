@@ -82,7 +82,9 @@ internal static class RunSnapshots
             0L,
             streams ? null! : Streams(),
             adUses ? null! : AdUses(),
-            resolvedMinigames ? null! : ResolvedMinigames());
+            resolvedMinigames ? null! : ResolvedMinigames(),
+            PendingForkJunctionPosition: null,
+            PendingForkRemainingSteps: null);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static RunSnapshot With(
@@ -99,7 +101,9 @@ internal static class RunSnapshots
         long? gold = null,
         IReadOnlyDictionary<string, ulong>? rngStreamPositions = null,
         IReadOnlyDictionary<string, long>? adUses = null,
-        IReadOnlyDictionary<int, string>? resolvedMinigames = null) =>
+        IReadOnlyDictionary<int, string>? resolvedMinigames = null,
+        int? pendingForkJunctionPosition = null,
+        int? pendingForkRemainingSteps = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -114,5 +118,7 @@ internal static class RunSnapshots
             gold ?? 0L,
             rngStreamPositions ?? Streams(),
             adUses ?? AdUses(),
-            resolvedMinigames ?? ResolvedMinigames());
+            resolvedMinigames ?? ResolvedMinigames(),
+            pendingForkJunctionPosition,
+            pendingForkRemainingSteps);
 }
