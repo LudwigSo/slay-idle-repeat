@@ -5,6 +5,7 @@ using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Board.Resolution;
 using SlayIdleRepeat.Core.Rules.Dice;
 
 namespace SlayIdleRepeat.Core.Handlers;
@@ -73,6 +74,13 @@ internal static class RollDice
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
+        if (run.HasPendingTile)
+        {
+            // 🔒 M3-05 — a tile landed on and not yet resolved blocks a further roll; RESOLVE_TILE
+            // (and whichever command finishes it) is the only legal next move.
+            return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
+        }
+
         var board = BoardResolution.Resolve(run, input.Context.Content, input.Rng);
 
         var events = new List<DomainEvent>();
@@ -87,7 +95,11 @@ internal static class RollDice
         while (true)
         {
             var committedDraws = run.StreamPosition(RngStreams.Dice) + (ulong)events.Count;
-            var weights = FairDiceBag.Replay(run.RunSeed, resetAtDraw: 0, uptoDraw: committedDraws);
+
+            // 🔒 M3-05 — resetAtDraw is the run's Stage Gate anchor, not a hard 0: the bag's weight
+            // vector resets at the START OF THE CURRENT STAGE, not at the start of the whole run.
+            var weights = FairDiceBag.Replay(
+                run.RunSeed, resetAtDraw: run.StageGateDiceAnchor, uptoDraw: committedDraws);
             var (faceValue, _) = FairDiceBag.Step(input.Rng.Stream(RngStreams.Dice), weights);
 
             var face = DieComposer.StartingDie[faceValue - 1];
@@ -159,6 +171,13 @@ internal static class RollDice
                     run.SetHitPoints(currentHp, run.MaxHp);
                 }
 
+                // 🔒 M3-05 — the boss node is itself a resolvable tile (03 §2's TileKind.Boss);
+                // reaching it ends the chain but is not a Stage Gate (03 §1.1 fires that only on
+                // landing exactly on stage 1/2/3's last node, never on the boss, which belongs to no
+                // stage).
+                var bossNode = board.Node(current);
+                run.ArriveAtTile((int)bossNode.Tile, bossNode.LinearIndex, bossNode.Stage);
+
                 return HandlerResult.Accept(events);
             }
 
@@ -169,6 +188,19 @@ internal static class RollDice
                 if (!atTrailhead)
                 {
                     run.MoveTo(current.Value);
+
+                    // 🔒 M3-05, 03 §1.1 — "landing on a stage's last node resolves that tile, fires
+                    // Stage Gate, chain stops": the gate fires BEFORE ArriveAtTile is recorded so the
+                    // heal reads Run.MaxHp before anything else this command touches, and its own
+                    // Run.ApplyStageGate call is what writes the healed HP — the trailing
+                    // SetHitPoints below becomes a no-op for it (currentHp already matches).
+                    if (stageClamped)
+                    {
+                        currentHp = StageGateResolver.Apply(input, currentHp);
+                    }
+
+                    var node = board.Node(current);
+                    run.ArriveAtTile((int)node.Tile, node.LinearIndex, node.Stage);
                 }
 
                 if (currentHp != run.CurrentHp)

@@ -163,6 +163,26 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// a reroll `14` §8.1's whole determinism model exists to make impossible.
 /// </para>
 /// </param>
+/// <param name="Phase">
+/// 🔒 M3-05, SchemaVersion 6, `02` §1.1 — the genuine server-side subset of the run's state machine.
+/// See <see cref="Primitives.RunPhase"/> for the full ruling. Defaulted to
+/// <see cref="Primitives.RunPhase.InProgress"/> so every pre-M3-05 positional construction still
+/// compiles as the phase a run already implicitly stood at.
+/// </param>
+/// <param name="DraftPending">
+/// 🔒 M3-05, SchemaVersion 6 — the documented hook for M3-06's perk draft: true once
+/// <c>CONFIRM_BATTLE_RESULT</c> has closed a won battle and no draft command has resolved it yet.
+/// Defaulted to <c>false</c>.
+/// </param>
+/// <param name="RerollChargesSpentThisStage">
+/// 🔒 M3-05, SchemaVersion 6, `04` §3 — reroll charges spent since the run's current stage began.
+/// Reset to 0 at every Stage Gate. Defaulted to 0.
+/// </param>
+/// <param name="StageGateDiceAnchor">
+/// 🔒 M3-05, SchemaVersion 6 — the <c>dice</c> stream draw index the run's current stage began at;
+/// <see cref="SlayIdleRepeat.Core.Rules.Dice.FairDiceBag.Replay"/>'s <c>resetAtDraw</c>. Defaulted to 0, the anchor every
+/// run implicitly held before a real Stage Gate existed.
+/// </param>
 /// <remarks>
 /// <para>
 /// 🔒 <b>Flat, and that is `30` §11.3's word.</b> The only structured members are
@@ -232,4 +252,8 @@ public sealed record RunSnapshot(
     int PendingTileKind,
     int PendingTileLinearIndex,
     int PendingTileStage,
-    string PendingEventCardId);
+    string PendingEventCardId,
+    RunPhase Phase = RunPhase.InProgress,
+    bool DraftPending = false,
+    int RerollChargesSpentThisStage = 0,
+    ulong StageGateDiceAnchor = 0);

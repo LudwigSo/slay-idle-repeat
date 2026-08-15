@@ -126,7 +126,8 @@ public static class GameRules
     /// instead, and M3-03c's <c>MINIGAME_SUBMIT</c> and M3-03's three tile rows are below it.
     /// </para>
     /// <para>
-    /// 🔒 <b>Thirty-nine rows are <c>Deferred</c> and ten are <c>Handled</c>.</b>
+    /// 🔒 <b>Thirty-seven rows are <c>Deferred</c> and twelve are <c>Handled</c>.</b> (M3-05 swapped
+    /// <c>START_BATTLE</c> and <c>CONFIRM_BATTLE_RESULT</c>, ten becoming twelve.)
     /// <para>
     /// ⚠️ <b>This sentence said "forty-six / three" until M3-03 and had been wrong for two
     /// milestones</b> — M3-04's <c>ROLL_DICE</c> and <c>USE_REROLL</c> and M3-08's <c>SHOP_BUY</c> and
@@ -193,8 +194,8 @@ public static class GameRules
         .Handled<EventChooseCommand>("EVENT_CHOOSE", CommandKind.Run, EventChoose.Handle)
         .Handled<MinigameSubmitCommand>("MINIGAME_SUBMIT", CommandKind.Run, MinigameSubmit.Handle)
         .Handled<CampfireChooseCommand>("CAMPFIRE_CHOOSE", CommandKind.Run, CampfireChoose.Handle)
-        .Deferred<StartBattleCommand>("START_BATTLE", CommandKind.Run, "M3-05")
-        .Deferred<ConfirmBattleResultCommand>("CONFIRM_BATTLE_RESULT", CommandKind.Run, "M3-05")
+        .Handled<StartBattleCommand>("START_BATTLE", CommandKind.Run, StartBattle.Handle)
+        .Handled<ConfirmBattleResultCommand>("CONFIRM_BATTLE_RESULT", CommandKind.Run, ConfirmBattleResult.Handle)
         .Deferred<ReviveCommand>("REVIVE", CommandKind.Run, "M3-13")
         .Deferred<UseConsumableCommand>("USE_CONSUMABLE", CommandKind.Run, "M3-08")
         .Deferred<EndRunCommand>("END_RUN", CommandKind.Run, "M3-13")
@@ -395,6 +396,25 @@ public static class GameRules
                 "14 §16.2's RUN_NOT_FOUND is a TRANSPORT-tier value, refused before the domain is " +
                 "invoked, so Apply may not return it (30 §2). This is a miswired caller, not a " +
                 "player asking for something they cannot have.");
+        }
+
+        // 🔒 M3-05 — the RunPhase gate. state.Run is non-null here for every row but START_RUN (the
+        // guard above proved it), and START_RUN's row is CommandKind.Run with a run-less slice, so
+        // this never runs for it — a fresh run has no phase to gate on yet regardless. See
+        // Primitives.RunPhase's remarks for the full ruling this pair of checks implements.
+        if (registration.Kind == CommandKind.Run && state.Run is not null)
+        {
+            if (state.Run.Phase == RunPhase.Ended)
+            {
+                return CommandResult.Reject(RejectionReason.RUN_ALREADY_ENDED, state);
+            }
+
+            if (state.Run.Phase == RunPhase.BattlePending && command is not ConfirmBattleResultCommand)
+            {
+                // A battle is open. CONFIRM_BATTLE_RESULT is the only legal next move — the same "an
+                // illegal move is data" shape RollDice draws for a pending fork.
+                return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
+            }
         }
 
         // P4. Everything from here works on a copy; the caller's slice is never written to.

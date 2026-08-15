@@ -43,8 +43,13 @@ public static class SnapshotSchema
     /// (<c>PendingTileKind</c>, <c>PendingTileLinearIndex</c>, <c>PendingTileStage</c>,
     /// <c>PendingEventCardId</c>), the seam between arriving at a tile and resolving it — cut from a
     /// parallel lane based on SchemaVersion 3, reconciled after both landed. Same ruling, no
-    /// migration.
+    /// migration. <b>6</b> — M3-05 added four fields: <c>Phase</c> (`02` §1.1's run state machine,
+    /// <see cref="SlayIdleRepeat.Core.Primitives.RunPhase"/>), <c>DraftPending</c> (M3-06's documented hook),
+    /// <c>RerollChargesSpentThisStage</c> and <c>StageGateDiceAnchor</c> (`03` §1.1's Stage Gate:
+    /// reroll-charge refresh and the Fair-Dice bag's reset anchor). Same ruling, no migration; all
+    /// four are defaulted on the record so every pre-existing positional construction still compiles
+    /// against the value a run implicitly held before this task.
     /// </para>
     /// </remarks>
-    public const int SchemaVersion = 5;
+    public const int SchemaVersion = 6;
 }

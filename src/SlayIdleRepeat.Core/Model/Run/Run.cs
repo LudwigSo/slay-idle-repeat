@@ -233,6 +233,37 @@ public sealed class Run
     private int _maxHp;
 
     /// <summary>
+    /// 🔒 M3-05, `02` §1.1 — the subset of the run's state machine that is genuine server-side
+    /// aggregate state. See <see cref="Primitives.RunPhase"/> for the full ruling.
+    /// </summary>
+    private RunPhase _phase;
+
+    /// <summary>
+    /// 🔒 M3-05 — set when <c>CONFIRM_BATTLE_RESULT</c> closes a won battle, and the documented hook
+    /// M3-06's perk-draft trigger reads: a future <c>PickPerkCommand</c>/<c>SkipDraftCommand</c>
+    /// clears it once the draft resolves. <c>Handlers.ConfirmBattleResult</c> is the exact call site
+    /// that sets it — see that type's remarks.
+    /// </summary>
+    private bool _draftPending;
+
+    /// <summary>
+    /// 🔒 M3-05, `04` §3 — reroll charges spent since the run's current stage began. Reset to 0 at
+    /// every Stage Gate (<see cref="ApplyStageGate"/>); compared against
+    /// <see cref="Rules.Dice.RerollEconomy.TotalCharges"/> by <c>Handlers.UseReroll</c>, which is the
+    /// "a caller with a real spent-count... compares it against TotalCharges" seam
+    /// <see cref="Rules.Dice.RerollEconomy"/>'s own remarks left open.
+    /// </summary>
+    private int _rerollChargesSpentThisStage;
+
+    /// <summary>
+    /// 🔒 M3-05 — the <c>dice</c> stream draw index the run's current stage began at:
+    /// <see cref="Rules.Dice.FairDiceBag.Replay"/>'s <c>resetAtDraw</c> argument, once a real Stage
+    /// Gate exists to feed it (M3-04's handlers hard-coded 0, documented as a placeholder — see
+    /// <c>Handlers.RollDice</c>'s and <c>Handlers.UseReroll</c>'s prior remarks).
+    /// </summary>
+    private ulong _stageGateDiceAnchor;
+
+    /// <summary>
     /// 🔒 M3-02, `03` §1.1 / `30` §4 — a movement paused mid-move at a junction, waiting for
     /// <c>CHOOSE_FORK</c>. Null on every run that is not, right now, standing at a junction with
     /// movement still to spend.
@@ -268,7 +299,11 @@ public sealed class Run
         int pendingTileKind,
         int pendingTileLinearIndex,
         int pendingTileStage,
-        string? pendingEventCardId)
+        string? pendingEventCardId,
+        RunPhase phase,
+        bool draftPending,
+        int rerollChargesSpentThisStage,
+        ulong stageGateDiceAnchor)
     {
         Id = id;
         PlayerId = playerId;
@@ -290,6 +325,10 @@ public sealed class Run
         _pendingTileLinearIndex = pendingTileLinearIndex;
         _pendingTileStage = pendingTileStage;
         _pendingEventCardId = pendingEventCardId;
+        _phase = phase;
+        _draftPending = draftPending;
+        _rerollChargesSpentThisStage = rerollChargesSpentThisStage;
+        _stageGateDiceAnchor = stageGateDiceAnchor;
     }
 
     /// <summary>
@@ -491,6 +530,18 @@ public sealed class Run
     /// <inheritdoc cref="_pendingFork"/>
     public PendingFork? PendingFork => _pendingFork;
 
+    /// <inheritdoc cref="_phase"/>
+    public RunPhase Phase => _phase;
+
+    /// <inheritdoc cref="_draftPending"/>
+    internal bool DraftPending => _draftPending;
+
+    /// <inheritdoc cref="_rerollChargesSpentThisStage"/>
+    internal int RerollChargesSpentThisStage => _rerollChargesSpentThisStage;
+
+    /// <inheritdoc cref="_stageGateDiceAnchor"/>
+    internal ulong StageGateDiceAnchor => _stageGateDiceAnchor;
+
     /// <summary>
     /// The next draw index of one `14` §8.1 stream, or <b>zero</b> for a registered stream this run
     /// has never drawn from.
@@ -582,7 +633,11 @@ public sealed class Run
         _pendingTileStage,
         // 🔒 null becomes "" on the way out — see _pendingEventCardId for why the two sides of this
         // seam spell "absent" differently.
-        _pendingEventCardId ?? string.Empty);
+        _pendingEventCardId ?? string.Empty,
+        _phase,
+        _draftPending,
+        _rerollChargesSpentThisStage,
+        _stageGateDiceAnchor);
 
     /// <summary>
     /// 🔒 `30` §11.3 — the one validated entry point for a persisted run: <em>"a corrupt row fails
@@ -648,6 +703,8 @@ public sealed class Run
         var resolvedMinigames = ReadResolvedMinigames(snapshot, faults);
         RequirePendingFork(snapshot, faults);
         RequirePendingTile(snapshot, faults);
+        RequirePhase(snapshot, faults);
+        RequireRerollCharges(snapshot, faults);
 
         // The three `is null` arms are unreachable while `faults` is empty — every path that returns
         // null also adds a fault — but they are written as a pattern rather than as three `!`
@@ -686,7 +743,11 @@ public sealed class Run
             // 🔒 "" becomes null on the way in, and a blank-but-not-empty string ("  ") does too:
             // both mean "no card has been drawn", and carrying whitespace through would give
             // SetPendingEventCard's own blank check something to disagree with.
-            string.IsNullOrWhiteSpace(snapshot.PendingEventCardId) ? null : snapshot.PendingEventCardId));
+            string.IsNullOrWhiteSpace(snapshot.PendingEventCardId) ? null : snapshot.PendingEventCardId,
+            snapshot.Phase,
+            snapshot.DraftPending,
+            snapshot.RerollChargesSpentThisStage,
+            snapshot.StageGateDiceAnchor));
     }
 
     /// <summary>
@@ -1287,6 +1348,123 @@ public sealed class Run
     }
 
     /// <summary>
+    /// 🔒 M3-05 — opens a battle: <see cref="Phase"/> moves from <see cref="RunPhase.InProgress"/> to
+    /// <see cref="RunPhase.BattlePending"/>. Called by <c>Handlers.StartBattle</c> after it has
+    /// itself checked the pending tile is an <c>Enemy</c>/<c>Elite</c>/<c>Boss</c> — this seam cannot
+    /// make that check (30 §11.4 forbids <c>Model</c> from naming the tile vocabulary), so it only
+    /// enforces what it can see.
+    /// </summary>
+    /// <remarks>
+    /// A defect, not a rejection, on either failure: <c>Handlers.StartBattle</c>'s own legality
+    /// checks (a pending fight tile, and <c>GameRules.Execute</c>'s phase gate) are what are supposed
+    /// to refuse an illegal <c>START_BATTLE</c> as a <c>RejectionReason</c> before this seam is ever
+    /// reached — the same shape <see cref="BeginPendingFork"/> draws for a second pending fork.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// <see cref="Phase"/> is not <see cref="RunPhase.InProgress"/>, or no tile is pending.
+    /// </exception>
+    internal void EnterBattle()
+    {
+        if (_phase != RunPhase.InProgress)
+        {
+            throw new InvalidOperationException(
+                "This run's phase is " + _phase + ", not " + RunPhase.InProgress + ". A battle can " +
+                "only open from the run's default phase — GameRules.Execute's phase gate is what is " +
+                "supposed to refuse a second START_BATTLE (or any other run command) while a battle " +
+                "is already pending, as a RejectionReason, before this seam is ever reached. Reaching " +
+                "here means that gate was skipped — a miswired caller, not a player asking twice.");
+        }
+
+        if (!HasPendingTile)
+        {
+            throw new InvalidOperationException(
+                "This run has no pending tile. A battle opens against the tile the run has arrived " +
+                "at and not yet resolved — Handlers.StartBattle's own legality check is what is " +
+                "supposed to refuse START_BATTLE with nothing pending, as a RejectionReason, before " +
+                "this seam is ever reached.");
+        }
+
+        _phase = RunPhase.BattlePending;
+    }
+
+    /// <summary>
+    /// 🔒 M3-05 — closes a battle: <see cref="Phase"/> moves back from
+    /// <see cref="RunPhase.BattlePending"/> to <see cref="RunPhase.InProgress"/>. Called by
+    /// <c>Handlers.ConfirmBattleResult</c>. Does <b>not</b> clear the pending tile — the caller calls
+    /// <see cref="ClearPendingTile"/> itself, once it has applied whatever outcome the battle had.
+    /// </summary>
+    /// <exception cref="InvalidOperationException"><see cref="Phase"/> is not <see cref="RunPhase.BattlePending"/>.</exception>
+    internal void ExitBattle()
+    {
+        if (_phase != RunPhase.BattlePending)
+        {
+            throw new InvalidOperationException(
+                "This run's phase is " + _phase + ", not " + RunPhase.BattlePending + ". " +
+                "Handlers.ConfirmBattleResult's own legality check is what is supposed to refuse " +
+                "CONFIRM_BATTLE_RESULT with no battle open, as a RejectionReason, before this seam " +
+                "is ever reached.");
+        }
+
+        _phase = RunPhase.InProgress;
+    }
+
+    /// <summary>
+    /// 🔒 M3-05 — the documented hook for M3-06's perk draft: records that a won battle has a draft
+    /// waiting. <c>Handlers.ConfirmBattleResult</c> is the exact call site (see its remarks); a
+    /// future M3-06 command (<c>PICK_PERK</c>/<c>REROLL_DRAFT</c>/<c>SKIP_DRAFT</c>) reads
+    /// <see cref="DraftPending"/> and calls <see cref="ClearDraftPending"/> once the draft resolves.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">A draft is already pending.</exception>
+    internal void MarkDraftPending()
+    {
+        if (_draftPending)
+        {
+            throw new InvalidOperationException(
+                "This run already has a draft pending. Two wins without an intervening draft " +
+                "resolution is not a state Handlers.ConfirmBattleResult should ever reach — a run " +
+                "cannot open a second battle while DraftPending is still set once M3-06 gates on it, " +
+                "so calling this twice is a miswired caller.");
+        }
+
+        _draftPending = true;
+    }
+
+    /// <summary>🔒 M3-05 — clears the draft-pending hook. Idempotent, for the reason <see cref="ClearPendingTile"/> is.</summary>
+    internal void ClearDraftPending() => _draftPending = false;
+
+    /// <summary>
+    /// 🔒 M3-05, `04` §3 — records that one reroll charge was spent this stage.
+    /// <c>Handlers.UseReroll</c> calls this only after checking
+    /// <see cref="Rules.Dice.RerollEconomy.CanAffordReroll"/> itself.
+    /// </summary>
+    internal void SpendReroll() => _rerollChargesSpentThisStage++;
+
+    /// <summary>
+    /// 🔒 M3-05, `03` §1.1 — applies a Stage Gate: heals to the caller-computed hit points (`21`
+    /// §3.1's tunable percentage of Max HP, computed by the caller — this seam does not compute, `30`
+    /// §11.5), refreshes reroll charges to the stage's base allotment, and advances the Fair-Dice
+    /// bag's reset anchor to this stage's start.
+    /// </summary>
+    /// <param name="healedCurrentHp">
+    /// The hero's hit points after the Stage Gate heal — already computed and clamped by the caller.
+    /// </param>
+    /// <param name="diceStreamPositionAtGate">
+    /// The <c>dice</c> stream's draw index at the instant the gate fired — <see cref="StageGateDiceAnchor"/>'s
+    /// new value, and the <c>resetAtDraw</c> a subsequent <see cref="Rules.Dice.FairDiceBag.Replay"/>
+    /// call reads.
+    /// </param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="healedCurrentHp"/> is negative or above <see cref="MaxHp"/>.</exception>
+    internal void ApplyStageGate(int healedCurrentHp, ulong diceStreamPositionAtGate)
+    {
+        // 🔒 Reuses SetHitPoints rather than writing _currentHp directly: one seam validates the
+        // pair, and a Stage Gate heal is not exempt from "never above MaxHp" just because it is a
+        // gate rather than a tile reward.
+        SetHitPoints(healedCurrentHp, _maxHp);
+        _rerollChargesSpentThisStage = 0;
+        _stageGateDiceAnchor = diceStreamPositionAtGate;
+    }
+
+    /// <summary>
     /// 🔒 `14` §8.1 — the <b>one</b> seam that writes the per-stream draw counters: it replaces the
     /// whole map, and it refuses a map that is not a superset of the one already committed.
     /// </summary>
@@ -1872,6 +2050,29 @@ public sealed class Run
         // the same reason the kind's upper bound is not: it would mean naming 03 §2's vocabulary,
         // which 30 §11.4 puts above this layer. EventChoose is what checks the pairing, and it
         // answers ILLEGAL_STATE rather than resolving a card against the wrong tile.
+    }
+
+    /// <summary>🔒 M3-05 — <see cref="RunSnapshot.Phase"/> must be a defined <see cref="RunPhase"/>.</summary>
+    private static void RequirePhase(RunSnapshot snapshot, List<string> faults)
+    {
+        if (!Enum.IsDefined(snapshot.Phase))
+        {
+            faults.Add(
+                nameof(RunSnapshot.Phase) + " is " + Text((int)snapshot.Phase) + ", which names no " +
+                "RunPhase member. A row outside the vocabulary is not a state Run.EnterBattle, " +
+                "Run.ExitBattle or a future M3-13 mutator could have written.");
+        }
+    }
+
+    /// <summary>🔒 M3-05 — <see cref="RunSnapshot.RerollChargesSpentThisStage"/> is never negative.</summary>
+    private static void RequireRerollCharges(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.RerollChargesSpentThisStage < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.RerollChargesSpentThisStage) + " is " +
+                Text(snapshot.RerollChargesSpentThisStage) + ". A spent count is never negative.");
+        }
     }
 
     /// <summary>

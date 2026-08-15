@@ -256,14 +256,13 @@ internal static class GapRegister
             "immunity. A held-curse list authored now would freeze the curse shape under all four of " +
             "those rules before any of them is written (S6)."),
 
-        new("RunPhase", "M3-05", "TileType",
-            "02 §1-3's run state machine. Do NOT invent the state set: 02 §1.1's diagram is a CLIENT " +
-            "PRESENTATION machine (0.8 s die animation, banners) while 14 §2.3's ROLL_DICE answers " +
-            "face, movement and landing in ONE command — so which of its nine states are server-side " +
-            "aggregate state is a ruling M3-05 makes together with the tile resolvers. Keyed on " +
-            "TileType because RESOLVE_TILE branches by it. ⚠️ THE CONSEQUENCE, STATED: without a " +
-            "phase, Apply cannot produce 14 §16.2's RUN_ALREADY_ENDED or ILLEGAL_STATE, and M3-05 " +
-            "pays a SchemaVersion bump to add it. That cost is named here rather than discovered."),
+        // 🔒 M3-05 DISCHARGED THE RunPhase ENTRY THAT USED TO SIT HERE. RunPhase is authored
+        // (SlayIdleRepeat.Core.Primitives.RunPhase) — Expired()'s second arm would fire the moment
+        // IsPresentInCore("RunPhase") is true, which is now, so the entry is removed rather than
+        // left to go stale. The 02 §1.1 Surfaces transcription below still lists "RunPhase" —
+        // Undeclared() now finds it authored under Domain.PrimitivesNamespace directly, with no
+        // entry needed to carry it. The ruling itself — which of the nine 02 §1.1 states are
+        // server-side aggregate state, and why — is written on RunPhase's own remarks.
 
         // ---------------------------------------------------------------- M1-06, 30 §4.1
         //
@@ -620,8 +619,9 @@ internal static class GapRegister
         //
         // ⚠️ 14 §16.3's RUN TTL is not here at all, and that is not an omission: it is not one of
         // §2.3's boundaries. Catch-up never touches Run.LastAppliedAtUtc (M1-05's ruling), and
-        // EXPIRING a run needs RunPhase, which is already an entry above owned by M3-05 whose Why
-        // states this very consequence. A second entry for it would be two promises about one gap.
+        // EXPIRING a run needed RunPhase, which M3-05 has now authored (see the discharged entry's
+        // note above) — GameRules.Execute's phase gate answers RUN_ALREADY_ENDED once a run reaches
+        // RunPhase.Ended, which is M3-13's to produce (EndRunCommand/AbandonRunCommand).
         new("30 §2.3 (the lazy-catch-up boundaries whose state does not exist)", Domain.ModelNamespace, new[]
         {
             "QuestSlate",
