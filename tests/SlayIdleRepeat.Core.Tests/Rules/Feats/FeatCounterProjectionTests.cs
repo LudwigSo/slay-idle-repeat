@@ -110,12 +110,19 @@ public sealed class FeatCounterProjectionTests
         ids.ShouldNotContain("dice_rolled", "the total is not one of the per-kind rows.");
     }
 
-    /// <summary>An unset face names no counter — it is a handler defect, refused rather than counted as something.</summary>
+    /// <summary>
+    /// An unset or undefined face names no counter, and is refused rather than counted as
+    /// something. Pinned by <b>identity</b> — the exception type alone is shared by every other
+    /// refusal in this file and by any catch-all a later edit might add.
+    /// </summary>
     [Fact]
     public void An_unset_face_is_refused_rather_than_counted()
     {
-        Should.Throw<InvalidOperationException>(() => Project(Rolled(default)));
-        Should.Throw<InvalidOperationException>(() => FeatCounterProjection.DiceRolledCounterFor((DieFaceKind)99));
+        Should.Throw<InvalidOperationException>(() => Project(Rolled(default)))
+            .Message.ShouldContain("04 §1 fixes DieFaceKind at six named members", Case.Sensitive);
+
+        Should.Throw<InvalidOperationException>(() => FeatCounterProjection.DiceRolledCounterFor((DieFaceKind)99))
+            .Message.ShouldContain("99", Case.Sensitive);
     }
 
     // ------------------------------------------------------------------ the wallet
@@ -142,13 +149,24 @@ public sealed class FeatCounterProjectionTests
         AmountFor(increments, "currency_earned_enhance_stones").ShouldBe(0L);
     }
 
-    /// <summary>The negative control: a zero movement is explicitly permitted and is not a movement.</summary>
+    /// <summary>
+    /// The negative control: a zero movement is explicitly permitted and is not a movement. Stated
+    /// beside a non-zero one on the same currency, so an implementation that emitted a
+    /// zero-<c>Amount</c> increment — or one that projected nothing at all — is distinguished.
+    /// </summary>
     [Fact]
-    public void A_zero_delta_advances_nothing()
+    public void A_zero_delta_advances_nothing_while_a_movement_on_the_same_currency_does()
     {
         Project(Moved(CurrencyId.ENERGY, 0L)).ShouldBeEmpty(
             "CurrencyChanged permits a zero delta — a clamp that had nothing left to give. Counting " +
             "it would register a counter nothing actually earned or spent.");
+
+        Project(Moved(CurrencyId.ENERGY, 1L)).ShouldHaveSingleItem().Amount.ShouldBe(1L);
+
+        Project(Moved(CurrencyId.ENERGY, 0L), Moved(CurrencyId.ENERGY, 4L))
+            .ShouldHaveSingleItem().Amount.ShouldBe(
+                4L,
+                "the zero row is dropped from a mixed list rather than folded into the movement.");
     }
 
     /// <summary>🔒 The whole currency vocabulary, both directions, pinned as literals.</summary>
@@ -189,11 +207,19 @@ public sealed class FeatCounterProjectionTests
             "two currencies sharing a row would merge two histories.");
     }
 
+    /// <summary>Pinned by identity, for the reason the face-kind refusal above is.</summary>
     [Fact]
     public void An_undefined_currency_is_refused_rather_than_counted()
     {
-        Should.Throw<InvalidOperationException>(
-            () => FeatCounterProjection.CurrencyCounterFor((CurrencyId)99, earned: true));
+        foreach (var earned in new[] { true, false })
+        {
+            Should.Throw<InvalidOperationException>(
+                    () => FeatCounterProjection.CurrencyCounterFor((CurrencyId)99, earned))
+                .Message.ShouldContain("10 §1 fixes eight currencies", Case.Sensitive);
+        }
+
+        Should.Throw<InvalidOperationException>(() => Project(Moved((CurrencyId)99, 5L)))
+            .Message.ShouldContain("10 §1 fixes eight currencies", Case.Sensitive);
     }
 
     // ------------------------------------------------------------------ the boundary of the table
@@ -213,6 +239,24 @@ public sealed class FeatCounterProjectionTests
             .ShouldBe(new[] { "dice_rolled", "dice_rolled_pip" }, ignoreOrder: true);
     }
 
+    /// <summary>
+    /// The advances come back in the order the events happened, which is what the method promises.
+    /// Two events on two different currencies, so a projection that grouped by counter — losing the
+    /// list's order — is distinguished from one that folds it in place.
+    /// </summary>
+    [Fact]
+    public void The_advances_come_back_in_the_order_the_events_happened()
+    {
+        Project(Moved(CurrencyId.HONOR, 1L), Moved(CurrencyId.GOLD, 2L), Moved(CurrencyId.HONOR, 3L))
+            .Select(i => (i.CounterId, i.Amount))
+            .ShouldBe(new[]
+            {
+                ("currency_earned_honor", 1L),
+                ("currency_earned_gold", 2L),
+                ("currency_earned_honor", 3L),
+            });
+    }
+
     [Fact]
     public void An_empty_event_list_advances_nothing()
     {
@@ -220,20 +264,38 @@ public sealed class FeatCounterProjectionTests
         Should.Throw<ArgumentNullException>(() => FeatCounterProjection.Project(null!));
     }
 
-    /// <summary>Every id this table can produce is a stable lower_snake_case token.</summary>
+    /// <summary>
+    /// 🔒 Every id the table can actually <b>emit</b> is a distinct, stable
+    /// <c>lower_snake_case</c> token — swept off <see cref="FeatCounterProjection.Project"/> itself
+    /// over one event of every shape, not off the mapping helpers.
+    /// </summary>
+    /// <remarks>
+    /// A sweep built from <c>Enum.GetValues</c> and the two helpers would be a claim about the
+    /// helpers; this is a claim about the table. If a row stopped emitting — a face kind dropped
+    /// from the switch, one direction of the currency rule deleted — the count below falls and the
+    /// helper-driven version would not have noticed.
+    /// </remarks>
     [Fact]
-    public void Every_counter_id_is_a_lower_snake_case_token()
+    public void Every_id_the_table_emits_is_a_distinct_lower_snake_case_token()
     {
-        var ids = Enum.GetValues<DieFaceKind>().Select(FeatCounterProjection.DiceRolledCounterFor)
-            .Concat(Enum.GetValues<CurrencyId>().Select(c => FeatCounterProjection.CurrencyCounterFor(c, true)))
-            .Concat(Enum.GetValues<CurrencyId>().Select(c => FeatCounterProjection.CurrencyCounterFor(c, false)))
-            .Append("dice_rolled")
+        var everyShape = Enum.GetValues<DieFaceKind>()
+            .Select(k => Rolled(k == DieFaceKind.Pip ? DieFace.Pip(1) : DieFace.Special(k)))
+            .Concat(Enum.GetValues<CurrencyId>().Select(c => Moved(c, 1L)))
+            .Concat(Enum.GetValues<CurrencyId>().Select(c => Moved(c, -1L)))
             .ToArray();
 
-        ids.Length.ShouldBe(23, "6 face kinds + 8 currencies x 2 directions + the roll total.");
+        var ids = FeatCounterProjection.Project(everyShape)
+            .Select(i => i.CounterId)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
 
-        ids.ShouldAllBe(id => id.All(c => (c >= 'a' && c <= 'z') || c == '_'));
-        ids.Distinct(StringComparer.Ordinal).Count().ShouldBe(ids.Length);
+        ids.Length.ShouldBe(
+            23,
+            "6 face kinds + 8 currencies x 2 directions + the roll total. This is what the table " +
+            "EMITS: a row that stopped firing lowers it, whatever the mapping helpers still answer.");
+
+        ids.ShouldAllBe(id => id.Length > 0 && id.All(c => (c >= 'a' && c <= 'z') || c == '_'));
+        ids.ShouldContain("dice_rolled");
     }
 
     /// <summary>An event outside the table, declared here so no production type has to exist for the negative control.</summary>

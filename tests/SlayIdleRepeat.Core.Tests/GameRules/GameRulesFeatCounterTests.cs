@@ -22,6 +22,16 @@ public sealed class GameRulesFeatCounterTests
     private static DomainEvent Rolled(DieFaceKind kind) =>
         new DiceRolled(DomainEvent.UnstampedSequence, DieFace.Special(kind));
 
+    /// <summary>A slice whose player has drained banks, so a day of catch-up regenerates something.</summary>
+    private static WorldSlice EmptyBanks() => new(
+        Worlds.Rehydrated(PlayerSnapshots.With(
+            energy: new EnergyBanks(0, 0),
+            energyAnchorUtc: PlayerSnapshots.Midmorning)),
+        null);
+
+    /// <summary>A context one game day past the fixtures' anchors, so the catch-up has ground to cover.</summary>
+    private static GameContext ADayLater => Worlds.Context with { NowUtc = Worlds.NowUtc.AddDays(1) };
+
     [Fact]
     public void An_accepted_commands_events_advance_the_players_lifetime_counters()
     {
@@ -39,6 +49,41 @@ public sealed class GameRulesFeatCounterTests
         result.NewState.Player.FeatCount("dice_rolled_chain").ShouldBe(1L);
     }
 
+    /// <summary>
+    /// Two events of the SAME shape in one list count twice. The test above uses two different
+    /// faces, which an implementation folding one advance per distinct counter would also satisfy.
+    /// </summary>
+    [Fact]
+    public void Two_identical_events_in_one_list_count_twice()
+    {
+        var result = Core.GameRules.Execute(
+            Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(DieFaceKind.Star), Rolled(DieFaceKind.Star))),
+            Worlds.InARun(),
+            new Worlds.RunFixtureCommand(),
+            Worlds.Context);
+
+        result.NewState.Player.FeatCount("dice_rolled_star").ShouldBe(2L);
+        result.NewState.Player.FeatCount("dice_rolled").ShouldBe(2L);
+    }
+
+    /// <summary>
+    /// An event carrying a value no counter can be named for is a DEFECT out of <c>Apply</c>, not a
+    /// rejection: a handler that built a <c>DiceRolled</c> around an unset face has produced an
+    /// animation frame and a log row that mean nothing either, and answering the player a polite
+    /// "no" would leave that row in the stream.
+    /// </summary>
+    [Fact]
+    public void An_event_carrying_an_uncountable_value_is_a_defect_out_of_Apply()
+    {
+        var thrown = Should.Throw<InvalidOperationException>(() => Core.GameRules.Execute(
+            Worlds.RunTable((_, _) => HandlerResult.Accept(new DiceRolled(DomainEvent.UnstampedSequence, default))),
+            Worlds.InARun(),
+            new Worlds.RunFixtureCommand(),
+            Worlds.Context));
+
+        thrown.Message.ShouldContain("04 §1 fixes DieFaceKind at six named members", Case.Sensitive);
+    }
+
     /// <summary>The counters accumulate across commands: this is the point of them being aggregate state.</summary>
     [Fact]
     public void Counts_accumulate_across_commands()
@@ -54,21 +99,39 @@ public sealed class GameRulesFeatCounterTests
         state.Player.FeatCount("dice_rolled_star").ShouldBe(3L);
     }
 
-    /// <summary>A refused command discards the working copy, and the counters go with it.</summary>
+    /// <summary>
+    /// A refused command discards the working copy, and the counters go with it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Arranged so the CATCH-UP produces real events before the handler refuses — empty banks,
+    /// a day of elapsed time. A handler that simply rejects emits nothing at all, so the assertion
+    /// would hold even if the counting were hoisted above the acceptance gate: there would be
+    /// nothing to count either way.
+    /// </remarks>
     [Fact]
-    public void A_rejected_command_advances_nothing()
+    public void A_rejected_command_advances_nothing_even_when_the_catch_up_produced_events()
     {
-        var state = Worlds.InARun();
+        var state = EmptyBanks();
 
-        var result = Core.GameRules.Execute(
-            Worlds.RunTable((_, _) => HandlerResult.Reject(RejectionReason.ILLEGAL_STATE)),
+        var accepted = Core.GameRules.Execute(
+            Worlds.MetaTable((_, _) => HandlerResult.Accept()),
             state,
-            new Worlds.RunFixtureCommand(),
-            Worlds.Context);
+            new Worlds.MetaFixtureCommand(),
+            ADayLater);
 
-        result.Accepted.ShouldBeFalse();
-        result.NewState.Player.FeatCount("dice_rolled").ShouldBe(0L);
-        state.Player.FeatCount("dice_rolled").ShouldBe(0L);
+        accepted.Events.OfType<CurrencyChanged>().ShouldNotBeEmpty(
+            "the same arrangement must produce countable events when the command IS accepted, or " +
+            "the refusal below proves nothing.");
+
+        var refused = Core.GameRules.Execute(
+            Worlds.MetaTable((_, _) => HandlerResult.Reject(RejectionReason.ILLEGAL_STATE)),
+            state,
+            new Worlds.MetaFixtureCommand(),
+            ADayLater);
+
+        refused.Accepted.ShouldBeFalse();
+        refused.NewState.ShouldBeSameAs(state, "P4: a rejection returns the caller's own slice.");
+        state.Player.FeatCount("currency_earned_energy").ShouldBe(0L);
     }
 
     /// <summary>
@@ -97,25 +160,32 @@ public sealed class GameRulesFeatCounterTests
     [Fact]
     public void The_catch_ups_own_currency_events_advance_the_counters()
     {
-        var state = new WorldSlice(
-            Worlds.Rehydrated(PlayerSnapshots.With(
-                energy: new EnergyBanks(0, 0),
-                energyAnchorUtc: PlayerSnapshots.Midmorning)),
-            null);
-
         var result = Core.GameRules.Execute(
             Worlds.MetaTable((_, _) => HandlerResult.Accept()),
-            state,
+            EmptyBanks(),
             new Worlds.MetaFixtureCommand(),
-            Worlds.Context with { NowUtc = Worlds.NowUtc.AddDays(1) });
+            ADayLater);
 
         result.Accepted.ShouldBeTrue();
-        result.Events.OfType<CurrencyChanged>().ShouldNotBeEmpty(
-            "a day of regeneration on empty banks is what makes this test about anything.");
+
+        var regenerated = result.Events.OfType<CurrencyChanged>()
+            .Where(e => e.Id == CurrencyId.ENERGY && e.Delta > 0)
+            .Sum(e => e.Delta);
+
+        regenerated.ShouldBeGreaterThan(
+            0L, "a day of regeneration on empty banks is what makes this test about anything.");
 
         result.NewState.Player.FeatCount("currency_earned_energy").ShouldBe(
-            result.Events.OfType<CurrencyChanged>().Where(e => e.Delta > 0).Sum(e => e.Delta),
+            regenerated,
             "the counters are taken from the SAME stamped list the caller receives.");
+
+        result.NewState.Player.FeatCount("currency_spent_energy").ShouldBe(
+            0L, "an accrual is income; nothing was spent.");
+
+        result.NewState.Player.FeatCount("currency_earned_crowns").ShouldBe(
+            0L,
+            "the counter is per currency — an implementation that lumped every movement into one " +
+            "row would still satisfy the equality above.");
     }
 
     /// <summary>A meta command may not write the run, but the player's lifetime counters are the player's.</summary>

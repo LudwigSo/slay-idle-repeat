@@ -12,14 +12,19 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 /// state hash.
 /// </summary>
 /// <remarks>
-/// The ids used here are illustrative where the assertion is about the <em>mechanism</em>; the real
-/// ids are pinned as literals by <c>FeatCounterProjectionTests</c>, which is where a rename must
-/// fail.
+/// The ids used here are <b>synthetic</b>, deliberately: this file is about the mechanism, and an
+/// id it shared with the projection would let a rename of a real counter stay green here while
+/// only <c>FeatCounterProjectionTests</c> — the one place a rename must fail — went red. The one
+/// real id below is <see cref="ProjectionOwnedCounter"/>, used exactly where the assertion is that
+/// the aggregate does <em>not</em> write it.
 /// </remarks>
 public sealed class PlayerFeatCounterTests
 {
-    private const string Counter = "dice_rolled";
-    private const string OtherCounter = "currency_earned_crowns";
+    private const string Counter = "a_counter_the_mechanism_carries";
+    private const string OtherCounter = "a_second_counter_the_mechanism_carries";
+
+    /// <summary>A real projection id, used only to assert that the aggregate does not write it itself.</summary>
+    private const string ProjectionOwnedCounter = "currency_earned_crowns";
 
     private static ContentSnapshot Content => ProgressionDocuments.Shipped;
 
@@ -70,13 +75,27 @@ public sealed class PlayerFeatCounterTests
         player.FeatCount(Counter).ShouldBe(0L);
     }
 
-    [Fact]
-    public void A_feat_counter_refuses_a_blank_id()
+    /// <summary>
+    /// The blank-id refusal, pinned by <b>identity</b>: <c>ArgumentOutOfRangeException</c> derives
+    /// from <c>ArgumentException</c> and Shouldly matches by assignability, so an implementation
+    /// that validated the amount first would satisfy a bare type assertion for the wrong reason.
+    /// </summary>
+    [Theory]
+    [InlineData("   ")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void A_feat_counter_refuses_a_blank_id(string? counterId)
     {
         var player = Player();
 
-        Should.Throw<ArgumentException>(() => player.CountFeat("   ", 1L));
-        Should.Throw<ArgumentException>(() => player.FeatCount(""));
+        var thrown = Should.Throw<ArgumentException>(() => player.CountFeat(counterId!, 1L));
+
+        thrown.ShouldBeOfType<ArgumentException>();
+        thrown.ParamName.ShouldBe("counterId");
+        thrown.Message.ShouldContain("A feat counter id names the projection that owns it", Case.Sensitive);
+
+        Should.Throw<ArgumentException>(() => player.FeatCount(counterId!))
+            .ShouldBeOfType<ArgumentException>();
     }
 
     [Fact]
@@ -131,9 +150,27 @@ public sealed class PlayerFeatCounterTests
 
         var round = Core.Model.Player.Rehydrate(player.ToSnapshot(), Content);
 
-        round.IsSuccess.ShouldBeTrue(round.Error);
+        round.IsSuccess.ShouldBeTrue();
         round.Value.FeatCount(Counter).ShouldBe(3L);
         round.Value.FeatCount(OtherCounter).ShouldBe(500L);
+    }
+
+    /// <summary>
+    /// The view is <b>live</b>, as its own remarks claim: it is built once over the aggregate's map,
+    /// so a caller holding one across an increment sees the new count. An implementation that
+    /// rebuilt a frozen copy per read would satisfy every other assertion in this file.
+    /// </summary>
+    [Fact]
+    public void The_view_a_caller_already_holds_sees_a_later_increment()
+    {
+        var player = Player();
+        var held = player.FeatCounters;
+
+        player.CountFeat(Counter, 1L);
+
+        held.CountOf(Counter).ShouldBe(1L);
+        held.Counts[Counter].ShouldBe(1L);
+        held.ShouldBeSameAs(player.FeatCounters);
     }
 
     /// <summary>
@@ -187,30 +224,55 @@ public sealed class PlayerFeatCounterTests
     }
 
     /// <summary>
-    /// 🔒 S17 — the map is re-read into an <c>Ordinal</c> dictionary on rehydration. A map that
-    /// arrived under any other comparer would round-trip to a different hash than it was stored
-    /// under, because the writer orders string keys ordinally.
+    /// 🔒 S17 — the map is re-keyed into an <c>Ordinal</c> dictionary on rehydration.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ Stated over the aggregate's own <b>lookup</b>, not over the canonical bytes, and that is
+    /// the whole point of the test: <c>CanonicalStateWriter</c> always orders string keys with
+    /// <c>string.CompareOrdinal</c> and never consults the map's comparer, so a byte-level
+    /// comparison here would be green against a <c>Rehydrate</c> that kept a case-insensitive map —
+    /// or one that kept the caller's dictionary uncopied. The comparer only becomes observable
+    /// through <c>TryGetValue</c>, so that is where it is probed.
+    /// </remarks>
     [Fact]
-    public void A_case_insensitively_keyed_map_round_trips_to_the_same_bytes()
+    public void A_map_that_arrived_under_another_comparer_is_re_keyed_ordinally()
     {
         var insensitive = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
         {
-            ["dice_rolled"] = 1L,
-            ["Dice_Rolled_Star"] = 2L,
+            [Counter] = 1L,
         };
 
         var player = Core.Model.Player.Rehydrate(
             PlayerSnapshots.With(featCounters: insensitive), Content);
 
-        player.IsSuccess.ShouldBeTrue(player.Error);
+        player.IsSuccess.ShouldBeTrue();
+        player.Value.FeatCount(Counter).ShouldBe(1L);
+        player.Value.FeatCount(Counter.ToUpperInvariant()).ShouldBe(
+            0L,
+            "the map is re-keyed Ordinal on the way in. Left case-insensitive it would answer for a " +
+            "key it was never stored under, and the count would then round-trip to a DIFFERENT " +
+            "canonical ordering than the one it was hashed under.");
 
-        CanonicalStateWriter.HashMetaCommandState(player.Value.ToSnapshot()).ShouldBe(
-            CanonicalStateWriter.HashMetaCommandState(
-                PlayerSnapshots.With(featCounters: PlayerSnapshots.Counters(
-                    ("dice_rolled", 1L), ("Dice_Rolled_Star", 2L)))),
-            "the counters are copied into an Ordinal dictionary on the way in, so the stored bytes " +
-            "do not depend on the comparer the caller happened to build the row with.");
+        player.Value.CountFeat(Counter.ToUpperInvariant(), 5L);
+
+        player.Value.FeatCount(Counter).ShouldBe(1L, "an Ordinal map does not merge the two keys");
+        player.Value.FeatCounters.Counts.Count.ShouldBe(2);
+    }
+
+    /// <summary>The aggregate's own store is never handed to a caller, in either direction.</summary>
+    [Fact]
+    public void A_map_the_caller_still_holds_cannot_reach_inside_the_aggregate()
+    {
+        var caller = new Dictionary<string, long>(StringComparer.Ordinal) { [Counter] = 1L };
+
+        var player = Core.Model.Player.Rehydrate(
+            PlayerSnapshots.With(featCounters: caller), Content).Value;
+
+        caller[Counter] = 999L;
+        caller[OtherCounter] = 7L;
+
+        player.FeatCount(Counter).ShouldBe(1L);
+        player.FeatCount(OtherCounter).ShouldBe(0L);
     }
 
     /// <summary>
@@ -229,6 +291,11 @@ public sealed class PlayerFeatCounterTests
             Case.Sensitive,
             customMessage: "several maps can fail this validation; the message must say WHICH one did.");
         result.Error.ShouldContain("An absent counter map is not an empty one", Case.Sensitive);
+
+        // The asymmetry, stated where it can be checked: the sibling map appended beside this one
+        // IS read as empty when absent, so "a null map is a fault" is a claim about THIS field.
+        Core.Model.Player.Rehydrate(PlayerSnapshots.WithNull(cleared: true), Content)
+            .IsSuccess.ShouldBeTrue();
     }
 
     [Fact]
@@ -241,38 +308,56 @@ public sealed class PlayerFeatCounterTests
         result.Error.ShouldContain(nameof(PlayerSnapshot.FeatCounters), Case.Sensitive);
     }
 
-    /// <summary>The view is read-only all the way down: it cannot be cast back to the aggregate's own store.</summary>
+    /// <summary>The view is read-only: it cannot be cast back to a writable map.</summary>
     [Fact]
-    public void The_feat_counter_view_is_not_the_aggregates_own_dictionary()
+    public void The_feat_counter_view_cannot_be_written_through()
     {
         var player = Player();
         player.CountFeat(Counter, 1L);
 
-        player.FeatCounters.Counts.ShouldNotBeOfType<Dictionary<string, long>>();
+        var counts = player.FeatCounters.Counts;
+
+        counts.ShouldNotBeAssignableTo<IDictionary<string, long>>(
+            "an IReadOnlyDictionary backed by a bare Dictionary casts straight back to a writable " +
+            "one, and 30 §11.2's 'everything the outside world can see is a getter' would be a " +
+            "claim nothing enforces.");
+
+        (counts as ICollection<KeyValuePair<string, long>>)?.IsReadOnly.ShouldBe(true);
     }
 
-    /// <summary>A counter nobody has registered reads as zero, on either door.</summary>
+    /// <summary>A counter nobody has registered reads as zero — while a registered one still reads its own count.</summary>
+    /// <remarks>
+    /// The registered arm is the discriminating half: without it, a <c>FeatCount</c> hard-wired to
+    /// return zero would satisfy this test exactly.
+    /// </remarks>
     [Fact]
-    public void An_unregistered_counter_reads_as_zero()
+    public void An_unregistered_counter_reads_as_zero_while_a_registered_one_does_not()
     {
         var player = Player();
+        player.CountFeat(Counter, 4L);
 
+        player.FeatCount(Counter).ShouldBe(4L);
         player.FeatCount("a_counter_no_projection_writes").ShouldBe(0L);
         player.FeatCounters.CountOf("a_counter_no_projection_writes").ShouldBe(0L);
         player.FeatCounters.CountOf("  ").ShouldBe(0L);
     }
 
-    /// <summary>The counters are on the aggregate, so a wallet movement is not what carries them.</summary>
+    /// <summary>
+    /// 🔒 The aggregate does not count for itself. A currency movement moves the wallet and returns
+    /// the event; <c>GameRules.Apply</c> is what turns that event into a count — which is the
+    /// difference between one projection table and a hook in every rule that could contribute.
+    /// </summary>
     [Fact]
-    public void Feat_counters_are_independent_of_the_wallet()
+    public void A_wallet_movement_does_not_count_itself()
     {
         var player = Player();
+        player.CountFeat(Counter, 1L);
 
         player.MoveCurrency(CurrencyId.CROWNS, 10L, "fixture_grant");
 
-        player.FeatCount(OtherCounter).ShouldBe(
-            0L,
-            "the aggregate does not count for itself — GameRules.Apply projects the event list, " +
-            "which is what makes the counter set a table rather than thirty call sites.");
+        player.FeatCount(ProjectionOwnedCounter).ShouldBe(0L);
+        player.FeatCounters.Counts.Keys.ShouldBe(
+            new[] { Counter },
+            "the movement registered no counter of its own — the arranged one is still the only key.");
     }
 }
