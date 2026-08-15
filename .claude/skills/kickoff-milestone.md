@@ -15,6 +15,8 @@ The tracker is the single source of truth for scope and state. The design docs i
 
 `$ARGUMENTS` may name a milestone (`M4`, `m4`, `4`, or a milestone title fragment). If empty, pick the **first milestone in the tracker's snapshot table that is not ✅ done** and confirm the choice with the user as part of Phase 1 (don't burn a separate question on it). A parallel workstream milestone (marked ∥) may be kicked off out of order when the user names it explicitly.
 
+🔒 **`--non-interactive`** (in any position, alongside or instead of a milestone name) runs the whole kickoff, including Phases 1–2, without stopping for the user. Every kickoff decision, readiness-review question, and open-decision-registry item that would normally be asked is instead resolved with **your own recommended answer** — the same recommendation you would have led with in `AskUserQuestion`. This does not relax anything else: still do the Phase 0 reading, still produce a real recommendation with a one-line rationale for each decision (never a placeholder), still write the kickoff record and log every auto-accepted answer as `[auto-accepted]` rather than as a user answer — a future retro or a resumed kickoff must be able to tell the two apart. An O-numbered decision-log item auto-accepted this way still gets recorded for folding into `16_DECISION_LOG.md`; it is not exempt from that just because no one was asked. If a decision is genuinely too underspecified to have a defensible recommendation (not merely "the docs don't give a number" — S6 already covers that with `null`), fall back to deferring it exactly as Phase 1 already allows, rather than inventing an answer to force the run through.
+
 ## Phase 0 — Preflight (no user interaction)
 
 1. Read `IMPLEMENTATION_TRACKER.md`: the target milestone's goal, exit criteria, kickoff-decisions block, task table, and the open-decision registry rows that point at this milestone. Also read `.claude/retros/STEERING.md` if it exists — the cumulative steering rules distilled by `milestone-review` retros. They bind this kickoff (planning and dispatch alike) and are pasted into every agent prompt in Phase 5.
@@ -25,7 +27,7 @@ The tracker is the single source of truth for scope and state. The design docs i
 3. For each kickoff decision, pull the referenced design-doc sections and prepare: a one-paragraph summary of the question, the constraint(s) the docs impose, and **your recommended answer with a one-line rationale**. Do the reading now so Phase 1 is a decision meeting, not a research session.
 4. Skim every task row in the milestone and its spec refs (delegate bulk reading to Explore subagents if the milestone is large — keep your own context lean). You are looking for **input gaps beyond the listed kickoff decisions**: contradictions between docs, tasks whose spec refs don't actually specify the thing, placeholder numbers an agent would have to invent, and anything the A7 rulings changed out from under a task.
 
-## Phase 1 — Resolve the kickoff decisions (interactive)
+## Phase 1 — Resolve the kickoff decisions (interactive, unless `--non-interactive`)
 
 Present the milestone in one compact block: goal, exit criteria, task count, and then **each kickoff decision as a numbered question with your recommendation first**. Use `AskUserQuestion` for decisions with clear discrete options (recommendation as the first option); use plain numbered questions for open-ended ones. Batch everything — the goal is one round trip, two at most.
 
@@ -34,16 +36,18 @@ Rules:
 - A **deferred** decision blocks only the tasks that depend on it: mark those tasks ⛔ with a note naming the open decision, and keep them out of dispatch. It does not block the milestone.
 - If an answer resolves an O-numbered item from `16_DECISION_LOG.md` Part B, that is a product decision: record it (Phase 3) in a form that can be folded back into the decision log.
 
-## Phase 2 — Readiness review (interactive only if needed)
+🔒 **Under `--non-interactive`, skip every `AskUserQuestion`/prompt in this phase.** For each kickoff decision, take your own prepared recommendation as the answer, tag it `[auto-accepted]` in the kickoff record, and continue exactly as if the user had said "use your recommendation" — same downstream handling, same O-item recording, same everything except who answered. Still print the compact summary block (goal/exit criteria/decisions/recommendations/auto-accepted answers) as a report at the end of Phase 2, so the run is auditable even though nobody was asked.
+
+## Phase 2 — Readiness review (interactive only if needed, or under `--non-interactive`)
 
 Take the Phase 1 answers and walk the task table once more:
 
 1. Re-check each task against the answers: did an answer change a task's scope, split it, or make it obsolete? Edit the tracker's task rows accordingly (add/split/reword — keep IDs stable, suffix new splits `a`/`b`).
-2. Surface the input gaps found in Phase 0 step 4 that the kickoff answers did **not** cover. If any remain that an autonomous agent would have to guess at, ask the user now — this is the "quick review, is more input required?" gate. Batch these too.
-3. 🔒 **Ask what is in scope, not only how far to verify it.** M0's kickoff asked how deep the iOS spike should go and never asked whether iOS ships at all. The design set said it did; the product owner did not think so; five milestones of scope hung on the difference. Whenever a milestone touches a platform, store, surface or feature that *later* milestones also carry, confirm it is in v1 — a scoping answer is far cheaper than a verification answer, and this window is the only place to ask it.
+2. Surface the input gaps found in Phase 0 step 4 that the kickoff answers did **not** cover. If any remain that an autonomous agent would have to guess at, ask the user now — this is the "quick review, is more input required?" gate. Batch these too. **Under `--non-interactive`, resolve each with your own recommendation instead, tagged `[auto-accepted]`, same as Phase 1** — never leave one silently unresolved because there was no one to ask.
+3. 🔒 **Ask what is in scope, not only how far to verify it.** M0's kickoff asked how deep the iOS spike should go and never asked whether iOS ships at all. The design set said it did; the product owner did not think so; five milestones of scope hung on the difference. Whenever a milestone touches a platform, store, surface or feature that *later* milestones also carry, confirm it is in v1 — a scoping answer is far cheaper than a verification answer, and this window is the only place to ask it. (Under `--non-interactive`, this becomes a recommendation to auto-accept like any other — but still state it and its rationale explicitly in the kickoff record; this is exactly the class of call S15 says is expensive to get wrong silently.)
 4. If nothing remains, say so in one line and move on. Do not manufacture questions to seem thorough; the bar is "would an unattended agent have to invent a product decision?" — style-level choices don't qualify.
 
-When Phase 2 closes, the interactive window is over. From here on, make every remaining call yourself and record it as an assumption.
+When Phase 2 closes, the interactive window is over. From here on, make every remaining call yourself and record it as an assumption — true whether or not `--non-interactive` was set; the flag only changes who answered Phases 1–2, not what happens after.
 
 ## Phase 3 — Persist the kickoff
 
@@ -51,7 +55,7 @@ When Phase 2 closes, the interactive window is over. From here on, make every re
    - Milestone snapshot row → 🔄.
    - Replace/annotate the kickoff-decisions block with the resolutions (one line each: decision → answer). Keep deferred ones visible as ⛔-markers.
    - Apply any task-table edits from Phase 2, and set ⛔ on decision-blocked tasks.
-2. Write the kickoff record to `.claude/.milestone-runs/M<N>/kickoff.md` (gitignored run state): milestone, date, every question + answer, every assumption, the execution plan from Phase 4 once it exists. This file is the handover spine for dispatched agents — agents get pasted excerpts from it, never a "go read the docs" instruction.
+2. Write the kickoff record to `.claude/.milestone-runs/M<N>/kickoff.md` (gitignored run state): milestone, date, whether this run was `--non-interactive`, every question + answer (each marked `[user]` or `[auto-accepted]`), every assumption, the execution plan from Phase 4 once it exists. This file is the handover spine for dispatched agents — agents get pasted excerpts from it, never a "go read the docs" instruction.
 3. Commit the tracker change: `Kick off M<N>: <milestone title>` (no AI attribution trailers). If an answer resolved an O-item, note in the commit body which O-items were ruled and record the ruling text in the kickoff record so it can be folded into `16_DECISION_LOG.md`.
 
 ## Phase 4 — Execution planning (the parallel/sequential call)
@@ -141,6 +145,7 @@ When every dispatchable task is 🔍/✅/⛔:
 
 ```
 — kickoff-milestone complete · M<N>: <title> —
+Mode: interactive | non-interactive (<n> decisions auto-accepted)
 Decisions resolved: <n> (<list of O-items ruled, if any>)  ·  Deferred: <list or none>
 Waves executed: <n>  ·  Parallel worktree tasks: <n>  ·  Sequential (main checkout): <n>
 Tasks: <n> merged to milestone/M<N> (🔍) · <n> blocked (⛔, with reasons) · <n> untouched
@@ -152,6 +157,7 @@ Next steps: review milestone/M<N> and merge to <base>; verify the milestone exit
 ## Hard rules
 
 - **A kickoff runs the milestone to completion.** Dispatch → merge → dispatch the next wave, repeating until every dispatchable task is 🔍/✅/⛔ and Phase 6 has run. Stopping after one wave — or after any wave — with dispatchable work left is a failed run.
+- **`--non-interactive` changes who answers, never the bar for an answer.** Every decision still gets a real, docs-grounded recommendation with a rationale before it's auto-accepted — S6 still applies, so a decision with no defensible recommendation gets deferred, not guessed. Auto-accepted answers are tagged `[auto-accepted]` everywhere they're recorded, so a human reviewing the kickoff record or a later retro can always tell which calls were actually made by the product owner.
 - **The interactive window is Phases 1–2 only.** Never come back to the user mid-dispatch with a question an agent surfaced — answer it yourself from the kickoff record and log the assumption. The exception: a discovery that invalidates a *user decision* (not an implementation detail) — stop the affected tasks, surface it, and wait.
 - **You own the tracker and the integration branch; agents own their feature branches.** No agent edits `IMPLEMENTATION_TRACKER.md`, and nothing merges to the base branch.
 - **Client tasks never run in worktrees, and never two at once.** Non-negotiable — this is the same constraint that shaped `feature-oneshot` itself.
