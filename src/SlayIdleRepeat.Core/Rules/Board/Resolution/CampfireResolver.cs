@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 
 namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
@@ -22,37 +23,29 @@ namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 internal static class CampfireResolver
 {
     /// <summary>
-    /// 🔒 `03` §2 — the campfire's healed share of Max HP.
+    /// Rests at the campfire, healing <c>#/inRunIncome/campfire/healPctMaxHp</c> of Max HP.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ A recorded assumption, and it is the one number in this file worth arguing about.
-    /// <c>tuning/currencies.json</c> authors the <em>shop's</em> heal
-    /// (<c>shopTile/healPctMaxHp</c>, 0.35) and the <em>shrine's</em>
-    /// (<c>shrineBuffPool</c>'s <c>immediateHealPctMaxHp</c>), but authors <b>no campfire block at
-    /// all</b> — `03` §2's tile table is the only place the campfire's rest is described, and it is
-    /// prose. 0.40 is transcribed from that prose. It is a C# constant rather than a tunable
-    /// <em>because there is no tunable to read</em>, which `21` §3.1 would otherwise forbid; the
-    /// honest fix is a <c>currencies.json#/inRunIncome/campfire</c> block, which is a content change
-    /// this task did not own.
-    /// </remarks>
-    internal const double HealPctMaxHp = 0.40;
-
-    /// <summary>Rests at the campfire, healing <see cref="HealPctMaxHp"/> of Max HP.</summary>
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
     /// <returns>
     /// An accepted result with no events: a heal is a <c>Run</c> mutation and there is no HP domain
     /// event in the game (`30` §7 authors <c>CurrencyChanged</c> and <c>DiceRolled</c> and no third).
     /// </returns>
+    /// <remarks>
+    /// 🔒 The share is <b>read per command</b> out of this command's own content snapshot, never
+    /// held as a C# constant: `21` §3.1 makes a balance number data, and
+    /// <see cref="CampfireTuning"/>'s own remarks record why the block exists.
+    /// </remarks>
     internal static HandlerResult Heal(HandlerInput input)
     {
         ArgumentNullException.ThrowIfNull(input);
 
         var run = input.Run;
+        var tuning = CampfireTuning.Read(input.Context.Content);
 
         // ⚠️ Overheal is clamped HERE, by the rule that computes it — Run.SetHitPoints refuses a
         // current above the maximum rather than trimming it silently (30 §11.5), so a healing rule
         // that over-delivered could not look correct.
-        var healed = (int)Math.Round(run.MaxHp * HealPctMaxHp, MidpointRounding.ToEven);
+        var healed = (int)Math.Round(run.MaxHp * tuning.HealPctMaxHp, MidpointRounding.ToEven);
 
         run.SetHitPoints(Math.Min(run.MaxHp, run.CurrentHp + healed), run.MaxHp);
 

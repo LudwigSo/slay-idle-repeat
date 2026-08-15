@@ -51,6 +51,9 @@ internal static class InRunIncomeDocuments
     /// <summary>`03` §7a.5 — how many distinct options a shrine offers, as shipped.</summary>
     internal const int ShippedOptionsOffered = 2;
 
+    /// <summary>`03` §2 — the campfire rest's healed share of Max HP, as shipped.</summary>
+    internal const decimal ShippedCampfireHeal = 0.4m;
+
     /// <summary>`03` §7a.3's three profiles, in the document's own order.</summary>
     internal static readonly (string Id, decimal Weight, long Crowns, long Stones, long Dust)[]
         ShippedTreasureProfiles =
@@ -124,6 +127,12 @@ internal static class InRunIncomeDocuments
     /// <c>MetaScalar</c> call from a hardcoded 1.
     /// </param>
     /// <param name="roundingMode">For the refusal case — the one mode this reader implements.</param>
+    /// <param name="campfireHeal">
+    /// ⚠️ Exists so the campfire's rest can be pinned as genuinely READ rather than hardcoded — the
+    /// same reason <paramref name="metaGrowth"/> exists. The heal was a C# constant until M3-03's
+    /// review moved it into <c>#/inRunIncome/campfire</c> (`21` §3.1), and a test that only ever saw
+    /// the shipped 0.4 could not tell the two apart.
+    /// </param>
     /// <param name="cards">A purpose-built card list, for the event resolver's own tests.</param>
     internal static ContentSnapshot With(
         ContentValue? eggChance = null,
@@ -133,6 +142,7 @@ internal static class InRunIncomeDocuments
         ContentValue? treasureProfiles = null,
         ContentValue? shrineBuffs = null,
         ContentValue? optionsOffered = null,
+        ContentValue? campfireHeal = null,
         ContentValue? curses = null,
         ContentValue? cards = null) =>
         new(
@@ -145,7 +155,8 @@ internal static class InRunIncomeDocuments
                 // which is about Legend Level.
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
                 new ContentDocument(CurrenciesPath, Currencies(
-                    eggChance, metaGrowth, goldGrowth, roundingMode, treasureProfiles, shrineBuffs, optionsOffered)),
+                    eggChance, metaGrowth, goldGrowth, roundingMode, treasureProfiles, shrineBuffs,
+                    optionsOffered, campfireHeal)),
                 new ContentDocument(CursesPath, Curses(curses)),
                 new ContentDocument(BoardEventsPath, BoardEvents(cards)),
             ]);
@@ -177,7 +188,8 @@ internal static class InRunIncomeDocuments
         ContentValue? roundingMode,
         ContentValue? treasureProfiles,
         ContentValue? shrineBuffs,
-        ContentValue? optionsOffered) =>
+        ContentValue? optionsOffered,
+        ContentValue? campfireHeal) =>
         Obj(
             ("chapterScalars", Obj(
                 ("goldGrowth", goldGrowth ?? ContentValue.Number(ShippedGoldGrowth)),
@@ -195,6 +207,8 @@ internal static class InRunIncomeDocuments
                 ("cache", Obj(
                     ("beastFeedBase", ContentValue.Number(ShippedBeastFeedBase)),
                     ("eggChance", eggChance ?? ContentValue.Number(ShippedEggChance)))),
+                ("campfire", Obj(
+                    ("healPctMaxHp", campfireHeal ?? ContentValue.Number(ShippedCampfireHeal)))),
                 ("shrineBuffPool", Obj(
                     ("optionsOffered", optionsOffered ?? ContentValue.Number(ShippedOptionsOffered)),
                     ("buffs", shrineBuffs ?? ContentValue.Array(
