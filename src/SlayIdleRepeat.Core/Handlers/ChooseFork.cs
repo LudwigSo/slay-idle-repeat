@@ -2,6 +2,7 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Board.Resolution;
 
 namespace SlayIdleRepeat.Core.Handlers;
 
@@ -66,7 +67,20 @@ internal static class ChooseFork
         if (result.PausedAtJunction)
         {
             run.BeginPendingFork(new PendingFork(result.Node.Value, result.RemainingSteps));
+            return HandlerResult.Accept();
         }
+
+        // 🔒 M3-05 — movement finished (boss reached, a stage-end clamp, or an exact landing): the
+        // node the run stopped on is a real tile to arrive at. A stage-end clamp (RemainingSteps > 0
+        // without ReachedBoss) is also a Stage Gate — see Handlers.RollDice's mirrored wiring, the
+        // same rule reachable through the other landing path.
+        if (result.RemainingSteps > 0 && !result.ReachedBoss)
+        {
+            StageGateResolver.Apply(input, run.CurrentHp);
+        }
+
+        var node = board.Node(result.Node);
+        run.ArriveAtTile((int)node.Tile, node.LinearIndex, node.Stage);
 
         return HandlerResult.Accept();
     }

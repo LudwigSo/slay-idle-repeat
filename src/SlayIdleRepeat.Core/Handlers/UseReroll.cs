@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Dice;
 
@@ -40,12 +41,33 @@ internal static class UseReroll
         ArgumentNullException.ThrowIfNull(input);
 
         var run = input.Run;
+
+        // 🔒 M3-05 closed the gap this handler's own remarks used to name: Run now carries a real
+        // "charges spent this stage" count, reset at every Stage Gate. Every bonus source
+        // RerollEconomy.TotalCharges takes is still a GapRegister entry (talents M4-06, Campfire's
+        // visited flag, perks M3-06, the Reroll Token consumable M3-08), so this reads the base
+        // allotment alone until each of those lands — a caller passing its real numbers in is exactly
+        // what RerollEconomy's own remarks describe as the open seam.
+        var totalCharges = RerollEconomy.TotalCharges(
+            talentBonus: 0, campfireVisited: false, perkBonus: 0, rerollTokensUsed: 0);
+
+        if (!RerollEconomy.CanAffordReroll(run.RerollChargesSpentThisStage, totalCharges))
+        {
+            return HandlerResult.Reject(RejectionReason.CAP_REACHED);
+        }
+
         var committedDraws = run.StreamPosition(RngStreams.Dice);
-        var weights = FairDiceBag.Replay(run.RunSeed, resetAtDraw: 0, uptoDraw: committedDraws);
+
+        // 🔒 M3-05 — resetAtDraw is the run's Stage Gate anchor, not a hard 0. See Handlers.RollDice's
+        // matching comment.
+        var weights = FairDiceBag.Replay(
+            run.RunSeed, resetAtDraw: run.StageGateDiceAnchor, uptoDraw: committedDraws);
 
         // The drawn face is discarded — a reroll's entire job is to move the bag forward without
         // moving the run, so the NEXT roll draws a different index against updated weights.
         FairDiceBag.Step(input.Rng.Stream(RngStreams.Dice), weights);
+
+        run.SpendReroll();
 
         return HandlerResult.Accept();
     }

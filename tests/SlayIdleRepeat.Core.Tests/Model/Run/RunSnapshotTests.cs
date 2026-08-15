@@ -183,6 +183,13 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.PendingEventCardId),
                 RunSnapshots.OnPendingTile((int)TileKind.Event),
                 RunSnapshots.OnPendingTile((int)TileKind.Event, eventCardId: "EVT_WELL")),
+
+            // 🔒 M3-05's four fields.
+            (nameof(RunSnapshot.Phase), v, RunSnapshots.With(phase: RunPhase.BattlePending)),
+            (nameof(RunSnapshot.DraftPending), v, RunSnapshots.With(draftPending: true)),
+            (nameof(RunSnapshot.RerollChargesSpentThisStage), v,
+                RunSnapshots.With(rerollChargesSpentThisStage: 1)),
+            (nameof(RunSnapshot.StageGateDiceAnchor), v, RunSnapshots.With(stageGateDiceAnchor: 5UL)),
         };
 
         var invisible = probes
