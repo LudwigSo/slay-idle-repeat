@@ -5,7 +5,6 @@
     "test-projects": [
       "tests/SlayIdleRepeat.Core.Tests/SlayIdleRepeat.Core.Tests.csproj"
     ],
-    "output": "stryker-output",
     "reporters": [
       "html",
       "progress"
