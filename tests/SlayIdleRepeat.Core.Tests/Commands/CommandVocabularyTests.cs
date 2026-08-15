@@ -370,24 +370,24 @@ public sealed class CommandVocabularyTests
         }
 
         // 🔒 M1-09 lowered this from 49 to 48 by exactly the one row that became Handled —
-        // BEGIN_SESSION — which is what the sentence this replaces asked for. It is stated as
-        // "the registry minus the handled rows" rather than as the literal 48 so the next task to
-        // land a handler lowers it by construction, and so the number can never drift below what the
-        // loop can reach: an equality against a computed total fails in BOTH directions, where a
+        // BEGIN_SESSION — and M3-15 lowered it again to 47 by START_RUN. It is stated as "the
+        // registry minus the handled rows" rather than as the literal 47 so the next task to land a
+        // handler lowers it by construction, and so the number can never drift below what the loop
+        // can reach: an equality against a computed total fails in BOTH directions, where a
         // hand-lowered literal only fails when the count goes up.
         deferred.ShouldBe(
             Registry.Count(row => !RegistrationFor(row.Key).IsHandled),
-            "every DEFERRED row of 14 §2.3 is driven here — 48 of the 49 since M1-09 landed the " +
-            "BEGIN_SESSION handler. A mismatch means the loop skipped a deferred row rather than that " +
+            "every DEFERRED row of 14 §2.3 is driven here — 47 of the 49 since M3-15 landed the " +
+            "START_RUN handler. A mismatch means the loop skipped a deferred row rather than that " +
             "the count moved.");
 
         deferred.ShouldBe(
-            48,
+            47,
             "…and the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
-            "is 49 rows and exactly one of them — BEGIN_SESSION, 30 §2.3's day cycle — has a handler. " +
-            "Lower this by exactly the number of rows that become Handled, and never to a number the " +
-            "loop cannot reach.");
+            "is 49 rows and exactly two of them — BEGIN_SESSION (30 §2.3's day cycle) and START_RUN " +
+            "(02 §2's runSeed commit) — have a handler. Lower this by exactly the number of rows that " +
+            "become Handled, and never to a number the loop cannot reach.");
     }
 
     /// <summary>
@@ -412,11 +412,39 @@ public sealed class CommandVocabularyTests
 
             if (RegistrationFor(name).Kind == CommandKind.Run)
             {
-                Should.Throw<InvalidOperationException>(
-                        () => SlayIdleRepeat.Core.GameRules.Apply(Worlds.OutsideARun(), command, Worlds.Context),
-                        $"'{name}' is a run command and a slice with no run is a LOADING defect (30 §4.1), " +
-                        "not a rejection.")
-                    .Message.ShouldContain($"'{name}'", Case.Sensitive);
+                // 🔒 M3-15. START_RUN is CommandRegistration.OpensRun's one row: the run-less slice
+                // is its NATURAL one — it is the only command that creates the Run this guard would
+                // otherwise demand — so it is the one run row that must NOT throw here. Every other
+                // run row still does; asserting that stays this rule's job for the other 18.
+                if (RegistrationFor(name).OpensRun)
+                {
+                    // 🔒 NOT Accepted, and that is Build's fixture rather than this rule's claim.
+                    // Build/Sample fills every int parameter with 0 — a sample that happens to be
+                    // valid for every other row's payload, but ChapterId's own floor is 1 (02 §1),
+                    // so the generically-built StartRunCommand(0, NORMAL) is one this handler's OWN
+                    // precondition check refuses. The claim this branch actually pins is narrower and
+                    // is the one this rule is FOR: reaching a REJECTION rather than the run-less
+                    // LOADING DEFECT the else-branch below asserts for every other run row — see
+                    // InMemoryGameTests.A_START_RUN_command_succeeds_on_the_harnesss_run_less_slice_with_no_harness_change
+                    // for the positive acceptance claim, driven with a chapter Build cannot produce.
+                    var opened = SlayIdleRepeat.Core.GameRules.Apply(Worlds.OutsideARun(), command, Worlds.Context);
+
+                    opened.Accepted.ShouldBeFalse(
+                        $"'{name}' built with Build's generic ChapterId sample of 0, which its own " +
+                        "handler refuses (02 §1's chapter floor is 1) — a REJECTION, not the run-less " +
+                        "loading defect this rule is about.");
+                    opened.Rejection.ShouldBe(
+                        RejectionReason.ILLEGAL_STATE,
+                        $"'{name}' rejects an out-of-range chapter as the domain-tier catch-all.");
+                }
+                else
+                {
+                    Should.Throw<InvalidOperationException>(
+                            () => SlayIdleRepeat.Core.GameRules.Apply(Worlds.OutsideARun(), command, Worlds.Context),
+                            $"'{name}' is a run command and a slice with no run is a LOADING defect (30 §4.1), " +
+                            "not a rejection.")
+                        .Message.ShouldContain($"'{name}'", Case.Sensitive);
+                }
 
                 runRows++;
                 continue;

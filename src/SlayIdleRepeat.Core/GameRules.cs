@@ -113,30 +113,27 @@ public static class GameRules
     /// <c>runSeed</c> no scope at all.
     /// </para>
     /// <para>
-    /// ⚠️ <b>And that kind makes it unreachable through any caller today — carried-forward item 22,
-    /// owned by M3-15.</b> <see cref="Execute"/> refuses a <c>CommandKind.Run</c> command on a
-    /// run-less slice <em>before</em> the dispatch branch, and a run-less slice is exactly what
-    /// <c>START_RUN</c> is sent on, because the run it creates does not exist yet: only
-    /// <c>START_RUN</c> can create the <c>Run</c> its own guard demands. Measured rather than
-    /// reasoned — applying it to a <c>WorldSlice(player, null)</c> throws, as do the other 18
-    /// <c>CommandKind.Run</c> rows, while the <b>29</b> <c>Deferred</c> meta rows answer
-    /// <c>ILLEGAL_STATE</c> — the thirtieth, <c>BEGIN_SESSION</c>, is <c>Handled</c> and accepts,
-    /// which is why this sentence must not say "all 30" (it did until the M1 review; M1-09 swapped
-    /// the row and corrected the paragraph seven lines below but not this one, and M1-12 read the
-    /// stale half). Nothing is
-    /// broken while the row is <c>Deferred</c>. No architecture rule is written for it, deliberately:
-    /// "this command's precondition is unsatisfiable" is a domain fact no metadata carries, and a
-    /// rule naming <c>START_RUN</c> would transcribe M3-15's ruling into the architecture suite
-    /// before it has been made.
+    /// ⚠️ <b>That kind made it unreachable through any caller — carried-forward item 22, SETTLED by
+    /// M3-15.</b> <see cref="Execute"/> used to refuse every <c>CommandKind.Run</c> command on a
+    /// run-less slice <em>before</em> the dispatch branch, unconditionally, and a run-less slice is
+    /// exactly what <c>START_RUN</c> is sent on, because the run it creates does not exist yet: only
+    /// <c>START_RUN</c> can create the <c>Run</c> its own guard demanded. M3-15's ruling is
+    /// <see cref="CommandRegistration.OpensRun"/> — declared <c>true</c> on this row alone, read by
+    /// <c>Execute</c>'s run-less guard to exempt exactly this row and by nothing else, so the other 18
+    /// <c>CommandKind.Run</c> rows still throw on a run-less slice exactly as before. This row is now
+    /// the second of two <c>Handled</c> rows described below — the first, <c>BEGIN_SESSION</c>,
+    /// answers the 29 remaining <c>Deferred</c> meta rows' <c>ILLEGAL_STATE</c> with `30` §2.3's day
+    /// cycle instead.
     /// </para>
     /// <para>
-    /// 🔒 <b>Forty-eight rows are <c>Deferred</c> and one is <c>Handled</c>.</b> M1-09 swapped
-    /// <c>BEGIN_SESSION</c> — `30` §2.3's day cycle — to <c>Handled</c>, which is the one-line edit
+    /// 🔒 <b>Forty-seven rows are <c>Deferred</c> and two are <c>Handled</c>.</b> M1-09 swapped
+    /// <c>BEGIN_SESSION</c> — `30` §2.3's day cycle — to <c>Handled</c>, which was the one-line edit
     /// this table's shape was designed for and the first time <see cref="Execute"/>'s
-    /// <c>registration.IsHandled</c> arm runs over the production table. ⚠️ <b>The consequence for
-    /// every handler-shaped rule stated over this table, which used to be quantifying over
-    /// nothing:</b> they now have exactly one subject, so a floor by identity rather than by count is
-    /// what keeps them honest — see <c>Every_command_type_is_handled_by_Apply</c>. Each row's owner
+    /// <c>registration.IsHandled</c> arm ran over the production table; M3-15 swapped
+    /// <c>START_RUN</c> the same way. ⚠️ <b>The consequence for every handler-shaped rule stated over
+    /// this table, which used to be quantifying over nothing:</b> they now have two subjects rather
+    /// than one, so a floor by identity rather than by count is what keeps them honest — see
+    /// <c>Every_command_type_is_handled_by_Apply</c>. Each row's owner
     /// is the task the tracker gives for the
     /// system behind the command — read off <c>IMPLEMENTATION_TRACKER.md</c>'s task rows rather than
     /// inferred, because a wrong owner is a deferral that expires at the wrong time (steering
@@ -155,7 +152,7 @@ public static class GameRules
     private static readonly CommandDispatch Dispatch = new CommandDispatch()
 
         // ------------------------------------------------ `14` §2.3 — the 19 RUN commands
-        .Deferred<StartRunCommand>("START_RUN", CommandKind.Run, "M3-15")
+        .Handled<StartRunCommand>("START_RUN", CommandKind.Run, StartRun.Handle, opensRun: true)
         .Deferred<RollDiceCommand>("ROLL_DICE", CommandKind.Run, "M3-04")
         .Deferred<UseRerollCommand>("USE_REROLL", CommandKind.Run, "M3-04")
         .Deferred<ChooseForkCommand>("CHOOSE_FORK", CommandKind.Run, "M3-02")
@@ -353,13 +350,16 @@ public static class GameRules
         // — that is NotBefore. A slice loaded without its run is not a move the player made; it is
         // a caller defect, and Apply is FORBIDDEN from returning the value that would describe it.
         //
-        // ⚠️ CARRIED-FORWARD ITEM 22, and this guard is correct for 18 of the 19 CommandKind.Run
-        // rows. START_RUN is the exception: it is the only command that can CREATE a Run, so its
-        // natural slice is the run-less one and this guard makes it unreachable through any caller.
-        // Its row is Deferred, so nothing is broken today. The reclassification — a kind, a second
-        // guard, or a run-less run command — is M3-15's ruling, not this method's; see the
-        // START_RUN paragraph on the dispatch table above.
-        if (registration.Kind == CommandKind.Run && state.Run is null)
+        // ⚠️ CARRIED-FORWARD ITEM 22, SETTLED BY M3-15. This guard is correct for 18 of the 19
+        // CommandKind.Run rows and wrong for the nineteenth: START_RUN is the only command that can
+        // CREATE a Run, so its natural slice is the run-less one, and a guard that refused every
+        // run-less CommandKind.Run row without exception would make its own row unreachable through
+        // any caller. registration.OpensRun is the one-row exemption — declared on the row beside
+        // WireName and Kind, exactly the same place the other two facts about a row live, rather
+        // than a second guard here naming StartRunCommand by hand. It is NOT a general weakening:
+        // the other 18 rows carry OpensRun = false and still throw here, unconditionally, on a
+        // run-less slice.
+        if (registration.Kind == CommandKind.Run && state.Run is null && !registration.OpensRun)
         {
             throw new InvalidOperationException(
                 "'" + registration.WireName + "' is a CommandKind.Run command and this WorldSlice " +
@@ -378,8 +378,15 @@ public static class GameRules
         // happened first, and 30 §7's Sequence orders one command's list. See AdvanceTime.
         var caughtUp = AdvanceTime(working, context);
 
-        var rng = registration.Kind == CommandKind.Run
-            ? new RunRngScope(working.Run!.RunSeed, working.Run.RngStreamPositions)
+        // 🔒 M3-15: gated on working.Run being non-null, not merely on Kind == Run. Every row but
+        // START_RUN reaches this line with working.Run already non-null — the guard above just
+        // proved it — so for them the two conditions agree and nothing changes. START_RUN is the
+        // one row that can be Kind == Run with working.Run still null here: its whole job is to
+        // CREATE that Run, so there is nothing yet to open a scope over, and building one from a
+        // null Run would throw before the handler ever ran. It draws nothing before it exists —
+        // HandlerInput.Rng throws if it tries — and HandlerInput.OpenRun is the seam it uses instead.
+        var rng = registration.Kind == CommandKind.Run && working.Run is not null
+            ? new RunRngScope(working.Run.RunSeed, working.Run.RngStreamPositions)
             : null;
 
         // 🔒 The baseline FoldRngPositions compares against, read HERE: after the clone and the
@@ -427,8 +434,13 @@ public static class GameRules
             ? CanonicalStateWriter.CanonicalBytes(working.Run.ToSnapshot())
             : null;
 
+        // 🔒 Named rather than built inline (M3-15): Execute reads input.OpenedRun back after the
+        // handler returns, and that read needs the same HandlerInput instance the handler was
+        // given — a second `new HandlerInput(...)` here would read an empty one.
+        var input = new HandlerInput(working, context, rng);
+
         var handled = registration.IsHandled
-            ? registration.Handler!(command, new HandlerInput(working, context, rng))
+            ? registration.Handler!(command, input)
 
             // A command whose row exists but whose SYSTEM arrives in a later milestone. See
             // CommandDispatch.Deferred for why this is ILLEGAL_STATE rather than a new 14 §16.2
@@ -463,6 +475,16 @@ public static class GameRules
         // GameRulesRngTests.A_meta_handler_that_hand_writes_a_stream_position_is_a_defect_too red,
         // which is exactly the "several rules can produce this, pin WHICH one fired" shape S2 is
         // about — the test was right and the ordering was wrong.
+        // 🔒 M3-15's fold-in: the ONLY place HandlerInput.OpenedRun is read. working is still the
+        // run-less slice START_RUN's handler was handed — WorldSlice.Run is init-only, so the
+        // handler could not have written it in place — and this is the `with` that attaches the Run
+        // it built through HandlerInput.OpenRun. A no-op for every other row: OpenedRun is null
+        // unless registration.OpensRun was true, and it is true for exactly one row.
+        if (input.OpenedRun is not null)
+        {
+            working = working with { Run = input.OpenedRun };
+        }
+
         FoldRngPositions(committedPositions, working.Run, rng, registration);
         RequireRunUntouched(untouchedRun, working.Run, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);

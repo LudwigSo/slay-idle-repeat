@@ -368,15 +368,23 @@ public sealed class InMemoryGameTests
     }
 
 /// <summary>
-/// 🔒 <c>START_RUN</c> is <c>CommandKind.Run</c> and the harness carries no run, so it is a
-/// <b>loading defect</b> — an exception, not <c>ILLEGAL_STATE</c>.
+/// 🔒 A <c>CommandKind.Run</c> row still <c>Deferred</c> is <c>CommandKind.Run</c> and the harness
+/// carries no run, so it is a <b>loading defect</b> — an exception, not <c>ILLEGAL_STATE</c>.
 /// </summary>
 /// <remarks>
 /// `30` §4.1 makes loading the right slice the Application layer's job and `14` §16.2's
-/// <c>RUN_NOT_FOUND</c> is a transport value <c>Apply</c> may not return. ⚠️ It is also a message for
-/// <b>M3-15</b>: the commit that makes <c>START_RUN</c> <c>Handled</c> must decide how a run enters
-/// a <c>WorldSlice</c> the harness owns, because today there is no door. It proves too that the
+/// <c>RUN_NOT_FOUND</c> is a transport value <c>Apply</c> may not return. It proves too that the
 /// harness passes the slice straight through rather than pre-screening it.
+/// <para>
+/// ⚠️ <b>M3-15 CORRECTED THIS TEST'S OWN EXAMPLE.</b> It used to probe with <c>START_RUN</c> — the
+/// one <c>CommandKind.Run</c> row whose whole job is to create the <c>Run</c> this guard would
+/// otherwise demand. M3-15 gave that row <c>CommandRegistration.OpensRun = true</c>, the one-row
+/// exemption from exactly this guard, so <c>START_RUN</c> now SUCCEEDS on the harness's run-less
+/// slice — see <see cref="A_START_RUN_command_succeeds_on_the_harnesss_run_less_slice_with_no_harness_change"/>
+/// for the positive claim this test used to be the negative half of. This probes two rows that stay
+/// <c>Deferred</c> instead, of two different shapes (no payload, and one payload field), so the
+/// claim is still about the KIND rather than about a row that no longer demonstrates it.
+/// </para>
 /// </remarks>
     [Fact]
     public void A_run_command_with_no_run_in_the_slice_is_a_defect_the_harness_does_not_soften()
@@ -385,9 +393,9 @@ public sealed class InMemoryGameTests
         var before = game.State(player);
 
         var defect = Should.Throw<InvalidOperationException>(
-            () => game.Send(player, new StartRunCommand(3, DifficultyTier.NORMAL)));
+            () => game.Send(player, new RollDiceCommand()));
 
-        defect.Message.ShouldContain("START_RUN", Case.Sensitive);
+        defect.Message.ShouldContain("ROLL_DICE", Case.Sensitive);
         defect.Message.ShouldContain("carries no Run", Case.Sensitive);
 
         // 🔒 …and the throw left the harness untouched. Send increments its counters and appends the
@@ -398,12 +406,56 @@ public sealed class InMemoryGameTests
         game.Events.ShouldBeEmpty();
         game.State(player).ShouldBeSameAs(before);
 
-        // 🔒 AND IT IS NOT ONLY START_RUN. All nineteen CommandKind.Run rows hit the same guard,
-        // because the harness's slice never carries a Run — the type's own remarks correct the
-        // "forty-eight rows answer ILLEGAL_STATE" reading this test used to imply. Driven over a
-        // second row so the claim is about the KIND rather than about the row that was picked.
-        Should.Throw<InvalidOperationException>(() => game.Send(player, new RollDiceCommand()))
-            .Message.ShouldContain("ROLL_DICE", Case.Sensitive);
+        // 🔒 AND IT IS NOT ONLY ROLL_DICE. Every CommandKind.Run row but START_RUN hits the same
+        // guard, because the harness's slice never carries a Run. Driven over a second row, of a
+        // different shape (a payload field), so the claim is about the KIND rather than about the
+        // row that was picked.
+        Should.Throw<InvalidOperationException>(() => game.Send(player, new ChooseForkCommand(0)))
+            .Message.ShouldContain("CHOOSE_FORK", Case.Sensitive);
+    }
+
+/// <summary>
+/// 🔒 M3-15's positive claim, over the real harness: <c>START_RUN</c> now succeeds on the run-less
+/// slice every other <c>CommandKind.Run</c> row still throws on — and <c>InMemoryGame</c> required
+/// <b>zero</b> changes to reach it, exactly as the M1 finding this task settles said it would not.
+/// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>Why zero changes was even plausible.</b> <c>InMemoryGame.CreatePlayer</c> already builds a
+/// <c>WorldSlice(player, null)</c> for a fresh player — the M1 finding's own words, "(player, null)
+/// is already right" — so the harness was never the thing standing between <c>START_RUN</c> and a
+/// caller. What stood in the way was <c>GameRules.Execute</c>'s own guard, throwing before dispatch
+/// on every <c>CommandKind.Run</c> row including this one; M3-15 exempted this one row
+/// (<c>CommandRegistration.OpensRun</c>) rather than opening an injection door on the harness — the
+/// wrong answer this finding explicitly ruled out.
+/// </para>
+/// <para>
+/// This asserts the full shape: acceptance, a <c>Run</c> now present with the requested chapter and
+/// tier, the trailhead position, no events (`30` §7 names none for a run's own creation), and the
+/// player's lifetime run counter advanced by exactly one.
+/// </para>
+/// </remarks>
+    [Fact]
+    public void A_START_RUN_command_succeeds_on_the_harnesss_run_less_slice_with_no_harness_change()
+    {
+        var (game, player) = Harnesses.WithPlayer();
+
+        game.State(player).Run.ShouldBeNull("CreatePlayer's own slice — the shape START_RUN acts on.");
+
+        var runsStartedBefore = game.State(player).Player.RunsStarted;
+
+        var result = game.Send(player, new StartRunCommand(3, DifficultyTier.NORMAL));
+
+        result.Accepted.ShouldBeTrue();
+        result.Events.ShouldBeEmpty();
+        result.NewState.Run.ShouldNotBeNull();
+        result.NewState.Run!.ChapterId.ShouldBe(3);
+        result.NewState.Run.Tier.ShouldBe(DifficultyTier.NORMAL);
+        result.NewState.Run.Position.ShouldBe(-1, "03 §1.1's virtual trailhead — one step before node 0.");
+        result.NewState.Run.RngStreamPositions.ShouldBeEmpty();
+        result.NewState.Player.RunsStarted.ShouldBe(runsStartedBefore + 1);
+
+        game.State(player).Run.ShouldNotBeNull("Send persists the accepted result back onto the harness.");
     }
 
 /// <summary>
