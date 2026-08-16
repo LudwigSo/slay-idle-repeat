@@ -23,6 +23,21 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// <see cref="EdgeKind.Branch"/>. Landing exactly on a junction with nothing left to spend does not
 /// pause — the loop below only checks <see cref="BoardGraph.IsJunction"/> while <c>remaining &gt; 0</c>.
 /// </para>
+/// <para>
+/// The stage-end clamp is a <b>one-time stop, not a wall</b>. It stops the move that would carry
+/// <em>past</em> a stage's last node, and a move that <em>begins</em> on that node has already paid
+/// it: <see cref="Advance"/> therefore clamps only once a step has been spent. Nothing outside this
+/// type consumes or clears the clamp, so clamping on the start node as well leaves a run unable to
+/// leave its stage at all.
+/// </para>
+/// <para>
+/// "A step has been spent" is measured per <em>call</em>, and a resumed move — <c>Handlers.ChooseFork</c>
+/// finishing the roll a junction interrupted — is a fresh call. The two readings only diverge if a
+/// junction's own outgoing edge lands on a stage's last node, which <c>BoardGenerator</c>'s fork
+/// placement makes impossible: every junction sits at a local index no later than
+/// <c>spineLength − 4</c>. That dependency is deliberate and is pinned by
+/// <c>MovementEngineTests.A_move_resumed_exactly_on_a_stages_last_node_walks_off_the_boundary</c>.
+/// </para>
 /// </remarks>
 internal static class MovementEngine
 {
@@ -113,9 +128,17 @@ internal static class MovementEngine
                     return new AdvanceResult(edge.To, false, true, 0);
                 }
 
-                // A move that would carry past the last node of a stage stops on that node instead —
-                // 'current' is already that node, since every edge but this one has already been taken.
-                return new AdvanceResult(current, false, false, remaining);
+                if (remaining < steps)
+                {
+                    // A move that would carry past the last node of a stage stops on that node
+                    // instead — 'current' is already that node, since every edge but this one has
+                    // already been taken.
+                    return new AdvanceResult(current, false, false, remaining);
+                }
+
+                // Nothing spent yet, so this move BEGAN on the stage's last node: the clamp that put
+                // it there has already been paid and stopping again would be a wall, not a stop. Fall
+                // through and take the edge.
             }
 
             current = edge.To;

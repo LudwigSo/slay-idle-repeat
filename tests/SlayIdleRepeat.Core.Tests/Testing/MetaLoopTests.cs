@@ -33,7 +33,7 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 ///   <item><term>a simulated player runs</term><description>✅ driven — <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/>.</description></item>
 ///   <item><term>banks gear</term><description>❌ <b>unreachable.</b> No production caller anywhere hands an item to the inventory, so a run cannot add one. Pinned by <see cref="A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory"/>.</description></item>
 ///   <item><term>merges and enhances it</term><description>✅ driven, over a <em>seeded</em> stock rather than a banked one, and funded by currency the run itself paid — <see cref="The_forge_half_of_the_loop_runs_on_what_the_run_paid_for_it"/>.</description></item>
-///   <item><term>levels the hero</term><description>⚠️ <b>the path is live, the rung is not reachable.</b> The run's payout does move Legend XP through <c>Apply</c>, and the level reconciliation runs on every accepted command; the reachable board cannot bank enough to cross the first rung. Pinned by <see cref="The_run_pays_Legend_XP_but_no_reachable_run_reaches_the_first_rung"/>.</description></item>
+///   <item><term>levels the hero</term><description>⚠️ <b>the path is live, the rung is not reachable.</b> The run's payout does move Legend XP through <c>Apply</c>, and the level reconciliation runs on every accepted command; the reachable board still cannot bank enough to cross the first rung. Pinned by <see cref="The_run_pays_Legend_XP_but_no_reachable_run_reaches_the_first_rung"/>.</description></item>
 ///   <item><term>carries the loadout into the next run</term><description>❌ <b>unreachable, twice over.</b> There is no next run, and the loadout is always empty. Pinned by <see cref="No_second_run_can_be_started_so_nothing_is_carried_into_one"/> and <see cref="The_loadout_carried_into_a_run_is_the_players_own_but_nothing_can_fill_it"/>.</description></item>
 /// </list>
 /// <para>
@@ -96,17 +96,21 @@ public sealed class MetaLoopTests
     /// preference.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A run's board is derived from its own seed, which folds in the instant the run started — so
     /// the clock, not <see cref="Seed"/>, is what selects a board. The board
-    /// <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/> drives pays
-    /// <b>80</b> Crowns before the stall parks it, and the cheapest fusion costs
-    /// <see cref="FusionCrownFloor"/>. Swept across both authored chapters and two thousand start
-    /// instants each while writing this, no board paid a fusion's price <em>and</em> ended in a
-    /// death; the ones that pay it end by being abandoned. This is the one that funds a fusion, and
-    /// it is a chapter 2 board because chapter 1's do not. That a run barely covers a single C-band
-    /// fusion is itself a consequence of the stall
-    /// (<see cref="A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss"/>): four tiles
-    /// is what a stalled run gets to resolve.
+    /// <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/> drives did not
+    /// cover <see cref="FusionCrownFloor"/>, the cheapest fusion's price. Swept across both authored
+    /// chapters and two thousand start instants each while this was written, no board paid a
+    /// fusion's price <em>and</em> ended in a death; the ones that pay it end by being abandoned.
+    /// This is the one that funds a fusion, and it is a chapter 2 board because chapter 1's do not.
+    /// </para>
+    /// <para>
+    /// ⚠️ That sweep was measured before X-10 was repaired, when a run resolved four tiles and then
+    /// parked. A repaired run travels much further and pays more, so this instant is now a
+    /// sufficient choice rather than a uniquely necessary one — the assertions below still hold, and
+    /// re-sweeping for a cheaper board would only be tidying.
+    /// </para>
     /// </remarks>
     private static readonly DateTimeOffset ForgeStart = Start.AddHours(12);
 
@@ -134,12 +138,11 @@ public sealed class MetaLoopTests
         run!.Phase.ShouldBe(
             RunPhase.Ended,
             "the run did not end. " + driver.Ending + Environment.NewLine +
-            "⚠️ If the command budget was exhausted, the likeliest cause is that " +
-            "A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss has done its job and " +
-            "movement was repaired: this driver was written against a run that parks in stage 1 " +
-            "after four tiles, and a run that crosses a whole board needs a resolver for the tile " +
-            "kinds a stalled run never reaches — Shop has no command that clears it, and DiceForge " +
-            "has no command at all. Teach the driver those two before widening the budget again." +
+            "⚠️ If the command budget was exhausted, the likeliest cause is a tile the driver has no " +
+            "command for and does not yet name — it will re-send RESOLVE_TILE at one position until " +
+            "the budget runs out. MetaLoopDriver.StuckOn concludes that from the commands and ends " +
+            "the run; teach the driver the kind's own command rather than widening the budget. " +
+            "add the kind there rather than widening the budget." +
             Trace(driver));
 
         driver.Visited.Distinct().Count().ShouldBeGreaterThan(
@@ -365,13 +368,18 @@ public sealed class MetaLoopTests
     /// <remarks>
     /// <para>
     /// 🔴 <b>The arithmetic, so the claim is checkable rather than asserted.</b> The first rung costs
-    /// <c>120</c> lifetime XP. A run that ends in a stage-1 death — one of the two endings a
-    /// command-driven run can reach, the other being an abandon at a tenth, see
-    /// <see cref="A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss"/> — pays a quarter
-    /// of what it banked, so it needs <c>480</c> banked. Chapter 1 at NORMAL pays 25 a normal kill,
-    /// and the reachable part of the board holds a handful of them. Swept across chapters 1–2, all
-    /// three tiers and forty seeds while writing this, the best any run reached was <b>93</b> lifetime
-    /// XP from <b>372</b> banked. There is no second run to accumulate across.
+    /// <c>120</c> lifetime XP, and a run that does not end in a victory pays a fraction of what it
+    /// banked. Chapter 1 at NORMAL pays 25 a normal kill, and a run that stops at the first tile no
+    /// command clears — see
+    /// <see cref="A_run_crosses_its_stage_boundaries_and_stops_at_a_tile_no_command_clears"/> — meets
+    /// a handful of them. There is no second run to accumulate across.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Re-measured on this checkout after X-10's repair, rather than carried over.</b> The run
+    /// now travels most of two stages instead of four tiles, but it ends by being abandoned rather
+    /// than by a death, and an abandon pays a much lower completion multiplier — so lifetime XP came
+    /// out at <b>5</b> against the rung's <see cref="RungOne"/>. The margin widened; the bound was
+    /// left exactly where it was and is not close to firing for a balance reason.
     /// </para>
     /// <para>
     /// 🔒 <b>It expires by itself (steering S4).</b> Both halves are asserted: the XP has to move
@@ -541,50 +549,63 @@ public sealed class MetaLoopTests
             1, "SAVE_PRESET stored one preset and nothing removed it." + Trace(play));
     }
 
-    // ═════════════════════════════════════════════════════════ the two blockers, named
+    // ═════════════════════════════════════════════════════════ the blocker, named
 
     /// <summary>
-    /// 🔴 <b>Why the run above cannot win.</b> A roll taken from the last node of a stage is accepted
-    /// and moves the run nowhere, and every roll after it does the same — so a command-driven run can
-    /// never leave stage 1, never reach the boss node, and never end in a victory.
+    /// 🔒 <b>Why the run above still cannot win — and it is no longer the stage boundary.</b> The run
+    /// now crosses out of stage 1 and travels on; what stops it is a tile no command in the
+    /// vocabulary clears.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>03</c> §1.1 authors the stage-end clamp as <em>"if a die roll would move the player past
-    /// the last node of a stage, the player stops on the last node and the Stage Gate fires"</em> — a
-    /// one-time stop, after which the next roll carries on. The implementation applies the clamp
-    /// whenever the <em>next</em> node belongs to another stage, which is also true when the run is
-    /// already standing on the boundary node, so it returns the current node with the whole roll
-    /// unspent. Stage 3 → boss is the one transition with an explicit exception.
+    /// 🔴 <b>This case was written against X-10 and now asserts its repair.</b> It used to require
+    /// <c>StalledAt</c> to be non-null: a roll accepted from a stage's last node that moved the run
+    /// nowhere, on every subsequent roll, for ever — <c>MovementEngine.Advance</c> applying
+    /// <c>03</c> §1.1's stage-end clamp to a run already standing on the boundary node. The clamp is
+    /// a one-time stop, the repair made it one, and the three requirements below are the same three
+    /// claims turned the right way up: nothing stalls, the run leaves stage 1, and the boss is still
+    /// out of reach — for a different, named reason.
     /// </para>
     /// <para>
-    /// 🔒 <b>Recorded here rather than repaired.</b> The repair is a change to how every run in the
-    /// game moves, and it belongs with the board rules and their own suite, not inside the milestone's
-    /// exit-criterion test. What this case buys is that the criterion's "runs" clause stops being
-    /// quietly satisfied by a run that never got anywhere: the day movement is fixed, this goes red
-    /// and the loop above can be driven to a boss and a victory payout.
+    /// 🔴 <b>The new frontier, and it is the same defect class one layer up (steering S24).</b>
+    /// <c>RESOLVE_TILE</c> acknowledges <c>TILE_SHOP</c> and <c>TILE_DICE_FORGE</c> and leaves them
+    /// pending "for the command that owns it" — and for these two there is none. <c>SHOP_BUY</c> and
+    /// <c>SHOP_REFRESH</c> are handled but neither clears the tile, and <c>TILE_DICE_FORGE</c> has no
+    /// command at all. A pending tile blocks <c>ROLL_DICE</c>, so a run that lands on either cannot
+    /// move again. A shop is guaranteed at least once per stage, so this is met by every run that
+    /// gets far enough.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It expires by itself (steering S4).</b> The day either tile gains a resolver, the
+    /// <c>StuckOn</c> requirement goes red and asks for the loop to be driven to the boss so the run
+    /// ends in a VICTORY and the hero clause becomes assertable.
     /// </para>
     /// </remarks>
     [Fact]
-    public void A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss()
+    public void A_run_crosses_its_stage_boundaries_and_stops_at_a_tile_no_command_clears()
     {
         var (game, player) = Loop();
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
 
-        driver.StalledAt.ShouldNotBeNull(
-            "no roll was accepted without moving the run, so the stage-boundary stall is gone. If " +
-            "movement was repaired, this case has done its job: delete it, and drive the loop above " +
-            "to the boss node so the run ends in a VICTORY and the hero clause becomes assertable." +
+        driver.StalledAt.ShouldBeNull(
+            "a ROLL_DICE was accepted, moved the run nowhere and opened no fork. That is X-10 back: " +
+            "03 §1.1's stage-end clamp re-firing on a run already standing on the stage's last node." +
             Trace(driver));
 
-        game.State(player).Run!.BossDefeated.ShouldBeFalse(
-            "the run reached and beat the boss, which the stall makes impossible — so the stall is " +
-            "gone and this case is stale." + Trace(driver));
+        driver.Stages.ShouldContain(
+            2,
+            "the run never resolved a tile outside stage 1, so it did not cross a stage boundary at " +
+            "all." + Trace(driver));
 
-        driver.Ending.StartsWith("END_RUN", StringComparison.Ordinal).ShouldBeTrue(
-            "the run ended as '" + driver.Ending + "' rather than by a death after the stall. That " +
-            "is the only ending a stalled run has, so a different one means the shape of this loop " +
-            "has changed." + Trace(driver));
+        driver.StuckOn.ShouldNotBeNull(
+            "the run travelled without meeting a tile it could not clear, so TILE_SHOP or " +
+            "TILE_DICE_FORGE has gained a resolver — or the run ended before it met one. Either way " +
+            "this case is now the stale half of the claim: drive the loop to the boss node so the run " +
+            "ends in a VICTORY, and assert the hero clause's level-up properly." + Trace(driver));
+
+        game.State(player).Run!.BossDefeated.ShouldBeFalse(
+            "the run reached and beat the boss, which the unresolvable tile above makes impossible — " +
+            "so this case is stale." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the budget
@@ -600,7 +621,7 @@ public sealed class MetaLoopTests
     /// </para>
     /// <para>
     /// 🔴 <b>The bound is anchored to the measurement, not to `30` §6's command budget, and the
-    /// difference matters.</b> A whole loop is about <b>4 ms</b> here — a stalled run is twenty-odd
+    /// difference matters.</b> A whole loop is about <b>4 ms</b> here — this run is twenty-odd
     /// commands, not the seven hundred <c>InMemoryGamePerformanceTests</c> drives — so borrowing that
     /// file's 200 ms × 10 would have left a bound five hundred times the real cost, under which a
     /// hundredfold regression passes in silence. This is ~25× the measured figure, which is loose
