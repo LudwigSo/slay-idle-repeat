@@ -314,10 +314,11 @@ public sealed class CommandVocabularyTests
             "a deferred row rather than that the count moved.");
 
         deferred.ShouldBe(
-            30,
+            28,
             "…and the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
-            "is 49 rows and exactly nineteen of them — BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
+            "is 49 rows and exactly twenty-one of them — SAVE_PRESET and APPLY_PRESET (07 §4's named " +
+            "loadout presets, M4-10), BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
             "(02 §2's runSeed commit), MINIGAME_SUBMIT (03 §6's minigame resolution), ROLL_DICE and " +
             "USE_REROLL (04 §§1,3-4), SHOP_BUY/SHOP_REFRESH (03 §7's shop, M3-08), CHOOSE_FORK " +
             "(03 §1.1's junction pause, M3-02), RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE " +
@@ -339,6 +340,7 @@ public sealed class CommandVocabularyTests
     {
         var runRows = 0;
         var metaRows = 0;
+        var acceptedMetaRows = 0;
 
         foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
         {
@@ -384,10 +386,25 @@ public sealed class CommandVocabularyTests
 
             if (RegistrationFor(name).IsHandled)
             {
-                result.Accepted.ShouldBeTrue(
-                    $"'{name}' is a handled meta command, so outside a run it runs its handler — " +
-                    "whatever that handler decides is its own suite's business, but reaching it at " +
-                    "all is what this rule is about.");
+                // 🔒 The claim is that the handler was REACHED and answered — not that a
+                // generically-built payload is a legal move. It used to be stated as
+                // `Accepted.ShouldBeTrue`, which held only while every handled meta row happened to
+                // accept Build's samples; Build fills every int with 0, and M4-10's two preset rows
+                // legitimately refuse that (07 §4's slots are counted from 1, and slot 0 holds no
+                // preset to load), so the strong form was asserting something about the fixture
+                // rather than about the dispatch table. What must not happen — and what the run arm
+                // above asserts DOES happen — is the run-less loading defect.
+                if (!result.Accepted)
+                {
+                    RejectionReasons.IsDomainTier(result.Rejection!.Value).ShouldBeTrue(
+                        $"'{name}' is a handled meta command that refused Build's generic payload. " +
+                        "Refusing is its own suite's business; refusing with a TRANSPORT-tier value " +
+                        "would mean Apply returned something 14 §16.2 decides before the domain runs.");
+                }
+                else
+                {
+                    acceptedMetaRows++;
+                }
             }
             else
             {
@@ -402,6 +419,15 @@ public sealed class CommandVocabularyTests
 
         runRows.ShouldBe(19, "14 §2.3's run table has 19 rows.");
         metaRows.ShouldBe(30, "14 §2.3's meta table has 30 rows.");
+
+        // 🔒 A floor under the handled arm (steering S3). Without it, every handled meta row could
+        // start refusing and the arm would still be "satisfied" — it only ever checks the tier of a
+        // refusal, so a table in which nothing is reachable at all would read as green.
+        acceptedMetaRows.ShouldBeGreaterThanOrEqualTo(
+            1,
+            "no handled meta row accepted Build's payload outside a run. The arm above then only " +
+            "ever checked rejection tiers, so it would hold over a dispatch table whose meta rows " +
+            "were all unreachable — which is the failure this rule exists to detect.");
     }
 
     /// <summary>

@@ -170,6 +170,25 @@ public sealed class PlayerSnapshotTests
             // cases would notice a bought expansion that reached no byte.
             (nameof(PlayerSnapshot.Inventory), v,
                 PlayerSnapshots.With(inventory: new InventorySnapshot(1, [], []))),
+
+            // M4-10. Two players one Talent Point apart are materially different the moment M4-06
+            // gives them somewhere to spend it, and the point is granted by levelling rather than
+            // written by a command — so nothing else in the suite would notice it missing a byte.
+            (nameof(PlayerSnapshot.TalentPoints), v, PlayerSnapshots.With(talentPoints: 1L)),
+
+            // M4-10. The equipped slot is what the whole hero screen and every future power
+            // computation read; two players wearing different weapons must never share a stateHash.
+            (nameof(PlayerSnapshot.Loadout), v,
+                PlayerSnapshots.With(loadout: new LoadoutSnapshot(
+                    PlayerSnapshots.Gear((GearSlot.WEAPON, "GI_1"))))),
+
+            // M4-10. Probed by the preset's NAME rather than by its loadout, deliberately: the
+            // loadout inside a preset descends into the very same LoadoutSnapshot the probe above
+            // already moves, so a probe that changed it would pass on that record's encoding alone
+            // and say nothing about whether Presets[].Name reaches the bytes.
+            (nameof(PlayerSnapshot.Presets), v,
+                PlayerSnapshots.With(presets: [new LoadoutPresetSnapshot(
+                    1, "Boss push", new LoadoutSnapshot(PlayerSnapshots.Gear()))])),
         };
 
         var invisible = probes

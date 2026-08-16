@@ -202,8 +202,10 @@ public sealed class Run
         bool bossDefeated,
         int draftsSinceLegendaryOffered,
         int draftsWithoutAboveCommon,
-        int draftsWithoutOwnedUpgrade)
+        int draftsWithoutOwnedUpgrade,
+        Loadout startingLoadout)
     {
+        StartingLoadout = startingLoadout;
         _draftsSinceLegendaryOffered = draftsSinceLegendaryOffered;
         _draftsWithoutAboveCommon = draftsWithoutAboveCommon;
         _draftsWithoutOwnedUpgrade = draftsWithoutOwnedUpgrade;
@@ -238,6 +240,31 @@ public sealed class Run
         _bankedSoulShards = bankedSoulShards;
         _bossDefeated = bossDefeated;
     }
+
+    /// <summary>
+    /// 🔒 What the hero was wearing when this run started — frozen for the run's whole life.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// `07` §4: equipping is free and unlimited <em>outside</em> a run, and the loadout <em>cannot</em>
+    /// be changed during one — <em>"It is snapshotted at run start."</em> This field is that snapshot,
+    /// and it is a field rather than a rule stated over the player because a rule cannot survive the
+    /// player equipping something: read from <c>Player.Loadout</c> mid-run and the answer changes,
+    /// however carefully the commands are gated. Read from here and it cannot.
+    /// </para>
+    /// <para>
+    /// A <c>get</c>-only property with no mutator anywhere, deliberately. There is no
+    /// <c>ChangeLoadout</c>, no <c>Reequip</c> and no setter, so "cannot be changed during a run" is
+    /// enforced by the type's shape rather than by every future command remembering to check.
+    /// </para>
+    /// <para>
+    /// ⚠️ It holds identities, not items — so an enhancement applied to an equipped item mid-run is
+    /// worn immediately, and that is correct: `07` §4 freezes <em>which items are equipped</em>, and
+    /// what an item IS lives in the stock. The forge is a meta screen and cannot be reached mid-run
+    /// anyway.
+    /// </para>
+    /// </remarks>
+    public Loadout StartingLoadout { get; }
 
     /// <summary>What <see cref="RunSnapshot.PendingTileKind"/> holds when no tile is pending.</summary>
     /// <remarks>
@@ -495,7 +522,8 @@ public sealed class Run
         _bossDefeated,
         _draftsSinceLegendaryOffered,
         _draftsWithoutAboveCommon,
-        _draftsWithoutOwnedUpgrade);
+        _draftsWithoutOwnedUpgrade,
+        StartingLoadout.ToSnapshot());
 
     /// <summary>The one validated entry point for a persisted run: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -544,12 +572,13 @@ public sealed class Run
         var ownedPerkTiers = ReadOwnedPerkTiers(snapshot, faults);
         RequireBankedRewards(snapshot, faults);
         RequireDraftCounters(snapshot, faults);
+        var startingLoadout = ReadStartingLoadout(snapshot, faults);
 
-        // The four `is null` arms are unreachable while `faults` is empty — every path that returns
-        // null also adds a fault — but they are written as a pattern rather than as four `!`
+        // The `is null` arms are unreachable while `faults` is empty — every path that returns
+        // null also adds a fault — but they are written as a pattern rather than as `!`
         // operators so the correlation is checked rather than asserted at the compiler.
         if (faults.Count > 0 || streams is null || adUses is null || resolvedMinigames is null ||
-            ownedPerkTiers is null)
+            ownedPerkTiers is null || startingLoadout is null)
         {
             return Result<Run>.Failure(
                 "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -595,7 +624,36 @@ public sealed class Run
             snapshot.BossDefeated,
             snapshot.DraftsSinceLegendaryOffered,
             snapshot.DraftsWithoutAboveCommon,
-            snapshot.DraftsWithoutOwnedUpgrade));
+            snapshot.DraftsWithoutOwnedUpgrade,
+            startingLoadout));
+    }
+
+    /// <summary>
+    /// Reads the loadout the run started with. <c>null</c> is a <b>fault</b>, on the player
+    /// inventory's precedent: a run whose starting loadout went missing is not a run fought naked,
+    /// and reading it as empty would silently strip the hero's whole build for the rest of the run.
+    /// </summary>
+    private static Loadout? ReadStartingLoadout(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.StartingLoadout is null)
+        {
+            faults.Add(
+                nameof(RunSnapshot.StartingLoadout) + " is null. 07 §4 snapshots the loadout at run " +
+                "start and forbids changing it during the run, so every run has one — an absent " +
+                "snapshot read as an empty loadout would fight the rest of the run with no gear and " +
+                "look exactly like a player who started one that way.");
+            return null;
+        }
+
+        var loadout = Loadout.Rehydrate(snapshot.StartingLoadout);
+
+        if (loadout.IsFailure)
+        {
+            faults.Add(nameof(RunSnapshot.StartingLoadout) + ": " + loadout.Error);
+            return null;
+        }
+
+        return loadout.Value;
     }
 
     /// <summary>The three draft guarantee counters count drafts, so none of them is negative.</summary>

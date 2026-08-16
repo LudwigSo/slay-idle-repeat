@@ -10,6 +10,7 @@ using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Economy;
 using SlayIdleRepeat.Core.Rules.Feats;
+using SlayIdleRepeat.Core.Rules.Hero;
 
 namespace SlayIdleRepeat.Core;
 
@@ -81,8 +82,8 @@ public static class GameRules
         .Deferred<SetFocusCommand>("SET_FOCUS", CommandKind.Meta, "M4-04")
         .Deferred<ReforgeItemCommand>("REFORGE_ITEM", CommandKind.Meta, "M4-04")
         .Deferred<RetuneItemCommand>("RETUNE_ITEM", CommandKind.Meta, "M4-04")
-        .Deferred<SavePresetCommand>("SAVE_PRESET", CommandKind.Meta, "M4-10")
-        .Deferred<ApplyPresetCommand>("APPLY_PRESET", CommandKind.Meta, "M4-10")
+        .Handled<SavePresetCommand>("SAVE_PRESET", CommandKind.Meta, SavePreset.Handle)
+        .Handled<ApplyPresetCommand>("APPLY_PRESET", CommandKind.Meta, ApplyPreset.Handle)
         .Deferred<ShopPurchaseCommand>("SHOP_PURCHASE", CommandKind.Meta, "M4-09")
         .Deferred<OpenChestCommand>("OPEN_CHEST", CommandKind.Meta, "M4-02")
         .Deferred<OpenEggCommand>("OPEN_EGG", CommandKind.Meta, "M4-02")
@@ -246,12 +247,66 @@ public static class GameRules
         RequireRunUntouched(untouchedRun, working.Run, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
-        var events = Stamp(Combine(caughtUp, handled.Events));
+        // After the handler, because the handler is what banks the XP; before the events are
+        // stamped, because a level-up's Energy refill is a CurrencyChanged like any other.
+        var levelled = LevelUp(working.Player, context.Content);
+
+        var events = Stamp(Combine(caughtUp, Combine(handled.Events, levelled)));
 
         CountFeats(working.Player, events);
 
         return CommandResult.Accept(working, events);
     }
+
+    /// <summary>
+    /// Reconciles the player's Legend Level against the lifetime XP the command left them with, and
+    /// applies what the level-ups grant.
+    /// </summary>
+    /// <returns>The <c>CurrencyChanged</c> the Energy refill produced, or nothing when no level was gained.</returns>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Here rather than in the handlers that bank XP, and that is the whole point.</b> A level is
+    /// a function of a number the player already carries, so reconciling it once per accepted command
+    /// means every path that banks Legend XP levels the player up — the two that exist today
+    /// (<c>END_RUN</c>, <c>ABANDON_RUN</c>), the ad-doubled payout, and every one a later milestone
+    /// adds without knowing this rule exists. A grant that levelled the player in its own handler
+    /// would be one more place to forget.
+    /// </para>
+    /// <para>
+    /// It runs on accepted commands only, on the same argument <see cref="CountFeats"/> makes: a
+    /// refused command discards the working copy, so a rejection cannot leave a Talent Point behind.
+    /// Being idempotent, it is also safe on a replay — the second reconciliation of the same lifetime
+    /// total derives the same level and grants nothing.
+    /// </para>
+    /// <para>
+    /// `10` §3.1 refills Energy to full on a level-up, and that refill is the one thing here that is
+    /// not pure player state, so it comes back as an event rather than being applied silently.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<DomainEvent> LevelUp(Player player, ContentSnapshot content)
+    {
+        var levelUp = LegendProgression.Reconcile(
+            player.LegendLevel, player.LegendXp, player.Energy, content);
+
+        if (!levelUp.Occurred)
+        {
+            return NoEvents;
+        }
+
+        // The level is written FIRST: SetEnergy derives the ceiling it checks against from the
+        // player's Legend Level, and refilling before the level moved would refuse the very tank
+        // the level-up just enlarged.
+        player.AdvanceLegendLevel(
+            levelUp.ToLevel, levelUp.TalentPointsGranted, LegendTuning.Read(content));
+
+        return new DomainEvent[]
+        {
+            player.SetEnergy(levelUp.Banks, EnergyTuning.Read(content), LegendLevelUpReason),
+        };
+    }
+
+    /// <summary>The attribution token a Legend Level-up's Energy refill is logged under.</summary>
+    private const string LegendLevelUpReason = "legend_level_up";
 
     /// <summary>Advances the player's lifetime feat counters for everything this command's events imply.</summary>
     /// <remarks>

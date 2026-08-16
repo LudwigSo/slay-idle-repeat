@@ -77,6 +77,10 @@ public sealed class IntraRulesLayeringRuleTests
     /// </remarks>
     internal const string LuckNamespace = "SlayIdleRepeat.Core.Rules.Luck";
 
+    /// <summary>M4-10's hero rules — the Legend XP curve, the unlock gate, the name filter and the
+    /// loadout/preset rules. Outside the ordering entirely, like <see cref="LuckNamespace"/>.</summary>
+    internal const string HeroNamespace = "SlayIdleRepeat.Core.Rules.Hero";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -296,6 +300,47 @@ public sealed class IntraRulesLayeringRuleTests
         (InventoryNamespace, CombatNamespace,
             "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — sorting a stock has no reason to read the combat simulator."),
+
+        // 🔒 M4-10's Rules/Hero/ (LegendLevelCurve, LegendProgression, UnlockGate, HeroNameRule,
+        // NameNormalisation, LoadoutRules), pinned OUTSIDE the ordering the same way Inventory is.
+        // Verified by inspection, not assumed: the namespace's Core dependencies outside itself are
+        // Content (the Legend curve, the unlock ladder, the free preset allowance, the word lists),
+        // Model (the player's loadout and inventory), Primitives and Rules.Economy — that last one
+        // deliberately, because 10 §3.1 refills Energy to full on a level-up and EnergyMath.
+        // RefillToFull is already the one place that arithmetic lives. ZERO coupling to
+        // Combat/Stats/Effects in either direction, and nothing under those three names a Hero type.
+        //
+        // ⚠️ Rules.Hero -> Rules.Economy is therefore left OPEN and is not an omission. The INVERSE
+        // is closed below, in the same commit that creates the pair's first edge — this rule only
+        // asks that each namespace appears SOMEWHERE in this table, never that a given pair is
+        // ordered, so Rules.Economy naming Rules.Hero would compile and pass the whole suite. It
+        // costs nothing to close today, because Rules/Economy/ names nothing under Rules.Hero
+        // (verified by inspection), and it will not be free later. The direction matters: energy
+        // accrual and run payout are arithmetic the hero's progression CONSUMES, and an energy rule
+        // that reached back into the Legend curve would make the tank a function of the level-up it
+        // is an input to.
+        //
+        // ⚠️ THE REVERSE DIRECTION FROM COMBAT IS THE ONE THAT WILL BE WANTED, and it is left open
+        // exactly as it is for Gear and Luck: 05 §2's hero base stats grow with the Legend Level and
+        // the loadout is what a stat aggregation collects gear from, so Rules.Stats reading a hero
+        // rule one day is the direction these edges permit by forbidding only the other.
+        (HeroNamespace, EffectsNamespace,
+            "Hero is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a level curve, an unlock rung and a name filter have no reason to read the " +
+            "effect DSL's resolver."),
+        (HeroNamespace, StatsNamespace,
+            "Hero is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the loadout is an INPUT to stat aggregation and must not read it back, or " +
+            "which items the hero wears becomes a function of the build they produce."),
+        (HeroNamespace, CombatNamespace,
+            "Hero is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — levelling up and saving a preset have no reason to read the combat simulator."),
+        (EconomyNamespace, HeroNamespace,
+            "R17 runs this pair ONE WAY: 10 §3.1 refills Energy on a Legend Level-up, so Rules.Hero " +
+            "names EnergyMath and never the reverse. Energy accrual must not read the level curve — " +
+            "Max Energy is already a function of the Legend Level through EnergyTuning, which sits " +
+            "in Content BENEATH both, and an energy rule that reached up into the progression rule " +
+            "would close the cycle through the one calculation every single command runs."),
     };
 
     /// <summary>

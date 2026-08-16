@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Mono.Cecil;
+using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
 
@@ -152,12 +153,12 @@ public sealed class IsolationTests
             // are two different files there, and an ignore-case prefix would exempt the first
             // as though it were the second — silently widening the one exemption this rule has.
             .Where(file => !compositionRoots.Any(root => file.StartsWith(root, StringComparison.Ordinal)))
-            // The one rule `30` §3 licenses to read the entitlement will branch on it — a cap
-            // of 30 for Plus and 10 otherwise IS a conditional. The IL backstop already
-            // exempts it by exact type name; the grep exempts the file of that exact name, so
-            // the two halves license the same single thing rather than one contradicting the
-            // other. Exact filename, so AdGrantCapRuleHelpers.cs is not exempt.
-            .Where(file => !Path.GetFileNameWithoutExtension(file).Equals(AdGrantCapRuleName, StringComparison.Ordinal));
+            // The licensed readers will branch on the entitlement — that is what they are
+            // licensed for. The IL backstop exempts them by exact type name; the grep exempts
+            // the file of that exact name, so the two halves license the same closed set rather
+            // than one contradicting the other. Exact filename, so AdGrantCapRuleHelpers.cs and
+            // SavePresetHelpers.cs are not exempt.
+            .Where(file => !IsLicensedEntitlementReader(Path.GetFileNameWithoutExtension(file)));
 
         foreach (var file in files)
         {
@@ -262,8 +263,90 @@ public sealed class IsolationTests
         typeFullName.StartsWith(Domain.GuildModelNamespace + ".", StringComparison.Ordinal) ||
         SimpleName(typeFullName).StartsWith("Guild", StringComparison.Ordinal);
 
-    /// <summary>The exact name of the one rule `30` §3 licenses to read the entitlement.</summary>
+    /// <summary>The exact name of the rule `30` §3 licenses to read the entitlement.</summary>
     internal const string AdGrantCapRuleName = "AdGrantCapRule";
+
+    /// <summary>The exact name of the handler `14` §16.2 licenses to read the entitlement.</summary>
+    internal const string PresetAllowanceHandlerName = "SavePreset";
+
+    /// <summary>
+    /// 🔒 The <b>closed</b> list of sites the entitlement ban is lifted for, with what each decides
+    /// and which document requires the decision to be inside the domain.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>It was one name and had to become two, and that is a documented contradiction rather
+    /// than a relaxation.</b> `30` §3 says the domain may read the entitlement <em>only</em> for the
+    /// ad-reward auto-grant cap. `14` §16.2 classifies <c>NOT_ENTITLED</c> as a <b>domain</b>-tier
+    /// rejection — this repository's own <c>RejectionReasons.TierOf</c> already agrees, which means
+    /// <c>GameRules.Apply</c> is the only thing allowed to return it — and §662 gives it exactly one
+    /// worked example: <em>"a Plus-gated operation without Plus (e.g. preset slot 4+, `09` §2.1)"</em>.
+    /// A domain-tier value the domain is forbidden to compute cannot both be true. The design set
+    /// names the second reader; the architecture rule's prose had not caught up.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Enumerated, on <c>StatefulRuleTypeRuleTests.Stateful</c>'s precedent and for its
+    /// reason.</b> The alternative — widening the predicate to "any handler may read Plus" — is how
+    /// the entitlement leaks into a stat, a rate or a drop, which is the thing `12` §3.2 exists to
+    /// prevent. Enumerated, the third one takes a diff, and the diff is where the question gets
+    /// asked. Matched by EXACT name, never <c>Contains</c>: see <see cref="IsAdGrantCapRule"/>'s
+    /// remarks for the near-miss that motivated it.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What each is licensed for is written here and enforced nowhere.</b> Nothing stops
+    /// <c>SavePreset</c> from reading <c>HasPlus</c> to decide something other than a slot number;
+    /// that stays a review obligation, exactly as a predicate renamed into something neutral does.
+    /// </para>
+    /// </remarks>
+    internal static readonly IReadOnlyList<(string Name, string Licenses)> EntitlementReaders = new[]
+    {
+        (AdGrantCapRuleName,
+            "30 §3 — the ad-reward auto-grant cap. A cap of 30 for Plus and 10 otherwise IS a " +
+            "conditional, and 12 §2's second grant (every rewarded placement becomes a one-tap " +
+            "CLAIM at the same daily cap) is what makes it one. M15-03 authors it."),
+        (PresetAllowanceHandlerName,
+            "14 §16.2 — the preset slot allowance, and §662's own worked example of NOT_ENTITLED. " +
+            "12 §2 grants Plus unlimited loadout presets and ads.json#/plus/freePresets authors the " +
+            "free three; 12 §66 keeps presets beyond the allowance READ-ONLY rather than deleted, so " +
+            "the read is confined to SAVE_PRESET and APPLY_PRESET must never make it. M4-10 authors it."),
+    };
+
+    /// <summary>
+    /// X-02 / `30` §3 / `14` §16.2 — 🔒 the exemption list itself is closed, reasoned, and points at
+    /// something real. The floor under <see cref="No_entitlement_branch_outside_a_composition_root"/>'s
+    /// own exemptions (steering S3).
+    /// </summary>
+    /// <remarks>
+    /// A list of simple names has the failure mode <c>PublicRuleTypeFloorTests</c> records: a name
+    /// that resolves to nothing exempts nothing, and nothing else notices, because a stale exemption
+    /// makes the rule <em>stricter</em> rather than quieter. It is stated as "at least one resolves"
+    /// rather than "all do", because <see cref="AdGrantCapRuleName"/> names a rule M15-03 has not
+    /// written yet — the same shape <c>PublicRuleTypeFloorTests</c> uses for its own pending name.
+    /// </remarks>
+    [Fact]
+    public void The_licensed_entitlement_readers_are_named_exactly_and_at_least_one_resolves()
+    {
+        EntitlementReaders.Count.ShouldBe(
+            2,
+            "the exemption list is closed. Two is 30 §3's ad-reward cap plus 14 §16.2's preset " +
+            "allowance; a third is a decision that belongs in a diff with a reason, and this " +
+            "assertion is what forces the diff to be read.");
+
+        EntitlementReaders
+            .Where(reader => string.IsNullOrWhiteSpace(reader.Licenses) || reader.Licenses.Length < 40)
+            .Select(reader => $"'{reader.Name}' carries no written licence worth falsifying.")
+            .ShouldBeEmpty("an exemption with no stated reason has nothing to re-read at a kickoff.");
+
+        var resolved = EntitlementReaders
+            .Where(reader => Domain.FindInCore(reader.Name) is not null)
+            .Select(reader => reader.Name)
+            .ToArray();
+
+        resolved.ShouldContain(
+            PresetAllowanceHandlerName,
+            "the preset allowance handler must exist, or its exemption is pre-armed for whatever " +
+            "lands on that name next — which is the failure mode test-suites.json rule 5 records.");
+    }
 
     /// <summary>
     /// The one rule `30` §3 licenses to read the entitlement: the ad-reward auto-grant cap.
@@ -279,6 +362,21 @@ public sealed class IsolationTests
     /// </remarks>
     private static bool IsAdGrantCapRule(TypeDefinition type) =>
         type.Name.Equals(AdGrantCapRuleName, StringComparison.Ordinal);
+
+    /// <summary>Whether a simple type or file name is one of <see cref="EntitlementReaders"/>.</summary>
+    /// <remarks>Ordinal and exact, for the reason <see cref="IsAdGrantCapRule"/> records.</remarks>
+    private static bool IsLicensedEntitlementReader(string simpleName)
+    {
+        for (var i = 0; i < EntitlementReaders.Count; i++)
+        {
+            if (EntitlementReaders[i].Name.Equals(simpleName, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     private static string SimpleName(string typeFullName) => typeFullName.Split('.', '/').Last();
 
@@ -302,7 +400,7 @@ public sealed class IsolationTests
     {
         foreach (var method in Il.MethodsWithBodies(module))
         {
-            if (method.DeclaringType.Name.Equals(AdGrantCapRuleName, StringComparison.Ordinal))
+            if (IsLicensedEntitlementReader(method.DeclaringType.Name))
             {
                 continue;
             }
@@ -334,7 +432,9 @@ public sealed class IsolationTests
             yield return
                 $"[{label}] {Il.Describe(method)} reads {string.Join(", ", read)} and then branches — " +
                 $"the Plus promise is an adapter swap chosen in a composition root, not a condition in the " +
-                $"game (12 §3.2, 23 §7.2). Only {AdGrantCapRuleName} may read the entitlement (30 §3).";
+                $"game (12 §3.2, 23 §7.2). Only {string.Join(" and ", EntitlementReaders.Select(r => r.Name))} " +
+                "may read the entitlement — see IsolationTests.EntitlementReaders for what each is " +
+                "licensed for and why.";
         }
     }
 

@@ -36,6 +36,13 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="DraftsSinceLegendaryOffered">Drafts drawn since one last offered a Legendary option. Never negative.</param>
 /// <param name="DraftsWithoutAboveCommon">Consecutive drafts that offered nothing above Common. Never negative.</param>
 /// <param name="DraftsWithoutOwnedUpgrade">Consecutive drafts that offered no owned-perk upgrade. Never negative.</param>
+/// <param name="StartingLoadout">
+/// What the hero was wearing when the run started, frozen for the run's whole life — `07` §4's
+/// "snapshotted at run start". ⚠️ <c>null</c> is a <b>fault</b>: a run whose starting loadout went
+/// missing is not a run fought naked, and reading it as empty would silently strip the build for the
+/// rest of the run. It holds instance IDENTITIES, so an item enhanced between two commands is worn
+/// at its new value; what is frozen is which items are equipped.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.RunId"/> and
 /// <see cref="Primitives.PlayerId"/>, plus the two dictionaries — a positional record with no members
@@ -81,4 +88,5 @@ public sealed record RunSnapshot(
     bool BossDefeated = false,
     int DraftsSinceLegendaryOffered = 0,
     int DraftsWithoutAboveCommon = 0,
-    int DraftsWithoutOwnedUpgrade = 0);
+    int DraftsWithoutOwnedUpgrade = 0,
+    LoadoutSnapshot? StartingLoadout = null);

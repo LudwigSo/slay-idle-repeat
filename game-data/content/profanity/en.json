@@ -1,0 +1,25 @@
+{
+  "$schema": "../../schema/profanity.schema.json",
+  "_doc": "27 §1 — the English half of the name filter, applied to the 07 §1 hero name at creation and on every edit. A SEED, not a curated list: twelve high-precision terms, chosen so that the substring match they drive has as few innocent collisions as possible. Terms deliberately LEFT OUT for that reason, and recorded so the next author does not re-derive the decision: 'rape' (grape, drape, scrape), 'ass' (class, bass, pass, brass), 'dick' (Dickens, Dickinson, a real surname), 'hell' and 'damn' (mild, and the design set nowhere asks for them). 'cunt' is kept although it is the canonical false-positive example (Scunthorpe): the term is severe enough that a refusal is the safer error, and the 12-character hero-name limit makes the colliding place names unreachable anyway.",
+  "_status": "partial",
+  "language": "EN",
+  "curation": {
+    "state": "SEED",
+    "owner": "M17",
+    "maxSeedTerms": 24
+  },
+  "terms": [
+    "bastard",
+    "bitch",
+    "cunt",
+    "faggot",
+    "fuck",
+    "nigga",
+    "nigger",
+    "shit",
+    "slut",
+    "twat",
+    "wanker",
+    "whore"
+  ]
+}

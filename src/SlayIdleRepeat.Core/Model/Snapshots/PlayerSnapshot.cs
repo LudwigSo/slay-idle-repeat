@@ -41,6 +41,22 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// everything the player owns on the first load of a row that merely failed to write it. The
 /// optional default is a C# requirement, not a permitted value.
 /// </param>
+/// <param name="TalentPoints">
+/// The Talent Points this player's Legend Levels have granted. Never negative, and only ever grows:
+/// nothing spends one until M4-06 builds the tree.
+/// </param>
+/// <param name="Loadout">
+/// What the hero is wearing — slot → the gear instance in it. ⚠️ <c>null</c> is a <b>fault</b>, like
+/// <see cref="Inventory"/>: an absent loadout read as an empty one strips the player on the first
+/// load of a row that merely failed to write it, and the result is indistinguishable from a player
+/// who has equipped nothing. Every id here is also required to be one <see cref="Inventory"/> holds.
+/// </param>
+/// <param name="Presets">
+/// The saved loadout presets, in ascending slot order — the order is part of the encoding, so it is
+/// imposed on the way out rather than inherited from whatever order they were saved in. ⚠️
+/// <c>null</c> is a <b>fault</b>: presets beyond the free allowance stay loadable rather than being
+/// deleted, so reading absent as empty destroys builds the design set promises to keep.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.PlayerId"/> and
 /// <see cref="Primitives.EnergyBanks"/>, plus the counter dictionaries. Every timestamp is refused
@@ -73,4 +89,7 @@ public sealed record PlayerSnapshot(
     IReadOnlyDictionary<string, long>? ClearedChapterTiers = null,
     IReadOnlyDictionary<string, long>? FeatCounters = null,
     IReadOnlyDictionary<string, int>? PityCounters = null,
-    InventorySnapshot? Inventory = null);
+    InventorySnapshot? Inventory = null,
+    long TalentPoints = 0L,
+    LoadoutSnapshot? Loadout = null,
+    IReadOnlyList<LoadoutPresetSnapshot>? Presets = null);

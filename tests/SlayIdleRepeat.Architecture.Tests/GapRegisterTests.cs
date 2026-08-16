@@ -470,9 +470,10 @@ public sealed class GapRegisterTests
             .ToArray();
 
         owners.Length.ShouldBe(
-            30,
-            "14 §2.3's registry is 19 run + 30 meta, and 30 of the 49 rows are Deferred since M3-13 " +
-            "landed the REVIVE/END_RUN/ABANDON_RUN handlers (beside M3-06's " +
+            28,
+            "14 §2.3's registry is 19 run + 30 meta, and 28 of the 49 rows are Deferred since M4-10 " +
+            "landed the SAVE_PRESET/APPLY_PRESET handlers, on top of M3-13's " +
+            "REVIVE/END_RUN/ABANDON_RUN (beside M3-06's " +
             "PICK_PERK/REROLL_DRAFT/SKIP_DRAFT, M3-05's START_BATTLE/CONFIRM_BATTLE_RESULT, M3-03's " +
             "RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE, M3-02's CHOOSE_FORK, M3-08's " +
             "SHOP_BUY/SHOP_REFRESH, M3-15's START_RUN, M3-03c's MINIGAME_SUBMIT, M3-04's " +
@@ -490,6 +491,7 @@ public sealed class GapRegisterTests
                 "START_BATTLE", "CONFIRM_BATTLE_RESULT",
                 "PICK_PERK", "REROLL_DRAFT", "SKIP_DRAFT",
                 "REVIVE", "END_RUN", "ABANDON_RUN",
+                "SAVE_PRESET", "APPLY_PRESET",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
