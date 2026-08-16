@@ -16,7 +16,7 @@ public sealed class MovementEngineTests
     // below is checked against — terminated by the boss node, which every board must be: the boss
     // is the only node a layout may leave without an outgoing edge, and no test here ever walks
     // onto it.
-    private static BoardGraph LinearFiveNodeBoard()
+    private static BoardGraph FiveNodeStageThenTheBoss()
     {
         var nodes = new[]
         {
@@ -44,7 +44,7 @@ public sealed class MovementEngineTests
     [Fact]
     public void Advance_steps_forward_one_edge_at_a_time_on_a_junction_free_board()
     {
-        var board = LinearFiveNodeBoard();
+        var board = FiveNodeStageThenTheBoss();
 
         var result = MovementEngine.Advance(board, new NodeId(0), 3);
 
@@ -57,7 +57,7 @@ public sealed class MovementEngineTests
     [Fact]
     public void Advance_of_zero_steps_stays_put()
     {
-        var board = LinearFiveNodeBoard();
+        var board = FiveNodeStageThenTheBoss();
 
         var result = MovementEngine.Advance(board, new NodeId(2), 0);
 
@@ -69,14 +69,14 @@ public sealed class MovementEngineTests
     [Fact]
     public void A_negative_step_count_is_refused()
     {
-        var board = LinearFiveNodeBoard();
+        var board = FiveNodeStageThenTheBoss();
 
         Should.Throw<ArgumentOutOfRangeException>(() => MovementEngine.Advance(board, new NodeId(0), -1));
     }
 
-    // Fixture: N0 -> J (junction) -> { Continue: N2 -> N3 ; Branch: B0 -> B1 -> N3 (rejoin) },
-    // all stage 1. The branch's own linear indices mirror the spine's at equal forward distance
-    // from the junction, exactly as BoardGenerator builds one.
+    // Fixture: N0 -> J (junction) -> { Continue: N2 -> N3 ; Branch: B0 -> B1 -> N3 (rejoin) } ->
+    // Boss, everything but the boss node stage 1. The branch's own linear indices mirror the
+    // spine's at equal forward distance from the junction, exactly as BoardGenerator builds one.
     private static (BoardGraph Board, NodeId N0, NodeId J, NodeId N2, NodeId N3, NodeId B0, NodeId B1) JunctionBoard()
     {
         var n0 = new BoardNode(new NodeId(0), TileKind.Enemy, 0, 1);
@@ -168,7 +168,7 @@ public sealed class MovementEngineTests
     [Fact]
     public void A_non_junction_node_never_pauses()
     {
-        var board = LinearFiveNodeBoard();
+        var board = FiveNodeStageThenTheBoss();
 
         var result = MovementEngine.Advance(board, new NodeId(1), 3);
 
@@ -507,11 +507,15 @@ public sealed class MovementEngineTests
     [Fact]
     public void The_campfire_clamp_does_not_apply_outside_stage_3()
     {
-        var board = LinearFiveNodeBoard(); // all stage 1
+        var board = FiveNodeStageThenTheBoss(); // every walkable node is stage 1
 
         var natural = MovementEngine.Advance(board, new NodeId(0), 4);
         var portal = MovementEngine.AdvancePortal(board, new NodeId(0), 4);
 
+        // The identity, not the symptom (steering S2): a clamp that ignored the stage gate would
+        // stop two nodes short, on the board's own bossLinearIndex - 2. "Both agree" alone would
+        // still hold if the clamp fired on the natural move too.
+        portal.Node.ShouldBe(new NodeId(4), "outside stage 3 a Portal jump spends every step it drew.");
         portal.ShouldBe(natural);
     }
 

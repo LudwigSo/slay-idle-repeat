@@ -90,8 +90,8 @@ public sealed class BoardTests
     // outgoing edge, while the same method's fall-through return asks whether it is standing on
     // BossNodeId. The two readings agree only because this constructor guarantees they describe
     // the same node — so a board with any other dead end would report a boss encounter at a node
-    // that is not the boss. 03 §1 authors the topology this enforces: every fork branch rejoins
-    // the spine, so the boss is the run's single terminus.
+    // that is not the boss. Every fork branch rejoins the spine, so the boss is the run's single
+    // terminus.
     // ------------------------------------------------------------------------------------------
 
     /// <summary>Probe shape 1: a break in the spine itself — a node stops the walk before the boss.</summary>
@@ -116,8 +116,8 @@ public sealed class BoardTests
     }
 
     /// <summary>
-    /// Probe shape 2: a fork branch that never rejoins the spine — the malformation 03 §1's
-    /// "a fork branch ... rejoins the spine" rules out, and the one a real layout would hit.
+    /// Probe shape 2: a fork branch that never rejoins the spine — the malformation the authored
+    /// topology rules out, and the one a real layout would actually hit.
     /// </summary>
     [Fact]
     public void A_fork_branch_that_never_rejoins_the_spine_is_refused()
@@ -207,6 +207,13 @@ public sealed class BoardTests
                 reachable.Count.ShouldBe(
                     board.NodeCount,
                     $"chapter {config.ChapterId} seed {seed}: every node must be reachable from the first node.");
+
+                // Steering S3, on the subject set that matters rather than on the board count: a
+                // branch's last node is the only interior node that could dead-end, and it exists
+                // only where a junction does — a fork-free board satisfies the rule for free.
+                reachable.Count(board.IsJunction).ShouldBeGreaterThan(
+                    0,
+                    $"chapter {config.ChapterId} seed {seed}: no fork means no branch tail to rejoin, so this board proves nothing.");
 
                 DeadEnds(board).ShouldBe(
                     new[] { board.BossNodeId },
