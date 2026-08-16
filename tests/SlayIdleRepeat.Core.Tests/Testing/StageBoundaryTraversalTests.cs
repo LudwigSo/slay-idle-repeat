@@ -49,13 +49,14 @@ public sealed class StageBoundaryTraversalTests
     /// anything (steering <b>S3</b>: a floor on the subject set).
     /// </summary>
     /// <remarks>
-    /// A floor rather than "all of them": a run can legitimately end inside stage 1 — the hero dies,
-    /// or the board's guaranteed stage-1 shop is landed on and no command clears it (see
-    /// <c>MetaLoopDriver.StuckOn</c>). Measured on this checkout, <b>9</b> of the 16 swept runs
-    /// reach stage 2; the floor is set under that so an unlucky board is not a failure, and well over
-    /// zero so a sweep that stopped crossing anything cannot pass.
+    /// A floor rather than "all of them": a run can still legitimately end inside stage 1 — the hero
+    /// dies, or a future tile kind arrives before the command that finishes it. Re-measured on this
+    /// checkout now that a Shop and a Dice Forge clear, <b>16</b> of the 16 swept runs reach stage 2
+    /// and all 16 go on to beat the boss; the floor is set under that so one board changing shape is
+    /// not a failure, and far enough over zero that a sweep which stopped crossing anything cannot
+    /// pass. The old floor of 6 was justified by the shop soft-lock, which is gone.
     /// </remarks>
-    private const int MustCross = 6;
+    private const int MustCross = 14;
 
     /// <summary>How many start instants the sweep walks, per chapter.</summary>
     /// <remarks>
@@ -121,39 +122,36 @@ public sealed class StageBoundaryTraversalTests
     }
 
     /// <summary>
-    /// 🔒 <b>The tile the run finally stops on is one it genuinely cannot leave</b> — and the proof is
-    /// a refused command, not an inference.
+    /// 🔒 <b>The run meets no tile it cannot leave, and travels the whole board to the boss.</b> That
+    /// is the question steering <b>S24</b> exists for, asked of every tile the run lands on rather
+    /// than of one.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 This is the frontier X-10's repair uncovered, and it is the same defect class one layer up
-    /// (steering <b>S24</b>): <c>RESOLVE_TILE</c> acknowledges <c>TILE_SHOP</c> and
-    /// <c>TILE_DICE_FORGE</c> and leaves them pending for "the command that owns it", and neither has
-    /// one — <c>SHOP_BUY</c> and <c>SHOP_REFRESH</c> are handled but neither clears the tile. A
-    /// pending tile blocks <c>ROLL_DICE</c>, so the run stops there.
+    /// 🔴 This case used to require the opposite, and the requirement was honest at the time: it was
+    /// the frontier X-10's repair uncovered, the same defect class one layer up. <c>RESOLVE_TILE</c>
+    /// acknowledged <c>TILE_SHOP</c> and <c>TILE_DICE_FORGE</c> and left them pending for "the
+    /// command that owns it", and neither had one; a pending tile blocks <c>ROLL_DICE</c>, so the run
+    /// stopped there. Both now clear through <c>RESOLVE_TILE</c> itself.
     /// </para>
     /// <para>
-    /// 🔒 <b>It expires by itself (steering S4)</b>, and it can, because the driver concludes it from
-    /// what the commands did rather than from a list of tile kinds: the day either tile gains a
-    /// resolver, <c>RESOLVE_TILE</c> clears it, <c>StuckOn</c> is never set, and this goes red asking
-    /// for the run to be driven on to the boss.
+    /// The driver still concludes "stuck" from what the commands actually did rather than from a list
+    /// of tile kinds, so this stays the case that catches the <em>next</em> tile with no way out.
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_run_stops_on_a_tile_whose_pending_state_refuses_the_next_roll()
+    public void The_run_leaves_every_tile_it_lands_on_and_reaches_the_boss()
     {
         var driver = Play(1, Start);
 
-        driver.StuckOn.ShouldNotBeNull(
-            "the run never met a tile it could not clear. Either it ended earlier for another reason, " +
-            "or TILE_SHOP / TILE_DICE_FORGE has gained a resolver — in which case drive the run on to " +
-            "the boss node and assert a VICTORY instead." + Trace(driver));
+        driver.StuckOn.ShouldBeNull(
+            "the run stopped on a " + driver.StuckOn + " tile that RESOLVE_TILE accepted and left " +
+            "pending, and ROLL_DICE then answered " + driver.StuckRollRejection + ". A tile with no " +
+            "command that clears it ends the run wherever it happens to sit." + Trace(driver));
 
-        driver.StuckRollRejection.ShouldBe(
-            RejectionReason.ILLEGAL_STATE,
-            "a ROLL_DICE sent while standing on the unresolved " + driver.StuckOn + " tile was not " +
-            "refused ILLEGAL_STATE, so the run is not actually held there and this case is measuring " +
-            "something else." + Trace(driver));
+        driver.Stages.ShouldContain(
+            3, "the run never resolved a tile in stage 3, so it did not cross the second boundary." +
+            Trace(driver));
     }
 
     /// <summary>
@@ -177,9 +175,9 @@ public sealed class StageBoundaryTraversalTests
     /// </summary>
     /// <remarks>
     /// Without it, sixteen runs that all died on their first tile would satisfy "nothing stalled"
-    /// perfectly (steering <b>S3</b>). A floor rather than a total: a run can end inside stage 1 for
-    /// honest reasons — the hero dies, or the stage's guaranteed shop is landed on and no command
-    /// clears it — and demanding all sixteen would be asserting luck.
+    /// perfectly (steering <b>S3</b>). A floor rather than a total: a run can still end inside stage 1
+    /// for an honest reason — the hero dies — and demanding all sixteen would turn one board changing
+    /// shape into a failure. See <see cref="MustCross"/> for the re-measured number.
     /// </remarks>
     [Fact]
     public void Most_of_the_swept_boards_actually_reach_stage_2()

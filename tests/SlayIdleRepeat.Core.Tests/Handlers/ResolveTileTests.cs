@@ -2,6 +2,7 @@ using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Tests.Content;
@@ -16,6 +17,23 @@ public sealed class ResolveTileTests
     private static CommandResult Resolve(WorldSlice state, GameContext? context = null) =>
         SlayIdleRepeat.Core.GameRules.Apply(
             state, new ResolveTileCommand(), context ?? TileWorlds.Context);
+
+    /// <summary>
+    /// A run's whole state as canonical bytes with the pending-tile columns neutralised, so two
+    /// readings differ only if something OTHER than the tile being cleared moved.
+    /// </summary>
+    /// <remarks>
+    /// Canonical bytes rather than record equality (steering S17): <c>RunSnapshot</c> holds
+    /// <c>IReadOnlyDictionary</c> members, which a record's synthesized equality compares by reference.
+    /// </remarks>
+    private static byte[] BytesBesidesThePendingTile(WorldSlice state) =>
+        CanonicalStateWriter.CanonicalBytes(state.Run!.ToSnapshot() with
+        {
+            PendingTileKind = RunSnapshots.NoPendingTile,
+            PendingTileLinearIndex = 0,
+            PendingTileStage = 0,
+            PendingEventCardId = RunSnapshots.NoPendingEventCard,
+        });
 
     // ------------------------------------------------------------------ the gate
 
@@ -213,6 +231,138 @@ public sealed class ResolveTileTests
         }
     }
 
+    // ------------------------------------------------------------------ the visits that grant nothing
+
+    /// <summary>A shop visit is recorded as resolved and the tile clears.</summary>
+    [Fact]
+    public void A_shop_tile_resolves_to_nothing_and_clears()
+    {
+        var result = Resolve(TileWorlds.OnTile(TileKind.Shop));
+
+        result.Accepted.ShouldBeTrue();
+        result.Events.ShouldBeEmpty("no offer is stocked and nothing is bought by walking in");
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(
+            -1,
+            "the shop tile is still pending, and no command in the frozen vocabulary can clear it — " +
+            "so the run is held on it for ever and a pending tile refuses every ROLL_DICE.");
+    }
+
+    /// <summary>A Dice Forge visit is recorded as resolved and the tile clears.</summary>
+    [Fact]
+    public void A_dice_forge_tile_resolves_to_nothing_and_clears()
+    {
+        var result = Resolve(TileWorlds.OnTile(TileKind.DiceForge));
+
+        result.Accepted.ShouldBeTrue();
+        result.Events.ShouldBeEmpty("no die face is modified by walking in");
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(
+            -1,
+            "the forge tile is still pending, and there is no command at all that clears it — so the " +
+            "run is held on it for ever and a pending tile refuses every ROLL_DICE.");
+    }
+
+    /// <summary>
+    /// …and the run can actually LEAVE a shop: the next roll is accepted and moves it.
+    /// </summary>
+    /// <remarks>
+    /// The tile no longer being pending is not the same claim: it is the roll coming back accepted
+    /// AND the position changing that says the run is not held there (steering S24).
+    /// </remarks>
+    [Fact]
+    public void A_run_rolls_off_a_resolved_shop_tile()
+    {
+        var visited = Resolve(TileWorlds.OnTile(TileKind.Shop)).NewState;
+
+        var rolled = SlayIdleRepeat.Core.GameRules.Apply(
+            visited, new RollDiceCommand(), TileWorlds.Context);
+
+        rolled.Accepted.ShouldBeTrue(
+            "ROLL_DICE was refused " + rolled.Rejection + " from a shop tile RESOLVE_TILE had just " +
+            "answered, so the shop is still pending and the run cannot leave it.");
+        rolled.NewState.Run!.Position.ShouldBeGreaterThan(
+            visited.Run!.Position, "the roll was accepted and the run stood still.");
+    }
+
+    /// <summary>…and the same of a Dice Forge.</summary>
+    [Fact]
+    public void A_run_rolls_off_a_resolved_dice_forge_tile()
+    {
+        var visited = Resolve(TileWorlds.OnTile(TileKind.DiceForge)).NewState;
+
+        var rolled = SlayIdleRepeat.Core.GameRules.Apply(
+            visited, new RollDiceCommand(), TileWorlds.Context);
+
+        rolled.Accepted.ShouldBeTrue(
+            "ROLL_DICE was refused " + rolled.Rejection + " from a forge tile RESOLVE_TILE had just " +
+            "answered, so the forge is still pending and the run cannot leave it.");
+        rolled.NewState.Run!.Position.ShouldBeGreaterThan(
+            visited.Run!.Position, "the roll was accepted and the run stood still.");
+    }
+
+    /// <summary>A shop visit moves nothing but the pending tile — no currency, no HP, no counter.</summary>
+    [Fact]
+    public void A_shop_visit_changes_nothing_besides_the_pending_tile()
+    {
+        var state = TileWorlds.OnTile(TileKind.Shop, gold: 500, currentHp: 40);
+        var before = BytesBesidesThePendingTile(state);
+
+        var result = Resolve(state);
+
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
+        BytesBesidesThePendingTile(result.NewState).ShouldBe(
+            before, "a shop visit moved something. It stocks no offer and spends no Gold.");
+    }
+
+    /// <summary>
+    /// 🔒 A Dice Forge visit modifies no die face, and this is the pin that expires the moment one
+    /// does (steering S4).
+    /// </summary>
+    /// <remarks>
+    /// Stated as "nothing at all moved" rather than as a list of what a forge must not touch: an
+    /// upgrade landing anywhere on the run turns this red and asks its author for the forge's own
+    /// clearing step.
+    /// </remarks>
+    [Fact]
+    public void A_dice_forge_visit_changes_nothing_besides_the_pending_tile()
+    {
+        var state = TileWorlds.OnTile(TileKind.DiceForge, gold: 500, currentHp: 40);
+        var before = BytesBesidesThePendingTile(state);
+
+        var result = Resolve(state);
+
+        result.Events.ShouldBeEmpty("a forge visit that upgrades nothing announces nothing");
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
+        BytesBesidesThePendingTile(result.NewState).ShouldBe(
+            before,
+            "a Dice Forge visit moved something on the run. Nothing in the frozen vocabulary can " +
+            "carry a player's face choice, so the visit resolves to nothing on purpose — the day an " +
+            "upgrade lands, it owes its own clearing step and RESOLVE_TILE's has to be revisited.");
+    }
+
+    /// <summary>
+    /// 🔒 …and the other half of that bargain (steering S4): visiting a shop still makes no purchase
+    /// legal, for every slot SHOP_BUY names and for one it does not.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    public void A_shop_visit_makes_no_purchase_legal(int slotIndex)
+    {
+        var visited = Resolve(TileWorlds.OnTile(TileKind.Shop)).NewState;
+
+        var bought = SlayIdleRepeat.Core.GameRules.Apply(
+            visited, new ShopBuyCommand(slotIndex), TileWorlds.Context);
+
+        bought.Accepted.ShouldBeFalse(
+            "slot " + slotIndex + " was purchasable. RESOLVE_TILE clears a shop tile precisely " +
+            "BECAUSE a visit buys nothing; the moment a purchase is legal the shop owes its own " +
+            "clearing step and RESOLVE_TILE's has to be revisited.");
+        bought.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
+    }
+
     // ------------------------------------------------------------------ advanced, not cleared
 
     /// <summary>An event tile draws a card and keeps the tile pending for EVENT_CHOOSE.</summary>
@@ -333,21 +483,23 @@ public sealed class ResolveTileTests
     }
 
     /// <summary>
-    /// The tiles that resolve through their own command are acknowledged and left pending for it.
-    /// Portal is deliberately not among these — see
+    /// The Minigame is the one tile left that resolves through its own command — MINIGAME_SUBMIT —
+    /// so it is acknowledged and left pending for it. Portal is deliberately not among these; see
     /// <see cref="A_portal_tile_resolves_the_jump_immediately"/>.
     /// </summary>
-    [Theory]
-    [InlineData((int)TileKind.Shop)]
-    [InlineData((int)TileKind.Minigame)]
-    [InlineData((int)TileKind.DiceForge)]
-    public void A_tile_with_its_own_command_is_acknowledged_and_left_pending(int kind)
+    /// <remarks>
+    /// A single case rather than the table this was, because Shop and DiceForge left the group when
+    /// RESOLVE_TILE became their clearing command — and a one-row table can silently become a
+    /// no-row one (steering S3).
+    /// </remarks>
+    [Fact]
+    public void A_minigame_tile_is_acknowledged_and_left_pending_for_MINIGAME_SUBMIT()
     {
-        var result = Resolve(TileWorlds.OnTile((TileKind)kind));
+        var result = Resolve(TileWorlds.OnTile(TileKind.Minigame));
 
         result.Accepted.ShouldBeTrue();
         result.Events.ShouldBeEmpty();
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(kind);
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe((int)TileKind.Minigame);
     }
 
     /// <summary>

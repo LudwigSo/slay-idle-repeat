@@ -24,20 +24,17 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔴 <b>THE CRITERION IS MET IN PART, AND THE PART THAT IS NOT MET IS ASSERTED RATHER THAN OMITTED.</b>
-/// All six clauses are now driven end to end here — the last of them by M7-00d's grant path and
-/// M7-00b's second run, which landed after the first two cases in this file were written. Two limits
-/// remain and neither is a vocabulary gap: the Legend rung is not reachable on any authored board,
-/// and a run cannot reach a <em>victory</em> because <c>TILE_SHOP</c> and <c>TILE_DICE_FORGE</c> have
-/// no clearing command. Each is pinned by a case below that <b>fails on the commit that closes it</b>
-/// — so this file stops overstating the milestone the moment a gap is filled, rather than quietly
-/// continuing to skip the hard half.
+/// 🔒 <b>EVERY CLAUSE IS NOW DRIVEN END TO END.</b> The last two closed together: a run can leave a
+/// Shop and a Dice Forge, so it walks the whole board and ends in a <em>victory</em> — and a victory
+/// pays enough to carry the hero over the first Legend rung, which is what made "levels the hero"
+/// assertable at last. Nothing below is skipped or substituted except the forge's stock, which is
+/// seeded rather than banked and says so.
 /// </para>
 /// <list type="table">
 ///   <item><term>a simulated player runs</term><description>✅ driven — <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/>.</description></item>
 ///   <item><term>banks gear</term><description>✅ driven — <see cref="A_run_banks_gear_into_the_players_own_stock"/>.</description></item>
 ///   <item><term>merges and enhances it</term><description>✅ driven, over a <em>seeded</em> stock rather than a banked one, and funded by currency the run itself paid — <see cref="The_forge_half_of_the_loop_runs_on_what_the_run_paid_for_it"/>.</description></item>
-///   <item><term>levels the hero</term><description>⚠️ <b>the path is live, the rung is not reachable.</b> The run's payout does move Legend XP through <c>Apply</c>, and the level reconciliation runs on every accepted command; the reachable board still cannot bank enough to cross the first rung. Pinned by <see cref="The_run_pays_Legend_XP_but_no_reachable_run_reaches_the_first_rung"/>.</description></item>
+///   <item><term>levels the hero</term><description>✅ <b>driven, and the level-up itself is asserted rather than its absence.</b> A run that reaches a victory banks lifetime Legend XP well over the first rung, and the reconciliation that runs on every accepted command raises the Legend Level, grants Talent Points and refills Energy — <see cref="A_run_that_wins_levels_the_hero_past_the_first_Legend_rung"/>.</description></item>
 ///   <item><term>carries the loadout into the next run</term><description>✅ <b>both halves closed, by two different tasks that could not see each other.</b> M7-00b made a second run startable and M7-00d made the loadout fillable, so the carry is now compared across a real boundary with a non-empty loadout — <see cref="A_second_run_starts_after_the_first_ends_and_carries_the_players_loadout"/> and <see cref="The_loadout_carried_into_a_run_is_the_one_EQUIP_filled"/>. Until both landed, each half made the other's assertion vacuous.</description></item>
 /// </list>
 /// <para>
@@ -92,6 +89,15 @@ public sealed class MetaLoopTests
     /// landed. See <see cref="The_whole_meta_loop_stays_inside_the_unit_tier_budget"/>.
     /// </summary>
     private const double LoopBudgetMs = 100;
+
+    /// <summary>How many Stage Gates a whole run crosses: out of stage 1 and out of stage 2, never a third.</summary>
+    private const int ExpectedStageGates = 2;
+
+    /// <summary><c>MetaLoopDriver</c>'s own wording for a run that ended by beating the boss.</summary>
+    private const string VictoryEnding = "END_RUN after a victory";
+
+    /// <summary>The attribution token <c>GameRules</c> logs a Legend level-up's Energy refill under.</summary>
+    private const string LegendLevelUpReason = "legend_level_up";
 
     private static readonly DateTimeOffset Start = new(2026, 8, 12, 5, 0, 0, TimeSpan.Zero);
 
@@ -376,36 +382,28 @@ public sealed class MetaLoopTests
     // ═════════════════════════════════════════════════════════ the hero
 
     /// <summary>
-    /// ⚠️ <b>Clause 4 — "levels the hero" — the path is live and the rung is out of reach.</b> The
-    /// run's payout moves lifetime Legend XP through <c>Apply</c>, and <c>GameRules</c> reconciles
-    /// the level on every accepted command; what no reachable run can do is bank enough to cross the
-    /// first rung.
+    /// 🔒 <b>Clause 4 — "levels the hero".</b> A run that ends in a victory banks lifetime Legend XP
+    /// past the first rung, and the reconciliation <c>GameRules</c> runs on every accepted command
+    /// turns that into a level, Talent Points and an Energy refill.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>The arithmetic, so the claim is checkable rather than asserted.</b> The first rung costs
-    /// <c>120</c> lifetime XP, and a run that does not end in a victory pays a fraction of what it
-    /// banked. Chapter 1 at NORMAL pays 25 a normal kill, and a run that stops at the first tile no
-    /// command clears — see
-    /// <see cref="A_run_crosses_its_stage_boundaries_and_stops_at_a_tile_no_command_clears"/> — meets
-    /// a handful of them. There is no second run to accumulate across.
+    /// 🔴 <b>Measured on this checkout rather than predicted.</b> A victory pays the boss kill and
+    /// the completion bonus, and this board banks <b>750</b> lifetime XP against the rung's
+    /// <see cref="RungOne"/> — six times over, and comfortably over on every board swept while this
+    /// was written (700 the lowest, 1666 the highest). The assertion is a floor at the rung rather
+    /// than that number: what the clause needs is that a reachable run crosses it, not that it
+    /// crosses it by exactly this much.
     /// </para>
     /// <para>
-    /// ⚠️ <b>Re-measured on this checkout after X-10's repair, rather than carried over.</b> The run
-    /// now travels most of two stages instead of four tiles, but it ends by being abandoned rather
-    /// than by a death, and an abandon pays a much lower completion multiplier — so lifetime XP came
-    /// out at <b>5</b> against the rung's <see cref="RungOne"/>. The margin widened; the bound was
-    /// left exactly where it was and is not close to firing for a balance reason.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>It expires by itself (steering S4).</b> Both halves are asserted: the XP has to move
-    /// (so a broken payout is caught), and the level has to still be the floor (so the day the boss
-    /// becomes reachable — a victory pays the boss kill plus the victory bonus, far over the rung —
-    /// this case goes red and asks for the level-up to be asserted properly).
+    /// ⚠️ <b>The level-up is asserted through all three of its effects</b> (steering S2). Lifetime XP
+    /// over the rung is what a broken reconciliation would leave standing on its own; the level, the
+    /// Talent Point and the <c>legend_level_up</c> Energy row are what say the curve was actually
+    /// applied.
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_run_pays_Legend_XP_but_no_reachable_run_reaches_the_first_rung()
+    public void A_run_that_wins_levels_the_hero_past_the_first_Legend_rung()
     {
         var (game, player) = Loop();
         var floor = game.State(player).Player.LegendLevel;
@@ -415,25 +413,29 @@ public sealed class MetaLoopTests
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
         var hero = game.State(player).Player;
 
-        hero.LegendXp.ShouldBeGreaterThan(
-            0L,
-            "the run ended and paid no lifetime Legend XP at all, so END_RUN's payout never reached " +
-            "the player — the half of this clause that IS reachable." + Trace(driver));
+        game.State(player).Run!.BossDefeated.ShouldBeTrue(
+            "the premise: only a victory pays enough to cross the rung, so a run that ended any " +
+            "other way makes every assertion below a claim about the wrong ending." + Trace(driver));
 
-        hero.LegendXp.ShouldBeLessThan(
+        hero.LegendXp.ShouldBeGreaterThanOrEqualTo(
             RungOne,
-            "the run banked enough to cross the first Legend rung, which no run this loop can drive " +
-            "was able to do when this was written. That is good news and this case is now the stale " +
-            "half of the claim: assert the level-up itself — LegendLevel, TalentPoints and the " +
-            "legend_level_up Energy refill — and delete this bound." + Trace(driver));
+            "the run banked " + hero.LegendXp + " lifetime Legend XP against the first rung's " +
+            RungOne + ". A victory pays the boss kill plus the completion bonus, so a payout this " +
+            "small means END_RUN did not pay a victory out." + Trace(driver));
 
-        hero.LegendLevel.ShouldBe(
+        hero.LegendLevel.ShouldBeGreaterThan(
             floor,
-            "the Legend Level moved while lifetime XP stayed under the first rung, which means the " +
-            "reconciliation is deriving a level the curve does not authorise." + Trace(driver));
+            "lifetime XP crossed the first rung and the Legend Level stayed at " + floor + ", so the " +
+            "reconciliation on the accepted command never derived the level the curve authorises." +
+            Trace(driver));
 
-        hero.TalentPoints.ShouldBe(
-            0L, "07 §1.1 grants Talent Points on the way up, and no level was gained." + Trace(driver));
+        hero.TalentPoints.ShouldBeGreaterThan(
+            0L, "07 §1.1 grants Talent Points on the way up and a level was gained." + Trace(driver));
+
+        game.Events.OfType<CurrencyChanged>().ShouldContain(
+            row => row.Reason == LegendLevelUpReason,
+            "no Energy row is attributed to the level-up, so the refill the rung owes the player was " +
+            "never paid — or was paid unattributed." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the carry
@@ -597,40 +599,30 @@ public sealed class MetaLoopTests
         saved.ShouldBe(item, "and the preset names the item the hero was actually wearing." + Trace(play));
     }
 
-    // ═════════════════════════════════════════════════════════ the blocker, named
+    // ═════════════════════════════════════════════════════════ the whole board
 
     /// <summary>
-    /// 🔒 <b>Why the run above still cannot win — and it is no longer the stage boundary.</b> The run
-    /// now crosses out of stage 1 and travels on; what stops it is a tile no command in the
-    /// vocabulary clears.
+    /// 🔒 <b>The run crosses both stage boundaries, meets no tile it cannot leave, and beats the
+    /// boss.</b> It is the claim every clause above rests on, and it is what makes the victory
+    /// ending — and therefore the hero clause — reachable at all.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>This case was written against X-10 and now asserts its repair.</b> It used to require
-    /// <c>StalledAt</c> to be non-null: a roll accepted from a stage's last node that moved the run
-    /// nowhere, on every subsequent roll, for ever — <c>MovementEngine.Advance</c> applying
-    /// <c>03</c> §1.1's stage-end clamp to a run already standing on the boundary node. The clamp is
-    /// a one-time stop, the repair made it one, and the three requirements below are the same three
-    /// claims turned the right way up: nothing stalls, the run leaves stage 1, and the boss is still
-    /// out of reach — for a different, named reason.
+    /// 🔴 <b>This case has now asserted the repair of two defects in turn.</b> It began as X-10's:
+    /// <c>StalledAt</c> non-null, a roll accepted from a stage's last node that moved the run
+    /// nowhere for ever. It then required <c>StuckOn</c> non-null, because <c>RESOLVE_TILE</c>
+    /// acknowledged <c>TILE_SHOP</c> and <c>TILE_DICE_FORGE</c> and left them pending for a command
+    /// that did not exist. Both are now clearing commands' work, and the requirements below are
+    /// those same claims turned the right way up.
     /// </para>
     /// <para>
-    /// 🔴 <b>The new frontier, and it is the same defect class one layer up (steering S24).</b>
-    /// <c>RESOLVE_TILE</c> acknowledges <c>TILE_SHOP</c> and <c>TILE_DICE_FORGE</c> and leaves them
-    /// pending "for the command that owns it" — and for these two there is none. <c>SHOP_BUY</c> and
-    /// <c>SHOP_REFRESH</c> are handled but neither clears the tile, and <c>TILE_DICE_FORGE</c> has no
-    /// command at all. A pending tile blocks <c>ROLL_DICE</c>, so a run that lands on either cannot
-    /// move again. A shop is guaranteed at least once per stage, so this is met by every run that
-    /// gets far enough.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>It expires by itself (steering S4).</b> The day either tile gains a resolver, the
-    /// <c>StuckOn</c> requirement goes red and asks for the loop to be driven to the boss so the run
-    /// ends in a VICTORY and the hero clause becomes assertable.
+    /// ⚠️ <b>Four requirements rather than one, because "the run reached the boss" is satisfied by
+    /// several different wrong runs</b> (steering S2): a run that stalls, a run that stops on a tile
+    /// it cannot clear, and a run that never leaves stage 1 each fail a different one of them.
     /// </para>
     /// </remarks>
     [Fact]
-    public void A_run_crosses_its_stage_boundaries_and_stops_at_a_tile_no_command_clears()
+    public void A_run_crosses_both_stage_boundaries_and_ends_in_a_victory()
     {
         var (game, player) = Loop();
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
@@ -640,20 +632,52 @@ public sealed class MetaLoopTests
             "03 §1.1's stage-end clamp re-firing on a run already standing on the stage's last node." +
             Trace(driver));
 
+        driver.StuckOn.ShouldBeNull(
+            "the run met a " + driver.StuckOn + " tile that RESOLVE_TILE accepted and left pending, " +
+            "and no second command clears — so it is held there and a pending tile refuses every " +
+            "roll." + Trace(driver));
+
         driver.Stages.ShouldContain(
-            2,
-            "the run never resolved a tile outside stage 1, so it did not cross a stage boundary at " +
-            "all." + Trace(driver));
+            2, "the run never resolved a tile in stage 2, so it did not cross the first boundary." +
+            Trace(driver));
 
-        driver.StuckOn.ShouldNotBeNull(
-            "the run travelled without meeting a tile it could not clear, so TILE_SHOP or " +
-            "TILE_DICE_FORGE has gained a resolver — or the run ended before it met one. Either way " +
-            "this case is now the stale half of the claim: drive the loop to the boss node so the run " +
-            "ends in a VICTORY, and assert the hero clause's level-up properly." + Trace(driver));
+        driver.Stages.ShouldContain(
+            3, "the run never resolved a tile in stage 3, so it did not cross the second boundary." +
+            Trace(driver));
 
-        game.State(player).Run!.BossDefeated.ShouldBeFalse(
-            "the run reached and beat the boss, which the unresolvable tile above makes impossible — " +
-            "so this case is stale." + Trace(driver));
+        game.State(player).Run!.BossDefeated.ShouldBeTrue(
+            "the run travelled the whole board and did not beat the boss." + Trace(driver));
+
+        driver.Ending.ShouldBe(
+            VictoryEnding,
+            "the run ended some other way than by winning, so the ending the meta half is paid out " +
+            "of is not a victory's." + Trace(driver));
+    }
+
+    /// <summary>
+    /// 🔒 <b>A run crosses exactly two Stage Gates</b> — one out of stage 1 and one out of stage 2.
+    /// Stage 3's last node leads to the boss, which belongs to no stage, so it gates nothing.
+    /// </summary>
+    /// <remarks>
+    /// An exact count rather than a floor: the interstitial ad cadence is authored against a run
+    /// having two, so a third would be a real balance change and a first-only would be the trigger
+    /// having narrowed back to the overshoot clamp.
+    /// </remarks>
+    [Fact]
+    public void A_whole_run_crosses_exactly_two_stage_gates()
+    {
+        var (game, player) = Loop();
+        var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
+
+        game.State(player).Run!.BossDefeated.ShouldBeTrue(
+            "the premise: a run that stopped short of the boss was never in a position to cross two " +
+            "boundaries." + Trace(driver));
+
+        driver.StageGatesCrossed.ShouldBe(
+            ExpectedStageGates,
+            "the run crossed " + driver.StageGatesCrossed + " Stage Gates. One means the gate still " +
+            "only fires on an overshoot clamp; three means stage 3's last node gated on its way to " +
+            "the boss." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the budget
