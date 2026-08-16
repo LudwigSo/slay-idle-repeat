@@ -4,7 +4,7 @@
 ; moment it saves, so anything added here without a reason next to it is the
 ; first thing a later editor session silently reorders or drops. Every setting
 ; below either the engine refuses to start without, or the Android export
-; refuses to run without, or `13` pins as a product decision.
+; refuses to run without, or is a product decision with its reason next to it.
 ;
 ; ⚠️ The Android export ITSELF is not configured here — there is no
 ; export_presets.cfg and no build in this task. That is the export task's.

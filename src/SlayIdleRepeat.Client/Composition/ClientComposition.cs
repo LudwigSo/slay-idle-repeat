@@ -39,8 +39,11 @@ public enum RewardedAdArm
 public sealed class RewardedAdSelection
 {
     /// <summary>Pairs an arm with the port it resolved to.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="port"/> is null.</exception>
     public RewardedAdSelection(RewardedAdArm arm, IRewardedAdPort port)
     {
+        ArgumentNullException.ThrowIfNull(port);
+
         Arm = arm;
         Port = port;
     }
@@ -58,8 +61,13 @@ public sealed class RewardedAdSelection
 public sealed class ComposedClient
 {
     /// <summary>Carries the composed graph. Built only by <see cref="ClientComposition"/>.</summary>
+    /// <exception cref="ArgumentNullException">Any part of the graph is null.</exception>
     public ComposedClient(IGameHost gameHost, RewardedAdSelection rewardedAds, ContentProvider content)
     {
+        ArgumentNullException.ThrowIfNull(gameHost);
+        ArgumentNullException.ThrowIfNull(rewardedAds);
+        ArgumentNullException.ThrowIfNull(content);
+
         GameHost = gameHost;
         RewardedAds = rewardedAds;
         Content = content;
@@ -71,7 +79,7 @@ public sealed class ComposedClient
     /// <summary>The rewarded-ad port, with the arm that chose it.</summary>
     public RewardedAdSelection RewardedAds { get; }
 
-    /// <summary>The loaded content, kept so a later reload has somewhere to land.</summary>
+    /// <summary>The provider the host's snapshot was loaded from, kept so the load is reachable.</summary>
     public ContentProvider Content { get; }
 }
 

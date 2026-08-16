@@ -97,10 +97,11 @@ public partial class AppRoot : Node
     /// </remarks>
     private void Render(string status)
     {
-        // The root can leave the tree while the host is still opening the profile — a shutdown
-        // during start is the ordinary case on a handset — and writing into a node that has left
-        // it is how that turns into a crash instead of a quit.
-        if (!IsInsideTree())
+        // The root can be freed outright while the host is still opening the profile — a shutdown
+        // during start is the ordinary case on a handset — and the continuation still runs after
+        // it, on the engine's context rather than on the node. Validity is checked before the tree
+        // is, because asking a freed node whether it is in the tree is itself the crash.
+        if (!IsInstanceValid(this) || !IsInsideTree())
         {
             return;
         }

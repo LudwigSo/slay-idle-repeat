@@ -37,6 +37,7 @@ public sealed class GodotAudioOutput
     /// </remarks>
     /// <exception cref="ArgumentException">Either argument is null, empty or whitespace, or no bus is named that.</exception>
     /// <exception cref="FileNotFoundException">The engine's filesystem holds no resource at that path.</exception>
+    /// <exception cref="InvalidDataException">A resource is there, and the engine could not load it.</exception>
     public void PlayOneShot(string streamResourcePath, string busName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(streamResourcePath);
@@ -57,9 +58,24 @@ public sealed class GodotAudioOutput
                 streamResourcePath);
         }
 
+        // The stream is loaded and checked BEFORE a player exists, because the player's only route
+        // out of the scene is its own Finished signal: a player with no stream never starts, so it
+        // never finishes, so nothing ever frees it. Loading can still fail after Exists said yes —
+        // an unreadable import sidecar in an exported build is the usual way — and one leaked node
+        // per attempted sound is a leak that grows with play time.
+        var stream = global::Godot.GD.Load<global::Godot.AudioStream>(streamResourcePath);
+
+        if (stream is null)
+        {
+            throw new InvalidDataException(
+                $"The engine found a resource at '{streamResourcePath}' and could not load it as audio. " +
+                "Playing it anyway would leave a silent player in the scene that never finishes and is " +
+                "therefore never freed, so the failure is raised here where it still names the path.");
+        }
+
         var player = new global::Godot.AudioStreamPlayer
         {
-            Stream = global::Godot.GD.Load<global::Godot.AudioStream>(streamResourcePath),
+            Stream = stream,
             Bus = global::Godot.AudioServer.GetBusName(bus),
         };
 
