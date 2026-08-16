@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using SlayIdleRepeat.Application.Ports.Client;
 
@@ -22,12 +23,18 @@ namespace SlayIdleRepeat.Adapters.InMemory;
 /// points at <see cref="DeclareNoFill"/>, which produces the same outcome the honest way — by
 /// keeping the placement unready.
 /// </para>
+/// <para>
+/// The stores are concurrent because the boot path warms every placement it knows about, and
+/// fanning that out across tasks is the obvious way to write it. The real adapters take it without
+/// noticing; a plain <c>HashSet</c> here would corrupt, and the failure would belong to whichever
+/// implementation the scenario happened to be wired with rather than to the code under test.
+/// </para>
 /// </remarks>
 public sealed class InMemoryRewardedAd : IRewardedAdPort
 {
-    private readonly HashSet<string> _loaded = new(StringComparer.Ordinal);
-    private readonly HashSet<string> _neverFills = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, AdResultKind> _scripted = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _loaded = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, bool> _neverFills = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, AdResultKind> _scripted = new(StringComparer.Ordinal);
     private long _shown;
 
     /// <summary>Decides how the next show of a loaded <paramref name="adPlacementId"/> ends.</summary>
@@ -75,8 +82,8 @@ public sealed class InMemoryRewardedAd : IRewardedAdPort
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(adPlacementId);
 
-        _neverFills.Add(adPlacementId);
-        _loaded.Remove(adPlacementId);
+        _neverFills[adPlacementId] = true;
+        _loaded.TryRemove(adPlacementId, out _);
         return this;
     }
 
@@ -85,7 +92,7 @@ public sealed class InMemoryRewardedAd : IRewardedAdPort
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(adPlacementId);
 
-        return _loaded.Contains(adPlacementId);
+        return _loaded.ContainsKey(adPlacementId);
     }
 
     /// <inheritdoc/>
@@ -94,7 +101,7 @@ public sealed class InMemoryRewardedAd : IRewardedAdPort
         ArgumentException.ThrowIfNullOrWhiteSpace(adPlacementId);
         ct.ThrowIfCancellationRequested();
 
-        if (!_loaded.Contains(adPlacementId))
+        if (!_loaded.ContainsKey(adPlacementId))
         {
             return Task.FromResult(new AdOutcome(AdResultKind.NoFill, VerificationToken: null));
         }
@@ -113,14 +120,14 @@ public sealed class InMemoryRewardedAd : IRewardedAdPort
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(adPlacementId);
 
-        if (!_neverFills.Contains(adPlacementId))
+        if (!_neverFills.ContainsKey(adPlacementId))
         {
-            _loaded.Add(adPlacementId);
+            _loaded[adPlacementId] = true;
         }
 
         return Task.CompletedTask;
     }
 
     private string TokenFor(string adPlacementId) =>
-        $"verification-{adPlacementId}-{(++_shown).ToString(CultureInfo.InvariantCulture)}";
+        $"verification-{adPlacementId}-{Interlocked.Increment(ref _shown).ToString(CultureInfo.InvariantCulture)}";
 }

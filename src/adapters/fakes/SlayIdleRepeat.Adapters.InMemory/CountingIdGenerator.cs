@@ -24,6 +24,13 @@ namespace SlayIdleRepeat.Adapters.InMemory;
 /// matched against an unrelated recorded outcome and its result replayed. The sequence is
 /// reproducible relative to one generator, never across two.
 /// </para>
+/// <para>
+/// Both counters advance atomically, because the port's uniqueness clause is what a caller relies
+/// on and the real generator satisfies it from any thread. A <c>++</c> on a field is a read, an add
+/// and a write, so two callers minting an idempotency key at once would receive the same one from
+/// this generator and from no other — the drift that only shows up in whichever scenario is wired
+/// with the fake.
+/// </para>
 /// </remarks>
 public sealed class CountingIdGenerator : IIdGeneratorPort
 {
@@ -55,14 +62,15 @@ public sealed class CountingIdGenerator : IIdGeneratorPort
 
         // Counted from one and written big-endian, so the trailing bytes are never all zero and no
         // draw can come out as the empty guid.
-        BinaryPrimitives.WriteInt64BigEndian(bytes[PrefixLength..], ++_guidsDrawn);
+        BinaryPrimitives.WriteInt64BigEndian(
+            bytes[PrefixLength..], Interlocked.Increment(ref _guidsDrawn));
 
         return new Guid(bytes);
     }
 
     /// <inheritdoc/>
     public string NewCommandId() =>
-        $"cid-{Tag}-{(++_commandIdsDrawn).ToString(CultureInfo.InvariantCulture)}";
+        $"cid-{Tag}-{Interlocked.Increment(ref _commandIdsDrawn).ToString(CultureInfo.InvariantCulture)}";
 
     private static string ToBase64Url(byte[] bytes) =>
         Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');

@@ -217,7 +217,12 @@ internal static class PortCatalogue
             "player message, a message id and the six categories the inbox milestone authors — none " +
             "of which exists in Core, so the port cannot be typed without inventing them."),
 
-        new("IGhostRepository", "M5-05",
+        // ⚠️ M12-01, not M5-05. The tracker's M5-05 row enumerates the schema it builds — "profiles
+        // JSONB/typed split, run snapshots, idempotency, economy event log, messages" — and ghosts
+        // are not among them; M12-01 is the row that reads "+ static-row storage". An owner that
+        // resolves to a real row but the WRONG real row is the failure this register is weakest
+        // against: nothing goes red, the reader just checks the wrong milestone at kickoff.
+        new("IGhostRepository", "M12-01",
             "Its only real implementation is Postgres static-row storage, and its whole vocabulary " +
             "is the ghost snapshot the PvP milestone generates. That type is itself still deferred " +
             "in GapRegister, so this port has neither an implementation nor a payload."),
@@ -235,7 +240,12 @@ internal static class PortCatalogue
             "content-type, no region — because the AzureBlob sibling lands at M18-06a and shares " +
             "this exact port, and Azure Blob is not S3-wire-compatible. The port speaks a battle-log " +
             "id and bytes. PortCatalogueTests.No_port_signature_names_an_infrastructure_or_vendor_" +
-            "concept enforces that ruling a milestone early, which is the cheap moment."),
+            "concept enforces that ruling a milestone early, which is the cheap moment. ⚠️ THAT RULE " +
+            "IS A TRIPWIRE ON VENDOR SPELLING, NOT A PROOF OF SHAPE: it catches 'bucket', 'presign', " +
+            "'objectKey' and 'multipart', and it CANNOT catch the same concept spelled in ordinary " +
+            "English — a bare 'key', 'prefix', 'region' or 'endpoint' parameter, or a presigned URL " +
+            "returned as Task<Uri>. See InfrastructureVocabulary's remarks for why those terms are " +
+            "not bannable. M5-05 reads A4 and decides; the rule only stops the careless half."),
 
         new("IUnitOfWork", "M5-04",
             "It spans exactly one Postgres transaction — the aggregate snapshots, the idempotency " +
@@ -304,15 +314,60 @@ internal static class PortCatalogue
     /// `23` §4 itself writes, and any term that collided with legitimate domain vocabulary would
     /// have been dropped with the collision named rather than narrowed into a regex nobody can read.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>What this rule cannot catch, stated so M5-05 does not over-trust it.</b> It matches the
+    /// vendor's own <i>vocabulary</i>. It does not — and cannot, without banning words this
+    /// repository legitimately uses — catch an object-store concept spelled in ordinary English:
+    /// <c>string key</c>, <c>string prefix</c>, <c>string region</c>, <c>Uri endpoint</c>. Nor can it
+    /// see a presigned URL returned as a neutrally-named BCL type (<c>Task&lt;Uri&gt;
+    /// GetDownloadLinkAsync(...)</c>), because neither the type nor the member names anything
+    /// banned. <c>ILocalCachePort</c> is the proof that the cheap widening is closed:
+    /// <c>key</c> is its parameter name on all three of its methods, so banning <c>Key</c> would
+    /// make the rule fire on a port that leaks nothing. The rule is a tripwire on the spelling a
+    /// developer reaches for when they are copying the SDK, not a proof of shape — M5-05 still has
+    /// to read `23` §5 A4 and decide.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Terms considered and rejected, with the collision measured rather than guessed</b>, so
+    /// the next reader does not re-add one and then narrow the matcher to accommodate it:
+    /// <list type="bullet">
+    ///   <item><c>ETag</c> — matches <c>metaGrowth</c>, <c>MetaGrowthReference</c> and
+    ///   <c>MetaScalar</c> in <c>Core/Content/ChapterScalarTuning.cs</c> ("m-<b>etaG</b>rowth").</item>
+    ///   <item><c>ContentType</c> — matches <c>ContentLayout.ContentTypeSchemas</c> and
+    ///   <c>ContentTypeMismatchException</c>, this repository's own content-pipeline vocabulary.</item>
+    ///   <item><c>Key</c>, <c>Prefix</c>, <c>Region</c>, <c>Endpoint</c> — ordinary domain words.
+    ///   <c>ILocalCachePort</c> uses <c>key</c> throughout and the game has map regions.</item>
+    ///   <item><c>Minio</c> — adds nothing <c>S3</c> does not already catch (MinIO is
+    ///   S3-wire-compatible, so its adapter is the <c>.S3</c> one), and it matches
+    ///   <c>do-minio-n</c>.</item>
+    /// </list>
+    /// </para>
     /// </remarks>
     internal static readonly string[] InfrastructureVocabulary =
     {
-        "S3", "Bucket", "Presign", "Blob",
+        "S3", "Bucket", "Presign", "Blob", "ObjectKey", "Multipart",
         "Redis", "Postgres", "Npgsql", "Sql",
         "Http", "WebSocket", "Grpc", "Kafka",
         "Amazon", "Aws", "Azure",
         "AppLovin", "Firebase", "Sentry", "PostHog",
         "StoreKit", "GooglePlay", "Godot", "Npm",
+    };
+
+    /// <summary>
+    /// 🔒 The object-store terms <see cref="InfrastructureVocabulary"/> must always carry, named one
+    /// by one. This is an <b>identity</b> floor, not a count floor.
+    /// </summary>
+    /// <remarks>
+    /// The count floor over the list above cannot protect these: with twenty-odd terms in the list
+    /// and a floor comfortably below it, every S3 term could be deleted together and the count would
+    /// still clear. The whole reason this rule lands a milestone before M5-05 is the object store —
+    /// so the S3 terms specifically, and not the list's length, are what has to survive. Same
+    /// construction as <c>Domain.RunRngScopeType</c>'s identity floor under
+    /// <c>DeterministicRng_is_constructed_only_inside_Core_Rng</c>.
+    /// </remarks>
+    internal static readonly string[] ObjectStoreVocabulary =
+    {
+        "S3", "Bucket", "Presign", "Blob", "ObjectKey", "Multipart",
     };
 
     /// <summary>A milestone task id: <c>M12</c>, <c>M5-05</c>, or <c>M18-06a</c>.</summary>
@@ -473,14 +528,36 @@ internal static class PortCatalogue
 
     /// <summary>Every name a port's surface exposes, with a description of where it came from.</summary>
     /// <remarks>
+    /// <para>
     /// Fields are in here because C# lets an interface declare a <c>const</c>, and a constant is the
     /// one member kind that contributes no method, no property and no signature type — so a
     /// <c>const string BucketPrefix</c> on a port would be invisible to every other arm below while
     /// putting the vendor's shape in the port's public surface all the same.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Generic parameters and base interfaces are here for the same reason</b>, and each closes
+    /// a hole the arms below leave open. A <c>Task&lt;T&gt; GetAsync&lt;TBucket&gt;(...)</c> puts the
+    /// vendor's word in the port's surface while <c>method.Parameters</c> — Cecil's <em>value</em>
+    /// parameters — never sees it, and the signature types resolve to the generic parameter, whose
+    /// own name is the leak. A port declared as <c>IBattleLogStore : IS3ObjectStore</c> inherits the
+    /// whole of the vendor's shape without naming one banned term of its own; the base interface is
+    /// only scanned in its own right if it happens to live under <c>Ports/</c> too, and a leaked
+    /// base is exactly the one that will not.
+    /// </para>
     /// </remarks>
     private static IEnumerable<(string Name, string Where)> SignatureNames(TypeDefinition port)
     {
         yield return (port.Name, "the port type name");
+
+        foreach (var parameter in port.GenericParameters)
+        {
+            yield return (parameter.Name, $"generic parameter '{parameter.Name}' of the port type");
+        }
+
+        foreach (var reference in port.Interfaces.SelectMany(i => Il.Flatten(i.InterfaceType)))
+        {
+            yield return (reference.Name, $"the base interface '{reference.Name}'");
+        }
 
         foreach (var field in port.Fields)
         {
@@ -495,6 +572,11 @@ internal static class PortCatalogue
         foreach (var method in port.Methods)
         {
             yield return (method.Name, $"member '{method.Name}'");
+
+            foreach (var parameter in method.GenericParameters)
+            {
+                yield return (parameter.Name, $"generic parameter '{parameter.Name}' of '{method.Name}'");
+            }
 
             foreach (var parameter in method.Parameters)
             {

@@ -23,11 +23,26 @@ public sealed class PortCatalogueTests
     // which cannot notice the list being trimmed.
 
     /// <summary>
-    /// `23` §4's three code blocks declare 27 interfaces (11 client + 14 server + 2 shared).
-    /// Trimming the transcription would stop the undeclared direction asking about the ports it
-    /// dropped, and nothing else in this repository enumerates them.
+    /// 🔒 `23` §4's three code blocks declare 27 interfaces, and this is the count <b>per
+    /// subsection</b>: 11 in §4.1, 14 in §4.2, 2 in §4.3. Trimming the transcription would stop the
+    /// undeclared direction asking about the ports it dropped, and nothing else in this repository
+    /// enumerates them.
     /// </summary>
-    private const int SpecifiedPortFloor = 20;
+    /// <remarks>
+    /// ⚠️ <b>Per subsection, and a total floor is not a substitute.</b> This was a single
+    /// <c>SpecifiedPortFloor = 20</c> against a transcription of 27, so seven of `23` §4's ports
+    /// could be deleted with the floor still clearing — including all of §4.1's eleven client ports,
+    /// which is the lane every deferral above is written for. §4 is a closed section of a locked
+    /// document, so its subsections have exact counts rather than lower bounds, and each is checked
+    /// against the group that claims to transcribe it: a floor over the flattened total is cleared
+    /// by a §4.2 name added to cover a §4.1 name dropped.
+    /// </remarks>
+    private static readonly (string Citation, int Ports)[] SpecifiedPortFloors =
+    {
+        ("23 §4.1", 11),
+        ("23 §4.2", 14),
+        ("23 §4.3", 2),
+    };
 
     /// <summary>
     /// Ports declared under <c>Application/Ports/</c>. Below this,
@@ -50,6 +65,14 @@ public sealed class PortCatalogueTests
     /// <see cref="No_port_signature_names_an_infrastructure_or_vendor_concept"/> going quiet on
     /// exactly the concept that was removed, with the rule still passing.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ A count floor here is the weak half and always was: at 15 against a list of 25, every
+    /// object-store term could be deleted <em>together</em> and this would still clear — and the
+    /// object store is the whole reason the rule lands a milestone before M5-05.
+    /// <see cref="PortCatalogue.ObjectStoreVocabulary"/> is the identity floor that closes it, and
+    /// the count floor stays because it is what notices the rest of the list draining away one
+    /// vendor at a time.
+    /// </remarks>
     private const int VocabularyFloor = 15;
 
     /// <summary>
@@ -147,9 +170,25 @@ public sealed class PortCatalogueTests
 
         var specified = PortCatalogue.SpecifiedPorts.SelectMany(g => g.Ports).ToArray();
 
-        Floor(offenders, "ports transcribed from 23 §4", specified.Length, SpecifiedPortFloor,
-            "Every_specified_port_is_declared_or_deferred_with_an_owner is stated over them. A "
-            + "trimmed transcription does not fail — it quietly stops asking about the port it lost.");
+        foreach (var (citation, expected) in SpecifiedPortFloors)
+        {
+            var group = PortCatalogue.SpecifiedPorts
+                .SingleOrDefault(g => g.Citation.Equals(citation, StringComparison.Ordinal));
+
+            if (group is null)
+            {
+                offenders.Add(
+                    $"no PortCatalogue.SpecifiedPorts group transcribes {citation}. "
+                    + "Every_specified_port_is_declared_or_deferred_with_an_owner then asks nothing "
+                    + "about that subsection's ports at all.");
+                continue;
+            }
+
+            Floor(offenders, $"ports transcribed from {citation}", group.Ports.Count, expected,
+                "Every_specified_port_is_declared_or_deferred_with_an_owner is stated over them. A "
+                + "trimmed transcription does not fail — it quietly stops asking about the port it "
+                + "lost, and a floor over the flattened total is cleared by a name added elsewhere.");
+        }
 
         specified.Distinct(StringComparer.Ordinal).Count().ShouldBe(
             specified.Length,
@@ -168,6 +207,18 @@ public sealed class PortCatalogueTests
             PortCatalogue.InfrastructureVocabulary.Length, VocabularyFloor,
             "No_port_signature_names_an_infrastructure_or_vendor_concept is stated over this list. "
             + "Removing a term is the rule going silent on exactly that concept, still green.");
+
+        // 🔒 The IDENTITY floor under the same list. The count floor above cannot see the object-
+        // store terms leave together, and they are the ones M5-05 and M18-06a inherit.
+        offenders.AddRange(
+            from term in PortCatalogue.ObjectStoreVocabulary
+            where !PortCatalogue.InfrastructureVocabulary.Contains(term, StringComparer.Ordinal)
+            select $"'{term}' is gone from PortCatalogue.InfrastructureVocabulary. "
+                   + "No_port_signature_names_an_infrastructure_or_vendor_concept exists a milestone "
+                   + "before M5-05 declares IBattleLogStore specifically to keep the object store's "
+                   + "vocabulary out of that port, and the AzureBlob sibling at M18-06a shares it. "
+                   + "Every one of these terms could be dropped together with the count floor still "
+                   + "clearing, which is why they are named one by one.");
 
         PortCatalogue.SpecifiedPorts.Length.ShouldBe(
             3,
@@ -318,6 +369,74 @@ public sealed class PortCatalogueTests
             .ShouldBeEmpty(
                 "the same subject, a term it does not contain — otherwise the arm above would be "
                 + "satisfied by a scan that reports every field it sees.");
+    }
+
+    /// <summary>
+    /// `23` §5 A4 — the base-interface arm: a port inherits its base's shape, banned terms included.
+    /// </summary>
+    /// <remarks>
+    /// <c>IBattleLogStore : IS3ObjectStore</c> names no banned term of its own, and the base is only
+    /// scanned in its own right if it happens to live under <c>Ports/</c> — which a leaked one will
+    /// not. No port declares a base interface today, so the arm is driven against a real type from
+    /// the same assembly that does: every C# record implements <c>IEquatable&lt;TSelf&gt;</c>, and
+    /// <c>AdOutcome</c> is a <c>readonly record struct</c>.
+    /// </remarks>
+    [Fact]
+    public void The_vocabulary_scan_reads_the_interfaces_a_type_inherits()
+    {
+        var recordWithABase = Domain.ApplicationTypes.Single(
+            t => t.Name.Equals("AdOutcome", StringComparison.Ordinal));
+
+        PortCatalogue.InfrastructureConcepts(new[] { recordWithABase }, new[] { "IEquatable" })
+            .ShouldContain(
+                o => o.Contains("the base interface 'IEquatable", StringComparison.Ordinal),
+                "AdOutcome's only inherited interface is IEquatable<AdOutcome>, and it is named "
+                + "nowhere else in the type's surface. If this does not fire, a port can inherit an "
+                + "IS3ObjectStore wholesale with the live rule green.");
+
+        PortCatalogue.InfrastructureConcepts(new[] { recordWithABase }, new[] { "ZzzNoBaseNamesThis" })
+            .ShouldBeEmpty(
+                "the same subject, a term it does not inherit — otherwise the arm above would be "
+                + "satisfied by a scan that reports every interface it sees.");
+    }
+
+    /// <summary>
+    /// `23` §5 A4 — the generic-parameter arms: a type parameter's own name is part of the surface.
+    /// </summary>
+    /// <remarks>
+    /// Not hypothetical. `23` §4.1 writes <c>ILocalCachePort</c> as <c>Task&lt;T?&gt;
+    /// ReadAsync&lt;T&gt;(...)</c> and §4.2 writes <c>IRemoteConfigPort.Get&lt;T&gt;</c>, so generic
+    /// members on ports are coming; a <c>GetAsync&lt;TBucket&gt;</c> puts the vendor's word in the
+    /// signature where Cecil's <c>Parameters</c> — the <em>value</em> parameters — cannot see it. No
+    /// port is generic today, so both arms are driven against real generic types elsewhere in the
+    /// build, each pinned to the place it fired.
+    /// </remarks>
+    [Fact]
+    public void The_vocabulary_scan_reads_generic_parameter_names()
+    {
+        var genericType = Domain.CoreTypes.Single(t => t.Name.Equals("Result`1", StringComparison.Ordinal));
+
+        PortCatalogue.InfrastructureConcepts(new[] { genericType }, new[] { "T" })
+            .ShouldContain(
+                o => o.Contains("generic parameter 'T' of the port type", StringComparison.Ordinal),
+                "Result<T>'s type parameter is named T, and only the type-level arm can attribute an "
+                + "offender to 'the port type'. A broad probe term is fine here because the claim is "
+                + "about WHERE the scan looked, not about what it matched.");
+
+        var typeWithAGenericMethod = Domain.CoreTypes.Single(
+            t => t.Name.Equals("CommandDispatch", StringComparison.Ordinal));
+
+        PortCatalogue.InfrastructureConcepts(new[] { typeWithAGenericMethod }, new[] { "TCommand" })
+            .ShouldContain(
+                o => o.Contains("generic parameter 'TCommand' of 'Handled'", StringComparison.Ordinal),
+                "CommandDispatch.Handled<TCommand> is a real generic method. Only the method-level "
+                + "arm attributes an offender to a generic parameter OF a named member.");
+
+        PortCatalogue.InfrastructureConcepts(
+                new[] { genericType, typeWithAGenericMethod }, new[] { "ZzzNoParameterNamesThis" })
+            .ShouldBeEmpty(
+                "the same two subjects, a term neither declares — otherwise both arms above would be "
+                + "satisfied by a scan that reports every generic parameter it sees.");
     }
 
     private static void Floor(ICollection<string> offenders, string what, int actual, int floor, string consequence)

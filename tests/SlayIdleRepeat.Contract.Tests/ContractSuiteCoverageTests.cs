@@ -1,5 +1,7 @@
 using System.Reflection;
 using Shouldly;
+using SlayIdleRepeat.Application.Ports.Shared;
+using SlayIdleRepeat.Contract.Tests.Shared;
 using Xunit;
 
 namespace SlayIdleRepeat.Contract.Tests;
@@ -43,13 +45,25 @@ public sealed class ContractSuiteCoverageTests
     /// success over every port at once — the single most expensive silence available here.
     /// </summary>
     /// <remarks>
-    /// 🔒 Kept close to the tree, which holds 21 today. A floor set far below the real count is a
-    /// floor only against total collapse: at 8, thirteen adapter <c>ProjectReference</c>s could be
-    /// dropped from this project one by one and rule 2 would go quiet on every port they carried
-    /// while this rule still reported success. The narrowing this floor watches for is gradual, so
-    /// the number has to be near enough to notice it.
+    /// 🔒 <b>Exact against the scan, which finds 23 adapter assemblies today</b> — every
+    /// <c>SlayIdleRepeat.Adapters.*</c> project this suite references, and adapters reference no
+    /// other adapter, so the output directory holds exactly the direct references. A floor set below
+    /// the real count is a floor only against total collapse: at 8, fifteen adapter
+    /// <c>ProjectReference</c>s could be dropped from this project one by one and rule 2 would go
+    /// quiet on every port they carried while this rule still reported success. The narrowing this
+    /// floor watches for is one reference at a time, so one dropped reference has to fire it — which
+    /// means no headroom at all.
+    /// <para>
+    /// ⚠️ <b>This was 18 against a scan of 21, and M5-01 then added two adapters without moving
+    /// it.</b> The task added <c>Adapters.Ambient.System</c> and <c>Adapters.Cache.LocalFile</c> to
+    /// this project's references and raised <c>SubjectSetFloorTests.AdapterFloor</c> from 21 to 23
+    /// for them, but left this sibling alone — so the scan grew by two while the slack under it grew
+    /// to five, which is exactly the drift the paragraph above says the number exists to notice.
+    /// Both floors move together, or one set has gained a member the other did not see. Deleting an
+    /// adapter project is still allowed; it is a deliberate act that lowers both in its own commit.
+    /// </para>
     /// </remarks>
-    private const int AdapterAssemblyFloor = 18;
+    private const int AdapterAssemblyFloor = 23;
 
     /// <summary>
     /// Fixtures per suite. At one, <c>23</c> §5 A5's "the real adapter AND the in-memory fake"
@@ -76,37 +90,10 @@ public sealed class ContractSuiteCoverageTests
     /// port mean", and the fixtures would then split between them with neither side complete.
     /// </remarks>
     [Fact]
-    public void Every_port_has_a_shared_contract_suite()
-    {
-        var suitesByPort = Suites()
-            .GroupBy(s => s.GetCustomAttribute<ContractSuiteForAttribute>()!.Port)
-            .ToDictionary(g => g.Key, g => g.ToArray());
-
-        var offenders = new List<string>();
-
-        foreach (var port in Ports())
-        {
-            if (!suitesByPort.TryGetValue(port, out var suites))
-            {
-                offenders.Add(
-                    $"'{port.FullName}' is a port under {PortsNamespace} and no abstract class in "
-                    + "SlayIdleRepeat.Contract.Tests carries [ContractSuiteFor(typeof("
-                    + $"{port.Name}))]. 23 §5 A8 is one shared suite per port; a port with none is a "
-                    + "seam whose meaning is whatever its first implementation happened to do.");
-                continue;
-            }
-
-            if (suites.Length > 1)
-            {
-                offenders.Add(
-                    $"'{port.FullName}' has {suites.Length} contract suites "
-                    + $"[{string.Join(", ", suites.Select(s => s.Name))}]. Two suites are two answers "
-                    + "to what the port means, and its fixtures then split between them.");
-            }
-        }
-
-        Empty(offenders, "Every port has exactly one shared contract suite (23 §5 A8).");
-    }
+    public void Every_port_has_a_shared_contract_suite() =>
+        Empty(
+            PortsWithoutExactlyOneSuite(Ports(), SuiteDeclarations()),
+            "Every port has exactly one shared contract suite (23 §5 A8).");
 
     /// <summary>
     /// 🔒 Rule 2 — every concrete implementation of a port has a fixture, and that fixture derives
@@ -121,45 +108,12 @@ public sealed class ContractSuiteCoverageTests
     [Fact]
     public void Every_implementation_of_a_port_has_a_contract_fixture()
     {
-        var fixtures = Fixtures()
-            .Select(f => (Fixture: f, Subject: f.GetCustomAttribute<ContractFixtureForAttribute>()!.Implementation))
-            .ToArray();
+        var ports = Ports().ToArray();
 
-        var suiteOf = Suites()
-            .ToLookup(s => s.GetCustomAttribute<ContractSuiteForAttribute>()!.Port);
-
-        var offenders = new List<string>();
-
-        foreach (var port in Ports())
-        {
-            foreach (var implementation in ImplementationsOf(port))
-            {
-                var covering = fixtures.Where(f => f.Subject == implementation).ToArray();
-
-                if (covering.Length == 0)
-                {
-                    offenders.Add(
-                        $"'{implementation.FullName}' implements the port '{port.Name}' and no class in "
-                        + "SlayIdleRepeat.Contract.Tests carries [ContractFixtureFor(typeof("
-                        + $"{implementation.Name}))]. An implementation nothing runs the shared suite "
-                        + "against is an implementation the port does not actually constrain.");
-                    continue;
-                }
-
-                foreach (var suite in suiteOf[port])
-                {
-                    foreach (var (fixture, _) in covering.Where(c => !suite.IsAssignableFrom(c.Fixture)))
-                    {
-                        offenders.Add(
-                            $"'{fixture.Name}' is attributed to '{implementation.Name}', which implements "
-                            + $"'{port.Name}', but it does not derive from '{suite.Name}'. It runs some "
-                            + "other port's cases while reading as coverage for this one.");
-                    }
-                }
-            }
-        }
-
-        Empty(offenders, "Every implementation of a port has a contract fixture deriving from that port's suite (23 §5 A8).");
+        Empty(
+            ImplementationsWithoutACoveringFixture(
+                ports, SuiteDeclarations(), FixtureDeclarations(), PortImplementations(ports)),
+            "Every implementation of a port has a contract fixture deriving from that port's suite (23 §5 A8).");
     }
 
     /// <summary>
@@ -172,29 +126,10 @@ public sealed class ContractSuiteCoverageTests
     /// It is also how a suite survives the deletion of the port it was written for, still green.
     /// </remarks>
     [Fact]
-    public void Every_contract_suite_and_fixture_names_a_real_subject()
-    {
-        var ports = Ports().ToHashSet();
-        var offenders = new List<string>();
-
-        offenders.AddRange(
-            from suite in Suites()
-            let subject = suite.GetCustomAttribute<ContractSuiteForAttribute>()!.Port
-            where !ports.Contains(subject)
-            select $"'{suite.Name}' declares [ContractSuiteFor(typeof({subject.Name}))], but "
-                   + $"'{subject.FullName}' is not an interface under {PortsNamespace}. A suite whose "
-                   + "subject is not a port is a suite no rule here can ever demand or satisfy.");
-
-        offenders.AddRange(
-            from fixture in Fixtures()
-            let subject = fixture.GetCustomAttribute<ContractFixtureForAttribute>()!.Implementation
-            where !ports.Any(p => p.IsAssignableFrom(subject))
-            select $"'{fixture.Name}' declares [ContractFixtureFor(typeof({subject.Name}))], but "
-                   + $"'{subject.FullName}' implements no port under {PortsNamespace}. Either the port "
-                   + "went away and this fixture outlived it, or the attribute names the wrong type.");
-
-        Empty(offenders, "Every contract suite and fixture names a real port or implementation (23 §6).");
-    }
+    public void Every_contract_suite_and_fixture_names_a_real_subject() =>
+        Empty(
+            AttributesNamingNoRealSubject(Ports(), SuiteDeclarations(), FixtureDeclarations()),
+            "Every contract suite and fixture names a real port or implementation (23 §6).");
 
     /// <summary>
     /// 🔒 Rule 4 — steering <b>S3</b>: the subject sets these rules quantify over have floors, and
@@ -260,6 +195,242 @@ public sealed class ContractSuiteCoverageTests
         Empty(offenders, "The contract-suite subject sets are the ones these rules were written against (23 §6, steering S3).");
     }
 
+    // ------------------------------------------------------------------------------ self-tests
+    //
+    // 🔒 Rules 1 to 3 are quantifiers over the real repository, where they can only ever be seen
+    // passing — the same problem PortCatalogueTests solves by driving the register's predicates with
+    // crafted inputs. These three cases do that here: every arm of every rule fires on a bad input
+    // and the offender it names is pinned, and each is paired with a negative control, because a
+    // rule that flagged everything would satisfy the loud half on its own.
+    //
+    // The subjects are real types rather than synthetic ones. A second class carrying
+    // [ContractSuiteFor(typeof(IClockPort))] could not be committed at all — rule 1 would fail on it
+    // — so the bad arrangements are built as declarations rather than as attributed classes.
+
+    /// <summary>Rule 1 bites in both directions: a port with no suite, and a port with two.</summary>
+    [Fact]
+    public void Rule_one_fires_on_a_port_with_no_suite_and_on_a_port_with_two()
+    {
+        var ports = new[] { typeof(IClockPort) };
+        var clockSuite = new SuiteDeclaration(typeof(IClockPortContractTests), typeof(IClockPort));
+
+        PortsWithoutExactlyOneSuite(ports, new[] { clockSuite }).ShouldBeEmpty(
+            "exactly one suite names IClockPort here, which is the arrangement the rule exists to "
+            + "permit. A rule that flagged this would be failing on the real repository too.");
+
+        PortsWithoutExactlyOneSuite(ports, Array.Empty<SuiteDeclaration>())
+            .ShouldHaveSingleItem()
+            .ShouldContain("carries [ContractSuiteFor(typeof(IClockPort))]", Case.Sensitive);
+
+        // The second arm: 'exactly one', not 'at least one'. A rule stopping at the first suite it
+        // finds passes the whole repository and never notices a port with two answers.
+        var strayer = new SuiteDeclaration(typeof(IIdGeneratorPortContractTests), typeof(IClockPort));
+
+        PortsWithoutExactlyOneSuite(ports, new[] { clockSuite, strayer })
+            .ShouldHaveSingleItem()
+            .ShouldContain("has 2 contract suites", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// Rule 2 bites in both directions: an implementation with no fixture at all, and a fixture that
+    /// names the right implementation while deriving from another port's suite.
+    /// </summary>
+    [Fact]
+    public void Rule_two_fires_on_an_uncovered_implementation_and_on_a_fixture_under_the_wrong_suite()
+    {
+        var ports = new[] { typeof(IClockPort) };
+        var suite = new SuiteDeclaration(typeof(IClockPortContractTests), typeof(IClockPort));
+        var fixture = new FixtureDeclaration(
+            typeof(SystemClockContractTests), typeof(Adapters.Ambient.System.SystemClock));
+        var implementations = new[] { typeof(Adapters.Ambient.System.SystemClock) };
+
+        ImplementationsWithoutACoveringFixture(ports, new[] { suite }, new[] { fixture }, implementations)
+            .ShouldBeEmpty(
+                "SystemClockContractTests is attributed to SystemClock and derives from "
+                + "IClockPortContractTests, which is the arrangement the rule demands.");
+
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), implementations)
+            .ShouldHaveSingleItem()
+            .ShouldContain("carries [ContractFixtureFor(typeof(SystemClock))]", Case.Sensitive);
+
+        // 🔒 The derivation arm, and the one this rule exists for: the attribute is right and the
+        // base class is wrong, which compiles, runs and reports success while running another port's
+        // cases. Only the IsAssignableFrom half can see it.
+        var wrongSuite = new SuiteDeclaration(typeof(IIdGeneratorPortContractTests), typeof(IClockPort));
+
+        ImplementationsWithoutACoveringFixture(ports, new[] { wrongSuite }, new[] { fixture }, implementations)
+            .ShouldHaveSingleItem()
+            .ShouldContain("does not derive from 'IIdGeneratorPortContractTests'", Case.Sensitive);
+
+        // The negative control on the quantifier itself: a type that implements no port is not this
+        // rule's business, or it would demand a fixture for every class in every scanned assembly.
+        ImplementationsWithoutACoveringFixture(
+                ports, new[] { suite }, Array.Empty<FixtureDeclaration>(), new[] { typeof(string) })
+            .ShouldBeEmpty(
+                "string implements no port. A rule that asked for a fixture here would be asking for "
+                + "one for every type the assembly scan returns.");
+    }
+
+    /// <summary>
+    /// Rule 3 bites in both directions: a suite whose subject is not a port, and a fixture whose
+    /// subject implements none.
+    /// </summary>
+    [Fact]
+    public void Rule_three_fires_on_a_suite_and_on_a_fixture_naming_no_real_subject()
+    {
+        var ports = new[] { typeof(IClockPort) };
+        var suite = new SuiteDeclaration(typeof(IClockPortContractTests), typeof(IClockPort));
+        var fixture = new FixtureDeclaration(
+            typeof(SystemClockContractTests), typeof(Adapters.Ambient.System.SystemClock));
+
+        AttributesNamingNoRealSubject(ports, new[] { suite }, new[] { fixture }).ShouldBeEmpty(
+            "both attributes name a real subject, which is every suite and fixture in the tree.");
+
+        AttributesNamingNoRealSubject(
+                ports, new[] { suite with { Port = typeof(Adapters.InMemory.AdjustableClock) } }, new[] { fixture })
+            .ShouldHaveSingleItem()
+            .ShouldContain("is not an interface under", Case.Sensitive);
+
+        AttributesNamingNoRealSubject(
+                ports, new[] { suite }, new[] { fixture with { Implementation = typeof(ContractSuiteCoverageTests) } })
+            .ShouldHaveSingleItem()
+            .ShouldContain("implements no port under", Case.Sensitive);
+    }
+
+    // ----------------------------------------------------------------------------- rule bodies
+    //
+    // 🔒 Each of rules 1 to 3 is a pure function of its inputs, the same construction
+    // PortCatalogue.Expired / Undeclared / Unanchored use and for the same reason: a rule computed
+    // inline from the live repository can only ever be seen passing. Parameterised, the self-tests
+    // below drive each arm with a deliberately bad input and pin the offender it produces, without
+    // a violation ever being committed.
+
+    /// <summary>A contract suite and the port its <c>[ContractSuiteFor]</c> names.</summary>
+    /// <param name="Suite">The abstract suite class.</param>
+    /// <param name="Port">The port interface it claims to state the meaning of.</param>
+    internal sealed record SuiteDeclaration(Type Suite, Type Port);
+
+    /// <summary>A contract fixture and the implementation its <c>[ContractFixtureFor]</c> names.</summary>
+    /// <param name="Fixture">The concrete fixture class.</param>
+    /// <param name="Implementation">The implementation it claims to run a suite against.</param>
+    internal sealed record FixtureDeclaration(Type Fixture, Type Implementation);
+
+    /// <summary>
+    /// Rule 1's body: every port with no suite, and every port with more than one. Empty means the
+    /// rule holds.
+    /// </summary>
+    internal static IReadOnlyList<string> PortsWithoutExactlyOneSuite(
+        IEnumerable<Type> ports,
+        IEnumerable<SuiteDeclaration> suites)
+    {
+        var byPort = suites.ToLookup(s => s.Port);
+        var offenders = new List<string>();
+
+        foreach (var port in ports)
+        {
+            var covering = byPort[port].ToArray();
+
+            if (covering.Length == 0)
+            {
+                offenders.Add(
+                    $"'{port.FullName}' is a port under {PortsNamespace} and no abstract class in "
+                    + "SlayIdleRepeat.Contract.Tests carries [ContractSuiteFor(typeof("
+                    + $"{port.Name}))]. 23 §5 A8 is one shared suite per port; a port with none is a "
+                    + "seam whose meaning is whatever its first implementation happened to do.");
+                continue;
+            }
+
+            if (covering.Length > 1)
+            {
+                offenders.Add(
+                    $"'{port.FullName}' has {covering.Length} contract suites "
+                    + $"[{string.Join(", ", covering.Select(s => s.Suite.Name))}]. Two suites are two "
+                    + "answers to what the port means, and its fixtures then split between them.");
+            }
+        }
+
+        return offenders;
+    }
+
+    /// <summary>
+    /// Rule 2's body: every implementation with no fixture, and every fixture that names the right
+    /// implementation while deriving from the wrong suite. Empty means the rule holds.
+    /// </summary>
+    internal static IReadOnlyList<string> ImplementationsWithoutACoveringFixture(
+        IEnumerable<Type> ports,
+        IEnumerable<SuiteDeclaration> suites,
+        IEnumerable<FixtureDeclaration> fixtures,
+        IEnumerable<Type> implementations)
+    {
+        var declared = fixtures.ToArray();
+        var suiteOf = suites.ToLookup(s => s.Port, s => s.Suite);
+        var candidates = implementations.ToArray();
+        var offenders = new List<string>();
+
+        foreach (var port in ports)
+        {
+            foreach (var implementation in candidates.Where(port.IsAssignableFrom))
+            {
+                var covering = declared.Where(f => f.Implementation == implementation).ToArray();
+
+                if (covering.Length == 0)
+                {
+                    offenders.Add(
+                        $"'{implementation.FullName}' implements the port '{port.Name}' and no class in "
+                        + "SlayIdleRepeat.Contract.Tests carries [ContractFixtureFor(typeof("
+                        + $"{implementation.Name}))]. An implementation nothing runs the shared suite "
+                        + "against is an implementation the port does not actually constrain.");
+                    continue;
+                }
+
+                foreach (var suite in suiteOf[port])
+                {
+                    foreach (var declaration in covering.Where(c => !suite.IsAssignableFrom(c.Fixture)))
+                    {
+                        offenders.Add(
+                            $"'{declaration.Fixture.Name}' is attributed to '{implementation.Name}', "
+                            + $"which implements '{port.Name}', but it does not derive from "
+                            + $"'{suite.Name}'. It runs some other port's cases while reading as "
+                            + "coverage for this one.");
+                    }
+                }
+            }
+        }
+
+        return offenders;
+    }
+
+    /// <summary>
+    /// Rule 3's body: every attribute whose subject is not a port, and every attribute whose
+    /// subject implements none. Empty means the rule holds.
+    /// </summary>
+    internal static IReadOnlyList<string> AttributesNamingNoRealSubject(
+        IEnumerable<Type> ports,
+        IEnumerable<SuiteDeclaration> suites,
+        IEnumerable<FixtureDeclaration> fixtures)
+    {
+        var declared = ports.ToArray();
+        var offenders = new List<string>();
+
+        offenders.AddRange(
+            from suite in suites
+            where !declared.Contains(suite.Port)
+            select $"'{suite.Suite.Name}' declares [ContractSuiteFor(typeof({suite.Port.Name}))], but "
+                   + $"'{suite.Port.FullName}' is not an interface under {PortsNamespace}. A suite whose "
+                   + "subject is not a port is a suite no rule here can ever demand or satisfy.");
+
+        offenders.AddRange(
+            from fixture in fixtures
+            where !declared.Any(p => p.IsAssignableFrom(fixture.Implementation))
+            select $"'{fixture.Fixture.Name}' declares [ContractFixtureFor(typeof("
+                   + $"{fixture.Implementation.Name}))], but '{fixture.Implementation.FullName}' "
+                   + $"implements no port under {PortsNamespace}. Either the port went away and this "
+                   + "fixture outlived it, or the attribute names the wrong type.");
+
+        return offenders;
+    }
+
     // ------------------------------------------------------------------------------- discovery
 
     /// <summary>Every port: an interface under <c>Application.Ports</c> in the Application assembly.</summary>
@@ -282,11 +453,20 @@ public sealed class ContractSuiteCoverageTests
             .Where(t => t.GetCustomAttribute<ContractFixtureForAttribute>() is not null)
             .OrderBy(t => t.FullName, StringComparer.Ordinal);
 
-    /// <summary>Every concrete, non-abstract implementation of a port across the scanned assemblies.</summary>
-    private static IEnumerable<Type> ImplementationsOf(Type port) =>
+    /// <summary>Each suite paired with the port its attribute names.</summary>
+    private static IEnumerable<SuiteDeclaration> SuiteDeclarations() =>
+        Suites().Select(s => new SuiteDeclaration(s, s.GetCustomAttribute<ContractSuiteForAttribute>()!.Port));
+
+    /// <summary>Each fixture paired with the implementation its attribute names.</summary>
+    private static IEnumerable<FixtureDeclaration> FixtureDeclarations() =>
+        Fixtures().Select(f => new FixtureDeclaration(
+            f, f.GetCustomAttribute<ContractFixtureForAttribute>()!.Implementation));
+
+    /// <summary>Every concrete, non-abstract implementation of any port across the scanned assemblies.</summary>
+    private static IEnumerable<Type> PortImplementations(IReadOnlyCollection<Type> ports) =>
         ScannedAssemblies()
             .SelectMany(TypesOf)
-            .Where(t => t is { IsInterface: false, IsAbstract: false } && port.IsAssignableFrom(t))
+            .Where(t => t is { IsInterface: false, IsAbstract: false } && ports.Any(p => p.IsAssignableFrom(t)))
             .Distinct()
             .OrderBy(t => t.FullName, StringComparer.Ordinal);
 

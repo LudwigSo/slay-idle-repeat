@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using SlayIdleRepeat.Application.Ports.Client;
 
 namespace SlayIdleRepeat.Adapters.InMemory;
@@ -20,20 +21,26 @@ namespace SlayIdleRepeat.Adapters.InMemory;
 /// across two writes silently rewrites what it already stored — against this implementation only,
 /// which is the drift a shared contract suite cannot see and this class must not introduce.
 /// </para>
+/// <para>
+/// The store is concurrent for the same reason. A caller that fans a warm-up out across tasks
+/// reaches the file-backed adapter safely and would corrupt a plain dictionary here — a defect that
+/// belongs to whichever implementation a scenario happened to be wired with, which is the one kind
+/// of difference between these two classes that must not exist.
+/// </para>
 /// </remarks>
 public sealed class InMemoryLocalCache : ILocalCachePort
 {
     private const string KeySpace = "A-Z, a-z, 0-9, '.', '_' and '-'";
 
-    private readonly Dictionary<string, byte[]> _entries;
+    private readonly ConcurrentDictionary<string, byte[]> _entries;
 
     /// <summary>Creates a cache over a backing store of its own.</summary>
     public InMemoryLocalCache()
-        : this(new Dictionary<string, byte[]>(StringComparer.Ordinal))
+        : this(new ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal))
     {
     }
 
-    private InMemoryLocalCache(Dictionary<string, byte[]> entries) => _entries = entries;
+    private InMemoryLocalCache(ConcurrentDictionary<string, byte[]> entries) => _entries = entries;
 
     /// <summary>
     /// A fresh port over the same backing store — what the next launch of the app opens.
@@ -79,18 +86,40 @@ public sealed class InMemoryLocalCache : ILocalCachePort
         var entry = Checked(key);
         ct.ThrowIfCancellationRequested();
 
-        _entries.Remove(entry);
+        _entries.TryRemove(entry, out _);
         return Task.CompletedTask;
     }
 
-    private static string Checked(string key) =>
-        string.IsNullOrEmpty(key) || !key.All(IsKeyCharacter)
-            ? throw new ArgumentException(
+    private static string Checked(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        return IsInKeySpace(key)
+            ? key
+            : throw new ArgumentException(
                 $"'{key}' is outside this cache's key space, which is non-empty and made only of " +
                 $"{KeySpace}. The key space is the port's, not this implementation's: a key the fake " +
                 "accepts and the file-backed adapter rejects is a scenario that only passes here.",
-                nameof(key))
-            : key;
+                nameof(key));
+    }
+
+    private static bool IsInKeySpace(string key)
+    {
+        if (key.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var character in key)
+        {
+            if (!IsKeyCharacter(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static bool IsKeyCharacter(char character) =>
         character is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9')
