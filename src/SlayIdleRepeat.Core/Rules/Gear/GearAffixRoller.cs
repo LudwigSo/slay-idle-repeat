@@ -18,19 +18,15 @@ namespace SlayIdleRepeat.Core.Rules.Gear;
 /// this is the side that makes the refusal unreachable in practice.
 /// </para>
 /// <para>
-/// <b>A short pool is refused, never quietly topped down.</b> A band asking for more affixes than its
-/// slot's pool can supply is a content error, and answering with fewer would hide it behind an item
-/// that merely looks unlucky.
+/// <b>A short pool is refused, never quietly topped down.</b> A caller asking for more affixes than
+/// the pool it handed over can supply is a defect in that caller, and answering with fewer would hide
+/// it behind an item that merely looks unlucky. So the refusal stays, and it is the caller's job to
+/// ask for a number the pool can actually fill.
 /// </para>
 /// <para>
-/// 🔴 <b>The shipped pool is short by one for boots at the top band, and this refusal is what makes
-/// that visible.</b> The top band rolls four affixes; exactly three of the fourteen may appear on
-/// boots. So a top-band boots item cannot be minted at all, and roughly one top-band drop in six is a
-/// boots item. Both halves are authored — the affix count and the slot restrictions — so neither can
-/// be adjusted here without inventing content: a fifteenth boots-eligible affix and a slot-aware cap
-/// on the top band's count are both authoring decisions, and picking one would freeze it before
-/// anybody chose it. <b>Carried forward for a ruling, with the exact arithmetic pinned by
-/// <c>GearMintingTests</c> so it goes red the day the pool is widened.</b>
+/// The one place that decides how many to ask for is the minting rule, which caps the band's authored
+/// count at the size of the eligible pool — the shipped data needs that cap for exactly one slot at
+/// the top band, and the reasoning lives beside the cap rather than here.
 /// </para>
 /// </remarks>
 internal static class GearAffixRoller

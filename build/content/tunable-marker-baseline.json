@@ -150,9 +150,6 @@
     { "doc": "08", "section": "4.2", "kind": "specDebt",
       "reason": "forge.json stoneCostPerLevel cites 08 §4.2. 08 §4's 📐 marker covers it; the section granularity differs. Same owner as §4.1. (Was M0-11.)",
       "closedBy": "M4-04" },
-    { "doc": "08", "section": "5", "kind": "specDebt",
-      "reason": "forge.json inventory/maxCapacity cites 08 §5, which states the 400 cap in prose without a 📐 marker — the same section 16 A7 flags as conflicting with 10 §4. M4-05 implements 08 §5 (capacity + expansion curve) and settles both. (Was M0-11.)",
-      "closedBy": "M4-05" },
 
     { "doc": "24", "section": "4.4", "kind": "specDebt",
       "reason": "beasts.json eggOdds cites 24 §4.4 (egg pity). 24's 📐 markers sit in §4.1 and §9; §4.4 itself carries none. M4-02 implements 24 §4 incl. egg P1-P3. (Was M0-11.)",

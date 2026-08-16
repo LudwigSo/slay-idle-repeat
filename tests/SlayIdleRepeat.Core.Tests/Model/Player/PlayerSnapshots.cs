@@ -87,14 +87,20 @@ internal static class PlayerSnapshots
     /// <paramref name="cleared"/> and <paramref name="feats"/> are the two appended maps, and they
     /// are deliberately asymmetric: a null <c>ClearedChapterTiers</c> is READ as "nothing cleared
     /// yet", while a null <c>FeatCounters</c> is a FAULT. Both stay expressible here so that
-    /// asymmetry is testable rather than assumed.
+    /// asymmetry is testable rather than assumed. <paramref name="inventory"/> joins the FAULT side.
+    /// <para>
+    /// 🔴 Every parameter here is optional and every call site passes them BY NAME. A new one is
+    /// appended LAST and nowhere else: a parameter inserted mid-signature merges textually clean and
+    /// silently re-binds every positional argument after it.
+    /// </para>
     /// </remarks>
     internal static PlayerSnapshot WithNull(
         bool wallet = false,
         bool daily = false,
         bool weekly = false,
         bool cleared = false,
-        bool feats = false) =>
+        bool feats = false,
+        bool inventory = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -115,7 +121,8 @@ internal static class PlayerSnapshots
             LoginCalendarTuning.FirstDay,
             false,
             cleared ? null : Counters(),
-            feats ? null! : Counters());
+            feats ? null! : Counters(),
+            inventory ? null! : EmptyInventory);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static PlayerSnapshot With(
@@ -138,7 +145,8 @@ internal static class PlayerSnapshots
         int? loginCalendarDay = null,
         bool? loginCalendarDayClaimed = null,
         IReadOnlyDictionary<string, long>? clearedChapterTiers = null,
-        IReadOnlyDictionary<string, long>? featCounters = null) =>
+        IReadOnlyDictionary<string, long>? featCounters = null,
+        InventorySnapshot? inventory = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -163,5 +171,14 @@ internal static class PlayerSnapshots
             loginCalendarDay ?? LoginCalendarTuning.FirstDay,
             loginCalendarDayClaimed ?? false,
             clearedChapterTiers ?? Counters(),
-            featCounters ?? Counters());
+            featCounters ?? Counters(),
+            inventory ?? EmptyInventory);
+
+    /// <summary>An inventory holding nothing, with no expansion bought — where a new player stands.</summary>
+    /// <remarks>
+    /// Empty, never <c>null</c>: an absent inventory is a fault on <c>FeatCounters</c>' precedent, so
+    /// a fixture defaulting to one would make every rehydration case in this suite fail for a reason
+    /// unrelated to what it asserts.
+    /// </remarks>
+    internal static InventorySnapshot EmptyInventory { get; } = new(0, [], []);
 }

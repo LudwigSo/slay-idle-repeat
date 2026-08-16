@@ -124,27 +124,42 @@ public sealed class GearMintingTests
             .ShouldBeGreaterThan(SweepWidth / 2);
     }
 
-    /// <summary>An item rolls exactly the number of affixes its band authors.</summary>
+    /// <summary>
+    /// An item rolls exactly the number of affixes its band authors, or every affix its slot has if
+    /// the pool cannot reach that number.
+    /// </summary>
     /// <remarks>
-    /// The top band is absent from this theory on purpose — see
-    /// <see cref="The_shipped_affix_pool_cannot_fill_a_top_band_boots_item"/>, which states why.
+    /// The top band is in this theory now, and it is the only band the second half of that sentence
+    /// applies to — see <see cref="The_shipped_affix_pool_cannot_fill_a_top_band_boots_item"/>, which
+    /// states which slot binds and why the cap is a cap rather than a refusal.
+    /// <para>
+    /// The expectation is per item rather than per band: the slot is drawn, so a single number
+    /// computed before the loop would be wrong for whichever items land on a short pool, and stating
+    /// it as the minimum is what makes the top band assertable at all.
+    /// </para>
     /// </remarks>
     [Theory]
     [InlineData(Rarity.C)]
     [InlineData(Rarity.B)]
     [InlineData(Rarity.A)]
     [InlineData(Rarity.S)]
+    [InlineData(Rarity.SS)]
     public void An_item_rolls_exactly_the_number_of_affixes_its_band_authors(Rarity rarity)
     {
         var drops = Drops();
-        var expected = drops.Band(rarity).AffixCount;
+        var authored = drops.Band(rarity).AffixCount;
         var minted = 0;
 
         foreach (var seed in Seeds())
         {
             var item = Mint(new GearInstanceId("gi"), 1, rarity, At(seed));
+            var eligible = drops.EligibleAffixes(item.Slot, rarity).Count;
 
-            item.Affixes.Count.ShouldBe(expected);
+            item.Affixes.Count.ShouldBe(
+                Math.Min(authored, eligible),
+                $"a {rarity} {item.Slot} item: the band asks for {authored} and its slot's pool " +
+                $"offers {eligible}. The pool draws without replacement, so it can offer no more " +
+                "than it holds.");
             minted++;
         }
 
@@ -260,23 +275,28 @@ public sealed class GearMintingTests
     // ---------------------------------------------------------------- the carried-forward content gap
 
     /// <summary>
-    /// 🔴 The shipped affix pool cannot fill a top-band boots item: the slot authorises three affixes
-    /// and the band rolls four, so the mint is refused rather than answered with three.
+    /// 🔴 The shipped affix pool cannot fill a top-band boots item: the slot offers three affixes and
+    /// the band asks for four, so the item rolls three — and boots is the only slot where that
+    /// happens.
     /// </summary>
     /// <remarks>
     /// <para>
     /// ⚠️ <b>This is a content gap, not a rule defect, and it is reachable in play.</b> The last
     /// chapter band drops the top rarity at five per cent and the base item is drawn uniformly across
     /// twenty-four rows, four of which are boots — so roughly one top-band drop in six lands on a slot
-    /// the pool cannot fill and the drop throws.
+    /// the pool cannot fill.
     /// </para>
     /// <para>
-    /// The refusal itself is right: rolling three affixes instead of four would hide a pool that
-    /// cannot fill the band behind an item that merely looks unlucky. What is missing is a fourth
-    /// boots-eligible affix in <c>tuning/drops.json</c>, which is an authoring decision rather than
-    /// something a test may invent. <b>Carried forward: the affix pool needs a fourth boots row, or
-    /// the top band's affix count needs a slot-aware cap.</b> When either lands, this case goes red
-    /// and the top band joins the two theories above.
+    /// The mint used to refuse such an item outright, which made those drops throw. It now rolls
+    /// every affix the slot has instead: a player losing a top-band drop to a data gap is worse than
+    /// a top-band boot with one affix fewer, and the gap stays visible here rather than in a crash
+    /// report. What is still missing is a fourth boots-eligible affix in <c>tuning/drops.json</c>,
+    /// which is an authoring decision rather than something a test may invent.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The last assertion is the one that expires this case.</b> The day the pool gains a fourth
+    /// boots row, no slot binds the cap any more and this goes RED — which is the point. Do not
+    /// relax it then; delete it, and the theory above covers the top band on its own.
     /// </para>
     /// </remarks>
     [Fact]
@@ -284,37 +304,57 @@ public sealed class GearMintingTests
     {
         var drops = Drops();
         var catalogue = Catalogue();
+        var authored = drops.Band(Rarity.SS).AffixCount;
 
         drops.EligibleAffixes(GearSlot.BOOTS, Rarity.SS).Count.ShouldBe(
             3, "the shipped pool offers attack speed, defence and dodge on boots and nothing else");
-        drops.Band(Rarity.SS).AffixCount.ShouldBe(4);
+        authored.ShouldBe(4);
 
-        var refusedSlots = new List<GearSlot>();
-        var minted = 0;
+        var cappedSlots = new List<GearSlot>();
+        var bootsMints = 0;
+        var filled = 0;
 
         foreach (var seed in Seeds())
         {
+            // The slot the mint is ABOUT to produce, predicted by replaying its first draw on a
+            // fresh stream — the mint itself answers an item, not a plan, so there is no other way to
+            // know which pool this seed was going to be judged against.
             var slot = catalogue.Definitions[At(seed).Range(0, catalogue.Definitions.Count)].Slot;
+            var item = Mint(new GearInstanceId("gi"), 8, Rarity.SS, At(seed));
 
-            try
+            item.Slot.ShouldBe(slot, "the replay predicts the slot the mint actually drew");
+
+            if (drops.EligibleAffixes(slot, Rarity.SS).Count < authored)
             {
-                Mint(new GearInstanceId("gi"), 8, Rarity.SS, At(seed)).Affixes.Count.ShouldBe(4);
-                minted++;
+                cappedSlots.Add(slot);
+
+                if (slot == GearSlot.BOOTS)
+                {
+                    item.Affixes.Count.ShouldBe(
+                        3,
+                        "min(the band's 4, the slot's 3). Four would mean an affix drawn twice, and " +
+                        "two would mean the cap overshooting the pool it is capped to.");
+                    bootsMints++;
+                }
             }
-            catch (InvalidTunableException)
+            else
             {
-                refusedSlots.Add(slot);
+                item.Affixes.Count.ShouldBe(authored);
+                filled++;
             }
         }
 
-        minted.ShouldBeGreaterThan(0, "every other slot fills the top band from its own pool");
-        refusedSlots.ShouldNotBeEmpty(
-            "the sweep has to actually reach a boots item, or this case would pass by never testing " +
-            "the gap at all.");
-        refusedSlots.Distinct().ShouldBe(
+        filled.ShouldBeGreaterThan(0, "every other slot fills the top band from its own pool");
+        bootsMints.ShouldBeGreaterThan(
+            0,
+            "the sweep has to actually reach a boots item, or the three-affix claim above is never " +
+            "evaluated and this case passes by never testing the gap at all.");
+
+        cappedSlots.Distinct().ShouldBe(
             new[] { GearSlot.BOOTS },
-            "boots is the only slot the shipped pool cannot fill at the top band; a second slot " +
-            "appearing here is a new gap rather than this one.");
+            "boots is the ONLY slot the shipped pool cannot fill at the top band. A second slot here " +
+            "is a new gap rather than this one — and an EMPTY list means the pool was widened, at " +
+            "which point this whole case is finished and should be deleted rather than loosened.");
     }
 
     // ---------------------------------------------------------------- refusals

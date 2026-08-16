@@ -3,6 +3,7 @@ using Shouldly;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Testing;
+using SlayIdleRepeat.Core.Tests.Model.Gear;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
@@ -29,6 +30,13 @@ public sealed class InMemoryGamePerformanceTests
 {
     private const int Days = 180;
     private const int CommandsPerDay = 4;
+
+    /// <summary>Every slot the expansion ladder can ever reach, filled.</summary>
+    /// <remarks>
+    /// The largest inventory the game admits, so the comparison is over the worst case a player can
+    /// actually put the domain in rather than a number chosen for the test.
+    /// </remarks>
+    private const int FullStock = 320;
 
     /// <summary>The budget, in milliseconds.</summary>
     private const double BudgetMs = 200;
@@ -100,6 +108,48 @@ public sealed class InMemoryGamePerformanceTests
             "leaves two and a half orders of magnitude between 'passes' and 'a loop crept in' — and " +
             "a test that fails randomly gets disabled by whoever hits it at 3am, which would cost " +
             "this suite the one clock-based assertion worth having.");
+    }
+
+    /// <summary>A command costs the same against a full inventory as against an empty one — asserted
+    /// as a ratio, so the machine's speed cancels. The stock is state every command clones past, so a
+    /// clone that copied it item by item, or a rule that scanned it, would make the full half grow
+    /// with the three hundred and twenty items rather than stay flat.</summary>
+    /// <remarks>
+    /// The same interleaved best-of-three shape as
+    /// <see cref="The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap"/>, and for the same
+    /// reason: two separate blocks let a GC pause land on one half only. The inventory is built from
+    /// a persisted row rather than by sending three hundred and twenty grant commands, which would
+    /// measure the grants instead of what this is about.
+    /// </remarks>
+    [Fact]
+    public void The_cost_of_a_command_does_not_grow_with_the_size_of_the_inventory()
+    {
+        const int Commands = Days * CommandsPerDay;
+
+        ShouldHaveDoneTheWork(InventoryDrive(0, Commands), Commands, Commands);
+        ShouldHaveDoneTheWork(InventoryDrive(FullStock, Commands), Commands, Commands);
+
+        ShouldHaveCarried(InventoryDrive(0, Commands), 0);
+        ShouldHaveCarried(InventoryDrive(FullStock, Commands), FullStock);
+
+        var empty = double.MaxValue;
+        var full = double.MaxValue;
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            empty = Math.Min(empty, Elapsed(() => InventoryDrive(0, Commands)));
+            full = Math.Min(full, Elapsed(() => InventoryDrive(FullStock, Commands)));
+        }
+
+        (full / empty).ShouldBeLessThan(
+            4.0,
+            $"{Commands} commands against an EMPTY inventory took {empty:F1} ms; the same commands " +
+            $"against a FULL {FullStock}-item inventory took {full:F1} ms. Neither BEGIN_SESSION nor " +
+            "the clone in front of it reads the stock, so the two are the same work and the ratio is " +
+            "~1. What a bound of four catches is a per-item cost per command — a deep clone of every " +
+            "gear instance, a re-derived stat, a re-sorted list — which at three hundred and twenty " +
+            "items shows up as a ratio in the tens, not as a few per cent. It is a regression " +
+            "detector rather than a budget: if it fires, find the per-item loop, do not raise it.");
     }
 
     /// <summary>The same claim with no clock in it: a gap of any size is one command, and it lands
@@ -187,6 +237,35 @@ public sealed class InMemoryGamePerformanceTests
 
         return game;
     }
+
+    /// <summary>
+    /// Sends <paramref name="commands"/> commands a day apart to a player who starts with
+    /// <paramref name="items"/> items in stock. The cadence is <see cref="GapDrive"/>'s one-day arm
+    /// exactly, so the two halves differ in the inventory and in nothing else.
+    /// </summary>
+    private static InMemoryGame InventoryDrive(int items, int commands)
+    {
+        var (game, player) = Harnesses.WithPlayer(inventory: Inventories.Stock(items));
+
+        for (var command = 0; command < commands; command++)
+        {
+            game.Clock.Advance(TimeSpan.FromDays(1));
+            game.Send(player, Harnesses.BeginSession);
+        }
+
+        return game;
+    }
+
+    /// <summary>
+    /// Asserts that a measured drive actually carried the stock it was measured carrying — the
+    /// inventory half of <see cref="ShouldHaveDoneTheWork"/>'s argument. A seam that silently dropped
+    /// the pre-populated row would make the "full" half identical to the empty one, and the ratio
+    /// would be a perfect 1.0 over nothing.
+    /// </summary>
+    private static void ShouldHaveCarried(InMemoryGame game, int items) =>
+        game.State(game.Players[0]).Player.Inventory.Stored.Count.ShouldBe(
+            items,
+            "the comparison is only about the size of the inventory if the inventory is that size.");
 
     /// <summary>
     /// Asserts that a timed drive actually did the work it was measured doing — see

@@ -295,6 +295,20 @@ public sealed class LuckRoutingRuleTests
         // (c) The two remaining shapes that name a gear instance by construction.
         ("GearGranted", "the domain event that REPORTS a grant. Its constructor and its accessor carry the item because that is what the event is for; the grant was produced by whatever emitted it, and that producer is the one this rule watches. ⚠️ Pet and mount grant events will want the same row — at the third one, widen MentionsItsOwnTypeByConstruction to cover a DomainEvent's own bookkeeping members rather than adding a fourth"),
         ("GearMinting", "builds an item at a band that was ALREADY decided — the base item, the quality scalar and the affixes, none of which is protected. Split out of GearGeneration precisely so that this exemption cannot cover the half that does make the protected decision; GearGeneration has no row here and calls LuckService for both of its entry points"),
+
+        // 🔒 M4-05's three, and all three are kind (b): CONSUMERS of items that were granted long
+        // before they ran. None of them decides a band, draws anything, or takes an Rng at all — the
+        // container stores what it is handed, the sorting orders what the container holds, and the
+        // comparison subtracts two already-derived stat figures.
+        //
+        // ⚠️ Player is deliberately NOT on this list, and that is a design constraint rather than an
+        // oversight: the aggregate exposes the inventory component and names no GearInstance in any
+        // signature, so it never presents the shape this rule watches for. A convenience member on
+        // Player that took or returned an item would put a fourth row here, which is the cost that
+        // decision was taken to avoid.
+        ("Inventory", "the container. It stores, holds, reclaims and locks items it is HANDED — Place takes an item somebody else already produced, and there is no draw anywhere in the type"),
+        ("InventorySorting", "orders a list of owned items by slot, band, power, quality or age. Reading a band to sort by it is not deciding one — LuckTuning's reason, one layer up"),
+        ("InventoryComparison", "subtracts one item's derived stats from another's. It names two GearInstances because a side-by-side delta is about exactly two of them, and GearStatDerivation — which it consumes — carries this same reason"),
     };
 
     /// <summary>

@@ -57,10 +57,8 @@ internal static class GearMinting
         var definition = catalogue.Definitions[draws.Range(0, catalogue.Definitions.Count)];
         var quality = RollQuality(drops.Quality, draws);
 
-        var affixes = GearAffixRoller.Roll(
-            drops.EligibleAffixes(definition.Slot, rarity),
-            drops.Band(rarity).AffixCount,
-            draws);
+        var eligible = drops.EligibleAffixes(definition.Slot, rarity);
+        var affixes = GearAffixRoller.Roll(eligible, AffixCountFor(drops, rarity, eligible.Count), draws);
 
         return new GearInstance(
             instanceId,
@@ -75,6 +73,27 @@ internal static class GearMinting
             affixes,
             locked: false);
     }
+
+    /// <summary>
+    /// How many affixes this item actually rolls: what its band authors, or the whole eligible pool
+    /// when the band asks for more than the slot has.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The cap is a consequence of two independently authored constraints colliding, not a
+    /// number chosen here.</b> The top band authors four affixes; exactly three of the fourteen may
+    /// appear on boots. Both halves are authored, so every other resolution invents content — a
+    /// fifteenth boots-eligible affix, or a widened slot list, would author a fact nobody decided, and
+    /// the slot restrictions exist precisely so nothing nonsensical appears on an item. Refusing
+    /// instead would throw on roughly one top-band drop in six. Capping invents nothing.
+    /// <para>
+    /// <b>The shortfall is recorded, not buried:</b> a top-band boots item carries one affix fewer
+    /// than every other top-band slot. Whether to author a fifteenth boots-eligible affix stays a
+    /// content decision, and <c>GearMintingTests</c> pins the arithmetic so it goes red the day the
+    /// pool widens.
+    /// </para>
+    /// </remarks>
+    private static int AffixCountFor(DropsTuning drops, Rarity rarity, int eligibleCount) =>
+        Math.Min(drops.Band(rarity).AffixCount, eligibleCount);
 
     /// <summary>
     /// The one quality scalar, drawn uniformly across the authored range and rounded once.

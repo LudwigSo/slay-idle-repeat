@@ -353,8 +353,8 @@ public sealed class RealDataNegativeCaseTests
     public void An_inventory_capacity_that_its_own_ladder_cannot_reach_is_rejected()
     {
         Rejects("tuning/forge.json",
-            "\"maxCapacityReachableFromLadder\": 320", "\"maxCapacityReachableFromLadder\": 321",
-            ContentIssueCode.OrphanedReference, "tuning/forge.json#/inventory/maxCapacityReachableFromLadder");
+            "\"maxCapacity\": 320", "\"maxCapacity\": 400",
+            ContentIssueCode.OrphanedReference, "tuning/forge.json#/inventory/maxCapacity");
     }
 
     /// <summary>CountEquals: one ladder price per purchase step.</summary>
