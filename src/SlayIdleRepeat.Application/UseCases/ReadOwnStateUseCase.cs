@@ -52,9 +52,18 @@ public sealed record OwnStateResult(OwnStateLookup Lookup, OwnStateView? View);
 
 /// <summary>The read side: persisted rows out, nothing in.</summary>
 /// <remarks>
-/// It never rehydrates an aggregate, which is what makes "a read runs no rule" structural rather than
-/// a discipline — there is no aggregate here for a rule to be invoked on. It writes nothing either,
-/// so reading cannot slide a run's expiry or stamp a player as active.
+/// <para>
+/// Stored rows out, and nothing here is ever turned back into an aggregate, so there is nothing for
+/// a rule to be invoked on. It writes nothing either, so reading cannot slide a run's expiry or stamp
+/// a player as active.
+/// </para>
+/// <para>
+/// Half of that is out of reach and half is held by a rule, which is worth saying rather than
+/// claiming the whole of it is structural: a player aggregate needs a content set this type is never
+/// handed, but a run's row needs nothing but itself, so the type system alone would not stop a later
+/// edit reaching for one. <c>UseCaseSourceRuleTests</c> is what stops it, and a reader who believes
+/// the compiler is doing it will delete that rule as redundant.
+/// </para>
 /// </remarks>
 public sealed class ReadOwnStateUseCase
 {

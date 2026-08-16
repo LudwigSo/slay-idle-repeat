@@ -135,4 +135,43 @@ public sealed class DomainEventDispatcherTests
         sink.Batches.Count.ShouldBe(
             1, "an empty batch is still one command's answer; skipping it makes 'no events' and 'no command' alike.");
     }
+
+    /// <summary>
+    /// 🔒 The sink is a service of this layer, not a port, and that placement is the decision this
+    /// case exists to keep.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The transports an implementation of it will eventually reach — analytics, telemetry, the
+    /// durable economy log — are each a port of their own with an owner and a real adapter. This is
+    /// the in-process fan-out that sits above them, so moving it under the port namespace would put
+    /// it under the rule that every port carries a real adapter beside its fake, and the only way to
+    /// satisfy that here is two fakes — which is exactly what an absent port is better than.
+    /// </para>
+    /// <para>
+    /// A move would not pass quietly today: the port rule would fail. It would fail while pointing at
+    /// a missing adapter rather than at the move, and adding the fakes is the obvious way to make that
+    /// message go away. This says so where the move would be made.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_event_sink_is_a_service_of_this_layer_and_not_a_port()
+    {
+        var sink = typeof(IDomainEventSink);
+
+        sink.Namespace.ShouldBe(
+            "SlayIdleRepeat.Application.Services.Events",
+            "the sink has moved. If it moved under the port namespace, read this case's remarks before " +
+            "making the port rule green; if it moved elsewhere, this pin moves with it.");
+
+        sink.Assembly
+            .GetTypes()
+            .Where(t => t.IsInterface && t.Namespace?.StartsWith(
+                "SlayIdleRepeat.Application.Ports", StringComparison.Ordinal) == true)
+            .Select(t => t.Name)
+            .ShouldNotContain(
+                nameof(IDomainEventSink),
+                "a second interface of this name under the port namespace enrols the fan-out in the port " +
+                "catalogue by the back door.");
+    }
 }
