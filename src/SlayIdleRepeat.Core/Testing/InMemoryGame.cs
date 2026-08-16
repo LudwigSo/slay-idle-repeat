@@ -145,8 +145,8 @@ public sealed class InMemoryGame
     /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
     /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
     /// <exception cref="InvalidOperationException">
-    /// The starting row does not rehydrate — a defect in this method or a content set whose
-    /// <c>legendLevel</c> range excludes its own minimum.
+    /// The starting row does not rehydrate — a defect in <see cref="Player.CreateStarting"/>, which
+    /// builds it, or a content set whose <c>legendLevel</c> range excludes its own minimum.
     /// </exception>
     public PlayerId CreatePlayer(string? displayName = null, InventorySnapshot? inventory = null)
     {
@@ -171,8 +171,9 @@ public sealed class InMemoryGame
             throw new InvalidOperationException(
                 "The starting player row this harness built does not rehydrate: " + player.Error +
                 " 30 §11.3 makes Rehydrate the one validated construction path, so this is either a " +
-                "defect in InMemoryGame.CreatePlayer or a content set whose 07 §1.1 legendLevel " +
-                "range does not contain its own minimum. It is NOT a state a caller can ask for.");
+                "defect in Player.CreateStarting, which builds the row, or a content set whose " +
+                "07 §1.1 legendLevel range does not contain its own minimum. It is NOT a state a " +
+                "caller can ask for.");
         }
 
         _players.Add(id, new PlayerSession(new WorldSlice(player.Value, null)));

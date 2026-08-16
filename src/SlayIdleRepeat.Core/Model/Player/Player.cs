@@ -795,8 +795,10 @@ public sealed class Player
     /// element — none is invented. Legend Level is the authored floor, never a literal. Wallet
     /// balances and Energy banks start at zero, forced rather than chosen: every currency movement
     /// must be attributed by a <c>CurrencyChanged</c> event, so a player that started with a balance
-    /// would hold currency no row attributes. Collections are empty rather than null, because an
-    /// absent one and an empty one are different states and only one of them is a row the game wrote.
+    /// would hold currency no row attributes. Every collection whose absence is a fault is stated
+    /// empty rather than left to a default, because an absent one and an empty one are different
+    /// states and only one of them is a row the game wrote; the one collection whose row authors
+    /// <c>null</c> as its own "nothing yet" is stated as that, in full, rather than skipped silently.
     /// </para>
     /// <para>
     /// It returns through <see cref="Rehydrate"/> rather than reaching the constructor itself, so
@@ -845,6 +847,11 @@ public sealed class Player
             new Dictionary<string, long>(StringComparer.Ordinal),
             LoginCalendarTuning.FirstDay,
             LoginCalendarDayClaimed: false,
+
+            // Stated rather than skipped: this is the one field on the row whose own declaration
+            // authors null as "nothing cleared yet", so leaving it to the default would be the only
+            // value here a reader could not tell from a field somebody forgot.
+            ClearedChapterTiers: null,
             FeatCounters: new Dictionary<string, long>(StringComparer.Ordinal),
             PityCounters: new Dictionary<string, int>(StringComparer.Ordinal),
             Inventory: inventory ?? new InventorySnapshot(0, [], []),

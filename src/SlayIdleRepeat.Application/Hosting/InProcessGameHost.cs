@@ -97,6 +97,13 @@ public sealed class InProcessGameHost : IGameHost
     /// an unreferenced row and the next launch mints a fresh profile; the reverse leaves a pointer to
     /// a row that does not exist, and every later command fails on the load — a bricked install.
     /// </remarks>
+    /// <exception cref="InvalidOperationException">
+    /// The starting row this host built does not rehydrate. A defect here or a content set whose
+    /// authored Legend Level range excludes its own minimum, never a caller's doing.
+    /// </exception>
+    /// <exception cref="MissingContentException">The content set authors no Legend Level range.</exception>
+    /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
+    /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
     public async Task<PlayerId> OpenProfileAsync(CancellationToken ct)
     {
         var named = await _cache.ReadAsync(LocalProfileKey, ct).ConfigureAwait(false);
@@ -165,7 +172,15 @@ public sealed class InProcessGameHost : IGameHost
     {
         Span<byte> bytes = stackalloc byte[16];
 
-        _ = _ids.NewGuid().TryWriteBytes(bytes);
+        // Checked rather than discarded. A write that did not happen leaves the buffer as the stack
+        // left it, and the fold below would then draw the same seed for every command — the exact
+        // failure the fold itself exists to rule out, and the one shape of it nothing would report.
+        if (!_ids.NewGuid().TryWriteBytes(bytes))
+        {
+            throw new InvalidOperationException(
+                "A guid did not fit sixteen bytes, so this command's seed would be folded from a " +
+                "buffer nothing wrote.");
+        }
 
         return BinaryPrimitives.ReadUInt64LittleEndian(bytes) ^
                BinaryPrimitives.ReadUInt64LittleEndian(bytes[8..]);
