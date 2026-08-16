@@ -94,8 +94,13 @@ public sealed class PlayerFeatCounterTests
         thrown.ParamName.ShouldBe("counterId");
         thrown.Message.ShouldContain("A feat counter id names the projection that owns it", Case.Sensitive);
 
-        Should.Throw<ArgumentException>(() => player.FeatCount(counterId!))
-            .ShouldBeOfType<ArgumentException>();
+        // The READ side refuses it too, with the SAME reason. Routing it through the daily-counter
+        // guard would answer a feat-counter question with the daily-reset systems' explanation.
+        var reading = Should.Throw<ArgumentException>(() => player.FeatCount(counterId!));
+
+        reading.ShouldBeOfType<ArgumentException>();
+        reading.ParamName.ShouldBe("counterId");
+        reading.Message.ShouldContain("A feat counter id names the projection that owns it", Case.Sensitive);
     }
 
     [Fact]
@@ -298,14 +303,26 @@ public sealed class PlayerFeatCounterTests
             .IsSuccess.ShouldBeTrue();
     }
 
+    /// <summary>
+    /// A corrupt lifetime row is refused — and the diagnostic says the counter is never cleared,
+    /// not that it is cleared at a period boundary. The same reader reaching the daily map must get
+    /// the opposite sentence; both are asserted here so the two cannot drift into one.
+    /// </summary>
     [Fact]
-    public void A_negative_persisted_feat_count_is_refused()
+    public void A_negative_persisted_feat_count_is_refused_as_a_lifetime_counter()
     {
-        var result = Core.Model.Player.Rehydrate(
+        var feats = Core.Model.Player.Rehydrate(
             PlayerSnapshots.With(featCounters: PlayerSnapshots.Counters((Counter, -1L))), Content);
 
-        result.IsFailure.ShouldBeTrue();
-        result.Error.ShouldContain(nameof(PlayerSnapshot.FeatCounters), Case.Sensitive);
+        feats.IsFailure.ShouldBeTrue();
+        feats.Error.ShouldContain(nameof(PlayerSnapshot.FeatCounters), Case.Sensitive);
+        feats.Error.ShouldContain("is never cleared at all", Case.Sensitive);
+
+        var daily = Core.Model.Player.Rehydrate(
+            PlayerSnapshots.With(dailyCounters: PlayerSnapshots.Counters(("ad_caps", -1L))), Content);
+
+        daily.IsFailure.ShouldBeTrue();
+        daily.Error.ShouldContain("is cleared at its period boundary", Case.Sensitive);
     }
 
     /// <summary>The view is read-only: it cannot be cast back to a writable map.</summary>

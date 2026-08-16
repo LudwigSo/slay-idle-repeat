@@ -221,14 +221,21 @@ internal static class GapRegister
             "FeatDefinition is the type that reads feats.json and names the counter its measure is " +
             "stated over. It cannot be written before 16 O29 rules WHAT A COUNTER ID IS — a closed " +
             "enum, a primitive, or a content id — which is the same trap PityCounterAdvanced is " +
-            "deferred for: a payload that compiles is not a payload that was decided. Keyed on " +
-            "FeatCounterId, the vocabulary type that ruling produces, rather than on feats.json's " +
-            "own shape: the day the id space is closed is the day this entry is wrong. It expires " +
-            "either way — Expired()'s second arm fires on FeatDefinition itself, so M16 cannot author " +
-            "the feature and leave this entry standing even if it decides the ids stay bare strings. " +
-            "⚠️ M4-13 already writes lifetime counters under ids of its own; those are internal to " +
-            "Core, cover only what DiceRolled and CurrencyChanged can support, and are deliberately " +
-            "NOT a published vocabulary — see FeatCounterProjection's own remarks."),
+            "deferred for: a payload that compiles is not a payload that was decided. " +
+            "🔒 THE LIVE PREDICATE HERE IS THE SUBJECT ARM, NOT WaitsFor, and this entry says so " +
+            "rather than overselling itself. No design document names a 'FeatCounterId': it is the " +
+            "name a closed vocabulary WOULD take, and if O29 rules that ids stay bare strings — " +
+            "which is what M4-13 itself chose for the ids it writes — the type never exists and that " +
+            "arm is inert for good. What cannot be inert is Expired()'s second arm, which fires on " +
+            "IsPresentInCore('FeatDefinition'): M16 cannot author the feature and leave this entry " +
+            "standing, whatever it decides an id is. WaitsFor is carried as the earlier of the two " +
+            "tripwires, not as the load-bearing one. " +
+            "⚠️ M4-13 already writes lifetime counters under ids of its own. They are internal to " +
+            "Core and cover only what DiceRolled and CurrencyChanged can support — but they are " +
+            "dictionary keys inside PlayerSnapshot, so they are folded into every stateHash and are " +
+            "cheap to EXTEND and effectively impossible to RENAME. That is the sense in which O29 " +
+            "is not pre-empted: the storage shape is open, the id set is not a published contract, " +
+            "and what each feat MEASURES is still undecided."),
 
         // ---------------------------------------------------------------- M1-05, 30 §4 + 02 §1.1
         //

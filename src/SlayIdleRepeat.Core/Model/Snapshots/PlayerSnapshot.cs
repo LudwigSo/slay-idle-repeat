@@ -24,10 +24,9 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="ClearedChapterTiers">The (Chapter, Tier) pairs cleared at least once, gating the one-time first-clear Soul Shard grant. Defaulted to <c>null</c>, read as "nothing cleared yet".</param>
 /// <param name="FeatCounters">
 /// The lifetime feat counters: counter id → count, additive, never reset. ⚠️ Unlike
-/// <see cref="ClearedChapterTiers"/>, <c>null</c> is a <b>fault</b> and not an empty map — the
-/// optional default is a C# requirement (an optional parameter cannot be followed by a required
-/// one) rather than a permitted value. A missing lifetime map read as empty is exactly the failure
-/// these counters exist to prevent: every Feat would evaluate against a history of zero.
+/// <see cref="ClearedChapterTiers"/>, <c>null</c> is a <b>fault</b>, not an empty map — a missing
+/// lifetime map read as empty is a whole history silently zeroed. The optional default is a C#
+/// requirement, not a permitted value.
 /// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.PlayerId"/> and

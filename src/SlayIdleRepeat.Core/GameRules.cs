@@ -255,23 +255,18 @@ public static class GameRules
 
     /// <summary>Advances the player's lifetime feat counters for everything this command's events imply.</summary>
     /// <remarks>
-    /// <para>
-    /// The counters are aggregate state written here, not a projection rebuilt from a retained log:
-    /// a Feat is claimed retroactively against a lifetime count, and a count that can only be
-    /// recovered by replaying every event a player ever produced is a count nobody can guarantee.
-    /// </para>
-    /// <para>
-    /// Runs only on an accepted command, and after the events are stamped — the same list the
-    /// caller receives is the one the counters are taken from, so what the client replays and what
-    /// the counters say can never disagree. A refused command discards the working copy, counters
-    /// included.
-    /// </para>
+    /// Runs only on an accepted command, and over the <b>stamped</b> list — the same one the caller
+    /// receives — so what the client replays and what the counters say can never disagree. Indexed
+    /// rather than enumerated: this is on every command's path and the interface would box the
+    /// list's enumerator.
     /// </remarks>
     private static void CountFeats(Player player, IReadOnlyList<DomainEvent> events)
     {
-        foreach (var (counterId, amount) in FeatCounterProjection.Project(events))
+        var advances = FeatCounterProjection.Project(events);
+
+        for (var i = 0; i < advances.Count; i++)
         {
-            player.CountFeat(counterId, amount);
+            player.CountFeat(advances[i].CounterId, advances[i].Amount);
         }
     }
 
