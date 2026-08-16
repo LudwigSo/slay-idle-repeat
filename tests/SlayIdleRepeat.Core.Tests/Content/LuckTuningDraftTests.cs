@@ -84,6 +84,26 @@ public sealed class LuckTuningDraftTests
             LuckTuning.Read(LuckDocuments.LuckOnly(draftLegendaryPityNumber: ContentValue.Number(0))));
     }
 
+    /// <summary>The reader resolves the category token whatever case it is authored in.</summary>
+    /// <remarks>
+    /// 🔒 Recorded as a checked fact rather than left as an assumption, because
+    /// <c>LuckSchemaTests</c> rejects the PascalCase spelling at build time and its stated reason
+    /// depends on this: the reader converts the authored <c>SCREAMING_SNAKE</c> token to the enum's
+    /// declared name before parsing, and that conversion lower-cases everything after a word
+    /// boundary. So the schema's enum is the ONLY guard on the document's spelling — widen it and
+    /// nothing in Core objects. Whoever tightens the reader should delete this case in the same
+    /// commit rather than discover it here.
+    /// </remarks>
+    [Theory]
+    [InlineData("SUSTAIN")]
+    [InlineData("Sustain")]
+    [InlineData("sustain")]
+    public void The_reader_resolves_a_category_token_whatever_its_case(string authored)
+    {
+        LuckTuning.Read(LuckDocuments.LuckOnly(draftSustainForceCategory: ContentValue.Text(authored)))
+            .Draft.SustainAntiBrick.ForceCategory.ShouldBe(PerkCategory.Sustain);
+    }
+
     /// <summary>A force category the perk vocabulary does not declare is refused.</summary>
     [Fact]
     public void An_unknown_force_category_is_refused()

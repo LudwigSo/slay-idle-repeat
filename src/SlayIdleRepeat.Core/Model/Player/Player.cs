@@ -47,15 +47,13 @@ namespace SlayIdleRepeat.Core.Model;
 /// day one becomes writable without a home here.
 /// </para>
 /// <para>
-/// Pity counters are absent too, but for a different reason and with a different owner: the type
-/// exists (<see cref="PityCounters"/>) because the luck service is stateless and takes a counter map
-/// as an argument, and what is still missing is the <em>field</em>. <b>M4-02</b> owns it — the
-/// container shelf is the first thing that writes a persisted counter — and it lands the field, the
-/// snapshot column and the <c>SchemaVersion</c> bump in one commit. Adding the field here before a
-/// writer exists would put a persisted column on the aggregate that nothing ever moves. Entitlement
-/// lives on the session instead, reached as <c>GameContext.Entitlements</c>. There is no factory for a
-/// new player either: starting values are a later milestone's decision, and <see cref="Rehydrate"/> is
-/// the only way to obtain one.
+/// Pity counters are <b>not</b> among them any more: <see cref="PityCounters"/> is a field here as
+/// of M4-01b, together with its snapshot column and the <c>SchemaVersion</c> bump, because the
+/// chest-pick guarantee is player-scoped and lifetime and a run-scoped home would reset it every
+/// run. <b>M4-02</b> still owns the chest ladders and the in-run drop mercy that write it further;
+/// it does not own adding the field again. Entitlement lives on the session instead, reached as
+/// <c>GameContext.Entitlements</c>. There is no factory for a new player either: starting values are
+/// a later milestone's decision, and <see cref="Rehydrate"/> is the only way to obtain one.
 /// </para>
 /// </remarks>
 public sealed class Player

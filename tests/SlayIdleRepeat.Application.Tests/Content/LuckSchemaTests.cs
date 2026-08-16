@@ -78,8 +78,12 @@ public sealed class LuckSchemaTests
 
     /// <summary>And so is the enum's PascalCase spelling — the vocabulary is the document's, not C#'s.</summary>
     /// <remarks>
-    /// The second probe. A schema whose enum listed both spellings would pass the case above while
-    /// letting two tokens name one category, and the reader parses case-sensitively.
+    /// The second probe, and the schema is the <b>only</b> thing that closes this spelling. The
+    /// tuning reader converts an authored <c>SCREAMING_SNAKE</c> token to the enum's PascalCase name
+    /// before parsing it, and that conversion lower-cases everything after a word boundary — so
+    /// <c>SUSTAIN</c>, <c>Sustain</c> and <c>sustain</c> all resolve to the same member and the
+    /// reader would accept any of them. Widening this enum therefore does not merely admit a second
+    /// spelling into the document, it admits one nothing downstream would ever object to.
     /// </remarks>
     [Fact]
     public void The_PascalCase_spelling_of_a_category_is_rejected()

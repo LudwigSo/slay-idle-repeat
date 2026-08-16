@@ -334,17 +334,26 @@ public sealed class DraftGuaranteeTests
                 LuckDocuments.ShippedDraftUpgradeFamineN),
             new DraftDemand(Stage: 3, IsBoss: false, OwnsSustainPerk: false, OwnsNonMaxedPerk: true));
 
-        forces.Select(force => force.Guarantee).Take(3).ShouldBe(new[]
+        forces.Select(force => force.Guarantee).ShouldBe(new[]
         {
             DraftGuarantee.LegendaryPity,
             DraftGuarantee.SustainAntiBrick,
             DraftGuarantee.QualityFloor,
         });
 
-        forces.Take(3).Select(force => force.SlotIndex).ShouldBe(
+        forces.Select(force => force.SlotIndex).ShouldBe(
             new[] { 0, 1, 2 },
             "four guarantees and three slots: the lowest-priority one goes unpaid this draft and its " +
             "counter stays standing, but no two forces may ever share a slot.");
+
+        // 🔒 WHICH rule went unpaid, not merely how many did. A resolution that dropped the quality
+        // floor and paid the famine third satisfies a prefix check over three, and a fourth force
+        // squeezed onto an already-forced slot satisfies one that never counts the list. Both are
+        // the same defect this file exists to catch: the draft owes four things and pays three, so
+        // the identity of the one it does not pay is the whole content of the priority order.
+        forces.Select(force => force.Guarantee).ShouldNotContain(
+            DraftGuarantee.UpgradeFamine,
+            "the famine is the lowest priority of the four, so it is the one this draft leaves owed.");
     }
 
     // ------------------------------------------------------------------ counter movement
@@ -405,6 +414,16 @@ public sealed class DraftGuaranteeTests
         Should.Throw<ArgumentNullException>(() =>
             LuckService.DraftFreshPoolWeight(null!, everDrafted: false));
         Should.Throw<ArgumentNullException>(() => LuckService.MaxCodexBiasedOptions(null!));
+
+        // Every façade member the two new grant paths add, not a sample of them: a guard is worth
+        // exactly the doors it is on, and a door added without one is the one a caller finds.
+        Should.Throw<ArgumentNullException>(() => LuckService.OwnedUpgradeBias(null!));
+        Should.Throw<ArgumentNullException>(() => LuckService.ResolveChestPick(
+            null!,
+            LuckDocuments.ShippedChestPickGuaranteeToken,
+            Core.Model.PityCounters.Empty,
+            new Core.Rng.DeterministicRng(1, Core.Rng.RngStreams.Minigame(0)),
+            tierCount: 3));
     }
 
     /// <summary>A draft of no options is a defect, not an empty force list.</summary>

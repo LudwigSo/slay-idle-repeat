@@ -209,20 +209,26 @@ internal static class GapRegister
         // guarding is answered in the PityCounterAdvanced discharge note above — the same answer,
         // because it was always the same question.
         //
-        // ⚠️ WHAT IS DISCHARGED IS THE TYPE, NOT THE Player FIELD, and the difference is worth
-        // stating because 30 §4's row is about the aggregate. PityCounters is authored as the
-        // ARGUMENT TYPE 24 §11 requires — the luck service is stateless, "takes counters as an
-        // argument and returns deltas" — and is deliberately NOT yet a field on Player. The first
-        // WRITER of a persisted counter is M4-02 (the container shelf, OPEN_* and the chest ladders,
-        // plus DROP_RUN's D1-D3), and a public field nothing writes is the producer-less shape this
-        // repository already rejects. M4-01 also did not take a SnapshotSchema.SchemaVersion: 9 is
-        // M4-13's reservation and taking it would be the head-on collision the reservations exist to
-        // prevent, while jumping to the next free number is mechanically unreachable —
-        // SnapshotFieldOrderPinTests iterates Enumerable.Range(1, SchemaVersion) and would demand
-        // pin sections for every intervening version, all owned by other tasks. M4-02 lands the
-        // field, the snapshot column and the version bump in one commit; PityCounters' own remarks
-        // and Player's class remarks both name it, because a note addressed to M4-02 is worthless in
-        // a test file M4-02 will never open.
+        // ⚠️ M4-01 DISCHARGED THE TYPE; M4-01b HAS NOW DISCHARGED THE Player FIELD TOO, and the
+        // note that used to stand here — "deliberately NOT yet a field on Player, M4-02 lands the
+        // field, the snapshot column and the version bump in one commit" — went false in that
+        // commit. It is corrected rather than left standing because its only readers are future
+        // tasks, and a note that tells M4-02 to add a field that already exists is worse than none.
+        //
+        // WHAT CHANGED THE ARGUMENT: the old reasoning was that a public field nothing writes is a
+        // producer-less shape. M4-01b produced the writer — MG_CHEST_PICK's gold-tier guarantee is
+        // PLAYER-scoped and lifetime, and parking it on the run would reset it every run and make a
+        // four-miss guarantee unreachable — so the field, the PlayerSnapshot column, the
+        // CanonicalStateWriter row and the SchemaVersion bump all landed together there. M4-02 still
+        // owns the chest ladders and DROP_RUN's D1-D3 counters; what it no longer owns is the field
+        // itself, and it must not add a second one.
+        //
+        // ⚠️ AND THE VERSION-NUMBER CONSTRAINT STANDS, restated because it is the one part of the
+        // old note that is still true and still costs a task an hour to rediscover: a reserved
+        // number cannot simply be jumped to. SnapshotFieldOrderPinTests iterates
+        // Enumerable.Range(1, SchemaVersion) and demands a pin section for every intervening
+        // version, all owned by tasks that have not run — so M4-01b took the next contiguous number
+        // rather than the one reserved for it, and a sibling collision is renumbered at merge.
 
         // 🔒 M4-13 DISCHARGED THE FeatCounters ENTRY THAT USED TO SIT HERE, in the Subject
         // direction: SlayIdleRepeat.Core.Model.FeatCounters is authored — the read-only wrapper over
