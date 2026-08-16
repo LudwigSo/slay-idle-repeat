@@ -91,11 +91,12 @@ internal sealed class BoardGraph
 
     /// <summary>Builds a board directly from an already-decided layout, bypassing generation entirely.</summary>
     /// <remarks>
-    /// Refuses a layout in which any node other than <see cref="BossNodeId"/> has no outgoing edge.
-    /// <see cref="MovementEngine.Advance"/> reads "this node has no outgoing edge" as "the boss was
-    /// reached", so a second dead end anywhere would have it announce a boss encounter at a node
-    /// that is not the boss — a malformed board must fail loudly here instead. Every fork branch
-    /// rejoins the spine, so the boss is a well-formed board's single terminus.
+    /// Refuses a layout in which any node other than the boss — the last entry of
+    /// <paramref name="spineByLinearIndex"/>, which is what <see cref="BossNodeId"/> returns — has
+    /// no outgoing edge. <see cref="MovementEngine.Advance"/> reads "this node has no outgoing
+    /// edge" as "the boss was reached", so a second dead end anywhere would have it announce a boss
+    /// encounter at a node that is not the boss — a malformed board must fail loudly here instead.
+    /// Every fork branch rejoins the spine, so the boss is a well-formed board's single terminus.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
@@ -167,16 +168,15 @@ internal sealed class BoardGraph
         var bossNodeId = spineByLinearIndex[^1];
         foreach (var node in nodes)
         {
-            if (node.Id.Equals(bossNodeId) || outgoing.ContainsKey(node.Id))
+            if (node.Id.Equals(bossNodeId) ||
+                (outgoing.TryGetValue(node.Id, out var nodeEdges) && nodeEdges.Count > 0))
             {
                 continue;
             }
 
             throw new ArgumentException(
-                $"{node.Id} has no outgoing edge, but only the boss node ({bossNodeId}) may end the " +
-                "board — every other node leads somewhere, and a fork branch rejoins the spine. " +
-                "Movement reads a dead end as a boss encounter, so this layout would announce one " +
-                $"at {node.Id}.",
+                $"{node.Id} has no outgoing edge, but only the boss node ({bossNodeId}) may end the board; " +
+                "every other node leads somewhere, and a fork branch rejoins the spine.",
                 nameof(nodes));
         }
 
