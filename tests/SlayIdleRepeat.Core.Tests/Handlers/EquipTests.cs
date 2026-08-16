@@ -19,6 +19,8 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// code would pass with two of the three rules deleted.</b> Each of those three is therefore built as
 /// a PAIR of worlds identical in every respect but the one fact the rule reads: the control has to be
 /// accepted and the variant refused, and nothing else in the setup can account for the difference.
+/// The undeclared-slot rule needs a third world on top of its pair, because the wrong-slot rule
+/// refuses its payload too — see that case.
 /// </para>
 /// <para>
 /// The two refusals with codes of their own — an unowned item and one parked in overflow — are still
@@ -33,6 +35,9 @@ public sealed class EquipTests
 
     /// <summary>A blade, so the item's own slot is <see cref="GearSlot.WEAPON"/>.</summary>
     private const string Blade = "GI_BLADE";
+
+    /// <summary>An identity no stock in this file holds.</summary>
+    private const string Ghost = "GI_GHOST";
 
     /// <summary>
     /// A slot value no hero wears. <c>GearSlot</c> has no zero member on purpose, so this is what an
@@ -82,21 +87,32 @@ public sealed class EquipTests
     // ═══════════════════════════════════════════════════════ 2 · the slot is undeclared
 
     /// <summary>
-    /// 🔒 An undeclared slot value is refused, where the identical command into a declared slot is
-    /// accepted.
+    /// 🔒 An undeclared slot value is refused before ownership is even looked at, where the
+    /// identical command into a declared slot is accepted.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The pair again, and the reason this rule has to exist at all: the loadout throws on an
     /// undeclared slot, so a handler that did not check would answer a wire payload with an
     /// exception instead of a rejection.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The owned blade alone cannot tell this rule from the wrong-slot rule.</b> No item
+    /// occupies an undeclared slot, so "the item's slot is not the commanded one" refuses that
+    /// payload too, with the same code — and the case would stay green with this rule deleted. The
+    /// item nobody owns is what separates them: the wrong-slot rule has no item to read, and the
+    /// ownership rule answers a code of its own, so <c>ILLEGAL_STATE</c> there can only be this rule
+    /// firing, and firing first.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void Equipping_into_an_undeclared_slot_is_refused_where_a_declared_one_is_accepted()
+    public void Equipping_into_an_undeclared_slot_is_refused_before_ownership_is_read()
     {
         var world = new WorldSlice(Worlds.Rehydrated(Holding(Blade)), null);
 
         var declared = Equip(world, Blade, GearSlot.WEAPON);
         var undeclared = Equip(world, Blade, Undeclared);
+        var undeclaredAndUnowned = Equip(world, Ghost, Undeclared);
 
         declared.Accepted.ShouldBeTrue(
             "the control was refused " + declared.Rejection + ". Same slice, same owned blade, no " +
@@ -111,6 +127,13 @@ public sealed class EquipTests
             RejectionReason.ILLEGAL_STATE,
             "the undeclared-slot refusal answered some other reason, so it is no longer the rule " +
             "this case pins.");
+
+        undeclaredAndUnowned.Rejection.ShouldBe(
+            RejectionReason.ILLEGAL_STATE,
+            "an undeclared slot on an item nobody owns answered " + undeclaredAndUnowned.Rejection +
+            " rather than the malformed slot. NOT_OWNED here means the slot is not checked at all " +
+            "and the wrong-slot rule is doing the refusing above — delete the slot check and " +
+            "everything else in this case still passes.");
     }
 
     // ═══════════════════════════════════════════════════════ 3 · the item is not owned
@@ -128,7 +151,7 @@ public sealed class EquipTests
         world.Player.Inventory.Held.ShouldBeEmpty(
             "the premise: nothing is in overflow, so the overflow rule cannot be what refuses this.");
 
-        var result = Equip(world, "GI_GHOST", GearSlot.WEAPON);
+        var result = Equip(world, Ghost, GearSlot.WEAPON);
 
         result.Rejection.ShouldBe(
             RejectionReason.NOT_OWNED,

@@ -168,7 +168,7 @@ public sealed class RunDropGrantTests
         Granted(result).ShouldBeEmpty("and nothing was granted, so nothing may be reported.");
 
         GearGrantWorlds.DropsPositionOf(result.NewState.Run!).ShouldBe(
-            0UL,
+            GearGrantWorlds.DropsPositionOf(world.Run!),
             "the loss moved the drops stream, so a run that lost a fight and was resumed would draw " +
             "a different sequence from the one it would have drawn had the command been replayed.");
     }
@@ -245,7 +245,9 @@ public sealed class RunDropGrantTests
 
         var result = Win(world);
 
-        Banked(result).Count.ShouldBe(1, "the premise: a drop happened, or no counter could move.");
+        Banked(result).Count.ShouldBe(
+            GearGrantWorlds.Rates().EliteKillItems,
+            "the premise: a drop happened, or no counter could move.");
 
         result.NewState.Player.PityCounters.Get(GearGrantWorlds.EliteCounterKey).ShouldBe(
             1,
@@ -273,7 +275,9 @@ public sealed class RunDropGrantTests
         var result = Win(world);
         var granted = Granted(result);
 
-        granted.Count.ShouldBe(1, "the premise: a drop happened, or no counter could move.");
+        granted.Count.ShouldBe(
+            GearGrantWorlds.Rates().EliteKillItems,
+            "the premise: a drop happened, or no counter could move.");
 
         granted[0].FromPity.ShouldBeFalse(
             "the premise: this streak is one kill short of the forced one, so the drop above the " +
@@ -298,7 +302,9 @@ public sealed class RunDropGrantTests
 
         var granted = Granted(result);
 
-        granted.Count.ShouldBe(1, "the premise: the forced kill still drops exactly what an Elite drops.");
+        granted.Count.ShouldBe(
+            GearGrantWorlds.Rates().EliteKillItems,
+            "the premise: the forced kill still drops exactly what an Elite drops.");
 
         granted[0].FromPity.ShouldBeTrue(
             "the " + breaker.ForceOnNthKill + "th Elite kill of a dry streak is the forced one, and " +

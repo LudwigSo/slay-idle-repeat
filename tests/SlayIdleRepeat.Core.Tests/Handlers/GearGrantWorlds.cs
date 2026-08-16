@@ -30,7 +30,15 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// anything, and which band an Elite drop lands on, are both decisions of a single draw at the run's
 /// committed <c>drops</c> position — so a case that wants one side of that decision asks
 /// <see cref="NormalEnemyDrawPosition"/> or <see cref="EliteDrawPosition"/> for a position that
-/// produces it, off the production rule itself rather than off a re-derivation of it.
+/// produces it.
+/// </para>
+/// <para>
+/// ⚠️ <b>The two searches are not equally trustworthy, and the difference is worth knowing.</b>
+/// <see cref="EliteDrawPosition"/> resolves through <c>LuckService</c> itself, so it cannot disagree
+/// with the engine. <see cref="NormalEnemyDrawPosition"/> re-derives the count draw here, because
+/// there is no production entry point for it short of the handler — so it also pins the SHAPE of
+/// that draw (one <c>NextDouble</c> against the authored chance) and goes red if the handler spends
+/// a different number of draws.
 /// </para>
 /// </remarks>
 internal static class GearGrantWorlds

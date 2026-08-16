@@ -72,6 +72,8 @@ public sealed class SessionFloorGrantTests
     [Fact]
     public void A_qualifying_run_that_already_produced_an_item_at_the_floors_band_is_paid_nothing()
     {
+        FloorPaysAQualifyingRun();
+
         var breaker = GearGrantWorlds.DropRun.EliteMercy;
         var kill = SlayIdleRepeat.Core.GameRules.Apply(
             GearGrantWorlds.OnKill(
@@ -113,12 +115,14 @@ public sealed class SessionFloorGrantTests
     {
         var (player, grants) = SpendTheAllowance();
 
+        // maxPerDay counts GRANTS, and one grant is grantCount items — the two are equal only while
+        // the document authors a grant of one, which it is free to stop doing.
         grants.ShouldBe(
-            Floor.MaxPerDay,
+            Floor.MaxPerDay * Floor.GrantCount,
             "the first " + Floor.MaxPerDay + " qualifying runs of the day were paid " + grants +
-            " floor grant(s) between them. luck.json authors maxPerDay as " + Floor.MaxPerDay +
-            ", so every one of them is inside the allowance and this case has nothing to say until " +
-            "they all pay.");
+            " item(s) between them. luck.json authors maxPerDay as " + Floor.MaxPerDay + " grants " +
+            "of " + Floor.GrantCount + " item(s), so every one of them is inside the allowance and " +
+            "this case has nothing to say until they all pay.");
 
         var beyond = End(GearGrantWorlds.DeadAtStage(player, QualifyingStage, "RUN_PLAYER_TEST_BEYOND"));
 
@@ -131,11 +135,15 @@ public sealed class SessionFloorGrantTests
     /// <summary>A death short of the qualifying stage is paid nothing.</summary>
     /// <remarks>
     /// The same world as the paying case in every respect but the stage the hero died on, so the
-    /// qualification rule is the only thing that can account for the difference.
+    /// qualification rule is the only thing that can account for the difference — and the paying
+    /// half is driven here rather than left to a sibling case, because "nothing was granted" is
+    /// satisfied just as well by a floor that is not wired at all.
     /// </remarks>
     [Fact]
     public void A_death_short_of_the_qualifying_stage_is_paid_nothing()
     {
+        FloorPaysAQualifyingRun();
+
         Floor.RequiresVictoryOrStage3Death.ShouldBeTrue(
             "the premise: luck.json still requires a victory or a stage-3 death. Turned off, this " +
             "case is asserting a rule the document no longer states.");
@@ -155,6 +163,21 @@ public sealed class SessionFloorGrantTests
     }
 
     // ═══════════════════════════════════════════════════════════ the drives
+
+    /// <summary>
+    /// The control every "paid nothing" case above opens with: a qualifying run over its own fresh
+    /// player IS paid, so an empty payout below is the case's own rule and not an unwired floor.
+    /// </summary>
+    /// <remarks>
+    /// Its own player and its own run identity, so it can neither spend the caller's daily allowance
+    /// nor collide with the caller's floor-grant instance ids.
+    /// </remarks>
+    private static void FloorPaysAQualifyingRun() =>
+        Granted(End(GearGrantWorlds.DeadAtStage(NewPlayer(), QualifyingStage, "RUN_PLAYER_TEST_CONTROL")))
+            .Count.ShouldBe(
+                Floor.GrantCount,
+                "the control was paid nothing, so the floor is not wired at all and everything this " +
+                "case asserts about being paid nothing would hold over an empty handler.");
 
     /// <summary>The day's whole allowance of qualifying runs, and how many grants they were paid.</summary>
     /// <remarks>

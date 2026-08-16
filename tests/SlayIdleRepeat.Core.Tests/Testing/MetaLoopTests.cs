@@ -217,14 +217,14 @@ public sealed class MetaLoopTests
         // 🔒 The premise, asserted rather than narrated: "the stock grew across a run" is a claim
         // about a run that actually fought something. A run that refused every command would make
         // the assertion below fail for a reason that has nothing to do with the grant path.
-        driver.BattlesWon.ShouldBeGreaterThan(
-            0, "no battle was won, so nothing was ever in a position to drop gear." + Trace(driver));
-
-        driver.Tiles.ShouldContain(
+        // KillsWon, not Tiles: an Elite the run merely ARRIVED at owes nothing — the drop is owed by
+        // the kill — so a board that offered one and a hero that lost to it would leave the
+        // assertion below a coin toss again.
+        driver.KillsWon.ShouldContain(
             TileKind.Elite,
-            "this board resolved no Elite tile, so no kill on it is guaranteed to drop and the " +
-            "assertion below is back to being a coin toss. Pick a start instant whose reachable " +
-            "tiles include one — see DropStart." + Trace(driver));
+            "this run won no Elite battle, so no kill it made is guaranteed to drop. Pick a start " +
+            "instant whose reachable tiles include an Elite the hero beats — see DropStart." +
+            Trace(driver));
 
         var banked = Owned(game, player).Except(before).ToArray();
 

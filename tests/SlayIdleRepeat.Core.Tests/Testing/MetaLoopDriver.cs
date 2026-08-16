@@ -81,6 +81,7 @@ internal sealed class MetaLoopDriver
     private readonly HashSet<int> _seen = [];
     private readonly List<int> _visited = [];
     private readonly List<TileKind> _tiles = [];
+    private readonly List<TileKind> _killed = [];
 
     /// <summary>Which option of a choice this player is on. Reset the moment one is accepted.</summary>
     private int _choice;
@@ -115,6 +116,16 @@ internal sealed class MetaLoopDriver
 
     /// <summary>How many of those were won.</summary>
     internal int BattlesWon { get; private set; }
+
+    /// <summary>
+    /// The kind of tile behind every battle this run <em>won</em>, in order.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Tiles"/> says what the run arrived at, which is not the same claim: a case that
+    /// needs an Elite to have <b>died</b> — a drop is owed by the kill, not by the encounter — would
+    /// otherwise be satisfied by a board that offered one and a hero that lost to it.
+    /// </remarks>
+    internal IReadOnlyList<TileKind> KillsWon => _killed;
 
     /// <summary>How many drafts the run opened and this player skipped.</summary>
     internal int DraftsSkipped { get; private set; }
@@ -231,6 +242,10 @@ internal sealed class MetaLoopDriver
                     if (confirmed.Won)
                     {
                         BattlesWon++;
+
+                        // Off the run as it stood BEFORE the command: the confirmation clears the
+                        // pending tile, so the kind is gone by the time the result comes back.
+                        _killed.Add((TileKind)run.PendingTileKindValue);
                     }
 
                     break;
