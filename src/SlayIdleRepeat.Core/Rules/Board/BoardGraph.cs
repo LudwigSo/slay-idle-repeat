@@ -35,7 +35,11 @@ internal sealed class BoardGraph
     /// <summary>The trailhead's first possible landing — the spine node at linear index 0.</summary>
     public NodeId FirstNodeId => _spineByLinearIndex[0];
 
-    /// <summary>The boss node — always the last entry of the linear index (index 42).</summary>
+    /// <summary>
+    /// The boss node — always the last entry of the linear index (index 42), and the one node
+    /// <see cref="FromLayout"/> lets a layout leave without an outgoing edge. Changing which entry
+    /// this picks changes which node that guard exempts.
+    /// </summary>
     public NodeId BossNodeId => _spineByLinearIndex[^1];
 
     /// <summary>Every node this board contains, spine, branch and boss alike.</summary>

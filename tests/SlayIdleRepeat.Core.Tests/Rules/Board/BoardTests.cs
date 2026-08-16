@@ -239,25 +239,12 @@ public sealed class BoardTests
     private static IReadOnlyList<ChapterBoardConfig> SweepConfigs() => new[]
     {
         BoardFixtures.ChapterOneConfig(),
-        ShippedChapterTwoConfig(),
+        BoardFixtures.ChapterTwoConfig(),
         BoardFixtures.TinyConfig(),
         SingleKindConfig(chapterId: 81, TileKind.Portal),
         SingleKindConfig(chapterId: 82, TileKind.Curse),
         UnevenStageGeometryConfig(),
     };
-
-    /// <summary>Chapter 2's shipped board numbers — its curse/elite weights climb where chapter 1's do not.</summary>
-    private static ChapterBoardConfig ShippedChapterTwoConfig() => ChapterBoardConfig.From(
-        chapterId: 2,
-        stageLengths: new[] { 12, 14, 16 },
-        eliteCount: new[] { 1, 2, 2 },
-        tileWeights: new[]
-        {
-            SweepWeights(empty: 6, curse: 9, elite: 7),
-            SweepWeights(empty: 4, curse: 10, elite: 8),
-            SweepWeights(empty: 2, curse: 11, elite: 9),
-        },
-        bossId: "BOSS_GULGROT");
 
     /// <summary>
     /// A table the weighted draw can only answer one way, so every other tile on the board came
@@ -284,25 +271,8 @@ public sealed class BoardTests
         chapterId: 83,
         stageLengths: new[] { 8, 20, 9 },
         eliteCount: new[] { 1, 2, 2 },
-        tileWeights: new[] { SweepWeights(), SweepWeights(), SweepWeights() },
+        tileWeights: new[] { BoardFixtures.DefaultWeights(), BoardFixtures.DefaultWeights(), BoardFixtures.DefaultWeights() },
         bossId: "BOSS_TEST");
-
-    private static Dictionary<TileKind, double> SweepWeights(
-        double empty = 12, double curse = 6, double elite = 4) => new()
-    {
-        [TileKind.Enemy] = 34,
-        [TileKind.Empty] = empty,
-        [TileKind.Shrine] = 9,
-        [TileKind.Treasure] = 8,
-        [TileKind.Event] = 8,
-        [TileKind.Minigame] = 7,
-        [TileKind.Curse] = curse,
-        [TileKind.Shop] = 5,
-        [TileKind.Elite] = elite,
-        [TileKind.Cache] = 3,
-        [TileKind.Portal] = 2,
-        [TileKind.DiceForge] = 2,
-    };
 
     /// <summary>Every node reachable from <see cref="CoreBoard.FirstNodeId"/>, walked through the public API.</summary>
     private static IReadOnlyCollection<NodeId> Reachable(CoreBoard board)
