@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
@@ -43,7 +44,25 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   <item>A <c>const</c> read across the boundary in arm 2 — the compiler folds it, so no type
 ///   reference survives into metadata. The same hole <c>IntraRulesLayeringRuleTests</c> records,
 ///   and narrow for the same reason: none of the four guarantee types declares a <c>const</c> a
-///   caller outside the namespace could want.</item>
+///   caller outside the namespace could want. ⚠️ The <em>counter-key</em> vocabulary has exactly
+///   that shape and is <b>not</b> left to this hole:
+///   <see cref="No_pity_counter_key_is_spelled_outside_the_tuning_reader"/> reads the separator out
+///   of <c>LuckTuning</c>'s field constant in metadata, which is the one place a folded
+///   <c>const</c> still exists.</item>
+///   <item><b>Everything outside <c>SlayIdleRepeat.Core</c>.</b> Both arms are stated over
+///   <c>ProductionAssemblies.CoreModule</c>, so a producer written in <c>Application</c> — a use
+///   case that assembles a grant itself instead of loading a slice and calling the rules — is
+///   invisible here. That is a deliberate scope, not an oversight: `23` §2.0a already forbids a
+///   game rule in a use case and <c>DependencyRuleTests</c> is where that claim lives. It is listed
+///   because "no grant bypasses the façade" reads like a whole-solution claim and is not one.</item>
+///   <item>A method that reaches a type whose <em>simple name</em> is <c>LuckService</c> —
+///   <see cref="RoutesThrough"/> matches on the simple name so that the fixtures below can drive
+///   the same predicate the rule does. A second type called <c>LuckService</c> anywhere in
+///   <c>Core</c> would launder a bypass;
+///   <see cref="The_routing_rules_subject_set_is_the_one_it_was_written_against"/> pins the real one
+///   to <see cref="LuckNamespace"/> but does not forbid a namesake beside it.</item>
+///   <item>An <c>Application</c>- or <c>Server</c>-side hand-composed counter key. Arm 3 scans
+///   <c>Core</c> for the same reason the other two do.</item>
 /// </list>
 /// <para>
 /// 🔒 The namespace constant is <b>read</b> from <c>IntraRulesLayeringRuleTests</c> rather than
@@ -62,6 +81,80 @@ public sealed class LuckRoutingRuleTests
 
     /// <summary>The namespace the façade and its primitives live in, read from R17's own declaration.</summary>
     private const string LuckNamespace = IntraRulesLayeringRuleTests.LuckNamespace;
+
+    /// <summary>The one type permitted to spell a counter key — `24` §3's reader of the authored keys.</summary>
+    private const string CounterKeyFormationPoint = "LuckTuning";
+
+    /// <summary>Where it lives. Read from <c>Domain</c> so a namespace rename cannot orphan arm 3.</summary>
+    private const string FormationPointNamespace = Domain.ContentNamespace;
+
+    /// <summary>The field constant that pairs an authored key to the guarantee it protects.</summary>
+    private const string CounterKeySeparatorField = "CounterKeySeparator";
+
+    /// <summary>The document `24` §3's counter keys are authored in, relative to the repo root.</summary>
+    private const string CounterKeyDocument = "game-data/tuning/luck.json";
+
+    /// <summary>The pointer the source-class registry is authored under.</summary>
+    private const string SourceClassesMember = "sourceClasses";
+
+    /// <summary>The member of a registry row holding the authored counter key. May be an authored null.</summary>
+    private const string CounterKeyMember = "counterKey";
+
+    /// <summary>
+    /// The floor under arm 3's key set. Eight of the ten classes author a key on the commit this
+    /// landed (<c>ENHANCE</c> and <c>DRAFT</c> author an explicit null — their counters are not
+    /// player-scoped); set below that so re-scoping one class is not a test edit.
+    /// </summary>
+    private const int AuthoredCounterKeyFloor = 6;
+
+    /// <summary>
+    /// The identity under that floor — `24` §4.1's ten-chest ladder, the most-drawn protected source
+    /// in the game. An identity floor rather than a count alone (steering S3).
+    /// </summary>
+    private const string KnownCounterKey = "chest.standard";
+
+    /// <summary>
+    /// `24` §3's authored counter keys, read out of the shipped registry rather than transcribed.
+    /// </summary>
+    /// <remarks>
+    /// Throws rather than answering an empty list on a missing or reshaped document: arm 3 matches
+    /// literals against this set, so returning nothing would turn "the registry moved" into "no
+    /// hand-composed key exists anywhere", forever. Same argument
+    /// <c>RepoLayout.SourceFiles</c> makes for a missing directory.
+    /// </remarks>
+    private static readonly Lazy<IReadOnlyList<string>> AuthoredCounterKeys = new(() =>
+    {
+        var path = Path.Combine(RepoLayout.RepoRoot, CounterKeyDocument.Replace('/', Path.DirectorySeparatorChar));
+
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException(
+                $"'{CounterKeyDocument}' does not exist, so the counter keys arm would match nothing " +
+                "and report success over every hand-composed key in Core. Point it at the document's " +
+                "new home.",
+                path);
+        }
+
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+
+        if (!document.RootElement.TryGetProperty(SourceClassesMember, out var registry) ||
+            registry.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException(
+                $"'{CounterKeyDocument}' authors no '{SourceClassesMember}' array. 24 §3's counter " +
+                "keys are read from it, and a rule stated over an empty set of keys is a rule that " +
+                "cannot fail.");
+        }
+
+        return registry.EnumerateArray()
+            .Where(row => row.TryGetProperty(CounterKeyMember, out var key) &&
+                          key.ValueKind == JsonValueKind.String)
+            .Select(row => row.GetProperty(CounterKeyMember).GetString()!)
+            .Where(key => key.Length > 0)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(key => key, StringComparer.Ordinal)
+            .ToArray();
+    });
 
     /// <summary>
     /// 🔒 The closed list of type simple names that <b>are</b> a grant outcome — what "producing a
@@ -173,9 +266,12 @@ public sealed class LuckRoutingRuleTests
     /// grant anything.
     /// </para>
     /// <para>
-    /// The declaring type of a grant-outcome type is excluded from the subject set: a record's own
-    /// constructor and equality members mention their own type in every signature, and reporting
-    /// them would make the rule noise rather than a rule.
+    /// A grant-outcome type's own <em>bookkeeping members</em> are excluded — its constructor, its
+    /// equality, printing and deconstruction members, its accessors — because a record mentions its
+    /// own type in those signatures whether or not it grants anything, and reporting them would make
+    /// the rule noise rather than a rule. 🔴 The <em>type</em> was excluded originally, which also
+    /// hid a hand-written factory declared on the outcome (<c>GearInstance.Roll()</c>) — see
+    /// <see cref="ScannedTypes"/>.
     /// </para>
     /// <para>
     /// 🔒 <b>Proved to bite, on real production IL.</b> Renaming <c>PerkDraftEngine</c>'s row in
@@ -187,13 +283,33 @@ public sealed class LuckRoutingRuleTests
     /// now-uncovered row. Reverted. The arm is therefore quantifying over a live production
     /// producer, not over an empty set.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>And the uncomfortable half of that, stated rather than left to be discovered.</b> Every
+    /// method in <c>Core</c> that trips this predicate today is on <see cref="RoutingExemptions"/>:
+    /// <c>Rarity</c> is carried only by the tuning reader and its rung rows, <c>DraftOption</c> only
+    /// by the draft engine and its handler. The arm therefore reports zero offenders because the
+    /// four exempted rows cover all four producers — not because nothing in <c>Core</c> produces a
+    /// grant. What keeps that from being a rule asleep is
+    /// <see cref="Every_exempted_producer_still_needs_its_exemption"/>, which drives this same
+    /// predicate over those four types and <em>requires</em> it to answer true. The two facts
+    /// together say "the predicate fires on real production IL, and the only things it fires on are
+    /// the four we named"; neither says it alone.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Re-probed in the architecture review, in two shapes with a control.</b> An unexempted
+    /// probe type under <c>Rules/Perks/</c> answering a bare <c>Rarity</c> and a second method
+    /// handing back an <c>out IReadOnlyList&lt;Rarity&gt;</c> were both reported — so the matcher
+    /// flattens a generic wrapper and reads an <c>out</c> parameter, not only a return type. A third
+    /// method on the same type answering a <c>Rarity</c> <em>and</em> calling
+    /// <c>LuckService.AccrueMercy</c> was correctly not reported. Reverted.
+    /// </para>
     /// </remarks>
     [Fact]
     public void No_grant_outcome_is_produced_outside_the_luck_service()
     {
         var exempted = RoutingExemptions.Select(e => e.Type).ToArray();
 
-        var offenders = ScannedMethods()
+        var offenders = ScannedMethods(ProductionAssemblies.CoreModule)
             .Where(subject => !exempted.Contains(subject.Type.Name, StringComparer.Ordinal))
             .Where(subject => BypassesTheFacade(subject.Method, LuckFacade))
             .Select(subject =>
@@ -255,6 +371,16 @@ public sealed class LuckRoutingRuleTests
     /// two of the three call sites left the third, so the type reference survived. This floor is a
     /// claim about the façade reaching the primitive <b>at all</b>, not about any one call site, and
     /// a partial inlining is invisible to it — the same class of hole every "names it" rule has.
+    /// 🔒 <b>Narrowed by the architecture review, and the narrowing was mutation-proved.</b> "Names
+    /// it" is satisfied by a parameter type, a local or a <c>typeof</c>, so the floor now <em>also</em>
+    /// requires the façade to CALL a member of each of the four. Two shapes were run: rewriting
+    /// <c>AccrueMercy</c>/<c>RedeemMercy</c> as inline arithmetic while keeping
+    /// <c>typeof(MercyAccrual)</c> reported <em>"'LuckService' names 'MercyAccrual' but never calls a
+    /// member of it"</em> — and the old "names it" half stayed <b>green</b>, which is precisely the
+    /// hole the narrowing closes; the same treatment of <c>SoftPity</c> reported it in turn. The
+    /// control in that second run moved <c>MercyAccrual.Accrue</c> into a private helper — still a
+    /// call, from a different site — and was correctly not reported. All reverted. A partial
+    /// inlining remains invisible to both halves.
     /// </para>
     /// </remarks>
     [Fact]
@@ -363,8 +489,33 @@ public sealed class LuckRoutingRuleTests
         // so it is named whether or not a single line of the body survives, and an at-least-one
         // floor would be satisfied by the locked signature alone. HardPity, SoftPity and
         // MercyAccrual are the three a body has to reach for.
+        // 🔒 And the narrowing of that floor's own stated limit. "Names it" is satisfied by a
+        // parameter type, a local or a typeof — so a façade that kept a HardPity-typed local while
+        // reimplementing Fires inline would still pass the arm above. "Calls a member of it" is the
+        // claim the docs actually make about the façade, and it is strictly narrower. BOTH are
+        // asserted rather than one replacing the other: the "names it" arm is stated with arm 2's
+        // OWN matcher (Il.ReferencedTypeNames), so a change that blinded that matcher fails here
+        // instead of turning arm 2 permanently green, and the call arm cannot make that claim
+        // because it walks the instruction stream instead.
+        // ⚠️ What neither closes: a PARTIAL inlining. Both are claims about the façade reaching the
+        // primitive at all, so inlining two of three HardPity call sites leaves both green — that is
+        // recorded in arm 2's own remarks, was found by mutation rather than by reading, and is the
+        // same class of hole every "names it" rule has.
         if (facade is not null)
         {
+            var called = GuaranteePrimitivesCalledBy(facade);
+
+            foreach (var primitive in GuaranteePrimitives.Except(called, StringComparer.Ordinal))
+            {
+                offenders.Add(
+                    $"'{LuckFacade}' names '{primitive}' but never calls a member of it. 24 §11's " +
+                    "one place a guarantee can fire is the primitive, and a façade that holds the " +
+                    "type without invoking it has moved the decision into itself — which is the " +
+                    "second place the rule forbids, reached from inside. If the primitive genuinely " +
+                    "stopped being the façade's to call, say where the call went and drop it from " +
+                    "GuaranteePrimitives in the same commit.");
+            }
+
             var reached = GuaranteePrimitivesReachedBy(facade);
 
             foreach (var primitive in GuaranteePrimitives.Except(
@@ -402,7 +553,7 @@ public sealed class LuckRoutingRuleTests
         // stopped seeing through IReadOnlyList<T> the arm would report success over an empty set of
         // producers while every name in GrantOutcomeTypes still resolved. Stated over the LIVE names
         // only: three of the five are pre-registered for milestones that have not run.
-        var produced = ScannedMethods()
+        var produced = ScannedMethods(ProductionAssemblies.CoreModule)
             .SelectMany(subject => GrantOutcomeNamesIn(subject.Method))
             .Distinct(StringComparer.Ordinal)
             .ToArray();
@@ -421,7 +572,7 @@ public sealed class LuckRoutingRuleTests
             }
         }
 
-        var scanned = ScannedTypes().Count();
+        var scanned = ScannedTypes(ProductionAssemblies.CoreModule).Count();
 
         if (scanned < ScannedTypeFloor)
         {
@@ -457,7 +608,7 @@ public sealed class LuckRoutingRuleTests
 
         foreach (var (type, reason) in RoutingExemptions)
         {
-            var methods = ScannedMethods()
+            var methods = ScannedMethods(ProductionAssemblies.CoreModule)
                 .Where(subject => subject.Type.Name.Equals(type, StringComparison.Ordinal))
                 .ToArray();
 
@@ -484,6 +635,132 @@ public sealed class LuckRoutingRuleTests
             offenders,
             "Every routing exemption still covers a producer that genuinely bypasses LuckService " +
             "(24 §11, 23 §6).");
+    }
+
+    /// <summary>
+    /// 🔒 `24` §11 / `24` §3 — <b>a pity counter key is formed in exactly one place.</b> No type in
+    /// <c>Core</c> outside <see cref="CounterKeyFormationPoint"/> spells an authored counter key as
+    /// a literal, on its own or with the separator that pairs it to a guarantee.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Why the two arms above are not enough, and this is not a third statement of them.</b>
+    /// `24` §11 makes two claims, and the arms above answer only the second. "A guarantee can fire
+    /// in one place" is about the <em>decision</em>, and <c>HardPity</c> is that place. But `24` §3
+    /// makes the counter <em>keys</em> authored data — <c>chest.standard</c>, <c>drop.run</c>,
+    /// <c>minigame.chestpick</c> — and <c>CHEST_STANDARD</c> runs three ladders at once, so a
+    /// counter is addressed by pairing an authored key with the guarantee it protects. That pairing
+    /// is formed in one place too (<c>LuckTuning.CounterKey</c>), and nothing was watching it: a
+    /// caller writing <c>"chest.standard:" + rarity</c> by hand reads the right counter today and
+    /// the wrong one — silently, with no counter to show for it — the day the key is re-authored.
+    /// A pity counter that quietly starts over is the exact failure `24` §1.1's "never reset"
+    /// exists to forbid, and it would be invisible in every test that builds its own map.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The authored keys are read from the shipped document, not transcribed.</b> A
+    /// hand-written list here would be a second statement of `24` §3's table, and the two would
+    /// drift in exactly the direction that matters: a key renamed in <c>luck.json</c> and left here
+    /// leaves the rule guarding a spelling nobody uses.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The separator is read out of the production <c>const</c>'s metadata</b>, which is the
+    /// answer to steering S18 rather than a victim of it. The compiler folds a <c>const</c> at every
+    /// <em>use</em> site, so no IL rule can see it being read — but the <em>declaration</em> survives
+    /// as a field constant, and that is what this reads. A rename or a re-spelling of
+    /// <c>CounterKeySeparator</c> therefore moves this rule with it instead of leaving it matching
+    /// a colon nobody writes.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What it cannot see.</b> A key assembled from a fragment that is not the whole authored
+    /// key (<c>"chest." + "standard"</c>), a key read from somewhere other than <c>luck.json</c>,
+    /// and — as everywhere else in this file — anything outside <c>Core</c>. It closes the spelling
+    /// a bypass would actually be written in, not every spelling one could be.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Proved to bite, on real production IL, in two shapes with a discriminating control.</b>
+    /// A probe type under <c>Rules/Perks/</c> composing <c>"chest.standard:" + Rarity.A</c> was
+    /// reported as <em>"spells the authored counter key 'chest.standard' as the literal
+    /// \"chest.standard:\""</em>; a second method returning the bare <c>"drop.run"</c> was reported
+    /// as <em>"spells the authored counter key 'drop.run'"</em>. A third method on the same type
+    /// returning <c>"chest.standard.total"</c> — which <em>starts with</em> an authored key and is
+    /// not one — was correctly ignored, so the match is the key-plus-separator pairing rather than a
+    /// substring. Both floors were probed separately: the count floor raised past the real set
+    /// reported <em>"game-data/tuning/luck.json yields 8 authored counter keys; the floor is 99"</em>,
+    /// the identity floor pointed at a key nothing authors reported <em>"'chest.nonexistent' is not
+    /// among the authored counter keys"</em>, and pointing the separator read at a field
+    /// <c>LuckTuning</c> does not declare threw <em>"'LuckTuning' declares no constant
+    /// 'NotADeclaredConstant'"</em> rather than falling back to a guessed colon. All reverted.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void No_pity_counter_key_is_spelled_outside_the_tuning_reader()
+    {
+        var keys = AuthoredCounterKeys.Value;
+        var separator = CounterKeySeparatorDeclaredInCore();
+        var offenders = new List<string>();
+
+        foreach (var type in Il.AllTypes(ProductionAssemblies.CoreModule)
+                     .Where(t => !Domain.IsCompilerGenerated(t))
+                     .Where(t => !Il.NamespaceOf(t).Equals(FormationPointNamespace, StringComparison.Ordinal) ||
+                                 !t.Name.Equals(CounterKeyFormationPoint, StringComparison.Ordinal)))
+        {
+            foreach (var method in Il.AllMethods(type))
+            {
+                foreach (var instruction in Il.Instructions(method))
+                {
+                    if (instruction.OpCode.Code != Code.Ldstr ||
+                        instruction.Operand is not string literal)
+                    {
+                        continue;
+                    }
+
+                    var spelled = keys.FirstOrDefault(
+                        key => literal.Equals(key, StringComparison.Ordinal) ||
+                               literal.StartsWith(key + separator, StringComparison.Ordinal));
+
+                    if (spelled is null)
+                    {
+                        continue;
+                    }
+
+                    offenders.Add(
+                        $"{Il.Describe(method)} spells the authored counter key '{spelled}' as the " +
+                        $"literal \"{literal}\". 24 §3 authors the counter keys in " +
+                        $"{CounterKeyDocument}, and {CounterKeyFormationPoint}.CounterKey is the one " +
+                        "place a key is formed out of them — a hand-composed key addresses the right " +
+                        "counter until the document renames it, and then addresses a counter nobody " +
+                        "writes, which reads to the player as a pity counter that silently started " +
+                        "over. Ask the tuning reader for the key.");
+                }
+            }
+        }
+
+        // 🔒 S3 — the floors, in both directions. This is "no literal matches any authored key", so
+        // it passes forever if the authored set empties (a renamed pointer, a moved document) or if
+        // the separator read comes back as something no key is formed with.
+        if (keys.Count < AuthoredCounterKeyFloor)
+        {
+            offenders.Add(
+                $"{CounterKeyDocument} yields {keys.Count} authored counter keys; the floor is " +
+                $"{AuthoredCounterKeyFloor}. The rule matches literals against that set, so an empty " +
+                "or shrunken one reports success over every hand-composed key in Core. If the " +
+                "registry legitimately moved, point this at the new pointer — do not lower the floor " +
+                "to whatever is left.");
+        }
+
+        if (!keys.Contains(KnownCounterKey, StringComparer.Ordinal))
+        {
+            offenders.Add(
+                $"'{KnownCounterKey}' is not among the authored counter keys. It is the identity " +
+                "under the count above: 24 §4.1's ten-chest ladder is the most-drawn protected " +
+                "source in the game, and a set that no longer contains it is a set this rule was not " +
+                "written against, whatever its size.");
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "24 §3 / 24 §11: the pity counter keys are authored data, and LuckTuning.CounterKey is " +
+            "the one place a counter id is formed out of them.");
     }
 
     /// <summary>
@@ -524,24 +801,112 @@ public sealed class LuckRoutingRuleTests
             "a method that produces no grant outcome is not a bypass, however little it mentions the " +
             "façade. If this is true the predicate is keyed on the absent call alone and would " +
             "report every method in the assembly.");
+
+        // 🔒 The second shape, and the question the three cases above cannot answer: does the rule
+        // bite the day M4-03's gear generator lands? A batch generator answering
+        // IReadOnlyList<GearInstance> is at least as likely as one answering a single instance, and
+        // it only trips the predicate if Il.SignatureTypes and Il.Flatten see through the wrapper.
+        Assert.True(
+            BypassesTheFacade(Fixture(nameof(LuckRoutingFixtures.GeneratesManyWithoutRouting)), LuckFacade),
+            "a generator answering a COLLECTION of grant outcomes is producing them just as surely " +
+            "as one answering a single instance, and a chest opens several items at once. If this is " +
+            "false the matcher cannot see through a generic wrapper and M4-03's most likely shape " +
+            "walks straight past the rule.");
+
+        // 🔒 The scan, not just the predicate. A producer declared ON the outcome type —
+        // GearInstance.Roll(), the factory shape — was invisible to the first version of this rule
+        // because ScannedTypes dropped the whole type. Driven over this assembly's own metadata,
+        // because the shape being proved is the violation.
+        var scannedFixtures = ScannedMethods(SuiteAssembly.Module)
+            .Where(subject => subject.Type.Name.Equals(
+                nameof(LuckRoutingFixtures.GearInstance), StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.True(
+            scannedFixtures.Any(subject =>
+                subject.Method.Name.Equals(
+                    nameof(LuckRoutingFixtures.GearInstance.Roll), StringComparison.Ordinal) &&
+                BypassesTheFacade(subject.Method, LuckFacade)),
+            "a hand-written factory declared on the grant outcome itself is the single most likely " +
+            "shape M4-03 will write, and it must be scanned like any other producer. If this is " +
+            "false the type-level exclusion is back and the rule reports success on the exact commit " +
+            "it exists to catch.");
+
+        // 🔒 The negative control for that narrowing, over REAL production IL. A record mentions its
+        // own type in its equality and printing members whether or not it grants anything, and
+        // reporting those would make the rule noise rather than a rule. DraftOption is a live
+        // readonly record struct in Core with nothing but synthesized members.
+        Assert.DoesNotContain(
+            ScannedMethods(ProductionAssemblies.CoreModule),
+            subject => subject.Type.Name.Equals("DraftOption", StringComparison.Ordinal));
     }
 
     /// <summary>
-    /// Types in <c>Core</c> the routing arm quantifies over: everything outside <c>Rules.Luck</c>,
-    /// less the compiler's own and less the grant-outcome types themselves.
+    /// Types a module's routing arm quantifies over: everything outside <c>Rules.Luck</c>, less the
+    /// compiler's own.
     /// </summary>
-    private static IEnumerable<TypeDefinition> ScannedTypes() =>
-        Il.AllTypes(ProductionAssemblies.CoreModule)
+    /// <remarks>
+    /// 🔴 <b>It no longer excludes the grant-outcome types themselves, and that was a hole.</b> The
+    /// first version dropped every type whose simple name was in <see cref="GrantOutcomeTypes"/>,
+    /// because a record mentions its own type in its constructor and its equality members and
+    /// reporting those would be noise. But the shape M4-03 is most likely to write is a factory
+    /// <em>on</em> the outcome — <c>GearInstance.Roll(…)</c> — and a whole-type exclusion made
+    /// exactly that invisible: the rule would have reported success on the commit it exists to
+    /// catch. The exclusion is now per-member (<see cref="MentionsItsOwnTypeByConstruction"/>), so
+    /// the synthesized members are still silent and a hand-written producer is not.
+    /// <see cref="The_routing_predicate_catches_a_bypassing_producer_and_passes_a_routed_one"/>
+    /// drives both halves of that against real IL.
+    /// </remarks>
+    /// <param name="module">The module to scan — <c>Core</c> for the rules, this assembly for the teeth.</param>
+    /// <returns>The scanned types.</returns>
+    private static IEnumerable<TypeDefinition> ScannedTypes(ModuleDefinition module) =>
+        Il.AllTypes(module)
           .Where(t => !Domain.IsCompilerGenerated(t))
-          .Where(t => !Il.IsUnder(Il.NamespaceOf(t), LuckNamespace))
-          .Where(t => !GrantOutcomeTypes.Contains(t.Name, StringComparer.Ordinal));
+          .Where(t => !Il.IsUnder(Il.NamespaceOf(t), LuckNamespace));
 
     /// <summary>Every author-written method on a scanned type, with the type it belongs to.</summary>
-    private static IEnumerable<(TypeDefinition Type, MethodDefinition Method)> ScannedMethods() =>
-        ScannedTypes().SelectMany(
+    /// <param name="module">The module to scan.</param>
+    /// <returns>The scanned methods, paired with their declaring types.</returns>
+    private static IEnumerable<(TypeDefinition Type, MethodDefinition Method)> ScannedMethods(
+        ModuleDefinition module) =>
+        ScannedTypes(module).SelectMany(
             type => Il.AllMethods(type)
                       .Where(m => !Domain.IsCompilerGenerated(m))
+                      .Where(m => !MentionsItsOwnTypeByConstruction(type, m))
                       .Select(m => (Type: type, Method: m)));
+
+    /// <summary>
+    /// The members of a grant-outcome type that carry its own name whether or not it grants
+    /// anything: a record's constructor, its equality, printing and deconstruction members, and its
+    /// property accessors.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than detected. Cecil marks only <c>&lt;Clone&gt;$</c> and the equality-contract
+    /// getter with <c>CompilerGeneratedAttribute</c>, so <c>Domain.IsCompilerGenerated</c> sees
+    /// through none of the rest — a synthesized <c>Equals(DraftOption)</c> is indistinguishable from
+    /// a hand-written one in metadata, and the list is the honest way to say which names are
+    /// bookkeeping.
+    /// </remarks>
+    private static readonly string[] SelfNamingMembers =
+    {
+        ".ctor",
+        ".cctor",
+        "<Clone>$",
+        "Deconstruct",
+        "Equals",
+        "GetHashCode",
+        "PrintMembers",
+        "ToString",
+        "op_Equality",
+        "op_Inequality",
+    };
+
+    /// <summary>True for a member that names its own grant-outcome type by construction.</summary>
+    private static bool MentionsItsOwnTypeByConstruction(TypeDefinition type, MethodDefinition method) =>
+        GrantOutcomeTypes.Contains(type.Name, StringComparer.Ordinal) &&
+        (method.IsGetter ||
+         method.IsSetter ||
+         SelfNamingMembers.Contains(method.Name, StringComparer.Ordinal));
 
     /// <summary>
     /// True for a method that answers or accepts a grant outcome and never names the façade.
@@ -572,6 +937,51 @@ public sealed class LuckRoutingRuleTests
                  .ToArray();
     }
 
+    /// <summary>
+    /// The guarantee primitives whose <b>members a type actually invokes</b> — the narrower half of
+    /// the façade floor, walking the instruction stream rather than the reference table.
+    /// </summary>
+    private static string[] GuaranteePrimitivesCalledBy(TypeDefinition type) =>
+        Il.AllMethods(type)
+          .SelectMany(Il.Instructions)
+          .Where(instruction => instruction.OpCode.Code is Code.Call or Code.Callvirt or Code.Newobj)
+          .Select(instruction => instruction.Operand)
+          .OfType<MethodReference>()
+          .Select(callee => callee.DeclaringType.Name)
+          .Where(name => GuaranteePrimitives.Contains(name, StringComparer.Ordinal))
+          .Distinct(StringComparer.Ordinal)
+          .OrderBy(name => name, StringComparer.Ordinal)
+          .ToArray();
+
+    /// <summary>
+    /// The counter-key separator, read out of the production <c>const</c>'s <b>declaration</b> in
+    /// metadata — the one place a folded constant still exists (steering S18).
+    /// </summary>
+    /// <returns>The separator character.</returns>
+    private static char CounterKeySeparatorDeclaredInCore()
+    {
+        var reader = Domain.FindInCore(CounterKeyFormationPoint)
+            ?? throw new InvalidOperationException(
+                $"'{CounterKeyFormationPoint}' is not declared in Core, so there is no counter-key " +
+                "formation point for arm 3 to exempt — and no separator to read. If the tuning " +
+                "reader was renamed, rename CounterKeyFormationPoint in the same commit.");
+
+        var field = reader.Fields.FirstOrDefault(
+            f => f.Name.Equals(CounterKeySeparatorField, StringComparison.Ordinal) && f.HasConstant)
+            ?? throw new InvalidOperationException(
+                $"'{CounterKeyFormationPoint}' declares no constant '{CounterKeySeparatorField}'. " +
+                "Arm 3 pairs an authored key to its guarantee with that character; guessing one here " +
+                "would leave the rule matching a spelling production does not use.");
+
+        return field.Constant is char separator
+            ? separator
+            : throw new InvalidOperationException(
+                $"'{CounterKeyFormationPoint}.{CounterKeySeparatorField}' is not a char constant " +
+                $"but a {field.Constant?.GetType().Name ?? "null"}. Arm 3 concatenates it onto an " +
+                "authored key, and a separator of some other shape means the key spelling this rule " +
+                "guards is no longer the one production forms.");
+    }
+
     /// <summary>The simple name of a namespace-qualified type name.</summary>
     private static string SimpleNameOf(string fullName) =>
         fullName[(fullName.LastIndexOf('.') + 1)..];
@@ -600,9 +1010,9 @@ public sealed class LuckRoutingRuleTests
 
     /// <summary>
     /// The floor under the routing arm's subject set — <c>Core</c>'s types outside
-    /// <c>Rules.Luck</c>. 466 on the commit this rule landed, measured rather than estimated (the
-    /// floor was briefly raised past it and the rule's own message reported the count); set well
-    /// below so adding or removing a type is not a test edit.
+    /// <c>Rules.Luck</c>. 468 on the commit the architecture review narrowed the scan, measured
+    /// rather than estimated (the floor was briefly raised past it and the rule's own message
+    /// reported the count); set well below so adding or removing a type is not a test edit.
     /// </summary>
     private const int ScannedTypeFloor = 400;
 
@@ -633,11 +1043,29 @@ public sealed class LuckRoutingRuleTests
         internal static long GrantsNothing() => 1L;
 
         /// <summary>
+        /// 🔴 M4-03's other likely shape: a batch generator answering a <em>collection</em> of grant
+        /// outcomes, which only trips the predicate if the matcher flattens the generic wrapper.
+        /// </summary>
+        /// <returns>A handful of grants, drawn out of nowhere.</returns>
+        internal static IReadOnlyList<GearInstance> GeneratesManyWithoutRouting() =>
+            new[] { new GearInstance() };
+
+        /// <summary>
         /// Stands in for M4-03's gear instance — a <b>pre-registered</b> member of
         /// <see cref="GrantOutcomeTypes"/>, chosen precisely because <c>Core</c> declares no such
         /// type, so the fixture cannot be confused with a production one.
         /// </summary>
-        internal sealed class GearInstance;
+        internal sealed class GearInstance
+        {
+            /// <summary>
+            /// 🔴 The factory-on-the-outcome shape, and the one the first version of this rule could
+            /// not see: <c>ScannedTypes</c> dropped every type named in
+            /// <see cref="GrantOutcomeTypes"/>, so a producer declared here was excluded along with
+            /// the record bookkeeping the exclusion was written for.
+            /// </summary>
+            /// <returns>A grant, drawn out of nowhere.</returns>
+            internal static GearInstance Roll() => new();
+        }
 
         /// <summary>Stands in for the façade, so the routed fixture has something real to call.</summary>
         private static class LuckService

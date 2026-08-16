@@ -247,8 +247,9 @@ public sealed class SoftPityTests
     /// mercy counter'. Expressible here because the counter is the caller's argument: the same
     /// failure count in, the ad's points simply added to the base. The other half — that the
     /// placement never writes the counter back — is a wiring claim owned by the enhancement command
-    /// (M4-04b), and <c>luck.json</c>'s <c>adEnhanceLuckAdvancesCounter: false</c> is pinned in
-    /// <c>Application.Tests</c>.
+    /// (<b>M4-04</b>, the Forge task the tracker gives enhancement to; M4-04b is Reforge/Retune/Focus
+    /// and does not touch the mercy counter), and <c>luck.json</c>'s
+    /// <c>adEnhanceLuckAdvancesCounter: false</c> is pinned in <c>Application.Tests</c>.
     /// </remarks>
     [Fact]
     public void The_ad_boost_stacks_additively_and_does_not_move_the_mercy_ramp()
