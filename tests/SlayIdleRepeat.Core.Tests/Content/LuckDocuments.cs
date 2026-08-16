@@ -148,6 +148,37 @@ internal static class LuckDocuments
     /// <summary><c>24</c> §4.7 F3 — force an owned-perk upgrade after 5 drafts without one.</summary>
     internal const int ShippedDraftUpgradeFamineN = 5;
 
+    /// <summary><c>24</c> §4.7 — the anti-brick guarantee stands, as shipped.</summary>
+    internal const bool ShippedDraftSustainAntiBrickEnabled = true;
+
+    /// <summary><c>24</c> §4.7 — the category the anti-brick forces, as shipped.</summary>
+    internal const string ShippedDraftSustainForceCategory = "SUSTAIN";
+
+    /// <summary><c>24</c> §4.7 F1 — the band the quality floor forces, as shipped.</summary>
+    internal const string ShippedDraftQualityFloorRarity = "RARE";
+
+    /// <summary><c>24</c> §4.7 F2 — the never-drafted weight multiplier, as shipped.</summary>
+    internal const double ShippedDraftCodexBiasMultiplier = 1.35;
+
+    /// <summary><c>24</c> §4.7 F2 — at most one option per draft may be bias-selected.</summary>
+    internal const int ShippedDraftMaxBiasSelectedOptions = 1;
+
+    /// <summary><c>06</c> §4 — the per-option owned-upgrade bias, authored inside the famine block.</summary>
+    internal const double ShippedDraftOwnedUpgradeBias = 0.3;
+
+    /// <summary><c>24</c> §4.9 — the chest pick offers three chests.</summary>
+    internal const int ShippedMinigameChestCount = 3;
+
+    /// <summary><c>24</c> §4.9 — exactly one of them is the gold tier.</summary>
+    internal const int ShippedMinigameGoldTierChests = 1;
+
+    /// <summary>
+    /// The authored top-tier outcome token for <c>MG_CHEST_PICK</c> — the guarantee this class's
+    /// counter is keyed by. Authored in <c>currencies.json</c>, restated here so a fixture can form
+    /// the counter id the way the reader does.
+    /// </summary>
+    internal const string ShippedChestPickGuaranteeToken = "GOLD";
+
     /// <summary>
     /// Every <c>N</c> authored anywhere in <c>luck.json</c>, with the class it protects and the
     /// pointer it is authored at.
@@ -204,6 +235,9 @@ internal static class LuckDocuments
     /// <param name="chestStandardSoftPityThreshold">The standard-chest ramp's miss threshold.</param>
     /// <param name="chestStandardSoftPitySlope">The standard-chest ramp's slope.</param>
     /// <param name="chestApexSoftPity">The apex block's soft pity. An authored null as shipped.</param>
+    /// <param name="draftLegendaryPityNumber">The draft ordinal the Legendary pity forces.</param>
+    /// <param name="draftSustainForceCategory">The category the anti-brick forces.</param>
+    /// <param name="minigameGuaranteeAfterConsecutiveMisses">The chest pick that is forced onto the top tier.</param>
     internal static ContentSnapshot With(
         ContentValue? sourceClasses = null,
         ContentValue? chestStandardCounterKey = null,
@@ -217,7 +251,10 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPity = null,
         ContentValue? chestStandardSoftPityThreshold = null,
         ContentValue? chestStandardSoftPitySlope = null,
-        ContentValue? chestApexSoftPity = null) =>
+        ContentValue? chestApexSoftPity = null,
+        ContentValue? draftLegendaryPityNumber = null,
+        ContentValue? draftSustainForceCategory = null,
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -234,7 +271,10 @@ internal static class LuckDocuments
                     chestStandardSoftPity,
                     chestStandardSoftPityThreshold,
                     chestStandardSoftPitySlope,
-                    chestApexSoftPity),
+                    chestApexSoftPity,
+                    draftLegendaryPityNumber,
+                    draftSustainForceCategory,
+                    minigameGuaranteeAfterConsecutiveMisses),
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
             ]);
 
@@ -257,7 +297,10 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPity = null,
         ContentValue? chestStandardSoftPityThreshold = null,
         ContentValue? chestStandardSoftPitySlope = null,
-        ContentValue? chestApexSoftPity = null) =>
+        ContentValue? chestApexSoftPity = null,
+        ContentValue? draftLegendaryPityNumber = null,
+        ContentValue? draftSustainForceCategory = null,
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -274,7 +317,10 @@ internal static class LuckDocuments
                     chestStandardSoftPity,
                     chestStandardSoftPityThreshold,
                     chestStandardSoftPitySlope,
-                    chestApexSoftPity),
+                    chestApexSoftPity,
+                    draftLegendaryPityNumber,
+                    draftSustainForceCategory,
+                    minigameGuaranteeAfterConsecutiveMisses),
             ]);
 
     /// <summary>A content set with <b>no</b> <c>tuning/luck.json</c> at all.</summary>
@@ -298,7 +344,10 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPity,
         ContentValue? chestStandardSoftPityThreshold,
         ContentValue? chestStandardSoftPitySlope,
-        ContentValue? chestApexSoftPity) =>
+        ContentValue? chestApexSoftPity,
+        ContentValue? draftLegendaryPityNumber,
+        ContentValue? draftSustainForceCategory,
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses) =>
         new(
             DocumentPath,
             Members(
@@ -364,7 +413,27 @@ internal static class LuckDocuments
                     ("softPity", Curve(
                         ShippedSoftPityTarget,
                         ContentValue.Number(ShippedCrateMountSoftPityThreshold),
-                        ContentValue.Number((decimal)ShippedCrateMountSoftPitySlope)))))));
+                        ContentValue.Number((decimal)ShippedCrateMountSoftPitySlope))))),
+                ("draft", Members(
+                    ("legendaryPityDraftNumber", draftLegendaryPityNumber ?? ContentValue.Number(ShippedDraftLegendaryPityN)),
+                    ("sustainAntiBrick", Members(
+                        ("enabled", ContentValue.Boolean(ShippedDraftSustainAntiBrickEnabled)),
+                        ("forceCategory", draftSustainForceCategory ?? ContentValue.Text(ShippedDraftSustainForceCategory)))),
+                    ("qualityFloor", Members(
+                        ("consecutiveDraftsWithoutAboveCommon", ContentValue.Number(ShippedDraftQualityFloorN)),
+                        ("forceRarityAtLeast", ContentValue.Text(ShippedDraftQualityFloorRarity)))),
+                    ("codexBias", Members(
+                        ("neverDraftedWeightMultiplier", ContentValue.Number((decimal)ShippedDraftCodexBiasMultiplier)),
+                        ("maxBiasSelectedOptions", ContentValue.Number(ShippedDraftMaxBiasSelectedOptions)))),
+                    ("upgradeFamine", Members(
+                        ("ownedUpgradeBias", ContentValue.Number((decimal)ShippedDraftOwnedUpgradeBias)),
+                        ("consecutiveDraftsWithoutOwnedUpgrade", ContentValue.Number(ShippedDraftUpgradeFamineN)))))),
+                ("minigame", Members(
+                    ("chestPick", Members(
+                        ("chestCount", ContentValue.Number(ShippedMinigameChestCount)),
+                        ("goldTierChests", ContentValue.Number(ShippedMinigameGoldTierChests)),
+                        ("guaranteeAfterConsecutiveMisses",
+                            minigameGuaranteeAfterConsecutiveMisses ?? ContentValue.Number(ShippedMinigameChestPickN))))))));
 
     private static ContentValue SourceClassRow(string id, ContentValue counterKey, string scope) =>
         Members(

@@ -136,6 +136,15 @@ public sealed class Run
     /// <summary>The perks this run has drafted: perk id → owned internal tier (1-3).</summary>
     private readonly Dictionary<string, int> _ownedPerkTiers;
 
+    /// <summary>
+    /// The three draft guarantee counters. Plain integers on the run, not entries in the player's
+    /// pity counter map: the draft class is scoped per run and authors no counter key, so there is
+    /// no id to form and nothing the profile could store them under.
+    /// </summary>
+    private int _draftsSinceLegendaryOffered;
+    private int _draftsWithoutAboveCommon;
+    private int _draftsWithoutOwnedUpgrade;
+
     /// <summary>Reroll charges spent since the run's current stage began. Reset to 0 at every Stage Gate.</summary>
     private int _rerollChargesSpentThisStage;
 
@@ -183,8 +192,14 @@ public sealed class Run
         ulong stageGateDiceAnchor,
         long bankedLegendXp,
         long bankedSoulShards,
-        bool bossDefeated)
+        bool bossDefeated,
+        int draftsSinceLegendaryOffered,
+        int draftsWithoutAboveCommon,
+        int draftsWithoutOwnedUpgrade)
     {
+        _draftsSinceLegendaryOffered = draftsSinceLegendaryOffered;
+        _draftsWithoutAboveCommon = draftsWithoutAboveCommon;
+        _draftsWithoutOwnedUpgrade = draftsWithoutOwnedUpgrade;
         Id = id;
         PlayerId = playerId;
         RunSeed = runSeed;
@@ -366,6 +381,37 @@ public sealed class Run
     /// <inheritdoc cref="_stageGateDiceAnchor"/>
     internal ulong StageGateDiceAnchor => _stageGateDiceAnchor;
 
+    /// <summary>Drafts drawn since one last offered a Legendary option.</summary>
+    internal int DraftsSinceLegendaryOffered => _draftsSinceLegendaryOffered;
+
+    /// <summary>Consecutive drafts that offered nothing above Common.</summary>
+    internal int DraftsWithoutAboveCommon => _draftsWithoutAboveCommon;
+
+    /// <summary>Consecutive drafts that offered no owned-perk upgrade.</summary>
+    internal int DraftsWithoutOwnedUpgrade => _draftsWithoutOwnedUpgrade;
+
+    /// <summary>Stores the three draft counters a resolution answered.</summary>
+    /// <remarks>
+    /// The one writer, and it takes values rather than deltas for the same reason the player's
+    /// counter writer does: the two movements that matter are an advance and a reset, and a reset is
+    /// badly described as a negative.
+    /// </remarks>
+    /// <param name="sinceLegendaryOffered">Drafts since a Legendary was last offered. Never negative.</param>
+    /// <param name="withoutAboveCommon">Consecutive drafts with nothing above Common. Never negative.</param>
+    /// <param name="withoutOwnedUpgrade">Consecutive drafts with no owned upgrade. Never negative.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Any argument is negative.</exception>
+    internal void SetDraftCounters(
+        int sinceLegendaryOffered, int withoutAboveCommon, int withoutOwnedUpgrade)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(sinceLegendaryOffered);
+        ArgumentOutOfRangeException.ThrowIfNegative(withoutAboveCommon);
+        ArgumentOutOfRangeException.ThrowIfNegative(withoutOwnedUpgrade);
+
+        _draftsSinceLegendaryOffered = sinceLegendaryOffered;
+        _draftsWithoutAboveCommon = withoutAboveCommon;
+        _draftsWithoutOwnedUpgrade = withoutOwnedUpgrade;
+    }
+
     /// <summary>The next draw index of one RNG stream, or zero for a registered stream this run has never drawn from.</summary>
     /// <param name="streamName">A row of the stream registry — one of the eight fixed names, or <c>minigame:{index}</c>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="streamName"/> is null.</exception>
@@ -439,7 +485,10 @@ public sealed class Run
         CopyOwnedPerkTiers(_ownedPerkTiers),
         _bankedLegendXp,
         _bankedSoulShards,
-        _bossDefeated);
+        _bossDefeated,
+        _draftsSinceLegendaryOffered,
+        _draftsWithoutAboveCommon,
+        _draftsWithoutOwnedUpgrade);
 
     /// <summary>The one validated entry point for a persisted run: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -487,6 +536,7 @@ public sealed class Run
         RequireDraftBattle(snapshot, faults);
         var ownedPerkTiers = ReadOwnedPerkTiers(snapshot, faults);
         RequireBankedRewards(snapshot, faults);
+        RequireDraftCounters(snapshot, faults);
 
         // The four `is null` arms are unreachable while `faults` is empty — every path that returns
         // null also adds a fault — but they are written as a pattern rather than as four `!`
@@ -535,7 +585,36 @@ public sealed class Run
             snapshot.StageGateDiceAnchor,
             snapshot.BankedLegendXp,
             snapshot.BankedSoulShards,
-            snapshot.BossDefeated));
+            snapshot.BossDefeated,
+            snapshot.DraftsSinceLegendaryOffered,
+            snapshot.DraftsWithoutAboveCommon,
+            snapshot.DraftsWithoutOwnedUpgrade));
+    }
+
+    /// <summary>The three draft guarantee counters count drafts, so none of them is negative.</summary>
+    /// <remarks>
+    /// A negative counter would push the guarantee it protects further away the longer the run went
+    /// on — the same fault the player-scoped counter map refuses at its own seam.
+    /// </remarks>
+    private static void RequireDraftCounters(RunSnapshot snapshot, List<string> faults)
+    {
+        RequireNonNegativeCounter(
+            snapshot.DraftsSinceLegendaryOffered, nameof(RunSnapshot.DraftsSinceLegendaryOffered), faults);
+        RequireNonNegativeCounter(
+            snapshot.DraftsWithoutAboveCommon, nameof(RunSnapshot.DraftsWithoutAboveCommon), faults);
+        RequireNonNegativeCounter(
+            snapshot.DraftsWithoutOwnedUpgrade, nameof(RunSnapshot.DraftsWithoutOwnedUpgrade), faults);
+    }
+
+    private static void RequireNonNegativeCounter(int value, string field, List<string> faults)
+    {
+        if (value < 0)
+        {
+            faults.Add(
+                field + " is " + Text(value) + ". A draft guarantee counter counts drafts since it " +
+                "last fired, and a negative one moves its guarantee further away the longer the run " +
+                "goes on.");
+        }
     }
 
     /// <summary>The two banked-reward pools are never negative.</summary>

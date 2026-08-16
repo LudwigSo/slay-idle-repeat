@@ -129,7 +129,10 @@ internal static class RunSnapshots
         IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
         long? bankedLegendXp = null,
         long? bankedSoulShards = null,
-        bool? bossDefeated = null) =>
+        bool? bossDefeated = null,
+        int? draftsSinceLegendaryOffered = null,
+        int? draftsWithoutAboveCommon = null,
+        int? draftsWithoutOwnedUpgrade = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -160,7 +163,10 @@ internal static class RunSnapshots
             ownedPerkTiers ?? OwnedPerkTiers(),
             bankedLegendXp ?? 0,
             bankedSoulShards ?? 0,
-            bossDefeated ?? false);
+            bossDefeated ?? false,
+            draftsSinceLegendaryOffered ?? 0,
+            draftsWithoutAboveCommon ?? 0,
+            draftsWithoutOwnedUpgrade ?? 0);
 
     /// <summary>
     /// <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here because

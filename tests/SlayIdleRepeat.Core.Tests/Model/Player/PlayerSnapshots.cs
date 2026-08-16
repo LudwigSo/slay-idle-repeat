@@ -69,6 +69,12 @@ internal static class PlayerSnapshots
         new ReadOnlyDictionary<string, long>(
             entries.ToDictionary(e => e.Key, e => e.Count, StringComparer.Ordinal));
 
+    /// <summary>A pity counter map of the shape the snapshot carries. Ordinal, like the aggregate's.</summary>
+    internal static IReadOnlyDictionary<string, int> Pity(
+        params (string Key, int Misses)[] entries) =>
+        new ReadOnlyDictionary<string, int>(
+            entries.ToDictionary(e => e.Key, e => e.Misses, StringComparer.Ordinal));
+
     /// <summary>
     /// A valid row: Legend Level 1, an empty wallet, empty banks, the tutorial at its first beat,
     /// both counter periods open and empty.
@@ -94,7 +100,8 @@ internal static class PlayerSnapshots
         bool daily = false,
         bool weekly = false,
         bool cleared = false,
-        bool feats = false) =>
+        bool feats = false,
+        bool pity = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -115,7 +122,8 @@ internal static class PlayerSnapshots
             LoginCalendarTuning.FirstDay,
             false,
             cleared ? null : Counters(),
-            feats ? null! : Counters());
+            feats ? null! : Counters(),
+            pity ? null! : Pity());
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static PlayerSnapshot With(
@@ -138,7 +146,8 @@ internal static class PlayerSnapshots
         int? loginCalendarDay = null,
         bool? loginCalendarDayClaimed = null,
         IReadOnlyDictionary<string, long>? clearedChapterTiers = null,
-        IReadOnlyDictionary<string, long>? featCounters = null) =>
+        IReadOnlyDictionary<string, long>? featCounters = null,
+        IReadOnlyDictionary<string, int>? pityCounters = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -163,5 +172,6 @@ internal static class PlayerSnapshots
             loginCalendarDay ?? LoginCalendarTuning.FirstDay,
             loginCalendarDayClaimed ?? false,
             clearedChapterTiers ?? Counters(),
-            featCounters ?? Counters());
+            featCounters ?? Counters(),
+            pityCounters ?? Pity());
 }

@@ -210,6 +210,100 @@ internal static class LuckService
     /// <exception cref="InvalidOperationException">The bank does not cover the cost.</exception>
     internal static int RedeemMercy(int held, int cost) => MercyAccrual.Redeem(held, cost);
 
+    // ---------------------------------------------------------------- the DRAFT class
+
+    /// <summary>
+    /// Which of the <c>DRAFT</c> class's guarantees force an option into the draft about to be drawn.
+    /// </summary>
+    /// <remarks>
+    /// The draft states its protection as composition rules over a pool rather than as weights over a
+    /// rarity ladder, so it does not go through <see cref="Resolve"/> — that path would have to invent
+    /// a table nobody authored. It reaches the same guarantee primitive through its own resolver, and
+    /// the door is still here.
+    /// </remarks>
+    /// <param name="tuning">The pity registry.</param>
+    /// <param name="counters">The run's draft counters before this draft.</param>
+    /// <param name="demand">What the run owns and where it stands.</param>
+    /// <param name="optionCount">How many options this draft offers.</param>
+    /// <returns>The forced slots, naming the rule behind each. Empty when nothing fires.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="optionCount"/> is below 1.</exception>
+    internal static IReadOnlyList<DraftForce> ResolveDraft(
+        LuckTuning tuning, DraftCounters counters, DraftDemand demand, int optionCount)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+
+        return DraftGuarantees.Forced(tuning.Draft, counters, demand, optionCount);
+    }
+
+    /// <summary>The draft counters after a draft whose offering is known.</summary>
+    /// <param name="counters">The counters before the draft.</param>
+    /// <param name="offering">What the draft offered.</param>
+    /// <returns>The counters to store on the run.</returns>
+    internal static DraftCounters DraftCountersAfter(DraftCounters counters, DraftOffering offering) =>
+        DraftGuarantees.Moved(counters, offering);
+
+    /// <summary>The Codex bias's weight multiplier for one perk in the fresh-pool draw.</summary>
+    /// <param name="tuning">The pity registry.</param>
+    /// <param name="everDrafted">Whether this perk is known to have been drafted before.</param>
+    /// <returns>The multiplier. Never below 1.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    internal static double DraftFreshPoolWeight(LuckTuning tuning, bool everDrafted)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+
+        return DraftGuarantees.CodexWeight(tuning.Draft, everDrafted);
+    }
+
+    /// <summary>How many of a draft's options the Codex bias may select.</summary>
+    /// <param name="tuning">The pity registry.</param>
+    /// <returns>The authored cap.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    internal static int MaxCodexBiasedOptions(LuckTuning tuning)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+
+        return tuning.Draft.MaxBiasSelectedOptions;
+    }
+
+    /// <summary>The per-option chance a draft slot is drawn from the owned-but-not-maxed pool.</summary>
+    /// <param name="tuning">The pity registry.</param>
+    /// <returns>The authored probability, between 0 and 1.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    internal static double OwnedUpgradeBias(LuckTuning tuning)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+
+        return tuning.Draft.OwnedUpgradeBias;
+    }
+
+    // ---------------------------------------------------------------- the MINIGAME class
+
+    /// <summary>Resolves one chest pick: draws a tier and answers the counter it moved.</summary>
+    /// <param name="tuning">The pity registry — also the one place the counter id is formed.</param>
+    /// <param name="guarantee">The authored top-tier outcome token the counter is keyed by.</param>
+    /// <param name="counters">The player's counters as they stand.</param>
+    /// <param name="draws">The already-opened draw stream, continued. One index is consumed.</param>
+    /// <param name="tierCount">How many outcome tiers the chest pick authors.</param>
+    /// <returns>The tier, whether pity forced it, and the counter change to apply.</returns>
+    /// <exception cref="ArgumentNullException">Any reference argument is null.</exception>
+    internal static ChestPickResolution ResolveChestPick(
+        LuckTuning tuning,
+        string guarantee,
+        PityCounters counters,
+        DeterministicRng draws,
+        int tierCount)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+
+        return ChestPickGuarantee.Resolve(
+            tuning.ChestPick,
+            tuning.CounterKey(SourceClass.MINIGAME, guarantee),
+            counters,
+            draws,
+            tierCount);
+    }
+
     /// <summary>The multiplier a class with no authored curve puts on its table.</summary>
     private const double Unramped = 1.0;
 

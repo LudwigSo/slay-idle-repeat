@@ -1,63 +1,58 @@
+using SlayIdleRepeat.Core.Content.Perks;
+
 namespace SlayIdleRepeat.Core.Rules.Perks;
 
 /// <summary>
-/// The eight draft composition rules, stubbed pending a future luck-protection service. This type
-/// is the seam: one call site per rule, each a documented, provably-inert pass-through today, so
-/// filling them in later means eight method bodies rather than hunting for eight scattered call
-/// sites.
+/// The three plain composition rules of a draft: no duplicate options, at least two categories, and
+/// the per-option owned-upgrade bias.
 /// </summary>
 /// <remarks>
-/// Because every rule below is a no-op, <see cref="PerkDraftEngine"/>'s draft can currently: offer
-/// the same perk twice in one draft of three; offer three options from one category; and never
-/// apply the owned-upgrade bias, the Legendary pity, the anti-brick Sustain guarantee, the quality
-/// floor, the Codex bias, or the upgrade famine guarantee. This is documented scope, not an
-/// introduced defect.
+/// <para>
+/// The other five rules that used to be stubbed here are the <c>DRAFT</c> source class and they are
+/// not composition rules at all — each one is a guarantee with a counter or a weight behind it, and a
+/// guarantee may fire in exactly one place. They live in <c>Rules.Luck</c> now, and the draft engine
+/// reaches them through the luck façade rather than restating them.
+/// </para>
+/// <para>
+/// These three carry no counter and no guarantee: they are shape constraints on a set of three
+/// options, enforced <em>by construction</em> — by narrowing the pool a slot draws from — rather than
+/// by drawing and repairing, so no rule here costs an extra draw index.
+/// </para>
 /// </remarks>
 internal static class DraftCompositionRules
 {
-    /// <summary>No duplicate options within a single draft of 3. Stub: not enforced.</summary>
-    internal static bool NoDuplicateOptions() => true;
+    /// <summary>At least this many distinct categories among a draft's options.</summary>
+    internal const int MinimumDistinctCategories = 2;
+
+    /// <summary>Whether a set of options holds no perk twice.</summary>
+    /// <remarks>
+    /// A question, not a repair: the engine narrows slot <i>k</i>'s pool by the perks slots
+    /// <c>0..k-1</c> already took, and this is what makes that claim checkable from outside.
+    /// </remarks>
+    /// <param name="perkIds">The perk ids offered, one per slot.</param>
+    /// <returns><see langword="true"/> when every perk id appears at most once.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="perkIds"/> is null.</exception>
+    internal static bool NoDuplicateOptions(IReadOnlyList<string> perkIds) =>
+        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
+
+    /// <summary>Whether a set of options spans at least two categories.</summary>
+    /// <param name="categories">The categories offered, one per slot.</param>
+    /// <returns><see langword="true"/> when the options are not all of one category.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="categories"/> is null.</exception>
+    internal static bool CategoryDiversity(IReadOnlyList<PerkCategory> categories) =>
+        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
 
     /// <summary>
-    /// Category diversity: at least 2 distinct categories among the 3 options. Stub: not enforced.
+    /// Whether this slot's bias roll landed on the owned-but-not-maxed pool.
     /// </summary>
-    internal static bool CategoryDiversity() => true;
-
-    /// <summary>
-    /// Owned-upgrade bias: each option has a 30% chance of being drawn from the player's
-    /// owned-but-not-maxed perks instead of the fresh pool. Stub: every option is drawn from the
-    /// fresh pool; an option landing on an already-owned perk still upgrades it (the base tier
-    /// rule, not this bias), but the 30% bias draw itself never fires.
-    /// </summary>
-    internal static bool OwnedUpgradeBias() => false;
-
-    /// <summary>
-    /// Legendary pity: if no Legendary has appeared by draft #14 of a run, force one into draft
-    /// #15. Stub: needs a per-run "drafts since last Legendary" counter that does not exist yet.
-    /// </summary>
-    internal static bool LegendaryPity() => false;
-
-    /// <summary>
-    /// Anti-brick: if the player has no Sustain perk by the end of Stage 2, force one Sustain
-    /// option into the next draft. Stub: needs the same pending counter.
-    /// </summary>
-    internal static bool AntiBrickSustain() => false;
-
-    /// <summary>
-    /// Quality floor: 3 consecutive drafts with no option above Common force a Rare-or-better
-    /// option into the next draft. Stub: needs a consecutive-Common-drafts counter.
-    /// </summary>
-    internal static bool QualityFloor() => false;
-
-    /// <summary>
-    /// Codex bias: never-drafted perks carry a ×1.35 weight in the fresh-pool draw, capped at 1
-    /// bias-selected option per draft. Stub: needs a per-player "ever drafted" set not yet authored.
-    /// </summary>
-    internal static bool CodexBias() => false;
-
-    /// <summary>
-    /// Upgrade famine: 5 consecutive drafts with no owned-perk upgrade offered (while a non-maxed
-    /// owned perk exists) force one. Stub: needs a consecutive-drafts-without-upgrade counter.
-    /// </summary>
-    internal static bool UpgradeFamine() => false;
+    /// <remarks>
+    /// The roll is taken on <b>every</b> slot whether or not that pool is non-empty and whether or
+    /// not a guarantee has already floored the slot, so the draw budget per slot is fixed and a
+    /// resumed draft stream lands in the same place regardless of which rules fired.
+    /// </remarks>
+    /// <param name="roll">The slot's draw, in <c>[0,1)</c>.</param>
+    /// <param name="bias">The authored per-option probability.</param>
+    /// <returns><see langword="true"/> when the slot draws from the owned pool.</returns>
+    internal static bool OwnedUpgradeBiasHits(double roll, double bias) =>
+        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
 }

@@ -28,6 +28,12 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// lifetime map read as empty is a whole history silently zeroed. The optional default is a C#
 /// requirement, not a permitted value.
 /// </param>
+/// <param name="PityCounters">
+/// The player-scoped pity counters: counter id → misses since that guarantee last fired. ⚠️ Like
+/// <see cref="FeatCounters"/> and unlike <see cref="ClearedChapterTiers"/>, <c>null</c> is a
+/// <b>fault</b>: a lifetime counter map read as empty is every ladder in the game silently started
+/// over, which is the one thing a pity counter may never do.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.PlayerId"/> and
 /// <see cref="Primitives.EnergyBanks"/>, plus the counter dictionaries. Every timestamp is refused
@@ -58,4 +64,5 @@ public sealed record PlayerSnapshot(
     int LoginCalendarDay,
     bool LoginCalendarDayClaimed,
     IReadOnlyDictionary<string, long>? ClearedChapterTiers = null,
-    IReadOnlyDictionary<string, long>? FeatCounters = null);
+    IReadOnlyDictionary<string, long>? FeatCounters = null,
+    IReadOnlyDictionary<string, int>? PityCounters = null);

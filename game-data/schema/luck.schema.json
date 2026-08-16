@@ -185,10 +185,21 @@
       "description": "24 §4.7 — supersedes 06 §4.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["_doc", "legendaryPityDraftNumber", "qualityFloor", "codexBias", "upgradeFamine"],
+      "required": ["_doc", "legendaryPityDraftNumber", "sustainAntiBrick", "qualityFloor", "codexBias", "upgradeFamine"],
       "properties": {
         "_doc": { "type": "string", "minLength": 1 },
         "legendaryPityDraftNumber": { "type": "integer", "minimum": 1 },
+        "sustainAntiBrick": {
+          "description": "24 §4.7 — the standing anti-brick guarantee. Keyless: no design document authors a dial for it, so the block states only whether it is on and which perk category it forces. 'End of Stage 2' is prose and stays in the resolver.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["_doc", "enabled", "forceCategory"],
+          "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
+            "enabled": { "type": "boolean" },
+            "forceCategory": { "enum": ["OFFENSE", "DEFENSE", "SUSTAIN", "DICE_AND_BOARD", "ECONOMY", "TRIGGER_SYNERGY"] }
+          }
+        },
         "qualityFloor": {
           "type": "object",
           "additionalProperties": false,

@@ -5,7 +5,10 @@ using Shouldly;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Rules.Luck;
 using SlayIdleRepeat.Core.Rules.Perks;
+using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Content.Perks;
 using Xunit;
 
@@ -28,12 +31,43 @@ public sealed class PerkDraftEngineTests
     private static DeterministicRng Draft(ulong seed, ulong position = 0) =>
         new(seed, RngStreams.Draft, position);
 
+    /// <summary>The shipped pity registry, which the engine now draws under.</summary>
+    internal static LuckTuning Tuning => LuckTuning.Read(LuckDocuments.LuckOnly());
+
+    /// <summary>No guarantee has fired — the shape every M3-06 case was written against.</summary>
+    internal static IReadOnlyList<DraftForce> Unforced => Array.Empty<DraftForce>();
+
+    /// <summary>A Codex that has seen nothing, so every perk carries the never-drafted bias.</summary>
+    internal static IReadOnlySet<string> NothingEverDrafted =>
+        new HashSet<string>(StringComparer.Ordinal);
+
+    /// <summary>One draft, with the guarantee inputs a case is not about held at their neutral value.</summary>
+    private static IReadOnlyList<DraftOption> Generate(
+        PerkCatalogue catalogue,
+        DraftedPerks owned,
+        DeterministicRng rng,
+        int stage,
+        bool isElite,
+        bool isBoss,
+        IReadOnlyList<DraftForce>? forces = null,
+        IReadOnlySet<string>? everDrafted = null) =>
+        PerkDraftEngine.GenerateOptions(
+            catalogue,
+            owned,
+            rng,
+            Tuning,
+            forces ?? Unforced,
+            everDrafted ?? NothingEverDrafted,
+            stage,
+            isElite,
+            isBoss);
+
     // ------------------------------------------------------------------ shape
 
     [Fact]
     public void Generates_exactly_three_options()
     {
-        var options = PerkDraftEngine.GenerateOptions(
+        var options = Generate(
             Catalogue, NoneOwned(), Draft(1), stage: 1, isElite: false, isBoss: false);
 
         options.Count.ShouldBe(PerkDraftEngine.OptionCount);
@@ -43,9 +77,9 @@ public sealed class PerkDraftEngineTests
     [Fact]
     public void Is_deterministic_for_the_same_seed_position_and_owned_set()
     {
-        var first = PerkDraftEngine.GenerateOptions(
+        var first = Generate(
             Catalogue, NoneOwned(), Draft(42), stage: 2, isElite: false, isBoss: false);
-        var second = PerkDraftEngine.GenerateOptions(
+        var second = Generate(
             Catalogue, NoneOwned(), Draft(42), stage: 2, isElite: false, isBoss: false);
 
         first.ShouldBe(second);
@@ -54,7 +88,7 @@ public sealed class PerkDraftEngineTests
     [Fact]
     public void Every_offered_id_is_authored_in_the_catalogue()
     {
-        var options = PerkDraftEngine.GenerateOptions(
+        var options = Generate(
             Catalogue, NoneOwned(), Draft(7), stage: 3, isElite: true, isBoss: false);
 
         foreach (var option in options)
@@ -70,7 +104,7 @@ public sealed class PerkDraftEngineTests
     {
         // Boss draws only Epic/Legendary — pin the one-perk-per-band catalogue and assert every
         // option is the single Epic or single Legendary row, always unowned, always fresh.
-        var options = PerkDraftEngine.GenerateOptions(
+        var options = Generate(
             Catalogue, NoneOwned(), Draft(99), stage: 1, isElite: false, isBoss: true);
 
         foreach (var option in options)
@@ -87,7 +121,7 @@ public sealed class PerkDraftEngineTests
 
         // Boss table is Epic/Legendary only, and this fixture has exactly one Epic row — so every
         // Epic draw in this seed run must resolve to PerkDocuments.Epic1, already owned at Tier I.
-        var options = PerkDraftEngine.GenerateOptions(
+        var options = Generate(
             Catalogue, owned, Draft(1234), stage: 1, isElite: false, isBoss: true);
 
         var epicOptions = options.Where(o => o.PerkId == PerkDocuments.Epic1).ToArray();
@@ -110,7 +144,7 @@ public sealed class PerkDraftEngineTests
         // that would otherwise have drawn the maxed Legendary.
         var owned = Owning(new Dictionary<string, int> { [PerkDocuments.Legendary1] = 3 });
 
-        var options = PerkDraftEngine.GenerateOptions(
+        var options = Generate(
             Catalogue, owned, Draft(5), stage: 1, isElite: false, isBoss: true);
 
         options.ShouldAllBe(o => o.PerkId != PerkDocuments.Legendary1,
@@ -125,7 +159,7 @@ public sealed class PerkDraftEngineTests
         var owned = Owning(PerkDocuments.AllIds.ToDictionary(id => id, _ => 3));
 
         Should.Throw<InvalidOperationException>(() =>
-            PerkDraftEngine.GenerateOptions(Catalogue, owned, Draft(1), stage: 1, isElite: false, isBoss: false));
+            Generate(Catalogue, owned, Draft(1), stage: 1, isElite: false, isBoss: false));
     }
 
     // ------------------------------------------------------------------ null guards
@@ -134,10 +168,19 @@ public sealed class PerkDraftEngineTests
     public void Null_arguments_are_refused()
     {
         Should.Throw<ArgumentNullException>(() =>
-            PerkDraftEngine.GenerateOptions(null!, NoneOwned(), Draft(1), 1, false, false));
+            Generate(null!, NoneOwned(), Draft(1), 1, false, false));
         Should.Throw<ArgumentNullException>(() =>
-            PerkDraftEngine.GenerateOptions(Catalogue, null!, Draft(1), 1, false, false));
+            Generate(Catalogue, null!, Draft(1), 1, false, false));
         Should.Throw<ArgumentNullException>(() =>
-            PerkDraftEngine.GenerateOptions(Catalogue, NoneOwned(), null!, 1, false, false));
+            Generate(Catalogue, NoneOwned(), null!, 1, false, false));
+        Should.Throw<ArgumentNullException>(() =>
+            PerkDraftEngine.GenerateOptions(
+                Catalogue, NoneOwned(), Draft(1), null!, Unforced, NothingEverDrafted, 1, false, false));
+        Should.Throw<ArgumentNullException>(() =>
+            PerkDraftEngine.GenerateOptions(
+                Catalogue, NoneOwned(), Draft(1), Tuning, null!, NothingEverDrafted, 1, false, false));
+        Should.Throw<ArgumentNullException>(() =>
+            PerkDraftEngine.GenerateOptions(
+                Catalogue, NoneOwned(), Draft(1), Tuning, Unforced, null!, 1, false, false));
     }
 }

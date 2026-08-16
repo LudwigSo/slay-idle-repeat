@@ -79,6 +79,12 @@ public sealed class LuckRoutingRuleTests
     /// <summary>The façade member `24` §11's routing claim is about — the identity floor's subject.</summary>
     private const string ResolveMember = "Resolve";
 
+    /// <summary>
+    /// The first production type to satisfy the routing arm rather than be exempted from it —
+    /// M4-01b's perk draft engine, and the identity under the compliant-producer floor.
+    /// </summary>
+    private const string RoutingProducer = "PerkDraftEngine";
+
     /// <summary>The namespace the façade and its primitives live in, read from R17's own declaration.</summary>
     private const string LuckNamespace = IntraRulesLayeringRuleTests.LuckNamespace;
 
@@ -242,15 +248,18 @@ public sealed class LuckRoutingRuleTests
         ("LuckTuning", "the pity registry itself — it reads the authored ladders and forms the counter keys the façade draws against; Content sits BENEATH Rules, so routing a Content read through Rules.Luck is not merely unnecessary, it is the layering inverted"),
         ("HardPityStep", "one authored rung of a ladder — a data row carrying its guarantee rarity, read by LuckTuning"),
 
-        // 🔒 M4-01b's, and named with its owner rather than exempted quietly. The perk draft's five
-        // 24 §4.7 rules — Legendary pity, the anti-brick Sustain guarantee, the quality floor, the
-        // Codex bias and the upgrade famine — are the ONE live grant path that does not route yet,
-        // and every one of those five is a guarantee in the sense this rule is about.
-        // DraftCompositionRules already declares all eight seams as documented no-ops. When M4-01b
-        // wires them through the façade these three entries come out, and the companion fact below
-        // fails on the day they stop being needed.
-        ("PerkDraftEngine", "M4-01b — the 24 §4.7 draft rules are declared as no-op seams and not yet wired to the façade; this is the one LIVE grant path that still bypasses it, and it is exempted with an owner rather than passed over"),
-        ("PickPerk", "M4-01b — the handler that calls the draft engine, and it inherits the engine's exemption for exactly as long as the engine has one"),
+        // 🔴 M4-01b DELETED THE TWO DRAFT ROWS THAT USED TO SIT HERE, and the deletion is the
+        // deliverable rather than a tidy-up. `PerkDraftEngine` and `PickPerk` were exempted with an
+        // owner because 24 §4.7's five rules were declared as no-op seams and nothing routed. The
+        // engine now reaches the façade from both of its producing methods, so
+        // Every_exempted_producer_still_needs_its_exemption would fail on its row — an exemption
+        // that no longer bites is a rule quietly narrowed, and this file cannot hold one.
+        //
+        // ⚠️ `PickPerk.GenerateCurrentOptions` does NOT route yet: it still assembles the draft's
+        // arguments and calls the engine without asking the façade which guarantees fired. Its row
+        // was deleted anyway, deliberately, so the routing arm REPORTS it. Keeping the row with a
+        // reworded reason would have been true on this commit and would have made the last unrouted
+        // draft path invisible for exactly as long as somebody left it there.
     };
 
     /// <summary>
@@ -570,6 +579,32 @@ public sealed class LuckRoutingRuleTests
                     "them (a generic wrapper it cannot flatten, a moved namespace) rather than that " +
                     "the game stopped producing grants.");
             }
+        }
+
+        // 🔒 The floor arm 1 could not carry until M4-01b, and the one its own remarks name as the
+        // uncomfortable half: until this commit EVERY method in Core that tripped the predicate was
+        // on RoutingExemptions, so "zero offenders" was a fact about the exemption list rather than
+        // about the codebase. A COMPLIANT producer — one that carries a grant outcome AND calls the
+        // façade — is what makes the arm's silence mean something, and there was none.
+        // Identity rather than a bare count (steering S3): a count is satisfied by whichever type
+        // happens to route next, while the draft engine — the whole subject of M4-01b — stops.
+        var routing = ScannedMethods(ProductionAssemblies.CoreModule)
+            .Where(subject => GrantOutcomeNamesIn(subject.Method).Length > 0)
+            .Where(subject => RoutesThrough(subject.Method, LuckFacade))
+            .Select(subject => subject.Type.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (!routing.Contains(RoutingProducer, StringComparer.Ordinal))
+        {
+            offenders.Add(
+                $"no method on '{RoutingProducer}' both produces a grant outcome and calls " +
+                $"{LuckFacade}. The routing arm reports offenders, so it is silent both when every " +
+                "producer complies and when none of them is seen at all — and until M4-01b every " +
+                "producer in Core was on RoutingExemptions, which made that silence a fact about the " +
+                "exemption list. This is the compliant subject that makes the arm's emptiness mean " +
+                "something. If the draft engine legitimately stopped producing a DraftOption, name " +
+                "the producer that took its place here in the same commit.");
         }
 
         var scanned = ScannedTypes(ProductionAssemblies.CoreModule).Count();

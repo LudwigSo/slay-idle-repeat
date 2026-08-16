@@ -1,6 +1,8 @@
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Luck;
 
 namespace SlayIdleRepeat.Core.Rules.Perks;
 
@@ -36,6 +38,9 @@ internal static class PerkDraftEngine
     /// <summary>A draft always offers three options.</summary>
     internal const int OptionCount = 3;
 
+    /// <summary>The weight a candidate carries before the Codex bias touches it.</summary>
+    private const double UnbiasedWeight = 1.0;
+
     /// <summary>Draws <see cref="OptionCount"/> options from <paramref name="rng"/>.</summary>
     /// <param name="catalogue">The authored perks.</param>
     /// <param name="owned">The run's currently-owned perks and their tiers.</param>
@@ -48,10 +53,23 @@ internal static class PerkDraftEngine
     /// Every perk in the catalogue is already owned at its max tier, so there is nothing left to
     /// offer — see this type's remarks for why that cannot happen against the full catalogue.
     /// </exception>
+    /// <param name="tuning">The pity registry, for the weights and the cap the draft draws under.</param>
+    /// <param name="forces">
+    /// The slots the <c>DRAFT</c> guarantees have floored, as the luck façade answered them. The
+    /// draft composes against these; it never restates any of the five rules itself.
+    /// </param>
+    /// <param name="everDraftedPerkIds">
+    /// Perk ids known to have been drafted before — the Codex bias's input. ⚠️ Incomplete today: no
+    /// player-lifetime Codex exists (<b>M4-11</b> owns it), so the only set available is the run's
+    /// own, a genuine subset. The rule is exact against whatever this carries.
+    /// </param>
     internal static IReadOnlyList<DraftOption> GenerateOptions(
         PerkCatalogue catalogue,
         DraftedPerks owned,
         DeterministicRng rng,
+        LuckTuning tuning,
+        IReadOnlyList<DraftForce> forces,
+        IReadOnlySet<string> everDraftedPerkIds,
         int stage,
         bool isElite,
         bool isBoss)
@@ -59,33 +77,39 @@ internal static class PerkDraftEngine
         ArgumentNullException.ThrowIfNull(catalogue);
         ArgumentNullException.ThrowIfNull(owned);
         ArgumentNullException.ThrowIfNull(rng);
+        ArgumentNullException.ThrowIfNull(tuning);
+        ArgumentNullException.ThrowIfNull(forces);
+        ArgumentNullException.ThrowIfNull(everDraftedPerkIds);
 
         var weights = DraftRarityWeights.For(stage, isElite, isBoss);
         var options = new DraftOption[OptionCount];
 
+        // M4-01b Phase 3 owns the composition: the per-slot bias roll, the floored pools of `forces`,
+        // the duplicate and diversity narrowing, and the Codex cap read here. The draw below is
+        // M3-06's, unchanged, and is what Phase 3 replaces.
+        _ = LuckService.MaxCodexBiasedOptions(tuning);
+
         for (var i = 0; i < OptionCount; i++)
         {
             var rarity = rng.WeightedPick(weights);
-            options[i] = DrawOption(catalogue, owned, rng, rarity);
+            options[i] = DrawOption(catalogue, owned, rng, tuning, everDraftedPerkIds, rarity);
         }
-
-        // The eight composition rules — every one a documented no-op today. Called so the seam is
-        // exercised even though nothing here changes `options` yet; see DraftCompositionRules.
-        _ = DraftCompositionRules.NoDuplicateOptions();
-        _ = DraftCompositionRules.CategoryDiversity();
-        _ = DraftCompositionRules.OwnedUpgradeBias();
-        _ = DraftCompositionRules.LegendaryPity();
-        _ = DraftCompositionRules.AntiBrickSustain();
-        _ = DraftCompositionRules.QualityFloor();
-        _ = DraftCompositionRules.CodexBias();
-        _ = DraftCompositionRules.UpgradeFamine();
 
         return Array.AsReadOnly(options);
     }
 
     private static DraftOption DrawOption(
-        PerkCatalogue catalogue, DraftedPerks owned, DeterministicRng rng, PerkRarity rarity)
+        PerkCatalogue catalogue,
+        DraftedPerks owned,
+        DeterministicRng rng,
+        LuckTuning tuning,
+        IReadOnlySet<string> everDraftedPerkIds,
+        PerkRarity rarity)
     {
+        // Read here rather than at the call site because Phase 3's bias roll is per slot, and the
+        // roll belongs beside the pool it chooses between.
+        _ = LuckService.OwnedUpgradeBias(tuning);
+
         var pool = EligiblePerks(catalogue, owned, rarity);
 
         if (pool.Count == 0)
@@ -115,7 +139,7 @@ internal static class PerkDraftEngine
         var candidates = new (PerkCatalogueEntry item, double weight)[pool.Count];
         for (var i = 0; i < pool.Count; i++)
         {
-            candidates[i] = (pool[i], 1.0);
+            candidates[i] = (pool[i], UnbiasedWeight);
         }
 
         var perk = rng.WeightedPick(candidates);

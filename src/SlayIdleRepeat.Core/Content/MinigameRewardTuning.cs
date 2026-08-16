@@ -51,6 +51,24 @@ internal sealed class MinigameRewardTuning
     internal int TierCount(string minigameId) => RowsFor(minigameId).Count;
 
     /// <summary>
+    /// The authored <c>outcome</c> token of one tier — the name the design documents give it.
+    /// </summary>
+    /// <remarks>
+    /// Read rather than restated because the chest pick's pity counter is keyed by the guarantee it
+    /// protects, and that guarantee is an outcome <em>tier</em> rather than a rarity band. Taking the
+    /// token from the document is what stops a counter id being spelled by hand somewhere.
+    /// </remarks>
+    /// <param name="minigameId">One of the four known <c>MG_*</c> ids.</param>
+    /// <param name="tier">A zero-based tier index, within <see cref="TierCount"/>.</param>
+    /// <returns>The authored outcome token.</returns>
+    /// <exception cref="ArgumentException"><paramref name="minigameId"/> is not one of the four known ids.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="tier"/> is outside <see cref="TierCount"/>.</exception>
+    internal string OutcomeName(string minigameId, int tier) =>
+        throw new NotImplementedException(
+            "M4-01b Phase 3 owns this body — Read must carry the authored 'outcome' token beside the " +
+            "reward columns it already reads.");
+
+    /// <summary>
     /// The Chapter-1 base reward for <paramref name="minigameId"/>'s outcome tier
     /// <paramref name="tier"/>, scaled to <paramref name="chapterId"/> by
     /// <c>1 + adBundleScalar × (chapterId − 1)</c> and rounded to the nearest integer.

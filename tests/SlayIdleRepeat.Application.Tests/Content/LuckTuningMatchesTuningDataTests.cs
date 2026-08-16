@@ -351,6 +351,143 @@ public sealed class LuckTuningMatchesTuningDataTests
 
     // ---------------------------------------------------------------- the enhancement mercy
 
+    // ---------------------------------------------------------------- the DRAFT block
+
+    /// <summary>
+    /// Every dial of <c>#/draft</c> is the one the hermetic fixture mirrors, and no other member is
+    /// authored.
+    /// </summary>
+    /// <remarks>
+    /// The member list is asserted as well as the values: <c>24</c> §4.7 states five rules and
+    /// <c>Core</c>'s reader resolves one pointer per dial, so a member added here without a reader is
+    /// a tunable the game ignores, and a member removed is a reader that throws at load.
+    /// </remarks>
+    [Fact]
+    public void The_draft_block_authors_exactly_the_five_rules_dials()
+    {
+        Leaf("#/draft").EnumerateObject().Select(member => member.Name).ShouldBe(new[]
+        {
+            "_doc",
+            "legendaryPityDraftNumber",
+            "sustainAntiBrick",
+            "qualityFloor",
+            "codexBias",
+            "upgradeFamine",
+        });
+
+        Leaf("#/draft/legendaryPityDraftNumber").GetInt32().ShouldBe(15);
+        Leaf("#/draft/qualityFloor/consecutiveDraftsWithoutAboveCommon").GetInt32().ShouldBe(3);
+        Leaf("#/draft/qualityFloor/forceRarityAtLeast").GetString().ShouldBe("RARE");
+        Leaf("#/draft/codexBias/neverDraftedWeightMultiplier").GetDouble().ShouldBe(1.35);
+        Leaf("#/draft/codexBias/maxBiasSelectedOptions").GetInt32().ShouldBe(1);
+        Leaf("#/draft/upgradeFamine/consecutiveDraftsWithoutOwnedUpgrade").GetInt32().ShouldBe(5);
+    }
+
+    /// <summary>
+    /// The anti-brick block is authored, keyless, and forces the Sustain category.
+    /// </summary>
+    /// <remarks>
+    /// Keyless deliberately: neither <c>24</c> §4.7 nor <c>06</c> §4 authors a number for this rule —
+    /// one says it stands and the other states the trigger in prose — so the block carries whether it
+    /// is on and which category it forces, and nothing else. A stage index here would be a dial no
+    /// design document wrote.
+    /// </remarks>
+    [Fact]
+    public void The_sustain_anti_brick_block_is_authored_and_carries_no_invented_number()
+    {
+        var block = Leaf("#/draft/sustainAntiBrick");
+
+        block.EnumerateObject().Select(member => member.Name)
+            .ShouldBe(new[] { "_doc", "enabled", "forceCategory" });
+
+        block.GetProperty("enabled").GetBoolean().ShouldBeTrue();
+        block.GetProperty("forceCategory").GetString().ShouldBe(
+            "SUSTAIN",
+            "06 §4's anti-brick forces a SUSTAIN option. The token is the perk schema's spelling, " +
+            "not the enum's PascalCase declaration.");
+    }
+
+    /// <summary>
+    /// The 30% owned-upgrade bias stays inside <c>upgradeFamine</c>, where <c>24</c> §4.7 F3 puts it.
+    /// </summary>
+    /// <remarks>
+    /// F3 exists <em>because</em> the bias is a per-option roll a run can miss for a whole stage, so
+    /// the two belong in one block. Moving the bias out for tidiness would separate the rule from the
+    /// number it is a correction to, and would silently change every pointer that reads it.
+    /// </remarks>
+    [Fact]
+    public void The_owned_upgrade_bias_is_authored_inside_the_upgrade_famine_block()
+    {
+        Leaf("#/draft/upgradeFamine").EnumerateObject().Select(member => member.Name)
+            .ShouldBe(new[] { "ownedUpgradeBias", "consecutiveDraftsWithoutOwnedUpgrade" });
+
+        Leaf("#/draft/upgradeFamine/ownedUpgradeBias").GetDouble().ShouldBe(0.3);
+    }
+
+    // ---------------------------------------------------------------- the MINIGAME block
+
+    /// <summary>The chest pick is a 1-in-3 with one gold chest, guaranteed on the 4th miss.</summary>
+    /// <remarks>
+    /// The three numbers are read together because they are one rule: a chest count that stopped
+    /// matching the reward table's tier count would leave the guarantee forcing a tier the table
+    /// cannot pay.
+    /// </remarks>
+    [Fact]
+    public void The_chest_pick_block_is_the_one_the_fixture_mirrors()
+    {
+        Leaf("#/minigame/chestPick/chestCount").GetInt32().ShouldBe(3);
+        Leaf("#/minigame/chestPick/goldTierChests").GetInt32().ShouldBe(1);
+        Leaf("#/minigame/chestPick/guaranteeAfterConsecutiveMisses").GetInt32().ShouldBe(4);
+    }
+
+    /// <summary>
+    /// The chest count matches the number of outcome tiers <c>currencies.json</c> authors for it.
+    /// </summary>
+    /// <remarks>
+    /// The two documents state the same fact and neither reads the other. A retune of one alone
+    /// leaves the guarantee forcing an index the reward table has no row for, which throws on the
+    /// pick rather than on load.
+    /// </remarks>
+    [Fact]
+    public void The_chest_count_matches_the_authored_reward_tiers()
+    {
+        using var currencies = JsonDocument.Parse(RepoData.Documents["tuning/currencies.json"]);
+
+        currencies.RootElement
+            .GetProperty("minigameRewards")
+            .GetProperty("MG_CHEST_PICK")
+            .GetArrayLength()
+            .ShouldBe(Leaf("#/minigame/chestPick/chestCount").GetInt32());
+    }
+
+    /// <summary>
+    /// The chest pick's top outcome is the token its pity counter is keyed by.
+    /// </summary>
+    /// <remarks>
+    /// <c>LuckTuning.CounterKey</c> pairs the authored <c>minigame.chestpick</c> with the guarantee it
+    /// protects, and that guarantee is an outcome tier rather than a gear band. This is the only
+    /// place the token's spelling is pinned against the document that authors it.
+    /// </remarks>
+    [Fact]
+    public void The_chest_picks_top_outcome_is_the_guarantee_token()
+    {
+        using var currencies = JsonDocument.Parse(RepoData.Documents["tuning/currencies.json"]);
+
+        var tiers = currencies.RootElement
+            .GetProperty("minigameRewards")
+            .GetProperty("MG_CHEST_PICK")
+            .EnumerateArray()
+            .Select(row => row.GetProperty("outcome").GetString()!)
+            .ToArray();
+
+        tiers.ShouldBe(new[] { "BRONZE", "SILVER", "GOLD" });
+        tiers[^1].ShouldBe(
+            "GOLD",
+            "24 §4.9 guarantees the GOLD-tier chest, and the counter is keyed " +
+            "'minigame.chestpick:<that token>'. A rename here re-keys the counter and every player " +
+            "starts the ladder again.");
+    }
+
     /// <summary>
     /// <c>24</c> §4.6's rate mercy is the slope and cap <c>SoftPityTests</c> is written against.
     /// </summary>
