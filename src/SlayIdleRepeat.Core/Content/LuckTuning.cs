@@ -77,6 +77,34 @@ internal sealed class LuckTuning
     /// </remarks>
     internal const char CounterKeySeparator = ':';
 
+    /// <summary>The five classes that state their protection as a rarity ladder, and their blocks.</summary>
+    private static readonly (SourceClass Source, string Reference)[] LadderBlocks =
+    {
+        (SourceClass.CHEST_STANDARD, ChestStandardReference),
+        (SourceClass.CHEST_PREMIUM, ChestPremiumReference),
+        (SourceClass.CHEST_APEX, ChestApexReference),
+        (SourceClass.EGG_PET, EggPetReference),
+        (SourceClass.CRATE_MOUNT, CrateMountReference),
+    };
+
+    /// <summary>
+    /// The five classes that state their protection in another shape, the block that holds the real
+    /// rule, and the task that wires it.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than left as a bare "no ladder": a caller that asked for the wrong shape has to
+    /// be able to tell that from a block somebody forgot to author, and the owner is what turns the
+    /// refusal into a next step.
+    /// </remarks>
+    private static readonly (SourceClass Source, string Block, string Owner)[] UnservedShapes =
+    {
+        (SourceClass.DROP_RUN, "dropRun", "M4-02"),
+        (SourceClass.ENHANCE, "enhance", "M4-04"),
+        (SourceClass.DRAFT, "draft", "M4-01b"),
+        (SourceClass.WHEEL, "wheel", "M4-09"),
+        (SourceClass.MINIGAME, "minigame", "M4-01b"),
+    };
+
     private readonly IReadOnlyDictionary<SourceClass, PityLadder> _ladders;
 
     private LuckTuning(
@@ -99,7 +127,21 @@ internal sealed class LuckTuning
     /// <param name="source">The class to look up.</param>
     /// <returns>Its registry row.</returns>
     /// <exception cref="InvalidTunableException">The document authors no row for this class.</exception>
-    internal SourceClassRow Row(SourceClass source) => throw new NotImplementedException();
+    internal SourceClassRow Row(SourceClass source)
+    {
+        foreach (var row in SourceClasses)
+        {
+            if (row.Id == source)
+            {
+                return row;
+            }
+        }
+
+        throw new InvalidTunableException(
+            SourceClassesReference,
+            $"The registry authors no row for {source}. Every grant source must be assigned a class, " +
+            "and a class with no row is a source whose counter nothing addresses.");
+    }
 
     /// <summary>
     /// The hard/soft pity ladder for a class, when the document authors one in that shape.
@@ -118,7 +160,29 @@ internal sealed class LuckTuning
     /// against. The message names the class, the block that holds its real rule, and the task that
     /// wires it.
     /// </exception>
-    internal PityLadder Ladder(SourceClass source) => throw new NotImplementedException();
+    internal PityLadder Ladder(SourceClass source)
+    {
+        if (_ladders.TryGetValue(source, out var ladder))
+        {
+            return ladder;
+        }
+
+        foreach (var unserved in UnservedShapes)
+        {
+            if (unserved.Source == source)
+            {
+                throw new InvalidTunableException(
+                    DocumentPath + "#/" + unserved.Block,
+                    $"{source} states its protection in the '{unserved.Block}' block, in a shape the " +
+                    $"rarity-ladder path does not serve — {unserved.Owner} wires it. Drawing it " +
+                    "against a ladder nobody authored would be inventing odds.");
+            }
+        }
+
+        throw new InvalidTunableException(
+            SourceClassesReference,
+            $"{source} authors no pity ladder and states no rule in any other shape either.");
+    }
 
     /// <summary>
     /// The counter id a class's guarantee is stored under —
@@ -135,8 +199,21 @@ internal sealed class LuckTuning
     /// The class authors no counter key — its counter is not player-scoped, so it has no id in this
     /// map at all.
     /// </exception>
-    internal string CounterKey(SourceClass source, Rarity guarantee) =>
-        throw new NotImplementedException();
+    internal string CounterKey(SourceClass source, Rarity guarantee)
+    {
+        var row = Row(source);
+
+        if (row.CounterKey is null)
+        {
+            throw new InvalidTunableException(
+                SourceClassesReference,
+                $"{source}'s counter is scoped {row.Scope}, so it authors no key in the player " +
+                "counter map and there is no counter id to form. Inventing one would name a counter " +
+                "the player profile cannot store.");
+        }
+
+        return $"{row.CounterKey}{CounterKeySeparator}{guarantee}";
+    }
 
     /// <summary>
     /// Reads the pity registry. Throws rather than defaulting on anything missing, unauthorised,
@@ -149,7 +226,219 @@ internal sealed class LuckTuning
     /// <exception cref="UnauthorisedTunableException">A pointer holds a deliberate <c>null</c>.</exception>
     /// <exception cref="ContentTypeMismatchException">A leaf holds the wrong shape.</exception>
     /// <exception cref="InvalidTunableException">A value is authorised but unusable.</exception>
-    internal static LuckTuning Read(ContentSnapshot content) => throw new NotImplementedException();
+    internal static LuckTuning Read(ContentSnapshot content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        var sourceClasses = ReadSourceClasses(content);
+
+        var ladders = new Dictionary<SourceClass, PityLadder>();
+        foreach (var (source, reference) in LadderBlocks)
+        {
+            ladders[source] = ReadLadder(content, source, reference);
+        }
+
+        return new LuckTuning(sourceClasses, ladders, ReadRarityFloor(content));
+    }
+
+    private static IReadOnlyList<SourceClassRow> ReadSourceClasses(ContentSnapshot content)
+    {
+        var array = content.Read(SourceClassesReference);
+
+        if (array.Kind != ContentValueKind.Array || array.Items.Count == 0)
+        {
+            throw new InvalidTunableException(
+                SourceClassesReference,
+                "The registry is a non-empty array, one row per grant source class. This document " +
+                "authors " + array + ".");
+        }
+
+        var rows = new SourceClassRow[array.Items.Count];
+
+        for (var i = 0; i < array.Items.Count; i++)
+        {
+            var pointer = SourceClassesReference + "/" + Render(i);
+
+            var id = content.ReadText(pointer + "/id");
+            if (!TryParseName<SourceClass>(id, out var source))
+            {
+                throw new InvalidTunableException(
+                    pointer + "/id",
+                    $"'{id}' is not a grant source class. Adding a new grant source means assigning " +
+                    $"it one of {Names<SourceClass>()}; a row naming a class Core does not declare " +
+                    "is a source with no class, and skipping it silently is exactly the unprotected " +
+                    "grant the founding rule forbids.");
+            }
+
+            var scopeName = content.ReadText(pointer + "/counterScope");
+            if (!TryParseName<CounterScope>(scopeName, out var scope))
+            {
+                throw new InvalidTunableException(
+                    pointer + "/counterScope",
+                    $"'{scopeName}' is not a place a counter is kept. The authored scopes are " +
+                    $"{Names<CounterScope>()}.");
+            }
+
+            rows[i] = new SourceClassRow(source, ReadCounterKey(content, pointer), scope);
+        }
+
+        return Array.AsReadOnly(rows);
+    }
+
+    /// <summary>The authored counter key, or <see langword="null"/> for a deliberate hole.</summary>
+    /// <remarks>
+    /// The one leaf in this document where an unauthorised <c>null</c> is a statement rather than a
+    /// gap: a class whose counter is not player-scoped has no id in the player counter map at all.
+    /// </remarks>
+    private static string? ReadCounterKey(ContentSnapshot content, string rowPointer)
+    {
+        var reference = rowPointer + "/counterKey";
+        var value = content.Read(reference);
+
+        if (value.IsUnauthorised)
+        {
+            return null;
+        }
+
+        var key = value.AsText(reference);
+
+        return string.IsNullOrWhiteSpace(key)
+            ? throw new InvalidTunableException(
+                reference,
+                "A blank counter key addresses every counter and none. Author the key, or author " +
+                "the row's counter as unauthorised because it is not player-scoped.")
+            : key;
+    }
+
+    private static PityLadder ReadLadder(ContentSnapshot content, SourceClass source, string block)
+    {
+        var hardPityReference = block + "/" + HardPityMember;
+        var array = content.Read(hardPityReference);
+
+        if (array.Kind != ContentValueKind.Array || array.Items.Count == 0)
+        {
+            throw new InvalidTunableException(
+                hardPityReference,
+                $"{source} authors a rarity ladder, and a hard guarantee is mandatory on every one " +
+                "of them. This document authors " + array + ".");
+        }
+
+        var rungs = new HardPityStep[array.Items.Count];
+
+        for (var i = 0; i < array.Items.Count; i++)
+        {
+            var pointer = hardPityReference + "/" + Render(i);
+
+            var everyNthReference = pointer + "/everyNth";
+            var everyNth = content.ReadInt32(everyNthReference);
+            if (everyNth < 1)
+            {
+                throw new InvalidTunableException(
+                    everyNthReference,
+                    "A rung forces the N-th draw since its counter last reset, and this document " +
+                    $"authors {Render(everyNth)}. There is no zeroth draw to force — an N of zero " +
+                    "would force every single draw of the class.");
+            }
+
+            var guaranteeReference = pointer + "/guaranteeRarityAtLeast";
+            var guaranteeName = content.ReadText(guaranteeReference);
+            if (!TryParseName<Rarity>(guaranteeName, out var guarantee))
+            {
+                throw new InvalidTunableException(
+                    guaranteeReference,
+                    $"'{guaranteeName}' is not a band on the gear rarity ladder, which is " +
+                    $"{Names<Rarity>()}. The perk band ladder is a different vocabulary over " +
+                    "different things, and a token from one must not resolve in the other.");
+            }
+
+            rungs[i] = new HardPityStep(everyNth, guarantee);
+        }
+
+        return new PityLadder(source, Array.AsReadOnly(rungs), ReadSoftPity(content, source, block));
+    }
+
+    private static SoftPityCurve? ReadSoftPity(ContentSnapshot content, SourceClass source, string block)
+    {
+        var curveReference = block + "/" + SoftPityMember;
+
+        if (content.Read(curveReference).IsUnauthorised)
+        {
+            return null;
+        }
+
+        var target = content.ReadText(curveReference + "/target");
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            throw new InvalidTunableException(
+                curveReference + "/target",
+                $"{source}'s curve raises nothing. A curve with no target is authored as no curve.");
+        }
+
+        var thresholdReference = curveReference + "/missThreshold";
+        var threshold = content.ReadInt32(thresholdReference);
+        if (threshold < 0)
+        {
+            throw new InvalidTunableException(
+                thresholdReference,
+                $"A ramp stays flat for a number of misses, and this document authors " +
+                $"{Render(threshold)}. A negative threshold ramps a counter that has not moved yet.");
+        }
+
+        var slopeReference = curveReference + "/slope";
+        var slope = content.ReadDouble(slopeReference);
+        if (!double.IsFinite(slope) || slope <= 0.0)
+        {
+            throw new InvalidTunableException(
+                slopeReference,
+                $"A ramp's slope is a positive finite number, and this document authors " +
+                $"{Render(slope)}. A slope of zero is a curve that does not ramp, which is authored " +
+                "as no curve at all rather than as a flat one.");
+        }
+
+        return new SoftPityCurve(target, threshold, slope);
+    }
+
+    private static RarityFloorRule ReadRarityFloor(ContentSnapshot content)
+    {
+        var authored = content.ReadText(RenormalisationReference);
+
+        if (!TryParseName<RarityFloorRenormalisation>(authored, out var renormalisation))
+        {
+            throw new InvalidTunableException(
+                RenormalisationReference,
+                $"'{authored}' is not a renormalisation this engine implements. The authored set is " +
+                $"{Names<RarityFloorRenormalisation>()}, deliberately a one-member enum in both the " +
+                "schema and here, so widening it is an edit in both places rather than a token that " +
+                "slipped through a string comparison.");
+        }
+
+        return new RarityFloorRule(
+            renormalisation, content.ReadBoolean(CountersAdvanceNormallyReference));
+    }
+
+    /// <summary>
+    /// Reads an authored token as a member of a closed vocabulary, case-sensitively and by name only.
+    /// </summary>
+    /// <remarks>
+    /// A numeric token is refused before it is parsed: <c>Enum.TryParse</c> accepts the underlying
+    /// wire value as well as the name, so an authored <c>"3"</c> would otherwise load as a real band
+    /// — a wire value leaking into a place the documents spell with a name.
+    /// </remarks>
+    private static bool TryParseName<TEnum>(string authored, out TEnum parsed)
+        where TEnum : struct, Enum
+    {
+        parsed = default;
+
+        return !string.IsNullOrEmpty(authored) &&
+            !char.IsAsciiDigit(authored[0]) && authored[0] != '-' && authored[0] != '+' &&
+            Enum.TryParse(authored, ignoreCase: false, out parsed) &&
+            Enum.IsDefined(parsed);
+    }
+
+    /// <summary>A closed vocabulary's names, for a failure message that shows the whole table.</summary>
+    private static string Names<TEnum>()
+        where TEnum : struct, Enum =>
+        string.Join(", ", Enum.GetNames<TEnum>());
 
     /// <summary>Renders a number with <see cref="CultureInfo.InvariantCulture"/>.</summary>
     /// <param name="value">The number to render.</param>

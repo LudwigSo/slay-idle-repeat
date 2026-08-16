@@ -425,12 +425,25 @@ public sealed class LuckServiceTests
 
     // ---------------------------------------------------------------- the read-only questions
 
-    /// <summary>The next draw is forced exactly when the counter stands one below the rung.</summary>
+    /// <summary>
+    /// The next draw is forced from the moment the counter reaches one below the rung — and stays
+    /// forced above it.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The last two rows expected <c>false</c> when this file was written, on the assumption that
+    /// a counter can never stand past its own <c>N</c>. It can:
+    /// <c>HardPityTests.A_counter_standing_past_its_own_N_still_fires</c> pins
+    /// <see cref="HardPity.Fires"/> as <c>misses >= N - 1</c> precisely so that a retune which
+    /// <em>lowers</em> a rung does not strand the live players it left above the new one. Under the
+    /// premium chest's <c>N = 5</c> a counter of 23 or 24 is such a player, so the answer is
+    /// <see langword="true"/>; expecting <c>false</c> asked this façade to disagree with the
+    /// resolution it predicts, which is the exact drift the reason string below forbids.
+    /// </remarks>
     [Theory]
     [InlineData(3, false)]
     [InlineData(4, true)]
-    [InlineData(23, false)]
-    [InlineData(24, false)]
+    [InlineData(23, true)]
+    [InlineData(24, true)]
     public void GuaranteeFires_answers_the_same_question_the_resolution_decides(int misses, bool expected)
     {
         LuckService.GuaranteeFires(

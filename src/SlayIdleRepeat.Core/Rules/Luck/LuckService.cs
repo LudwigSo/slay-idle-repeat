@@ -72,8 +72,42 @@ internal static class LuckService
         RarityTable table,
         PityCounters counters,
         DeterministicRng draws,
-        Rarity? floor = null) =>
-        throw new NotImplementedException();
+        Rarity? floor = null)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+        ArgumentNullException.ThrowIfNull(table);
+        ArgumentNullException.ThrowIfNull(counters);
+        ArgumentNullException.ThrowIfNull(draws);
+        RequireDeclared(source, nameof(source));
+
+        if (floor.HasValue)
+        {
+            RequireDeclared(floor.Value, nameof(floor));
+        }
+
+        var ladder = LadderOf(source, tuning);
+        var forced = HighestFiringGuarantee(source, tuning, counters, ladder);
+
+        var drawn = floor.HasValue ? table.FloorAt(floor.Value) : table;
+        drawn = Ramped(drawn, source, tuning, counters, ladder);
+
+        if (forced.HasValue)
+        {
+            drawn = drawn.FloorAt(forced.Value);
+        }
+
+        if (!drawn.HasPositiveWeight)
+        {
+            throw new InvalidOperationException(
+                $"The {source} table carries no weight once its floor and ramp are applied, so there " +
+                "is nothing to draw. Refused before the draw is taken, so the stream is left where " +
+                "it stood.");
+        }
+
+        var outcome = draws.WeightedPick(Walk(drawn));
+
+        return new LuckResolution(outcome, forced.HasValue, Moved(source, tuning, counters, ladder, outcome));
+    }
 
     /// <summary>
     /// Whether the next draw of this class would be forced to satisfy a given guarantee.
@@ -93,8 +127,29 @@ internal static class LuckService
     /// The class states no rung at this guarantee, or none at all.
     /// </exception>
     internal static bool GuaranteeFires(
-        SourceClass source, LuckTuning tuning, PityCounters counters, Rarity guarantee) =>
-        throw new NotImplementedException();
+        SourceClass source, LuckTuning tuning, PityCounters counters, Rarity guarantee)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+        ArgumentNullException.ThrowIfNull(counters);
+        RequireDeclared(source, nameof(source));
+        RequireDeclared(guarantee, nameof(guarantee));
+
+        var ladder = LadderOf(source, tuning);
+
+        foreach (var rung in ladder.HardPity)
+        {
+            if (rung.GuaranteeRarityAtLeast == guarantee)
+            {
+                return HardPity.Fires(
+                    counters.Get(tuning.CounterKey(source, guarantee)), rung.EveryNth);
+            }
+        }
+
+        throw new InvalidOperationException(
+            $"{source} states no rung guaranteeing {guarantee}. Answering false would read as 'not " +
+            "yet' rather than 'never', and the client would show a counter that can never reach its " +
+            "own guarantee.");
+    }
 
     /// <summary>
     /// The multiplier the class's soft-pity curve currently puts on its target's draw weight, or 1
@@ -108,8 +163,14 @@ internal static class LuckService
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="source"/> is not declared.</exception>
     /// <exception cref="InvalidOperationException">The class states no rarity ladder.</exception>
     internal static double SoftPityWeight(
-        SourceClass source, LuckTuning tuning, PityCounters counters) =>
-        throw new NotImplementedException();
+        SourceClass source, LuckTuning tuning, PityCounters counters)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+        ArgumentNullException.ThrowIfNull(counters);
+        RequireDeclared(source, nameof(source));
+
+        return Ramp(source, tuning, counters, LadderOf(source, tuning))?.Multiplier ?? Unramped;
+    }
 
     /// <summary>
     /// The effective success rate of a failure-mercy source after a run of consecutive failures.
@@ -127,14 +188,14 @@ internal static class LuckService
     /// <exception cref="ArgumentOutOfRangeException">An argument is outside its stated range.</exception>
     internal static double MercyRate(
         double baseRate, int consecutiveFailures, double slope, double cap) =>
-        throw new NotImplementedException();
+        SoftPity.RateWithMercy(baseRate, consecutiveFailures, slope, cap);
 
     /// <summary>The mercy bank after an accruing event.</summary>
     /// <param name="held">Tokens held before the event. Never negative.</param>
     /// <param name="grant">Tokens the event grants. Never negative; zero is legal.</param>
     /// <returns>Tokens held after the event.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Either argument is negative.</exception>
-    internal static int AccrueMercy(int held, int grant) => throw new NotImplementedException();
+    internal static int AccrueMercy(int held, int grant) => MercyAccrual.Accrue(held, grant);
 
     /// <summary>The mercy bank after a redemption.</summary>
     /// <param name="held">Tokens held. Never negative.</param>
@@ -142,5 +203,140 @@ internal static class LuckService
     /// <returns>Tokens held after the redemption.</returns>
     /// <exception cref="ArgumentOutOfRangeException">An argument is outside its stated range.</exception>
     /// <exception cref="InvalidOperationException">The bank does not cover the cost.</exception>
-    internal static int RedeemMercy(int held, int cost) => throw new NotImplementedException();
+    internal static int RedeemMercy(int held, int cost) => MercyAccrual.Redeem(held, cost);
+
+    /// <summary>The multiplier a class with no authored curve puts on its table.</summary>
+    private const double Unramped = 1.0;
+
+    /// <summary>
+    /// The class's ladder, or a refusal in the façade's own vocabulary.
+    /// </summary>
+    /// <remarks>
+    /// Restated as an <see cref="InvalidOperationException"/> because a caller of the rules is being
+    /// refused by the rules, not by the content reader — but the reader's wording is reused rather
+    /// than rewritten, so the block and the owning task are named in exactly one place.
+    /// </remarks>
+    private static PityLadder LadderOf(SourceClass source, LuckTuning tuning)
+    {
+        try
+        {
+            return tuning.Ladder(source);
+        }
+        catch (InvalidTunableException unserved)
+        {
+            throw new InvalidOperationException(unserved.Message, unserved);
+        }
+    }
+
+    /// <summary>
+    /// The highest guarantee any rung forces on this draw, or <see langword="null"/> when none does.
+    /// </summary>
+    /// <remarks>
+    /// The <em>highest</em>, because a class runs its rungs simultaneously: the 40th standard chest
+    /// satisfies the 10-rung and the 40-rung at once, and a draw floored at the lower of the two
+    /// would leave the higher counter unreset and its guarantee unkept.
+    /// </remarks>
+    private static Rarity? HighestFiringGuarantee(
+        SourceClass source, LuckTuning tuning, PityCounters counters, PityLadder ladder)
+    {
+        Rarity? forced = null;
+
+        foreach (var rung in ladder.HardPity)
+        {
+            var misses = counters.Get(tuning.CounterKey(source, rung.GuaranteeRarityAtLeast));
+
+            if (HardPity.Fires(misses, rung.EveryNth) &&
+                (forced is null || rung.GuaranteeRarityAtLeast > forced.Value))
+            {
+                forced = rung.GuaranteeRarityAtLeast;
+            }
+        }
+
+        return forced;
+    }
+
+    /// <summary>The class's curve, resolved against the counter it ramps on.</summary>
+    private static (Rarity Target, double Multiplier)? Ramp(
+        SourceClass source, LuckTuning tuning, PityCounters counters, PityLadder ladder)
+    {
+        if (ladder.SoftPity is not { } curve)
+        {
+            return null;
+        }
+
+        if (!Enum.TryParse<Rarity>(curve.Target, ignoreCase: false, out var target) ||
+            !Enum.IsDefined(target))
+        {
+            throw new InvalidOperationException(
+                $"{source}'s curve targets '{curve.Target}', which is not a band on the rarity " +
+                "ladder, so there is no counter to read it against and no row to widen. A class " +
+                "whose curve targets something else states its rule in another shape entirely.");
+        }
+
+        return (target, SoftPity.WeightMultiplier(
+            counters.Get(tuning.CounterKey(source, target)), curve.MissThreshold, curve.Slope));
+    }
+
+    /// <summary>The table with the class's soft-pity curve applied to its target's row.</summary>
+    private static RarityTable Ramped(
+        RarityTable table,
+        SourceClass source,
+        LuckTuning tuning,
+        PityCounters counters,
+        PityLadder ladder) =>
+        Ramp(source, tuning, counters, ladder) is { } ramp
+            ? table.Scale(ramp.Target, ramp.Multiplier)
+            : table;
+
+    /// <summary>
+    /// Every counter the draw moved: reset where the outcome reached the rung's guarantee, advanced
+    /// where it did not.
+    /// </summary>
+    /// <remarks>
+    /// A natural draw that overshoots a guarantee resets it exactly as a forced one does — the
+    /// player is never punished for good luck by having a guarantee taken away later.
+    /// </remarks>
+    private static IReadOnlyList<PityCounterChange> Moved(
+        SourceClass source,
+        LuckTuning tuning,
+        PityCounters counters,
+        PityLadder ladder,
+        Rarity outcome)
+    {
+        var changes = new PityCounterChange[ladder.HardPity.Count];
+
+        for (var i = 0; i < ladder.HardPity.Count; i++)
+        {
+            var key = tuning.CounterKey(source, ladder.HardPity[i].GuaranteeRarityAtLeast);
+
+            changes[i] = new PityCounterChange(
+                key,
+                outcome >= ladder.HardPity[i].GuaranteeRarityAtLeast
+                    ? HardPity.Reset()
+                    : HardPity.Advance(counters.Get(key)));
+        }
+
+        return Array.AsReadOnly(changes);
+    }
+
+    private static IReadOnlyList<(Rarity, double)> Walk(RarityTable table) =>
+        table.Rows.Select(row => (row.Rarity, row.Weight)).ToArray();
+
+    private static void RequireDeclared(SourceClass source, string parameter)
+    {
+        if (!Enum.IsDefined(source))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameter, source, "That is not a grant source class the registry declares.");
+        }
+    }
+
+    private static void RequireDeclared(Rarity rarity, string parameter)
+    {
+        if (!Enum.IsDefined(rarity))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameter, rarity, "That is not a rarity on the ladder.");
+        }
+    }
 }

@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace SlayIdleRepeat.Core.Rules.Luck;
 
 /// <summary>
@@ -24,7 +26,15 @@ internal static class MercyAccrual
     /// <returns>Tokens held after the event.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Either argument is negative.</exception>
     /// <exception cref="OverflowException">The bank would exceed <see cref="int.MaxValue"/>.</exception>
-    internal static int Accrue(int held, int grant) => throw new NotImplementedException();
+    internal static int Accrue(int held, int grant)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(held);
+        ArgumentOutOfRangeException.ThrowIfNegative(grant);
+
+        // Checked, not wrapped: a wrapped bank reads as a negative balance that CanRedeem then
+        // refuses forever, silently losing every token the player ever earned.
+        return checked(held + grant);
+    }
 
     /// <summary>Whether the bank covers a redemption.</summary>
     /// <param name="held">Tokens held. Never negative.</param>
@@ -33,7 +43,12 @@ internal static class MercyAccrual
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="held"/> is negative, or <paramref name="cost"/> is below 1.
     /// </exception>
-    internal static bool CanRedeem(int held, int cost) => throw new NotImplementedException();
+    internal static bool CanRedeem(int held, int cost)
+    {
+        RequireBankAndCost(held, cost);
+
+        return held >= cost;
+    }
 
     /// <summary>The bank after a redemption.</summary>
     /// <param name="held">Tokens held. Never negative.</param>
@@ -46,5 +61,26 @@ internal static class MercyAccrual
     /// The bank does not cover the cost. Ask <see cref="CanRedeem"/> first — a short bank is
     /// refused rather than clamped.
     /// </exception>
-    internal static int Redeem(int held, int cost) => throw new NotImplementedException();
+    internal static int Redeem(int held, int cost)
+    {
+        RequireBankAndCost(held, cost);
+
+        if (held < cost)
+        {
+            throw new InvalidOperationException(
+                "The mercy bank holds " + Render(held) + " and the redemption costs " + Render(cost) +
+                ". A short bank is refused rather than clamped: a clamped redemption would spend " +
+                "every token the player had and hand back nothing.");
+        }
+
+        return held - cost;
+    }
+
+    private static void RequireBankAndCost(int held, int cost)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(held);
+        ArgumentOutOfRangeException.ThrowIfLessThan(cost, 1);
+    }
+
+    private static string Render(int value) => value.ToString(CultureInfo.InvariantCulture);
 }

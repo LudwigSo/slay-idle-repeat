@@ -24,20 +24,28 @@ public sealed class LuckGuaranteePropertyTests
     /// A wall-clock guard against an algorithmic regression, not a performance target.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The figure is a <b>proxy measurement</b>, not a measurement of this corpus: the tests were
-    /// written before <c>LuckService</c> had a body, so the equivalent draw-and-counter workload was
-    /// measured instead — 1 621 403 weighted picks over these same two tables, each followed by the
-    /// counter-map copies a resolution produces, in <b>1.28 s</b> on a Debug build of this checkout.
-    /// The budget is ~15× that, which leaves room for the service's own per-draw work and for a slow
-    /// CI agent without letting an accidental rescan of the ladder through.
-    /// 🔴 <b>Re-measure and tighten this once the service is implemented.</b>
+    /// Measured against the real implementation on a Debug build of this checkout, by lowering this
+    /// constant until the assertion reported the corpus's own elapsed time: <b>5.25 / 5.36 / 5.68 s</b>
+    /// with this case filtered to run alone, and <b>11.91 / 12.60 s</b> when the whole
+    /// <c>Core.Tests</c> suite runs and xunit's collection parallelism contends for the same cores.
+    /// The second figure is the one that matters, because that is how the sweep actually runs.
+    /// <para>
+    /// ⚠️ <b>The budget was raised rather than tightened, and the earlier number was the reason.</b>
+    /// The 20 s it replaces was extrapolated from a proxy workload measured before the service had a
+    /// body — 1.28 s for 1 621 403 weighted picks — and described itself as ~15× headroom. Against
+    /// the real 12.6 s that was 1.6×, so a CI agent under twice this machine's speed would have gone
+    /// red on a sweep that had not regressed at all. This is ~3.5× the contended figure and ~8× the
+    /// isolated one, matching <c>DslDeterminismBaselineTests</c>' ~10×-of-measured shape, and it
+    /// still catches any regression worse than about 3.5× — far below what an accidental per-draw
+    /// re-read of the tuning or rescan of the ladder would cost.
+    /// </para>
     /// <para>
     /// This repository has no integration tier and no nightly lane — everything in
     /// <c>Core.Tests</c> runs on every PR — so if one hundred thousand sequences stop fitting the
     /// unit tier, the answer is to say so, not to add a tier.
     /// </para>
     /// </remarks>
-    private const int BudgetSeconds = 20;
+    private const int BudgetSeconds = 45;
 
     private static LuckGuaranteeCorpus Corpus => LuckGuaranteeCorpus.Instance;
 

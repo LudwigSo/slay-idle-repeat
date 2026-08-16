@@ -1,3 +1,4 @@
+using System.Globalization;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Luck;
@@ -43,14 +44,59 @@ internal sealed class RarityTable
     /// <exception cref="ArgumentException">
     /// A rarity appears twice, a weight is negative or not finite, or every weight is zero.
     /// </exception>
-    internal static RarityTable Of(IEnumerable<RarityWeight> rows) =>
-        throw new NotImplementedException();
+    internal static RarityTable Of(IEnumerable<RarityWeight> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        var supplied = rows.ToArray();
+        var seen = new HashSet<Rarity>();
+        var total = 0.0;
+
+        foreach (var row in supplied)
+        {
+            if (!Enum.IsDefined(row.Rarity))
+            {
+                throw new ArgumentException(
+                    "A row draws a rarity that is not on the ladder. A table is authored in the " +
+                    "ladder's own vocabulary, and an undeclared band would sort below every floor.",
+                    nameof(rows));
+            }
+
+            if (!seen.Add(row.Rarity))
+            {
+                throw new ArgumentException(
+                    $"The rarity {row.Rarity} appears twice. One of the two weights would vanish " +
+                    "silently, and which one is an ordering accident.",
+                    nameof(rows));
+            }
+
+            if (!double.IsFinite(row.Weight) || row.Weight < 0.0)
+            {
+                throw new ArgumentException(
+                    $"The {row.Rarity} row carries weight {Render(row.Weight)}. A weight must be a " +
+                    "finite, non-negative number — anything else makes the cumulative walk " +
+                    "non-monotonic and its answer arbitrary.",
+                    nameof(rows));
+            }
+
+            total += row.Weight;
+        }
+
+        if (total <= 0.0)
+        {
+            throw new ArgumentException(
+                "No row carries any weight, so nothing can be drawn from this table at all.",
+                nameof(rows));
+        }
+
+        return new RarityTable(Ascending(supplied));
+    }
 
     /// <summary>The rows, in ascending rarity order.</summary>
     internal IReadOnlyList<RarityWeight> Rows => _rows;
 
     /// <summary>The sum of every row's weight.</summary>
-    internal double TotalWeight => throw new NotImplementedException();
+    internal double TotalWeight => Sum(_rows);
 
     /// <summary>
     /// Whether anything can be drawn from this table at all — some row still carries a positive
@@ -60,7 +106,7 @@ internal sealed class RarityTable
     /// Asked before a draw rather than after, so a table that a floor has emptied is refused without
     /// consuming a draw index.
     /// </remarks>
-    internal bool HasPositiveWeight => throw new NotImplementedException();
+    internal bool HasPositiveWeight => _rows.Any(row => row.Weight > 0.0);
 
     /// <summary>
     /// This table with every rarity below <paramref name="floor"/> zeroed and the survivors rescaled
@@ -73,7 +119,26 @@ internal sealed class RarityTable
     /// No rarity at or above the floor carries any weight, so the floor cannot be satisfied from this
     /// table at all.
     /// </exception>
-    internal RarityTable FloorAt(Rarity floor) => throw new NotImplementedException();
+    internal RarityTable FloorAt(Rarity floor)
+    {
+        RequireDeclared(floor, nameof(floor));
+
+        var surviving = Sum(_rows.Where(row => row.Rarity >= floor));
+
+        if (surviving <= 0.0)
+        {
+            throw new InvalidOperationException(
+                $"No rarity at or above the floor {floor} carries any weight in this table, so the " +
+                "floor cannot be satisfied from it at all. A floored draw is refused before the " +
+                "draw is taken, so the stream is left where it stood.");
+        }
+
+        return new RarityTable(_rows
+            .Select(row => row.Rarity < floor
+                ? new RarityWeight(row.Rarity, 0.0)
+                : new RarityWeight(row.Rarity, row.Weight / surviving))
+            .ToArray());
+    }
 
     /// <summary>This table with one rarity's weight multiplied.</summary>
     /// <remarks>
@@ -87,6 +152,50 @@ internal sealed class RarityTable
     /// <paramref name="rarity"/> is not a declared rarity, or the multiplier is negative or not
     /// finite.
     /// </exception>
-    internal RarityTable Scale(Rarity rarity, double multiplier) =>
-        throw new NotImplementedException();
+    internal RarityTable Scale(Rarity rarity, double multiplier)
+    {
+        RequireDeclared(rarity, nameof(rarity));
+
+        if (!double.IsFinite(multiplier) || multiplier < 0.0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(multiplier),
+                multiplier,
+                "A soft-pity multiplier is a finite, non-negative number. Anything else makes the " +
+                "cumulative walk non-monotonic and its answer arbitrary.");
+        }
+
+        return new RarityTable(_rows
+            .Select(row => row.Rarity == rarity
+                ? new RarityWeight(row.Rarity, row.Weight * multiplier)
+                : row)
+            .ToArray());
+    }
+
+    private static void RequireDeclared(Rarity rarity, string parameter)
+    {
+        if (!Enum.IsDefined(rarity))
+        {
+            throw new ArgumentOutOfRangeException(
+                parameter, rarity, "That is not a rarity on the ladder.");
+        }
+    }
+
+    /// <summary>The rows in ascending rarity order — the order the weighted walk consumes them in.</summary>
+    private static IReadOnlyList<RarityWeight> Ascending(IEnumerable<RarityWeight> rows) =>
+        rows.OrderBy(row => row.Rarity).ToArray();
+
+    private static double Sum(IEnumerable<RarityWeight> rows)
+    {
+        var total = 0.0;
+
+        foreach (var row in rows)
+        {
+            total += row.Weight;
+        }
+
+        return total;
+    }
+
+    private static string Render(double value) => value.ToString(CultureInfo.InvariantCulture);
 }

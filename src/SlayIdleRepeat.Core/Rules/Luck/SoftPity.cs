@@ -34,8 +34,14 @@ internal static class SoftPity
     /// <exception cref="ArgumentOutOfRangeException">
     /// A count is negative, or <paramref name="slope"/> is not a positive finite number.
     /// </exception>
-    internal static double WeightMultiplier(int misses, int threshold, double slope) =>
-        throw new NotImplementedException();
+    internal static double WeightMultiplier(int misses, int threshold, double slope)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(misses);
+        ArgumentOutOfRangeException.ThrowIfNegative(threshold);
+        RequirePositiveSlope(slope);
+
+        return Flat + (slope * Math.Max(0, misses - threshold));
+    }
 
     /// <summary>
     /// The effective success probability after a run of consecutive failures: the base rate plus the
@@ -55,6 +61,37 @@ internal static class SoftPity
     /// positive finite number.
     /// </exception>
     internal static double RateWithMercy(
-        double baseRate, int consecutiveFailures, double slope, double cap) =>
-        throw new NotImplementedException();
+        double baseRate, int consecutiveFailures, double slope, double cap)
+    {
+        RequireProbability(baseRate, nameof(baseRate));
+        ArgumentOutOfRangeException.ThrowIfNegative(consecutiveFailures);
+        RequirePositiveSlope(slope);
+        RequireProbability(cap, nameof(cap));
+
+        return Math.Min(cap, baseRate + (slope * consecutiveFailures));
+    }
+
+    /// <summary>The multiplier a curve carries before its threshold is passed.</summary>
+    private const double Flat = 1.0;
+
+    private static void RequirePositiveSlope(double slope)
+    {
+        if (!double.IsFinite(slope) || slope <= 0.0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(slope),
+                slope,
+                "A ramp's slope is a positive finite number. A slope of zero is a curve that does " +
+                "not ramp, which is authored as no curve at all rather than as a flat one.");
+        }
+    }
+
+    private static void RequireProbability(double value, string parameter)
+    {
+        if (!double.IsFinite(value) || value < 0.0 || value > 1.0)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameter, value, "A probability is a finite number between 0 and 1 inclusive.");
+        }
+    }
 }

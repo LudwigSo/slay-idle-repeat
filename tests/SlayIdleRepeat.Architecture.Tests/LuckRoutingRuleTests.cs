@@ -238,17 +238,29 @@ public sealed class LuckRoutingRuleTests
     /// <c>Content.LuckTuning</c> and the type itself), so the IL walk and the namespace exclusion
     /// both work; the empty result is a fact about <c>Core</c>, not a rule matching nothing.
     /// Reverted.
-    /// ⚠️ Still an <em>identity</em> floor only, per M4-01's Phase 1a note: the façade's bodies do
-    /// not yet name the primitives in IL, so "the façade still calls at least one primitive" cannot
-    /// be asserted until Phase 3 fills them. Tighten it there.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Its floor is no longer identity-only.</b> M4-01 Phase 1a could assert nothing more than
+    /// "the four types exist under this namespace", because the façade was still a wall of
+    /// <c>NotImplementedException</c> and named none of them in IL. Phase 3 filled the bodies, so
+    /// <see cref="The_routing_rules_subject_set_is_the_one_it_was_written_against"/> now also
+    /// requires the façade to <em>reach</em> every one of the four — which is what closes this arm's
+    /// own blind spot: it forbids reaching a primitive from outside and says nothing about a façade
+    /// that stops reaching them at all and reimplements the decision inline.
+    /// 🔒 <b>Proved to bite.</b> Rewriting the façade's <c>HardPity</c> calls as the same arithmetic
+    /// inline — the exact "inlined the guarantee" shape — turned the floor red with
+    /// <em>"'LuckService' does not name 'HardPity' anywhere in its IL"</em> while leaving this arm
+    /// green, as it must. Reverted.
+    /// ⚠️ Worth recording that the <em>first</em> attempt at that mutation stayed green: inlining
+    /// two of the three call sites left the third, so the type reference survived. This floor is a
+    /// claim about the façade reaching the primitive <b>at all</b>, not about any one call site, and
+    /// a partial inlining is invisible to it — the same class of hole every "names it" rule has.
     /// </para>
     /// </remarks>
     [Fact]
     public void A_guarantee_can_only_fire_inside_Rules_Luck()
     {
-        var guarded = GuaranteePrimitives
-            .Select(name => LuckNamespace + "." + name)
-            .ToArray();
+        var guarded = GuardedPrimitiveNames();
 
         var offenders = new List<string>();
 
@@ -338,6 +350,35 @@ public sealed class LuckRoutingRuleTests
                     "A_guarantee_can_only_fire_inside_Rules_Luck forbids a name that nothing " +
                     "declares, which is an empty prohibition — the rule would report success over " +
                     "every type in Core while the guarantee moved somewhere else entirely.");
+            }
+        }
+
+        // 🔒 The floor arm 2 could not carry until the façade had bodies (M4-01 Phase 1a's note).
+        // "No type outside Rules.Luck names a primitive" is satisfied by a codebase in which NOTHING
+        // names one — including one where the façade stopped delegating and reimplemented the
+        // guarantee inline, which is the precise defect arm 2 exists to prevent and the one shape it
+        // is structurally blind to. Stated with arm 2's OWN matcher, so a change that blinded
+        // Il.ReferencedTypeNames fails here rather than turning that arm permanently green.
+        // ⚠️ Every one of the four, not "at least one": RarityTable is a PARAMETER type of Resolve,
+        // so it is named whether or not a single line of the body survives, and an at-least-one
+        // floor would be satisfied by the locked signature alone. HardPity, SoftPity and
+        // MercyAccrual are the three a body has to reach for.
+        if (facade is not null)
+        {
+            var reached = GuaranteePrimitivesReachedBy(facade);
+
+            foreach (var primitive in GuaranteePrimitives.Except(
+                         reached.Select(SimpleNameOf), StringComparer.Ordinal))
+            {
+                offenders.Add(
+                    $"'{LuckFacade}' does not name '{primitive}' anywhere in its IL, so " +
+                    "A_guarantee_can_only_fire_inside_Rules_Luck is prohibiting a reference that " +
+                    "nothing in Core makes at all — a prohibition over an empty set reports success " +
+                    "forever. Either the façade inlined that primitive's decision instead of " +
+                    "delegating to it, which is the second place a guarantee can fire that 24 §11 " +
+                    "forbids reached from inside rather than from outside, or the primitive is now " +
+                    "someone else's door. If the façade genuinely stopped owning it, say where it " +
+                    "went and drop it from GuaranteePrimitives in the same commit.");
             }
         }
 
@@ -511,6 +552,29 @@ public sealed class LuckRoutingRuleTests
     /// </remarks>
     private static bool BypassesTheFacade(MethodDefinition method, string facade) =>
         GrantOutcomeNamesIn(method).Length > 0 && !RoutesThrough(method, facade);
+
+    /// <summary>The guarantee primitives' full names — the guarded set both arms are stated over.</summary>
+    private static string[] GuardedPrimitiveNames() =>
+        GuaranteePrimitives.Select(name => LuckNamespace + "." + name).ToArray();
+
+    /// <summary>
+    /// The guarantee primitives a type's IL actually names, resolved through the same matcher
+    /// <see cref="A_guarantee_can_only_fire_inside_Rules_Luck"/> uses.
+    /// </summary>
+    private static string[] GuaranteePrimitivesReachedBy(TypeDefinition type)
+    {
+        var guarded = GuardedPrimitiveNames();
+
+        return Il.ReferencedTypeNames(type)
+                 .Where(referenced => guarded.Contains(referenced, StringComparer.Ordinal))
+                 .Distinct(StringComparer.Ordinal)
+                 .OrderBy(name => name, StringComparer.Ordinal)
+                 .ToArray();
+    }
+
+    /// <summary>The simple name of a namespace-qualified type name.</summary>
+    private static string SimpleNameOf(string fullName) =>
+        fullName[(fullName.LastIndexOf('.') + 1)..];
 
     /// <summary>The grant-outcome names a method's signature mentions, flattened through generics.</summary>
     /// <remarks>

@@ -59,14 +59,47 @@ internal sealed class PityCounters
     /// <returns>The rebuilt map.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="counters"/> is null.</exception>
     /// <exception cref="ArgumentException">A key is blank, or a value is negative.</exception>
-    internal static PityCounters Rehydrate(IReadOnlyDictionary<string, int> counters) =>
-        throw new NotImplementedException();
+    internal static PityCounters Rehydrate(IReadOnlyDictionary<string, int> counters)
+    {
+        ArgumentNullException.ThrowIfNull(counters);
+
+        var store = new Dictionary<string, int>(counters.Count, StringComparer.Ordinal);
+
+        foreach (var row in counters)
+        {
+            if (string.IsNullOrWhiteSpace(row.Key))
+            {
+                throw new ArgumentException(
+                    "A stored row has a blank counter id. A counter is addressed by the id the " +
+                    "tuning reader forms, and a blank one addresses every counter and none.",
+                    nameof(counters));
+            }
+
+            if (row.Value < Unstarted)
+            {
+                throw new ArgumentException(
+                    "The stored counter '" + row.Key + "' is negative. A counter counts draws since " +
+                    "its guarantee last fired, and a negative one would push that guarantee further " +
+                    "away the longer the player played.",
+                    nameof(counters));
+            }
+
+            store[row.Key] = row.Value;
+        }
+
+        return new PityCounters(store);
+    }
 
     /// <summary>What one counter reads. <see cref="Unstarted"/> for a counter never advanced.</summary>
     /// <param name="key">The counter id, as <c>LuckTuning</c> forms it.</param>
     /// <returns>The counter's value.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
-    internal int Get(string key) => throw new NotImplementedException();
+    internal int Get(string key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+
+        return _view.TryGetValue(key, out var value) ? value : Unstarted;
+    }
 
     /// <summary>This map with one counter set to an explicit value.</summary>
     /// <param name="key">The counter id.</param>
@@ -74,13 +107,21 @@ internal sealed class PityCounters
     /// <returns>A new map; this one is unchanged.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is negative.</exception>
-    internal PityCounters With(string key, int value) => throw new NotImplementedException();
+    internal PityCounters With(string key, int value)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        ArgumentOutOfRangeException.ThrowIfLessThan(value, Unstarted);
+
+        var store = new Dictionary<string, int>(_view, StringComparer.Ordinal) { [key] = value };
+
+        return new PityCounters(store);
+    }
 
     /// <summary>This map with one counter advanced by a single draw.</summary>
     /// <param name="key">The counter id.</param>
     /// <returns>A new map; this one is unchanged.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
-    internal PityCounters Advanced(string key) => throw new NotImplementedException();
+    internal PityCounters Advanced(string key) => With(key, checked(Get(key) + 1));
 
     /// <summary>This map with one counter back at <see cref="Unstarted"/>.</summary>
     /// <remarks>
@@ -90,5 +131,5 @@ internal sealed class PityCounters
     /// <param name="key">The counter id.</param>
     /// <returns>A new map; this one is unchanged.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
-    internal PityCounters Reset(string key) => throw new NotImplementedException();
+    internal PityCounters Reset(string key) => With(key, Unstarted);
 }

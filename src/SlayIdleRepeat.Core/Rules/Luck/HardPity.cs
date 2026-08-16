@@ -19,6 +19,9 @@ namespace SlayIdleRepeat.Core.Rules.Luck;
 /// </remarks>
 internal static class HardPity
 {
+    /// <summary>The value a counter carries when its guarantee has just been satisfied.</summary>
+    private const int NoMisses = 0;
+
     /// <summary>
     /// Whether the draw about to be made is the forced one.
     /// </summary>
@@ -33,14 +36,26 @@ internal static class HardPity
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="missesBeforeDraw"/> is negative, or <paramref name="everyNth"/> is below 1.
     /// </exception>
-    internal static bool Fires(int missesBeforeDraw, int everyNth) =>
-        throw new NotImplementedException();
+    internal static bool Fires(int missesBeforeDraw, int everyNth)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(missesBeforeDraw);
+        ArgumentOutOfRangeException.ThrowIfLessThan(everyNth, 1);
+
+        // Stated as "misses >= N - 1" rather than "misses + 1 >= N": the counter is allowed to stand
+        // arbitrarily high after a rung is retuned downwards, and the second spelling overflows there.
+        return missesBeforeDraw >= everyNth - 1;
+    }
 
     /// <summary>The counter after a draw that did not satisfy this rung's guarantee.</summary>
     /// <param name="misses">The counter's value before the draw. Never negative.</param>
     /// <returns>The counter's value after the draw.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="misses"/> is negative.</exception>
-    internal static int Advance(int misses) => throw new NotImplementedException();
+    internal static int Advance(int misses)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(misses);
+
+        return checked(misses + 1);
+    }
 
     /// <summary>
     /// The counter after a draw that satisfied this rung's guarantee, forced or not.
@@ -51,5 +66,5 @@ internal static class HardPity
     /// overshoot would fire a redundant guarantee a few draws later.
     /// </remarks>
     /// <returns>The reset value.</returns>
-    internal static int Reset() => throw new NotImplementedException();
+    internal static int Reset() => NoMisses;
 }
