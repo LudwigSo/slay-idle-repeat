@@ -80,10 +80,17 @@ public sealed class SalvageTests
     }
 
     /// <summary>
-    /// 🔒 All or nothing: a batch naming one locked item destroys none of the others. Salvage is the
-    /// one forge operation that cannot be undone, which is what makes a partial application worse
-    /// than a refusal.
+    /// 🔒 A batch naming one locked item destroys none of the others. Salvage is the one forge
+    /// operation that cannot be undone, which is what makes a partial application worse than a
+    /// refusal.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>What this pins is <c>Apply</c>'s discard, not the handler's ordering</b>, and the
+    /// distinction was found by mutation rather than by reading: moving the removals inside the
+    /// validation pass left this case GREEN, because a handler mutates a clone that a refusal throws
+    /// away. Recorded rather than quietly relied on — the property is real and worth a case, but no
+    /// case here can hold the handler to it.
+    /// </remarks>
     [Fact]
     public void A_batch_naming_one_locked_item_destroys_none_of_the_others()
     {

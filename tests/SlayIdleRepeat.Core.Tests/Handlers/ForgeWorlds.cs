@@ -67,6 +67,32 @@ internal static class ForgeWorlds
             null);
     }
 
+    /// <summary>
+    /// A slice whose stock is exactly full — <paramref name="items"/> at the front of it, padding
+    /// behind them — with <paramref name="held"/> items waiting for space.
+    /// </summary>
+    /// <param name="held">How many items are waiting. Must exceed what the operation frees.</param>
+    /// <param name="items">The items the command will name.</param>
+    /// <returns>The slice.</returns>
+    internal static WorldSlice FullWithOverflow(int held, params GearInstance[] items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        var capacity = Inventories.Tuning.CapacityAt(0);
+
+        return new WorldSlice(
+            Worlds.Rehydrated(PlayerSnapshots.With(
+                wallet: Funded,
+                inventory: new InventorySnapshot(
+                    0,
+                    [
+                        .. items.Select(Inventories.Persist),
+                        .. Inventories.Fill(capacity - items.Length, "pad").Select(Inventories.Persist),
+                    ],
+                    [.. Inventories.Fill(held, "waiting").Select(Inventories.Persist)]))),
+            null);
+    }
+
     /// <summary>What one currency moved by, summed across the events a command produced.</summary>
     /// <param name="events">The command's events.</param>
     /// <param name="currency">The column to total.</param>

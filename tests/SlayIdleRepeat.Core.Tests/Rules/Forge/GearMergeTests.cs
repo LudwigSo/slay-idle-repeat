@@ -241,10 +241,12 @@ public sealed class GearMergeTests
     [Fact]
     public void A_dust_filled_slot_contributes_no_quality_and_no_chapter()
     {
+        // Descending, so the maxima are the FIRST input's: a rule that took the last real input
+        // rather than the highest lands somewhere else on all three axes.
         var pair = new[]
         {
-            Inventories.Item("merge_a", quality: 0.2, chapterOrigin: 2, enhanceFailures: 1),
-            Inventories.Item("merge_b", quality: 0.4, chapterOrigin: 3, enhanceFailures: 2),
+            Inventories.Item("merge_a", quality: 0.4, chapterOrigin: 3, enhanceFailures: 2),
+            Inventories.Item("merge_b", quality: 0.2, chapterOrigin: 2, enhanceFailures: 1),
         };
 
         GearMerge.Refusal(pair, dustSubstituted: true, Forges.Tuning).ShouldBeNull();

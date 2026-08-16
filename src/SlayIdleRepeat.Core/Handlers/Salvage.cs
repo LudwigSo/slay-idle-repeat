@@ -12,14 +12,17 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>All or nothing.</b> Every named item is checked before any of them is destroyed, so a batch
-/// naming one locked item destroys none of the others. Salvage is the one operation in the forge
-/// that cannot be undone, which is what makes a partial application worse than a refusal.
-/// </para>
-/// <para>
 /// <b>A locked item refuses the whole batch, and that is the lock working.</b> Excluding it silently
 /// and salvaging the rest would be a batch that did something other than what the player asked for,
 /// on the operation where being surprised costs the most.
+/// </para>
+/// <para>
+/// ⚠️ <b>The batch is all-or-nothing, and the reason is <c>Apply</c>'s rather than this handler's.</b>
+/// A handler mutates a CLONE and a refusal discards it, so no handler in the game can partially
+/// apply — which means the two passes below are not what makes the batch atomic, and a mutation that
+/// removed items inside the first pass would leave every case green. They are still two passes,
+/// because the payout is summed against the stock as the player sent it; the atomicity is stated
+/// here so that nobody reads the structure as providing it.
 /// </para>
 /// <para>
 /// ⚠️ <b>The top band's Set Token is not paid.</b> Set Tokens are a non-wallet counter nothing on the

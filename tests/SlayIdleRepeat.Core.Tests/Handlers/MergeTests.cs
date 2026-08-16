@@ -209,6 +209,29 @@ public sealed class MergeTests
             .Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
+    /// <summary>
+    /// 🔒 The fused item stays IN THE STOCK even when the stock is full and overflow is waiting.
+    /// Removing all three inputs and filing the output afterwards is not the same edit: the three
+    /// opened slots reclaim from overflow first, and the item the player just paid for would land in
+    /// overflow itself. The fixture holds three waiting items precisely so the two spellings part.
+    /// </summary>
+    [Fact]
+    public void A_fusion_out_of_a_full_stock_leaves_its_output_stored_rather_than_in_overflow()
+    {
+        var world = ForgeWorlds.FullWithOverflow(held: 3, Triple());
+
+        var result = GameRules.Apply(world, Command("a", "b", "c"), Context);
+
+        result.Accepted.ShouldBeTrue();
+
+        var stock = result.NewState.Player.Inventory;
+
+        stock.Stored.ShouldContain(item => item.InstanceId == new GearInstanceId("a"));
+        stock.Held.ShouldNotContain(item => item.InstanceId == new GearInstanceId("a"));
+        stock.Stored.Count.ShouldBe(Inventories.Tuning.CapacityAt(0));
+        stock.Held.Count.ShouldBe(1, "two slots opened and two of the three waiting items took them");
+    }
+
     /// <summary>The same command over the same seed produces byte-identical state.</summary>
     [Fact]
     public void The_same_fusion_over_the_same_seed_produces_the_same_stock()
