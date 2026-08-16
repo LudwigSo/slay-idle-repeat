@@ -384,6 +384,89 @@ public sealed class LuckTuningMatchesTuningDataTests
     }
 
     /// <summary>
+    /// <c>24</c> §4.3's <c>DROP_RUN</c> block: the two dry-streak breakers and the session floor,
+    /// leaf by leaf and member by member.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Only the two ordinals were pinned before this, and they are the two leaves that matter
+    /// least on their own.</b> <c>EveryAuthoredN</c> carries
+    /// <c>consecutiveMissesBeforeForce</c> for both breakers because the theory it feeds is about
+    /// integer <c>N</c>s; the <em>bands</em> those breakers count and force, and every leaf of the
+    /// session floor, were resolved by <c>Core</c>'s reader against a hermetic fixture that nothing
+    /// tied to this file. A breaker that counted a miss below the wrong band would keep firing on the
+    /// authored ordinal and hand out the wrong rarity, with both halves of the suite green.
+    /// </para>
+    /// <para>
+    /// The member lists are asserted as well as the values, on <c>#/draft</c>'s precedent: a leaf
+    /// added to a breaker without a reader is a tunable the game ignores, and one removed is a reader
+    /// that throws at load.
+    /// </para>
+    /// <para>
+    /// ⚠️ <c>consecutiveMissesBeforeForce</c> is an <b>ordinal</b>, not a miss count — <c>24</c> §4.3
+    /// D1 reads <em>"on the 6th, force"</em>, so five misses precede the forced kill. The key name
+    /// reads as the other thing and is deliberately not renamed here; this file pins the shipped
+    /// spelling, and the rename is the milestone review's.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_drop_run_block_authors_the_two_breakers_bands_and_the_session_floors_four_leaves()
+    {
+        Leaf("#/dropRun").EnumerateObject().Select(member => member.Name).ShouldBe(new[]
+        {
+            "_doc",
+            "eliteMercy",
+            "bossMercy",
+            "sessionFloor",
+        });
+
+        var breakerLeaves = new[] { "consecutiveMissesBeforeForce", "belowRarity", "forceRarityAtLeast" };
+
+        Leaf("#/dropRun/eliteMercy").EnumerateObject().Select(member => member.Name).ShouldBe(
+            breakerLeaves, "DropRunTuning reads exactly these three from #/dropRun/eliteMercy.");
+        Leaf("#/dropRun/bossMercy").EnumerateObject().Select(member => member.Name).ShouldBe(
+            breakerLeaves, "DropRunTuning reads exactly these three from #/dropRun/bossMercy.");
+
+        Leaf("#/dropRun/eliteMercy/belowRarity").GetString().ShouldBe(
+            "A",
+            "24 §4.3 D1: an elite drop below A is what counts as a miss. Raised, every ordinary " +
+            "drop becomes a miss and the breaker fires forever; lowered, the streak never starts.");
+        Leaf("#/dropRun/eliteMercy/forceRarityAtLeast").GetString().ShouldBe(
+            "A",
+            "24 §4.3 D1: and A is the band the forced drop is floored to. A band below the miss " +
+            "band would let the guaranteed drop count as another miss.");
+
+        Leaf("#/dropRun/bossMercy/belowRarity").GetString().ShouldBe(
+            "S",
+            "24 §4.3 D2: the boss breaker counts a miss one band higher than the elite one. Equal " +
+            "bands would make the two breakers the same rule at two ordinals.");
+        Leaf("#/dropRun/bossMercy/forceRarityAtLeast").GetString().ShouldBe(
+            "S",
+            "24 §4.3 D2: and S is what a forced boss drop is floored to — the band 24 §3 keys the " +
+            "boss counter on, so this value is also the counter's identity.");
+
+        Leaf("#/dropRun/sessionFloor").EnumerateObject().Select(member => member.Name).ShouldBe(new[]
+        {
+            "grantRarity",
+            "grantCount",
+            "maxPerDay",
+            "requiresVictoryOrStage3Death",
+        });
+
+        Leaf("#/dropRun/sessionFloor/grantRarity").GetString().ShouldBe(
+            "B", "24 §4.3 D3: the floor grant lands on B — a consolation, deliberately not a band a " +
+            "player would farm sessions for.");
+        Leaf("#/dropRun/sessionFloor/grantCount").GetInt32().ShouldBe(
+            1, "24 §4.3 D3: one item, not a handful.");
+        Leaf("#/dropRun/sessionFloor/maxPerDay").GetInt32().ShouldBe(
+            2, "24 §4.3 D3: twice a game day. This is the whole daily cap on the floor, so a raised " +
+            "value is a new income source rather than a tuning nudge.");
+        Leaf("#/dropRun/sessionFloor/requiresVictoryOrStage3Death").GetBoolean().ShouldBeTrue(
+            "24 §4.3 D3 makes the floor a consolation for a session that reached stage 3 or won, not " +
+            "a payout for opening the game. An authored false would hand it to every session.");
+    }
+
+    /// <summary>
     /// The anti-brick block is authored, keyless, and forces the Sustain category.
     /// </summary>
     /// <remarks>

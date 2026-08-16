@@ -229,8 +229,14 @@ internal static class GapRegister
         //     M4-02, which owns 24 §4's DROP_RUN D1–D3 and is where a run drop becomes an item the
         //     player keeps; M4-04 is the first consumer of an item once it is in there (merge,
         //     enhance, salvage), and M4-15's end-to-end exit criterion — "a run banks gear" — is the
-        //     test that cannot pass while this path is missing, so the obligation has a failing
-        //     witness waiting for it rather than only a note.
+        //     test that cannot pass while this path is missing.
+        //
+        //     🔒 THAT WITNESS HAS LANDED and is named rather than merely anticipated: MetaLoopTests.
+        //     A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory. It drives a run
+        //     through commands and asserts the player's stock is byte-identical across it, so it goes
+        //     RED on the commit that wires this path — which is the signal to close BOTH halves: this
+        //     note, and the exit criterion's "banks gear" clause, which that test currently records
+        //     as unreachable.
 
         // ⚠️ M4-10 BUILT THE HERO NAME FILTER AND NOTHING CALLS IT, and that is written here rather
         // than as an entry because this register keys on a TYPE and the gap is a missing CALLER.
@@ -260,10 +266,18 @@ internal static class GapRegister
         // 🔒 THIS NOTE HAS A FAILING WITNESS, which is what separates it from a comment nobody owns:
         // HeroNameWritePathRuleTests.Nothing_in_production_calls_the_name_filter_yet_and_this_fails_
         // when_something_does goes RED on the commit that wires the first caller, and its failure
-        // message says to delete both itself and this note in that commit. The M4-05 note above
-        // records the same requirement in prose ("a failing witness waiting for it rather than only
-        // a note") and could not have one, because its subject was a call that must eventually
-        // EXIST rather than one that must not yet.
+        // message says to delete both itself and this note in that commit.
+        //
+        // 🔴 The M4-05 note above said the same requirement "could not have one, because its subject
+        // was a call that must eventually EXIST rather than one that must not yet." M4-15 showed
+        // that reasoning was wrong: a witness for a call that must not yet exist can assert the
+        // BEHAVIOUR its absence produces, which is decidable today and stops being true on the
+        // commit that adds the call. MetaLoopTests.
+        // A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory drives a whole run
+        // and compares the player's stock by canonical bytes across it; the day anything hands an
+        // item to Inventory.Place mid-run, it goes RED and says to delete itself. Corrected here
+        // rather than left standing, because a register that records an obligation as unwitnessable
+        // is a register nobody will try to witness.
         //
         // ⚠️ M4-10 ALSO LEFT AN OBLIGATION ON A SIBLING TASK, and it is written here because the
         // tracker row is the conductor's to edit and this file is the place a later agent reads.
