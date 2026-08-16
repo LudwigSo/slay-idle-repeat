@@ -492,6 +492,57 @@ public sealed class LuckTuningTests
             "in the other.");
     }
 
+    /// <summary>
+    /// A token that is not exactly one member's name is refused, even where the runtime's own parser
+    /// would resolve it to a real band.
+    /// </summary>
+    /// <remarks>
+    /// The three spellings <c>Enum.TryParse</c> accepts that a name is not, each of which then
+    /// satisfies <c>Enum.IsDefined</c> and would load <em>silently</em> as a rarity nobody authored:
+    /// <list type="bullet">
+    /// <item><c>"3"</c> — the underlying wire value, which is <c>A</c>;</item>
+    /// <item><c>"C, B"</c> — a comma list, combined bitwise even though <see cref="Rarity"/> is not
+    /// a flags enum, so it is <c>1 | 2</c> and lands on <c>A</c> as well;</item>
+    /// <item><c>" SS"</c> — trimmed, so it lands on <c>SS</c> under a token the schema's enum does
+    /// not list.</item>
+    /// </list>
+    /// The first two are the dangerous ones: both resolve to <c>A</c>, the shipped value of this
+    /// very rung, so a document authoring either would read back as correct and the guarantee would
+    /// silently follow a token nobody wrote.
+    /// </remarks>
+    [Theory]
+    [InlineData("3")]
+    [InlineData("C, B")]
+    [InlineData(" SS")]
+    public void A_guarantee_rarity_that_is_not_exactly_a_member_name_is_refused(string authored)
+    {
+        Should.Throw<InvalidTunableException>(
+                () => LuckTuning.Read(LuckDocuments.LuckOnly(
+                    chestStandardFirstRungGuarantee: ContentValue.Text(authored))))
+            .Reference.ShouldBe(
+                $"{LuckTuning.ChestStandardReference}/{LuckTuning.HardPityMember}/0/guaranteeRarityAtLeast",
+                "which leaf, not merely that some token was refused — this reader raises " +
+                "InvalidTunableException for an unknown renormalisation, an unusable rung and an " +
+                "unknown class id from the same call.");
+    }
+
+    /// <summary>…and the same closed reading governs every vocabulary this document spells.</summary>
+    /// <remarks>
+    /// The negative control on the case above is the shipped file itself, which reads back green in
+    /// every other case in this class: the rule refuses tokens that are not names, not tokens that
+    /// are.
+    /// </remarks>
+    [Theory]
+    [InlineData("0")]
+    [InlineData("PROPORTIONAL ")]
+    public void A_renormalisation_that_is_not_exactly_a_member_name_is_refused(string authored)
+    {
+        Should.Throw<InvalidTunableException>(
+                () => LuckTuning.Read(LuckDocuments.LuckOnly(
+                    renormalisation: ContentValue.Text(authored))))
+            .Reference.ShouldBe(LuckTuning.RenormalisationReference);
+    }
+
     /// <summary>An unknown source-class id is authorised but unusable.</summary>
     [Fact]
     public void An_unknown_source_class_id_is_refused()

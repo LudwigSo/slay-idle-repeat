@@ -86,7 +86,8 @@ internal static class LuckService
         }
 
         var ladder = LadderOf(source, tuning);
-        var forced = HighestFiringGuarantee(source, tuning, counters, ladder);
+        var keys = CounterKeys(source, tuning, ladder);
+        var forced = HighestFiringGuarantee(counters, ladder, keys);
 
         var drawn = floor.HasValue ? table.FloorAt(floor.Value) : table;
         drawn = Ramped(drawn, source, tuning, counters, ladder);
@@ -106,7 +107,7 @@ internal static class LuckService
 
         var outcome = draws.WeightedPick(Walk(drawn));
 
-        return new LuckResolution(outcome, forced.HasValue, Moved(source, tuning, counters, ladder, outcome));
+        return new LuckResolution(outcome, forced.HasValue, Moved(counters, ladder, keys, outcome));
     }
 
     /// <summary>
@@ -161,7 +162,10 @@ internal static class LuckService
     /// <returns>The weight multiplier. Never below 1.</returns>
     /// <exception cref="ArgumentNullException">Any reference argument is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="source"/> is not declared.</exception>
-    /// <exception cref="InvalidOperationException">The class states no rarity ladder.</exception>
+    /// <exception cref="InvalidOperationException">
+    /// The class states no rarity ladder, or its authored curve raises a token that is not a band on
+    /// the rarity ladder — the reader keeps the authored token verbatim and it is refused here.
+    /// </exception>
     internal static double SoftPityWeight(
         SourceClass source, LuckTuning tuning, PityCounters counters)
     {
@@ -195,6 +199,7 @@ internal static class LuckService
     /// <param name="grant">Tokens the event grants. Never negative; zero is legal.</param>
     /// <returns>Tokens held after the event.</returns>
     /// <exception cref="ArgumentOutOfRangeException">Either argument is negative.</exception>
+    /// <exception cref="OverflowException">The bank would exceed <see cref="int.MaxValue"/>.</exception>
     internal static int AccrueMercy(int held, int grant) => MercyAccrual.Accrue(held, grant);
 
     /// <summary>The mercy bank after a redemption.</summary>
@@ -228,6 +233,24 @@ internal static class LuckService
         }
     }
 
+    /// <summary>The counter id of every rung of a ladder, in the ladder's own order.</summary>
+    /// <remarks>
+    /// Formed once per resolution rather than once per rung per pass. The decision pass and the
+    /// counter-movement pass address exactly the same counters, and forming one key is a scan of the
+    /// registry plus an allocation on the path every grant in the game takes.
+    /// </remarks>
+    private static string[] CounterKeys(SourceClass source, LuckTuning tuning, PityLadder ladder)
+    {
+        var keys = new string[ladder.HardPity.Count];
+
+        for (var i = 0; i < keys.Length; i++)
+        {
+            keys[i] = tuning.CounterKey(source, ladder.HardPity[i].GuaranteeRarityAtLeast);
+        }
+
+        return keys;
+    }
+
     /// <summary>
     /// The highest guarantee any rung forces on this draw, or <see langword="null"/> when none does.
     /// </summary>
@@ -237,15 +260,15 @@ internal static class LuckService
     /// would leave the higher counter unreset and its guarantee unkept.
     /// </remarks>
     private static Rarity? HighestFiringGuarantee(
-        SourceClass source, LuckTuning tuning, PityCounters counters, PityLadder ladder)
+        PityCounters counters, PityLadder ladder, string[] keys)
     {
         Rarity? forced = null;
 
-        foreach (var rung in ladder.HardPity)
+        for (var i = 0; i < keys.Length; i++)
         {
-            var misses = counters.Get(tuning.CounterKey(source, rung.GuaranteeRarityAtLeast));
+            var rung = ladder.HardPity[i];
 
-            if (HardPity.Fires(misses, rung.EveryNth) &&
+            if (HardPity.Fires(counters.Get(keys[i]), rung.EveryNth) &&
                 (forced is null || rung.GuaranteeRarityAtLeast > forced.Value))
             {
                 forced = rung.GuaranteeRarityAtLeast;
@@ -297,30 +320,35 @@ internal static class LuckService
     /// player is never punished for good luck by having a guarantee taken away later.
     /// </remarks>
     private static IReadOnlyList<PityCounterChange> Moved(
-        SourceClass source,
-        LuckTuning tuning,
-        PityCounters counters,
-        PityLadder ladder,
-        Rarity outcome)
+        PityCounters counters, PityLadder ladder, string[] keys, Rarity outcome)
     {
-        var changes = new PityCounterChange[ladder.HardPity.Count];
+        var changes = new PityCounterChange[keys.Length];
 
-        for (var i = 0; i < ladder.HardPity.Count; i++)
+        for (var i = 0; i < changes.Length; i++)
         {
-            var key = tuning.CounterKey(source, ladder.HardPity[i].GuaranteeRarityAtLeast);
-
             changes[i] = new PityCounterChange(
-                key,
+                keys[i],
                 outcome >= ladder.HardPity[i].GuaranteeRarityAtLeast
                     ? HardPity.Reset()
-                    : HardPity.Advance(counters.Get(key)));
+                    : HardPity.Advance(counters.Get(keys[i])));
         }
 
         return Array.AsReadOnly(changes);
     }
 
-    private static IReadOnlyList<(Rarity, double)> Walk(RarityTable table) =>
-        table.Rows.Select(row => (row.Rarity, row.Weight)).ToArray();
+    /// <summary>The table as the draw stream's own weighted-walk shape.</summary>
+    private static IReadOnlyList<(Rarity, double)> Walk(RarityTable table)
+    {
+        var rows = table.Rows;
+        var walk = new (Rarity, double)[rows.Count];
+
+        for (var i = 0; i < walk.Length; i++)
+        {
+            walk[i] = (rows[i].Rarity, rows[i].Weight);
+        }
+
+        return walk;
+    }
 
     private static void RequireDeclared(SourceClass source, string parameter)
     {

@@ -34,8 +34,17 @@ internal readonly record struct PityCounterChange(string Key, int Value);
 /// itself writes nothing.
 /// </param>
 /// <remarks>
+/// <para>
 /// Deltas rather than a mutated counter map: the luck service is stateless, so the aggregate that
 /// owns the counters is the one that decides whether the draw is kept.
+/// </para>
+/// <para>
+/// ⚠️ <b>Do not compare two of these with <c>==</c>.</b> <see cref="Changes"/> is a collection
+/// component, so the synthesized equality compares it <em>by reference</em>: two resolutions that
+/// moved the same counters to the same values are unequal unless they happen to share the very same
+/// list instance. Compare the outcome, the flag and the changes explicitly, or render the whole
+/// resolution to canonical text — which is what the suite does.
+/// </para>
 /// </remarks>
 internal sealed record LuckResolution(
     Rarity Outcome, bool FromPity, IReadOnlyList<PityCounterChange> Changes);

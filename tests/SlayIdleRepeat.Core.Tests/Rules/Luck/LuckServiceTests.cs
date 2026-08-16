@@ -400,6 +400,42 @@ public sealed class LuckServiceTests
             "drawn would shift every later draw on the stream and desynchronise the persisted counter.");
     }
 
+    /// <summary>
+    /// A table the caller has already closed is refused before the draw, even though no floor and no
+    /// guarantee are involved.
+    /// </summary>
+    /// <remarks>
+    /// The <em>other</em> weightless path, and the one nothing else in this file reaches.
+    /// <c>RarityTable.Of</c> refuses a weightless table, <c>FloorAt</c> refuses to produce one and a
+    /// soft-pity multiplier is never below 1 — so the only way a resolution can arrive at a table
+    /// with nothing to draw is a caller handing one in, which
+    /// <c>RarityTableTests.Scaling_to_zero_closes_the_band_without_removing_the_row</c> makes legal.
+    /// Without this case <see cref="LuckService.Resolve"/>'s own emptiness check is untested, and
+    /// deleting it would leave the refusal to <c>DeterministicRng</c> — after the argument that
+    /// names which class went wrong has been thrown away.
+    /// </remarks>
+    [Fact]
+    public void A_table_the_caller_has_already_closed_is_refused_before_the_draw()
+    {
+        var draws = Rng();
+
+        Should.Throw<InvalidOperationException>(() => LuckService.Resolve(
+                SourceClass.CHEST_APEX,
+                Tuning(),
+                LuckTables.Only(Rarity.SS).Scale(Rarity.SS, 0.0),
+                PityCounters.Empty,
+                draws))
+            .Message.ShouldContain(
+                "carries no weight",
+                Case.Sensitive,
+                "which refusal: an unsatisfiable floor and an unserved class raise the same type from " +
+                "the same call, and CHEST_APEX being rejected for either reason would pass a bare " +
+                "type assertion here.");
+
+        draws.Position.ShouldBe(
+            0UL, "a table with nothing to draw is discovered before the draw, not after it");
+    }
+
     /// <summary>A class that states its protection in another shape is refused, and consumes no index.</summary>
     [Theory]
     [InlineData(SourceClass.DROP_RUN)]

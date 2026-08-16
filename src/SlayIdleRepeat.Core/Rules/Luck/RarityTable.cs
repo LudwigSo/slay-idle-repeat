@@ -106,7 +106,21 @@ internal sealed class RarityTable
     /// Asked before a draw rather than after, so a table that a floor has emptied is refused without
     /// consuming a draw index.
     /// </remarks>
-    internal bool HasPositiveWeight => _rows.Any(row => row.Weight > 0.0);
+    internal bool HasPositiveWeight
+    {
+        get
+        {
+            for (var i = 0; i < _rows.Count; i++)
+            {
+                if (_rows[i].Weight > 0.0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
 
     /// <summary>
     /// This table with every rarity below <paramref name="floor"/> zeroed and the survivors rescaled
@@ -123,7 +137,15 @@ internal sealed class RarityTable
     {
         RequireDeclared(floor, nameof(floor));
 
-        var surviving = Sum(_rows.Where(row => row.Rarity >= floor));
+        var surviving = 0.0;
+
+        for (var i = 0; i < _rows.Count; i++)
+        {
+            if (_rows[i].Rarity >= floor)
+            {
+                surviving += _rows[i].Weight;
+            }
+        }
 
         if (surviving <= 0.0)
         {
@@ -133,11 +155,16 @@ internal sealed class RarityTable
                 "draw is taken, so the stream is left where it stood.");
         }
 
-        return new RarityTable(_rows
-            .Select(row => row.Rarity < floor
-                ? new RarityWeight(row.Rarity, 0.0)
-                : new RarityWeight(row.Rarity, row.Weight / surviving))
-            .ToArray());
+        var floored = new RarityWeight[_rows.Count];
+
+        for (var i = 0; i < floored.Length; i++)
+        {
+            floored[i] = _rows[i].Rarity < floor
+                ? new RarityWeight(_rows[i].Rarity, 0.0)
+                : new RarityWeight(_rows[i].Rarity, _rows[i].Weight / surviving);
+        }
+
+        return new RarityTable(floored);
     }
 
     /// <summary>This table with one rarity's weight multiplied.</summary>
@@ -165,11 +192,16 @@ internal sealed class RarityTable
                 "cumulative walk non-monotonic and its answer arbitrary.");
         }
 
-        return new RarityTable(_rows
-            .Select(row => row.Rarity == rarity
-                ? new RarityWeight(row.Rarity, row.Weight * multiplier)
-                : row)
-            .ToArray());
+        var scaled = new RarityWeight[_rows.Count];
+
+        for (var i = 0; i < scaled.Length; i++)
+        {
+            scaled[i] = _rows[i].Rarity == rarity
+                ? new RarityWeight(rarity, _rows[i].Weight * multiplier)
+                : _rows[i];
+        }
+
+        return new RarityTable(scaled);
     }
 
     private static void RequireDeclared(Rarity rarity, string parameter)
@@ -185,13 +217,14 @@ internal sealed class RarityTable
     private static IReadOnlyList<RarityWeight> Ascending(IEnumerable<RarityWeight> rows) =>
         rows.OrderBy(row => row.Rarity).ToArray();
 
-    private static double Sum(IEnumerable<RarityWeight> rows)
+    /// <summary>Σ weights, in row order — the order the weighted walk accumulates them in.</summary>
+    private static double Sum(IReadOnlyList<RarityWeight> rows)
     {
         var total = 0.0;
 
-        foreach (var row in rows)
+        for (var i = 0; i < rows.Count; i++)
         {
-            total += row.Weight;
+            total += rows[i].Weight;
         }
 
         return total;

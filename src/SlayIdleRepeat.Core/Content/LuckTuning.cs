@@ -420,10 +420,24 @@ internal sealed class LuckTuning
     /// Reads an authored token as a member of a closed vocabulary, case-sensitively and by name only.
     /// </summary>
     /// <remarks>
-    /// A numeric token is refused before it is parsed: <c>Enum.TryParse</c> accepts the underlying
-    /// wire value as well as the name, so an authored <c>"3"</c> would otherwise load as a real band
-    /// — a wire value leaking into a place the documents spell with a name.
+    /// <para>
+    /// <c>Enum.TryParse</c> accepts three spellings a name is not, and each one is refused here
+    /// before it is parsed rather than after, because all three land on a member
+    /// <see cref="Enum.IsDefined{TEnum}(TEnum)"/> then reports as real:
+    /// </para>
+    /// <list type="bullet">
+    /// <item>the underlying wire value — an authored <c>"3"</c> would load as a real band, a wire
+    /// value leaking into a place the documents spell with a name;</item>
+    /// <item>a comma-separated list, which is combined bitwise even for a non-flags enum — an
+    /// authored <c>"C, B"</c> is <c>1 | 2</c> and would load, silently, as <c>A</c>;</item>
+    /// <item>surrounding whitespace, which is trimmed away — an authored <c>" SS"</c> is not the
+    /// token the schema's enum lists, and accepting it would let two spellings of one band exist.</item>
+    /// </list>
     /// </remarks>
+    /// <typeparam name="TEnum">The closed vocabulary.</typeparam>
+    /// <param name="authored">The token the document spells.</param>
+    /// <param name="parsed">The member, when this returns <see langword="true"/>.</param>
+    /// <returns><see langword="true"/> when the token is exactly one member's name.</returns>
     private static bool TryParseName<TEnum>(string authored, out TEnum parsed)
         where TEnum : struct, Enum
     {
@@ -431,6 +445,8 @@ internal sealed class LuckTuning
 
         return !string.IsNullOrEmpty(authored) &&
             !char.IsAsciiDigit(authored[0]) && authored[0] != '-' && authored[0] != '+' &&
+            !authored.Contains(',') &&
+            !char.IsWhiteSpace(authored[0]) && !char.IsWhiteSpace(authored[^1]) &&
             Enum.TryParse(authored, ignoreCase: false, out parsed) &&
             Enum.IsDefined(parsed);
     }
@@ -503,7 +519,11 @@ internal readonly record struct HardPityStep(int EveryNth, Rarity GuaranteeRarit
 /// <summary>One authored soft-pity curve.</summary>
 /// <param name="Target">
 /// The rarity whose weight the curve raises, as the document spells it. Text rather than
-/// <see cref="Rarity"/> because two classes target a token that is not on the rarity ladder at all.
+/// <see cref="Rarity"/> because the schema states <c>softPity</c> once and shares that definition
+/// across every block that authors a curve, including the wheel's — whose target is a jackpot
+/// segment and not a rarity band at all. The reader keeps the authored token verbatim rather than
+/// narrowing it here, and the rules refuse a token that is not a band where they go to read a
+/// counter against it.
 /// </param>
 /// <param name="MissThreshold">The number of misses the curve stays flat for.</param>
 /// <param name="Slope">The per-miss multiplier growth past the threshold.</param>
@@ -523,6 +543,13 @@ internal readonly record struct PityLadder(
     SourceClass Source, IReadOnlyList<HardPityStep> HardPity, SoftPityCurve? SoftPity);
 
 /// <summary>The one rule for drawing a class table against a rarity floor.</summary>
+/// <remarks>
+/// Read and carried but not branched on, deliberately: <see cref="RarityFloorRenormalisation"/> has
+/// one member and the schema pins <see cref="CountersAdvanceNormally"/> as a constant, so there is
+/// no authorable value the engine could be ignoring. What the reader does do is <em>refuse</em> a
+/// renormalisation token it does not implement instead of falling back to the one it does — a
+/// second member is therefore a code edit, and the branch has to land in the same commit.
+/// </remarks>
 /// <param name="Renormalisation">How the surviving weights are rescaled.</param>
 /// <param name="CountersAdvanceNormally">
 /// Whether a floored draw still advances and resets counters exactly as an unfloored one does.

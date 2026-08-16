@@ -121,6 +121,10 @@ internal sealed class PityCounters
     /// <param name="key">The counter id.</param>
     /// <returns>A new map; this one is unchanged.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
+    /// <exception cref="OverflowException">
+    /// The counter would pass <see cref="int.MaxValue"/>. Checked rather than wrapped: a wrapped
+    /// counter reads as negative, which <see cref="Rehydrate"/> then refuses to load at all.
+    /// </exception>
     internal PityCounters Advanced(string key) => With(key, checked(Get(key) + 1));
 
     /// <summary>This map with one counter back at <see cref="Unstarted"/>.</summary>
