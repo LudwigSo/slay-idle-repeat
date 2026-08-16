@@ -1198,17 +1198,34 @@ public sealed class AccessibilityBoundaryTests
             "nothing and will report success forever. 30 §6's harness exists to DRIVE the aggregates; " +
             "if it has stopped touching them, that is the finding, not this rule's silence.");
 
-        // 🔒 Player::Rehydrate EXACTLY, not "something called Rehydrate". Run.Rehydrate satisfies a
-        // Contains("Rehydrate") just as well, which would leave the floor claiming the harness still
-        // builds a Player while it had stopped — the by-name/by-identity distinction this file makes
-        // about Run::_wallet one rule over. InMemoryGame.CreatePlayer is the only call site.
+        // 🔒 Player::CreateStarting EXACTLY, not "something called CreateStarting", and not a bare
+        // Contains("Player") — the by-name/by-identity distinction this file makes about
+        // Run::_wallet one rule over. InMemoryGame.CreatePlayer is the only call site.
+        //
+        // ⚠️ M7-09 MOVED THIS FLOOR ONE HOP, and the second assertion below is why that is not a
+        // weakening. Until M7-09 the harness called Player.Rehydrate directly and this floor named
+        // it. The in-process host needed the same starting row, and the values it is built from
+        // (the authored Legend minimum, the game-day and game-week boundaries) are internal to
+        // Core — so the row moved onto Player.CreateStarting, which both callers now share, rather
+        // than being transcribed a second time. What this scan can see is the harness reaching a
+        // public Model member; what it structurally cannot see is that the member it reaches ends
+        // at the one validated construction path, because that second hop is Model -> Model and
+        // never appears in Core/Testing/'s IL. So the hop is asserted directly.
         Assert.True(
             reached.Any(r => r.Member.Contains(
-                "SlayIdleRepeat.Core.Model.Player::Rehydrate", StringComparison.Ordinal)),
-            "the harness no longer calls Player.Rehydrate — 30 §11.3's one validated construction " +
-            "path. Either CreatePlayer has found another way to build an aggregate, which is what " +
-            "this rule exists to forbid, or the harness has stopped building one and the rule's " +
-            "subject set is about to empty.");
+                "SlayIdleRepeat.Core.Model.Player::CreateStarting", StringComparison.Ordinal)),
+            "the harness no longer builds a Player through Player.CreateStarting. Either " +
+            "CreatePlayer has found another way to build an aggregate, which is what this rule " +
+            "exists to forbid, or the harness has stopped building one and the rule's subject set " +
+            "is about to empty.");
+
+        Assert.True(
+            CallsRehydrate(Domain.FindInCore(PlayerType), StartingPlayerFactory),
+            $"Player.{StartingPlayerFactory} does not call Player.Rehydrate — 30 §11.3's one " +
+            "validated construction path. It is the seam the harness and the in-process host both " +
+            "build a starting row through, so a version of it that assembled an aggregate any other " +
+            "way would put an unvalidated Player into the harness AND into the local profile store, " +
+            "with the scan above still reporting a public call.");
 
         var offenders = reached
             .Where(r => !r.IsPublic)
@@ -1230,6 +1247,42 @@ public sealed class AccessibilityBoundaryTests
             "— it drives the " +
             "domain through GameRules.Apply, never through an aggregate's internal mutator nor " +
             "through an internal seam of the transition function itself (30 §6, 30 §11.2).");
+    }
+
+    /// <summary>The aggregate root whose starting row both the harness and the in-process host build.</summary>
+    private const string PlayerType = "Player";
+
+    /// <summary>The public factory that builds it, and the member the floor above is named on.</summary>
+    private const string StartingPlayerFactory = "CreateStarting";
+
+    /// <summary>The one validated construction path <see cref="StartingPlayerFactory"/> must end at.</summary>
+    private const string RehydrateMethod = "Rehydrate";
+
+    /// <summary>
+    /// True when <paramref name="type"/> declares <paramref name="factory"/> and every declaration of
+    /// it calls <c>Rehydrate</c> on that same type.
+    /// </summary>
+    /// <remarks>
+    /// Every overload rather than the first, on the argument
+    /// <see cref="Apply_is_the_only_public_mutation"/> already makes for <c>Apply</c>: a convenience
+    /// overload added later is a second construction path, and a <c>FirstOrDefault</c> would never
+    /// look at it. A type that declares no such factory answers <see langword="false"/>, so the
+    /// assertion fires rather than passing over an absent member.
+    /// </remarks>
+    private static bool CallsRehydrate(TypeDefinition? type, string factory)
+    {
+        var declared = type?.Methods
+            .Where(m => m.Name.Equals(factory, StringComparison.Ordinal))
+            .ToArray();
+
+        return declared is { Length: > 0 } && declared.All(
+            m => Il.Instructions(m)
+                   .Select(i => i.Operand as MethodReference)
+                   .Any(call =>
+                       call is not null &&
+                       call.Name.Equals(RehydrateMethod, StringComparison.Ordinal) &&
+                       call.DeclaringType.FullName.Equals(
+                           type!.FullName, StringComparison.Ordinal)));
     }
 
     /// <summary>

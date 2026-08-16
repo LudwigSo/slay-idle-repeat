@@ -150,7 +150,12 @@ public static class GameRules
     /// the dispatch row, its handler delegate, or a kind a caller could start branching on.
     /// </para>
     /// </remarks>
-    public static bool RequiresCommandSeed(GameCommand command) => throw new NotImplementedException();
+    public static bool RequiresCommandSeed(GameCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        return RegistrationFor(command.GetType())?.Kind == CommandKind.Meta;
+    }
 
     /// <summary><see cref="Apply"/>'s body, over an explicit dispatch table so the domain test suite can drive it against shapes never committed to production.</summary>
     /// <remarks>

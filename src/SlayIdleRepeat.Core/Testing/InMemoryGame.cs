@@ -4,7 +4,6 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model;
-using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 
@@ -134,18 +133,11 @@ public sealed class InMemoryGame
     /// <returns>The new player's identity, for <see cref="Send"/> and <see cref="State"/>.</returns>
     /// <remarks>
     /// <para>
-    /// Every value in the starting row is either authored, derived from the clock, or the identity
-    /// element — none is invented. Legend Level is the authored floor, never a literal 1. Wallet
-    /// balances and Energy banks start at zero, forced rather than chosen: every currency movement
-    /// must be attributed by a <c>CurrencyChanged</c> event, so a player that started with a balance
-    /// would hold currency no row attributes. Period boundaries are derived from the clock's current
-    /// instant, so a fresh player starts inside the game day they were created in.
-    /// </para>
-    /// <para>
-    /// Built through <c>Player.Rehydrate</c>, the one validated construction path — the same door
-    /// the persistence adapter uses, so a harness-created player is one the persistence layer could
-    /// load back. The generated id is a counter, not a <c>Guid</c>: a run's seed hashes the player
-    /// id, so a non-deterministic id would make the simulation irreproducible.
+    /// The starting row itself is <see cref="Player.CreateStarting"/>'s, not this method's, so the
+    /// harness and whatever creates real accounts cannot start a player differently. What stays here
+    /// is what only the harness knows: the display-name guard and the identity. The generated id is
+    /// a counter, not a <c>Guid</c> — a run's seed hashes the player id, so a non-deterministic id
+    /// would make the simulation irreproducible.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentException"><paramref name="displayName"/> is blank.</exception>
@@ -170,56 +162,9 @@ public sealed class InMemoryGame
         // The counter is read here and advanced only once the row has proven it rehydrates, so a
         // content set that cannot answer the Legend Level range does not silently consume an id.
         var id = new PlayerId("PLAYER_" + Text(_created.Count + 1));
-        var nowUtc = Clock.NowUtc;
-        var legend = LegendTuning.Read(Content);
 
-        var snapshot = new PlayerSnapshot(
-            SnapshotSchema.SchemaVersion,
-            id,
-            displayName ?? id.Value,
-            legend.Minimum,
-            LegendXp: 0L,
-            RunsStarted: 0L,
-            Player.WalletCurrencies.ToDictionary(currency => currency, _ => 0L),
-            new EnergyBanks(0, 0),
-            EnergyAnchorUtc: nowUtc,
-            LastAppliedAtUtc: nowUtc,
-            FtueBeat.B0,
-            FtueCompletedAtUtc: null,
-            GameCalendar.GameDayStartAt(nowUtc),
-            new Dictionary<string, long>(StringComparer.Ordinal),
-            GameCalendar.GameWeekStartAt(nowUtc),
-            new Dictionary<string, long>(StringComparer.Ordinal),
-            LoginCalendarTuning.FirstDay,
-            LoginCalendarDayClaimed: false,
-            FeatCounters: new Dictionary<string, long>(StringComparer.Ordinal),
-            PityCounters: new Dictionary<string, int>(StringComparer.Ordinal),
-
-            // Empty, never null: an absent inventory is a fault, so the starting row states the
-            // empty stock a brand-new player has rather than leaving the field to a default.
-            Inventory: inventory ?? new InventorySnapshot(0, [], []),
-
-            // Empty for the same reason, and it is the ordinary state rather than a placeholder: a
-            // player sweeps nothing until they configure a filter.
-            AutoSalvageRules: [],
-
-            // 07 §1.1 grants Talent Points on the way up; a player at the floor has made no level-up.
-            TalentPoints: 0L,
-
-            // Empty, never null, for the reason the inventory above is: an absent loadout and an
-            // absent preset list are both faults, so the starting row states them.
-            //
-            // ⚠️ THE NAME DOES NOT GO THROUGH Rules.Hero.HeroNameRule HERE, and that is forced rather
-            // than chosen: this harness runs on hermetic content sets that carry the tuning documents
-            // and nothing else, so reading content/profanity/ would make every fixture in the suite
-            // depend on the shipped data set. The filter runs on Player.Rename, which is the door a
-            // real player-chosen name comes through. No such door exists yet — 14 §2.3's registry is
-            // exhaustive and authors no rename command — so account creation, wherever it lands, is
-            // the first production caller. Recorded here rather than left silent.
-            Loadout: new LoadoutSnapshot(new Dictionary<GearSlot, GearInstanceId>(0)),
-            Presets: []);
-
-        var player = Player.Rehydrate(snapshot, Content);
+        var player = Player.CreateStarting(
+            id, displayName ?? id.Value, Clock.NowUtc, Content, inventory: inventory);
 
         if (player.IsFailure)
         {
@@ -277,13 +222,11 @@ public sealed class InMemoryGame
 
         var session = Session(player);
 
-        // The dispatch table's own answer, not a guess about the command's name. An unregistered
-        // type gets null here and no seed; Apply refuses it with ILLEGAL_STATE on its own.
-        var kind = GameRules.RegistrationFor(command.GetType())?.Kind;
-
+        // The dispatch table's own answer, asked through the one predicate that reads it, so this
+        // harness and a production host cannot come to different conclusions about the same command.
         var context = new GameContext(
             Clock.NowUtc,
-            kind == CommandKind.Meta ? CommandSeedFor(player, session.CommandsSent) : null,
+            GameRules.RequiresCommandSeed(command) ? CommandSeedFor(player, session.CommandsSent) : null,
             Content,
             Entitlements,
             Flags);

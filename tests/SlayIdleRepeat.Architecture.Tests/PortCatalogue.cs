@@ -156,17 +156,21 @@ internal static class PortCatalogue
             "alone would satisfy the port's shape and prove nothing about either store's purchase " +
             "flow, which is where every defect in this area lives."),
 
-        new("IGameApiPort", "M7-09",
-            "Its two implementations are the in-process host (M7-09) and the HTTP adapter (M7-02), " +
-            "and neither exists yet: the HTTP one needs a running server, and the in-process one " +
-            "needs the use-case layer M5-02 builds. Its signature also names the command envelope " +
-            "M5-03 owns, which is the M1 carry-forward 16 blocker — CommandKind is unreachable from " +
-            "outside Core, so a command-carrying port cannot be typed today without inventing it."),
+        new("IGameApiPort", "M7-02",
+            "M7-09 landed the in-process game seam — Application.Hosting.IGameHost, one real " +
+            "implementation over the M5-02 use cases — and deliberately did NOT declare this port. " +
+            "IGameHost is typed on Core's GameCommand; this port carries the command envelope M5-03 " +
+            "owns (commandId, sequence, stateHash), which no assembly declares. Its second " +
+            "implementation is the HTTP adapter, which needs a running server. And 23 §5 A5 is a " +
+            "live CI gate: a declared port needs a shared contract suite under Contract.Tests, so " +
+            "declaring it without one fails the build. M7-02 writes the suite, the HTTP adapter and " +
+            "the envelope's port shape together, and implements it by wrapping IGameHost."),
 
-        new("IRealtimeChannelPort", "M7-09",
+        new("IRealtimeChannelPort", "M7-02",
             "A push channel with no server to push from. Its real implementation is a WebSocket " +
             "client against the server M5-06 authenticates and M7-09 first stands up in process; " +
-            "the connection-state vocabulary its events carry is M7-02's, not this task's."),
+            "the connection-state vocabulary its events carry is M7-02's, and M7-09's in-process " +
+            "host answers one command at a time with no channel to push down."),
 
         new("IPlatformInfoPort", "M7-01",
             "Its only real implementation is the Godot platform adapter, which reads device model, " +

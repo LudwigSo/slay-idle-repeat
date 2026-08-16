@@ -19,7 +19,8 @@ public static class LocalHostAmbience
     /// the absence of an entitlement rather than a guess at one, and a null expiry is the only
     /// honest instant for a term that was never granted.
     /// </remarks>
-    public static Entitlements NoSubscriptionResolved() => throw new NotImplementedException();
+    public static Entitlements NoSubscriptionResolved() =>
+        new(hasPlus: false, expiresAtUtc: null);
 
     /// <summary>The kill switches of a host no remote config has reached.</summary>
     /// <returns>Nothing killed.</returns>
@@ -28,5 +29,6 @@ public static class LocalHostAmbience
     /// lists rather than allow lists, so "no config arrived" has exactly one non-inventing answer:
     /// nothing is killed. That is the identity element of the value, not a default chosen for it.
     /// </remarks>
-    public static FeatureFlags NoRemoteConfigResolved() => throw new NotImplementedException();
+    public static FeatureFlags NoRemoteConfigResolved() =>
+        new(pvpEnabled: true, plusOfferEnabled: true, disabledAdPlacements: [], disabledChapters: []);
 }
