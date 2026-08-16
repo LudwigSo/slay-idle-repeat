@@ -32,6 +32,18 @@ public partial class AppRoot : Node
     /// <summary>Cancelled when the root leaves the tree, so a half-finished open stops there.</summary>
     private readonly CancellationTokenSource _lifetime = new();
 
+    /// <summary>
+    /// The composed graph, held for the life of the root.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Ownership, not use. Hand-rolled composition has no container to keep the graph alive,
+    /// and the root node is the only object whose lifetime is the application's — so if the root
+    /// lets go, every later screen has to compose again, and a second graph means a second cache
+    /// over the same directory. Holding it is what makes injection downward possible; the root
+    /// still reads nothing out of it but the host it gives its presenter.
+    /// </remarks>
+    private ComposedGodotClient? _composed;
+
     private AppRootPresenter? _presenter;
 
     /// <inheritdoc/>
@@ -54,17 +66,17 @@ public partial class AppRoot : Node
     /// Runs the composition root once, hands the host to the presenter, and shows where it got to.
     /// </summary>
     /// <remarks>
-    /// The graph is built and immediately let go of except for the one thing the presenter
-    /// needs. A scene holding the composed adapters would be a scene holding ports, which is
-    /// the half of the split it is not.
+    /// The graph is composed once, here, and kept. What the root does NOT do is read it: the
+    /// presenter gets the host and the root touches nothing else in it. That is the line the
+    /// split actually draws — a scene may not use a port, and something has to own one.
     /// </remarks>
     private async Task ComposeAndStartAsync()
     {
         try
         {
-            var client = GodotClientComposition.ComposeLocalHost(GodotClientComposition.BuildCapabilities(this));
+            _composed = GodotClientComposition.ComposeLocalHost(GodotClientComposition.BuildCapabilities(this));
 
-            _presenter = new AppRootPresenter(client.GameHost);
+            _presenter = new AppRootPresenter(_composed.Client.GameHost);
 
             // No ConfigureAwait(false) here, and that is deliberate rather than an omission: the
             // continuation writes to a node, and only the thread the engine runs the scene tree on

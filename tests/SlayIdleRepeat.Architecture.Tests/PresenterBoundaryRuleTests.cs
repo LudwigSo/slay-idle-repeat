@@ -27,6 +27,9 @@ public sealed class PresenterBoundaryRuleTests
     /// <summary>The scene script the negative control is stated over by name.</summary>
     internal const string AppRootSceneName = "AppRoot";
 
+    /// <summary>The suffix this repository spells a presenter with.</summary>
+    internal const string PresenterTypeSuffix = "Presenter";
+
     /// <summary>The engine's managed assembly.</summary>
     private const string EngineAssemblyName = "GodotSharp";
 
@@ -126,6 +129,15 @@ public sealed class PresenterBoundaryRuleTests
     /// look. Naming the member that must be there is what ties the floor to the thing being
     /// governed.
     /// </para>
+    /// <para>
+    /// 🔒 And naming ONE member is not enough on its own, which is the hole the third assertion
+    /// closes. <c>AppRootPresenter</c> staying put says nothing about the presenters written
+    /// after it: a later screen dropping <c>InventoryPresenter</c> into a namespace of its own
+    /// leaves this floor satisfied, both rules above quantifying over a set that never grows,
+    /// and the new presenter free to name the engine. The subject set is a namespace, so the
+    /// floor has to be stated over the whole population — every type this repository spells as
+    /// a presenter is inside it — rather than over the one that happened to be first.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_presenter_subject_set_contains_AppRootPresenter()
@@ -143,6 +155,19 @@ public sealed class PresenterBoundaryRuleTests
                       $"no '{AppRootPresenterName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, so " +
                       "the source arm is grepping a directory the presenters have left. That arm is the only " +
                       "one that can see an inlined const, and a grep over the wrong directory sees nothing.");
+
+        var strays =
+            from type in Il.AllTypes(ProductionAssemblies.Module(ProductionAssemblies.ClientName))
+            where type.Name.EndsWith(PresenterTypeSuffix, StringComparison.Ordinal)
+            where !Il.IsUnder(Il.NamespaceOf(type), PresentersNamespace)
+            select $"{type.FullName} is spelled as a presenter and lives outside {PresentersNamespace}, " +
+                   "where neither the IL arm nor the source arm looks — so nothing stops it naming the " +
+                   "engine or an adapter. Move it under the presenters namespace and its file under " +
+                   $"{RepoLayout.Relative(PresenterSourceDirectory)}, or stop calling it a presenter";
+
+        ArchRule.Empty(
+            strays,
+            "Every presenter in the client assembly is inside the governed namespace (23 §6).");
     }
 
     /// <summary>

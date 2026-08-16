@@ -42,6 +42,45 @@ public sealed class GodotClientCapabilities
 }
 
 /// <summary>
+/// The whole composed client as the engine half hands it over: the engine capabilities and
+/// the portable graph built on top of them.
+/// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 Exists so the graph has an owner. With no container, the only thing that keeps a
+/// composed object alive is a reference somebody holds, and three of the four capabilities
+/// have no consumer yet — they are the ports this task was not allowed to declare, standing
+/// as concrete types until it can be. Returning them as part of the result is the difference
+/// between a graph waiting for its first caller and four objects allocated and dropped: the
+/// first is what a composition root is for, the second is a constructor call with no effect.
+/// </para>
+/// <para>
+/// The root node is what holds this, because the root node is the only thing whose lifetime
+/// is the application's. That is not a scene reaching into a port — the root hands the host
+/// to its presenter and reads nothing else — it is the container's job, done by hand.
+/// </para>
+/// </remarks>
+public sealed class ComposedGodotClient
+{
+    /// <summary>Pairs the engine capabilities with the graph composed over them.</summary>
+    /// <exception cref="ArgumentNullException">Either half is null.</exception>
+    public ComposedGodotClient(GodotClientCapabilities capabilities, ComposedClient client)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+        ArgumentNullException.ThrowIfNull(client);
+
+        Capabilities = capabilities;
+        Client = client;
+    }
+
+    /// <summary>The engine-backed capabilities, kept reachable for the consumers still to come.</summary>
+    public GodotClientCapabilities Capabilities { get; }
+
+    /// <summary>The portable half of the graph — host, ads and content.</summary>
+    public ComposedClient Client { get; }
+}
+
+/// <summary>
 /// The engine half of the composition root: resolves what only the engine knows, then hands
 /// it to the pure half.
 /// </summary>
@@ -87,14 +126,20 @@ public static class GodotClientComposition
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="capabilities"/> is null.</exception>
     /// <exception cref="DirectoryNotFoundException">The content data root the engine resolves does not exist.</exception>
-    public static ComposedClient ComposeLocalHost(GodotClientCapabilities capabilities)
+    public static ComposedGodotClient ComposeLocalHost(GodotClientCapabilities capabilities)
     {
         ArgumentNullException.ThrowIfNull(capabilities);
 
-        return ClientComposition.Compose(
-            capabilities.Paths.ResolveWritableCacheRoot(),
-            capabilities.Paths.ResolveContentDataRoot(),
-            LocalHostAmbience.NoSubscriptionResolved(),
-            LocalHostAmbience.NoRemoteConfigResolved());
+        // The capabilities are handed back out rather than consumed and forgotten. Only the paths
+        // have a caller today; audio, haptics and platform info have none until the ports they are
+        // standing in for exist, and a composition root that dropped them would be constructing
+        // three objects for nothing at all.
+        return new ComposedGodotClient(
+            capabilities,
+            ClientComposition.Compose(
+                capabilities.Paths.ResolveWritableCacheRoot(),
+                capabilities.Paths.ResolveContentDataRoot(),
+                LocalHostAmbience.NoSubscriptionResolved(),
+                LocalHostAmbience.NoRemoteConfigResolved()));
     }
 }
