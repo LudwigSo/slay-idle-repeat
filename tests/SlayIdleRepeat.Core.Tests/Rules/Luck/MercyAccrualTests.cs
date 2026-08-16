@@ -64,13 +64,18 @@ public sealed class MercyAccrualTests
     }
 
     /// <summary>Neither argument may be negative.</summary>
+    /// <remarks>
+    /// The refused argument is named in each case. Both carry the same range, so a guard that only
+    /// checked one of them would satisfy a bare type assertion on every row.
+    /// </remarks>
     [Theory]
-    [InlineData(-1, 1)]
-    [InlineData(1, -1)]
-    [InlineData(int.MinValue, 0)]
-    public void A_negative_bank_or_grant_is_refused(int held, int grant)
+    [InlineData(-1, 1, "held")]
+    [InlineData(1, -1, "grant")]
+    [InlineData(int.MinValue, 0, "held")]
+    public void A_negative_bank_or_grant_is_refused(int held, int grant, string parameter)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => MercyAccrual.Accrue(held, grant));
+        Should.Throw<ArgumentOutOfRangeException>(() => MercyAccrual.Accrue(held, grant))
+            .ParamName.ShouldBe(parameter);
     }
 
     // ---------------------------------------------------------------- redemption
@@ -122,14 +127,17 @@ public sealed class MercyAccrualTests
     }
 
     /// <summary>A cost below 1 is not a sink: it would hand out the reward forever, for free.</summary>
+    /// <inheritdoc cref="A_negative_bank_or_grant_is_refused" path="/remarks"/>
     [Theory]
-    [InlineData(60, 0)]
-    [InlineData(60, -1)]
-    [InlineData(-1, 60)]
-    public void A_bank_or_cost_outside_its_stated_range_is_refused(int held, int cost)
+    [InlineData(60, 0, "cost")]
+    [InlineData(60, -1, "cost")]
+    [InlineData(-1, 60, "held")]
+    public void A_bank_or_cost_outside_its_stated_range_is_refused(int held, int cost, string parameter)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => MercyAccrual.CanRedeem(held, cost));
-        Should.Throw<ArgumentOutOfRangeException>(() => MercyAccrual.Redeem(held, cost));
+        Should.Throw<ArgumentOutOfRangeException>(() => MercyAccrual.CanRedeem(held, cost))
+            .ParamName.ShouldBe(parameter);
+        Should.Throw<ArgumentOutOfRangeException>(() => MercyAccrual.Redeem(held, cost))
+            .ParamName.ShouldBe(parameter);
     }
 
     /// <summary>

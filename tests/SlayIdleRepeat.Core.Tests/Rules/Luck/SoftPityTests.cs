@@ -126,17 +126,24 @@ public sealed class SoftPityTests
     }
 
     /// <summary>Counts are never negative and a slope is a positive finite number.</summary>
+    /// <remarks>
+    /// Each case names the argument its refusal is about. All three of this curve's arguments carry
+    /// a stated range, and a guard that reported the wrong one would satisfy a bare
+    /// <c>Should.Throw</c> while leaving two ranges unchecked.
+    /// </remarks>
     [Theory]
-    [InlineData(-1, 100, 0.05)]
-    [InlineData(0, -1, 0.05)]
-    [InlineData(0, 100, 0.0)]
-    [InlineData(0, 100, -0.05)]
-    [InlineData(0, 100, double.NaN)]
-    [InlineData(0, 100, double.PositiveInfinity)]
-    public void A_curve_outside_its_stated_ranges_is_refused(int misses, int threshold, double slope)
+    [InlineData(-1, 100, 0.05, "misses")]
+    [InlineData(0, -1, 0.05, "threshold")]
+    [InlineData(0, 100, 0.0, "slope")]
+    [InlineData(0, 100, -0.05, "slope")]
+    [InlineData(0, 100, double.NaN, "slope")]
+    [InlineData(0, 100, double.PositiveInfinity, "slope")]
+    public void A_curve_outside_its_stated_ranges_is_refused(
+        int misses, int threshold, double slope, string parameter)
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => SoftPity.WeightMultiplier(misses, threshold, slope));
+                () => SoftPity.WeightMultiplier(misses, threshold, slope))
+            .ParamName.ShouldBe(parameter);
     }
 
     // ---------------------------------------------------------------- the ramp against a real table
@@ -257,20 +264,22 @@ public sealed class SoftPityTests
     }
 
     /// <summary>Probabilities are in 0..1, counts are never negative, and a slope is positive and finite.</summary>
+    /// <inheritdoc cref="A_curve_outside_its_stated_ranges_is_refused" path="/remarks"/>
     [Theory]
-    [InlineData(-0.01, 0, 0.08, 1.0)]
-    [InlineData(1.01, 0, 0.08, 1.0)]
-    [InlineData(0.25, -1, 0.08, 1.0)]
-    [InlineData(0.25, 0, 0.0, 1.0)]
-    [InlineData(0.25, 0, -0.08, 1.0)]
-    [InlineData(0.25, 0, double.NaN, 1.0)]
-    [InlineData(0.25, 0, 0.08, -0.01)]
-    [InlineData(0.25, 0, 0.08, 1.01)]
+    [InlineData(-0.01, 0, 0.08, 1.0, "baseRate")]
+    [InlineData(1.01, 0, 0.08, 1.0, "baseRate")]
+    [InlineData(0.25, -1, 0.08, 1.0, "consecutiveFailures")]
+    [InlineData(0.25, 0, 0.0, 1.0, "slope")]
+    [InlineData(0.25, 0, -0.08, 1.0, "slope")]
+    [InlineData(0.25, 0, double.NaN, 1.0, "slope")]
+    [InlineData(0.25, 0, 0.08, -0.01, "cap")]
+    [InlineData(0.25, 0, 0.08, 1.01, "cap")]
     public void A_mercy_rate_outside_its_stated_ranges_is_refused(
-        double baseRate, int failures, double slope, double cap)
+        double baseRate, int failures, double slope, double cap, string parameter)
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => SoftPity.RateWithMercy(baseRate, failures, slope, cap));
+                () => SoftPity.RateWithMercy(baseRate, failures, slope, cap))
+            .ParamName.ShouldBe(parameter);
     }
 
     /// <summary><c>08</c> §4.2's <c>+15</c> success rate, the base the mercy ramp is applied to.</summary>

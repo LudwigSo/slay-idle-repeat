@@ -186,7 +186,7 @@ public sealed class LuckGuaranteePropertyTests
     {
         Corpus.Elapsed.TotalSeconds.ShouldBeLessThan(
             BudgetSeconds,
-            $"building the corpus took " +
+            "building the corpus took " +
             $"{Corpus.Elapsed.TotalSeconds.ToString("F2", CultureInfo.InvariantCulture)} s. This " +
             "repository has no integration tier and is not getting one — if the sweep stops fitting " +
             "the unit tier, the answer is to say so, not to add a tier.");

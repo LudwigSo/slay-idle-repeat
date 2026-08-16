@@ -231,8 +231,15 @@ public sealed class LuckTuningMatchesTuningDataTests
             .Select(row => row.GetProperty("counterScope").GetString()!)
             .ShouldBe(new[] { "GEAR_INSTANCE", "RUN" });
 
-        Rows()
+        var playerScoped = Rows()
             .Where(row => row.GetProperty("counterScope").GetString() == "PLAYER")
+            .ToArray();
+
+        playerScoped.Length.ShouldBe(
+            8,
+            "the floor under the assertion below: ShouldAllBe over an empty sequence passes, so a " +
+            "registry that renamed the scope token would satisfy it while quantifying over nothing.");
+        playerScoped
             .Select(row => row.GetProperty("counterKey").ValueKind)
             .ShouldAllBe(kind => kind == JsonValueKind.String);
     }
@@ -246,11 +253,17 @@ public sealed class LuckTuningMatchesTuningDataTests
     [Fact]
     public void No_two_source_classes_share_a_counter_key()
     {
-        Rows()
+        var keys = Rows()
             .Select(row => row.GetProperty("counterKey"))
             .Where(key => key.ValueKind == JsonValueKind.String)
             .Select(key => key.GetString()!)
-            .ShouldBeUnique();
+            .ToArray();
+
+        keys.Length.ShouldBe(
+            8,
+            "the floor under the uniqueness claim: an empty set is trivially unique, so a registry " +
+            "whose keys all became null would pass this case while pooling nothing at all.");
+        keys.ShouldBeUnique();
     }
 
     // ---------------------------------------------------------------- the soft-pity curves

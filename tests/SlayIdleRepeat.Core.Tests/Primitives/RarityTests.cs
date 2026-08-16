@@ -55,11 +55,23 @@ public sealed class RarityTests
     }
 
     /// <summary>The ladder is strictly ascending, so no two bands compare equal.</summary>
+    /// <remarks>
+    /// Stated as a chain over the <em>named</em> bands rather than over
+    /// <see cref="Enum.GetValues{T}()"/>. That method is documented to answer its values already
+    /// sorted by binary value, so comparing its result against its own <c>OrderBy</c> is a claim
+    /// that cannot fail for any renumbering whatsoever — it would stay green with
+    /// <c>SS = 1 … C = 5</c>, which is the exact inversion this ladder exists to prevent.
+    /// </remarks>
     [Fact]
     public void The_ladder_is_strictly_ascending()
     {
-        Enum.GetValues<Rarity>().Select(rarity => (int)rarity).ShouldBe(
-            Enum.GetValues<Rarity>().Select(rarity => (int)rarity).OrderBy(value => value));
+        (Rarity.C < Rarity.B).ShouldBeTrue();
+        (Rarity.B < Rarity.A).ShouldBeTrue();
+        (Rarity.A < Rarity.S).ShouldBeTrue();
+        (Rarity.S < Rarity.SS).ShouldBeTrue(
+            "24 §4.1's guarantees are all 'X or better', which is `>=` on this ladder and nothing " +
+            "else. A band out of order inverts every one of them at once.");
+
         Enum.GetValues<Rarity>().Select(rarity => (int)rarity).ShouldBeUnique();
     }
 

@@ -48,11 +48,11 @@ public sealed class RarityTableTests
     {
         var floored = LuckTables.ChestPremium().FloorAt(Rarity.A);
 
-        (Weight(floored, Rarity.A) / Weight(floored, Rarity.S)).ShouldBe(
+        DeterminismRounding.Round(Weight(floored, Rarity.A) / Weight(floored, Rarity.S)).ShouldBe(
             1.5,
             "A:S is 45:30 before the floor and must still be 45:30 after it. Redistributing the " +
             "freed 20 equally would answer 1.409; giving it all to the floor would answer 2.167.");
-        (Weight(floored, Rarity.S) / Weight(floored, Rarity.SS)).ShouldBe(
+        DeterminismRounding.Round(Weight(floored, Rarity.S) / Weight(floored, Rarity.SS)).ShouldBe(
             6.0,
             "S:SS is 30:5 before the floor and must still be 30:5 after it. Redistributing equally " +
             "would answer 3.143.");
@@ -137,7 +137,13 @@ public sealed class RarityTableTests
     [Fact]
     public void A_floor_no_row_can_satisfy_is_refused()
     {
-        Should.Throw<InvalidOperationException>(() => LuckTables.BelowA().FloorAt(Rarity.A));
+        Should.Throw<InvalidOperationException>(() => LuckTables.BelowA().FloorAt(Rarity.A))
+            .Message.ShouldContain(
+                "floor",
+                Case.Insensitive,
+                "the identity of the refusal, not merely that something threw: LuckService throws " +
+                "InvalidOperationException for an unserved source class as well, and a case that " +
+                "accepted either would go green on a table that was refused for the wrong reason.");
     }
 
     /// <summary>The top of the ladder is a satisfiable floor wherever the table carries weight there.</summary>
@@ -158,7 +164,12 @@ public sealed class RarityTableTests
     [InlineData(-1)]
     public void An_undeclared_rarity_is_refused_as_a_floor(int rarity)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => LuckTables.ChestPremium().FloorAt((Rarity)rarity));
+        Should.Throw<ArgumentOutOfRangeException>(() => LuckTables.ChestPremium().FloorAt((Rarity)rarity))
+            .ParamName.ShouldBe(
+                "floor",
+                "the argument that was wrong, not merely that some argument was — FloorAt has one " +
+                "parameter today and will not always, and a case that took any range refusal would " +
+                "then pass on the wrong one.");
     }
 
     // ---------------------------------------------------------------- scaling
@@ -222,16 +233,22 @@ public sealed class RarityTableTests
     }
 
     /// <summary>A multiplier must be finite and non-negative, and the rarity must be declared.</summary>
+    /// <remarks>
+    /// The expected parameter is part of each case: <c>Scale</c> takes two arguments and both have a
+    /// stated range, so a refusal that named the other one would be a guard on the wrong argument
+    /// passing for the right one.
+    /// </remarks>
     [Theory]
-    [InlineData(4, -1.0)]
-    [InlineData(4, double.NaN)]
-    [InlineData(4, double.PositiveInfinity)]
-    [InlineData(0, 2.0)]
-    [InlineData(6, 2.0)]
-    public void A_scale_outside_its_stated_ranges_is_refused(int rarity, double multiplier)
+    [InlineData(4, -1.0, "multiplier")]
+    [InlineData(4, double.NaN, "multiplier")]
+    [InlineData(4, double.PositiveInfinity, "multiplier")]
+    [InlineData(0, 2.0, "rarity")]
+    [InlineData(6, 2.0, "rarity")]
+    public void A_scale_outside_its_stated_ranges_is_refused(int rarity, double multiplier, string parameter)
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => LuckTables.ChestPremium().Scale((Rarity)rarity, multiplier));
+                () => LuckTables.ChestPremium().Scale((Rarity)rarity, multiplier))
+            .ParamName.ShouldBe(parameter);
     }
 
     // ---------------------------------------------------------------- construction
@@ -262,11 +279,22 @@ public sealed class RarityTableTests
     }
 
     /// <summary>A table with any positive row can be drawn from; one with none cannot.</summary>
+    /// <remarks>
+    /// The false arm carries the case. Construction refuses an all-zero table and <c>FloorAt</c>
+    /// refuses a floor it cannot satisfy, so scaling the last positive row to zero is the one way a
+    /// weightless table is reachable at all — and without it <c>HasPositiveWeight =&gt; true</c>
+    /// satisfies every assertion here, which would make the check <c>Resolve</c> runs before drawing
+    /// (and the "a refusal consumes no draw index" property that rests on it) dead code.
+    /// </remarks>
     [Fact]
     public void A_table_reports_whether_anything_can_be_drawn_from_it()
     {
         LuckTables.ChestPremium().HasPositiveWeight.ShouldBeTrue();
         LuckTables.ChestPremium().FloorAt(Rarity.SS).HasPositiveWeight.ShouldBeTrue();
+
+        LuckTables.Only(Rarity.A).Scale(Rarity.A, 0.0).HasPositiveWeight.ShouldBeFalse(
+            "a table whose only band has been closed carries no weight, and answering true here " +
+            "would send it to the weighted walk with nothing to land on.");
     }
 
     /// <summary>A rarity supplied twice is refused: one of the two weights would vanish silently.</summary>
@@ -277,7 +305,7 @@ public sealed class RarityTableTests
         [
             new RarityWeight(Rarity.A, 45.0),
             new RarityWeight(Rarity.A, 30.0),
-        ]));
+        ])).ParamName.ShouldBe(Rows);
     }
 
     /// <summary>Every weight is finite and non-negative, and at least one is positive.</summary>
@@ -291,7 +319,7 @@ public sealed class RarityTableTests
         [
             new RarityWeight(Rarity.A, 45.0),
             new RarityWeight(Rarity.S, weight),
-        ]));
+        ])).ParamName.ShouldBe(Rows);
     }
 
     /// <summary>A table nothing can be drawn from is refused at construction.</summary>
@@ -302,18 +330,32 @@ public sealed class RarityTableTests
         [
             new RarityWeight(Rarity.A, 0.0),
             new RarityWeight(Rarity.S, 0.0),
-        ]));
+        ])).ParamName.ShouldBe(Rows);
 
-        Should.Throw<ArgumentException>(() => RarityTable.Of([]));
+        Should.Throw<ArgumentException>(() => RarityTable.Of([])).ParamName.ShouldBe(Rows);
     }
 
     /// <summary>The builder refuses a null sequence rather than dereferencing it.</summary>
     [Fact]
     public void A_null_row_sequence_is_refused()
     {
-        Should.Throw<ArgumentNullException>(() => RarityTable.Of(null!));
+        Should.Throw<ArgumentNullException>(() => RarityTable.Of(null!)).ParamName.ShouldBe(Rows);
     }
 
+    /// <summary>
+    /// The one argument every construction refusal is about, named once so each case pins which
+    /// guard fired rather than merely that an <see cref="ArgumentException"/> came out.
+    /// </summary>
+    private const string Rows = "rows";
+
+    /// <summary>One row's weight, through the project's own 4-decimal rule.</summary>
+    /// <remarks>
+    /// Renormalisation divides, and <c>45 × (1 / 80)</c> and <c>45 / 80</c> are not the same double
+    /// even though they are the same number. Comparing the raw value would pin which of the two the
+    /// implementation happens to write; <c>DeterminismRounding</c> is the repository's own answer to
+    /// that, and the three readings this file discriminates between are 0.5625 / 0.5167 / 0.65 —
+    /// nowhere near each other at four decimal places.
+    /// </remarks>
     private static double Weight(RarityTable table, Rarity rarity) =>
-        table.Rows.Single(row => row.Rarity == rarity).Weight;
+        DeterminismRounding.Round(table.Rows.Single(row => row.Rarity == rarity).Weight);
 }

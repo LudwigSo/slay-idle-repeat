@@ -82,8 +82,10 @@ public sealed class LuckServiceTests
             "no guarantee fired — the floor came from the source, not from the ladder. A player who " +
             "is told 'from pity' when the wheel simply promised A would be shown a counter that did " +
             "not move.");
-        (resolution.Outcome >= Rarity.A).ShouldBeTrue(
-            "a floored draw cannot land below its floor — that is what a floor is");
+        resolution.Outcome.ShouldBe(
+            Rarity.A,
+            "the table carries one band, so the outcome is decided by the table rather than by the " +
+            "seed — a floored draw cannot land below its floor, and here it cannot land above it.");
         Changes(resolution).ShouldBe(
             $"{StandardA}=0;{StandardS}=4;{StandardSs}=4",
             "the A-counter resets because the draw satisfied A; the other two advance");
@@ -181,22 +183,63 @@ public sealed class LuckServiceTests
     }
 
     /// <summary>
-    /// When two rungs fire at once, the table is floored at the <em>higher</em> guarantee — proved by
-    /// a table that can satisfy the lower one and not the higher.
+    /// When two rungs fire at once, the table is floored at the <em>higher</em> guarantee — proved
+    /// positively, on a table that can satisfy either one.
     /// </summary>
     /// <remarks>
     /// The discriminating case behind chest #40. An implementation that floored at the first firing
     /// rung would happily answer A here and reset only the 10-counter, and every case above would
-    /// still be green because an S satisfies the A-rung too.
+    /// still be green because an S satisfies the A-rung too. Swept over thirty-two seeds rather
+    /// than one: floored at A the two bands are equally weighted, so a single seed landing on S
+    /// would prove nothing, while floored at S every seed in the game answers S.
     /// </remarks>
     [Fact]
     public void Two_rungs_firing_at_once_floor_the_table_at_the_higher_guarantee()
     {
         var counters = PityCounters.Empty.With(StandardA, 9).With(StandardS, 39);
+        var table = RarityTable.Of(
+            [new RarityWeight(Rarity.A, 50.0), new RarityWeight(Rarity.S, 50.0)]);
+
+        var outcomes = Enumerable.Range(1, 32)
+            .Select(seed => LuckService.Resolve(
+                    SourceClass.CHEST_STANDARD,
+                    Tuning(),
+                    table,
+                    counters,
+                    DeterministicRng.OpenAt((ulong)seed, RngStreams.Drops, 0))
+                .Outcome)
+            .Distinct()
+            .ToArray();
+
+        outcomes.ShouldBe(
+            new[] { Rarity.S },
+            "seeds 1..32 over an A 50 · S 50 table. 24 §4.1: chest #40 satisfies the 10-rung and the " +
+            "40-rung at once, and the forced draw has to satisfy both — flooring at A would leave " +
+            "roughly half these seeds on A and the 40-counter unreset.");
+    }
+
+    /// <summary>
+    /// …and when the table cannot reach the higher of the two, the resolution is refused rather
+    /// than quietly settling for the lower one.
+    /// </summary>
+    /// <remarks>
+    /// The refusal half of the case above, and the one that pins "before the draw": a resolution
+    /// that discovered the empty table after drawing would shift every later draw on the stream.
+    /// </remarks>
+    [Fact]
+    public void Two_rungs_firing_at_once_over_a_table_that_can_only_reach_the_lower_are_refused()
+    {
+        var counters = PityCounters.Empty.With(StandardA, 9).With(StandardS, 39);
         var draws = Rng();
 
         Should.Throw<InvalidOperationException>(() => LuckService.Resolve(
-            SourceClass.CHEST_STANDARD, Tuning(), LuckTables.Only(Rarity.A), counters, draws));
+                SourceClass.CHEST_STANDARD, Tuning(), LuckTables.Only(Rarity.A), counters, draws))
+            .Message.ShouldContain(
+                "floor",
+                Case.Insensitive,
+                "which refusal, not merely that one happened: Resolve raises InvalidOperationException " +
+                "for an unserved source class too, and CHEST_STANDARD being rejected outright would " +
+                "pass a bare type assertion here.");
 
         draws.Position.ShouldBe(0UL, "a refusal is decided before the draw, so it consumes no index");
     }
@@ -243,8 +286,10 @@ public sealed class LuckServiceTests
 
         Canonical(second).ShouldBe(
             Canonical(first),
-            "14 §8.2: the same (seed, snapshot) is byte-identical on client and server. A resolution " +
-            "that varied would make every container open unverifiable.");
+            $"seed 0x{Seed.ToString("X", CultureInfo.InvariantCulture)} at draw index 0. 14 §8.2: " +
+            "the same (seed, snapshot) is byte-identical " +
+            "on client and server. A resolution that varied would make every container open " +
+            "unverifiable.");
     }
 
     /// <summary>
@@ -337,12 +382,17 @@ public sealed class LuckServiceTests
         var draws = Rng();
 
         Should.Throw<InvalidOperationException>(() => LuckService.Resolve(
-            SourceClass.CHEST_PREMIUM,
-            Tuning(),
-            LuckTables.BelowA(),
-            PityCounters.Empty,
-            draws,
-            Rarity.A));
+                SourceClass.CHEST_PREMIUM,
+                Tuning(),
+                LuckTables.BelowA(),
+                PityCounters.Empty,
+                draws,
+                Rarity.A))
+            .Message.ShouldContain(
+                "floor",
+                Case.Insensitive,
+                "which refusal — an unserved source class raises the same type from the same call, " +
+                "and CHEST_PREMIUM being rejected outright would pass a bare type assertion here.");
 
         draws.Position.ShouldBe(
             0UL,
@@ -395,17 +445,25 @@ public sealed class LuckServiceTests
     }
 
     /// <summary>…and it agrees with what the resolution then reports.</summary>
+    /// <remarks>
+    /// The expected value is stated as well as the agreement. Comparing the two answers alone is
+    /// satisfied by an implementation that is wrong in both places identically — "never forced" is
+    /// exactly such an implementation, and it would pass both rows.
+    /// </remarks>
     [Theory]
-    [InlineData(3)]
-    [InlineData(4)]
-    public void GuaranteeFires_agrees_with_the_resolution_it_predicts(int misses)
+    [InlineData(3, false)]
+    [InlineData(4, true)]
+    public void GuaranteeFires_agrees_with_the_resolution_it_predicts(int misses, bool forced)
     {
         var counters = PityCounters.Empty.With(PremiumS, misses);
 
+        var predicted = LuckService.GuaranteeFires(
+            SourceClass.CHEST_PREMIUM, Tuning(), counters, Rarity.S);
+
+        predicted.ShouldBe(forced);
         LuckService.Resolve(
                 SourceClass.CHEST_PREMIUM, Tuning(), LuckTables.ChestPremium(), counters, Rng())
-            .FromPity.ShouldBe(
-                LuckService.GuaranteeFires(SourceClass.CHEST_PREMIUM, Tuning(), counters, Rarity.S));
+            .FromPity.ShouldBe(predicted);
     }
 
     /// <summary>A guarantee the class does not state is refused rather than answered false.</summary>
@@ -421,7 +479,14 @@ public sealed class LuckServiceTests
     public void GuaranteeFires_refuses_a_rung_the_class_does_not_state(SourceClass source, Rarity guarantee)
     {
         Should.Throw<InvalidOperationException>(
-            () => LuckService.GuaranteeFires(source, Tuning(), PityCounters.Empty, guarantee));
+                () => LuckService.GuaranteeFires(source, Tuning(), PityCounters.Empty, guarantee))
+            .Message.ShouldContain(
+                source.ToString(),
+                Case.Sensitive,
+                "two different rules meet in this theory — CHEST_PREMIUM and CHEST_APEX state a " +
+                "ladder without this rung, DROP_RUN states no ladder at all — and both raise " +
+                "InvalidOperationException. The message has to name the class, or a caller cannot " +
+                "tell 'not yet' from 'never' and neither can this case.");
     }
 
     /// <summary>The soft-pity weight is the class's own curve, read at the target's own counter.</summary>
@@ -456,7 +521,12 @@ public sealed class LuckServiceTests
     public void SoftPityWeight_refuses_a_class_with_no_rarity_ladder()
     {
         Should.Throw<InvalidOperationException>(
-            () => LuckService.SoftPityWeight(SourceClass.WHEEL, Tuning(), PityCounters.Empty));
+                () => LuckService.SoftPityWeight(SourceClass.WHEEL, Tuning(), PityCounters.Empty))
+            .Message.ShouldContain(
+                nameof(SourceClass.WHEEL),
+                Case.Sensitive,
+                "the same identity the Resolve refusal carries — a class with no ladder is told apart " +
+                "from an empty floored table by the message naming which class, not by the type.");
     }
 
     // ---------------------------------------------------------------- the mercy façade
@@ -467,7 +537,16 @@ public sealed class LuckServiceTests
     [InlineData(10, 1.0)]
     public void MercyRate_answers_the_additive_ramp(int failures, double expected)
     {
-        DeterminismRounding.Round(LuckService.MercyRate(0.25, failures, 0.08, 1.0)).ShouldBe(expected);
+        DeterminismRounding.Round(LuckService.MercyRate(
+                0.25,
+                failures,
+                LuckDocuments.ShippedEnhanceMercySlope,
+                LuckDocuments.ShippedEnhanceRateCap))
+            .ShouldBe(
+                expected,
+                "the slope and the cap are the shipped ones (pinned against luck.json in " +
+                "Application.Tests), not literals that could drift away from what SoftPityTests " +
+                "is written against.");
     }
 
     /// <summary>The mercy bank is reachable through the façade, accrual and redemption alike.</summary>
@@ -482,38 +561,50 @@ public sealed class LuckServiceTests
     // ---------------------------------------------------------------- refusals
 
     /// <summary>Every reference argument is required.</summary>
+    /// <remarks>
+    /// Each case names the argument it is about. <c>Resolve</c> takes four reference arguments, and
+    /// a single guard on the first of them would satisfy all four bare type assertions while three
+    /// null dereferences went unchecked.
+    /// </remarks>
     [Fact]
     public void A_null_argument_is_refused()
     {
         var table = LuckTables.ChestPremium();
 
         Should.Throw<ArgumentNullException>(() => LuckService.Resolve(
-            SourceClass.CHEST_PREMIUM, null!, table, PityCounters.Empty, Rng()));
+                SourceClass.CHEST_PREMIUM, null!, table, PityCounters.Empty, Rng()))
+            .ParamName.ShouldBe("tuning");
         Should.Throw<ArgumentNullException>(() => LuckService.Resolve(
-            SourceClass.CHEST_PREMIUM, Tuning(), null!, PityCounters.Empty, Rng()));
+                SourceClass.CHEST_PREMIUM, Tuning(), null!, PityCounters.Empty, Rng()))
+            .ParamName.ShouldBe("table");
         Should.Throw<ArgumentNullException>(() => LuckService.Resolve(
-            SourceClass.CHEST_PREMIUM, Tuning(), table, null!, Rng()));
+                SourceClass.CHEST_PREMIUM, Tuning(), table, null!, Rng()))
+            .ParamName.ShouldBe("counters");
         Should.Throw<ArgumentNullException>(() => LuckService.Resolve(
-            SourceClass.CHEST_PREMIUM, Tuning(), table, PityCounters.Empty, null!));
+                SourceClass.CHEST_PREMIUM, Tuning(), table, PityCounters.Empty, null!))
+            .ParamName.ShouldBe("draws");
     }
 
     /// <summary>An undeclared class or floor is refused, and consumes no draw index.</summary>
+    /// <inheritdoc cref="A_null_argument_is_refused" path="/remarks"/>
     [Theory]
-    [InlineData(0, 3)]
-    [InlineData(11, 3)]
-    [InlineData(2, 0)]
-    [InlineData(2, 6)]
-    public void An_undeclared_class_or_floor_is_refused_before_the_draw(int source, int floor)
+    [InlineData(0, 3, "source")]
+    [InlineData(11, 3, "source")]
+    [InlineData(2, 0, "floor")]
+    [InlineData(2, 6, "floor")]
+    public void An_undeclared_class_or_floor_is_refused_before_the_draw(
+        int source, int floor, string parameter)
     {
         var draws = Rng();
 
         Should.Throw<ArgumentOutOfRangeException>(() => LuckService.Resolve(
-            (SourceClass)source,
-            Tuning(),
-            LuckTables.ChestPremium(),
-            PityCounters.Empty,
-            draws,
-            (Rarity)floor));
+                (SourceClass)source,
+                Tuning(),
+                LuckTables.ChestPremium(),
+                PityCounters.Empty,
+                draws,
+                (Rarity)floor))
+            .ParamName.ShouldBe(parameter);
 
         draws.Position.ShouldBe(0UL);
     }

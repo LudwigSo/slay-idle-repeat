@@ -190,6 +190,11 @@ public sealed class PityCountersTests
     }
 
     /// <summary>A stored row that is not a counter is refused rather than loaded.</summary>
+    /// <remarks>
+    /// Pinned by parameter, because <see cref="ArgumentOutOfRangeException"/> <em>is</em> an
+    /// <see cref="ArgumentException"/>: a value guard firing on a blank-key row would satisfy the
+    /// type assertion alone and leave the key unchecked.
+    /// </remarks>
     [Theory]
     [InlineData("", 1)]
     [InlineData(" ", 1)]
@@ -197,7 +202,8 @@ public sealed class PityCountersTests
     public void A_stored_row_that_is_not_a_counter_is_refused(string key, int value)
     {
         Should.Throw<ArgumentException>(() => PityCounters.Rehydrate(
-            new Dictionary<string, int>(StringComparer.Ordinal) { [key] = value }));
+                new Dictionary<string, int>(StringComparer.Ordinal) { [key] = value }))
+            .ParamName.ShouldBe("counters");
     }
 
     /// <summary>A negative counter is not a counter.</summary>
@@ -206,18 +212,27 @@ public sealed class PityCountersTests
     [InlineData(int.MinValue)]
     public void A_negative_counter_value_is_refused(int value)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => PityCounters.Empty.With(ChestA, value));
+        Should.Throw<ArgumentOutOfRangeException>(() => PityCounters.Empty.With(ChestA, value))
+            .ParamName.ShouldBe(
+                "value",
+                "the key passed here is a legal one, so a refusal naming it would be the wrong " +
+                "guard firing and every negative counter would still get stored.");
     }
 
     /// <summary>Every entry point refuses a null key rather than storing one.</summary>
     [Fact]
     public void A_null_key_is_refused()
     {
-        Should.Throw<ArgumentNullException>(() => PityCounters.Empty.Get(null!));
-        Should.Throw<ArgumentNullException>(() => PityCounters.Empty.With(null!, 1));
-        Should.Throw<ArgumentNullException>(() => PityCounters.Empty.Advanced(null!));
-        Should.Throw<ArgumentNullException>(() => PityCounters.Empty.Reset(null!));
-        Should.Throw<ArgumentNullException>(() => PityCounters.Rehydrate(null!));
+        Should.Throw<ArgumentNullException>(() => PityCounters.Empty.Get(null!))
+            .ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => PityCounters.Empty.With(null!, 1))
+            .ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => PityCounters.Empty.Advanced(null!))
+            .ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => PityCounters.Empty.Reset(null!))
+            .ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => PityCounters.Rehydrate(null!))
+            .ParamName.ShouldBe("counters");
     }
 
     /// <summary>One map as ordinal-sorted <c>key=value</c> text.</summary>

@@ -103,10 +103,20 @@ public sealed class LuckTuningTests
     }
 
     /// <summary>Every player-scoped class states a key; the two non-player-scoped ones do not.</summary>
+    /// <remarks>
+    /// The count comes first on purpose: <c>ShouldAllBe</c> over an empty sequence passes, so a
+    /// reader that answered no player-scoped rows at all — or none at all — would satisfy the arm
+    /// below while quantifying over nothing (steering S3).
+    /// </remarks>
     [Fact]
     public void Exactly_the_player_scoped_classes_carry_a_counter_key()
     {
         var rows = LuckTuning.Read(LuckDocuments.Shipped).SourceClasses;
+
+        rows.Count(row => row.Scope == CounterScope.PLAYER).ShouldBe(
+            8,
+            "24 §3 puts eight of the ten counters on the player profile. This is the floor under the " +
+            "'they all carry a key' assertion below, which an empty set would satisfy silently.");
 
         rows.Where(row => row.Scope == CounterScope.PLAYER)
             .Select(row => row.CounterKey)
@@ -381,10 +391,17 @@ public sealed class LuckTuningTests
     // ---------------------------------------------------------------- the four ways data can fail
 
     /// <summary>A missing document is a <c>MissingContentException</c>, not an empty registry.</summary>
+    /// <remarks>
+    /// Every case in this section pins the <c>Reference</c> as well as the exception type
+    /// (<c>EnergyTuningTests</c>' idiom). <c>LuckTuning.Read</c> resolves a dozen pointers and each
+    /// one can throw the same four types, so the type alone says only "some leaf was wrong" — the
+    /// reference is what says the case is still about the leaf it names.
+    /// </remarks>
     [Fact]
     public void A_missing_document_throws_rather_than_defaulting()
     {
-        Should.Throw<MissingContentException>(() => LuckTuning.Read(LuckDocuments.WithoutLuck()));
+        Should.Throw<MissingContentException>(() => LuckTuning.Read(LuckDocuments.WithoutLuck()))
+            .Reference.ShouldBe(LuckTuning.DocumentPath);
     }
 
     /// <summary>A deliberate <c>null</c> is an <c>UnauthorisedTunableException</c> — the hole stays a hole.</summary>
@@ -397,7 +414,8 @@ public sealed class LuckTuningTests
     public void An_unauthorised_null_throws_rather_than_defaulting()
     {
         Should.Throw<UnauthorisedTunableException>(
-            () => LuckTuning.Read(LuckDocuments.LuckOnly(renormalisation: ContentValue.Unauthorised)));
+                () => LuckTuning.Read(LuckDocuments.LuckOnly(renormalisation: ContentValue.Unauthorised)))
+            .Reference.ShouldBe(LuckTuning.RenormalisationReference);
     }
 
     /// <summary>A leaf of the wrong kind is a <c>ContentTypeMismatchException</c>.</summary>
@@ -405,7 +423,8 @@ public sealed class LuckTuningTests
     public void A_leaf_of_the_wrong_kind_is_refused()
     {
         Should.Throw<ContentTypeMismatchException>(
-            () => LuckTuning.Read(LuckDocuments.LuckOnly(renormalisation: ContentValue.Number(1))));
+                () => LuckTuning.Read(LuckDocuments.LuckOnly(renormalisation: ContentValue.Number(1))))
+            .Reference.ShouldBe(LuckTuning.RenormalisationReference);
     }
 
     /// <summary>A fractional <c>N</c> is a type mismatch: a rung counts whole draws.</summary>
@@ -413,8 +432,9 @@ public sealed class LuckTuningTests
     public void A_fractional_rung_is_refused()
     {
         Should.Throw<ContentTypeMismatchException>(
-            () => LuckTuning.Read(LuckDocuments.LuckOnly(
-                chestStandardFirstRungEveryNth: ContentValue.Number(10.5m))));
+                () => LuckTuning.Read(LuckDocuments.LuckOnly(
+                    chestStandardFirstRungEveryNth: ContentValue.Number(10.5m))))
+            .Reference.ShouldBe(FirstStandardRungReference);
     }
 
     /// <summary>An unknown renormalisation is authorised but unusable.</summary>
@@ -427,9 +447,11 @@ public sealed class LuckTuningTests
     [InlineData("proportional")]
     public void An_unknown_renormalisation_is_refused(string authored)
     {
-        Should.Throw<InvalidTunableException>(
-                () => LuckTuning.Read(LuckDocuments.LuckOnly(renormalisation: ContentValue.Text(authored))))
-            .Message.ShouldContain(authored, Case.Sensitive);
+        var thrown = Should.Throw<InvalidTunableException>(
+            () => LuckTuning.Read(LuckDocuments.LuckOnly(renormalisation: ContentValue.Text(authored))));
+
+        thrown.Reference.ShouldBe(LuckTuning.RenormalisationReference);
+        thrown.Message.ShouldContain(authored, Case.Sensitive);
     }
 
     /// <summary>A rung below 1 is authorised but unusable: there is no zeroth draw to force.</summary>
@@ -443,23 +465,31 @@ public sealed class LuckTuningTests
     public void A_rung_below_one_is_refused(int everyNth)
     {
         Should.Throw<InvalidTunableException>(
-            () => LuckTuning.Read(LuckDocuments.LuckOnly(
-                chestStandardFirstRungEveryNth: ContentValue.Number(everyNth))));
+                () => LuckTuning.Read(LuckDocuments.LuckOnly(
+                    chestStandardFirstRungEveryNth: ContentValue.Number(everyNth))))
+            .Reference.ShouldBe(
+                FirstStandardRungReference,
+                "which rung, not merely that some rung was refused — this reader raises " +
+                "InvalidTunableException for an unknown renormalisation, an unknown guarantee " +
+                "rarity, an unknown class id and a class with no ladder as well.");
     }
 
     /// <summary>An unknown guarantee rarity is authorised but unusable.</summary>
     [Fact]
     public void An_unknown_guarantee_rarity_is_refused()
     {
-        Should.Throw<InvalidTunableException>(
-                () => LuckTuning.Read(LuckDocuments.LuckOnly(
-                    chestStandardFirstRungGuarantee: ContentValue.Text("LEGENDARY"))))
-            .Message.ShouldContain(
-                "LEGENDARY",
-                Case.Sensitive,
-                "COMMON/RARE/EPIC/LEGENDARY is the perk band ladder, not the gear rarity ladder. The " +
-                "two vocabularies are deliberately kept apart, so a token from one must not resolve " +
-                "in the other.");
+        var thrown = Should.Throw<InvalidTunableException>(
+            () => LuckTuning.Read(LuckDocuments.LuckOnly(
+                chestStandardFirstRungGuarantee: ContentValue.Text("LEGENDARY"))));
+
+        thrown.Reference.ShouldBe(
+            $"{LuckTuning.ChestStandardReference}/{LuckTuning.HardPityMember}/0/guaranteeRarityAtLeast");
+        thrown.Message.ShouldContain(
+            "LEGENDARY",
+            Case.Sensitive,
+            "COMMON/RARE/EPIC/LEGENDARY is the perk band ladder, not the gear rarity ladder. The " +
+            "two vocabularies are deliberately kept apart, so a token from one must not resolve " +
+            "in the other.");
     }
 
     /// <summary>An unknown source-class id is authorised but unusable.</summary>
@@ -476,9 +506,15 @@ public sealed class LuckTuningTests
             }),
         ]);
 
-        Should.Throw<InvalidTunableException>(
-                () => LuckTuning.Read(LuckDocuments.LuckOnly(sourceClasses: rows)))
-            .Message.ShouldContain(
+        var thrown = Should.Throw<InvalidTunableException>(
+            () => LuckTuning.Read(LuckDocuments.LuckOnly(sourceClasses: rows)));
+
+        thrown.Reference.ShouldStartWith(
+            LuckTuning.SourceClassesReference,
+            Case.Sensitive,
+            "the refusal has to point at the registry row, not merely be an InvalidTunableException " +
+            "— an unknown renormalisation and an unusable rung raise the same type from the same call.");
+        thrown.Message.ShouldContain(
                 "CHEST_MYTHIC",
                 Case.Sensitive,
                 "24 §3: 'adding a new grant source must assign it a class'. A row naming a class Core " +
@@ -490,8 +526,16 @@ public sealed class LuckTuningTests
     [Fact]
     public void A_null_content_set_is_refused()
     {
-        Should.Throw<ArgumentNullException>(() => LuckTuning.Read(null!));
+        Should.Throw<ArgumentNullException>(() => LuckTuning.Read(null!)).ParamName.ShouldBe("content");
     }
+
+    /// <summary>
+    /// The pointer the retune cases move, spelled once. The fixture's own
+    /// <c>EveryAuthoredHardPityN</c> carries the same string, and <c>Application.Tests</c> resolves
+    /// it in the shipped file.
+    /// </summary>
+    private const string FirstStandardRungReference =
+        LuckTuning.ChestStandardReference + "/" + LuckTuning.HardPityMember + "/0/everyNth";
 
     // ---------------------------------------------------------------- rendering
 

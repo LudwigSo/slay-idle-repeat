@@ -194,10 +194,17 @@ public sealed class HardPityTests
     [Theory]
     [InlineData(-1)]
     [InlineData(int.MinValue)]
+    /// <remarks>
+    /// The parameter is pinned, not just the exception type: <see cref="HardPity.Fires"/> states a
+    /// range on <em>both</em> its arguments, so a guard that reported <c>everyNth</c> for a bad
+    /// counter would satisfy a bare type assertion while leaving the counter unguarded.
+    /// </remarks>
     public void A_negative_miss_count_is_refused(int missesBeforeDraw)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => HardPity.Fires(missesBeforeDraw, 10));
-        Should.Throw<ArgumentOutOfRangeException>(() => HardPity.Advance(missesBeforeDraw));
+        Should.Throw<ArgumentOutOfRangeException>(() => HardPity.Fires(missesBeforeDraw, 10))
+            .ParamName.ShouldBe("missesBeforeDraw");
+        Should.Throw<ArgumentOutOfRangeException>(() => HardPity.Advance(missesBeforeDraw))
+            .ParamName.ShouldBe("misses");
     }
 
     /// <summary>
@@ -212,7 +219,11 @@ public sealed class HardPityTests
     [InlineData(-1)]
     public void An_N_below_one_is_refused(int everyNth)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => HardPity.Fires(0, everyNth));
+        Should.Throw<ArgumentOutOfRangeException>(() => HardPity.Fires(0, everyNth))
+            .ParamName.ShouldBe(
+                "everyNth",
+                "the counter passed here is legal, so a refusal naming it would be the wrong guard " +
+                "firing and the rung would stay unchecked.");
     }
 
     private static string N(int value) => value.ToString(CultureInfo.InvariantCulture);

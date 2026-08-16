@@ -98,6 +98,21 @@ public sealed class LuckRoutingRuleTests
     };
 
     /// <summary>
+    /// 🔒 The members of <see cref="GrantOutcomeTypes"/> that a production type declares <b>today</b>
+    /// — the ones the identity floor can require the matcher to actually find.
+    /// </summary>
+    /// <remarks>
+    /// The other three are pre-registered for M4-03, M4-07 and M4-08, so requiring a match on them
+    /// would fail every build until those milestones run. When one lands, move its name here in the
+    /// same commit: that is what turns "the rule knows the name" into "the rule sees the producer".
+    /// </remarks>
+    private static readonly string[] LiveGrantOutcomeTypes =
+    {
+        "Rarity",
+        "DraftOption",
+    };
+
+    /// <summary>
     /// 🔒 The guarantee primitives: the four types that decide, ramp, bank or reshape a protected
     /// draw. Naming one from outside <c>Rules.Luck</c> is a second place a guarantee can fire.
     /// </summary>
@@ -162,6 +177,16 @@ public sealed class LuckRoutingRuleTests
     /// constructor and equality members mention their own type in every signature, and reporting
     /// them would make the rule noise rather than a rule.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Proved to bite, on real production IL.</b> Renaming <c>PerkDraftEngine</c>'s row in
+    /// <see cref="RoutingExemptions"/> to a name nothing declares turned this arm red with two
+    /// offenders — <c>SlayIdleRepeat.Core.Rules.Perks.PerkDraftEngine.GenerateOptions</c> and
+    /// <c>.DrawOption</c>, both reported as <em>"produces a grant outcome (DraftOption) and never
+    /// names LuckService"</em> — and turned
+    /// <see cref="Every_exempted_producer_still_needs_its_exemption"/> red in the same run for the
+    /// now-uncovered row. Reverted. The arm is therefore quantifying over a live production
+    /// producer, not over an empty set.
+    /// </para>
     /// </remarks>
     [Fact]
     public void No_grant_outcome_is_produced_outside_the_luck_service()
@@ -204,6 +229,18 @@ public sealed class LuckRoutingRuleTests
     /// outside one namespace — hundreds — and all four target types resolve, which
     /// <see cref="The_routing_rules_subject_set_is_the_one_it_was_written_against"/> asserts by
     /// identity rather than by count.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Proved to bite.</b> The scan reports nothing today by design — no type outside
+    /// <c>Rules.Luck</c> names any of the four — so the probe was to point <c>guarded</c> at
+    /// <c>SlayIdleRepeat.Core.Primitives.Rarity</c>, a type that <em>is</em> named across the same
+    /// boundary. It went red with three offenders (<c>Content.HardPityStep</c>,
+    /// <c>Content.LuckTuning</c> and the type itself), so the IL walk and the namespace exclusion
+    /// both work; the empty result is a fact about <c>Core</c>, not a rule matching nothing.
+    /// Reverted.
+    /// ⚠️ Still an <em>identity</em> floor only, per M4-01's Phase 1a note: the façade's bodies do
+    /// not yet name the primitives in IL, so "the façade still calls at least one primitive" cannot
+    /// be asserted until Phase 3 fills them. Tighten it there.
     /// </para>
     /// </remarks>
     [Fact]
@@ -316,6 +353,31 @@ public sealed class LuckRoutingRuleTests
                 "is matching only names that no production type carries — a rule quantifying over " +
                 "nothing while reporting success. If the draft's option type was renamed, rename it " +
                 "in GrantOutcomeTypes in the same commit.");
+        }
+
+        // 🔒 The floor that answers the question the DraftOption check above cannot. "The type
+        // resolves in Core" is not the same claim as "the routing arm's own matcher finds it in a
+        // production signature" — Il.SignatureTypes/Il.Flatten sit between the two, and if either
+        // stopped seeing through IReadOnlyList<T> the arm would report success over an empty set of
+        // producers while every name in GrantOutcomeTypes still resolved. Stated over the LIVE names
+        // only: three of the five are pre-registered for milestones that have not run.
+        var produced = ScannedMethods()
+            .SelectMany(subject => GrantOutcomeNamesIn(subject.Method))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        foreach (var live in LiveGrantOutcomeTypes)
+        {
+            if (!produced.Contains(live, StringComparer.Ordinal))
+            {
+                offenders.Add(
+                    $"no method in Core outside {LuckNamespace} carries '{live}' in its signature, so " +
+                    "the routing arm is not quantifying over it at all. Both live grant-outcome names " +
+                    "are reachable today — Rarity through the tuning reader's rung rows, DraftOption " +
+                    "through the perk draft — so an empty match means the matcher stopped seeing " +
+                    "them (a generic wrapper it cannot flatten, a moved namespace) rather than that " +
+                    "the game stopped producing grants.");
+            }
         }
 
         var scanned = ScannedTypes().Count();
