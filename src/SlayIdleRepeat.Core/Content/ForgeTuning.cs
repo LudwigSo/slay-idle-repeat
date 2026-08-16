@@ -267,6 +267,11 @@ internal sealed class ForgeTuning
     {
         var map = content.Read(reference);
 
+        if (map.IsUnauthorised)
+        {
+            throw new UnauthorisedTunableException(reference);
+        }
+
         if (map.Kind != ContentValueKind.Object)
         {
             throw new InvalidTunableException(
@@ -366,6 +371,15 @@ internal sealed class ForgeTuning
     private static ContentValue RequireLadder(ContentSnapshot content, string reference, int levels)
     {
         var array = content.Read(reference);
+
+        // The authored null, told apart from a ladder of the wrong shape: one is a decision nobody
+        // has taken and the other is a document that is wrong. Collapsing them would report an
+        // undecided number as a malformed one, and the reader would be the place a design decision
+        // went to be misfiled.
+        if (array.IsUnauthorised)
+        {
+            throw new UnauthorisedTunableException(reference);
+        }
 
         if (array.Kind != ContentValueKind.Array || array.Items.Count != levels)
         {

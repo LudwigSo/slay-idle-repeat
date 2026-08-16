@@ -63,6 +63,11 @@ internal static class Inventories
     /// <param name="enhanceLevel">How far it has been enhanced.</param>
     /// <param name="affixes">The rolled affixes, or none.</param>
     /// <param name="locked">Whether it is locked.</param>
+    /// <param name="enhanceFailures">
+    /// The item's mercy counter. Appended LAST and passed by name at every call site, for the reason
+    /// <c>PlayerSnapshots.WithNull</c> records: a parameter inserted ahead of an existing optional
+    /// one merges textually clean and silently re-binds every positional argument after it.
+    /// </param>
     internal static GearInstance Item(
         string id,
         GearFamily family = GearFamily.BLADE,
@@ -71,7 +76,8 @@ internal static class Inventories
         double quality = 0.5,
         int enhanceLevel = 0,
         IReadOnlyList<GearAffixRoll>? affixes = null,
-        bool locked = false)
+        bool locked = false,
+        int enhanceFailures = GearInstance.NoFailures)
     {
         var definition = Catalogue.Definition(family);
 
@@ -84,7 +90,7 @@ internal static class Inventories
             chapterOrigin,
             quality,
             enhanceLevel,
-            GearInstance.NoFailures,
+            enhanceFailures,
             affixes ?? [],
             locked);
     }

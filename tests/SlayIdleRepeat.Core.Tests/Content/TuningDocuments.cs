@@ -61,6 +61,10 @@ internal static class TuningDocuments
                 // the three free operations only; the capacity ladder in the same shipped document
                 // has its own reader and its own fixture.
                 ForgeDocuments.ShippedDocument(),
+
+                // The gear tables, because a fusion re-rolls its output's affixes out of the pool
+                // the new band authors.
+                GearDocuments.Shipped.GetDocument(GearDocuments.DropsDocumentPath),
             ]);
 
     /// <summary>
