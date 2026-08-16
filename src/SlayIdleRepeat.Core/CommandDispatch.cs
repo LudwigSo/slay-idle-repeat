@@ -104,6 +104,23 @@ internal sealed class CommandDispatch
                 "TTL moves, so an undefined one is not a default to fall back on.");
         }
 
+        // Enforced once here rather than re-checked on every command's path: the flag exempts a row
+        // from both of Execute's run guards — the run-less one and the ended-run one — and the
+        // second of those clears the slice's finished run. A meta row carrying it would drop a run
+        // it is not even allowed to write, and would slip past the ownership check that exists to
+        // catch exactly that, since there would be no run left to compare.
+        if (registration.OpensRun && registration.Kind != CommandKind.Run)
+        {
+            throw new ArgumentException(
+                "'" + registration.WireName + "' is registered CommandKind.Meta and opensRun. Only a " +
+                "run command can open a run: the flag is what lets a row act on a slice carrying no " +
+                "run, and what lets it discard a run that has ended. A meta command is dispatched " +
+                "with the player's run in the slice precisely so it can READ it, and marking one " +
+                "here would silently drop that run from the result while the ownership check that " +
+                "guards it found nothing left to compare.",
+                nameof(registration));
+        }
+
         // Both refusals run before either index is written, so a row never ends up half-registered
         // for code that catches the throw and keeps using the table.
         if (_byType.ContainsKey(registration.CommandType))

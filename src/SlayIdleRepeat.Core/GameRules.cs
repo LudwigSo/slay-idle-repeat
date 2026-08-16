@@ -168,12 +168,10 @@ public static class GameRules
         {
             if (state.Run.Phase == RunPhase.Ended)
             {
-                // The mirror of the run-less guard above, and exempted by the same flag: a finished
-                // run is the one thing a run-opening row may stand on, since nothing else in the
-                // game clears it and the player would otherwise get exactly one run for the life of
-                // their account. An InProgress or BattlePending run falls to the arms below and,
-                // for START_RUN, to its own handler's already-active-run refusal — a live run is
-                // never discarded by the command that would replace it.
+                // Exempted by the same flag as the run-less guard above: nothing else in the game
+                // clears a finished run, so without this a player gets one run for the life of their
+                // account. Only a finished one — a live run falls to the arms below instead, and to
+                // START_RUN's own already-active-run refusal, so it is never discarded.
                 if (!registration.OpensRun)
                 {
                     return CommandResult.Reject(RejectionReason.RUN_ALREADY_ENDED, state);
@@ -200,13 +198,10 @@ public static class GameRules
         // Everything from here works on a copy; the caller's slice is never written to.
         var working = Clone(state, context.Content);
 
-        // 🔒 The only place anything in Apply clears WorldSlice.Run, and it is deliberately narrow:
-        // the row that opens its own run starts from a run-less slice, exactly as it does when the
-        // player had no run at all. Before the RunRngScope is built, because otherwise the scope and
-        // committedPositions would be the FINISHED run's — and FoldRngPositions would compare them
-        // against the fresh run's empty map and raise a determinism defect. The caller's own slice
-        // is untouched, so a START_RUN the handler goes on to refuse leaves the ended run where it
-        // was.
+        // 🔒 Before the RunRngScope below, not after: the scope and committedPositions would
+        // otherwise be the FINISHED run's, and FoldRngPositions would compare them against the fresh
+        // run's empty map and raise a determinism defect. The only place Apply clears Run, and only
+        // for a run row whose job is to open one.
         if (registration.OpensRun && working.Run is { Phase: RunPhase.Ended })
         {
             working = working with { Run = null };

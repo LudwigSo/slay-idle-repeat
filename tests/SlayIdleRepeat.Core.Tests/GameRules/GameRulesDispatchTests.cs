@@ -296,6 +296,48 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
+    /// 🔒 <b><c>OpensRun</c> belongs to a run command only, and the table refuses the pairing rather
+    /// than leaving <c>Execute</c> to re-check it on every command.</b>
+    /// </summary>
+    /// <remarks>
+    /// The flag exempts a row from both of <c>Execute</c>'s run guards, and the second of those
+    /// <em>clears</em> a finished run off the working slice. A meta row carrying it would discard a
+    /// run it is not even permitted to write, and would do it invisibly: the ownership check that
+    /// catches a meta command writing the run compares against a run that is no longer there.
+    /// </remarks>
+    [Fact]
+    public void A_meta_command_may_not_open_a_run()
+    {
+        Should.Throw<ArgumentException>(() => new CommandDispatch()
+                .Handled<Worlds.MetaFixtureCommand>(
+                    Worlds.MetaWireName, CommandKind.Meta, Accepts, opensRun: true))
+            .Message.ShouldContain("Only a run command can open a run", Case.Sensitive);
+    }
+
+    /// <summary>…and the same registration is accepted the moment the row is a run command.</summary>
+    /// <remarks>
+    /// The negative control under the rule above: without it, a refusal thrown for some unrelated
+    /// reason — the wire name, the kind, the handler — would read as the pairing being enforced.
+    /// </remarks>
+    [Fact]
+    public void A_run_command_may_open_a_run()
+    {
+        var table = new CommandDispatch()
+            .Handled<Worlds.RunFixtureCommand>(
+                Worlds.RunWireName, CommandKind.Run, Accepts, opensRun: true);
+
+        table.For(typeof(Worlds.RunFixtureCommand))!.OpensRun.ShouldBeTrue();
+    }
+
+    /// <summary>A handler that accepts and produces nothing — the rows above are about registration.</summary>
+    private static HandlerResult Accepts(Worlds.RunFixtureCommand command, HandlerInput input) =>
+        HandlerResult.Accept();
+
+    /// <inheritdoc cref="Accepts(Worlds.RunFixtureCommand, HandlerInput)"/>
+    private static HandlerResult Accepts(Worlds.MetaFixtureCommand command, HandlerInput input) =>
+        HandlerResult.Accept();
+
+    /// <summary>
     /// The wire-name index is the single declared source of the type-name mapping, handed out as a
     /// view that cannot be written through.
     /// </summary>
