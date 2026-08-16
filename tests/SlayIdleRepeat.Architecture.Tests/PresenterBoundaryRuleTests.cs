@@ -31,7 +31,12 @@ public sealed class PresenterBoundaryRuleTests
     internal const string PresenterTypeSuffix = "Presenter";
 
     /// <summary>The engine's managed assembly.</summary>
-    private const string EngineAssemblyName = "GodotSharp";
+    /// <remarks>
+    /// Internal rather than private since M7-01's loop-back: <see cref="SceneBoundaryRuleTests"/>
+    /// walks a base-type chain and has to know where to stop, and two spellings of "the engine's
+    /// assembly" in two files is the shape steering S4 exists to prevent.
+    /// </remarks>
+    internal const string EngineAssemblyName = "GodotSharp";
 
     /// <summary>The engine's root namespace.</summary>
     private const string EngineNamespace = "Godot";
@@ -52,7 +57,12 @@ public sealed class PresenterBoundaryRuleTests
         Path.Combine(RepoLayout.ProjectDirectory(ProductionAssemblies.ClientName), "game", "presenters");
 
     /// <summary>The scene source directory — where the source arm's positive control lives.</summary>
-    private static string SceneSourceDirectory { get; } =
+    /// <remarks>
+    /// Internal rather than private since M7-01's loop-back: it is the subject directory of
+    /// <see cref="SceneBoundaryRuleTests"/>'s source arm as well as the control directory of this
+    /// file's, and one definition of "where the scenes are" is the point.
+    /// </remarks>
+    internal static string SceneSourceDirectory { get; } =
         Path.Combine(RepoLayout.ProjectDirectory(ProductionAssemblies.ClientName), "game", "scenes");
 
     /// <summary>
