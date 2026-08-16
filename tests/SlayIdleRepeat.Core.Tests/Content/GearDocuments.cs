@@ -16,7 +16,7 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// one proves those are the numbers.
 /// </para>
 /// <para>
-/// 🔴 <b>That counterpart is <c>GearDocumentsMatchTuningDataTests</c>, and until M4-15 it did not
+/// 🔴 <b>That counterpart is <c>GearDocumentsMatchesTuningDataTests</c>, and until M4-15 it did not
 /// exist</b> — the paragraph above described it in the present tense for three tasks while every
 /// number below rested on a transcription nothing tied to <c>game-data/</c>. It is named here rather
 /// than merely alluded to, because "a counterpart belongs to Application.Tests" is a sentence that

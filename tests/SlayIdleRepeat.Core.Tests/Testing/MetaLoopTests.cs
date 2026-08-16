@@ -77,6 +77,18 @@ public sealed class MetaLoopTests
     /// </summary>
     private const int ForgeChapter = 2;
 
+    /// <summary>
+    /// `07` §1.1's first Legend rung, in lifetime XP: the coefficient times the minimum level raised
+    /// to the exponent, which at level 1 is the coefficient itself.
+    /// </summary>
+    private const long RungOne = 120L;
+
+    /// <summary>
+    /// The wall-clock bound on a whole loop, in milliseconds — ~25× the ~4 ms measured when this
+    /// landed. See <see cref="The_whole_meta_loop_stays_inside_the_unit_tier_budget"/>.
+    /// </summary>
+    private const double LoopBudgetMs = 100;
+
     private static readonly DateTimeOffset Start = new(2026, 8, 12, 5, 0, 0, TimeSpan.Zero);
 
     /// <summary>
@@ -123,11 +135,12 @@ public sealed class MetaLoopTests
             RunPhase.Ended,
             "the run did not end. " + driver.Ending + Trace(driver));
 
-        driver.Visited.Count.ShouldBeGreaterThan(
+        driver.Visited.Distinct().Count().ShouldBeGreaterThan(
             2,
-            "a run that stood on at most two board positions did not travel — the trailhead and one " +
-            "node is what a single roll produces, and every clause below rests on this one having " +
-            "actually moved." + Trace(driver));
+            "a run that stood on at most two DISTINCT board nodes did not travel, and every clause " +
+            "below rests on this one having actually moved. Distinct rather than the raw count: the " +
+            "list collapses only consecutive repeats, so a movement regression that bounced a run " +
+            "between two nodes would otherwise read as four." + Trace(driver));
 
         driver.Tiles.Distinct().Count().ShouldBeGreaterThan(
             1,
@@ -153,8 +166,8 @@ public sealed class MetaLoopTests
 
     /// <summary>
     /// 🔒 <b>Clause 2 — "banks gear" — is NOT reachable, and this is the failing witness the register
-    /// says is waiting for it.</b> The run above resolves treasure, a cache and a minigame and pays
-    /// out at its end, and the player's stock is byte-for-byte what it started as.
+    /// says is waiting for it.</b> The run above resolves its tiles, fights, drafts and pays out at
+    /// its end, and the player's stock is byte-for-byte what it started as.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -186,6 +199,18 @@ public sealed class MetaLoopTests
 
         game.State(player).Run!.Phase.ShouldBe(RunPhase.Ended, Trace(driver));
 
+        // 🔒 The premise, asserted rather than narrated. "The stock did not change across a run" is
+        // a claim about a run that RESOLVED SOMETHING and PAID OUT; a run that refused every command
+        // would satisfy it just as well, and this case would then keep reporting "banks gear is
+        // unreachable" long after it stopped being true.
+        driver.Tiles.ShouldNotBeEmpty(
+            "the run resolved no tile at all, so nothing was in a position to grant anything." +
+            Trace(driver));
+
+        game.Events.OfType<CurrencyChanged>().ShouldNotBeEmpty(
+            "the run paid the player nothing, so it did not reach the reward paths a gear grant " +
+            "would sit beside." + Trace(driver));
+
         StockBytes(game, player).ShouldBe(
             before,
             "the player's stock CHANGED across a whole run — so something now grants gear mid-run, " +
@@ -214,6 +239,12 @@ public sealed class MetaLoopTests
     /// the run paid: the Crowns come from the tiles the run resolved and the Enhance Stones from
     /// those plus the salvage. Asserting the balances rose <em>during the run</em> is what makes this
     /// a loop rather than three commands against a stacked wallet.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The salvage asserts dust and not a stone refund</b>, and that is `08` §4.3 rather than a
+    /// gap: the refund returns the stones <em>invested</em> in an item, and every item in this
+    /// seeded stock is unenhanced, so zero is the right answer. Asserting a refund here would be
+    /// asserting a bug.
     /// </para>
     /// <para>
     /// ⚠️ The stock those three commands operate on is <b>seeded</b>, not banked — see
@@ -258,9 +289,8 @@ public sealed class MetaLoopTests
         afterSalvage.Inventory.Stored.Count.ShouldBe(
             StartingStock - scrapped.Length, "the salvaged items are gone." + Trace(driver));
 
-        // ⚠️ No Enhance Stones are asserted here, and that is the rule rather than a gap: 08 §4.3
-        // refunds the stones INVESTED in an item, and every item in this stock is unenhanced, so a
-        // refund of zero is the correct answer rather than a missing one.
+        // ⚠️ No stone refund is asserted, and that is the rule rather than a gap — see this case's
+        // remarks.
 
         // ── ENHANCE: an attempt is made and paid for, win or lose.
         var target = stock[0];
@@ -300,7 +330,14 @@ public sealed class MetaLoopTests
             StartingStock - scrapped.Length - FusionInputs + 1,
             "a fusion consumes three items and leaves one." + Trace(driver));
 
-        ((int)afterMerge.Inventory.Find(inputs[0])!.Rarity).ShouldBeGreaterThan(
+        var fused = afterMerge.Inventory.Find(inputs[0]);
+
+        fused.ShouldNotBeNull(
+            "08 §4.1's fusion leaves its output under the FIRST input's identity, and no item is " +
+            "there. If a fusion now mints a fresh id, find the output by set difference instead — " +
+            "the band assertion below is the point, not the lookup." + Trace(driver));
+
+        ((int)fused!.Rarity).ShouldBeGreaterThan(
             (int)inputBand,
             "the fusion's output is on the same rung it started on. 08 §4.1 fuses ONTO the next band, " +
             "and that decision is LuckService.MergeOutputBand's — an output at the input band means " +
@@ -321,8 +358,8 @@ public sealed class MetaLoopTests
     /// <remarks>
     /// <para>
     /// 🔴 <b>The arithmetic, so the claim is checkable rather than asserted.</b> The first rung costs
-    /// <c>120</c> lifetime XP. A run that ends in a stage-1 death — the only ending a
-    /// command-driven run can reach, see
+    /// <c>120</c> lifetime XP. A run that ends in a stage-1 death — one of the two endings a
+    /// command-driven run can reach, the other being an abandon at a tenth, see
     /// <see cref="A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss"/> — pays a quarter
     /// of what it banked, so it needs <c>480</c> banked. Chapter 1 at NORMAL pays 25 a normal kill,
     /// and the reachable part of the board holds a handful of them. Swept across chapters 1–2, all
@@ -435,11 +472,24 @@ public sealed class MetaLoopTests
     /// driven below — they are the only wired loadout writers, and they round-trip.
     /// </para>
     /// <para>
-    /// 🔒 The comparison is by canonical bytes (steering S17). <c>LoadoutSnapshot</c> holds an
-    /// <c>IReadOnlyDictionary</c>, which a synthesized record <c>Equals</c> compares by reference, and
-    /// <c>ToSnapshot</c> allocates a fresh map each call — so record equality would report two
-    /// identical loadouts as different, and, worse, a comparison written against the empty-map
-    /// singleton would report success by accident.
+    /// 🔴 <b>THE BYTE COMPARISON BELOW CANNOT FAIL TODAY, AND THAT IS RECORDED RATHER THAN DRESSED
+    /// UP.</b> An empty loadout has exactly one canonical encoding, so the run's frozen copy, the
+    /// player's live loadout and any unrelated empty loadout all encode identically: a
+    /// <c>START_RUN</c> that froze <c>Loadout.Empty</c> instead of the player's would leave the
+    /// carry provably broken and that assertion green. It is written in the shape it will need —
+    /// canonical bytes, per steering S17, because <c>LoadoutSnapshot</c> holds an
+    /// <c>IReadOnlyDictionary</c> that record equality compares by reference — and it is worth
+    /// nothing until something can put an item in a slot. What carries the weight here is the
+    /// <c>EQUIP</c> refusal and the preset round-trip, both of which discriminate today.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>An object-identity check does not rescue it either, and finding that out is the point.</b>
+    /// "The run froze a COPY, not an alias" reads like the one claim that survives an empty loadout
+    /// — and it does not: <c>Loadout.Rehydrate</c> answers the <c>Loadout.Empty</c> <em>singleton</em>
+    /// for an empty snapshot, so the run's loadout and the player's are literally the same object,
+    /// and a <c>ReferenceEquals</c> assertion fails against correct code. It was written, run, and
+    /// removed. Steering S17 names the empty-map singleton as the thing that makes these comparisons
+    /// lie; this is that same hazard from the other direction.
     /// </para>
     /// </remarks>
     [Fact]
@@ -467,16 +517,18 @@ public sealed class MetaLoopTests
         var play = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
         var slice = game.State(player);
 
+        // ⚠️ Vacuous while the loadout is empty — see this case's remarks. Kept because it is the
+        // assertion the criterion actually asks for, and because it is already in the shape that
+        // will discriminate the moment a slot can be filled.
         Canonical(slice.Run!.StartingLoadout.ToSnapshot()).ShouldBe(
             Canonical(slice.Player.Loadout.ToSnapshot()),
-            "the loadout the run froze at START_RUN is not the one the player was holding. That " +
-            "freeze IS the carry — a run reads the player's loadout once and keeps it for its whole " +
-            "life — so a mismatch means the carry is broken, empty or not." + Trace(play));
+            "the loadout the run froze at START_RUN is not the one the player was holding." +
+            Trace(play));
 
         slice.Player.Loadout.Gear.ShouldBeEmpty(
             "the loadout is no longer empty, which means something filled it — so the comparison " +
-            "above has become a real one and the EQUIP assertion above has already told you what to " +
-            "write instead." + Trace(play));
+            "above has become a real one, and the EQUIP assertion has already said what to write " +
+            "instead." + Trace(play));
 
         slice.Player.Presets.Count.ShouldBe(
             1, "SAVE_PRESET stored one preset and nothing removed it." + Trace(play));
@@ -535,10 +587,20 @@ public sealed class MetaLoopTests
     /// an earlier one.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Measured best-of-three on a Debug build of this checkout, warm, with the figure written into
-    /// the message so a failure reports what it actually cost. The bound is an order-of-magnitude
-    /// regression detector on `30` §6's 200 ms budget, exactly as
-    /// <c>InMemoryGamePerformanceTests</c> frames its own — not a budget check.
+    /// the message so a failure reports what it actually cost.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The bound is anchored to the measurement, not to `30` §6's command budget, and the
+    /// difference matters.</b> A whole loop is about <b>4 ms</b> here — a stalled run is twenty-odd
+    /// commands, not the seven hundred <c>InMemoryGamePerformanceTests</c> drives — so borrowing that
+    /// file's 200 ms × 10 would have left a bound five hundred times the real cost, under which a
+    /// hundredfold regression passes in silence. This is ~25× the measured figure, which is loose
+    /// enough for a contended CI container and still catches the regression this loop is actually
+    /// exposed to: a content read moved inside the command loop, which is what it cost the
+    /// <c>DROP_RUN</c> sweep an order of magnitude when that landed.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_whole_meta_loop_stays_inside_the_unit_tier_budget()
@@ -555,29 +617,17 @@ public sealed class MetaLoopTests
 
             best = Math.Min(best, watch.Elapsed.TotalMilliseconds);
 
-            driver.Visited.Count.ShouldBeGreaterThan(
+            driver.Visited.Distinct().Count().ShouldBeGreaterThan(
                 2, "the measurement is only about the loop if the loop ran (steering S3).");
         }
 
         best.ShouldBeLessThan(
-            BudgetMs * RegressionMultiple,
+            LoopBudgetMs,
             "the whole meta loop took " + best.ToString("F1", CultureInfo.InvariantCulture) +
-            " ms. 30 §6 budgets 200 ms for a command drive and this asserts 2,000 — ten times, on " +
-            "InMemoryGamePerformanceTests' precedent. If it fires, look for a content read moved " +
-            "into the command loop; do not raise it.");
+            " ms against a bound of " + LoopBudgetMs.ToString("F0", CultureInfo.InvariantCulture) +
+            " — about twenty-five times the ~4 ms measured when this landed. If it fires, look for " +
+            "a content read moved inside the command loop; do not raise it.");
     }
-
-    /// <summary>`30` §6's budget, in milliseconds.</summary>
-    private const double BudgetMs = 200;
-
-    /// <summary>The multiple of it the assertion uses — a regression detector, not a budget check.</summary>
-    private const double RegressionMultiple = 10;
-
-    /// <summary>
-    /// `07` §1.1's first Legend rung, in lifetime XP: the coefficient times the minimum level raised
-    /// to the exponent, which at level 1 is the coefficient itself.
-    /// </summary>
-    private const long RungOne = 120L;
 
     // ═════════════════════════════════════════════════════════ fixtures
 

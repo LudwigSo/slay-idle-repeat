@@ -420,20 +420,30 @@ public sealed class LuckTuningMatchesTuningDataTests
             "sessionFloor",
         });
 
-        foreach (var mercy in new[] { "eliteMercy", "bossMercy" })
-        {
-            Leaf($"#/dropRun/{mercy}").EnumerateObject().Select(member => member.Name).ShouldBe(
-                new[] { "consecutiveMissesBeforeForce", "belowRarity", "forceRarityAtLeast" },
-                $"DropRunTuning reads exactly these three from #/dropRun/{mercy}.");
-        }
+        var breakerLeaves = new[] { "consecutiveMissesBeforeForce", "belowRarity", "forceRarityAtLeast" };
 
-        // 24 §4.3 D1 — the elite breaker counts a miss below A and forces A.
-        Leaf("#/dropRun/eliteMercy/belowRarity").GetString().ShouldBe("A");
-        Leaf("#/dropRun/eliteMercy/forceRarityAtLeast").GetString().ShouldBe("A");
+        Leaf("#/dropRun/eliteMercy").EnumerateObject().Select(member => member.Name).ShouldBe(
+            breakerLeaves, "DropRunTuning reads exactly these three from #/dropRun/eliteMercy.");
+        Leaf("#/dropRun/bossMercy").EnumerateObject().Select(member => member.Name).ShouldBe(
+            breakerLeaves, "DropRunTuning reads exactly these three from #/dropRun/bossMercy.");
 
-        // 24 §4.3 D2 — the boss breaker counts below S and forces S.
-        Leaf("#/dropRun/bossMercy/belowRarity").GetString().ShouldBe("S");
-        Leaf("#/dropRun/bossMercy/forceRarityAtLeast").GetString().ShouldBe("S");
+        Leaf("#/dropRun/eliteMercy/belowRarity").GetString().ShouldBe(
+            "A",
+            "24 §4.3 D1: an elite drop below A is what counts as a miss. Raised, every ordinary " +
+            "drop becomes a miss and the breaker fires forever; lowered, the streak never starts.");
+        Leaf("#/dropRun/eliteMercy/forceRarityAtLeast").GetString().ShouldBe(
+            "A",
+            "24 §4.3 D1: and A is the band the forced drop is floored to. A band below the miss " +
+            "band would let the guaranteed drop count as another miss.");
+
+        Leaf("#/dropRun/bossMercy/belowRarity").GetString().ShouldBe(
+            "S",
+            "24 §4.3 D2: the boss breaker counts a miss one band higher than the elite one. Equal " +
+            "bands would make the two breakers the same rule at two ordinals.");
+        Leaf("#/dropRun/bossMercy/forceRarityAtLeast").GetString().ShouldBe(
+            "S",
+            "24 §4.3 D2: and S is what a forced boss drop is floored to — the band 24 §3 keys the " +
+            "boss counter on, so this value is also the counter's identity.");
 
         Leaf("#/dropRun/sessionFloor").EnumerateObject().Select(member => member.Name).ShouldBe(new[]
         {
@@ -443,11 +453,14 @@ public sealed class LuckTuningMatchesTuningDataTests
             "requiresVictoryOrStage3Death",
         });
 
-        // 24 §4.3 D3 — one B-band grant, at most twice a game day, and only for a session that got
-        // far enough to earn it.
-        Leaf("#/dropRun/sessionFloor/grantRarity").GetString().ShouldBe("B");
-        Leaf("#/dropRun/sessionFloor/grantCount").GetInt32().ShouldBe(1);
-        Leaf("#/dropRun/sessionFloor/maxPerDay").GetInt32().ShouldBe(2);
+        Leaf("#/dropRun/sessionFloor/grantRarity").GetString().ShouldBe(
+            "B", "24 §4.3 D3: the floor grant lands on B — a consolation, deliberately not a band a " +
+            "player would farm sessions for.");
+        Leaf("#/dropRun/sessionFloor/grantCount").GetInt32().ShouldBe(
+            1, "24 §4.3 D3: one item, not a handful.");
+        Leaf("#/dropRun/sessionFloor/maxPerDay").GetInt32().ShouldBe(
+            2, "24 §4.3 D3: twice a game day. This is the whole daily cap on the floor, so a raised " +
+            "value is a new income source rather than a tuning nudge.");
         Leaf("#/dropRun/sessionFloor/requiresVictoryOrStage3Death").GetBoolean().ShouldBeTrue(
             "24 §4.3 D3 makes the floor a consolation for a session that reached stage 3 or won, not " +
             "a payout for opening the game. An authored false would hand it to every session.");

@@ -1,5 +1,6 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
@@ -23,11 +24,20 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 /// only reason the distinction is worth a paragraph is that the two look alike from a diff.
 /// </para>
 /// <para>
-/// 🔴 <b>The driver never resolves the same board position twice.</b> That is not a stylistic
-/// choice: <see cref="MetaLoopTests"/> records that a run parks on the last node of its stage and
-/// re-arrives at that same tile on every subsequent roll, so a driver that kept fighting would farm
-/// one enemy indefinitely and could make any income or XP assertion pass. An assertion resting on
-/// that would be measuring a defect rather than the loop.
+/// 🔴 <b>The driver resolves each board position once — until the run stalls, and then exactly once
+/// more, to end it.</b> The first half is what keeps the loop honest: <see cref="MetaLoopTests"/>
+/// records that a run parks on the last node of its stage and re-arrives at that same tile on every
+/// subsequent roll, so a driver that kept fighting would farm one enemy indefinitely and could make
+/// any income or XP assertion pass.
+/// </para>
+/// <para>
+/// ⚠️ The second half is <b>not</b> free, and pretending otherwise would be the same dishonesty in
+/// smaller print. Once <see cref="StalledAt"/> is set the guard is lifted, because losing a battle
+/// is the only way a run reaches an ending and the only battle left is the one on the stalled node.
+/// So on a board that stalls on an enemy, that enemy is fought twice: won once, then lost. What
+/// rests on the second fight is the <em>ending</em> — and therefore the run payout, and therefore
+/// every assertion downstream of it. What does not rest on it is any claim about how far the run
+/// travelled or how many distinct tiles it resolved, which is what the first half protects.
 /// </para>
 /// </remarks>
 internal sealed class MetaLoopDriver
@@ -35,14 +45,22 @@ internal sealed class MetaLoopDriver
     /// <summary>Any well-formed <c>LogHash</c>. The handler parses the shape and does not recompute it.</summary>
     private const string BattleLog = "1";
 
-    /// <summary>How many options of a choice to try before giving the run up as stuck.</summary>
+    /// <summary>The highest option index of a choice to try before giving the run up as stuck.</summary>
+    /// <remarks>Four options are tried in all — indices 0 through this.</remarks>
     private const int ChoiceLadder = 3;
 
     /// <summary>
     /// The chest-pick minigame — the one <c>MINIGAME</c> instance that carries a pity counter, and
     /// therefore the one that puts this loop on `24` §11's protected path rather than beside it.
     /// </summary>
-    internal const string ChestPick = "MG_CHEST_PICK";
+    /// <remarks>
+    /// Read from the production catalogue rather than spelled again: an id this driver invented
+    /// would be refused by <c>MINIGAME_SUBMIT</c>'s first guard, and the run would silently take the
+    /// stuck branch instead of the protected one.
+    /// ⚠️ Whether the loop reaches a Minigame tile at all is the board's choice, not this driver's —
+    /// only the forge case's board resolves one. <see cref="Tiles"/> is what a caller asserts on.
+    /// </remarks>
+    private const string ChestPick = MinigameCatalogue.ChestPick;
 
     private readonly InMemoryGame _game;
     private readonly PlayerId _player;
@@ -64,16 +82,26 @@ internal sealed class MetaLoopDriver
     /// <summary>Every command sent, with the answer it got — the trace a failure is diagnosed from.</summary>
     internal IReadOnlyList<string> Log => _log;
 
-    /// <summary>The board positions the run actually stood on, in order, without repeats.</summary>
+    /// <summary>
+    /// The board positions the run stood on, in order, with <em>consecutive</em> repeats collapsed.
+    /// </summary>
+    /// <remarks>
+    /// Consecutive only, so a caller asking "did this run travel" has to say
+    /// <c>Visited.Distinct()</c> — a run bouncing between two nodes would otherwise look like four.
+    /// The trailhead is not a board node and is not counted.
+    /// </remarks>
     internal IReadOnlyList<int> Visited => _visited;
 
-    /// <summary>The tile kinds the run resolved, in order.</summary>
+    /// <summary>The tile kinds the run resolved, one entry per distinct position, in order.</summary>
     internal IReadOnlyList<TileKind> Tiles => _tiles;
 
-    /// <summary>How many battles were fought, and how many of those were won.</summary>
+    /// <summary>
+    /// How many <c>CONFIRM_BATTLE_RESULT</c>s were accepted — not how many distinct enemies were
+    /// met. The stalled node's enemy is fought twice; see this type's remarks.
+    /// </summary>
     internal int BattlesFought { get; private set; }
 
-    /// <summary>How many of those battles the simulated player won.</summary>
+    /// <summary>How many of those were won.</summary>
     internal int BattlesWon { get; private set; }
 
     /// <summary>How many drafts the run opened and this player skipped.</summary>
@@ -177,11 +205,31 @@ internal sealed class MetaLoopDriver
                 }
 
                 Ending = "stuck: " + next.GetType().Name + " refused " + result.Rejection;
-                Send(new AbandonRunCommand());
+                Abandon();
                 return;
             }
 
             _choice = 0;
+
+            switch (next)
+            {
+                case ConfirmBattleResultCommand confirmed:
+                    BattlesFought++;
+
+                    if (confirmed.Won)
+                    {
+                        BattlesWon++;
+                    }
+
+                    break;
+
+                case SkipDraftCommand:
+                    DraftsSkipped++;
+                    break;
+
+                default:
+                    break;
+            }
 
             var after = _game.State(_player).Run;
 
@@ -207,28 +255,32 @@ internal sealed class MetaLoopDriver
     {
         if (run.Phase == RunPhase.BattlePending)
         {
-            BattlesFought++;
-
-            if (dying)
-            {
-                return new ConfirmBattleResultCommand(BattleLog, false);
-            }
-
-            BattlesWon++;
-
-            return new ConfirmBattleResultCommand(BattleLog, true);
+            // Counted in Drive once the command is ACCEPTED — a decision method that also tallies
+            // would credit a win to a refused command.
+            return new ConfirmBattleResultCommand(BattleLog, !dying);
         }
 
         if (run.DraftPending)
         {
-            DraftsSkipped++;
-
             return new SkipDraftCommand();
         }
 
         if (run.PendingFork is not null)
         {
             return new ChooseForkCommand(_choice);
+        }
+
+        // 🔒 The victory ending is unreachable today — the stage-boundary stall parks every run in
+        // stage 1, so no board this driver can walk reaches the boss node. It is written anyway, and
+        // FIRST: the day movement is repaired, a run that beats the boss must have an ending waiting
+        // for it, or this driver would walk to the boss and then exhaust its budget. That would fail
+        // the one clause of the exit criterion this file drives cleanly, for a reason that has
+        // nothing to do with the clause.
+        if (run.BossDefeated)
+        {
+            Ending = "END_RUN after a victory";
+
+            return new EndRunCommand();
         }
 
         if (run.CurrentHp == 0)
@@ -248,7 +300,7 @@ internal sealed class MetaLoopDriver
             // Stalled on a tile that cannot kill anybody. Abandoning is the only ending left, and it
             // pays the run out, so the meta half of the loop still has something to spend.
             Ending = "ABANDON_RUN, stalled with no battle to lose";
-            Send(new AbandonRunCommand());
+            Abandon();
 
             return null;
         }
@@ -283,6 +335,20 @@ internal sealed class MetaLoopDriver
             TileKind.Minigame => new RollDiceCommand(),
             _ => new ResolveTileCommand(),
         };
+    }
+
+    /// <summary>
+    /// Gives the run up, and records it if even that is refused — an <see cref="Ending"/> naming a
+    /// command that did not land would misattribute every assertion downstream of it.
+    /// </summary>
+    private void Abandon()
+    {
+        var result = Send(new AbandonRunCommand());
+
+        if (!result.Accepted)
+        {
+            Ending = "unendable: " + Ending + ", and ABANDON_RUN was refused " + result.Rejection;
+        }
     }
 
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);

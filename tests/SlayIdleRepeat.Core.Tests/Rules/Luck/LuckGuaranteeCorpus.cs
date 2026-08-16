@@ -67,10 +67,16 @@ internal sealed class LuckGuaranteeCorpus
     private const ulong PremiumStreamOffset = 1_000;
 
     /// <summary>Where the elite dry-streak walk starts, for the same reason.</summary>
-    private const ulong EliteStreamOffset = 2_000;
+    /// <remarks>
+    /// Derived from the offset before it rather than written as a round number: each walk draws at
+    /// most its own cap, so starting the next one a whole offset later keeps the four slices disjoint
+    /// by construction. Four unrelated literals would be disjoint only by arithmetic nobody re-checks
+    /// when a cap changes.
+    /// </remarks>
+    private const ulong EliteStreamOffset = PremiumStreamOffset * 2;
 
     /// <summary>And the boss one.</summary>
-    private const ulong BossStreamOffset = 3_000;
+    private const ulong BossStreamOffset = PremiumStreamOffset * 3;
 
     /// <summary>
     /// The chapter the two <c>DROP_RUN</c> walks draw their band table from.

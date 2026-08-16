@@ -871,12 +871,15 @@ public sealed class SubjectSetFloorTests
         //
         // ⚠️ WHY THE NAME NEEDS TRACKING NOW THAT IT EXISTS, which is a different reason from the
         // one it was tracked for while absent. LuckRoutingRuleTests keys on the literal simple name
-        // in THREE places at once: the routing arm asks whether a producer calls it, the guarantee
-        // arm exempts the namespace it lives in, and the identity floor asserts that it declares a
-        // Resolve member at all. Rename the façade without renaming LuckRoutingRuleTests.LuckFacade
-        // and the failure is LOUD rather than silent — the identity floor fires — which is worth
-        // writing down because it is the opposite of this file's usual failure mode, and because the
-        // row is what tells whoever does the rename which three arms they have just moved.
+        // in FIVE places at once: the routing arm asks whether a producer calls it, the guarantee
+        // arm exempts the namespace it lives in, the identity floor asserts that it declares a
+        // Resolve member at all, the grant-class coverage arm asks which of its members each class
+        // is reached through, and the closed-surface arm asks whether every member production calls
+        // is one this file classifies. Rename the façade without renaming
+        // LuckRoutingRuleTests.LuckFacade and the failure is LOUD rather than silent — the identity
+        // floor fires — which is worth writing down because it is the opposite of this file's usual
+        // failure mode, and because the row is what tells whoever does the rename which arms they
+        // have just moved.
         new("LuckService", SubjectKind.CoreType, "M4-01",
             "LuckRoutingRuleTests.No_grant_outcome_is_produced_outside_the_luck_service (the routing " +
             "arm — 24 §11's 'every protected grant goes through one façade', matched by this exact " +
@@ -885,7 +888,13 @@ public sealed class SubjectSetFloorTests
             "into HardPity anyway), LuckRoutingRuleTests." +
             "The_routing_rules_subject_set_is_the_one_it_was_written_against (the identity floor — it " +
             "asserts the type exists, sits under Rules.Luck and declares Resolve, so a rename turns " +
-            "this red instead of quiet)"),
+            "this red instead of quiet), LuckRoutingRuleTests." +
+            "Every_live_grant_source_class_routes_through_the_facade_and_the_rest_have_no_caller " +
+            "(the coverage arm — per 24 §3 grant class, which façade member reaches it and who " +
+            "calls that member), LuckRoutingRuleTests." +
+            "Every_facade_member_production_calls_is_a_grant_class_this_file_classifies (the closed " +
+            "surface — every member production reaches for is one a row classifies, which is what " +
+            "covers a class no entry point serves yet)"),
 
         // 🔒 The counter map, tracked by NAME because two mechanisms key on it and neither is a
         // compile-time reference. GapRegister's 30 §4 Player-contents transcription still lists

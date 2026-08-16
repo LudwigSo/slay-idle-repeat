@@ -43,9 +43,9 @@ public sealed class LuckGuaranteePropertyTests
     /// The 20 s it replaces was extrapolated from a proxy workload measured before the service had a
     /// body — 1.28 s for 1 621 403 weighted picks — and described itself as ~15× headroom. Against
     /// the real 12.6 s that was 1.6×, so a CI agent under twice this machine's speed would have gone
-    /// red on a sweep that had not regressed at all. This is ~3.5× the contended figure and ~8× the
+    /// red on a sweep that had not regressed at all. This is ~3.2× the contended figure and ~7.3× the
     /// isolated one, matching <c>DslDeterminismBaselineTests</c>' ~10×-of-measured shape, and it
-    /// still catches any regression worse than about 3.5× — far below what an accidental per-draw
+    /// still catches any regression worse than about 3.2× — far below what an accidental per-draw
     /// re-read of the tuning or rescan of the ladder would cost.
     /// </para>
     /// <para>
@@ -166,11 +166,20 @@ public sealed class LuckGuaranteePropertyTests
 
     /// <summary>🔒 <c>24</c> §4.3 D2 — a boss dry streak is broken by the 4th boss kill, in every sequence.</summary>
     /// <remarks>
+    /// <para>
     /// The second breaker, and not a restatement of the first: it counts a miss below a different
     /// band, forces a different band, and — because `24` §3 scopes the counter by the band it
-    /// guarantees — addresses a <em>different counter</em> over the same class. A resolution that
-    /// formed one key for both would keep this rung permanently out of reach while the elite case
-    /// above stayed green, which is the same shape as the premium chest's two simultaneous rungs.
+    /// guarantees — addresses a <em>different counter</em> over the same class.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What this case does NOT catch, since the obvious claim is wrong.</b> The two breakers
+    /// are walked over <em>separate</em> <c>PityCounters</c> on <em>separate</em> stream slices, one
+    /// trigger each, so a resolution that collapsed both keys into one <c>drop.run</c> would leave
+    /// each walk seeing only its own breaker and both cases green. That is the opposite of the
+    /// premium chest's two rungs, which share one counter map and one draw sequence and therefore
+    /// <em>do</em> expose a shared reset. Key distinctness is pinned where the counters are
+    /// interleaved — <c>RunDropResolutionTests</c> — and this case is about the ordinal only.
+    /// </para>
     /// </remarks>
     [Fact]
     public void No_boss_dry_streak_is_broken_later_than_the_fourth_boss_kill()
@@ -214,24 +223,61 @@ public sealed class LuckGuaranteePropertyTests
     /// kill in others.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The floor that stops the three cases above from being satisfied by a degenerate
     /// implementation, and it is sharper here than for a chest: a run drop draws against a
-    /// chapter-banded table, so a corpus walked on the wrong chapter would push either breaker to one
-    /// extreme — every sequence forced, or none — and every "never later than N" case would still
-    /// pass. See <c>LuckGuaranteeCorpus.DropChapter</c>.
+    /// chapter-banded table, so the chapter <em>is</em> the odds, and a corpus walked on the wrong
+    /// one would push a breaker to an extreme while every "never later than <c>N</c>" case still
+    /// passed.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The bounds are the numbers <c>DropChapter</c> actually buys, not <c>&gt; 0</c>.</b>
+    /// Measured over the corpus by narrowing each bound until it reported: <b>5 050</b> elite-forced
+    /// and <b>65 877</b> boss-forced out of a hundred thousand. A <c>&gt; 0</c> floor is satisfied by
+    /// every one of the four authored chapter bands — chapters 7–8 force the elite breaker about 170
+    /// times in a hundred thousand, chapters 1–2 about half the time — so it would have left the
+    /// chapter choice, which is the whole point of this case, unpinned. These bounds fail on any
+    /// other band.
+    /// </para>
+    /// <para>
+    /// ⚠️ "Not forced" is spelled as "satisfied, and not forced". A walk that never fired at all
+    /// records <c>Unsatisfied</c> with <c>Forced = false</c>, so a bare <c>!Forced</c> would count a
+    /// guarantee that never fired as one that arrived naturally — and an implementation that
+    /// satisfied nothing would drive that count to the whole corpus while this case reported the
+    /// natural path healthy.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Both_dry_streak_breakers_are_reached_naturally_and_by_force()
     {
-        Corpus.Walks.Count(walk => walk.EliteMercyForced).ShouldBeGreaterThan(
-            0, "some elite streaks run the full six kills and are broken by 24 §4.3 D1");
-        Corpus.Walks.Count(walk => !walk.EliteMercyForced).ShouldBeGreaterThan(
-            0, "and some roll an A or better before the sixth, which is what the breaker bounds");
+        Forced(walk => walk.EliteMercyForced).ShouldBeInRange(
+            1_000, 20_000,
+            "24 §4.3 D1's elite breaker forces about 5% of sequences at DropChapter. Outside this " +
+            "band the corpus is walking a different chapter — at 1–2 it forces about half, at 7–8 " +
+            "almost never — and the natural and forced paths stop being exercised together.");
 
-        Corpus.Walks.Count(walk => walk.BossMercyForced).ShouldBeGreaterThan(
-            0, "the same, over 24 §4.3 D2's four boss kills");
-        Corpus.Walks.Count(walk => !walk.BossMercyForced).ShouldBeGreaterThan(0);
+        Natural(walk => walk.EliteMercyAt, walk => walk.EliteMercyForced).ShouldBeGreaterThan(
+            80_000, "and the rest roll an A or better before the sixth elite, which is the tail the " +
+            "breaker bounds.");
+
+        Forced(walk => walk.BossMercyForced).ShouldBeInRange(
+            55_000, 80_000,
+            "24 §4.3 D2's boss breaker forces about two thirds of sequences at DropChapter — S is a " +
+            "rare band, so the boss streak runs its four kills far more often than the elite one " +
+            "runs its six. Every other authored chapter band sits outside this range.");
+
+        Natural(walk => walk.BossMercyAt, walk => walk.BossMercyForced).ShouldBeGreaterThan(
+            10_000, "and the rest roll an S or better inside four boss kills.");
     }
+
+    /// <summary>How many sequences ended on the forced draw.</summary>
+    private static int Forced(Func<GuaranteeWalk, bool> forced) => Corpus.Walks.Count(forced);
+
+    /// <summary>
+    /// How many sequences reached the band on their own — satisfied, and not by the forced draw.
+    /// </summary>
+    private static int Natural(Func<GuaranteeWalk, int> at, Func<GuaranteeWalk, bool> forced) =>
+        Corpus.Walks.Count(walk => at(walk) != GuaranteeWalk.Unsatisfied && !forced(walk));
 
     // ══════════════════════════════════════════════════════ the sweep's own shape
 

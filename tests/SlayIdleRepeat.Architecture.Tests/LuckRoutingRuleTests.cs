@@ -201,12 +201,23 @@ public sealed class LuckRoutingRuleTests
     /// rather than over names.
     /// </para>
     /// <para>
-    /// <b>The six unwired rows all name the ladder entry point</b>, because that is the one member
-    /// `24` §4.1's, §4.2's, §4.4's, §4.5's and the wheel's rung-and-slope shape is served by — the
-    /// façade refuses the other five classes there by name. One shared entry point means this arm
-    /// cannot say <em>which</em> of the six was wired, only that one of them was; the failure names
-    /// the caller that arrived, which is what an author needs to move the right row. Stated rather
-    /// than implied, because "no caller of Resolve" reads like six independent claims and is one.
+    /// <b>Five unwired rows name the ladder entry point; the sixth names nothing, and the difference
+    /// is load-bearing.</b> <c>LuckTuning</c> builds its ladder map from exactly five classes — the
+    /// three chests, the pet egg and the mount crate — so those five are the ones
+    /// <see cref="ResolveMember"/> serves, and the day one of them is opened it is opened through
+    /// that member. <c>WHEEL</c> is <b>not</b> among them: it sits in the reader's unserved list
+    /// beside <c>DROP_RUN</c>, <c>ENHANCE</c>, <c>DRAFT</c> and <c>MINIGAME</c>, and asking the
+    /// façade to resolve it <em>throws</em>. A row pointing the wheel at the ladder entry point
+    /// would therefore have been a row that could never fire on the commit it exists to catch — so
+    /// it carries <c>null</c>, meaning <em>no façade member serves this class yet</em>, and
+    /// <see cref="Every_facade_member_production_calls_is_a_grant_class_this_file_classifies"/> is
+    /// what notices when one appears.
+    /// </para>
+    /// <para>
+    /// ⚠️ The five that do share an entry point share a claim with it: this arm can say one of them
+    /// was wired, not which. The failure names the caller that arrived, which is what an author
+    /// needs in order to move the right row. Stated rather than implied, because "no caller of
+    /// Resolve" reads like five independent claims and is one.
     /// </para>
     /// <para>
     /// ⚠️ The owners are read from the same place the build already validates them: each is the task
@@ -215,7 +226,7 @@ public sealed class LuckRoutingRuleTests
     /// up because a source class is not a command — <c>DROP_RUN</c> has no command at all.
     /// </para>
     /// </remarks>
-    private static readonly (string Id, string FacadeEntry, string? Caller, string Owner)[]
+    private static readonly (string Id, string? FacadeEntry, string? Caller, string Owner)[]
         GrantSourceClasses =
     {
         // 🔒 The four that are live. Each row's Caller is the production type whose IL calls the entry.
@@ -224,13 +235,54 @@ public sealed class LuckRoutingRuleTests
         ("DRAFT", "ResolveDraft", "PickPerk", "M4-01b"),
         ("MINIGAME", "ResolveChestPick", "MinigameSubmit", "M4-01b"),
 
-        // 🔒 The six with no caller yet, all served by the ladder entry point.
+        // 🔒 The five the ladder entry point serves, none of them opened by anything yet.
         ("CHEST_STANDARD", ResolveMember, null, "M4-02"),
         ("CHEST_PREMIUM", ResolveMember, null, "M4-02"),
         ("CHEST_APEX", ResolveMember, null, "M4-02"),
         ("EGG_PET", ResolveMember, null, "M4-02"),
         ("CRATE_MOUNT", ResolveMember, null, "M4-02"),
-        ("WHEEL", ResolveMember, null, "M4-09"),
+
+        // 🔒 The one with no façade member at all. Asking the ladder to resolve it throws.
+        ("WHEEL", null, null, "M4-09"),
+    };
+
+    /// <summary>
+    /// 🔒 Every member of <see cref="LuckFacade"/> production is permitted to call today, and which
+    /// grant class each is called on behalf of.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The closed surface is what covers the classes no entry point serves.</b>
+    /// <see cref="GrantSourceClasses"/> can only ask "does anything call the member this class goes
+    /// through", which says nothing at all about <c>WHEEL</c> — no member goes through anything for
+    /// it. Enumerating the calls instead turns that into a decidable claim: the day M4-09 wires the
+    /// wheel, whatever member it reaches for is one this list does not name, and the arm reports it
+    /// by name and asks which class it serves.
+    /// </para>
+    /// <para>
+    /// It is the same mechanism in the other direction as <see cref="RoutingExemptions"/> — a closed
+    /// list with an expiry, rather than a suppression file — and it subsumes the "no caller of
+    /// <see cref="ResolveMember"/>" claim rather than restating it: <c>Resolve</c> is deliberately
+    /// absent from this list, so a chest opener trips both.
+    /// </para>
+    /// </remarks>
+    private static readonly (string Member, string Serves)[] CalledFacadeMembers =
+    {
+        ("ResolveRunDrop", "DROP_RUN — the in-run drop's band"),
+        ("SessionFloorGrant", "DROP_RUN — 24 §4.3 D3's session floor"),
+        ("EnhanceSuccessRate", "ENHANCE — the attempt's chance"),
+        ("EnhanceFailuresAfter", "ENHANCE — 24 §4.6's failure mercy counter"),
+        ("ResolveDraft", "DRAFT — which of the five rules this draft owes"),
+        ("DraftCountersAfter", "DRAFT — where the draft counters land"),
+        ("DraftFreshPoolWeight", "DRAFT — the Codex weight on a never-drafted perk"),
+        ("MaxCodexBiasedOptions", "DRAFT — the cap on Codex-biased options"),
+        ("OwnedUpgradeBias", "DRAFT — the owned-upgrade bias"),
+        ("ResolveChestPick", "MINIGAME — the chest pick's tier and its counter"),
+        ("ChestPickTopTier", "MINIGAME — which tier the guarantee lands on"),
+
+        // ⚠️ Not a grant SOURCE CLASS. `08` §4.1's fusion decides a band, so it goes through the
+        // façade like every other band decision, and it is enumerated here for the same reason.
+        ("MergeOutputBand", "the forge's fusion — the band a trio lands on"),
     };
 
     /// <summary>
@@ -848,22 +900,38 @@ public sealed class LuckRoutingRuleTests
     /// stay green. This is the arm that sees it.
     /// </para>
     /// <para>
-    /// 🔒 <b>Stated over the façade ENTRY POINT, not over the class token</b>, and that is forced
-    /// rather than chosen (steering S18). <c>SourceClass</c> is an enum, so
-    /// <c>SourceClass.CHEST_STANDARD</c> compiles to a bare <c>ldc.i4</c> and there is no type or
-    /// member reference left in metadata for any IL rule to match — a rule written over "who names
-    /// the class" would report success over a codebase that named all ten. A <em>call</em> survives,
-    /// so each row names the façade member a caller of that class has to go through, and the arm
-    /// asks who calls it.
+    /// 🔒 <b>Stated over the façade ENTRY POINT, not over the class token</b> (steering S18).
+    /// <c>SourceClass</c> is an enum, so <c>SourceClass.CHEST_STANDARD</c> compiles to a bare
+    /// <c>ldc.i4</c> and leaves no type or member reference in metadata — a rule written over "who
+    /// <em>names</em> the class" would report success over a codebase that named all ten. A
+    /// <em>call</em> survives, so each row names the façade member a caller of that class has to go
+    /// through, and the arm asks who calls it.
     /// </para>
     /// <para>
-    /// 🔒 <b>How it bites when a fifth grant path appears.</b> The six unwired classes are all served
-    /// by the ladder entry point, which no production type in <c>Core</c> calls today. The commit
-    /// that opens a chest calls it — that is the only way to open one, since arm 1 and arm 2 forbid
-    /// every other — and this arm goes red naming the class, its owning task and the caller that
-    /// arrived, asking for the row to be moved to live with its caller named. A grant path that
-    /// somehow arrived <em>without</em> the façade is arm 1's and arm 2's to report, and between the
-    /// three there is no way to add one silently.
+    /// ⚠️ <b>That is a simplification, not a forced choice, and saying so keeps the door open.</b>
+    /// The folded constant is still on the evaluation stack: a walk that read the <c>ldc.i4</c>
+    /// feeding <see cref="ResolveMember"/>'s <c>source</c> parameter and mapped it back through the
+    /// enum's field constants — the same metadata <see cref="DeclaredSourceClasses"/> already reads —
+    /// would attribute each call to a named class and split the five rows that share an entry point
+    /// into five independent claims. It is not built because it answers nothing for a caller that
+    /// passes a variable, so it would need the coarse arm underneath it anyway; the cost of leaving
+    /// it out is one failure that names the caller instead of the class.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>How it bites when a fifth grant path appears.</b> Five of the six unwired classes are
+    /// served by the ladder entry point, which no production type in <c>Core</c> calls today; the
+    /// commit that opens a chest calls it and this arm goes red, naming the caller that arrived and
+    /// asking for the row to be moved to live. The sixth — <c>WHEEL</c> — has no entry point at all,
+    /// and <see cref="Every_facade_member_production_calls_is_a_grant_class_this_file_classifies"/>
+    /// is what covers it: the member M4-09 reaches for will be one nothing classifies.
+    /// </para>
+    /// <para>
+    /// ⚠️ A grant path that arrived <em>without</em> the façade is arm 1's and arm 2's to report, and
+    /// the remaining way in is the one listed at the top of this file: a producer that hides its
+    /// outcome behind a type <see cref="GrantOutcomeTypes"/> does not enumerate — an
+    /// <c>object</c>, a tuple, a <c>string</c> item id — and never calls the façade at all. That
+    /// shape is invisible to all four arms, and is the reason the closed list above is the rule's
+    /// stated weak point rather than an implementation detail.
     /// </para>
     /// <para>
     /// 🔒 <b>Both floors (steering S3).</b> The rows are checked against the <c>SourceClass</c>
@@ -878,25 +946,35 @@ public sealed class LuckRoutingRuleTests
         var offenders = new List<string>();
         var facade = Domain.FindInCore(LuckFacade);
 
+        // The vocabulary floor is independent of the façade, so it runs even when the façade has
+        // gone — a rename must not be able to hide a second, unrelated finding.
+        DeclaredSourceClasses(offenders);
+        LiveSourceClasses(offenders);
+
         if (facade is null)
         {
-            ArchRule.Empty(
-                new[]
-                {
-                    $"'{LuckFacade}' is not declared in Core, so every row below names an entry point " +
-                    "on a type that does not exist. The identity floor beside this arm says the same " +
-                    "thing at more length.",
-                },
-                "24 §11's grant source classes are covered by the façade.");
+            offenders.Add(
+                $"'{LuckFacade}' is not declared in Core, so every row names an entry point on a " +
+                "type that does not exist. The identity floor beside this arm says the same thing " +
+                "at more length.");
+
+            ArchRule.Empty(offenders, "24 §11's grant source classes are covered by the façade.");
 
             return;
         }
 
-        DeclaredSourceClasses(offenders);
+        var declared = Il.AllMethods(facade).Select(m => m.Name).ToHashSet(StringComparer.Ordinal);
 
         foreach (var row in GrantSourceClasses)
         {
-            if (!Il.AllMethods(facade).Any(m => m.Name.Equals(row.FacadeEntry, StringComparison.Ordinal)))
+            if (row.FacadeEntry is not { } entry)
+            {
+                // 🔒 A class no façade member serves. There is nothing to ask "who calls it" about —
+                // the closed-surface arm is what notices the member that will one day serve it.
+                continue;
+            }
+
+            if (!declared.Contains(entry))
             {
                 offenders.Add(
                     $"the '{row.Id}' grant class is stated over '{LuckFacade}.{row.FacadeEntry}', and " +
@@ -908,7 +986,7 @@ public sealed class LuckRoutingRuleTests
                 continue;
             }
 
-            var callers = CallersOf(ProductionAssemblies.CoreModule, row.FacadeEntry);
+            var callers = CallersOf(ProductionAssemblies.CoreModule, entry);
 
             if (row.Caller is { } expected)
             {
@@ -937,20 +1015,91 @@ public sealed class LuckRoutingRuleTests
             {
                 offenders.Add(
                     $"the '{row.Id}' grant class is declared NOT YET WIRED — {row.Owner} owns it — and " +
-                    $"{string.Join(", ", callers)} now calls {LuckFacade}.{row.FacadeEntry}. That is a " +
+                    $"{string.Join(", ", callers)} now calls {LuckFacade}.{entry}. That is a " +
                     "FIFTH grant path, and this is the arm that was written to notice. It routes " +
                     "through the façade, which is what 24 §11 asks for, so this is good news: move " +
                     $"the row to live, name the caller on it, and drive the class through " +
-                    "MetaLoopTests' loop if a player can reach it.");
+                    "MetaLoopTests' loop if a player can reach it. ⚠️ Five classes share this entry " +
+                    "point, so this names the caller rather than the class — read the caller to see " +
+                    "which of the five arrived.");
             }
         }
-
-        LiveSourceClasses(offenders);
 
         ArchRule.Empty(
             offenders,
             "24 §11: every grant source class that is live routes through " + LuckFacade + ", and " +
             "every class that is not has no caller at all.");
+    }
+
+    /// <summary>
+    /// 🔒 `24` §11 — <b>the façade's called surface is closed.</b> Every <see cref="LuckFacade"/>
+    /// member production reaches for is one <see cref="CalledFacadeMembers"/> names, and every name
+    /// on that list is still reached.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>This is the arm that covers a class no entry point serves.</b> The coverage arm beside it
+    /// asks, per class, "does anything call the member this class goes through" — which is unaskable
+    /// for <c>WHEEL</c>, because the reader's ladder map holds five classes and the wheel is not one
+    /// of them, so <see cref="ResolveMember"/> throws for it and no other member serves it yet. The
+    /// day M4-09 wires the wheel it will reach for something, and whatever that is, this list does
+    /// not name it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Both directions, so it cannot rot in either.</b> An unenumerated call is a grant path
+    /// nobody classified; an enumerated member nothing calls is a row describing a caller that has
+    /// gone, which is <see cref="Every_exempted_producer_still_needs_its_exemption"/>'s argument
+    /// applied to the other list in this file.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What it cannot see.</b> The same holes the coverage arm has, and for the same reason —
+    /// it shares <see cref="CallersOf"/>. Chiefly: a call made inside a <b>lambda</b>, whose display
+    /// class <see cref="ScannedTypes"/> drops as compiler-generated. A chest opener that reached the
+    /// façade from inside a <c>Select</c> would be invisible to both. That is worth naming here
+    /// rather than in the coverage arm alone, because a batch opener — <c>OPEN ALL</c> is M4-02's
+    /// own deliverable — is exactly the shape that gets written with a projection.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_facade_member_production_calls_is_a_grant_class_this_file_classifies()
+    {
+        var offenders = new List<string>();
+        var enumerated = CalledFacadeMembers.Select(row => row.Member).ToArray();
+        var called = FacadeMembersCalledFromProduction(ProductionAssemblies.CoreModule);
+
+        foreach (var (member, callers) in called)
+        {
+            if (enumerated.Contains(member, StringComparer.Ordinal))
+            {
+                continue;
+            }
+
+            offenders.Add(
+                $"{string.Join(", ", callers)} calls {LuckFacade}.{member}, and no row in " +
+                "CalledFacadeMembers says which grant class that serves. A new door onto the façade " +
+                "is a new grant path — 24 §3 authors ten classes and six of them are unwired, so the " +
+                "likeliest reading of this failure is that one of them just landed. Add a row naming " +
+                "the class it serves, and move that class's GrantSourceClasses row to live with its " +
+                "caller on it.");
+        }
+
+        foreach (var (member, serves) in CalledFacadeMembers)
+        {
+            if (!called.ContainsKey(member))
+            {
+                offenders.Add(
+                    $"'{LuckFacade}.{member}' is enumerated as production's door onto {serves}, and " +
+                    "nothing in Core outside " + LuckNamespace + " calls it. Either that path was " +
+                    "deleted — say so and take the row out — or it now reaches its decision another " +
+                    "way, which is the second place a guarantee can fire that 24 §11 forbids. A list " +
+                    "with a stale row is a closed surface with a hole in it.");
+            }
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "24 §11: the set of " + LuckFacade + " members production calls is exactly the set this " +
+            "file classifies.");
     }
 
     /// <summary>
@@ -1355,18 +1504,59 @@ public sealed class LuckRoutingRuleTests
     /// <param name="member">The façade member.</param>
     /// <returns>The calling types' simple names, in name order.</returns>
     private static string[] CallersOf(ModuleDefinition module, string member) =>
-        ScannedTypes(module)
-            .Where(type => Il.AllMethods(type)
-                             .SelectMany(Il.Instructions)
-                             .Any(instruction =>
-                                 instruction.OpCode.Code is Code.Call or Code.Callvirt &&
-                                 instruction.Operand is MethodReference callee &&
-                                 callee.DeclaringType.Name.Equals(LuckFacade, StringComparison.Ordinal) &&
-                                 callee.Name.Equals(member, StringComparison.Ordinal)))
-            .Select(type => type.Name)
-            .Distinct(StringComparer.Ordinal)
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
+        FacadeMembersCalledFromProduction(module).TryGetValue(member, out var callers)
+            ? callers
+            : [];
+
+    /// <summary>
+    /// Every <see cref="LuckFacade"/> member called from <c>Core</c> outside <c>Rules.Luck</c>, with
+    /// the simple names of the types that call it.
+    /// </summary>
+    /// <remarks>
+    /// One walk of the module for all of them, memoised: the coverage arm asks about ten rows and the
+    /// closed-surface arm about a dozen members, and a scan per question was the slowest case in this
+    /// file.
+    /// </remarks>
+    private static IReadOnlyDictionary<string, string[]> FacadeMembersCalledFromProduction(
+        ModuleDefinition module)
+    {
+        if (FacadeCallCache.TryGetValue(module, out var cached))
+        {
+            return cached;
+        }
+
+        var calls = new Dictionary<string, SortedSet<string>>(StringComparer.Ordinal);
+
+        foreach (var type in ScannedTypes(module))
+        {
+            foreach (var callee in Il.AllMethods(type)
+                         .SelectMany(Il.Instructions)
+                         .Where(instruction => instruction.OpCode.Code is Code.Call or Code.Callvirt)
+                         .Select(instruction => instruction.Operand)
+                         .OfType<MethodReference>()
+                         .Where(callee =>
+                             callee.DeclaringType.Name.Equals(LuckFacade, StringComparison.Ordinal)))
+            {
+                if (!calls.TryGetValue(callee.Name, out var callers))
+                {
+                    callers = new SortedSet<string>(StringComparer.Ordinal);
+                    calls[callee.Name] = callers;
+                }
+
+                callers.Add(type.Name);
+            }
+        }
+
+        var resolved = calls.ToDictionary(
+            row => row.Key, row => row.Value.ToArray(), StringComparer.Ordinal);
+
+        FacadeCallCache[module] = resolved;
+
+        return resolved;
+    }
+
+    private static readonly Dictionary<ModuleDefinition, IReadOnlyDictionary<string, string[]>>
+        FacadeCallCache = [];
 
     /// <summary>
     /// The floor that keeps <see cref="GrantSourceClasses"/> honest against the authored vocabulary:
@@ -1419,20 +1609,31 @@ public sealed class LuckRoutingRuleTests
     }
 
     /// <summary>The floor under the LIVE half of the coverage arm (steering S3).</summary>
+    /// <remarks>
+    /// 🔴 Counted over <b>production IL</b>, not over the rows. Counting the rows would count a
+    /// hand-written literal array — the same four <c>Caller</c> strings on every run, so
+    /// <c>4 &lt; 4</c> forever — which is a self-check on the table rather than a floor on the
+    /// subject set the arm quantifies over. What this catches is the whole live half going silent at
+    /// once: a façade renamed out from under every caller, a <c>Rules.Luck</c> namespace that
+    /// swallowed the producers, an <see cref="Il"/> change that blinded the walk. A single class
+    /// going quiet is the per-row branch's to report, and it names which.
+    /// </remarks>
     /// <param name="offenders">The list to report into.</param>
     private static void LiveSourceClasses(List<string> offenders)
     {
-        var live = GrantSourceClasses.Count(row => row.Caller is not null);
+        var live = GrantSourceClasses.Count(
+            row => row.FacadeEntry is { } entry &&
+                   CallersOf(ProductionAssemblies.CoreModule, entry).Length > 0);
 
         if (live < LiveSourceClassFloor)
         {
             offenders.Add(
-                $"only {live} of {GrantSourceClasses.Length} grant source classes are declared live; " +
-                $"the floor is {LiveSourceClassFloor}. Every unwired row asserts that NOTHING calls " +
-                "its entry point, which is a claim a codebase with no grant paths at all satisfies " +
-                "completely — so the live half is what stops this arm from passing over an empty " +
-                "game. Four paths were live at the end of M4 and this floor is that number, not a " +
-                "margin below it: a class going quiet is the thing worth reporting.");
+                $"only {live} grant source classes have a production caller reaching their façade " +
+                $"entry point; the floor is {LiveSourceClassFloor}. Every unwired row asserts that " +
+                "NOTHING calls its entry point, which is a claim a codebase with no grant paths at " +
+                "all satisfies completely — so the live half is what stops this arm from passing " +
+                "over an empty game. Four paths were live at the end of M4 and this floor is that " +
+                "number, not a margin below it.");
         }
     }
 
