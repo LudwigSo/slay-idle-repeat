@@ -34,6 +34,15 @@ public abstract class ILocalCachePortContractTests : IDisposable
     /// <summary>A second key inside the closed key space.</summary>
     protected const string OtherKey = "content.revision";
 
+    /// <summary>How many bytes the atomicity case writes — enough that a torn write is a short file.</summary>
+    protected const int LongValueLength = 64 * 1024;
+
+    /// <summary>
+    /// Names Win32 reserves for devices. Every one of them is inside this port's key space, which
+    /// says nothing about them at all.
+    /// </summary>
+    private static readonly string[] ReservedDeviceNames = ["nul", "con", "prn", "aux", "com1"];
+
     /// <summary>A cache of the implementation under test, over a backing store of its own.</summary>
     protected abstract ILocalCachePort Create();
 
@@ -48,6 +57,13 @@ public abstract class ILocalCachePortContractTests : IDisposable
     /// the fixture.
     /// </remarks>
     protected abstract ILocalCachePort Reopen(ILocalCachePort cache);
+
+    /// <summary>The message the null-key case uses on all three methods.</summary>
+    private const string NullIsNotMerelyMalformed =
+        "a null key is a MISSING argument, not a malformed one, and this port answers the two with "
+        + "different exceptions. ArgumentException here is not a smaller failure — it is the answer "
+        + "that lets one implementation throw ArgumentNullException and the other throw the base "
+        + "type while every case in this suite stays green.";
 
     /// <summary>The message both durability cases use when a fixture's <see cref="Reopen"/> is an identity.</summary>
     private const string ReopenMustBeANewInstance =
@@ -211,9 +227,16 @@ public abstract class ILocalCachePortContractTests : IDisposable
     /// one of the two this suite runs against: a key that can name a directory can name one outside
     /// the store. Closing the key space at the port means no implementation has to write its own
     /// sanitiser, and no two of them can disagree about what a key is.
+    /// <para>
+    /// 🔒 <c>null</c> is deliberately <em>not</em> a row here. It has a case of its own —
+    /// <see cref="A_null_key_is_a_null_argument_fault_from_every_method"/> — which demands the
+    /// derived <see cref="ArgumentNullException"/>. A row here would restate the same input at the
+    /// weaker base type, and because the derived type satisfies the base one the theory would pass
+    /// against either answer while the dedicated case demanded one of them. Two cases over one input
+    /// with different strictness is a contradiction a reader has to resolve; the strict one wins.
+    /// </para>
     /// </remarks>
     [Theory]
-    [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("a/b")]
@@ -221,18 +244,169 @@ public abstract class ILocalCachePortContractTests : IDisposable
     [InlineData("../x")]
     [InlineData("a b")]
     [InlineData("a:b")]
-    public async Task A_key_outside_the_closed_key_space_is_an_argument_fault(string? key)
+    public async Task A_key_outside_the_closed_key_space_is_an_argument_fault(string key)
     {
         var cache = Create();
 
         await Should.ThrowAsync<ArgumentException>(
-            async () => await cache.ReadAsync(key!, CancellationToken.None));
+            async () => await cache.ReadAsync(key, CancellationToken.None));
 
         await Should.ThrowAsync<ArgumentException>(
-            async () => await cache.WriteAsync(key!, new byte[] { 1 }, CancellationToken.None));
+            async () => await cache.WriteAsync(key, new byte[] { 1 }, CancellationToken.None));
 
         await Should.ThrowAsync<ArgumentException>(
-            async () => await cache.DeleteAsync(key!, CancellationToken.None));
+            async () => await cache.DeleteAsync(key, CancellationToken.None));
+    }
+
+    /// <summary>
+    /// 🔒 A <see langword="null"/> key is an <see cref="ArgumentNullException"/> — the identity of
+    /// the fault, not merely its base type — from all three methods.
+    /// </summary>
+    /// <remarks>
+    /// A missing key and a malformed one are different mistakes and get different exceptions, which
+    /// is the convention every <c>ArgumentNullException.ThrowIfNull</c> in this repository follows.
+    /// <para>
+    /// 🔒 This is stated as its own case because the theory above cannot state it. Its assertion is
+    /// <see cref="ArgumentException"/>, <see cref="ArgumentNullException"/> derives from it, and a
+    /// <c>null</c> row therefore passes whichever of the two an implementation throws — so the two
+    /// implementations were free to disagree underneath a green case, and did. Asserting the derived
+    /// type here is the only way the suite can see which one was thrown.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_null_key_is_a_null_argument_fault_from_every_method()
+    {
+        var cache = Create();
+
+        await Should.ThrowAsync<ArgumentNullException>(
+            async () => await cache.ReadAsync(null!, CancellationToken.None),
+            NullIsNotMerelyMalformed);
+
+        await Should.ThrowAsync<ArgumentNullException>(
+            async () => await cache.WriteAsync(null!, new byte[] { 1 }, CancellationToken.None),
+            NullIsNotMerelyMalformed);
+
+        await Should.ThrowAsync<ArgumentNullException>(
+            async () => await cache.DeleteAsync(null!, CancellationToken.None),
+            NullIsNotMerelyMalformed);
+    }
+
+    /// <summary>
+    /// 🔒 Two keys differing only in case are two entries — the key space is compared
+    /// <em>ordinally</em> (<c>23</c> §5 A2), by the port and not by whatever is underneath it.
+    /// </summary>
+    /// <remarks>
+    /// Every round-trip case above uses one key at a time and none of them can see this. A
+    /// file-backed implementation that takes the key as a file name hands the comparison to the
+    /// host: Windows and the default macOS filesystem ignore case and merge these two into one
+    /// entry, a Linux build keeps them apart, and the same source then answers differently per
+    /// developer machine — on the one port whose whole purpose is that its two implementations
+    /// cannot answer differently at all.
+    /// </remarks>
+    [Fact]
+    public async Task Two_keys_differing_only_in_case_are_two_entries()
+    {
+        var cache = Create();
+
+        await cache.WriteAsync("Profile", new byte[] { 0xA1, 0xA2 }, CancellationToken.None);
+        await cache.WriteAsync("profile", new byte[] { 0xB1, 0xB2 }, CancellationToken.None);
+
+        (await cache.ReadAsync("Profile", CancellationToken.None)).ShouldBe(
+            new byte[] { 0xA1, 0xA2 },
+            "'Profile' and 'profile' are two keys in an ordinal key space, so the write to the "
+            + "lower-case one must not have landed on this entry. An implementation that lets a "
+            + "case-insensitive filesystem compare the names merges them, and does so on some hosts "
+            + "and not others.");
+
+        (await cache.ReadAsync("profile", CancellationToken.None)).ShouldBe(
+            new byte[] { 0xB1, 0xB2 },
+            "the same merge seen from the other side: the lower-case key must hold its own value.");
+    }
+
+    /// <summary>
+    /// 🔒 A key and the same key with a trailing dot are two entries. Both are inside the key space
+    /// and nothing about them is special.
+    /// </summary>
+    /// <remarks>
+    /// The same family as the case above, and the reason it is stated separately is that it survives
+    /// a fix aimed only at case: Win32 strips a trailing dot from a file name, so a key taken
+    /// verbatim makes <c>a.</c> and <c>a</c> one entry on Windows however the case is compared. The
+    /// port's key space admits <c>.</c> anywhere, including last, and says nothing that would let a
+    /// caller know to avoid it.
+    /// </remarks>
+    [Fact]
+    public async Task A_key_and_the_same_key_with_a_trailing_dot_are_two_entries()
+    {
+        var cache = Create();
+
+        await cache.WriteAsync("a", new byte[] { 0x11 }, CancellationToken.None);
+        await cache.WriteAsync("a.", new byte[] { 0x22 }, CancellationToken.None);
+
+        (await cache.ReadAsync("a", CancellationToken.None)).ShouldBe(
+            new byte[] { 0x11 },
+            "'a' and 'a.' are two keys, and the write to the dotted one must not have landed here. "
+            + "Win32 strips a trailing dot from a file name, so an implementation that names the "
+            + "file after the key merges the pair silently and only on Windows.");
+
+        (await cache.ReadAsync("a.", CancellationToken.None)).ShouldBe(
+            new byte[] { 0x22 },
+            "the dotted key must hold its own value rather than the other one's.");
+    }
+
+    /// <summary>
+    /// 🔒 A Windows reserved device name is an ordinary key: <c>nul</c>, <c>con</c> and their
+    /// siblings round-trip like any other.
+    /// </summary>
+    /// <remarks>
+    /// This is the one that loses data without an error anywhere. Every name below is inside the
+    /// port's key space, so a caller is entitled to use one; an implementation that names a file
+    /// after the key opens a device instead of a file on Windows, where a write to <c>nul</c> is
+    /// discarded outright and reads back empty. Nothing throws, nothing logs, and the read is a HIT
+    /// carrying bytes nobody stored.
+    /// <para>
+    /// Collected rather than asserted one at a time so a failure names every device that misbehaved
+    /// — the interesting distinction is "all of them" versus "just <c>nul</c>", and an assertion
+    /// that stopped at the first cannot draw it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_windows_reserved_device_name_is_an_ordinary_key()
+    {
+        var cache = Create();
+        var offenders = new List<string>();
+
+        for (var index = 0; index < ReservedDeviceNames.Length; index++)
+        {
+            var name = ReservedDeviceNames[index];
+            var value = new byte[] { 0xC0, (byte)index, 0xDE };
+
+            try
+            {
+                await cache.WriteAsync(name, value, CancellationToken.None);
+            }
+            catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+            {
+                offenders.Add($"'{name}' could not be written at all: {failure.GetType().Name}");
+                continue;
+            }
+
+            var read = await cache.ReadAsync(name, CancellationToken.None);
+
+            if (read is null)
+            {
+                offenders.Add($"'{name}' read back as a MISS immediately after it was written");
+            }
+            else if (!read.SequenceEqual(value))
+            {
+                offenders.Add(
+                    $"'{name}' read back {read.Length} byte(s) instead of the {value.Length} written");
+            }
+        }
+
+        offenders.ShouldBeEmpty(
+            "every one of these is a legal key under 23 §5 A2 and this port promises them nothing "
+            + "special. On Windows they name devices, so an implementation that takes the key as a "
+            + $"file name silently discards the write and reads back empty: {string.Join("; ", offenders)}");
     }
 
     // ------------------------------------------------------------------------------ cancellation
@@ -253,6 +427,69 @@ public abstract class ILocalCachePortContractTests : IDisposable
 
         await Should.ThrowAsync<OperationCanceledException>(
             async () => await cache.DeleteAsync(Key, source.Token));
+    }
+
+    /// <summary>
+    /// 🔒 A write that is cancelled leaves the <em>previous</em> value readable and whole — never a
+    /// truncated one, and never an empty entry.
+    /// </summary>
+    /// <remarks>
+    /// The case above says the cancelled write throws; this one says what the store looks like
+    /// afterwards, which is the half a caller actually depends on and the half nothing asserted. The
+    /// failure it forbids is the expensive one: an implementation that opens the destination before
+    /// it observes the token truncates the entry and then throws, so the caller sees the documented
+    /// <see cref="OperationCanceledException"/>, believes nothing happened, and the next read is a
+    /// <em>hit</em> carrying a prefix of bytes nobody ever stored. A short value is indistinguishable
+    /// from a short value stored on purpose, so no later reader can recover.
+    /// <para>
+    /// The value is long on purpose: a torn write of a handful of bytes may land whole by accident,
+    /// and this case must be about the store's state rather than about the size of one buffer.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task A_cancelled_write_leaves_the_previous_value_whole()
+    {
+        var cache = Create();
+        var original = Pattern(seed: 0x11);
+        var replacement = Pattern(seed: 0x77);
+        await cache.WriteAsync(Key, original, CancellationToken.None);
+
+        using var source = new CancellationTokenSource();
+        await source.CancelAsync();
+
+        await Should.ThrowAsync<OperationCanceledException>(
+            async () => await cache.WriteAsync(Key, replacement, source.Token));
+
+        var read = await cache.ReadAsync(Key, CancellationToken.None);
+
+        read.ShouldNotBeNull(
+            "a cancelled write removed the entry entirely. The value that was there before the "
+            + "attempt is what a caller is entitled to read back.");
+
+        read.Length.ShouldBe(
+            original.Length,
+            $"the entry is now {read.Length} bytes where {original.Length} were stored, so the "
+            + "cancelled write truncated it. A short entry reads back as a hit and no later reader "
+            + "can tell it from a short value stored on purpose.");
+
+        read.SequenceEqual(original).ShouldBeTrue(
+            "the entry is the right length but not the right bytes, so the cancelled write partly "
+            + "landed. A write lands whole or not at all.");
+    }
+
+    /// <summary>A long, position-dependent value: any truncation or substitution changes it.</summary>
+    /// <param name="seed">Distinguishes one pattern from another.</param>
+    /// <returns><see cref="LongValueLength"/> bytes.</returns>
+    private static byte[] Pattern(byte seed)
+    {
+        var bytes = new byte[LongValueLength];
+
+        for (var index = 0; index < bytes.Length; index++)
+        {
+            bytes[index] = (byte)(seed + index);
+        }
+
+        return bytes;
     }
 
     // -------------------------------------------------------------------------------- durability

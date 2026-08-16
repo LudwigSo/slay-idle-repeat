@@ -22,6 +22,13 @@ public abstract class IIdGeneratorPortContractTests
     /// <summary>How many identifiers each generator draws in the cross-instance case.</summary>
     protected const int CrossInstanceDrawCount = 500;
 
+    /// <summary>
+    /// How many identifiers of each kind every worker draws in the concurrent case. Bounded on
+    /// purpose: the case is about contention, and contention is a function of the workers starting
+    /// together rather than of how long they run.
+    /// </summary>
+    protected const int ConcurrentDrawsPerWorker = 2_000;
+
     /// <summary>A generator of the implementation under test. Successive calls return independent generators.</summary>
     protected abstract IIdGeneratorPort Create();
 
@@ -140,5 +147,97 @@ public abstract class IIdGeneratorPortContractTests
         firstIds.Intersect(secondIds, StringComparer.Ordinal).ShouldBeEmpty(
             "the same defect in the command id, where it costs an idempotency replay rather than a "
             + "duplicate key.");
+    }
+
+    /// <summary>
+    /// 🔒 Uniqueness holds when several threads draw from <em>one</em> generator at once
+    /// (<c>14</c> §16.2).
+    /// </summary>
+    /// <remarks>
+    /// Every case above draws on one thread, so all of them are satisfied by a generator that is
+    /// unique only because nothing ever raced it. A counter advanced with <c>++</c> is a read, an
+    /// add and a write: two callers minting an idempotency key at the same moment receive the same
+    /// one, and the server then matches a brand-new command against an unrelated recorded outcome
+    /// and replays its result. That is a defect of the generator, not of the caller — nothing about
+    /// this port suggests a caller must serialise its draws — and it can exist in one implementation
+    /// while the other is safe for free, which is precisely the divergence a shared suite is for.
+    /// <para>
+    /// 🔒 The interleaving is not deterministic and the assertion must not depend on it. It does
+    /// not: a correct generator has no duplicates under <em>any</em> schedule, so this case can only
+    /// go red on a real defect. There is no sleep and no timing threshold — the workers are held at
+    /// a barrier so they start together, draw a bounded number of identifiers, and are joined.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Identifiers_stay_unique_when_several_threads_draw_from_one_generator()
+    {
+        var generator = Create();
+        var workerCount = Math.Max(4, Environment.ProcessorCount);
+        var guids = new Guid[workerCount][];
+        var commandIds = new string[workerCount][];
+
+        using (var gate = new Barrier(workerCount))
+        {
+            var workers = new Thread[workerCount];
+
+            for (var worker = 0; worker < workerCount; worker++)
+            {
+                var index = worker;
+
+                workers[index] = new Thread(() =>
+                {
+                    var drawnGuids = new Guid[ConcurrentDrawsPerWorker];
+                    var drawnIds = new string[ConcurrentDrawsPerWorker];
+
+                    // Dedicated threads and a barrier rather than pooled tasks: the pool may hand
+                    // out fewer threads than workers, and the case would then measure the pool's
+                    // growth rate instead of the generator's behaviour under contention.
+                    gate.SignalAndWait();
+
+                    for (var draw = 0; draw < ConcurrentDrawsPerWorker; draw++)
+                    {
+                        drawnGuids[draw] = generator.NewGuid();
+                        drawnIds[draw] = generator.NewCommandId();
+                    }
+
+                    guids[index] = drawnGuids;
+                    commandIds[index] = drawnIds;
+                })
+                {
+                    IsBackground = true,
+                    Name = $"id-generator-contract-{index}",
+                };
+            }
+
+            foreach (var thread in workers)
+            {
+                thread.Start();
+            }
+
+            foreach (var thread in workers)
+            {
+                thread.Join();
+            }
+        }
+
+        var allGuids = guids.SelectMany(drawn => drawn).ToArray();
+        var distinctGuids = allGuids.Distinct().Count();
+
+        distinctGuids.ShouldBe(
+            allGuids.Length,
+            $"{allGuids.Length - distinctGuids} of {allGuids.Length} guids drawn by {workerCount} "
+            + "threads from one generator repeated. The within-instance case above draws on a single "
+            + "thread and cannot see this: a counter advanced without an atomic increment loses "
+            + "updates only when two callers overlap.");
+
+        var allCommandIds = commandIds.SelectMany(drawn => drawn).ToArray();
+        var distinctCommandIds = allCommandIds.Distinct(StringComparer.Ordinal).Count();
+
+        distinctCommandIds.ShouldBe(
+            allCommandIds.Length,
+            $"{allCommandIds.Length - distinctCommandIds} of {allCommandIds.Length} command ids "
+            + "repeated under the same contention. This is the one that costs money: a repeated "
+            + "command id is a repeated idempotency key, and the server replays an unrelated earlier "
+            + "outcome for a command it has never actually seen.");
     }
 }
