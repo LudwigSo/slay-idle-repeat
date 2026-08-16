@@ -168,10 +168,17 @@ public static class GameRules
         {
             if (state.Run.Phase == RunPhase.Ended)
             {
-                return CommandResult.Reject(RejectionReason.RUN_ALREADY_ENDED, state);
+                // Exempted by the same flag as the run-less guard above: nothing else in the game
+                // clears a finished run, so without this a player gets one run for the life of their
+                // account. Only a finished one — a live run falls to the arms below instead, and to
+                // START_RUN's own already-active-run refusal, so it is never discarded.
+                if (!registration.OpensRun)
+                {
+                    return CommandResult.Reject(RejectionReason.RUN_ALREADY_ENDED, state);
+                }
             }
-
-            if (state.Run.Phase == RunPhase.BattlePending && command is not ConfirmBattleResultCommand)
+            else if (state.Run.Phase == RunPhase.BattlePending &&
+                     command is not ConfirmBattleResultCommand)
             {
                 // A battle is open; CONFIRM_BATTLE_RESULT is the only legal next move.
                 return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
@@ -179,9 +186,10 @@ public static class GameRules
 
             // DraftPending is orthogonal to RunPhase, so it's checked separately rather than added
             // as a fourth phase value. PICK_PERK/REROLL_DRAFT/SKIP_DRAFT are the only legal moves
-            // while a draft is open.
-            if (state.Run.DraftPending &&
-                command is not (PickPerkCommand or RerollDraftCommand or SkipDraftCommand))
+            // while a draft is open. Not asked of an ended run: a draft left open on a run that has
+            // finished would otherwise refuse the exempted row for a second, unrelated reason.
+            else if (state.Run.DraftPending &&
+                     command is not (PickPerkCommand or RerollDraftCommand or SkipDraftCommand))
             {
                 return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
             }
@@ -189,6 +197,15 @@ public static class GameRules
 
         // Everything from here works on a copy; the caller's slice is never written to.
         var working = Clone(state, context.Content);
+
+        // 🔒 Before the RunRngScope below, not after: the scope and committedPositions would
+        // otherwise be the FINISHED run's, and FoldRngPositions would compare them against the fresh
+        // run's empty map and raise a determinism defect. The only place Apply clears Run, and only
+        // for a run row whose job is to open one.
+        if (registration.OpensRun && working.Run is { Phase: RunPhase.Ended })
+        {
+            working = working with { Run = null };
+        }
 
         // The handler never receives the raw slice, only the one this produces, so nothing a
         // handler writes runs before the catch-up. Its events are prepended to the handler's since

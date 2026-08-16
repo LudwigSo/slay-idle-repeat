@@ -804,7 +804,9 @@ internal static class GapRegister
         // §2.3's boundaries. Catch-up never touches Run.LastAppliedAtUtc (M1-05's ruling), and
         // EXPIRING a run needed RunPhase, which M3-05 has now authored (see the discharged entry's
         // note above) — GameRules.Execute's phase gate answers RUN_ALREADY_ENDED once a run reaches
-        // RunPhase.Ended, which is M3-13's to produce (EndRunCommand/AbandonRunCommand).
+        // RunPhase.Ended, which is M3-13's to produce (EndRunCommand/AbandonRunCommand). M7-00b
+        // narrowed that: the gate answers it for every run command EXCEPT the one row marked
+        // OpensRun, which opens a fresh run over the ended one.
         new("30 §2.3 (the lazy-catch-up boundaries whose state does not exist)", Domain.ModelNamespace, new[]
         {
             "QuestSlate",
