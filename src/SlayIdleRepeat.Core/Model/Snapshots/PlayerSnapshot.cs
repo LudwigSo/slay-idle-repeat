@@ -41,6 +41,12 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// everything the player owns on the first load of a row that merely failed to write it. The
 /// optional default is a C# requirement, not a permitted value.
 /// </param>
+/// <param name="AutoSalvageRules">
+/// The auto-salvage filter this player configured: one row per band they want swept, and the
+/// enhancement level below which it is. An <b>empty</b> list is the ordinary state and sweeps
+/// nothing; <c>null</c> is a <b>fault</b>, on <see cref="FeatCounters"/>' precedent, because a filter
+/// read as empty and a filter that failed to write look identical and only one of them is safe.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.PlayerId"/> and
 /// <see cref="Primitives.EnergyBanks"/>, plus the counter dictionaries. Every timestamp is refused
@@ -73,4 +79,5 @@ public sealed record PlayerSnapshot(
     IReadOnlyDictionary<string, long>? ClearedChapterTiers = null,
     IReadOnlyDictionary<string, long>? FeatCounters = null,
     IReadOnlyDictionary<string, int>? PityCounters = null,
-    InventorySnapshot? Inventory = null);
+    InventorySnapshot? Inventory = null,
+    IReadOnlyList<AutoSalvageRule>? AutoSalvageRules = null);

@@ -16,7 +16,7 @@
     "crownCostByOutputRarity": { "B": 120, "A": 600, "S": 3000, "SS": 15000 }
   },
   "enhance": {
-    "_doc": "08 §4.2. Success rates are authored as band endpoints only — the doc gives '85% -> 65%' and '50% -> 25%' and never states the interpolation, so perLevelSuccessRate is left unauthored.",
+    "_doc": "08 §4.2. successRateBands gives endpoints ('85% -> 65%', '50% -> 25%'); the arrow is the document's ramp notation, so perLevelSuccessRate is those endpoints spread LINEARLY and evenly across each band's five levels — step -0.05 and step -0.0625. Every value is a function of two published endpoints and none was chosen for feel; the second band is non-integral by construction and is not rounded to look tidy.",
     "minLevel": 0,
     "maxLevel": 15,
     "statBonusPerLevel": 0.07,
@@ -30,13 +30,17 @@
       { "fromLevel": 6, "toLevel": 10, "startRate": 0.85, "endRate": 0.65 },
       { "fromLevel": 11, "toLevel": 15, "startRate": 0.5, "endRate": 0.25 }
     ],
-    "perLevelSuccessRate": null,
+    "perLevelSuccessRate": [
+      1.0, 1.0, 1.0, 1.0, 1.0,
+      0.85, 0.8, 0.75, 0.7, 0.65,
+      0.5, 0.4375, 0.375, 0.3125, 0.25
+    ],
     "plusLuckyChargesPerDay": 3,
     "plusLuckyPercentagePoints": 15,
     "plusLuckyChargesAccumulate": false
   },
   "salvage": {
-    "_doc": "08 §4.3",
+    "_doc": "08 §4.3. Merge Dust and the stone refund only: 24 §5.1's Set Token yield has no number here and no wallet row to move into, so it stays absent rather than guessed. The auto-salvage filter's rules are per-player configuration rather than tuning, so no default filter is authored.",
     "baseDustByRarity": { "C": 10, "B": 40, "A": 160, "S": 640, "SS": 2560 },
     "dustPerEnhanceLevel": 0.15,
     "stoneRefundShare": 0.6

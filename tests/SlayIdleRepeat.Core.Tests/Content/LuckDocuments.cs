@@ -14,10 +14,10 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// <para>
 /// Only what a reader actually reads is transcribed as a document. <c>LuckTuning</c> takes the
 /// registry, the floor rule and the five ladder blocks; <c>DropRunTuning</c> takes the
-/// <c>dropRun</c> block, and the draft and chest-pick guarantees are read by the façade members that
-/// serve those two classes — which is why all three <em>are</em> authored here while the failure-rate
-/// mercy and the jackpot spin count still are
-/// not — nothing reads those, and authoring them would imply something does. Their <c>N</c>s still
+/// <c>dropRun</c> block, and the draft, chest-pick and enhancement guarantees are read by the façade
+/// members that serve those three classes — which is why all four <em>are</em> authored here while
+/// the jackpot spin count still is
+/// not — nothing reads it, and authoring it would imply something does. Its <c>N</c> still
 /// appear in <see cref="EveryAuthoredHardPityN"/>, because <c>24</c> §11 asks for an exact-<c>N</c>
 /// test per rule and that list is what makes the coverage claim checkable.
 /// </para>
@@ -116,16 +116,23 @@ internal static class LuckDocuments
 
     /// <summary><c>24</c> §4.6 — the per-consecutive-failure addition to the enhancement rate.</summary>
     /// <remarks>
-    /// Authored in <c>luck.json</c>'s <c>enhance</c> block, which <c>LuckTuning</c> does not read:
-    /// the enhancement command (M4-04b) owns that shape. Declared here so the rate-mercy cases state
-    /// the shipped slope rather than a literal, and pinned against the file in
-    /// <c>Application.Tests</c>.
+    /// Authored in <c>luck.json</c>'s <c>enhance</c> block, which <c>LuckTuning</c> reads since
+    /// M4-04 wired the enhancement command. Declared here so the rate-mercy cases state the shipped
+    /// slope rather than a literal, and pinned against the file in <c>Application.Tests</c>.
     /// </remarks>
     internal const double ShippedEnhanceMercySlope = 0.08;
 
     /// <summary><c>24</c> §4.6 — the ceiling on the effective enhancement rate.</summary>
     /// <inheritdoc cref="ShippedEnhanceMercySlope"/>
     internal const double ShippedEnhanceRateCap = 1.0;
+
+    /// <summary><c>24</c> §4.6 — the rewarded ad's bonus adds to the raised chance rather than multiplying into it.</summary>
+    /// <inheritdoc cref="ShippedEnhanceMercySlope"/>
+    internal const bool ShippedEnhanceAdStacksAdditively = true;
+
+    /// <summary><c>24</c> §4.6 — an attempt carrying the ad's bonus neither advances nor consumes the mercy counter.</summary>
+    /// <inheritdoc cref="ShippedEnhanceMercySlope"/>
+    internal const bool ShippedEnhanceAdAdvancesCounter = false;
 
     // ------------------------------------------------- the Ns the other five classes author
 
@@ -289,7 +296,9 @@ internal static class LuckDocuments
         ContentValue? dropRun = null,
         ContentValue? draftLegendaryPityNumber = null,
         ContentValue? draftSustainForceCategory = null,
-        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null) =>
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null,
+        ContentValue? enhanceMercySlope = null,
+        ContentValue? enhanceRateCap = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -310,7 +319,9 @@ internal static class LuckDocuments
                     dropRun,
                     draftLegendaryPityNumber,
                     draftSustainForceCategory,
-                    minigameGuaranteeAfterConsecutiveMisses),
+                    minigameGuaranteeAfterConsecutiveMisses,
+                    enhanceMercySlope,
+                    enhanceRateCap),
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
             ]);
 
@@ -337,7 +348,9 @@ internal static class LuckDocuments
         ContentValue? dropRun = null,
         ContentValue? draftLegendaryPityNumber = null,
         ContentValue? draftSustainForceCategory = null,
-        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null) =>
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null,
+        ContentValue? enhanceMercySlope = null,
+        ContentValue? enhanceRateCap = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -358,7 +371,9 @@ internal static class LuckDocuments
                     dropRun,
                     draftLegendaryPityNumber,
                     draftSustainForceCategory,
-                    minigameGuaranteeAfterConsecutiveMisses),
+                    minigameGuaranteeAfterConsecutiveMisses,
+                    enhanceMercySlope,
+                    enhanceRateCap),
             ]);
 
     /// <summary>A content set with <b>no</b> <c>tuning/luck.json</c> at all.</summary>
@@ -436,7 +451,9 @@ internal static class LuckDocuments
         ContentValue? dropRun,
         ContentValue? draftLegendaryPityNumber,
         ContentValue? draftSustainForceCategory,
-        ContentValue? minigameGuaranteeAfterConsecutiveMisses) =>
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses,
+        ContentValue? enhanceMercySlope = null,
+        ContentValue? enhanceRateCap = null) =>
         new(
             DocumentPath,
             Members(
@@ -504,6 +521,15 @@ internal static class LuckDocuments
                         ContentValue.Number(ShippedCrateMountSoftPityThreshold),
                         ContentValue.Number((decimal)ShippedCrateMountSoftPitySlope))))),
                 ("dropRun", dropRun ?? DropRun()),
+                ("enhance", Members(
+                    ("mercySlopePerConsecutiveFailure",
+                        enhanceMercySlope ?? ContentValue.Number((decimal)ShippedEnhanceMercySlope)),
+                    ("effectiveRateCap",
+                        enhanceRateCap ?? ContentValue.Number((decimal)ShippedEnhanceRateCap)),
+                    ("adEnhanceLuckStacksAdditively",
+                        ContentValue.Boolean(ShippedEnhanceAdStacksAdditively)),
+                    ("adEnhanceLuckAdvancesCounter",
+                        ContentValue.Boolean(ShippedEnhanceAdAdvancesCounter)))),
                 ("draft", Members(
                     ("legendaryPityDraftNumber", draftLegendaryPityNumber ?? ContentValue.Number(ShippedDraftLegendaryPityN)),
                     ("sustainAntiBrick", Members(

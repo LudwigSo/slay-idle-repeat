@@ -170,6 +170,12 @@ public sealed class PlayerSnapshotTests
             // cases would notice a bought expansion that reached no byte.
             (nameof(PlayerSnapshot.Inventory), v,
                 PlayerSnapshots.With(inventory: new InventorySnapshot(1, [], []))),
+
+            // M4-04. Two players whose auto-salvage filters differ will be holding different stock
+            // by the end of their next run, so a filter that reached no byte would let the mirror
+            // report agreement right up until one of them lost an item the other kept.
+            (nameof(PlayerSnapshot.AutoSalvageRules), v,
+                PlayerSnapshots.With(autoSalvageRules: [new AutoSalvageRule(Rarity.C, 3)])),
         };
 
         var invisible = probes

@@ -142,7 +142,12 @@ public sealed partial class RealDataSetTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        snapshot.IsAuthorised("tuning/forge.json#/enhance/perLevelSuccessRate").ShouldBeFalse();
+        // 🔴 The subject was perLevelSuccessRate until M4-04 discharged it: the interpolation
+        // between the two published band endpoints turned out to be the document's own ramp
+        // notation, so the ladder is a function of numbers already authored rather than a hole.
+        // The remaining forge hole is a stronger example anyway — it is an authored n/a rather than
+        // an undecided number, and nothing merges out of the top rung for it to price.
+        snapshot.IsAuthorised("tuning/forge.json#/merge/dustSubstituteCost/SS").ShouldBeFalse();
     }
 
     [Fact]
@@ -150,7 +155,7 @@ public sealed partial class RealDataSetTests
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        Action act = () => _ = snapshot.ReadDouble("tuning/forge.json#/enhance/perLevelSuccessRate");
+        Action act = () => _ = snapshot.ReadInt64("tuning/forge.json#/merge/dustSubstituteCost/SS");
 
         Should.Throw<Core.Content.UnauthorisedTunableException>(act);
     }

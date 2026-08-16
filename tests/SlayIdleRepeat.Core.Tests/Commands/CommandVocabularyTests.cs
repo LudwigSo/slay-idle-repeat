@@ -314,10 +314,11 @@ public sealed class CommandVocabularyTests
             "a deferred row rather than that the count moved.");
 
         deferred.ShouldBe(
-            30,
+            27,
             "…and the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
-            "is 49 rows and exactly nineteen of them — BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
+            "is 49 rows and exactly twenty-two of them — 08 §4's MERGE, ENHANCE and SALVAGE (M4-04's " +
+            "forge), BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
             "(02 §2's runSeed commit), MINIGAME_SUBMIT (03 §6's minigame resolution), ROLL_DICE and " +
             "USE_REROLL (04 §§1,3-4), SHOP_BUY/SHOP_REFRESH (03 §7's shop, M3-08), CHOOSE_FORK " +
             "(03 §1.1's junction pause, M3-02), RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE " +
@@ -339,6 +340,8 @@ public sealed class CommandVocabularyTests
     {
         var runRows = 0;
         var metaRows = 0;
+        var handledAndAccepted = new List<string>();
+        var handledAndRefused = new List<string>();
 
         foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
         {
@@ -384,10 +387,27 @@ public sealed class CommandVocabularyTests
 
             if (RegistrationFor(name).IsHandled)
             {
-                result.Accepted.ShouldBeTrue(
-                    $"'{name}' is a handled meta command, so outside a run it runs its handler — " +
-                    "whatever that handler decides is its own suite's business, but reaching it at " +
-                    "all is what this rule is about.");
+                // 🔴 Reaching the handler is the claim; what the handler decides about a
+                // GENERICALLY BUILT payload is its own suite's business. This arm asserted
+                // acceptance until M4-04 landed the first handled meta rows with a real
+                // precondition — a forge command naming an item the sample player does not own is
+                // refused, and rightly. Asserting the tier and then pinning BOTH SIDES by identity
+                // below is strictly stronger than the acceptance it replaces: acceptance said
+                // nothing about which rows accept, and a row that quietly started refusing every
+                // call would have been the same green.
+                if (result.Rejection is { } refused)
+                {
+                    RejectionReasons.IsDomainTier(refused).ShouldBeTrue(
+                        $"'{name}' is a handled meta command that refused. A handler may only ever " +
+                        "answer a DOMAIN-tier reason — the transport tier is the host's vocabulary " +
+                        "and CommandResult refuses one outright.");
+
+                    handledAndRefused.Add(name);
+                }
+                else
+                {
+                    handledAndAccepted.Add(name);
+                }
             }
             else
             {
@@ -402,6 +422,24 @@ public sealed class CommandVocabularyTests
 
         runRows.ShouldBe(19, "14 §2.3's run table has 19 rows.");
         metaRows.ShouldBe(30, "14 §2.3's meta table has 30 rows.");
+
+        // 🔒 Both sides by IDENTITY (steering S3), because the tier assertion above is satisfied by
+        // a table in which every handled row refuses AND by one in which every handled row accepts.
+        handledAndAccepted.ShouldBe(
+            new[] { "BEGIN_SESSION" },
+            ignoreOrder: true,
+            "BEGIN_SESSION is the handled meta row that takes a generically-built payload and does " +
+            "something with it — it names no item, no slot and no id, so there is nothing about the " +
+            "sample for its handler to refuse. If it stops accepting here, the arm above has stopped " +
+            "proving that a handled meta command is reached at all.");
+
+        handledAndRefused.ShouldBe(
+            new[] { "MERGE", "ENHANCE", "SALVAGE" },
+            ignoreOrder: true,
+            "…and the rows that legitimately refuse a generic payload: all three forge commands name " +
+            "gear instances, and Build's sample ids name items the sample player does not own. A row " +
+            "appearing here that should not have is a handler that has quietly started refusing " +
+            "everything.");
     }
 
     /// <summary>

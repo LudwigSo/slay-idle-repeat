@@ -52,17 +52,61 @@ public sealed record EquipCommand(GearInstanceId ItemId, GearSlot GearSlot) : Ga
 }
 
 /// <summary>
-/// <c>MERGE</c> — fuse items into one of the next rarity.
+/// <c>MERGE</c> ⚄ — fuse three items into one of the next rarity. The affix re-roll at the new
+/// rarity draws from this command's seed.
 /// </summary>
-/// <param name="InputItemIdA">The first input instance.</param>
-/// <param name="InputItemIdB">The second input instance.</param>
-/// <param name="DustSubstituted">
-/// Whether Merge Dust fills an input slot in place of a third item; a dust-filled slot does not
-/// count toward the output's quality maxima.
-/// </param>
-public sealed record MergeCommand(
-    GearInstanceId InputItemIdA, GearInstanceId InputItemIdB, bool DustSubstituted) : GameCommand
+/// <remarks>
+/// <para>
+/// 🔴 <b>A list, because the fusion takes three inputs and the two-id payload could not say so.</b>
+/// The earlier shape named two instances plus a flag, which expresses a real merge only when the
+/// flag is true — there was no way at all to send three items, which is the ordinary case. The list
+/// carries the real inputs and the flag says whether Merge Dust fills the remaining slot, so the
+/// two members together always add up to three: three ids with the flag clear, two with it set.
+/// </para>
+/// <para>
+/// The arithmetic is deliberately <em>not</em> enforced here. How many inputs a fusion takes and how
+/// many of them dust may fill are authored numbers, not payload shape, so a command carrying four
+/// ids is a rejection the player is told about rather than a command that refuses to be constructed
+/// — and a command that cannot be built cannot be answered.
+/// </para>
+/// <para>
+/// Equality and hashing are hand-written for the reason <see cref="SalvageCommand"/> records: a
+/// record compares an <c>IReadOnlyList&lt;T&gt;</c> member by reference.
+/// </para>
+/// </remarks>
+public sealed record MergeCommand : GameCommand
 {
+    /// <summary>Fuses the named instances, optionally with Merge Dust in the remaining slot.</summary>
+    /// <param name="inputItemIds">The input instances, in the order the client sent them.</param>
+    /// <param name="dustSubstituted">
+    /// Whether Merge Dust fills an input slot in place of an item. A dust-filled slot contributes
+    /// neither a quality nor a chapter of origin to the output's maxima.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="inputItemIds"/> is null.</exception>
+    public MergeCommand(IReadOnlyList<GearInstanceId> inputItemIds, bool dustSubstituted)
+    {
+        InputItemIds = CommandPayload.Copy(inputItemIds, nameof(inputItemIds));
+        DustSubstituted = dustSubstituted;
+    }
+
+    /// <summary>The input instances, in the order the client sent them.</summary>
+    public IReadOnlyList<GearInstanceId> InputItemIds { get; }
+
+    /// <summary>Whether Merge Dust fills an input slot in place of an item.</summary>
+    public bool DustSubstituted { get; }
+
+    /// <summary>Two merges are equal when they name the same inputs in the same order and agree on the dust.</summary>
+    /// <param name="other">The other command.</param>
+    /// <returns>Whether the two describe the same intent.</returns>
+    public bool Equals(MergeCommand? other) =>
+        other is not null &&
+        DustSubstituted == other.DustSubstituted &&
+        CommandPayload.SameIds(InputItemIds, other.InputItemIds);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() =>
+        HashCode.Combine(EqualityContract, CommandPayload.HashIds(InputItemIds), DustSubstituted);
+
     /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
     /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
     /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
@@ -70,8 +114,9 @@ public sealed record MergeCommand(
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        builder.Append(CultureInfo.InvariantCulture, $"{nameof(InputItemIdA)} = {InputItemIdA}");
-        builder.Append(CultureInfo.InvariantCulture, $", {nameof(InputItemIdB)} = {InputItemIdB}");
+        builder.Append(
+            CultureInfo.InvariantCulture,
+            $"{nameof(InputItemIds)} = {CommandPayload.Text(InputItemIds)}");
         builder.Append(CultureInfo.InvariantCulture, $", {nameof(DustSubstituted)} = {DustSubstituted}");
 
         return true;

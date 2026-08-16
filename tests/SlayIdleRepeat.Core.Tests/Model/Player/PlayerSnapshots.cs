@@ -107,7 +107,8 @@ internal static class PlayerSnapshots
         bool cleared = false,
         bool feats = false,
         bool pity = false,
-        bool inventory = false) =>
+        bool inventory = false,
+        bool autoSalvage = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -130,7 +131,8 @@ internal static class PlayerSnapshots
             cleared ? null : Counters(),
             feats ? null! : Counters(),
             pity ? null! : Pity(),
-            inventory ? null! : EmptyInventory);
+            inventory ? null! : EmptyInventory,
+            autoSalvage ? null! : NoAutoSalvage);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static PlayerSnapshot With(
@@ -155,7 +157,8 @@ internal static class PlayerSnapshots
         IReadOnlyDictionary<string, long>? clearedChapterTiers = null,
         IReadOnlyDictionary<string, long>? featCounters = null,
         IReadOnlyDictionary<string, int>? pityCounters = null,
-        InventorySnapshot? inventory = null) =>
+        InventorySnapshot? inventory = null,
+        IReadOnlyList<AutoSalvageRule>? autoSalvageRules = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -182,7 +185,8 @@ internal static class PlayerSnapshots
             clearedChapterTiers ?? Counters(),
             featCounters ?? Counters(),
             pityCounters ?? Pity(),
-            inventory ?? EmptyInventory);
+            inventory ?? EmptyInventory,
+            autoSalvageRules ?? NoAutoSalvage);
 
     /// <summary>An inventory holding nothing, with no expansion bought — where a new player stands.</summary>
     /// <remarks>
@@ -197,4 +201,12 @@ internal static class PlayerSnapshots
     /// every fixture in the suite would carry the very absent inventory this member exists to avoid.
     /// </remarks>
     internal static InventorySnapshot EmptyInventory => new(0, [], []);
+
+    /// <summary>An auto-salvage filter with no rows — where every player stands until they set one.</summary>
+    /// <remarks>
+    /// Empty, never <c>null</c>, and expression-bodied, for the two reasons
+    /// <see cref="EmptyInventory"/> records: an absent filter is a fault, and a static initialiser
+    /// declared below <see cref="Valid"/> would still be null when <see cref="Valid"/> was built.
+    /// </remarks>
+    internal static IReadOnlyList<AutoSalvageRule> NoAutoSalvage => [];
 }

@@ -271,6 +271,15 @@ public sealed class LuckRoutingRuleTests
         "RarityTable",
         "DraftGuarantees",
         "ChestPickGuarantee",
+
+        // 🔒 M4-04 added the seventh, and it is a guarantee by the same definition the other six
+        // are: `24` §4.6's failure mercy decides whether an enhancement attempt is protected, and it
+        // decides it here. It is NOT MercyAccrual under another name — that one banks and spends
+        // tokens, this one raises a probability — and folding the two together would make one of
+        // them wrong. Registering it is what stops the forge from computing the rate itself, which
+        // is what a second place a guarantee fires looks like when the guarantee is an addition
+        // rather than a rung.
+        "EnhanceMercy",
     };
 
     /// <summary>
@@ -365,6 +374,26 @@ public sealed class LuckRoutingRuleTests
 
         // (a) The persisted DATA ROW, beside DropsTuning's rung rows rather than beside the three
         //     consumers above.
+        // 🔒 M4-04's THREE, and all three are shapes already on this list rather than new kinds.
+        //
+        // ⚠️ What was NOT exempted is the point of this note. The forge's two producers —
+        // Rules.Forge.GearMerge and Rules.Forge.GearEnhancement — both build a GearInstance and both
+        // are deliberately absent from this list: the fusion asks LuckService for the band its
+        // output lands on, and the attempt asks LuckService for the chance it has. Neither could
+        // have been written without the façade, which is exactly what the rule is for. The forge's
+        // handlers are absent too, and that shaped the code: Merge and Salvage look their items up
+        // through Inventory.Find rather than through a private helper of their own, because a helper
+        // answering a GearInstance would have put two more rows here.
+        //
+        // (a) The CONTENT READER, beside DropsTuning and LuckTuning.
+        ("ForgeTuning", "the forge tuning reader — the fusion's input count and prices, the enhancement ladder and the salvage values, all keyed on the band they apply to. It reads a rarity OUT of a document rather than deciding one; DropsTuning's reason, one document over, and Content sits BENEATH Rules so routing a content read through Rules.Luck would be the layering inverted"),
+
+        // (a) The persisted/configured DATA ROW, beside HardPityStep and GearInstanceSnapshot.
+        ("AutoSalvageRule", "one row of a player's auto-salvage filter — a band and the level below which it is swept. A row CARRYING a rarity is not a place a rarity is decided; HardPityStep's and SessionFloor's reason, one layer over, and it is scanned at all for GearInstanceSnapshot's reason: its simple name is not in GrantOutcomeTypes, so its constructor and accessors are never covered by MentionsItsOwnTypeByConstruction"),
+
+        // (b) The CONSUMER of an item that was already granted, beside GearStatDerivation.
+        ("GearSalvage", "answers what an item BREAKS DOWN INTO. It names a GearInstance because it reads one — the band it rolled and the level it reached — and it produces no item at all: the two numbers it answers are currency amounts. GearStatDerivation's reason, at the other end of the item's life"),
+
         ("GearInstanceSnapshot", "the persisted ROW of an item that was granted long before it was written down. It carries the band because that is what the item rolled — HardPityStep's and SessionFloor's reason, one layer over: a data row carrying a rarity is not a place a rarity is decided. ⚠️ It is scanned at all because its SIMPLE NAME is not in GrantOutcomeTypes, so MentionsItsOwnTypeByConstruction never covers its constructor and accessors the way it covers GearInstance's. Accessibility has nothing to do with it — Il.AllMethods filters on nothing of the sort, and an internal constructor would trip this identically. A snapshot of a pet or a mount will want the same row"),
     };
 

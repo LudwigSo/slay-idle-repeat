@@ -168,8 +168,11 @@ public sealed class InMemoryGamePerformanceTests
             $"{Commands} commands against an EMPTY inventory took {empty:F1} ms; the same commands " +
             $"against a FULL {FullStock}-item inventory took {full:F1} ms. Linear is EXPECTED — every " +
             "command copies the whole player, stock included, and that copy is what makes a rejected " +
-            "command leave the caller's state untouched. Measured at 5.2 when the inventory landed, " +
-            "and a bound of eight is set above that rather than at it. What it catches is " +
+            "command leave the caller's state untouched. Measured at 5.2 when the inventory landed " +
+            "and RE-MEASURED at 5.04 when the forge gave the stock its first production writer — the " +
+            "forge is not on this drive at all, and what the drive costs is the per-command clone of " +
+            "the player, which the auto-salvage filter grows by one empty list. " +
+            "A bound of eight is set above both rather than at either. What it catches is " +
             "SUPER-linear work — an item compared against every other item, a derivation re-run per " +
             "item per item — which at three hundred and twenty items reads in the hundreds, not the " +
             "single digits. If it fires, find the nested loop; do not raise it, and do not try to " +

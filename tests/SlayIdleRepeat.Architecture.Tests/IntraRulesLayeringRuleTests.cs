@@ -77,6 +77,9 @@ public sealed class IntraRulesLayeringRuleTests
     /// </remarks>
     internal const string LuckNamespace = "SlayIdleRepeat.Core.Rules.Luck";
 
+    /// <summary>M4-04's `08` §4 forge — fusion, enhancement, salvage and the auto-salvage filter — outside the ordering entirely, like <see cref="GearNamespace"/>.</summary>
+    internal const string ForgeNamespace = "SlayIdleRepeat.Core.Rules.Forge";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -296,6 +299,66 @@ public sealed class IntraRulesLayeringRuleTests
         (InventoryNamespace, CombatNamespace,
             "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — sorting a stock has no reason to read the combat simulator."),
+
+        // 🔒 M4-04's Rules/Forge/ (GearMerge, GearEnhancement, GearSalvage, AutoSalvageFilter),
+        // pinned OUTSIDE the ordering the same way Gear and Inventory are, and for the same reason.
+        // Verified by inspection, not assumed: the namespace's Core dependencies outside itself are
+        // Content (the forge numbers and the gear tables), Model (the gear instance and the stock),
+        // Primitives, Rng, Rules.Gear (the affix roller and the band's authored affix count) and
+        // Rules.Luck (the façade the output band and the enhancement rate come back from). ZERO
+        // coupling to Combat/Stats/Effects in either direction.
+        //
+        // ⚠️ THE REVERSE DIRECTION IS THE ONE THAT WILL BE WANTED, exactly as it is for Gear:
+        // GearEnhancement.StatMultiplier is the +7%-per-level half that GearStatDerivation
+        // deliberately does not fold in, so the aggregator composing the two one day is Rules.Stats
+        // (or Rules.Effects) reading Rules.Forge — the direction these three edges permit by
+        // forbidding only the other.
+        (ForgeNamespace, EffectsNamespace,
+            "Forge is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — fusing, enhancing and breaking down an item have no reason to read the " +
+            "effect DSL's resolver; the collection runs the other way."),
+        (ForgeNamespace, StatsNamespace,
+            "Forge is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — an enhanced item contributes TO stat aggregation and must not read it back, " +
+            "or what an item is worth becomes a function of the build it is being enhanced for."),
+        (ForgeNamespace, CombatNamespace,
+            "Forge is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a fusion, an attempt and a salvage payout have no reason to read the combat " +
+            "simulator."),
+
+        // 🔒 The three INVERSE edges, closed in the same commit that created the pair's first edge —
+        // the (Gear, Inventory) precedent, for the reason recorded there. Nothing under Gear, Luck or
+        // Inventory names a Forge type today (verified by inspection), so all three cost nothing now
+        // and would not be free later.
+        //
+        // ⚠️ TWO of the three are the inverse of an edge that EXISTS: Rules.Forge names Rules.Gear
+        // (GearAffixRoller, GearMinting) and Rules.Luck (the façade), and those directions are
+        // deliberately left open. The (Inventory, Forge) row is NOT that shape and is not claimed to
+        // be — Rules.Forge names nothing under Rules.Inventory at all. AutoSalvageFilter takes
+        // Model.Gear.Inventory, the AGGREGATE COMPONENT, which is a Model read and not a Rules edge;
+        // the file has to spell it `Model.Gear.Inventory` precisely because the bare name resolves to
+        // the sibling Rules.Inventory namespace it does not use. That row is therefore an ordering
+        // taken BEFORE the pair has any edge in either direction, which R17's own contract permits
+        // (Every_namespace_under_Rules_has_a_declared_place_in_R17 asks only that each namespace be
+        // placed, never that a pair be edged) and which costs nothing to take now.
+        (GearNamespace, ForgeNamespace,
+            "R17 runs this pair ONE WAY: a fusion re-rolls affixes through GearAffixRoller and asks " +
+            "GearMinting how many the band rolls, so Rules.Forge names Rules.Gear and never the " +
+            "reverse. A mint that consulted the forge would be downstream of the operation that " +
+            "consumes what it mints."),
+        (InventoryNamespace, ForgeNamespace,
+            "R17 orders this pair BEFORE either direction exists: the auto-salvage filter reads the " +
+            "stock through Model.Gear.Inventory, so Rules.Forge names nothing under Rules.Inventory " +
+            "and Rules.Inventory names nothing under Rules.Forge. Forge -> Inventory is the " +
+            "direction left open, because both rules read one stock and the sweep is the operation. " +
+            "A sorting or comparison rule that asked the forge what an item salvages for would put " +
+            "the screen that lists a stock downstream of the operation that empties it."),
+        (LuckNamespace, ForgeNamespace,
+            "R17 runs this pair ONE WAY: the forge asks the façade for a fusion's output band and " +
+            "for an enhancement's effective rate, so Rules.Forge names Rules.Luck and never the " +
+            "reverse. A guarantee that read the forge would be a pity rule whose answer depended on " +
+            "what the player happened to be building, which is the cycle 24 §11's one-façade rule " +
+            "exists to prevent."),
     };
 
     /// <summary>

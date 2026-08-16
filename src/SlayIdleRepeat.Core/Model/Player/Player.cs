@@ -175,7 +175,8 @@ public sealed class Player
         Dictionary<string, long> clearedChapterTiers,
         Dictionary<string, long> featCounters,
         PityCounters pityCounters,
-        Inventory inventory)
+        Inventory inventory,
+        IReadOnlyList<AutoSalvageRule> autoSalvageRules)
     {
         _pityCounters = pityCounters;
         Id = id;
@@ -202,7 +203,21 @@ public sealed class Player
         _featCounters = featCounters;
         _featCountersView = new FeatCounters(new ReadOnlyDictionary<string, long>(featCounters));
         Inventory = inventory;
+        AutoSalvageRules = autoSalvageRules;
     }
+
+    /// <summary>
+    /// The auto-salvage filter this player configured — one row per band they want swept at run end.
+    /// Empty until they set one, and an empty filter sweeps nothing.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Nothing writes it yet, and that is a statement of what is left rather than of what was
+    /// done.</b> The command vocabulary is closed and authors no command that sets a filter, and none
+    /// that applies one at run end either; the forge screen that would set it and the run-end payout
+    /// that would apply it are both later tasks. The rule that reads a filter is written and tested,
+    /// and this is the place its rows live when a command finally sends them.
+    /// </remarks>
+    public IReadOnlyList<AutoSalvageRule> AutoSalvageRules { get; }
 
     /// <summary>The aggregate root's identity.</summary>
     public PlayerId Id { get; }
@@ -394,7 +409,8 @@ public sealed class Player
         // Already immutable and replaced wholesale on every movement, so no copy is needed — the
         // same argument the wallet makes.
         _pityCounters.Counters,
-        Inventory.ToSnapshot());
+        Inventory.ToSnapshot(),
+        AutoSalvageRules);
 
     /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -452,12 +468,13 @@ public sealed class Player
             snapshot.FeatCounters, nameof(PlayerSnapshot.FeatCounters), faults, LifetimeLifespan);
         var pityCounters = ReadPityCounters(snapshot, faults);
         var inventory = ReadInventory(snapshot.Inventory, faults);
+        var autoSalvageRules = ReadAutoSalvageRules(snapshot.AutoSalvageRules, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns null
         // also adds a fault — but written as a pattern so the correlation is checked, not asserted.
         if (faults.Count > 0 || wallet is null || daily is null || weekly is null ||
             clearedChapterTiers is null || featCounters is null || pityCounters is null ||
-            inventory is null)
+            inventory is null || autoSalvageRules is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -485,7 +502,62 @@ public sealed class Player
             clearedChapterTiers,
             featCounters,
             pityCounters,
-            inventory));
+            inventory,
+            autoSalvageRules));
+    }
+
+    /// <summary>
+    /// Reads the auto-salvage filter. <c>null</c> is a <b>fault</b>, on <c>FeatCounters</c>' and the
+    /// inventory's precedent: an absent filter and an empty one are indistinguishable once read, and
+    /// only one of them is a row the game wrote.
+    /// </summary>
+    /// <remarks>
+    /// The rows are copied rather than held, for the reason the counter maps are: the caller's list
+    /// stays writable, and a record compares an <c>IReadOnlyList&lt;T&gt;</c> component by reference,
+    /// so the sharing would be invisible to every comparison that looked for it.
+    /// </remarks>
+    private static IReadOnlyList<AutoSalvageRule>? ReadAutoSalvageRules(
+        IReadOnlyList<AutoSalvageRule>? rules, List<string> faults)
+    {
+        if (rules is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.AutoSalvageRules) + " is null. An absent filter is not an " +
+                "empty one: read as empty it sweeps nothing, which looks exactly like a player who " +
+                "has not configured one — so a row that failed to write its filter would silently " +
+                "turn the feature off and nothing would ever say so.");
+
+            return null;
+        }
+
+        var copy = new AutoSalvageRule[rules.Count];
+        var sound = true;
+
+        for (var i = 0; i < rules.Count; i++)
+        {
+            var rule = rules[i];
+
+            if (!Enum.IsDefined(rule.Rarity))
+            {
+                sound = false;
+                faults.Add(
+                    nameof(PlayerSnapshot.AutoSalvageRules) + "[" + Text(i) + "] names band '" +
+                    rule.Rarity + "', which is not on the rarity ladder. A filter row over a band " +
+                    "nothing can be would sweep nothing, forever, invisibly.");
+            }
+            else if (rule.BelowEnhanceLevel < 0)
+            {
+                sound = false;
+                faults.Add(
+                    nameof(PlayerSnapshot.AutoSalvageRules) + "[" + Text(i) + "] sweeps below level " +
+                    Text(rule.BelowEnhanceLevel) + ". No item sits below zero, so a negative " +
+                    "ceiling is a row nobody could have set.");
+            }
+
+            copy[i] = rule;
+        }
+
+        return sound ? Array.AsReadOnly(copy) : null;
     }
 
     /// <summary>

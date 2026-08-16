@@ -198,8 +198,8 @@ public sealed class RunRngStreamTests
             .ToArray();
 
         everyStream.Length.ShouldBe(
-            10,
-            "eight fixed rows plus two minigame indices. A shrunken fixture would leave this case " +
+            11,
+            "nine fixed rows plus two minigame indices. A shrunken fixture would leave this case " +
             "asserting over fewer streams than 14 §8.1 has.");
 
         run.CommitStreamPositions(everyStream.ToDictionary(s => s.Stream, s => s.Position, StringComparer.Ordinal));
