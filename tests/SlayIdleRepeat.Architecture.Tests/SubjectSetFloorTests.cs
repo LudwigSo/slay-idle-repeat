@@ -315,12 +315,19 @@ public sealed class SubjectSetFloorTests
         // actually look — IEliteModifierHistory's own remarks and EncounterFight's, both strengthened
         // in M4-01's commit to name the defect, the shape of the fix and the owner.
         //
-        // 🔒 OWNER: M4-02. It is the task that gives the Run aggregate its first persisted luck
-        // state (DROP_RUN's D1-D3 counters), which is the same commit that has to carry a per-run
-        // instance of anything at all — so the history rides in with the counters rather than being
-        // a separate errand nobody is scheduled for. Naming a later milestone would be this file
-        // inventing a plan; naming none is what let PowerCalculator's entry go stale inside its own
-        // milestone.
+        // 🔒 OWNER: M4-02, which still owns DROP_RUN's D1-D3 counters — the per-run luck state this
+        // history was expected to ride in beside.
+        //
+        // 🔴 THE PREMISE THAT PICKED THAT OWNER HAS SINCE GONE FALSE, recorded rather than quietly
+        // left: the row was written on the argument that M4-02 would be "the task that gives the Run
+        // aggregate its FIRST persisted luck state", so a per-run instance would have to be threaded
+        // for the first time in that commit anyway. M4-01b got there first — the three run-scoped
+        // DRAFT guarantee counters are persisted Run fields as of that task — and it did NOT carry
+        // the Elite history, because the counters need no per-battle instance threaded through the
+        // encounter path and this does. The owner is unchanged and the obligation is undischarged;
+        // what is gone is the "it comes along for free" half of the reason. Naming a later milestone
+        // would be this file inventing a plan; naming none is what let PowerCalculator's entry go
+        // stale inside its own milestone.
         //
         // ⚠️ AND ONE THING M4-01 DID SETTLE, so M4-02 does not have to re-derive it: the
         // implementation must NOT live on the façade. R17 now carries three Luck edges
@@ -858,13 +865,16 @@ public sealed class SubjectSetFloorTests
         // Deferred entry carrying it — rename or move the type out of Core/Model/ and that
         // transcription reports an undeclared gap for a type that exists.
         //
-        // ⚠️ AND THE HALF NO RULE CAN SEE, stated so nobody reads its presence as completeness: this
-        // type is the ARGUMENT the stateless luck façade takes, not a field on Player. 30 §4 lists
-        // "all pity counters (24)" among Player's contents and the aggregate still has none — M4-02
-        // owns the field, the snapshot column and the SchemaVersion bump, in one commit. Nothing
-        // mechanical fires on that: GapRegister's predicate is a type simple name and the type is
-        // authored, so the note is carried in PityCounters' own remarks and in Player's class
-        // remarks, which is where a reader of the aggregate will actually be standing.
+        // 🔴 THE HALF THIS ROW USED TO CARRY IS DISCHARGED, and the note is corrected rather than
+        // left standing. It said the type was "the ARGUMENT the stateless luck façade takes, not a
+        // field on Player", that 30 §4's "all pity counters (24)" line had no home on the aggregate,
+        // and that M4-02 owned the field, the snapshot column and the SchemaVersion bump. M4-01b
+        // landed all three: the chest pick's gold-tier guarantee is PLAYER-scoped and lifetime, so a
+        // run-scoped home would reset it every run and put a four-miss guarantee out of reach.
+        // M4-02 still owns the chest ladders and the in-run drop mercy that write the map further;
+        // it does not own adding the field a second time. Nothing mechanical fires on either version
+        // of that note — GapRegister's predicate is a type simple name and the type is authored —
+        // which is exactly why it had to be re-read rather than trusted (steering S4's known limit).
         new("PityCounters", SubjectKind.CoreType, "M4-01",
             "GapRegister.Surfaces — 30 §4's Player-contents transcription enumerates it, and " +
             "GapRegisterTests.Every_subject_the_design_docs_enumerate_is_authored_or_declared_deferred " +

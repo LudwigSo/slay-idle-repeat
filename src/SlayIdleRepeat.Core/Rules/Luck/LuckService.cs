@@ -309,6 +309,19 @@ internal static class LuckService
             tierCount);
     }
 
+    /// <summary>The outcome tier the chest pick's guarantee forces — the top row of the table.</summary>
+    /// <remarks>
+    /// Here rather than left for a caller to derive, because the caller needs it <em>before</em>
+    /// resolving: the counter is keyed by the authored name of the tier the guarantee protects, and
+    /// reading that name means knowing which row it is. A handler working the index out for itself
+    /// would be a second statement of "which tier this guarantee is about", one call earlier than the
+    /// façade — and a second door onto a guarantee is exactly what the one-place rule forbids.
+    /// </remarks>
+    /// <param name="tierCount">How many outcome tiers the chest pick authors.</param>
+    /// <returns>The forced tier's index, zero-based.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="tierCount"/> is below 1.</exception>
+    internal static int ChestPickTopTier(int tierCount) => ChestPickGuarantee.TopTier(tierCount);
+
     /// <summary>The multiplier a class with no authored curve puts on its table.</summary>
     private const double Unramped = 1.0;
 

@@ -194,6 +194,31 @@ public sealed class ChestPickGuaranteeTests
     }
 
     /// <summary>
+    /// A guarantee token carrying the separator is refused rather than forming an ambiguous key.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The invariant the rarity overload got for free and this one does not. A key is one authored
+    /// key paired with one guarantee, and both halves used to be closed vocabularies the separator
+    /// could not appear in. The right half is now an authored token, constrained by a schema in a
+    /// different document — so the formation point checks it rather than inheriting it. Without this,
+    /// <c>"GO:LD"</c> and an authored key of <c>minigame.chestpick.go</c> would form the same id, and
+    /// two guarantees sharing one counter reads to the player as a counter that reset itself.
+    /// </remarks>
+    [Theory]
+    [InlineData("GO:LD")]
+    [InlineData(":GOLD")]
+    [InlineData("GOLD:")]
+    public void A_guarantee_token_carrying_the_separator_is_refused(string guarantee)
+    {
+        Should.Throw<ArgumentException>(() => Tuning.CounterKey(SourceClass.MINIGAME, guarantee))
+            .Message.ShouldContain(
+                guarantee,
+                Case.Sensitive,
+                "the refusal has to name the token it rejected — several argument checks guard this " +
+                "overload, and a bare 'bad guarantee' leaves the caller unable to tell which.");
+    }
+
+    /// <summary>
     /// A class that authors no counter key still refuses to form one through the new overload.
     /// </summary>
     /// <remarks>

@@ -87,7 +87,7 @@ internal static class MinigameSubmit
                 // whichever of them is cheapest.
                 var resolution = LuckService.ResolveChestPick(
                     LuckTuning.Read(input.Context.Content),
-                    tuning.OutcomeName(command.MinigameId, ChestPickGuarantee.TopTier(tierCount)),
+                    tuning.OutcomeName(command.MinigameId, LuckService.ChestPickTopTier(tierCount)),
                     input.Player.PityCounters,
                     stream,
                     tierCount);

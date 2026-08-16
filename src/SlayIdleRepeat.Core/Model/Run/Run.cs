@@ -141,6 +141,13 @@ public sealed class Run
     /// pity counter map: the draft class is scoped per run and authors no counter key, so there is
     /// no id to form and nothing the profile could store them under.
     /// </summary>
+    /// <remarks>
+    /// 🔒 And that is also why moving one emits no <c>PityCounterAdvanced</c>: the event names the
+    /// counter it moved, the name is an authored key formed in one place, and this class authors
+    /// none. Spelling an id here to have something to emit would be inventing the very key the
+    /// document declined to author. They ride the run snapshot instead, which is where every other
+    /// piece of run-scoped state a client mirrors comes from.
+    /// </remarks>
     private int _draftsSinceLegendaryOffered;
     private int _draftsWithoutAboveCommon;
     private int _draftsWithoutOwnedUpgrade;

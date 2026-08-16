@@ -76,12 +76,22 @@ internal sealed class LuckTuning
     internal const string SoftPityMember = "softPity";
 
     /// <summary>
-    /// The separator between an authored counter key and the guarantee rarity it protects.
+    /// The separator between an authored counter key and the guarantee token it protects.
     /// </summary>
     /// <remarks>
-    /// A colon, matching the aggregate's existing composite counter keys. It cannot occur inside
-    /// either half — the schema's <c>counterKey</c> pattern is lower-case letters, digits and dots,
-    /// and a rarity is two letters at most — so a key parses back unambiguously.
+    /// <para>
+    /// A colon, matching the aggregate's existing composite counter keys. It cannot occur in the
+    /// left half — the schema's <c>counterKey</c> pattern is lower-case letters, digits and dots —
+    /// so a key parses back unambiguously.
+    /// </para>
+    /// <para>
+    /// ⚠️ The right half used to be a <see cref="Rarity"/>, two letters at most, and the claim rested
+    /// on that. It no longer does: a guarantee can be named by an authored outcome token instead, and
+    /// while every document that authors one constrains it to upper-case letters, digits and
+    /// underscores, that constraint lives in a different schema from this one. So the formation point
+    /// <em>enforces</em> the invariant rather than inheriting it — see
+    /// <see cref="CounterKey(SourceClass, string)"/>.
+    /// </para>
     /// </remarks>
     internal const char CounterKeySeparator = ':';
 
@@ -97,20 +107,29 @@ internal sealed class LuckTuning
 
     /// <summary>
     /// The five classes that state their protection in another shape, the block that holds the real
-    /// rule, and the task that wires it.
+    /// rule, and where a caller goes for it instead.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Named rather than left as a bare "no ladder": a caller that asked for the wrong shape has to
-    /// be able to tell that from a block somebody forgot to author, and the owner is what turns the
-    /// refusal into a next step.
+    /// be able to tell that from a block somebody forgot to author, and the next step is what turns
+    /// the refusal into something actionable.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Two of the five stopped being a task name.</b> <c>DRAFT</c> and <c>MINIGAME</c> carried
+    /// M4-01b as "the task that wires it" until M4-01b ran; a note that sends the next reader to a
+    /// task that has already landed is worse than none, so those two now name the member that
+    /// actually serves them. All five are still unserved <em>by the ladder path</em> — that is what
+    /// this array is about, and it is why none of them was deleted.
+    /// </para>
     /// </remarks>
-    private static readonly (SourceClass Source, string Block, string Owner)[] UnservedShapes =
+    private static readonly (SourceClass Source, string Block, string ServedBy)[] UnservedShapes =
     {
-        (SourceClass.DROP_RUN, "dropRun", "M4-02"),
-        (SourceClass.ENHANCE, "enhance", "M4-04"),
-        (SourceClass.DRAFT, "draft", "M4-01b"),
-        (SourceClass.WHEEL, "wheel", "M4-09"),
-        (SourceClass.MINIGAME, "minigame", "M4-01b"),
+        (SourceClass.DROP_RUN, "dropRun", "M4-02 wires it"),
+        (SourceClass.ENHANCE, "enhance", "M4-04 wires it"),
+        (SourceClass.DRAFT, "draft", "the luck façade's ResolveDraft serves it"),
+        (SourceClass.WHEEL, "wheel", "M4-09 wires it"),
+        (SourceClass.MINIGAME, "minigame", "the luck façade's ResolveChestPick serves it"),
     };
 
     private readonly IReadOnlyDictionary<SourceClass, PityLadder> _ladders;
@@ -177,8 +196,8 @@ internal sealed class LuckTuning
     /// <returns>Its ladder.</returns>
     /// <exception cref="InvalidTunableException">
     /// The class authors its protection in another shape entirely, so there is no ladder to draw
-    /// against. The message names the class, the block that holds its real rule, and the task that
-    /// wires it.
+    /// against. The message names the class, the block that holds its real rule, and where that
+    /// rule is served instead.
     /// </exception>
     internal PityLadder Ladder(SourceClass source)
     {
@@ -194,7 +213,7 @@ internal sealed class LuckTuning
                 throw new InvalidTunableException(
                     DocumentPath + "#/" + unserved.Block,
                     $"{source} states its protection in the '{unserved.Block}' block, in a shape the " +
-                    $"rarity-ladder path does not serve — {unserved.Owner} wires it. Drawing it " +
+                    $"rarity-ladder path does not serve — {unserved.ServedBy}. Drawing it " +
                     "against a ladder nobody authored would be inventing odds.");
             }
         }
@@ -227,15 +246,26 @@ internal sealed class LuckTuning
     /// other than a gear rarity band.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// The chest pick guarantees an outcome <em>tier</em>, not a band on the gear ladder, so it has no
     /// <see cref="Rarity"/> to pair its authored key with. Rather than let that class spell its own
     /// key, the formation point widens: the rarity overload delegates here, and this stays the one
     /// place a counter id is built.
+    /// </para>
+    /// <para>
+    /// 🔒 Widening it from a closed enum to a token means the "the separator occurs in neither half"
+    /// invariant is no longer free, so it is checked here. A token carrying a
+    /// <see cref="CounterKeySeparator"/> would make one authored key and one guarantee produce a
+    /// counter id that parses back as a different pair — two guarantees quietly sharing a counter,
+    /// which reads to the player as a pity counter that reset itself.
+    /// </para>
     /// </remarks>
     /// <param name="source">The class whose counter is being addressed.</param>
     /// <param name="guarantee">The authored token naming the guarantee that counter protects.</param>
     /// <returns>The counter id.</returns>
-    /// <exception cref="ArgumentException"><paramref name="guarantee"/> is blank.</exception>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="guarantee"/> is blank, or carries the separator.
+    /// </exception>
     /// <exception cref="InvalidTunableException">
     /// The class authors no counter key — its counter is not player-scoped, so it has no id in this
     /// map at all.
@@ -249,6 +279,17 @@ internal sealed class LuckTuning
             throw new ArgumentException(
                 "A blank guarantee token pairs the authored key with nothing, so two different " +
                 "guarantees of one class would address the same counter.",
+                nameof(guarantee));
+        }
+
+        if (guarantee.IndexOf(CounterKeySeparator, StringComparison.Ordinal) >= 0)
+        {
+            throw new ArgumentException(
+                $"'{guarantee}' carries the counter-key separator '{CounterKeySeparator}'. A key is " +
+                "an authored key paired with one guarantee token, and a token holding the separator " +
+                "produces an id that parses back as a different pair — so two guarantees of one " +
+                "class would address the same counter and each would look, to the player, like a " +
+                "pity counter that reset itself.",
                 nameof(guarantee));
         }
 

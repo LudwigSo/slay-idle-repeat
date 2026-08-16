@@ -195,11 +195,19 @@ public sealed class IntraRulesLayeringRuleTests
         // reason — and this is the namespace Every_namespace_under_Rules_has_a_declared_place_in_R17
         // was written against by name, so the edges and the first Rules/Luck/ type land together.
         // Verified by inspection, not assumed: the whole namespace's Core dependencies outside
-        // itself are Content (LuckTuning), Model (PityCounters), Primitives (SourceClass, Rarity)
-        // and Rng (DeterministicRng) — ZERO coupling to Combat/Stats/Effects in either direction,
-        // and nothing under those three names a Luck type either. Pity is a draw-shaping concern; it
-        // decides which rarity a grant lands on and never evaluates what the grant then does, so it
-        // has no business reading the effect DSL, stat aggregation or the tick loop.
+        // itself are Content (LuckTuning and, since M4-01b, Content.Perks' PerkRarity/PerkCategory —
+        // the vocabulary the DRAFT class's guarantees floor a pool by), Model (PityCounters),
+        // Primitives (SourceClass, Rarity) and Rng (DeterministicRng) — ZERO coupling to
+        // Combat/Stats/Effects in either direction, and nothing under those three names a Luck type
+        // either. Pity is a draw-shaping concern; it decides which rarity a grant lands on and never
+        // evaluates what the grant then does, so it has no business reading the effect DSL, stat
+        // aggregation or the tick loop.
+        //
+        // ⚠️ Content.Perks is CONTENT, not Rules.Perks, and the difference is the whole reason
+        // M4-01b's draft guarantees could live here: Content sits beneath Rules, so naming a perk
+        // band is a downward read, while Rules.Luck naming Rules.Perks would be a sideways edge with
+        // no declaration. The permitted direction is Perks -> Luck, and that is the one the draft
+        // engine uses.
         //
         // ⚠️ The reverse direction is deliberately left open, exactly as it is for Board and Perks:
         // `05` §6.2's no-repeat Elite draw is `24` §4.10 B2's rule and lives in

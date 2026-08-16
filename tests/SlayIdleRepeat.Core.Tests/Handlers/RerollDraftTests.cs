@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Tests.Content.Perks;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
@@ -56,5 +58,38 @@ public sealed class RerollDraftTests
 
         afterReroll.Run!.StreamPosition(SlayIdleRepeat.Core.Rng.RngStreams.Draft)
             .ShouldBeGreaterThan(before.Run!.StreamPosition(SlayIdleRepeat.Core.Rng.RngStreams.Draft));
+    }
+
+    /// <summary>
+    /// 🔒 <c>24</c> §1.2's anti-farming test, over the three run-scoped draft counters: a reroll
+    /// leaves every one of them exactly where it stood.
+    /// </summary>
+    /// <remarks>
+    /// The counters count the drafts a run <em>resolved</em>, not the option sets it drew. A reroll
+    /// that advanced them would let a player walk a guarantee towards themselves for Gold — the
+    /// cheaper-than-the-thing-it-protects shape §1.2 exists to catch — and it is the one claim the
+    /// handler's own remarks make that no other test in this suite is stated over. The famine
+    /// counter starts non-zero so "unchanged" and "reset" are different numbers, and the run owns an
+    /// upgradable perk so the famine's own gate is open rather than trivially closed; the other two
+    /// start at zero and would read one if the reroll had counted this draw as a draft.
+    /// </remarks>
+    [Fact]
+    public void A_reroll_leaves_all_three_draft_counters_standing()
+    {
+        var state = DraftWorlds.DraftPendingOn(
+            gold: RerollGoldCost,
+            ownedPerkTiers: new Dictionary<string, int> { [PerkDocuments.Epic1] = 1 },
+            draftsWithoutOwnedUpgrade: 2);
+
+        var run = Reroll(state).NewState.Run!;
+
+        run.DraftsWithoutOwnedUpgrade.ShouldBe(
+            2,
+            "a reroll is not a draft the run took, so the famine counter it was building towards " +
+            "must neither advance nor reset — either movement is a guarantee bought with Gold.");
+        run.DraftsSinceLegendaryOffered.ShouldBe(
+            0, "the Legendary pity counter is moved by taking a draft, not by redrawing one.");
+        run.DraftsWithoutAboveCommon.ShouldBe(
+            0, "the quality floor's counter is moved by taking a draft, not by redrawing one.");
     }
 }

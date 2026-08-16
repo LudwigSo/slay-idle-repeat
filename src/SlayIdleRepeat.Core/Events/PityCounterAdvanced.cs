@@ -7,8 +7,10 @@ namespace SlayIdleRepeat.Core.Events;
 /// <param name="Sequence">The event's ordinal within one <c>Apply</c> call's list — see <see cref="DomainEvent"/>.</param>
 /// <param name="Key">
 /// Which counter moved. A content-derived id formed in exactly one place — <c>LuckTuning</c>, the
-/// reader of the authored counter keys — as <c>"&lt;counterKey&gt;:&lt;guaranteeRarity&gt;"</c>,
-/// e.g. <c>chest.standard:A</c>. Never null, empty or whitespace.
+/// reader of the authored counter keys — as <c>"&lt;counterKey&gt;:&lt;guarantee&gt;"</c>. The
+/// guarantee half is a rarity band where the class states its protection as a rarity ladder
+/// (<c>chest.standard:A</c>) and an authored outcome token where it does not
+/// (<c>minigame.chestpick:GOLD</c>). Never null, empty or whitespace.
 /// </param>
 /// <param name="Value">The counter's value <em>after</em> the advance, not the delta.</param>
 /// <remarks>
@@ -71,7 +73,7 @@ public sealed record PityCounterAdvanced(int Sequence, string Key, int Value)
 
     private const string BlankKey =
         "A PityCounterAdvanced names the counter that moved. The key is formed in exactly one place " +
-        "— LuckTuning, out of the authored counterKey and the guarantee rarity it protects — and an " +
+        "— LuckTuning, out of the authored counterKey and the guarantee token it protects — and an " +
         "event with no key cannot be reconciled against the counter map it describes, cannot tell a " +
         "reset from an advance, and cannot be attributed to a source class. Form the key through " +
         "LuckTuning; do not substitute a placeholder.";
