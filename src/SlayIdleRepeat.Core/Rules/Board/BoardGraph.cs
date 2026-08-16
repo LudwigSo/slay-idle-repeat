@@ -89,6 +89,48 @@ internal sealed class BoardGraph
     /// </summary>
     public bool IsJunction(NodeId id) => _junctions.Contains(id);
 
+    /// <summary>
+    /// Whether a node is the last one of its stage: it has at least one outgoing edge, every one of
+    /// them leaves the node's stage, and none of them is the boss node. The Stage Gate is a property
+    /// of the node a run comes to rest on, so this asks nothing about how it got there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// False for the boss node (no outgoing edges) and for the last node of the final stage (its one
+    /// edge leads to the boss, which belongs to no stage) — a chapter therefore has one fewer gate
+    /// than it has stages.
+    /// </para>
+    /// <para>
+    /// Quantified over <em>every</em> outgoing edge rather than over a single one, because a node
+    /// that still offers a way deeper into its own stage has not ended it. On a generated board that
+    /// arm is unreachable — <see cref="BoardGenerator"/> keeps every junction well before a stage's
+    /// last node — but <see cref="FromLayout"/> is a public seam and a layout that put a fork there
+    /// would otherwise gate a run that had not finished the stage.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="KeyNotFoundException">No node with this id exists on this board.</exception>
+    public bool IsStageEndNode(NodeId id)
+    {
+        var edges = OutgoingEdges(id);
+
+        if (edges.Count == 0)
+        {
+            return false;
+        }
+
+        var stage = Node(id).Stage;
+
+        foreach (var edge in edges)
+        {
+            if (edge.To.Equals(BossNodeId) || Node(edge.To).Stage == stage)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>Builds a board directly from an already-decided layout, bypassing generation entirely.</summary>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">

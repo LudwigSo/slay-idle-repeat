@@ -4,9 +4,11 @@ using SlayIdleRepeat.Core.Rng;
 namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 
 /// <summary>
-/// The Stage Gate: fires the instant movement lands exactly on a stage's last node. Called from
-/// both places that can produce that landing — <c>Handlers.RollDice</c>'s chain and
-/// <c>Handlers.ChooseFork</c>'s resumed movement — so the rule lives once rather than twice.
+/// The Stage Gate: fires the instant a movement comes to rest on a stage's last node. Called from
+/// every path that can produce that landing — <c>Handlers.RollDice</c>'s chain,
+/// <c>Handlers.ChooseFork</c>'s resumed movement and <c>RESOLVE_TILE</c>'s Portal jump — so the rule
+/// lives once rather than three times. Which landings qualify is
+/// <see cref="BoardGraph.IsStageEndNode"/>'s question, not this type's.
 /// </summary>
 /// <remarks>
 /// <para>

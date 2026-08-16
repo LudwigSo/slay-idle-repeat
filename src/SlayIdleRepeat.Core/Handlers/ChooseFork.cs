@@ -55,9 +55,9 @@ internal static class ChooseFork
             return HandlerResult.Accept();
         }
 
-        // A stage-end clamp without reaching the boss also triggers the Stage Gate — mirrored in
-        // Handlers.RollDice, the other landing path that can reach it.
-        if (result.RemainingSteps > 0 && !result.ReachedBoss)
+        // The resumed half of a movement is the same landing as an unbroken one, so it gates on the
+        // node it rests on — mirrored in Handlers.RollDice and RESOLVE_TILE's Portal jump.
+        if (!result.ReachedBoss && board.IsStageEndNode(result.Node))
         {
             StageGateResolver.Apply(input, run.CurrentHp);
         }

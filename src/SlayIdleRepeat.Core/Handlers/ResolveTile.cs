@@ -20,7 +20,8 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// <list type="number">
 /// <item>
 /// <b>Resolved here and cleared</b> — <c>Empty</c>, <c>Treasure</c>, <c>Cache</c>, <c>Shrine</c>,
-/// <c>Curse</c>. The tile's whole effect happens in this command.
+/// <c>Curse</c>, <c>Shop</c>, <c>DiceForge</c>. The tile's whole effect happens in this command —
+/// which for a Shop and a Dice Forge is deliberately nothing at all; see their branch.
 /// </item>
 /// <item>
 /// <b>Advanced but not cleared</b> — <c>Event</c> and <c>Campfire</c>. A second command
@@ -28,9 +29,9 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// what it is finishing.
 /// </item>
 /// <item>
-/// <b>Acknowledged and not cleared</b> — <c>Enemy</c>, <c>Elite</c>, <c>Boss</c>, <c>Shop</c>,
-/// <c>Minigame</c>, <c>DiceForge</c>. Each resolves through its own command, so this handler accepts
-/// the acknowledgement and leaves the tile pending for the command that owns it.
+/// <b>Acknowledged and not cleared</b> — <c>Enemy</c>, <c>Elite</c>, <c>Boss</c>, <c>Minigame</c>.
+/// Each resolves through its own command, so this handler accepts the acknowledgement and leaves the
+/// tile pending for the command that owns it.
 /// </item>
 /// </list>
 /// <para>
@@ -117,9 +118,17 @@ internal static class ResolveTile
                 return HandlerResult.Accept();
 
             case TileKind.Shop:
-            case TileKind.Minigame:
             case TileKind.DiceForge:
-                // Each resolves through its own command; the tile stays pending for it.
+                // The visit itself is the whole of what happens: no offer is stocked and no die face
+                // is modified, because neither concept exists on Run and no command in the frozen
+                // vocabulary can carry a player's choice of either. Clearing the tile is what lets
+                // the run walk away; the day an offer or an upgrade lands it owes its own clearing
+                // step and this branch has to be revisited.
+                run.ClearPendingTile();
+                return HandlerResult.Accept();
+
+            case TileKind.Minigame:
+                // Resolves through MINIGAME_SUBMIT, which clears the tile as its last step.
                 return HandlerResult.Accept();
 
             case TileKind.Portal:
@@ -162,7 +171,8 @@ internal static class ResolveTile
     /// <summary>
     /// The Portal jump: draws its distance from the run's own board stream, applies
     /// <see cref="MovementEngine.AdvancePortal"/>'s stage-3 pre-boss campfire clamp, then either
-    /// lands or pauses at a junction inside the jump.
+    /// pauses at a junction inside the jump or lands — firing the Stage Gate when it comes to rest
+    /// on a stage's last node.
     /// </summary>
     /// <remarks>
     /// Known, narrow gap: if the jump pauses at a junction, <c>Handlers.ChooseFork</c> resumes the
@@ -188,6 +198,13 @@ internal static class ResolveTile
         }
 
         run.MoveTo(result.Node.Value);
+
+        // A jump that comes to rest on a stage's last node crosses the boundary exactly as a walked
+        // landing does; fired before ArriveAtTile, the same ordering Handlers.RollDice uses.
+        if (board.IsStageEndNode(result.Node))
+        {
+            StageGateResolver.Apply(input, run.CurrentHp);
+        }
 
         var landed = board.Node(result.Node);
         run.ArriveAtTile((int)landed.Tile, landed.LinearIndex, landed.Stage);
