@@ -38,6 +38,15 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 /// <c>EliteModifierHistory.Restore(null)</c> — "no Elite fought yet" — which a caller wiring a real
 /// run is expected to replace with its own persisted history.
 /// </para>
+/// <para>
+/// ⚠️ <b>That local is why the no-repeat rule has never fired, and it is still open.</b> A fresh
+/// history per battle means <c>PreviousEliteModifier</c> is permanently <c>null</c>, so the redraw
+/// this type calls into can never exclude anything — the rule is present and inert, which is worse
+/// than absent because every test of the draw passes. <b>M4-02</b> owns closing it, together with
+/// the run's first persisted luck state: one history instance per run, carried on the <c>Run</c>
+/// aggregate and handed to every Elite encounter in it. The luck milestone's first task deliberately
+/// did not, because it wires no run and the fix is a field rather than a type.
+/// </para>
 /// </remarks>
 internal static class EncounterFight
 {
