@@ -7,6 +7,7 @@ namespace SlayIdleRepeat.Contract.Tests.Shared;
 /// The contract, run against the in-memory fake — <c>SlayIdleRepeat.Application.Tests</c> runs
 /// entirely on this implementation, so it must be held to the same contract as the real adapter.
 /// </summary>
+[ContractFixtureFor(typeof(InMemoryContentSource))]
 public sealed class InMemoryContentSourceContractTests : IContentSourcePortContractTests
 {
     protected override IContentSourcePort Create(IReadOnlyDictionary<string, string> documents)
