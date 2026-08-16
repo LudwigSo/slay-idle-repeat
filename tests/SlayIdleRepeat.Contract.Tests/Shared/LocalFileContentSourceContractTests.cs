@@ -7,6 +7,7 @@ namespace SlayIdleRepeat.Contract.Tests.Shared;
 /// The same contract, run against the real filesystem adapter — the implementation both hosts
 /// actually boot on. Writes into a temporary directory of its own and deletes it afterwards.
 /// </summary>
+[ContractFixtureFor(typeof(LocalFileContentSource))]
 public sealed class LocalFileContentSourceContractTests : IContentSourcePortContractTests
 {
     private readonly string _root =

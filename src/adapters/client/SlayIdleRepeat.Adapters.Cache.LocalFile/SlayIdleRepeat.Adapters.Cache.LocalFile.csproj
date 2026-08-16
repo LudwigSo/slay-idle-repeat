@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The ILocalCachePort adapter: the client's on-device byte cache, one file per key
+    under a directory the host chooses. BCL System.IO only — no vendor package.
+
+    client/, because the cache exists to spare a device a re-download of state the
+    server issued it. The server holds the truth and has no use for a copy of it.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>
