@@ -16,6 +16,14 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// one proves those are the numbers.
 /// </para>
 /// <para>
+/// 🔴 <b>That counterpart is <c>GearDocumentsMatchTuningDataTests</c>, and until M4-15 it did not
+/// exist</b> — the paragraph above described it in the present tense for three tasks while every
+/// number below rested on a transcription nothing tied to <c>game-data/</c>. It is named here rather
+/// than merely alluded to, because "a counterpart belongs to Application.Tests" is a sentence that
+/// reads exactly the same whether or not anybody wrote one. When a value is added below, add it
+/// there in the same commit.
+/// </para>
+/// <para>
 /// Only what a reader actually reads is transcribed. <c>par_power.json</c>'s Heroic and Mythic
 /// columns, <c>drops.json</c>'s container tables and its acquisition rates are all absent for that
 /// reason: nothing under <c>Rules/Gear/</c> reads them, and authoring them here would imply something
