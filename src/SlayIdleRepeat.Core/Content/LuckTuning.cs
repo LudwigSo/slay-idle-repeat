@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text;
+using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Content;
@@ -61,6 +63,12 @@ internal sealed class LuckTuning
     /// <summary>The Mount Crate block — the 8/30 ladder plus its soft-pity curve.</summary>
     internal const string CrateMountReference = DocumentPath + "#/crateMount";
 
+    /// <summary>The perk-draft block — the five <c>DRAFT</c> rules' authored dials.</summary>
+    internal const string DraftReference = DocumentPath + "#/draft";
+
+    /// <summary>The chest-pick block — the one minigame that carries a counter.</summary>
+    internal const string ChestPickReference = DocumentPath + "#/minigame/chestPick";
+
     /// <summary>The member every ladder block names its rungs under.</summary>
     internal const string HardPityMember = "hardPity";
 
@@ -68,12 +76,22 @@ internal sealed class LuckTuning
     internal const string SoftPityMember = "softPity";
 
     /// <summary>
-    /// The separator between an authored counter key and the guarantee rarity it protects.
+    /// The separator between an authored counter key and the guarantee token it protects.
     /// </summary>
     /// <remarks>
-    /// A colon, matching the aggregate's existing composite counter keys. It cannot occur inside
-    /// either half — the schema's <c>counterKey</c> pattern is lower-case letters, digits and dots,
-    /// and a rarity is two letters at most — so a key parses back unambiguously.
+    /// <para>
+    /// A colon, matching the aggregate's existing composite counter keys. It cannot occur in the
+    /// left half — the schema's <c>counterKey</c> pattern is lower-case letters, digits and dots —
+    /// so a key parses back unambiguously.
+    /// </para>
+    /// <para>
+    /// ⚠️ The right half used to be a <see cref="Rarity"/>, two letters at most, and the claim rested
+    /// on that. It no longer does: a guarantee can be named by an authored outcome token instead, and
+    /// while every document that authors one constrains it to upper-case letters, digits and
+    /// underscores, that constraint lives in a different schema from this one. So the formation point
+    /// <em>enforces</em> the invariant rather than inheriting it — see
+    /// <see cref="CounterKey(SourceClass, string)"/>.
+    /// </para>
     /// </remarks>
     internal const char CounterKeySeparator = ':';
 
@@ -89,20 +107,29 @@ internal sealed class LuckTuning
 
     /// <summary>
     /// The five classes that state their protection in another shape, the block that holds the real
-    /// rule, and the task that wires it.
+    /// rule, and where a caller goes for it instead.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Named rather than left as a bare "no ladder": a caller that asked for the wrong shape has to
-    /// be able to tell that from a block somebody forgot to author, and the owner is what turns the
-    /// refusal into a next step.
+    /// be able to tell that from a block somebody forgot to author, and the next step is what turns
+    /// the refusal into something actionable.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Two of the five stopped being a task name.</b> <c>DRAFT</c> and <c>MINIGAME</c> carried
+    /// M4-01b as "the task that wires it" until M4-01b ran; a note that sends the next reader to a
+    /// task that has already landed is worse than none, so those two now name the member that
+    /// actually serves them. All five are still unserved <em>by the ladder path</em> — that is what
+    /// this array is about, and it is why none of them was deleted.
+    /// </para>
     /// </remarks>
-    private static readonly (SourceClass Source, string Block, string Owner)[] UnservedShapes =
+    private static readonly (SourceClass Source, string Block, string ServedBy)[] UnservedShapes =
     {
-        (SourceClass.DROP_RUN, "dropRun", "M4-03's LuckService.ResolveRunDrop"),
-        (SourceClass.ENHANCE, "enhance", "M4-04"),
-        (SourceClass.DRAFT, "draft", "M4-01b"),
-        (SourceClass.WHEEL, "wheel", "M4-09"),
-        (SourceClass.MINIGAME, "minigame", "M4-01b"),
+        (SourceClass.DROP_RUN, "dropRun", "the luck façade's ResolveRunDrop serves it"),
+        (SourceClass.ENHANCE, "enhance", "M4-04 wires it"),
+        (SourceClass.DRAFT, "draft", "the luck façade's ResolveDraft serves it"),
+        (SourceClass.WHEEL, "wheel", "M4-09 wires it"),
+        (SourceClass.MINIGAME, "minigame", "the luck façade's ResolveChestPick serves it"),
     };
 
     private readonly IReadOnlyDictionary<SourceClass, PityLadder> _ladders;
@@ -110,11 +137,15 @@ internal sealed class LuckTuning
     private LuckTuning(
         IReadOnlyList<SourceClassRow> sourceClasses,
         IReadOnlyDictionary<SourceClass, PityLadder> ladders,
-        RarityFloorRule rarityFloor)
+        RarityFloorRule rarityFloor,
+        DraftRule draft,
+        ChestPickRule chestPick)
     {
         SourceClasses = sourceClasses;
         _ladders = ladders;
         RarityFloor = rarityFloor;
+        Draft = draft;
+        ChestPick = chestPick;
     }
 
     /// <summary>The ten source-class rows, in the order the document lists them.</summary>
@@ -122,6 +153,14 @@ internal sealed class LuckTuning
 
     /// <summary>The one rule for flooring a class table at a guaranteed rarity.</summary>
     internal RarityFloorRule RarityFloor { get; }
+
+    /// <summary>
+    /// The <c>DRAFT</c> class's five rules, in the shape they are authored — not a rarity ladder.
+    /// </summary>
+    internal DraftRule Draft { get; }
+
+    /// <summary>The <c>MINIGAME</c> class's one guarantee: the chest pick's gold-tier rung.</summary>
+    internal ChestPickRule ChestPick { get; }
 
     /// <summary>The authored row for one source class.</summary>
     /// <param name="source">The class to look up.</param>
@@ -157,8 +196,8 @@ internal sealed class LuckTuning
     /// <returns>Its ladder.</returns>
     /// <exception cref="InvalidTunableException">
     /// The class authors its protection in another shape entirely, so there is no ladder to draw
-    /// against. The message names the class, the block that holds its real rule, and the task that
-    /// wires it.
+    /// against. The message names the class, the block that holds its real rule, and where that
+    /// rule is served instead.
     /// </exception>
     internal PityLadder Ladder(SourceClass source)
     {
@@ -174,7 +213,7 @@ internal sealed class LuckTuning
                 throw new InvalidTunableException(
                     DocumentPath + "#/" + unserved.Block,
                     $"{source} states its protection in the '{unserved.Block}' block, in a shape the " +
-                    $"rarity-ladder path does not serve — {unserved.Owner} wires it. Drawing it " +
+                    $"rarity-ladder path does not serve — {unserved.ServedBy}. Drawing it " +
                     "against a ladder nobody authored would be inventing odds.");
             }
         }
@@ -199,8 +238,61 @@ internal sealed class LuckTuning
     /// The class authors no counter key — its counter is not player-scoped, so it has no id in this
     /// map at all.
     /// </exception>
-    internal string CounterKey(SourceClass source, Rarity guarantee)
+    internal string CounterKey(SourceClass source, Rarity guarantee) =>
+        CounterKey(source, guarantee.ToString());
+
+    /// <summary>
+    /// The counter id a class's guarantee is stored under, where the guarantee is named by something
+    /// other than a gear rarity band.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The chest pick guarantees an outcome <em>tier</em>, not a band on the gear ladder, so it has no
+    /// <see cref="Rarity"/> to pair its authored key with. Rather than let that class spell its own
+    /// key, the formation point widens: the rarity overload delegates here, and this stays the one
+    /// place a counter id is built.
+    /// </para>
+    /// <para>
+    /// 🔒 Widening it from a closed enum to a token means the "the separator occurs in neither half"
+    /// invariant is no longer free, so it is checked here. A token carrying a
+    /// <see cref="CounterKeySeparator"/> would make one authored key and one guarantee produce a
+    /// counter id that parses back as a different pair — two guarantees quietly sharing a counter,
+    /// which reads to the player as a pity counter that reset itself.
+    /// </para>
+    /// </remarks>
+    /// <param name="source">The class whose counter is being addressed.</param>
+    /// <param name="guarantee">The authored token naming the guarantee that counter protects.</param>
+    /// <returns>The counter id.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="guarantee"/> is blank, or carries the separator.
+    /// </exception>
+    /// <exception cref="InvalidTunableException">
+    /// The class authors no counter key — its counter is not player-scoped, so it has no id in this
+    /// map at all.
+    /// </exception>
+    internal string CounterKey(SourceClass source, string guarantee)
     {
+        ArgumentNullException.ThrowIfNull(guarantee);
+
+        if (string.IsNullOrWhiteSpace(guarantee))
+        {
+            throw new ArgumentException(
+                "A blank guarantee token pairs the authored key with nothing, so two different " +
+                "guarantees of one class would address the same counter.",
+                nameof(guarantee));
+        }
+
+        if (guarantee.IndexOf(CounterKeySeparator, StringComparison.Ordinal) >= 0)
+        {
+            throw new ArgumentException(
+                $"'{guarantee}' carries the counter-key separator '{CounterKeySeparator}'. A key is " +
+                "an authored key paired with one guarantee token, and a token holding the separator " +
+                "produces an id that parses back as a different pair — so two guarantees of one " +
+                "class would address the same counter and each would look, to the player, like a " +
+                "pity counter that reset itself.",
+                nameof(guarantee));
+        }
+
         var row = Row(source);
 
         if (row.CounterKey is null)
@@ -238,7 +330,102 @@ internal sealed class LuckTuning
             ladders[source] = ReadLadder(content, source, reference);
         }
 
-        return new LuckTuning(sourceClasses, ladders, ReadRarityFloor(content));
+        return new LuckTuning(
+            sourceClasses,
+            ladders,
+            ReadRarityFloor(content),
+            ReadDraft(content),
+            ReadChestPick(content));
+    }
+
+    /// <summary>Reads the <c>DRAFT</c> class's five rules — none of which is a rarity ladder.</summary>
+    private static DraftRule ReadDraft(ContentSnapshot content) => new(
+        RequirePositive(content, DraftReference + "/legendaryPityDraftNumber"),
+        new SustainAntiBrickRule(
+            content.ReadBoolean(DraftReference + "/sustainAntiBrick/enabled"),
+            ReadCategory(content, DraftReference + "/sustainAntiBrick/forceCategory")),
+        RequirePositive(content, DraftReference + "/qualityFloor/consecutiveDraftsWithoutAboveCommon"),
+        ReadPerkRarity(content, DraftReference + "/qualityFloor/forceRarityAtLeast"),
+        content.ReadDouble(DraftReference + "/codexBias/neverDraftedWeightMultiplier"),
+        content.ReadInt32(DraftReference + "/codexBias/maxBiasSelectedOptions"),
+        content.ReadDouble(DraftReference + "/upgradeFamine/ownedUpgradeBias"),
+        RequirePositive(content, DraftReference + "/upgradeFamine/consecutiveDraftsWithoutOwnedUpgrade"));
+
+    /// <summary>Reads the chest pick's guarantee — the one <c>MINIGAME</c> rule that carries a counter.</summary>
+    private static ChestPickRule ReadChestPick(ContentSnapshot content) => new(
+        RequirePositive(content, ChestPickReference + "/chestCount"),
+        RequirePositive(content, ChestPickReference + "/goldTierChests"),
+        RequirePositive(content, ChestPickReference + "/guaranteeAfterConsecutiveMisses"));
+
+    /// <summary>An authored count that has to be at least one to name anything at all.</summary>
+    private static int RequirePositive(ContentSnapshot content, string reference)
+    {
+        var value = content.ReadInt32(reference);
+
+        return value >= 1
+            ? value
+            : throw new InvalidTunableException(
+                reference,
+                $"A guarantee counts draws from one, and this document authors {Render(value)}. " +
+                "There is no zeroth draw to force.");
+    }
+
+    private static PerkRarity ReadPerkRarity(ContentSnapshot content, string reference)
+    {
+        var authored = content.ReadText(reference);
+
+        return TryParseName<PerkRarity>(Pascal(authored), out var rarity)
+            ? rarity
+            : throw new InvalidTunableException(
+                reference,
+                $"'{authored}' is not a perk band. The authored set is {Names<PerkRarity>()}, spelled " +
+                "in the documents' upper-case form. The gear rarity ladder is a different vocabulary " +
+                "over different things, and a token from one must not resolve in the other.");
+    }
+
+    private static PerkCategory ReadCategory(ContentSnapshot content, string reference)
+    {
+        var authored = content.ReadText(reference);
+
+        return TryParseName<PerkCategory>(Pascal(authored), out var category)
+            ? category
+            : throw new InvalidTunableException(
+                reference,
+                $"'{authored}' is not a perk category. The authored set is {Names<PerkCategory>()}, " +
+                "spelled in the documents' SCREAMING_SNAKE form.");
+    }
+
+    /// <summary>
+    /// An authored <c>SCREAMING_SNAKE</c> token as the enum's PascalCase name.
+    /// </summary>
+    /// <remarks>
+    /// The perk vocabularies are declared in PascalCase and authored in upper snake, unlike
+    /// <see cref="Rarity"/>, whose two spellings coincide. Converting rather than declaring a second
+    /// table keeps the document's tokens the only list.
+    /// </remarks>
+    private static string Pascal(string authored)
+    {
+        if (string.IsNullOrEmpty(authored))
+        {
+            return authored;
+        }
+
+        var word = new StringBuilder(authored.Length);
+        var startOfWord = true;
+
+        foreach (var character in authored)
+        {
+            if (character == '_')
+            {
+                startOfWord = true;
+                continue;
+            }
+
+            word.Append(startOfWord ? char.ToUpperInvariant(character) : char.ToLowerInvariant(character));
+            startOfWord = false;
+        }
+
+        return word.ToString();
     }
 
     private static IReadOnlyList<SourceClassRow> ReadSourceClasses(ContentSnapshot content)
@@ -532,6 +719,63 @@ internal readonly record struct SoftPityCurve(string Target, int MissThreshold, 
 /// </param>
 internal readonly record struct PityLadder(
     SourceClass Source, IReadOnlyList<HardPityStep> HardPity, SoftPityCurve? SoftPity);
+
+/// <summary>The standing anti-brick guarantee, as the document authors it.</summary>
+/// <remarks>
+/// Keyless on purpose: no design document authors a number for it, so the block states only whether
+/// the rule is on and which category it forces. "By the end of Stage 2" is prose, and the resolver
+/// carries it as a named constant rather than a dial nobody authored.
+/// </remarks>
+/// <param name="Enabled">Whether the guarantee stands.</param>
+/// <param name="ForceCategory">The category one option is forced into when it fires.</param>
+internal readonly record struct SustainAntiBrickRule(bool Enabled, PerkCategory ForceCategory);
+
+/// <summary>The five <c>DRAFT</c> rules' authored dials.</summary>
+/// <param name="LegendaryPityDraftNumber">
+/// The draft ordinal that is forced to carry a Legendary — the authored number names the forced
+/// draft directly, so it is the rung's own N and takes no correction.
+/// </param>
+/// <param name="SustainAntiBrick">The standing anti-brick guarantee.</param>
+/// <param name="ConsecutiveDraftsWithoutAboveCommon">
+/// How many all-Common drafts pass before the <em>next</em> one is floored — so the forced draft is
+/// this number plus one.
+/// </param>
+/// <param name="QualityFloorRarityAtLeast">The band that floor forces.</param>
+/// <param name="NeverDraftedWeightMultiplier">The Codex bias's fresh-pool weight multiplier.</param>
+/// <param name="MaxBiasSelectedOptions">How many of a draft's options may be bias-selected.</param>
+/// <param name="OwnedUpgradeBias">
+/// The per-option chance of drawing from the owned-but-not-maxed pool. Authored inside the famine
+/// block because the famine exists to catch the runs this roll misses.
+/// </param>
+/// <param name="ConsecutiveDraftsWithoutOwnedUpgrade">
+/// How many upgrade-free drafts pass before the <em>next</em> one is forced — the forced draft is
+/// this number plus one, exactly as the quality floor's is.
+/// </param>
+internal readonly record struct DraftRule(
+    int LegendaryPityDraftNumber,
+    SustainAntiBrickRule SustainAntiBrick,
+    int ConsecutiveDraftsWithoutAboveCommon,
+    PerkRarity QualityFloorRarityAtLeast,
+    double NeverDraftedWeightMultiplier,
+    int MaxBiasSelectedOptions,
+    double OwnedUpgradeBias,
+    int ConsecutiveDraftsWithoutOwnedUpgrade);
+
+/// <summary>The chest-pick minigame's authored guarantee.</summary>
+/// <param name="ChestCount">
+/// How many chests are offered. The reward table authors the same number as its row count, and the
+/// resolver reconciles the two rather than trusting either alone.
+/// </param>
+/// <param name="GoldTierChests">
+/// How many of them are the top tier. Descriptive, and deliberately not branched on: the guarantee
+/// forces the single highest tier, which satisfies the rule for any positive count of gold chests.
+/// </param>
+/// <param name="GuaranteeAfterConsecutiveMisses">
+/// The chest pick, counted from the last time the guarantee was satisfied, that is forced onto the
+/// top tier. The N-th pick is the forced one.
+/// </param>
+internal readonly record struct ChestPickRule(
+    int ChestCount, int GoldTierChests, int GuaranteeAfterConsecutiveMisses);
 
 /// <summary>The one rule for drawing a class table against a rarity floor.</summary>
 /// <remarks>

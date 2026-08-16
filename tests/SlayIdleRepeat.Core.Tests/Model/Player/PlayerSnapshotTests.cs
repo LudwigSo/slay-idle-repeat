@@ -158,6 +158,12 @@ public sealed class PlayerSnapshotTests
             // rests on, so two players with different histories must never share a stateHash.
             (nameof(PlayerSnapshot.FeatCounters), v,
                 PlayerSnapshots.With(featCounters: PlayerSnapshots.Counters(("dice_rolled", 1)))),
+
+            // M4-01b. Two players one chest apart on the same ladder are materially different
+            // players — the next open is forced for one and not the other — so a pity counter that
+            // did not reach the bytes would let the client mirror report agreement across it.
+            (nameof(PlayerSnapshot.PityCounters), v,
+                PlayerSnapshots.With(pityCounters: PlayerSnapshots.Pity(("chest.standard:A", 1)))),
         };
 
         var invisible = probes

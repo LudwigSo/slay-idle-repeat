@@ -52,6 +52,10 @@ internal static class TuningDocuments
                     .GetDocument(ProgressionDocuments.DocumentPath),
                 Currencies(cycleDays),
                 ChapterDocuments.Document(chapterId: 1, ChapterDocuments.ChapterOnePath),
+
+                // The pity registry, because MINIGAME_SUBMIT resolves the chest pick's guarantee
+                // through it on the same command that reads the reward table.
+                LuckDocuments.LuckOnly().GetDocument(LuckDocuments.DocumentPath),
             ]);
 
     /// <summary>
@@ -105,30 +109,34 @@ internal static class TuningDocuments
                 ["minigameRewards"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
                 {
                     ["MG_CHEST_PICK"] = Rewards(
-                        (150, 0, 0, 0, 0),
-                        (300, 20, 0, 0, 0),
-                        (500, 60, 15, 0, 0)),
+                        ("BRONZE", 150, 0, 0, 0, 0),
+                        ("SILVER", 300, 20, 0, 0, 0),
+                        (ShippedChestPickTopOutcome, 500, 60, 15, 0, 0)),
                     ["MG_TIMING_BAR"] = Rewards(
-                        (100, 0, 0, 0, 0),
-                        (250, 0, 0, 0, 0),
-                        (400, 30, 0, 0, 0),
-                        (600, 80, 0, 5, 0)),
+                        ("HITS_0", 100, 0, 0, 0, 0),
+                        ("HITS_1", 250, 0, 0, 0, 0),
+                        ("HITS_2", 400, 30, 0, 0, 0),
+                        ("HITS_3", 600, 80, 0, 5, 0)),
                     ["MG_DICE_DUEL"] = Rewards(
-                        (150, 0, 0, 0, 0),
-                        (400, 40, 0, 0, 0),
-                        (550, 50, 0, 0, 1)),
+                        ("LOSS", 150, 0, 0, 0, 0),
+                        ("TIE", 400, 40, 0, 0, 0),
+                        ("WIN", 550, 50, 0, 0, 1)),
                     ["MG_MEMORY_RUNE"] = Rewards(
-                        (100, 0, 0, 0, 0),
-                        (300, 25, 0, 0, 0),
-                        (550, 70, 20, 0, 0)),
+                        ("RUNES_0", 100, 0, 0, 0, 0),
+                        ("RUNES_1", 300, 25, 0, 0, 0),
+                        ("RUNES_2", 550, 70, 20, 0, 0)),
                 }),
             }));
     }
 
-    /// <summary>Per-minigame reward array, in (gold, crowns, beastFeed, enhanceStones, rerollCharges) order.</summary>
-    private static ContentValue Rewards(params (int Gold, int Crowns, int BeastFeed, int EnhanceStones, int RerollCharges)[] rows) =>
+    /// <summary>The authored top-tier outcome token of MG_CHEST_PICK — the chest pick's guarantee token.</summary>
+    internal const string ShippedChestPickTopOutcome = "GOLD";
+
+    /// <summary>Per-minigame reward array, in (outcome, gold, crowns, beastFeed, enhanceStones, rerollCharges) order.</summary>
+    private static ContentValue Rewards(params (string Outcome, int Gold, int Crowns, int BeastFeed, int EnhanceStones, int RerollCharges)[] rows) =>
         ContentValue.Array(rows.Select(row => ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
+            ["outcome"] = ContentValue.Text(row.Outcome),
             ["gold"] = ContentValue.Number(row.Gold),
             ["crowns"] = ContentValue.Number(row.Crowns),
             ["beastFeed"] = ContentValue.Number(row.BeastFeed),

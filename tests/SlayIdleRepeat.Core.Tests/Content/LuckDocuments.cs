@@ -14,8 +14,9 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// <para>
 /// Only what a reader actually reads is transcribed as a document. <c>LuckTuning</c> takes the
 /// registry, the floor rule and the five ladder blocks; <c>DropRunTuning</c> takes the
-/// <c>dropRun</c> block below, which is why that one <em>is</em> authored here while the failure-rate
-/// mercy, the draft composition rule, the jackpot spin count and the chest-pick guarantee still are
+/// <c>dropRun</c> block, and the draft and chest-pick guarantees are read by the façade members that
+/// serve those two classes — which is why all three <em>are</em> authored here while the failure-rate
+/// mercy and the jackpot spin count still are
 /// not — nothing reads those, and authoring them would imply something does. Their <c>N</c>s still
 /// appear in <see cref="EveryAuthoredHardPityN"/>, because <c>24</c> §11 asks for an exact-<c>N</c>
 /// test per rule and that list is what makes the coverage claim checkable.
@@ -149,6 +150,37 @@ internal static class LuckDocuments
     /// <summary><c>24</c> §4.7 F3 — force an owned-perk upgrade after 5 drafts without one.</summary>
     internal const int ShippedDraftUpgradeFamineN = 5;
 
+    /// <summary><c>24</c> §4.7 — the anti-brick guarantee stands, as shipped.</summary>
+    internal const bool ShippedDraftSustainAntiBrickEnabled = true;
+
+    /// <summary><c>24</c> §4.7 — the category the anti-brick forces, as shipped.</summary>
+    internal const string ShippedDraftSustainForceCategory = "SUSTAIN";
+
+    /// <summary><c>24</c> §4.7 F1 — the band the quality floor forces, as shipped.</summary>
+    internal const string ShippedDraftQualityFloorRarity = "RARE";
+
+    /// <summary><c>24</c> §4.7 F2 — the never-drafted weight multiplier, as shipped.</summary>
+    internal const double ShippedDraftCodexBiasMultiplier = 1.35;
+
+    /// <summary><c>24</c> §4.7 F2 — at most one option per draft may be bias-selected.</summary>
+    internal const int ShippedDraftMaxBiasSelectedOptions = 1;
+
+    /// <summary><c>06</c> §4 — the per-option owned-upgrade bias, authored inside the famine block.</summary>
+    internal const double ShippedDraftOwnedUpgradeBias = 0.3;
+
+    /// <summary><c>24</c> §4.9 — the chest pick offers three chests.</summary>
+    internal const int ShippedMinigameChestCount = 3;
+
+    /// <summary><c>24</c> §4.9 — exactly one of them is the gold tier.</summary>
+    internal const int ShippedMinigameGoldTierChests = 1;
+
+    /// <summary>
+    /// The authored top-tier outcome token for <c>MG_CHEST_PICK</c> — the guarantee this class's
+    /// counter is keyed by. Authored in <c>currencies.json</c>, restated here so a fixture can form
+    /// the counter id the way the reader does.
+    /// </summary>
+    internal const string ShippedChestPickGuaranteeToken = "GOLD";
+
     // ---------------------------------------------------------------- the in-run drop block
 
     /// <summary>A drop counts against the elite streak when it lands strictly below this band.</summary>
@@ -237,6 +269,9 @@ internal static class LuckDocuments
     /// apiece: <c>DropRunTuning</c> refuses a <em>pairing</em> (a forced band below the miss band) as
     /// well as individual leaves, so a case has to be able to move two at once.
     /// </param>
+    /// <param name="draftLegendaryPityNumber">The draft ordinal the Legendary pity forces.</param>
+    /// <param name="draftSustainForceCategory">The category the anti-brick forces.</param>
+    /// <param name="minigameGuaranteeAfterConsecutiveMisses">The chest pick that is forced onto the top tier.</param>
     internal static ContentSnapshot With(
         ContentValue? sourceClasses = null,
         ContentValue? chestStandardCounterKey = null,
@@ -251,7 +286,10 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPityThreshold = null,
         ContentValue? chestStandardSoftPitySlope = null,
         ContentValue? chestApexSoftPity = null,
-        ContentValue? dropRun = null) =>
+        ContentValue? dropRun = null,
+        ContentValue? draftLegendaryPityNumber = null,
+        ContentValue? draftSustainForceCategory = null,
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -269,7 +307,10 @@ internal static class LuckDocuments
                     chestStandardSoftPityThreshold,
                     chestStandardSoftPitySlope,
                     chestApexSoftPity,
-                    dropRun),
+                    dropRun,
+                    draftLegendaryPityNumber,
+                    draftSustainForceCategory,
+                    minigameGuaranteeAfterConsecutiveMisses),
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
             ]);
 
@@ -293,7 +334,10 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPityThreshold = null,
         ContentValue? chestStandardSoftPitySlope = null,
         ContentValue? chestApexSoftPity = null,
-        ContentValue? dropRun = null) =>
+        ContentValue? dropRun = null,
+        ContentValue? draftLegendaryPityNumber = null,
+        ContentValue? draftSustainForceCategory = null,
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -311,7 +355,10 @@ internal static class LuckDocuments
                     chestStandardSoftPityThreshold,
                     chestStandardSoftPitySlope,
                     chestApexSoftPity,
-                    dropRun),
+                    dropRun,
+                    draftLegendaryPityNumber,
+                    draftSustainForceCategory,
+                    minigameGuaranteeAfterConsecutiveMisses),
             ]);
 
     /// <summary>A content set with <b>no</b> <c>tuning/luck.json</c> at all.</summary>
@@ -386,7 +433,10 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPityThreshold,
         ContentValue? chestStandardSoftPitySlope,
         ContentValue? chestApexSoftPity,
-        ContentValue? dropRun = null) =>
+        ContentValue? dropRun,
+        ContentValue? draftLegendaryPityNumber,
+        ContentValue? draftSustainForceCategory,
+        ContentValue? minigameGuaranteeAfterConsecutiveMisses) =>
         new(
             DocumentPath,
             Members(
@@ -453,7 +503,27 @@ internal static class LuckDocuments
                         ShippedSoftPityTarget,
                         ContentValue.Number(ShippedCrateMountSoftPityThreshold),
                         ContentValue.Number((decimal)ShippedCrateMountSoftPitySlope))))),
-                ("dropRun", dropRun ?? DropRun())));
+                ("dropRun", dropRun ?? DropRun()),
+                ("draft", Members(
+                    ("legendaryPityDraftNumber", draftLegendaryPityNumber ?? ContentValue.Number(ShippedDraftLegendaryPityN)),
+                    ("sustainAntiBrick", Members(
+                        ("enabled", ContentValue.Boolean(ShippedDraftSustainAntiBrickEnabled)),
+                        ("forceCategory", draftSustainForceCategory ?? ContentValue.Text(ShippedDraftSustainForceCategory)))),
+                    ("qualityFloor", Members(
+                        ("consecutiveDraftsWithoutAboveCommon", ContentValue.Number(ShippedDraftQualityFloorN)),
+                        ("forceRarityAtLeast", ContentValue.Text(ShippedDraftQualityFloorRarity)))),
+                    ("codexBias", Members(
+                        ("neverDraftedWeightMultiplier", ContentValue.Number((decimal)ShippedDraftCodexBiasMultiplier)),
+                        ("maxBiasSelectedOptions", ContentValue.Number(ShippedDraftMaxBiasSelectedOptions)))),
+                    ("upgradeFamine", Members(
+                        ("ownedUpgradeBias", ContentValue.Number((decimal)ShippedDraftOwnedUpgradeBias)),
+                        ("consecutiveDraftsWithoutOwnedUpgrade", ContentValue.Number(ShippedDraftUpgradeFamineN)))))),
+                ("minigame", Members(
+                    ("chestPick", Members(
+                        ("chestCount", ContentValue.Number(ShippedMinigameChestCount)),
+                        ("goldTierChests", ContentValue.Number(ShippedMinigameGoldTierChests)),
+                        ("guaranteeAfterConsecutiveMisses",
+                            minigameGuaranteeAfterConsecutiveMisses ?? ContentValue.Number(ShippedMinigameChestPickN))))))));
 
     private static ContentValue SourceClassRow(string id, ContentValue counterKey, string scope) =>
         Members(
@@ -478,5 +548,13 @@ internal static class LuckDocuments
 /// <summary>One authored hard-pity <c>N</c>, and where <c>luck.json</c> states it.</summary>
 /// <param name="Source">The source class the rule protects, as <c>24</c> §3 names it.</param>
 /// <param name="Reference">The JSON pointer, relative to <c>tuning/luck.json</c>.</param>
-/// <param name="EveryNth">The authored <c>N</c>.</param>
+/// <param name="EveryNth">
+/// The number the document authors at <paramref name="Reference"/>. ⚠️ <b>It is the rung's own
+/// <c>N</c> for every row but two.</b> <c>DRAFT</c>'s quality floor and upgrade famine author the
+/// drafts that pass <em>before</em> the next one is floored, so their rung is this number plus one;
+/// every other row — the Legendary pity and the chest pick included — authors the forced draw's own
+/// ordinal. This list exists to prove the coverage claim over the authored numbers, so it carries
+/// them verbatim; <c>DraftGuaranteeTests</c> is where each of the three readings is pinned to the
+/// draft it actually floors.
+/// </param>
 internal readonly record struct AuthoredGuarantee(string Source, string Reference, int EveryNth);

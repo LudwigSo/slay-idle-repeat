@@ -47,15 +47,13 @@ namespace SlayIdleRepeat.Core.Model;
 /// day one becomes writable without a home here.
 /// </para>
 /// <para>
-/// Pity counters are absent too, but for a different reason and with a different owner: the type
-/// exists (<see cref="PityCounters"/>) because the luck service is stateless and takes a counter map
-/// as an argument, and what is still missing is the <em>field</em>. <b>M4-02</b> owns it — the
-/// container shelf is the first thing that writes a persisted counter — and it lands the field, the
-/// snapshot column and the <c>SchemaVersion</c> bump in one commit. Adding the field here before a
-/// writer exists would put a persisted column on the aggregate that nothing ever moves. Entitlement
-/// lives on the session instead, reached as <c>GameContext.Entitlements</c>. There is no factory for a
-/// new player either: starting values are a later milestone's decision, and <see cref="Rehydrate"/> is
-/// the only way to obtain one.
+/// Pity counters are <b>not</b> among them any more: <see cref="PityCounters"/> is a field here as
+/// of M4-01b, together with its snapshot column and the <c>SchemaVersion</c> bump, because the
+/// chest-pick guarantee is player-scoped and lifetime and a run-scoped home would reset it every
+/// run. <b>M4-02</b> still owns the chest ladders and the in-run drop mercy that write it further;
+/// it does not own adding the field again. Entitlement lives on the session instead, reached as
+/// <c>GameContext.Entitlements</c>. There is no factory for a new player either: starting values are
+/// a later milestone's decision, and <see cref="Rehydrate"/> is the only way to obtain one.
 /// </para>
 /// </remarks>
 public sealed class Player
@@ -120,6 +118,18 @@ public sealed class Player
     private readonly Dictionary<string, long> _featCounters;
     private readonly FeatCounters _featCountersView;
 
+    // ---------------------------------------------------------------- pity counters
+
+    /// <summary>
+    /// The player-scoped pity counters. Replaced wholesale rather than mutated, because the luck
+    /// service answers the map it would leave behind and the aggregate decides whether to keep it.
+    /// </summary>
+    /// <remarks>
+    /// Lifetime, and reset only when the guarantee each counter protects fires: nothing here decays,
+    /// and no chapter change, tier change, season roll or logout touches it.
+    /// </remarks>
+    private PityCounters _pityCounters;
+
     private long _legendXp;
 
     /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
@@ -142,8 +152,10 @@ public sealed class Player
         int loginCalendarDay,
         bool loginCalendarDayClaimed,
         Dictionary<string, long> clearedChapterTiers,
-        Dictionary<string, long> featCounters)
+        Dictionary<string, long> featCounters,
+        PityCounters pityCounters)
     {
+        _pityCounters = pityCounters;
         Id = id;
         DisplayName = displayName;
         LegendLevel = legendLevel;
@@ -254,6 +266,24 @@ public sealed class Player
     /// </remarks>
     public FeatCounters FeatCounters => _featCountersView;
 
+    /// <summary>The player's pity counters, as the luck service takes them.</summary>
+    internal PityCounters PityCounters => _pityCounters;
+
+    /// <summary>
+    /// Applies the counter changes one resolution answered.
+    /// </summary>
+    /// <remarks>
+    /// The one writer. A resolution is stateless and reports what it <em>would</em> leave behind; the
+    /// aggregate is where that becomes state, which is what keeps a draw that is refused from moving
+    /// a counter.
+    /// </remarks>
+    /// <param name="key">The counter id, as the tuning reader forms it. Never hand-composed.</param>
+    /// <param name="value">The counter's value after the draw — not a delta. Never negative.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is negative.</exception>
+    internal void SetPityCounter(string key, int value) =>
+        _pityCounters = _pityCounters.With(key, value);
+
     /// <summary>The lifetime count of one feat counter, or zero when nothing has advanced it.</summary>
     /// <param name="counterId">The counter's id. Never null, empty or whitespace.</param>
     /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
@@ -329,7 +359,10 @@ public sealed class Player
         _loginCalendarDay,
         _loginCalendarDayClaimed,
         Copy(_clearedChapterTiers),
-        Copy(_featCounters));
+        Copy(_featCounters),
+        // Already immutable and replaced wholesale on every movement, so no copy is needed — the
+        // same argument the wallet makes.
+        _pityCounters.Counters);
 
     /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -385,11 +418,12 @@ public sealed class Player
         var clearedChapterTiers = ReadClearedChapterTiers(snapshot.ClearedChapterTiers, faults);
         var featCounters = ReadCounters(
             snapshot.FeatCounters, nameof(PlayerSnapshot.FeatCounters), faults, LifetimeLifespan);
+        var pityCounters = ReadPityCounters(snapshot, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns null
         // also adds a fault — but written as a pattern so the correlation is checked, not asserted.
         if (faults.Count > 0 || wallet is null || daily is null || weekly is null ||
-            clearedChapterTiers is null || featCounters is null)
+            clearedChapterTiers is null || featCounters is null || pityCounters is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -415,7 +449,41 @@ public sealed class Player
             snapshot.LoginCalendarDay,
             snapshot.LoginCalendarDayClaimed,
             clearedChapterTiers,
-            featCounters));
+            featCounters,
+            pityCounters));
+    }
+
+    /// <summary>
+    /// Reads the pity counter map. A <c>null</c> map is a fault, never an empty one.
+    /// </summary>
+    /// <remarks>
+    /// The same asymmetry <see cref="PlayerSnapshot.FeatCounters"/> carries, for a sharper reason: a
+    /// lifetime pity counter read as zero is every ladder in the game silently started over, and a
+    /// counter that silently starts over is the exact failure the "counters never reset" rule exists
+    /// to forbid. The optional default on the record is a C# requirement, not a permitted value.
+    /// </remarks>
+    private static PityCounters? ReadPityCounters(PlayerSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.PityCounters is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.PityCounters) + " is null. An absent lifetime counter map is a " +
+                "corrupt row, not an empty one: reading it as empty would put every guarantee this " +
+                "player has been building towards back at zero, invisibly.");
+
+            return null;
+        }
+
+        try
+        {
+            return Model.PityCounters.Rehydrate(snapshot.PityCounters);
+        }
+        catch (ArgumentException malformed)
+        {
+            faults.Add(nameof(PlayerSnapshot.PityCounters) + " is malformed: " + malformed.Message);
+
+            return null;
+        }
     }
 
     /// <summary>Moves one player-scoped wallet currency and produces the <c>CurrencyChanged</c> that attributes it.</summary>

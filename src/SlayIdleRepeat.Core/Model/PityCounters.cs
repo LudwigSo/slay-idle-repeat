@@ -14,12 +14,13 @@ namespace SlayIdleRepeat.Core.Model;
 /// when the key space is authored rather than declared.
 /// </para>
 /// <para>
-/// <b>Not yet a <c>Player</c> field, deliberately.</b> The luck service is stateless: it takes
-/// counters as an argument and returns the deltas, so the argument type is what has to exist first.
-/// The first <em>writer</em> of a persisted counter is the container-shelf task (<b>M4-02</b>) —
-/// chest ladders and the in-run drop mercy — and a field on the aggregate that nothing writes is a
-/// public shape with no producer. M4-02 adds the field, the snapshot column and the
-/// <c>SchemaVersion</c> bump together; <c>Player</c>'s own remarks carry the same note.
+/// <b>A <c>Player</c> field since M4-01b.</b> The luck service is stateless — it takes counters as
+/// an argument and returns the deltas — so this type existed one task before the field did. The
+/// first <em>writer</em> of a persisted counter turned out to be the chest-pick guarantee rather
+/// than the container shelf: that counter is player-scoped and lifetime, and a run-scoped home
+/// would reset it every run and put its guarantee out of reach. The field, the snapshot column and
+/// the <c>SchemaVersion</c> bump landed together there. <b>M4-02</b> still owns the chest ladders
+/// and the in-run drop mercy; it does not own adding this field a second time.
 /// </para>
 /// <para>
 /// Immutable, and replaced wholesale rather than mutated: a resolution returns the counters it

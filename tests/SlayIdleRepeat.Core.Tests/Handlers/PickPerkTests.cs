@@ -1,7 +1,9 @@
+using System.Collections.Generic;
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Tests.Content.Perks;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
@@ -99,5 +101,61 @@ public sealed class PickPerkTests
         var result = Pick(DraftWorlds.DraftPendingOn(), 0);
 
         result.Accepted.ShouldBeTrue();
+    }
+
+    // ------------------------------------------------------------------ the upgrade-famine counter
+
+    /// <summary>
+    /// 🔒 A run that owns nothing leaves the upgrade-famine counter exactly where it stood: no perk
+    /// is owned, so no upgrade could have been offered, and a draft that could not have offered one
+    /// is not a draft that withheld one.
+    /// </summary>
+    /// <remarks>
+    /// End-to-end rather than only over the rule, because the handler is where the run's own facts
+    /// are read: the rule can be conditioned correctly and still be handed a hard-coded "an upgrade
+    /// was available", which is exactly what a caller passing a constant would look like. The
+    /// counter starts non-zero so "unchanged" and "reset" are different numbers.
+    /// </remarks>
+    [Fact]
+    public void A_draft_no_upgrade_could_have_reached_leaves_the_famine_counter_standing()
+    {
+        var state = DraftWorlds.DraftPendingOn(draftsWithoutOwnedUpgrade: 2);
+
+        var result = Pick(state, 0);
+
+        result.Accepted.ShouldBeTrue();
+        result.NewState.Run!.DraftsWithoutOwnedUpgrade.ShouldBe(
+            2,
+            "the run owned no perk at all, so 24 §4.7 F3's 'while the player owns at least one " +
+            "non-maxed perk' was false — a counter that advanced here would spend the famine's whole " +
+            "allowance on the drafts an upgrade was not yet possible in, and fire it early on every " +
+            "run the game ever plays.");
+    }
+
+    /// <summary>
+    /// The other side of it: a run holding an upgradable perk moves the counter, so the case above
+    /// is not passing because the handler never touches it.
+    /// </summary>
+    /// <remarks>
+    /// A Boss draft over the hermetic fixture draws Epic/Legendary only and the fixture authors
+    /// exactly one Epic row, which this run owns at Tier I — so the draft offers that upgrade and
+    /// the famine is satisfied rather than advanced. Either movement discriminates against a handler
+    /// that holds the counter unconditionally; the reset is the one this fixture makes deterministic.
+    /// </remarks>
+    [Fact]
+    public void A_draft_that_offered_an_owned_upgrade_resets_the_famine_counter()
+    {
+        var state = DraftWorlds.DraftPendingOn(
+            battleKind: TileKind.Boss,
+            ownedPerkTiers: new Dictionary<string, int> { [PerkDocuments.Epic1] = 1 },
+            draftsWithoutOwnedUpgrade: 2);
+
+        var result = Pick(state, 0);
+
+        result.Accepted.ShouldBeTrue();
+        result.NewState.Run!.DraftsWithoutOwnedUpgrade.ShouldBe(
+            0,
+            "the draft offered the owned Epic back as an upgrade, so the famine it was counting " +
+            "towards is satisfied.");
     }
 }

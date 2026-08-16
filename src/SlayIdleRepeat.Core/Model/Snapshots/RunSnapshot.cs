@@ -33,6 +33,9 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="BankedLegendXp">Legend XP banked so far this run, pending the run-end payout. Never negative.</param>
 /// <param name="BankedSoulShards">Soul Shards banked so far this run, pending the same payout. Never negative.</param>
 /// <param name="BossDefeated">Whether this run's Boss has been killed.</param>
+/// <param name="DraftsSinceLegendaryOffered">Drafts drawn since one last offered a Legendary option. Never negative.</param>
+/// <param name="DraftsWithoutAboveCommon">Consecutive drafts that offered nothing above Common. Never negative.</param>
+/// <param name="DraftsWithoutOwnedUpgrade">Consecutive drafts that offered no owned-perk upgrade. Never negative.</param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.RunId"/> and
 /// <see cref="Primitives.PlayerId"/>, plus the two dictionaries — a positional record with no members
@@ -75,4 +78,7 @@ public sealed record RunSnapshot(
     IReadOnlyDictionary<string, int>? OwnedPerkTiers = null,
     long BankedLegendXp = 0,
     long BankedSoulShards = 0,
-    bool BossDefeated = false);
+    bool BossDefeated = false,
+    int DraftsSinceLegendaryOffered = 0,
+    int DraftsWithoutAboveCommon = 0,
+    int DraftsWithoutOwnedUpgrade = 0);

@@ -87,6 +87,11 @@
   "draft": {
     "_doc": "24 §4.7 — supersedes 06 §4",
     "legendaryPityDraftNumber": 15,
+    "sustainAntiBrick": {
+      "_doc": "24 §4.7 — the standing anti-brick. No authored dial: 06 §4 states the trigger in prose and 24 §4.7 only says it stands.",
+      "enabled": true,
+      "forceCategory": "SUSTAIN"
+    },
     "qualityFloor": { "consecutiveDraftsWithoutAboveCommon": 3, "forceRarityAtLeast": "RARE" },
     "codexBias": { "neverDraftedWeightMultiplier": 1.35, "maxBiasSelectedOptions": 1 },
     "upgradeFamine": { "ownedUpgradeBias": 0.3, "consecutiveDraftsWithoutOwnedUpgrade": 5 }

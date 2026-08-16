@@ -24,10 +24,11 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// produced nothing.
 /// </para>
 /// <para>
-/// <b>What it buys, concretely.</b> Five grant paths are still unbuilt — chests, eggs, crates, the
-/// wheel and the perk draft's five composition rules — and each will be written by a different task
-/// in a different milestone. This rule is what makes the fifth of them fail on the commit that adds
-/// it rather than on the commit that finally reads `24` again.
+/// <b>What it buys, concretely.</b> Of the five grant paths this rule was written ahead of —
+/// chests, eggs, crates, the wheel and the perk draft — the draft has landed (M4-01b wired it and
+/// deleted its two exemption rows in the same commit) and four are still unbuilt, each owned by a
+/// different task in a different milestone. This rule is what makes the next of them fail on the
+/// commit that adds it rather than on the commit that finally reads `24` again.
 /// </para>
 /// <para>
 /// ⚠️ <b>WHAT THIS RULE CANNOT SEE, listed rather than implied.</b>
@@ -43,8 +44,12 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   indirection defeats it.</item>
 ///   <item>A <c>const</c> read across the boundary in arm 2 — the compiler folds it, so no type
 ///   reference survives into metadata. The same hole <c>IntraRulesLayeringRuleTests</c> records,
-///   and narrow for the same reason: none of the four guarantee types declares a <c>const</c> a
-///   caller outside the namespace could want. ⚠️ The <em>counter-key</em> vocabulary has exactly
+///   and narrow for the same reason: no guarantee type declares a <c>const</c> a caller outside the
+///   namespace could reach — the two M4-01b added carry constants, and both are <c>private</c>, so
+///   there is no cross-boundary read for the compiler to fold in the first place. That is a fact
+///   about today's declarations rather than a rule, and it is the reason the hole stays narrow: a
+///   guarantee type that ever declares an <c>internal const</c> re-opens it. ⚠️ The
+///   <em>counter-key</em> vocabulary has exactly
 ///   that shape and is <b>not</b> left to this hole:
 ///   <see cref="No_pity_counter_key_is_spelled_outside_the_tuning_reader"/> reads the separator out
 ///   of <c>LuckTuning</c>'s field constant in metadata, which is the one place a folded
@@ -78,6 +83,12 @@ public sealed class LuckRoutingRuleTests
 
     /// <summary>The façade member `24` §11's routing claim is about — the identity floor's subject.</summary>
     private const string ResolveMember = "Resolve";
+
+    /// <summary>
+    /// The first production type to satisfy the routing arm rather than be exempted from it —
+    /// M4-01b's perk draft engine, and the identity under the compliant-producer floor.
+    /// </summary>
+    private const string RoutingProducer = "PerkDraftEngine";
 
     /// <summary>The namespace the façade and its primitives live in, read from R17's own declaration.</summary>
     private const string LuckNamespace = IntraRulesLayeringRuleTests.LuckNamespace;
@@ -212,15 +223,42 @@ public sealed class LuckRoutingRuleTests
     };
 
     /// <summary>
-    /// 🔒 The guarantee primitives: the four types that decide, ramp, bank or reshape a protected
-    /// draw. Naming one from outside <c>Rules.Luck</c> is a second place a guarantee can fire.
+    /// 🔒 The guarantee primitives: the types that decide, ramp, bank or reshape a protected draw.
+    /// Naming one from outside <c>Rules.Luck</c> is a second place a guarantee can fire.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>M4-01b added the last two, and the set was stale for exactly as long as it did not.</b>
+    /// The first four are M4-01's rarity-ladder primitives, and while the ladder was the only shape a
+    /// guarantee came in, "the four" was the whole set. M4-01b wired the two classes that state their
+    /// protection in another shape — <c>DraftGuarantees</c> decides the five <c>DRAFT</c> rules and
+    /// <c>ChestPickGuarantee</c> decides the chest pick's gold-tier rung — and both call
+    /// <c>HardPity</c> themselves. They are places a guarantee fires, by the same definition the
+    /// first four are, and leaving them out left arm 2 guarding the old shape only.
+    /// </para>
+    /// <para>
+    /// ⚠️ The <c>MINIGAME</c> path made that concrete rather than theoretical: <c>ChestPickResolution</c>
+    /// is not a grant-outcome type, so arm 1 does not quantify over the chest pick at all, and until
+    /// these two names went in, a handler calling <c>ChestPickGuarantee.Resolve</c> and skipping the
+    /// façade entirely would have been reported by nothing in this file. <c>MinigameSubmit</c> was in
+    /// fact reaching past the façade for <c>ChestPickGuarantee.TopTier</c>; it goes through
+    /// <c>LuckService.ChestPickTopTier</c> now.
+    /// </para>
+    /// <para>
+    /// ⚠️ The value types beside them — <c>DraftForce</c>, <c>DraftCounters</c>, <c>DraftDemand</c>,
+    /// <c>DraftOffering</c>, <c>ChestPickResolution</c> — are deliberately <b>not</b> here, on
+    /// <c>HardPityStep</c>'s precedent: they are the façade's own argument and answer vocabulary, so a
+    /// caller has to name them in order to route at all. Guarding them would forbid the compliant path.
+    /// </para>
+    /// </remarks>
     private static readonly string[] GuaranteePrimitives =
     {
         "HardPity",
         "SoftPity",
         "MercyAccrual",
         "RarityTable",
+        "DraftGuarantees",
+        "ChestPickGuarantee",
     };
 
     /// <summary>
@@ -248,15 +286,16 @@ public sealed class LuckRoutingRuleTests
         ("LuckTuning", "the pity registry itself — it reads the authored ladders and forms the counter keys the façade draws against; Content sits BENEATH Rules, so routing a Content read through Rules.Luck is not merely unnecessary, it is the layering inverted"),
         ("HardPityStep", "one authored rung of a ladder — a data row carrying its guarantee rarity, read by LuckTuning"),
 
-        // 🔒 M4-01b's, and named with its owner rather than exempted quietly. The perk draft's five
-        // 24 §4.7 rules — Legendary pity, the anti-brick Sustain guarantee, the quality floor, the
-        // Codex bias and the upgrade famine — are the ONE live grant path that does not route yet,
-        // and every one of those five is a guarantee in the sense this rule is about.
-        // DraftCompositionRules already declares all eight seams as documented no-ops. When M4-01b
-        // wires them through the façade these three entries come out, and the companion fact below
-        // fails on the day they stop being needed.
-        ("PerkDraftEngine", "M4-01b — the 24 §4.7 draft rules are declared as no-op seams and not yet wired to the façade; this is the one LIVE grant path that still bypasses it, and it is exempted with an owner rather than passed over"),
-        ("PickPerk", "M4-01b — the handler that calls the draft engine, and it inherits the engine's exemption for exactly as long as the engine has one"),
+        // 🔴 M4-01b DELETED THE TWO DRAFT ROWS THAT USED TO SIT HERE, and the deletion is the
+        // deliverable rather than a tidy-up. `PerkDraftEngine` and `PickPerk` were exempted with an
+        // owner because 24 §4.7's five rules were declared as no-op seams and nothing routed.
+        //
+        // Both route now, from every method that carries a DraftOption: the engine's GenerateOptions
+        // and DrawOption ask the façade for the Codex weight, its cap and the owned-upgrade bias,
+        // and the handler's GenerateCurrentOptions asks it which guarantees this draft owes while
+        // MoveDraftCounters asks it where the counters land. Keeping either row would therefore fail
+        // Every_exempted_producer_still_needs_its_exemption — an exemption that no longer bites is a
+        // rule quietly narrowed, and this file cannot hold one.
 
         // 🔒 M4-03's six, and they fall into three kinds rather than one. None of them decides a band
         // or a guarantee; the type that does — Rules.Gear.GearGeneration — is deliberately absent
@@ -328,16 +367,19 @@ public sealed class LuckRoutingRuleTests
     /// producer, not over an empty set.
     /// </para>
     /// <para>
-    /// ⚠️ <b>And the uncomfortable half of that, stated rather than left to be discovered.</b> Every
-    /// method in <c>Core</c> that trips this predicate today is on <see cref="RoutingExemptions"/>:
-    /// <c>Rarity</c> is carried only by the tuning reader and its rung rows, <c>DraftOption</c> only
-    /// by the draft engine and its handler. The arm therefore reports zero offenders because the
-    /// four exempted rows cover all four producers — not because nothing in <c>Core</c> produces a
-    /// grant. What keeps that from being a rule asleep is
-    /// <see cref="Every_exempted_producer_still_needs_its_exemption"/>, which drives this same
-    /// predicate over those four types and <em>requires</em> it to answer true. The two facts
-    /// together say "the predicate fires on real production IL, and the only things it fires on are
-    /// the four we named"; neither says it alone.
+    /// 🔴 <b>The uncomfortable half of that is DISCHARGED, and the note is corrected rather than left
+    /// standing.</b> Until M4-01b, every method in <c>Core</c> that tripped this predicate was on
+    /// <see cref="RoutingExemptions"/> — so zero offenders was a fact about the exemption list rather
+    /// than about the codebase, and this paragraph said so. It no longer is. <c>DraftOption</c>'s four
+    /// producers (<c>PerkDraftEngine.GenerateOptions</c> and <c>.DrawOption</c>,
+    /// <c>PickPerk.GenerateCurrentOptions</c> and <c>.MoveDraftCounters</c>) all call the façade, and
+    /// their two exemption rows were deleted in that commit. <c>Rarity</c>'s two producers — the
+    /// tuning reader and its rung rows — remain exempted, and
+    /// <see cref="Every_exempted_producer_still_needs_its_exemption"/> requires this same predicate to
+    /// answer true on both. The compliant half now has its own floor:
+    /// <see cref="The_routing_rules_subject_set_is_the_one_it_was_written_against"/> requires a named
+    /// producer to both carry a grant outcome and call the façade, so silence here means compliance
+    /// rather than absence.
     /// </para>
     /// <para>
     /// 🔒 <b>Re-probed in the architecture review, in two shapes with a control.</b> An unexempted
@@ -374,8 +416,8 @@ public sealed class LuckRoutingRuleTests
 
     /// <summary>
     /// 🔒 `24` §11 — <b>a guarantee can fire in exactly one place.</b> No type outside
-    /// <c>Rules.Luck</c> names <c>HardPity</c>, <c>SoftPity</c>, <c>MercyAccrual</c> or
-    /// <c>RarityTable</c>: the façade is the sole door onto all four.
+    /// <c>Rules.Luck</c> names any member of <see cref="GuaranteePrimitives"/>: the façade is the
+    /// sole door onto every one of them.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -386,13 +428,25 @@ public sealed class LuckRoutingRuleTests
     /// </para>
     /// <para>
     /// <b>Non-vacuous today, in both directions.</b> The subject set is every type in <c>Core</c>
-    /// outside one namespace — hundreds — and all four target types resolve, which
+    /// outside one namespace — hundreds — and every target type resolves, which
     /// <see cref="The_routing_rules_subject_set_is_the_one_it_was_written_against"/> asserts by
     /// identity rather than by count.
     /// </para>
     /// <para>
+    /// 🔒 <b>Re-proved on M4-01b's two new guarantee types, in two shapes.</b> Pointing
+    /// <c>MinigameSubmit</c> back at <c>ChestPickGuarantee.TopTier</c> — which is what it actually did
+    /// before the architecture review — reported <em>"SlayIdleRepeat.Core.Handlers.MinigameSubmit
+    /// names SlayIdleRepeat.Core.Rules.Luck.ChestPickGuarantee"</em>; pointing
+    /// <c>PickPerk.GenerateCurrentOptions</c> at <c>DraftGuarantees.Forced</c> instead of the façade
+    /// reported the same for <c>DraftGuarantees</c>. Both reverted. The negative control is the green
+    /// baseline over real production IL: <c>PerkDraftEngine</c> names <c>DraftForce</c> and
+    /// <c>PickPerk</c> names <c>DraftCounters</c>, <c>DraftDemand</c> and <c>DraftOffering</c> — all
+    /// declared in the same namespace, all deliberately outside the guarded set because they are the
+    /// façade's own vocabulary — and this arm is silent on every one of them.
+    /// </para>
+    /// <para>
     /// 🔒 <b>Proved to bite.</b> The scan reports nothing today by design — no type outside
-    /// <c>Rules.Luck</c> names any of the four — so the probe was to point <c>guarded</c> at
+    /// <c>Rules.Luck</c> names any of them — so the probe was to point <c>guarded</c> at
     /// <c>SlayIdleRepeat.Core.Primitives.Rarity</c>, a type that <em>is</em> named across the same
     /// boundary. It went red with three offenders (<c>Content.HardPityStep</c>,
     /// <c>Content.LuckTuning</c> and the type itself), so the IL walk and the namespace exclusion
@@ -404,7 +458,7 @@ public sealed class LuckRoutingRuleTests
     /// "the four types exist under this namespace", because the façade was still a wall of
     /// <c>NotImplementedException</c> and named none of them in IL. Phase 3 filled the bodies, so
     /// <see cref="The_routing_rules_subject_set_is_the_one_it_was_written_against"/> now also
-    /// requires the façade to <em>reach</em> every one of the four — which is what closes this arm's
+    /// requires the façade to <em>reach</em> every one of them — which is what closes this arm's
     /// own blind spot: it forbids reaching a primitive from outside and says nothing about a façade
     /// that stops reaching them at all and reimplements the decision inline.
     /// 🔒 <b>Proved to bite.</b> Rewriting the façade's <c>HardPity</c> calls as the same arithmetic
@@ -417,7 +471,7 @@ public sealed class LuckRoutingRuleTests
     /// a partial inlining is invisible to it — the same class of hole every "names it" rule has.
     /// 🔒 <b>Narrowed by the architecture review, and the narrowing was mutation-proved.</b> "Names
     /// it" is satisfied by a parameter type, a local or a <c>typeof</c>, so the floor now <em>also</em>
-    /// requires the façade to CALL a member of each of the four. Two shapes were run: rewriting
+    /// requires the façade to CALL a member of each of them. Two shapes were run: rewriting
     /// <c>AccrueMercy</c>/<c>RedeemMercy</c> as inline arithmetic while keeping
     /// <c>typeof(MercyAccrual)</c> reported <em>"'LuckService' names 'MercyAccrual' but never calls a
     /// member of it"</em> — and the old "names it" half stayed <b>green</b>, which is precisely the
@@ -450,7 +504,7 @@ public sealed class LuckRoutingRuleTests
 
         ArchRule.Empty(
             offenders,
-            "24 §11: HardPity, SoftPity, MercyAccrual and RarityTable are reachable only from " +
+            "24 §11: " + string.Join(", ", GuaranteePrimitives) + " are reachable only from " +
             "Rules.Luck, so LuckService is the sole façade over them.");
     }
 
@@ -529,10 +583,10 @@ public sealed class LuckRoutingRuleTests
         // guarantee inline, which is the precise defect arm 2 exists to prevent and the one shape it
         // is structurally blind to. Stated with arm 2's OWN matcher, so a change that blinded
         // Il.ReferencedTypeNames fails here rather than turning that arm permanently green.
-        // ⚠️ Every one of the four, not "at least one": RarityTable is a PARAMETER type of Resolve,
-        // so it is named whether or not a single line of the body survives, and an at-least-one
-        // floor would be satisfied by the locked signature alone. HardPity, SoftPity and
-        // MercyAccrual are the three a body has to reach for.
+        // ⚠️ Every one of them, not "at least one": RarityTable is a PARAMETER type of Resolve, so it
+        // is named whether or not a single line of the body survives, and an at-least-one floor would
+        // be satisfied by the locked signature alone. HardPity, SoftPity, MercyAccrual and — since
+        // M4-01b — DraftGuarantees and ChestPickGuarantee are the ones a body has to reach for.
         // 🔒 And the narrowing of that floor's own stated limit. "Names it" is satisfied by a
         // parameter type, a local or a typeof — so a façade that kept a HardPity-typed local while
         // reimplementing Fires inline would still pass the arm above. "Calls a member of it" is the
@@ -616,6 +670,32 @@ public sealed class LuckRoutingRuleTests
             }
         }
 
+        // 🔒 The floor arm 1 could not carry until M4-01b, and the one its own remarks name as the
+        // uncomfortable half: until this commit EVERY method in Core that tripped the predicate was
+        // on RoutingExemptions, so "zero offenders" was a fact about the exemption list rather than
+        // about the codebase. A COMPLIANT producer — one that carries a grant outcome AND calls the
+        // façade — is what makes the arm's silence mean something, and there was none.
+        // Identity rather than a bare count (steering S3): a count is satisfied by whichever type
+        // happens to route next, while the draft engine — the whole subject of M4-01b — stops.
+        var routing = ScannedMethods(ProductionAssemblies.CoreModule)
+            .Where(subject => GrantOutcomeNamesIn(subject.Method).Length > 0)
+            .Where(subject => RoutesThrough(subject.Method, LuckFacade))
+            .Select(subject => subject.Type.Name)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (!routing.Contains(RoutingProducer, StringComparer.Ordinal))
+        {
+            offenders.Add(
+                $"no method on '{RoutingProducer}' both produces a grant outcome and calls " +
+                $"{LuckFacade}. The routing arm reports offenders, so it is silent both when every " +
+                "producer complies and when none of them is seen at all — and until M4-01b every " +
+                "producer in Core was on RoutingExemptions, which made that silence a fact about the " +
+                "exemption list. This is the compliant subject that makes the arm's emptiness mean " +
+                "something. If the draft engine legitimately stopped producing a DraftOption, name " +
+                "the producer that took its place here in the same commit.");
+        }
+
         var scanned = ScannedTypes(ProductionAssemblies.CoreModule).Count();
 
         if (scanned < ScannedTypeFloor)
@@ -642,8 +722,11 @@ public sealed class LuckRoutingRuleTests
     /// </summary>
     /// <remarks>
     /// This is what makes <see cref="RoutingExemptions"/> a list with an expiry rather than a
-    /// suppression file. The two draft entries are the ones that matter: when M4-01b routes the
-    /// draft through the façade, this rule fails and the entries have to come out in that commit.
+    /// suppression file — and the expiry has been collected once, which is worth recording because a
+    /// mechanism nobody has watched fire reads exactly like one that cannot. The two draft entries
+    /// were the ones that mattered; M4-01b routed the draft through the façade, this rule went red on
+    /// both, and both came out in that commit. The two rows left are the tuning reader and its rung
+    /// rows, whose exemption has no design in which it expires.
     /// </remarks>
     [Fact]
     public void Every_exempted_producer_still_needs_its_exemption()
