@@ -234,6 +234,83 @@ public sealed class DraftCompositionRuleTests
             new[] { PerkCategory.Offense, PerkCategory.Offense, PerkCategory.Offense }).ShouldBeFalse();
     }
 
+    // ------------------------------------------------------------------ the narrowing that serves it
+
+    /// <summary>
+    /// 🔒 The per-slot narrowing decision, over the whole (categories so far, slots left) space a
+    /// three-option draft can reach — and one row past it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The engine used to restate this rule as "narrow the last slot when every earlier slot shares
+    /// one category", which is correct for a threshold of exactly 2 and quietly wrong for any other
+    /// value — so <see cref="DraftCompositionRules.MinimumDistinctCategories"/> read like a dial and
+    /// was not one: raising it would have changed what the tests demanded and nothing about what the
+    /// engine did. The decision reads the threshold now, and this is where the reading is pinned.
+    /// </para>
+    /// <para>
+    /// Both directions matter. Narrowing too late is a mono-category draft — a draft with no
+    /// decision in it. Narrowing too early is a stricter rule than the one stated: a draft is
+    /// allowed to repeat a category as long as it still spans enough of them, and forbidding the
+    /// repeat outright would quietly ban two Offense options beside a Defense one.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    // slot 0 of 3 — everything is still reachable, so nothing is owed.
+    [InlineData(0, 3, false)]
+    // slot 1 of 3, one category taken — the last slot can still widen the draft on its own.
+    [InlineData(1, 2, false)]
+    // slot 2 of 3, still one category — this is the last chance, so it is owed.
+    [InlineData(1, 1, true)]
+    // slot 2 of 3, already two categories — the threshold is met and the slot is free.
+    [InlineData(2, 1, false)]
+    // already past the threshold, and a slot beyond the last: never owed.
+    [InlineData(3, 1, false)]
+    [InlineData(2, 0, false)]
+    // a draft with fewer slots than the threshold: owed from the very first slot, which is the
+    // arm the old "only the last slot" narrowing could not express at all.
+    [InlineData(0, 2, true)]
+    public void A_slot_owes_a_new_category_only_when_the_slots_left_could_not_reach_the_threshold(
+        int distinctSoFar, int slotsRemaining, bool expected)
+    {
+        DraftCompositionRules.MustContributeNewCategory(distinctSoFar, slotsRemaining)
+            .ShouldBe(expected);
+    }
+
+    /// <summary>Neither half of the decision is a count that can go negative.</summary>
+    [Fact]
+    public void A_negative_category_count_or_slot_count_is_refused()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            DraftCompositionRules.MustContributeNewCategory(-1, 1));
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            DraftCompositionRules.MustContributeNewCategory(1, -1));
+    }
+
+    /// <summary>
+    /// 🔒 The two constants are compatible: a draft cannot be asked for more distinct categories
+    /// than it has slots to put them in.
+    /// </summary>
+    /// <remarks>
+    /// The coupling made explicit rather than left implicit. The narrowing reads the threshold now,
+    /// so raising it genuinely changes the engine — but raising it past the option count states a
+    /// rule no draft can satisfy, and the engine would fall back on every slot and produce whatever
+    /// it could while every diversity assertion in this file went red without saying why.
+    /// </remarks>
+    [Fact]
+    public void The_diversity_threshold_fits_inside_a_draft()
+    {
+        DraftCompositionRules.MinimumDistinctCategories.ShouldBeGreaterThan(
+            1, "a threshold of 1 is satisfied by any draft at all, which is no rule.");
+
+        DraftCompositionRules.MinimumDistinctCategories.ShouldBeLessThanOrEqualTo(
+            PerkDraftEngine.OptionCount,
+            "a draft of " + PerkDraftEngine.OptionCount + " options cannot span more than that many " +
+            "categories, so a threshold above it is unsatisfiable by construction rather than by " +
+            "bad luck — every draft would fall through the narrowing and the rule would be stated " +
+            "but never met.");
+    }
+
     // ------------------------------------------------------------------ determinism
 
     /// <summary>The composed draft is still byte-identical for a given seed.</summary>

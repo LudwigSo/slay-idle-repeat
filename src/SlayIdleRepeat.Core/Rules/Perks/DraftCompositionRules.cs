@@ -18,6 +18,14 @@ namespace SlayIdleRepeat.Core.Rules.Perks;
 /// options, enforced <em>by construction</em> — by narrowing the pool a slot draws from — rather than
 /// by drawing and repairing, so no rule here costs an extra draw index.
 /// </para>
+/// <para>
+/// Each rule is stated here once, in the shape the engine needs it: the diversity rule as the
+/// per-slot narrowing decision (<see cref="MustContributeNewCategory"/>) <em>and</em> as the question
+/// over a finished draft (<see cref="CategoryDiversity"/>), both reading one threshold. The
+/// duplicate rule is a narrowing with no threshold at all — the pool minus the ids already taken —
+/// so it stays a question here and a pool filter in the engine; there is no number the two could
+/// disagree about.
+/// </para>
 /// </remarks>
 internal static class DraftCompositionRules
 {
@@ -60,6 +68,39 @@ internal static class DraftCompositionRules
         var distinct = new HashSet<PerkCategory>(categories);
 
         return distinct.Count >= MinimumDistinctCategories;
+    }
+
+    /// <summary>
+    /// Whether the slot about to be drawn has to contribute a category no earlier slot took.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 The <em>narrowing</em> half of the diversity rule, stated here beside the threshold it is
+    /// narrowing towards. The engine used to restate the rule as "narrow the last slot when every
+    /// earlier slot shares one category", which is the right narrowing for a threshold of exactly 2
+    /// and silently the wrong one for any other value — a constant shaped like a dial that nothing
+    /// actually turned. Reading <see cref="MinimumDistinctCategories"/> from the decision itself is
+    /// what makes it one, and the arithmetic below reproduces the old narrowing exactly at the
+    /// authored pair, so no seed's draft moves.
+    /// </para>
+    /// <para>
+    /// The claim: a slot must widen the draft when the slots still to come could not reach the
+    /// threshold otherwise. Narrowing earlier than that would be a stricter rule than the one stated
+    /// — a draft is allowed to repeat a category as long as it still ends up spanning enough of them.
+    /// </para>
+    /// </remarks>
+    /// <param name="distinctCategoriesSoFar">Distinct categories among the slots already drawn.</param>
+    /// <param name="slotsRemaining">Slots left to draw, <b>including</b> the one being decided.</param>
+    /// <returns><see langword="true"/> when this slot's pool must exclude the categories already taken.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Either argument is negative.</exception>
+    internal static bool MustContributeNewCategory(int distinctCategoriesSoFar, int slotsRemaining)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(distinctCategoriesSoFar);
+        ArgumentOutOfRangeException.ThrowIfNegative(slotsRemaining);
+
+        var missing = MinimumDistinctCategories - distinctCategoriesSoFar;
+
+        return missing > 0 && missing >= slotsRemaining;
     }
 
     /// <summary>

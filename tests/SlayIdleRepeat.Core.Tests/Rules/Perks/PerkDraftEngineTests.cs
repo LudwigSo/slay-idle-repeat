@@ -173,6 +173,174 @@ public sealed class PerkDraftEngineTests
             Generate(Catalogue, owned, Draft(1), stage: 1, isElite: false, isBoss: false));
     }
 
+    // ------------------------------------------------------------------ the draw budget
+
+    /// <summary>Three draw indices per option slot: the bias roll, the rarity band, then the perk.</summary>
+    private const int DrawsPerSlot = 3;
+
+    /// <summary>A stream position that is not zero, so the budget is read as a delta and not a total.</summary>
+    private const ulong Resumed = 17;
+
+    /// <summary>How many seeds each branch of the budget case is swept over.</summary>
+    /// <remarks>
+    /// A sweep rather than one seed: two of the branches — the bias roll hitting, and the roll
+    /// missing — are chosen by a draw, not by an argument, so a single seed exercises whichever one
+    /// it happened to roll and reports success for the other.
+    /// <see cref="The_budget_sweep_reaches_both_sides_of_the_bias_roll"/> is the floor that says the
+    /// sweep actually reached both.
+    /// </remarks>
+    private const int BudgetSeedCount = 40;
+
+    /// <summary>The seeds every branch of the budget case is drawn under.</summary>
+    private static IEnumerable<ulong> BudgetSeeds =>
+        Enumerable.Range(1, BudgetSeedCount).Select(i => (ulong)i);
+
+    /// <summary>The stream positions every branch is drawn from.</summary>
+    private static IEnumerable<ulong> BudgetStarts => new[] { 0UL, Resumed };
+
+    /// <summary>
+    /// 🔒 <b>A draft consumes exactly nine draw indices — three per slot — on every branch.</b> Bias
+    /// hit or missed, forced or unforced, pool floored or fallen back on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The invariant the whole draft path is built around, and the one nothing asserted. The three
+    /// options a client shows are never persisted: they are re-derived from the run's committed
+    /// draft-stream position, on the client and on the server independently. A branch that took a
+    /// fourth draw — an owned pool consulted only when it is non-empty, a re-roll after an
+    /// unsatisfiable force — leaves the two at different positions from the next draft onwards, and
+    /// the two then disagree about every perk the run is ever offered. That is a desync no test in
+    /// this suite would otherwise notice, because every case here draws from its own fresh stream.
+    /// </para>
+    /// <para>
+    /// Every branch in one case, collecting the offenders, so a failure names <em>which</em> branch
+    /// went off-budget rather than which of nine near-identical facts failed first. Each branch runs
+    /// from a resumed position too: a budget asserted only from zero cannot tell "nine draws" from
+    /// "seek to nine".
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_draft_consumes_exactly_three_draw_indices_per_slot()
+    {
+        var maxedLegendary = Owning(new Dictionary<string, int> { [PerkDocuments.Legendary1] = 3 });
+        var upgradable = Owning(new Dictionary<string, int> { [PerkDocuments.Legendary1] = 1 });
+
+        var offenders = new List<string>();
+
+        // 1 · nothing owned, no force: the bias roll is taken and has no owned pool to reach.
+        Budget(offenders, "unforced, nothing owned", NoneOwned(), Unforced, stage: 1, isBoss: false);
+
+        // 2 · an owned, non-maxed perk: the bias roll can now hit and take the other pool branch.
+        Budget(offenders, "unforced, bias reachable", upgradable, Unforced, stage: 1, isBoss: false);
+
+        // 3 · a satisfiable force on slot 0 — the floored-pool branch.
+        Budget(
+            offenders, "Legendary forced, satisfiable", NoneOwned(),
+            new[] { Force(0, DraftGuarantee.LegendaryPity, PerkRarity.Legendary, null, false) },
+            stage: 1, isBoss: false);
+
+        // 4 · an UNSATISFIABLE force — the fallback branch, which is the one most likely to be
+        // written as "draw again" rather than as "widen the pool".
+        Budget(
+            offenders, "Sustain forced, unsatisfiable", NoneOwned(),
+            new[] { Force(0, DraftGuarantee.SustainAntiBrick, null, PerkCategory.DiceAndBoard, false) },
+            stage: 1, isBoss: false);
+
+        // 5 · a force per slot, all three at once.
+        Budget(
+            offenders, "every slot forced", upgradable,
+            new[]
+            {
+                Force(0, DraftGuarantee.LegendaryPity, PerkRarity.Legendary, null, false),
+                Force(1, DraftGuarantee.QualityFloor, PerkRarity.Rare, null, false),
+                Force(2, DraftGuarantee.UpgradeFamine, null, null, true),
+            },
+            stage: 1, isBoss: false);
+
+        // 6 · a band the pool cannot pay — the Boss table draws Epic/Legendary and the one
+        // Legendary row is maxed out of the pool, so the band fallback runs on most slots.
+        Budget(offenders, "band fallback", maxedLegendary, Unforced, stage: 1, isBoss: true);
+
+        offenders.ShouldBeEmpty(
+            "a draft re-derives the options a client is looking at from the run's committed stream " +
+            "position, so a branch that spends a different number of draw indices desyncs the client " +
+            "from the server for the rest of the run.");
+    }
+
+    /// <summary>One branch, swept over every seed and both stream positions.</summary>
+    private static void Budget(
+        ICollection<string> offenders,
+        string branch,
+        DraftedPerks owned,
+        IReadOnlyList<DraftForce> forces,
+        int stage,
+        bool isBoss)
+    {
+        const int Expected = 9;
+
+        foreach (var start in BudgetStarts)
+        {
+            foreach (var seed in BudgetSeeds)
+            {
+                var rng = Draft(seed, position: start);
+
+                Generate(Catalogue, owned, rng, stage, isElite: false, isBoss: isBoss, forces: forces);
+
+                var spent = rng.Position - start;
+
+                if (spent != (ulong)(PerkDraftEngine.OptionCount * DrawsPerSlot) || spent != Expected)
+                {
+                    offenders.Add(
+                        $"'{branch}' at seed {seed} from position {start} spent {spent} draw " +
+                        $"indices; a draft of {PerkDraftEngine.OptionCount} slots spends " +
+                        $"{DrawsPerSlot} each, which is {Expected}.");
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 🔒 The floor under the budget sweep (steering S3): it reaches drafts where the owned-upgrade
+    /// bias roll <b>hit</b> and drafts where it <b>missed</b>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Those two are the branches the budget case cannot select by argument — they are chosen by the
+    /// first of each slot's three draws — and a sweep that only ever rolled one of them would report
+    /// the budget holding on a branch it never entered. Found by mutation, not by reading: adding a
+    /// fourth draw guarded on a bias hit left the budget case <b>green</b> when it ran on a single
+    /// seed.
+    /// </para>
+    /// <para>
+    /// The rolls are recomputed rather than observed. The draw stream is positional, so slot
+    /// <i>k</i>'s bias roll is the draw at <c>start + 3k</c> — which is also the layout claim the
+    /// budget case rests on, stated here from the outside instead of taken on trust.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_budget_sweep_reaches_both_sides_of_the_bias_roll()
+    {
+        var bias = LuckService.OwnedUpgradeBias(Tuning);
+
+        var rolls = BudgetStarts
+            .SelectMany(start => BudgetSeeds.SelectMany(seed =>
+                Enumerable.Range(0, PerkDraftEngine.OptionCount)
+                    .Select(slot => Draft(seed, start + ((ulong)slot * DrawsPerSlot)).NextDouble())))
+            .Select(roll => DraftCompositionRules.OwnedUpgradeBiasHits(roll, bias))
+            .ToArray();
+
+        rolls.ShouldContain(true, "no draft in the sweep takes the owned-pool branch at all.");
+        rolls.ShouldContain(false, "every draft in the sweep takes it, so the fresh-pool branch is unswept.");
+    }
+
+    private static DraftForce Force(
+        int slot,
+        DraftGuarantee guarantee,
+        PerkRarity? rarityAtLeast,
+        PerkCategory? category,
+        bool requiresOwnedUpgrade) =>
+        new(slot, guarantee, rarityAtLeast, category, requiresOwnedUpgrade);
+
     // ------------------------------------------------------------------ null guards
 
     [Fact]

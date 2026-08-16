@@ -44,6 +44,15 @@ public sealed class DraftGuaranteeTests
     private static DraftGuarantee[] Fired(DraftCounters counters, DraftDemand demand) =>
         Resolve(counters, demand).Select(force => force.Guarantee).ToArray();
 
+    /// <summary>
+    /// The counters after a draft, defaulting the run's own facts to <see cref="Quiet"/> — a run
+    /// holding something upgradable, so a case that is not about the famine's condition does not
+    /// silently exercise it.
+    /// </summary>
+    private static DraftCounters Moved(
+        DraftCounters counters, DraftOffering offering, DraftDemand? demand = null) =>
+        LuckService.DraftCountersAfter(counters, offering, demand ?? Quiet);
+
     // ------------------------------------------------------------------ nothing due
 
     /// <summary>
@@ -244,7 +253,7 @@ public sealed class DraftGuaranteeTests
     {
         Resolve(DraftCounters.Unstarted, Quiet).ShouldBeEmpty();
 
-        LuckService.DraftCountersAfter(
+        Moved(
             DraftCounters.Unstarted,
             new DraftOffering(OfferedLegendary: true, OfferedAboveCommon: true, OfferedOwnedUpgrade: true))
             .ShouldBe(DraftCounters.Unstarted);
@@ -362,10 +371,72 @@ public sealed class DraftGuaranteeTests
     [Fact]
     public void A_draft_that_offered_nothing_advances_every_counter()
     {
-        LuckService.DraftCountersAfter(
+        Moved(
             new DraftCounters(3, 1, 2),
             new DraftOffering(OfferedLegendary: false, OfferedAboveCommon: false, OfferedOwnedUpgrade: false))
             .ShouldBe(new DraftCounters(4, 2, 3));
+    }
+
+    /// <summary>
+    /// 🔒 A draft that could not have offered an owned upgrade leaves the famine counter <b>where it
+    /// stood</b>, while an otherwise identical draft that withheld an available one advances it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The rule counts drafts that offered no owned-perk upgrade <em>while the player owns at least
+    /// one non-maxed perk</em>, and the second half is not decoration: a run's opening drafts own
+    /// nothing at all, so an unconditional counter spends the famine's whole allowance before an
+    /// upgrade is even a thing the draft could contain, and the guarantee arrives several drafts
+    /// early — for every run, every time.
+    /// </para>
+    /// <para>
+    /// Driven as a pair over the same counters and the same offering, so the only difference between
+    /// the two arms is the fact the rule is conditioned on. A counter that advances unconditionally
+    /// passes the second arm; one that never advances passes the first.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_famine_counter_only_counts_drafts_an_upgrade_could_have_reached()
+    {
+        var before = new DraftCounters(0, 0, 2);
+        var withheld = new DraftOffering(
+            OfferedLegendary: false, OfferedAboveCommon: false, OfferedOwnedUpgrade: false);
+
+        Moved(before, withheld, Quiet with { OwnsNonMaxedPerk = false })
+            .DraftsWithoutOwnedUpgrade.ShouldBe(
+                2,
+                "a run holding nothing upgradable was not starved of an upgrade — there was none to " +
+                "offer, so this draft is not one of the five the famine counts.");
+
+        Moved(before, withheld, Quiet with { OwnsNonMaxedPerk = true })
+            .DraftsWithoutOwnedUpgrade.ShouldBe(
+                3,
+                "a run holding an upgradable perk and offered none genuinely went without, which is " +
+                "exactly the draft the rule counts.");
+    }
+
+    /// <summary>
+    /// The Legendary and quality-floor counters are <b>not</b> conditioned the same way — they move
+    /// on every draft, whatever the run owns.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The negative control on the case above, and the reason the fix is one counter's and not
+    /// all three. Those two rules read what the draft <em>offered</em>: every rarity table in the
+    /// game carries a Legendary row and an above-Common row, so "this draft could not have offered
+    /// one" has no instance to be true of. Conditioning them on the same predicate would stop the
+    /// Legendary pity dead for a run that owns nothing — which is every run's first draft.
+    /// </remarks>
+    [Fact]
+    public void The_Legendary_and_quality_floor_counters_advance_whatever_the_run_owns()
+    {
+        var before = new DraftCounters(3, 1, 0);
+        var withheld = new DraftOffering(
+            OfferedLegendary: false, OfferedAboveCommon: false, OfferedOwnedUpgrade: false);
+
+        var barren = Moved(before, withheld, Quiet with { OwnsNonMaxedPerk = false });
+
+        barren.DraftsSinceLegendaryOffered.ShouldBe(4);
+        barren.DraftsWithoutAboveCommon.ShouldBe(2);
     }
 
     /// <summary>Each counter is reset by its own offering and by nothing else.</summary>
@@ -380,7 +451,7 @@ public sealed class DraftGuaranteeTests
     public void Each_counter_is_reset_by_its_own_offering_alone(
         bool legendary, bool aboveCommon, bool upgrade, int expectedLegendary, int expectedCommon, int expectedUpgrade)
     {
-        LuckService.DraftCountersAfter(
+        Moved(
             new DraftCounters(5, 5, 5),
             new DraftOffering(legendary, aboveCommon, upgrade))
             .ShouldBe(new DraftCounters(expectedLegendary, expectedCommon, expectedUpgrade));
@@ -397,7 +468,7 @@ public sealed class DraftGuaranteeTests
     [Fact]
     public void A_naturally_offered_Legendary_resets_the_pity_counter()
     {
-        LuckService.DraftCountersAfter(
+        Moved(
             DraftCounters.Unstarted with { DraftsSinceLegendaryOffered = 2 },
             new DraftOffering(OfferedLegendary: true, OfferedAboveCommon: true, OfferedOwnedUpgrade: false))
             .DraftsSinceLegendaryOffered.ShouldBe(0);

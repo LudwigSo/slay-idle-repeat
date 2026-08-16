@@ -156,22 +156,44 @@ internal static class DraftGuarantees
 
     /// <summary>The counters after a draft whose offering is known.</summary>
     /// <remarks>
+    /// <para>
     /// A draft that offered a Legendary resets the Legendary counter whether or not pity forced it,
     /// on the same argument the ladder path makes: overshooting a guarantee is satisfying it.
+    /// </para>
+    /// <para>
+    /// 🔒 The famine counter is the one of the three that does <b>not</b> move on every draft. Its
+    /// rule is stated over drafts taken while a non-maxed perk is owned, so a draft in which no
+    /// upgrade could have been offered at all is not a draft that withheld one — a run's opening
+    /// drafts, when nothing is owned yet, would otherwise spend the famine's whole allowance before
+    /// an upgrade was even possible and the guarantee would land drafts early. The same
+    /// <see cref="DraftDemand.OwnsNonMaxedPerk"/> that <see cref="Forced"/> gates the guarantee on
+    /// gates the counter here, so the two cannot drift apart.
+    /// </para>
+    /// <para>
+    /// The other two counters read what the draft <em>offered</em>, not what it could have offered:
+    /// every draft can offer a Legendary and every draft can offer something above Common — the
+    /// rarity table always carries those bands — so there is no can't-have-happened case for either.
+    /// </para>
     /// </remarks>
     /// <param name="counters">The counters before the draft.</param>
     /// <param name="offering">What the draft offered.</param>
+    /// <param name="demand">
+    /// What the run owned when the draft was drawn — the same facts <see cref="Forced"/> read.
+    /// </param>
     /// <returns>The counters to store.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A counter is negative.</exception>
     /// <exception cref="OverflowException">A counter would pass <see cref="int.MaxValue"/>.</exception>
-    internal static DraftCounters Moved(DraftCounters counters, DraftOffering offering)
+    internal static DraftCounters Moved(
+        DraftCounters counters, DraftOffering offering, DraftDemand demand)
     {
         RequireCounted(counters);
 
         return new DraftCounters(
             Move(counters.DraftsSinceLegendaryOffered, offering.OfferedLegendary),
             Move(counters.DraftsWithoutAboveCommon, offering.OfferedAboveCommon),
-            Move(counters.DraftsWithoutOwnedUpgrade, offering.OfferedOwnedUpgrade));
+            demand.OwnsNonMaxedPerk
+                ? Move(counters.DraftsWithoutOwnedUpgrade, offering.OfferedOwnedUpgrade)
+                : counters.DraftsWithoutOwnedUpgrade);
     }
 
     /// <summary>

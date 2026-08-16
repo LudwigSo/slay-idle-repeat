@@ -250,16 +250,14 @@ public sealed class LuckRoutingRuleTests
 
         // 🔴 M4-01b DELETED THE TWO DRAFT ROWS THAT USED TO SIT HERE, and the deletion is the
         // deliverable rather than a tidy-up. `PerkDraftEngine` and `PickPerk` were exempted with an
-        // owner because 24 §4.7's five rules were declared as no-op seams and nothing routed. The
-        // engine now reaches the façade from both of its producing methods, so
-        // Every_exempted_producer_still_needs_its_exemption would fail on its row — an exemption
-        // that no longer bites is a rule quietly narrowed, and this file cannot hold one.
+        // owner because 24 §4.7's five rules were declared as no-op seams and nothing routed.
         //
-        // ⚠️ `PickPerk.GenerateCurrentOptions` does NOT route yet: it still assembles the draft's
-        // arguments and calls the engine without asking the façade which guarantees fired. Its row
-        // was deleted anyway, deliberately, so the routing arm REPORTS it. Keeping the row with a
-        // reworded reason would have been true on this commit and would have made the last unrouted
-        // draft path invisible for exactly as long as somebody left it there.
+        // Both route now, from every method that carries a DraftOption: the engine's GenerateOptions
+        // and DrawOption ask the façade for the Codex weight, its cap and the owned-upgrade bias,
+        // and the handler's GenerateCurrentOptions asks it which guarantees this draft owes while
+        // MoveDraftCounters asks it where the counters land. Keeping either row would therefore fail
+        // Every_exempted_producer_still_needs_its_exemption — an exemption that no longer bites is a
+        // rule quietly narrowed, and this file cannot hold one.
     };
 
     /// <summary>

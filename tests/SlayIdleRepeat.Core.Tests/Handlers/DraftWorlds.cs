@@ -47,14 +47,16 @@ internal static class DraftWorlds
         TileKind battleKind = TileKind.Enemy,
         int stage = 1,
         long gold = 0,
-        IReadOnlyDictionary<string, int>? ownedPerkTiers = null)
+        IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
+        int draftsWithoutOwnedUpgrade = 0)
     {
         var snapshot = RunSnapshots.With(
             draftPending: true,
             draftBattleKind: (int)battleKind,
             draftBattleStage: stage,
             gold: gold,
-            ownedPerkTiers: ownedPerkTiers);
+            ownedPerkTiers: ownedPerkTiers,
+            draftsWithoutOwnedUpgrade: draftsWithoutOwnedUpgrade);
 
         var run = RunAggregate.Rehydrate(snapshot);
 

@@ -46,7 +46,7 @@ internal static class PickPerk
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
-        var options = GenerateCurrentOptions(input, run);
+        var options = GenerateCurrentOptions(input, run, out var demand);
 
         if (command.OptionIndex < 0 || command.OptionIndex >= options.Count)
         {
@@ -55,7 +55,7 @@ internal static class PickPerk
 
         var chosen = options[command.OptionIndex];
 
-        MoveDraftCounters(run, options);
+        MoveDraftCounters(run, options, demand);
 
         run.UpsertPerkTier(chosen.PerkId, chosen.NewTier);
         run.ClearDraftPending();
@@ -68,8 +68,11 @@ internal static class PickPerk
     /// Here rather than where the options are drawn, because a reroll draws a set nobody was ever
     /// offered the chance to take: the counters count the drafts a run actually resolved, and a
     /// counter a reroll advanced would let a player push a guarantee towards themselves with Gold.
+    /// The demand is the one the options were drawn under, read before the pick is applied — the
+    /// counters are about the draft as it was offered, not about what taking it left the run holding.
     /// </remarks>
-    private static void MoveDraftCounters(Run run, IReadOnlyList<DraftOption> options)
+    private static void MoveDraftCounters(
+        Run run, IReadOnlyList<DraftOption> options, DraftDemand demand)
     {
         var legendary = false;
         var aboveCommon = false;
@@ -87,7 +90,8 @@ internal static class PickPerk
                 run.DraftsSinceLegendaryOffered,
                 run.DraftsWithoutAboveCommon,
                 run.DraftsWithoutOwnedUpgrade),
-            new DraftOffering(legendary, aboveCommon, ownedUpgrade));
+            new DraftOffering(legendary, aboveCommon, ownedUpgrade),
+            demand);
 
         run.SetDraftCounters(
             moved.DraftsSinceLegendaryOffered,
@@ -100,7 +104,16 @@ internal static class PickPerk
     /// stream at its current position, under whichever <c>DRAFT</c> guarantees the luck façade says
     /// this draft owes — see this type's remarks for why <c>REROLL_DRAFT</c> shares this method.
     /// </summary>
-    internal static IReadOnlyList<DraftOption> GenerateCurrentOptions(HandlerInput input, Run run)
+    /// <param name="input">The command's world slice, content snapshot and draw streams.</param>
+    /// <param name="run">The run the draft belongs to.</param>
+    /// <param name="demand">
+    /// What the run owned and where it stood as these options were drawn. Answered out rather than
+    /// recomputed by the caller: the counter move reads the same facts the guarantees resolved
+    /// against, and answering the catalogue twice per command would be a second chance for the two
+    /// to disagree as much as it would be a second parse.
+    /// </param>
+    internal static IReadOnlyList<DraftOption> GenerateCurrentOptions(
+        HandlerInput input, Run run, out DraftDemand demand)
     {
         var catalogue = PerkCatalogue.Read(input.Context.Content);
         var tuning = LuckTuning.Read(input.Context.Content);
@@ -111,13 +124,15 @@ internal static class PickPerk
         var isElite = battleKind == TileKind.Elite;
         var isBoss = battleKind == TileKind.Boss;
 
+        demand = Demand(catalogue, owned, run.DraftBattleStage, isBoss);
+
         var forces = LuckService.ResolveDraft(
             tuning,
             new DraftCounters(
                 run.DraftsSinceLegendaryOffered,
                 run.DraftsWithoutAboveCommon,
                 run.DraftsWithoutOwnedUpgrade),
-            Demand(catalogue, owned, run.DraftBattleStage, isBoss),
+            demand,
             PerkDraftEngine.OptionCount);
 
         return PerkDraftEngine.GenerateOptions(

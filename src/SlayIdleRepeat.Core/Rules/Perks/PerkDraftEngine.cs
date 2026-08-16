@@ -108,10 +108,11 @@ internal static class PerkDraftEngine
         if (draft.Draftable.Count == 0)
         {
             throw new InvalidOperationException(
-                "Every perk in 06 §3's authored catalogue is already owned at its max tier. 06 §1.1 " +
-                "removes a maxed perk from the draft pool, and this content version authors only " +
-                "46 rows (M3-07's starter subset) — the remaining rows are M3-07b's. This cannot " +
-                "happen against the full catalogue.");
+                "Every perk the loaded content version authors is already owned at its max tier, so " +
+                "06 §1.1's removal of maxed perks has emptied the draft pool. Reachable only against " +
+                "a catalogue small enough for one run to exhaust — a hermetic fixture, or a truncated " +
+                "content version — never against the shipped one, which M3-07b only widens further. " +
+                "Refused before anything is drawn, so the stream is left where it stood.");
         }
 
         // How many of this draft's options the Codex bias is still allowed to select. Without the
@@ -275,35 +276,59 @@ internal static class PerkDraftEngine
         return remaining.Count > 0 ? remaining : pool;
     }
 
-    /// <summary>The pool without the one category the draft is about to be made entirely of.</summary>
+    /// <summary>The pool without the categories the draft has already taken, where diversity needs it.</summary>
     /// <remarks>
-    /// Diversity can only fail on the last slot, and only when every option so far shares one
-    /// category, so that is the only slot narrowed — excluding a category earlier would be a
-    /// stricter rule than the two-distinct-categories one actually stated.
+    /// Whether this slot owes a new category is <see cref="DraftCompositionRules"/>'s answer, not
+    /// this type's: the threshold and the narrowing that serves it are one rule, and restating the
+    /// narrowing here as "the last slot of a mono-category draft" made the threshold a constant the
+    /// engine agreed with by coincidence rather than one it read.
     /// </remarks>
     private static IReadOnlyList<PerkCatalogueEntry> WithoutClashingCategory(
         IReadOnlyList<PerkCatalogueEntry> pool,
         IReadOnlyList<PerkCategory> chosenCategories,
         int slot)
     {
-        if (slot != OptionCount - 1 || chosenCategories.Count == 0)
+        if (!DraftCompositionRules.MustContributeNewCategory(
+                DistinctCount(chosenCategories), OptionCount - slot))
         {
             return pool;
         }
 
-        var clashing = chosenCategories[0];
+        var diverse = Matching(pool, perk => !Contains(chosenCategories, perk.Category));
 
-        foreach (var category in chosenCategories)
+        return diverse.Count > 0 ? diverse : pool;
+    }
+
+    /// <summary>How many distinct categories a draft has taken so far.</summary>
+    private static int DistinctCount(IReadOnlyList<PerkCategory> categories)
+    {
+        var distinct = 0;
+
+        for (var i = 0; i < categories.Count; i++)
         {
-            if (category != clashing)
+            if (!Contains(categories, categories[i], upTo: i))
             {
-                return pool;
+                distinct++;
             }
         }
 
-        var diverse = Matching(pool, perk => perk.Category != clashing);
+        return distinct;
+    }
 
-        return diverse.Count > 0 ? diverse : pool;
+    private static bool Contains(
+        IReadOnlyList<PerkCategory> categories, PerkCategory category, int? upTo = null)
+    {
+        var end = upTo ?? categories.Count;
+
+        for (var i = 0; i < end; i++)
+        {
+            if (categories[i] == category)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>Every perk not already owned at its max tier, in the catalogue's own order.</summary>

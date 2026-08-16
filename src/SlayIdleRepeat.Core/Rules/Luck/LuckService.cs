@@ -239,9 +239,14 @@ internal static class LuckService
     /// <summary>The draft counters after a draft whose offering is known.</summary>
     /// <param name="counters">The counters before the draft.</param>
     /// <param name="offering">What the draft offered.</param>
+    /// <param name="demand">
+    /// What the run owned when the draft was drawn — the same facts <see cref="ResolveDraft"/> takes,
+    /// because the famine counter only counts a draft the famine rule could have applied to.
+    /// </param>
     /// <returns>The counters to store on the run.</returns>
-    internal static DraftCounters DraftCountersAfter(DraftCounters counters, DraftOffering offering) =>
-        DraftGuarantees.Moved(counters, offering);
+    internal static DraftCounters DraftCountersAfter(
+        DraftCounters counters, DraftOffering offering, DraftDemand demand) =>
+        DraftGuarantees.Moved(counters, offering, demand);
 
     /// <summary>The Codex bias's weight multiplier for one perk in the fresh-pool draw.</summary>
     /// <param name="tuning">The pity registry.</param>
