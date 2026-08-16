@@ -179,6 +179,60 @@ public sealed class LuckRoutingRuleTests
             .ToArray();
     });
 
+    /// <summary>The `24` §3 registry's own vocabulary type, whose members the coverage arm is floored against.</summary>
+    private const string SourceClassVocabulary = "SourceClass";
+
+    /// <summary>
+    /// The floor under the coverage arm's LIVE half: the four classes that have a production caller
+    /// at the end of M4. Set at the real number rather than below it — this is the milestone's own
+    /// completeness claim, and a class going quiet is exactly what it must report.
+    /// </summary>
+    private const int LiveSourceClassFloor = 4;
+
+    /// <summary>
+    /// 🔒 One row per `24` §3 grant source class: the façade member a caller of that class must go
+    /// through, the production type that calls it today, and — when nothing does yet — the task that
+    /// owns wiring it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The four live rows are the four grant paths that exist at the end of M4.</b> Each names a
+    /// real production caller, so the coverage arm quantifies over shapes that are in the assembly
+    /// rather than over names.
+    /// </para>
+    /// <para>
+    /// <b>The six unwired rows all name the ladder entry point</b>, because that is the one member
+    /// `24` §4.1's, §4.2's, §4.4's, §4.5's and the wheel's rung-and-slope shape is served by — the
+    /// façade refuses the other five classes there by name. One shared entry point means this arm
+    /// cannot say <em>which</em> of the six was wired, only that one of them was; the failure names
+    /// the caller that arrived, which is what an author needs to move the right row. Stated rather
+    /// than implied, because "no caller of Resolve" reads like six independent claims and is one.
+    /// </para>
+    /// <para>
+    /// ⚠️ The owners are read from the same place the build already validates them: each is the task
+    /// on the <c>Deferred</c> row of the command that opens that container in <c>GameRules</c>, which
+    /// <c>GapRegisterTests</c> checks against the tracker. They are restated here rather than looked
+    /// up because a source class is not a command — <c>DROP_RUN</c> has no command at all.
+    /// </para>
+    /// </remarks>
+    private static readonly (string Id, string FacadeEntry, string? Caller, string Owner)[]
+        GrantSourceClasses =
+    {
+        // 🔒 The four that are live. Each row's Caller is the production type whose IL calls the entry.
+        ("DROP_RUN", "ResolveRunDrop", "GearGeneration", "M4-03"),
+        ("ENHANCE", "EnhanceSuccessRate", "GearEnhancement", "M4-04"),
+        ("DRAFT", "ResolveDraft", "PickPerk", "M4-01b"),
+        ("MINIGAME", "ResolveChestPick", "MinigameSubmit", "M4-01b"),
+
+        // 🔒 The six with no caller yet, all served by the ladder entry point.
+        ("CHEST_STANDARD", ResolveMember, null, "M4-02"),
+        ("CHEST_PREMIUM", ResolveMember, null, "M4-02"),
+        ("CHEST_APEX", ResolveMember, null, "M4-02"),
+        ("EGG_PET", ResolveMember, null, "M4-02"),
+        ("CRATE_MOUNT", ResolveMember, null, "M4-02"),
+        ("WHEEL", ResolveMember, null, "M4-09"),
+    };
+
     /// <summary>
     /// 🔒 The closed list of type simple names that <b>are</b> a grant outcome — what "producing a
     /// grant" means to this rule, stated as an enumeration rather than inferred.
@@ -777,6 +831,129 @@ public sealed class LuckRoutingRuleTests
     }
 
     /// <summary>
+    /// 🔒 `24` §11 / `23` §6 — <b>the coverage claim over the grant source classes</b>, checkable in
+    /// both directions: every class that is live has a production caller reaching it through the
+    /// façade, and every class that is not has no caller at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Why the three arms above do not already say this, and this is not a fourth statement of
+    /// them.</b> They are all of the form "no member of set S does X". Each is silent when the
+    /// codebase complies <em>and</em> when the thing it governs was never built — so
+    /// "every grant path routes through <c>LuckService</c>" reads as a claim about the ten authored
+    /// classes while being, mechanically, a claim about whichever of them happen to have a producer.
+    /// The gap is not hypothetical: <c>MINIGAME</c>'s protected draw answers a
+    /// <c>ChestPickResolution</c>, which is not a grant-outcome type, so <b>arm 1 does not quantify
+    /// over the chest pick at all</b> — the whole class could stop routing and every arm above would
+    /// stay green. This is the arm that sees it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Stated over the façade ENTRY POINT, not over the class token</b>, and that is forced
+    /// rather than chosen (steering S18). <c>SourceClass</c> is an enum, so
+    /// <c>SourceClass.CHEST_STANDARD</c> compiles to a bare <c>ldc.i4</c> and there is no type or
+    /// member reference left in metadata for any IL rule to match — a rule written over "who names
+    /// the class" would report success over a codebase that named all ten. A <em>call</em> survives,
+    /// so each row names the façade member a caller of that class has to go through, and the arm
+    /// asks who calls it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>How it bites when a fifth grant path appears.</b> The six unwired classes are all served
+    /// by the ladder entry point, which no production type in <c>Core</c> calls today. The commit
+    /// that opens a chest calls it — that is the only way to open one, since arm 1 and arm 2 forbid
+    /// every other — and this arm goes red naming the class, its owning task and the caller that
+    /// arrived, asking for the row to be moved to live with its caller named. A grant path that
+    /// somehow arrived <em>without</em> the façade is arm 1's and arm 2's to report, and between the
+    /// three there is no way to add one silently.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Both floors (steering S3).</b> The rows are checked against the <c>SourceClass</c>
+    /// members declared in <c>Core</c>, read out of the enum's own metadata — so an eleventh class
+    /// fails the build until it is classified here — and every row's façade member has to be declared
+    /// on the façade, so a renamed entry point cannot leave a row guarding a member nobody has.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_live_grant_source_class_routes_through_the_facade_and_the_rest_have_no_caller()
+    {
+        var offenders = new List<string>();
+        var facade = Domain.FindInCore(LuckFacade);
+
+        if (facade is null)
+        {
+            ArchRule.Empty(
+                new[]
+                {
+                    $"'{LuckFacade}' is not declared in Core, so every row below names an entry point " +
+                    "on a type that does not exist. The identity floor beside this arm says the same " +
+                    "thing at more length.",
+                },
+                "24 §11's grant source classes are covered by the façade.");
+
+            return;
+        }
+
+        DeclaredSourceClasses(offenders);
+
+        foreach (var row in GrantSourceClasses)
+        {
+            if (!Il.AllMethods(facade).Any(m => m.Name.Equals(row.FacadeEntry, StringComparison.Ordinal)))
+            {
+                offenders.Add(
+                    $"the '{row.Id}' grant class is stated over '{LuckFacade}.{row.FacadeEntry}', and " +
+                    "the façade declares no such member. This arm asks who CALLS that member, so a " +
+                    "row pointing at a member nobody declares reports 'no caller' forever — for the " +
+                    "live rows that is a false failure, and for the unwired ones it is a rule that " +
+                    "can never fail. Rename the row in the commit that renamed the entry point.");
+
+                continue;
+            }
+
+            var callers = CallersOf(ProductionAssemblies.CoreModule, row.FacadeEntry);
+
+            if (row.Caller is { } expected)
+            {
+                if (callers.Length == 0)
+                {
+                    offenders.Add(
+                        $"the '{row.Id}' grant class is declared LIVE and nothing in Core outside " +
+                        $"{LuckNamespace} calls {LuckFacade}.{row.FacadeEntry}. Either the path was " +
+                        "deleted — in which case move the row back to unwired with the task that owns " +
+                        "rebuilding it — or it now reaches its guarantee some other way, which is the " +
+                        "second place a guarantee can fire that 24 §11 forbids.");
+                }
+                else if (!callers.Contains(expected, StringComparer.Ordinal))
+                {
+                    // Identity, not a count (steering S3/S2): a count is satisfied by whichever type
+                    // happens to route next, while the producer this class was wired through stops.
+                    offenders.Add(
+                        $"the '{row.Id}' grant class routes through {LuckFacade}.{row.FacadeEntry}, " +
+                        $"but '{expected}' is not among the callers ({string.Join(", ", callers)}). " +
+                        "The row names the production type that made this class live so that the arm " +
+                        "quantifies over a known shape rather than over whatever is left. If the " +
+                        "caller legitimately moved, name the new one here in the same commit.");
+                }
+            }
+            else if (callers.Length > 0)
+            {
+                offenders.Add(
+                    $"the '{row.Id}' grant class is declared NOT YET WIRED — {row.Owner} owns it — and " +
+                    $"{string.Join(", ", callers)} now calls {LuckFacade}.{row.FacadeEntry}. That is a " +
+                    "FIFTH grant path, and this is the arm that was written to notice. It routes " +
+                    "through the façade, which is what 24 §11 asks for, so this is good news: move " +
+                    $"the row to live, name the caller on it, and drive the class through " +
+                    "MetaLoopTests' loop if a player can reach it.");
+            }
+        }
+
+        LiveSourceClasses(offenders);
+
+        ArchRule.Empty(
+            offenders,
+            "24 §11: every grant source class that is live routes through " + LuckFacade + ", and " +
+            "every class that is not has no caller at all.");
+    }
+
+    /// <summary>
     /// 🔒 `24` §11 / `23` §6 — <b>every exemption is still needed.</b> An exempted type that no
     /// longer trips the routing arm is a stale exemption, and a stale exemption is a rule quietly
     /// narrowed.
@@ -1164,6 +1341,100 @@ public sealed class LuckRoutingRuleTests
           .Where(name => GrantOutcomeTypes.Contains(name, StringComparer.Ordinal))
           .Distinct(StringComparer.Ordinal)
           .ToArray();
+
+    /// <summary>
+    /// The simple names of every type in <c>Core</c> outside <c>Rules.Luck</c> whose IL calls the
+    /// named member of the façade.
+    /// </summary>
+    /// <remarks>
+    /// A <c>call</c> to a named member rather than <see cref="RoutesThrough"/>'s "names the façade at
+    /// all": the coverage arm's whole question is <em>which</em> door a caller came through, and
+    /// every one of the ten classes goes through the same type.
+    /// </remarks>
+    /// <param name="module">The module to scan.</param>
+    /// <param name="member">The façade member.</param>
+    /// <returns>The calling types' simple names, in name order.</returns>
+    private static string[] CallersOf(ModuleDefinition module, string member) =>
+        ScannedTypes(module)
+            .Where(type => Il.AllMethods(type)
+                             .SelectMany(Il.Instructions)
+                             .Any(instruction =>
+                                 instruction.OpCode.Code is Code.Call or Code.Callvirt &&
+                                 instruction.Operand is MethodReference callee &&
+                                 callee.DeclaringType.Name.Equals(LuckFacade, StringComparison.Ordinal) &&
+                                 callee.Name.Equals(member, StringComparison.Ordinal)))
+            .Select(type => type.Name)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+    /// <summary>
+    /// The floor that keeps <see cref="GrantSourceClasses"/> honest against the authored vocabulary:
+    /// its rows are exactly the <c>SourceClass</c> members <c>Core</c> declares.
+    /// </summary>
+    /// <remarks>
+    /// Read from the enum's <b>field metadata</b>, which survives even though every <em>use</em> of a
+    /// member is folded to a literal (steering S18). <c>value__</c> is the enum's backing field and is
+    /// not a member.
+    /// </remarks>
+    /// <param name="offenders">The list to report into.</param>
+    private static void DeclaredSourceClasses(List<string> offenders)
+    {
+        var vocabulary = Domain.FindInCore(SourceClassVocabulary);
+
+        if (vocabulary is null)
+        {
+            offenders.Add(
+                $"'{SourceClassVocabulary}' is not declared in Core, so this arm's rows are floored " +
+                "against nothing and a grant class could be added to luck.json with no row here. If " +
+                "the vocabulary type was renamed, rename SourceClassVocabulary in the same commit.");
+
+            return;
+        }
+
+        var declared = vocabulary.Fields
+            .Where(field => field.IsStatic && field.HasConstant)
+            .Select(field => field.Name)
+            .ToArray();
+
+        var rows = GrantSourceClasses.Select(row => row.Id).ToArray();
+
+        foreach (var missing in declared.Except(rows, StringComparer.Ordinal))
+        {
+            offenders.Add(
+                $"'{missing}' is a declared {SourceClassVocabulary} and has no row in " +
+                "GrantSourceClasses, so this arm says nothing about it at all — a grant class the " +
+                "registry authors could be wired with nothing here noticing. Add a row: the façade " +
+                "member a caller has to go through, its production caller if it has one, and the " +
+                "task that owns wiring it if it does not.");
+        }
+
+        foreach (var stale in rows.Except(declared, StringComparer.Ordinal))
+        {
+            offenders.Add(
+                $"'{stale}' has a row in GrantSourceClasses and is not a declared " +
+                $"{SourceClassVocabulary}. The row governs a class nobody authors, which is a row " +
+                "that can never fail.");
+        }
+    }
+
+    /// <summary>The floor under the LIVE half of the coverage arm (steering S3).</summary>
+    /// <param name="offenders">The list to report into.</param>
+    private static void LiveSourceClasses(List<string> offenders)
+    {
+        var live = GrantSourceClasses.Count(row => row.Caller is not null);
+
+        if (live < LiveSourceClassFloor)
+        {
+            offenders.Add(
+                $"only {live} of {GrantSourceClasses.Length} grant source classes are declared live; " +
+                $"the floor is {LiveSourceClassFloor}. Every unwired row asserts that NOTHING calls " +
+                "its entry point, which is a claim a codebase with no grant paths at all satisfies " +
+                "completely — so the live half is what stops this arm from passing over an empty " +
+                "game. Four paths were live at the end of M4 and this floor is that number, not a " +
+                "margin below it: a class going quiet is the thing worth reporting.");
+        }
+    }
 
     /// <summary>The guarantee primitives' full names — the guarded set both arms are stated over.</summary>
     private static string[] GuardedPrimitiveNames() =>
