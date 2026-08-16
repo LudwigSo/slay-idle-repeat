@@ -200,7 +200,23 @@ public sealed class InMemoryGame
 
             // Empty for the same reason, and it is the ordinary state rather than a placeholder: a
             // player sweeps nothing until they configure a filter.
-            AutoSalvageRules: []);
+            AutoSalvageRules: [],
+
+            // 07 §1.1 grants Talent Points on the way up; a player at the floor has made no level-up.
+            TalentPoints: 0L,
+
+            // Empty, never null, for the reason the inventory above is: an absent loadout and an
+            // absent preset list are both faults, so the starting row states them.
+            //
+            // ⚠️ THE NAME DOES NOT GO THROUGH Rules.Hero.HeroNameRule HERE, and that is forced rather
+            // than chosen: this harness runs on hermetic content sets that carry the tuning documents
+            // and nothing else, so reading content/profanity/ would make every fixture in the suite
+            // depend on the shipped data set. The filter runs on Player.Rename, which is the door a
+            // real player-chosen name comes through. No such door exists yet — 14 §2.3's registry is
+            // exhaustive and authors no rename command — so account creation, wherever it lands, is
+            // the first production caller. Recorded here rather than left silent.
+            Loadout: new LoadoutSnapshot(new Dictionary<GearSlot, GearInstanceId>(0)),
+            Presets: []);
 
         var player = Player.Rehydrate(snapshot, Content);
 

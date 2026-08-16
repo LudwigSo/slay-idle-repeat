@@ -75,7 +75,16 @@ internal static class RunSnapshots
     /// shipped value", which is what makes it readable — so the null cases get their own door rather
     /// than a sentinel every other call site would have to understand.
     /// </remarks>
-    internal static RunSnapshot WithNull(bool streams = false, bool adUses = false, bool resolvedMinigames = false) =>
+    /// <remarks>
+    /// 🔴 Every parameter here is optional and every call site passes them BY NAME. A new one is
+    /// appended LAST and nowhere else: a parameter inserted mid-signature merges textually clean and
+    /// silently re-binds every positional argument after it.
+    /// </remarks>
+    internal static RunSnapshot WithNull(
+        bool streams = false,
+        bool adUses = false,
+        bool resolvedMinigames = false,
+        bool startingLoadout = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -96,7 +105,8 @@ internal static class RunSnapshots
             NoPendingTile,
             0,
             0,
-            NoPendingEventCard);
+            NoPendingEventCard,
+            StartingLoadout: startingLoadout ? null! : EmptyLoadout);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static RunSnapshot With(
@@ -132,7 +142,8 @@ internal static class RunSnapshots
         bool? bossDefeated = null,
         int? draftsSinceLegendaryOffered = null,
         int? draftsWithoutAboveCommon = null,
-        int? draftsWithoutOwnedUpgrade = null) =>
+        int? draftsWithoutOwnedUpgrade = null,
+        LoadoutSnapshot? startingLoadout = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -166,7 +177,19 @@ internal static class RunSnapshots
             bossDefeated ?? false,
             draftsSinceLegendaryOffered ?? 0,
             draftsWithoutAboveCommon ?? 0,
-            draftsWithoutOwnedUpgrade ?? 0);
+            draftsWithoutOwnedUpgrade ?? 0,
+            startingLoadout ?? EmptyLoadout);
+
+    /// <summary>A hero wearing nothing — where a run started by a player with no gear begins.</summary>
+    /// <remarks>
+    /// Empty, never <c>null</c>: an absent starting loadout is a fault on the player inventory's
+    /// precedent, so a fixture defaulting to one would make every rehydration case in this suite fail
+    /// for a reason unrelated to what it asserts. Expression-bodied rather than an initialised static,
+    /// which is load-bearing for <see cref="Valid"/>'s sake — see <c>PlayerSnapshots.EmptyInventory</c>.
+    /// </remarks>
+    internal static LoadoutSnapshot EmptyLoadout =>
+        new(new System.Collections.ObjectModel.ReadOnlyDictionary<GearSlot, GearInstanceId>(
+            new Dictionary<GearSlot, GearInstanceId>(0)));
 
     /// <summary>
     /// <c>RunSnapshot.PendingTileKind</c>'s "no tile pending" sentinel, restated here because

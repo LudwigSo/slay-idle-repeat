@@ -119,6 +119,7 @@ sits at the end. It is authored per milestone (M2/M3/M11). M2 filled `enemies/`,
 | `modifiers/` | `19` Part C — the 14 weekly modifiers |
 | `liveops_events/` | `26` — live-ops event packages (`EVT_EMBERFALL`, …) |
 | `feats/` | `28` Part D |
+| `profanity/` | `27` §1 — the EN + DE name-filter word lists (`07` §1's hero name, `27` §1's guild name and tag) |
 
 > `board_events/` and `liveops_events/` are two different things that the design docs both call
 > "events". The first is a tile you land on mid-run; the second is a two-week live-ops package. They
@@ -193,10 +194,23 @@ mistake the paragraph above warns about.
 | `content/board_events/` | `schema/board_events.schema.json` |
 | `content/curses/` | `schema/curses.schema.json` |
 | `content/perks/` | `schema/perk.schema.json` |
+| `content/profanity/` | `schema/profanity.schema.json` |
 
 The remaining directories have no schema yet. Their first file therefore fails the build with
 `MissingSchema` — deliberately. Authoring a content type means authoring its schema **and** adding
 its row to that table, in the same commit.
+
+🔒 **`content/profanity/` is named after its LANGUAGES, not after its type**, so the stem rule would
+look for `schema/en.schema.json` and `schema/de.schema.json` and find neither. Its
+`ContentTypeSchemas` row is therefore load-bearing rather than merely explicit — the hazard the
+paragraph above calls "the easy case to forget", arriving with two files rather than one.
+
+⚠️ **Both files are deliberately a SEED, not a finished list.** `27` §1 states the standard (EN and
+DE, at creation and on every edit) and authors no words; M4-10 shipped the matching mechanism and
+twelve high-precision terms per language, and **M17** owns the curated lists. The deferral is held by
+`ContentCurationRegister` in `SlayIdleRepeat.Application.Tests`, keyed on each file's own `curation`
+block, and it fails the moment a file stops declaring itself a seed — including when it has been
+curated. Each file's `_doc` records which terms were left out and why.
 
 ⚠️ **`content/statuses.json` sits flat and pairs by stem**, against the directory rule above.
 `05` §5's twelve statuses are a closed vocabulary authored as one aggregate document, which is the

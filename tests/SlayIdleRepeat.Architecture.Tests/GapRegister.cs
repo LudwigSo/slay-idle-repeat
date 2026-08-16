@@ -232,6 +232,49 @@ internal static class GapRegister
         //     test that cannot pass while this path is missing, so the obligation has a failing
         //     witness waiting for it rather than only a note.
 
+        // ⚠️ M4-10 BUILT THE HERO NAME FILTER AND NOTHING CALLS IT, and that is written here rather
+        // than as an entry because this register keys on a TYPE and the gap is a missing CALLER.
+        // The same shape, and the same treatment, as M4-05's "nothing calls Inventory.Place yet" note
+        // above: an obligation with an owner is the most this mechanism can do for a gap it cannot
+        // hold.
+        //
+        // WHAT EXISTS: Rules.Hero.HeroNameRule (07 §1's twelve characters, 27 §1's EN + DE lists, at
+        // creation and on every edit), Content.ProfanityLexicon, the two word lists under
+        // content/profanity/, Primitives.HeroName — a name only the rule can construct — and
+        // Player.Rename, which takes that type and nothing else. The filter cannot be bypassed by any
+        // caller that exists.
+        //
+        // WHAT DOES NOT EXIST: a caller. 14 §2.3's registry is EXHAUSTIVE and authors no rename
+        // command, so setting a name is not a command at all — it happens when an account is created,
+        // and no account-creation path exists. Core.Testing.InMemoryGame.CreatePlayer writes
+        // DisplayName directly and says so in its own comment: it runs on hermetic content sets that
+        // carry the tuning documents and nothing else, so reading content/profanity/ there would make
+        // every fixture in the Core suite depend on the shipped data set.
+        //
+        // OWNER: M5-06, "Auth: anonymous device accounts (keystore-held secret)" — the task that
+        // first creates an account, and therefore the first place a hero name is set. It calls
+        // HeroNameRule.Validate for a player-chosen name and HeroNameRule.Default for the "Wanderer"
+        // 07 §1 gives every account that has not chosen one. Until it lands, the filter is reachable
+        // and unused, and no player-facing name has ever been through it.
+        //
+        // 🔒 THIS NOTE HAS A FAILING WITNESS, which is what separates it from a comment nobody owns:
+        // HeroNameWritePathRuleTests.Nothing_in_production_calls_the_name_filter_yet_and_this_fails_
+        // when_something_does goes RED on the commit that wires the first caller, and its failure
+        // message says to delete both itself and this note in that commit. The M4-05 note above
+        // records the same requirement in prose ("a failing witness waiting for it rather than only
+        // a note") and could not have one, because its subject was a call that must eventually
+        // EXIST rather than one that must not yet.
+        //
+        // ⚠️ M4-10 ALSO LEFT AN OBLIGATION ON A SIBLING TASK, and it is written here because the
+        // tracker row is the conductor's to edit and this file is the place a later agent reads.
+        // Player.Rehydrate now refuses a row whose loadout names an item the stock does not hold,
+        // and GameRules.Execute checks the same invariant on the way OUT (Player.
+        // RequireLoadoutResolves). So ANY OPERATION THAT DESTROYS AN ITEM MUST TAKE IT OFF THE HERO
+        // IN THE SAME CHANGE, or Apply throws on a legal player action. Player.DiscardItem is the
+        // seam that does both halves together and is the one every such operation should call.
+        // OWNER: M4-04, which owns merge, salvage and enhance — the three destructive operations
+        // that exist — and which was in flight when this landed.
+
         new("ContainerShelf", "M4-02", "ContainerClass",
             "🔒 M1-02 ALSO HANGS THREE COMMAND PAYLOADS ON THIS ENTRY: OpenChestCommand, " +
             "OpenEggCommand and OpenCrateCommand each carry a containerId as text, because the thing " +

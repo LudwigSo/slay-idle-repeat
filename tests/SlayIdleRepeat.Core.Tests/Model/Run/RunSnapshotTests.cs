@@ -201,6 +201,13 @@ public sealed class RunSnapshotTests
                 RunSnapshots.With(draftsWithoutAboveCommon: 1)),
             (nameof(RunSnapshot.DraftsWithoutOwnedUpgrade), v,
                 RunSnapshots.With(draftsWithoutOwnedUpgrade: 1)),
+
+            // M4-10. 07 §4 freezes the loadout at run start, so two runs fought with different gear
+            // are two different runs — and the field is written once, by START_RUN, and never
+            // touched again, which is exactly the shape an encoder can silently skip.
+            (nameof(RunSnapshot.StartingLoadout), v,
+                RunSnapshots.With(startingLoadout: new LoadoutSnapshot(
+                    new Dictionary<GearSlot, GearInstanceId> { [GearSlot.WEAPON] = new("GI_1") }))),
         };
 
         var invisible = probes

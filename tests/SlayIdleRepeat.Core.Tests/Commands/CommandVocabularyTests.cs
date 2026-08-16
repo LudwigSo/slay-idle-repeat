@@ -79,6 +79,28 @@ public sealed class CommandVocabularyTests
     private static IReadOnlyDictionary<string, Type> Registry =>
         SlayIdleRepeat.Core.GameRules.CommandTypesByWireName;
 
+    /// <summary>
+    /// 🔒 The <b>closed</b> list of handled rows whose generically-built payload is a legal command
+    /// that is not a legal MOVE, with the reason. Every other handled row must be accepted.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>Build</c> samples every <c>int</c> as 0, and 07 §4 numbers preset slots from 1 — so
+    /// <c>SAVE_PRESET</c> refuses slot 0 as a malformed payload and <c>APPLY_PRESET</c> refuses it
+    /// because no preset is saved there. Enumerated rather than allowed for generally, so the next
+    /// row that stops accepting takes a diff.
+    /// </para>
+    /// <para>
+    /// 🔴 The three forge rows joined them at the M4-04/M4-10 merge, and for the same shape of
+    /// reason: <c>MERGE</c>, <c>ENHANCE</c> and <c>SALVAGE</c> each name gear instances, and
+    /// <c>Build</c>'s sample ids name items the sample player does not own. M4-04 pinned exactly
+    /// that by identity on its own branch; carrying them here rather than relaxing the acceptance
+    /// claim keeps the strong form for every handled meta row that is not on this list.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] RowsBuildCannotSatisfy =
+        ["MERGE", "ENHANCE", "SALVAGE", "SAVE_PRESET", "APPLY_PRESET"];
+
     // ------------------------------------------------------------------ the floor under everything
 
     /// <summary>
@@ -313,11 +335,17 @@ public sealed class CommandVocabularyTests
             "REVIVE/END_RUN/ABANDON_RUN handlers. A mismatch means the loop skipped " +
             "a deferred row rather than that the count moved.");
 
+        // 🔴 TO THE INTEGRATOR — M4-04 MERGED FIRST AND MOVED THESE NUMBERS. It landed the
+        // MERGE/ENHANCE/SALVAGE handlers, taking milestone/M4 to 27 deferred / 22 handled. M4-10
+        // takes two more (SAVE_PRESET, APPLY_PRESET), so the merged figures are 25 DEFERRED and 24
+        // HANDLED, and the handled identity list is M4-04's twenty-two plus those two names. Checked
+        // against milestone/M4 directly rather than quoted (steering S9).
         deferred.ShouldBe(
-            27,
+            25,
             "…and the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
-            "is 49 rows and exactly twenty-two of them — 08 §4's MERGE, ENHANCE and SALVAGE (M4-04's " +
+            "is 49 rows and exactly twenty-four of them — SAVE_PRESET and APPLY_PRESET (07 §4's named " +
+            "loadout presets, M4-10), 08 §4's MERGE, ENHANCE and SALVAGE (M4-04's " +
             "forge), BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
             "(02 §2's runSeed commit), MINIGAME_SUBMIT (03 §6's minigame resolution), ROLL_DICE and " +
             "USE_REROLL (04 §§1,3-4), SHOP_BUY/SHOP_REFRESH (03 §7's shop, M3-08), CHOOSE_FORK " +
@@ -342,6 +370,13 @@ public sealed class CommandVocabularyTests
         var metaRows = 0;
         var handledAndAccepted = new List<string>();
         var handledAndRefused = new List<string>();
+
+        RowsBuildCannotSatisfy.Length.ShouldBe(
+            5,
+            "the exemption is closed. Two entries are 07 §4's preset rows (Build fills every int " +
+            "with 0 and neither command has a legal slot 0); the other three are 08 §4's forge rows " +
+            "(each names a gear instance the sample player does not own). Every other handled meta " +
+            "row must still ACCEPT.");
 
         foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
         {
@@ -387,25 +422,33 @@ public sealed class CommandVocabularyTests
 
             if (RegistrationFor(name).IsHandled)
             {
-                // 🔴 Reaching the handler is the claim; what the handler decides about a
-                // GENERICALLY BUILT payload is its own suite's business. This arm asserted
-                // acceptance until M4-04 landed the first handled meta rows with a real
-                // precondition — a forge command naming an item the sample player does not own is
-                // refused, and rightly. Asserting the tier and then pinning BOTH SIDES by identity
-                // below is strictly stronger than the acceptance it replaces: acceptance said
-                // nothing about which rows accept, and a row that quietly started refusing every
-                // call would have been the same green.
-                if (result.Rejection is { } refused)
+                // 🔒 The strong form — a handled meta row ACCEPTS a run-less slice — still holds
+                // for every handled meta row that is not on the closed, named exemption list. Build
+                // fills every int with 0 and every id with a sample, which the preset rows (07 §4
+                // counts slots from 1) and the forge rows (each names an item the sample player does
+                // not own) legitimately refuse. Relaxing the claim for all thirty rows to accommodate
+                // five would let the rest start refusing with nothing going red, so the five are
+                // carried as an exemption instead — the shape StatefulRuleTypeRuleTests and
+                // IsolationTests.EntitlementReaders both use, and the one that forces the sixth into
+                // a diff. Both sides are then pinned by IDENTITY below (steering S3).
+                if (RowsBuildCannotSatisfy.Contains(name, StringComparer.Ordinal))
                 {
-                    RejectionReasons.IsDomainTier(refused).ShouldBeTrue(
-                        $"'{name}' is a handled meta command that refused. A handler may only ever " +
-                        "answer a DOMAIN-tier reason — the transport tier is the host's vocabulary " +
-                        "and CommandResult refuses one outright.");
+                    RejectionReasons.IsDomainTier(result.Rejection!.Value).ShouldBeTrue(
+                        $"'{name}' is exempt from the acceptance claim because Build's generic " +
+                        "payload is not a legal move for it — but it must still have REACHED its " +
+                        "handler and answered a DOMAIN-tier value. A transport-tier value here " +
+                        "would mean Apply returned something 14 §16.2 decides before the domain runs.");
 
                     handledAndRefused.Add(name);
                 }
                 else
                 {
+                    result.Accepted.ShouldBeTrue(
+                        $"'{name}' is a handled meta command, so outside a run it runs its handler — " +
+                        "whatever that handler decides is its own suite's business, but reaching it " +
+                        "at all is what this rule is about. If Build's payload is genuinely illegal " +
+                        $"for '{name}', add it to {nameof(RowsBuildCannotSatisfy)} with the reason.");
+
                     handledAndAccepted.Add(name);
                 }
             }
@@ -434,12 +477,14 @@ public sealed class CommandVocabularyTests
             "proving that a handled meta command is reached at all.");
 
         handledAndRefused.ShouldBe(
-            new[] { "MERGE", "ENHANCE", "SALVAGE" },
+            RowsBuildCannotSatisfy,
             ignoreOrder: true,
-            "…and the rows that legitimately refuse a generic payload: all three forge commands name " +
-            "gear instances, and Build's sample ids name items the sample player does not own. A row " +
-            "appearing here that should not have is a handler that has quietly started refusing " +
-            "everything.");
+            "…and the rows that legitimately refuse a generic payload: the three forge commands name " +
+            "gear instances Build's sample ids say the sample player does not own, and the two " +
+            "preset commands are handed slot 0, which 07 §4 does not number. A row appearing here " +
+            "that should not have is a handler that has quietly started refusing everything; the " +
+            "exemption list and the observed set are asserted to be the SAME set, so a row cannot be " +
+            "excused without also being seen to refuse.");
     }
 
     /// <summary>

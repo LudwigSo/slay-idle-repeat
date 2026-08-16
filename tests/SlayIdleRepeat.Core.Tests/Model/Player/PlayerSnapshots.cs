@@ -93,7 +93,9 @@ internal static class PlayerSnapshots
     /// <paramref name="cleared"/> and <paramref name="feats"/> are the two appended maps, and they
     /// are deliberately asymmetric: a null <c>ClearedChapterTiers</c> is READ as "nothing cleared
     /// yet", while a null <c>FeatCounters</c> is a FAULT. Both stay expressible here so that
-    /// asymmetry is testable rather than assumed. <paramref name="inventory"/> joins the FAULT side.
+    /// asymmetry is testable rather than assumed. <paramref name="inventory"/>,
+    /// <paramref name="autoSalvage"/>, <paramref name="loadout"/> and <paramref name="presets"/> all
+    /// join the FAULT side.
     /// <para>
     /// 🔴 Every parameter here is optional and every call site passes them BY NAME. A new one is
     /// appended LAST and nowhere else: a parameter inserted mid-signature merges textually clean and
@@ -108,7 +110,9 @@ internal static class PlayerSnapshots
         bool feats = false,
         bool pity = false,
         bool inventory = false,
-        bool autoSalvage = false) =>
+        bool autoSalvage = false,
+        bool loadout = false,
+        bool presets = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -131,8 +135,11 @@ internal static class PlayerSnapshots
             cleared ? null : Counters(),
             feats ? null! : Counters(),
             pity ? null! : Pity(),
-            inventory ? null! : EmptyInventory,
-            autoSalvage ? null! : NoAutoSalvage);
+            Inventory: inventory ? null! : EmptyInventory,
+            AutoSalvageRules: autoSalvage ? null! : NoAutoSalvage,
+            TalentPoints: 0L,
+            Loadout: loadout ? null! : EmptyLoadout,
+            Presets: presets ? null! : NoPresets);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static PlayerSnapshot With(
@@ -158,7 +165,10 @@ internal static class PlayerSnapshots
         IReadOnlyDictionary<string, long>? featCounters = null,
         IReadOnlyDictionary<string, int>? pityCounters = null,
         InventorySnapshot? inventory = null,
-        IReadOnlyList<AutoSalvageRule>? autoSalvageRules = null) =>
+        IReadOnlyList<AutoSalvageRule>? autoSalvageRules = null,
+        long? talentPoints = null,
+        LoadoutSnapshot? loadout = null,
+        IReadOnlyList<LoadoutPresetSnapshot>? presets = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -185,8 +195,28 @@ internal static class PlayerSnapshots
             clearedChapterTiers ?? Counters(),
             featCounters ?? Counters(),
             pityCounters ?? Pity(),
-            inventory ?? EmptyInventory,
-            autoSalvageRules ?? NoAutoSalvage);
+            Inventory: inventory ?? EmptyInventory,
+            AutoSalvageRules: autoSalvageRules ?? NoAutoSalvage,
+            TalentPoints: talentPoints ?? 0L,
+            Loadout: loadout ?? EmptyLoadout,
+            Presets: presets ?? NoPresets);
+
+    /// <summary>A hero wearing nothing — where a new player stands.</summary>
+    /// <remarks>
+    /// Empty, never <c>null</c>: an absent loadout is a fault on <see cref="EmptyInventory"/>'s
+    /// precedent. Expression-bodied for the reason that member records.
+    /// </remarks>
+    internal static LoadoutSnapshot EmptyLoadout => new(Gear());
+
+    /// <summary>A player who has saved no presets.</summary>
+    /// <remarks>Empty, never <c>null</c>, for the reason <see cref="EmptyLoadout"/> records.</remarks>
+    internal static IReadOnlyList<LoadoutPresetSnapshot> NoPresets => [];
+
+    /// <summary>A slot → instance map of the shape a loadout carries.</summary>
+    internal static IReadOnlyDictionary<GearSlot, GearInstanceId> Gear(
+        params (GearSlot Slot, string InstanceId)[] entries) =>
+        new ReadOnlyDictionary<GearSlot, GearInstanceId>(
+            entries.ToDictionary(e => e.Slot, e => new GearInstanceId(e.InstanceId)));
 
     /// <summary>An inventory holding nothing, with no expansion bought — where a new player stands.</summary>
     /// <remarks>

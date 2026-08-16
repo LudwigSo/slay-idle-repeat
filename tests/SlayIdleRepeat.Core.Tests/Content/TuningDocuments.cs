@@ -20,6 +20,16 @@ internal static class TuningDocuments
     /// <summary>Where the calendar block lives.</summary>
     internal const string CurrenciesPath = "tuning/currencies.json";
 
+    /// <summary>Where the free preset allowance lives.</summary>
+    internal const string AdsPath = "tuning/ads.json";
+
+    /// <summary>A player without Plus may write three preset slots.</summary>
+    /// <remarks>
+    /// <c>const</c> for <c>[InlineData]</c>'s sake, like <see cref="ShippedCycleDays"/>. Pinned
+    /// against the real <c>tuning/ads.json</c> by an <c>Application.Tests</c> rule.
+    /// </remarks>
+    internal const int ShippedFreePresets = 3;
+
     /// <summary>The calendar runs 28 days and then restarts at day 1.</summary>
     /// <remarks>
     /// <c>const</c> rather than <c>static readonly</c> so <c>[InlineData]</c> can take it: a wrap
@@ -44,13 +54,19 @@ internal static class TuningDocuments
     /// Proving the read needs a content set whose floor is <em>not</em> the shipped one.
     /// </remarks>
     internal static ContentSnapshot With(
-        ContentValue? cycleDays = null, ContentValue? legendLevelMin = null) =>
+        ContentValue? cycleDays = null,
+        ContentValue? legendLevelMin = null,
+        ContentValue? freePresets = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
                 ProgressionDocuments.With(legendLevelMin: legendLevelMin)
                     .GetDocument(ProgressionDocuments.DocumentPath),
                 Currencies(cycleDays),
+
+                // The free preset allowance, because SAVE_PRESET reads it on every command — the
+                // entitlement question is answered before the payload is even shaped.
+                Ads(freePresets),
                 ChapterDocuments.Document(chapterId: 1, ChapterDocuments.ChapterOnePath),
 
                 // The pity registry, because MINIGAME_SUBMIT resolves the chest pick's guarantee
@@ -93,6 +109,31 @@ internal static class TuningDocuments
 
     /// <summary>The fork-bias suppression multiplier, as shipped.</summary>
     internal const double ShippedForkBiasMinusMultiplier = 0.2;
+
+    /// <summary>A <c>tuning/ads.json</c> holding the one leaf a preset command reads.</summary>
+    /// <remarks>
+    /// Only <c>#/plus/freePresets</c> is authored here. Transcribing the placement tables would imply
+    /// something in this suite reads them, and nothing does — <c>InRunIncomeDocuments</c> carries its
+    /// own <c>ads.json</c> with the one leaf ITS rules read, for the same reason.
+    /// </remarks>
+    internal static ContentDocument Ads(ContentValue? freePresets = null) =>
+        new(
+            AdsPath,
+            ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["plus"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["freePresets"] = freePresets ?? ContentValue.Number(ShippedFreePresets),
+                }),
+            }));
+
+    /// <summary>A content set holding <b>only</b> <c>tuning/ads.json</c>.</summary>
+    /// <remarks>
+    /// For <c>PresetTuning</c>'s own tests, which are about that reader and must not be able to pass
+    /// because some other document happened to be present — <see cref="CurrenciesOnly"/>'s argument.
+    /// </remarks>
+    internal static ContentSnapshot AdsOnly(ContentValue? freePresets = null) =>
+        new(ProgressionDocuments.Shipped.Version, [Ads(freePresets)]);
 
     private static ContentDocument Currencies(ContentValue? cycleDays)
     {

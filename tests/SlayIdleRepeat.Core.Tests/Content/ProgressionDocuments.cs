@@ -49,6 +49,40 @@ internal static class ProgressionDocuments
     /// <inheritdoc cref="ShippedLegendLevelMin"/>
     internal const int ShippedLegendLevelMax = 200;
 
+    /// <summary><c>LegendXpForLevel(L) = 120 * L^1.05</c>'s coefficient, as shipped.</summary>
+    /// <inheritdoc cref="ShippedLegendLevelMin"/>
+    internal const int ShippedLegendXpCoefficient = 120;
+
+    /// <summary>📐 The Legend XP exponent — the single long-term pacing dial. 1.05 as shipped.</summary>
+    /// <inheritdoc cref="ShippedLegendLevelMin"/>
+    internal const decimal ShippedLegendXpExponent = 1.05m;
+
+    /// <summary>Talent Points granted per Legend Level. 1 as shipped.</summary>
+    /// <inheritdoc cref="ShippedLegendLevelMin"/>
+    internal const int ShippedTalentPointsPerLevel = 1;
+
+    /// <summary>The Legend Level unlock ladder, as shipped — id → level.</summary>
+    /// <remarks>
+    /// The nine keyed rows 07 §1.1's table authors plus the three other documents' rows the shipped
+    /// file carries. Pinned against the real file by the Application suite, like every other constant
+    /// here.
+    /// </remarks>
+    internal static IReadOnlyList<(string Unlock, int Level)> ShippedUnlocks { get; } =
+    [
+        ("PET_SLOT_1", 5),
+        ("FORGE", 8),
+        ("DUNGEONS", 8),
+        ("PVP", 10),
+        ("EVENTS", 12),
+        ("PET_SLOT_2", 15),
+        ("GUILDS", 15),
+        ("MOUNT_SLOT", 20),
+        ("PET_SLOT_3", 30),
+        ("TALENT_BRANCH_FORTUNE", 40),
+        ("MYTHIC_TIER", 60),
+        ("CODEX_MASTERY", 100),
+    ];
+
     /// <summary><c>BaseXp(c) = baseXpCoefficient * baseXpGrowth^(c-1)</c>'s coefficient, as shipped.</summary>
     internal const int ShippedBaseXpCoefficient = 25;
 
@@ -90,6 +124,10 @@ internal static class ProgressionDocuments
         ContentValue? reserveMultipleOfMax = null,
         ContentValue? legendLevelMin = null,
         ContentValue? legendLevelMax = null,
+        ContentValue? legendXpCoefficient = null,
+        ContentValue? legendXpExponent = null,
+        ContentValue? talentPointsPerLevel = null,
+        ContentValue? unlocks = null,
         ContentValue? baseXpCoefficient = null,
         ContentValue? baseXpGrowth = null,
         ContentValue? tierMultiplier = null,
@@ -118,7 +156,15 @@ internal static class ProgressionDocuments
         {
             ["min"] = legendLevelMin ?? ContentValue.Number(ShippedLegendLevelMin),
             ["max"] = legendLevelMax ?? ContentValue.Number(ShippedLegendLevelMax),
+            ["xpCoefficient"] = legendXpCoefficient ?? ContentValue.Number(ShippedLegendXpCoefficient),
+            ["xpExponent"] = legendXpExponent ?? ContentValue.Number(ShippedLegendXpExponent),
+            ["talentPointsPerLevel"] =
+                talentPointsPerLevel ?? ContentValue.Number(ShippedTalentPointsPerLevel),
         });
+
+        var unlockLadder = unlocks ?? ContentValue.Object(
+            ShippedUnlocks.ToDictionary(
+                row => row.Unlock, row => ContentValue.Number(row.Level), StringComparer.Ordinal));
 
         var runXp = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
@@ -159,6 +205,7 @@ internal static class ProgressionDocuments
         {
             ["energy"] = energy,
             ["legendLevel"] = legendLevel,
+            ["unlocks"] = unlockLadder,
             ["runXp"] = runXp,
             ["completionMultiplier"] = completionMultiplier,
             ["adDoubleMultiplier"] = adDoubleMultiplierBlock,

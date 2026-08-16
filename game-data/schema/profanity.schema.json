@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/profanity.schema.json",
+  "title": "content/profanity/<language>.json",
+  "description": "27 §1 — the word lists the name filter matches against, one file per language. 27 §1 is the design set's only authored profanity specification: 'Name (16 chars) and a 4-character tag, both profanity-filtered in EN and DE at creation and on every edit.' The M4 kickoff applied that same standard to the hero name of 07 §1, which authors only '12 chars, profanity-filtered' and no language list, no on-edit rule and no rejection behaviour. The MECHANISM (normalisation + matching) is code; the WORDS are content, and this schema is what makes them content. Each file declares its own curation state so that a conservative seed can never be mistaken for a curated list: the seed shipped by M4-10 is deliberately small and high-precision, and M17 owns the curated one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "language", "curation", "terms"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "language": {
+      "description": "The language this list is authored in. EN and DE are the two 27 §1 names, and the two game-data/loc/ files that exist.",
+      "enum": ["EN", "DE"]
+    },
+    "curation": {
+      "description": "Who owns this list and what state it is in. SEED means a small, deliberately incomplete, high-precision starter list; CURATED means the owning milestone has replaced it. The register that expires the deferral reads this block.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "owner", "maxSeedTerms"],
+      "properties": {
+        "state": { "enum": ["SEED", "CURATED"] },
+        "owner": {
+          "description": "The milestone task that owns turning the seed into a curated list.",
+          "type": "string",
+          "pattern": "^M[0-9]{1,2}(-[0-9]{2})?$"
+        },
+        "maxSeedTerms": {
+          "description": "The ceiling a SEED list may not exceed. A list past it is a curated list whose state was never flipped, which is the one way the deferral could be satisfied and still sit here unnoticed.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        }
+      }
+    },
+    "terms": {
+      "description": "The terms, already lowercase and diacritic-free so the file reads as what the matcher compares against. Matching is substring, over a normalised candidate — see the code that reads this. Deliberately short and high-precision: every added term is a false-positive surface, and a name a filter refuses for no visible reason is worse than a name it lets through.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z]{3,32}$"
+      }
+    }
+  }
+}

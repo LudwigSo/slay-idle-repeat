@@ -80,6 +80,11 @@ public static class ContentLayout
             // (this row), event.schema.json (the live-ops event package) and events.schema.json
             // (the framework-wide tuning file) differ by a letter and a word.
             [ContentDirectory + "board_events/"] = SchemaDirectory + "board_events" + SchemaSuffix,
+
+            // The name-filter word lists, one file per language. This row is REQUIRED rather than
+            // convenient: the files are named after their language, so the stem rule would look for
+            // schema/en.schema.json and schema/de.schema.json and find neither.
+            [ContentDirectory + "profanity/"] = SchemaDirectory + "profanity" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>
