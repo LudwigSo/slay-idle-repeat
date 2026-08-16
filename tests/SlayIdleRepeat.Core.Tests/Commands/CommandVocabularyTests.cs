@@ -430,12 +430,12 @@ public sealed class CommandVocabularyTests
                 // 🔒 The strong form — a handled meta row ACCEPTS a run-less slice — still holds
                 // for every handled meta row that is not on the closed, named exemption list. Build
                 // fills every int with 0 and every id with a sample, which the preset rows (07 §4
-                // counts slots from 1) and the forge rows (each names an item the sample player does
-                // not own) legitimately refuse. Relaxing the claim for all thirty rows to accommodate
-                // five would let the rest start refusing with nothing going red, so the five are
+                // counts slots from 1) and the item-naming rows — the three forge commands and EQUIP
+                // — legitimately refuse. Relaxing the claim for all thirty rows to accommodate six
+                // would let the rest start refusing with nothing going red, so the six are
                 // carried as an exemption instead — the shape StatefulRuleTypeRuleTests and
-                // IsolationTests.EntitlementReaders both use, and the one that forces the sixth into
-                // a diff. Both sides are then pinned by IDENTITY below (steering S3).
+                // IsolationTests.EntitlementReaders both use, and the one that forces the SEVENTH
+                // into a diff. Both sides are then pinned by IDENTITY below (steering S3).
                 if (RowsBuildCannotSatisfy.Contains(name, StringComparer.Ordinal))
                 {
                     RejectionReasons.IsDomainTier(result.Rejection!.Value).ShouldBeTrue(
@@ -484,9 +484,9 @@ public sealed class CommandVocabularyTests
         handledAndRefused.ShouldBe(
             RowsBuildCannotSatisfy,
             ignoreOrder: true,
-            "…and the rows that legitimately refuse a generic payload: the three forge commands name " +
-            "gear instances Build's sample ids say the sample player does not own, and the two " +
-            "preset commands are handed slot 0, which 07 §4 does not number. A row appearing here " +
+            "…and the rows that legitimately refuse a generic payload: the three forge commands and " +
+            "EQUIP name gear instances Build's sample ids say the sample player does not own, and " +
+            "the two preset commands are handed slot 0, which 07 §4 does not number. A row appearing here " +
             "that should not have is a handler that has quietly started refusing everything; the " +
             "exemption list and the observed set are asserted to be the SAME set, so a row cannot be " +
             "excused without also being seen to refuse.");
