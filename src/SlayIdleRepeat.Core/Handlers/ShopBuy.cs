@@ -19,7 +19,8 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// Because a visit can therefore buy nothing, it is <c>RESOLVE_TILE</c> that clears a shop tile and
 /// lets the run walk away. The commit that makes a purchase legal here owes the shop its own
 /// clearing step and has to revisit that branch.
-/// </para></remarks>
+/// </para>
+/// </remarks>
 internal static class ShopBuy
 {
     /// <summary>The shop has exactly four slots, indices 0..3.</summary>

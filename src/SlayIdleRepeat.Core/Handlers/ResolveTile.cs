@@ -119,11 +119,10 @@ internal static class ResolveTile
 
             case TileKind.Shop:
             case TileKind.DiceForge:
-                // The visit itself is the whole of what happens: no offer is stocked and no die face
-                // is modified, because neither concept exists on Run and no command in the frozen
-                // vocabulary can carry a player's choice of either. Clearing the tile is what lets
-                // the run walk away; the day an offer or an upgrade lands it owes its own clearing
-                // step and this branch has to be revisited.
+                // Deliberately nothing: neither a stocked offer nor a die-face choice exists on Run,
+                // and no command in the frozen vocabulary can carry either. Clearing is what lets the
+                // run walk away — whichever commit lands either concept owes it its own clearing
+                // step and revisits this branch.
                 run.ClearPendingTile();
                 return HandlerResult.Accept();
 

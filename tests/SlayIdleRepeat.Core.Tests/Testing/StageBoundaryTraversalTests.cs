@@ -59,6 +59,20 @@ public sealed class StageBoundaryTraversalTests
     /// </remarks>
     private const int MustCross = 14;
 
+    /// <summary>
+    /// How many of the swept runs must travel the whole board to the boss, so the gate count below
+    /// is a claim about enough runs to mean anything (steering <b>S3</b>).
+    /// </summary>
+    /// <remarks>
+    /// Measured on this checkout: all 16 reach the boss. Floored under that for the same reason
+    /// <see cref="MustCross"/> is — a hero can still die, and one board changing shape is not a
+    /// failure of the gate rule.
+    /// </remarks>
+    private const int MustReachBoss = 14;
+
+    /// <summary>How many Stage Gates a whole run crosses: out of stage 1, out of stage 2, never a third.</summary>
+    private const int ExpectedStageGates = 2;
+
     /// <summary>How many start instants the sweep walks, per chapter.</summary>
     /// <remarks>
     /// The board is derived from the run's seed, which folds in the instant the run started — so the
@@ -204,6 +218,51 @@ public sealed class StageBoundaryTraversalTests
             "reached stage 2. The per-board stall rows are satisfied by a sweep in which every run " +
             "ended before it ever approached a boundary, so this floor is what makes the sweep " +
             "evidence of a crossing rather than of an early exit.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>Exactly two Stage Gates per run, on every board that travels the whole way.</b> One out
+    /// of stage 1 and one out of stage 2; stage 3's last node leads to the boss, which belongs to no
+    /// stage, so it gates nothing.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Swept rather than asserted on a single board, and that is the whole point.</b> A third
+    /// gate is only reachable when a roll comes to rest <em>exactly</em> on stage 3's last node: a
+    /// roll that would carry past it is handed straight to the boss by the boss-exact rule and never
+    /// asks the boundary predicate at all. Whether any one seed produces that exact landing is luck,
+    /// so a one-board case can pass with the boss exclusion deleted. Sixteen boards make the landing
+    /// happen.
+    /// </para>
+    /// <para>
+    /// Counted off the run's own Fair-Dice reset anchor moving — see
+    /// <c>MetaLoopDriver.StageGatesCrossed</c> — rather than off a second reading of the boundary
+    /// rule, which would agree with a broken one.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_swept_run_that_reaches_the_boss_crosses_exactly_two_stage_gates()
+    {
+        var finished = SweptBoards()
+            .Select(row => Play((int)row[0], Start.AddHours((int)row[1] * 3)))
+            .Where(driver => driver.Stages.Contains(BoardGraph.BossStage))
+            .ToList();
+
+        finished.Count.ShouldBeGreaterThanOrEqualTo(
+            MustReachBoss,
+            "only " + finished.Count + " of the " + (AuthoredChapters.Length * Instants) + " swept " +
+            "runs travelled the whole board, so the gate count below is a claim about too few runs " +
+            "to be evidence of anything.");
+
+        foreach (var driver in finished)
+        {
+            driver.StageGatesCrossed.ShouldBe(
+                ExpectedStageGates,
+                "a run that travelled the whole board crossed " + driver.StageGatesCrossed +
+                " Stage Gates. One means the trigger narrowed back to the overshoot clamp; three " +
+                "means a roll that came to rest exactly on stage 3's last node gated on its way to " +
+                "the boss." + Trace(driver));
+        }
     }
 
     public static TheoryData<int, int> SweptBoards()

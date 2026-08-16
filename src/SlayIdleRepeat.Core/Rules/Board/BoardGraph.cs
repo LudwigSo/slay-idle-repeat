@@ -120,8 +120,12 @@ internal sealed class BoardGraph
 
         var stage = Node(id).Stage;
 
-        foreach (var edge in edges)
+        // Indexed rather than foreach: the edge list is interface-typed, so a foreach would heap-
+        // allocate an enumerator on every landing this is asked about.
+        for (var i = 0; i < edges.Count; i++)
         {
+            var edge = edges[i];
+
             if (edge.To.Equals(BossNodeId) || Node(edge.To).Stage == stage)
             {
                 return false;
