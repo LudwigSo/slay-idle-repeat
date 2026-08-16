@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The two determinism-critical ports' real implementation: IClockPort and
+    IIdGeneratorPort over the BCL. No vendor package, nothing but System.
+
+    shared/, not client/ or server/: both hosts need to know what time it is and both
+    hosts mint identifiers, so a single project serves them rather than two copies of
+    four lines drifting apart.
+
+    It exists at all because ambient time and ambient identity are exactly what must not
+    be reachable from the rules. DateTimeOffset.UtcNow and Guid.NewGuid() are banned
+    outright above this layer, so a reading and a fresh id enter through a port like any
+    other outside dependency — and the composition root is the only place that names this
+    project.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>
