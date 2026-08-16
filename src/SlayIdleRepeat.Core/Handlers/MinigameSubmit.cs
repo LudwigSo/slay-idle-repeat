@@ -3,6 +3,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Luck;
 
 namespace SlayIdleRepeat.Core.Handlers;
 
@@ -26,9 +27,11 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// <para>
 /// The server-rolled draw is a uniform pick over the tier count. That reproduces the authored
 /// three-chest 1-in-3 rate exactly; the dice-duel minigame has no authored distribution yet, so the
-/// same uniform draw is used as the least-invented default until a real simulation exists. Neither
-/// the gold-tier pity guarantee nor gear-grant routing is applied here — both depend on systems
-/// (<c>LuckService</c>, gear) that don't exist yet.
+/// same uniform draw is used as the least-invented default until a real simulation exists. The chest
+/// pick draws through the luck façade instead, because it is the one minigame that carries a pity
+/// counter — the tier and the counter movement both come back from there, and the counter is
+/// player-scoped and lifetime rather than anything the run holds. Gear-grant routing is still
+/// absent, and depends on a system that does not exist yet.
 /// </para>
 /// <para>
 /// <see cref="Content.MinigameReward.RerollCharges"/> is read but deliberately not granted: <c>Run</c>
@@ -69,12 +72,33 @@ internal static class MinigameSubmit
         var tierCount = tuning.TierCount(command.MinigameId);
 
         int tier;
+        PityCounterChange? counterMoved = null;
+
         if (MinigameCatalogue.IsServerRolled(command.MinigameId))
         {
             // command.Result is a client claim this branch never reads. One RNG stream per resolved
             // instance in the run, server-rolled or not.
             var stream = input.Rng.Stream(RngStreams.Minigame(run.ResolvedMinigames.Count));
-            tier = stream.Range(0, tierCount);
+
+            if (string.Equals(command.MinigameId, MinigameCatalogue.ChestPick, StringComparison.Ordinal))
+            {
+                // The one minigame that carries a counter. The other three are skill-scaled, and
+                // advancing this counter on any of them would make the gold chest farmable through
+                // whichever of them is cheapest.
+                var resolution = LuckService.ResolveChestPick(
+                    LuckTuning.Read(input.Context.Content),
+                    tuning.OutcomeName(command.MinigameId, ChestPickGuarantee.TopTier(tierCount)),
+                    input.Player.PityCounters,
+                    stream,
+                    tierCount);
+
+                tier = resolution.Tier;
+                counterMoved = resolution.Counter;
+            }
+            else
+            {
+                tier = stream.Range(0, tierCount);
+            }
         }
         else
         {
@@ -112,6 +136,14 @@ internal static class MinigameSubmit
         if (reward.EnhanceStones != 0)
         {
             events.Add(input.Player.MoveCurrency(CurrencyId.ENHANCE_STONES, reward.EnhanceStones, RewardReason));
+        }
+
+        // The counter is stored only once the pick has been paid for: a resolution reports what it
+        // would leave behind, and this is where that becomes state.
+        if (counterMoved is { } moved)
+        {
+            input.Player.SetPityCounter(moved.Key, moved.Value);
+            events.Add(new PityCounterAdvanced(DomainEvent.UnstampedSequence, moved.Key, moved.Value));
         }
 
         // reward.RerollCharges is deliberately not spent — see this type's remarks.

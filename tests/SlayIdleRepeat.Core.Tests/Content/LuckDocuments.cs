@@ -458,5 +458,13 @@ internal static class LuckDocuments
 /// <summary>One authored hard-pity <c>N</c>, and where <c>luck.json</c> states it.</summary>
 /// <param name="Source">The source class the rule protects, as <c>24</c> §3 names it.</param>
 /// <param name="Reference">The JSON pointer, relative to <c>tuning/luck.json</c>.</param>
-/// <param name="EveryNth">The authored <c>N</c>.</param>
+/// <param name="EveryNth">
+/// The number the document authors at <paramref name="Reference"/>. ⚠️ <b>It is the rung's own
+/// <c>N</c> for every row but two.</b> <c>DRAFT</c>'s quality floor and upgrade famine author the
+/// drafts that pass <em>before</em> the next one is floored, so their rung is this number plus one;
+/// every other row — the Legendary pity and the chest pick included — authors the forced draw's own
+/// ordinal. This list exists to prove the coverage claim over the authored numbers, so it carries
+/// them verbatim; <c>DraftGuaranteeTests</c> is where each of the three readings is pinned to the
+/// draft it actually floors.
+/// </param>
 internal readonly record struct AuthoredGuarantee(string Source, string Reference, int EveryNth);

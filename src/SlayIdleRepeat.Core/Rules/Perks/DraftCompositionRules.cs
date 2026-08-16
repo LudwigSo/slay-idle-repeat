@@ -32,15 +32,35 @@ internal static class DraftCompositionRules
     /// <param name="perkIds">The perk ids offered, one per slot.</param>
     /// <returns><see langword="true"/> when every perk id appears at most once.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="perkIds"/> is null.</exception>
-    internal static bool NoDuplicateOptions(IReadOnlyList<string> perkIds) =>
-        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
+    internal static bool NoDuplicateOptions(IReadOnlyList<string> perkIds)
+    {
+        ArgumentNullException.ThrowIfNull(perkIds);
+
+        var seen = new HashSet<string>(perkIds.Count, StringComparer.Ordinal);
+
+        foreach (var perkId in perkIds)
+        {
+            if (!seen.Add(perkId))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>Whether a set of options spans at least two categories.</summary>
     /// <param name="categories">The categories offered, one per slot.</param>
     /// <returns><see langword="true"/> when the options are not all of one category.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="categories"/> is null.</exception>
-    internal static bool CategoryDiversity(IReadOnlyList<PerkCategory> categories) =>
-        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
+    internal static bool CategoryDiversity(IReadOnlyList<PerkCategory> categories)
+    {
+        ArgumentNullException.ThrowIfNull(categories);
+
+        var distinct = new HashSet<PerkCategory>(categories);
+
+        return distinct.Count >= MinimumDistinctCategories;
+    }
 
     /// <summary>
     /// Whether this slot's bias roll landed on the owned-but-not-maxed pool.
@@ -53,6 +73,5 @@ internal static class DraftCompositionRules
     /// <param name="roll">The slot's draw, in <c>[0,1)</c>.</param>
     /// <param name="bias">The authored per-option probability.</param>
     /// <returns><see langword="true"/> when the slot draws from the owned pool.</returns>
-    internal static bool OwnedUpgradeBiasHits(double roll, double bias) =>
-        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
+    internal static bool OwnedUpgradeBiasHits(double roll, double bias) => roll < bias;
 }

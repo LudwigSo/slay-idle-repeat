@@ -11,11 +11,23 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Luck;
 /// before it is not, and a fired counter goes back to zero.
 /// </summary>
 /// <remarks>
+/// <para>
 /// <c>24</c> §11: <em>"every rule in §4 gets an explicit unit test asserting the guarantee fires at
 /// exactly N"</em>. The theories below run over every <c>N</c> authored anywhere in
 /// <c>luck.json</c> — all seventeen of them, the five classes that state their rule in another shape
 /// included — rather than over a hand-picked few, so the coverage claim is visible rather than
 /// asserted.
+/// </para>
+/// <para>
+/// ⚠️ <b>What these cases are about is the primitive, at each authored number — not which draw of
+/// each rule that number names.</b> The two are the same question for fifteen of the seventeen rows
+/// and deliberately not for two: <c>DRAFT</c>'s quality floor and upgrade famine author the drafts
+/// that pass <em>before</em> the next one is floored, so the rule's rung is the authored number plus
+/// one and the draw this file proves forced is one earlier than the draft the rule actually floors.
+/// The messages below therefore say "a rung of N", never "this rule forces draw N".
+/// <c>DraftGuaranteeTests</c> pins all three readings against the drafts they floor, one boundary
+/// case each, which is where that claim belongs.
+/// </para>
 /// </remarks>
 public sealed class HardPityTests
 {
@@ -45,9 +57,9 @@ public sealed class HardPityTests
     public void The_Nth_draw_since_the_last_reset_is_forced(string source, string reference, int everyNth)
     {
         HardPity.Fires(everyNth - 1, everyNth).ShouldBeTrue(
-            $"{source} authors N = {N(everyNth)} at {LuckDocuments.DocumentPath}{reference}, so the " +
-            $"draw taken with {N(everyNth - 1)} misses on the clock is the {N(everyNth)}-th and must " +
-            "be forced (24 §1 M1).");
+            $"{source} authors {N(everyNth)} at {LuckDocuments.DocumentPath}{reference}. A rung of " +
+            $"{N(everyNth)} forces the {N(everyNth)}-th draw since its counter last reset — the one " +
+            $"taken with {N(everyNth - 1)} misses on the clock (24 §1 M1).");
     }
 
     /// <summary>The draw before the N-th is not forced.</summary>
@@ -60,9 +72,10 @@ public sealed class HardPityTests
     public void The_draw_before_the_Nth_is_not_forced(string source, string reference, int everyNth)
     {
         HardPity.Fires(everyNth - 2, everyNth).ShouldBeFalse(
-            $"{source} authors N = {N(everyNth)} at {LuckDocuments.DocumentPath}{reference}. Firing " +
-            $"on the {N(everyNth - 1)}-th draw would be a guarantee the disclosure page (24 §1.1) " +
-            "does not state — pity that fires early is still pity that is mis-stated.");
+            $"{source} authors {N(everyNth)} at {LuckDocuments.DocumentPath}{reference}. A rung of " +
+            $"{N(everyNth)} firing on the {N(everyNth - 1)}-th draw would be a guarantee the " +
+            "disclosure page (24 §1.1) does not state — pity that fires early is still pity that is " +
+            "mis-stated.");
     }
 
     /// <summary>A fresh counter is not forced, however tight the rule.</summary>
@@ -77,7 +90,7 @@ public sealed class HardPityTests
         string source, string reference, int everyNth)
     {
         HardPity.Fires(HardPity.Reset(), everyNth).ShouldBeFalse(
-            $"{source} authors N = {N(everyNth)} at {LuckDocuments.DocumentPath}{reference}. A reset " +
+            $"{source} authors {N(everyNth)} at {LuckDocuments.DocumentPath}{reference}. A reset " +
             "counter that fired on the very next draw would make the guarantee the drop rate — 24 " +
             "§10 E3 caps a guarantee at 30% of grants in its class.");
     }

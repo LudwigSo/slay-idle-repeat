@@ -140,7 +140,11 @@ public sealed class MinigameChestPickPityTests
 
         var rehydrated = Core.Model.Player.Rehydrate(after.Player.ToSnapshot(), Worlds.Context.Content);
 
-        rehydrated.IsSuccess.ShouldBeTrue(rehydrated.Error);
+        // 🔴 The failure message used to be `rehydrated.Error`, which Shouldly evaluates EAGERLY —
+        // and Result.Error throws on a successful result by design, so this assertion could not pass
+        // however correct the handler was. Corrected rather than worked around: the claim is that the
+        // snapshot round-trips, and the diagnostic that made it unsatisfiable was never part of it.
+        rehydrated.IsSuccess.ShouldBeTrue();
         rehydrated.Value.PityCounters.Get(CounterKey).ShouldBe(advanced);
     }
 

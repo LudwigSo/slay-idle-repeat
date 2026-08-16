@@ -46,10 +46,28 @@ internal static class ChestPickGuarantee
         string counterKey,
         PityCounters counters,
         DeterministicRng draws,
-        int tierCount) =>
-        throw new NotImplementedException(
-            "M4-01b Phase 3 owns this body. 24 §4.9's guarantee decision goes here and nowhere else: " +
-            "MinigameSubmit asks for a tier, it does not decide one.");
+        int tierCount)
+    {
+        ArgumentNullException.ThrowIfNull(counterKey);
+        ArgumentNullException.ThrowIfNull(counters);
+        ArgumentNullException.ThrowIfNull(draws);
+
+        var topTier = TopTier(tierCount);
+        var missesBeforePick = counters.Get(counterKey);
+        var forced = GuaranteeFires(rule, missesBeforePick);
+
+        // Drawn on every branch, forced or not: the guarantee overrides the draw's RESULT, never the
+        // draw, so a resumed stream lands in the same place whichever way the pick went.
+        var drawn = draws.Range(0, tierCount);
+        var tier = forced ? topTier : drawn;
+
+        return new ChestPickResolution(
+            tier,
+            forced,
+            new PityCounterChange(
+                counterKey,
+                tier == topTier ? HardPity.Reset() : HardPity.Advance(missesBeforePick)));
+    }
 
     /// <summary>Whether the pick about to be made is the forced one.</summary>
     /// <remarks>
@@ -61,7 +79,7 @@ internal static class ChestPickGuarantee
     /// <returns><see langword="true"/> when the next pick is forced onto the top tier.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="missesBeforeDraw"/> is negative.</exception>
     internal static bool GuaranteeFires(ChestPickRule rule, int missesBeforeDraw) =>
-        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
+        HardPity.Fires(missesBeforeDraw, rule.GuaranteeAfterConsecutiveMisses);
 
     /// <summary>The top outcome tier of a table of <paramref name="tierCount"/> rows.</summary>
     /// <remarks>

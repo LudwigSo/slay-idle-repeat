@@ -114,11 +114,45 @@ internal static class DraftGuarantees
     /// <returns>The forced slots, in priority order. Empty when nothing fires.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="optionCount"/> is below 1, or a counter is negative.</exception>
     internal static IReadOnlyList<DraftForce> Forced(
-        DraftRule rule, DraftCounters counters, DraftDemand demand, int optionCount) =>
-        throw new NotImplementedException(
-            "M4-01b Phase 3 owns this body. The five 24 §4.7 rules' decision goes here, and nowhere " +
-            "else: the draft engine composes against the forces this answers rather than restating " +
-            "any of them.");
+        DraftRule rule, DraftCounters counters, DraftDemand demand, int optionCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(optionCount, 1);
+        RequireCounted(counters);
+
+        var forces = new List<DraftForce>(optionCount);
+
+        // The three thresholds are read differently on purpose. The Legendary pity's authored number
+        // names the forced draft's own ordinal, so it is the rung's N. The quality floor's and the
+        // famine's count the drafts that pass BEFORE the next one is floored, so their rung is N + 1.
+        if (HardPity.Fires(counters.DraftsSinceLegendaryOffered, rule.LegendaryPityDraftNumber))
+        {
+            Assign(forces, optionCount, DraftGuarantee.LegendaryPity, PerkRarity.Legendary, null, false);
+        }
+
+        if (AntiBrickDue(rule.SustainAntiBrick, demand))
+        {
+            Assign(
+                forces, optionCount, DraftGuarantee.SustainAntiBrick,
+                null, rule.SustainAntiBrick.ForceCategory, false);
+        }
+
+        if (HardPity.Fires(counters.DraftsWithoutAboveCommon, rule.ConsecutiveDraftsWithoutAboveCommon + 1))
+        {
+            Assign(
+                forces, optionCount, DraftGuarantee.QualityFloor,
+                rule.QualityFloorRarityAtLeast, null, false);
+        }
+
+        // A run whose every owned perk sits at its top tier has no upgrade to be starved of, so the
+        // famine cannot be owed however long the counter has stood.
+        if (demand.OwnsNonMaxedPerk &&
+            HardPity.Fires(counters.DraftsWithoutOwnedUpgrade, rule.ConsecutiveDraftsWithoutOwnedUpgrade + 1))
+        {
+            Assign(forces, optionCount, DraftGuarantee.UpgradeFamine, null, null, true);
+        }
+
+        return forces.AsReadOnly();
+    }
 
     /// <summary>The counters after a draft whose offering is known.</summary>
     /// <remarks>
@@ -130,8 +164,15 @@ internal static class DraftGuarantees
     /// <returns>The counters to store.</returns>
     /// <exception cref="ArgumentOutOfRangeException">A counter is negative.</exception>
     /// <exception cref="OverflowException">A counter would pass <see cref="int.MaxValue"/>.</exception>
-    internal static DraftCounters Moved(DraftCounters counters, DraftOffering offering) =>
-        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
+    internal static DraftCounters Moved(DraftCounters counters, DraftOffering offering)
+    {
+        RequireCounted(counters);
+
+        return new DraftCounters(
+            Move(counters.DraftsSinceLegendaryOffered, offering.OfferedLegendary),
+            Move(counters.DraftsWithoutAboveCommon, offering.OfferedAboveCommon),
+            Move(counters.DraftsWithoutOwnedUpgrade, offering.OfferedOwnedUpgrade));
+    }
 
     /// <summary>
     /// The weight multiplier the Codex bias puts on one perk in the fresh-pool draw.
@@ -144,9 +185,9 @@ internal static class DraftGuarantees
     /// </remarks>
     /// <param name="rule">The authored dials.</param>
     /// <param name="everDrafted">Whether this perk is known to have been drafted before.</param>
-    /// <returns>The multiplier. Never below 1.</returns>
+    /// <returns>The authored multiplier for a perk never drafted; <c>1</c> for one already drafted.</returns>
     internal static double CodexWeight(DraftRule rule, bool everDrafted) =>
-        throw new NotImplementedException("M4-01b Phase 3 owns this body.");
+        everDrafted ? UnbiasedWeight : rule.NeverDraftedWeightMultiplier;
 
     /// <summary>
     /// Whether the anti-brick is due: the run holds no Sustain perk and is past Stage 2.
@@ -159,7 +200,48 @@ internal static class DraftGuarantees
     /// <param name="demand">What the run owns and where it stands.</param>
     /// <returns><see langword="true"/> when the next draft owes a Sustain option.</returns>
     internal static bool AntiBrickDue(SustainAntiBrickRule rule, DraftDemand demand) =>
-        throw new NotImplementedException(
-            "M4-01b Phase 3 owns this body: due when the rule is enabled, no Sustain perk is owned, " +
-            "and the draft is past " + nameof(LastStageBeforeAntiBrick) + " or is the Boss draft.");
+        rule.Enabled &&
+        !demand.OwnsSustainPerk &&
+        (demand.IsBoss || demand.Stage > LastStageBeforeAntiBrick);
+
+    /// <summary>The weight a perk carries before the Codex bias touches it.</summary>
+    private const double UnbiasedWeight = 1.0;
+
+    /// <summary>The next slot a force lands on, or nothing when the draft has run out of them.</summary>
+    /// <remarks>
+    /// Appending in call order is what makes the priority order the source order: each rule takes the
+    /// next free slot, so a draft owing more guarantees than it offers options leaves the lowest
+    /// priority ones unpaid and their counters standing.
+    /// </remarks>
+    private static void Assign(
+        List<DraftForce> forces,
+        int optionCount,
+        DraftGuarantee guarantee,
+        PerkRarity? rarityAtLeast,
+        PerkCategory? category,
+        bool requiresOwnedUpgrade)
+    {
+        if (forces.Count >= optionCount)
+        {
+            return;
+        }
+
+        forces.Add(new DraftForce(
+            forces.Count, guarantee, rarityAtLeast, category, requiresOwnedUpgrade));
+    }
+
+    /// <summary>One counter after a draft: reset by its own offering, advanced by anything else.</summary>
+    private static int Move(int counter, bool satisfied) =>
+        satisfied ? HardPity.Reset() : HardPity.Advance(counter);
+
+    /// <summary>A counter counts drafts, so none of the three is ever negative.</summary>
+    private static void RequireCounted(DraftCounters counters)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            counters.DraftsSinceLegendaryOffered, nameof(counters.DraftsSinceLegendaryOffered));
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            counters.DraftsWithoutAboveCommon, nameof(counters.DraftsWithoutAboveCommon));
+        ArgumentOutOfRangeException.ThrowIfNegative(
+            counters.DraftsWithoutOwnedUpgrade, nameof(counters.DraftsWithoutOwnedUpgrade));
+    }
 }

@@ -149,8 +149,19 @@ public sealed class PerkDraftEngineTests
 
         options.ShouldAllBe(o => o.PerkId != PerkDocuments.Legendary1,
             "06 §1.1: once a perk is at Tier III it is removed from that run's draft pool");
-        options.ShouldAllBe(o => o.PerkId == PerkDocuments.Epic1,
-            "with the only Legendary maxed, a Boss draft (Epic/Legendary only) has nowhere else to fall back to but the one Epic row");
+
+        // 🔴 This used to read `ShouldAllBe(o => o.PerkId == Epic1)`, and it was true only because
+        // this seed happened to draw the Epic band three times: the fallback's first stop is the
+        // Common band, not the one surviving Epic row. M4-01b's no-duplicate rule makes three copies
+        // of one perk unreachable by construction, so the claim is restated as what the fallback now
+        // actually does — the one drawable row in the Boss bands is offered once, and the slots that
+        // cannot have it leave those bands entirely rather than repeating it or reaching the maxed
+        // Legendary. Neither half is weaker: the first still forbids the maxed perk, the second still
+        // forbids every option outside the one legal Boss-band row.
+        options.Count(o => o.PerkId == PerkDocuments.Epic1).ShouldBe(1,
+            "the Boss table draws Epic/Legendary only and the sole Legendary is maxed, so the one Epic row is the only option those bands can pay — offered, and offered once");
+        options.ShouldAllBe(o => o.PerkId == PerkDocuments.Epic1 || o.Rarity < PerkRarity.Epic,
+            "with that row taken, the other two slots have nowhere left inside the Boss bands, so they fall out of them altogether");
     }
 
     [Fact]

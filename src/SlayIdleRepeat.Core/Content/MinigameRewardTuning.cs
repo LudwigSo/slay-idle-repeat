@@ -63,10 +63,7 @@ internal sealed class MinigameRewardTuning
     /// <returns>The authored outcome token.</returns>
     /// <exception cref="ArgumentException"><paramref name="minigameId"/> is not one of the four known ids.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="tier"/> is outside <see cref="TierCount"/>.</exception>
-    internal string OutcomeName(string minigameId, int tier) =>
-        throw new NotImplementedException(
-            "M4-01b Phase 3 owns this body — Read must carry the authored 'outcome' token beside the " +
-            "reward columns it already reads.");
+    internal string OutcomeName(string minigameId, int tier) => Row(minigameId, tier).Outcome;
 
     /// <summary>
     /// The Chapter-1 base reward for <paramref name="minigameId"/>'s outcome tier
@@ -82,17 +79,7 @@ internal sealed class MinigameRewardTuning
     /// </exception>
     internal MinigameReward RewardFor(string minigameId, int tier, int chapterId)
     {
-        var rows = RowsFor(minigameId);
-
-        if (tier < 0 || tier >= rows.Count)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(tier),
-                tier,
-                "'" + minigameId + "' authors " + Text(rows.Count) + " outcome tier(s) (03 §6.1); " +
-                Text(tier) + " is not one of them. This is a defect in the caller — the legality " +
-                "check that validates a claimed or rolled tier belongs before this is ever reached.");
-        }
+        var row = Row(minigameId, tier);
 
         if (chapterId < 1)
         {
@@ -104,7 +91,6 @@ internal sealed class MinigameRewardTuning
         }
 
         var scalar = 1.0 + (_adBundleScalar * (chapterId - 1));
-        var row = rows[tier];
 
         return new MinigameReward(
             Scale(row.Gold, scalar),
@@ -134,6 +120,7 @@ internal sealed class MinigameRewardTuning
             {
                 var rowReference = arrayReference + "/" + i.ToString(CultureInfo.InvariantCulture);
                 tableRows[i] = new MinigameRewardRow(
+                    content.ReadText(rowReference + "/outcome"),
                     content.ReadInt64(rowReference + "/gold"),
                     content.ReadInt64(rowReference + "/crowns"),
                     content.ReadInt64(rowReference + "/beastFeed"),
@@ -155,6 +142,21 @@ internal sealed class MinigameRewardTuning
         return new MinigameRewardTuning(rows, adBundleScalar);
     }
 
+    /// <summary>One authored outcome row, or the refusal both public readers share.</summary>
+    private MinigameRewardRow Row(string minigameId, int tier)
+    {
+        var rows = RowsFor(minigameId);
+
+        return tier >= 0 && tier < rows.Count
+            ? rows[tier]
+            : throw new ArgumentOutOfRangeException(
+                nameof(tier),
+                tier,
+                "'" + minigameId + "' authors " + Text(rows.Count) + " outcome tier(s) (03 §6.1); " +
+                Text(tier) + " is not one of them. This is a defect in the caller — the legality " +
+                "check that validates a claimed or rolled tier belongs before this is ever reached.");
+    }
+
     private IReadOnlyList<MinigameRewardRow> RowsFor(string minigameId)
     {
         ArgumentNullException.ThrowIfNull(minigameId);
@@ -173,7 +175,7 @@ internal sealed class MinigameRewardTuning
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     private readonly record struct MinigameRewardRow(
-        long Gold, long Crowns, long BeastFeed, long EnhanceStones, long RerollCharges);
+        string Outcome, long Gold, long Crowns, long BeastFeed, long EnhanceStones, long RerollCharges);
 }
 
 /// <summary>
