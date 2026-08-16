@@ -291,6 +291,32 @@ public sealed class InventoryTuningTests
             "with an owner, not a default.");
     }
 
+    /// <summary>
+    /// 🔴 …and asking for the bound anyway <b>throws</b>, naming the pointer the value would be
+    /// authored at.
+    /// </summary>
+    /// <remarks>
+    /// The half the assertion above cannot make. A <c>null</c> field describes the hole to a reader
+    /// and does nothing to a caller: <c>OverflowCapacity ?? 0</c> compiles, ships, and silently drops
+    /// exactly the grants the hold rule exists to keep — the outcome the field's own remarks forbid,
+    /// reached without editing a line of it. So the hole is enforced as well as described, and the
+    /// reference is asserted rather than only the exception type: a throw that named nothing would
+    /// tell a caller they may not have the number without telling them where the decision goes.
+    /// </remarks>
+    [Fact]
+    public void Asking_for_the_unauthored_bound_throws_and_names_its_pointer()
+    {
+        var refusal = Should.Throw<UnauthorisedTunableException>(
+            () => InventoryTuning.RequireOverflowCapacity());
+
+        refusal.Reference.ShouldBe(
+            "tuning/forge.json#/inventory/overflowCapacity",
+            "the pointer is the address the missing decision belongs at, beside the capacity block " +
+            "it would bound.");
+
+        refusal.Reference.ShouldBe(InventoryTuning.OverflowCapacityReference);
+    }
+
     // ---------------------------------------------------------------------------- the doors
 
     /// <summary>A missing document is a different failure from an unusable number.</summary>

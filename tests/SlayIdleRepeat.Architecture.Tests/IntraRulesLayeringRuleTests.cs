@@ -262,10 +262,20 @@ public sealed class IntraRulesLayeringRuleTests
         // derivation is exactly what would eventually disagree with the hero screen by a rounding
         // step.
         //
-        // ⚠️ Rules.Inventory -> Rules.Gear is therefore left OPEN and is not an omission. What must
-        // not happen is the inverse — gear generation reading a sorting or comparison rule would put
-        // the mint downstream of the screen that displays it — and R17 has no edge for that today
-        // because Rules.Gear names nothing here. If it ever does, that pair belongs in this table.
+        // ⚠️ Rules.Inventory -> Rules.Gear is therefore left OPEN and is not an omission. The
+        // INVERSE is closed below, in the same commit that created the pair's first edge —
+        // Every_namespace_under_Rules_has_a_declared_place_in_R17 only asks that each namespace
+        // appears SOMEWHERE in this table, never that a given pair is ordered, so Rules.Gear naming
+        // Rules.Inventory would compile and pass the whole suite. That is verbatim the cycle this
+        // file was created to end, and — as the ForbiddenEdges remarks say of the Stats -> Combat
+        // edge — it costs nothing to close today, because Rules/Gear/ names nothing under
+        // Rules.Inventory (verified by inspection), and it will not be free later.
+        (GearNamespace, InventoryNamespace,
+            "R17 runs this pair ONE WAY: the side-by-side delta consumes GearStatDerivation, so " +
+            "Rules.Inventory names Rules.Gear and never the reverse. Gear generation must not read " +
+            "the container that stores what it mints — a mint that consulted a sorting or comparison " +
+            "rule would be downstream of the screen that displays its own output, and the cycle " +
+            "would close through the hottest grant path in the game."),
         (InventoryNamespace, EffectsNamespace,
             "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — ordering a list of owned items and subtracting two derived stats have no " +

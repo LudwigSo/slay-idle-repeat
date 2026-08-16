@@ -70,6 +70,57 @@ public sealed class InventoryTests
         inventory.Held.ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// 🔒 One identity is one rolled item: placing an id the stock already holds is refused, and the
+    /// refusal names the identity.
+    /// </summary>
+    /// <remarks>
+    /// The invariant <c>Rehydrate</c> refuses a persisted row for, stated on the live path too — and
+    /// asserted on the <em>identity</em> of the refusal rather than on "something threw", because an
+    /// <see cref="ArgumentException"/> out of the item's own constructor would satisfy a bare throw
+    /// assertion while the duplicate went in.
+    /// </remarks>
+    [Fact]
+    public void Placing_an_identity_the_stock_already_holds_is_refused()
+    {
+        var inventory = Inventories.Holding(Inventories.Item("gi_0001"));
+
+        var refusal = Should.Throw<InvalidOperationException>(
+            () => inventory.Place(Inventories.Item("gi_0001"), Inventories.Tuning));
+
+        refusal.Message.ShouldContain("gi_0001", Case.Sensitive);
+        refusal.Message.ShouldContain("already owned", Case.Sensitive);
+
+        inventory.Stored.Count.ShouldBe(1, "…and the refusal did not half-apply");
+    }
+
+    /// <summary>
+    /// 🔒 The same refusal for an identity that is only <em>held</em> — being in the holding list is
+    /// being owned.
+    /// </summary>
+    /// <remarks>
+    /// The discriminating half of the case above: a duplicate check written over the stored list
+    /// alone would pass every assertion there and let a second copy of a held item in, which is the
+    /// one place the reclaim would then stock the same identity twice.
+    /// </remarks>
+    [Fact]
+    public void Placing_an_identity_that_is_only_held_is_refused_too()
+    {
+        var inventory = Full();
+
+        inventory.Place(Inventories.Item("waiting"), Inventories.Tuning)
+            .ShouldBe(InventoryPlacement.HELD, "the fixture has to actually overflow, or the " +
+                "duplicate below is being placed against the stored list instead of the held one.");
+
+        var refusal = Should.Throw<InvalidOperationException>(
+            () => inventory.Place(Inventories.Item("waiting"), Inventories.Tuning));
+
+        refusal.Message.ShouldContain("waiting", Case.Sensitive);
+        refusal.Message.ShouldContain("already owned", Case.Sensitive);
+
+        inventory.Held.Count.ShouldBe(1, "…and the refusal did not half-apply");
+    }
+
     // ------------------------------------------------------------------------ hold, never lose
 
     /// <summary>

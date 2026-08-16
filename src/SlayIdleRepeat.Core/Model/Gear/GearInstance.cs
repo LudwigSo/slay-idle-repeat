@@ -40,9 +40,14 @@ namespace SlayIdleRepeat.Core.Model.Gear;
 /// ⚠️ <b>It is not itself a persistence DTO, and the task that stores an inventory has to know
 /// that.</b> The canonical state writer requires a positional record with exactly one <em>public</em>
 /// constructor so it can recover field order mechanically, and this type has an internal one on
-/// purpose. Storing an inventory therefore means a <c>GearInstanceSnapshot</c> under
-/// <c>Model/Snapshots/</c> and a version bump with it — the same pair <c>Player</c> and
-/// <c>PlayerSnapshot</c> already are.
+/// purpose. Storing an inventory therefore means a <c>GearInstanceSnapshot</c> and a version bump
+/// with it — the same pair <c>Player</c> and <c>PlayerSnapshot</c> already are. It landed in
+/// <c>Primitives/</c>, <b>not</b> under <c>Model/Snapshots/</c>, and two rules put it there: a row
+/// under <c>Model/Snapshots/</c> declares a <c>SchemaVersion</c> first because it is a persistence
+/// <em>root</em>, and this is a component of <c>PlayerSnapshot</c> rather than a root of its own;
+/// and the public constructor the canonical writer insists on is the very thing <c>Model/</c>
+/// forbids. So it sits in <c>Primitives/</c> beside <c>EnergyBanks</c> and <c>GearAffixRoll</c> —
+/// every other structured thing the writer descends into from a snapshot.
 /// </para>
 /// <para>
 /// ⚠️ <b>There is deliberately no <c>WithLock</c> and no <c>WithEnhancement</c>.</b> Both would be

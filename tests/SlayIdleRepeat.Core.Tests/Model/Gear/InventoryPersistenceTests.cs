@@ -171,6 +171,46 @@ public sealed class InventoryPersistenceTests
         result.Error.ShouldContain(nameof(InventorySnapshot.Stored), Case.Sensitive);
     }
 
+    /// <summary>
+    /// 🔒 A row claiming more purchases than the ladder currently prices still loads, and the
+    /// inventory still works afterwards.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The Energy ceiling's rule, on the other tunable this aggregate carries: capacity is bought
+    /// with an authored ladder, a balance patch that shortened that ladder leaves real players above
+    /// the new cap, and refusing to load them would turn a data edit into an account outage.
+    /// </para>
+    /// <para>
+    /// "Still loads" is only half of it, and the weaker half. Every capacity read on this type goes
+    /// through <c>InventoryTuning.CapacityAt</c>, which <em>throws</em> outside <c>0..MaxPurchases</c>
+    /// — so a row that loaded and then threw on the first grant would be an outage moved rather than
+    /// avoided, and a load-only assertion would report it as fixed. Hence the grant, the lock and the
+    /// removal below.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_row_past_the_purchase_cap_still_loads_and_still_grants()
+    {
+        var beyond = Inventories.Tuning.MaxPurchases + 3;
+
+        var loaded = Inventory.Rehydrate(
+            new InventorySnapshot(beyond, [], []), Inventories.Tuning);
+
+        loaded.IsSuccess.ShouldBeTrue(loaded.IsFailure ? loaded.Error : string.Empty);
+        loaded.Value.ExpansionsPurchased.ShouldBe(
+            beyond, "the row is read as written — a load that clamped the stored count would edit a " +
+            "player's state on the way in, invisibly.");
+
+        loaded.Value.CapacityWith(Inventories.Tuning).ShouldBe(
+            320, "the capacity is the ceiling the ladder reaches, not an exception.");
+
+        loaded.Value.Place(Inventories.Item("gi_0001"), Inventories.Tuning)
+            .ShouldBe(InventoryPlacement.STORED);
+        loaded.Value.SetLock(new GearInstanceId("gi_0001"), locked: true).ShouldBeTrue();
+        loaded.Value.Remove(new GearInstanceId("gi_0001"), Inventories.Tuning).ShouldBeTrue();
+    }
+
     /// <summary>A row naming one item twice is refused, whichever list the repeat is in.</summary>
     /// <remarks>
     /// Two lists means two places a duplicate can hide, and an inventory holding one identity twice

@@ -21,11 +21,22 @@ namespace SlayIdleRepeat.Core.Model.Gear;
 /// absence where a reader can find it.
 /// </para>
 /// <para>
-/// 🔒 <b>The lock transition lives here, not on the item.</b> <c>GearInstance</c> deliberately has
-/// no <c>WithLock</c>: a hand-written member on a grant outcome that answers another grant outcome
-/// is the shape the luck-routing rule was narrowed to catch. <see cref="SetLock"/> names no
-/// <c>GearInstance</c> in its signature at all, so it never presents that shape; it rebuilds the
-/// instance through the internal constructor inside its own body.
+/// 🔒 <b>The lock transition lives here, not on the item.</b> A lock is not something an item
+/// rolled — it is the container's record of what the player has protected against a destructive
+/// operation — so the transition belongs to the type that keeps that record. <c>GearInstance</c>
+/// has no <c>WithLock</c> for the same reason it has no <c>WithEnhancement</c>: the operation is
+/// owned by whoever owns the state it changes, not by the shape the state is stored in.
+/// <see cref="SetLock"/> therefore rebuilds the stored instance through the internal constructor
+/// inside its own body.
+/// </para>
+/// <para>
+/// ⚠️ <b>That construction is a grant-outcome construction, and it is covered rather than hidden.</b>
+/// This type carries a <c>RoutingExemptions</c> row in <c>LuckRoutingRuleTests</c> — "it stores,
+/// holds, reclaims and locks items it is handed" — and <em>that row</em> is what makes rebuilding an
+/// item here legitimate. It is not the signature: the routing rule now also reads the instruction
+/// stream, so a member that constructed an item while naming none in its signature would be reported
+/// like any other producer. Choosing a signature that a matcher cannot see is evading the rule;
+/// carrying an exemption with a reason is obeying it.
 /// </para>
 /// <para>
 /// <b>Public type, internal constructor, internal mutators.</b> The type is public because the
@@ -88,7 +99,7 @@ public sealed class Inventory
     {
         ArgumentNullException.ThrowIfNull(tuning);
 
-        return tuning.CapacityAt(_expansionsPurchased);
+        return Capacity(tuning);
     }
 
     /// <summary>Which of the four states an item of this identity is in.</summary>
@@ -129,7 +140,7 @@ public sealed class Inventory
                 "it ambiguous — including the salvage that would then destroy the wrong one.");
         }
 
-        if (_stored.Count < tuning.CapacityAt(_expansionsPurchased))
+        if (_stored.Count < Capacity(tuning))
         {
             _stored.Add(item);
             return InventoryPlacement.STORED;
@@ -298,12 +309,20 @@ public sealed class Inventory
 
     /// <summary>
     /// The whole validated entry point: everything <see cref="Rehydrate(InventorySnapshot)"/> checks,
-    /// plus the two claims that need the authored numbers — the purchase count is one the ladder
-    /// prices, and the stock is no larger than those purchases paid for.
+    /// plus the one claim that needs the authored numbers — the stock is no larger than the capacity
+    /// this player's purchases reach.
     /// </summary>
     /// <param name="snapshot">The persisted row.</param>
     /// <param name="tuning">The inventory numbers.</param>
     /// <returns>The rehydrated component, or a failure listing every validation the row failed.</returns>
+    /// <remarks>
+    /// ⚠️ <b>A purchase count above the ladder's cap is deliberately not a fault.</b> An earlier draft
+    /// refused exactly that row, which is the account outage the sibling's remarks say must not
+    /// happen: <c>inventoryExpansionMaxPurchases</c> is a tunable, a balance patch that lowered it
+    /// leaves real players above the new cap, and a load that refused them would turn a data edit into
+    /// a lockout. Such a player keeps the capacity they reached — <see cref="Capacity"/> clamps — and
+    /// the ceiling is enforced where it belongs, on the operations that grow the stock.
+    /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="snapshot"/> or <paramref name="tuning"/> is null.</exception>
     internal static Result<Inventory> Rehydrate(InventorySnapshot snapshot, InventoryTuning tuning)
     {
@@ -317,23 +336,16 @@ public sealed class Inventory
         }
 
         var faults = new List<string>();
+        var capacity = structural.Value.Capacity(tuning);
 
-        if (snapshot.ExpansionsPurchased > tuning.MaxPurchases)
-        {
-            faults.Add(
-                nameof(InventorySnapshot.ExpansionsPurchased) + " is " +
-                Text(snapshot.ExpansionsPurchased) + " and the ladder prices " +
-                Text(tuning.MaxPurchases) + ". A row past the cap claims purchases nobody could " +
-                "have made.");
-        }
-        else if (structural.Value.Stored.Count > tuning.CapacityAt(snapshot.ExpansionsPurchased))
+        if (structural.Value.Stored.Count > capacity)
         {
             faults.Add(
                 nameof(InventorySnapshot.Stored) + " holds " + Text(structural.Value.Stored.Count) +
                 " items and " + Text(snapshot.ExpansionsPurchased) + " expansion(s) pay for " +
-                Text(tuning.CapacityAt(snapshot.ExpansionsPurchased)) + ". A stock larger than the " +
-                "purchases bought is a row written against different tuning, and reading it would " +
-                "hand this player slots nobody paid for.");
+                Text(capacity) + ". A stock larger than the purchases bought is a row written " +
+                "against different tuning, and reading it would hand this player slots nobody paid " +
+                "for.");
         }
 
         return faults.Count > 0 ? Failure(faults) : structural;
@@ -412,10 +424,29 @@ public sealed class Inventory
         return faulted ? null : items;
     }
 
+    /// <summary>
+    /// 🔒 The capacity this stock actually has, read <b>tolerantly</b>: a purchase count above what
+    /// the ladder currently prices is clamped to the cap rather than refused.
+    /// </summary>
+    /// <remarks>
+    /// The Energy ceiling's rule, applied to the other tunable this aggregate carries. A balance
+    /// patch that lowered <c>inventoryExpansionMaxPurchases</c> leaves real players above the new cap,
+    /// and <c>InventoryTuning.CapacityAt</c> throws outside <c>0..MaxPurchases</c> — correctly, since
+    /// for <em>its</em> caller a count past the ladder means a purchase was charged for slots nobody
+    /// priced. Letting that throw reach here would brick every grant, lock and removal such a player
+    /// makes, which is the account outage <see cref="Rehydrate(InventorySnapshot)"/>'s remarks refuse
+    /// to trade a tuning change for. So the tolerance is stated once, here, and every operation that
+    /// needs a capacity reads it: an over-cap player keeps the ceiling their purchases reached and
+    /// simply buys nothing more — <see cref="PurchaseExpansion"/>'s own guard fires first and is
+    /// untouched by this.
+    /// </remarks>
+    private int Capacity(InventoryTuning tuning) =>
+        tuning.CapacityAt(Math.Min(_expansionsPurchased, tuning.MaxPurchases));
+
     /// <summary>Pulls held items back into stock, oldest first, for as long as there is room.</summary>
     private void Reclaim(InventoryTuning tuning)
     {
-        var capacity = tuning.CapacityAt(_expansionsPurchased);
+        var capacity = Capacity(tuning);
 
         while (_held.Count > 0 && _stored.Count < capacity)
         {

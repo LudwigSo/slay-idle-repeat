@@ -65,6 +65,18 @@ internal sealed class InventoryTuning
         PricingDocumentPath + "#/soulShards/sinks/INVENTORY_EXPANSION_FLAT";
 
     /// <summary>
+    /// 🔴 Where a bound on the overflow holding list <b>would</b> be authored. Nothing is authored
+    /// there, and this constant is the greppable name of that absence.
+    /// </summary>
+    /// <remarks>
+    /// A pointer rather than a value, and a pointer that resolves to nothing on purpose: every other
+    /// reference on this type addresses a number a designer wrote down, and this one addresses the
+    /// place the missing decision belongs. Author a bound and it goes here, beside the capacity block
+    /// it bounds.
+    /// </remarks>
+    internal const string OverflowCapacityReference = InventoryPointer + "/overflowCapacity";
+
+    /// <summary>
     /// 🔴 The bound on the overflow holding list — <b>absent</b>, because no document authors one.
     /// </summary>
     /// <remarks>
@@ -73,8 +85,36 @@ internal sealed class InventoryTuning
     /// be read without handling the absence: a zero here would silently destroy the grants the hold
     /// rule exists to keep, and an <see cref="int.MaxValue"/> would be a number nobody chose
     /// wearing the costume of a decision. Filling it in is a design decision with an owner.
+    /// ⚠️ Nullability <em>describes</em> the hole and cannot enforce it —
+    /// <c>OverflowCapacity ?? 0</c> compiles and produces exactly the silent destruction the
+    /// paragraph above forbids. <see cref="RequireOverflowCapacity"/> is the half that fails loudly.
     /// </remarks>
     internal static readonly int? OverflowCapacity = null;
+
+    /// <summary>
+    /// 🔴 The bound on the holding list, <b>demanded</b> rather than defaulted. It always throws,
+    /// because no document authors the value.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The companion <see cref="OverflowCapacity"/> needs and cannot be. A nullable field states the
+    /// absence to a reader; it does nothing to a caller who writes <c>?? 0</c>, <c>?? int.MaxValue</c>
+    /// or <c>.GetValueOrDefault()</c> — each of which compiles, ships, and answers a number nobody
+    /// chose. Anything that genuinely needs a bound calls this instead and stops the build's first
+    /// run rather than the player's hundredth grant.
+    /// </para>
+    /// <para>
+    /// <see cref="UnauthorisedTunableException"/> rather than a bespoke type: this is precisely the
+    /// family's own case — a place the design set authorises no value — and its message already
+    /// carries the reason ("It is not zero and it is not a default. Author the value, or do not read
+    /// it."). The reference it names is <see cref="OverflowCapacityReference"/>, so the failure tells
+    /// its reader where the decision goes as well as that it is missing.
+    /// </para>
+    /// </remarks>
+    /// <returns>Never. The method exists to throw.</returns>
+    /// <exception cref="UnauthorisedTunableException">Always — no bound on the holding list is authored.</exception>
+    internal static int RequireOverflowCapacity() =>
+        OverflowCapacity ?? throw new UnauthorisedTunableException(OverflowCapacityReference);
 
     private InventoryTuning(
         int baseCapacity,

@@ -432,8 +432,9 @@ public sealed class SubjectSetFloorTests
         // Model.Gear.GearInstance, the fourteen-affix pool behind Content.DropsTuning, and
         // Rules.Gear.SetBonusResolver, which answers which of the authored breakpoints an equipped
         // loadout has reached. What step 1 still cannot collect from is TWO things, neither of them
-        // M4-03's: an EQUIPPED LOADOUT on the aggregate (there is no inventory yet, let alone an
-        // equipped set), and the EFFECT CONTENT itself — no affix and no set bonus has an authored
+        // M4-03's: an EQUIPPED LOADOUT on the aggregate (M4-05 has since landed the INVENTORY —
+        // Player.Inventory holds what a player owns — but owning an item is not wearing one, and
+        // which items are equipped is M4-10's), and the EFFECT CONTENT itself — no affix and no set bonus has an authored
         // EffectDefinition, op or magnitude anywhere in the design set, and inventing one would be
         // the plausible-looking hole S6 forbids sitting under the whole stat pipeline.
         //

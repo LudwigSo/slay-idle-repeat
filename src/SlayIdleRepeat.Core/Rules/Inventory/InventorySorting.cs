@@ -46,7 +46,9 @@ internal static class InventorySorting
     /// <param name="par">The par table, for the chapter half of an item's power.</param>
     /// <param name="drops">The gear tables, for the band half of it.</param>
     /// <param name="catalogue">The base-item grid, which declares the order the slots group in.</param>
-    /// <returns>A new list in the chosen order. Every input item appears exactly once.</returns>
+    /// <returns>
+    /// A new read-only list in the chosen order. Every input item appears exactly once.
+    /// </returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="key"/> is outside the vocabulary.</exception>
     internal static IReadOnlyList<GearInstance> Sort(
@@ -91,7 +93,12 @@ internal static class InventorySorting
                 "they did not ask for."),
         };
 
-        return ordered.ThenBy(row => row.Arrival).Select(row => row.Item).ToArray();
+        // Wrapped rather than handed back as a bare array, on WalletCurrencies' and
+        // InventoryComparison's precedent: an IReadOnlyList<T> that is really a T[] can be cast back
+        // and written through, so the "answers a new list and never touches the container" claim in
+        // the remarks above would hold for the rule and not for its caller.
+        return Array.AsReadOnly(
+            ordered.ThenBy(row => row.Arrival).Select(row => row.Item).ToArray());
     }
 
     /// <summary>

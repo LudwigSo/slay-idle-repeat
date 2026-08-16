@@ -16,6 +16,21 @@ namespace SlayIdleRepeat.Core.Model.Gear;
 /// enum could not be named from the very rules that consume it. The same hazard <c>Player</c>
 /// documents for itself, one namespace over.
 /// </para>
+/// <para>
+/// ⚠️ <b>The standing cost that buys, stated rather than left to be rediscovered.</b> Hoisting the
+/// enums out only fixes <em>these</em> names. No type under <c>SlayIdleRepeat.Core.Rules.Inventory</c>
+/// can ever write the bare identifier <c>Inventory</c> and mean the container: the enclosing
+/// namespace's own member wins over any <c>using</c>, so the name resolves to the namespace and the
+/// compiler answers CS0118 rather than a "did you mean" — a caller there has to spell
+/// <c>Model.Gear.Inventory</c> in full. That cost is permanent and was accepted deliberately, because
+/// the model type's name is <b>forced</b>: <c>GapRegister</c>'s <c>30</c> §4 Player-contents row
+/// requires a type called exactly <c>Inventory</c> under <c>Core.Model</c>, so between the two names
+/// the rules namespace is the one that can give way. Today nothing under those rules needs the
+/// container at all — the sorting and comparison rules take an
+/// <c>IReadOnlyList&lt;GearInstance&gt;</c>, and <c>InventoryAccess</c> takes this enum — which is
+/// the arrangement that keeps the cost theoretical. If it ever stops being, rename the <em>rules
+/// namespace</em>, never the model type.
+/// </para>
 /// </remarks>
 internal enum ItemAvailability
 {

@@ -45,15 +45,27 @@ namespace SlayIdleRepeat.Core.Model;
 /// <para>
 /// The stock lives here as of M4-05: <see cref="Inventory"/> is a component of this aggregate, and
 /// every item operation is the component's rather than the aggregate's. 🔒 <b>No member of this type
-/// names a <c>GearInstance</c> in its signature</b>, and that is a constraint rather than an
-/// accident — a convenience member here that took or returned an item would put a grant outcome in
-/// the aggregate's signature, which is the shape the luck-routing rule was narrowed to see. Handlers
-/// reach <c>player.Inventory</c> and call the component's own mutators.
+/// names or builds a <c>GearInstance</c></b>, and that is a constraint rather than an accident — a
+/// convenience member here that took, returned or constructed an item would put a grant outcome on
+/// the aggregate, which is the shape the luck-routing rule was narrowed to see.
+/// </para>
+/// <para>
+/// ⚠️ <b>Nothing calls into the component yet, and that is worth saying plainly rather than
+/// describing a mechanism that does not exist.</b> No handler reaches <c>player.Inventory</c>; no
+/// type in <c>src/</c> outside this file touches it, so <c>Content.InventoryTuning.Read</c> has no
+/// production caller either. M4-05 landed the container, its numbers and its persistence, and left
+/// the wiring to the tasks that own the operations: <b>M4-04</b> is the first consumer — merge,
+/// enhance and salvage all act on a held item — and the <c>DROP_RUN</c> grant path that would call
+/// <c>Place</c> is still unwired, carried in <c>GapRegister</c>'s inventory discharge note with its
+/// owner named. Until one of those lands, the component is reachable and unused.
 /// </para>
 /// <para>
 /// Still deliberately absent: the unopened-container shelf, pets, mounts, talents, presets and
-/// unlocks — each deferred with a <c>GapRegister</c> entry keyed on a type that must not yet exist,
-/// so the build fails the day one becomes writable without a home here.
+/// unlocks. Only the <b>first</b> of the six is held by a <c>GapRegister</c> entry
+/// (<c>ContainerShelf</c>/M4-02, keyed on a <c>ContainerClass</c> that must not yet exist, so the
+/// build fails the day it becomes writable without a home here). The other five are exactly the ones
+/// that register says it does <em>not</em> transcribe: each would need the name of a type its
+/// milestone has not chosen, and inventing five is the fabrication the register exists to refuse.
 /// </para>
 /// <para>
 /// Pity counters are absent too, but for a different reason and with a different owner: the type
