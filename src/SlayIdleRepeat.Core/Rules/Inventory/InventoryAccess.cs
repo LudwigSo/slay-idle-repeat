@@ -15,14 +15,13 @@ namespace SlayIdleRepeat.Core.Rules.Inventory;
 /// an owned item routes its precondition through here rather than writing its own <c>if</c>.
 /// </para>
 /// <para>
-/// ⚠️ It is the seam through which <see cref="RejectionReason.INVENTORY_FULL"/> is <em>meant</em> to
-/// become reachable, and it has not yet: nothing calls this method, so the reason still has no
-/// production emitter. That is a statement of what is left rather than of what was done. The reason
-/// has existed, documented, since the vocabulary was written, and M4-05 settled only what it means —
-/// under the hold-not-lose rule a grant is never refused, so <c>INVENTORY_FULL</c> belongs to an
-/// operation on a <em>held</em> item rather than to the grant that filled the stock. <b>M4-04</b>
-/// (merge, enhance, salvage) and <b>M4-10</b> (equip) are the callers that will make it reachable;
-/// each routes its owned-item precondition through here rather than writing its own <c>if</c>.
+/// 🔒 It is the seam through which <see cref="RejectionReason.INVENTORY_FULL"/> became reachable, and
+/// <b>M4-04 is where that happened</b>: <c>Merge</c>, <c>Enhance</c> and <c>Salvage</c> are the first
+/// production callers, and each routes its owned-item precondition through here rather than writing
+/// its own <c>if</c>. The reason has existed, documented, since the vocabulary was written, and M4-05
+/// settled only what it means — under the hold-not-lose rule a grant is never refused, so
+/// <c>INVENTORY_FULL</c> belongs to an operation on a <em>held</em> item rather than to the grant
+/// that filled the stock. <b>M4-10</b> (equip) is the next caller, on the same terms.
 /// </para>
 /// </remarks>
 internal static class InventoryAccess

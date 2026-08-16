@@ -420,7 +420,7 @@ public sealed class Run
     }
 
     /// <summary>The next draw index of one RNG stream, or zero for a registered stream this run has never drawn from.</summary>
-    /// <param name="streamName">A row of the stream registry — one of the eight fixed names, or <c>minigame:{index}</c>.</param>
+    /// <param name="streamName">A row of the stream registry — one of <c>RngStreams.FixedNames</c>, or <c>minigame:{index}</c>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="streamName"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="streamName"/> is not in the stream registry.</exception>
     public ulong StreamPosition(string streamName)
@@ -1446,7 +1446,7 @@ public sealed class Run
 
         throw new ArgumentException(
             "'" + (streamName ?? "null") + "' is not a row of the 14 §8.1 stream registry, which is " +
-            "the eight fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus " +
+            "the fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus " +
             "minigame:{index} for a non-negative index in canonical decimal form. The comparison " +
             "is ordinal and case-sensitive, and minigame:03 is deliberately a different string " +
             "from minigame:3: a name the registry does not recognise cannot be drawn from, so a " +

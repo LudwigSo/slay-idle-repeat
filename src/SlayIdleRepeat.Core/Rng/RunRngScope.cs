@@ -112,7 +112,7 @@ internal sealed class RunRngScope
         {
             throw new ArgumentException(
                 "'" + streamName + "' is not a row of the 14 §8.1 stream registry, which is the " +
-                "eight fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus " +
+                "fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus " +
                 "minigame:{index} for a non-negative index in canonical decimal form. Draw from a " +
                 "registered stream, or add a row to RngStreams.",
                 nameof(streamName));

@@ -74,7 +74,7 @@ public sealed class RunRngScopeTests
         dice.Position.ShouldBe(2UL);
     }
 
-    /// <summary>The parameterised ninth row works like the eight fixed ones.</summary>
+    /// <summary>The one parameterised row works like the fixed ones.</summary>
     [Fact]
     public void The_parameterised_minigame_stream_is_a_stream_like_any_other()
     {

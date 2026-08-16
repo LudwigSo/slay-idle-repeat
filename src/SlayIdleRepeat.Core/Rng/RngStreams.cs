@@ -71,7 +71,7 @@ public static class RngStreams
     }
 
     /// <summary>
-    /// Whether the name is a row of the registry: one of the eight fixed names, or
+    /// Whether the name is a row of the registry: one of the <see cref="FixedNames"/>, or
     /// <c>minigame:</c> followed by a non-negative <see cref="int"/> in canonical decimal form.
     /// </summary>
     /// <remarks>
