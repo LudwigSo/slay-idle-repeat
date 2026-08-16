@@ -12,9 +12,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// </summary>
 public sealed class MovementEngineTests
 {
-    // Fixture: a straight run of 5 spine nodes, one stage, no junction — the negative control
-    // every rule below is checked against.
-    private static BoardGraph LinearFiveNodeBoard()
+    // Fixture: a straight run of 5 stage-1 nodes, no junction — the negative control every rule
+    // below is checked against — terminated by the boss node, which every board must be: the boss
+    // is the only node a layout may leave without an outgoing edge, and no test here ever walks
+    // onto it.
+    private static BoardGraph FiveNodeStageThenTheBoss()
     {
         var nodes = new[]
         {
@@ -23,6 +25,7 @@ public sealed class MovementEngineTests
             new BoardNode(new NodeId(2), TileKind.Enemy, 2, 1),
             new BoardNode(new NodeId(3), TileKind.Enemy, 3, 1),
             new BoardNode(new NodeId(4), TileKind.Enemy, 4, 1),
+            new BoardNode(new NodeId(5), TileKind.Boss, 5, BoardGraph.BossStage),
         };
 
         var edges = new[]
@@ -31,6 +34,7 @@ public sealed class MovementEngineTests
             new BoardEdge(nodes[1].Id, nodes[2].Id, EdgeKind.Continue),
             new BoardEdge(nodes[2].Id, nodes[3].Id, EdgeKind.Continue),
             new BoardEdge(nodes[3].Id, nodes[4].Id, EdgeKind.Continue),
+            new BoardEdge(nodes[4].Id, nodes[5].Id, EdgeKind.Continue),
         };
 
         return BoardGraph.FromLayout(
@@ -40,7 +44,7 @@ public sealed class MovementEngineTests
     [Fact]
     public void Advance_steps_forward_one_edge_at_a_time_on_a_junction_free_board()
     {
-        var board = LinearFiveNodeBoard();
+        var board = FiveNodeStageThenTheBoss();
 
         var result = MovementEngine.Advance(board, new NodeId(0), 3);
 
@@ -53,7 +57,7 @@ public sealed class MovementEngineTests
     [Fact]
     public void Advance_of_zero_steps_stays_put()
     {
-        var board = LinearFiveNodeBoard();
+        var board = FiveNodeStageThenTheBoss();
 
         var result = MovementEngine.Advance(board, new NodeId(2), 0);
 
@@ -65,14 +69,14 @@ public sealed class MovementEngineTests
     [Fact]
     public void A_negative_step_count_is_refused()
     {
-        var board = LinearFiveNodeBoard();
+        var board = FiveNodeStageThenTheBoss();
 
         Should.Throw<ArgumentOutOfRangeException>(() => MovementEngine.Advance(board, new NodeId(0), -1));
     }
 
-    // Fixture: N0 -> J (junction) -> { Continue: N2 -> N3 ; Branch: B0 -> B1 -> N3 (rejoin) },
-    // all stage 1. The branch's own linear indices mirror the spine's at equal forward distance
-    // from the junction, exactly as BoardGenerator builds one.
+    // Fixture: N0 -> J (junction) -> { Continue: N2 -> N3 ; Branch: B0 -> B1 -> N3 (rejoin) } ->
+    // Boss, everything but the boss node stage 1. The branch's own linear indices mirror the
+    // spine's at equal forward distance from the junction, exactly as BoardGenerator builds one.
     private static (BoardGraph Board, NodeId N0, NodeId J, NodeId N2, NodeId N3, NodeId B0, NodeId B1) JunctionBoard()
     {
         var n0 = new BoardNode(new NodeId(0), TileKind.Enemy, 0, 1);
@@ -81,10 +85,11 @@ public sealed class MovementEngineTests
         var n3 = new BoardNode(new NodeId(3), TileKind.Enemy, 3, 1);
         var b0 = new BoardNode(new NodeId(4), TileKind.Shrine, 2, 1); // same linear index as n2
         var b1 = new BoardNode(new NodeId(5), TileKind.Treasure, 3, 1); // same linear index as n3
+        var boss = new BoardNode(new NodeId(6), TileKind.Boss, 4, BoardGraph.BossStage);
 
         var preview = new ForkPreview(ForkLabel.Sheltered, new[] { TileKind.Shrine, TileKind.Treasure });
 
-        var nodes = new[] { n0, j, n2, n3, b0, b1 };
+        var nodes = new[] { n0, j, n2, n3, b0, b1, boss };
         var edges = new[]
         {
             new BoardEdge(n0.Id, j.Id, EdgeKind.Continue),
@@ -93,10 +98,11 @@ public sealed class MovementEngineTests
             new BoardEdge(n2.Id, n3.Id, EdgeKind.Continue),
             new BoardEdge(b0.Id, b1.Id, EdgeKind.Continue),
             new BoardEdge(b1.Id, n3.Id, EdgeKind.Continue), // rejoin
+            new BoardEdge(n3.Id, boss.Id, EdgeKind.Continue),
         };
 
         var board = BoardGraph.FromLayout(
-            nodes, edges, new[] { n0.Id, j.Id, n2.Id, n3.Id }, new[] { j.Id });
+            nodes, edges, new[] { n0.Id, j.Id, n2.Id, n3.Id, boss.Id }, new[] { j.Id });
 
         return (board, n0.Id, j.Id, n2.Id, n3.Id, b0.Id, b1.Id);
     }
@@ -162,7 +168,7 @@ public sealed class MovementEngineTests
     [Fact]
     public void A_non_junction_node_never_pauses()
     {
-        var board = LinearFiveNodeBoard();
+        var board = FiveNodeStageThenTheBoss();
 
         var result = MovementEngine.Advance(board, new NodeId(1), 3);
 
@@ -174,9 +180,9 @@ public sealed class MovementEngineTests
     /// and be stopped by the second.
     /// </summary>
     /// <remarks>
-    /// Stage 1: N0 -> N1 (its last node). Stage 2: M0 -> M1 -> M2 (its last node). Stage 3: P0.
-    /// Stage 2 is three nodes deep so a move leaving N1 can land inside it, and P0 exists so M2's
-    /// clamp is a clamp rather than the end of the graph — a dangling node reports
+    /// Stage 1: N0 -> N1 (its last node). Stage 2: M0 -> M1 -> M2 (its last node). Stage 3: P0,
+    /// then the boss. Stage 2 is three nodes deep so a move leaving N1 can land inside it, and P0
+    /// exists so M2's clamp is a clamp rather than the end of the graph — reaching the boss reports
     /// <c>ReachedBoss</c>, which would mask what is being measured.
     /// </remarks>
     private static (BoardGraph Board, NodeId N0, NodeId N1, NodeId M0, NodeId M1, NodeId M2) StageBoundaryBoard()
@@ -187,8 +193,9 @@ public sealed class MovementEngineTests
         var m1 = new BoardNode(new NodeId(3), TileKind.Shrine, 3, 2);
         var m2 = new BoardNode(new NodeId(4), TileKind.Treasure, 4, 2); // stage 2's last node
         var p0 = new BoardNode(new NodeId(5), TileKind.Enemy, 5, 3);
+        var boss = new BoardNode(new NodeId(6), TileKind.Boss, 6, BoardGraph.BossStage);
 
-        var nodes = new[] { n0, n1, m0, m1, m2, p0 };
+        var nodes = new[] { n0, n1, m0, m1, m2, p0, boss };
         var edges = new[]
         {
             new BoardEdge(n0.Id, n1.Id, EdgeKind.Continue),
@@ -196,6 +203,7 @@ public sealed class MovementEngineTests
             new BoardEdge(m0.Id, m1.Id, EdgeKind.Continue),
             new BoardEdge(m1.Id, m2.Id, EdgeKind.Continue),
             new BoardEdge(m2.Id, p0.Id, EdgeKind.Continue),
+            new BoardEdge(p0.Id, boss.Id, EdgeKind.Continue),
         };
 
         var board = BoardGraph.FromLayout(nodes, edges, nodes.Select(n => n.Id).ToArray(), Array.Empty<NodeId>());
@@ -313,11 +321,12 @@ public sealed class MovementEngineTests
         var b0 = new BoardNode(new NodeId(2), TileKind.Shrine, 1, 1);
         var m0 = new BoardNode(new NodeId(3), TileKind.Enemy, 2, 2);
         var m1 = new BoardNode(new NodeId(4), TileKind.Enemy, 3, 2);
+        var boss = new BoardNode(new NodeId(5), TileKind.Boss, 4, BoardGraph.BossStage);
 
         var preview = new ForkPreview(ForkLabel.Sheltered, new[] { TileKind.Shrine });
 
         var board = BoardGraph.FromLayout(
-            new[] { j, last1, b0, m0, m1 },
+            new[] { j, last1, b0, m0, m1, boss },
             new[]
             {
                 new BoardEdge(j.Id, last1.Id, EdgeKind.Continue),
@@ -325,8 +334,9 @@ public sealed class MovementEngineTests
                 new BoardEdge(b0.Id, last1.Id, EdgeKind.Continue),
                 new BoardEdge(last1.Id, m0.Id, EdgeKind.Continue),
                 new BoardEdge(m0.Id, m1.Id, EdgeKind.Continue),
+                new BoardEdge(m1.Id, boss.Id, EdgeKind.Continue),
             },
-            new[] { j.Id, last1.Id, m0.Id, m1.Id },
+            new[] { j.Id, last1.Id, m0.Id, m1.Id, boss.Id },
             new[] { j.Id });
 
         // ChooseFork's own shape: take the chosen edge, then resume with the rest.
@@ -497,11 +507,15 @@ public sealed class MovementEngineTests
     [Fact]
     public void The_campfire_clamp_does_not_apply_outside_stage_3()
     {
-        var board = LinearFiveNodeBoard(); // all stage 1
+        var board = FiveNodeStageThenTheBoss(); // every walkable node is stage 1
 
         var natural = MovementEngine.Advance(board, new NodeId(0), 4);
         var portal = MovementEngine.AdvancePortal(board, new NodeId(0), 4);
 
+        // The identity, not the symptom (steering S2): a clamp that ignored the stage gate would
+        // stop two nodes short, on the board's own bossLinearIndex - 2. "Both agree" alone would
+        // still hold if the clamp fired on the natural move too.
+        portal.Node.ShouldBe(new NodeId(4), "outside stage 3 a Portal jump spends every step it drew.");
         portal.ShouldBe(natural);
     }
 
