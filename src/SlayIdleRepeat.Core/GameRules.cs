@@ -128,6 +128,30 @@ public static class GameRules
     public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context) =>
         Execute(Dispatch, state, command, context);
 
+    /// <summary>Whether a host must issue this command a per-command <c>CommandSeed</c>.</summary>
+    /// <param name="command">The command about to be applied.</param>
+    /// <returns>
+    /// <c>true</c> for a command that acts outside a run, <c>false</c> for one that acts inside one,
+    /// and <c>false</c> for a type no dispatch row names — such a command draws nothing and
+    /// <see cref="Apply"/> refuses it with <c>ILLEGAL_STATE</c> on its own, so answering here keeps
+    /// both this predicate and <see cref="Apply"/> total.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="command"/> is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// The one public door onto the run/meta split, and it exists because a composition root has to
+    /// answer this question per command and cannot: <c>GameCommand</c> declares no members, and the
+    /// answer lives on the dispatch row, which is internal. The endpoint cannot answer it either —
+    /// <c>START_RUN</c> is a run command submitted on the player endpoint.
+    /// </para>
+    /// <para>
+    /// Phrased as the question rather than as the taxonomy: it publishes a fact
+    /// <see cref="GameContext.CommandSeed"/>'s own documentation already states, without exporting
+    /// the dispatch row, its handler delegate, or a kind a caller could start branching on.
+    /// </para>
+    /// </remarks>
+    public static bool RequiresCommandSeed(GameCommand command) => throw new NotImplementedException();
+
     /// <summary><see cref="Apply"/>'s body, over an explicit dispatch table so the domain test suite can drive it against shapes never committed to production.</summary>
     /// <remarks>
     /// Internal, and not a second entry point: the architecture rule that <c>Apply</c> is the only

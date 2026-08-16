@@ -837,7 +837,11 @@ public sealed class CommandVocabularyTests
     /// forty-nine hand-written <c>new</c> expressions, which would be a second transcription of the
     /// vocabulary that silently stopped driving whichever command it forgot.
     /// </summary>
-    private static GameCommand Build(Type commandType)
+    /// <remarks>
+    /// Internal rather than private so a second sweep over the same forty-nine rows drives the same
+    /// instances. A parallel builder would be a second transcription of the payload vocabulary.
+    /// </remarks>
+    internal static GameCommand Build(Type commandType)
     {
         // Single, not First: an OrderByDescending(...).First() would silently pick between two if a
         // command ever gained a convenience overload, an unstable tie-break in a rule that drives the
