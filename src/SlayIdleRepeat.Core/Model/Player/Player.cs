@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model.Gear;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -42,9 +43,17 @@ namespace SlayIdleRepeat.Core.Model;
 /// the same method puts it under that guard too.
 /// </para>
 /// <para>
-/// Deliberately absent: inventory, gear instances and the unopened-container shelf — each deferred
-/// with a <c>GapRegister</c> entry keyed on a type that must not yet exist, so the build fails the
-/// day one becomes writable without a home here.
+/// The stock lives here as of M4-05: <see cref="Inventory"/> is a component of this aggregate, and
+/// every item operation is the component's rather than the aggregate's. 🔒 <b>No member of this type
+/// names a <c>GearInstance</c> in its signature</b>, and that is a constraint rather than an
+/// accident — a convenience member here that took or returned an item would put a grant outcome in
+/// the aggregate's signature, which is the shape the luck-routing rule was narrowed to see. Handlers
+/// reach <c>player.Inventory</c> and call the component's own mutators.
+/// </para>
+/// <para>
+/// Still deliberately absent: the unopened-container shelf, pets, mounts, talents, presets and
+/// unlocks — each deferred with a <c>GapRegister</c> entry keyed on a type that must not yet exist,
+/// so the build fails the day one becomes writable without a home here.
 /// </para>
 /// <para>
 /// Pity counters are absent too, but for a different reason and with a different owner: the type
@@ -142,7 +151,8 @@ public sealed class Player
         int loginCalendarDay,
         bool loginCalendarDayClaimed,
         Dictionary<string, long> clearedChapterTiers,
-        Dictionary<string, long> featCounters)
+        Dictionary<string, long> featCounters,
+        Inventory inventory)
     {
         Id = id;
         DisplayName = displayName;
@@ -167,6 +177,7 @@ public sealed class Player
         _clearedChapterTiersView = new ReadOnlyDictionary<string, long>(clearedChapterTiers);
         _featCounters = featCounters;
         _featCountersView = new FeatCounters(new ReadOnlyDictionary<string, long>(featCounters));
+        Inventory = inventory;
     }
 
     /// <summary>The aggregate root's identity.</summary>
@@ -254,6 +265,14 @@ public sealed class Player
     /// </remarks>
     public FeatCounters FeatCounters => _featCountersView;
 
+    /// <summary>The stock this player carries, and the items a full stock is holding for them.</summary>
+    /// <remarks>
+    /// A live view of the component, not a copy taken at rehydration: a copy would make every
+    /// handler's mutation invisible to the very next read, and the aggregate would persist the state
+    /// it started with.
+    /// </remarks>
+    public Inventory Inventory { get; }
+
     /// <summary>The lifetime count of one feat counter, or zero when nothing has advanced it.</summary>
     /// <param name="counterId">The counter's id. Never null, empty or whitespace.</param>
     /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
@@ -329,7 +348,8 @@ public sealed class Player
         _loginCalendarDay,
         _loginCalendarDayClaimed,
         Copy(_clearedChapterTiers),
-        Copy(_featCounters));
+        Copy(_featCounters),
+        Inventory.ToSnapshot());
 
     /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -385,11 +405,12 @@ public sealed class Player
         var clearedChapterTiers = ReadClearedChapterTiers(snapshot.ClearedChapterTiers, faults);
         var featCounters = ReadCounters(
             snapshot.FeatCounters, nameof(PlayerSnapshot.FeatCounters), faults, LifetimeLifespan);
+        var inventory = ReadInventory(snapshot.Inventory, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns null
         // also adds a fault — but written as a pattern so the correlation is checked, not asserted.
         if (faults.Count > 0 || wallet is null || daily is null || weekly is null ||
-            clearedChapterTiers is null || featCounters is null)
+            clearedChapterTiers is null || featCounters is null || inventory is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -415,7 +436,41 @@ public sealed class Player
             snapshot.LoginCalendarDay,
             snapshot.LoginCalendarDayClaimed,
             clearedChapterTiers,
-            featCounters));
+            featCounters,
+            inventory));
+    }
+
+    /// <summary>
+    /// Reads the persisted stock. <c>null</c> is a <b>fault</b>, on <c>FeatCounters</c>' precedent
+    /// and unlike <c>ClearedChapterTiers</c>: reading an absent inventory as an empty one would
+    /// delete a player's entire stock on the first load of a row that merely failed to write it, and
+    /// the deletion would look exactly like a player who owns nothing.
+    /// </summary>
+    /// <remarks>
+    /// The component's own invariants are delegated rather than restated — a repeated identity, a
+    /// row the item constructor refuses — and the capacity ceiling is deliberately not among them:
+    /// see <c>Inventory.Rehydrate</c>'s remarks for why a tunable ceiling is enforced on mutation
+    /// rather than on load, which is the same rule this aggregate applies to Energy.
+    /// </remarks>
+    private static Inventory? ReadInventory(InventorySnapshot? snapshot, List<string> faults)
+    {
+        if (snapshot is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.Inventory) + " is null. An absent inventory is not an empty " +
+                "one: read as empty, it destroys everything the player owns on the first load.");
+            return null;
+        }
+
+        var inventory = Inventory.Rehydrate(snapshot);
+
+        if (inventory.IsFailure)
+        {
+            faults.Add(nameof(PlayerSnapshot.Inventory) + ": " + inventory.Error);
+            return null;
+        }
+
+        return inventory.Value;
     }
 
     /// <summary>Moves one player-scoped wallet currency and produces the <c>CurrencyChanged</c> that attributes it.</summary>

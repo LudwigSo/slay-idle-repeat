@@ -253,6 +253,10 @@ public sealed class InventoryTuningTests
                         System.Reflection.BindingFlags.Public |
                         System.Reflection.BindingFlags.NonPublic |
                         System.Reflection.BindingFlags.DeclaredOnly)
+            // IsSpecialName drops property accessors: get_FlatSoulShardPrice IS an instance method
+            // whose name contains the token, so without this the rule fires on the very property it
+            // exists to protect and no shape could ever satisfy it.
+            .Where(method => !method.IsSpecialName)
             .Where(method => method.Name.Contains("SoulShard", StringComparison.Ordinal))
             .ShouldBeEmpty(
                 "the flat price is one number for every step, so it is a property and there is no " +

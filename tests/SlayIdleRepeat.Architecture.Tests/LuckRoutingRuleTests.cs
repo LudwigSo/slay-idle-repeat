@@ -307,6 +307,7 @@ public sealed class LuckRoutingRuleTests
         // Player that took or returned an item would put a fourth row here, which is the cost that
         // decision was taken to avoid.
         ("Inventory", "the container. It stores, holds, reclaims and locks items it is HANDED — Place takes an item somebody else already produced, and there is no draw anywhere in the type"),
+        ("GearInstanceSnapshot", "the persisted ROW of an item that was granted long before it was written down. It carries the band because that is what the item rolled — HardPityStep's and SessionFloor's reason, one layer over: a data row carrying a rarity is not a place a rarity is decided. ⚠️ It is scanned at all because the snapshot is a component record with a PUBLIC constructor, which the canonical writer requires and Model/ forbids; a snapshot of a pet or a mount will want the same row"),
         ("InventorySorting", "orders a list of owned items by slot, band, power, quality or age. Reading a band to sort by it is not deciding one — LuckTuning's reason, one layer up"),
         ("InventoryComparison", "subtracts one item's derived stats from another's. It names two GearInstances because a side-by-side delta is about exactly two of them, and GearStatDerivation — which it consumes — carries this same reason"),
     };

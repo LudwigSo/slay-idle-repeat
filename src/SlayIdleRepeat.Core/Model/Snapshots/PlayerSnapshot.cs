@@ -28,6 +28,13 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// lifetime map read as empty is a whole history silently zeroed. The optional default is a C#
 /// requirement, not a permitted value.
 /// </param>
+/// <param name="Inventory">
+/// The stock this player carries, plus the items a full stock is holding for them. ⚠️ Like
+/// <see cref="FeatCounters"/> and unlike <see cref="ClearedChapterTiers"/>, <c>null</c> is a
+/// <b>fault</b>: an absent inventory is not an empty one, and reading it as empty would destroy
+/// everything the player owns on the first load of a row that merely failed to write it. The
+/// optional default is a C# requirement, not a permitted value.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.PlayerId"/> and
 /// <see cref="Primitives.EnergyBanks"/>, plus the counter dictionaries. Every timestamp is refused
@@ -58,4 +65,5 @@ public sealed record PlayerSnapshot(
     int LoginCalendarDay,
     bool LoginCalendarDayClaimed,
     IReadOnlyDictionary<string, long>? ClearedChapterTiers = null,
-    IReadOnlyDictionary<string, long>? FeatCounters = null);
+    IReadOnlyDictionary<string, long>? FeatCounters = null,
+    InventorySnapshot? Inventory = null);

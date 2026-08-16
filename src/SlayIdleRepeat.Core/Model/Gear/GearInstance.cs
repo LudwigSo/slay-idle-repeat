@@ -70,6 +70,10 @@ public sealed record GearInstance
     /// <summary>The earliest chapter an item can originate in.</summary>
     internal const int FirstChapter = 1;
 
+    /// <summary>The affix list every item that rolled none shares. Read-only and empty, so nothing can tell it apart from a private one.</summary>
+    private static readonly ReadOnlyCollection<GearAffixRoll> NoAffixes =
+        new(Array.Empty<GearAffixRoll>());
+
     private readonly IReadOnlyList<GearAffixRoll> _affixes;
 
     /// <summary>Builds a validated gear instance.</summary>
@@ -308,6 +312,14 @@ public sealed record GearInstance
     /// </remarks>
     private static IReadOnlyList<GearAffixRoll> CopyAffixes(IReadOnlyList<GearAffixRoll> affixes)
     {
+        // Shared: an empty read-only collection has no state to leak, and the bottom rarity rolls
+        // none at all — so a stock of three hundred and twenty items would otherwise allocate two
+        // objects apiece to say "nothing", on every clone of the aggregate that holds them.
+        if (affixes.Count == 0)
+        {
+            return NoAffixes;
+        }
+
         var copy = new GearAffixRoll[affixes.Count];
 
         for (var i = 0; i < affixes.Count; i++)

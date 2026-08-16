@@ -180,5 +180,11 @@ internal static class PlayerSnapshots
     /// a fixture defaulting to one would make every rehydration case in this suite fail for a reason
     /// unrelated to what it asserts.
     /// </remarks>
-    internal static InventorySnapshot EmptyInventory { get; } = new(0, [], []);
+    /// <remarks>
+    /// Expression-bodied rather than an initialised static, and that is load-bearing: a static
+    /// initialiser runs in DECLARATION order, and <see cref="Valid"/> is declared above this — so an
+    /// initialised property here would still be <c>null</c> when <see cref="Valid"/> was built, and
+    /// every fixture in the suite would carry the very absent inventory this member exists to avoid.
+    /// </remarks>
+    internal static InventorySnapshot EmptyInventory => new(0, [], []);
 }

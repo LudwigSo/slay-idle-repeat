@@ -158,6 +158,13 @@ public sealed class PlayerSnapshotTests
             // rests on, so two players with different histories must never share a stateHash.
             (nameof(PlayerSnapshot.FeatCounters), v,
                 PlayerSnapshots.With(featCounters: PlayerSnapshots.Counters(("dice_rolled", 1)))),
+
+            // M4-05. Moved by the purchase count alone, which is the half of the field the item
+            // lists cannot stand in for: the two lists are pinned byte-for-byte — stored against
+            // held, one lock flag, one affix value — by InventoryPersistenceTests, and none of those
+            // cases would notice a bought expansion that reached no byte.
+            (nameof(PlayerSnapshot.Inventory), v,
+                PlayerSnapshots.With(inventory: new InventorySnapshot(1, [], []))),
         };
 
         var invisible = probes

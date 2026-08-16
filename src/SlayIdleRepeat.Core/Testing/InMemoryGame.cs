@@ -123,6 +123,13 @@ public sealed class InMemoryGame
 
     /// <summary>Creates a player and returns its identity.</summary>
     /// <param name="displayName">A display name, or <c>null</c> for one derived from the generated id. Stored and never interpreted.</param>
+    /// <param name="inventory">
+    /// The stock the player starts with, or <c>null</c> for the empty inventory a new player has.
+    /// 🔴 Appended LAST, and every caller passes it by name — a parameter inserted ahead of an
+    /// existing optional one merges textually clean and silently re-binds every positional argument
+    /// after it. The seam exists because a caller measuring how the per-command cost moves with the
+    /// size of the stock cannot build one grant command at a time; it would be measuring the grants.
+    /// </param>
     /// <returns>The new player's identity, for <see cref="Send"/> and <see cref="State"/>.</returns>
     /// <remarks>
     /// <para>
@@ -148,7 +155,7 @@ public sealed class InMemoryGame
     /// The starting row does not rehydrate — a defect in this method or a content set whose
     /// <c>legendLevel</c> range excludes its own minimum.
     /// </exception>
-    public PlayerId CreatePlayer(string? displayName = null)
+    public PlayerId CreatePlayer(string? displayName = null, InventorySnapshot? inventory = null)
     {
         if (displayName is not null && string.IsNullOrWhiteSpace(displayName))
         {
@@ -184,7 +191,11 @@ public sealed class InMemoryGame
             new Dictionary<string, long>(StringComparer.Ordinal),
             LoginCalendarTuning.FirstDay,
             LoginCalendarDayClaimed: false,
-            FeatCounters: new Dictionary<string, long>(StringComparer.Ordinal));
+            FeatCounters: new Dictionary<string, long>(StringComparer.Ordinal),
+
+            // Empty, never null: an absent inventory is a fault, so the starting row states the
+            // empty stock a brand-new player has rather than leaving the field to a default.
+            Inventory: inventory ?? new InventorySnapshot(0, [], []));
 
         var player = Player.Rehydrate(snapshot, Content);
 
