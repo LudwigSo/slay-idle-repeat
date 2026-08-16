@@ -4,9 +4,16 @@ using SlayIdleRepeat.Core.Primitives;
 namespace SlayIdleRepeat.Application.Services.Persistence;
 
 /// <summary>
-/// The two keys this layer stores state under, and the only place their spelling is decided.
+/// The two keys a stored aggregate lives under, and the only place their spelling is decided.
 /// </summary>
 /// <remarks>
+/// <para>
+/// ⚠️ They are not the only keys this layer writes. The in-process host owns one more — the pointer
+/// naming which profile an installation plays — and keeps it deliberately out of here, because it
+/// names a row rather than holding one and has no aggregate identity to key on. Anyone adding a key
+/// to either place should read both: a third prefix that collided with these two would read a row
+/// through the wrong door, and nothing in the cache's flat key space would notice.
+/// </para>
 /// <para>
 /// One committed row per player (<c>player.&lt;playerId&gt;</c>) holding the player and whatever run
 /// the player is in, plus one archived row per finished run (<c>run.&lt;runId&gt;</c>). The player

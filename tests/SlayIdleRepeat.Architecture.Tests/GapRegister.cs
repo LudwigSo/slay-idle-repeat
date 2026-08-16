@@ -234,15 +234,24 @@ internal static class GapRegister
         // WHAT EXISTS: Rules.Hero.HeroNameRule (07 §1's twelve characters, 27 §1's EN + DE lists, at
         // creation and on every edit), Content.ProfanityLexicon, the two word lists under
         // content/profanity/, Primitives.HeroName — a name only the rule can construct — and
-        // Player.Rename, which takes that type and nothing else. The filter cannot be bypassed by any
-        // caller that exists.
+        // Player.Rename, which takes that type and nothing else. No name a PLAYER chooses can reach
+        // the aggregate without passing the filter, because there is no door that takes one.
         //
         // WHAT DOES NOT EXIST: a caller. 14 §2.3's registry is EXHAUSTIVE and authors no rename
-        // command, so setting a name is not a command at all — it happens when an account is created,
-        // and no account-creation path exists. Core.Testing.InMemoryGame.CreatePlayer writes
-        // DisplayName directly and says so in its own comment: it runs on hermetic content sets that
-        // carry the tuning documents and nothing else, so reading content/profanity/ there would make
-        // every fixture in the Core suite depend on the shipped data set.
+        // command, so setting a name is not a command at all — it happens when an account is created.
+        //
+        // ⚠️ M7-09 CHANGED THE SECOND HALF OF THIS NOTE AND IT IS RESTATED RATHER THAN LEFT TO ROT.
+        // An account-creation path now exists: Application.Hosting.InProcessGameHost.OpenProfileAsync
+        // mints an identity and commits a starting row. It does NOT weaken 27 §1, because it names the
+        // profile after the identity it minted and no player text reaches DisplayName — nothing has
+        // asked a player for a name yet, which is still the whole of this gap. What DID move is where
+        // the unfiltered write lives: it used to be inside Core.Testing.InMemoryGame.CreatePlayer,
+        // excused because that harness runs on hermetic content sets carrying no word lists. The row
+        // is now built once, by the public Core.Model.Player.CreateStarting, which takes a plain
+        // string and stores it exactly as given; the harness and the in-process host both go through
+        // it, and its own remarks record the limit. So the unfiltered door is public on the aggregate
+        // rather than private to a harness, and M5-06 inherits a wider surface than this note used to
+        // describe: it has to route ITS name through HeroNameRule, not merely add a caller.
         //
         // OWNER: M5-06, "Auth: anonymous device accounts (keystore-held secret)" — the task that
         // first creates an account, and therefore the first place a hero name is set. It calls

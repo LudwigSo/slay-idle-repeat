@@ -73,8 +73,9 @@ namespace SlayIdleRepeat.Core.Model;
 /// chest-pick guarantee is player-scoped and lifetime and a run-scoped home would reset it every
 /// run. <b>M4-02</b> still owns the chest ladders and the in-run drop mercy that write it further;
 /// it does not own adding the field again. Entitlement lives on the session instead, reached as
-/// <c>GameContext.Entitlements</c>. There is no factory for a new player either: starting values are
-/// a later milestone's decision, and <see cref="Rehydrate"/> is the only way to obtain one.
+/// <c>GameContext.Entitlements</c>. A brand-new account comes from <see cref="CreateStarting"/>,
+/// which builds the starting row and returns it through <see cref="Rehydrate"/> — so rehydration
+/// stays the only construction path, and the starting values are declared exactly once.
 /// </para>
 /// </remarks>
 public sealed class Player
@@ -771,6 +772,97 @@ public sealed class Player
         }
 
         return Array.AsReadOnly(rows);
+    }
+
+    /// <summary>The starting state of a brand-new account, as one row, declared in one place.</summary>
+    /// <param name="id">The identity whatever creates accounts has already issued.</param>
+    /// <param name="displayName">
+    /// The name to store. Kept exactly as given and never interpreted; a blank one is refused by the
+    /// rehydration this returns through.
+    /// </param>
+    /// <param name="nowUtc">The instant the account is created at, which the period boundaries are derived from.</param>
+    /// <param name="content">The content set the authored starting values are read from.</param>
+    /// <param name="inventory">
+    /// The stock the player starts with, or <c>null</c> for the empty one a new player has.
+    /// 🔴 Appended LAST, and every caller passes it by name — a parameter inserted ahead of an
+    /// existing optional one merges textually clean and silently re-binds every positional argument
+    /// after it.
+    /// </param>
+    /// <returns>The starting aggregate, or the failure the row was refused with.</returns>
+    /// <remarks>
+    /// <para>
+    /// Every value here is either authored, derived from <paramref name="nowUtc"/>, or the identity
+    /// element — none is invented. Legend Level is the authored floor, never a literal. Wallet
+    /// balances and Energy banks start at zero, forced rather than chosen: every currency movement
+    /// must be attributed by a <c>CurrencyChanged</c> event, so a player that started with a balance
+    /// would hold currency no row attributes. Every collection whose absence is a fault is stated
+    /// empty rather than left to a default, because an absent one and an empty one are different
+    /// states and only one of them is a row the game wrote; the one collection whose row authors
+    /// <c>null</c> as its own "nothing yet" is stated as that, in full, rather than skipped silently.
+    /// </para>
+    /// <para>
+    /// It returns through <see cref="Rehydrate"/> rather than reaching the constructor itself, so
+    /// that stays the one validated construction path: this is a row builder, not a second door into
+    /// the aggregate, and a starting row that would not load back is a failure here rather than a
+    /// created account.
+    /// </para>
+    /// <para>
+    /// ⚠️ The name is stored without passing the hero-name rule, and that is a limit rather than an
+    /// oversight: nothing asks a player for a name at creation, so the caller's own text is all
+    /// there is. <see cref="Rename"/> is the door a player-chosen name comes through, and it is
+    /// where the filter runs.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
+    /// <exception cref="MissingContentException">The content set does not author a Legend Level range.</exception>
+    /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
+    /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
+    public static Result<Player> CreateStarting(
+        PlayerId id,
+        string displayName,
+        DateTimeOffset nowUtc,
+        ContentSnapshot content,
+        InventorySnapshot? inventory = null)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        var legend = LegendTuning.Read(content);
+
+        var snapshot = new PlayerSnapshot(
+            SnapshotSchema.SchemaVersion,
+            id,
+            displayName,
+            legend.Minimum,
+            LegendXp: 0L,
+            RunsStarted: 0L,
+            WalletCurrencies.ToDictionary(currency => currency, _ => 0L),
+            new EnergyBanks(0, 0),
+            EnergyAnchorUtc: nowUtc,
+            LastAppliedAtUtc: nowUtc,
+            FtueBeat.B0,
+            FtueCompletedAtUtc: null,
+            GameCalendar.GameDayStartAt(nowUtc),
+            new Dictionary<string, long>(StringComparer.Ordinal),
+            GameCalendar.GameWeekStartAt(nowUtc),
+            new Dictionary<string, long>(StringComparer.Ordinal),
+            LoginCalendarTuning.FirstDay,
+            LoginCalendarDayClaimed: false,
+
+            // Stated rather than skipped: this is the one field on the row whose own declaration
+            // authors null as "nothing cleared yet", so leaving it to the default would be the only
+            // value here a reader could not tell from a field somebody forgot.
+            ClearedChapterTiers: null,
+            FeatCounters: new Dictionary<string, long>(StringComparer.Ordinal),
+            PityCounters: new Dictionary<string, int>(StringComparer.Ordinal),
+            Inventory: inventory ?? new InventorySnapshot(0, [], []),
+            AutoSalvageRules: [],
+
+            // A point is granted on the way up; a player at the floor has made no level-up.
+            TalentPoints: 0L,
+            Loadout: new LoadoutSnapshot(new Dictionary<GearSlot, GearInstanceId>(0)),
+            Presets: []);
+
+        return Rehydrate(snapshot, content);
     }
 
     /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
