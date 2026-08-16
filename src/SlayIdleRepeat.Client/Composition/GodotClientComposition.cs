@@ -1,5 +1,6 @@
 using Godot;
 using SlayIdleRepeat.Adapters.Platform.Godot;
+using SlayIdleRepeat.Application.Hosting;
 
 namespace SlayIdleRepeat.Client.Composition;
 
@@ -9,12 +10,18 @@ namespace SlayIdleRepeat.Client.Composition;
 public sealed class GodotClientCapabilities
 {
     /// <summary>Carries the four engine-backed capabilities.</summary>
+    /// <exception cref="ArgumentNullException">Any capability is null.</exception>
     public GodotClientCapabilities(
         GodotUserPaths paths,
         GodotPlatformInfo platformInfo,
         GodotHaptics haptics,
         GodotAudioOutput audio)
     {
+        ArgumentNullException.ThrowIfNull(paths);
+        ArgumentNullException.ThrowIfNull(platformInfo);
+        ArgumentNullException.ThrowIfNull(haptics);
+        ArgumentNullException.ThrowIfNull(audio);
+
         Paths = paths;
         PlatformInfo = platformInfo;
         Haptics = haptics;
@@ -50,15 +57,44 @@ public static class GodotClientComposition
 {
     /// <summary>Builds the engine capabilities, parenting audio players under the given node.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="audioSceneRoot"/> is null.</exception>
-    public static GodotClientCapabilities BuildCapabilities(Node audioSceneRoot) =>
-        throw new NotImplementedException();
+    public static GodotClientCapabilities BuildCapabilities(Node audioSceneRoot)
+    {
+        ArgumentNullException.ThrowIfNull(audioSceneRoot);
+
+        return new GodotClientCapabilities(
+            new GodotUserPaths(),
+            new GodotPlatformInfo(),
+            new GodotHaptics(),
+            new GodotAudioOutput(audioSceneRoot));
+    }
 
     /// <summary>
     /// Resolves the roots through the engine and composes the client for a local host: one
     /// local profile, no subscription resolved, no remote config resolved.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ Both ambience values are absences rather than defaults, and they are named as such by
+    /// the factories that produce them. Nothing on the client is allowed to decide locally that
+    /// a player has Plus, so the honest value here is the one that says no store and no remote
+    /// config have been reached — not the one that would be most convenient to develop against.
+    /// </para>
+    /// <para>
+    /// 🔒 The content root is resolved before anything is constructed, and its absence throws
+    /// rather than degrading. See <see cref="GodotUserPaths.ResolveContentDataRoot"/> for why a
+    /// packed build is the case that hits it.
+    /// </para>
+    /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="capabilities"/> is null.</exception>
     /// <exception cref="DirectoryNotFoundException">The content data root the engine resolves does not exist.</exception>
-    public static ComposedClient ComposeLocalHost(GodotClientCapabilities capabilities) =>
-        throw new NotImplementedException();
+    public static ComposedClient ComposeLocalHost(GodotClientCapabilities capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+
+        return ClientComposition.Compose(
+            capabilities.Paths.ResolveWritableCacheRoot(),
+            capabilities.Paths.ResolveContentDataRoot(),
+            LocalHostAmbience.NoSubscriptionResolved(),
+            LocalHostAmbience.NoRemoteConfigResolved());
+    }
 }

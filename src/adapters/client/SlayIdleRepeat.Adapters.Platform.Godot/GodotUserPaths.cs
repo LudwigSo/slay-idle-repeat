@@ -19,8 +19,11 @@ namespace SlayIdleRepeat.Adapters.Platform.Godot;
 /// </remarks>
 public sealed class GodotUserPaths
 {
+    /// <summary>Where the build-time mirror of <c>game-data</c> lands inside the project.</summary>
+    private const string ContentDataResourcePath = "res://data";
+
     /// <summary>The absolute path of the writable per-user directory the local profile lives in.</summary>
-    public string ResolveWritableCacheRoot() => throw new NotImplementedException();
+    public string ResolveWritableCacheRoot() => global::Godot.OS.GetUserDataDir();
 
     /// <summary>
     /// The absolute path of the directory holding the game-data mirror.
@@ -31,5 +34,20 @@ public sealed class GodotUserPaths
     /// fallback here would ship a build that starts and then has no content.
     /// </remarks>
     /// <exception cref="DirectoryNotFoundException">The resolved directory does not exist.</exception>
-    public string ResolveContentDataRoot() => throw new NotImplementedException();
+    public string ResolveContentDataRoot()
+    {
+        var resolved = global::Godot.ProjectSettings.GlobalizePath(ContentDataResourcePath);
+
+        return Directory.Exists(resolved)
+            ? resolved
+            : throw new DirectoryNotFoundException(
+                $"The engine resolved '{ContentDataResourcePath}' to '{resolved}', and there is no directory " +
+                "there. Running from a checkout, that means the build-time mirror of 'game-data' into the " +
+                "project has not run. Running from an EXPORTED build, it is expected and is not fixable here: " +
+                "resources packed into a .pck or an APK are reachable only through the engine's own file " +
+                "access, never through System.IO, so the content source needs either an engine-backed " +
+                "implementation or an export that ships 'data/' loose beside the executable. Either way the " +
+                "game has no content to load, and starting anyway would only move the failure somewhere it " +
+                "no longer names its cause.");
+    }
 }
