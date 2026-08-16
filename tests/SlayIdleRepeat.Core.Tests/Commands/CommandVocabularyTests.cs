@@ -445,17 +445,17 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void The_list_carrying_commands_compare_by_value()
     {
-        new SalvageCommand(new[] { "a", "b" })
-            .ShouldBe(new SalvageCommand(new List<string> { "a", "b" }));
+        new SalvageCommand(Items("a", "b"))
+            .ShouldBe(new SalvageCommand(new List<GearInstanceId>(Items("a", "b"))));
 
-        new SalvageCommand(new[] { "a", "b" })
-            .ShouldNotBe(new SalvageCommand(new[] { "b", "a" }));
+        new SalvageCommand(Items("a", "b"))
+            .ShouldNotBe(new SalvageCommand(Items("b", "a")));
 
-        new RetuneItemCommand("i", new[] { "AFX_PEN" }, new[] { "AFX_CRIT_CHANCE" })
-            .ShouldBe(new RetuneItemCommand("i", new[] { "AFX_PEN" }, new[] { "AFX_CRIT_CHANCE" }));
+        new RetuneItemCommand(Item("i"), new[] { "AFX_PEN" }, new[] { "AFX_CRIT_CHANCE" })
+            .ShouldBe(new RetuneItemCommand(Item("i"), new[] { "AFX_PEN" }, new[] { "AFX_CRIT_CHANCE" }));
 
-        new RetuneItemCommand("i", new[] { "AFX_PEN" }, new[] { "AFX_CRIT_CHANCE" })
-            .ShouldNotBe(new RetuneItemCommand("i", new[] { "AFX_CRIT_CHANCE" }, new[] { "AFX_PEN" }),
+        new RetuneItemCommand(Item("i"), new[] { "AFX_PEN" }, new[] { "AFX_CRIT_CHANCE" })
+            .ShouldNotBe(new RetuneItemCommand(Item("i"), new[] { "AFX_CRIT_CHANCE" }, new[] { "AFX_PEN" }),
                 "the locks and the wishlist are different fields; swapping them is a different intent.");
 
         new ClaimInboxCommand(new[] { "m1" }).ShouldBe(new ClaimInboxCommand(new[] { "m1" }));
@@ -470,8 +470,8 @@ public sealed class CommandVocabularyTests
 
         // Ordinal. A culture- or case-insensitive comparison would make two commands equal on one
         // host and unequal on another.
-        new SalvageCommand(new[] { "AFX_PEN" }).ShouldNotBe(
-            new SalvageCommand(new[] { "afx_pen" }),
+        new SalvageCommand(Items("AFX_PEN")).ShouldNotBe(
+            new SalvageCommand(Items("afx_pen")),
             "payload ids compare ordinally, like every other 14 §2.3 identifier in this repository.");
     }
 
@@ -485,28 +485,28 @@ public sealed class CommandVocabularyTests
     {
         var cache = new Dictionary<GameCommand, string>
         {
-            [new SalvageCommand(new[] { "a", "b" })] = "outcome",
+            [new SalvageCommand(Items("a", "b"))] = "outcome",
             [new ClaimInboxCommand()] = "claim-all",
-            [new RetuneItemCommand("i", new[] { "x" }, Array.Empty<string>())] = "retune",
+            [new RetuneItemCommand(Item("i"), new[] { "x" }, Array.Empty<string>())] = "retune",
         };
 
-        cache[new SalvageCommand(new List<string> { "a", "b" })].ShouldBe("outcome");
+        cache[new SalvageCommand(new List<GearInstanceId>(Items("a", "b")))].ShouldBe("outcome");
         cache[new ClaimInboxCommand()].ShouldBe("claim-all");
-        cache[new RetuneItemCommand("i", new[] { "x" }, Array.Empty<string>())].ShouldBe("retune");
+        cache[new RetuneItemCommand(Item("i"), new[] { "x" }, Array.Empty<string>())].ShouldBe("retune");
 
-        cache.ContainsKey(new SalvageCommand(new[] { "b", "a" })).ShouldBeFalse();
+        cache.ContainsKey(new SalvageCommand(Items("b", "a"))).ShouldBeFalse();
 
         // The EqualityContract term in the hand-written GetHashCode. Without it these two hash
         // identically — legal, since Equals still tells them apart, but it buckets two different
         // commands together in the very cache the replay cache will be.
-        new SalvageCommand(Array.Empty<string>()).GetHashCode()
+        new SalvageCommand(Array.Empty<GearInstanceId>()).GetHashCode()
             .ShouldNotBe(new ClaimInboxCommand(Array.Empty<string>()).GetHashCode());
 
-        ((GameCommand)new SalvageCommand(new[] { "a" }))
-            .Equals(new SalvageCommand(new[] { "a" })).ShouldBeTrue();
+        ((GameCommand)new SalvageCommand(Items("a")))
+            .Equals(new SalvageCommand(Items("a"))).ShouldBeTrue();
 
-        (new SalvageCommand(new[] { "a" }) == new SalvageCommand(new[] { "a" })).ShouldBeTrue();
-        (new SalvageCommand(new[] { "a" }) != new SalvageCommand(new[] { "z" })).ShouldBeTrue();
+        (new SalvageCommand(Items("a")) == new SalvageCommand(Items("a"))).ShouldBeTrue();
+        (new SalvageCommand(Items("a")) != new SalvageCommand(Items("z"))).ShouldBeTrue();
     }
 
     /// <summary>
@@ -539,7 +539,7 @@ public sealed class CommandVocabularyTests
 
         // The list payloads, which without a PrintMembers render the wrapper's type name instead of
         // the ids a rejection diagnostic wants.
-        new SalvageCommand(new[] { "a", "b" }).ToString()
+        new SalvageCommand(Items("a", "b")).ToString()
             .ShouldContain("ItemIds = [a, b]", Case.Sensitive);
 
         new ClaimInboxCommand().ToString().ShouldContain("MessageIds = null", Case.Sensitive);
@@ -564,11 +564,11 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void Equal_list_carrying_commands_hash_equally()
     {
-        new SalvageCommand(new[] { "a", "b" }).GetHashCode()
-            .ShouldBe(new SalvageCommand(new[] { "a", "b" }).GetHashCode());
+        new SalvageCommand(Items("a", "b")).GetHashCode()
+            .ShouldBe(new SalvageCommand(Items("a", "b")).GetHashCode());
 
-        new RetuneItemCommand("i", new[] { "x" }, Array.Empty<string>()).GetHashCode()
-            .ShouldBe(new RetuneItemCommand("i", new[] { "x" }, Array.Empty<string>()).GetHashCode());
+        new RetuneItemCommand(Item("i"), new[] { "x" }, Array.Empty<string>()).GetHashCode()
+            .ShouldBe(new RetuneItemCommand(Item("i"), new[] { "x" }, Array.Empty<string>()).GetHashCode());
 
         new ClaimInboxCommand().GetHashCode().ShouldBe(new ClaimInboxCommand().GetHashCode());
     }
@@ -581,14 +581,21 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void Every_list_payload_is_copied_and_cannot_be_written_through()
     {
-        var probes = new (string Name, Func<string[], IReadOnlyList<string>> Build)[]
+        // The list element types are no longer all `string` — SALVAGE carries declared gear instance
+        // ids — so the probes hand back the non-generic IList every ReadOnlyCollection<T> implements
+        // and the assertions are stated over the element's rendering rather than its static type.
+        var probes = new (string Name, Func<string[], System.Collections.IList> Build)[]
         {
-            (nameof(SalvageCommand.ItemIds), ids => new SalvageCommand(ids).ItemIds),
+            (nameof(SalvageCommand.ItemIds),
+                ids => (System.Collections.IList)new SalvageCommand(Items(ids)).ItemIds),
             (nameof(RetuneItemCommand.LockedAffixIds),
-                ids => new RetuneItemCommand("i", ids, Array.Empty<string>()).LockedAffixIds),
+                ids => (System.Collections.IList)new RetuneItemCommand(
+                    Item("i"), ids, Array.Empty<string>()).LockedAffixIds),
             (nameof(RetuneItemCommand.WishlistAffixIds),
-                ids => new RetuneItemCommand("i", Array.Empty<string>(), ids).WishlistAffixIds),
-            (nameof(ClaimInboxCommand.MessageIds), ids => new ClaimInboxCommand(ids).MessageIds!),
+                ids => (System.Collections.IList)new RetuneItemCommand(
+                    Item("i"), Array.Empty<string>(), ids).WishlistAffixIds),
+            (nameof(ClaimInboxCommand.MessageIds),
+                ids => (System.Collections.IList)new ClaimInboxCommand(ids).MessageIds!),
         };
 
         probes.Length.ShouldBe(4, "14 §2.3 gives SALVAGE, RETUNE_ITEM (twice) and CLAIM_INBOX a list payload.");
@@ -600,15 +607,15 @@ public sealed class CommandVocabularyTests
 
             callers[0] = "MUTATED";
 
-            stored[0].ShouldBe("a", $"{name} handed back the caller's own array.");
+            stored[0]!.ToString().ShouldBe("a", $"{name} handed back the caller's own array.");
 
-            stored.ShouldNotBeAssignableTo<string[]>(
-                $"{name}: a bare array behind an IReadOnlyList<string> casts straight back to " +
-                "string[] — the hole M1-05 closed on the aggregates, one indirection out.");
+            stored.GetType().IsArray.ShouldBeFalse(
+                $"{name}: a bare array behind an IReadOnlyList<T> casts straight back to T[] — the " +
+                "hole M1-05 closed on the aggregates, one indirection out.");
 
-            // ReadOnlyCollection<T> implements IList<T>, so the cast is available and the refusal has
-            // to be the setter's rather than the type system's.
-            Should.Throw<NotSupportedException>(() => ((IList<string>)stored)[0] = "MUTATED");
+            // ReadOnlyCollection<T> implements IList, so the cast is available and the refusal has to
+            // be the setter's rather than the type system's.
+            Should.Throw<NotSupportedException>(() => stored[0] = "MUTATED");
         }
     }
 
@@ -647,14 +654,20 @@ public sealed class CommandVocabularyTests
         Should.Throw<ArgumentNullException>(() => new SalvageCommand(null!))
             .ParamName.ShouldBe("itemIds");
 
-        Should.Throw<ArgumentNullException>(() => new RetuneItemCommand("i", null!, Array.Empty<string>()))
+        Should.Throw<ArgumentNullException>(() => new RetuneItemCommand(Item("i"), null!, Array.Empty<string>()))
             .ParamName.ShouldBe("lockedAffixIds");
 
-        Should.Throw<ArgumentNullException>(() => new RetuneItemCommand("i", Array.Empty<string>(), null!))
+        Should.Throw<ArgumentNullException>(() => new RetuneItemCommand(Item("i"), Array.Empty<string>(), null!))
             .ParamName.ShouldBe("wishlistAffixIds");
     }
 
     // ------------------------------------------------------------------------------------ helpers
+
+    /// <summary>A gear instance id, for a payload that now carries the declared vocabulary.</summary>
+    private static GearInstanceId Item(string id) => new(id);
+
+    /// <summary>Several gear instance ids, in the order given.</summary>
+    private static GearInstanceId[] Items(params string[] ids) => ids.Select(Item).ToArray();
 
     /// <summary>A milestone task id: <c>M3-15</c>, <c>M12-04</c>. Stricter than a bare milestone — every owner must be a tracker row.</summary>
     private static readonly System.Text.RegularExpressions.Regex TaskId =
@@ -785,6 +798,32 @@ public sealed class CommandVocabularyTests
         if (type == typeof(IReadOnlyList<string>))
         {
             return Array.Empty<string>();
+        }
+
+        // 🔒 The three the gear commands carry, added by M4-03 in the commit that retyped them.
+        // Justified where this message says it has to be: the register entry M1-02 hung the six gear
+        // payloads on names them, and CommandPayload's remarks record why a declared vocabulary now
+        // travels on the payload where raw text used to. A nullable slot or family is the SET_FOCUS
+        // clear, so the sample is the VALUE rather than null — a null sample would exercise the
+        // clearing path for both and never the naming one.
+        if (type == typeof(GearInstanceId))
+        {
+            return new GearInstanceId("x");
+        }
+
+        if (type == typeof(GearSlot) || type == typeof(GearSlot?))
+        {
+            return GearSlot.WEAPON;
+        }
+
+        if (type == typeof(GearFamily) || type == typeof(GearFamily?))
+        {
+            return GearFamily.BLADE;
+        }
+
+        if (type == typeof(IReadOnlyList<GearInstanceId>))
+        {
+            return Array.Empty<GearInstanceId>();
         }
 
         throw new InvalidOperationException(

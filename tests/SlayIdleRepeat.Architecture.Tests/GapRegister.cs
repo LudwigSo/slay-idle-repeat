@@ -143,11 +143,25 @@ internal static class GapRegister
             "30 §7 writes it as (int Sequence, TileType Type, NodeId Node). Both payload types are the " +
             "board's (03), authored by M3-03. Keyed on TileType; NodeId lands in the same task."),
 
-        new("GearGranted", "M4-03", "GearInstance",
-            "30 §7 writes it as (int Sequence, GearInstance Item, SourceClass Source, bool FromPity). " +
-            "GearInstance is the gear aggregate's (08), authored by M4-03. Keyed on GearInstance rather " +
-            "than on SourceClass deliberately: SourceClass arrives earlier, with M4-01's LuckService, and " +
-            "the event still could not be written on that day."),
+        // 🔒 M4-03 discharged the GearGranted entry that used to sit here, and it is a discharge
+        // rather than an expiry — in BOTH directions at once, which is the strongest form this
+        // register has: Model.Gear.GearInstance is authored (Expired()'s WaitsFor arm would fire) AND
+        // Events.GearGranted is written (Expired()'s Subject arm would fire too). The removal is
+        // FORCED by the commit that authored the payload, exactly as the register's own remarks
+        // promise, rather than remembered at a later kickoff. The Surfaces transcription below still
+        // lists "GearGranted" under 30 §7 — Undeclared() now finds it authored under
+        // Domain.EventsNamespace directly, on the DiceRolled and PityCounterAdvanced precedents.
+        //
+        // The entry's real question was not "does the payload type exist" but whether an event may
+        // carry a Model/ type at all: 30 §11.4's chain named neither Commands nor Events, so the
+        // Events -> Model edge was ungoverned in both directions and M1-03, M1-06 and M1-11 each
+        // closed the unambiguous halves and left this one open by name. IT IS NOW RULED, at the M4
+        // kickoff, and permitted NARROWLY: an event may name a Model/ type only when that type is an
+        // immutable, fully serialisable value record with no mutators, and never an aggregate ROOT
+        // nor any Model/ type carrying an internal mutator. 30 §11.4 carries the amendment, and
+        // AccessibilityBoundaryTests.An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record
+        // carries the enforcement — as its own rule, because a forbidden namespace PAIR cannot state
+        // a condition on the shape of the type reached.
 
         // 🔒 M4-01 discharged the PityCounterAdvanced entry that used to sit here, and it is a
         // discharge rather than an expiry: LuckService exists (Expired()'s WaitsFor arm would fire)
@@ -175,19 +189,28 @@ internal static class GapRegister
         // Four things 30 §4 puts on the Player aggregate that M1-04 authored the aggregate WITHOUT.
         // None of them has an element type yet, and one of them has no decided content at all.
 
-        new("Inventory", "M4-03", "GearInstance",
-            "🔒 M1-02 ALSO HANGS SIX COMMAND PAYLOADS ON THIS ENTRY. 14 §2.3's payload column names " +
-            "gear instance ids and a gear SLOT that no type expresses today, so EquipCommand, " +
-            "EnhanceCommand, SalvageCommand, SetFocusCommand, ReforgeItemCommand and " +
-            "RetuneItemCommand carry them as text. The commit that declares GearInstance retypes " +
-            "those six in the same change — otherwise M4-03's vocabulary and the wire's are two " +
-            "vocabularies for one concept, which is 30 §11.6's failure mode one layer in. " +
-            "30 §4 lists 'inventory, gear instances' among Player's contents, and 08 §5 caps it at 400 " +
-            "slots. Neither can be stored before the thing being stored exists: GearInstance carries " +
-            "quality, chapterOrigin, a mercy counter, affixes and a lock (08 §2-3), and every one of " +
-            "those is a decision M4-03 makes. A List<something> authored now would freeze the item " +
-            "shape under M4-04's forge and M4-05's capacity curve (S6). Keyed on GearInstance because " +
-            "the shelf and the slots are the same missing type."),
+        new("Inventory", "M4-05", "InventoryTuning",
+            "🔒 M4-03 DISCHARGED HALF OF THIS ENTRY AND RE-POINTED THE REST, rather than deleting it " +
+            "or buying silence with an arbitrary later type. What is discharged is the ELEMENT and " +
+            "the VOCABULARY: Model.Gear.GearInstance is authored — quality, chapterOrigin, the " +
+            "enhance mercy counter, the affixes and the lock, every one of them a decision M4-03 " +
+            "made — and the six command payloads M1-02 hung on this entry are retyped in that same " +
+            "commit. EquipCommand and SetFocusCommand now carry Primitives.GearSlot (and " +
+            "SetFocusCommand a GearFamily); EnhanceCommand, SalvageCommand, ReforgeItemCommand and " +
+            "RetuneItemCommand carry Primitives.GearInstanceId. MergeCommand was retyped with them " +
+            "although M1-02 did not list it, because it carries two gear instance ids and leaving it " +
+            "as text is the exact 'two vocabularies for one concept, every rule green' failure this " +
+            "carry-forward is about. " +
+            "⚠️ WHAT IS NOT DISCHARGED is the FIELD on the aggregate. 30 §4 lists 'inventory, gear " +
+            "instances' among Player's contents, and storing them needs the capacity model — the " +
+            "base/cap ladder and the hold-not-lose overflow rule — which is M4-05's and which nothing " +
+            "reads today. Keyed on InventoryTuning, the reader of forge.json#/inventory that a " +
+            "capacity nothing reads cannot have: the name is an INFERENCE from this repository's own " +
+            "<X>Tuning convention rather than a type M4-05 has chosen, and if it picks another the " +
+            "correct action is to rename this entry, not to delete it. 🔒 THE LOAD-BEARING TRIPWIRE " +
+            "IS THE SUBJECT ARM, and this entry says so rather than overselling itself: Expired()'s " +
+            "second arm fires on IsPresentInCore('Inventory'), so M4-05 cannot author the field and " +
+            "leave this standing, whatever it calls its reader."),
 
         new("ContainerShelf", "M4-02", "ContainerClass",
             "🔒 M1-02 ALSO HANGS THREE COMMAND PAYLOADS ON THIS ENTRY: OpenChestCommand, " +

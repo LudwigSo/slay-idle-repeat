@@ -119,7 +119,7 @@
       }
     },
     "affixPool": {
-      "description": "08 §3.1 — 14 affixes, slot-restricted, rolled by rarity B and above. Only three affix IDs exist in the design docs; the remaining eleven carry id: null and must not be invented.",
+      "description": "08 §3.1 — 14 affixes, slot-restricted, rolled by rarity B and above. Three ids are authored in the design docs (AFX_CRIT_CHANCE, AFX_CRIT_DAMAGE, AFX_PEN); M4-03 derived the other eleven from the same AFX_<STAT> convention under a kickoff ruling, so the id is now required rather than nullable — a row that loses its id can no longer be rolled, and the schema says so instead of the reader discovering it.",
       "type": "object",
       "additionalProperties": false,
       "required": ["_doc", "affixes"],
@@ -135,7 +135,7 @@
             "additionalProperties": false,
             "required": ["id", "displayName", "min", "max", "slots"],
             "properties": {
-              "id": { "type": ["string", "null"], "pattern": "^AFX_[A-Z0-9_]+$" },
+              "id": { "type": "string", "pattern": "^AFX_[A-Z0-9_]+$" },
               "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
               "min": { "type": "number", "minimum": 0 },
               "max": { "type": "number", "minimum": 0 },

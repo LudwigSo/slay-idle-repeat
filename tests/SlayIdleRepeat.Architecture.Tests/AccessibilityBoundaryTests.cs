@@ -207,13 +207,20 @@ public sealed class AccessibilityBoundaryTests
             (Domain.CommandsNamespace, new[] { Domain.ModelNamespace, Domain.RulesNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
 
             // 🔒 M1-11. Events gets its FIRST row here, and it is deliberately a row of exactly one
-            // entry. The contested half of the Events question is `Events -> Model` — 30 §7 writes
-            // GearGranted(int, GearInstance, SourceClass, bool) and GearInstance is a Model
-            // aggregate, so a row forbidding it would contradict 30 §7 and block M4-03; that ruling
-            // is still owned by the M4 kickoff and is NOT pre-empted here. `Events -> Testing` is not
-            // contested under any reading: Apply PRODUCES the event list and the harness CONSUMES
-            // Apply, so an event naming InMemoryGame is a cycle. Measured before this row existed: a
-            // `typeof(InMemoryGame)` field added to CurrencyChanged passed 63/63.
+            // entry. `Events -> Testing` is not contested under any reading: Apply PRODUCES the event
+            // list and the harness CONSUMES Apply, so an event naming InMemoryGame is a cycle.
+            // Measured before this row existed: a `typeof(InMemoryGame)` field added to
+            // CurrencyChanged passed 63/63.
+            //
+            // 🔒 M4-03 — `Events -> Model` IS NOW RULED, and it is still not a row here. The M4
+            // kickoff permitted it NARROWLY: an event may name a Model/ type only when that type is
+            // an immutable, fully serialisable value record with no mutators, and never an aggregate
+            // ROOT nor any Model/ type carrying an internal mutator. A forbidden PAIR cannot say
+            // that — the permitted reference and the forbidden one go to the same namespace and
+            // differ only in the SHAPE of the type reached, which is the same argument
+            // The_harness_drives_the_aggregates_through_their_public_seam_only makes for itself one
+            // rule over. So the ruling lands as its own rule beside this one:
+            // An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record.
             (Domain.EventsNamespace, new[] { Domain.RulesNamespace, Domain.HandlersNamespace, Domain.TestingNamespace }),
 
             // 🔒 M1-11, `30` §6 + `30` §11.2. Core/Testing/ was an ungoverned region until this
@@ -297,14 +304,12 @@ public sealed class AccessibilityBoundaryTests
         // match every type in the assembly and make the rule above trivially true — the same trap
         // Domain.IsPermittedCoreNamespace documents for the permitted-namespace list.
         // ⚠️ `Events` is here and in NO row of the table above, and that asymmetry is deliberate.
-        // 30 §11.4's chain omits Commands and Events entirely, while 30 §7 writes
-        // GearGranted(int, GearInstance, SourceClass, bool) — GearInstance being a Model aggregate.
-        // So a row forbidding Events -> Model would contradict 30 §7 and block M4-03, and it is not
-        // written on a guess; the ruling is owned by M1-06's brief and due at the M4 kickoff (see
-        // SubjectSetFloorTests' Events row). What is NOT in doubt in either reading is the
-        // direction below: Apply produces events, so an event naming GameRules or GameContext is a
-        // cycle, and this row can fire today — GameContext, Entitlements and FeatureFlags are all
-        // in the root already.
+        // 30 §11.4's chain omitted Commands and Events entirely; the M4 kickoff amended it, and the
+        // Events -> Model half it permitted is stated as its own shape-sensitive rule below rather
+        // than as a forbidden pair (see the Events row's own note in the table above). What was
+        // never in doubt in either reading is the direction below: Apply produces events, so an
+        // event naming GameRules or GameContext is a cycle, and this row can fire today —
+        // GameContext, Entitlements and FeatureFlags are all in the root already.
         var mustNotReachTheRoot = new[]
         {
             Domain.PrimitivesNamespace,
@@ -408,6 +413,287 @@ public sealed class AccessibilityBoundaryTests
             "Handlers (it drives the domain through GameRules.Apply alone) and nothing beneath it — root " +
             "included — names the harness, and Primitives, Content, Rng, Events, Commands and Model never " +
             "reach up into the SlayIdleRepeat.Core root (30 §11.4, 30 §6, 30 §11.2).");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.4, as amended — <b>an event may name a <c>Core/Model/</c> type only when that type
+    /// is an immutable value record with no mutators.</b> Never an aggregate root, and never a
+    /// <c>Model/</c> type that carries an internal mutator.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why the permission had to be narrow rather than absolute.</b> `30` §7 writes
+    /// <c>GearGranted(int, GearInstance, SourceClass, bool)</c>, and all four consumers of the event
+    /// list — analytics, the economy log, Feats and the client's replay — <em>serialise</em> it, so
+    /// an event that carried an id instead would send every one of them back to an aggregate whose
+    /// state has since moved on. Forbidding <c>Events → Model</c> outright would have contradicted
+    /// §7 and blocked the task that authors gear.
+    /// </para>
+    /// <para>
+    /// <b>Why it had to be narrow rather than open.</b> An event naming <c>Player</c> would put an
+    /// aggregate root — with its <c>internal</c> mutators — into a list that leaves the domain,
+    /// handing the outside world a mutation path around the single public one that `30` §11.2 exists
+    /// to be. A value record has no such path: there is nothing on it to call.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Its own rule rather than a row in <see cref="Core_internal_layering_holds"/>' table, and
+    /// that is forced.</b> That table matches namespace PAIRS, and here the permitted reference and
+    /// the forbidden one go to the same namespace and differ only in the <em>shape</em> of the type
+    /// reached — the identical argument
+    /// <see cref="The_harness_drives_the_aggregates_through_their_public_seam_only"/> makes for
+    /// itself. A pair cannot express it, and widening the table's matcher to carry a shape predicate
+    /// would make every other row pay for this one.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What it does not close.</b> The reference is read from IL, so a <c>const</c> on a
+    /// <c>Model/</c> type read from an event is invisible here for the reason
+    /// <see cref="InlinedCrossLayerReferences"/> records at length — a constant is folded at the use
+    /// site. That is the loud direction of a narrow hole: a folded <c>int</c> cannot carry an
+    /// aggregate. And "immutable" is decided from metadata, so a record whose component is itself a
+    /// mutable collection handed out behind a read-only interface passes here and is caught by
+    /// <see cref="Apply_is_the_only_public_mutation"/>'s exposed-collection arm instead.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record()
+    {
+        var offenders = new List<string>();
+
+        foreach (var type in Domain.CoreTypesUnder(Domain.EventsNamespace))
+        {
+            foreach (var referenced in Il.ReferencedTypeNames(type))
+            {
+                if (!referenced.StartsWith(Domain.ModelNamespace + ".", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var named = Domain.CoreTypes.FirstOrDefault(
+                    t => t.FullName.Equals(referenced, StringComparison.Ordinal));
+
+                if (named is null || IsSnapshotShapedValueRecord(named))
+                {
+                    continue;
+                }
+
+                var what = AggregateRootNames.Contains(named.Name, StringComparer.Ordinal)
+                    ? "an aggregate root"
+                    : "a mutable Model type";
+
+                offenders.Add(
+                    $"{type.FullName} names {referenced}, which is not an immutable value record. " +
+                    "30 §11.4, as amended, lets an event name a Model/ type ONLY when that type is " +
+                    "snapshot-shaped: immutable, fully serialisable, and carrying no mutator at any " +
+                    "accessibility. An event leaves the domain — it is persisted append-only, " +
+                    "projected into analytics, counted by Feats and replayed by the client — so an " +
+                    $"event carrying {what} hands the outside world a mutation path around " +
+                    "GameRules.Apply, which 30 §11.2 exists to be the only one of. Carry the value " +
+                    "the event is about, not the aggregate it came from.");
+            }
+        }
+
+        // 🔒 S3 — the floor, by identity rather than by count. This rule is "no event names a Model
+        // type that is not a value record", which passes forever the moment no event names a Model
+        // type at all — and 30 §7's GearGranted is the one event that does, so its absence would be
+        // the rule going quiet rather than the codebase staying clean.
+        var reachedModelTypes = ModelTypesNamedByEvents().ToArray();
+
+        if (!reachedModelTypes.Contains(GearInstanceType, StringComparer.Ordinal))
+        {
+            offenders.Add(
+                $"no event under {Domain.EventsNamespace} names {GearInstanceType}. It is the one " +
+                "Model/ type 30 §7 puts inside an event, and the reason this rule exists at all: " +
+                "without it the rule quantifies over nothing and would report success over an event " +
+                "hierarchy that had started carrying aggregates. If GearGranted was renamed or its " +
+                "payload changed, move this floor with it in the same commit.");
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "30 §11.4 (amended): an event names a Core/Model/ type only when that type is an " +
+            "immutable value record with no mutators — never an aggregate root.");
+    }
+
+    /// <summary>
+    /// 🔒 `30` §11.4 (amended) / `23` §6 — the teeth of the rule above (steering S1), driven against
+    /// real IL: <b>two accepting shapes and a refusing control</b>, because one passing probe proves
+    /// a predicate is not vacuous and says nothing about whether it is correctly scoped.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The control carries the weight here more than anywhere else in this file, because the rule's
+    /// whole job is to <em>accept</em> one shape while <em>refusing</em> another in the same
+    /// namespace. A predicate that accepted everything and a predicate that refused everything would
+    /// each satisfy half of this fact; only both halves together say it discriminates.
+    /// </para>
+    /// <para>
+    /// Two of the four subjects are real production types — <c>GearInstance</c> must be accepted or
+    /// the amendment blocks the task it was written for, and <c>Player</c> must be refused or the
+    /// amendment permits exactly what it excludes. The other two are fixtures, because a violation is
+    /// never committed to <c>Core</c> to prove a rule works.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_value_record_predicate_accepts_two_shapes_and_refuses_an_aggregate()
+    {
+        Assert.True(
+            IsSnapshotShapedValueRecord(SuiteAssembly.Type(nameof(ValueRecordFixtures.FlatValueRecord))),
+            "a record whose every field is readonly and whose only writes happen in its constructor " +
+            "is the shape the amendment permits. If this is false the rule refuses the very thing it " +
+            "was written to allow, and GearGranted cannot be written at all.");
+
+        Assert.True(
+            IsSnapshotShapedValueRecord(
+                SuiteAssembly.Type(nameof(ValueRecordFixtures.ValueRecordHoldingAReadOnlyList))),
+            "the SECOND shape, and the one that discriminates: a value record whose component is a " +
+            "read-only list is exactly GearInstance's shape, and a predicate that only understood " +
+            "scalars would pass the first probe and reject the real type.");
+
+        Assert.False(
+            IsSnapshotShapedValueRecord(
+                SuiteAssembly.Type(nameof(ValueRecordFixtures.AggregateWithAnInternalMutator))),
+            "THE NEGATIVE CONTROL. A type with an internal method that writes its own field is an " +
+            "aggregate by behaviour whatever it is called, and it is the thing the amendment " +
+            "excludes. If this is true the rule accepts everything and its failure branch is dead " +
+            "code.");
+
+        // 🔒 And against real production IL, in both directions — the fixtures cannot prove that the
+        // predicate resolves the types this suite actually governs.
+        Assert.True(
+            IsSnapshotShapedValueRecord(
+                Domain.FindInCore(GearInstanceType)
+                    ?? throw new InvalidOperationException(
+                        $"'{GearInstanceType}' is not declared in Core. The rule above is stated over " +
+                        "it by identity; without it, both this fact and that floor are asserting " +
+                        "nothing.")),
+            "the real gear instance is the type 30 §7 puts inside an event, and the amendment exists " +
+            "to permit it. A predicate that rejected it would be a rule that contradicts the ruling " +
+            "it implements.");
+
+        Assert.False(
+            IsSnapshotShapedValueRecord(
+                Domain.FindInCore(AggregateRootNames[0])
+                    ?? throw new InvalidOperationException(
+                        $"'{AggregateRootNames[0]}' is not declared in Core. The aggregate half of " +
+                        "this fact is asserting nothing.")),
+            "the real Player aggregate must be refused. It is the concrete thing the narrow " +
+            "permission exists to keep out of an event list that leaves the domain.");
+    }
+
+    /// <summary>
+    /// The `30` §7 payload type the rule above is floored on, by identity rather than by count.
+    /// </summary>
+    private const string GearInstanceType = "GearInstance";
+
+    /// <summary>
+    /// The aggregate <b>roots</b> `30` §4 declares — the types an event may never name, whatever
+    /// their metadata looks like.
+    /// </summary>
+    /// <remarks>
+    /// Named as well as shape-checked, because a root that happened to carry only readonly fields on
+    /// some future commit would otherwise be admitted by the shape test alone. The roots are the two
+    /// things <c>Apply</c> clones and consumes; putting either in an event closes that loop
+    /// regardless of how immutable it looks today.
+    /// </remarks>
+    internal static readonly string[] AggregateRootNames = { "Player", "Run" };
+
+    /// <summary>Every <c>Core/Model/</c> type simple name that some event's IL names.</summary>
+    private static IEnumerable<string> ModelTypesNamedByEvents() =>
+        Domain.CoreTypesUnder(Domain.EventsNamespace)
+              .SelectMany(Il.ReferencedTypeNames)
+              .Where(r => r.StartsWith(Domain.ModelNamespace + ".", StringComparison.Ordinal))
+              .Select(r => r.Split('/')[0][(r.Split('/')[0].LastIndexOf('.') + 1)..])
+              .Distinct(StringComparer.Ordinal);
+
+    /// <summary>
+    /// 🔒 True for a type an event may name: an immutable value record — never an aggregate root, and
+    /// never a type carrying a mutator at any accessibility.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Four conditions, and each closes a different way in:
+    /// </para>
+    /// <list type="bullet">
+    ///   <item>not one of <see cref="AggregateRootNames"/> — by NAME, so a root that momentarily
+    ///   looked immutable could not slip through the metadata checks;</item>
+    ///   <item>every instance field is <c>initonly</c> — a writable field is a mutation surface with
+    ///   no method needed;</item>
+    ///   <item>no property has a setter other than an <c>init</c> one — construction is not
+    ///   mutation, a real <c>set</c> is, at any accessibility;</item>
+    ///   <item>no method other than a constructor writes an instance field of the declaring type —
+    ///   which is what an <c>internal</c> mutator is, and the one the ruling names explicitly.</item>
+    /// </list>
+    /// </remarks>
+    private static bool IsSnapshotShapedValueRecord(TypeDefinition type) =>
+        !AggregateRootNames.Contains(type.Name, StringComparer.Ordinal) &&
+        type.Fields.Where(f => !f.IsStatic).All(f => f.IsInitOnly) &&
+        type.Properties.All(p => p.SetMethod is null || IsInitOnly(p.SetMethod)) &&
+        !type.Methods.Any(WritesItsOwnInstanceState);
+
+    /// <summary>
+    /// True for a non-constructor method that stores into an instance field of the type it is
+    /// declared on — a mutator, whatever its accessibility.
+    /// </summary>
+    /// <remarks>
+    /// Constructors are excluded because construction is how an immutable value is built, and the
+    /// compiler's own record plumbing is excluded because a record's <c>&lt;Clone&gt;$</c> and its
+    /// copy constructor are not the author's mutation surface. Property setters are covered by the
+    /// caller's <c>init</c> check rather than here, so an <c>init</c> accessor is not double-counted.
+    /// </remarks>
+    private static bool WritesItsOwnInstanceState(MethodDefinition method)
+    {
+        if (method.IsConstructor || method.IsStatic || Domain.IsCompilerGenerated(method) ||
+            (method.IsSetter && Il.IsInitOnlySetter(method)))
+        {
+            return false;
+        }
+
+        var declaring = method.DeclaringType.FullName;
+
+        return Il.Instructions(method)
+                 .Where(i => i.OpCode == OpCodes.Stfld)
+                 .Select(i => (i.Operand as FieldReference)?.DeclaringType?.FullName)
+                 .Any(owner => owner is not null && owner.Equals(declaring, StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// The three shapes <see cref="IsSnapshotShapedValueRecord"/> has to tell apart. Two of them are
+    /// permitted and one is the violation, and the violation is never committed to <c>Core</c> to
+    /// prove a rule works.
+    /// </summary>
+    private static class ValueRecordFixtures
+    {
+        /// <summary>The simplest permitted shape: scalars, all readonly.</summary>
+        internal sealed record FlatValueRecord(int Sequence, string Name);
+
+        /// <summary>
+        /// The permitted shape that actually ships — a value record carrying a read-only list, which
+        /// is what a gear instance's affixes are.
+        /// </summary>
+        internal sealed class ValueRecordHoldingAReadOnlyList
+        {
+            private readonly IReadOnlyList<int> _values;
+
+            /// <summary>Builds it from a list the caller no longer owns.</summary>
+            /// <param name="values">The values.</param>
+            internal ValueRecordHoldingAReadOnlyList(IReadOnlyList<int> values) =>
+                _values = new ReadOnlyCollection<int>(values.ToArray());
+
+            /// <summary>The values. Never written after construction.</summary>
+            public IReadOnlyList<int> Values => _values;
+        }
+
+        /// <summary>🔴 The violation: an aggregate whose <c>internal</c> method writes its own state.</summary>
+        internal sealed class AggregateWithAnInternalMutator
+        {
+            private int _counter;
+
+            /// <summary>The counter.</summary>
+            public int Counter => _counter;
+
+            /// <summary>Moves the counter — the mutation path an event must never carry out of the domain.</summary>
+            internal void Advance() => _counter++;
+        }
     }
 
     /// <summary>

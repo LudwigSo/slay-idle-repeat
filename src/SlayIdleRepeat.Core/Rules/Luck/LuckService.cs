@@ -37,7 +37,7 @@ namespace SlayIdleRepeat.Core.Rules.Luck;
 /// which are still inside this namespace: the guarantee decision itself never leaves it.
 /// </para>
 /// </remarks>
-internal static class LuckService
+internal static partial class LuckService
 {
     /// <summary>
     /// Resolves one protected draw: applies the soft-pity ramp, decides whether a hard guarantee
