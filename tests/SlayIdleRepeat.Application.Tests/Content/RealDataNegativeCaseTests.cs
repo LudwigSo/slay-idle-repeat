@@ -415,11 +415,11 @@ public sealed class RealDataNegativeCaseTests
     /// per-file breakdown in the theory below.
     /// </remarks>
     [Fact]
-    public void The_shipped_data_set_still_carries_exactly_its_265_unauthorised_holes()
+    public void The_shipped_data_set_still_carries_exactly_its_264_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(265,
+        CountUnauthorised(snapshot).ShouldBe(264,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -446,7 +446,13 @@ public sealed class RealDataNegativeCaseTests
     [InlineData("tuning/luck.json", 4)]
     [InlineData("tuning/sim_profiles.json", 4)]
     [InlineData("tuning/currencies.json", 2)]
-    [InlineData("tuning/forge.json", 2)]
+    // forge.json: 2 until M4-04, which discharged enhance/perLevelSuccessRate. The interpolation
+    // between the two published band endpoints was the document's own ramp notation rather than an
+    // undecided number, so the ladder is a function of values already authored — a READING
+    // decision, not a number invented for a hole. The one left is merge/dustSubstituteCost/SS,
+    // which is an authored n/a: nothing merges out of the top rung, so there is no substitution to
+    // price and never will be.
+    [InlineData("tuning/forge.json", 1)]
     [InlineData("tuning/beasts.json", 1)]
     [InlineData("tuning/calibration_builds.json", 1)]
     [InlineData("tuning/ads.json", 0)]
@@ -512,7 +518,7 @@ public sealed class RealDataNegativeCaseTests
 
     [Theory]
     [InlineData("tuning/power_model.json#/kPower")]
-    [InlineData("tuning/forge.json#/enhance/perLevelSuccessRate")]
+    [InlineData("tuning/forge.json#/merge/dustSubstituteCost/SS")]
     [InlineData("tuning/luck.json#/chestApex/softPity")]
     [InlineData("tuning/drops.json#/slotCoefficients/4/primaryCoef")]
     public void A_shipped_unauthorised_hole_stays_unauthorised_and_is_never_filled_with_a_zero(string reference)

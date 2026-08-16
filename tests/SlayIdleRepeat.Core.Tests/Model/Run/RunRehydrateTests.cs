@@ -388,17 +388,17 @@ public sealed class RunRehydrateTests
     public void Every_row_of_the_registry_is_accepted_including_the_parameterised_minigame_row()
     {
         // index + 1, not index: a stream persisted at 0 is indistinguishable from one the row
-        // never carried, because absent means 0. With a zero in the fixture, one of the ten
+        // never carried, because absent means 0. With a zero in the fixture, one of the eleven
         // assertions below would hold for a validation that dropped that key entirely.
         var everyStream = RngStreams.FixedNames
             .Select((name, index) => (Stream: name, Position: (ulong)(index + 1)))
-            .Append((Stream: RngStreams.Minigame(0), Position: 9UL))
-            .Append((Stream: RngStreams.Minigame(7), Position: 10UL))
+            .Append((Stream: RngStreams.Minigame(0), Position: 10UL))
+            .Append((Stream: RngStreams.Minigame(7), Position: 11UL))
             .ToArray();
 
         everyStream.Length.ShouldBe(
-            10,
-            "eight fixed rows plus two minigame indices. A shrunken fixture would make the assertion " +
+            11,
+            "nine fixed rows plus two minigame indices. A shrunken fixture would make the assertion " +
             "below hold over fewer streams than 14 §8.1 has.");
 
         var run = Run.Rehydrate(

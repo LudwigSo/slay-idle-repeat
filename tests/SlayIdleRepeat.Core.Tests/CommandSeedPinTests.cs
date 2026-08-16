@@ -8,7 +8,7 @@ namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
 /// <c>CommandSeed</c> is server-issued and meta-only: <c>null</c> on all 19 run commands, non-null on
-/// the nine meta commands that draw. Every sweep below takes its subject set from the dispatch
+/// the eleven meta commands that draw. Every sweep below takes its subject set from the dispatch
 /// table's <c>CommandKind</c> rather than from <see cref="CommandSeedPin.Violations"/> itself, so the
 /// rule can't end up agreeing with its own list.
 /// </summary>
@@ -98,21 +98,23 @@ public sealed class CommandSeedPinTests
 
     /// <summary>
     /// Pinned by identity rather than cardinality: a count-only floor would still pass if one of the
-    /// nine were swapped for a run command.
+    /// eleven were swapped for a run command.
     /// </summary>
     [Fact]
-    public void The_seed_bearing_set_is_the_nine_the_command_vocabulary_freezes()
+    public void The_seed_bearing_set_is_the_eleven_the_command_vocabulary_freezes()
     {
         CommandSeedPin.SeedBearingMetaCommands.ShouldBe(
             new[]
             {
-                "BEGIN_SESSION", "OPEN_CHEST", "OPEN_CRATE", "OPEN_EGG", "REFORGE_ITEM",
-                "REROLL_QUEST", "RETUNE_ITEM", "SPIN_WHEEL", "START_DUEL",
+                "BEGIN_SESSION", "ENHANCE", "MERGE", "OPEN_CHEST", "OPEN_CRATE", "OPEN_EGG",
+                "REFORGE_ITEM", "REROLL_QUEST", "RETUNE_ITEM", "SPIN_WHEEL", "START_DUEL",
             },
             StringComparer.Ordinal,
             ignoreOrder: true,
-            "these are the nine meta commands 14 §2.3 marks as drawing randomness. Every other rule " +
-            "in this file quantifies over this set, so a substitution here silences all of them.");
+            "these are the eleven meta commands 14 §2.3 marks as drawing randomness — MERGE and " +
+            "ENHANCE joined it with M4-04, which found both of them drawing and neither marked. " +
+            "Every other rule in this file quantifies over this set, so a substitution here silences " +
+            "all of them.");
     }
 
     /// <summary>
@@ -215,25 +217,25 @@ public sealed class CommandSeedPinTests
     }
 
     /// <summary>
-    /// Written as the complement of the nine, because the obvious form (asking the classifier which
+    /// Written as the complement of the eleven, because the obvious form (asking the classifier which
     /// rows draw) cannot fail against itself.
     /// </summary>
     [Fact]
-    public void The_twenty_one_meta_commands_that_do_not_draw_may_not_carry_a_CommandSeed()
+    public void The_nineteen_meta_commands_that_do_not_draw_may_not_carry_a_CommandSeed()
     {
         var metaCommands = WireNamesOfKind(CommandKind.Meta);
 
-        metaCommands.Count.ShouldBe(30, "14 §2.3's meta table has 30 rows, under a header that says 29.");
+        metaCommands.Count.ShouldBe(30, "14 §2.3's meta table has 30 rows.");
 
         var quiet = metaCommands
             .Where(name => !CommandSeedPin.SeedBearingMetaCommands.Contains(name))
             .ToArray();
 
         quiet.Length.ShouldBe(
-            21,
-            "30 meta rows minus the 9 marked ⚄. If this is 30 the nine have stopped naming registered " +
-            "commands; if it is 0 the whole meta half has been declared seed-bearing — and either way " +
-            "the sweep below would be quantifying over the wrong set rather than failing.");
+            19,
+            "30 meta rows minus the 11 marked ⚄. If this is 30 the eleven have stopped naming " +
+            "registered commands; if it is 0 the whole meta half has been declared seed-bearing — and " +
+            "either way the sweep below would be quantifying over the wrong set rather than failing.");
 
         var offenders = new List<string>();
 

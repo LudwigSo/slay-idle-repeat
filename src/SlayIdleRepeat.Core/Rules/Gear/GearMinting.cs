@@ -92,7 +92,11 @@ internal static class GearMinting
     /// pool widens.
     /// </para>
     /// </remarks>
-    private static int AffixCountFor(DropsTuning drops, Rarity rarity, int eligibleCount) =>
+    /// <param name="drops">The gear tables.</param>
+    /// <param name="rarity">The band whose authored affix count is being asked for.</param>
+    /// <param name="eligibleCount">How many affixes the slot is actually eligible for.</param>
+    /// <returns>The number of affixes to roll.</returns>
+    internal static int AffixCountFor(DropsTuning drops, Rarity rarity, int eligibleCount) =>
         Math.Min(drops.Band(rarity).AffixCount, eligibleCount);
 
     /// <summary>

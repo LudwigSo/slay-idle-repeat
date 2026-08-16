@@ -40,13 +40,26 @@ public static class RngStreams
     /// <summary>Event card outcomes.</summary>
     public const string Events = "events";
 
+    /// <summary>Forge draws: a fusion's affix re-roll and an enhancement attempt.</summary>
+    /// <remarks>
+    /// A row of its own rather than borrowing <see cref="Drops"/>, which is what a drop draws from.
+    /// A fusion and an enhancement are the opposite of a drop — the deterministic route to an item a
+    /// player builds towards rather than one the game hands them — and reusing the drop stream's name
+    /// would make a replay of either read as a drop that never happened.
+    /// <para>
+    /// Both draws are out-of-run, so this name never appears in a run's <c>rngStreamStates</c>: a
+    /// meta draw starts at index 0 each command and persists no counter.
+    /// </para>
+    /// </remarks>
+    public const string Forge = "forge";
+
     /// <summary>The prefix of the one parameterised row, <c>minigame:{index}</c>.</summary>
     public const string MinigamePrefix = "minigame:";
 
-    /// <summary>The eight fixed rows of the registry. The ninth row is parameterised and cannot be enumerated — build it with <see cref="Minigame"/>.</summary>
+    /// <summary>The nine fixed rows of the registry. The tenth row is parameterised and cannot be enumerated — build it with <see cref="Minigame"/>.</summary>
     public static IReadOnlyList<string> FixedNames { get; } = Array.AsReadOnly(new[]
     {
-        Board, Dice, Draft, Drops, Treasure, Shrine, Combat, Events,
+        Board, Dice, Draft, Drops, Treasure, Shrine, Combat, Events, Forge,
     });
 
     /// <summary>The minigame stream for the given index — the parameterised row of the registry.</summary>

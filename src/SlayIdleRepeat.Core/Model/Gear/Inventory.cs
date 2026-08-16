@@ -193,6 +193,56 @@ public sealed class Inventory
         return true;
     }
 
+    /// <summary>The stored item of this identity, or <c>null</c> when the stock does not hold one.</summary>
+    /// <param name="instanceId">The identity a caller named.</param>
+    /// <returns>The item, or <c>null</c>. Held items are not stored items and answer <c>null</c>.</returns>
+    /// <remarks>
+    /// Answering <c>null</c> rather than throwing, and deliberately not distinguishing an unknown id
+    /// from a held one: <see cref="Availability"/> already tells those apart, and a second member
+    /// that answered the same question in a different vocabulary would be a second place a caller
+    /// could get the precondition from — including the wrong one.
+    /// </remarks>
+    internal GearInstance? Find(GearInstanceId instanceId)
+    {
+        var index = IndexOf(_stored, instanceId);
+
+        return index < 0 ? null : _stored[index];
+    }
+
+    /// <summary>Puts a changed item back where the stock already holds it, under the same identity.</summary>
+    /// <param name="item">The item as it now stands.</param>
+    /// <returns>
+    /// <see langword="true"/> when the stock held that identity and now holds this. <see langword="false"/>
+    /// when it does not hold it at all, or holds it in overflow — for the reason <see cref="SetLock"/>
+    /// answers <see langword="false"/> rather than throwing.
+    /// </returns>
+    /// <remarks>
+    /// 🔒 <b>In place, and that is the whole point of the method.</b> Enhancing or fusing an item
+    /// changes what it is without changing which slot it occupies, and the remove-then-place spelling
+    /// of the same edit is not equivalent: removing opens a slot, an opened slot reclaims from
+    /// overflow, and the changed item then arrives at a full stock and lands in overflow itself. A
+    /// player would watch a fusion they had just paid for drop out of their stock.
+    /// <para>
+    /// It takes the item rather than building it: what an enhanced or fused item carries is the
+    /// forge's rule, and a container that computed it would be a second statement of that rule.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="item"/> is null.</exception>
+    internal bool Replace(GearInstance item)
+    {
+        ArgumentNullException.ThrowIfNull(item);
+
+        var index = IndexOf(_stored, item.InstanceId);
+        if (index < 0)
+        {
+            return false;
+        }
+
+        _stored[index] = item;
+
+        return true;
+    }
+
     /// <summary>Takes an item out of the inventory, wherever it is.</summary>
     /// <param name="instanceId">The item to remove.</param>
     /// <param name="tuning">The inventory numbers, for the reclaim the removal may open room for.</param>

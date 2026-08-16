@@ -196,7 +196,11 @@ public sealed class InMemoryGame
 
             // Empty, never null: an absent inventory is a fault, so the starting row states the
             // empty stock a brand-new player has rather than leaving the field to a default.
-            Inventory: inventory ?? new InventorySnapshot(0, [], []));
+            Inventory: inventory ?? new InventorySnapshot(0, [], []),
+
+            // Empty for the same reason, and it is the ordinary state rather than a placeholder: a
+            // player sweeps nothing until they configure a filter.
+            AutoSalvageRules: []);
 
         var player = Player.Rehydrate(snapshot, Content);
 

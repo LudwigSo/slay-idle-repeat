@@ -210,6 +210,73 @@ internal static partial class LuckService
     /// <exception cref="InvalidOperationException">The bank does not cover the cost.</exception>
     internal static int RedeemMercy(int held, int cost) => MercyAccrual.Redeem(held, cost);
 
+    // -------------------------------------------------------------- the ENHANCE class
+
+    /// <summary>
+    /// The chance one enhancement attempt is drawn against: the level's authored rate, raised by the
+    /// mercy the item has earned and by any bonus riding on this attempt.
+    /// </summary>
+    /// <remarks>
+    /// The <c>ENHANCE</c> class states its protection as an addition to a probability rather than as
+    /// rungs on a rarity ladder, so it does not go through <see cref="Resolve"/> — that path would
+    /// have to invent a table nobody authored. It reaches its own guarantee primitive through this
+    /// door, which is still here.
+    /// </remarks>
+    /// <param name="baseRate">The level's unmodified chance, between 0 and 1.</param>
+    /// <param name="consecutiveFailures">Failures on this gear instance since its last success.</param>
+    /// <param name="luckyBonus">The one-attempt bonus, as a share. Zero when nothing is riding on it.</param>
+    /// <param name="rule">The authored slope and ceiling.</param>
+    /// <returns>The effective chance.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">An argument is outside its stated range.</exception>
+    internal static double EnhanceSuccessRate(
+        double baseRate, int consecutiveFailures, double luckyBonus, EnhanceRule rule) =>
+        EnhanceMercy.EffectiveRate(baseRate, consecutiveFailures, luckyBonus, rule);
+
+    /// <summary>The share the item's mercy contributes on its own — the figure a client shows beside the rate.</summary>
+    /// <param name="baseRate">The level's unmodified chance, between 0 and 1.</param>
+    /// <param name="consecutiveFailures">Failures on this gear instance since its last success.</param>
+    /// <param name="rule">The authored slope and ceiling.</param>
+    /// <returns>The mercy's contribution, after the ceiling.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">An argument is outside its stated range.</exception>
+    internal static double EnhanceMercyShare(
+        double baseRate, int consecutiveFailures, EnhanceRule rule) =>
+        EnhanceMercy.EarnedShare(baseRate, consecutiveFailures, rule);
+
+    /// <summary>The item's failure counter after an attempt.</summary>
+    /// <param name="consecutiveFailures">The counter before the attempt.</param>
+    /// <param name="succeeded">Whether the attempt succeeded.</param>
+    /// <param name="carriedLuckyBonus">Whether the attempt carried a lucky bonus.</param>
+    /// <param name="rule">The authored rule, which says whether such an attempt moves the counter.</param>
+    /// <returns>The counter to store on the item.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The counter is negative.</exception>
+    internal static int EnhanceFailuresAfter(
+        int consecutiveFailures, bool succeeded, bool carriedLuckyBonus, EnhanceRule rule) =>
+        EnhanceMercy.Advanced(consecutiveFailures, succeeded, carriedLuckyBonus, rule);
+
+    /// <summary>
+    /// The band a fusion's output lands on — the rung above its inputs, or <see langword="null"/>
+    /// where there is no rung above them.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Here rather than in the forge, and that is the routing rule rather than a preference.</b>
+    /// A fusion hands the player an item, so the band it lands on is a grant band, and every grant
+    /// band in the game is decided in this one place whether or not a counter moves. This one moves
+    /// none and draws nothing: a fusion is the deterministic counterweight to the drop tables, which
+    /// is the whole reason a player builds towards one. Stating it here is what keeps the forge from
+    /// becoming a second place a grant band is decided.
+    /// </remarks>
+    /// <param name="inputBand">The band the fused items share.</param>
+    /// <returns>The output's band, or <see langword="null"/> at the top of the ladder.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="inputBand"/> is not declared.</exception>
+    internal static Rarity? MergeOutputBand(Rarity inputBand)
+    {
+        RequireDeclared(inputBand, nameof(inputBand));
+
+        var next = (Rarity)((int)inputBand + 1);
+
+        return Enum.IsDefined(next) ? next : null;
+    }
+
     // ---------------------------------------------------------------- the DRAFT class
 
     /// <summary>

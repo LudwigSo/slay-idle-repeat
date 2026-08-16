@@ -22,14 +22,22 @@ internal static class CommandSeedPin
         "composition root that built the context, never this rule.";
 
     /// <summary>
-    /// The nine meta commands that draw randomness and therefore carry a <c>CommandSeed</c>. The run
+    /// The eleven meta commands that draw randomness and therefore carry a <c>CommandSeed</c>. The run
     /// commands are deliberately not enumerated anywhere here — sweeps read that half off the dispatch
     /// table's <c>CommandKind</c> so the two sources can't agree with each other instead of the registry.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>M4-04 added MERGE and ENHANCE, and they were missing rather than newly drawing.</b> A
+    /// fusion re-rolls its output's affixes and an attempt rolls against a success chance; both have
+    /// drawn since 08 §4 was written, and neither carried the die in 14 §2.3's registry. The doc was
+    /// amended in the same change, so this list and that table still say the same thing.
+    /// </remarks>
     internal static IReadOnlySet<string> SeedBearingMetaCommands { get; } =
         new HashSet<string>(StringComparer.Ordinal)
         {
             "BEGIN_SESSION",
+            "MERGE",
+            "ENHANCE",
             "REROLL_QUEST",
             "SPIN_WHEEL",
             "REFORGE_ITEM",

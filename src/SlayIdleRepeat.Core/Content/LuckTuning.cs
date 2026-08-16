@@ -69,6 +69,9 @@ internal sealed class LuckTuning
     /// <summary>The chest-pick block — the one minigame that carries a counter.</summary>
     internal const string ChestPickReference = DocumentPath + "#/minigame/chestPick";
 
+    /// <summary>The enhancement block — the failure mercy, stated over a probability rather than a weight.</summary>
+    internal const string EnhanceReference = DocumentPath + "#/enhance";
+
     /// <summary>The member every ladder block names its rungs under.</summary>
     internal const string HardPityMember = "hardPity";
 
@@ -126,7 +129,7 @@ internal sealed class LuckTuning
     private static readonly (SourceClass Source, string Block, string ServedBy)[] UnservedShapes =
     {
         (SourceClass.DROP_RUN, "dropRun", "the luck façade's ResolveRunDrop serves it"),
-        (SourceClass.ENHANCE, "enhance", "M4-04 wires it"),
+        (SourceClass.ENHANCE, "enhance", "the luck façade's EnhanceSuccessRate serves it"),
         (SourceClass.DRAFT, "draft", "the luck façade's ResolveDraft serves it"),
         (SourceClass.WHEEL, "wheel", "M4-09 wires it"),
         (SourceClass.MINIGAME, "minigame", "the luck façade's ResolveChestPick serves it"),
@@ -139,13 +142,15 @@ internal sealed class LuckTuning
         IReadOnlyDictionary<SourceClass, PityLadder> ladders,
         RarityFloorRule rarityFloor,
         DraftRule draft,
-        ChestPickRule chestPick)
+        ChestPickRule chestPick,
+        EnhanceRule enhance)
     {
         SourceClasses = sourceClasses;
         _ladders = ladders;
         RarityFloor = rarityFloor;
         Draft = draft;
         ChestPick = chestPick;
+        Enhance = enhance;
     }
 
     /// <summary>The ten source-class rows, in the order the document lists them.</summary>
@@ -161,6 +166,12 @@ internal sealed class LuckTuning
 
     /// <summary>The <c>MINIGAME</c> class's one guarantee: the chest pick's gold-tier rung.</summary>
     internal ChestPickRule ChestPick { get; }
+
+    /// <summary>
+    /// The <c>ENHANCE</c> class's rule, in the shape it is authored — an addition to a probability
+    /// rather than a multiplier on a weight, which is why it is not a rarity ladder.
+    /// </summary>
+    internal EnhanceRule Enhance { get; }
 
     /// <summary>The authored row for one source class.</summary>
     /// <param name="source">The class to look up.</param>
@@ -335,7 +346,29 @@ internal sealed class LuckTuning
             ladders,
             ReadRarityFloor(content),
             ReadDraft(content),
-            ReadChestPick(content));
+            ReadChestPick(content),
+            ReadEnhance(content));
+    }
+
+    /// <summary>Reads the <c>ENHANCE</c> class's failure mercy — the one rule stated over a probability.</summary>
+    private static EnhanceRule ReadEnhance(ContentSnapshot content) => new(
+        RequireUnitShare(content, EnhanceReference + "/mercySlopePerConsecutiveFailure"),
+        RequireUnitShare(content, EnhanceReference + "/effectiveRateCap"),
+        content.ReadBoolean(EnhanceReference + "/adEnhanceLuckStacksAdditively"),
+        content.ReadBoolean(EnhanceReference + "/adEnhanceLuckAdvancesCounter"));
+
+    /// <summary>An authored probability or share, refused outside <c>(0,1]</c>.</summary>
+    private static double RequireUnitShare(ContentSnapshot content, string reference)
+    {
+        var value = content.ReadDouble(reference);
+
+        return double.IsFinite(value) && value is > 0.0 and <= 1.0
+            ? value
+            : throw new InvalidTunableException(
+                reference,
+                $"24 §4.6 states this over a probability, so it lies in (0,1]. This document authors " +
+                $"{Render(value)}. A slope of zero would make the mercy rule a rule that never fires, " +
+                "and a cap of zero would make every attempt in the game fail.");
     }
 
     /// <summary>Reads the <c>DRAFT</c> class's five rules — none of which is a rarity ladder.</summary>
@@ -776,6 +809,31 @@ internal readonly record struct DraftRule(
 /// </param>
 internal readonly record struct ChestPickRule(
     int ChestCount, int GoldTierChests, int GuaranteeAfterConsecutiveMisses);
+
+/// <summary>The <c>ENHANCE</c> class's failure mercy.</summary>
+/// <remarks>
+/// 🔒 <b>Labelled mercy accrual, but additive on a probability rather than multiplicative on a
+/// weight</b> — which is why it is a rule of its own rather than a rung on a ladder. Every other
+/// class states its protection as guaranteed rarities and a widened row; this one raises the chance
+/// of a single yes/no attempt, and folding the two together would make one of them wrong.
+/// </remarks>
+/// <param name="MercySlopePerConsecutiveFailure">
+/// The percentage points, as a share, that each consecutive failure on the same gear instance adds
+/// to the next attempt. Reset by a success.
+/// </param>
+/// <param name="EffectiveRateCap">The ceiling the raised chance is clamped to.</param>
+/// <param name="AdEnhanceLuckStacksAdditively">
+/// Whether the rewarded ad's bonus is added to the raised chance rather than multiplied into it.
+/// </param>
+/// <param name="AdEnhanceLuckAdvancesCounter">
+/// Whether an attempt carrying the ad's bonus moves the mercy counter. <c>false</c> as shipped: the
+/// bonus rides on top of the counter and neither advances nor consumes it.
+/// </param>
+internal readonly record struct EnhanceRule(
+    double MercySlopePerConsecutiveFailure,
+    double EffectiveRateCap,
+    bool AdEnhanceLuckStacksAdditively,
+    bool AdEnhanceLuckAdvancesCounter);
 
 /// <summary>The one rule for drawing a class table against a rarity floor.</summary>
 /// <remarks>

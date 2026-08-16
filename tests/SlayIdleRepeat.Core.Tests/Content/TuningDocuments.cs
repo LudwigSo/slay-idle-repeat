@@ -56,6 +56,11 @@ internal static class TuningDocuments
                 // The pity registry, because MINIGAME_SUBMIT resolves the chest pick's guarantee
                 // through it on the same command that reads the reward table.
                 LuckDocuments.LuckOnly().GetDocument(LuckDocuments.DocumentPath),
+
+                // The forge numbers, because MERGE, ENHANCE and SALVAGE all read them. It carries
+                // the three free operations only; the capacity ladder in the same shipped document
+                // has its own reader and its own fixture.
+                ForgeDocuments.ShippedDocument(),
             ]);
 
     /// <summary>
@@ -97,6 +102,27 @@ internal static class TuningDocuments
             ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
             {
                 ["loginCalendar"] = calendar,
+
+                // The expansion ladder and the flat alternative, because every forge command that
+                // removes an item hands InventoryTuning to the container for the reclaim. Read from
+                // the inventory fixture rather than transcribed a second time.
+                ["crowns"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["inventoryExpansionLadder"] =
+                        ContentValue.Array(InventoryDocuments.ShippedLadder.Select(rung => ContentValue.Number(rung))),
+                    ["inventoryExpansionMaxPurchases"] =
+                        ContentValue.Number(InventoryDocuments.ShippedMaxPurchases),
+                    ["inventoryExpansionSlotsPerPurchase"] =
+                        ContentValue.Number(InventoryDocuments.ShippedSlotsPerPurchase),
+                }),
+                ["soulShards"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["sinks"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                    {
+                        ["INVENTORY_EXPANSION_FLAT"] =
+                            ContentValue.Number(InventoryDocuments.ShippedFlatSoulShardPrice),
+                    }),
+                }),
                 ["chapterScalars"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
                 {
                     ["adBundleScalar"] = ContentValue.Number((decimal)ShippedAdBundleScalar),
