@@ -8,6 +8,7 @@ using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Gear;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Testing;
 using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using SlayIdleRepeat.Core.Tests.Model.Gear;
@@ -24,17 +25,17 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 /// <remarks>
 /// <para>
 /// 🔴 <b>THE CRITERION IS MET IN PART, AND THE PART THAT IS NOT MET IS ASSERTED RATHER THAN OMITTED.</b>
-/// Four of the six clauses are driven end to end here. Two are unreachable through the command
-/// vocabulary as it stands, and each is pinned by a case below that <b>fails on the commit that
+/// Five of the six clauses are driven end to end here. One is unreachable through the command
+/// vocabulary as it stands, and it is pinned by a case below that <b>fails on the commit that
 /// closes it</b> — so this file stops overstating the milestone the moment the gap is filled, rather
 /// than quietly continuing to skip the hard half.
 /// </para>
 /// <list type="table">
 ///   <item><term>a simulated player runs</term><description>✅ driven — <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/>.</description></item>
-///   <item><term>banks gear</term><description>❌ <b>unreachable.</b> No production caller anywhere hands an item to the inventory, so a run cannot add one. Pinned by <see cref="A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory"/>.</description></item>
+///   <item><term>banks gear</term><description>✅ driven — <see cref="A_run_banks_gear_into_the_players_own_stock"/>.</description></item>
 ///   <item><term>merges and enhances it</term><description>✅ driven, over a <em>seeded</em> stock rather than a banked one, and funded by currency the run itself paid — <see cref="The_forge_half_of_the_loop_runs_on_what_the_run_paid_for_it"/>.</description></item>
 ///   <item><term>levels the hero</term><description>⚠️ <b>the path is live, the rung is not reachable.</b> The run's payout does move Legend XP through <c>Apply</c>, and the level reconciliation runs on every accepted command; the reachable board cannot bank enough to cross the first rung. Pinned by <see cref="The_run_pays_Legend_XP_but_no_reachable_run_reaches_the_first_rung"/>.</description></item>
-///   <item><term>carries the loadout into the next run</term><description>❌ <b>unreachable, twice over.</b> There is no next run, and the loadout is always empty. Pinned by <see cref="No_second_run_can_be_started_so_nothing_is_carried_into_one"/> and <see cref="The_loadout_carried_into_a_run_is_the_players_own_but_nothing_can_fill_it"/>.</description></item>
+///   <item><term>carries the loadout into the next run</term><description>⚠️ <b>the loadout is fillable and there is still no next run.</b> <c>EQUIP</c> fills it and the run freezes what the player was wearing — <see cref="The_loadout_carried_into_a_run_is_the_one_EQUIP_filled"/> — but a second run cannot be started, which <see cref="No_second_run_can_be_started_so_nothing_is_carried_into_one"/> pins.</description></item>
 /// </list>
 /// <para>
 /// 🔒 <b>Why the content is the shipped set.</b> The harness takes a pre-built
@@ -110,6 +111,19 @@ public sealed class MetaLoopTests
     /// </remarks>
     private static readonly DateTimeOffset ForgeStart = Start.AddHours(12);
 
+    /// <summary>
+    /// 🔴 The gear-banking case's own start instant, and it exists for the same reason
+    /// <see cref="ForgeStart"/> does: the board is selected by the clock.
+    /// </summary>
+    /// <remarks>
+    /// The board <see cref="Start"/> produces resolves two Treasure tiles and one ordinary enemy, and
+    /// an ordinary kill drops at the authored per-kill chance — under a tenth — so a run on it banks
+    /// gear only by luck. This board resolves an <b>Elite</b>, which is the kill kind the acquisition
+    /// rates guarantee a drop from, so the clause is driven rather than hoped for. Swept across both
+    /// authored chapters and a day of start instants while writing this.
+    /// </remarks>
+    private static readonly DateTimeOffset DropStart = Start.AddHours(3);
+
     // ═════════════════════════════════════════════════════════ the run
 
     /// <summary>
@@ -172,64 +186,59 @@ public sealed class MetaLoopTests
     }
 
     /// <summary>
-    /// 🔒 <b>Clause 2 — "banks gear" — is NOT reachable, and this is the failing witness the register
-    /// says is waiting for it.</b> The run above resolves its tiles, fights, drafts and pays out at
-    /// its end, and the player's stock is byte-for-byte what it started as.
+    /// 🔒 <b>Clause 2 — "banks gear".</b> A run resolves its tiles, fights and pays out, and the
+    /// player's stock is larger at the end than it was at the start — every item of the difference
+    /// reported by a <c>GearGranted</c> the run itself emitted.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>The cause is a missing caller, not a missing rule.</b> <c>Rules.Gear.GearGeneration</c>
-    /// rolls a run drop and a session floor, <c>Model.Gear.Inventory.Place</c> takes a granted item,
-    /// and <c>Events.GearGranted</c> reports one — and nothing in <c>SlayIdleRepeat.Core</c> calls
-    /// any of the three. <c>GapRegister</c> writes this down with an owner (M4-02) and names this
-    /// very test as the witness; that is what this case makes executable.
+    /// 🔴 <b>The board is chosen so the clause is driven rather than hoped for</b> — see
+    /// <see cref="DropStart"/>. An ordinary kill drops at the authored per-kill chance, which is
+    /// under a tenth; an Elite kill drops the authored count every time, so the run has to reach one
+    /// for "banks gear" to be a claim about the wiring rather than about a coin.
     /// </para>
     /// <para>
-    /// 🔒 <b>It expires by itself (steering S4).</b> The day a run drop reaches the stock, the
-    /// comparison below stops holding and this case goes red — which is the signal to delete it and
-    /// drive the merge and enhance clauses off <em>banked</em> gear instead of the seeded stock they
-    /// use today.
-    /// </para>
-    /// <para>
-    /// Compared as canonical bytes rather than by count or by record equality (steering S17): an
-    /// <c>InventorySnapshot</c>'s item list compares by reference under synthesized equality, and a
-    /// count is satisfied by a run that swapped one item for another.
+    /// The stock is compared by the identities that appeared in it rather than by canonical bytes,
+    /// because the interesting quantity here is <em>which</em> items arrived: the same comparison has
+    /// to be able to say that every one of them is an item a <c>GearGranted</c> named, and a byte
+    /// difference cannot.
     /// </para>
     /// </remarks>
     [Fact]
-    public void A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory()
+    public void A_run_banks_gear_into_the_players_own_stock()
     {
-        var (game, player) = Loop();
-        var before = StockBytes(game, player);
+        var (game, player) = Loop(DropStart);
+        var before = Owned(game, player);
 
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
 
         game.State(player).Run!.Phase.ShouldBe(RunPhase.Ended, Trace(driver));
 
-        // 🔒 The premise, asserted rather than narrated. "The stock did not change across a run" is
-        // a claim about a run that RESOLVED SOMETHING and PAID OUT; a run that refused every command
-        // would satisfy it just as well, and this case would then keep reporting "banks gear is
-        // unreachable" long after it stopped being true.
-        driver.Tiles.ShouldNotBeEmpty(
-            "the run resolved no tile at all, so nothing was in a position to grant anything." +
-            Trace(driver));
+        // 🔒 The premise, asserted rather than narrated: "the stock grew across a run" is a claim
+        // about a run that actually fought something. A run that refused every command would make
+        // the assertion below fail for a reason that has nothing to do with the grant path.
+        driver.BattlesWon.ShouldBeGreaterThan(
+            0, "no battle was won, so nothing was ever in a position to drop gear." + Trace(driver));
 
-        game.Events.OfType<CurrencyChanged>().ShouldNotBeEmpty(
-            "the run paid the player nothing, so it did not reach the reward paths a gear grant " +
-            "would sit beside." + Trace(driver));
+        driver.Tiles.ShouldContain(
+            TileKind.Elite,
+            "this board resolved no Elite tile, so no kill on it is guaranteed to drop and the " +
+            "assertion below is back to being a coin toss. Pick a start instant whose reachable " +
+            "tiles include one — see DropStart." + Trace(driver));
 
-        StockBytes(game, player).ShouldBe(
-            before,
-            "the player's stock CHANGED across a whole run — so something now grants gear mid-run, " +
-            "and the M4 exit criterion's 'banks gear' clause has become reachable. Delete this case " +
-            "and drive the merge and enhance clauses off the banked item instead of the seeded " +
-            "stock. Until that commit, the criterion is met in part and this is the part that is " +
-            "not: no production caller in Core hands an item to Inventory.Place, so a run cannot " +
-            "add one." + Trace(driver));
+        var banked = Owned(game, player).Except(before).ToArray();
 
-        game.Events.OfType<GearGranted>().ShouldBeEmpty(
-            "a GearGranted event was emitted, so a grant path has been wired. Same consequence as " +
-            "above — this case is now the stale half of the claim, not the true one.");
+        banked.ShouldNotBeEmpty(
+            "the run won " + driver.BattlesWon + " battle(s), at least one of them an Elite, and " +
+            "banked nothing at all. The M4 exit criterion's 'banks gear' clause is exactly this: a " +
+            "kill hands an item to the stock." + Trace(driver));
+
+        game.Events.OfType<GearGranted>().Select(granted => granted.Item.InstanceId).ShouldBe(
+            banked,
+            ignoreOrder: true,
+            "the items that appeared in the stock and the items GearGranted reported are not the " +
+            "same set, so either an item arrived unannounced or an announcement named an item the " +
+            "player never received." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the forge
@@ -287,6 +296,10 @@ public sealed class MetaLoopTests
         var stock = Ids(game, player);
         var scrapped = stock.Skip(1 + FusionInputs).Take(4).ToArray();
 
+        // Counted off what the stock holds NOW rather than off StartingStock: the run itself may
+        // have banked gear into it, and the claim here is about what the salvage removed.
+        var stockedAfterRun = afterRun.Inventory.Stored.Count;
+
         Accepted(driver.Send(new SalvageCommand(scrapped)), "SALVAGE", driver);
 
         var afterSalvage = game.State(player).Player;
@@ -294,7 +307,7 @@ public sealed class MetaLoopTests
         afterSalvage.BalanceOf(CurrencyId.MERGE_DUST).ShouldBeGreaterThan(
             0L, "salvaging four items paid no Merge Dust." + Trace(driver));
         afterSalvage.Inventory.Stored.Count.ShouldBe(
-            StartingStock - scrapped.Length, "the salvaged items are gone." + Trace(driver));
+            stockedAfterRun - scrapped.Length, "the salvaged items are gone." + Trace(driver));
 
         // ⚠️ No stone refund is asserted, and that is the rule rather than a gap — see this case's
         // remarks.
@@ -334,7 +347,7 @@ public sealed class MetaLoopTests
             "fusion was not paid for." + Trace(driver));
 
         afterMerge.Inventory.Stored.Count.ShouldBe(
-            StartingStock - scrapped.Length - FusionInputs + 1,
+            stockedAfterRun - scrapped.Length - FusionInputs + 1,
             "a fusion consumes three items and leaves one." + Trace(driver));
 
         var fused = afterMerge.Inventory.Find(inputs[0]);
@@ -466,79 +479,60 @@ public sealed class MetaLoopTests
     }
 
     /// <summary>
-    /// 🔒 <b>Clause 5b — the carry mechanism is wired, and nothing can put anything in it.</b> The
-    /// run freezes the player's loadout at <c>START_RUN</c> and it is byte-identical to the one the
-    /// player holds; that loadout is empty, and no command in the vocabulary can fill it.
+    /// 🔒 <b>Clause 5b — the loadout a run carries is the one the player filled.</b> <c>EQUIP</c>
+    /// puts an item in a slot, <c>START_RUN</c> freezes what the hero is wearing, and the two are
+    /// byte-identical.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>An empty loadout would make the comparison vacuous, so the reason it is empty is
-    /// asserted too.</b> <c>EQUIP</c> is a deferred dispatch row, so a player cannot put an item in a
-    /// slot; <c>SAVE_PRESET</c> stores whatever the loadout currently is and <c>APPLY_PRESET</c>
-    /// puts that back, so the two of them together cannot introduce a first item either. Both are
-    /// driven below — they are the only wired loadout writers, and they round-trip.
+    /// 🔴 <b>The byte comparison only means something over a NON-EMPTY loadout, so filling one is
+    /// half the case.</b> An empty loadout has exactly one canonical encoding, so a
+    /// <c>START_RUN</c> that froze <c>Loadout.Empty</c> instead of the player's own would leave the
+    /// carry provably broken and the comparison green. The <c>EQUIP</c> above is what makes the
+    /// comparison below discriminate, which is why the slot is asserted filled before the run starts.
     /// </para>
     /// <para>
-    /// 🔴 <b>THE BYTE COMPARISON BELOW CANNOT FAIL TODAY, AND THAT IS RECORDED RATHER THAN DRESSED
-    /// UP.</b> An empty loadout has exactly one canonical encoding, so the run's frozen copy, the
-    /// player's live loadout and any unrelated empty loadout all encode identically: a
-    /// <c>START_RUN</c> that froze <c>Loadout.Empty</c> instead of the player's would leave the
-    /// carry provably broken and that assertion green. It is written in the shape it will need —
-    /// canonical bytes, per steering S17, because <c>LoadoutSnapshot</c> holds an
-    /// <c>IReadOnlyDictionary</c> that record equality compares by reference — and it is worth
-    /// nothing until something can put an item in a slot. What carries the weight here is the
-    /// <c>EQUIP</c> refusal and the preset round-trip, both of which discriminate today.
+    /// Canonical bytes rather than record equality (steering S17): <c>LoadoutSnapshot</c> holds an
+    /// <c>IReadOnlyDictionary</c>, which a record's synthesized equality compares by reference.
     /// </para>
     /// <para>
-    /// 🔴 <b>An object-identity check does not rescue it either, and finding that out is the point.</b>
-    /// "The run froze a COPY, not an alias" reads like the one claim that survives an empty loadout
-    /// — and it does not: <c>Loadout.Rehydrate</c> answers the <c>Loadout.Empty</c> <em>singleton</em>
-    /// for an empty snapshot, so the run's loadout and the player's are literally the same object,
-    /// and a <c>ReferenceEquals</c> assertion fails against correct code. It was written, run, and
-    /// removed. Steering S17 names the empty-map singleton as the thing that makes these comparisons
-    /// lie; this is that same hazard from the other direction.
+    /// <c>SAVE_PRESET</c> is driven alongside because it reads the live loadout: a preset saved after
+    /// the equip has to record the item, which is the other half of "the loadout is the player's own".
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_loadout_carried_into_a_run_is_the_players_own_but_nothing_can_fill_it()
+    public void The_loadout_carried_into_a_run_is_the_one_EQUIP_filled()
     {
         var (game, player) = Loop();
-
-        // The two wired loadout writers, before the run — APPLY_PRESET is refused mid-run.
         var driver = MetaLoopDriver.Idle(game, player);
+        var item = Ids(game, player)[0];
 
+        Accepted(driver.Send(new EquipCommand(item, GearSlot.WEAPON)), "EQUIP", null);
         Accepted(driver.Send(new SavePresetCommand(1, "opener")), "SAVE_PRESET", null);
-        Accepted(driver.Send(new ApplyPresetCommand(1)), "APPLY_PRESET", null);
 
-        var equip = driver.Send(new EquipCommand(Ids(game, player)[0], GearSlot.WEAPON));
-
-        equip.Accepted.ShouldBeFalse(
-            "EQUIP was accepted, so a hero can wear an item now. The loadout clause of the M4 exit " +
-            "criterion stops being vacuous on this commit: equip an item, then compare what the next " +
-            "run froze against what the player holds.");
-        equip.Rejection.ShouldBe(
-            RejectionReason.ILLEGAL_STATE,
-            "a deferred command answers ILLEGAL_STATE; some other reason means EQUIP is handled and " +
-            "refusing for a reason of its own.");
+        game.State(player).Player.Loadout.TryGet(GearSlot.WEAPON, out var worn).ShouldBeTrue(
+            "EQUIP was accepted and the weapon slot is still empty, so nothing was actually worn — " +
+            "and the comparison below would be back to the vacuous empty-versus-empty one.");
+        worn.ShouldBe(item, "the slot names some other item than the one EQUIP was given.");
 
         var play = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
         var slice = game.State(player);
 
-        // ⚠️ Vacuous while the loadout is empty — see this case's remarks. Kept because it is the
-        // assertion the criterion actually asks for, and because it is already in the shape that
-        // will discriminate the moment a slot can be filled.
+        slice.Run!.StartingLoadout.Gear.ShouldNotBeEmpty(
+            "the run froze an EMPTY loadout over a hero who was wearing something, so it is fighting " +
+            "naked and the comparison below is comparing two empties." + Trace(play));
+
         Canonical(slice.Run!.StartingLoadout.ToSnapshot()).ShouldBe(
             Canonical(slice.Player.Loadout.ToSnapshot()),
             "the loadout the run froze at START_RUN is not the one the player was holding." +
             Trace(play));
 
-        slice.Player.Loadout.Gear.ShouldBeEmpty(
-            "the loadout is no longer empty, which means something filled it — so the comparison " +
-            "above has become a real one, and the EQUIP assertion has already said what to write " +
-            "instead." + Trace(play));
-
-        slice.Player.Presets.Count.ShouldBe(
-            1, "SAVE_PRESET stored one preset and nothing removed it." + Trace(play));
+        slice.Player.TryGetPreset(1, out var preset).ShouldBeTrue(
+            "SAVE_PRESET stored one preset and nothing removed it." + Trace(play));
+        preset!.Loadout.TryGet(GearSlot.WEAPON, out var saved).ShouldBeTrue(
+            "the preset recorded an empty weapon slot over a hero who was wearing one, so it is not " +
+            "reading the live loadout at all." + Trace(play));
+        saved.ShouldBe(item, "and the preset names the item the hero was actually wearing." + Trace(play));
     }
 
     // ═════════════════════════════════════════════════════════ the two blockers, named
@@ -660,6 +654,14 @@ public sealed class MetaLoopTests
 
     private static IReadOnlyList<GearInstanceId> Ids(InMemoryGame game, PlayerId player) =>
         game.State(player).Player.Inventory.Stored.Select(item => item.InstanceId).ToArray();
+
+    /// <summary>Every identity the player owns, stored or held — a drop at a full stock lands in the latter.</summary>
+    private static IReadOnlyList<GearInstanceId> Owned(InMemoryGame game, PlayerId player)
+    {
+        var inventory = game.State(player).Player.Inventory;
+
+        return inventory.Stored.Concat(inventory.Held).Select(item => item.InstanceId).ToArray();
+    }
 
     private static byte[] StockBytes(InMemoryGame game, PlayerId player) =>
         CanonicalStateWriter.CanonicalBytes(game.State(player).Player.Inventory.ToSnapshot());
