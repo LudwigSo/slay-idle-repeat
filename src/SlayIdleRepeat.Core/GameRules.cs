@@ -63,7 +63,7 @@ public static class GameRules
         // ----------------------------------------------- the 30 META commands
         .Handled<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, BeginSession.Handle)
         .Deferred<SkipFtueCommand>("SKIP_FTUE", CommandKind.Meta, "M4-12")
-        .Deferred<EquipCommand>("EQUIP", CommandKind.Meta, "M4-03")
+        .Handled<EquipCommand>("EQUIP", CommandKind.Meta, Equip.Handle)
         .Handled<MergeCommand>("MERGE", CommandKind.Meta, Merge.Handle)
         .Handled<EnhanceCommand>("ENHANCE", CommandKind.Meta, Enhance.Handle)
         .Handled<SalvageCommand>("SALVAGE", CommandKind.Meta, Salvage.Handle)

@@ -5,11 +5,15 @@ namespace SlayIdleRepeat.Core.Content;
 /// much gear each kind of kill drops.
 /// </summary>
 /// <remarks>
-/// 🔴 <b>Signatures only — every body is unfilled.</b> The tests that name this type are written and
-/// red; the reader itself is the implementation phase's.
 /// <para>
-/// 🔒 <c>treasureTileChance</c> is authored <c>null</c> and is deliberately not read: a treasure tile
-/// drops no gear, so a property here would be a hole waiting for a plausible value.
+/// 🔒 <c>treasureTileChance</c> is authored <c>null</c> and this reader deliberately does not take
+/// it. A treasure tile drops no gear — no in-run drop trigger names one — so a property here would
+/// be a hole waiting for a plausible value. <see cref="TreasureTileChanceReference"/> keeps the
+/// absence greppable; the day a number appears there, the decision is a person's to make.
+/// </para>
+/// <para>
+/// A hole is never a default: every read below goes through <see cref="ContentSnapshot"/>'s typed
+/// readers, which throw rather than answer zero.
 /// </para>
 /// </remarks>
 internal sealed class GearAcquisitionTuning
@@ -35,21 +39,80 @@ internal sealed class GearAcquisitionTuning
     /// <summary>The rate no reader takes, left where a grep can find it.</summary>
     internal const string TreasureTileChanceReference = BlockReference + "/treasureTileChance";
 
+    private GearAcquisitionTuning(
+        int eliteKillItems, int bossKillItemsMin, int bossKillItemsMax, double normalEnemyChance)
+    {
+        EliteKillItems = eliteKillItems;
+        BossKillItemsMin = bossKillItemsMin;
+        BossKillItemsMax = bossKillItemsMax;
+        NormalEnemyChance = normalEnemyChance;
+    }
+
     /// <summary>How many items one Elite kill drops.</summary>
-    internal int EliteKillItems => throw new NotImplementedException();
+    internal int EliteKillItems { get; }
 
     /// <summary>The fewest items a Boss kill drops.</summary>
-    internal int BossKillItemsMin => throw new NotImplementedException();
+    internal int BossKillItemsMin { get; }
 
     /// <summary>The most items a Boss kill drops.</summary>
-    internal int BossKillItemsMax => throw new NotImplementedException();
+    internal int BossKillItemsMax { get; }
 
     /// <summary>The chance an ordinary enemy kill drops anything at all, between 0 and 1.</summary>
-    internal double NormalEnemyChance => throw new NotImplementedException();
+    internal double NormalEnemyChance { get; }
 
     /// <summary>Reads the acquisition rates.</summary>
     /// <param name="content">The version-stamped snapshot the command is reading.</param>
     /// <returns>The rates.</returns>
-    internal static GearAcquisitionTuning Read(ContentSnapshot content) =>
-        throw new NotImplementedException();
+    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
+    /// <exception cref="MissingContentException">The document or a pointer is not there.</exception>
+    /// <exception cref="ContentTypeMismatchException">A leaf holds the wrong shape.</exception>
+    /// <exception cref="InvalidTunableException">A value is authorised but unusable.</exception>
+    internal static GearAcquisitionTuning Read(ContentSnapshot content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        var eliteKillItems = ReadItemCount(content, EliteKillItemsReference);
+        var bossKillItemsMin = ReadItemCount(content, BossKillItemsMinReference);
+        var bossKillItemsMax = ReadItemCount(content, BossKillItemsMaxReference);
+
+        if (bossKillItemsMax < bossKillItemsMin)
+        {
+            throw new InvalidTunableException(
+                BossKillItemsMaxReference,
+                $"A Boss kill drops between {AuthoredToken.Render(bossKillItemsMin)} and " +
+                $"{AuthoredToken.Render(bossKillItemsMax)} items, which is an empty range — there is " +
+                "no count to draw, so no Boss could pay out at all.");
+        }
+
+        var normalEnemyChance = content.ReadDouble(NormalEnemyChanceReference);
+
+        if (normalEnemyChance is < 0.0 or > 1.0)
+        {
+            throw new InvalidTunableException(
+                NormalEnemyChanceReference,
+                "The chance an ordinary kill drops anything is a probability, and this document " +
+                $"authors {AuthoredToken.Render(normalEnemyChance)}. A value outside 0..1 makes the " +
+                "kill either never drop or always drop, whichever side it fell off.");
+        }
+
+        return new GearAcquisitionTuning(
+            eliteKillItems, bossKillItemsMin, bossKillItemsMax, normalEnemyChance);
+    }
+
+    /// <summary>One authored item count, refused when it cannot describe a payout.</summary>
+    private static int ReadItemCount(ContentSnapshot content, string reference)
+    {
+        var count = content.ReadInt32(reference);
+
+        if (count < 1)
+        {
+            throw new InvalidTunableException(
+                reference,
+                $"A kill that drops gear drops at least one item, and this document authors " +
+                $"{AuthoredToken.Render(count)} — a kill kind that pays nothing is authored by " +
+                "leaving its rate out, not by writing a zero nobody can tell from an oversight.");
+        }
+
+        return count;
+    }
 }

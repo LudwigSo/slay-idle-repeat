@@ -97,9 +97,14 @@ public sealed class CommandVocabularyTests
     /// that by identity on its own branch; carrying them here rather than relaxing the acceptance
     /// claim keeps the strong form for every handled meta row that is not on this list.
     /// </para>
+    /// <para>
+    /// 🔴 <c>EQUIP</c> joined them with M7-00d, on the forge rows' reason exactly: it names a gear
+    /// instance, and <c>Build</c>'s sample id names an item the sample player does not own, so the
+    /// row answers <c>NOT_OWNED</c>. Its own suite pins that by identity.
+    /// </para>
     /// </remarks>
     private static readonly string[] RowsBuildCannotSatisfy =
-        ["MERGE", "ENHANCE", "SALVAGE", "SAVE_PRESET", "APPLY_PRESET"];
+        ["MERGE", "ENHANCE", "SALVAGE", "SAVE_PRESET", "APPLY_PRESET", "EQUIP"];
 
     // ------------------------------------------------------------------ the floor under everything
 
@@ -335,16 +340,16 @@ public sealed class CommandVocabularyTests
             "REVIVE/END_RUN/ABANDON_RUN handlers. A mismatch means the loop skipped " +
             "a deferred row rather than that the count moved.");
 
-        // 🔴 TO THE INTEGRATOR — M4-04 MERGED FIRST AND MOVED THESE NUMBERS. It landed the
-        // MERGE/ENHANCE/SALVAGE handlers, taking milestone/M4 to 27 deferred / 22 handled. M4-10
-        // takes two more (SAVE_PRESET, APPLY_PRESET), so the merged figures are 25 DEFERRED and 24
-        // HANDLED, and the handled identity list is M4-04's twenty-two plus those two names. Checked
-        // against milestone/M4 directly rather than quoted (steering S9).
+        // 🔴 TO THE INTEGRATOR — THESE NUMBERS MOVE ON EVERY BRANCH THAT WIRES A ROW. M4-04 landed
+        // MERGE/ENHANCE/SALVAGE (27 deferred), M4-10 took two more with SAVE_PRESET and APPLY_PRESET
+        // (25), and M7-00d takes EQUIP — so the figure here is 24 DEFERRED and 25 HANDLED. A sibling
+        // that wires another row lowers this by one again; 49 is the total that does not move.
         deferred.ShouldBe(
-            25,
+            24,
             "…and the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
-            "is 49 rows and exactly twenty-four of them — SAVE_PRESET and APPLY_PRESET (07 §4's named " +
+            "is 49 rows and exactly twenty-five of them — EQUIP (07 §4's equip, M7-00d), " +
+            "SAVE_PRESET and APPLY_PRESET (07 §4's named " +
             "loadout presets, M4-10), 08 §4's MERGE, ENHANCE and SALVAGE (M4-04's " +
             "forge), BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
             "(02 §2's runSeed commit), MINIGAME_SUBMIT (03 §6's minigame resolution), ROLL_DICE and " +
@@ -372,11 +377,11 @@ public sealed class CommandVocabularyTests
         var handledAndRefused = new List<string>();
 
         RowsBuildCannotSatisfy.Length.ShouldBe(
-            5,
+            6,
             "the exemption is closed. Two entries are 07 §4's preset rows (Build fills every int " +
-            "with 0 and neither command has a legal slot 0); the other three are 08 §4's forge rows " +
-            "(each names a gear instance the sample player does not own). Every other handled meta " +
-            "row must still ACCEPT.");
+            "with 0 and neither command has a legal slot 0); the other four are 08 §4's forge rows " +
+            "and 07 §4's EQUIP (each names a gear instance the sample player does not own). Every " +
+            "other handled meta row must still ACCEPT.");
 
         foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
         {

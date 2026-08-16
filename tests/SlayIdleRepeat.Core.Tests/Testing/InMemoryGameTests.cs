@@ -269,7 +269,10 @@ public sealed class InMemoryGameTests
         GameCommand[] deferred =
         [
             new SkipFtueCommand(),
-            new EquipCommand(new GearInstanceId("ITEM_1"), GearSlot.WEAPON),
+            // 🔴 EQUIP stood here until M7-00d handled it. Replaced by REFORGE_ITEM rather than
+            // dropped, so the list keeps a row whose payload NAMES AN ITEM: a refused command must
+            // change nothing whether or not it looked the player's stock up on the way to refusing.
+            new ReforgeItemCommand(new GearInstanceId("ITEM_1")),
             new RespecCommand(),
             new ClaimCalendarCommand(),
             new SpinWheelCommand(),
