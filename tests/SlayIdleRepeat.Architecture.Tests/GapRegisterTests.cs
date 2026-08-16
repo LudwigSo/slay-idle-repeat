@@ -473,7 +473,7 @@ public sealed class GapRegisterTests
             27,
             "14 §2.3's registry is 19 run + 30 meta, and 27 of the 49 rows are Deferred since M4-04 " +
             "landed the MERGE/ENHANCE/SALVAGE handlers (beside M3-13's " +
-            "landed the REVIVE/END_RUN/ABANDON_RUN handlers (beside M3-06's " +
+            "REVIVE/END_RUN/ABANDON_RUN, M3-06's " +
             "PICK_PERK/REROLL_DRAFT/SKIP_DRAFT, M3-05's START_BATTLE/CONFIRM_BATTLE_RESULT, M3-03's " +
             "RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE, M3-02's CHOOSE_FORK, M3-08's " +
             "SHOP_BUY/SHOP_REFRESH, M3-15's START_RUN, M3-03c's MINIGAME_SUBMIT, M3-04's " +

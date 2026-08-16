@@ -176,23 +176,34 @@ internal sealed class ForgeTuning
     /// <summary>The stones already spent getting an item to a level, which salvage refunds a share of.</summary>
     /// <param name="enhanceLevel">The level it stands at.</param>
     /// <returns>The total spent, counting only successful attempts.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">The level is below the floor or above the ceiling.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The level is below the floor.</exception>
     /// <remarks>
+    /// <para>
     /// 🔴 <b>Successful attempts only, and that is the honest reading rather than a convenience.</b>
     /// Failures consume stones too, but nothing on the item records how many it ate — the mercy
     /// counter is reset by every success, so it counts the current streak and not the item's history.
     /// Refunding a share of what the item's <em>level</em> cost is therefore the only figure the
     /// stored state can support; refunding a share of what the player actually spent would need a
     /// lifetime-spend field nobody has authored.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>A level ABOVE the ceiling is summed to the ceiling rather than refused</b>, on the rule
+    /// <c>Inventory.Capacity</c> already states for the other tunable a player can be left standing
+    /// above: <c>maxLevel</c> is a tunable, a balance patch that lowered it leaves real items above
+    /// the new one, and this is a <em>salvage</em> path — a throw here would make those items
+    /// impossible to break down at all, turning a data edit into an item nobody can get rid of. The
+    /// rungs the document actually prices are the only ones there is a number for, so the refund
+    /// counts those and no more.
+    /// </para>
     /// </remarks>
     internal long EnhanceStonesInvested(int enhanceLevel)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(enhanceLevel, MinEnhanceLevel);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(enhanceLevel, MaxEnhanceLevel);
 
         var total = 0L;
+        var priced = Math.Min(enhanceLevel, MaxEnhanceLevel);
 
-        for (var level = MinEnhanceLevel + 1; level <= enhanceLevel; level++)
+        for (var level = MinEnhanceLevel + 1; level <= priced; level++)
         {
             total += EnhanceStoneCost(level);
         }

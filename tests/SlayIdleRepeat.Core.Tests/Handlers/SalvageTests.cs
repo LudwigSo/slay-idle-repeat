@@ -99,11 +99,16 @@ public sealed class SalvageTests
             Inventories.Item("locked", locked: true),
             Inventories.Item("also_loose"));
 
+        // 🔴 Taken BEFORE Apply. Reading the expected bytes off `world` afterwards would compare
+        // the slice against itself — Apply hands the caller's own slice back on a rejection — so
+        // the assertion would hold even if the working clone had leaked into the caller's stock.
+        var before = ForgeWorlds.StockBytes(world);
+
         var result = GameRules.Apply(world, Command("loose", "locked", "also_loose"), Context);
 
         result.Accepted.ShouldBeFalse();
         result.Events.ShouldBeEmpty();
-        ForgeWorlds.StockBytes(result.NewState).ShouldBe(ForgeWorlds.StockBytes(world));
+        ForgeWorlds.StockBytes(result.NewState).ShouldBe(before);
     }
 
     /// <summary>An identity the player does not own refuses the batch before anything is destroyed.</summary>
@@ -112,10 +117,13 @@ public sealed class SalvageTests
     {
         var world = ForgeWorlds.Holding(Inventories.Item("a"), Inventories.Item("b"));
 
+        // 🔴 Taken BEFORE Apply, for the reason recorded on the locked-item case above.
+        var before = ForgeWorlds.StockBytes(world);
+
         var result = GameRules.Apply(world, Command("a", "nobody"), Context);
 
         result.Rejection.ShouldBe(RejectionReason.NOT_OWNED);
-        ForgeWorlds.StockBytes(result.NewState).ShouldBe(ForgeWorlds.StockBytes(world));
+        ForgeWorlds.StockBytes(result.NewState).ShouldBe(before);
     }
 
     /// <summary>An item waiting in overflow is not acted on.</summary>

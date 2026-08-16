@@ -824,6 +824,10 @@ internal readonly record struct ChestPickRule(
 /// <param name="EffectiveRateCap">The ceiling the raised chance is clamped to.</param>
 /// <param name="AdEnhanceLuckStacksAdditively">
 /// Whether the rewarded ad's bonus is added to the raised chance rather than multiplied into it.
+/// Read and carried but <b>not branched on</b>, like <see cref="RarityFloorRenormalisation"/>: the
+/// document authors <c>true</c> and <c>EnhanceMercy</c> adds, so the only branch there is to write
+/// is the multiplicative one, and nothing in the design set states it. Inventing it here would put
+/// a rule nobody authored behind a flag nobody has ever set.
 /// </param>
 /// <param name="AdEnhanceLuckAdvancesCounter">
 /// Whether an attempt carrying the ad's bonus moves the mercy counter. <c>false</c> as shipped: the

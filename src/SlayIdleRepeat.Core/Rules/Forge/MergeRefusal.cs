@@ -2,9 +2,9 @@ namespace SlayIdleRepeat.Core.Rules.Forge;
 
 /// <summary>Why a fusion is not a legal fusion.</summary>
 /// <remarks>
-/// 🔒 <b>Named rather than collapsed to one "illegal merge".</b> Six independent rules can refuse a
-/// fusion, and four of them map onto the same wire rejection — so a caller holding only the wire
-/// reason cannot tell them apart, and neither can a test. Naming each one is what lets the tests
+/// 🔒 <b>Named rather than collapsed to one "illegal merge".</b> Seven independent rules can refuse
+/// a fusion, and every one of them maps onto the same wire rejection — so a caller holding only the
+/// wire reason cannot tell them apart, and neither can a test. Naming each one is what lets the tests
 /// pin <em>which</em> rule fired instead of merely that something did, and what lets a client tell
 /// the player the one thing that is actually wrong with their selection.
 /// <para>

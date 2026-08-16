@@ -178,7 +178,6 @@ public sealed class Player
         Inventory inventory,
         IReadOnlyList<AutoSalvageRule> autoSalvageRules)
     {
-        AutoSalvageRules = autoSalvageRules;
         _pityCounters = pityCounters;
         Id = id;
         DisplayName = displayName;
@@ -204,6 +203,7 @@ public sealed class Player
         _featCounters = featCounters;
         _featCountersView = new FeatCounters(new ReadOnlyDictionary<string, long>(featCounters));
         Inventory = inventory;
+        AutoSalvageRules = autoSalvageRules;
     }
 
     /// <summary>

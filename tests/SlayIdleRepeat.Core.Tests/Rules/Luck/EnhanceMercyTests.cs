@@ -38,9 +38,12 @@ public sealed class EnhanceMercyTests
     }
 
     /// <summary>
-    /// 🔒 Each consecutive failure adds the authored slope. The rows walk the design set's own
-    /// worked example — a hardest-level attempt guaranteed by the tenth try at worst.
+    /// 🔒 Each consecutive failure adds the authored slope, from the hardest level's own chance.
     /// </summary>
+    /// <remarks>
+    /// The rows stop short of the ceiling on purpose: where the ramp actually reaches certainty is
+    /// its own case below, with the attempt before it as the negative control.
+    /// </remarks>
     /// <param name="failures">Failures on this item since its last success.</param>
     /// <param name="rate">The chance the next attempt has.</param>
     [Theory]
@@ -59,7 +62,25 @@ public sealed class EnhanceMercyTests
     [Fact]
     public void The_ramp_stops_at_the_authored_ceiling()
     {
-        LuckService.EnhanceSuccessRate(0.25, 50, 0.0, Rule).ShouldBe(Rule.EffectiveRateCap);
+        LuckService.EnhanceSuccessRate(0.25, 50, 0.0, Rule).ShouldBe(1.0);
+    }
+
+    /// <summary>
+    /// 🔒 Where the hardest level's ramp actually becomes certain, with the attempt before it as the
+    /// negative control.
+    /// </summary>
+    /// <remarks>
+    /// The counter holds the failures BEFORE the attempt, so the run of ten failures is the
+    /// ELEVENTH attempt — <c>0.25 + 0.08 × 10 = 1.05</c>, clamped to certainty — and the tenth still
+    /// stands at 0.97. Stating it as "certain by the tenth" is the off-by-one this pair exists to
+    /// catch: a slope applied to the attempt's ordinal rather than to the failures behind it would
+    /// answer 1.0 one attempt early and no other case here would notice.
+    /// </remarks>
+    [Fact]
+    public void The_hardest_levels_ramp_is_certain_on_the_eleventh_attempt_and_not_the_tenth()
+    {
+        LuckService.EnhanceSuccessRate(0.25, 9, 0.0, Rule).ShouldBe(0.97, 1e-12);
+        LuckService.EnhanceSuccessRate(0.25, 10, 0.0, Rule).ShouldBe(1.0);
     }
 
     /// <summary>
@@ -77,7 +98,7 @@ public sealed class EnhanceMercyTests
     [Fact]
     public void A_lucky_bonus_cannot_push_the_rate_past_the_ceiling()
     {
-        LuckService.EnhanceSuccessRate(0.9, 2, 0.15, Rule).ShouldBe(Rule.EffectiveRateCap);
+        LuckService.EnhanceSuccessRate(0.9, 2, 0.15, Rule).ShouldBe(1.0);
     }
 
     /// <summary>

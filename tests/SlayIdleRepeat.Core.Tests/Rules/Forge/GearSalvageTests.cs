@@ -33,6 +33,13 @@ public sealed class GearSalvageTests
     /// level is worth 1.5 dust, so the rounding is visible, and at the top band it is worth 384,
     /// where it could not be.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The <c>B</c>/+9 row is the one that catches a bare floor.</b> A share authored at two
+    /// decimal places is not exact in binary, so a payout whose real value is the whole number 94
+    /// computes as 93.999999999999986 and a floor alone answers 93 — a defect invisible at every
+    /// other row here, because the rest either land on a genuine half or come out above the whole
+    /// number rather than below it.
+    /// </remarks>
     /// <param name="rarity">The item's band.</param>
     /// <param name="level">The level it stands at.</param>
     /// <param name="dust">What it breaks down into.</param>
@@ -40,6 +47,7 @@ public sealed class GearSalvageTests
     [InlineData(Rarity.C, 1, 11)]
     [InlineData(Rarity.C, 3, 14)]
     [InlineData(Rarity.C, 15, 32)]
+    [InlineData(Rarity.B, 9, 94)]
     [InlineData(Rarity.A, 10, 400)]
     [InlineData(Rarity.SS, 15, 8320)]
     public void Each_enhancement_level_adds_a_share_of_the_base_dust(

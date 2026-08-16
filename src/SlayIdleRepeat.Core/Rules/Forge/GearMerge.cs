@@ -26,6 +26,13 @@ namespace SlayIdleRepeat.Core.Rules.Forge;
 /// legally differ by a factor of sixteen depending on which of them the code happened to read.
 /// </para>
 /// <para>
+/// ⚠️ <b>The mercy counter's maximum is authored somewhere else from the other two, and that is why
+/// the forge document does not state it.</b> Quality and chapter of origin are the gear document's
+/// rules; the counter's is the luck document's — an item merged upward carries the counter of its
+/// highest-counter input, so that a player chasing an enhancement is never punished for merging
+/// mid-chase. All three are transcribed here rather than decided here.
+/// </para>
+/// <para>
 /// <b>The output keeps the first input's identity.</b> Three items go in and one comes out, so one of
 /// the three identities survives and no new one is minted — which matters because the domain has no
 /// way to mint one: identity is a port, and a rule may not name a port. The surviving identity is the

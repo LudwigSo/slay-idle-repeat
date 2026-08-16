@@ -315,6 +315,35 @@ public sealed class RealDataNegativeCaseTests
             ContentIssueCode.OutOfRange, "tuning/forge.json#/enhance/totalMultiplierAtMax");
     }
 
+    /// <summary>
+    /// R24's sibling: the per-level success ladder is the band endpoints spread evenly, so the two
+    /// separately authored statements of one ramp may not drift.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The mutation is the tidy-looking one a transcriber would actually make — 0.4375 rounded
+    /// to 0.44 — rather than an obviously absurd figure, because a rule that only caught nonsense
+    /// would leave the real failure mode (a hand-rounded ladder that reads as a deliberate re-tune)
+    /// green.
+    /// </remarks>
+    [Fact]
+    public void A_success_ladder_rung_that_stops_matching_its_bands_ramp_is_rejected()
+    {
+        Rejects("tuning/forge.json", "0.5, 0.4375, 0.375", "0.5, 0.44, 0.375",
+            ContentIssueCode.OutOfRange, "tuning/forge.json#/enhance/perLevelSuccessRate/11");
+    }
+
+    /// <summary>
+    /// The same rule at the OTHER end of a band: an endpoint that stops matching the rung it
+    /// authors. The interior mutation above would pass for a rule that only checked endpoints, and
+    /// this one would pass for a rule that only checked interiors.
+    /// </summary>
+    [Fact]
+    public void A_success_ladder_endpoint_that_stops_matching_its_band_is_rejected()
+    {
+        Rejects("tuning/forge.json", "0.85, 0.8, 0.75", "0.86, 0.8, 0.75",
+            ContentIssueCode.OutOfRange, "tuning/forge.json#/enhance/perLevelSuccessRate/5");
+    }
+
     /// <summary>R7: the three ad-behaviour groups partition the catalogue exactly.</summary>
     [Fact]
     public void An_ad_placement_that_falls_out_of_every_behaviour_group_is_rejected()

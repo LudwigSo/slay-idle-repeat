@@ -186,18 +186,25 @@ public sealed class MergeTests
     }
 
     /// <summary>🔒 A refused fusion charges nothing and consumes nothing.</summary>
+    /// <remarks>
+    /// 🔴 The expected bytes are taken BEFORE <c>Apply</c>. Reading them off <c>world</c> afterwards
+    /// would compare the slice against itself — <c>Apply</c> hands the caller's own slice back on a
+    /// rejection — so the assertion would hold however badly the handler had written it.
+    /// </remarks>
     [Fact]
     public void A_refused_fusion_leaves_the_stock_and_the_wallet_exactly_where_they_stood()
     {
         var world = ForgeWorlds.Holding(
             PlayerSnapshots.Wallet((CurrencyId.CROWNS, 119)), Triple());
 
+        var before = ForgeWorlds.StockBytes(world);
+
         var result = GameRules.Apply(world, Command("a", "b", "c"), Context);
 
         result.Accepted.ShouldBeFalse();
         result.Events.ShouldBeEmpty();
-        ForgeWorlds.StockBytes(result.NewState).ShouldBe(ForgeWorlds.StockBytes(world));
-        result.NewState.Player.BalanceOf(CurrencyId.CROWNS).ShouldBe(119);
+        ForgeWorlds.StockBytes(result.NewState).ShouldBe(before);
+        world.Player.BalanceOf(CurrencyId.CROWNS).ShouldBe(119);
     }
 
     /// <summary>Nothing fuses out of the top band, however well funded the player is.</summary>

@@ -1,5 +1,6 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Gear;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Rules.Forge;
 
@@ -19,6 +20,15 @@ namespace SlayIdleRepeat.Core.Rules.Forge;
 /// alternative pays a player more stones than an item cost at some levels, which turns a sink into a
 /// very slow source. The choice is recorded here because it is a choice.
 /// </para>
+/// <para>
+/// 🔒 <b>The product is put through the determinism rounding before the floor, and the flooring
+/// alone is wrong without it.</b> A share authored at two decimal places is not exact in binary, so
+/// a product whose real value is a whole number can land a fraction of an ulp below it: at the
+/// shipped numbers a B-band item at +9 is worth exactly 94 dust and the bare product is
+/// 93.999999999999986, which floors to 93. Rounding to the assembly's 4 decimal places first lands
+/// the value on the number the document states, and leaves a genuinely fractional payout — 11.5,
+/// 3.6 — to floor as it should.
+/// </para>
 /// </remarks>
 internal static class GearSalvage
 {
@@ -27,7 +37,6 @@ internal static class GearSalvage
     /// <param name="tuning">The forge numbers.</param>
     /// <returns>The Merge Dust and the Enhance Stones the player is paid.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The item's level is outside the authored range.</exception>
     /// <exception cref="InvalidTunableException">The document values no item of that band.</exception>
     internal static (long Dust, long Stones) Payout(GearInstance item, ForgeTuning tuning)
     {
@@ -51,7 +60,7 @@ internal static class GearSalvage
         ArgumentOutOfRangeException.ThrowIfNegative(enhanceLevel);
         ArgumentOutOfRangeException.ThrowIfNegative(perLevelShare);
 
-        return (long)Math.Floor(baseDust * (1.0 + (perLevelShare * enhanceLevel)));
+        return Whole(baseDust * (1.0 + (perLevelShare * enhanceLevel)));
     }
 
     /// <summary>The stones a refund share returns out of what was invested.</summary>
@@ -72,6 +81,10 @@ internal static class GearSalvage
                 "item ever cost, which turns the game's largest material sink into a source.");
         }
 
-        return (long)Math.Floor(invested * refundShare);
+        return Whole(invested * refundShare);
     }
+
+    /// <summary>One payout as a whole number: rounded to the assembly's precision, then floored.</summary>
+    private static long Whole(double payout) =>
+        (long)Math.Floor(DeterminismRounding.Round(payout));
 }

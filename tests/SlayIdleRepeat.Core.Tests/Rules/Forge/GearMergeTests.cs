@@ -238,16 +238,20 @@ public sealed class GearMergeTests
     /// REAL inputs, and a fusion of two ordinary items must not inherit anything from the slot dust
     /// paid for.
     /// </summary>
-    [Fact]
-    public void A_dust_filled_slot_contributes_no_quality_and_no_chapter()
+    /// <param name="highestFirst">
+    /// Whether the higher-valued item is named first. Both orders are run because a two-item
+    /// selection has no middle: descending alone cannot tell "the maximum" from "the first named",
+    /// and ascending alone cannot tell it from "the last named". Together they can.
+    /// </param>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void A_dust_filled_slot_contributes_no_quality_and_no_chapter(bool highestFirst)
     {
-        // Descending, so the maxima are the FIRST input's: a rule that took the last real input
-        // rather than the highest lands somewhere else on all three axes.
-        var pair = new[]
-        {
-            Inventories.Item("merge_a", quality: 0.4, chapterOrigin: 3, enhanceFailures: 2),
-            Inventories.Item("merge_b", quality: 0.2, chapterOrigin: 2, enhanceFailures: 1),
-        };
+        var higher = Inventories.Item("merge_a", quality: 0.4, chapterOrigin: 3, enhanceFailures: 2);
+        var lower = Inventories.Item("merge_b", quality: 0.2, chapterOrigin: 2, enhanceFailures: 1);
+
+        var pair = highestFirst ? new[] { higher, lower } : [lower, higher];
 
         GearMerge.Refusal(pair, dustSubstituted: true, Forges.Tuning).ShouldBeNull();
 

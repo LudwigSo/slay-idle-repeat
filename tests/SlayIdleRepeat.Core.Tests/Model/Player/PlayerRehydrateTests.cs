@@ -297,6 +297,71 @@ public sealed class PlayerRehydrateTests
               .Message.ShouldMatchWildcard("*legendLevel/max*");
     }
 
+    /// <summary>
+    /// 🔒 An absent auto-salvage filter is a fault, not an empty one — the inventory's precedent.
+    /// </summary>
+    /// <remarks>
+    /// Read as empty it sweeps nothing, which looks exactly like a player who has not configured
+    /// one, so a row that failed to write its filter would silently turn the feature off. The
+    /// sibling optional field that IS read as "nothing yet" is asserted beside it, so "a null is a
+    /// fault" stays a claim about THIS field rather than about the reader in general.
+    /// </remarks>
+    [Fact]
+    public void A_null_auto_salvage_filter_is_refused_by_name()
+    {
+        var result = Core.Model.Player.Rehydrate(PlayerSnapshots.WithNull(autoSalvage: true), Content);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(
+            nameof(PlayerSnapshot.AutoSalvageRules),
+            Case.Sensitive,
+            customMessage: "several fields can fail this validation; the message must say WHICH one did.");
+
+        Core.Model.Player.Rehydrate(PlayerSnapshots.WithNull(cleared: true), Content)
+            .IsSuccess.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// A filter row over a band nothing can be, or below a level no item sits at, is a row nobody
+    /// could have set — and the fault names the ROW, since a filter usually has several.
+    /// </summary>
+    /// <param name="rule">The row the persisted filter carries.</param>
+    /// <param name="fragment">What the fault must say about it.</param>
+    [Theory]
+    [InlineData((Rarity)99, 3, "names band '99'")]
+    [InlineData(Rarity.C, -1, "sweeps below level -1")]
+    public void A_filter_row_the_ladder_does_not_have_is_refused_by_row(
+        Rarity rule, int belowEnhanceLevel, string fragment)
+    {
+        var result = Core.Model.Player.Rehydrate(
+            PlayerSnapshots.With(
+                autoSalvageRules: [new AutoSalvageRule(Rarity.S, 5), new AutoSalvageRule(rule, belowEnhanceLevel)]),
+            Content);
+
+        result.IsFailure.ShouldBeTrue();
+        result.Error.ShouldContain(
+            nameof(PlayerSnapshot.AutoSalvageRules) + "[1]",
+            Case.Sensitive,
+            customMessage: "a filter carries several rows; the fault has to name which one is wrong.");
+        result.Error.ShouldContain(fragment, Case.Sensitive);
+    }
+
+    /// <summary>
+    /// The negative control for the pair above: a filter whose rows are all legal loads, and the
+    /// rows arrive in the order they were persisted.
+    /// </summary>
+    [Fact]
+    public void A_filter_of_legal_rows_rehydrates_in_the_order_it_was_persisted()
+    {
+        var player = Core.Model.Player.Rehydrate(
+            PlayerSnapshots.With(
+                autoSalvageRules: [new AutoSalvageRule(Rarity.B, 3), new AutoSalvageRule(Rarity.C, 0)]),
+            Content).Value;
+
+        player.AutoSalvageRules.ShouldBe(
+            [new AutoSalvageRule(Rarity.B, 3), new AutoSalvageRule(Rarity.C, 0)]);
+    }
+
     /// <summary>Neither argument may be null; a null snapshot is a caller defect, not a corrupt row.</summary>
     [Fact]
     public void Null_arguments_are_refused_as_argument_errors()

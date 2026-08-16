@@ -103,17 +103,25 @@ public sealed class EnhanceTests
     }
 
     /// <summary>🔒 A refused attempt charges nothing and moves no item.</summary>
+    /// <remarks>
+    /// 🔴 The expected bytes are taken BEFORE <c>Apply</c>. Reading them off <c>world</c> afterwards
+    /// would compare the slice against itself — <c>Apply</c> hands the caller's own slice back on a
+    /// rejection — so the assertion would hold however badly the handler had written it.
+    /// </remarks>
     [Fact]
     public void A_refused_attempt_leaves_the_stock_and_the_wallet_exactly_where_they_stood()
     {
         var world = ForgeWorlds.Holding(
             PlayerSnapshots.Wallet((CurrencyId.ENHANCE_STONES, 1)), Inventories.Item("blade"));
 
+        var before = ForgeWorlds.StockBytes(world);
+
         var result = GameRules.Apply(world, Command(), Context);
 
         result.Accepted.ShouldBeFalse();
         result.Events.ShouldBeEmpty();
-        ForgeWorlds.StockBytes(result.NewState).ShouldBe(ForgeWorlds.StockBytes(world));
+        ForgeWorlds.StockBytes(result.NewState).ShouldBe(before);
+        world.Player.BalanceOf(CurrencyId.ENHANCE_STONES).ShouldBe(1);
     }
 
     /// <summary>
@@ -124,8 +132,6 @@ public sealed class EnhanceTests
     [Fact]
     public void A_failed_attempt_charges_its_stones_and_leaves_the_level_standing()
     {
-        var world = ForgeWorlds.Holding(Inventories.Item("blade", enhanceLevel: 14));
-
         for (var seed = 1UL; seed < 200UL; seed++)
         {
             var result = GameRules.Apply(

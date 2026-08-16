@@ -117,22 +117,18 @@ internal static class Merge
     }
 
     /// <summary>
-    /// The wire rejection each refusal maps onto. Four of the seven share one, which is exactly why
-    /// the rule answers a named refusal and this is the only place the two vocabularies meet.
+    /// The wire rejection a refusal maps onto. <b>All seven map onto the same one</b>, which is
+    /// exactly why the rule answers a named refusal: the wire vocabulary cannot tell a mismatched
+    /// band from a duplicated input, so the distinction has to survive somewhere else. Written as one
+    /// answer rather than seven identical arms — a per-member arm list that never disagrees with
+    /// itself only reads as though the mapping had branches.
     /// </summary>
-    private static RejectionReason RejectionFor(MergeRefusal refusal) => refusal switch
-    {
-        MergeRefusal.WRONG_INPUT_COUNT => RejectionReason.ILLEGAL_STATE,
-        MergeRefusal.DUST_SUBSTITUTION_NOT_ALLOWED => RejectionReason.ILLEGAL_STATE,
-        MergeRefusal.DUPLICATE_INPUT => RejectionReason.ILLEGAL_STATE,
-        MergeRefusal.MISMATCHED_ITEM => RejectionReason.ILLEGAL_STATE,
-        MergeRefusal.MISMATCHED_RARITY => RejectionReason.ILLEGAL_STATE,
-        MergeRefusal.MISMATCHED_ENHANCE_LEVEL => RejectionReason.ILLEGAL_STATE,
-        MergeRefusal.NO_HIGHER_RARITY => RejectionReason.ILLEGAL_STATE,
-        _ => throw new ArgumentOutOfRangeException(
-            nameof(refusal),
-            refusal,
-            "That is not one of the ways a fusion can be refused. A default arm here would answer a " +
-            "rule nobody wrote with a rejection nobody chose."),
-    };
+    private static RejectionReason RejectionFor(MergeRefusal refusal) =>
+        Enum.IsDefined(refusal)
+            ? RejectionReason.ILLEGAL_STATE
+            : throw new ArgumentOutOfRangeException(
+                nameof(refusal),
+                refusal,
+                "That is not one of the ways a fusion can be refused. Answering a rejection here " +
+                "would give a rule nobody wrote a reason nobody chose.");
 }

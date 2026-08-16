@@ -167,6 +167,31 @@ public sealed class ForgeTuningTests
         Shipped.EnhanceStonesInvested(level).ShouldBe(invested);
     }
 
+    /// <summary>
+    /// 🔒 An item standing ABOVE the ceiling is summed to the ceiling rather than refused. The
+    /// ceiling is a tunable, so a balance patch that lowered it leaves real items above the new one
+    /// — and this figure is on a SALVAGE path, where a refusal would make those items impossible to
+    /// break down at all.
+    /// </summary>
+    /// <param name="level">The level the item stands at.</param>
+    [Theory]
+    [InlineData(16)]
+    [InlineData(40)]
+    public void An_item_above_the_ceiling_is_summed_to_the_ceiling_rather_than_refused(int level)
+    {
+        Shipped.EnhanceStonesInvested(level).ShouldBe(
+            Shipped.EnhanceStonesInvested(ForgeDocuments.ShippedMaxEnhanceLevel),
+            "the rungs the document prices are the only ones there is a number for, so a level past " +
+            "the last of them is worth exactly the last of them and never more.");
+    }
+
+    /// <summary>A level below the floor is not a state an item can be in, and is refused.</summary>
+    [Fact]
+    public void A_level_below_the_floor_has_no_invested_total()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => _ = Shipped.EnhanceStonesInvested(-1));
+    }
+
     /// <summary>The salvage numbers, read rather than compiled in.</summary>
     [Fact]
     public void The_reader_answers_the_salvage_numbers_the_document_authors()
@@ -211,6 +236,54 @@ public sealed class ForgeTuningTests
             ForgeDocuments.With(perLevelSuccessRate: ForgeDocuments.Rates(rates)));
 
         Should.Throw<InvalidTunableException>(act);
+    }
+
+    /// <summary>
+    /// An attempt that costs nothing is an attempt with no sink behind it — the stone ladder's own
+    /// guard, which nothing else in this file reaches.
+    /// </summary>
+    /// <param name="rung">The rung the document zeroes or inverts.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(14)]
+    public void A_stone_rung_that_costs_nothing_is_refused(int rung)
+    {
+        var costs = ForgeDocuments.ShippedStoneCosts.ToArray();
+        costs[rung] = 0;
+
+        var act = () => ForgeTuning.Read(
+            ForgeDocuments.With(stoneCostPerLevel: ForgeDocuments.Ladder(costs)));
+
+        Should.Throw<InvalidTunableException>(act).Reference
+            .ShouldBe(ForgeTuning.StoneCostReference + "/" + rung);
+    }
+
+    /// <summary>
+    /// A stone ladder that does not cover every level cannot price every attempt. The shared
+    /// length guard, reached through the OTHER of the two ladders — the success ladder's case above
+    /// would pass for a reader that only checked one of them.
+    /// </summary>
+    [Fact]
+    public void A_stone_ladder_that_does_not_cover_every_level_is_refused()
+    {
+        var act = () => ForgeTuning.Read(ForgeDocuments.With(stoneCostPerLevel: ForgeDocuments.Ladder(2, 3)));
+
+        Should.Throw<InvalidTunableException>(act).Reference.ShouldBe(ForgeTuning.StoneCostReference);
+    }
+
+    /// <summary>
+    /// A negative per-level salvage share would make an enhanced item worth LESS than an unenhanced
+    /// one. Its own guard, and a different one from the unit-share check the two shares beside it
+    /// use — this share is allowed to exceed nothing but zero.
+    /// </summary>
+    [Fact]
+    public void A_negative_per_level_dust_share_is_refused()
+    {
+        var act = () => ForgeTuning.Read(
+            ForgeDocuments.With(dustPerEnhanceLevel: ContentValue.Number(-0.15m)));
+
+        Should.Throw<InvalidTunableException>(act).Reference
+            .ShouldBe(ForgeTuning.DustPerEnhanceLevelReference);
     }
 
     /// <summary>A fusion of fewer than two items is a rename, not a fusion.</summary>

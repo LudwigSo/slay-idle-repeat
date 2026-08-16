@@ -35,7 +35,10 @@ public sealed class GearEnhancementTests
     [InlineData(0, 1.0)]
     [InlineData(1, 1.07)]
     [InlineData(10, 1.7)]
-    [InlineData(15, 2.05)]
+    // The ceiling's row is the document's own published total rather than a literal repeated here:
+    // 08 §4.2 authors totalMultiplierAtMax beside the per-level bonus, so this row is the rule's
+    // arithmetic checked against a number the design set states independently of it.
+    [InlineData(15, Content.ForgeDocuments.ShippedTotalMultiplierAtMax)]
     public void The_stat_multiplier_climbs_seven_percent_a_level_to_the_published_total(
         int level, double multiplier)
     {
@@ -157,51 +160,77 @@ public sealed class GearEnhancementTests
             Forges.Draws()));
     }
 
-    /// <summary>An attempt consumes exactly one draw index whichever way it goes.</summary>
+    /// <summary>
+    /// An attempt consumes exactly one draw index whichever way it goes.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The two outcomes are pinned as well as the two positions. Two attempts that both LANDED
+    /// would satisfy the position assertions identically, so without them this case would say
+    /// nothing about the failure half its name claims.
+    /// </remarks>
     [Fact]
     public void An_attempt_consumes_one_draw_index_whether_it_lands_or_not()
     {
         var certain = Forges.Draws();
-        GearEnhancement.Attempt(
+        var landed = GearEnhancement.Attempt(
             Inventories.Item("blade", enhanceLevel: 0),
             GearEnhancement.NoLuckyBonus,
             Forges.Tuning,
             Forges.Mercy,
             certain);
 
-        var risky = Forges.Draws();
-        GearEnhancement.Attempt(
+        var risky = Forges.Draws(FailingSeed);
+        var missed = GearEnhancement.Attempt(
             Inventories.Item("blade", enhanceLevel: 14),
             GearEnhancement.NoLuckyBonus,
             Forges.Tuning,
             Forges.Mercy,
             risky);
 
+        landed.Succeeded.ShouldBeTrue("the first five levels are certain");
+        missed.Succeeded.ShouldBeFalse("the seed was chosen precisely because this attempt fails");
+
         certain.Position.ShouldBe(1UL);
         risky.Position.ShouldBe(certain.Position);
     }
+
+    /// <summary>
+    /// A seed whose first draw lands above the hardest level's chance — walked for rather than
+    /// guessed, so the cases that need a failure fail loudly instead of asserting over a success.
+    /// </summary>
+    private static ulong FailingSeed { get; } = FirstFailingSeed();
 
     /// <summary>
     /// One attempt at the hardest level, on a seed whose draw lands above the chance — found by
     /// walking seeds rather than asserted, so the case fails loudly if none of them fails.
     /// </summary>
     private static (Core.Model.Gear.GearInstance Item, bool Succeeded, double Rate) Failing(
-        Core.Model.Gear.GearInstance item)
+        Core.Model.Gear.GearInstance item) =>
+        GearEnhancement.Attempt(
+            item, GearEnhancement.NoLuckyBonus, Forges.Tuning, Forges.Mercy, Forges.Draws(FailingSeed));
+
+    private static ulong FirstFailingSeed()
     {
+        var unenhanced = Inventories.Item("probe", enhanceLevel: 14);
+
         for (var seed = 1UL; seed < 200UL; seed++)
         {
             var attempt = GearEnhancement.Attempt(
-                item, GearEnhancement.NoLuckyBonus, Forges.Tuning, Forges.Mercy, Forges.Draws(seed));
+                unenhanced,
+                GearEnhancement.NoLuckyBonus,
+                Forges.Tuning,
+                Forges.Mercy,
+                Forges.Draws(seed));
 
             if (!attempt.Succeeded)
             {
-                return attempt;
+                return seed;
             }
         }
 
         throw new InvalidOperationException(
             "No seed under two hundred failed an attempt at the hardest level, whose authored chance " +
             "is one in four. Either the draw is not being consulted or the ladder has moved, and " +
-            "either way the failure case below would be asserting over a success.");
+            "either way the failure cases above would be asserting over a success.");
     }
 }
