@@ -36,18 +36,25 @@ public enum AppRootPhase
 /// </remarks>
 public sealed class AppRootPresenter
 {
+    private readonly IGameHost _gameHost;
+
     /// <summary>Takes the host the composition root built.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="gameHost"/> is null.</exception>
-    public AppRootPresenter(IGameHost gameHost) => throw new NotImplementedException();
+    public AppRootPresenter(IGameHost gameHost)
+    {
+        ArgumentNullException.ThrowIfNull(gameHost);
+
+        _gameHost = gameHost;
+    }
 
     /// <summary>How far composition has got.</summary>
-    public AppRootPhase Phase => throw new NotImplementedException();
+    public AppRootPhase Phase { get; private set; } = AppRootPhase.Composing;
 
     /// <summary>The open profile's id once <see cref="Phase"/> is <see cref="AppRootPhase.Ready"/>, otherwise null.</summary>
-    public PlayerId? PlayerId => throw new NotImplementedException();
+    public PlayerId? PlayerId { get; private set; }
 
     /// <summary>Why composition failed once <see cref="Phase"/> is <see cref="AppRootPhase.Failed"/>, otherwise null.</summary>
-    public string? FailureReason => throw new NotImplementedException();
+    public string? FailureReason { get; private set; }
 
     /// <summary>
     /// Opens the local profile and moves to <see cref="AppRootPhase.Ready"/>, or records the
@@ -57,5 +64,22 @@ public sealed class AppRootPresenter
     /// A host that throws is a state, not an escape: the root is the last thing between a
     /// failure and a player looking at a frozen splash, so it always has something to show.
     /// </remarks>
-    public Task StartAsync(CancellationToken ct) => throw new NotImplementedException();
+    public async Task StartAsync(CancellationToken ct)
+    {
+        try
+        {
+            // Awaited inside the guard rather than merely called inside it: the host's open is an
+            // async method, so its failure arrives as a faulted task and a try around the call
+            // alone would never see it.
+            var player = await _gameHost.OpenProfileAsync(ct).ConfigureAwait(false);
+
+            PlayerId = player;
+            Phase = AppRootPhase.Ready;
+        }
+        catch (Exception failure)
+        {
+            FailureReason = failure.Message;
+            Phase = AppRootPhase.Failed;
+        }
+    }
 }

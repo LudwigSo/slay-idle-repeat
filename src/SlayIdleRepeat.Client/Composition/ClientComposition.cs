@@ -1,3 +1,7 @@
+using SlayIdleRepeat.Adapters.Ads.AutoGrant;
+using SlayIdleRepeat.Adapters.Ambient.System;
+using SlayIdleRepeat.Adapters.Cache.LocalFile;
+using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Services.Content;
@@ -102,8 +106,37 @@ public static class ClientComposition
         string cacheDirectoryPath,
         string contentDataRootPath,
         Entitlements entitlements,
-        FeatureFlags featureFlags) =>
-        throw new NotImplementedException();
+        FeatureFlags featureFlags)
+    {
+        // Every guard before anything touches a disk: a cache adapter creates its directory on
+        // construction, so a root that validated as it went would leave a directory behind for a
+        // call it then refused.
+        ArgumentException.ThrowIfNullOrWhiteSpace(cacheDirectoryPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(contentDataRootPath);
+        ArgumentNullException.ThrowIfNull(entitlements);
+        ArgumentNullException.ThrowIfNull(featureFlags);
+
+        // ⚠️ Canonical, not Shipping. The shipping gate fails while any translation sentinel
+        // remains, and every DE value is one today — a shipping load here would refuse to start
+        // the game rather than refuse to release it.
+        var content = new ContentProvider(
+            new LocalFileContentSource(contentDataRootPath),
+            ContentLoadOptions.Canonical,
+            ContentReloadPolicy.Disabled);
+
+        var rewardedAds = SelectRewardedAdPort(entitlements);
+
+        var gameHost = new InProcessGameHost(
+            new LocalFileCache(cacheDirectoryPath),
+            new SystemClock(),
+            new SystemIdGenerator(),
+            content.Current,
+            entitlements,
+            featureFlags,
+            sinks: []);
+
+        return new ComposedClient(gameHost, rewardedAds, content);
+    }
 
     /// <summary>
     /// Chooses the rewarded-ad arm from the resolved entitlement, and from nothing else.
@@ -114,8 +147,14 @@ public static class ClientComposition
     /// expiry is the server's business, not this branch's.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="entitlements"/> is null.</exception>
-    public static RewardedAdSelection SelectRewardedAdPort(Entitlements entitlements) =>
-        throw new NotImplementedException();
+    public static RewardedAdSelection SelectRewardedAdPort(Entitlements entitlements)
+    {
+        ArgumentNullException.ThrowIfNull(entitlements);
+
+        return entitlements.HasPlus
+            ? new RewardedAdSelection(RewardedAdArm.PlusAutoGrant, new AutoGrantRewardedAd())
+            : NoAdNetworkResolved();
+    }
 
     /// <summary>
     /// The free arm, spelling out that the ad network is not built rather than hiding it.
@@ -127,5 +166,5 @@ public static class ClientComposition
     /// place to change when it does.
     /// </remarks>
     public static RewardedAdSelection NoAdNetworkResolved() =>
-        throw new NotImplementedException();
+        new(RewardedAdArm.NoAdNetworkResolved, new AutoGrantRewardedAd());
 }
