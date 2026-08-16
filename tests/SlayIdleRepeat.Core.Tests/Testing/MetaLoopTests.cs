@@ -133,7 +133,14 @@ public sealed class MetaLoopTests
 
         run!.Phase.ShouldBe(
             RunPhase.Ended,
-            "the run did not end. " + driver.Ending + Trace(driver));
+            "the run did not end. " + driver.Ending + Environment.NewLine +
+            "⚠️ If the command budget was exhausted, the likeliest cause is that " +
+            "A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss has done its job and " +
+            "movement was repaired: this driver was written against a run that parks in stage 1 " +
+            "after four tiles, and a run that crosses a whole board needs a resolver for the tile " +
+            "kinds a stalled run never reaches — Shop has no command that clears it, and DiceForge " +
+            "has no command at all. Teach the driver those two before widening the budget again." +
+            Trace(driver));
 
         driver.Visited.Distinct().Count().ShouldBeGreaterThan(
             2,

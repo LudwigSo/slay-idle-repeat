@@ -50,6 +50,18 @@ internal sealed class MetaLoopDriver
     private const int ChoiceLadder = 3;
 
     /// <summary>
+    /// The most commands one run may take, so a defect cannot hang the suite.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Sized for a board the run can cross END TO END, not for the four tiles a stalled run gets:
+    /// chapter 1 is 42 spine nodes plus the boss, and a node costs up to five commands (roll, resolve,
+    /// battle, confirm, draft). A budget sized to today's stalled run would turn the repair of
+    /// <c>MovementEngine</c>'s stage-end clamp into a failure of the one clause this file drives
+    /// cleanly — measured: at 200 the repaired run exhausts the budget mid-board.
+    /// </remarks>
+    private const int CommandBudget = 600;
+
+    /// <summary>
     /// The chest-pick minigame — the one <c>MINIGAME</c> instance that carries a pity counter, and
     /// therefore the one that puts this loop on `24` §11's protected path rather than beside it.
     /// </summary>
@@ -130,7 +142,7 @@ internal sealed class MetaLoopDriver
     /// <param name="budget">The most commands this run may take, so a defect cannot hang the suite.</param>
     /// <returns>The driver, holding the trace.</returns>
     internal static MetaLoopDriver Play(
-        InMemoryGame game, PlayerId player, int chapter, DifficultyTier tier, int budget = 200)
+        InMemoryGame game, PlayerId player, int chapter, DifficultyTier tier, int budget = CommandBudget)
     {
         ArgumentNullException.ThrowIfNull(game);
 
