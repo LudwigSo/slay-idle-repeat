@@ -66,6 +66,11 @@ public static class ContentLayout
 
             [ContentDirectory + "curses/"] = SchemaDirectory + "curses" + SchemaSuffix,
 
+            // Named explicitly although the stem rule already answers correctly for the single
+            // gear.json this directory holds today — the remarks above call that the easy case to
+            // forget, because the gap only becomes visible the day a second file arrives.
+            [ContentDirectory + "gear/"] = SchemaDirectory + "gear" + SchemaSuffix,
+
             // Named explicitly (schema/perk.schema.json, singular) because the stem of
             // content/perks/perks.json is "perks" (plural) and the bare stem rule cannot bridge
             // a one-letter difference.

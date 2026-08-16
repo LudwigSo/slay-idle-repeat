@@ -203,6 +203,12 @@ public sealed class LuckRoutingRuleTests
     {
         "Rarity",
         "DraftOption",
+
+        // 🔒 M4-03 moved this one here in the commit that authored it, which is what the remarks
+        // above ask for: the name is no longer a pre-registration but a production type, and the
+        // routing arm now quantifies over a real gear producer rather than over a name nothing
+        // declares. GearGeneration is the producer, and it is deliberately NOT on RoutingExemptions.
+        "GearInstance",
     };
 
     /// <summary>
@@ -251,6 +257,44 @@ public sealed class LuckRoutingRuleTests
         // fails on the day they stop being needed.
         ("PerkDraftEngine", "M4-01b — the 24 §4.7 draft rules are declared as no-op seams and not yet wired to the façade; this is the one LIVE grant path that still bypasses it, and it is exempted with an owner rather than passed over"),
         ("PickPerk", "M4-01b — the handler that calls the draft engine, and it inherits the engine's exemption for exactly as long as the engine has one"),
+
+        // 🔒 M4-03's six, and they fall into three kinds rather than one. None of them decides a band
+        // or a guarantee; the type that does — Rules.Gear.GearGeneration — is deliberately absent
+        // from this list and calls the façade for both of its entry points.
+        //
+        // ⚠️ THE COUNT IS THE POINT OF THIS NOTE. Six rows arriving at once reads as a rule being
+        // hollowed out, so what was done to keep it from being that is written down: the shapes that
+        // could be restructured out of the rule's way were, rather than exempted. DropsTuning's two
+        // internal row types became private named tuples, GearInstance's three enum guards were
+        // inlined into its constructor (a private RequireDeclared(Rarity) on the outcome type would
+        // have forced an exemption on the outcome type itself, reopening the factory hole this rule
+        // was narrowed to close), the drop result became a named tuple rather than a record, and the
+        // minting half was split into its own type so that the half which routes could stay
+        // unexempted. Every_exempted_producer_still_needs_its_exemption drives all six.
+        //
+        // (a) The two CONTENT READERS and their authored rows. Reading a rarity out of a tuning
+        //     document is not granting one — LuckTuning and HardPityStep carry exactly this reason,
+        //     and Content sits BENEATH Rules, so routing a content read through Rules.Luck would be
+        //     the layering inverted.
+        ("DropsTuning", "the gear tuning reader — the rarity ladder, the chapter-banded drop shares, the slot coefficients, the affix pool and the set breakpoints the façade and the generator then draw against; LuckTuning's reason exactly, one document over"),
+        // 🔴 A DropRunTuning row was written here and DELETED before this landed, because the
+        // companion fact reported it as an exemption covering nothing: the reader hands back its two
+        // breakers and its floor as records, and neither the return type nor a parameter is a grant
+        // outcome — the rarities are members of those records, which the matcher does not flatten
+        // into. The same mechanism that deleted PityLadder's row deleted this one, on its own
+        // author, and it is worth a line: an exemption added "to be safe" is a rule quietly narrowed.
+        ("DryStreakBreaker", "one authored dry-streak breaker — a data row carrying the band it counts a miss below and the band it forces, read by DropRunTuning. HardPityStep's reason"),
+        ("SessionFloor", "one authored session floor — a data row carrying the band a floor grant lands on. HardPityStep's reason"),
+
+        // (b) The CONSUMERS of an item that was already granted. Neither mints anything: one answers
+        //     what an item's stats derive to, the other counts how many pieces of a set a loadout is
+        //     wearing. Both name a GearInstance in their signatures because they take one.
+        ("GearStatDerivation", "derives an item's two stats from what it already rolled — this is what 'computed stats are never stored' costs, and it reads a granted item rather than producing one"),
+        ("SetBonusResolver", "counts the SS pieces of an equipped loadout and answers which authored breakpoints it has reached. It reads items that were granted long before it ran"),
+
+        // (c) The two remaining shapes that name a gear instance by construction.
+        ("GearGranted", "the domain event that REPORTS a grant. Its constructor and its accessor carry the item because that is what the event is for; the grant was produced by whatever emitted it, and that producer is the one this rule watches. ⚠️ Pet and mount grant events will want the same row — at the third one, widen MentionsItsOwnTypeByConstruction to cover a DomainEvent's own bookkeeping members rather than adding a fourth"),
+        ("GearMinting", "builds an item at a band that was ALREADY decided — the base item, the quality scalar and the affixes, none of which is protected. Split out of GearGeneration precisely so that this exemption cannot cover the half that does make the protected decision; GearGeneration has no row here and calls LuckService for both of its entry points"),
     };
 
     /// <summary>

@@ -62,6 +62,9 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M4-13's event → lifetime-counter table — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
     internal const string FeatsNamespace = "SlayIdleRepeat.Core.Rules.Feats";
 
+    /// <summary>M4-03's `08` gear generation and set-bonus rules — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
+    internal const string GearNamespace = "SlayIdleRepeat.Core.Rules.Gear";
+
     /// <summary>M4-01's `24` §11 pity façade and its guarantee primitives — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
     /// <remarks>
     /// 🔒 The namespace <see cref="Every_namespace_under_Rules_has_a_declared_place_in_R17"/>'s own
@@ -219,6 +222,34 @@ public sealed class IntraRulesLayeringRuleTests
             "remarks) — a pity guarantee has no current reason to read the combat simulator, and " +
             "05 §6.2's run-scoped Elite no-repeat memory belongs on the run controller rather than " +
             "on LuckService for exactly this reason."),
+
+        // 🔒 M4-03's Rules/Gear/ (ItemPower, GearMinting, GearAffixRoller, GearGeneration,
+        // GearStatDerivation, SetBonusResolver), pinned OUTSIDE the ordering the same way Luck is,
+        // for the same reason — verified by inspection, not assumed: the namespace's Core
+        // dependencies outside itself are Content (the gear catalogue, the drop tables, the par
+        // table), Model (the gear instance), Primitives, Rng and Rules.Luck (the façade every drop
+        // routes through). ZERO coupling to Combat/Stats/Effects in either direction, and nothing
+        // under those three names a Gear type either.
+        //
+        // ⚠️ THE REVERSE DIRECTION IS THE ONE THAT WILL BE WANTED, and it is deliberately left open,
+        // exactly as it is for Board, Perks and Luck. `18` §8 step 1 collects effects from gear,
+        // affixes and set bonuses, and that collector lives in Rules.Effects — so Rules.Effects (or
+        // Rules.Stats) reading a derived gear stat one day is the direction these edges permit by
+        // forbidding only the other. What must not happen is the inverse: a gear derivation that
+        // reached into the aggregator or the tick loop would put the item's own stats downstream of
+        // the fight they are an input to.
+        (GearNamespace, EffectsNamespace,
+            "Gear is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — deriving an item's stats from what it rolled has no reason to read the " +
+            "effect DSL's resolver; the collection runs the other way."),
+        (GearNamespace, StatsNamespace,
+            "Gear is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — an item contributes TO stat aggregation and must not read it back, or the " +
+            "item's own numbers become a function of the aggregate they are an input to."),
+        (GearNamespace, CombatNamespace,
+            "Gear is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — gear generation and set-bonus counting have no reason to read the combat " +
+            "simulator."),
     };
 
     /// <summary>

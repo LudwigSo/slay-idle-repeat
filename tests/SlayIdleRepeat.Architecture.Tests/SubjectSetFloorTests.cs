@@ -426,15 +426,35 @@ public sealed class SubjectSetFloorTests
         // EffectSourceCatalogueTests.The_pending_expiry_subjects_are_distinct keeps two sources from
         // sharing one entry, which would untrack the second when the first arrived.
 
+        // 🔒 M4-03 RAN, AND THESE THREE STAY PENDING — with their reasons rewritten, because the
+        // reason going stale while the predicate still holds is the one case CI cannot catch and
+        // this milestone is the reader that has to falsify it. What M4-03 landed is the DATA MODEL:
+        // Model.Gear.GearInstance, the fourteen-affix pool behind Content.DropsTuning, and
+        // Rules.Gear.SetBonusResolver, which answers which of the authored breakpoints an equipped
+        // loadout has reached. What step 1 still cannot collect from is TWO things, neither of them
+        // M4-03's: an EQUIPPED LOADOUT on the aggregate (there is no inventory yet, let alone an
+        // equipped set), and the EFFECT CONTENT itself — no affix and no set bonus has an authored
+        // EffectDefinition, op or magnitude anywhere in the design set, and inventing one would be
+        // the plausible-looking hole S6 forbids sitting under the whole stat pipeline.
+        //
+        // ⚠️ The subject names are still the catalogue's inferences and M4-03 deliberately did not
+        // author a type by any of them — its types are GearInstance, GearAffixRoll (the rolled
+        // affix), GearAffixDefinition (the pool row) and ActiveSet. If the milestone that wires
+        // these picks other names, rename the entries rather than deleting them: what is tracked is
+        // "this source now has something to collect from", not the string.
         new("GearItem", SubjectKind.CoreType, "M4-03",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 1 of 10, " +
-            "'gear'. Its IEffectSource has no data model until M4-03's gear instance schema lands"),
+            "'gear'. M4-03 landed the instance; what is missing is an equipped loadout to collect one " +
+            "from and an authored effect for it to contribute"),
         new("GearAffix", SubjectKind.CoreType, "M4-03",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 2 of 10, " +
-            "'affixes'. 08 §3's 14 affixes are M4-03's"),
+            "'affixes'. M4-03 landed all 14 with their ranges, slot restrictions and ids; what is " +
+            "missing is the EffectDefinition each one contributes, which no document authors"),
         new("SetBonus", SubjectKind.CoreType, "M4-03",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 3 of 10, " +
-            "'set bonuses'. 08 §3's 4 SS set-bonus engines are M4-03's"),
+            "'set bonuses'. M4-03 landed the four engines as far as the data goes — which set a " +
+            "loadout is wearing and which authored breakpoints it has met; the 2/4/6 bonuses " +
+            "themselves are described in prose and have no effect id, op or magnitude anywhere"),
         new("TalentNode", SubjectKind.CoreType, "M4-06",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 4 of 10, " +
             "'talents'. 09's 60-node tree is M4-06's"),
@@ -633,25 +653,32 @@ public sealed class SubjectSetFloorTests
         // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these two
         // lists, so dropping the row goes red.
         //
-        // ⚠️ DOC CONTRADICTION, CARRIED FORWARD (steering S16). Events appears in no row of
-        // Core_internal_layering_holds' FORBIDDEN-PAIR table, and it must not be given one on a
-        // guess. 30 §11.4's chain is "Handlers -> Rules -> Model -> Content -> Primitives" and
-        // omits Commands and Events entirely, while 30 §7 writes
-        // GearGranted(int, GearInstance, SourceClass, bool) — and GearInstance is a Model
-        // aggregate. A row forbidding Events -> Model would therefore contradict 30 §7 and block
-        // M4-03 outright.
-        //   OWNER: M1-06's task brief takes the first cut, because it lands Commands/ and Handlers/
-        //   and turns one ungoverned region into two. The binding ruling is due at the M4 KICKOFF,
-        //   before M4-03 authors GearGranted — that is the commit where Events -> Model stops being
-        //   hypothetical. Whoever rules amends 30 §11.4 rather than only the table.
-        // What IS settled and enforced meanwhile: Events is in that rule's mustNotReachTheRoot
-        // list (an event naming GameRules or GameContext is a cycle under every reading), and
-        // DomainEventTests.Core_Events_holds_the_event_hierarchy_and_nothing_else governs what the
-        // namespace DECLARES. Neither says anything about Events -> Model, which is the open half.
+        // 🔒 THE DOC CONTRADICTION THIS ROW CARRIED SINCE M1-03 IS DISCHARGED (steering S16). It read:
+        // 30 §11.4's chain omits Commands and Events entirely, while 30 §7 writes
+        // GearGranted(int, GearInstance, SourceClass, bool) — so a row forbidding Events -> Model
+        // would contradict 30 §7 and block M4-03, and a row permitting it would put an aggregate in
+        // a list that leaves the domain. M1-03, M1-06 and M1-11 each closed the halves that were
+        // unambiguous and left this one open BY NAME, with the M4 kickoff as its owner.
+        //
+        // RULED at the M4 kickoff (2026-08-16) and landed by M4-03: Events -> Model is PERMITTED,
+        // NARROWLY — an event may name a Model/ type only when that type is an immutable, fully
+        // serialisable value record with no mutators, never an aggregate ROOT and never a Model/
+        // type carrying an internal mutator. 30 §11.4 carries the amendment (the chain is now
+        // Testing -> Handlers -> Rules -> Model -> Content -> Primitives with Commands and Events as
+        // peer leaves), DomainEvent's own remarks no longer say "not an aggregate", and the
+        // enforcement is AccessibilityBoundaryTests
+        // .An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record — a rule of its own
+        // rather than a forbidden PAIR, because the permitted reference and the forbidden one go to
+        // the same namespace and differ only in the shape of the type reached.
+        //
+        // Events still has no row in the forbidden-pair table for Model, and now that is a decision
+        // with a reason rather than a gap: it has one for Rules, Handlers and Testing, and it is in
+        // mustNotReachTheRoot.
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
             "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace, " +
-            "AccessibilityBoundaryTests.Core_internal_layering_holds (the mustNotReachTheRoot half only — " +
-            "Events has no row in the forbidden-pair table; see the note above)"),
+            "AccessibilityBoundaryTests.Core_internal_layering_holds (the mustNotReachTheRoot half and " +
+            "the Rules/Handlers/Testing row), " +
+            "AccessibilityBoundaryTests.An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record"),
 
         // 🔒 M1-vs-M2 MERGE NOTE: Domain.RulesNamespace was moved out of Pending independently by BOTH
         // milestones — M1-10 (Core/Rules/Economy/, the 10 §3 / 28 C energy math) and M2-15

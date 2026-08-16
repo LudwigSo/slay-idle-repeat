@@ -98,7 +98,7 @@ internal sealed class LuckTuning
     /// </remarks>
     private static readonly (SourceClass Source, string Block, string Owner)[] UnservedShapes =
     {
-        (SourceClass.DROP_RUN, "dropRun", "M4-02"),
+        (SourceClass.DROP_RUN, "dropRun", "M4-03's LuckService.ResolveRunDrop"),
         (SourceClass.ENHANCE, "enhance", "M4-04"),
         (SourceClass.DRAFT, "draft", "M4-01b"),
         (SourceClass.WHEEL, "wheel", "M4-09"),
@@ -439,32 +439,23 @@ internal sealed class LuckTuning
     /// <param name="parsed">The member, when this returns <see langword="true"/>.</param>
     /// <returns><see langword="true"/> when the token is exactly one member's name.</returns>
     private static bool TryParseName<TEnum>(string authored, out TEnum parsed)
-        where TEnum : struct, Enum
-    {
-        parsed = default;
-
-        return !string.IsNullOrEmpty(authored) &&
-            !char.IsAsciiDigit(authored[0]) && authored[0] != '-' && authored[0] != '+' &&
-            !authored.Contains(',') &&
-            !char.IsWhiteSpace(authored[0]) && !char.IsWhiteSpace(authored[^1]) &&
-            Enum.TryParse(authored, ignoreCase: false, out parsed) &&
-            Enum.IsDefined(parsed);
-    }
+        where TEnum : struct, Enum =>
+        AuthoredToken.TryParse(authored, out parsed);
 
     /// <summary>A closed vocabulary's names, for a failure message that shows the whole table.</summary>
     private static string Names<TEnum>()
         where TEnum : struct, Enum =>
-        string.Join(", ", Enum.GetNames<TEnum>());
+        AuthoredToken.Names<TEnum>();
 
     /// <summary>Renders a number with <see cref="CultureInfo.InvariantCulture"/>.</summary>
     /// <param name="value">The number to render.</param>
     /// <returns>The invariant rendering.</returns>
-    internal static string Render(int value) => value.ToString(CultureInfo.InvariantCulture);
+    internal static string Render(int value) => AuthoredToken.Render(value);
 
     /// <summary>Renders a number with <see cref="CultureInfo.InvariantCulture"/>.</summary>
     /// <param name="value">The number to render.</param>
     /// <returns>The invariant rendering.</returns>
-    internal static string Render(double value) => value.ToString(CultureInfo.InvariantCulture);
+    internal static string Render(double value) => AuthoredToken.Render(value);
 }
 
 /// <summary>Where a source class's counter is kept.</summary>

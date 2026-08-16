@@ -408,7 +408,8 @@ SlayIdleRepeat.Core/
 │   ├── Board/ Dice/     #   03, 04
 │   ├── Effects/         #   18 — the DSL interpreter
 │   ├── Luck/            #   24 — LuckService
-│   └── Economy/         #   08, 10 — merge, enhance, energy, currency math
+│   ├── Gear/            #   08 §1–3 — item power, quality, affix rolls, set bonuses
+│   └── Economy/         #   08 §4, 10 — merge, enhance, energy, currency math
 ├── Commands/            # public GameCommand hierarchy
 ├── Events/              # public DomainEvent hierarchy
 ├── Handlers/            # internal. One per command. The services that steer the model.
@@ -420,10 +421,41 @@ SlayIdleRepeat.Core/
 **Dependency direction inside `Core`**, enforced by namespace-level architecture tests:
 
 ```
-Handlers ──▶ Rules ──▶ Model ──▶ Content ──▶ Primitives
+Testing ──▶ Handlers ──▶ Rules ──▶ Model ──▶ Content ──▶ Primitives
+                                                 ▲
+                    Commands ─────────────────────┘ (Content, Primitives, Rng — never Model)
+                    Events   ─────────────────────┘ (Content, Primitives, Rng, and Model
+                                                      under the value-record rule below)
 ```
 
-`Rules` never references `Handlers`. `Model` never references `Rules`.
+`Rules` never references `Handlers`. `Model` never references `Rules`. `Rng` is pure arithmetic (`14` §8.1) and sits beside `Content`, beneath `Model`. Nothing beneath the `SlayIdleRepeat.Core` root reaches up into it.
+
+🔒 **Amended by the M4 kickoff (2026-08-16), closing M1 carry-forward 8.** The chain above used to be written `Handlers ▶ Rules ▶ Model ▶ Content ▶ Primitives` and named **five** of the ten namespaces this section's own tree enumerates. `Rng`, `Commands`, `Events`, `Testing` and the `SlayIdleRepeat.Core` root had no place in it at all, so a type under any of them was matched by no rule in either direction — three separate milestones each found one of those regions ungoverned with every architecture rule green. The two positions that were genuinely undecided are settled here:
+
+| Namespace | May name | May **not** name |
+|---|---|---|
+| **`Testing`** | the root, `Handlers`' peers below it — `Model`, `Commands`, `Events`, `Content`, `Rng`, `Primitives` | `Rules`, `Handlers`. `30` §6's harness drives the domain through `GameRules.Apply` and nothing else; nothing beneath it, the root included, names the harness |
+| **`Handlers`** | `Rules`, `Model`, `Commands`, `Events`, `Content`, `Rng`, `Primitives`, the root | `Testing` |
+| **`Rules`** | `Model`, `Content`, `Rng`, `Primitives` | `Handlers`, `Testing` |
+| **`Model`** | `Content`, `Rng`, `Primitives` | `Rules`, `Handlers`, `Testing`, the root |
+| **`Commands`** *(peer leaf)* | `Content`, `Primitives`, `Rng` | **`Model`**, `Rules`, `Handlers`, `Testing`, the root |
+| **`Events`** *(peer leaf)* | `Content`, `Primitives`, `Rng`, **`Model`** — under the restriction below | `Rules`, `Handlers`, `Testing`, the root |
+| **`Content`**, **`Rng`** | `Primitives` (and each other) | everything above them, and the root |
+| **`Primitives`** | nothing | everything |
+
+**`Commands` and `Events` are peer leaves, not a rung of the chain.** Neither sits above or below the other: a command is an input to `Apply` and an event is its output, and nothing may name either from below.
+
+🔒 **`Commands` may not name `Model`.** A command carries **ids**, not aggregates — `14` §2.3's payload columns are ids and indices throughout, a merge names gear *instance ids* rather than `GearInstance`s, and `30` §11.6's one-vocabulary rule makes a command a wire value, which an aggregate is not. A command carrying a `WorldSlice` would additionally smuggle the aggregates past the clone §2.1's P4 depends on.
+
+🔒 **`Events` may name `Model`, and only under this restriction:**
+
+> An event may name a `Model/` type **only** when that type is an **immutable, fully-serialisable value record with no mutators** — snapshot-shaped. It may **never** name an aggregate **root** (`Player`, `Run`), nor any `Model/` type that carries an `internal` mutator.
+
+The permission is forced by §7: `GearGranted(int Sequence, GearInstance Item, SourceClass Source, bool FromPity)` carries the item itself, and all four consumers of the event list — analytics, the economy log, Feats and the client's replay — **serialise** it, so an event carrying an id instead would send every one of them back to an aggregate whose state has since moved on. `08` §7's `GearInstance` is exactly the shape the restriction describes: a flat, serialisable record whose computed stats are never stored.
+
+The restriction is what keeps the permission from being an open door. An event naming `Player` would put an aggregate root — with its `internal` mutators — into a list that leaves the domain, handing the outside world a mutation path around the single public one §11.2 exists to be. A value record has no such path: there is nothing on it to call.
+
+⚠️ **It is enforced as a rule of its own, not as a row in the layering table**, and that is forced rather than stylistic: the table matches namespace *pairs*, while the permitted reference and the forbidden one here go to the same namespace and differ only in the **shape** of the type reached. `AccessibilityBoundaryTests.An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record` carries it, beside `Core_internal_layering_holds` rather than inside it.
 
 🔴 **Erratum, recorded by M2-09 — `Rules/` is not entirely stateless, and the exceptions are enumerated.** `05` §3's simulator is a **fixed-tick loop**: 1800 iterations that accumulate HP, cooldowns, an event log, `18` §2.4's charges and `05` §4.1's ward segments. A stateless function would have to take and return the whole battle on every call. So a handful of types under `Rules/Combat/` hold per-battle or per-actor state, each owned by exactly one caller, never shared and never `static`, so none carries the properties this annotation exists to protect. The list is **closed and mechanical**: `StatefulRuleTypeRuleTests.Stateful` is the authority, it fails the build on a type that is not on it, and equally on a listed type that has stopped holding state. Adding one is allowed and is a deliberate edit with its reason in the diff, which is the point. Everything else under `Rules/` — including every type in `Rules/Combat/` not on that list, `AttackPipeline` among them — is still the static, stateless calculator this line describes. ⚠️ The rule is scoped to `Rules/Combat/`; whether the same enumeration should cover `Rules/Effects/`'s trigger and stacking state is a milestone-review question, not M2-09's.
 

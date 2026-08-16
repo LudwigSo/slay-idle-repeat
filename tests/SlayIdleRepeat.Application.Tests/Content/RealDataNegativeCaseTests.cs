@@ -415,11 +415,11 @@ public sealed class RealDataNegativeCaseTests
     /// per-file breakdown in the theory below.
     /// </remarks>
     [Fact]
-    public void The_shipped_data_set_still_carries_exactly_its_276_unauthorised_holes()
+    public void The_shipped_data_set_still_carries_exactly_its_265_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(276,
+        CountUnauthorised(snapshot).ShouldBe(265,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -433,7 +433,13 @@ public sealed class RealDataNegativeCaseTests
     /// </summary>
     [Theory]
     [InlineData("tuning/guilds.json", 32)]
-    [InlineData("tuning/drops.json", 25)]
+
+    // drops.json: 25 until M4-03, which filled the eleven affix ids the design docs had left
+    // unnamed. That was an IDENTIFIER decision under a kickoff ruling — the three authored ids fix
+    // an AFX_<STAT> convention and the other eleven follow it — not a number invented for a hole,
+    // and the schema now requires the id rather than allowing null so a row cannot lose one again.
+    // Every affix RANGE remains exactly as authored.
+    [InlineData("tuning/drops.json", 14)]
     [InlineData("tuning/power_model.json", 13)]
     [InlineData("tuning/events.json", 7)]
     [InlineData("tuning/progression.json", 5)]
@@ -465,6 +471,11 @@ public sealed class RealDataNegativeCaseTests
     [InlineData("content/chapters/CH_01_GREENWOOD_VALE.json", 1)]
     [InlineData("content/chapters/CH_02_ASHEN_MIRE.json", 0)]
     [InlineData("content/curses/curses.json", 0)]
+
+    // gear.json: the 24 base items are a complete transcription of 08 §1's slot/family grid, so
+    // there is nothing in it the design docs leave unauthorised. Listed at zero rather than omitted,
+    // because a file with no row here is a file this theory does not watch at all.
+    [InlineData("content/gear/gear.json", 0)]
 
     // Bosses carry zero holes: where the design authorises nothing, the boss data omits the key
     // instead of writing null (a boss with no summons carries no adds fraction, and so on). The

@@ -12,12 +12,13 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// by resolving the same JSON pointers in the real file. Neither is sufficient alone: this proves
 /// the rules are right about the numbers, that one proves those are the numbers we ship.
 /// <para>
-/// Only what <c>LuckTuning</c> reads is transcribed as a document. The other five classes state
-/// their protection in another shape entirely (a dry-streak breaker, a failure-rate mercy, a draft
-/// composition rule, a jackpot spin count, a chest-pick guarantee) and nothing reads them yet, so
-/// authoring them here would imply something does. Their <c>N</c>s still appear in
-/// <see cref="EveryAuthoredHardPityN"/>, because <c>24</c> §11 asks for an exact-<c>N</c> test per
-/// rule and that list is what makes the coverage claim checkable.
+/// Only what a reader actually reads is transcribed as a document. <c>LuckTuning</c> takes the
+/// registry, the floor rule and the five ladder blocks; <c>DropRunTuning</c> takes the
+/// <c>dropRun</c> block below, which is why that one <em>is</em> authored here while the failure-rate
+/// mercy, the draft composition rule, the jackpot spin count and the chest-pick guarantee still are
+/// not — nothing reads those, and authoring them would imply something does. Their <c>N</c>s still
+/// appear in <see cref="EveryAuthoredHardPityN"/>, because <c>24</c> §11 asks for an exact-<c>N</c>
+/// test per rule and that list is what makes the coverage claim checkable.
 /// </para>
 /// </remarks>
 internal static class LuckDocuments
@@ -148,6 +149,32 @@ internal static class LuckDocuments
     /// <summary><c>24</c> §4.7 F3 — force an owned-perk upgrade after 5 drafts without one.</summary>
     internal const int ShippedDraftUpgradeFamineN = 5;
 
+    // ---------------------------------------------------------------- the in-run drop block
+
+    /// <summary>A drop counts against the elite streak when it lands strictly below this band.</summary>
+    internal const string ShippedEliteMercyBelowRarity = "A";
+
+    /// <summary>The band the forced elite drop must reach or beat.</summary>
+    internal const string ShippedEliteMercyForceRarity = "A";
+
+    /// <summary>A drop counts against the boss streak when it lands strictly below this band.</summary>
+    internal const string ShippedBossMercyBelowRarity = "S";
+
+    /// <summary>The band the forced boss drop must reach or beat.</summary>
+    internal const string ShippedBossMercyForceRarity = "S";
+
+    /// <summary>The band each session-floor grant lands on.</summary>
+    internal const string ShippedSessionFloorGrantRarity = "B";
+
+    /// <summary>How many items one qualifying session's floor grants.</summary>
+    internal const int ShippedSessionFloorGrantCount = 1;
+
+    /// <summary>How many floor grants a player may take in one game day.</summary>
+    internal const int ShippedSessionFloorMaxPerDay = 2;
+
+    /// <summary>Whether the run must have ended in a victory or a stage-3 death to qualify.</summary>
+    internal const bool ShippedSessionFloorRequiresVictoryOrStage3Death = true;
+
     /// <summary>
     /// Every <c>N</c> authored anywhere in <c>luck.json</c>, with the class it protects and the
     /// pointer it is authored at.
@@ -204,6 +231,12 @@ internal static class LuckDocuments
     /// <param name="chestStandardSoftPityThreshold">The standard-chest ramp's miss threshold.</param>
     /// <param name="chestStandardSoftPitySlope">The standard-chest ramp's slope.</param>
     /// <param name="chestApexSoftPity">The apex block's soft pity. An authored null as shipped.</param>
+    /// <param name="dropRun">
+    /// The whole <c>dropRun</c> block — the two dry-streak breakers and the session floor. Built with
+    /// <see cref="DropRun"/>, <see cref="Breaker"/> and <see cref="Floor"/> rather than by a leaf
+    /// apiece: <c>DropRunTuning</c> refuses a <em>pairing</em> (a forced band below the miss band) as
+    /// well as individual leaves, so a case has to be able to move two at once.
+    /// </param>
     internal static ContentSnapshot With(
         ContentValue? sourceClasses = null,
         ContentValue? chestStandardCounterKey = null,
@@ -217,7 +250,8 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPity = null,
         ContentValue? chestStandardSoftPityThreshold = null,
         ContentValue? chestStandardSoftPitySlope = null,
-        ContentValue? chestApexSoftPity = null) =>
+        ContentValue? chestApexSoftPity = null,
+        ContentValue? dropRun = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -234,7 +268,8 @@ internal static class LuckDocuments
                     chestStandardSoftPity,
                     chestStandardSoftPityThreshold,
                     chestStandardSoftPitySlope,
-                    chestApexSoftPity),
+                    chestApexSoftPity,
+                    dropRun),
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
             ]);
 
@@ -257,7 +292,8 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPity = null,
         ContentValue? chestStandardSoftPityThreshold = null,
         ContentValue? chestStandardSoftPitySlope = null,
-        ContentValue? chestApexSoftPity = null) =>
+        ContentValue? chestApexSoftPity = null,
+        ContentValue? dropRun = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -274,7 +310,8 @@ internal static class LuckDocuments
                     chestStandardSoftPity,
                     chestStandardSoftPityThreshold,
                     chestStandardSoftPitySlope,
-                    chestApexSoftPity),
+                    chestApexSoftPity,
+                    dropRun),
             ]);
 
     /// <summary>A content set with <b>no</b> <c>tuning/luck.json</c> at all.</summary>
@@ -284,6 +321,56 @@ internal static class LuckDocuments
     /// <c>LuckTuning.Read</c>, and the whole point of typed readers is that they are told apart.
     /// </remarks>
     internal static ContentSnapshot WithoutLuck() => ProgressionDocuments.Shipped;
+
+    /// <summary>One dry-streak breaker, as <c>DropRunTuning</c> reads it.</summary>
+    /// <param name="ordinal">The ordinal of the forced kill within a streak.</param>
+    /// <param name="belowRarity">The band a drop must land under to count as a miss.</param>
+    /// <param name="forceRarityAtLeast">The band the forced drop must reach or beat.</param>
+    internal static ContentValue Breaker(
+        ContentValue ordinal, ContentValue belowRarity, ContentValue forceRarityAtLeast) =>
+        Members(
+            ("consecutiveMissesBeforeForce", ordinal),
+            ("belowRarity", belowRarity),
+            ("forceRarityAtLeast", forceRarityAtLeast));
+
+    /// <summary>The session floor, as <c>DropRunTuning</c> reads it.</summary>
+    /// <param name="grantRarity">The band each floor grant lands on.</param>
+    /// <param name="grantCount">How many items one qualifying session grants.</param>
+    /// <param name="maxPerDay">How many floor grants a player may take in a game day.</param>
+    /// <param name="requiresVictoryOrStage3Death">Whether the run must have ended a qualifying way.</param>
+    internal static ContentValue Floor(
+        ContentValue grantRarity,
+        ContentValue grantCount,
+        ContentValue maxPerDay,
+        ContentValue requiresVictoryOrStage3Death) =>
+        Members(
+            ("grantRarity", grantRarity),
+            ("grantCount", grantCount),
+            ("maxPerDay", maxPerDay),
+            ("requiresVictoryOrStage3Death", requiresVictoryOrStage3Death));
+
+    /// <summary>The whole <c>dropRun</c> block, with any of its three rules replaced.</summary>
+    /// <param name="eliteMercy">The elite dry-streak breaker.</param>
+    /// <param name="bossMercy">The boss dry-streak breaker.</param>
+    /// <param name="sessionFloor">The per-session gear floor.</param>
+    internal static ContentValue DropRun(
+        ContentValue? eliteMercy = null,
+        ContentValue? bossMercy = null,
+        ContentValue? sessionFloor = null) =>
+        Members(
+            ("eliteMercy", eliteMercy ?? Breaker(
+                ContentValue.Number(ShippedDropRunEliteMercyN),
+                ContentValue.Text(ShippedEliteMercyBelowRarity),
+                ContentValue.Text(ShippedEliteMercyForceRarity))),
+            ("bossMercy", bossMercy ?? Breaker(
+                ContentValue.Number(ShippedDropRunBossMercyN),
+                ContentValue.Text(ShippedBossMercyBelowRarity),
+                ContentValue.Text(ShippedBossMercyForceRarity))),
+            ("sessionFloor", sessionFloor ?? Floor(
+                ContentValue.Text(ShippedSessionFloorGrantRarity),
+                ContentValue.Number(ShippedSessionFloorGrantCount),
+                ContentValue.Number(ShippedSessionFloorMaxPerDay),
+                ContentValue.Boolean(ShippedSessionFloorRequiresVictoryOrStage3Death))));
 
     private static ContentDocument Luck(
         ContentValue? sourceClasses,
@@ -298,7 +385,8 @@ internal static class LuckDocuments
         ContentValue? chestStandardSoftPity,
         ContentValue? chestStandardSoftPityThreshold,
         ContentValue? chestStandardSoftPitySlope,
-        ContentValue? chestApexSoftPity) =>
+        ContentValue? chestApexSoftPity,
+        ContentValue? dropRun = null) =>
         new(
             DocumentPath,
             Members(
@@ -364,7 +452,8 @@ internal static class LuckDocuments
                     ("softPity", Curve(
                         ShippedSoftPityTarget,
                         ContentValue.Number(ShippedCrateMountSoftPityThreshold),
-                        ContentValue.Number((decimal)ShippedCrateMountSoftPitySlope)))))));
+                        ContentValue.Number((decimal)ShippedCrateMountSoftPitySlope))))),
+                ("dropRun", dropRun ?? DropRun())));
 
     private static ContentValue SourceClassRow(string id, ContentValue counterKey, string scope) =>
         Members(
