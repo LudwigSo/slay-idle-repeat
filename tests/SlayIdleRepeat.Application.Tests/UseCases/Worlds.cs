@@ -134,6 +134,27 @@ internal static class Worlds
             ? CanonicalStateWriter.HashMetaCommandState(stored.Player)
             : CanonicalStateWriter.HashRunCommandState(stored.Player, stored.Run);
 
+    /// <summary>
+    /// The canonical hash of the state the domain reaches when <paramref name="command"/> is applied
+    /// to <see cref="InARun"/> — computed independently of anything under test.
+    /// </summary>
+    /// <param name="command">A run command. Its context carries no per-command seed, which is what
+    /// lets the harness's own context match <see cref="Context"/>'s exactly.</param>
+    /// <remarks>
+    /// A second harness under the same fixed seed and clock, driven through <c>GameRules.Apply</c>.
+    /// Without it, "the persisted bytes are the state the domain returned" is checked against the use
+    /// case's own report of what the domain returned, and a use case that committed and reported the
+    /// same wrong slice would satisfy it.
+    /// </remarks>
+    internal static string HashAfterApplying(GameCommand command)
+    {
+        var (game, player) = InARun();
+
+        Accepted(game.Send(player, command), command.GetType().Name);
+
+        return Hash(game.State(player));
+    }
+
     /// <summary>The canonical hash of a run alone, with a player pinned on both sides of the comparison.</summary>
     /// <remarks>
     /// The pair mode is the only public door onto a run's canonical bytes, so the run is hashed

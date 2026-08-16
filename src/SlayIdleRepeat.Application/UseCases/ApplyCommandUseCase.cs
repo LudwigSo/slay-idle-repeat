@@ -73,8 +73,9 @@ public sealed record ApplyCommandOutcome
 /// <para>
 /// The four steps are this layer's entire job and it decides no game rule along the way. The one
 /// decision it does make is an addressing one: a command addressed to a run the player is not in is
-/// refused here, before the domain is invoked, because the domain is not allowed to answer that
-/// question and would instead be handed the wrong run to act on.
+/// refused here with <see cref="RejectionReason.RUN_NOT_FOUND"/>, before the domain is invoked,
+/// because that reason is a transport-tier one the domain is not allowed to return and the domain
+/// would instead be handed the wrong run to act on.
 /// </para>
 /// <para>
 /// The order is load, guard, apply, commit, dispatch, and the guards leave the method rather than

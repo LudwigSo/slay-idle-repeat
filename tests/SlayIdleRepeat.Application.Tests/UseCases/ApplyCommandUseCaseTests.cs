@@ -6,6 +6,7 @@ using SlayIdleRepeat.Application.Tests.Events;
 using SlayIdleRepeat.Application.Tests.Persistence;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
 using Xunit;
 
@@ -27,6 +28,11 @@ public sealed class ApplyCommandUseCaseTests
         var run = game.State(player).Run!.Id;
         var useCase = UseCase(cache, out _);
 
+        // What the domain reaches, worked out on its own harness rather than taken from the outcome:
+        // otherwise this case checks the store against the use case's own report of the domain's
+        // answer, and one wrong slice committed and reported alike would satisfy it.
+        var domain = Worlds.HashAfterApplying(new RollDiceCommand());
+
         var outcome = await useCase.ExecuteAsync(
             new ApplyCommandRequest(player, run, new RollDiceCommand()), Worlds.Context(game), Worlds.Cancel);
 
@@ -36,9 +42,15 @@ public sealed class ApplyCommandUseCaseTests
             (await cache.ReadAsync(SliceKeys.ForPlayer(player), Worlds.Cancel))!);
 
         Worlds.Hash(committed).ShouldBe(
-            Worlds.Hash(outcome.State),
-            "the bytes in the store are not the state the domain handed back. Compared canonically " +
-            "because these rows carry dictionaries, which record equality compares by reference.");
+            domain,
+            "the bytes in the store are not the state GameRules.Apply produces for this command. " +
+            "Compared canonically because these rows carry dictionaries, which record equality " +
+            "compares by reference.");
+
+        Worlds.Hash(outcome.State).ShouldBe(
+            domain,
+            "the outcome reports a state the domain never produced, so a caller animating from it " +
+            "would show something the store does not hold.");
     }
 
     [Fact]
@@ -78,7 +90,10 @@ public sealed class ApplyCommandUseCaseTests
         var outcome = await useCase.ExecuteAsync(
             new ApplyCommandRequest(player, run, new RollDiceCommand()), Worlds.Context(game), Worlds.Cancel);
 
-        outcome.Events.ShouldNotBeEmpty("a roll emits the die face it drew; nothing was produced to deliver.");
+        outcome.Events.ShouldContain(
+            @event => @event is DiceRolled,
+            "a roll announces the face it drew, and that event is what this command has to deliver. " +
+            "An outcome carrying only the catch-up's own rows would satisfy a bare non-empty check.");
 
         first.Batches.Count.ShouldBe(1, "the first sink saw the batch " + first.Batches.Count + " times.");
         second.Batches.Count.ShouldBe(1, "the second sink saw the batch " + second.Batches.Count + " times.");
@@ -121,6 +136,24 @@ public sealed class ApplyCommandUseCaseTests
             "the reason has to be the one the rule gave. RUN_ALREADY_ENDED here would mean the live run " +
             "was being treated as a finished one, and RUN_NOT_FOUND would mean this layer refused it " +
             "before the domain ever saw it — three different defects that all read as 'refused'.");
+
+        // The control that makes the refusal above an identity rather than a symptom: several rules
+        // answer ILLEGAL_STATE, so the same command has to be accepted when the live run is the only
+        // thing missing. Without this, a malformed chapter or an unregistered command would pass too.
+        var runless = Worlds.Game();
+        var newcomer = runless.CreatePlayer();
+        var opened = await new ApplyCommandUseCase(
+                new WorldSliceStore(Worlds.CacheHolding(runless.State(newcomer))),
+                new DomainEventDispatcher([]))
+            .ExecuteAsync(
+                new ApplyCommandRequest(newcomer, null, new StartRunCommand(Worlds.Chapter, DifficultyTier.NORMAL)),
+                Worlds.Context(runless),
+                Worlds.Cancel);
+
+        opened.Accepted.ShouldBeTrue(
+            "the very same command was refused " + opened.Rejection + " for a player in no run, so the " +
+            "refusal above is not the already-in-a-run rule firing — this command is simply never " +
+            "accepted, and the case above proves nothing about which rule answered.");
     }
 
     [Fact]
@@ -231,6 +264,18 @@ public sealed class ApplyCommandUseCaseTests
         // A later instant, so an Apply that ran would move the player's stamp visibly.
         game.Clock.Advance(TimeSpan.FromHours(3));
 
+        // The control for the stamp assertion below: the same command, at the same later instant,
+        // against the run the player is actually in. If this did not move the stamp, "the stamp did
+        // not move" would be true whether Apply ran or not and would pin nothing at all.
+        var (control, controlPlayer) = Worlds.InARun();
+        control.Clock.Advance(TimeSpan.FromHours(3));
+        control.Send(controlPlayer, new AbandonRunCommand());
+
+        control.State(controlPlayer).Player.LastAppliedAtUtc.ShouldNotBe(
+            loaded.Player.LastAppliedAtUtc,
+            "an accepted ABANDON_RUN at a later instant left the applied-at stamp where it was, so the " +
+            "assertion below cannot tell an Apply that ran from one that did not.");
+
         var outcome = await useCase.ExecuteAsync(
             new ApplyCommandRequest(player, new RunId("RUN_SOMEONE_ELSES_1"), new AbandonRunCommand()),
             Worlds.Context(game),
@@ -287,9 +332,18 @@ public sealed class ApplyCommandUseCaseTests
         var run = game.State(player).Run!.Id;
         var useCase = UseCase(cache, out var sink);
 
-        await Should.ThrowAsync<IOException>(
+        var failure = await Should.ThrowAsync<IOException>(
             () => useCase.ExecuteAsync(
                 new ApplyCommandRequest(player, run, new RollDiceCommand()), Worlds.Context(game), Worlds.Cancel));
+
+        // Which write failed, not merely that something threw: an IOException out of the load, the
+        // codec or an archive write would leave this case green while the commit never even ran.
+        failure.Message.ShouldContain(
+            RecordingCache.RefusalMessage, Case.Sensitive, "the failure the store was told to raise");
+        failure.Message.ShouldContain(
+            SliceKeys.ForPlayer(player),
+            Case.Sensitive,
+            "the write that failed has to be the commit itself — the player's own row.");
 
         sink.Batches.ShouldBeEmpty(
             "the commit failed, so the command did not happen — delivering its events would announce a " +
@@ -424,7 +478,11 @@ public sealed class ApplyCommandUseCaseTests
         archived.ShouldNotBeNull(
             "the finished run is gone. It is keyed by its own identity precisely so the next run cannot " +
             "displace it, and the results screen is read after the next run has already started.");
-        archived!.Phase.ShouldBe(RunPhase.Ended, "the archived copy is not the finished state of that run.");
+        archived!.Id.ShouldBe(
+            first,
+            "the row under the first run's key holds some other run, so the second run displaced the " +
+            "first one's finished record instead of being archived under its own identity.");
+        archived.Phase.ShouldBe(RunPhase.Ended, "the archived copy is not the finished state of that run.");
     }
 
     // ═════════════════════════════════════════════════════════════ fixtures

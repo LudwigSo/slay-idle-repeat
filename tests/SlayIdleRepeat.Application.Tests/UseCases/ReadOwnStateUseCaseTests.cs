@@ -25,6 +25,45 @@ public sealed class ReadOwnStateUseCaseTests
             "sent, so a budget above zero would let the very next read contradict the screen.");
     }
 
+    /// <summary>
+    /// The declared budget above is a number; this is the reason it can be believed. A read that
+    /// cannot be handed a clock, an age or an as-of instant has no way to answer with anything but
+    /// what the store holds now — so zero is a property of the shape rather than a promise.
+    /// </summary>
+    [Fact]
+    public void ReadOwnStateUseCase_is_handed_nothing_it_could_serve_an_older_view_from()
+    {
+        var constructors = typeof(ReadOwnStateUseCase).GetConstructors();
+
+        constructors.ShouldHaveSingleItem(
+            "the read side is built exactly one way, which is what makes 'everything it can consult' " +
+            "an answerable question at all.");
+
+        constructors[0].GetParameters().Select(parameter => parameter.ParameterType).ShouldBe(
+            [typeof(WorldSliceStore)],
+            "the read side holds the store and nothing else. A clock, a cache handle or a freshness " +
+            "budget in this list is the knob that turns a zero budget into a default.");
+
+        var read = typeof(ReadOwnStateUseCase).GetMethod(nameof(ReadOwnStateUseCase.ReadAsync));
+
+        read.ShouldNotBeNull("the method this rule is about is not there, so the rule has no subject.");
+        read!.GetParameters().Select(parameter => parameter.ParameterType).ShouldBe(
+            [typeof(ReadOwnStateRequest), typeof(CancellationToken)],
+            "an extra parameter here is how 'give me the view as of a moment ago' becomes expressible.");
+
+        // The constructor's parameters rather than the properties: reflection guarantees an order for
+        // the one and not the other, and this list is asserted in order.
+        typeof(ReadOwnStateRequest).GetConstructors().ShouldHaveSingleItem(
+            "the request is built one way, so what it can carry is answerable.");
+
+        typeof(ReadOwnStateRequest).GetConstructors()[0]
+            .GetParameters()
+            .Select(parameter => parameter.ParameterType)
+            .ShouldBe(
+                [typeof(PlayerId), typeof(RunId?)],
+                "the request names who and which run, and carries no instant or age for a reader to honour.");
+    }
+
     [Fact]
     public async Task ReadAsync_returns_the_state_the_last_accepted_command_committed()
     {
@@ -101,12 +140,19 @@ public sealed class ReadOwnStateUseCaseTests
         var useCase = new ApplyCommandUseCase(store, new DomainEventDispatcher([]));
         var first = game.State(player).Run!.Id;
 
-        await useCase.ExecuteAsync(
+        var ended = await useCase.ExecuteAsync(
             new ApplyCommandRequest(player, first, new AbandonRunCommand()), Worlds.Context(game), Worlds.Cancel);
-        await useCase.ExecuteAsync(
+
+        ended.Accepted.ShouldBeTrue("abandoning the run was refused " + ended.Rejection + ".");
+
+        var started = await useCase.ExecuteAsync(
             new ApplyCommandRequest(player, null, new StartRunCommand(Worlds.Chapter, DifficultyTier.NORMAL)),
             Worlds.Context(game),
             Worlds.Cancel);
+
+        started.Accepted.ShouldBeTrue("starting the next run was refused " + started.Rejection + ".");
+        started.State.Run!.Id.ShouldNotBe(
+            first, "the second run reuses the first one's identity, so nothing here is archived over.");
 
         var read = await new ReadOwnStateUseCase(store)
             .ReadAsync(new ReadOwnStateRequest(player, first), Worlds.Cancel);
