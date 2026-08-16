@@ -31,12 +31,13 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 /// </para>
 /// <para>
 /// ⚠️ <b>How a run ends here, in the order the driver tries them.</b> A victory (the boss beaten) and
-/// a death both have endings written for them. Failing those, the run travels until it meets a tile
-/// no command can clear — see <see cref="StuckOn"/> — and is abandoned there, which still pays
-/// it out so the meta half of the loop keeps its input. <see cref="StalledAt"/> is the fourth and it
-/// should now never fire: it was X-10's signature, a roll accepted that moved the run nowhere, and
-/// the repair of the stage-end clamp closed it. It is kept because it is the only thing that would
-/// notice the defect coming back.
+/// a death both have endings written for them, and a victory is now the ordinary one. Failing those,
+/// the run travels until it meets a tile no command can clear — see <see cref="StuckOn"/> — and is
+/// abandoned there, which still pays it out so the meta half of the loop keeps its input.
+/// <see cref="StalledAt"/> is the fourth and it should now never fire: it was X-10's signature, a
+/// roll accepted that moved the run nowhere, and the repair of the stage-end clamp closed it. Both
+/// of those last two are kept because they are the only things that would notice their defect coming
+/// back.
 /// </para>
 /// </remarks>
 internal sealed class MetaLoopDriver
@@ -89,6 +90,9 @@ internal sealed class MetaLoopDriver
     /// <summary>Which option of a choice this player is on. Reset the moment one is accepted.</summary>
     private int _choice;
 
+    /// <summary>The Fair-Dice reset anchor as of the last command — see <see cref="StageGatesCrossed"/>.</summary>
+    private ulong _diceAnchor;
+
     private MetaLoopDriver(InMemoryGame game, PlayerId player)
     {
         _game = game;
@@ -135,10 +139,10 @@ internal sealed class MetaLoopDriver
     /// <para>
     /// 🔒 <b>Behavioural on purpose, so it expires by itself (steering S4).</b> Naming the kinds in a
     /// constant would have kept reporting "stuck" long after a resolver landed, which is the same
-    /// dishonesty this driver exists to avoid. Today it catches <c>TILE_SHOP</c> — <c>SHOP_BUY</c>
-    /// and <c>SHOP_REFRESH</c> are handled but neither clears the tile — and <c>TILE_DICE_FORGE</c>,
-    /// which has no command at all. Same defect class as X-10 and steering S24, one layer up: a
-    /// state the run cannot leave.
+    /// dishonesty this driver exists to avoid — and it did land: <c>TILE_SHOP</c> and
+    /// <c>TILE_DICE_FORGE</c>, the two kinds this used to catch, now clear through
+    /// <c>RESOLVE_TILE</c>, so this reports <c>null</c> on every board the loop drives. It is kept
+    /// because it is the one thing that would notice the next kind with no way out.
     /// </para>
     /// </remarks>
     internal TileKind? StuckOn { get; private set; }
@@ -175,6 +179,14 @@ internal sealed class MetaLoopDriver
 
     /// <summary>How many drafts the run opened and this player skipped.</summary>
     internal int DraftsSkipped { get; private set; }
+
+    /// <summary>How many Stage Gates this run crossed.</summary>
+    /// <remarks>
+    /// Counted off the run's own Fair-Dice reset anchor moving, which is the one thing nothing but a
+    /// gate touches — a counter built on "the run stood on a boundary node" would be a second
+    /// implementation of the rule under test, and would agree with a broken one.
+    /// </remarks>
+    internal int StageGatesCrossed { get; private set; }
 
     /// <summary>
     /// The position a <c>ROLL_DICE</c> was first accepted at without moving the run <em>and without
@@ -315,6 +327,12 @@ internal sealed class MetaLoopDriver
 
             var after = _game.State(_player).Run;
 
+            if (after is not null && after.StageGateDiceAnchor != _diceAnchor)
+            {
+                _diceAnchor = after.StageGateDiceAnchor;
+                StageGatesCrossed++;
+            }
+
             // A tile counts as resolved once it is CLEARED, not once a command was aimed at it: an
             // Event needs RESOLVE_TILE and then EVENT_CHOOSE, and marking it on the first would make
             // the second look like a re-arrival.
@@ -366,11 +384,9 @@ internal sealed class MetaLoopDriver
             return new ChooseForkCommand(_choice);
         }
 
-        // 🔒 The victory ending is still unreachable — a run now crosses stage boundaries but stops
-        // at the first Shop or DiceForge (see StuckOn), and a shop is guaranteed once per stage.
-        // Checked FIRST anyway: a run that beats the boss must have an ending waiting for it, or
-        // this driver would walk to the boss and then exhaust its budget, failing the one clause of
-        // the exit criterion this file drives cleanly for a reason that has nothing to do with it.
+        // Checked FIRST because it is now the ordinary ending: a run walks the whole board and beats
+        // the boss, so it must have an ending waiting for it rather than exhausting its budget at
+        // the boss node.
         if (run.BossDefeated)
         {
             Ending = "END_RUN after a victory";

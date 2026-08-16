@@ -40,6 +40,27 @@ internal sealed class BoardGraph
     /// <see cref="FromLayout"/> lets a layout leave without an outgoing edge. Changing which entry
     /// this picks changes which node that guard exempts.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>This board names the boss three different ways, and only <see cref="BoardGenerator"/>
+    /// makes them agree.</b> Identity is this member; <see cref="MovementEngine"/>'s boss-exact rule
+    /// asks whether the next node's tile is <see cref="TileKind.Boss"/>; stage arithmetic
+    /// (<see cref="EnemyPowerFormula"/>, <c>Run</c>'s stage validation) asks whether the stage is
+    /// <see cref="BossStage"/>. Each answers a different question — what the tile resolves as, which
+    /// node it is, what its stage multiplier is — so collapsing them would push a tile-kind concern
+    /// into graph identity rather than simplify anything. The generator emits all three in one
+    /// statement, so a generated board cannot separate them.
+    /// </para>
+    /// <para>
+    /// <see cref="FromLayout"/> enforces <em>half</em> of that agreement: only this node may dangle,
+    /// so a hand-authored layout can no longer end anywhere else. It does <b>not</b> require this
+    /// node to carry <see cref="TileKind.Boss"/>, so a layout can still hold a boss-tiled node that
+    /// is not this one. <c>Handlers.RollDice</c> and <c>Handlers.ChooseFork</c> carry a
+    /// <c>ReachedBoss</c> clause that covers the divergence; <c>RESOLVE_TILE</c>'s Portal jump does
+    /// not, and needs none today because a Portal cannot reach the boss. Whoever closes the
+    /// remaining tile-kind half retires all three of those clauses together.
+    /// </para>
+    /// </remarks>
     public NodeId BossNodeId => _spineByLinearIndex[^1];
 
     /// <summary>Every node this board contains, spine, branch and boss alike.</summary>
@@ -92,6 +113,52 @@ internal sealed class BoardGraph
     /// <c>CHOOSE_FORK</c> only when it must leave it.
     /// </summary>
     public bool IsJunction(NodeId id) => _junctions.Contains(id);
+
+    /// <summary>
+    /// Whether a node is the last one of its stage: it has at least one outgoing edge, every one of
+    /// them leaves the node's stage, and none of them is the boss node. The Stage Gate is a property
+    /// of the node a run comes to rest on, so this asks nothing about how it got there.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// False for the boss node (no outgoing edges) and for the last node of the final stage (its one
+    /// edge leads to the boss, which belongs to no stage) — a chapter therefore has one fewer gate
+    /// than it has stages.
+    /// </para>
+    /// <para>
+    /// Quantified over <em>every</em> outgoing edge rather than over a single one, because a node
+    /// that still offers a way deeper into its own stage has not ended it. On a generated board that
+    /// arm is unreachable — <see cref="BoardGenerator"/> keeps every junction well before a stage's
+    /// last node — but <see cref="FromLayout"/> is a public seam and a layout that put a fork there
+    /// would otherwise gate a run that had not finished the stage.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="KeyNotFoundException">No node with this id exists on this board.</exception>
+    public bool IsStageEndNode(NodeId id)
+    {
+        var edges = OutgoingEdges(id);
+
+        if (edges.Count == 0)
+        {
+            return false;
+        }
+
+        var stage = Node(id).Stage;
+
+        // Indexed rather than foreach: the edge list is interface-typed, so a foreach would heap-
+        // allocate an enumerator on every landing this is asked about.
+        for (var i = 0; i < edges.Count; i++)
+        {
+            var edge = edges[i];
+
+            if (edge.To.Equals(BossNodeId) || Node(edge.To).Stage == stage)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>Builds a board directly from an already-decided layout, bypassing generation entirely.</summary>
     /// <remarks>

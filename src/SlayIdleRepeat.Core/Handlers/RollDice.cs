@@ -23,9 +23,10 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// already drawn, including the paused one, are still emitted.
 /// </para>
 /// <para>
-/// Reaching the boss, or a stage-end clamp, ends the chain regardless of the rolled face's own
-/// <see cref="FaceOutcome.RollAgain"/>. Stage Gate and tile resolution are not this handler's job; it
-/// only stops the chain and leaves the run positioned correctly for whichever resolves next.
+/// Reaching the boss, or coming to rest on a stage's last node — clamped or exactly — ends the chain
+/// regardless of the rolled face's own <see cref="FaceOutcome.RollAgain"/>. Tile resolution is not
+/// this handler's job; it stops the chain, fires the Stage Gate for that landing, and leaves the run
+/// positioned correctly for whatever resolves next.
 /// </para>
 /// <para>
 /// This handler always rolls against <see cref="DieComposer.StartingDie"/> — six
@@ -160,9 +161,12 @@ internal static class RollDice
                 return HandlerResult.Accept(events);
             }
 
-            var stageClamped = result.RemainingSteps > 0;
+            // Positional, not a step count: an exact landing on a stage's last node ends the chain
+            // and gates just as a clamped overshoot onto the same node does. The trailhead is not a
+            // board node, so it cannot be asked.
+            var atStageEnd = !atTrailhead && board.IsStageEndNode(current);
 
-            if (stageClamped || !outcome.RollAgain)
+            if (atStageEnd || !outcome.RollAgain)
             {
                 if (!atTrailhead)
                 {
@@ -171,7 +175,7 @@ internal static class RollDice
                     // The gate fires before ArriveAtTile is recorded, so its heal reads Run.MaxHp
                     // before anything else this command touches; the trailing SetHitPoints below then
                     // becomes a no-op for it.
-                    if (stageClamped)
+                    if (atStageEnd)
                     {
                         currentHp = StageGateResolver.Apply(input, currentHp);
                     }
