@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model.Gear;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -42,9 +43,29 @@ namespace SlayIdleRepeat.Core.Model;
 /// the same method puts it under that guard too.
 /// </para>
 /// <para>
-/// Deliberately absent: inventory, gear instances and the unopened-container shelf — each deferred
-/// with a <c>GapRegister</c> entry keyed on a type that must not yet exist, so the build fails the
-/// day one becomes writable without a home here.
+/// The stock lives here as of M4-05: <see cref="Inventory"/> is a component of this aggregate, and
+/// every item operation is the component's rather than the aggregate's. 🔒 <b>No member of this type
+/// names or builds a <c>GearInstance</c></b>, and that is a constraint rather than an accident — a
+/// convenience member here that took, returned or constructed an item would put a grant outcome on
+/// the aggregate, which is the shape the luck-routing rule was narrowed to see.
+/// </para>
+/// <para>
+/// ⚠️ <b>Nothing calls into the component yet, and that is worth saying plainly rather than
+/// describing a mechanism that does not exist.</b> No handler reaches <c>player.Inventory</c>; no
+/// type in <c>src/</c> outside this file touches it, so <c>Content.InventoryTuning.Read</c> has no
+/// production caller either. M4-05 landed the container, its numbers and its persistence, and left
+/// the wiring to the tasks that own the operations: <b>M4-04</b> is the first consumer — merge,
+/// enhance and salvage all act on a held item — and the <c>DROP_RUN</c> grant path that would call
+/// <c>Place</c> is still unwired, carried in <c>GapRegister</c>'s inventory discharge note with its
+/// owner named. Until one of those lands, the component is reachable and unused.
+/// </para>
+/// <para>
+/// Still deliberately absent: the unopened-container shelf, pets, mounts, talents, presets and
+/// unlocks. Only the <b>first</b> of the six is held by a <c>GapRegister</c> entry
+/// (<c>ContainerShelf</c>/M4-02, keyed on a <c>ContainerClass</c> that must not yet exist, so the
+/// build fails the day it becomes writable without a home here). The other five are exactly the ones
+/// that register says it does <em>not</em> transcribe: each would need the name of a type its
+/// milestone has not chosen, and inventing five is the fabrication the register exists to refuse.
 /// </para>
 /// <para>
 /// Pity counters are <b>not</b> among them any more: <see cref="PityCounters"/> is a field here as
@@ -153,7 +174,8 @@ public sealed class Player
         bool loginCalendarDayClaimed,
         Dictionary<string, long> clearedChapterTiers,
         Dictionary<string, long> featCounters,
-        PityCounters pityCounters)
+        PityCounters pityCounters,
+        Inventory inventory)
     {
         _pityCounters = pityCounters;
         Id = id;
@@ -179,6 +201,7 @@ public sealed class Player
         _clearedChapterTiersView = new ReadOnlyDictionary<string, long>(clearedChapterTiers);
         _featCounters = featCounters;
         _featCountersView = new FeatCounters(new ReadOnlyDictionary<string, long>(featCounters));
+        Inventory = inventory;
     }
 
     /// <summary>The aggregate root's identity.</summary>
@@ -284,6 +307,14 @@ public sealed class Player
     internal void SetPityCounter(string key, int value) =>
         _pityCounters = _pityCounters.With(key, value);
 
+    /// <summary>The stock this player carries, and the items a full stock is holding for them.</summary>
+    /// <remarks>
+    /// A live view of the component, not a copy taken at rehydration: a copy would make every
+    /// handler's mutation invisible to the very next read, and the aggregate would persist the state
+    /// it started with.
+    /// </remarks>
+    public Inventory Inventory { get; }
+
     /// <summary>The lifetime count of one feat counter, or zero when nothing has advanced it.</summary>
     /// <param name="counterId">The counter's id. Never null, empty or whitespace.</param>
     /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
@@ -362,7 +393,8 @@ public sealed class Player
         Copy(_featCounters),
         // Already immutable and replaced wholesale on every movement, so no copy is needed — the
         // same argument the wallet makes.
-        _pityCounters.Counters);
+        _pityCounters.Counters,
+        Inventory.ToSnapshot());
 
     /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -419,11 +451,13 @@ public sealed class Player
         var featCounters = ReadCounters(
             snapshot.FeatCounters, nameof(PlayerSnapshot.FeatCounters), faults, LifetimeLifespan);
         var pityCounters = ReadPityCounters(snapshot, faults);
+        var inventory = ReadInventory(snapshot.Inventory, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns null
         // also adds a fault — but written as a pattern so the correlation is checked, not asserted.
         if (faults.Count > 0 || wallet is null || daily is null || weekly is null ||
-            clearedChapterTiers is null || featCounters is null || pityCounters is null)
+            clearedChapterTiers is null || featCounters is null || pityCounters is null ||
+            inventory is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -450,7 +484,8 @@ public sealed class Player
             snapshot.LoginCalendarDayClaimed,
             clearedChapterTiers,
             featCounters,
-            pityCounters));
+            pityCounters,
+            inventory));
     }
 
     /// <summary>
@@ -484,6 +519,39 @@ public sealed class Player
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// Reads the persisted stock. <c>null</c> is a <b>fault</b>, on <c>FeatCounters</c>' precedent
+    /// and unlike <c>ClearedChapterTiers</c>: reading an absent inventory as an empty one would
+    /// delete a player's entire stock on the first load of a row that merely failed to write it, and
+    /// the deletion would look exactly like a player who owns nothing.
+    /// </summary>
+    /// <remarks>
+    /// The component's own invariants are delegated rather than restated — a repeated identity, a
+    /// row the item constructor refuses — and the capacity ceiling is deliberately not among them:
+    /// see <c>Inventory.Rehydrate</c>'s remarks for why a tunable ceiling is enforced on mutation
+    /// rather than on load, which is the same rule this aggregate applies to Energy.
+    /// </remarks>
+    private static Inventory? ReadInventory(InventorySnapshot? snapshot, List<string> faults)
+    {
+        if (snapshot is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.Inventory) + " is null. An absent inventory is not an empty " +
+                "one: read as empty, it destroys everything the player owns on the first load.");
+            return null;
+        }
+
+        var inventory = Inventory.Rehydrate(snapshot);
+
+        if (inventory.IsFailure)
+        {
+            faults.Add(nameof(PlayerSnapshot.Inventory) + ": " + inventory.Error);
+            return null;
+        }
+
+        return inventory.Value;
     }
 
     /// <summary>Moves one player-scoped wallet currency and produces the <c>CurrencyChanged</c> that attributes it.</summary>

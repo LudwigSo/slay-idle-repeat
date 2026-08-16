@@ -40,9 +40,14 @@ namespace SlayIdleRepeat.Core.Model.Gear;
 /// ⚠️ <b>It is not itself a persistence DTO, and the task that stores an inventory has to know
 /// that.</b> The canonical state writer requires a positional record with exactly one <em>public</em>
 /// constructor so it can recover field order mechanically, and this type has an internal one on
-/// purpose. Storing an inventory therefore means a <c>GearInstanceSnapshot</c> under
-/// <c>Model/Snapshots/</c> and a version bump with it — the same pair <c>Player</c> and
-/// <c>PlayerSnapshot</c> already are.
+/// purpose. Storing an inventory therefore means a <c>GearInstanceSnapshot</c> and a version bump
+/// with it — the same pair <c>Player</c> and <c>PlayerSnapshot</c> already are. It landed in
+/// <c>Primitives/</c>, <b>not</b> under <c>Model/Snapshots/</c>, and two rules put it there: a row
+/// under <c>Model/Snapshots/</c> declares a <c>SchemaVersion</c> first because it is a persistence
+/// <em>root</em>, and this is a component of <c>PlayerSnapshot</c> rather than a root of its own;
+/// and the public constructor the canonical writer insists on is the very thing <c>Model/</c>
+/// forbids. So it sits in <c>Primitives/</c> beside <c>EnergyBanks</c> and <c>GearAffixRoll</c> —
+/// every other structured thing the writer descends into from a snapshot.
 /// </para>
 /// <para>
 /// ⚠️ <b>There is deliberately no <c>WithLock</c> and no <c>WithEnhancement</c>.</b> Both would be
@@ -69,6 +74,10 @@ public sealed record GearInstance
 
     /// <summary>The earliest chapter an item can originate in.</summary>
     internal const int FirstChapter = 1;
+
+    /// <summary>The affix list every item that rolled none shares. Read-only and empty, so nothing can tell it apart from a private one.</summary>
+    private static readonly ReadOnlyCollection<GearAffixRoll> NoAffixes =
+        new(Array.Empty<GearAffixRoll>());
 
     private readonly IReadOnlyList<GearAffixRoll> _affixes;
 
@@ -308,6 +317,14 @@ public sealed record GearInstance
     /// </remarks>
     private static IReadOnlyList<GearAffixRoll> CopyAffixes(IReadOnlyList<GearAffixRoll> affixes)
     {
+        // Shared: an empty read-only collection has no state to leak, and the bottom rarity rolls
+        // none at all — so a stock of three hundred and twenty items would otherwise allocate two
+        // objects apiece to say "nothing", on every clone of the aggregate that holds them.
+        if (affixes.Count == 0)
+        {
+            return NoAffixes;
+        }
+
         var copy = new GearAffixRoll[affixes.Count];
 
         for (var i = 0; i < affixes.Count; i++)

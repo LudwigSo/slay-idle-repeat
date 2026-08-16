@@ -198,11 +198,13 @@ StoneRefund = 60% of stones invested
 
 | Property | Value |
 |---|---|
-| Base capacity | 120 items |
-| Expansion | +20 per expansion, up to 400, purchased with **Crowns** (earned currency only) |
+| Base capacity | 120 items 📐 |
+| Expansion | +20 per expansion, up to **320**, purchased with **Crowns** (earned currency only) 📐 |
 | Sorting | By slot, rarity, power, quality, newest |
 | Comparison | Tapping an item always shows a side-by-side delta vs the currently equipped item in that slot, with green/red arrows per stat |
 | Lock | Items can be locked to exclude them from auto-salvage and merge selection |
+
+🔒 **The 320 ceiling is `10` §4's, and this row used to disagree with it.** The expansion prices, the hard cap of **10 purchases** and the flat 400-Soul-Shard alternative are all authored in **`10` §4** (the Crown ladder, ruled in `16` A7) and **`10` §2**; this table only restates the capacity they reach. `120 + 10 × 20 = 320`, so the ceiling is not an independent number — an earlier revision of this row read *"up to 400"*, which no ladder of +20 steps capped at 10 purchases can reach, and that figure is a transcription slip from `10` §2's 400-**Soul-Shard** price. Change the ladder in `10` §4 and this row follows; never the reverse.
 
 **Never** sell inventory space for money.
 

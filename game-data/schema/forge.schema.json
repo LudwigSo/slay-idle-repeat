@@ -143,21 +143,16 @@
       }
     },
     "inventory": {
-      "description": "08 §5 — capacity 120 to 400 in steps of 20, bought with Crowns (earned currency only). The design never sells inventory space for money.",
+      "description": "08 §5 — capacity 120 to 320 in steps of 20, bought with Crowns (earned currency only). The design never sells inventory space for money.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["_doc", "baseCapacity", "expansionStep", "maxCapacity", "maxCapacityReachableFromLadder"],
+      "required": ["_doc", "baseCapacity", "expansionStep", "maxCapacity"],
       "properties": {
         "_doc": { "type": "string", "minLength": 1 },
         "baseCapacity": { "type": "integer", "exclusiveMinimum": 0 },
         "expansionStep": { "type": "integer", "exclusiveMinimum": 0 },
         "maxCapacity": {
-          "description": "08 §5 — the stated cap. Currently unreachable from the 10 §4 purchase ladder; see _doc.",
-          "type": "integer",
-          "exclusiveMinimum": 0
-        },
-        "maxCapacityReachableFromLadder": {
-          "description": "10 §4 — baseCapacity + inventoryExpansionMaxPurchases * inventoryExpansionSlotsPerPurchase from currencies.json. Present so the discrepancy with maxCapacity is data the validator can see rather than a note nobody reads.",
+          "description": "08 §5 / 10 §4 — the ceiling the purchase ladder reaches: baseCapacity + inventoryExpansionMaxPurchases * inventoryExpansionSlotsPerPurchase from currencies.json. A derived fact, not an independent number; DeclaredRules checks the three agree.",
           "type": "integer",
           "exclusiveMinimum": 0
         }

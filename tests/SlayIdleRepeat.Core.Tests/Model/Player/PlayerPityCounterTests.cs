@@ -36,10 +36,15 @@ public sealed class PlayerPityCounterTests
     [Fact]
     public void The_snapshot_schema_moved_for_this_field()
     {
-        SnapshotSchema.SchemaVersion.ShouldBe(
+        SnapshotSchema.SchemaVersion.ShouldBeGreaterThanOrEqualTo(
             10,
-            "PlayerSnapshot gained PityCounters and RunSnapshot gained the three draft counters. " +
-            "14 §16.6 makes an added field a versioned migration, never silent.");
+            "PlayerSnapshot gained PityCounters and RunSnapshot gained the three draft counters, " +
+            "which landed at SchemaVersion 10. 14 §16.6 makes an added field a versioned migration, " +
+            "never silent. Stated as a FLOOR rather than an equality: this asserts that the bump for " +
+            "THIS field happened, and the version is global, so every later field moves it again — " +
+            "an equality here goes red on the next task's bump while saying nothing about these " +
+            "counters. What actually enforces the layout is SnapshotFieldOrderPinTests, which pins " +
+            "PityCounters under section 10 and fails on a field added, removed or reordered.");
     }
 
     // ------------------------------------------------------------------ round trip

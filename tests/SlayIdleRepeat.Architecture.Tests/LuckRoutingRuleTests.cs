@@ -42,6 +42,18 @@ namespace SlayIdleRepeat.Architecture.Tests;
 ///   <item>A method that names <c>LuckService</c> for some other reason and produces its outcome
 ///   another way. "Routes through" is answered from the call graph one level deep; a laundering
 ///   indirection defeats it.</item>
+///   <item>⚠️ <b>A production that is neither a signature type nor a <c>newobj</c>.</b> M4-05 closed
+///   the second half of the matcher — <see cref="GrantOutcomesConstructedBy"/> reads the instruction
+///   stream, because <c>Inventory.SetLock</c> was the first member in <c>Core</c> to build a
+///   <c>GearInstance</c> while naming none in its signature. The spellings that are still <b>not</b>
+///   closed: a <c>with</c>-expression, which compiles to <c>&lt;Clone&gt;$</c> plus property setters
+///   and emits no <c>newobj</c> at all; a value-type outcome brought into being by <c>initobj</c> or
+///   <c>default</c>; an outcome obtained by <em>calling</em> a factory on some other type, where the
+///   callee constructs it and this method only holds it; one taken out of a field, an array or a
+///   collection that some earlier method filled; and one built inside a lambda, whose display class
+///   <c>ScannedTypes</c> drops as compiler-generated. Each of those is a real way to hand a player an
+///   item; what the two halves together close is producing one <em>here</em>, in the two spellings a
+///   bypass is actually written in.</item>
 ///   <item>A <c>const</c> read across the boundary in arm 2 — the compiler folds it, so no type
 ///   reference survives into metadata. The same hole <c>IntraRulesLayeringRuleTests</c> records,
 ///   and narrow for the same reason: no guarantee type declares a <c>const</c> a caller outside the
@@ -334,6 +346,26 @@ public sealed class LuckRoutingRuleTests
         // (c) The two remaining shapes that name a gear instance by construction.
         ("GearGranted", "the domain event that REPORTS a grant. Its constructor and its accessor carry the item because that is what the event is for; the grant was produced by whatever emitted it, and that producer is the one this rule watches. ⚠️ Pet and mount grant events will want the same row — at the third one, widen MentionsItsOwnTypeByConstruction to cover a DomainEvent's own bookkeeping members rather than adding a fourth"),
         ("GearMinting", "builds an item at a band that was ALREADY decided — the base item, the quality scalar and the affixes, none of which is protected. Split out of GearGeneration precisely so that this exemption cannot cover the half that does make the protected decision; GearGeneration has no row here and calls LuckService for both of its entry points"),
+
+        // 🔒 M4-05's FOUR, and they split across the same kinds M4-03's six did: three of kind (b)
+        // and one of kind (a). None decides a band, draws anything, or takes an Rng at all — the
+        // container stores what it is handed, the sorting orders what the container holds, the
+        // comparison subtracts two already-derived stat figures, and the snapshot is a persisted row.
+        //
+        // ⚠️ Player is deliberately NOT on this list, and that is a design constraint rather than an
+        // oversight: the aggregate exposes the inventory component, names no GearInstance in any
+        // signature and constructs none, so neither half of the matcher has anything to report. A
+        // convenience member on Player that took, returned or built an item would put a FIFTH row
+        // here, which is the cost that decision was taken to avoid.
+        //
+        // (b) The CONSUMERS.
+        ("Inventory", "the container. It stores, holds, reclaims and locks items it is HANDED — Place takes an item somebody else already produced, and there is no draw anywhere in the type. ⚠️ SetLock CONSTRUCTS a GearInstance in its body (the lock is the container's state, so the transition is the container's), which is the shape GrantOutcomesConstructedBy was added to see; it rebuilds an item that already exists rather than deciding a new one's band"),
+        ("InventorySorting", "orders a list of owned items by slot, band, power, quality or age. Reading a band to sort by it is not deciding one — LuckTuning's reason, one layer up"),
+        ("InventoryComparison", "subtracts one item's derived stats from another's. It names two GearInstances because a side-by-side delta is about exactly two of them, and GearStatDerivation — which it consumes — carries this same reason"),
+
+        // (a) The persisted DATA ROW, beside DropsTuning's rung rows rather than beside the three
+        //     consumers above.
+        ("GearInstanceSnapshot", "the persisted ROW of an item that was granted long before it was written down. It carries the band because that is what the item rolled — HardPityStep's and SessionFloor's reason, one layer over: a data row carrying a rarity is not a place a rarity is decided. ⚠️ It is scanned at all because its SIMPLE NAME is not in GrantOutcomeTypes, so MentionsItsOwnTypeByConstruction never covers its constructor and accessors the way it covers GearInstance's. Accessibility has nothing to do with it — Il.AllMethods filters on nothing of the sort, and an internal constructor would trip this identically. A snapshot of a pet or a mount will want the same row"),
     };
 
     /// <summary>
@@ -400,7 +432,7 @@ public sealed class LuckRoutingRuleTests
             .Where(subject => BypassesTheFacade(subject.Method, LuckFacade))
             .Select(subject =>
                 $"{Il.Describe(subject.Method)} produces a grant outcome " +
-                $"({string.Join(", ", GrantOutcomeNamesIn(subject.Method))}) and never names {LuckFacade}. " +
+                $"({string.Join(", ", GrantOutcomesProducedBy(subject.Method))}) and never names {LuckFacade}. " +
                 "24 §11 puts every protected grant behind one façade: a producer that draws its own " +
                 "rarity skips the counter, and a skipped counter is invisible until a player has " +
                 "opened a hundred and sixty chests for nothing. Route the draw through " +
@@ -1036,14 +1068,73 @@ public sealed class LuckRoutingRuleTests
          SelfNamingMembers.Contains(method.Name, StringComparer.Ordinal));
 
     /// <summary>
-    /// True for a method that answers or accepts a grant outcome and never names the façade.
+    /// True for a method that answers, accepts <b>or constructs</b> a grant outcome and never names
+    /// the façade.
     /// </summary>
     /// <remarks>
     /// Takes the façade's name rather than reading <see cref="LuckFacade"/>, so the teeth check drives
     /// the same predicate the rule does instead of a second copy of it.
     /// </remarks>
     private static bool BypassesTheFacade(MethodDefinition method, string facade) =>
-        GrantOutcomeNamesIn(method).Length > 0 && !RoutesThrough(method, facade);
+        GrantOutcomesProducedBy(method).Length > 0 && !RoutesThrough(method, facade);
+
+    /// <summary>
+    /// 🔴 Every way this rule knows to spot a producer: the grant-outcome names in a method's
+    /// signature, <b>plus</b> the ones its body constructs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>The signature half alone was a hole, and M4-05 authored the first shape that fell into
+    /// it.</b> <c>Inventory.SetLock(GearInstanceId, bool) → bool</c> builds a replacement
+    /// <c>GearInstance</c> in its body and names none anywhere in its signature, so
+    /// <see cref="GrantOutcomeNamesIn"/> could not see it at all. Until that commit every
+    /// <c>GearInstance</c> construction in <c>Core</c> surfaced through a signature, which is why the
+    /// hole had never shown: a whole grant path could have been written as
+    /// <c>Grant(string defId, out bool granted)</c> with the item constructed inside and stored, and
+    /// the rule would have reported success over it.
+    /// </para>
+    /// <para>
+    /// A <c>newobj</c> walk rather than a wider signature match, because the claim being made is
+    /// "this method <em>produced</em> one" and constructing it is the most direct evidence there is.
+    /// The bookkeeping exclusion still applies first (<see cref="ScannedMethods"/>), so a record's own
+    /// constructor and <c>&lt;Clone&gt;$</c> are not reported as producers of themselves.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Proved to bite, on real production IL, and specifically on the half that is new.</b>
+    /// Dropping the signature half of this method (so only <see cref="GrantOutcomesConstructedBy"/>
+    /// remained) and renaming <c>Inventory</c>'s <see cref="RoutingExemptions"/> row turned the
+    /// routing arm red with two offenders — <c>SlayIdleRepeat.Core.Model.Gear.Inventory.SetLock</c>
+    /// and <c>.ReadItems</c>, both reported as <em>"produces a grant outcome (GearInstance) and never
+    /// names LuckService"</em>. <c>SetLock</c> is the one that matters: its signature is
+    /// <c>(GearInstanceId, bool) → bool</c>, so the signature half sees nothing in it at all, and
+    /// before this walk existed the rule reported success over it. Reverted; both halves are live and
+    /// the exemption is back.
+    /// </para>
+    /// </remarks>
+    /// <param name="method">The method to judge.</param>
+    /// <returns>The grant-outcome names it produces, in name order.</returns>
+    private static string[] GrantOutcomesProducedBy(MethodDefinition method) =>
+        GrantOutcomeNamesIn(method)
+          .Concat(GrantOutcomesConstructedBy(method))
+          .Distinct(StringComparer.Ordinal)
+          .OrderBy(name => name, StringComparer.Ordinal)
+          .ToArray();
+
+    /// <summary>The grant-outcome types a method body constructs with <c>newobj</c>.</summary>
+    /// <remarks>
+    /// Matched on the constructed type's <em>simple</em> name, exactly as
+    /// <see cref="GrantOutcomeNamesIn"/> matches a signature type's — the same closed list, read from
+    /// the instruction stream instead of the signature.
+    /// </remarks>
+    private static string[] GrantOutcomesConstructedBy(MethodDefinition method) =>
+        Il.Instructions(method)
+          .Where(instruction => instruction.OpCode.Code == Code.Newobj)
+          .Select(instruction => instruction.Operand)
+          .OfType<MethodReference>()
+          .Select(constructor => constructor.DeclaringType.Name)
+          .Where(name => GrantOutcomeTypes.Contains(name, StringComparer.Ordinal))
+          .Distinct(StringComparer.Ordinal)
+          .ToArray();
 
     /// <summary>The guarantee primitives' full names — the guarded set both arms are stated over.</summary>
     private static string[] GuardedPrimitiveNames() =>

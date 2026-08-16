@@ -93,7 +93,12 @@ internal static class PlayerSnapshots
     /// <paramref name="cleared"/> and <paramref name="feats"/> are the two appended maps, and they
     /// are deliberately asymmetric: a null <c>ClearedChapterTiers</c> is READ as "nothing cleared
     /// yet", while a null <c>FeatCounters</c> is a FAULT. Both stay expressible here so that
-    /// asymmetry is testable rather than assumed.
+    /// asymmetry is testable rather than assumed. <paramref name="inventory"/> joins the FAULT side.
+    /// <para>
+    /// 🔴 Every parameter here is optional and every call site passes them BY NAME. A new one is
+    /// appended LAST and nowhere else: a parameter inserted mid-signature merges textually clean and
+    /// silently re-binds every positional argument after it.
+    /// </para>
     /// </remarks>
     internal static PlayerSnapshot WithNull(
         bool wallet = false,
@@ -101,7 +106,8 @@ internal static class PlayerSnapshots
         bool weekly = false,
         bool cleared = false,
         bool feats = false,
-        bool pity = false) =>
+        bool pity = false,
+        bool inventory = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -123,7 +129,8 @@ internal static class PlayerSnapshots
             false,
             cleared ? null : Counters(),
             feats ? null! : Counters(),
-            pity ? null! : Pity());
+            pity ? null! : Pity(),
+            inventory ? null! : EmptyInventory);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static PlayerSnapshot With(
@@ -147,7 +154,8 @@ internal static class PlayerSnapshots
         bool? loginCalendarDayClaimed = null,
         IReadOnlyDictionary<string, long>? clearedChapterTiers = null,
         IReadOnlyDictionary<string, long>? featCounters = null,
-        IReadOnlyDictionary<string, int>? pityCounters = null) =>
+        IReadOnlyDictionary<string, int>? pityCounters = null,
+        InventorySnapshot? inventory = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -173,5 +181,20 @@ internal static class PlayerSnapshots
             loginCalendarDayClaimed ?? false,
             clearedChapterTiers ?? Counters(),
             featCounters ?? Counters(),
-            pityCounters ?? Pity());
+            pityCounters ?? Pity(),
+            inventory ?? EmptyInventory);
+
+    /// <summary>An inventory holding nothing, with no expansion bought — where a new player stands.</summary>
+    /// <remarks>
+    /// Empty, never <c>null</c>: an absent inventory is a fault on <c>FeatCounters</c>' precedent, so
+    /// a fixture defaulting to one would make every rehydration case in this suite fail for a reason
+    /// unrelated to what it asserts.
+    /// </remarks>
+    /// <remarks>
+    /// Expression-bodied rather than an initialised static, and that is load-bearing: a static
+    /// initialiser runs in DECLARATION order, and <see cref="Valid"/> is declared above this — so an
+    /// initialised property here would still be <c>null</c> when <see cref="Valid"/> was built, and
+    /// every fixture in the suite would carry the very absent inventory this member exists to avoid.
+    /// </remarks>
+    internal static InventorySnapshot EmptyInventory => new(0, [], []);
 }

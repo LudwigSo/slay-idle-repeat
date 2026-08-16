@@ -189,28 +189,48 @@ internal static class GapRegister
         // Four things 30 §4 puts on the Player aggregate that M1-04 authored the aggregate WITHOUT.
         // None of them has an element type yet, and one of them has no decided content at all.
 
-        new("Inventory", "M4-05", "InventoryTuning",
-            "🔒 M4-03 DISCHARGED HALF OF THIS ENTRY AND RE-POINTED THE REST, rather than deleting it " +
-            "or buying silence with an arbitrary later type. What is discharged is the ELEMENT and " +
-            "the VOCABULARY: Model.Gear.GearInstance is authored — quality, chapterOrigin, the " +
-            "enhance mercy counter, the affixes and the lock, every one of them a decision M4-03 " +
-            "made — and the six command payloads M1-02 hung on this entry are retyped in that same " +
-            "commit. EquipCommand and SetFocusCommand now carry Primitives.GearSlot (and " +
-            "SetFocusCommand a GearFamily); EnhanceCommand, SalvageCommand, ReforgeItemCommand and " +
-            "RetuneItemCommand carry Primitives.GearInstanceId. MergeCommand was retyped with them " +
-            "although M1-02 did not list it, because it carries two gear instance ids and leaving it " +
-            "as text is the exact 'two vocabularies for one concept, every rule green' failure this " +
-            "carry-forward is about. " +
-            "⚠️ WHAT IS NOT DISCHARGED is the FIELD on the aggregate. 30 §4 lists 'inventory, gear " +
-            "instances' among Player's contents, and storing them needs the capacity model — the " +
-            "base/cap ladder and the hold-not-lose overflow rule — which is M4-05's and which nothing " +
-            "reads today. Keyed on InventoryTuning, the reader of forge.json#/inventory that a " +
-            "capacity nothing reads cannot have: the name is an INFERENCE from this repository's own " +
-            "<X>Tuning convention rather than a type M4-05 has chosen, and if it picks another the " +
-            "correct action is to rename this entry, not to delete it. 🔒 THE LOAD-BEARING TRIPWIRE " +
-            "IS THE SUBJECT ARM, and this entry says so rather than overselling itself: Expired()'s " +
-            "second arm fires on IsPresentInCore('Inventory'), so M4-05 cannot author the field and " +
-            "leave this standing, whatever it calls its reader."),
+        // 🔒 M4-05 DISCHARGED THE Inventory ENTRY THAT USED TO SIT HERE, and it is a discharge
+        // rather than an expiry — in BOTH directions at once, which is the strongest form this
+        // register has and exactly what the entry predicted of itself: Content.InventoryTuning is
+        // authored (Expired()'s WaitsFor arm would fire) AND Model.Gear.Inventory is written, with
+        // Player.Inventory the field 30 §4's row was really about (Expired()'s Subject arm would
+        // fire too). The removal is FORCED by the commit that authored the field, rather than
+        // remembered at a later kickoff. The 30 §4 Player-contents transcription below still lists
+        // "Inventory" — Undeclared() now finds it authored under Domain.ModelNamespace directly, on
+        // 'PityCounters'' and 'FeatCounters'' precedent, which keeps the other direction: delete the
+        // type or move it out of Core/Model/ and the undeclared check fails naming 30 §4's row.
+        //
+        // The entry's WaitsFor was an INFERENCE — "the name is an inference from this repository's
+        // own <X>Tuning convention rather than a type M4-05 has chosen" — and the inference held:
+        // the reader is Content.InventoryTuning, spanning forge.json#/inventory and the Crown ladder
+        // in currencies.json, because capacity and the price of moving it are authored in different
+        // documents and the interesting rule is the one that crosses them.
+        //
+        // ⚠️ WHAT M4-05 DID NOT DISCHARGE. Two obligations survive the discharge above, and neither
+        // is tracked by an entry in this array — the mechanism keys on a TYPE, and neither of these
+        // is a type. So they are written down with an OWNER each, which is the only thing this
+        // register can do for a gap it cannot hold.
+        //
+        // (1) THERE IS NO EXPAND_INVENTORY COMMAND, and the entry's own text promised the capacity
+        //     model rather than the shop. 14 §2.3's registry is exhaustive — "a command not listed
+        //     here does not exist" — and it authors no inventory-expansion row among its 19 run + 30
+        //     meta commands, so inventing a thirty-first wire name would be filling a VOCABULARY hole
+        //     with a plausible value. The ladder is modelled and tested at the tuning and model tier
+        //     (InventoryTuning.CrownPriceOf, Inventory.PurchaseExpansion), which is as far as code
+        //     can go without a ruling. OWNER: THE M4 MILESTONE REVIEW, the same reader that holds
+        //     M4-03's consecutiveMissesBeforeForce rename — it either amends 14 §2.3 to author the
+        //     row, or rules the ladder model-tier-only, and nothing below that level may decide it.
+        //     Sorting and comparison need no command at all: §2.3's own table records them as purely
+        //     local.
+        //
+        // (2) NOTHING CALLS Inventory.Place YET. The container takes a granted item and never
+        //     refuses one, but no production caller hands it anything — Player.Inventory is reachable
+        //     and unused, and Content.InventoryTuning.Read has no production caller either. OWNER:
+        //     M4-02, which owns 24 §4's DROP_RUN D1–D3 and is where a run drop becomes an item the
+        //     player keeps; M4-04 is the first consumer of an item once it is in there (merge,
+        //     enhance, salvage), and M4-15's end-to-end exit criterion — "a run banks gear" — is the
+        //     test that cannot pass while this path is missing, so the obligation has a failing
+        //     witness waiting for it rather than only a note.
 
         new("ContainerShelf", "M4-02", "ContainerClass",
             "🔒 M1-02 ALSO HANGS THREE COMMAND PAYLOADS ON THIS ENTRY: OpenChestCommand, " +

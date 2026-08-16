@@ -22,8 +22,6 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// Rules deliberately <b>not</b> stated, because the data contradicts them today and the conflict
 /// is documented rather than accidental:
 /// <list type="bullet">
-/// <item><c>forge#/inventory/maxCapacity == maxCapacityReachableFromLadder</c> — a documented
-/// conflict <c>forge.json</c>'s own <c>_doc</c> flags; the weaker true form is stated instead.</item>
 /// <item><c>totalRewardedPerDaySoftCap &gt;= maxInRun + maxMeta</c> — the soft cap sits
 /// deliberately below the theoretical maximum.</item>
 /// <item><c>hasPlus =&gt; ad rates are null</c> — <c>Plus_Lapsed</c> watches ads by design.</item>
@@ -227,7 +225,7 @@ internal static class DeclaredRules
 
         // The inventory ladder and the capacity it reaches are one fact.
         Derives("10 §4 (baseCapacity + maxPurchases x slotsPerPurchase)",
-            "tuning/forge.json#/inventory/maxCapacityReachableFromLadder",
+            "tuning/forge.json#/inventory/maxCapacity",
             d => Number(d, "tuning/forge.json#/inventory/baseCapacity") is { } capacity &&
                  Number(d, "tuning/currencies.json#/crowns/inventoryExpansionMaxPurchases") is { } purchases &&
                  Number(d, "tuning/currencies.json#/crowns/inventoryExpansionSlotsPerPurchase") is { } slots

@@ -65,6 +65,9 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M4-03's `08` gear generation and set-bonus rules — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
     internal const string GearNamespace = "SlayIdleRepeat.Core.Rules.Gear";
 
+    /// <summary>M4-05's inventory sorting and side-by-side comparison — outside the ordering entirely, like <see cref="GearNamespace"/>.</summary>
+    internal const string InventoryNamespace = "SlayIdleRepeat.Core.Rules.Inventory";
+
     /// <summary>M4-01's `24` §11 pity façade and its guarantee primitives — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
     /// <remarks>
     /// 🔒 The namespace <see cref="Every_namespace_under_Rules_has_a_declared_place_in_R17"/>'s own
@@ -258,6 +261,41 @@ public sealed class IntraRulesLayeringRuleTests
             "Gear is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — gear generation and set-bonus counting have no reason to read the combat " +
             "simulator."),
+
+        // 🔒 M4-05's Rules/Inventory/ (InventorySorting, InventoryComparison), pinned OUTSIDE the
+        // ordering the same way Gear is, for the same reason. Its Core dependencies outside itself
+        // are Content (the gear tables, the par table, the catalogue), Model (the gear instance and
+        // the inventory) and Rules.Gear — that last one deliberately: the side-by-side delta consumes
+        // GearStatDerivation rather than deriving an item's stats a second time, and a second
+        // derivation is exactly what would eventually disagree with the hero screen by a rounding
+        // step.
+        //
+        // ⚠️ Rules.Inventory -> Rules.Gear is therefore left OPEN and is not an omission. The
+        // INVERSE is closed below, in the same commit that created the pair's first edge —
+        // Every_namespace_under_Rules_has_a_declared_place_in_R17 only asks that each namespace
+        // appears SOMEWHERE in this table, never that a given pair is ordered, so Rules.Gear naming
+        // Rules.Inventory would compile and pass the whole suite. That is verbatim the cycle this
+        // file was created to end, and — as the ForbiddenEdges remarks say of the Stats -> Combat
+        // edge — it costs nothing to close today, because Rules/Gear/ names nothing under
+        // Rules.Inventory (verified by inspection), and it will not be free later.
+        (GearNamespace, InventoryNamespace,
+            "R17 runs this pair ONE WAY: the side-by-side delta consumes GearStatDerivation, so " +
+            "Rules.Inventory names Rules.Gear and never the reverse. Gear generation must not read " +
+            "the container that stores what it mints — a mint that consulted a sorting or comparison " +
+            "rule would be downstream of the screen that displays its own output, and the cycle " +
+            "would close through the hottest grant path in the game."),
+        (InventoryNamespace, EffectsNamespace,
+            "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — ordering a list of owned items and subtracting two derived stats have no " +
+            "reason to read the effect DSL's resolver."),
+        (InventoryNamespace, StatsNamespace,
+            "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the side-by-side delta compares two ITEMS, not two aggregated loadouts; " +
+            "reading the aggregator here would make an item's own numbers a function of the build " +
+            "it is being considered for."),
+        (InventoryNamespace, CombatNamespace,
+            "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — sorting a stock has no reason to read the combat simulator."),
     };
 
     /// <summary>
