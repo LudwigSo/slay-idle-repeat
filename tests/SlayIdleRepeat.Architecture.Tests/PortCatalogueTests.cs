@@ -235,28 +235,89 @@ public sealed class PortCatalogueTests
     /// a port's surface, and is silent on one that does not.
     /// </summary>
     /// <remarks>
-    /// Driven with <c>Clock</c>, which <c>IClockPort</c> genuinely contains, rather than with a
-    /// crafted type — the scan reads real ports either way, so a synthetic subject would prove the
-    /// scan works on synthetic subjects. The silent half matters as much: a matcher that flagged
-    /// every name would make the live rule a wall of false failures, which is how a rule gets
-    /// suppressed.
+    /// <para>
+    /// Driven with terms real ports genuinely contain, rather than with crafted types — the scan
+    /// reads real ports either way, so a synthetic subject would prove the scan works on synthetic
+    /// subjects. The silent half matters as much: a matcher that flagged every name would make the
+    /// live rule a wall of false failures, which is how a rule gets suppressed.
+    /// </para>
+    /// <para>
+    /// 🔒 Each arm is driven <em>separately and pinned to the place it fired</em>. The banned terms
+    /// this list actually carries — <c>Bucket</c>, <c>Presign</c> — will arrive as a parameter name
+    /// or as a type buried in a generic return, never as the port's own type name, so "the scan
+    /// found something somewhere" is not the claim worth making. Four arms, four probes: the type
+    /// name, a member, a parameter name, and a nested generic argument.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_vocabulary_scan_fires_on_a_term_a_port_really_names()
     {
         PortCatalogue.InfrastructureConcepts(Domain.Ports, new[] { "Clock" })
-            .ShouldNotBeEmpty(
-                "IClockPort is in the build and contains 'Clock'. If this is empty the scan is not "
-                + "reading port type names and the live rule is silent.");
+            .ShouldContain(
+                o => o.Contains("the port type name", StringComparison.Ordinal),
+                "IClockPort is in the build and contains 'Clock'. If no offender is attributed to "
+                + "the port type name, the scan is not reading type names and the live rule is "
+                + "silent on a port called IS3Client.");
 
         PortCatalogue.InfrastructureConcepts(Domain.Ports, new[] { "utcnow" })
-            .ShouldNotBeEmpty(
-                "the match is ordinal but case-INSENSITIVE, and IClockPort.UtcNow is a real member. A "
-                + "case-sensitive matcher would miss a parameter named 'bucket'.");
+            .ShouldContain(
+                o => o.Contains("property 'UtcNow'", StringComparison.Ordinal),
+                "the match is ordinal but case-INSENSITIVE, and IClockPort.UtcNow is a real "
+                + "property. A case-sensitive matcher would miss a parameter named 'bucket'.");
+
+        // 🔒 The parameter-name arm. 'adPlacementId' appears in IRewardedAdPort ONLY as a parameter
+        // name — no member, no type is called that — so nothing else can produce this offender.
+        // This is the arm that catches PutAsync(string bucket, string key, ...), whose every type
+        // is BCL and which DependencyRuleTests' assembly check therefore cannot see.
+        PortCatalogue.InfrastructureConcepts(Domain.Ports, new[] { "adPlacementId" })
+            .ShouldContain(
+                o => o.Contains("parameter 'adPlacementId'", StringComparison.Ordinal),
+                "'adPlacementId' is a parameter name on IRewardedAdPort and appears nowhere else in "
+                + "any port's surface. If this does not fire, parameter names are unscanned and a "
+                + "banned concept crosses the boundary in the one place BCL types hide it.");
+
+        // 🔒 The nested-generic arm. 'AdOutcome' is reachable only through Task<AdOutcome>: it is
+        // never a member name and never a parameter name, so an offender naming it proves the scan
+        // descends into generic arguments rather than stopping at the outer Task`1.
+        PortCatalogue.InfrastructureConcepts(Domain.Ports, new[] { "AdOutcome" })
+            .ShouldContain(
+                o => o.Contains("a type in the signature of 'ShowAsync'", StringComparison.Ordinal),
+                "AdOutcome appears in IRewardedAdPort only as the generic argument of "
+                + "Task<AdOutcome>. A scan that yields the outer type and stops would miss a banned "
+                + "term in exactly the position an async port signature puts its payload.");
 
         PortCatalogue.InfrastructureConcepts(Domain.Ports, new[] { "ZzzNoPortNamesThis" })
             .ShouldBeEmpty(
                 "a scan that flags everything proves nothing about the terms that are actually banned.");
+    }
+
+    /// <summary>
+    /// `23` §5 A4 — the field arm of the same scan: a constant on a port is part of its surface.
+    /// </summary>
+    /// <remarks>
+    /// C# lets an interface declare a <c>const</c>, and a constant produces no method, no property
+    /// and no signature type — so it is the one member kind every other arm of the scan is blind to,
+    /// and <c>const string PresignedUrlPrefix</c> would put the vendor's shape in a port's public
+    /// surface with the live rule still green. No port declares a field today, so the arm is driven
+    /// against a real type from the same assembly that does: <c>AdResultKind</c> is an enum, and an
+    /// enum's members ARE fields.
+    /// </remarks>
+    [Fact]
+    public void The_vocabulary_scan_reads_constants_declared_on_a_type()
+    {
+        var enumWithFields = Domain.ApplicationTypes.Single(
+            t => t.Name.Equals("AdResultKind", StringComparison.Ordinal));
+
+        PortCatalogue.InfrastructureConcepts(new[] { enumWithFields }, new[] { "NoFill" })
+            .ShouldContain(
+                o => o.Contains("field 'NoFill'", StringComparison.Ordinal),
+                "AdResultKind.NoFill is a field and nothing else. If this does not fire, the scan "
+                + "never reads fields and a constant is a hole straight through the rule.");
+
+        PortCatalogue.InfrastructureConcepts(new[] { enumWithFields }, new[] { "ZzzNoTypeNamesThis" })
+            .ShouldBeEmpty(
+                "the same subject, a term it does not contain — otherwise the arm above would be "
+                + "satisfied by a scan that reports every field it sees.");
     }
 
     private static void Floor(ICollection<string> offenders, string what, int actual, int floor, string consequence)

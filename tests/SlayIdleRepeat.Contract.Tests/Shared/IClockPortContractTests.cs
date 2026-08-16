@@ -26,7 +26,26 @@ public abstract class IClockPortContractTests
     protected static readonly DateTimeOffset EpochFloor = new(2024, 1, 1, 0, 0, 0, TimeSpan.Zero);
 
     /// <summary>How far this suite asks the clock to move in the advancement case.</summary>
-    protected static readonly TimeSpan AdvancementStep = TimeSpan.FromMilliseconds(30);
+    protected static readonly TimeSpan AdvancementStep = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>
+    /// 🔒 How much less than <see cref="AdvancementStep"/> a reading may have advanced by and still
+    /// pass. This is a flake guard, not a relaxation of the contract.
+    /// </summary>
+    /// <remarks>
+    /// A fixture over a real clock has to wait, and a wait built on the platform's timer can return
+    /// a fraction under the span it was asked for: Windows schedules on a ~15.6 ms grid by default,
+    /// and <c>Task.Delay</c> is allowed to complete on the tick at or just before the deadline. With
+    /// no slack the case fails a few runs in a thousand, and a contract case that fails at random is
+    /// one somebody deletes rather than debugs.
+    /// <para>
+    /// The remaining floor — <see cref="AdvancementStep"/> minus this — is still more than two timer
+    /// ticks, so the defects this case exists for all stay caught: a frozen clock advances by zero,
+    /// and a clock that ticks once advances by ~15.6 ms. Widening this to where a single tick would
+    /// pass hands the case back its vacuity.
+    /// </para>
+    /// </remarks>
+    protected static readonly TimeSpan TimerGranularitySlack = TimeSpan.FromMilliseconds(16);
 
     /// <summary>A clock of the implementation under test.</summary>
     protected abstract IClockPort Create();
@@ -35,6 +54,11 @@ public abstract class IClockPortContractTests
     /// Moves the clock forward by at least <paramref name="by"/>. A settable fake sets its time; a
     /// real system clock actually waits.
     /// </summary>
+    /// <remarks>
+    /// 🔒 An implementation of this hook must not return early on purpose. The slack the assertion
+    /// allows is there for timer granularity alone; a fixture that waits for half the span and
+    /// leans on the slack is testing the slack.
+    /// </remarks>
     protected abstract void Elapse(IClockPort clock, TimeSpan by);
 
     /// <summary>Every reading is UTC — no implementation hands back a local-zone offset.</summary>
@@ -80,7 +104,7 @@ public abstract class IClockPortContractTests
             + "clock satisfies 'is UTC' and 'is non-decreasing' and only this case can see it.");
     }
 
-    /// <summary>Time actually passes: after the fixture elapses a span, the reading has moved on by at least that span.</summary>
+    /// <summary>Time actually passes: after the fixture elapses a span, the reading has moved on by that span.</summary>
     [Fact]
     public void UtcNow_advances_by_at_least_the_span_that_elapsed()
     {
@@ -89,9 +113,15 @@ public abstract class IClockPortContractTests
 
         Elapse(clock, AdvancementStep);
 
-        (clock.UtcNow - before).ShouldBeGreaterThanOrEqualTo(
-            AdvancementStep,
-            "a frozen clock passes every other case in this suite. This is the one that requires the "
-            + "reading to be connected to anything at all.");
+        var advance = clock.UtcNow - before;
+
+        advance.ShouldBeGreaterThanOrEqualTo(
+            AdvancementStep - TimerGranularitySlack,
+            $"the fixture elapsed {AdvancementStep.TotalMilliseconds} ms and the reading moved by "
+            + $"{advance.TotalMilliseconds} ms. A frozen clock passes every other case in this "
+            + "suite; this is the one that requires the reading to be connected to anything at all. "
+            + $"{TimerGranularitySlack.TotalMilliseconds} ms of that is timer-granularity slack for "
+            + "a fixture that has to wait on a real clock — it is not room for a clock that ticks "
+            + "once and stops.");
     }
 }

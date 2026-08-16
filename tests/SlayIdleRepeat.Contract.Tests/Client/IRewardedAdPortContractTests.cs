@@ -94,32 +94,38 @@ public abstract class IRewardedAdPortContractTests
     /// A vendor failure never arrives as an exception — showing an unprepared placement produces an
     /// outcome (<c>23</c> §5 A3).
     /// </summary>
+    /// <remarks>
+    /// Stated as "does not throw" rather than "returns NoFill or Error", because the auto-grant
+    /// adapter legitimately answers <see cref="AdResultKind.Completed"/> for a placement nothing was
+    /// preloaded for — the subscriber path shows no ad at all. Pinning the kind here would make that
+    /// adapter unable to satisfy its own port.
+    /// </remarks>
     [Fact]
     public async Task Showing_an_unprepared_placement_produces_an_outcome_rather_than_throwing()
     {
         var ad = Create();
 
-        var outcome = await ad.ShowAsync(Placement, CancellationToken.None);
-
-        Enum.IsDefined(outcome.Kind).ShouldBeTrue(
-            "no ad was preloaded for this placement. The contract is that the caller gets NoFill or "
-            + "Error, never an exception it has to know the vendor to interpret.");
+        await Should.NotThrowAsync(
+            () => ad.ShowAsync(Placement, CancellationToken.None),
+            "no ad was preloaded for this placement. The contract is that the caller gets an "
+            + "AdOutcome, never an exception it has to know the vendor to interpret.");
     }
 
     /// <summary>
-    /// 🔒 A verification token is present <b>if and only if</b> the ad completed, and non-blank when
-    /// present (<c>23</c> §5 A2).
+    /// 🔒 A verification token appears <b>only</b> on a <see cref="AdResultKind.Completed"/>
+    /// outcome, and is non-blank when it appears (<c>23</c> §5 A2).
     /// </summary>
     /// <remarks>
-    /// Both directions are load-bearing and they fail differently. A token on a
-    /// <see cref="AdResultKind.Dismissed"/> or <see cref="AdResultKind.NoFill"/> outcome is a grant
-    /// the server would accept for an ad nobody watched. A <em>missing</em> token on a
-    /// <see cref="AdResultKind.Completed"/> outcome is the subscriber auto-grant path, which is
-    /// legitimate — so the rule cannot be "Completed implies a token" alone; it has to be the
-    /// biconditional over the token's presence, with blankness caught separately.
+    /// The guarantee runs one way only, and the direction that is <em>not</em> claimed is the
+    /// load-bearing part. A token on a <see cref="AdResultKind.Dismissed"/> or
+    /// <see cref="AdResultKind.NoFill"/> outcome is a grant the server would accept for an ad nobody
+    /// watched, so that direction is pinned. A <em>missing</em> token on a
+    /// <see cref="AdResultKind.Completed"/> outcome is the subscriber auto-grant path, where no ad is
+    /// shown and there is nothing to verify — so "Completed implies a token" is deliberately not
+    /// asserted here. Asserting it would tell the next implementer to manufacture one.
     /// </remarks>
     [Fact]
-    public async Task A_verification_token_is_present_exactly_when_the_ad_completed()
+    public async Task A_verification_token_appears_only_on_a_completed_outcome()
     {
         var ad = Create();
         await ad.PreloadAsync(ReadyPlacement, CancellationToken.None);
@@ -137,11 +143,13 @@ public abstract class IRewardedAdPortContractTests
                 continue;
             }
 
+            // A completed outcome may legitimately carry no token at all (auto-grant). What it may
+            // not carry is one made of whitespace: that is neither an honest absence nor checkable.
             if (outcome.VerificationToken is not null)
             {
                 outcome.VerificationToken.ShouldNotBeNullOrWhiteSpace(
-                    $"'{placement}' completed and returned a blank token. A blank token is neither "
-                    + "an honest absence nor something the server can check.");
+                    $"'{placement}' completed and returned a blank token. Return null to say there "
+                    + "is nothing for the server to verify.");
             }
         }
     }
@@ -175,9 +183,9 @@ public abstract class IRewardedAdPortContractTests
             "IsReady had just answered true for this placement.");
     }
 
-    /// <summary>Preloading is idempotent and total: repeating it changes nothing and completes (<c>23</c> §4.1).</summary>
+    /// <summary>Repeating a preload of an already-loaded placement changes nothing (<c>23</c> §4.1).</summary>
     [Fact]
-    public async Task Preloading_is_idempotent_and_total()
+    public async Task Preloading_an_already_loaded_placement_changes_nothing()
     {
         var ad = Create();
 
@@ -190,10 +198,25 @@ public abstract class IRewardedAdPortContractTests
         ad.IsReady(ReadyPlacement).ShouldBe(
             afterFirst,
             "a second and third preload of an already-loaded placement changed its readiness.");
+    }
 
-        // Total over any placement in the key space, including one that will never fill: a
-        // preload that throws makes the boot path's warm-up a source of failures of its own.
-        await ad.PreloadAsync(Placement, CancellationToken.None);
+    /// <summary>
+    /// Preloading is total: a placement that will never fill still completes normally (<c>23</c> §4.1).
+    /// </summary>
+    /// <remarks>
+    /// The boot path warms every placement it knows about. A preload that throws for one that has no
+    /// inventory turns that warm-up into a source of failures of its own, and the caller cannot tell
+    /// that fault apart from a real one.
+    /// </remarks>
+    [Fact]
+    public async Task Preloading_a_placement_that_will_never_fill_completes_normally()
+    {
+        var ad = Create();
+
+        await Should.NotThrowAsync(
+            () => ad.PreloadAsync(Placement, CancellationToken.None),
+            $"'{Placement}' is never preloaded to readiness by this fixture, and PreloadAsync is "
+            + "documented as total: it completes and changes nothing rather than reporting a fault.");
     }
 
     // ------------------------------------------------------------------------------ cancellation

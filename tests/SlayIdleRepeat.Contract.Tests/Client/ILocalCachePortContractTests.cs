@@ -41,7 +41,19 @@ public abstract class ILocalCachePortContractTests : IDisposable
     /// A fresh port over the same backing store as <paramref name="cache"/> — what the next launch
     /// of the app gets.
     /// </summary>
+    /// <remarks>
+    /// 🔒 Must return a <em>different</em> instance. Returning <paramref name="cache"/> itself makes
+    /// both durability cases below read the store through the port that wrote it, which is the one
+    /// arrangement they exist to rule out; the two cases assert that directly rather than trusting
+    /// the fixture.
+    /// </remarks>
     protected abstract ILocalCachePort Reopen(ILocalCachePort cache);
+
+    /// <summary>The message both durability cases use when a fixture's <see cref="Reopen"/> is an identity.</summary>
+    private const string ReopenMustBeANewInstance =
+        "Reopen returned the same port instance. Both durability cases then read through the very "
+        + "object that did the writing, and an implementation that keeps everything in a field of "
+        + "that object passes them — which is exactly the implementation they exist to fail.";
 
     /// <summary>Releases whatever the fixture allocated.</summary>
     protected virtual void Dispose(bool disposing)
@@ -68,7 +80,10 @@ public abstract class ILocalCachePortContractTests : IDisposable
     {
         var cache = Create();
 
-        (await cache.ReadAsync(Key, CancellationToken.None)).ShouldBeNull();
+        (await cache.ReadAsync(Key, CancellationToken.None)).ShouldBeNull(
+            "nothing has ever been written under this key, and null is how this port says so. The "
+            + "case below writes zero bytes to the same key and requires a non-null answer; between "
+            + "them they pin the distinction the nullable return exists for.");
     }
 
     /// <summary>
@@ -119,20 +134,27 @@ public abstract class ILocalCachePortContractTests : IDisposable
     /// letting any caller silently corrupt the store for every later reader. The file-backed
     /// adapter cannot have the defect at all, which is exactly why it has to be stated once, over
     /// the interface, rather than left to whoever writes the fake.
+    /// <para>
+    /// 🔒 The expected bytes are a <em>separate array</em> from the one that was written, and that
+    /// is the whole construction. Compare the second read against the written array and an
+    /// implementation that aliases the caller's buffer on the way in AND hands the same buffer back
+    /// out passes: the mutation below changes the written array too, so both sides of the comparison
+    /// move together and the worst implementation available looks correct.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task A_read_returns_a_copy_rather_than_the_stored_buffer()
     {
         var cache = Create();
-        var value = new byte[] { 1, 2, 3, 4 };
-        await cache.WriteAsync(Key, value, CancellationToken.None);
+        var expected = new byte[] { 1, 2, 3, 4 };
+        await cache.WriteAsync(Key, new byte[] { 1, 2, 3, 4 }, CancellationToken.None);
 
         var first = await cache.ReadAsync(Key, CancellationToken.None);
         first.ShouldNotBeNull();
         first[0] = 0xEE;
 
         (await cache.ReadAsync(Key, CancellationToken.None)).ShouldBe(
-            value,
+            expected,
             "mutating the array a read handed back changed what is cached.");
     }
 
@@ -191,6 +213,7 @@ public abstract class ILocalCachePortContractTests : IDisposable
     /// sanitiser, and no two of them can disagree about what a key is.
     /// </remarks>
     [Theory]
+    [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
     [InlineData("a/b")]
@@ -198,18 +221,18 @@ public abstract class ILocalCachePortContractTests : IDisposable
     [InlineData("../x")]
     [InlineData("a b")]
     [InlineData("a:b")]
-    public async Task A_key_outside_the_closed_key_space_is_an_argument_fault(string key)
+    public async Task A_key_outside_the_closed_key_space_is_an_argument_fault(string? key)
     {
         var cache = Create();
 
         await Should.ThrowAsync<ArgumentException>(
-            async () => await cache.ReadAsync(key, CancellationToken.None));
+            async () => await cache.ReadAsync(key!, CancellationToken.None));
 
         await Should.ThrowAsync<ArgumentException>(
-            async () => await cache.WriteAsync(key, new byte[] { 1 }, CancellationToken.None));
+            async () => await cache.WriteAsync(key!, new byte[] { 1 }, CancellationToken.None));
 
         await Should.ThrowAsync<ArgumentException>(
-            async () => await cache.DeleteAsync(key, CancellationToken.None));
+            async () => await cache.DeleteAsync(key!, CancellationToken.None));
     }
 
     // ------------------------------------------------------------------------------ cancellation
@@ -252,6 +275,7 @@ public abstract class ILocalCachePortContractTests : IDisposable
         await cache.WriteAsync(Key, value, CancellationToken.None);
 
         var reopened = Reopen(cache);
+        reopened.ShouldNotBeSameAs(cache, ReopenMustBeANewInstance);
 
         (await reopened.ReadAsync(Key, CancellationToken.None)).ShouldBe(
             value,
@@ -268,6 +292,7 @@ public abstract class ILocalCachePortContractTests : IDisposable
         await cache.DeleteAsync(Key, CancellationToken.None);
 
         var reopened = Reopen(cache);
+        reopened.ShouldNotBeSameAs(cache, ReopenMustBeANewInstance);
 
         (await reopened.ReadAsync(Key, CancellationToken.None)).ShouldBeNull(
             "the durability case above is satisfied by an implementation that persists writes and "

@@ -67,19 +67,36 @@ public abstract class IIdGeneratorPortContractTests
     }
 
     /// <summary>A command id survives a URL, a log line and a header: non-empty, no whitespace, no control characters.</summary>
+    /// <remarks>
+    /// Collected rather than asserted inside the loop so a failure names every bad draw. One draw in
+    /// a thousand going wrong is the interesting case, and an assertion that stops at the first one
+    /// cannot tell "one generator is broken" from "one draw is".
+    /// </remarks>
     [Fact]
     public void A_command_id_is_non_empty_and_free_of_whitespace_and_control_characters()
     {
         var generator = Create();
 
-        foreach (var id in Enumerable.Range(0, DrawCount).Select(_ => generator.NewCommandId()))
-        {
-            id.ShouldNotBeNullOrEmpty();
+        var offenders = Enumerable.Range(0, DrawCount)
+            .Select(_ => generator.NewCommandId())
+            .Select(Fault)
+            .Where(fault => fault is not null)
+            .ToArray();
 
-            id.Where(char.IsWhiteSpace).ShouldBeEmpty($"'{id}' contains whitespace");
-            id.Where(char.IsControl).ShouldBeEmpty($"'{id}' contains a control character");
-        }
+        offenders.ShouldBeEmpty(
+            "a command id travels in a URL, a log line and a header unescaped. One that is empty, "
+            + "or carries whitespace or a control character, is ambiguous in at least one of the "
+            + $"three: {string.Join("; ", offenders)}");
     }
+
+    /// <summary>What is wrong with <paramref name="id"/> as a command id, or <see langword="null"/>.</summary>
+    private static string? Fault(string id) => id switch
+    {
+        null or "" => "a draw returned an empty command id",
+        _ when id.Any(char.IsWhiteSpace) => $"'{id}' contains whitespace",
+        _ when id.Any(char.IsControl) => $"'{id}' contains a control character",
+        _ => null,
+    };
 
     /// <summary>
     /// 🔒 Two independently created generators never collide, in either identifier
@@ -96,6 +113,15 @@ public abstract class IIdGeneratorPortContractTests
     {
         var first = Create();
         var second = Create();
+
+        // 🔒 Without this the case is satisfied by a fixture whose Create() hands back one shared
+        // generator: two references to the same sequence never collide with themselves, and the
+        // cross-instance claim below would then be a within-instance claim wearing its name.
+        second.ShouldNotBeSameAs(
+            first,
+            "Create() returned the same generator twice. This case is about two INDEPENDENTLY "
+            + "constructed generators; a shared instance makes it prove nothing beyond the "
+            + "within-instance cases above.");
 
         var firstGuids = Enumerable.Range(0, CrossInstanceDrawCount).Select(_ => first.NewGuid()).ToHashSet();
         var secondGuids = Enumerable.Range(0, CrossInstanceDrawCount).Select(_ => second.NewGuid()).ToHashSet();

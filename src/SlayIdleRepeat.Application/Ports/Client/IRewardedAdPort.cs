@@ -53,15 +53,17 @@ public interface IRewardedAdPort
 /// <summary>What one rewarded-ad attempt produced.</summary>
 /// <param name="Kind">How the attempt ended.</param>
 /// <param name="VerificationToken">
-/// 🔒 Non-<see langword="null"/> <b>if and only if</b> <paramref name="Kind"/> is
-/// <see cref="AdResultKind.Completed"/>, and non-blank whenever it is present. It is the thing the
-/// server can independently check the grant against.
+/// 🔒 Present <b>only</b> when <paramref name="Kind"/> is <see cref="AdResultKind.Completed"/>, and
+/// non-blank whenever it is present. It is the thing the server can independently check the grant
+/// against. The guarantee runs one way only: a token implies a completed ad, a completed ad does
+/// <b>not</b> imply a token.
 /// <para>
 /// An implementation that grants without a server-verifiable impression — the subscriber
 /// auto-grant path, where no ad is shown at all — returns <see cref="AdResultKind.Completed"/> with
 /// a <see langword="null"/> token. The absent token is the honest signal that there is nothing for
 /// the server to verify, not an oversight: a manufactured token would be a forgery the server would
-/// then have to be taught to accept.
+/// then have to be taught to accept. That is why this is not a biconditional — stating it as one
+/// would tell the next implementer to invent a token to satisfy the doc.
 /// </para>
 /// </param>
 public readonly record struct AdOutcome(AdResultKind Kind, string? VerificationToken);

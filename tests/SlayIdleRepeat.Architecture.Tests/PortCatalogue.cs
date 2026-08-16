@@ -472,9 +472,25 @@ internal static class PortCatalogue
     }
 
     /// <summary>Every name a port's surface exposes, with a description of where it came from.</summary>
+    /// <remarks>
+    /// Fields are in here because C# lets an interface declare a <c>const</c>, and a constant is the
+    /// one member kind that contributes no method, no property and no signature type — so a
+    /// <c>const string BucketPrefix</c> on a port would be invisible to every other arm below while
+    /// putting the vendor's shape in the port's public surface all the same.
+    /// </remarks>
     private static IEnumerable<(string Name, string Where)> SignatureNames(TypeDefinition port)
     {
         yield return (port.Name, "the port type name");
+
+        foreach (var field in port.Fields)
+        {
+            yield return (field.Name, $"field '{field.Name}'");
+
+            foreach (var reference in Il.Flatten(field.FieldType))
+            {
+                yield return (reference.Name, $"a type in the signature of '{field.Name}'");
+            }
+        }
 
         foreach (var method in port.Methods)
         {

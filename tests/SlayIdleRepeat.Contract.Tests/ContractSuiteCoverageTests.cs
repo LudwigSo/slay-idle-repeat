@@ -42,7 +42,14 @@ public sealed class ContractSuiteCoverageTests
     /// Adapter assemblies the scan finds. At zero, rule 2 finds no implementations and reports
     /// success over every port at once — the single most expensive silence available here.
     /// </summary>
-    private const int AdapterAssemblyFloor = 8;
+    /// <remarks>
+    /// 🔒 Kept close to the tree, which holds 21 today. A floor set far below the real count is a
+    /// floor only against total collapse: at 8, thirteen adapter <c>ProjectReference</c>s could be
+    /// dropped from this project one by one and rule 2 would go quiet on every port they carried
+    /// while this rule still reported success. The narrowing this floor watches for is gradual, so
+    /// the number has to be near enough to notice it.
+    /// </remarks>
+    private const int AdapterAssemblyFloor = 18;
 
     /// <summary>
     /// Fixtures per suite. At one, <c>23</c> §5 A5's "the real adapter AND the in-memory fake"
