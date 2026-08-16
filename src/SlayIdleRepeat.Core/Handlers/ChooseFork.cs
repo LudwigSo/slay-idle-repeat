@@ -57,9 +57,8 @@ internal static class ChooseFork
 
         // The resumed half of a movement is the same landing as an unbroken one, so it gates on the
         // node it rests on — mirrored in Handlers.RollDice and RESOLVE_TILE's Portal jump. The boss
-        // clause is redundant on a generated board and kept anyway: MovementEngine calls any
-        // TileKind.Boss node the boss, the predicate means BoardGraph.BossNodeId, and FromLayout is
-        // a public seam on which those two can differ.
+        // clause is redundant on a generated board and kept for the seam BoardGraph.BossNodeId's
+        // remarks describe.
         if (!result.ReachedBoss && board.IsStageEndNode(result.Node))
         {
             StageGateResolver.Apply(input, run.CurrentHp);

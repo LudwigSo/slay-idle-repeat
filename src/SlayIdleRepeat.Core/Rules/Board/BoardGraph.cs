@@ -36,6 +36,26 @@ internal sealed class BoardGraph
     public NodeId FirstNodeId => _spineByLinearIndex[0];
 
     /// <summary>The boss node — always the last entry of the linear index (index 42).</summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>This board names the boss three different ways, and only <see cref="BoardGenerator"/>
+    /// makes them agree.</b> Identity is this member; <see cref="MovementEngine"/>'s boss-exact rule
+    /// asks whether the next node's tile is <see cref="TileKind.Boss"/>; stage arithmetic
+    /// (<see cref="EnemyPowerFormula"/>, <c>Run</c>'s stage validation) asks whether the stage is
+    /// <see cref="BossStage"/>. Each answers a different question — what the tile resolves as, which
+    /// node it is, what its stage multiplier is — so collapsing them would push a tile-kind concern
+    /// into graph identity rather than simplify anything. The generator emits all three in one
+    /// statement, so a generated board cannot separate them.
+    /// </para>
+    /// <para>
+    /// <see cref="FromLayout"/> does not enforce that agreement, so a hand-authored layout can hold
+    /// a <see cref="TileKind.Boss"/> node that is not this one. <c>Handlers.RollDice</c> and
+    /// <c>Handlers.ChooseFork</c> carry a <c>ReachedBoss</c> clause that covers the divergence;
+    /// <c>RESOLVE_TILE</c>'s Portal jump does not, and needs none today because a Portal cannot reach
+    /// the boss. Whoever tightens <see cref="FromLayout"/> into a single boss invariant retires all
+    /// three of those clauses together.
+    /// </para>
+    /// </remarks>
     public NodeId BossNodeId => _spineByLinearIndex[^1];
 
     /// <summary>Every node this board contains, spine, branch and boss alike.</summary>
