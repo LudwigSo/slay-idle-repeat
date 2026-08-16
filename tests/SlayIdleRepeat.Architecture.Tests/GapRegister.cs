@@ -149,13 +149,22 @@ internal static class GapRegister
             "than on SourceClass deliberately: SourceClass arrives earlier, with M4-01's LuckService, and " +
             "the event still could not be written on that day."),
 
-        new("PityCounterAdvanced", "M4-01", "LuckService",
-            "30 §7 writes it as (int Sequence, string Key, int Value), which compiles today — and that is " +
-            "the trap. The payload is a SKETCH, not a ruling: the pity-key vocabulary is LuckService's " +
-            "(24 §11), and nothing in M1 can emit one. Authoring it now would freeze 'string Key' before " +
-            "the milestone that knows whether a key is a closed enum, a primitive or a content id, and " +
-            "would leave a public type with no producer, no consumer and no rule watching it. Keyed on " +
-            "the producer rather than on a payload type, because the payload is not what is missing."),
+        // 🔒 M4-01 discharged the PityCounterAdvanced entry that used to sit here, and it is a
+        // discharge rather than an expiry: LuckService exists (Expired()'s WaitsFor arm would fire)
+        // AND Events.PityCounterAdvanced is authored (Expired()'s Subject arm would fire too). The
+        // Surfaces transcription below still lists "PityCounterAdvanced" under 30 §7 — Undeclared()
+        // now finds it authored under Domain.EventsNamespace directly, with no entry needed to carry
+        // it, on the DiceRolled precedent at the head of this array.
+        //
+        // The entry's question was answered rather than merely outlived. It asked whether a pity key
+        // is "a closed enum, a primitive or a content id", and refused to let M1 freeze `string Key`
+        // before someone knew. It is a CONTENT-DERIVED STRING ID, and the reason is decidable rather
+        // than a preference: 24 §3's counter keys are authored in luck.json, and CHEST_STANDARD runs
+        // THREE counters at once, so a source class cannot address a counter on its own and an enum
+        // over the classes would not be a key space at all. The key is (authored counterKey +
+        // the guarantee rarity it protects), formed in exactly one place — Content.LuckTuning, the
+        // reader of the authored keys — so adding a fourth rung stays a data edit. `30` §7's sketched
+        // shape therefore stands, with reasons, rather than being inherited.
 
         new("GuildContribution", "M14-01", "GuildId",
             "30 §7 writes it as (int Sequence, GuildId Guild, string CounterId, long Delta). GuildId is " +
@@ -193,13 +202,27 @@ internal static class GapRegister
             "eggs and crates yield pets and mounts, so gear arriving first would not make this " +
             "writable."),
 
-        new("PityCounters", "M4-01", "LuckService",
-            "30 §4 lists 'all pity counters (24)' on Player, and 24 §1.1 requires them to be " +
-            "server-owned, visible and never reset. The storage is trivial; the KEY SPACE is not, and " +
-            "it is the same trap PityCounterAdvanced is deferred for — the pity-key vocabulary belongs " +
-            "to LuckService (24 §11, ten source classes in data/luck.json). A map authored now would " +
-            "freeze whether a key is an enum, a primitive or a content id before M4-01 knows. Keyed on " +
-            "the producer, because the payload is not what is missing."),
+        // 🔒 M4-01 discharged the PityCounters entry that used to sit here, in both directions at
+        // once for the reason its sibling above was: LuckService exists, and Model.PityCounters is
+        // authored under Domain.ModelNamespace, so Undeclared() finds it without an entry and
+        // Expired() would fire on either arm if one were left. The key-space question the entry was
+        // guarding is answered in the PityCounterAdvanced discharge note above — the same answer,
+        // because it was always the same question.
+        //
+        // ⚠️ WHAT IS DISCHARGED IS THE TYPE, NOT THE Player FIELD, and the difference is worth
+        // stating because 30 §4's row is about the aggregate. PityCounters is authored as the
+        // ARGUMENT TYPE 24 §11 requires — the luck service is stateless, "takes counters as an
+        // argument and returns deltas" — and is deliberately NOT yet a field on Player. The first
+        // WRITER of a persisted counter is M4-02 (the container shelf, OPEN_* and the chest ladders,
+        // plus DROP_RUN's D1-D3), and a public field nothing writes is the producer-less shape this
+        // repository already rejects. M4-01 also did not take a SnapshotSchema.SchemaVersion: 9 is
+        // M4-13's reservation and taking it would be the head-on collision the reservations exist to
+        // prevent, while jumping to the next free number is mechanically unreachable —
+        // SnapshotFieldOrderPinTests iterates Enumerable.Range(1, SchemaVersion) and would demand
+        // pin sections for every intervening version, all owned by other tasks. M4-02 lands the
+        // field, the snapshot column and the version bump in one commit; PityCounters' own remarks
+        // and Player's class remarks both name it, because a note addressed to M4-02 is worthless in
+        // a test file M4-02 will never open.
 
         // 🔒 M4-13 DISCHARGED THE FeatCounters ENTRY THAT USED TO SIT HERE, in the Subject
         // direction: SlayIdleRepeat.Core.Model.FeatCounters is authored — the read-only wrapper over

@@ -42,9 +42,17 @@ namespace SlayIdleRepeat.Core.Model;
 /// the same method puts it under that guard too.
 /// </para>
 /// <para>
-/// Deliberately absent: inventory, gear instances, the unopened-container shelf and pity counters —
-/// each deferred with a <c>GapRegister</c> entry keyed on a type that must
-/// not yet exist, so the build fails the day one becomes writable without a home here. Entitlement
+/// Deliberately absent: inventory, gear instances and the unopened-container shelf — each deferred
+/// with a <c>GapRegister</c> entry keyed on a type that must not yet exist, so the build fails the
+/// day one becomes writable without a home here.
+/// </para>
+/// <para>
+/// Pity counters are absent too, but for a different reason and with a different owner: the type
+/// exists (<see cref="PityCounters"/>) because the luck service is stateless and takes a counter map
+/// as an argument, and what is still missing is the <em>field</em>. <b>M4-02</b> owns it — the
+/// container shelf is the first thing that writes a persisted counter — and it lands the field, the
+/// snapshot column and the <c>SchemaVersion</c> bump in one commit. Adding the field here before a
+/// writer exists would put a persisted column on the aggregate that nothing ever moves. Entitlement
 /// lives on the session instead, reached as <c>GameContext.Entitlements</c>. There is no factory for a
 /// new player either: starting values are a later milestone's decision, and <see cref="Rehydrate"/> is
 /// the only way to obtain one.

@@ -5,7 +5,7 @@
   "description": "24 — every pity N, soft-pity slope and source-class map. 24 §3: adding a new grant source must assign it a class; the validator fails the build if a grant source has no class.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "_status", "sourceClasses", "chestStandard", "chestPremium", "chestApex", "dropRun", "eggPet", "crateMount", "enhance", "draft", "wheel", "minigame", "boardAndEncounterVariance", "focus", "setTokens", "reforge", "retune"],
+  "required": ["$schema", "_doc", "_status", "sourceClasses", "rarityFloor", "chestStandard", "chestPremium", "chestApex", "dropRun", "eggPet", "crateMount", "enhance", "draft", "wheel", "minigame", "boardAndEncounterVariance", "focus", "setTokens", "reforge", "retune"],
   "$defs": {
     "rarity": { "enum": ["C", "B", "A", "S", "SS"] },
     "hardPityStep": {
@@ -53,6 +53,23 @@
           "id": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
           "counterKey": { "type": ["string", "null"], "pattern": "^[a-z][a-z0-9.]*$" },
           "counterScope": { "enum": ["PLAYER", "GEAR_INSTANCE", "RUN"] }
+        }
+      }
+    },
+    "rarityFloor": {
+      "description": "24 §4.0a rule 3 — the one rule for drawing a class table against a stated rarity floor. A floor zeroes every rarity strictly below it and rescales the survivors, preserving their relative ratios; forcing a guarantee is the same operation, which is why a floored draw still advances and resets counters. One rule for every source class — there is deliberately no per-class variant.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "renormalisation", "countersAdvanceNormally"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "renormalisation": {
+          "description": "A one-member enum: widening the renormalisation rule is a deliberate schema edit, not a string that slipped through a comparison.",
+          "enum": ["PROPORTIONAL"]
+        },
+        "countersAdvanceNormally": {
+          "description": "24 §4.0a rule 3 — a floored A still resets the A-counter, per §4.1's overshoot rule. This must be true.",
+          "const": true
         }
       }
     },

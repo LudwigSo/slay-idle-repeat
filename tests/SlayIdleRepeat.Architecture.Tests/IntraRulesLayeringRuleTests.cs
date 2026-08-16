@@ -62,6 +62,15 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M4-13's event → lifetime-counter table — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
     internal const string FeatsNamespace = "SlayIdleRepeat.Core.Rules.Feats";
 
+    /// <summary>M4-01's `24` §11 pity façade and its guarantee primitives — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
+    /// <remarks>
+    /// 🔒 The namespace <see cref="Every_namespace_under_Rules_has_a_declared_place_in_R17"/>'s own
+    /// remarks named as the next one to arrive, and it has. It is also
+    /// <c>LuckRoutingRuleTests</c>' subject namespace, which reads this constant rather than
+    /// restating it — one statement of the name for the two rules that quantify over it.
+    /// </remarks>
+    internal const string LuckNamespace = "SlayIdleRepeat.Core.Rules.Luck";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -180,6 +189,36 @@ public sealed class IntraRulesLayeringRuleTests
             "Feats is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — a counter projection reads what the simulation REPORTED, through the event " +
             "list, rather than re-deriving it from the simulator."),
+
+        // 🔒 M4-01's Rules/Luck/ (LuckService, HardPity, SoftPity, MercyAccrual, RarityTable and the
+        // resolution records), pinned OUTSIDE the ordering the same way Perks is, for the same
+        // reason — and this is the namespace Every_namespace_under_Rules_has_a_declared_place_in_R17
+        // was written against by name, so the edges and the first Rules/Luck/ type land together.
+        // Verified by inspection, not assumed: the whole namespace's Core dependencies outside
+        // itself are Content (LuckTuning), Model (PityCounters), Primitives (SourceClass, Rarity)
+        // and Rng (DeterministicRng) — ZERO coupling to Combat/Stats/Effects in either direction,
+        // and nothing under those three names a Luck type either. Pity is a draw-shaping concern; it
+        // decides which rarity a grant lands on and never evaluates what the grant then does, so it
+        // has no business reading the effect DSL, stat aggregation or the tick loop.
+        //
+        // ⚠️ The reverse direction is deliberately left open, exactly as it is for Board and Perks:
+        // `05` §6.2's no-repeat Elite draw is `24` §4.10 B2's rule and lives in
+        // Rules/Combat/Enemies/, so Rules.Combat calling INTO the luck primitives one day is the
+        // direction these edges permit by forbidding only the other. SubjectSetFloorTests' own
+        // IEliteModifierHistory note says the same thing from the other side: the run-scoped history
+        // must NOT be implemented on LuckService, "or Rules.Luck ends up naming Rules.Combat and R17
+        // has no edge for it". These three edges are that edge.
+        (LuckNamespace, EffectsNamespace,
+            "Luck is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a pity guarantee has no current reason to read the effect DSL's resolver."),
+        (LuckNamespace, StatsNamespace,
+            "Luck is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a pity guarantee has no current reason to read stat aggregation."),
+        (LuckNamespace, CombatNamespace,
+            "Luck is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a pity guarantee has no current reason to read the combat simulator, and " +
+            "05 §6.2's run-scoped Elite no-repeat memory belongs on the run controller rather than " +
+            "on LuckService for exactly this reason."),
     };
 
     /// <summary>

@@ -14,6 +14,11 @@
     { "id": "WHEEL", "counterKey": "wheel", "counterScope": "PLAYER" },
     { "id": "MINIGAME", "counterKey": "minigame.chestpick", "counterScope": "PLAYER" }
   ],
+  "rarityFloor": {
+    "_doc": "24 §4.0a rule 3 — a source with a stated floor draws its class table renormalised at/above the floor, preserving the surviving rarities' relative ratios. One rule for every source class; the draw advances and resets counters normally.",
+    "renormalisation": "PROPORTIONAL",
+    "countersAdvanceNormally": true
+  },
   "chestStandard": {
     "_doc": "24 §4.1 — the ten-chest ladder. The three counters run independently and simultaneously.",
     "hardPity": [
