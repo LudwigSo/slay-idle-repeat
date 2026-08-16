@@ -316,6 +316,72 @@ public sealed class GameRulesRunPhaseGateTests
             0L, "a refused START_RUN must not spend the lifetime run counter.");
     }
 
+    // ---------------------------------------- the draft arm, which the ended arm now short-circuits
+
+    /// <summary>
+    /// 🔒 <b>The second arm the exemption had to cross, and the only one whose behaviour actually
+    /// changed.</b> <c>DraftPending</c> is a flag orthogonal to <see cref="RunPhase"/>, so an ended
+    /// run can carry one — and the draft arm would otherwise refuse the exempted row a second time,
+    /// for a reason that has nothing to do with the run being over.
+    /// </summary>
+    /// <remarks>
+    /// The <c>BattlePending</c> arm needs no companion case: <see cref="RunPhase"/> holds one value,
+    /// so a run cannot be <see cref="RunPhase.Ended"/> and <see cref="RunPhase.BattlePending"/> at
+    /// once and that arm is unreachable from this one by construction. The draft flag is the arm that
+    /// can genuinely be set alongside <see cref="RunPhase.Ended"/>, so it is the arm that needs
+    /// proving.
+    /// </remarks>
+    [Fact]
+    public void START_RUN_against_an_Ended_run_with_a_draft_still_open_opens_a_fresh_run()
+    {
+        var state = EndedRunWithADraftStillOpen();
+
+        state.Run!.DraftPending.ShouldBeTrue(
+            "the fixture stopped carrying an open draft, so this case no longer crosses the arm it " +
+            "was written for.");
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new StartRunCommand(Chapter, DifficultyTier.NORMAL), Worlds.Context);
+
+        result.Accepted.ShouldBeTrue(
+            "START_RUN on an ENDED run carrying an open draft was refused " + result.Rejection +
+            ". ILLEGAL_STATE means the draft arm refused the exempted row for a second, unrelated " +
+            "reason after the ended arm had already let it through — the arms are chained so that " +
+            "cannot happen.");
+
+        result.NewState.Run!.DraftPending.ShouldBeFalse(
+            "the run that came back still has the ENDED run's draft open, so the ended run was " +
+            "re-phased rather than replaced.");
+    }
+
+    /// <summary>
+    /// …and the ended arm still answers first for every other row: an ended run with a draft open
+    /// refuses <c>PICK_PERK</c> — which the draft arm would otherwise wave through — as
+    /// <c>RUN_ALREADY_ENDED</c>.
+    /// </summary>
+    /// <remarks>
+    /// The chain's ordering, pinned by the reason rather than by the refusal: <c>ILLEGAL_STATE</c>
+    /// here would mean the draft arm had started answering ahead of the ended one, and acceptance
+    /// would mean a finished run could still be drafted into.
+    /// </remarks>
+    [Fact]
+    public void PICK_PERK_against_an_Ended_run_with_a_draft_still_open_is_RUN_ALREADY_ENDED()
+    {
+        var state = EndedRunWithADraftStillOpen();
+
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            state, new PickPerkCommand(0), Worlds.Context);
+
+        result.Accepted.ShouldBeFalse("a perk was drafted into a run that is over.");
+
+        result.Rejection.ShouldBe(
+            RejectionReason.RUN_ALREADY_ENDED,
+            "PICK_PERK was refused " + result.Rejection + ". The ended arm answers first for every " +
+            "row that does not open its own run, draft or no draft.");
+
+        result.NewState.ShouldBeSameAs(state, "a rejection hands back the caller's own slice.");
+    }
+
     // ------------------------------------------- every other run command is still refused outright
 
     /// <summary>
@@ -436,6 +502,17 @@ public sealed class GameRulesRunPhaseGateTests
     private static WorldSlice EndedRun() => Worlds.InARun(RunSnapshots.With(
         phase: RunPhase.Ended,
         rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, DrawsTaken))));
+
+    /// <summary>
+    /// The same ended run with a perk draft never resolved — the one flag that can legitimately still
+    /// be set on a finished run, since it is orthogonal to <see cref="RunPhase"/>.
+    /// </summary>
+    private static WorldSlice EndedRunWithADraftStillOpen() => Worlds.InARun(RunSnapshots.With(
+        phase: RunPhase.Ended,
+        rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, DrawsTaken)),
+        draftPending: true,
+        draftBattleKind: (int)TileKind.Enemy,
+        draftBattleStage: 1));
 
     private static SlayIdleRepeat.Core.Commands.GameCommand Named(string commandName) => commandName switch
     {
