@@ -90,10 +90,18 @@ internal sealed class BoardGraph
     public bool IsJunction(NodeId id) => _junctions.Contains(id);
 
     /// <summary>Builds a board directly from an already-decided layout, bypassing generation entirely.</summary>
+    /// <remarks>
+    /// Refuses a layout in which any node other than <see cref="BossNodeId"/> has no outgoing edge.
+    /// <see cref="MovementEngine.Advance"/> reads "this node has no outgoing edge" as "the boss was
+    /// reached", so a second dead end anywhere would have it announce a boss encounter at a node
+    /// that is not the boss — a malformed board must fail loudly here instead. Every fork branch
+    /// rejoins the spine, so the boss is a well-formed board's single terminus.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// The spine index is empty, a node referenced by an edge or by <paramref name="spineByLinearIndex"/>
-    /// is not in <paramref name="nodes"/>, or a junction id is not a node with exactly two outgoing edges.
+    /// is not in <paramref name="nodes"/>, a junction id is not a node with exactly two outgoing edges,
+    /// or a node other than the boss node has no outgoing edge.
     /// </exception>
     public static BoardGraph FromLayout(
         IReadOnlyList<BoardNode> nodes,
@@ -154,6 +162,22 @@ internal sealed class BoardGraph
             {
                 throw new ArgumentException($"{junction} is marked as a junction, so 03 §1.1 requires exactly two outgoing edges; it has {(outgoing.TryGetValue(junction, out var e) ? e.Count : 0).ToString(CultureInfo.InvariantCulture)}.", nameof(junctionIds));
             }
+        }
+
+        var bossNodeId = spineByLinearIndex[^1];
+        foreach (var node in nodes)
+        {
+            if (node.Id.Equals(bossNodeId) || outgoing.ContainsKey(node.Id))
+            {
+                continue;
+            }
+
+            throw new ArgumentException(
+                $"{node.Id} has no outgoing edge, but only the boss node ({bossNodeId}) may end the " +
+                "board — every other node leads somewhere, and a fork branch rejoins the spine. " +
+                "Movement reads a dead end as a boss encounter, so this layout would announce one " +
+                $"at {node.Id}.",
+                nameof(nodes));
         }
 
         var outgoingReadOnly = outgoing.ToDictionary(
