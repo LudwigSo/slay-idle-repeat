@@ -18,6 +18,9 @@ public sealed class PresenterBoundaryRuleTests
     /// <summary>Where the scene scripts live — driving adapters, and the negative control below.</summary>
     internal const string ScenesNamespace = "SlayIdleRepeat.Client.Game.Scenes";
 
+    /// <summary>The client-side composition root — the half of the split that names adapters.</summary>
+    internal const string CompositionNamespace = "SlayIdleRepeat.Client.Composition";
+
     /// <summary>The presenter the floor is stated over by name.</summary>
     internal const string AppRootPresenterName = "AppRootPresenter";
 
@@ -44,6 +47,10 @@ public sealed class PresenterBoundaryRuleTests
     /// <summary>The presenter source directory, spelled the way the filesystem spells it.</summary>
     private static string PresenterSourceDirectory { get; } =
         Path.Combine(RepoLayout.ProjectDirectory(ProductionAssemblies.ClientName), "game", "presenters");
+
+    /// <summary>The scene source directory — where the source arm's positive control lives.</summary>
+    private static string SceneSourceDirectory { get; } =
+        Path.Combine(RepoLayout.ProjectDirectory(ProductionAssemblies.ClientName), "game", "scenes");
 
     /// <summary>
     /// `14` §5 / `23` §5 A10 — 🔒 a presenter references neither the engine nor an adapter.
@@ -143,10 +150,21 @@ public sealed class PresenterBoundaryRuleTests
     /// neither presenter rule. Scenes are driving adapters; that is the whole of the split.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Without this, both rules above could be passing because nothing anywhere in the client
     /// names the engine — which would make them true and worthless. The scene proves the
     /// detector fires on a real engine reference, and that the presenter rules are scoped to the
     /// half of the split that is supposed to be clean.
+    /// </para>
+    /// <para>
+    /// 🔒 BOTH detectors are exercised here, not just the IL one. The source arm's detector is a
+    /// regex over text that <c>SourceText</c> has already blanked comments and string literals
+    /// out of, and a blanking bug, a changed pattern or a directory that no longer holds C# would
+    /// each leave it matching nothing — with its rule reporting success over every presenter,
+    /// forever. Running the same pattern over the file that is <em>supposed</em> to match is the
+    /// only thing that distinguishes "no presenter names the engine" from "this grep cannot see
+    /// the engine at all".
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_scene_script_names_the_engine_and_trips_neither_presenter_rule()
@@ -164,12 +182,64 @@ public sealed class PresenterBoundaryRuleTests
             "stopped being a scene script, or the detector has stopped recognising the engine — and in the " +
             "second case both presenter rules are passing over a predicate that never matches.");
 
+        EngineHitsInScenes().ShouldNotBeEmpty(
+            $"the source pattern matches nothing under {RepoLayout.Relative(SceneSourceDirectory)}, where a " +
+            "script that writes 'Godot' at the top of the file lives. The pattern, the comment/literal " +
+            "blanking or the directory has moved out from under the source arm, and that arm is now grepping " +
+            "for something it can never find — which is indistinguishable, in its result, from every " +
+            "presenter being clean.");
+
         Presenters.Select(type => type.FullName).ShouldNotContain(
             scene.FullName,
             "the scene has ended up inside the presenters' subject set, which would make the IL arm red for " +
             "a type that is supposed to name the engine. The split is by namespace; putting a Node subclass " +
             "in the presenters namespace erases it.");
     }
+
+    /// <summary>
+    /// `23` §7 — the other half of the IL arm's claim: the adapter detector fires, proven on the
+    /// composition root, which is the one place `23` §7 lets a concrete adapter be named.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <c>A_presenter_references_neither_the_engine_nor_an_adapter</c> is a disjunction, and
+    /// the negative control above only ever demonstrates the engine half of it. If
+    /// <c>ProductionAssemblies.IsAdapter</c> or the metadata scope lookup behind it stopped
+    /// recognising an adapter, that rule would keep passing under a name promising twice what it
+    /// still delivered, and a presenter could construct <c>AutoGrantRewardedAd</c> unnoticed.
+    /// </para>
+    /// <para>
+    /// Stated over the whole composition namespace rather than one type, so it survives the root
+    /// being reorganised — but not the root ceasing to name an adapter at all, which would mean
+    /// the composition root had stopped composing.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_adapter_half_of_the_detector_fires_on_the_composition_root()
+    {
+        var compositionTypes =
+            Il.TypesUnder(ProductionAssemblies.Module(ProductionAssemblies.ClientName), CompositionNamespace)
+              .ToArray();
+
+        compositionTypes.ShouldNotBeEmpty(
+            $"no type under {CompositionNamespace}, so this control quantifies over nothing and the adapter " +
+            "half of the detector is proven by no subject at all.");
+
+        compositionTypes.SelectMany(EngineOrAdapterReferences).ShouldContain(
+            offender => offender.Contains(ProductionAssemblies.AdapterPrefix, StringComparison.Ordinal),
+            "the composition root names no adapter that the detector can see. Only the adapter arm of " +
+            "IsEngineOrAdapter can put an assembly under " + ProductionAssemblies.AdapterPrefix + " into this " +
+            "list — the engine arms match GodotSharp and the Godot namespace, and an adapter is neither. So " +
+            "either the root has stopped wiring concrete adapters, or the arm that is supposed to catch a " +
+            "presenter reaching for one has gone blind.");
+    }
+
+    /// <summary>Source-arm hits on the scene scripts — the positive control for the text detector.</summary>
+    private static IEnumerable<string> EngineHitsInScenes() =>
+        from file in RepoLayout.SourceFiles(SceneSourceDirectory)
+        let source = SourceText.Read(file)
+        from hit in source.Hits(EngineNameInSource)
+        select hit;
 
     /// <summary>Engine and adapter references a type carries, described for a failure message.</summary>
     private static IEnumerable<string> EngineOrAdapterReferences(TypeDefinition type) =>

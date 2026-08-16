@@ -13,13 +13,33 @@ internal static class RepoPaths
 {
     private const string SolutionFileName = "SlayIdleRepeat.sln";
 
+    private const string ContentDirectoryName = "game-data";
+
     private static readonly Lazy<string> LazyRoot = new(FindRepositoryRoot);
 
     /// <summary>The directory holding <c>SlayIdleRepeat.sln</c>.</summary>
     internal static string RepositoryRoot => LazyRoot.Value;
 
     /// <summary>The shipped content tree the exported build mirrors into the project.</summary>
-    internal static string ContentDataRoot => Path.Combine(RepositoryRoot, "game-data");
+    /// <remarks>
+    /// 🔒 Checked rather than merely composed. Every case that names this path composes a real
+    /// graph over it, so a missing tree has to say "there is no game-data here" — not surface
+    /// three directories down as whatever the content source makes of a path that is not one.
+    /// </remarks>
+    internal static string ContentDataRoot
+    {
+        get
+        {
+            var path = Path.Combine(RepositoryRoot, ContentDirectoryName);
+
+            return Directory.Exists(path)
+                ? path
+                : throw new DirectoryNotFoundException(
+                    $"No '{ContentDirectoryName}' directory at '{path}'. These cases compose the client " +
+                    "over the checkout's own content tree, so a run without one is testing a graph the " +
+                    "game will never be built from.");
+        }
+    }
 
     /// <summary>A fresh, unused directory path for a cache root.</summary>
     internal static string ScratchCacheRoot() =>
