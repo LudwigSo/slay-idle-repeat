@@ -208,6 +208,13 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.StartingLoadout), v,
                 RunSnapshots.With(startingLoadout: new LoadoutSnapshot(
                     new Dictionary<GearSlot, GearInstanceId> { [GearSlot.WEAPON] = new("GI_1") }))),
+
+            // M7-00d. 24 §4.3's session floor pays a run that produced nothing at its band, so a run
+            // that has produced one and a run that has not are owed different things at END_RUN —
+            // and the field is written only by a drop that reached the band, which is exactly the
+            // rarely-taken path an encoder can skip without anything noticing.
+            (nameof(RunSnapshot.ItemsAtOrAboveFloorBand), v,
+                RunSnapshots.With(itemsAtOrAboveFloorBand: 1)),
         };
 
         var invisible = probes

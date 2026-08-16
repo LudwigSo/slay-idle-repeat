@@ -142,6 +142,20 @@ internal static class InRunIncomeDocuments
         ("CUR_TITHE", "+20% gear drop chance", 3),
     };
 
+    // ---------------------------------------------------------------- the gear grant path
+
+    /// <summary>How many items an Elite kill drops, as shipped.</summary>
+    internal const int ShippedEliteKillItems = 1;
+
+    /// <summary>The fewest items a Boss kill drops, as shipped.</summary>
+    internal const int ShippedBossKillItemsMin = 2;
+
+    /// <summary>The most items a Boss kill drops, as shipped.</summary>
+    internal const int ShippedBossKillItemsMax = 3;
+
+    /// <summary>The per-kill chance an ordinary enemy drops anything, as shipped.</summary>
+    internal const decimal ShippedNormalEnemyChance = 0.08m;
+
     /// <summary>The whole shipped set these resolvers read, with no leaf replaced.</summary>
     internal static ContentSnapshot Shipped { get; } = With();
 
@@ -212,7 +226,55 @@ internal static class InRunIncomeDocuments
                 // world needs one to exist, the same chapter-1 shape ChapterDocuments.ChapterOne
                 // already mirrors for Rules-level tests.
                 ChapterDocuments.Document(chapterId: 1, ChapterDocuments.ChapterOnePath),
+
+                // 🔴 The five documents the in-run GEAR GRANT reads, and they are here for exactly
+                // the reason the chapter document above is: a won battle over a kill tile now banks
+                // gear, so CONFIRM_BATTLE_RESULT resolves a band, mints an item and files it — and a
+                // set short of one of them would fail inside a content reader rather than in the
+                // rule any of these suites is about. Borrowed whole from the fixtures that own them
+                // rather than re-mirrored, so there is one transcription of each number.
+                LuckDocuments.Shipped.GetDocument(LuckDocuments.DocumentPath),
+                GearDocuments.Shipped.GetDocument(GearDocuments.GearDocumentPath),
+                GearDocuments.Shipped.GetDocument(GearDocuments.ParPowerDocumentPath),
+                new ContentDocument(GearDocuments.DropsDocumentPath, DropsWithAcquisitionRates()),
+                InventoryDocuments.Shipped.GetDocument(InventoryDocuments.ForgeDocumentPath),
             ]);
+
+    /// <summary>
+    /// <see cref="GearDocuments"/>' <c>tuning/drops.json</c> plus the acquisition rates, which that
+    /// fixture deliberately does not carry.
+    /// </summary>
+    /// <remarks>
+    /// The rates are the one block of that document nothing under <c>Rules/Gear/</c> reads — they
+    /// are the HANDLER's, which is why they are transcribed at the handler suite's fixture rather
+    /// than at the generator's. <c>treasureTileChance</c> is an authored <c>null</c> here as it is
+    /// in the shipped file, so a reader that started taking it would fail here too.
+    /// </remarks>
+    private static ContentValue DropsWithAcquisitionRates()
+    {
+        var drops = GearDocuments.Shipped.GetDocument(GearDocuments.DropsDocumentPath).Root;
+
+        var members = drops.MemberNames
+            .Select(name => (Name: name, Value: Member(drops, name)))
+            .Append((
+                Name: "acquisitionRates",
+                Value: Obj(
+                    ("eliteKillItems", ContentValue.Number(ShippedEliteKillItems)),
+                    ("bossKillItemsMin", ContentValue.Number(ShippedBossKillItemsMin)),
+                    ("bossKillItemsMax", ContentValue.Number(ShippedBossKillItemsMax)),
+                    ("normalEnemyChance", ContentValue.Number(ShippedNormalEnemyChance)),
+                    ("treasureTileChance", ContentValue.Unauthorised))))
+            .ToArray();
+
+        return Obj(members);
+    }
+
+    /// <summary>One member of an object value, or a failure naming the member that went missing.</summary>
+    private static ContentValue Member(ContentValue root, string name) =>
+        root.TryGetMember(name, out var value) && value is not null
+            ? value
+            : throw new InvalidOperationException(
+                "'" + name + "' is a member this value enumerated and then did not hand over.");
 
     private static ContentValue Ads(ContentValue? healPctMaxHp, ContentValue? invulnerabilitySeconds) =>
         Obj(("placementRewardValues", Obj(
@@ -295,13 +357,27 @@ internal static class InRunIncomeDocuments
             ("draftEconomy", Obj(
                 ("skipGoldReward", skipGoldReward ?? ContentValue.Number(ShippedSkipGoldReward)),
                 ("rerollGoldCost", rerollGoldCost ?? ContentValue.Number(ShippedRerollGoldCost)))),
+            // 🔴 The Crown ladder and the flat Soul Shard sink are here for InventoryTuning, which
+            // spans forge.json and this document — a grant has to know the stock's capacity to know
+            // whether it stores the item or holds it. Read off InventoryDocuments' own constants
+            // rather than re-transcribed, so the two fixtures cannot disagree about a price.
+            ("crowns", Obj(
+                ("inventoryExpansionLadder",
+                    InventoryDocuments.Ladder([.. InventoryDocuments.ShippedLadder])),
+                ("inventoryExpansionMaxPurchases",
+                    ContentValue.Number(InventoryDocuments.ShippedMaxPurchases)),
+                ("inventoryExpansionSlotsPerPurchase",
+                    ContentValue.Number(InventoryDocuments.ShippedSlotsPerPurchase)))),
             ("soulShards", Obj(
                 ("sources", Obj(
                     ("BOSS_KILL_NORMAL_PER_CHAPTER", bossKillNormalPerChapter ?? ContentValue.Number(ShippedBossKillNormalPerChapter)),
                     ("BOSS_KILL_HEROIC_PER_CHAPTER", bossKillHeroicPerChapter ?? ContentValue.Number(ShippedBossKillHeroicPerChapter)),
                     ("BOSS_KILL_MYTHIC_PER_CHAPTER", bossKillMythicPerChapter ?? ContentValue.Number(ShippedBossKillMythicPerChapter)),
                     ("FIRST_CLEAR_MIN", firstClearMin ?? ContentValue.Number(ShippedFirstClearMin)),
-                    ("FIRST_CLEAR_MAX", firstClearMax ?? ContentValue.Number(ShippedFirstClearMax)))))));
+                    ("FIRST_CLEAR_MAX", firstClearMax ?? ContentValue.Number(ShippedFirstClearMax)))),
+                ("sinks", Obj(
+                    ("INVENTORY_EXPANSION_FLAT",
+                        ContentValue.Number(InventoryDocuments.ShippedFlatSoulShardPrice)))))));
 
     private static ContentValue ShrineBuff((string Id, string? Stat, decimal? Magnitude, decimal? Heal) buff)
     {

@@ -222,27 +222,14 @@ internal static class GapRegister
         //     row, or rules the ladder model-tier-only, and nothing below that level may decide it.
         //     Sorting and comparison need no command at all: §2.3's own table records them as purely
         //     local.
-        //
-        // (2) NOTHING CALLS Inventory.Place YET. The container takes a granted item and never
-        //     refuses one, but no production caller hands it anything — Player.Inventory is reachable
-        //     and unused, and Content.InventoryTuning.Read has no production caller either. OWNER:
-        //     M4-02, which owns 24 §4's DROP_RUN D1–D3 and is where a run drop becomes an item the
-        //     player keeps; M4-04 is the first consumer of an item once it is in there (merge,
-        //     enhance, salvage), and M4-15's end-to-end exit criterion — "a run banks gear" — is the
-        //     test that cannot pass while this path is missing.
-        //
-        //     🔒 THAT WITNESS HAS LANDED and is named rather than merely anticipated: MetaLoopTests.
-        //     A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory. It drives a run
-        //     through commands and asserts the player's stock is byte-identical across it, so it goes
-        //     RED on the commit that wires this path — which is the signal to close BOTH halves: this
-        //     note, and the exit criterion's "banks gear" clause, which that test currently records
-        //     as unreachable.
 
         // ⚠️ M4-10 BUILT THE HERO NAME FILTER AND NOTHING CALLS IT, and that is written here rather
         // than as an entry because this register keys on a TYPE and the gap is a missing CALLER.
-        // The same shape, and the same treatment, as M4-05's "nothing calls Inventory.Place yet" note
-        // above: an obligation with an owner is the most this mechanism can do for a gap it cannot
-        // hold.
+        // The same shape, and the same treatment, as M4-05's "nothing calls Inventory.Place yet"
+        // note, which used to stand above and which M7-00d DELETED in the commit that wired the
+        // first caller — the note's own text asked for exactly that. An obligation with an owner is
+        // the most this mechanism can do for a gap it cannot hold; being deleted on the wiring
+        // commit is what stops it becoming a comment nobody owns.
         //
         // WHAT EXISTS: Rules.Hero.HeroNameRule (07 §1's twelve characters, 27 §1's EN + DE lists, at
         // creation and on every edit), Content.ProfanityLexicon, the two word lists under
@@ -268,16 +255,16 @@ internal static class GapRegister
         // when_something_does goes RED on the commit that wires the first caller, and its failure
         // message says to delete both itself and this note in that commit.
         //
-        // 🔴 The M4-05 note above said the same requirement "could not have one, because its subject
-        // was a call that must eventually EXIST rather than one that must not yet." M4-15 showed
-        // that reasoning was wrong: a witness for a call that must not yet exist can assert the
-        // BEHAVIOUR its absence produces, which is decidable today and stops being true on the
-        // commit that adds the call. MetaLoopTests.
-        // A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory drives a whole run
-        // and compares the player's stock by canonical bytes across it; the day anything hands an
-        // item to Inventory.Place mid-run, it goes RED and says to delete itself. Corrected here
-        // rather than left standing, because a register that records an obligation as unwitnessable
-        // is a register nobody will try to witness.
+        // 🔴 The deleted M4-05 note said the same requirement "could not have one, because its
+        // subject was a call that must eventually EXIST rather than one that must not yet." M4-15
+        // showed that reasoning was wrong: a witness for a call that must not yet exist can assert
+        // the BEHAVIOUR its absence produces, which is decidable today and stops being true on the
+        // commit that adds the call. It wrote one — a whole run driven through commands, with the
+        // player's stock compared by canonical bytes across it — and M7-00d turned it red by wiring
+        // the drop path, which is the whole mechanism working: that case is now the POSITIVE claim
+        // (MetaLoopTests.A_run_banks_gear_into_the_players_own_stock) and the note it guarded is
+        // gone. Recorded here rather than dropped, because a register that records an obligation as
+        // unwitnessable is a register nobody will try to witness.
         //
         // ⚠️ M4-10 ALSO LEFT AN OBLIGATION ON A SIBLING TASK, and it is written here because the
         // tracker row is the conductor's to edit and this file is the place a later agent reads.

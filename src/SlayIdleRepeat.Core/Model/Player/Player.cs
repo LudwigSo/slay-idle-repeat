@@ -638,9 +638,12 @@ public sealed class Player
         return _featCounters.TryGetValue(counterId, out var count) ? count : 0L;
     }
 
+    /// <summary>What separates the chapter from the tier in a <see cref="ClearedChapterTiers"/> key.</summary>
+    private const char ChapterTierSeparator = ':';
+
     /// <summary>The key <see cref="ClearedChapterTiers"/> is stored under.</summary>
     internal static string ChapterTierKey(int chapterId, DifficultyTier tier) =>
-        chapterId.ToString(CultureInfo.InvariantCulture) + ":" + tier;
+        chapterId.ToString(CultureInfo.InvariantCulture) + ChapterTierSeparator + tier;
 
     /// <summary>Whether (<paramref name="chapterId"/>, <paramref name="tier"/>) has been cleared before.</summary>
     internal bool HasClearedChapterTier(int chapterId, DifficultyTier tier) =>
@@ -649,6 +652,40 @@ public sealed class Player
     /// <summary>Records that (<paramref name="chapterId"/>, <paramref name="tier"/>) has now been cleared. Idempotent.</summary>
     internal void MarkChapterTierCleared(int chapterId, DifficultyTier tier) =>
         _clearedChapterTiers[ChapterTierKey(chapterId, tier)] = 1;
+
+    /// <summary>The highest chapter this player has cleared on any tier, floored at one.</summary>
+    /// <remarks>
+    /// Derived rather than stored, so it can never disagree with the record it is read from — and
+    /// floored at one because a player who has cleared nothing is still playing chapter one, so a
+    /// grant scaled against "how far they have got" has a chapter to scale against on the first run.
+    /// Any tier counts: clearing a chapter on Normal is as much a statement about how far the
+    /// player has come as clearing it on Mythic.
+    /// </remarks>
+    internal int HighestChapterCleared
+    {
+        get
+        {
+            var highest = 1;
+
+            foreach (var key in _clearedChapterTiers.Keys)
+            {
+                var separator = key.IndexOf(ChapterTierSeparator);
+
+                if (separator > 0 &&
+                    int.TryParse(
+                        key.AsSpan(0, separator),
+                        NumberStyles.None,
+                        CultureInfo.InvariantCulture,
+                        out var chapterId) &&
+                    chapterId > highest)
+                {
+                    highest = chapterId;
+                }
+            }
+
+            return highest;
+        }
+    }
 
     /// <summary>
     /// The balance of one player-scoped wallet currency.

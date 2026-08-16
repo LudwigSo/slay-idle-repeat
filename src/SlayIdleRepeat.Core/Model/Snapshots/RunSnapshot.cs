@@ -43,6 +43,12 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// rest of the run. It holds instance IDENTITIES, so an item enhanced between two commands is worn
 /// at its new value; what is frozen is which items are equipped.
 /// </param>
+/// <param name="ItemsAtOrAboveFloorBand">
+/// How many items at or above the session floor's authored band this run has produced. Never
+/// negative. Carried on the run rather than derived from the stock at run end: the stock is the
+/// player's and holds items from every run they have ever made, so a tally taken from it could not
+/// tell what THIS session earned.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.RunId"/> and
 /// <see cref="Primitives.PlayerId"/>, plus the two dictionaries — a positional record with no members
@@ -89,4 +95,5 @@ public sealed record RunSnapshot(
     int DraftsSinceLegendaryOffered = 0,
     int DraftsWithoutAboveCommon = 0,
     int DraftsWithoutOwnedUpgrade = 0,
-    LoadoutSnapshot? StartingLoadout = null);
+    LoadoutSnapshot? StartingLoadout = null,
+    int ItemsAtOrAboveFloorBand = 0);

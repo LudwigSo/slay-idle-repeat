@@ -143,7 +143,8 @@ internal static class RunSnapshots
         int? draftsSinceLegendaryOffered = null,
         int? draftsWithoutAboveCommon = null,
         int? draftsWithoutOwnedUpgrade = null,
-        LoadoutSnapshot? startingLoadout = null) =>
+        LoadoutSnapshot? startingLoadout = null,
+        int? itemsAtOrAboveFloorBand = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -178,7 +179,8 @@ internal static class RunSnapshots
             draftsSinceLegendaryOffered ?? 0,
             draftsWithoutAboveCommon ?? 0,
             draftsWithoutOwnedUpgrade ?? 0,
-            startingLoadout ?? EmptyLoadout);
+            startingLoadout ?? EmptyLoadout,
+            itemsAtOrAboveFloorBand ?? 0);
 
     /// <summary>A hero wearing nothing — where a run started by a player with no gear begins.</summary>
     /// <remarks>

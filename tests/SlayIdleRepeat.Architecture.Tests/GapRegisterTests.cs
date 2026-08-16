@@ -469,15 +469,16 @@ public sealed class GapRegisterTests
             .Select(m => m.Groups["wire"].Value)
             .ToArray();
 
-        // 🔴 TO THE INTEGRATOR — M4-04 MERGED FIRST AND MOVED THESE NUMBERS. It landed the
-        // MERGE/ENHANCE/SALVAGE handlers, taking milestone/M4 to 27 deferred / 22 handled. M4-10
-        // takes two more (SAVE_PRESET, APPLY_PRESET), so the merged figures are 25 DEFERRED and 24
-        // HANDLED, and the handled identity list is M4-04's twenty-two plus those two names. Checked
-        // against milestone/M4 directly rather than quoted (steering S9).
+        // 🔴 TO THE INTEGRATOR — THESE NUMBERS MOVE ON EVERY BRANCH THAT WIRES A ROW. M4-04 landed
+        // MERGE/ENHANCE/SALVAGE (27 deferred / 22 handled), M4-10 took two more with SAVE_PRESET
+        // and APPLY_PRESET (25 / 24), and M7-00d takes EQUIP — so the figures here are 24 DEFERRED
+        // and 25 HANDLED, and the handled identity list is M4-10's twenty-four plus that one name.
+        // A sibling that wires another row moves both by one again; the SUM below is the invariant.
         owners.Length.ShouldBe(
-            25,
-            "14 §2.3's registry is 19 run + 30 meta, and 25 of the 49 rows are Deferred since M4-10 " +
-            "landed the SAVE_PRESET/APPLY_PRESET handlers on top of M4-04's " +
+            24,
+            "14 §2.3's registry is 19 run + 30 meta, and 24 of the 49 rows are Deferred since " +
+            "M7-00d landed the EQUIP handler on top of M4-10's " +
+            "SAVE_PRESET/APPLY_PRESET and M4-04's " +
             "MERGE/ENHANCE/SALVAGE (beside M3-13's " +
             "REVIVE/END_RUN/ABANDON_RUN, M3-06's " +
             "PICK_PERK/REROLL_DRAFT/SKIP_DRAFT, M3-05's START_BATTLE/CONFIRM_BATTLE_RESULT, M3-03's " +
@@ -499,6 +500,7 @@ public sealed class GapRegisterTests
                 "REVIVE", "END_RUN", "ABANDON_RUN",
                 "MERGE", "ENHANCE", "SALVAGE",
                 "SAVE_PRESET", "APPLY_PRESET",
+                "EQUIP",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
@@ -520,7 +522,9 @@ public sealed class GapRegisterTests
             "twenty-first and twenty-second — the first handlers in the game to write " +
             "Player.Inventory at all, which is what makes INVENTORY_FULL reachable; and 12 §2's " +
             "SAVE_PRESET and APPLY_PRESET (M4-10) the twenty-third and twenty-fourth — the first " +
-            "handlers to write the hero's loadout. ⚠️ EVENT_CHOOSE and " +
+            "handlers to write the hero's loadout; and 07 §4's EQUIP (M7-00d) the twenty-fifth, " +
+            "which is what finally FILLS that loadout from the stock the in-run drop path now " +
+            "banks into. ⚠️ EVENT_CHOOSE and " +
             "CAMPFIRE_CHOOSE were Deferred to 'M3-09' and 'M3-11' respectively, both STALE owners " +
             "read off an earlier tracker; the M3 kickoff put both under M3-03 with the rest of the " +
             "tile vocabulary. Their dispatch rows were corrected rather than left to go stale " +
