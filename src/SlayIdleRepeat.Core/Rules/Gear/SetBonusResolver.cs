@@ -67,7 +67,9 @@ internal static class SetBonusResolver
 
         foreach (var item in equipped)
         {
-            if (item is null || item.Rarity != SetBand)
+            ArgumentNullException.ThrowIfNull(item, nameof(equipped));
+
+            if (item.Rarity != SetBand)
             {
                 continue;
             }

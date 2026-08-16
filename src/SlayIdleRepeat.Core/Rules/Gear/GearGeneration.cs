@@ -53,6 +53,10 @@ internal static class GearGeneration
             PityCounters counters,
             DeterministicRng draws)
     {
+        // Before the draw, not after it. Every other refusal on this path leaves the stream where it
+        // stood, and a null catalogue reported by the mint would have cost one draw index first.
+        ArgumentNullException.ThrowIfNull(catalogue);
+
         var resolution = LuckService.ResolveRunDrop(
             tuning, dropRun, drops, chapterOrigin, trigger, counters, draws);
 
@@ -106,7 +110,7 @@ internal static class GearGeneration
         ArgumentNullException.ThrowIfNull(instanceIds);
         ArgumentNullException.ThrowIfNull(dropRun);
 
-        var count = LuckService.SessionFloorGrant(
+        var (count, _) = LuckService.SessionFloorGrant(
             dropRun, qualified, itemsAtOrAboveFloor, grantsAlreadyToday);
 
         if (count == 0)

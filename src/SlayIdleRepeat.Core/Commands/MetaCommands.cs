@@ -341,11 +341,10 @@ public sealed record RetuneItemCommand : GameCommand
     public GearInstanceId ItemId { get; }
 
     /// <summary>
-    /// The affixes held through the re-roll. Text, not a declared id: the affix vocabulary is
-    /// authored content and a fifteenth affix is a tuning edit, so an enum here would make the one
-    /// table whose purpose is to be re-tuned a code edit instead.
+    /// The affixes held through the re-roll, in the order the client sent them. Text, not a declared
+    /// id: the affix vocabulary is authored content and a fifteenth affix is a tuning edit, so an
+    /// enum here would make the one table whose purpose is to be re-tuned a code edit instead.
     /// </summary>
-
     public IReadOnlyList<string> LockedAffixIds { get; }
 
     /// <summary>The wanted affixes, which persist on the item after the command.</summary>

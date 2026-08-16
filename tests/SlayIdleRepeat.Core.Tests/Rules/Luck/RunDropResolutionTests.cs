@@ -459,7 +459,7 @@ public sealed class RunDropResolutionTests
     [Fact]
     public void A_qualifying_run_that_produced_nothing_worth_keeping_is_owed_the_authored_count()
     {
-        LuckService.SessionFloorGrant(
+        ItemsFromSessionFloor(
                 DropRun(), qualified: true, itemsAtOrAboveFloor: 0, grantsAlreadyToday: 0)
             .ShouldBe(LuckDocuments.ShippedSessionFloorGrantCount);
     }
@@ -468,7 +468,7 @@ public sealed class RunDropResolutionTests
     [Fact]
     public void A_run_that_did_not_end_the_required_way_is_owed_nothing()
     {
-        LuckService.SessionFloorGrant(
+        ItemsFromSessionFloor(
                 DropRun(), qualified: false, itemsAtOrAboveFloor: 0, grantsAlreadyToday: 0)
             .ShouldBe(
                 0,
@@ -491,7 +491,7 @@ public sealed class RunDropResolutionTests
                 ContentValue.Number(LuckDocuments.ShippedSessionFloorMaxPerDay),
                 ContentValue.False))));
 
-        LuckService.SessionFloorGrant(
+        ItemsFromSessionFloor(
                 unconditional, qualified: false, itemsAtOrAboveFloor: 0, grantsAlreadyToday: 0)
             .ShouldBe(LuckDocuments.ShippedSessionFloorGrantCount);
     }
@@ -502,7 +502,7 @@ public sealed class RunDropResolutionTests
     [InlineData(7)]
     public void A_run_that_already_produced_an_item_at_the_band_is_owed_nothing(int produced)
     {
-        LuckService.SessionFloorGrant(
+        ItemsFromSessionFloor(
                 DropRun(), qualified: true, itemsAtOrAboveFloor: produced, grantsAlreadyToday: 0)
             .ShouldBe(0, "the floor adds an item to a run that produced none, not one to every run");
     }
@@ -515,7 +515,7 @@ public sealed class RunDropResolutionTests
     [InlineData(3, 0)]
     public void The_days_allowance_is_spent_at_exactly_the_authored_maximum(int alreadyToday, int owed)
     {
-        LuckService.SessionFloorGrant(
+        ItemsFromSessionFloor(
                 DropRun(), qualified: true, itemsAtOrAboveFloor: 0, grantsAlreadyToday: alreadyToday)
             .ShouldBe(
                 owed,
@@ -527,10 +527,10 @@ public sealed class RunDropResolutionTests
     [Fact]
     public void A_negative_count_is_refused()
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => LuckService.SessionFloorGrant(
+        Should.Throw<ArgumentOutOfRangeException>(() => ItemsFromSessionFloor(
                 DropRun(), qualified: true, itemsAtOrAboveFloor: -1, grantsAlreadyToday: 0))
             .ParamName.ShouldBe("itemsAtOrAboveFloor");
-        Should.Throw<ArgumentOutOfRangeException>(() => LuckService.SessionFloorGrant(
+        Should.Throw<ArgumentOutOfRangeException>(() => ItemsFromSessionFloor(
                 DropRun(), qualified: true, itemsAtOrAboveFloor: 0, grantsAlreadyToday: -1))
             .ParamName.ShouldBe("grantsAlreadyToday");
     }
@@ -539,7 +539,7 @@ public sealed class RunDropResolutionTests
     [Fact]
     public void SessionFloorGrant_refuses_a_null_tuning()
     {
-        Should.Throw<ArgumentNullException>(() => LuckService.SessionFloorGrant(
+        Should.Throw<ArgumentNullException>(() => ItemsFromSessionFloor(
                 null!, qualified: true, itemsAtOrAboveFloor: 0, grantsAlreadyToday: 0))
             .ParamName.ShouldBe("dropRun");
     }
@@ -604,4 +604,29 @@ public sealed class RunDropResolutionTests
                 .OrderBy(change => change.Key, StringComparer.Ordinal)
                 .Select(change =>
                     $"{change.Key}={change.Value.ToString(CultureInfo.InvariantCulture)}"));
+
+    /// <summary>
+    /// The item half of the floor's answer. The rule returns items AND grants, in different units;
+    /// every case below is about how many items the floor pays, so the grant half is asserted once,
+    /// on its own, rather than threaded through every assertion here.
+    /// </summary>
+    private static int ItemsFromSessionFloor(
+        DropRunTuning dropRun, bool qualified, int itemsAtOrAboveFloor, int grantsAlreadyToday) =>
+        LuckService.SessionFloorGrant(dropRun, qualified, itemsAtOrAboveFloor, grantsAlreadyToday).Items;
+
+    /// <summary>
+    /// A floor that pays spends exactly one of the day's grants, and one that does not spends none —
+    /// the two units the return type keeps apart. Without this the item count and the grant count
+    /// are indistinguishable while the authored grantCount is 1, and a caller feeding one back as the
+    /// other would halve the day''s allowance the moment it moved off 1.
+    /// </summary>
+    [Fact]
+    public void A_paying_floor_spends_exactly_one_of_the_days_grants()
+    {
+        var dropRun = DropRunTuning.Read(LuckDocuments.Shipped);
+
+        LuckService.SessionFloorGrant(dropRun, qualified: true, 0, 0).Grants.ShouldBe(1);
+        LuckService.SessionFloorGrant(dropRun, qualified: true, 1, 0).Grants.ShouldBe(0);
+        LuckService.SessionFloorGrant(dropRun, qualified: false, 0, 0).Grants.ShouldBe(0);
+    }
 }

@@ -310,7 +310,7 @@ internal sealed class DropsTuning
 
     // The drop bands and the affix rows are held as named tuples rather than as record types of
     // their own. Both are private storage shapes with no behaviour, and a declared type for either
-    // would carry a rarity in its own constructor signature — which the 24 §11 routing rule reads as
+    // would carry a rarity in its own constructor signature — which the luck-routing rule reads as
     // a producer of a grant outcome and would then need an exemption row apiece, widening a rule that
     // exists to be narrow.
 
@@ -412,6 +412,13 @@ internal sealed class DropsTuning
 
         foreach (var name in value.MemberNames)
         {
+            // The document's own comment convention, skipped here exactly as the percent table skips
+            // it: a `_doc` beside a band's shares is prose, not a rarity nobody declared.
+            if (name.StartsWith('_'))
+            {
+                continue;
+            }
+
             var memberReference = reference + "/" + name;
 
             if (!AuthoredToken.TryParse<Rarity>(name, out var rarity))
@@ -685,6 +692,12 @@ internal readonly record struct QualityScales(
     double SecondaryBase,
     double SecondarySpan)
 {
+    /// <summary>The bottom of the unit interval a quality scalar must lie in.</summary>
+    internal const double UnitFloor = 0.0;
+
+    /// <summary>The top of it.</summary>
+    internal const double UnitCeiling = 1.0;
+
     /// <summary>The primary stat's multiplier at a given quality.</summary>
     /// <param name="quality">The quality scalar.</param>
     /// <returns>The multiplier.</returns>
@@ -711,6 +724,21 @@ internal readonly record struct QualityScales(
                 $"The quality range runs from {AuthoredToken.Render(minimum)} to " +
                 $"{AuthoredToken.Render(maximum)}, so every item would roll the same quality and the " +
                 "quality bar would be decoration.");
+        }
+
+        // Refused here rather than left to the mint, because this is the layer that can still name
+        // the pointer: a wider range reads cleanly and then throws once per drop, from a call site
+        // that no longer has the document. The bounds are restated rather than read off the gear
+        // instance, which sits in a layer this one may not name.
+        if (minimum < UnitFloor || maximum > UnitCeiling)
+        {
+            throw new InvalidTunableException(
+                DropsTuning.QualityReference,
+                $"Quality is the one scalar q in [{AuthoredToken.Render(UnitFloor)}, " +
+                $"{AuthoredToken.Render(UnitCeiling)}] — the UI shows it directly as a percentage " +
+                $"— and this document authors {AuthoredToken.Render(minimum)} to " +
+                $"{AuthoredToken.Render(maximum)}. A range outside it mints items no gear instance " +
+                "will accept, one exception per drop.");
         }
 
         return new QualityScales(

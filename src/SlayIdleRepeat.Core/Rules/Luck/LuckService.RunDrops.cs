@@ -134,10 +134,16 @@ internal static partial class LuckService
     /// <param name="grantsAlreadyToday">
     /// How many floor grants the player has already taken in this game day. Never negative.
     /// </param>
-    /// <returns>How many items the floor grants now. Zero or more, never above the authored count.</returns>
+    /// <returns>
+    /// How many items the floor grants now, and how much of the day's allowance that spends. Both,
+    /// because they are different units and only one of them is 1 today: the floor grants
+    /// <c>grantCount</c> ITEMS while the daily cap counts GRANTS, so a caller that fed the item count
+    /// back in as <paramref name="grantsAlreadyToday"/> would silently halve the allowance the moment
+    /// the authored count moved off one.
+    /// </returns>
     /// <exception cref="ArgumentNullException"><paramref name="dropRun"/> is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A count is negative.</exception>
-    internal static int SessionFloorGrant(
+    internal static (int Items, int Grants) SessionFloorGrant(
         DropRunTuning dropRun, bool qualified, int itemsAtOrAboveFloor, int grantsAlreadyToday)
     {
         ArgumentNullException.ThrowIfNull(dropRun);
@@ -148,15 +154,15 @@ internal static partial class LuckService
 
         if (floor.RequiresVictoryOrStage3Death && !qualified)
         {
-            return 0;
+            return (0, 0);
         }
 
         if (itemsAtOrAboveFloor > 0 || grantsAlreadyToday >= floor.MaxPerDay)
         {
-            return 0;
+            return (0, 0);
         }
 
-        return floor.GrantCount;
+        return (floor.GrantCount, 1);
     }
 
     /// <summary>The dry-streak breaker a trigger is protected by, or none for an ordinary kill.</summary>

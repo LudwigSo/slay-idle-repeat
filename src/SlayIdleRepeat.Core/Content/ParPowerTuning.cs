@@ -29,10 +29,14 @@ internal sealed class ParPowerTuning
 
     private readonly IReadOnlyDictionary<int, double> _targets;
 
-    private ParPowerTuning(IReadOnlyDictionary<int, double> targets) => _targets = targets;
+    private ParPowerTuning(IReadOnlyDictionary<int, double> targets)
+    {
+        _targets = targets;
+        Chapters = targets.Keys.Order().ToArray();
+    }
 
     /// <summary>Every chapter the table authors a target for, ascending.</summary>
-    internal IReadOnlyCollection<int> Chapters => _targets.Keys.Order().ToArray();
+    internal IReadOnlyCollection<int> Chapters { get; }
 
     /// <summary>The power a chapter is balanced against.</summary>
     /// <param name="chapter">The chapter, from 1.</param>

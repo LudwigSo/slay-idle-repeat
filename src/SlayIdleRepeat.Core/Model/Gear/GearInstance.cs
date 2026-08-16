@@ -110,8 +110,8 @@ public sealed record GearInstance
         ArgumentNullException.ThrowIfNull(affixes);
 
         // Written out rather than delegated to a shared guard: a private helper taking a Rarity is a
-        // method on a grant outcome carrying a grant outcome in its signature, which the 24 §11
-        // routing rule reads as a producer — and exempting this type from that rule would reopen the
+        // method on a grant outcome carrying a grant outcome in its signature, which the luck-routing
+        // rule reads as a producer — and exempting this type from that rule would reopen the
         // factory-on-the-outcome hole the rule was narrowed to close.
         if (!Enum.IsDefined(slot))
         {

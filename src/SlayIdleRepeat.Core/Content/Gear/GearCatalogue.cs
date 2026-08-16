@@ -181,10 +181,10 @@ internal sealed class GearCatalogue
             {
                 throw new InvalidTunableException(
                     ItemsReference,
-                    $"{slot} carries {AuthoredToken.Render(families.Count)} families, not " +
-                    $"{AuthoredToken.Render(FamiliesPerSlot)}. The slot/family grid is what makes a set six " +
-                    "pieces: a slot short of a family leaves one set unable to reach its six-piece " +
-                    "bonus at all.");
+                    $"{slot} carries {AuthoredToken.Render(families.Count)} families across the " +
+                    $"grid, not {AuthoredToken.Render(FamiliesPerSlot)}. Two slot blocks name the " +
+                    "same slot, so another slot has none at all — and a slot with no family leaves " +
+                    "one set unable to reach its six-piece bonus.");
             }
 
             var axes = new HashSet<GearFamilyAxis>();

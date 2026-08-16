@@ -13,8 +13,9 @@ namespace SlayIdleRepeat.Core.Rules.Gear;
 /// <remarks>
 /// <para>
 /// 🔒 <b>A type of its own, and the split is the routing rule rather than a preference.</b> Every
-/// method that answers a gear instance is a producer as far as `24` §11 is concerned, and this one
-/// genuinely decides nothing protected — the band arrives already resolved. The rule's exemptions are
+/// method that answers a gear instance is a producer as far as the luck-routing rule is concerned,
+/// and this one genuinely decides nothing protected — the band arrives already resolved. Its
+/// exemptions are
 /// per type, so keeping minting here is what lets <c>GearGeneration</c>, which does make the
 /// protected decision, stay unexempted and fail the day it stops routing through the façade.
 /// </para>
