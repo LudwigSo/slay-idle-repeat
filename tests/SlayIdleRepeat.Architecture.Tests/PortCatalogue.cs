@@ -164,7 +164,15 @@ internal static class PortCatalogue
             "implementation is the HTTP adapter, which needs a running server. And 23 §5 A5 is a " +
             "live CI gate: a declared port needs a shared contract suite under Contract.Tests, so " +
             "declaring it without one fails the build. M7-02 writes the suite, the HTTP adapter and " +
-            "the envelope's port shape together, and implements it by wrapping IGameHost."),
+            "the envelope's port shape together, and implements it by wrapping IGameHost. " +
+            "🔒 AND THE CONDITION THIS ENTRY IS THE ONLY RECORD OF, because no rule can hold it: " +
+            "IGameHost is not a port while its one implementation lives inside Application and " +
+            "depends on nothing outside it. The commit that has an ADAPTER PROJECT implement it makes " +
+            "it one by 23 §2.2 — an application-owned interface a vendor conforms to — and neither " +
+            "Every_port_has_at_least_two_implementations nor X-06 quantifies over anything outside " +
+            "Ports/, so that commit goes green with no A5 gate and no suite. M7-02 either moves " +
+            "IGameHost under Ports/Client with its shared suite in the same commit, or keeps every " +
+            "HTTP implementation above the seam so the interface keeps its single in-process one."),
 
         new("IRealtimeChannelPort", "M7-02",
             "A push channel with no server to push from. Its real implementation is a WebSocket " +

@@ -123,15 +123,24 @@ public sealed class InProcessGameHostProfileTests
     // ═══════════════════════════════════════════════════════ what the starting row holds
 
     /// <summary>
-    /// The drift guard. The domain harness builds the only other starting player row in the
-    /// repository, and the two must not diverge — a field added there and forgotten here is an account
-    /// created without it.
+    /// The host persists exactly the starting row the shared factory built, field for field, and
+    /// loses nothing on the way through the store and back.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// ⚠️ Not a drift guard, and it is worth saying which it is. It was written as one, against a
+    /// second starting row transcribed inside the domain harness; that transcription is gone —
+    /// <c>Player.CreateStarting</c> builds both — so there is no longer a version of this that fails
+    /// by the two rows disagreeing. What it still discriminates is the round trip: the host reaches
+    /// the reference row through a commit, an encode, a decode and a read, and any field that path
+    /// dropped or rewrote shows up here.
+    /// </para>
+    /// <para>
     /// Both rows are built at one instant, so the clock-derived fields are equal by construction
     /// rather than normalised away; only the identity, which is a generated value, is aligned.
     /// Compared as canonical bytes: these rows carry dictionaries, which record equality compares by
     /// reference.
+    /// </para>
     /// </remarks>
     [Fact]
     public async Task OpenProfileAsync_writes_the_starting_row_the_domain_harness_builds()
