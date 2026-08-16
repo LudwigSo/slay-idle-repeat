@@ -59,6 +59,7 @@ public sealed class StageGateTriggerTests
     /// <summary>The committed <c>board</c> position the Portal case jumps from — it draws a 4 there.</summary>
     private const ulong PortalBoardDraws = 1UL;
 
+    /// <summary>The distance that position draws, asserted by the Portal case rather than trusted.</summary>
     private const int PortalJump = 4;
 
     /// <summary>Where the Portal case starts: the latest local index a Portal tile may occupy.</summary>
@@ -198,6 +199,13 @@ public sealed class StageGateTriggerTests
     [Fact]
     public void A_portal_jump_onto_a_stages_last_node_fires_the_stage_gate()
     {
+        MovementEngine.DrawPortalDistance(
+            DeterministicRng.OpenAt(PortalSeed, RngStreams.Board, PortalBoardDraws)).ShouldBe(
+            PortalJump,
+            "the premise: this case is about an EXACT landing, and the landing node below cannot tell " +
+            "one apart from an overshoot — a jump of 5 or 6 from local index " + PortalStart +
+            " is clamped onto that same node and would quietly prove the clamp arm a second time.");
+
         var result = SlayIdleRepeat.Core.GameRules.Apply(
             Worlds.InARun(RunSnapshots.With(
                 chapterId: ChapterId,
@@ -283,7 +291,15 @@ public sealed class StageGateTriggerTests
             "trigger that only asks whether the next node changes stage counts the boss as a third.");
     }
 
-    /// <summary>A landing exactly on a junction fires nothing — a junction has two edges, not one.</summary>
+    /// <summary>A landing exactly on a junction — a legal stop that prompts nothing — fires nothing.</summary>
+    /// <remarks>
+    /// ⚠️ <b>This does not exercise "a junction is not a stage end because it has two edges."</b> Every
+    /// junction candidate sits at a local index no later than <c>spineLength − 4</c>, so a junction is
+    /// never a stage's last node on a generated board and the case would pass against a trigger that
+    /// counted no edges at all. What it does pin is the one landing that most resembles a stop worth
+    /// gating — movement stopped on a node it could not have walked through, and no fork opened — and
+    /// that the gate is left alone for it.
+    /// </remarks>
     [Fact]
     public void A_landing_exactly_on_a_junction_fires_no_stage_gate()
     {

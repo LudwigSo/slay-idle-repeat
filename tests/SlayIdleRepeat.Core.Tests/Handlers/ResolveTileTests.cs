@@ -308,6 +308,9 @@ public sealed class ResolveTileTests
 
         var result = Resolve(state);
 
+        result.Events.ShouldBeEmpty(
+            "a shop visit announced something. The bytes below read the RUN only, so a row paid into " +
+            "the PLAYER's wallet would slip past them — this is what catches it.");
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
         BytesBesidesThePendingTile(result.NewState).ShouldBe(
             before, "a shop visit moved something. It stocks no offer and spends no Gold.");
@@ -340,26 +343,59 @@ public sealed class ResolveTileTests
     }
 
     /// <summary>
-    /// 🔒 …and the other half of that bargain (steering S4): visiting a shop still makes no purchase
-    /// legal, for every slot SHOP_BUY names and for one it does not.
+    /// 🔒 …and the other half of that bargain (steering S4): a shop buys nothing, <b>while the run is
+    /// standing on the tile and after the visit alike</b>, for every slot SHOP_BUY names.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The state ON the pending tile is the one that carries the pin.</b> Once RESOLVE_TILE has
+    /// cleared the tile the run is standing at a shop it has already left, and a purchase could
+    /// stay illegal there for ever without anything being wrong — so probing only that state would
+    /// leave a pin that never expires. Standing on the unresolved tile is where a stocked offer would
+    /// first make a purchase legal, so that is where this goes red.
+    /// </remarks>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
-    [InlineData(4)]
     public void A_shop_visit_makes_no_purchase_legal(int slotIndex)
     {
-        var visited = Resolve(TileWorlds.OnTile(TileKind.Shop)).NewState;
+        var standingOn = TileWorlds.OnTile(TileKind.Shop);
+
+        var early = SlayIdleRepeat.Core.GameRules.Apply(
+            standingOn, new ShopBuyCommand(slotIndex), TileWorlds.Context);
+
+        early.Accepted.ShouldBeFalse(
+            "slot " + slotIndex + " was purchasable while the run stood on the shop tile. " +
+            "RESOLVE_TILE clears a shop tile precisely BECAUSE a visit buys nothing; the moment a " +
+            "purchase is legal the shop owes its own clearing step and RESOLVE_TILE's has to be " +
+            "revisited.");
+        early.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
+
+        var visited = Resolve(standingOn).NewState;
 
         var bought = SlayIdleRepeat.Core.GameRules.Apply(
             visited, new ShopBuyCommand(slotIndex), TileWorlds.Context);
 
         bought.Accepted.ShouldBeFalse(
-            "slot " + slotIndex + " was purchasable. RESOLVE_TILE clears a shop tile precisely " +
-            "BECAUSE a visit buys nothing; the moment a purchase is legal the shop owes its own " +
-            "clearing step and RESOLVE_TILE's has to be revisited.");
+            "slot " + slotIndex + " became purchasable after the visit cleared the tile, so the run " +
+            "can shop at a tile it has already left.");
+        bought.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
+    }
+
+    /// <summary>…and a slot outside the four SHOP_BUY names is refused for the index alone.</summary>
+    /// <remarks>
+    /// Its own case rather than a fifth row of the pin above: this refusal comes from the slot guard,
+    /// which will still be there long after an offer exists, so it is not a claim that can expire
+    /// with the rest of them — and a row that cannot expire dilutes a pin whose whole job is to.
+    /// </remarks>
+    [Fact]
+    public void A_shop_slot_outside_the_four_is_refused()
+    {
+        var bought = SlayIdleRepeat.Core.GameRules.Apply(
+            TileWorlds.OnTile(TileKind.Shop), new ShopBuyCommand(4), TileWorlds.Context);
+
+        bought.Accepted.ShouldBeFalse("SHOP_BUY names four slots, 0..3, and answered a fifth.");
         bought.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 

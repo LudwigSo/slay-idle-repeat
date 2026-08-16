@@ -408,6 +408,10 @@ public sealed class MetaLoopTests
         var (game, player) = Loop();
         var floor = game.State(player).Player.LegendLevel;
 
+        // Both floors are READ rather than assumed to be zero: an assertion against a literal 0 would
+        // stop discriminating the day a harness player started holding either.
+        var talentFloor = game.State(player).Player.TalentPoints;
+
         game.State(player).Player.LegendXp.ShouldBe(0L, "a harness player starts with no XP.");
 
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
@@ -430,7 +434,9 @@ public sealed class MetaLoopTests
             Trace(driver));
 
         hero.TalentPoints.ShouldBeGreaterThan(
-            0L, "07 §1.1 grants Talent Points on the way up and a level was gained." + Trace(driver));
+            talentFloor,
+            "a level was gained and the hero holds the " + talentFloor + " Talent Points they started " +
+            "with, so the level-up granted none — the curve grants them on the way up." + Trace(driver));
 
         game.Events.OfType<CurrencyChanged>().ShouldContain(
             row => row.Reason == LegendLevelUpReason,

@@ -1,6 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Testing;
 using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using Xunit;
@@ -138,6 +139,12 @@ public sealed class StageBoundaryTraversalTests
     /// The driver still concludes "stuck" from what the commands actually did rather than from a list
     /// of tile kinds, so this stays the case that catches the <em>next</em> tile with no way out.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>The boss arrival is asserted separately from stage 3</b>, because reaching stage 3 is
+    /// not reaching the boss: the boss node belongs to <see cref="BoardGraph.BossStage"/>, not to
+    /// stage 3, so a run that entered stage 3 and then stopped on a tile it could not finish would
+    /// satisfy the stage assertion alone and leave this case's name overstating it.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_run_leaves_every_tile_it_lands_on_and_reaches_the_boss()
@@ -152,6 +159,11 @@ public sealed class StageBoundaryTraversalTests
         driver.Stages.ShouldContain(
             3, "the run never resolved a tile in stage 3, so it did not cross the second boundary." +
             Trace(driver));
+
+        driver.Stages.ShouldContain(
+            BoardGraph.BossStage,
+            "the run crossed into stage 3 and never arrived at the boss node, so it stopped somewhere " +
+            "along the last stage rather than travelling the whole board." + Trace(driver));
     }
 
     /// <summary>
