@@ -373,6 +373,30 @@ public sealed class GapRegisterTests
             "30 §6 names these two and no others; a count-only floor is satisfied by whatever pair " +
             "replaced them.");
 
+        // 🔴 M4-13, and it is a hole this file already had. `30` §4's PLAYER-contents row was the
+        // one transcription in this array with no floor — the Run-contents row, `14` §2.3, `30`
+        // §2.3 and `30` §6 all have one, and this row was left on nothing. MEASURED, on this
+        // branch: deleting "FeatCounters" from it passed 14/14. Expired is silent (no entry is left
+        // dangling), Undeclared is silent (nothing asks for the type any more) and Unanchored is
+        // silent for the same reason — so the row a task discharges can be quietly un-asked-for the
+        // moment after it lands, which is precisely why M4-13 kept its subject there rather than
+        // dropping it on `PendingFork`'s precedent.
+        //
+        // Named by IDENTITY rather than counted (steering S3): a count of four is satisfied by any
+        // four names, including four that swapped in for the four `30` §4 actually enumerates.
+        var playerContents = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("30 §4 (the Player-contents row", StringComparison.Ordinal));
+
+        playerContents.Subjects.ShouldBe(
+            new[] { "Inventory", "ContainerShelf", "PityCounters", "FeatCounters" },
+            ignoreOrder: true,
+            "30 §4's Player row enumerates eighteen things and this transcription is the four that " +
+            "are genuinely absent AND genuinely type-shaped. Three are still deferred; FeatCounters " +
+            "is authored, and stays listed so that deleting the type fails the undeclared check " +
+            "rather than passing silently.");
+
+        playerContents.Namespace.ShouldBe(Domain.ModelNamespace);
+
         // 🔒 M4-13. The floor under `28` D2's transcription, on the same pattern and for the same
         // reason: a literal, never the transcription's own Count.
         //

@@ -501,7 +501,9 @@ internal static class GapRegister
             // and is silent, and what the row still buys is the OTHER direction — delete the type or
             // move it out of Core/Model/ and the undeclared check fails naming 30 §4's row. The
             // storage is built; what M16 still owes is the counter SEMANTICS, carried by the
-            // FeatDefinition entry above rather than by this name.
+            // FeatDefinition entry above rather than by this name. 🔒 GapRegisterTests floors this
+            // row by identity — without that floor, dropping the name here was silent in all four
+            // directions, measured.
             "FeatCounters",
         }),
 
