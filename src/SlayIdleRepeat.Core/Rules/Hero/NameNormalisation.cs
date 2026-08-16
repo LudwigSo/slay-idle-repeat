@@ -33,8 +33,14 @@ namespace SlayIdleRepeat.Core.Rules.Hero;
 /// single letter. A matcher compares the authored term against <em>both</em> forms of the candidate,
 /// which catches a stretched name without corrupting the term: collapsing the term as well would turn
 /// a slur with a doubled letter into a shorter string that innocent names contain, and the filter
-/// would start refusing place names. The cost of the asymmetry is stated rather than hidden — a name
-/// that stretches a letter the term does not double evades the filter.
+/// would start refusing ordinary words and place names.
+/// </para>
+/// <para>
+/// ⚠️ <b>The cost of that asymmetry, stated rather than hidden:</b> a stretched spelling of a term
+/// that itself <em>doubles</em> a letter is not caught, because collapsing the candidate removes the
+/// very doubling the term needs to match. It is the deliberate half of the trade — the alternative
+/// catches that spelling and starts refusing names nobody would call profane, and a filter that
+/// refuses ordinary names is the one players route around.
 /// </para>
 /// <para>
 /// ⚠️ <b>Matching is by substring, and substring matching has false positives by construction</b>
@@ -89,7 +95,13 @@ internal static class NameNormalisation
                 continue;
             }
 
-            var folded = Substitutions.TryGetValue(character, out var letter) ? letter : character;
+            // Lowercased AGAIN, after the decomposition. The first fold cannot finish the job: the
+            // Turkish dotted capital İ survives ToLowerInvariant, decomposes to an uppercase I plus
+            // a combining dot, and the a-z filter below would then DELETE the letter rather than
+            // fold it — turning "İstanbul" into "stanbul", which matches a different set of terms
+            // than the name a player typed.
+            var lowered = char.ToLowerInvariant(character);
+            var folded = Substitutions.TryGetValue(lowered, out var letter) ? letter : lowered;
 
             if (folded is >= 'a' and <= 'z')
             {

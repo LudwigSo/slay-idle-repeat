@@ -15,6 +15,20 @@ There is exactly one hero: **the Rogue**. The player's identity is expressed thr
 | Base stats | See `05_COMBAT_SIMULATION.md` §2 |
 | Progression | Legend Level 1 → 200 |
 
+🔒 **The name filter is `27` §1's, applied here (M4 kickoff ruling).** This table says only "12 chars,
+profanity-filtered" — no language list, no rule about edits, no behaviour on a match. `27` §1 is the
+design set's only authored profanity specification (*"Name (16 chars) and a 4-character tag, both
+profanity-filtered in EN and DE at creation and on every edit"*), and the hero name is held to that
+same standard: **EN and DE, at creation and on every edit.** The hero name keeps its own **12**-character
+limit; `27`'s sixteen is a different field's number and is deliberately not borrowed with the rest.
+Running two different filters on two name fields in one product is the worse outcome.
+
+The **word lists are content**, not a mechanic: `game-data/content/profanity/{en,de}.json`. What ships
+in M4-10 is a deliberately conservative **seed** of twelve terms per language, and **M17** owns the
+curated lists — the deferral is held by `ContentCurationRegister` and expires when the files stop
+declaring themselves seeds. The **mechanism** (case folding, ligature expansion, diacritic stripping,
+substitution folding, substring matching) is code.
+
 ### 1.1 Legend Level
 
 The meta level. Gained from **Legend XP**, earned in runs.
@@ -38,7 +52,15 @@ CumulativeXp(L)     = Σ(i=1..L-1) LegendXpForLevel(i)
 | 100 | ~729.4k | Codex mastery bonuses |
 | 200 | ~3.04M | Level cap |
 
-**Each Legend Level grants:** +1 Talent Point, and the base stat increase from the formula in `05` §2. Reaching the level 200 cap requires **199 level-ups** and ~3.07M total Legend XP.
+**Each Legend Level grants:** +1 Talent Point, and the base stat increase from the formula in `05` §2. Reaching the level 200 cap requires **199 level-ups** and ~3.04M total Legend XP.
+
+> **Errata (M4-10).** This sentence read *"~3.07M"* and contradicted the table's own level-200 row of
+> *"~3.04M"*. The table is right. 3.07M is what you get by summing `LegendXpForLevel(i)` over
+> `i = 1..200` — one term too many, because `LegendXpForLevel(200)` is the price of going from 200 to
+> 201 and the cap makes that level-up unreachable. Summing the 199 level-ups a player actually makes
+> gives 3,036,044, which is the table's figure. **The formula is authoritative and both totals are
+> illustrative:** neither is transcribed in code, and `LegendLevelCurveTests` reproduces the
+> discrepancy from the formula rather than pinning either number.
 
 📐 TUNABLE: the exponent 1.05 is the single dial controlling long-term pacing. Raising it to 1.15 roughly doubles the total; lowering it to 0.95 roughly halves it.
 

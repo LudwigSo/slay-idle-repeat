@@ -51,9 +51,11 @@ internal static class SavePreset
 
         var tuning = PresetTuning.Read(input.Context.Content);
 
-        // The entitlement check runs BEFORE the shape check, so a free player probing slot 400 with a
-        // blank name is told the thing that is actually stopping them.
-        if (!tuning.IsFreeSlot(command.PresetSlot) && !input.Context.Entitlements.HasPlus)
+        // The entitlement check runs BEFORE the shape check, so a free player probing slot 400 with
+        // a blank name is told the thing that is actually stopping them — but it fires only ABOVE
+        // the allowance. A slot BELOW the first is a malformed payload, and reporting that as an
+        // entitlement would tell the player to subscribe because their client sent a zero.
+        if (tuning.IsBeyondFreeAllowance(command.PresetSlot) && !input.Context.Entitlements.HasPlus)
         {
             return HandlerResult.Reject(RejectionReason.NOT_ENTITLED);
         }

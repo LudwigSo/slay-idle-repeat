@@ -73,7 +73,17 @@ public sealed class LegendTuningMatchesTuningDataTests
     }
 
     /// <summary>The level-up curve is authored and deliberately not read by the aggregate.</summary>
-    /// <remarks>Computation stays off the aggregate; the curve, grants and unlock ladder belong to a level-up command. Pinned here so the deferral is visible and the numbers stay greppable.</remarks>
+    /// <remarks>
+    /// Computation stays off the aggregate: <c>LegendCurveTuning</c> reads these three leaves and
+    /// <c>Rules.Hero.LegendLevelCurve</c> computes with them, while the aggregate holds only the
+    /// range. Pinned here so the split is visible and the numbers stay greppable.
+    /// <para>
+    /// ⚠️ This used to say M1-04 stores neither the points nor the level-ups. M4-10 landed both —
+    /// <c>Player.TalentPoints</c> and <c>Player.AdvanceLegendLevel</c> — so the sentence was
+    /// corrected rather than left standing: a note telling a later task to add a field that already
+    /// exists is worse than none.
+    /// </para>
+    /// </remarks>
     [Fact]
     public void The_level_up_curve_is_authored_and_belongs_to_M4_10_rather_than_to_the_aggregate()
     {
@@ -90,7 +100,7 @@ public sealed class LegendTuningMatchesTuningDataTests
         exponent.ShouldBeGreaterThanOrEqualTo(Read(sweep, "min").GetDecimal());
         exponent.ShouldBeLessThanOrEqualTo(Read(sweep, "max").GetDecimal());
         Read(block, "talentPointsPerLevel").GetInt32().ShouldBe(
-            1, "09 §2 — one Talent Point per level. M4-10 grants them; M1-04 stores neither.");
+            1, "09 §2 — one Talent Point per level. M4-10 grants and stores them.");
     }
 
     private static JsonElement Read(JsonElement parent, string member)
