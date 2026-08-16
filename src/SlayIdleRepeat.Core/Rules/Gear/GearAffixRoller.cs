@@ -22,6 +22,16 @@ namespace SlayIdleRepeat.Core.Rules.Gear;
 /// slot's pool can supply is a content error, and answering with fewer would hide it behind an item
 /// that merely looks unlucky.
 /// </para>
+/// <para>
+/// 🔴 <b>The shipped pool is short by one for boots at the top band, and this refusal is what makes
+/// that visible.</b> The top band rolls four affixes; exactly three of the fourteen may appear on
+/// boots. So a top-band boots item cannot be minted at all, and roughly one top-band drop in six is a
+/// boots item. Both halves are authored — the affix count and the slot restrictions — so neither can
+/// be adjusted here without inventing content: a fifteenth boots-eligible affix and a slot-aware cap
+/// on the top band's count are both authoring decisions, and picking one would freeze it before
+/// anybody chose it. <b>Carried forward for a ruling, with the exact arithmetic pinned by
+/// <c>GearMintingTests</c> so it goes red the day the pool is widened.</b>
+/// </para>
 /// </remarks>
 internal static class GearAffixRoller
 {
