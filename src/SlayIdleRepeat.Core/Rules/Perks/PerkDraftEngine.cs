@@ -7,12 +7,15 @@ using SlayIdleRepeat.Core.Rules.Luck;
 namespace SlayIdleRepeat.Core.Rules.Perks;
 
 /// <summary>
-/// One offered draft option: which perk, its rarity band (the drawn band, which is what the
-/// composition rules key on), its category, and whether taking it upgrades an already-owned copy
-/// rather than granting a fresh one.
+/// One offered draft option: which perk, that perk's own rarity band, its category, and whether
+/// taking it upgrades an already-owned copy rather than granting a fresh one.
 /// </summary>
 /// <param name="PerkId">The perk id offered.</param>
-/// <param name="Rarity">The rarity band this option was drawn under.</param>
+/// <param name="Rarity">
+/// The offered perk's own band — <em>not</em> the band the slot drew, which the two can differ on
+/// whenever a guarantee floored the pool, the bias roll hit, or the drawn band was empty. The band a
+/// player is actually offered is what the quality floor's counter reads, so it is the one carried.
+/// </param>
 /// <param name="Category">The perk's category — the diversity rule's own key.</param>
 /// <param name="IsUpgrade">
 /// True when the player already owns <paramref name="PerkId"/> below its max tier — a gold-border

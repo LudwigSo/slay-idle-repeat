@@ -1,3 +1,4 @@
+using System.Globalization;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Rng;
@@ -40,7 +41,9 @@ internal static class ChestPickGuarantee
     /// <param name="tierCount">How many outcome tiers this minigame authors.</param>
     /// <returns>The tier, whether pity forced it, and the counter change to apply.</returns>
     /// <exception cref="ArgumentNullException">Any reference argument is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="tierCount"/> is below 1.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="tierCount"/> is below 1, or disagrees with the chests the rule authors.
+    /// </exception>
     internal static ChestPickResolution Resolve(
         ChestPickRule rule,
         string counterKey,
@@ -53,6 +56,21 @@ internal static class ChestPickGuarantee
         ArgumentNullException.ThrowIfNull(draws);
 
         var topTier = TopTier(tierCount);
+
+        // One chest pays one outcome tier, so the reward table's row count and this rule's chest
+        // count are the same number authored in two documents. Reconciled here because this is the
+        // only place they meet: without it, a table that grew a row would keep drawing 1-in-N while
+        // the guarantee's own document still said N-1, and nothing would say so.
+        if (tierCount != rule.ChestCount)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(tierCount),
+                tierCount,
+                "The reward table authors " + Text(tierCount) + " outcome tier(s) for the chest pick " +
+                "and the chest-pick rule authors " + Text(rule.ChestCount) + " chest(s). One chest " +
+                "pays one tier, so the two documents disagree about how many chests this minigame " +
+                "offers.");
+        }
         var missesBeforePick = counters.Get(counterKey);
         var forced = GuaranteeFires(rule, missesBeforePick);
 
@@ -96,4 +114,7 @@ internal static class ChestPickGuarantee
 
         return tierCount - 1;
     }
+
+    /// <summary>Renders a count for a refusal message, never in the ambient culture.</summary>
+    private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 }

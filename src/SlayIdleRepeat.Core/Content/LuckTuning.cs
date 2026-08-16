@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -368,7 +369,7 @@ internal sealed class LuckTuning
             return authored;
         }
 
-        var word = new System.Text.StringBuilder(authored.Length);
+        var word = new StringBuilder(authored.Length);
         var startOfWord = true;
 
         foreach (var character in authored)
@@ -729,8 +730,14 @@ internal readonly record struct DraftRule(
     int ConsecutiveDraftsWithoutOwnedUpgrade);
 
 /// <summary>The chest-pick minigame's authored guarantee.</summary>
-/// <param name="ChestCount">How many chests are offered.</param>
-/// <param name="GoldTierChests">How many of them are the top tier.</param>
+/// <param name="ChestCount">
+/// How many chests are offered. The reward table authors the same number as its row count, and the
+/// resolver reconciles the two rather than trusting either alone.
+/// </param>
+/// <param name="GoldTierChests">
+/// How many of them are the top tier. Descriptive, and deliberately not branched on: the guarantee
+/// forces the single highest tier, which satisfies the rule for any positive count of gold chests.
+/// </param>
 /// <param name="GuaranteeAfterConsecutiveMisses">
 /// The chest pick, counted from the last time the guarantee was satisfied, that is forced onto the
 /// top tier. The N-th pick is the forced one.

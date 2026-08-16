@@ -228,4 +228,46 @@ public sealed class ChestPickGuaranteeTests
         ChestPickGuarantee.TopTier(TierCount).ShouldBe(GoldTier);
         Should.Throw<ArgumentOutOfRangeException>(() => ChestPickGuarantee.TopTier(0));
     }
+
+    // ------------------------------------------------------------------ the two authored counts
+
+    /// <summary>
+    /// A reward table whose row count disagrees with the authored chest count is refused rather than
+    /// drawn against.
+    /// </summary>
+    /// <remarks>
+    /// The chest pick's tier space is authored twice — <c>currencies.json</c>'s reward rows and
+    /// <c>luck.json</c>'s <c>chestCount</c> — and this resolver is the only place the two meet. Both
+    /// directions are probed: a table that lost a row and one that gained one are different content
+    /// mistakes, and a guard written as a one-sided comparison catches only one of them.
+    /// </remarks>
+    [Theory]
+    [InlineData(TierCount - 1)]
+    [InlineData(TierCount + 1)]
+    public void A_reward_table_that_disagrees_with_the_authored_chest_count_is_refused(int tierCount)
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => LuckService.ResolveChestPick(
+            Tuning,
+            LuckDocuments.ShippedChestPickGuaranteeToken,
+            PityCounters.Empty,
+            Draws(seed: 11),
+            tierCount));
+    }
+
+    /// <summary>
+    /// 🔒 The negative control: the shipped pair agrees, so the guard must let it through and leave
+    /// the stream where a resolution leaves it.
+    /// </summary>
+    [Fact]
+    public void The_shipped_reward_table_and_chest_count_agree()
+    {
+        Tuning.ChestPick.ChestCount.ShouldBe(TierCount);
+
+        var draws = Draws(seed: 11);
+
+        Should.NotThrow(() => LuckService.ResolveChestPick(
+            Tuning, LuckDocuments.ShippedChestPickGuaranteeToken, PityCounters.Empty, draws, TierCount));
+
+        draws.Position.ShouldBe(1UL);
+    }
 }
