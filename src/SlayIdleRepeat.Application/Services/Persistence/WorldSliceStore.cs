@@ -20,10 +20,11 @@ namespace SlayIdleRepeat.Application.Services.Persistence;
 /// the archive for good, with the run already over and nothing left to copy.
 /// </para>
 /// <para>
-/// A finished run's archive row is written once and never overwritten or deleted here. It is keyed by
-/// the run's own identity, which the domain already keeps distinct, so a later run cannot displace an
-/// earlier one's finished row. Nothing expires it either: expiry belongs to a store that can expire
-/// keys, not to a use case.
+/// A finished run's archive row is keyed by the run's own identity, which the domain already keeps
+/// distinct, so a later run cannot displace an earlier one's finished row, and nothing here deletes
+/// one — expiry belongs to a store that can expire keys, not to a use case. A command applied while a
+/// finished run is still inline rewrites the row, and rewrites it with the same bytes: the run is over
+/// and no command may move it, which is the same property that makes a retry after a crash safe.
 /// </para>
 /// <para>
 /// A player with no stored row throws rather than answering with a blank player. Account creation is
@@ -50,13 +51,17 @@ public sealed class WorldSliceStore
     /// <param name="content">The content set the player is rehydrated against.</param>
     /// <param name="ct">Cancellation.</param>
     /// <returns>The player, and whatever run their row carries.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
     /// <exception cref="InvalidOperationException">
     /// No row is stored for this player, or the stored row does not rehydrate — a corrupt or
     /// unreadable row fails loudly here rather than several rules deeper.
     /// </exception>
+    /// <exception cref="System.Text.Json.JsonException">The stored row does not decode at all.</exception>
     public async Task<WorldSlice> LoadAsync(PlayerId player, ContentSnapshot content, CancellationToken ct)
     {
-        var stored = await ReadSnapshotsAsync(player, ct);
+        ArgumentNullException.ThrowIfNull(content);
+
+        var stored = await ReadSnapshotsAsync(player, ct).ConfigureAwait(false);
 
         if (stored is null)
         {
@@ -98,22 +103,26 @@ public sealed class WorldSliceStore
 
         if (run is { Phase: RunPhase.Ended })
         {
-            await _cache.WriteAsync(SliceKeys.ForRun(run.Id), SnapshotCodec.EncodeRun(run), ct);
+            await _cache.WriteAsync(SliceKeys.ForRun(run.Id), SnapshotCodec.EncodeRun(run), ct)
+                .ConfigureAwait(false);
         }
 
         await _cache.WriteAsync(
-            SliceKeys.ForPlayer(slice.Player.Id),
-            SnapshotCodec.EncodeSlice(new StoredSlice(slice.Player.ToSnapshot(), run)),
-            ct);
+                SliceKeys.ForPlayer(slice.Player.Id),
+                SnapshotCodec.EncodeSlice(new StoredSlice(slice.Player.ToSnapshot(), run)),
+                ct)
+            .ConfigureAwait(false);
     }
 
     /// <summary>The player's stored rows, without rehydrating anything — the read side's door.</summary>
     /// <param name="player">The player whose row to read.</param>
     /// <param name="ct">Cancellation.</param>
     /// <returns>The stored pair, or <c>null</c> when nothing is stored for this player.</returns>
+    /// <exception cref="ArgumentException">The player's id cannot be spelled as a key.</exception>
+    /// <exception cref="System.Text.Json.JsonException">The stored row does not decode.</exception>
     public async Task<StoredSlice?> ReadSnapshotsAsync(PlayerId player, CancellationToken ct)
     {
-        var row = await _cache.ReadAsync(SliceKeys.ForPlayer(player), ct);
+        var row = await _cache.ReadAsync(SliceKeys.ForPlayer(player), ct).ConfigureAwait(false);
 
         return row is null ? null : SnapshotCodec.DecodeSlice(row);
     }
@@ -122,9 +131,11 @@ public sealed class WorldSliceStore
     /// <param name="run">The run to read.</param>
     /// <param name="ct">Cancellation.</param>
     /// <returns>The archived row, or <c>null</c> when no run was ever archived under that identity.</returns>
+    /// <exception cref="ArgumentException">The run's id cannot be spelled as a key.</exception>
+    /// <exception cref="System.Text.Json.JsonException">The archived row does not decode.</exception>
     public async Task<RunSnapshot?> ReadArchivedRunAsync(RunId run, CancellationToken ct)
     {
-        var row = await _cache.ReadAsync(SliceKeys.ForRun(run), ct);
+        var row = await _cache.ReadAsync(SliceKeys.ForRun(run), ct).ConfigureAwait(false);
 
         return row is null ? null : SnapshotCodec.DecodeRun(row);
     }

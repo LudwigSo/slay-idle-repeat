@@ -94,6 +94,37 @@ public sealed class DomainEventDispatcherTests
     }
 
     [Fact]
+    public void Constructor_refuses_a_null_list_of_sinks()
+    {
+        Should.Throw<ArgumentNullException>(() => new DomainEventDispatcher(null!))
+            .ParamName.ShouldBe("sinks", "the failure has to name the argument the caller got wrong.");
+    }
+
+    /// <summary>
+    /// 🔒 The reason the guard above is not enough on its own. A null <em>element</em> is caught at
+    /// construction because dispatch cannot report it: the delivery loop collects whatever a sink
+    /// throws, and the collecting arm asks the sink for its own name — so a null in the list faults
+    /// twice, the second time inside the handler, and escapes as an error about a command that has
+    /// already committed. A wiring mistake has to fail where the wiring is done.
+    /// </summary>
+    [Fact]
+    public void Constructor_refuses_a_list_holding_a_null_sink()
+    {
+        Should.Throw<ArgumentNullException>(
+                () => new DomainEventDispatcher([new RecordingSink(), null!, new RecordingSink()]))
+            .ParamName.ShouldBe("sinks", "the failure has to name the argument the caller got wrong.");
+    }
+
+    [Fact]
+    public void Constructor_accepts_a_list_of_real_sinks()
+    {
+        // The negative control for the two refusals above: without it they would both still pass if
+        // the constructor refused every list it was ever handed.
+        Should.NotThrow(() => new DomainEventDispatcher([new RecordingSink(), new ThrowingSink()]));
+        Should.NotThrow(() => new DomainEventDispatcher([]));
+    }
+
+    [Fact]
     public async Task DispatchAsync_delivers_an_empty_batch_without_reporting_a_failure()
     {
         var sink = new RecordingSink();

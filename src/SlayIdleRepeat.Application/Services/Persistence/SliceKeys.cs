@@ -46,11 +46,15 @@ public static class SliceKeys
     /// <param name="text">The id's text. Null on an id whose constructor never ran.</param>
     /// <param name="parameterName">The refused parameter, so the failure points at the caller's argument.</param>
     /// <param name="subject">What the id names, in the failure's own words.</param>
+    /// <remarks>
+    /// Indexed rather than a LINQ pass: a key is built two or three times per command, and enumerating
+    /// a <c>string</c> as a sequence allocates on every one of them.
+    /// </remarks>
     private static string InsideKeySpace(string? text, string parameterName, string subject)
     {
-        if (!string.IsNullOrEmpty(text) && text.All(IsKeyCharacter))
+        if (IsKeySpelling(text))
         {
-            return text;
+            return text!;
         }
 
         throw new ArgumentException(
@@ -60,6 +64,24 @@ public static class SliceKeys
             "one key and read each other's state, and a key the file-backed store rejects would work " +
             "in memory and fail on a device. Issue ids inside the key space instead.",
             parameterName);
+    }
+
+    private static bool IsKeySpelling(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return false;
+        }
+
+        foreach (var character in text.AsSpan())
+        {
+            if (!IsKeyCharacter(character))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static bool IsKeyCharacter(char character) =>

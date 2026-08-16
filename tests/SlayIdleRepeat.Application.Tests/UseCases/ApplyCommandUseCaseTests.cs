@@ -5,6 +5,7 @@ using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.Events;
 using SlayIdleRepeat.Application.Tests.Persistence;
 using SlayIdleRepeat.Application.UseCases;
+using SlayIdleRepeat.Core;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
@@ -289,6 +290,46 @@ public sealed class ApplyCommandUseCaseTests
         outcome.State.Run!.Phase.ShouldBe(
             RunPhase.InProgress,
             "the run the player is actually in was ended by a command addressed to a different run.");
+    }
+
+    /// <summary>
+    /// 🔒 The proof that the guard runs before <c>Apply</c> rather than merely instead of reporting
+    /// its answer. The other addressing cases all compare the state that came back, and the loaded
+    /// slice is what comes back either way — a guard moved to <em>after</em> the domain ran would
+    /// satisfy every one of them, because <c>Apply</c> works on a clone and its result is discarded.
+    /// A run-less player is the one shape where the difference is observable: the domain refuses to
+    /// answer at all, loudly, and says in its own words that this refusal is the caller's to make
+    /// before it is invoked.
+    /// </summary>
+    [Fact]
+    public async Task ExecuteAsync_answers_RUN_NOT_FOUND_without_invoking_the_domain_for_a_player_in_no_run()
+    {
+        var game = Worlds.Game();
+        var player = game.CreatePlayer();
+        var slice = game.State(player);
+        var useCase = UseCase(Worlds.CacheHolding(slice), out var sink);
+
+        slice.Run.ShouldBeNull("this case is about a player who is in no run at all.");
+
+        // The control that makes the assertion below a discriminator: without it, "no exception
+        // escaped" would be true of a use case that never had a domain to invoke in the first place.
+        Should.Throw<InvalidOperationException>(
+            () => GameRules.Apply(slice, new RollDiceCommand(), Worlds.Context(game)),
+            "the domain accepted a run command over a slice carrying no run, so reaching it is no " +
+            "longer distinguishable from refusing before it and this case pins nothing.");
+
+        var outcome = await useCase.ExecuteAsync(
+            new ApplyCommandRequest(player, new RunId("RUN_SOMEONE_ELSES_1"), new RollDiceCommand()),
+            Worlds.Context(game),
+            Worlds.Cancel);
+
+        outcome.Rejection.ShouldBe(
+            RejectionReason.RUN_NOT_FOUND,
+            "the addressing refusal has to be decided before the domain is handed the command. The " +
+            "domain refuses to answer this one at all, so a guard placed after it turns a refusal the " +
+            "player should be told into a failure the host has to explain.");
+
+        sink.Batches.ShouldBeEmpty("nothing was applied, so there is nothing to deliver.");
     }
 
     [Fact]

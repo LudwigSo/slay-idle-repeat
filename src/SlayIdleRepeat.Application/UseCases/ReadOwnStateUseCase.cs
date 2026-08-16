@@ -79,7 +79,7 @@ public sealed class ReadOwnStateUseCase
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var stored = await _store.ReadSnapshotsAsync(request.Player, ct);
+        var stored = await _store.ReadSnapshotsAsync(request.Player, ct).ConfigureAwait(false);
 
         if (stored is null)
         {
@@ -96,7 +96,7 @@ public sealed class ReadOwnStateUseCase
             return Found(stored.Player, current);
         }
 
-        var archived = await _store.ReadArchivedRunAsync(asked, ct);
+        var archived = await _store.ReadArchivedRunAsync(asked, ct).ConfigureAwait(false);
 
         // The archive key carries no owner, so ownership is checked here or not at all — and a
         // stranger's run answers exactly as an absent one does, or the answer confirms the id exists.

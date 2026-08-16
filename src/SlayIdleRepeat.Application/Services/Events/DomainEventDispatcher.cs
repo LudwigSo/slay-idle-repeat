@@ -55,7 +55,7 @@ public sealed class DomainEventDispatcher
             {
                 // Awaited one at a time so a sink that throws before returning its task is caught by
                 // the same arm as one that returns a faulted task, and so the next sink still runs.
-                await sink.ReceiveAsync(events, ct);
+                await sink.ReceiveAsync(events, ct).ConfigureAwait(false);
             }
             catch (Exception error)
             {

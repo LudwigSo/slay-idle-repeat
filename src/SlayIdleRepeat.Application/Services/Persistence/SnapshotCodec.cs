@@ -48,9 +48,12 @@ public static class SnapshotCodec
     /// <summary>Decodes a stored slice from UTF-8 JSON.</summary>
     /// <param name="utf8">The bytes previously written by <see cref="EncodeSlice"/>.</param>
     /// <returns>The decoded pair.</returns>
-    /// <exception cref="System.Text.Json.JsonException">The bytes are not a stored slice.</exception>
+    /// <exception cref="System.Text.Json.JsonException">
+    /// The bytes are not a stored slice — malformed, absent, or holding a value one of these records
+    /// refuses.
+    /// </exception>
     public static StoredSlice DecodeSlice(ReadOnlySpan<byte> utf8) =>
-        JsonSerializer.Deserialize<StoredSlice>(utf8, Options) ?? throw NoRoot(nameof(StoredSlice));
+        Decode<StoredSlice>(utf8, nameof(StoredSlice));
 
     /// <summary>Encodes one run's row as UTF-8 JSON — what the archive holds.</summary>
     /// <param name="run">The run's persisted row.</param>
@@ -66,9 +69,32 @@ public static class SnapshotCodec
     /// <summary>Decodes one run's row from UTF-8 JSON.</summary>
     /// <param name="utf8">The bytes previously written by <see cref="EncodeRun"/>.</param>
     /// <returns>The decoded row.</returns>
-    /// <exception cref="System.Text.Json.JsonException">The bytes are not a run row.</exception>
+    /// <exception cref="System.Text.Json.JsonException">
+    /// The bytes are not a run row — malformed, absent, or holding a value one of these records refuses.
+    /// </exception>
     public static RunSnapshot DecodeRun(ReadOnlySpan<byte> utf8) =>
-        JsonSerializer.Deserialize<RunSnapshot>(utf8, Options) ?? throw NoRoot(nameof(RunSnapshot));
+        Decode<RunSnapshot>(utf8, nameof(RunSnapshot));
+
+    /// <summary>Every decode, with one answer for every way a row can fail to be one.</summary>
+    /// <remarks>
+    /// The value types in these rows validate in their own constructors and refuse with an argument
+    /// failure, which is the same type the store raises for a caller's unstorable id. Left as it comes,
+    /// a caller reading the type alone cannot tell "this row is corrupt" from "you asked with the wrong
+    /// identity" — one is data to quarantine and the other is a bug in the call.
+    /// </remarks>
+    private static T Decode<T>(ReadOnlySpan<byte> utf8, string expected)
+        where T : class
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<T>(utf8, Options) ?? throw NoRoot(expected);
+        }
+        catch (ArgumentException refused)
+        {
+            throw new JsonException(
+                "These bytes are not a readable " + expected + ": " + refused.Message, refused);
+        }
+    }
 
     /// <summary>The one settings object every call here shares.</summary>
     /// <remarks>

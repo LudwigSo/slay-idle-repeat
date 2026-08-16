@@ -155,7 +155,7 @@ public sealed class ApplyCommandUseCase
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(context);
 
-        var slice = await _store.LoadAsync(request.Player, context.Content, ct);
+        var slice = await _store.LoadAsync(request.Player, context.Content, ct).ConfigureAwait(false);
 
         if (request.Run is { } addressed && slice.Run?.Id != addressed)
         {
@@ -172,9 +172,9 @@ public sealed class ApplyCommandUseCase
             return ApplyCommandOutcome.Reject(result.Rejection!.Value, result.NewState);
         }
 
-        await _store.SaveAsync(result.NewState, ct);
+        await _store.SaveAsync(result.NewState, ct).ConfigureAwait(false);
 
-        var failures = await _dispatcher.DispatchAsync(result.Events, ct);
+        var failures = await _dispatcher.DispatchAsync(result.Events, ct).ConfigureAwait(false);
 
         return ApplyCommandOutcome.Accept(result.NewState, result.Events, failures);
     }

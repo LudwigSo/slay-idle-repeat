@@ -3,6 +3,8 @@ using System.Text.Json;
 using Shouldly;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.UseCases;
+using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
 using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Persistence;
@@ -52,6 +54,39 @@ public sealed class SnapshotCodecTests
             Worlds.RunHash(original.Player, original.Run),
             "the run came back differing from the one stored; the same player row is hashed on both " +
             "sides, so the run is the only thing that can have moved.");
+    }
+
+    /// <summary>
+    /// The half of the player row every other case leaves empty. A fresh player owns nothing, so the
+    /// gear tree — instance ids, affix rolls, the equipped map, the saved presets and the salvage
+    /// filter — round-trips through the codec only if a case puts something in it, and each of those
+    /// members reaches a value type the serializer builds through a zeroed default unless told not to.
+    /// </summary>
+    [Fact]
+    public void DecodeSlice_returns_a_player_row_carrying_the_gear_tree_it_was_given()
+    {
+        var (game, player) = Worlds.InAPlayedRun();
+        var original = Worlds.Stored(game.State(player));
+        var outfitted = original with { Player = Outfitted(original.Player) };
+
+        var decoded = SnapshotCodec.DecodeSlice(SnapshotCodec.EncodeSlice(outfitted));
+
+        Worlds.Hash(decoded).ShouldBe(
+            Worlds.Hash(outfitted),
+            "a member of the gear tree came back as its type's zeroed default — an instance with no " +
+            "id, an affix with no roll, a slot pointing at nothing. The row decodes and the aggregate " +
+            "rehydrates either way, so nothing but this comparison would notice.");
+
+        // Named individually as well, so a failure says which member moved rather than only that the
+        // bytes differ. The affix value is the one double here, and it is refused unless rounded.
+        var item = decoded.Player.Inventory!.Stored[0];
+
+        item.InstanceId.ShouldBe(Equipped, "the stored item's identity did not survive the round trip.");
+        item.Affixes[0].Value.ShouldBe(AffixValue, "the affix roll did not survive the round trip.");
+        decoded.Player.Loadout!.Gear[GearSlot.WEAPON].ShouldBe(Equipped, "the equipped slot lost its item.");
+        decoded.Player.Presets![0].Loadout.Gear[GearSlot.WEAPON].ShouldBe(Equipped, "the preset lost its item.");
+        decoded.Player.AutoSalvageRules![0].ShouldBe(
+            SalvageRule, "the salvage filter's row came back as a different rule.");
     }
 
     [Fact]
@@ -124,5 +159,65 @@ public sealed class SnapshotCodecTests
     {
         Should.Throw<JsonException>(() => SnapshotCodec.DecodeRun(Encoding.UTF8.GetBytes(text)))
             .Message.ShouldNotBeEmpty("an unreadable archive row is an error, not an absent run.");
+    }
+
+    /// <summary>
+    /// Structurally valid JSON whose contents a value type in the tree refuses. It is the row being
+    /// unreadable, and it has to arrive as that rather than as the argument failure the store also
+    /// raises when a caller hands it an id it cannot key on — a caller seeing only the type would
+    /// otherwise read "this row is corrupt" as "you passed the wrong player".
+    /// </summary>
+    [Fact]
+    public void DecodeSlice_refuses_a_row_whose_identifier_is_blank()
+    {
+        var (game, player) = Worlds.InAPlayedRun();
+        var blanked = Encoding.UTF8.GetString(SnapshotCodec.EncodeSlice(Worlds.Stored(game.State(player))))
+            .Replace("\"" + player.Value + "\"", "\"\"", StringComparison.Ordinal);
+
+        Should.Throw<JsonException>(() => SnapshotCodec.DecodeSlice(Encoding.UTF8.GetBytes(blanked)))
+            .Message.ShouldContain(
+                nameof(PlayerId),
+                Case.Sensitive,
+                "the failure has to name what the row got wrong. A blank id decoded silently would be " +
+                "an aggregate that names nothing, refusable afterwards only by a lookup finding no rows.");
+    }
+
+    // ═════════════════════════════════════════════════════════════════ fixtures
+
+    /// <summary>The one item the gear case owns, named so the assertions can point at it.</summary>
+    private static readonly GearInstanceId Equipped = new("GEAR_000000000001");
+
+    /// <summary>A roll at the assembly's determinism precision — the value type refuses an unrounded one.</summary>
+    private const double AffixValue = 0.1234;
+
+    /// <summary>One row of a salvage filter, the only <c>readonly record struct</c> here with no converter.</summary>
+    private static readonly AutoSalvageRule SalvageRule = new(Rarity.B, BelowEnhanceLevel: 3);
+
+    /// <summary>The same player row, wearing something.</summary>
+    private static PlayerSnapshot Outfitted(PlayerSnapshot player)
+    {
+        var item = new GearInstanceSnapshot(
+            Equipped,
+            "GEAR_BLADE_01",
+            GearSlot.WEAPON,
+            GearFamily.BLADE,
+            Rarity.A,
+            ChapterOrigin: 2,
+            Quality: 0.8125,
+            EnhanceLevel: 4,
+            EnhanceFailures: 1,
+            [new GearAffixRoll("AFX_CRIT_CHANCE", AffixValue), new GearAffixRoll("AFX_ATK_FLAT", 12.5)],
+            Locked: true);
+
+        var loadout = new LoadoutSnapshot(
+            new Dictionary<GearSlot, GearInstanceId> { [GearSlot.WEAPON] = Equipped });
+
+        return player with
+        {
+            Inventory = new InventorySnapshot(ExpansionsPurchased: 2, [item], [item]),
+            Loadout = loadout,
+            Presets = [new LoadoutPresetSnapshot(1, "Boss build", loadout)],
+            AutoSalvageRules = [SalvageRule],
+        };
     }
 }
