@@ -24,17 +24,18 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 /// <remarks>
 /// <para>
 /// 🔴 <b>THE CRITERION IS MET IN PART, AND THE PART THAT IS NOT MET IS ASSERTED RATHER THAN OMITTED.</b>
-/// Four of the six clauses are driven end to end here. Two are unreachable through the command
-/// vocabulary as it stands, and each is pinned by a case below that <b>fails on the commit that
-/// closes it</b> — so this file stops overstating the milestone the moment the gap is filled, rather
-/// than quietly continuing to skip the hard half.
+/// Five of the six clauses reach the code they name. One — "banks gear" — is unreachable through the
+/// command vocabulary as it stands, and one more is reached but compares an empty loadout, so it
+/// cannot yet fail. Each gap is pinned by a case below that <b>fails on the commit that closes it</b>
+/// — so this file stops overstating the milestone the moment the gap is filled, rather than quietly
+/// continuing to skip the hard half.
 /// </para>
 /// <list type="table">
 ///   <item><term>a simulated player runs</term><description>✅ driven — <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/>.</description></item>
 ///   <item><term>banks gear</term><description>❌ <b>unreachable.</b> No production caller anywhere hands an item to the inventory, so a run cannot add one. Pinned by <see cref="A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory"/>.</description></item>
 ///   <item><term>merges and enhances it</term><description>✅ driven, over a <em>seeded</em> stock rather than a banked one, and funded by currency the run itself paid — <see cref="The_forge_half_of_the_loop_runs_on_what_the_run_paid_for_it"/>.</description></item>
 ///   <item><term>levels the hero</term><description>⚠️ <b>the path is live, the rung is not reachable.</b> The run's payout does move Legend XP through <c>Apply</c>, and the level reconciliation runs on every accepted command; the reachable board cannot bank enough to cross the first rung. Pinned by <see cref="The_run_pays_Legend_XP_but_no_reachable_run_reaches_the_first_rung"/>.</description></item>
-///   <item><term>carries the loadout into the next run</term><description>❌ <b>unreachable, twice over.</b> There is no next run, and the loadout is always empty. Pinned by <see cref="No_second_run_can_be_started_so_nothing_is_carried_into_one"/> and <see cref="The_loadout_carried_into_a_run_is_the_players_own_but_nothing_can_fill_it"/>.</description></item>
+///   <item><term>carries the loadout into the next run</term><description>⚠️ <b>half driven.</b> There IS a next run now, and the carry is compared across the boundary — <see cref="A_second_run_starts_after_the_first_ends_and_carries_the_players_loadout"/>. The other half is still open: the loadout is always empty, so that comparison cannot yet fail, and it is pinned by <see cref="The_loadout_carried_into_a_run_is_the_players_own_but_nothing_can_fill_it"/>.</description></item>
 /// </list>
 /// <para>
 /// 🔒 <b>Why the content is the shipped set.</b> The harness takes a pre-built
@@ -415,54 +416,75 @@ public sealed class MetaLoopTests
     // ═════════════════════════════════════════════════════════ the carry
 
     /// <summary>
-    /// 🔒 <b>Clause 5a — there is no next run.</b> Once a run has ended, <c>START_RUN</c> is refused
-    /// <c>RUN_ALREADY_ENDED</c> for good: it is a run command, the gate ahead of dispatch refuses
-    /// every run command on an ended run, and nothing in <c>Apply</c> ever puts the slice's run back
-    /// to absent.
+    /// 🔒 <b>Clause 5a — there IS a next run, and the loadout crosses into it.</b> Once a run has
+    /// ended, <c>START_RUN</c> opens a fresh one: it is the single dispatch row marked
+    /// <c>OpensRun</c>, and the phase gate lets that row through an ended run rather than answering
+    /// <c>RUN_ALREADY_ENDED</c> to it.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>This is the clause the exit criterion cannot reach, and it is structural.</b> "Carries
-    /// the loadout into the next run" needs a next run; through <c>GameRules.Apply</c> a player gets
-    /// exactly one, for the life of the slice. Clearing the ended run is something only a caller
-    /// outside <c>Apply</c> could do — the Application layer loading a fresh slice — and the harness,
-    /// which is the artefact that demonstrates the domain is playable from <c>Core</c> alone, has no
-    /// seam for it and stores whatever <c>Apply</c> returned.
+    /// ⚠️ <b>The acceptance is asserted by identity, not by "it went through" (steering S2).</b> Two
+    /// different failures refuse this command and they mean opposite things:
+    /// <c>RUN_ALREADY_ENDED</c> is the gate never opening at all, and <c>ILLEGAL_STATE</c> is the
+    /// gate opening while the ended run stayed in the working slice, so <c>StartRun.Handle</c>'s
+    /// already-active-run guard fired instead. The message prints which one arrived.
     /// </para>
     /// <para>
-    /// ⚠️ <b>The refusal is asserted by identity, not by "it was refused" (steering S2).</b> Three
-    /// other rules answer <c>ILLEGAL_STATE</c> to a <c>START_RUN</c> — a run already open, a chapter
-    /// below one, an undeclared tier — so a case that only checked for a rejection would pass while
-    /// the ended-run gate had gone.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>It expires by itself (steering S4)</b>: the day a second run can be started, this goes
-    /// red and asks for the carry to be asserted across the boundary for real.
+    /// ⚠️ <b>The byte comparison is vacuous today and that is recorded rather than dressed up.</b>
+    /// The loadout is empty on both sides — <c>EQUIP</c> is still a deferred row, so nothing can put
+    /// an item in a slot — and an empty loadout has exactly one canonical encoding. It is written in
+    /// the shape that will discriminate the day a slot can be filled: canonical bytes per steering
+    /// S17, since <c>LoadoutSnapshot</c> holds an <c>IReadOnlyDictionary</c> that record equality
+    /// compares by reference. What carries the weight here is the second run existing at all, and
+    /// being a genuinely different run from the first.
     /// </para>
     /// </remarks>
     [Fact]
-    public void No_second_run_can_be_started_so_nothing_is_carried_into_one()
+    public void A_second_run_starts_after_the_first_ends_and_carries_the_players_loadout()
     {
         var (game, player) = Loop();
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
 
         game.State(player).Run!.Phase.ShouldBe(RunPhase.Ended, Trace(driver));
 
+        var firstId = game.State(player).Run!.Id;
+
+        // Read between the two runs, which is the only moment the carry can be compared against.
+        var heldBetweenRuns = Canonical(game.State(player).Player.Loadout.ToSnapshot());
+
         var second = driver.Send(new StartRunCommand(Chapter, DifficultyTier.NORMAL));
 
-        second.Accepted.ShouldBeFalse(
-            "a SECOND run started. The M4 exit criterion's last clause — 'carries the loadout into " +
-            "the next run' — is reachable now: drive the carry across the boundary and compare the " +
-            "second run's StartingLoadout with the loadout the player held between the two, by " +
-            "canonical bytes." + Trace(driver));
+        second.Accepted.ShouldBeTrue(
+            "START_RUN after an ended run was refused " + second.Rejection + ", so the M4 exit " +
+            "criterion's last clause is unreachable again. RUN_ALREADY_ENDED means the phase gate " +
+            "refuses every run command on an ended run, START_RUN included — the gate never opened. " +
+            "ILLEGAL_STATE means the gate DID let it through but the ended run was never cleared off " +
+            "the working slice, so StartRun.Handle's already-active-run guard refused it instead." +
+            Trace(driver));
 
-        second.Rejection.ShouldBe(
-            RejectionReason.RUN_ALREADY_ENDED,
-            "START_RUN was refused for some OTHER reason than the ended run still sitting in the " +
-            "slice, so this case is no longer about the thing it was written for." + Trace(driver));
+        var opened = game.State(player).Run;
+
+        opened.ShouldNotBeNull("START_RUN was accepted and attached no run." + Trace(driver));
+
+        opened!.Phase.ShouldBe(
+            RunPhase.InProgress, "the second run came back unplayable." + Trace(driver));
+
+        opened.Id.ShouldNotBe(
+            firstId,
+            "the second run carries the FIRST run's identity, so the ended run was re-phased rather " +
+            "than replaced." + Trace(driver));
 
         game.State(player).Player.RunsStarted.ShouldBe(
-            1L, "a refused START_RUN must not spend the run counter." + Trace(driver));
+            2L,
+            "two runs were opened and the lifetime counter says otherwise. That counter is what both " +
+            "run seeds are derived from, so a second run that did not spend it replays the first " +
+            "run's board." + Trace(driver));
+
+        // ⚠️ Vacuous while the loadout is empty — see this case's remarks.
+        Canonical(opened.StartingLoadout.ToSnapshot()).ShouldBe(
+            heldBetweenRuns,
+            "the loadout the second run froze at START_RUN is not the one the player was holding " +
+            "between the two runs." + Trace(driver));
     }
 
     /// <summary>
