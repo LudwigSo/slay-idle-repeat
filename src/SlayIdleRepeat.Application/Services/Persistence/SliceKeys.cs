@@ -29,7 +29,8 @@ public static class SliceKeys
     /// The id's text is empty, or holds a character outside <c>A-Z</c>, <c>a-z</c>, <c>0-9</c>,
     /// <c>.</c>, <c>_</c> and <c>-</c>.
     /// </exception>
-    public static string ForPlayer(PlayerId player) => throw new NotImplementedException();
+    public static string ForPlayer(PlayerId player) =>
+        "player." + InsideKeySpace(player.Value, nameof(player), "player");
 
     /// <summary>The key a finished run is archived under.</summary>
     /// <param name="run">The run. Its text must lie inside the cache's key space.</param>
@@ -38,5 +39,30 @@ public static class SliceKeys
     /// The id's text is empty, or holds a character outside <c>A-Z</c>, <c>a-z</c>, <c>0-9</c>,
     /// <c>.</c>, <c>_</c> and <c>-</c>.
     /// </exception>
-    public static string ForRun(RunId run) => throw new NotImplementedException();
+    public static string ForRun(RunId run) =>
+        "run." + InsideKeySpace(run.Value, nameof(run), "run");
+
+    /// <summary>The id's text, once it is known to be a key the cache will accept.</summary>
+    /// <param name="text">The id's text. Null on an id whose constructor never ran.</param>
+    /// <param name="parameterName">The refused parameter, so the failure points at the caller's argument.</param>
+    /// <param name="subject">What the id names, in the failure's own words.</param>
+    private static string InsideKeySpace(string? text, string parameterName, string subject)
+    {
+        if (!string.IsNullOrEmpty(text) && text.All(IsKeyCharacter))
+        {
+            return text;
+        }
+
+        throw new ArgumentException(
+            "This " + subject + " id cannot be stored: '" + (text ?? "<no text at all>") + "' is outside " +
+            "the cache's key space, which is non-empty and made only of A-Z, a-z, 0-9, '.', '_' and " +
+            "'-'. Escaping or trimming it here would let two different " + subject + " ids mangle to " +
+            "one key and read each other's state, and a key the file-backed store rejects would work " +
+            "in memory and fail on a device. Issue ids inside the key space instead.",
+            parameterName);
+    }
+
+    private static bool IsKeyCharacter(char character) =>
+        character is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9')
+                     or '.' or '_' or '-';
 }

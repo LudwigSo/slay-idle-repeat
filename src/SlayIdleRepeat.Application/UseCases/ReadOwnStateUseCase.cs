@@ -58,16 +58,53 @@ public sealed record OwnStateResult(OwnStateLookup Lookup, OwnStateView? View);
 /// </remarks>
 public sealed class ReadOwnStateUseCase
 {
+    private readonly WorldSliceStore _store;
+
     /// <summary>Builds the use case over the store it reads through.</summary>
     /// <param name="store">Where the rows live.</param>
     /// <exception cref="ArgumentNullException"><paramref name="store"/> is null.</exception>
-    public ReadOwnStateUseCase(WorldSliceStore store) => throw new NotImplementedException();
+    public ReadOwnStateUseCase(WorldSliceStore store)
+    {
+        ArgumentNullException.ThrowIfNull(store);
+
+        _store = store;
+    }
 
     /// <summary>Reads a player's own state.</summary>
     /// <param name="request">Whose state, and which run of theirs.</param>
     /// <param name="ct">Cancellation.</param>
     /// <returns>The lookup and, when it found something, the view.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="request"/> is null.</exception>
-    public Task<OwnStateResult> ReadAsync(ReadOwnStateRequest request, CancellationToken ct) =>
-        throw new NotImplementedException();
+    public async Task<OwnStateResult> ReadAsync(ReadOwnStateRequest request, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var stored = await _store.ReadSnapshotsAsync(request.Player, ct);
+
+        if (stored is null)
+        {
+            return new OwnStateResult(OwnStateLookup.NoSuchPlayer, null);
+        }
+
+        if (request.Run is not { } asked)
+        {
+            return Found(stored.Player, stored.Run);
+        }
+
+        if (stored.Run is { } current && current.Id == asked)
+        {
+            return Found(stored.Player, current);
+        }
+
+        var archived = await _store.ReadArchivedRunAsync(asked, ct);
+
+        // The archive key carries no owner, so ownership is checked here or not at all — and a
+        // stranger's run answers exactly as an absent one does, or the answer confirms the id exists.
+        return archived is not null && archived.PlayerId == request.Player
+            ? Found(stored.Player, archived)
+            : new OwnStateResult(OwnStateLookup.NoSuchRun, null);
+    }
+
+    private static OwnStateResult Found(PlayerSnapshot player, RunSnapshot? run) =>
+        new(OwnStateLookup.Found, new OwnStateView(player, run));
 }
