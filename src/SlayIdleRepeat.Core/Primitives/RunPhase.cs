@@ -21,10 +21,9 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// so something has to persist between the two calls to block a stray second command.
 /// </para>
 /// <para>
-/// <see cref="Ended"/> is authored with no producer yet — <c>EndRunCommand</c> and
-/// <c>AbandonRunCommand</c> are still deferred to a later milestone — but the value exists now so
-/// that milestone adds a mutator rather than a snapshot schema bump, and <c>GameRules.Execute</c>'s
-/// phase gate already answers <c>RUN_ALREADY_ENDED</c> for any run constructed at this phase.
+/// <see cref="Ended"/> is produced by <c>END_RUN</c> and <c>ABANDON_RUN</c>, and
+/// <c>GameRules.Execute</c>'s phase gate answers <c>RUN_ALREADY_ENDED</c> to a run command that
+/// arrives afterwards.
 /// </para>
 /// </remarks>
 public enum RunPhase
@@ -43,8 +42,10 @@ public enum RunPhase
     BattlePending = 1,
 
     /// <summary>
-    /// The run is over. No <c>CommandKind.Run</c> command is legal against a run at this phase;
-    /// <c>GameRules.Execute</c> answers <see cref="Primitives.RejectionReason.RUN_ALREADY_ENDED"/>.
+    /// The run is over. Every <c>CommandKind.Run</c> command is answered
+    /// <see cref="Primitives.RejectionReason.RUN_ALREADY_ENDED"/> by <c>GameRules.Execute</c>, with
+    /// one exemption: the row that opens its own run (<c>START_RUN</c>) is let through, since a
+    /// finished run is what the next one starts over and nothing else in the game clears it.
     /// </summary>
     Ended = 2,
 }

@@ -20,11 +20,12 @@ namespace SlayIdleRepeat.Core.Testing;
 /// behind <c>Apply</c>'s back.
 /// </para>
 /// <para>
-/// This harness's slice is always <c>(player, null)</c>, so all run commands are refused as a
-/// loading defect before dispatch, and only the deferred meta commands answer <c>ILLEGAL_STATE</c>
-/// — a distinction worth stating since the two look alike from outside. <c>START_RUN</c> in
-/// particular cannot be sent through any caller today, since only <c>START_RUN</c> can create the
-/// run its own kind requires and nothing here builds one to inject.
+/// A freshly created player's slice is <c>(player, null)</c>, so a run command sent before
+/// <c>START_RUN</c> is refused as a loading defect before dispatch, while a deferred meta command
+/// answers <c>ILLEGAL_STATE</c> — a distinction worth stating since the two look alike from outside.
+/// <c>START_RUN</c> is the exception in both directions: it is the row that builds the run its own
+/// kind requires, so it is the one command that runs on a run-less slice, and it runs again over a
+/// run that has ended — a caller can drive run → end → run here through commands alone.
 /// </para>
 /// <para>
 /// Zero-delta <c>energy_regen</c> rows in <see cref="Events"/> are intended: an idle player at a

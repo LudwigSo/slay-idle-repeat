@@ -30,7 +30,8 @@ internal sealed class CommandDispatch
     /// <param name="opensRun">
     /// <c>true</c> only for <c>START_RUN</c>: the one command that creates the run its own
     /// <c>CommandKind.Run</c> would otherwise require to already exist. Every other row leaves
-    /// this <c>false</c> and is refused on a run-less slice by <see cref="GameRules.Execute"/>.
+    /// this <c>false</c> and is refused by <see cref="GameRules.Execute"/> both on a run-less slice
+    /// and on a slice whose run has ended.
     /// </param>
     internal CommandDispatch Handled<TCommand>(
         string wireName, CommandKind kind, CommandHandler<TCommand> handler, bool opensRun = false)
@@ -226,7 +227,8 @@ internal delegate HandlerResult CommandHandler<in TCommand>(TCommand command, Ha
 /// </param>
 /// <param name="OpensRun">
 /// <c>true</c> for exactly one row, <c>START_RUN</c> — the one command allowed to run on a
-/// run-less slice, since its job is to create the run its own kind would otherwise require.
+/// run-less slice, and on a slice whose run has ended, since its job is to create the run its own
+/// kind would otherwise require.
 /// </param>
 internal sealed record CommandRegistration(
     Type CommandType,
