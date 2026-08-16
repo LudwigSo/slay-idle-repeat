@@ -88,8 +88,9 @@ internal static class EndRun
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The count is asked for before anything is read or minted, so a run that is owed nothing —
-    /// which is most of them — costs no content read at all.
+    /// Only the protections document is read before the count is asked for; the catalogue, the gear
+    /// tables and the stock's numbers come after it. So a run that is owed nothing — which is most of
+    /// them — pays for one document rather than four, and mints nothing.
     /// </para>
     /// <para>
     /// 🔒 The day's allowance is spent in <b>grants</b> and the payout is made in <b>items</b>. They
@@ -111,7 +112,9 @@ internal static class EndRun
         var run = input.Run;
 
         var qualified = outcome is RunCompletionOutcome.Victory or RunCompletionOutcome.Stage3Death;
-        var spentToday = (int)player.DailyCount(DailyFloorGrantCounter);
+        // Clamped, not cast: the counter is a long the rehydration seam only floors at zero, and an
+        // unchecked narrowing of a row above int range wraps NEGATIVE, which the façade throws on.
+        var spentToday = (int)Math.Min(player.DailyCount(DailyFloorGrantCounter), int.MaxValue);
 
         var owed = LuckService.SessionFloorGrant(
             dropRun, qualified, run.ItemsAtOrAboveFloorBand, spentToday);

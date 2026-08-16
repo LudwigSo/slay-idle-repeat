@@ -84,6 +84,16 @@ internal sealed class GearAcquisitionTuning
                 "no count to draw, so no Boss could pay out at all.");
         }
 
+        if (bossKillItemsMax == int.MaxValue)
+        {
+            throw new InvalidTunableException(
+                BossKillItemsMaxReference,
+                "The Boss count is drawn over a half-open range whose upper bound is one past the " +
+                "most a Boss may drop, and there is no number one past " +
+                $"{AuthoredToken.Render(bossKillItemsMax)}. Refused here rather than left to wrap " +
+                "into an inverted range at the draw.");
+        }
+
         var normalEnemyChance = content.ReadDouble(NormalEnemyChanceReference);
 
         if (normalEnemyChance is < 0.0 or > 1.0)

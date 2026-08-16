@@ -58,7 +58,7 @@ internal static class Equip
             return HandlerResult.Reject(RefusalFor(stock.Availability(command.ItemId)));
         }
 
-        // Available, so the container holds it in stock and Find cannot answer null.
+        // Equippable means stored — AVAILABLE or LOCKED — so Find cannot answer null here.
         if (stock.Find(command.ItemId)!.Slot != command.GearSlot)
         {
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
