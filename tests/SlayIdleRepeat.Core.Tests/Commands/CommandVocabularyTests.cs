@@ -79,6 +79,18 @@ public sealed class CommandVocabularyTests
     private static IReadOnlyDictionary<string, Type> Registry =>
         SlayIdleRepeat.Core.GameRules.CommandTypesByWireName;
 
+    /// <summary>
+    /// 🔒 The <b>closed</b> list of handled rows whose generically-built payload is a legal command
+    /// that is not a legal MOVE, with the reason. Every other handled row must be accepted.
+    /// </summary>
+    /// <remarks>
+    /// <c>Build</c> samples every <c>int</c> as 0, and 07 §4 numbers preset slots from 1 — so
+    /// <c>SAVE_PRESET</c> refuses slot 0 as a malformed payload and <c>APPLY_PRESET</c> refuses it
+    /// because no preset is saved there. Enumerated rather than allowed for generally, so the third
+    /// row that stops accepting takes a diff.
+    /// </remarks>
+    private static readonly string[] RowsBuildCannotSatisfy = ["SAVE_PRESET", "APPLY_PRESET"];
+
     // ------------------------------------------------------------------ the floor under everything
 
     /// <summary>
@@ -313,6 +325,11 @@ public sealed class CommandVocabularyTests
             "REVIVE/END_RUN/ABANDON_RUN handlers. A mismatch means the loop skipped " +
             "a deferred row rather than that the count moved.");
 
+        // 🔴 TO THE INTEGRATOR — M4-04 MERGED FIRST AND MOVED THESE NUMBERS. It landed the
+        // MERGE/ENHANCE/SALVAGE handlers, taking milestone/M4 to 27 deferred / 22 handled. M4-10
+        // takes two more (SAVE_PRESET, APPLY_PRESET), so the merged figures are 25 DEFERRED and 24
+        // HANDLED, and the handled identity list is M4-04's twenty-two plus those two names. Checked
+        // against milestone/M4 directly rather than quoted (steering S9).
         deferred.ShouldBe(
             28,
             "…and the absolute number, because the assertion above compares the loop against the same " +
@@ -341,6 +358,11 @@ public sealed class CommandVocabularyTests
         var runRows = 0;
         var metaRows = 0;
         var acceptedMetaRows = 0;
+
+        RowsBuildCannotSatisfy.Length.ShouldBe(
+            2,
+            "the exemption is closed. Both entries are 07 §4's preset rows, and both are exempt for " +
+            "one reason: Build fills every int with 0 and neither command has a legal slot 0.");
 
         foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
         {
@@ -386,23 +408,30 @@ public sealed class CommandVocabularyTests
 
             if (RegistrationFor(name).IsHandled)
             {
-                // 🔒 The claim is that the handler was REACHED and answered — not that a
-                // generically-built payload is a legal move. It used to be stated as
-                // `Accepted.ShouldBeTrue`, which held only while every handled meta row happened to
-                // accept Build's samples; Build fills every int with 0, and M4-10's two preset rows
-                // legitimately refuse that (07 §4's slots are counted from 1, and slot 0 holds no
-                // preset to load), so the strong form was asserting something about the fixture
-                // rather than about the dispatch table. What must not happen — and what the run arm
-                // above asserts DOES happen — is the run-less loading defect.
-                if (!result.Accepted)
+                // 🔒 The strong form — a handled meta row ACCEPTS a run-less slice — held for every
+                // row until M4-10, and it still holds for every row but two. Build fills every int
+                // with 0, and both preset rows legitimately refuse that (07 §4 counts slots from 1,
+                // and slot 0 holds no preset to load). Relaxing the claim for all thirty rows to
+                // accommodate two would let the other twenty-eight start refusing with nothing going
+                // red, so the two are carried as a CLOSED, NAMED exemption instead — the shape
+                // StatefulRuleTypeRuleTests and IsolationTests.EntitlementReaders both use, and the
+                // one that forces the third into a diff.
+                if (RowsBuildCannotSatisfy.Contains(name, StringComparer.Ordinal))
                 {
                     RejectionReasons.IsDomainTier(result.Rejection!.Value).ShouldBeTrue(
-                        $"'{name}' is a handled meta command that refused Build's generic payload. " +
-                        "Refusing is its own suite's business; refusing with a TRANSPORT-tier value " +
+                        $"'{name}' is exempt from the acceptance claim because Build's generic " +
+                        "payload is not a legal move for it — but it must still have REACHED its " +
+                        "handler and answered a DOMAIN-tier value. A transport-tier value here " +
                         "would mean Apply returned something 14 §16.2 decides before the domain runs.");
                 }
                 else
                 {
+                    result.Accepted.ShouldBeTrue(
+                        $"'{name}' is a handled meta command, so outside a run it runs its handler — " +
+                        "whatever that handler decides is its own suite's business, but reaching it " +
+                        "at all is what this rule is about. If Build's payload is genuinely illegal " +
+                        $"for '{name}', add it to {nameof(RowsBuildCannotSatisfy)} with the reason.");
+
                     acceptedMetaRows++;
                 }
             }

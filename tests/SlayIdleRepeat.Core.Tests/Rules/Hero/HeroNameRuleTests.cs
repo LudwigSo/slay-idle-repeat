@@ -87,17 +87,36 @@ public sealed class HeroNameRuleTests
 
     /// <summary>A control or format character is its own refusal, distinct from length and profanity.</summary>
     /// <remarks>
-    /// Two shapes plus a negative control: a newline (control), a zero-width joiner (format), and a
-    /// non-breaking space, which is neither and is refused as BLANK instead — so the arm is proven
-    /// to be about the character class rather than about "anything unusual".
+    /// Three shapes across the two categories the rule names: a newline (<c>Control</c>), a
+    /// zero-width joiner and a right-to-left override (both <c>Format</c>). The negative control is
+    /// its own case below — a non-breaking space, which is <c>SpaceSeparator</c> and therefore
+    /// neither — so the arm is proven to be about those two categories rather than about "anything
+    /// unusual".
     /// </remarks>
     [Theory]
     [InlineData("Lud\nwig")]
-    [InlineData("Lud‍wig")]
-    [InlineData("Lud‮wig")]
+    [InlineData("Lud‍wig")]   // zero-width joiner: Format
+    [InlineData("Lud‮wig")]   // right-to-left override: Format
     public void A_control_or_format_character_is_refused_as_DISALLOWED_CHARACTER(string candidate)
     {
         HeroNameRule.Validate(candidate, Lexicon).Refusal.ShouldBe(HeroNameRefusal.DISALLOWED_CHARACTER);
+    }
+
+    /// <summary>
+    /// The negative control for the case above: a character that is unusual but is neither a control
+    /// nor a format character is accepted.
+    /// </summary>
+    /// <remarks>
+    /// A non-breaking space is <c>UnicodeCategory.SpaceSeparator</c>. It is not whitespace to
+    /// <c>string.IsNullOrWhiteSpace</c>'s caller here — the name has letters either side of it — and
+    /// it is invisible in neither of the two ways the rule refuses. Without this case, the theory
+    /// above would hold just as well over a rule that refused every non-ASCII character, and the
+    /// twelve-character limit would silently be a Latin-only limit.
+    /// </remarks>
+    [Fact]
+    public void A_character_that_is_neither_control_nor_format_is_accepted()
+    {
+        HeroNameRule.Validate("Lud wig", Lexicon).Accepted.ShouldBeTrue();
     }
 
     /// <summary>An English match reports the English list, and carries the term it matched.</summary>

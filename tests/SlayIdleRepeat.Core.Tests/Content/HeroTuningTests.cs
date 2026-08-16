@@ -114,7 +114,7 @@ public sealed class HeroTuningTests
         var tuning = PresetTuning.Read(TuningDocuments.AdsOnly(ContentValue.Number(5)));
 
         tuning.FreeSlots.ShouldBe(5);
-        tuning.IsFreeSlot(5).ShouldBeTrue();
+        tuning.IsBeyondFreeAllowance(5).ShouldBeFalse();
         tuning.IsBeyondFreeAllowance(6).ShouldBeTrue();
     }
 
@@ -143,11 +143,11 @@ public sealed class HeroTuningTests
     {
         var tuning = PresetTuning.Read(TuningDocuments.AdsOnly());
 
-        tuning.IsFreeSlot(0).ShouldBeFalse();
         tuning.IsBeyondFreeAllowance(0).ShouldBeFalse(
             "slot 0 is malformed, not Plus-gated — the two refusals must stay tellable apart.");
+        tuning.IsBeyondFreeAllowance(PresetTuning.FirstSlot - 1).ShouldBeFalse();
 
-        tuning.IsFreeSlot(tuning.FreeSlots + 1).ShouldBeFalse();
+        tuning.IsBeyondFreeAllowance(tuning.FreeSlots).ShouldBeFalse();
         tuning.IsBeyondFreeAllowance(tuning.FreeSlots + 1).ShouldBeTrue();
     }
 

@@ -17,7 +17,4 @@ internal readonly record struct LegendLevelUp(
 {
     /// <summary>Whether the player gained at least one level.</summary>
     internal bool Occurred => ToLevel > FromLevel;
-
-    /// <summary>How many levels were gained.</summary>
-    internal int LevelsGained => ToLevel - FromLevel;
 }

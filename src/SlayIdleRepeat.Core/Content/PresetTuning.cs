@@ -43,22 +43,18 @@ internal sealed class PresetTuning
     /// </remarks>
     internal int FreeSlots { get; }
 
-    /// <summary>The slot numbers, counted from 1, a player without Plus may write.</summary>
-    /// <param name="presetSlot">The slot a command named.</param>
-    /// <returns><see langword="true"/> when the slot is inside the free allowance.</returns>
-    internal bool IsFreeSlot(int presetSlot) => presetSlot >= FirstSlot && presetSlot <= FreeSlots;
-
     /// <summary>
     /// Whether a slot is past the free allowance — the only slots Plus is the answer to.
     /// </summary>
     /// <param name="presetSlot">The slot a command named.</param>
     /// <returns><see langword="true"/> when only a subscriber may write it.</returns>
     /// <remarks>
-    /// 🔒 Deliberately <b>not</b> the negation of <see cref="IsFreeSlot"/>. A slot below
-    /// <see cref="FirstSlot"/> is also "not free", and answering an entitlement refusal for one would
-    /// tell a player they need a subscription because their client sent slot 0 — the worst possible
-    /// message, and one the player cannot act on. Below the floor is a malformed payload; above the
-    /// allowance is an entitlement.
+    /// 🔒 It is <b>not</b> "the slot is not free", and the difference is the whole reason this is
+    /// the only such predicate here. A slot below <see cref="FirstSlot"/> is also not free, and
+    /// answering an entitlement refusal for one would tell a player they need a subscription because
+    /// their client sent slot 0 — the worst possible message, and one the player cannot act on.
+    /// Below the floor is a malformed payload; above the allowance is an entitlement. An earlier
+    /// draft carried both predicates side by side, which is an invitation to reach for the wrong one.
     /// </remarks>
     internal bool IsBeyondFreeAllowance(int presetSlot) => presetSlot > FreeSlots;
 

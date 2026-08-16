@@ -320,6 +320,14 @@ public sealed class IntraRulesLayeringRuleTests
         // that reached back into the Legend curve would make the tank a function of the level-up it
         // is an input to.
         //
+        // ⚠️ WHAT Rules.Hero DELIBERATELY DOES NOT NAME, stated because the alternative was
+        // available and the choice is load-bearing: Rules.Gear and Rules.Inventory. LoadoutRules asks
+        // Model.Gear.Inventory whether an identity is held rather than going through Rules.Inventory's
+        // sorting and comparison rules, and it derives no item stats — so the Hero <-> Gear and
+        // Hero <-> Inventory pairs stay UNORDERED and no edge is invented for either. The commit that
+        // gives one of them a real dependency picks the direction and closes the inverse here, exactly
+        // as Gear -> Inventory did.
+        //
         // ⚠️ THE REVERSE DIRECTION FROM COMBAT IS THE ONE THAT WILL BE WANTED, and it is left open
         // exactly as it is for Gear and Luck: 05 §2's hero base stats grow with the Legend Level and
         // the loadout is what a stat aggregation collects gear from, so Rules.Stats reading a hero

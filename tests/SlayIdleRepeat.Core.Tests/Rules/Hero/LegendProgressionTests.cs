@@ -19,13 +19,15 @@ public sealed class LegendProgressionTests
 
     private static readonly LegendTuning Range = LegendTuning.Read(Content);
 
+    private static readonly EnergyTuning Energy = EnergyTuning.Read(Content);
+
     /// <summary>A player standing where their XP puts them gains nothing — the normal case.</summary>
     [Fact]
     public void A_player_already_at_their_level_gains_nothing()
     {
         var banks = new EnergyBanks(3, 0);
 
-        var levelUp = LegendProgression.Reconcile(1, 0L, banks, Content);
+        var levelUp = LegendProgression.Reconcile(1, 0L, banks, Content, Range, Energy);
 
         levelUp.Occurred.ShouldBeFalse();
         levelUp.TalentPointsGranted.ShouldBe(0L);
@@ -36,10 +38,10 @@ public sealed class LegendProgressionTests
     [Fact]
     public void One_level_grants_one_Talent_Point()
     {
-        var levelUp = LegendProgression.Reconcile(1, Needed(2), new EnergyBanks(0, 0), Content);
+        var levelUp = LegendProgression.Reconcile(1, Needed(2), new EnergyBanks(0, 0), Content, Range, Energy);
 
         levelUp.ToLevel.ShouldBe(2);
-        levelUp.LevelsGained.ShouldBe(1);
+        (levelUp.ToLevel - levelUp.FromLevel).ShouldBe(1);
         levelUp.TalentPointsGranted.ShouldBe(ProgressionDocuments.ShippedTalentPointsPerLevel);
     }
 
@@ -53,9 +55,9 @@ public sealed class LegendProgressionTests
     [Fact]
     public void Several_levels_at_once_grant_a_point_each()
     {
-        var levelUp = LegendProgression.Reconcile(1, Needed(5), new EnergyBanks(0, 0), Content);
+        var levelUp = LegendProgression.Reconcile(1, Needed(5), new EnergyBanks(0, 0), Content, Range, Energy);
 
-        levelUp.LevelsGained.ShouldBe(4);
+        (levelUp.ToLevel - levelUp.FromLevel).ShouldBe(4);
         levelUp.TalentPointsGranted.ShouldBe(4L * ProgressionDocuments.ShippedTalentPointsPerLevel);
     }
 
@@ -71,9 +73,10 @@ public sealed class LegendProgressionTests
     [Fact]
     public void A_level_up_refills_Energy_to_the_new_levels_maximum()
     {
-        var energy = EnergyTuning.Read(Content);
+        var energy = Energy;
 
-        var levelUp = LegendProgression.Reconcile(1, Needed(5), new EnergyBanks(0, 0), Content);
+        var levelUp = LegendProgression.Reconcile(
+            1, Needed(5), new EnergyBanks(0, 0), Content, Range, Energy);
 
         energy.MaxEnergyAt(levelUp.ToLevel).ShouldBeGreaterThan(
             energy.MaxEnergyAt(1),
@@ -86,7 +89,7 @@ public sealed class LegendProgressionTests
     [Fact]
     public void A_level_up_fills_the_bar_and_not_the_Reserve()
     {
-        var levelUp = LegendProgression.Reconcile(1, Needed(3), new EnergyBanks(0, 0), Content);
+        var levelUp = LegendProgression.Reconcile(1, Needed(3), new EnergyBanks(0, 0), Content, Range, Energy);
 
         levelUp.Banks.Reserve.ShouldBe(0);
     }
@@ -111,7 +114,7 @@ public sealed class LegendProgressionTests
         LegendLevelCurve.LevelFor(xp, steeper, Range).ShouldBeLessThan(
             40, "the fixture only discriminates while the steeper curve really does derive lower.");
 
-        var levelUp = LegendProgression.Reconcile(40, xp, new EnergyBanks(0, 0), steeperContent);
+        var levelUp = LegendProgression.Reconcile(40, xp, new EnergyBanks(0, 0), steeperContent, Range, Energy);
 
         levelUp.ToLevel.ShouldBe(40);
         levelUp.Occurred.ShouldBeFalse();
@@ -123,7 +126,7 @@ public sealed class LegendProgressionTests
     public void XP_past_the_cap_grants_nothing_further()
     {
         var levelUp = LegendProgression.Reconcile(
-            Range.Maximum, long.MaxValue / 2, new EnergyBanks(0, 0), Content);
+            Range.Maximum, long.MaxValue / 2, new EnergyBanks(0, 0), Content, Range, Energy);
 
         levelUp.Occurred.ShouldBeFalse();
     }
@@ -136,8 +139,9 @@ public sealed class LegendProgressionTests
     public void Reconciling_the_same_total_twice_grants_only_once()
     {
         var xp = Needed(3);
-        var first = LegendProgression.Reconcile(1, xp, new EnergyBanks(0, 0), Content);
-        var second = LegendProgression.Reconcile(first.ToLevel, xp, first.Banks, Content);
+        var first = LegendProgression.Reconcile(1, xp, new EnergyBanks(0, 0), Content, Range, Energy);
+        var second = LegendProgression.Reconcile(
+            first.ToLevel, xp, first.Banks, Content, Range, Energy);
 
         second.Occurred.ShouldBeFalse();
         second.TalentPointsGranted.ShouldBe(0L);
@@ -154,7 +158,7 @@ public sealed class LegendProgressionTests
     {
         var generous = ProgressionDocuments.With(talentPointsPerLevel: ContentValue.Number(3));
 
-        LegendProgression.Reconcile(1, Needed(5), new EnergyBanks(0, 0), generous)
+        LegendProgression.Reconcile(1, Needed(5), new EnergyBanks(0, 0), generous, Range, Energy)
             .TalentPointsGranted.ShouldBe(12L);
     }
 

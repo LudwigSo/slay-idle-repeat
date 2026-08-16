@@ -247,6 +247,12 @@ public static class GameRules
         RequireRunUntouched(untouchedRun, working.Run, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
+        // 🔴 The exit-side half of the equipped-item invariant. Player.Rehydrate refuses a row whose
+        // loadout names an item the stock does not hold — on the way IN, which on its own would let
+        // the command that broke the pairing be accepted and persisted, and brick the account from
+        // the next command onwards. Checked here, the offending command fails instead.
+        working.Player.RequireLoadoutResolves();
+
         // After the handler, because the handler is what banks the XP; before the events are
         // stamped, because a level-up's Energy refill is a CurrencyChanged like any other.
         var levelled = LevelUp(working.Player, context.Content);
@@ -282,11 +288,21 @@ public static class GameRules
     /// `10` §3.1 refills Energy to full on a level-up, and that refill is the one thing here that is
     /// not pure player state, so it comes back as an event rather than being applied silently.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>The cost, stated because this runs on every accepted command.</b> The level is derived
+    /// by walking the ladder, so a player at Legend Level <i>N</i> pays <i>N</i> iterations of the
+    /// authored curve — at most 198, and none at all at the cap, which
+    /// <c>LegendProgression.Reconcile</c> short-circuits. Each tuning is read exactly once here and
+    /// handed to both the rule and the aggregate, rather than re-read per use.
+    /// </para>
     /// </remarks>
     private static IReadOnlyList<DomainEvent> LevelUp(Player player, ContentSnapshot content)
     {
+        var range = LegendTuning.Read(content);
+        var energy = EnergyTuning.Read(content);
+
         var levelUp = LegendProgression.Reconcile(
-            player.LegendLevel, player.LegendXp, player.Energy, content);
+            player.LegendLevel, player.LegendXp, player.Energy, content, range, energy);
 
         if (!levelUp.Occurred)
         {
@@ -296,12 +312,11 @@ public static class GameRules
         // The level is written FIRST: SetEnergy derives the ceiling it checks against from the
         // player's Legend Level, and refilling before the level moved would refuse the very tank
         // the level-up just enlarged.
-        player.AdvanceLegendLevel(
-            levelUp.ToLevel, levelUp.TalentPointsGranted, LegendTuning.Read(content));
+        player.AdvanceLegendLevel(levelUp.ToLevel, levelUp.TalentPointsGranted, range);
 
         return new DomainEvent[]
         {
-            player.SetEnergy(levelUp.Banks, EnergyTuning.Read(content), LegendLevelUpReason),
+            player.SetEnergy(levelUp.Banks, energy, LegendLevelUpReason),
         };
     }
 

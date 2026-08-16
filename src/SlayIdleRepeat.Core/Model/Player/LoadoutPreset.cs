@@ -19,11 +19,20 @@ namespace SlayIdleRepeat.Core.Model;
 /// nobody wrote for it.
 /// </para>
 /// <para>
-/// 🔴 <b>No length bound is enforced, because none is authored.</b> `07` §4 and `09` §2.1 both say
-/// "named" and neither says how long, and the hero name's own 12 is `07` §1's number for a different
-/// field. What is refused here is what makes a name unusable rather than merely long — blank, and
-/// control or format characters, which are invisible in every field and can reorder the text around
-/// them. The absent bound is left absent and greppable rather than filled with a plausible number.
+/// 🔴 <b>No <em>design</em> bound is authored on the name or the slot number.</b> `07` §4 and
+/// `09` §2.1 both say "named" without saying how long, `12` §2 grants a subscriber "unlimited"
+/// presets, and the hero name's own 12 is `07` §1's number for a different field. None of those
+/// holes is filled here.
+/// </para>
+/// <para>
+/// ⚠️ <b>What <em>is</em> bounded is what an untrusted client can make the persisted row grow to,
+/// and that is a storage decision rather than a design one.</b> A preset is appended to
+/// <c>PlayerSnapshot.Presets</c>, which is rehydrated and canonically hashed on <em>every</em>
+/// command — so an unbounded name and an unbounded slot number let a client make every future
+/// command of that account slower and eventually make the row unencodable at all. The two ceilings
+/// below are deliberately far above anything the design set describes (its own examples are "Boss
+/// push", "Gold farm", "PvP", and its own allowance is three): they refuse abuse and constrain no
+/// design decision. Author a real limit and it replaces them.
 /// </para>
 /// </remarks>
 public sealed class LoadoutPreset
@@ -101,6 +110,23 @@ public sealed class LoadoutPreset
                 new LoadoutPreset(snapshot.Slot, snapshot.Name, loadout.Value));
     }
 
+    /// <summary>
+    /// ⚠️ The highest slot number a preset may occupy — a bound on the persisted row's size, not a
+    /// design limit. See the type's remarks.
+    /// </summary>
+    internal const int HighestStorableSlot = 999;
+
+    /// <summary>
+    /// ⚠️ The longest a preset name may be, in text elements — the same kind of bound, for the same
+    /// reason.
+    /// </summary>
+    /// <remarks>
+    /// Text elements rather than <c>char</c>s, for <c>HeroNameRule.MaximumLength</c>'s reason: an
+    /// emoji is two UTF-16 code units, and counting those gives a limit that shortens depending on
+    /// what the player types.
+    /// </remarks>
+    internal const int LongestStorableName = 64;
+
     /// <summary>What is wrong with a slot and a name, or <see langword="null"/> when nothing is.</summary>
     private static string? Fault(int slot, string name)
     {
@@ -111,10 +137,26 @@ public sealed class LoadoutPreset
                    "as rather than a slot a player asked for.";
         }
 
+        if (slot > HighestStorableSlot)
+        {
+            return "preset slot " + Text(slot) + " is above " + Text(HighestStorableSlot) + ", the " +
+                   "highest a row can store. 12 §2 grants a subscriber unlimited presets and this " +
+                   "does not take that back — it bounds what an untrusted client can make the " +
+                   "persisted row grow to, which is rehydrated and hashed on every command.";
+        }
+
         if (string.IsNullOrWhiteSpace(name))
         {
             return "preset slot " + Text(slot) + " has a blank name. 07 §4 saves NAMED presets, and a " +
                    "preset that renders as nothing is one the player cannot tell from the next.";
+        }
+
+        if (new StringInfo(name).LengthInTextElements > LongestStorableName)
+        {
+            return "preset slot " + Text(slot) + " has a name longer than " +
+                   Text(LongestStorableName) + " characters, the longest a row can store. 07 §4's " +
+                   "own examples are 'Boss push', 'Gold farm' and 'PvP'; this bounds the persisted " +
+                   "row rather than the player's choice of label.";
         }
 
         foreach (var character in name)

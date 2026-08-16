@@ -506,6 +506,92 @@ public sealed class Player
         _loadout = loadout;
     }
 
+    /// <summary>
+    /// 🔒 Takes an item out of this player's world: out of the stock, and off the hero, in one call.
+    /// </summary>
+    /// <param name="item">The instance to destroy.</param>
+    /// <param name="tuning">The inventory numbers, for the reclaim the removal may open room for.</param>
+    /// <returns><see langword="true"/> when the player owned it.</returns>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The seam every destructive item operation must use — merge, salvage, and anything a
+    /// later milestone adds.</b> A slot names an item rather than copying one, so removing an item
+    /// from the stock without taking it off the hero leaves a dangling reference that
+    /// <see cref="RequireLoadoutResolves"/> refuses. That refusal is a <em>defect</em> report, not a
+    /// rejection: it exists to stop the corrupt state being persisted, and the way not to trip it is
+    /// to do both halves together rather than to remember to.
+    /// </para>
+    /// <para>
+    /// It takes both halves for the reason <see cref="AccrueEnergy"/> and
+    /// <see cref="AdvanceLegendLevel"/> take theirs: they are one fact. Removing an item is the
+    /// aggregate's business precisely because the item is in one component and the reference to it is
+    /// in another, and no component can hold that pairing on its own.
+    /// </para>
+    /// <para>
+    /// ⚠️ It destroys; it does not move. Whatever the operation pays out for the item — Merge Dust, a
+    /// partial Enhance Stone refund, a Set Token — is the calling rule's, and this says nothing about
+    /// it.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    internal bool DiscardItem(GearInstanceId item, InventoryTuning tuning)
+    {
+        var removed = Inventory.Remove(item, tuning);
+
+        if (removed)
+        {
+            _loadout = _loadout.WithoutItem(item);
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// 🔴 The exit-side half of the equipped-item invariant: every slot still names an item the stock
+    /// holds, checked <b>after</b> a command rather than only on the way in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this exists, and why the load-time fault alone would have been the wrong half.</b> A
+    /// slot names an item rather than copying one, so any operation that destroys an item — merge,
+    /// salvage, and whatever else a later milestone adds — must take it off the hero in the same
+    /// change. If only <see cref="Rehydrate"/> checked, the command that broke the pairing would be
+    /// ACCEPTED, its state returned to the caller and written to the database, and every later
+    /// command would then fail at the clone. The account would be unplayable, permanently, and the
+    /// corrupt row would be the persisted one.
+    /// </para>
+    /// <para>
+    /// It throws rather than rejecting, because reaching it is a defect in a handler and never a
+    /// player asking for something they cannot have — the same distinction <c>MoveCurrency</c> draws
+    /// for an unaffordable spend. <c>Loadout.WithoutItem</c> is the seam the offending handler should
+    /// have used.
+    /// </para>
+    /// <para>
+    /// Six lookups against a stock of at most a few hundred items, on an accepted command only. A
+    /// full re-validation of the aggregate would be the thorough answer and would double the
+    /// rehydration cost of every command; this checks the one invariant that spans two components
+    /// and that no single component can hold on its own.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">A slot names an item the stock does not hold.</exception>
+    internal void RequireLoadoutResolves()
+    {
+        foreach (var (slot, item) in _loadout.Gear)
+        {
+            if (Inventory.Availability(item) != ItemAvailability.UNKNOWN_ITEM)
+            {
+                continue;
+            }
+
+            throw new InvalidOperationException(
+                "This command left '" + item.Value + "' equipped in " + slot + " while the player's " +
+                "stock no longer holds it. A slot NAMES an item rather than copying one, so whatever " +
+                "destroyed the item had to take it off the hero in the same change — " +
+                "Loadout.WithoutItem is that seam. Persisting this row would make every later " +
+                "command fail at the clone, for good.");
+        }
+    }
+
     /// <summary>Writes a preset into its slot, replacing whatever was there.</summary>
     /// <param name="preset">The preset. Its slot is its own.</param>
     /// <remarks>
@@ -852,7 +938,18 @@ public sealed class Player
     /// <para>
     /// ⚠️ It also means any operation that destroys an item must take it off the hero in the same
     /// change — <c>Loadout.WithoutItem</c> is the seam for that. That is the intended consequence:
-    /// the alternative is a stale slot nobody notices until a screen renders it.
+    /// the alternative is a stale slot nobody notices until a screen renders it. 🔴 A load-time fault
+    /// alone would be the WRONG half to have: the command that broke the pairing would be accepted
+    /// and its state persisted, and the row would then refuse to load for the rest of the account's
+    /// life. <see cref="RequireLoadoutResolves"/> is the exit-side half, and it is what makes this
+    /// one safe to be a fault at all.
+    /// </para>
+    /// <para>
+    /// ⚠️ An item waiting in the overflow holding list counts as OWNED here, deliberately: the
+    /// reference resolves, so the row is not corrupt. Whether such an item may be <em>equipped</em>
+    /// is a different question with a different answer — <c>Rules.Hero.LoadoutRules.IsEquippable</c>
+    /// says no — and the two rules are meant to disagree. A player whose stock overflowed while
+    /// wearing an item keeps wearing it; they simply cannot re-equip it until it is reclaimed.
     /// </para>
     /// </remarks>
     private static void RequireEquippedItemsAreOwned(

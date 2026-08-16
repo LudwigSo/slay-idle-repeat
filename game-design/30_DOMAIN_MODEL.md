@@ -132,8 +132,36 @@ public sealed record GameContext(
 | **Time** | `IClockPort` in `Application` (`23` §4.3) | ⚠️ **A value on `GameContext`.** Energy regeneration, daily resets at 05:00 UTC, event windows (`26` §4), guild weeks (`27` §4), PvP seasons (`11` §5.3) and subscription expiry (`12` §2.2) are *all* time-dependent rules. A rule that calls a clock is not pure. `IClockPort` remains — the **composition root** calls it and puts the answer in the context. |
 | **Randomness** | `DeterministicRng` in `Core`, seeded externally (`23` §4.3) | ⚠️ **Two regimes** (ruled in `16` A7). **In-run draws never touch the context:** they come from the `Run` aggregate's committed `runSeed` and its persisted per-stream draw counters (`02` §2, `14` §8) — state, not ambience. `CommandSeed` is **reserved for meta commands** — wheel spins, container opens, the `BEGIN_SESSION` quest draw — whose draws are `Hash64(CommandSeed, stream, i)` from `i = 0` (`14` §8.1). *(The earlier wording cited `14` §8.1 in support of a per-command-seed model; that was a mis-citation — §8.1 specifies the run-stream model.)* The invariant that survives, restated accurately: **the domain never invents entropy.** Every draw is a pure function of committed state or a server-supplied context value — `runSeed` itself is derived deterministically inside `Apply` on `START_RUN` from `(playerId, chapter, tier, NowUtc, runCounter)` (`02` §2). |
 | **Content** | `game-data`, "embedded in both" (`14` §6) | ⚠️ **An immutable, version-stamped `ContentSnapshot` on the context.** Loading JSON is I/O and belongs in an adapter; *reading* content is a rule. The version stamp is what makes a replayed command reproduce its original outcome after a balance patch. |
-| **Entitlement** | Server session payload (`12` §2.1) | ✅ A read-only value. 🔒 **The domain may read `HasPlus` only to resolve ad-reward auto-grant caps — never to alter a stat, a rate or a drop.** An architecture test asserts `Entitlements` is unreachable from the power computation (`29` §3) and from every rule in `Core/Rules/`. |
+| **Entitlement** | Server session payload (`12` §2.1) | ✅ A read-only value. 🔒 **The domain may read `HasPlus` only at the two sites enumerated below — never to alter a stat, a rate or a drop.** An architecture test asserts `Entitlements` is unreachable from the power computation (`29` §3) and from every rule in `Core/Rules/`. |
+
 | **Feature flags** | `IRemoteConfigPort` | ⚠️ Resolved at the composition root into a plain record. The domain must not call a config service mid-rule. |
+
+🔒 **Amendment (M4-10): the entitlement row's enumerated readers are TWO, not one.** It said *"only to
+resolve ad-reward auto-grant caps"* and contradicted `14` §16.2, which classifies `NOT_ENTITLED` as a
+**domain**-tier rejection — meaning `GameRules.Apply` is the only thing allowed to return it — and
+whose sole worked example is *"a Plus-gated operation without Plus (e.g. preset slot 4+, `09` §2.1)"*.
+A domain-tier value the domain is forbidden to compute cannot both be true. The licensed sites are:
+
+| Site | Licensed for | Authority |
+|---|---|---|
+| `Rules/…/AdGrantCapRule` (M15-03) | the ad-reward auto-grant cap | `30` §3, `12` §2 |
+| `Handlers/SavePreset` (M4-10) | the preset slot allowance, and nothing else | `14` §16.2, `12` §2 |
+
+The list is closed and enumerated in `IsolationTests.EntitlementReaders`, matched by **exact type
+name and exact file path**, with a written licence per entry, and a rule fails when a listed site
+stops reading the entitlement — so an exemption cannot outlive what it excused. `APPLY_PRESET`
+deliberately does *not* read the entitlement: `12` §66 keeps presets beyond the free allowance
+**read-only, not deleted**, so only the write path asks about Plus. A third reader is a decision that
+belongs in a diff and in this table, not in a widened predicate.
+
+⚠️ **The alternative that would need no exemption, recorded because it was considered and not taken.**
+The allowance could be resolved *outside* the domain — a number on the session, composed at the
+composition root from `ads.json#/plus/freePresets` for a free player and unbounded for a subscriber —
+and `SAVE_PRESET` would then compare a slot against a number without ever naming `HasPlus`. That obeys
+this section's own generalisation below more literally. It was not taken because it puts a tuning read
+in a composition root that does not exist yet, and because "unbounded" has no representation on the
+context that does not collide with this repository's `null`-means-unauthorised convention. **Owner: the
+M5 kickoff**, which authors the composition root and can decide it with that root in front of it.
 
 🔒 **The rule that generalises all of this: if a rule needs to know something about the outside world, that something is an argument, not a call.**
 

@@ -158,7 +158,7 @@ public sealed class IsolationTests
             // the file of that exact name, so the two halves license the same closed set rather
             // than one contradicting the other. Exact filename, so AdGrantCapRuleHelpers.cs and
             // SavePresetHelpers.cs are not exempt.
-            .Where(file => !IsLicensedEntitlementReader(Path.GetFileNameWithoutExtension(file)));
+            .Where(file => !IsLicensedEntitlementReaderFile(file));
 
         foreach (var file in files)
         {
@@ -266,8 +266,8 @@ public sealed class IsolationTests
     /// <summary>The exact name of the rule `30` §3 licenses to read the entitlement.</summary>
     internal const string AdGrantCapRuleName = "AdGrantCapRule";
 
-    /// <summary>The exact name of the handler `14` §16.2 licenses to read the entitlement.</summary>
-    internal const string PresetAllowanceHandlerName = "SavePreset";
+    /// <summary>The exact type the handler `14` §16.2 licenses to read the entitlement.</summary>
+    internal const string PresetAllowanceHandlerType = "SlayIdleRepeat.Core.Handlers.SavePreset";
 
     /// <summary>
     /// 🔒 The <b>closed</b> list of sites the entitlement ban is lifted for, with what each decides
@@ -298,13 +298,22 @@ public sealed class IsolationTests
     /// that stays a review obligation, exactly as a predicate renamed into something neutral does.
     /// </para>
     /// </remarks>
+    /// <remarks>
+    /// 🔒 <b>Matched by FULL type name and by exact repo-relative PATH, never by simple name.</b> The
+    /// grep arm sweeps every <c>.cs</c> file under <c>src/</c> and <c>tools/</c> and the IL arm sweeps
+    /// the whole of <c>Core</c> and <c>Application</c>, so a bare simple name would exempt
+    /// <em>any</em> <c>SavePreset</c> anywhere — a presenter, an endpoint, a DTO, a use case. That
+    /// never bit while the list held one distinctive name; <c>SavePreset</c> is exactly the name three
+    /// other layers would reach for. <see cref="AdGrantCapRuleName"/> stays a simple name only because
+    /// M15-03 has not chosen where it lives, and its own remarks record that.
+    /// </remarks>
     internal static readonly IReadOnlyList<(string Name, string Licenses)> EntitlementReaders = new[]
     {
         (AdGrantCapRuleName,
             "30 §3 — the ad-reward auto-grant cap. A cap of 30 for Plus and 10 otherwise IS a " +
             "conditional, and 12 §2's second grant (every rewarded placement becomes a one-tap " +
             "CLAIM at the same daily cap) is what makes it one. M15-03 authors it."),
-        (PresetAllowanceHandlerName,
+        (PresetAllowanceHandlerType,
             "14 §16.2 — the preset slot allowance, and §662's own worked example of NOT_ENTITLED. " +
             "12 §2 grants Plus unlimited loadout presets and ads.json#/plus/freePresets authors the " +
             "free three; 12 §66 keeps presets beyond the allowance READ-ONLY rather than deleted, so " +
@@ -317,36 +326,118 @@ public sealed class IsolationTests
     /// own exemptions (steering S3).
     /// </summary>
     /// <remarks>
-    /// A list of simple names has the failure mode <c>PublicRuleTypeFloorTests</c> records: a name
-    /// that resolves to nothing exempts nothing, and nothing else notices, because a stale exemption
-    /// makes the rule <em>stricter</em> rather than quieter. It is stated as "at least one resolves"
-    /// rather than "all do", because <see cref="AdGrantCapRuleName"/> names a rule M15-03 has not
-    /// written yet — the same shape <c>PublicRuleTypeFloorTests</c> uses for its own pending name.
+    /// <para>
+    /// A list of names has the failure mode <c>PublicRuleTypeFloorTests</c> records: a name that
+    /// resolves to nothing exempts nothing, and nothing else notices, because a stale exemption makes
+    /// the rule <em>stricter</em> rather than quieter.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>And an entry whose type exists but no longer READS the entitlement is the other half —
+    /// the S4 direction, an exemption that has been satisfied.</b> The moment a refactor moves the
+    /// allowance decision out of the domain (which is the better design and may well happen), the
+    /// exemption stops excusing anything and sits here pre-armed for whatever lands on that name
+    /// next. So every entry that resolves must be shown to be load-bearing: its IL must actually read
+    /// an entitlement member. That is checked with the same machinery
+    /// <see cref="EntitlementBranchesInIl"/> already uses, so the two cannot disagree about what a
+    /// read is.
+    /// </para>
+    /// <para>
+    /// <see cref="AdGrantCapRuleName"/> is exempt from the resolution floor and from the
+    /// load-bearing check alike, because M15-03 has not written it — the same shape
+    /// <c>PublicRuleTypeFloorTests</c> uses for its own pending name.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_licensed_entitlement_readers_are_named_exactly_and_at_least_one_resolves()
+    public void Every_licensed_entitlement_reader_that_exists_still_reads_the_entitlement()
     {
         EntitlementReaders.Count.ShouldBe(
             2,
             "the exemption list is closed. Two is 30 §3's ad-reward cap plus 14 §16.2's preset " +
-            "allowance; a third is a decision that belongs in a diff with a reason, and this " +
-            "assertion is what forces the diff to be read.");
+            "allowance, and 30 §3's own table now names both; a third is a decision that belongs in " +
+            "a diff with a reason, and this assertion is what forces the diff to be read.");
 
         EntitlementReaders
             .Where(reader => string.IsNullOrWhiteSpace(reader.Licenses) || reader.Licenses.Length < 40)
             .Select(reader => $"'{reader.Name}' carries no written licence worth falsifying.")
             .ShouldBeEmpty("an exemption with no stated reason has nothing to re-read at a kickoff.");
 
-        var resolved = EntitlementReaders
-            .Where(reader => Domain.FindInCore(reader.Name) is not null)
-            .Select(reader => reader.Name)
-            .ToArray();
+        var declared = EntitlementReaders.Select(reader => reader.Name).ToArray();
 
-        resolved.ShouldContain(
-            PresetAllowanceHandlerName,
-            "the preset allowance handler must exist, or its exemption is pre-armed for whatever " +
-            "lands on that name next — which is the failure mode test-suites.json rule 5 records.");
+        declared.ShouldContain(
+            PresetAllowanceHandlerType,
+            "the preset allowance handler must be named by its FULL type name. A bare simple name " +
+            "would exempt any 'SavePreset' anywhere under src/ or tools/ — a presenter, an endpoint, " +
+            "a DTO — which is a far wider licence than 14 §16.2 gives.");
+
+        var offenders = new List<string>();
+
+        foreach (var (reader, _) in EntitlementReaders)
+        {
+            var type = FindLicensedReader(reader);
+
+            if (type is null)
+            {
+                // Not written yet. Only AdGrantCapRule may be in that state; anything else naming a
+                // type that does not exist is an exemption excusing nothing.
+                if (!reader.Equals(AdGrantCapRuleName, StringComparison.Ordinal))
+                {
+                    offenders.Add(
+                        $"'{reader}' is licensed to read the entitlement and resolves to no type in " +
+                        "Core or Application. An exemption that excuses nothing is pre-armed for " +
+                        "whatever lands on that name next — test-suites.json rule 5's failure mode.");
+                }
+
+                continue;
+            }
+
+            if (!ReadsAnEntitlementFlag(type))
+            {
+                offenders.Add(
+                    $"'{reader}' exists and reads no entitlement flag, so its exemption from " +
+                    "12 §3.2's ban is SATISFIED and must be deleted — together with its row in " +
+                    "30 §3's table. An exemption that outlives what it excused stops describing " +
+                    "anything and starts hiding the next one (steering S4).");
+            }
+        }
+
+        ArchRule.Empty(
+            offenders,
+            "Every licensed entitlement reader that exists still reads the entitlement (S4, 30 §3).");
     }
+
+    /// <summary>The type a licensed reader names, in <c>Core</c> or <c>Application</c>, or <c>null</c>.</summary>
+    private static TypeDefinition? FindLicensedReader(string reader)
+    {
+        foreach (var module in new[] { ProductionAssemblies.CoreModule, ProductionAssemblies.ApplicationModule })
+        {
+            foreach (var type in module.GetTypes())
+            {
+                var matches = reader.Contains('.', StringComparison.Ordinal)
+                    ? type.FullName.Equals(reader, StringComparison.Ordinal)
+                    : type.Name.Equals(reader, StringComparison.Ordinal);
+
+                if (matches)
+                {
+                    return type;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>Whether any method of a type reads an entitlement flag, by the same IL test the ban uses.</summary>
+    private static bool ReadsAnEntitlementFlag(TypeDefinition type) =>
+        type.Methods
+            .Where(method => method.HasBody)
+            .SelectMany(Il.Instructions)
+            .Select(instruction => instruction.Operand switch
+            {
+                MethodReference member => member.Name,
+                FieldReference field => field.Name,
+                _ => null,
+            })
+            .Any(name => name is not null && EntitlementFlag.IsMatch(StripAccessorPrefix(name)));
 
     /// <summary>
     /// The one rule `30` §3 licenses to read the entitlement: the ad-reward auto-grant cap.
@@ -363,13 +454,69 @@ public sealed class IsolationTests
     private static bool IsAdGrantCapRule(TypeDefinition type) =>
         type.Name.Equals(AdGrantCapRuleName, StringComparison.Ordinal);
 
-    /// <summary>Whether a simple type or file name is one of <see cref="EntitlementReaders"/>.</summary>
-    /// <remarks>Ordinal and exact, for the reason <see cref="IsAdGrantCapRule"/> records.</remarks>
-    private static bool IsLicensedEntitlementReader(string simpleName)
+    /// <summary>The repo-relative source file a licensed reader is written in, or <c>null</c> for a name with no home yet.</summary>
+    /// <remarks>
+    /// Derived from the full type name rather than listed beside it, so the grep arm and the IL arm
+    /// can never license two different things. An entry that is a bare simple name — M15-03's, until
+    /// it lands — maps to no path and is matched by file stem instead, which is the narrowest form
+    /// available for a type nobody has placed yet.
+    /// </remarks>
+    private static string? SourcePathOf(string reader)
     {
-        for (var i = 0; i < EntitlementReaders.Count; i++)
+        var lastDot = reader.LastIndexOf('.');
+
+        if (lastDot < 0)
         {
-            if (EntitlementReaders[i].Name.Equals(simpleName, StringComparison.Ordinal))
+            return null;
+        }
+
+        var namespaceName = reader[..lastDot];
+        var typeName = reader[(lastDot + 1)..];
+
+        // SlayIdleRepeat.Core.Handlers -> SlayIdleRepeat.Core/Handlers: the project name is the first
+        // three segments and everything after it is a directory.
+        var segments = namespaceName.Split('.');
+        var project = string.Join('.', segments.Take(2));
+        var directories = segments.Skip(2);
+
+        return Path.Combine(
+            new[] { "src", project }.Concat(directories).Append(typeName + ".cs").ToArray());
+    }
+
+    /// <summary>Whether a source file is one of <see cref="EntitlementReaders"/>' own.</summary>
+    private static bool IsLicensedEntitlementReaderFile(string file)
+    {
+        var relative = RepoLayout.Relative(file).Replace('/', Path.DirectorySeparatorChar);
+        var stem = Path.GetFileNameWithoutExtension(file);
+
+        foreach (var (reader, _) in EntitlementReaders)
+        {
+            var path = SourcePathOf(reader);
+
+            var matches = path is null
+                ? stem.Equals(reader, StringComparison.Ordinal)
+                : relative.Equals(path, StringComparison.Ordinal);
+
+            if (matches)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether a type is one of <see cref="EntitlementReaders"/>.</summary>
+    /// <remarks>By full name where the entry has one, by simple name where it does not — see <see cref="SourcePathOf"/>.</remarks>
+    private static bool IsLicensedEntitlementReader(TypeDefinition type)
+    {
+        foreach (var (reader, _) in EntitlementReaders)
+        {
+            var matches = reader.Contains('.', StringComparison.Ordinal)
+                ? type.FullName.Equals(reader, StringComparison.Ordinal)
+                : type.Name.Equals(reader, StringComparison.Ordinal);
+
+            if (matches)
             {
                 return true;
             }
@@ -400,7 +547,7 @@ public sealed class IsolationTests
     {
         foreach (var method in Il.MethodsWithBodies(module))
         {
-            if (IsLicensedEntitlementReader(method.DeclaringType.Name))
+            if (IsLicensedEntitlementReader(method.DeclaringType))
             {
                 continue;
             }

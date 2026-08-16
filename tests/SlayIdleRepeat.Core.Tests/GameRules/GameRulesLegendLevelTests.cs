@@ -125,7 +125,29 @@ public sealed class GameRulesLegendLevelTests
         result.NewState.Player.TalentPoints.ShouldBe(0L);
     }
 
-    /// <summary>The reconciliation stops at the cap.</summary>
+    /// <summary>
+    /// A player one level below the cap, with more XP than any ladder could spend, lands exactly on
+    /// the cap and is granted exactly one Talent Point.
+    /// </summary>
+    /// <remarks>
+    /// The boundary that can actually fail. Starting a player AT the cap tests nothing: the walk's
+    /// own loop condition and the never-lower floor make "the level stayed at the cap" true by
+    /// construction, so only an outright throw could fail it. One level below is where a clamp
+    /// written <c>&lt;=</c> instead of <c>&lt;</c> — or a grant that counted the levels the XP would
+    /// have bought rather than the levels actually gained — goes red.
+    /// </remarks>
+    [Fact]
+    public void A_player_one_level_below_the_cap_lands_exactly_on_it()
+    {
+        var result = Apply(PlayerSnapshots.With(
+            legendLevel: Range.Maximum - 1, legendXp: long.MaxValue / 2));
+
+        result.Accepted.ShouldBeTrue();
+        result.NewState.Player.LegendLevel.ShouldBe(Range.Maximum);
+        result.NewState.Player.TalentPoints.ShouldBe(1L, "one level gained is one point, not 199.");
+    }
+
+    /// <summary>A player already at the cap gains nothing, however much XP they bank.</summary>
     [Fact]
     public void The_reconciliation_stops_at_the_cap()
     {
@@ -134,6 +156,7 @@ public sealed class GameRulesLegendLevelTests
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Player.LegendLevel.ShouldBe(Range.Maximum);
+        result.NewState.Player.TalentPoints.ShouldBe(0L);
     }
 
     /// <summary>One accepted meta command over a player row, through <c>Apply</c> and nothing else.</summary>

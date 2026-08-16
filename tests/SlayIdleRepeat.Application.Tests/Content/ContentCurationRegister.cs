@@ -20,6 +20,17 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// seeded document joins <see cref="Seeds"/> rather than growing a sibling file.
 /// </para>
 /// <para>
+/// ⚠️ <b>Why it is here and not beside <c>ContentLoader.SchemasAwaitingContent</c>, which is the
+/// closer sibling.</b> That register is production code and its rule runs inside the content load,
+/// so a stale entry fails <c>tools/ContentValidator</c> and therefore the build — which is the
+/// stronger place to be. The trade is that <c>ContentLoader</c> would then have to know what a
+/// <c>curation</c> block is, and `14` §6's loader is deliberately generic: it pairs a document with
+/// a schema and validates it, while every type-specific rule already lives in
+/// <c>ContentInvariants</c> or in a suite. Keeping it here costs the build failure and keeps the
+/// loader generic. <b>If a second seeded content type appears, move it</b> — one seeded type is a
+/// note, three are a convention, and a convention belongs beside the other cross-file rules.
+/// </para>
+/// <para>
 /// <b>The mechanism, and it fails in four directions</b> — <c>GapRegister</c>'s shape, applied to
 /// data:
 /// </para>

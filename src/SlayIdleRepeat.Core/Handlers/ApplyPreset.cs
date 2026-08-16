@@ -44,9 +44,7 @@ internal static class ApplyPreset
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(input);
 
-        // An ENDED run in the slice is not an active one: it can no longer be played, so nothing it
-        // holds is being changed under it.
-        if (input.State.Run is { Phase: not RunPhase.Ended })
+        if (!LoadoutRules.MayChangeLoadout(input.State.Run))
         {
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }

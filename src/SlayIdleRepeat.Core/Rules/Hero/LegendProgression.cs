@@ -46,18 +46,36 @@ internal static class LegendProgression
     /// <param name="lifetimeXp">Their lifetime banked Legend XP.</param>
     /// <param name="banks">Their Energy banks, as the command left them.</param>
     /// <param name="content">The version-stamped content snapshot the command is reading.</param>
+    /// <param name="range">The authored Legend Level range, read once by the caller.</param>
+    /// <param name="energy">The authored energy numbers, read once by the caller.</param>
     /// <returns>
     /// The reconciliation. <c>Occurred</c> is false — and the banks come back unchanged — when the
     /// player is already standing where their XP puts them, which is the normal case on every command.
     /// </returns>
-    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
+    /// <remarks>
+    /// A player already at the cap returns before the curve is read or walked at all: they can gain
+    /// no level, however much XP they bank, and they are the one population for whom the ladder walk
+    /// would be longest.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="lifetimeXp"/> is negative.</exception>
     internal static LegendLevelUp Reconcile(
-        int currentLevel, long lifetimeXp, EnergyBanks banks, ContentSnapshot content)
+        int currentLevel,
+        long lifetimeXp,
+        EnergyBanks banks,
+        ContentSnapshot content,
+        LegendTuning range,
+        EnergyTuning energy)
     {
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(range);
+        ArgumentNullException.ThrowIfNull(energy);
 
-        var range = LegendTuning.Read(content);
+        if (currentLevel >= range.Maximum)
+        {
+            return new LegendLevelUp(currentLevel, currentLevel, 0L, banks);
+        }
+
         var curve = LegendCurveTuning.Read(content);
 
         var derived = LegendLevelCurve.LevelFor(lifetimeXp, curve, range);
@@ -67,8 +85,6 @@ internal static class LegendProgression
         {
             return new LegendLevelUp(currentLevel, currentLevel, 0L, banks);
         }
-
-        var energy = EnergyTuning.Read(content);
 
         return new LegendLevelUp(
             currentLevel,

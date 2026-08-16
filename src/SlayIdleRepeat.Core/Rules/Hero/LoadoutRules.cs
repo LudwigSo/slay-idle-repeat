@@ -23,6 +23,25 @@ namespace SlayIdleRepeat.Core.Rules.Hero;
 /// </remarks>
 internal static class LoadoutRules
 {
+    /// <summary>Whether the loadout may be changed at all right now.</summary>
+    /// <param name="run">The run in the command's slice, or <see langword="null"/> outside a run.</param>
+    /// <returns><see langword="true"/> when no run is in progress.</returns>
+    /// <remarks>
+    /// 🔒 `07` §4: equipping is free and unlimited OUTSIDE a run, and the loadout cannot be changed
+    /// during one. Stated here rather than spelled at each call site, because every command that
+    /// moves the hero's gear needs the same predicate — <c>APPLY_PRESET</c> today, <c>EQUIP</c>
+    /// (M4-03) and the destructive forge operations (M4-04) next — and three copies of it is three
+    /// chances for one of them to read the condition slightly differently.
+    /// <para>
+    /// An ENDED run does not block: it can no longer be played, so nothing it holds is being changed
+    /// under the player. The run's own <c>StartingLoadout</c> is frozen regardless, so even a change
+    /// that slipped through could not alter what an in-progress run is fighting with — what this
+    /// prevents is the player's screen disagreeing with the run they are in.
+    /// </para>
+    /// </remarks>
+    internal static bool MayChangeLoadout(Model.Run? run) =>
+        run is null or { Phase: RunPhase.Ended };
+
     /// <summary>Whether an identity is one this player could wear right now.</summary>
     /// <param name="item">The instance a command named.</param>
     /// <param name="stock">The player's inventory.</param>

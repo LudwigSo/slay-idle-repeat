@@ -469,6 +469,11 @@ public sealed class GapRegisterTests
             .Select(m => m.Groups["wire"].Value)
             .ToArray();
 
+        // 🔴 TO THE INTEGRATOR — M4-04 MERGED FIRST AND MOVED THESE NUMBERS. It landed the
+        // MERGE/ENHANCE/SALVAGE handlers, taking milestone/M4 to 27 deferred / 22 handled. M4-10
+        // takes two more (SAVE_PRESET, APPLY_PRESET), so the merged figures are 25 DEFERRED and 24
+        // HANDLED, and the handled identity list is M4-04's twenty-two plus those two names. Checked
+        // against milestone/M4 directly rather than quoted (steering S9).
         owners.Length.ShouldBe(
             28,
             "14 §2.3's registry is 19 run + 30 meta, and 28 of the 49 rows are Deferred since M4-10 " +
