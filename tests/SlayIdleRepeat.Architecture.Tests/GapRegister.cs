@@ -201,17 +201,41 @@ internal static class GapRegister
             "freeze whether a key is an enum, a primitive or a content id before M4-01 knows. Keyed on " +
             "the producer, because the payload is not what is missing."),
 
-        new("FeatCounters", "M4-13", "FeatDefinition",
-            "30 §4 lists 'Feats and Renown (28 D)' on Player, and 28 D2 requires the counters to be " +
-            "LIFETIME aggregate state rather than a projection over the event stream, incremented " +
-            "inside Apply. That makes them the sharpest S6 case in this register and NOT merely early: " +
-            "28 D2.2 catalogues 140 feats, but 16 O29 defers what each counter MEASURES ('feat counter " +
-            "semantics per feat, counters.json') until the M16 kickoff, and 30 §12.7 forbids rebuilding " +
-            "a counter after the fact. So the counter SET ITSELF IS UNDECIDED, and a set invented in " +
-            "M1-04 would be permanently unfixable the day it ships. M4-13 lands the counters early " +
-            "precisely because retroactivity needs them to predate the M16 feature; it cannot land " +
-            "them before O29 names them. Keyed on FeatDefinition, the type that reads feats.json / " +
-            "counters.json and therefore cannot exist until O29 is ruled."),
+        // 🔒 M4-13 DISCHARGED THE FeatCounters ENTRY THAT USED TO SIT HERE, in the Subject
+        // direction: SlayIdleRepeat.Core.Model.FeatCounters is authored — the read-only wrapper over
+        // Player's own lifetime counter map — so Expired()'s second arm would fire on the entry, and
+        // removing it is FORCED rather than remembered. The 30 §4 Player-contents transcription below
+        // still lists "FeatCounters"; Undeclared() now finds it authored under Domain.ModelNamespace
+        // directly, on 'DraftedPerks'' precedent, which keeps the other direction — delete the type
+        // and the undeclared check fails naming the row.
+        //
+        // ⚠️ WHAT M4-13 DID NOT DISCHARGE, and it is the half the old entry was really about: what
+        // each counter MEASURES. 16 O29 defers 'feat counter semantics per feat (counters.json)' to
+        // the M16 kickoff, and 30 §12.7 forbids rebuilding a counter after the fact — so M4-13 built
+        // the MECHANISM (an open, additive, string-keyed map advanced inside Apply from the event
+        // list it already returns) and authored only the ids the events that exist today can support.
+        // That remaining gap is the FeatDefinition entry below, and it is owned by M16, not by M4-13.
+
+        new("FeatDefinition", "M16", "FeatCounterId",
+            "28 D2 catalogues 140 feats across 9 categories and 28 D3 pays them in Renown; a " +
+            "FeatDefinition is the type that reads feats.json and names the counter its measure is " +
+            "stated over. It cannot be written before 16 O29 rules WHAT A COUNTER ID IS — a closed " +
+            "enum, a primitive, or a content id — which is the same trap PityCounterAdvanced is " +
+            "deferred for: a payload that compiles is not a payload that was decided. " +
+            "🔒 THE LIVE PREDICATE HERE IS THE SUBJECT ARM, NOT WaitsFor, and this entry says so " +
+            "rather than overselling itself. No design document names a 'FeatCounterId': it is the " +
+            "name a closed vocabulary WOULD take, and if O29 rules that ids stay bare strings — " +
+            "which is what M4-13 itself chose for the ids it writes — the type never exists and that " +
+            "arm is inert for good. What cannot be inert is Expired()'s second arm, which fires on " +
+            "IsPresentInCore('FeatDefinition'): M16 cannot author the feature and leave this entry " +
+            "standing, whatever it decides an id is. WaitsFor is carried as the earlier of the two " +
+            "tripwires, not as the load-bearing one. " +
+            "⚠️ M4-13 already writes lifetime counters under ids of its own. They are internal to " +
+            "Core and cover only what DiceRolled and CurrencyChanged can support — but they are " +
+            "dictionary keys inside PlayerSnapshot, so they are folded into every stateHash and are " +
+            "cheap to EXTEND and effectively impossible to RENAME. That is the sense in which O29 " +
+            "is not pre-empted: the storage shape is open, the id set is not a published contract, " +
+            "and what each feat MEASURES is still undecided."),
 
         // ---------------------------------------------------------------- M1-05, 30 §4 + 02 §1.1
         //
@@ -471,7 +495,35 @@ internal static class GapRegister
             "Inventory",
             "ContainerShelf",
             "PityCounters",
+
+            // 🔒 M4-13 AUTHORED THIS ONE and it stays in the transcription, on 'DraftedPerks''
+            // precedent rather than 'PendingFork''s: Undeclared() finds Model.FeatCounters authored
+            // and is silent, and what the row still buys is the OTHER direction — delete the type or
+            // move it out of Core/Model/ and the undeclared check fails naming 30 §4's row. The
+            // storage is built; what M16 still owes is the counter SEMANTICS, carried by the
+            // FeatDefinition entry above rather than by this name. 🔒 GapRegisterTests floors this
+            // row by identity — without that floor, dropping the name here was silent in all four
+            // directions, measured.
             "FeatCounters",
+        }),
+
+        // 🔒 M4-13, `28` D2 — the anchor for the FeatDefinition entry above, and a FRAGMENT for the
+        // reason the two aggregate-contents rows are: Part D enumerates a 140-row catalogue, nine
+        // categories, a tiering rule, a Renown ladder and a retroactivity guarantee, and almost none
+        // of that is type-shaped.
+        //
+        // BUILT (M4-13, and therefore not deferred): the LIFETIME COUNTERS themselves —
+        // Model.FeatCounters plus Rules.Feats.FeatCounterProjection, advanced inside GameRules.Apply
+        // off the event list it already returns. `28` D2's Evaluation row and `30` §12.7 are explicit
+        // that the counters are aggregate state, and D2's Retroactivity row is why they could not
+        // wait for M16: a counter that starts when the feature ships is a counter of zero.
+        //
+        // GENUINELY ABSENT AND TYPE-SHAPED — the definition, and only that. Renown is a NUMBER on the
+        // profile (28 D5 is titled 'Why Renown is a number and not a rank'), so it is not transcribed
+        // here for the reason 'Legend Level' is left off 30 §4's row: it will be a field, not a type.
+        new("28 D2 (the feat catalogue — the vocabulary 16 O29 must rule)", Domain.ContentNamespace, new[]
+        {
+            "FeatDefinition",
         }),
 
         // 🔒 M3-02 dropped BOTH 'Board' and 'PendingFork' from this row, for two different reasons —

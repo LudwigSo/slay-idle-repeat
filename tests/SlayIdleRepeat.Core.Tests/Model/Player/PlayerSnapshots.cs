@@ -83,7 +83,18 @@ internal static class PlayerSnapshots
     /// the shipped value", which is what makes it readable — so the null cases get their own door
     /// rather than a sentinel that every other call site would have to understand.
     /// </remarks>
-    internal static PlayerSnapshot WithNull(bool wallet = false, bool daily = false, bool weekly = false) =>
+    /// <remarks>
+    /// <paramref name="cleared"/> and <paramref name="feats"/> are the two appended maps, and they
+    /// are deliberately asymmetric: a null <c>ClearedChapterTiers</c> is READ as "nothing cleared
+    /// yet", while a null <c>FeatCounters</c> is a FAULT. Both stay expressible here so that
+    /// asymmetry is testable rather than assumed.
+    /// </remarks>
+    internal static PlayerSnapshot WithNull(
+        bool wallet = false,
+        bool daily = false,
+        bool weekly = false,
+        bool cleared = false,
+        bool feats = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -102,7 +113,9 @@ internal static class PlayerSnapshots
             Monday,
             weekly ? null! : Counters(),
             LoginCalendarTuning.FirstDay,
-            false);
+            false,
+            cleared ? null : Counters(),
+            feats ? null! : Counters());
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static PlayerSnapshot With(
@@ -124,7 +137,8 @@ internal static class PlayerSnapshots
         IReadOnlyDictionary<string, long>? weeklyCounters = null,
         int? loginCalendarDay = null,
         bool? loginCalendarDayClaimed = null,
-        IReadOnlyDictionary<string, long>? clearedChapterTiers = null) =>
+        IReadOnlyDictionary<string, long>? clearedChapterTiers = null,
+        IReadOnlyDictionary<string, long>? featCounters = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -148,5 +162,6 @@ internal static class PlayerSnapshots
             // exception rather than the rule.
             loginCalendarDay ?? LoginCalendarTuning.FirstDay,
             loginCalendarDayClaimed ?? false,
-            clearedChapterTiers ?? Counters());
+            clearedChapterTiers ?? Counters(),
+            featCounters ?? Counters());
 }

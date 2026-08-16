@@ -59,6 +59,9 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M3-06's draft rarity weights/composition seams — outside the ordering entirely, like <see cref="BoardNamespace"/>.</summary>
     internal const string PerksNamespace = "SlayIdleRepeat.Core.Rules.Perks";
 
+    /// <summary>M4-13's event → lifetime-counter table — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
+    internal const string FeatsNamespace = "SlayIdleRepeat.Core.Rules.Feats";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -154,6 +157,29 @@ public sealed class IntraRulesLayeringRuleTests
         (PerksNamespace, CombatNamespace,
             "Perks is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — the draft engine has no current reason to read the combat simulator."),
+
+        // 🔒 M4-13's Rules/Feats/ (FeatCounterProjection, FeatCounterIncrement), pinned OUTSIDE the
+        // ordering the same way Perks is, for the same reason: the projection's only Core
+        // dependencies outside its own namespace are Events, Content.Dice and Primitives — zero
+        // current coupling to Combat/Stats/Effects in either direction. It is a pure fold over the
+        // event list GameRules.Apply has already produced; it never asks how a fight went, only what
+        // the fight said happened, and a counter that reached into the simulator to ask again would
+        // be counting a second, differently-derived answer.
+        //
+        // ⚠️ The direction these edges leave OPEN is the one that will eventually be needed: when a
+        // combat event lands (28 D2.1's 'Slaughter' category is 20 feats over enemies defeated,
+        // crits and overkill), it will be an Events type that Rules.Combat produces and this
+        // projection consumes — Events, not Rules.Combat, so no edge here has to move.
+        (FeatsNamespace, EffectsNamespace,
+            "Feats is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a counter projection reads the event list, not the effect DSL's resolver."),
+        (FeatsNamespace, StatsNamespace,
+            "Feats is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a counter projection has no reason to read stat aggregation."),
+        (FeatsNamespace, CombatNamespace,
+            "Feats is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a counter projection reads what the simulation REPORTED, through the event " +
+            "list, rather than re-deriving it from the simulator."),
     };
 
     /// <summary>

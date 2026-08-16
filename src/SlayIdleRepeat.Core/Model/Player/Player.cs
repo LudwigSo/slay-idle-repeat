@@ -42,8 +42,8 @@ namespace SlayIdleRepeat.Core.Model;
 /// the same method puts it under that guard too.
 /// </para>
 /// <para>
-/// Deliberately absent: inventory, gear instances, the unopened-container shelf, pity counters and
-/// lifetime feat counters — each deferred with a <c>GapRegister</c> entry keyed on a type that must
+/// Deliberately absent: inventory, gear instances, the unopened-container shelf and pity counters —
+/// each deferred with a <c>GapRegister</c> entry keyed on a type that must
 /// not yet exist, so the build fails the day one becomes writable without a home here. Entitlement
 /// lives on the session instead, reached as <c>GameContext.Entitlements</c>. There is no factory for a
 /// new player either: starting values are a later milestone's decision, and <see cref="Rehydrate"/> is
@@ -105,6 +105,13 @@ public sealed class Player
     /// <inheritdoc cref="_clearedChapterTiers"/>
     private readonly ReadOnlyDictionary<string, long> _clearedChapterTiersView;
 
+    // ---------------------------------------------------------------- feat counters
+
+    /// <summary>The lifetime feat counters, and the view <see cref="FeatCounters"/> hands out.</summary>
+    /// <remarks>Mutated in place like the daily and weekly counters, and — unlike them — never cleared.</remarks>
+    private readonly Dictionary<string, long> _featCounters;
+    private readonly FeatCounters _featCountersView;
+
     private long _legendXp;
 
     /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
@@ -126,7 +133,8 @@ public sealed class Player
         Dictionary<string, long> weeklyCounters,
         int loginCalendarDay,
         bool loginCalendarDayClaimed,
-        Dictionary<string, long> clearedChapterTiers)
+        Dictionary<string, long> clearedChapterTiers,
+        Dictionary<string, long> featCounters)
     {
         Id = id;
         DisplayName = displayName;
@@ -149,6 +157,8 @@ public sealed class Player
         _loginCalendarDayClaimed = loginCalendarDayClaimed;
         _clearedChapterTiers = clearedChapterTiers;
         _clearedChapterTiersView = new ReadOnlyDictionary<string, long>(clearedChapterTiers);
+        _featCounters = featCounters;
+        _featCountersView = new FeatCounters(new ReadOnlyDictionary<string, long>(featCounters));
     }
 
     /// <summary>The aggregate root's identity.</summary>
@@ -229,6 +239,26 @@ public sealed class Player
     /// <summary>The (Chapter, Tier) pairs cleared at least once. See <see cref="_clearedChapterTiers"/>.</summary>
     internal IReadOnlyDictionary<string, long> ClearedChapterTiers => _clearedChapterTiersView;
 
+    /// <summary>The player's lifetime feat counters. A live view, like <see cref="DailyCounters"/>.</summary>
+    /// <remarks>
+    /// <see cref="ResetDailyCounters"/> and <see cref="ResetWeeklyCounters"/> deliberately do not
+    /// reach it — see <see cref="CountFeat"/>.
+    /// </remarks>
+    public FeatCounters FeatCounters => _featCountersView;
+
+    /// <summary>The lifetime count of one feat counter, or zero when nothing has advanced it.</summary>
+    /// <param name="counterId">The counter's id. Never null, empty or whitespace.</param>
+    /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
+    public long FeatCount(string counterId)
+    {
+        if (string.IsNullOrWhiteSpace(counterId))
+        {
+            throw new ArgumentException(BlankFeatCounterId, nameof(counterId));
+        }
+
+        return _featCounters.TryGetValue(counterId, out var count) ? count : 0L;
+    }
+
     /// <summary>The key <see cref="ClearedChapterTiers"/> is stored under.</summary>
     internal static string ChapterTierKey(int chapterId, DifficultyTier tier) =>
         chapterId.ToString(CultureInfo.InvariantCulture) + ":" + tier;
@@ -290,7 +320,8 @@ public sealed class Player
         Copy(_weeklyCounters),
         _loginCalendarDay,
         _loginCalendarDayClaimed,
-        Copy(_clearedChapterTiers));
+        Copy(_clearedChapterTiers),
+        Copy(_featCounters));
 
     /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -344,10 +375,13 @@ public sealed class Player
         var weekly = ReadCounters(snapshot.WeeklyCounters, nameof(PlayerSnapshot.WeeklyCounters), faults);
         RequireLoginCalendar(snapshot, faults);
         var clearedChapterTiers = ReadClearedChapterTiers(snapshot.ClearedChapterTiers, faults);
+        var featCounters = ReadCounters(
+            snapshot.FeatCounters, nameof(PlayerSnapshot.FeatCounters), faults, LifetimeLifespan);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns null
         // also adds a fault — but written as a pattern so the correlation is checked, not asserted.
-        if (faults.Count > 0 || wallet is null || daily is null || weekly is null || clearedChapterTiers is null)
+        if (faults.Count > 0 || wallet is null || daily is null || weekly is null ||
+            clearedChapterTiers is null || featCounters is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -372,7 +406,8 @@ public sealed class Player
             weekly,
             snapshot.LoginCalendarDay,
             snapshot.LoginCalendarDayClaimed,
-            clearedChapterTiers));
+            clearedChapterTiers,
+            featCounters));
     }
 
     /// <summary>Moves one player-scoped wallet currency and produces the <c>CurrencyChanged</c> that attributes it.</summary>
@@ -684,6 +719,50 @@ public sealed class Player
     internal void CountWeekly(string counterKey, long amount) =>
         Count(_weeklyCounters, counterKey, amount, "weekly");
 
+    /// <summary>Advances a lifetime feat counter. The counter comes into existence on its first increment.</summary>
+    /// <param name="counterId">A stable <c>lower_snake_case</c> id owned by the projection that counts. Deliberately not a closed enum.</param>
+    /// <param name="amount">How much to add. Always positive.</param>
+    /// <remarks>
+    /// 🔒 <b>Nothing anywhere lowers or clears one of these.</b> An achievement is claimed
+    /// retroactively against the count, so a reset pays out against a history the player did not
+    /// have — and the real history cannot be recovered, because nothing retains the events it was
+    /// taken from.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is not positive, or the count overflows.</exception>
+    internal void CountFeat(string counterId, long amount)
+    {
+        if (string.IsNullOrWhiteSpace(counterId))
+        {
+            throw new ArgumentException(BlankFeatCounterId, nameof(counterId));
+        }
+
+        if (amount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "A lifetime feat counter only ever grows; '" + counterId + "' cannot be advanced " +
+                "by " + Text(amount) + ". A negative advance is a refund and belongs in the rule " +
+                "that granted it; a zero advance registers a counter nothing has counted.");
+        }
+
+        _featCounters.TryGetValue(counterId, out var current);
+
+        try
+        {
+            _featCounters[counterId] = checked(current + amount);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Advancing the lifetime feat counter '" + counterId + "' by " + Text(amount) +
+                " from " + Text(current) + " overflows a 64-bit count.");
+        }
+    }
+
     /// <summary>Advances the tutorial to the next beat, as each beat's interaction completes.</summary>
     /// <param name="beat">The beat now reached. Strictly after the current one.</param>
     /// <remarks>Strictly forwards, and refused outright once the tutorial is complete.</remarks>
@@ -853,6 +932,13 @@ public sealed class Player
 
         return counters.TryGetValue(counterKey, out var count) ? count : 0L;
     }
+
+    /// <summary>The blank-id refusal for a feat counter — a different open key space from <see cref="RequireCounterKey"/>'s.</summary>
+    private const string BlankFeatCounterId =
+        "A feat counter id names the projection that owns it, so it is never blank. The id space is " +
+        "deliberately open rather than a closed enum, because what each Feat measures is a decision " +
+        "the milestone that ships Feats still has to take — but 'open' means the owner picks the " +
+        "token, not that there is no token.";
 
     private static void RequireCounterKey(string counterKey, string parameterName)
     {
@@ -1116,7 +1202,10 @@ public sealed class Player
     }
 
     private static Dictionary<string, long>? ReadCounters(
-        IReadOnlyDictionary<string, long>? counters, string field, List<string> faults)
+        IReadOnlyDictionary<string, long>? counters,
+        string field,
+        List<string> faults,
+        string lifespan = PeriodicLifespan)
     {
         if (counters is null)
         {
@@ -1142,7 +1231,7 @@ public sealed class Player
             {
                 faults.Add(
                     field + "['" + key + "'] is " + Text(count) + ". A counter counts upwards from " +
-                    "zero and is cleared at its period boundary; it is never settled back down.");
+                    "zero and " + lifespan + "; it is never settled back down.");
                 faulted = true;
                 continue;
             }
@@ -1166,13 +1255,24 @@ public sealed class Player
         return ReadCounters(clearedChapterTiers, nameof(PlayerSnapshot.ClearedChapterTiers), faults);
     }
 
+    /// <summary>How long a counter read by <see cref="ReadCounters"/> lives, for the corrupt-row message.</summary>
+    private const string PeriodicLifespan = "is cleared at its period boundary";
+
+    /// <inheritdoc cref="PeriodicLifespan"/>
+    private const string LifetimeLifespan = "is never cleared at all";
+
     /// <summary>The empty counter map every snapshot of a player with no counters shares.</summary>
     /// <remarks>Safe to share: it is read-only and empty, so nothing can distinguish a shared instance from a private one.</remarks>
     private static readonly ReadOnlyDictionary<string, long> NoCounters =
         new(new Dictionary<string, long>(0, StringComparer.Ordinal));
 
     /// <summary>An ordinal copy of a counter map, so no caller shares the aggregate's dictionary.</summary>
-    /// <remarks>Short-circuits on empty, the normal state — this runs on every command, since the client recomputes its own state hash too.</remarks>
+    /// <remarks>
+    /// Short-circuits on empty — this runs on every command, since the client recomputes its own
+    /// state hash too. That is still the normal case for the daily and weekly maps, which clear at
+    /// their boundary, and stops being one for the lifetime map after a player's first counted
+    /// event: from then on it copies, and it must.
+    /// </remarks>
     private static ReadOnlyDictionary<string, long> Copy(Dictionary<string, long> counters) =>
         counters.Count == 0
             ? NoCounters

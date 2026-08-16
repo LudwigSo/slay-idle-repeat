@@ -153,6 +153,11 @@ public sealed class PlayerSnapshotTests
 
             (nameof(PlayerSnapshot.ClearedChapterTiers), v,
                 PlayerSnapshots.With(clearedChapterTiers: PlayerSnapshots.Counters(("1:NORMAL", 1)))),
+
+            // M4-13. The lifetime feat counters are the substrate 28 D2's retroactivity guarantee
+            // rests on, so two players with different histories must never share a stateHash.
+            (nameof(PlayerSnapshot.FeatCounters), v,
+                PlayerSnapshots.With(featCounters: PlayerSnapshots.Counters(("dice_rolled", 1)))),
         };
 
         var invisible = probes

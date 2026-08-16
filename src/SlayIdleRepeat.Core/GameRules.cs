@@ -9,6 +9,7 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Economy;
+using SlayIdleRepeat.Core.Rules.Feats;
 
 namespace SlayIdleRepeat.Core;
 
@@ -119,7 +120,8 @@ public static class GameRules
     /// <exception cref="InvalidOperationException">
     /// A defect, never a refusal: the slice doesn't carry the run its command acts on, an aggregate
     /// doesn't round-trip through its own snapshot, a handler hand-wrote an RNG stream position or
-    /// its own event sequence, or a meta command's handler tried to draw randomness. Every case is a
+    /// its own event sequence, a meta command's handler tried to draw randomness, or a handler
+    /// produced an event carrying a value no lifetime counter can be named for. Every case is a
     /// miswired caller or a broken rule, never a player asking for something they cannot have.
     /// </exception>
     public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context) =>
@@ -244,7 +246,28 @@ public static class GameRules
         RequireRunUntouched(untouchedRun, working.Run, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
-        return CommandResult.Accept(working, Stamp(Combine(caughtUp, handled.Events)));
+        var events = Stamp(Combine(caughtUp, handled.Events));
+
+        CountFeats(working.Player, events);
+
+        return CommandResult.Accept(working, events);
+    }
+
+    /// <summary>Advances the player's lifetime feat counters for everything this command's events imply.</summary>
+    /// <remarks>
+    /// Runs only on an accepted command, and over the <b>stamped</b> list — the same one the caller
+    /// receives — so what the client replays and what the counters say can never disagree. Indexed
+    /// rather than enumerated: this is on every command's path and the interface would box the
+    /// list's enumerator.
+    /// </remarks>
+    private static void CountFeats(Player player, IReadOnlyList<DomainEvent> events)
+    {
+        var advances = FeatCounterProjection.Project(events);
+
+        for (var i = 0; i < advances.Count; i++)
+        {
+            player.CountFeat(advances[i].CounterId, advances[i].Amount);
+        }
     }
 
     /// <summary>The catch-up's events followed by the handler's — one list, in the order they happened.</summary>
