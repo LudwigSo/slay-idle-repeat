@@ -132,6 +132,14 @@ public sealed class GameRulesRunPhaseGateTests
         var state = EndedRun();
         var ended = state.Run!;
 
+        // 🔒 The premise under the counter assertion below, asserted rather than narrated: against an
+        // ended run that had drawn nothing, "the new run has drawn nothing" is equally true of the
+        // ended one wearing a new phase, and the sharpest assertion in this case would be vacuous.
+        ended.RngStreamPositions.ShouldNotBeEmpty(
+            "the ENDED fixture run carries no draw counters. EndedRun() seeds one on purpose — see " +
+            "this case's remarks — so a fixture that stopped doing it silences the assertion that " +
+            "tells a fresh run apart from a re-phased one.");
+
         var result = SlayIdleRepeat.Core.GameRules.Apply(
             state, new StartRunCommand(Chapter, DifficultyTier.NORMAL), Worlds.Context);
 
@@ -224,9 +232,16 @@ public sealed class GameRulesRunPhaseGateTests
     }
 
     /// <summary>
-    /// …and a run with a battle open refuses it too, at the gate rather than at the handler:
-    /// <c>START_RUN</c> is not <c>CONFIRM_BATTLE_RESULT</c>, which is the only move a battle leaves.
+    /// …and a run with a battle open refuses it too: <c>START_RUN</c> is not
+    /// <c>CONFIRM_BATTLE_RESULT</c>, which is the only move a battle leaves.
     /// </summary>
+    /// <remarks>
+    /// The <c>BattlePending</c> arm is what answers today. Were the exemption widened past
+    /// <c>Ended</c>, <c>StartRun.Handle</c>'s already-active-run guard would answer the same
+    /// <c>ILLEGAL_STATE</c> instead and no <c>RejectionReason</c> could tell the two apart — so the
+    /// assertion that catches the widening a player would feel, the one that also discards the run
+    /// they are in, is the refusal itself rather than its reason.
+    /// </remarks>
     [Fact]
     public void START_RUN_against_a_BattlePending_run_is_refused_and_that_run_is_untouched()
     {
@@ -256,10 +271,20 @@ public sealed class GameRulesRunPhaseGateTests
     /// exactly as it was: the ended run still there, the counter unmoved.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Chapter 0 is below the authored floor, so the gate lets the command through and
     /// <c>StartRun.Handle</c> refuses it for a reason of its own — deliberately <b>not</b>
     /// <c>RUN_ALREADY_ENDED</c>, which is what distinguishes "the door opened and the handler said
     /// no" from "the door never opened".
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>That is as far as the reason can pin it, and the limit is stated rather than glossed
+    /// (steering S2).</b> <c>StartRun.Handle</c> answers <c>ILLEGAL_STATE</c> from two guards — the
+    /// chapter floor this case names, and the already-active-run guard that fires when the gate lets
+    /// <c>START_RUN</c> through without the ended run being cleared off the working copy — and a
+    /// <c>RejectionReason</c> cannot tell them apart. <see cref="START_RUN_against_an_Ended_run_opens_a_fresh_run"/>
+    /// is what rules the second one out; the two are read together.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_refused_START_RUN_on_an_Ended_run_returns_the_callers_own_slice()
@@ -275,7 +300,11 @@ public sealed class GameRulesRunPhaseGateTests
             RejectionReason.ILLEGAL_STATE,
             "this is deliberately NOT RUN_ALREADY_ENDED: the ended-run gate is supposed to let " +
             "START_RUN through and StartRun.Handle is supposed to refuse this chapter on its own. " +
-            "RUN_ALREADY_ENDED means the gate answered first and the handler was never reached.");
+            "RUN_ALREADY_ENDED means the gate answered first and the handler was never reached. " +
+            "⚠️ ILLEGAL_STATE does NOT by itself say which of StartRun.Handle's two guards answered — " +
+            "the chapter floor, or the already-active-run guard that fires when the ended run was " +
+            "never cleared off the working copy. If START_RUN_against_an_Ended_run_opens_a_fresh_run " +
+            "is red too, it is the second one.");
 
         result.NewState.ShouldBeSameAs(
             state, "a refused command must hand the caller back the very slice it was given.");

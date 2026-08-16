@@ -11,7 +11,8 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 /// 🔒 <b>A player gets more than one run, and it is driven rather than asserted about.</b>
 /// <c>BEGIN_SESSION</c> → <c>START_RUN</c> → <c>ABANDON_RUN</c> → <c>START_RUN</c>, on one
 /// <see cref="InMemoryGame"/>, every step of it a command. There is no call to an aggregate mutator
-/// anywhere in this file and no seam other than <c>game.Send(...)</c>.
+/// anywhere in this file: apart from creating the player, every state change comes from
+/// <c>game.Send(...)</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -81,9 +82,12 @@ public sealed class InMemoryGameRunLifecycleTests
             "the second run committed the first run's seed, so it would replay the board the player " +
             "has already walked.");
 
-        opened.RngStreamPositions.ShouldBeEmpty(
-            "the second run started with draw counters already advanced, which a run that has drawn " +
-            "nothing cannot have.");
+        // ⚠️ NO DRAW-COUNTER ASSERTION HERE, and its absence is the deliberate half. "The second run
+        // has drawn nothing" only tells a new run from a re-phased one when the FIRST run drew
+        // something, and this one cannot: START_RUN and ABANDON_RUN both draw nothing, which is the
+        // whole reason this lifecycle needs no board. The discriminating form lives where the ended
+        // run does carry counters: GameRulesRunPhaseGateTests seeds the map by fixture, and
+        // MetaLoopTests asserts it over a run that actually played.
 
         game.State(player).Player.RunsStarted.ShouldBe(
             2L, "two runs were opened, so the lifetime counter reads two.");
@@ -117,7 +121,9 @@ public sealed class InMemoryGameRunLifecycleTests
         Accepted(game.Send(player, new AbandonRunCommand()), "ABANDON_RUN");
         Accepted(game.Send(player, new StartRunCommand(Chapter, DifficultyTier.NORMAL)), "START_RUN (second)");
 
-        var second = game.State(player).Run!;
+        // The id as a VALUE, not the aggregate: InMemoryGame.State hands out the harness's own Run and
+        // says to re-read it after every Send rather than hold it.
+        var secondId = game.State(player).Run!.Id;
 
         var third = game.Send(player, new StartRunCommand(Chapter, DifficultyTier.NORMAL));
 
@@ -130,7 +136,7 @@ public sealed class InMemoryGameRunLifecycleTests
             "the refusal came from somewhere other than StartRun.Handle's already-active-run guard.");
 
         game.State(player).Run!.Id.ShouldBe(
-            second.Id, "the live run was replaced by a refused command's run.");
+            secondId, "the live run was replaced by a refused command's run.");
 
         game.State(player).Player.RunsStarted.ShouldBe(
             2L, "a refused START_RUN must not spend the lifetime run counter.");
@@ -141,8 +147,7 @@ public sealed class InMemoryGameRunLifecycleTests
     /// <summary>A harness with one player, already through <c>BEGIN_SESSION</c>.</summary>
     private static (InMemoryGame Game, PlayerId Player) Session()
     {
-        var game = Harnesses.New();
-        var player = game.CreatePlayer();
+        var (game, player) = Harnesses.WithPlayer();
 
         Accepted(game.Send(player, Harnesses.BeginSession), "BEGIN_SESSION");
 

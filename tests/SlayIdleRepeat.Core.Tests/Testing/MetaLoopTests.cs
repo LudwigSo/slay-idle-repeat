@@ -438,6 +438,14 @@ public sealed class MetaLoopTests
     /// compares by reference. What carries the weight here is the second run existing at all, and
     /// being a genuinely different run from the first.
     /// </para>
+    /// <para>
+    /// 🔒 <b>The draw counters are the sharpest half of "genuinely different", and this is the one
+    /// file where they bite hardest.</b> The first run here actually played — it rolled, fought and
+    /// drafted — so its counter map is non-empty, and a second run that came back holding those
+    /// counters is the ended run wearing a new phase. The sibling cases seed that map by fixture
+    /// (<c>GameRulesRunPhaseGateTests</c>) or cannot produce one at all
+    /// (<c>InMemoryGameRunLifecycleTests</c>, whose two-command run draws nothing).
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_second_run_starts_after_the_first_ends_and_carries_the_players_loadout()
@@ -447,7 +455,18 @@ public sealed class MetaLoopTests
 
         game.State(player).Run!.Phase.ShouldBe(RunPhase.Ended, Trace(driver));
 
-        var firstId = game.State(player).Run!.Id;
+        var ended = game.State(player).Run!;
+        var firstId = ended.Id;
+        var firstSeed = ended.RunSeed;
+        var firstDraws = ended.RngStreamPositions;
+
+        // 🔒 The premise under the counter assertion below, asserted rather than narrated: against a
+        // first run that had drawn nothing, "the second run has drawn nothing" would be equally true
+        // of the first one re-phased, and the sharpest assertion here would be worth nothing.
+        firstDraws.ShouldNotBeEmpty(
+            "the run that just ended drew from no stream at all, which the loop above makes " +
+            "impossible — it rolls, fights and drafts. Something stopped the run travelling." +
+            Trace(driver));
 
         // Read between the two runs, which is the only moment the carry can be compared against.
         var heldBetweenRuns = Canonical(game.State(player).Player.Loadout.ToSnapshot());
@@ -473,6 +492,17 @@ public sealed class MetaLoopTests
             firstId,
             "the second run carries the FIRST run's identity, so the ended run was re-phased rather " +
             "than replaced." + Trace(driver));
+
+        opened.RunSeed.ShouldNotBe(
+            firstSeed,
+            "the second run committed the FIRST run's seed, so it would replay the board the player " +
+            "has already walked." + Trace(driver));
+
+        opened.RngStreamPositions.ShouldBeEmpty(
+            "the second run opened holding the draw counters the first run left behind (" +
+            string.Join(", ", opened.RngStreamPositions.Select(row => row.Key + "=" + row.Value)) +
+            "), which a run that has drawn nothing cannot have — so the ended run was never cleared " +
+            "off the working slice and what came back is it, re-phased." + Trace(driver));
 
         game.State(player).Player.RunsStarted.ShouldBe(
             2L,
