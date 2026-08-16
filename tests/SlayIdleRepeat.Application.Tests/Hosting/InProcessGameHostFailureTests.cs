@@ -41,7 +41,18 @@ public sealed class InProcessGameHostFailureTests
             "the failure has to name the player it could not load. A command arrives with an identity " +
             "the game already issued, so a miss is a miswired host — and a message that does not say " +
             "which identity leaves nothing to diagnose it with.");
+
+        thrown.Message.ShouldContain(
+            NothingStored,
+            Case.Sensitive,
+            "the store's own words for this arm, unchanged. The very same exception type, also naming " +
+            "the player, is what a row that will not rehydrate raises — so a host that caught the load " +
+            "and rethrew its own would still satisfy the assertion above while telling a corrupt " +
+            "profile and an absent one apart nowhere.");
     }
+
+    /// <summary>How the store says nothing is stored, as against how it says a row will not load.</summary>
+    private const string NothingStored = "Nothing is stored for player";
 
     [Fact]
     public async Task ReadOwnStateAsync_answers_NoSuchPlayer_when_nothing_is_stored_for_them()

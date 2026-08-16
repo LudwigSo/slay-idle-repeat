@@ -4,6 +4,7 @@ using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Events;
 using SlayIdleRepeat.Application.Tests.UseCases;
+using SlayIdleRepeat.Core;
 using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Application.Tests.Hosting;
@@ -25,18 +26,26 @@ internal static class Hosts
     /// <param name="ids">The generator. Defaults to a fresh <see cref="CountingIdGenerator"/>.</param>
     /// <param name="content">The content set. Defaults to the shipped one.</param>
     /// <param name="sinks">Where events go. Defaults to none at all.</param>
+    /// <param name="entitlements">
+    /// The subscription entitlement. Defaults to the absence factory a composition root has to name
+    /// too — a case that passes one of its own is asking whether this argument reaches the domain at
+    /// all, which is not answerable while every host in the suite is composed the same way.
+    /// </param>
+    /// <param name="flags">The kill switches. Defaults to the absence factory.</param>
     internal static InProcessGameHost Over(
         ILocalCachePort cache,
         IClockPort? clock = null,
         IIdGeneratorPort? ids = null,
         ContentSnapshot? content = null,
-        IReadOnlyList<IDomainEventSink>? sinks = null) =>
+        IReadOnlyList<IDomainEventSink>? sinks = null,
+        Entitlements? entitlements = null,
+        FeatureFlags? flags = null) =>
         new(
             cache,
             clock ?? new AdjustableClock(),
             ids ?? new CountingIdGenerator(),
             content ?? Worlds.Content,
-            LocalHostAmbience.NoSubscriptionResolved(),
-            LocalHostAmbience.NoRemoteConfigResolved(),
+            entitlements ?? LocalHostAmbience.NoSubscriptionResolved(),
+            flags ?? LocalHostAmbience.NoRemoteConfigResolved(),
             sinks ?? []);
 }

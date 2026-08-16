@@ -1,6 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Services.Content;
+using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.Content;
 using SlayIdleRepeat.Application.Tests.Persistence;
 using SlayIdleRepeat.Application.Tests.UseCases;
@@ -65,6 +66,31 @@ public sealed class InProcessGameHostProfileTests
             "the starting row over a played one would reset the account.");
     }
 
+    /// <summary>
+    /// The row goes down before anything that names it. A crash between the two writes then leaves an
+    /// unreferenced row and the next launch mints a fresh profile — a leak. The other order leaves a
+    /// name for a row that is not there, and every command afterwards fails on the load forever.
+    /// </summary>
+    [Fact]
+    public async Task OpenProfileAsync_commits_the_profile_row_before_anything_that_names_it()
+    {
+        var cache = new RecordingCache(new InMemoryLocalCache());
+        var host = Hosts.Over(cache);
+
+        var player = await host.OpenProfileAsync(Worlds.Cancel);
+
+        cache.Writes.Count.ShouldBeGreaterThan(
+            1,
+            "creating the profile wrote the row and nothing else, so the next launch has no way to " +
+            "find it again — and 'the row went first' would be true of a host that wrote only one key.");
+
+        cache.Writes[0].ShouldBe(
+            SliceKeys.ForPlayer(player),
+            "something was stored ahead of the player's own row. Whatever points at a profile has to " +
+            "be written after the profile exists, or an interrupted first launch is a permanently " +
+            "bricked one rather than a leaked row.");
+    }
+
     [Fact]
     public async Task OpenProfileAsync_returns_the_stored_profile_to_a_fresh_host_over_the_same_cache()
     {
@@ -121,13 +147,29 @@ public sealed class InProcessGameHostProfileTests
         var harness = new InMemoryGame(Worlds.Content, Worlds.Seed, new VirtualClock(clock.UtcNow));
         var reference = harness.State(harness.CreatePlayer()).Player.ToSnapshot();
 
-        // The teeth: without this, the comparison below would also hold if the writer collapsed every
-        // row to the same bytes.
+        // The teeth: without these, the comparison below would also hold if the writer collapsed
+        // every row to the same bytes. Two shapes, because a scalar and a collection reach the
+        // comparison down different paths — and it is the collections this row is compared by bytes
+        // for in the first place.
         CanonicalStateWriter.HashMetaCommandState(reference with { LegendXp = reference.LegendXp + 1 })
             .ShouldNotBe(
                 CanonicalStateWriter.HashMetaCommandState(reference),
-                "one changed field produced identical bytes, so the comparison below cannot see a " +
+                "one changed scalar produced identical bytes, so the comparison below cannot see a " +
                 "difference either.");
+
+        CanonicalStateWriter.HashMetaCommandState(
+                reference with
+                {
+                    FeatCounters = new Dictionary<string, long>(StringComparer.Ordinal)
+                    {
+                        ["FEAT_NOTHING_HAS_EVER_COUNTED"] = 1L,
+                    },
+                })
+            .ShouldNotBe(
+                CanonicalStateWriter.HashMetaCommandState(reference),
+                "an entry added to a counter dictionary produced identical bytes. Every collection " +
+                "on this row would then be invisible to the comparison below, which is exactly the " +
+                "half a starting row is most likely to drift on.");
 
         CanonicalStateWriter.HashMetaCommandState(
                 stored with { Id = reference.Id, DisplayName = reference.DisplayName })
@@ -194,8 +236,9 @@ public sealed class InProcessGameHostProfileTests
         var stored = (await host.ReadOwnStateAsync(player, null, Worlds.Cancel)).View!.Player;
 
         stored.LegendLevel.ShouldBe(
-            3,
-            "the host wrote a starting level the content set does not author. A literal here would " +
-            "also write a row this very content set refuses to rehydrate.");
+            moved.ReadInt32(AuthoredMinimumLegendLevel),
+            "the host wrote a starting level the content set does not author. Read off the moved set " +
+            "rather than restated, so this stays the same assertion the case above makes and not a " +
+            "second transcription of the number the edit happened to pick.");
     }
 }

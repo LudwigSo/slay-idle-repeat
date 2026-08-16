@@ -104,6 +104,54 @@ public sealed class InProcessGameHostCommandTests
             "wins — and START_RUN is exactly the row a host classifying by endpoint gets wrong.");
     }
 
+    // ═══════════════════════════════════════════════════════════ the entitlement
+
+    /// <summary>
+    /// The entitlement a composition root states is the one the domain reads. Nothing else in this
+    /// suite passes one of its own, so without this a host that ignored the argument and resolved its
+    /// own absence value would satisfy every case here and every case about the constructor.
+    /// </summary>
+    [Fact]
+    public async Task SubmitAsync_applies_the_command_under_the_entitlement_the_host_was_composed_with()
+    {
+        var freeAllowance = Worlds.Content.ReadInt32(AuthoredFreePresetAllowance);
+        var beyondIt = new SavePresetCommand(freeAllowance + 1, "the slot a subscription is the answer to");
+
+        var unresolved = Hosts.Over(new InMemoryLocalCache());
+        var free = await unresolved.OpenProfileAsync(Worlds.Cancel);
+
+        // The control: the very same command inside the allowance is accepted for the very same
+        // player, so the refusal below is the entitlement rule and not the slot, the name or the row.
+        var inside = await unresolved.SubmitAsync(
+            free, null, new SavePresetCommand(freeAllowance, "a slot the allowance covers"), Worlds.Cancel);
+
+        inside.Accepted.ShouldBeTrue(
+            "a slot inside the free allowance was refused " + inside.Rejection + ", so nothing below " +
+            "distinguishes the entitlement from whatever refused this.");
+
+        var refused = await unresolved.SubmitAsync(free, null, beyondIt, Worlds.Cancel);
+
+        refused.Rejection.ShouldBe(
+            RejectionReason.NOT_ENTITLED,
+            "the host composed with the absence factory let a free player write past the authored " +
+            "allowance, so the entitlement the composition root stated is not the one that reached " +
+            "the domain.");
+
+        var subscribed = Hosts.Over(
+            new InMemoryLocalCache(), entitlements: new Entitlements(hasPlus: true, expiresAtUtc: null));
+        var subscriber = await subscribed.OpenProfileAsync(Worlds.Cancel);
+
+        var accepted = await subscribed.SubmitAsync(subscriber, null, beyondIt, Worlds.Cancel);
+
+        accepted.Accepted.ShouldBeTrue(
+            "a host composed with Plus refused the slot Plus buys " + accepted.Rejection + ". Read " +
+            "with the refusal above: one argument changed and the domain answered differently, which " +
+            "is the only thing that says the argument is read at all.");
+    }
+
+    /// <summary>How many preset slots a player without a subscription may write, read where the game reads it.</summary>
+    private const string AuthoredFreePresetAllowance = "tuning/ads.json#/plus/freePresets";
+
     // ══════════════════════════════════════════════════════════════════ the clock
 
     [Fact]
