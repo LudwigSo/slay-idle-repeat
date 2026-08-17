@@ -102,6 +102,9 @@ public static class ContentLayout
 
             // The Die Panel's string slots — likewise.
             [ContentDirectory + "die_panel/"] = SchemaDirectory + "die_panel" + SchemaSuffix,
+
+            // The Battle Replay screen's string slots — likewise.
+            [ContentDirectory + "battle/"] = SchemaDirectory + "battle" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

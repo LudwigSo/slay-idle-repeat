@@ -15,14 +15,20 @@ namespace SlayIdleRepeat.Client.Composition;
 public sealed class ComposedBoardScreen
 {
     /// <summary>Pairs the Board presenter with the Die Panel presenter it shows.</summary>
-    /// <exception cref="ArgumentNullException">Either presenter is null.</exception>
-    public ComposedBoardScreen(BoardPresenter board, DiePanelPresenter diePanel)
+    /// <param name="board">Drives the Board screen.</param>
+    /// <param name="diePanel">Drives the Die Panel the board's HUD opens.</param>
+    /// <param name="battle">Builds the replay for the fight the run is standing in.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public ComposedBoardScreen(
+        BoardPresenter board, DiePanelPresenter diePanel, Func<ComposedBattleScreen> battle)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(diePanel);
+        ArgumentNullException.ThrowIfNull(battle);
 
         Board = board;
         DiePanel = diePanel;
+        Battle = battle;
     }
 
     /// <summary>Drives the Board screen.</summary>
@@ -30,6 +36,20 @@ public sealed class ComposedBoardScreen
 
     /// <summary>Drives the Die Panel the board's HUD opens.</summary>
     public DiePanelPresenter DiePanel { get; }
+
+    /// <summary>
+    /// Builds the replay of the fight the run is standing in.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A factory rather than a built presenter, and it takes nothing: unlike the board — which is
+    /// about a run neither screen that reaches it knows in advance — a battle is always the one the
+    /// board's own run is standing in, so the run is already fixed by the time this exists. What is
+    /// not fixed is WHEN: a run fights many battles, each needs its own log, its own playhead and its
+    /// own confirmation, and building one at composition time would hand every fight of the run the
+    /// first fight's presenter. Calling it per fight is what keeps the board out of composition
+    /// entirely — it calls, it does not assemble.
+    /// </remarks>
+    public Func<ComposedBattleScreen> Battle { get; }
 }
 
 /// <summary>
@@ -78,6 +98,12 @@ public static class BoardComposition
                 player,
                 run,
                 rerollRingLapses),
-            new DiePanelPresenter(strings));
+            new DiePanelPresenter(strings),
+
+            // 🔴 The replay's opening speed and its motion setting take their defaults, because the
+            // settings screen that would remember either is not built — see BattleComposition. The
+            // ring's own accessibility flag above is deliberately not reused for them: a player who
+            // turned off one soft timer has not said anything about how fast a fight should play.
+            () => BattleComposition.CreateBattleScreen(composed, player, run));
     }
 }

@@ -94,9 +94,15 @@ public sealed class SceneBoundaryRuleTests
     /// adds it to the tree — so a copy of it filed outside these rules would be a screen transition
     /// nothing governs, one edit from holding the graph it is handed and reading a port off it.
     /// </para>
+    /// <para>
+    /// 🔴 M7-06 added the fourth: the handover onto the battle replay. Like the board's it loads a
+    /// packed scene, drives it and adds it to the tree, and unlike the board's it is half of the
+    /// first BACK path in the client — so a copy of it filed outside these rules would be a screen
+    /// transition nothing governs, in the one place a screen is also torn down.
+    /// </para>
     /// </remarks>
     private static readonly string[] SceneHelperNames =
-        ["SafeAreaInsets", "ButtonTextColours", "BoardHandover"];
+        ["SafeAreaInsets", "ButtonTextColours", "BoardHandover", "BattleHandover"];
 
     /// <summary>An engine node reached only through intermediate engine types — the walk's control.</summary>
     /// <remarks>

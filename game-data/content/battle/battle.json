@@ -1,0 +1,36 @@
+{
+  "$schema": "../../schema/battle.schema.json",
+  "_doc": "M7-06 — the strings the Battle Replay screen (S06) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `status` group is the load-bearing one: a replay that shows nothing looks identical whether the run carries no battle, the phase is wrong, the battle seed cannot be recovered, the hero's stat block cannot be built, the simulator threw or the log came back empty — six different causes, six different things a player or a support ticket can do about them, and therefore six different sentences. The `phase` group names the three boss phases because the log reports the phase entered as a bare number and the phase name lives inside the rules assembly. Deliberately absent, each because it is unreachable rather than forgotten: enemy NAMES and elite modifiers (enemy derivation and the chapter pools never leave the rules assembly, so the banner names the actor by role), a maximum-HP caption for a surviving enemy (the log fixes a starting HP only for the hero and for actors that die), status effect names and potencies (the status engine is internal), the speed setting's persistence across runs (the Settings screen S26 owns it) and every draft, death and run-results caption.",
+  "name": {
+    "title": "loc.battle.title.name"
+  },
+  "label": {
+    "hero": "loc.battle.hero.label",
+    "enemy": "loc.battle.enemy.label",
+    "speed": "loc.battle.speed.label"
+  },
+  "action": {
+    "speedSingle": "loc.battle.speed_single.action",
+    "speedDouble": "loc.battle.speed_double.action",
+    "speedTriple": "loc.battle.speed_triple.action",
+    "skip": "loc.battle.skip.action"
+  },
+  "phase": {
+    "one": "loc.battle.phase_one.name",
+    "two": "loc.battle.phase_two.name",
+    "three": "loc.battle.phase_three.name"
+  },
+  "status": {
+    "loading": "loc.battle.loading.status",
+    "noRun": "loc.battle.no_run.status",
+    "phaseNotBattle": "loc.battle.phase_not_battle.status",
+    "seedUnavailable": "loc.battle.seed_unavailable.status",
+    "heroStatsUnavailable": "loc.battle.hero_stats_unavailable.status",
+    "simulatorFailed": "loc.battle.simulator_failed.status",
+    "logEmpty": "loc.battle.log_empty.status",
+    "readUnavailable": "loc.battle.read_unavailable.status",
+    "victory": "loc.battle.victory.status",
+    "defeat": "loc.battle.defeat.status",
+    "refused": "loc.battle.refused.status"
+  }
+}

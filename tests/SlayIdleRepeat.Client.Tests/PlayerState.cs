@@ -99,6 +99,16 @@ internal static class PlayerState
     /// <param name="pendingForkRemainingSteps">Steps left once the chosen edge is taken.</param>
     /// <param name="draftPending">Whether a won battle's draft is open.</param>
     /// <param name="rerollChargesSpentThisStage">Reroll charges spent since the stage began.</param>
+    /// <param name="runSeed">
+    /// The run's committed seed. Defaulted rather than left to a case, because only the cases about
+    /// the battle replay depend on it — every other screen reads a run that has one and does not
+    /// care which.
+    /// </param>
+    /// <param name="rngStreamPositions">
+    /// The per-stream draw counters, whose <c>combat</c> row counts battles STARTED. Defaulted to
+    /// the empty map a fresh run carries, which is also the shape a replay has to report as "this
+    /// run does not say which battle this is" rather than reading as battle zero.
+    /// </param>
     internal static RunSnapshot Run(
         RunId id,
         PlayerId player,
@@ -114,12 +124,14 @@ internal static class PlayerState
         int? pendingForkJunctionPosition = null,
         int? pendingForkRemainingSteps = null,
         bool draftPending = false,
-        int rerollChargesSpentThisStage = 0) =>
+        int rerollChargesSpentThisStage = 0,
+        ulong runSeed = 1,
+        IReadOnlyDictionary<string, ulong>? rngStreamPositions = null) =>
         new(
             SnapshotSchema.SchemaVersion,
             id,
             player,
-            RunSeed: 1,
+            runSeed,
             chapterId,
             Tier: DifficultyTier.NORMAL,
             LastAppliedAtUtc: FixtureInstant,
@@ -127,7 +139,7 @@ internal static class PlayerState
             currentHp,
             maxHp,
             gold,
-            RngStreamPositions: new Dictionary<string, ulong>(),
+            RngStreamPositions: rngStreamPositions ?? new Dictionary<string, ulong>(),
             AdUses: new Dictionary<string, long>(),
             ResolvedMinigames: new Dictionary<int, string>(),
             pendingForkJunctionPosition,
