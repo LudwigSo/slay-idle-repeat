@@ -1273,7 +1273,7 @@ public sealed class AccessibilityBoundaryTests
                 "past the P4 clone, past 30 §2.3's catch-up, past the 14 §8.1 RNG fold and past the " +
                 "30 §7 event stamping. Reaching an internal member of the CORE ROOT is worse: " +
                 "GameRules.Execute takes a CommandDispatch, so a harness calling it drives the domain " +
-                "against a fabricated command table, past all 49 of 14 §2.3's rows. Either way, every " +
+                "against a fabricated command table, past all 52 of 14 §2.3's rows. Either way, every " +
                 "claim the harness makes about 'the rules decided this' becomes a claim about the " +
                 "harness. 30 §11.3's Rehydrate/ToSnapshot pair and 30 §11.2's Apply are public " +
                 "precisely so this is not a cost: build the state through them and send a command.");
@@ -1415,7 +1415,7 @@ public sealed class AccessibilityBoundaryTests
     /// missed it.</b> <c>GameRules.Execute</c> is <c>internal static</c> and lives in the root, and
     /// <c>Core_internal_layering_holds</c>' <c>Testing</c> row deliberately permits
     /// <c>Testing → root</c> — so a harness calling <c>GameRules.Execute(someFabricatedDispatch, …)</c>
-    /// would drive the domain against a <em>made-up</em> command table, past all 49 production rows,
+    /// would drive the domain against a <em>made-up</em> command table, past all 52 production rows,
     /// and every rule in this suite would stay green. That is worse than reaching an aggregate's
     /// mutator, because it replaces the transition function's own dispatch rather than one write.
     /// <c>GameRules.Apply</c> is <c>public</c>, which is the whole point: `30` §11.2 makes it the one

@@ -360,7 +360,7 @@ public sealed class GameRulesDispatchTests
     }
 
     /// <summary>
-    /// The floor under this whole file: the production registry carries all 49 rows. The number is
+    /// The floor under this whole file: the production registry carries all 52 rows. The number is
     /// a literal rather than the registry's own <c>Count</c> compared to itself, and the set behind
     /// it — which a count cannot see — is pinned against a hand-transcribed list in both directions
     /// by <c>CommandVocabularyTests</c>.
@@ -369,8 +369,9 @@ public sealed class GameRulesDispatchTests
     public void The_production_dispatch_table_carries_the_whole_registry()
     {
         SlayIdleRepeat.Core.GameRules.CommandTypesByWireName.Count.ShouldBe(
-            49,
-            "14 §2.3's registry is 19 run + 30 meta, and M1-02 registered every row. An empty table " +
+            52,
+            "14 §2.3's registry is 19 run + 33 meta — M1-02 registered the original 49 and the M4 " +
+            "retro ruling of 2026-08-17 added three. An empty table " +
             "would make Apply refuse every command in the game with ILLEGAL_STATE while this suite, " +
             "which drives its own tables, stayed entirely green — the failure this assertion exists " +
             "to prevent.");

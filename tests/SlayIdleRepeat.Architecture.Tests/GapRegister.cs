@@ -211,19 +211,30 @@ internal static class GapRegister
         // is a type. So they are written down with an OWNER each, which is the only thing this
         // register can do for a gap it cannot hold.
         //
-        // (1) THERE IS NO EXPAND_INVENTORY COMMAND, and the entry's own text promised the capacity
-        //     model rather than the shop. 14 §2.3's registry is exhaustive — "a command not listed
-        //     here does not exist" — and it authors no inventory-expansion row among its 19 run + 30
-        //     meta commands, so inventing a thirty-first wire name would be filling a VOCABULARY hole
-        //     with a plausible value. The ladder is modelled and tested at the tuning and model tier
-        //     (InventoryTuning.CrownPriceOf, Inventory.PurchaseExpansion), which is as far as code
-        //     can go without a ruling. OWNER: THE M4 MILESTONE REVIEW — it either amends 14 §2.3 to
-        //     author the row, or rules the ladder model-tier-only, and nothing below that level may
-        //     decide it. (This used to name "M4-03's consecutiveMissesBeforeForce rename" as the
-        //     sibling obligation the same reader held. That rename has LANDED — the key is spelled
-        //     forceOnNthKill in luck.json and its schema — so the pairing is gone and only this
-        //     obligation is still open. A note that describes a pending change as pending after it
-        //     shipped is how a reader concludes the whole paragraph is stale.)
+        // (1) ✅ DISCHARGED BY RULING, 2026-08-17 — THERE IS NO EXPAND_INVENTORY COMMAND AND THERE
+        //     WILL NOT BE ONE FOR NOW. This note asked the M4 milestone review to "either amend
+        //     14 §2.3 to author the row, or rule the ladder model-tier-only, and nothing below that
+        //     level may decide it". The review put it to the product owner and the owner took the
+        //     second branch in as many words: "I don't see a reason to increase the inventory size.
+        //     It should be virtually unlimited, cap it by default at 1000 for now and I will
+        //     potentially deal with the limit itself later." So capacity is a FLAT 1000
+        //     (forge.json#/inventory, 08 §5) and 10 §4's Crown ladder plus 10 §2's flat Soul Shard
+        //     alternative stay authored, priced and unspendable.
+        //     ⚠️ The ruling moved the code as well as the data, so this paragraph is not a "still
+        //     open" note wearing a tick: InventoryTuning.CapacityAt is GONE (capacity no longer
+        //     depends on a purchase count) and Inventory.PurchaseExpansion is now a member that
+        //     exists to THROW, naming the flat ceiling — so nothing can charge a player for slots the
+        //     ceiling will not hand over. What survives at the model tier is exactly the deferral:
+        //     InventoryTuning.CrownPriceOf still prices the ladder, and InventoryTuning.Read refuses
+        //     any document set where that ladder becomes reachable, which is the loud failure the day
+        //     somebody authors the command after all.
+        //     The same ruling DID add three other rows to 14 §2.3 — UNEQUIP, LOCK_ITEM and
+        //     SET_AUTO_SALVAGE_RULES, taking the registry from 49 to 52 (19 run + 33 meta) — so
+        //     "the vocabulary is frozen" is not what discharged this; a deliberate decision not to
+        //     add this particular row is.
+        //     (This used to name "M4-03's consecutiveMissesBeforeForce rename" as the sibling
+        //     obligation the same reader held. That rename has LANDED — the key is spelled
+        //     forceOnNthKill in luck.json and its schema — so the pairing was already gone.)
         //     Sorting and comparison need no command at all: §2.3's own table records them as purely
         //     local.
 
@@ -701,15 +712,21 @@ internal static class GapRegister
 
         // 🔒 M1-02, `14` §2.3 — THE CANONICAL COMMAND REGISTRY, transcribed whole.
         //
-        // 49 rows: 19 run + 30 meta. Counted off the document before the vocabulary was written,
-        // rather than taken from a report (steering S9) — the table's own header says "Meta commands
+        // 52 rows: 19 run + 33 meta. Counted off the document before the vocabulary was written,
+        // rather than taken from a report (steering S9) — the table's own header said "Meta commands
         // (29)" and this repository used to say 48, and the M1 kickoff (2026-08-11) recorded BOTH as
         // miscounts of a correct table. Errata, not a scope change.
+        //
+        // 🔒 IT WAS 49 UNTIL THE M4 RETRO RULING OF 2026-08-17, which added three meta rows —
+        // UNEQUIP, LOCK_ITEM and SET_AUTO_SALVAGE_RULES — and that IS a scope change rather than
+        // errata: the product owner opened the frozen vocabulary deliberately. The same ruling
+        // explicitly declined EXPAND_INVENTORY, so "the table grew" is not a licence to add the row
+        // this register's inventory note used to ask for.
         //
         // 🔒 THIS IS THE ONE SURFACE IN THIS ARRAY WITH NO Deferred COMPANION, and that is what it
         // is for. `14` §2.3 says the registry is EXHAUSTIVE — "a command not listed here does not
         // exist" — so the honest transcription is the whole table, and the honest state of it is
-        // "all forty-nine authored". The entry earns its place in the OTHER direction: delete a
+        // "all fifty-two authored". The entry earns its place in the OTHER direction: delete a
         // command type, move one out of Core/Commands/, or rename one, and the undeclared check
         // fails naming the row. Nothing else in the architecture suite watches that —
         // Every_command_type_is_handled_by_Apply quantifies over the types that EXIST and says
@@ -721,7 +738,7 @@ internal static class GapRegister
         // literal list, in both directions, by SlayIdleRepeat.Core.Tests.CommandVocabularyTests.
         // Two mechanisms over two subject sets: this one watches DECLARATION, that one watches
         // REGISTRATION, and a command can lose either without losing the other.
-        new("14 §2.3 (the canonical command registry — 19 run + 30 meta)", Domain.CommandsNamespace, new[]
+        new("14 §2.3 (the canonical command registry — 19 run + 33 meta)", Domain.CommandsNamespace, new[]
         {
             // The 19 run commands, in the table's order.
             "StartRunCommand",
@@ -744,13 +761,16 @@ internal static class GapRegister
             "EndRunCommand",
             "AbandonRunCommand",
 
-            // The 30 meta commands, in the table's order.
+            // The 33 meta commands, in the table's order.
             "BeginSessionCommand",
             "SkipFtueCommand",
             "EquipCommand",
+            "UnequipCommand",
             "MergeCommand",
             "EnhanceCommand",
             "SalvageCommand",
+            "LockItemCommand",
+            "SetAutoSalvageRulesCommand",
             "SpendTalentCommand",
             "RespecCommand",
             "LevelPetCommand",

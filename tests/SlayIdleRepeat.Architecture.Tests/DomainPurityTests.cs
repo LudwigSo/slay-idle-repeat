@@ -192,7 +192,8 @@ public sealed class DomainPurityTests
     /// mentions has no way of being applied.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>LIVE over 49 concrete subtypes since M1-02</b>, which landed `14` §2.3's whole registry.
+    /// 🔒 <b>LIVE over 52 concrete subtypes</b> — M1-02 landed `14` §2.3's whole registry at 49, and
+    /// the M4 retro ruling of 2026-08-17 added three.
     /// M0-08 wrote this against a subject set that did not exist; M1-06 landed the base and the
     /// dispatch table, which made the rule stop short-circuiting while it still quantified over zero
     /// subtypes; M1-02 filled it. Measured on that branch: a fiftieth command declared without a
@@ -203,7 +204,7 @@ public sealed class DomainPurityTests
     /// this remark — "the dispatch surface is <c>GameRules</c> alone until M1-09" — is corrected
     /// rather than left to go stale (steering <b>S4</b>'s known limit).</b> <c>Core/Handlers/</c>
     /// holds <c>BeginSession</c>, so the surface is two types; <c>GameRules</c> still names 48 of the
-    /// 49 and renaming it would drop those out of the dispatched set at once.
+    /// 52 and renaming it would drop those out of the dispatched set at once.
     /// </para>
     /// <para>
     /// ⚠️ <b>What the widening costs, stated so the name does not overpromise</b> (steering
@@ -211,7 +212,7 @@ public sealed class DomainPurityTests
     /// <em>"the dispatch table has a row for it"</em>: a command named only by a handler, with no
     /// row, would read as dispatched here. That is unreachable while a handler is only ever named
     /// <em>from</em> a row, and the independent check on the other side is
-    /// <c>SlayIdleRepeat.Core.Tests.Commands.CommandVocabularyTests</c>, which pins the registry's 49
+    /// <c>SlayIdleRepeat.Core.Tests.Commands.CommandVocabularyTests</c>, which pins the registry's 52
     /// wire names against a hand-transcribed list in both directions.
     /// </para>
     /// </remarks>
@@ -223,7 +224,8 @@ public sealed class DomainPurityTests
         {
             // No command hierarchy AT ALL: the set of unhandled commands is empty and the rule
             // holds. Unreachable on this repository since M1-06 — GameCommand has existed since
-            // then and 49 concrete subtypes since M1-02 — and kept as the guard for an assembly
+            // then and 52 concrete subtypes today (49 from M1-02, three from the 2026-08-17
+            // ruling) — and kept as the guard for an assembly
             // that genuinely has none, not as a "not yet".
             ArchRule.Empty(Array.Empty<string>(), UnhandledCommandRule);
             return;

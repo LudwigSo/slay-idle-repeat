@@ -142,17 +142,23 @@ This table is the **complete** command vocabulary — wire protocol and domain `
 | `END_RUN` | `{}` | |
 | `ABANDON_RUN` | `{}` | |
 
-**Meta commands (30)** — `POST /player/command`, sequence per player (§16.3). Commands whose outcome needs randomness are marked **⚄** and draw from the command's server-issued seed (`30` §3, §8.1). *(M4-04 corrected the count — the table has held thirty rows since the A7 additions — and marked `MERGE` and `ENHANCE` ⚄: both draw, and neither was marked. Eleven rows carry the die.)*
+**Meta commands (33)** — `POST /player/command`, sequence per player (§16.3). Commands whose outcome needs randomness are marked **⚄** and draw from the command's server-issued seed (`30` §3, §8.1). *(M4-04 corrected the count — the table had held thirty rows since the A7 additions — and marked `MERGE` and `ENHANCE` ⚄: both draw, and neither was marked. Eleven rows carry the die.)*
+
+🔒 **The M4 retro's product-owner ruling of 2026-08-17 added three rows: `UNEQUIP`, `LOCK_ITEM` and `SET_AUTO_SALVAGE_RULES`.** The vocabulary goes **49 → 52** (19 run + 33 meta); the run table is untouched. None of the three draws, so none carries **⚄** — the die count stays eleven. Each closes a mechanism that shipped with no way to reach it: a gear slot could be filled but never emptied, `Inventory.SetLock` had no production caller so `LOCKED` was a state no real player could be in, and `Player.AutoSalvageRules` had no writer so `Rules/Forge/AutoSalvageFilter` was unreachable code. ⚠️ The same ruling **explicitly did not add `EXPAND_INVENTORY`** — capacity is a flat 1000 instead (`08` §5), and `10` §4's ladder stays authored and unspendable.
+
+*(Counted off the table below rather than carried forward: 30 rows before this edit, verified line by line, plus three.)*
 
 | Command | Payload sketch | Notes |
 |---|---|---|
 | `BEGIN_SESSION` ⚄ | `{ clientVersion, contentHash }` | *(A7)* Server-acknowledged first contact of a session **and** of each game day. Carries the calendar advance, the daily free Energy refill (`10` §3) and the day's random draws — the quest slate (`19` B) and the Daily shop block (`10` §5.1) — its command seed is the day's draw seed. Semantics: `30` §2.3 |
 | `SKIP_FTUE` | `{}` | *(A7)* Valid only while `ftueProgress` is between beats 2 and 8; grants the full scripted payout and jumps to beat 9 (`19` D6). Idempotent — a resend after completion is a no-op |
 | `EQUIP` | `{ itemId, gearSlot }` | Gear only; pets and mounts have their own commands below |
+| `UNEQUIP` | `{ gearSlot }` | *(M4 review 2026-08-17)* Empties one gear slot. Names the **slot**, not the item — a slot holds at most one identity, and `EQUIP` could only ever overwrite. Refused mid-run on `EQUIP`'s rule (`07` §4), and refused on a slot that is already empty |
 | `MERGE` ⚄ | `{ inputItemIds[2–3], dustSubstituted }` | *(M4-04)* `08` §4.1 fuses **three** items, and the earlier two-id sketch could not express that at all — two ids plus a flag is only complete when `dustSubstituted` is true. The list carries the real inputs: **three** ids with `dustSubstituted: false`, **two** with `dustSubstituted: true`, and no other combination is legal. The affix re-roll at the new rarity draws from this command's seed |
 | `ENHANCE` ⚄ | `{ itemId }` | *(M4-04)* The success roll draws from this command's seed |
 | `SALVAGE` | `{ itemIds[] }` | |
-| `SPEND_TALENT` | `{ nodeId }` | |
+| `LOCK_ITEM` | `{ itemId, locked }` | *(M4 review 2026-08-17)* Sets or clears `08` §5's lock, which excludes an item from auto-salvage and merge selection. An **explicit boolean, not a toggle** — a toggle is not idempotent, and a client retrying under a fresh `commandId` after a timeout would unprotect the item it had just protected. A locked item is accepted (that is how it is unlocked); an item waiting in overflow is not |
+| `SET_AUTO_SALVAGE_RULES` | `{ rules: [{ rarity, belowEnhanceLevel }] }` | *(M4 review 2026-08-17)* Replaces `08` §4.3's auto-salvage filter wholesale; an empty list sweeps nothing. 🔴 **The payload is derived, not authored**: this table sketched none, so the shape is the shipped `Core/Primitives/AutoSalvageRule` row — itself read literally off `08` §4.3's own example, *"salvage all C and B below +3"* — and nothing else. One row per band, at most as many rows as the rarity ladder has bands, and `belowEnhanceLevel` inside `08` §4.2's authored `minLevel..maxLevel+1`. ⚠️ Setting the rows only: nothing applies the filter at run end yet, and the screen that edits them is M9-01's |
 | `RESPEC` | `{}` | |
 | `LEVEL_PET` | `{ beastId }` | Pets **and mounts** — mounts mirror pets (`07` §3.1) |
 | `ASCEND_PET` | `{ beastId }` | Same scope as `LEVEL_PET` |

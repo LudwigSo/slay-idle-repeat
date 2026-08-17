@@ -53,20 +53,20 @@ public sealed class GameCommandTests
     }
 
     /// <summary>
-    /// The hierarchy is closed at the base: a fiftieth concrete subtype is either registered, or a
+    /// The hierarchy is closed at the base: a fifty-third concrete subtype is either registered, or a
     /// command the wire has no name for. Counted over the assembly, not the namespace or dispatch
     /// table, so a command declared in the wrong place still shows up.
     /// </summary>
     [Fact]
-    public void The_command_hierarchy_is_the_forty_nine_of_the_registry()
+    public void The_command_hierarchy_is_the_fifty_two_of_the_registry()
     {
         typeof(GameCommand).Assembly
             .GetTypes()
             .Count(t => !t.IsAbstract && typeof(GameCommand).IsAssignableFrom(t))
             .ShouldBe(
-                49,
-                "14 §2.3's registry is 19 run commands + 30 meta commands and it is EXHAUSTIVE — 'a " +
-                "command not listed here does not exist'. A fiftieth concrete GameCommand in this " +
+                52,
+                "14 §2.3's registry is 19 run commands + 33 meta commands and it is EXHAUSTIVE — 'a " +
+                "command not listed here does not exist'. A fifty-third concrete GameCommand in this " +
                 "assembly is a command with no row on the wire; adding one is a decision recorded in " +
                 "16 and it lands in 14 §2.3 first. If this is 0 the vocabulary is gone.");
     }

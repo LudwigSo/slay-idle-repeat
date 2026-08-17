@@ -31,12 +31,16 @@ public sealed class InMemoryGamePerformanceTests
     private const int Days = 180;
     private const int CommandsPerDay = 4;
 
-    /// <summary>Every slot the expansion ladder can ever reach, filled.</summary>
+    /// <summary>Every slot the flat ceiling admits, filled.</summary>
     /// <remarks>
     /// The largest inventory the game admits, so the comparison is over the worst case a player can
-    /// actually put the domain in rather than a number chosen for the test.
+    /// actually put the domain in rather than a number chosen for the test. It was 320 — the reach of
+    /// an expansion ladder — until the M4 retro's ruling of 2026-08-17 capped capacity flat at 1000
+    /// and removed the purchase, which is a <b>3.1×</b> increase in the per-command clone this test
+    /// exists to bound. Read off the tuning rather than restated, so the fixture cannot drift from
+    /// the ceiling it claims to be measuring.
     /// </remarks>
-    private const int FullStock = 320;
+    private static readonly int FullStock = Inventories.Tuning.MaxCapacity;
 
     /// <summary>The budget, in milliseconds.</summary>
     private const double BudgetMs = 200;
@@ -123,15 +127,45 @@ public sealed class InMemoryGamePerformanceTests
     /// </para>
     /// <para>
     /// What is worth catching is <b>super</b>-linear: an item compared against every other item, a
-    /// derivation re-run per item per item, a set rebuilt inside the copy loop. At three hundred and
-    /// twenty items those show up as a ratio in the hundreds, not the single digits.
+    /// derivation re-run per item per item, a set rebuilt inside the copy loop. At a thousand items
+    /// those show up as a ratio in the thousands, not in the low teens.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>RE-MEASURED AT THE FLAT 1000-SLOT CAP (M4 review, 2026-08-17). Release, 720 commands,
+    /// four runs, each half best-of-three:</b>
+    /// </para>
+    /// <list type="table">
+    ///   <item><term>run 1</term><description>empty 21.1 ms · full 153.5 ms · ratio 7.27</description></item>
+    ///   <item><term>run 2</term><description>empty 14.3 ms · full 117.6 ms · ratio 8.22</description></item>
+    ///   <item><term>run 3</term><description>empty 15.4 ms · full 140.0 ms · ratio 9.09</description></item>
+    ///   <item><term>run 4</term><description>empty 13.9 ms · full 167.4 ms · ratio 12.04</description></item>
+    /// </list>
+    /// <para>
+    /// <b>It fits, and the headroom is the finding.</b> A full player costs <b>118–167 ms</b> against
+    /// `30` §6's 200 ms budget — <b>59 %–84 %</b> of it, where M4-05 measured 101.8 ms (about 51 %) at
+    /// the old 320 cap against a 19.7 ms empty baseline. The absolute assertion is untouched at ten
+    /// times the budget and passes with two thirds of that bound unused. What has gone is the slack:
+    /// at 1000 slots the per-command clone of the player is most of the 180-day budget on a quiet
+    /// machine, so the next cap increase is a `30` §4.1 slice-narrowing or copy-on-write conversation
+    /// rather than a data edit.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The ratio bound moved from 8.0 to 20.0, and that is arithmetic rather than
+    /// accommodation.</b> The ratio is <c>1 + k × items</c> by construction, so tripling the fixture
+    /// triples the part above 1: M4-05's 5.17 at 320 items predicts <c>1 + 4.17 × 3.125 ≈ 14</c> at
+    /// 1000. Every run above came in <em>under</em> that, between 7.3 and 12.0 — but three of the four
+    /// exceed 8.0, so leaving the old bound would have made the linear design fail the test that
+    /// exists to permit it, and a wall-clock ratio that fails randomly is one somebody disables at
+    /// 3am. 20.0 sits above the linear prediction and two orders of magnitude below the thousands an
+    /// <em>O(n²)</em> clone would read at this size. Do not raise it again without re-deriving it
+    /// from a measured per-item cost.
     /// </para>
     /// <para>
     /// The same interleaved best-of-three shape as
     /// <see cref="The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap"/>, and for the same
     /// reason: two separate blocks let a GC pause land on one half only. The inventory is built from
-    /// a persisted row rather than by sending three hundred and twenty grant commands, which would
-    /// measure the grants instead of what this is about.
+    /// a persisted row rather than by sending a thousand grant commands, which would measure the
+    /// grants instead of what this is about.
     /// </para>
     /// </remarks>
     [Fact]
@@ -159,24 +193,28 @@ public sealed class InMemoryGamePerformanceTests
             $"a 180-day player carrying a FULL {FullStock}-item inventory took {full:F1} ms. This is " +
             "the half of the budget question a ratio cannot answer: the ratio stays honest even if " +
             "both halves get ten times slower. 30 §6 budgets 200 ms and this asserts 2,000, the same " +
-            "order-of-magnitude framing the empty-player test above uses. Measured when the " +
-            "inventory landed: 101.8 ms at the maximum stock the capacity ladder can reach, against " +
-            "19.7 ms empty — inside the budget, with about half of it left.");
+            "order-of-magnitude framing the empty-player test above uses. Measured at the flat " +
+            "1000-slot cap (M4 review, 2026-08-17, Release, four runs): 117.6-167.4 ms full against " +
+            "13.9-21.1 ms empty, i.e. 59-84 % of the 200 ms budget. M4-05 measured 101.8 ms against " +
+            "19.7 ms at the old 320 cap, about half the budget. It still fits; what is gone is the " +
+            "slack, so a further cap increase is a 30 §4.1 narrower-slice or copy-on-write decision " +
+            "and not a data edit.");
 
         (full / empty).ShouldBeLessThan(
-            8.0,
+            20.0,
             $"{Commands} commands against an EMPTY inventory took {empty:F1} ms; the same commands " +
             $"against a FULL {FullStock}-item inventory took {full:F1} ms. Linear is EXPECTED — every " +
             "command copies the whole player, stock included, and that copy is what makes a rejected " +
-            "command leave the caller's state untouched. Measured at 5.2 when the inventory landed " +
-            "and RE-MEASURED at 5.04 when the forge gave the stock its first production writer — the " +
-            "forge is not on this drive at all, and what the drive costs is the per-command clone of " +
-            "the player, which the auto-salvage filter grows by one empty list. " +
-            "A bound of eight is set above both rather than at either. What it catches is " +
-            "SUPER-linear work — an item compared against every other item, a derivation re-run per " +
-            "item per item — which at three hundred and twenty items reads in the hundreds, not the " +
-            "single digits. If it fires, find the nested loop; do not raise it, and do not try to " +
-            "make the ratio 1 by removing the clone.");
+            "command leave the caller's state untouched. Measured at 5.2 when the inventory landed at " +
+            "the 320 cap, 5.04 when the forge gave the stock its first production writer, and " +
+            "7.3-12.0 across four Release runs at the flat 1000-slot cap the M4 review of 2026-08-17 " +
+            "ruled. The ratio is 1 + k x items, so tripling the stock triples the part above 1: 5.17 " +
+            "at 320 predicts about 14 here, and every measured run came in under it. The bound is " +
+            "20, above that prediction and two orders of magnitude below the THOUSANDS an O(n^2) " +
+            "clone would read at a thousand items — which is what this catches: an item compared " +
+            "against every other item, a derivation re-run per item per item. If it fires, find the " +
+            "nested loop. Do not raise it without re-deriving it from a measured per-item cost, and " +
+            "do not try to make the ratio 1 by removing the clone.");
     }
 
     /// <summary>The same claim with no clock in it: a gap of any size is one command, and it lands

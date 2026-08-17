@@ -97,7 +97,7 @@ internal static class ForgeWorlds
                 wallet: Funded,
                 inventory: new InventorySnapshot(
                     0,
-                    Inventories.Fill(Inventories.Tuning.CapacityAt(0)).Select(Inventories.Persist).ToArray(),
+                    Inventories.Fill(Inventories.Tuning.MaxCapacity).Select(Inventories.Persist).ToArray(),
                     [Inventories.Persist(held)]))),
             null);
     }
@@ -113,7 +113,7 @@ internal static class ForgeWorlds
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        var capacity = Inventories.Tuning.CapacityAt(0);
+        var capacity = Inventories.Tuning.MaxCapacity;
 
         return new WorldSlice(
             Worlds.Rehydrated(PlayerSnapshots.With(

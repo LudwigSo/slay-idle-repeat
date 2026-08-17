@@ -345,7 +345,7 @@ public sealed class MergeTests
 
         stock.Stored.ShouldContain(item => item.InstanceId == new GearInstanceId("a"));
         stock.Held.ShouldNotContain(item => item.InstanceId == new GearInstanceId("a"));
-        stock.Stored.Count.ShouldBe(Inventories.Tuning.CapacityAt(0));
+        stock.Stored.Count.ShouldBe(Inventories.Tuning.MaxCapacity);
         stock.Held.Count.ShouldBe(1, "two slots opened and two of the three waiting items took them");
     }
 

@@ -18,11 +18,17 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// <c>MissingContentException</c> on the first expansion.
 /// </para>
 /// <para>
-/// 🔒 <b>The ceiling was 400 and the ladder reached 320.</b> The forge document said so in its own
-/// <c>_doc</c>, in as many words, and carried a second key restating the ladder's answer beside the
-/// first one. Two numbers for one quantity is not a conflict a reader can resolve, so the documents
-/// picked: the ceiling is what the ladder reaches, the second key is gone, and the reader refuses a
-/// data set where the two disagree.
+/// 🔒 <b>Capacity is a flat 1000 and the ladder is deferred.</b> The M4 retro's product-owner ruling
+/// of 2026-08-17 capped the stock flat — "virtually unlimited, cap it by default at 1000 for now" —
+/// and added no <c>EXPAND_INVENTORY</c> command, superseding M4 kickoff decision 4's
+/// <c>320 = 120 + 10 × 20</c>. `10` §4's Crown ladder and `10` §2's flat Soul Shard alternative stay
+/// authored and unspendable, so what the data must now satisfy is the <em>deferral</em>: the
+/// ladder's reach stays strictly above the ceiling, and the ceiling is the base.
+/// </para>
+/// <para>
+/// 📎 The older conflict this file was written for is still worth recording: the ceiling once read
+/// 400 while the ladder reached 320, and the document carried a second key restating the ladder's
+/// answer beside the first. That second key is gone and must stay gone.
 /// </para>
 /// </remarks>
 public sealed class InventoryTuningMatchesTuningDataTests
@@ -33,9 +39,9 @@ public sealed class InventoryTuningMatchesTuningDataTests
     /// <summary>The three leaves the reader takes from the forge document.</summary>
     public static TheoryData<string, decimal, string> AuthoredCapacityNumbers => new()
     {
-        { "baseCapacity", 120m, "08 §5 — a player starts with 120 slots" },
-        { "expansionStep", 20m, "08 §5 — +20 slots per expansion" },
-        { "maxCapacity", 320m, "120 + 10 purchases of +20, which is as far as the ladder goes" },
+        { "baseCapacity", 1000m, "08 §5 as amended 2026-08-17 — a player holds a flat 1000 slots" },
+        { "expansionStep", 20m, "08 §5 / 10 §4 — the +20 an expansion WOULD add, deferred and unspent" },
+        { "maxCapacity", 1000m, "08 §5 as amended 2026-08-17 — the ceiling IS the base; nothing grows it" },
     };
 
     [Theory]
@@ -61,17 +67,17 @@ public sealed class InventoryTuningMatchesTuningDataTests
     }
 
     /// <summary>
-    /// 🔒 The ceiling is exactly what the ladder reaches, computed from the shipped numbers rather
-    /// than restated.
+    /// 🔒 The ceiling is the base, and the deferred ladder stays entirely out of its reach — both
+    /// computed from the shipped numbers rather than restated.
     /// </summary>
     /// <remarks>
-    /// The one assertion that would have caught the original conflict, and the one the reader itself
-    /// now enforces at load time. Written as the arithmetic rather than as the literal 320, so it
-    /// keeps holding if the ladder is ever lengthened and stops holding the moment only one of the
-    /// two sides moves.
+    /// The pair that replaces the old "the ceiling is exactly what the ladder reaches", which the
+    /// 2026-08-17 ruling superseded, and the pair the reader itself now enforces at load time.
+    /// Written as the arithmetic rather than as literals, so it keeps holding if the ladder is ever
+    /// lengthened and stops holding the moment the ceiling is raised into its range.
     /// </remarks>
     [Fact]
-    public void The_capacity_ceiling_is_exactly_what_the_ladder_reaches()
+    public void The_ceiling_is_the_base_and_the_deferred_ladder_cannot_reach_it()
     {
         var baseCapacity = Read(Inventory(), "baseCapacity", ForgeDocument + "#/inventory").GetInt32();
         var ceiling = Read(Inventory(), "maxCapacity", ForgeDocument + "#/inventory").GetInt32();
@@ -83,11 +89,19 @@ public sealed class InventoryTuningMatchesTuningDataTests
             .GetInt32();
 
         ceiling.ShouldBe(
+            baseCapacity,
+            $"{ForgeDocument} caps capacity at {ceiling} from a base of {baseCapacity}. Capacity is " +
+            "flat as of the M4 retro ruling of 2026-08-17 and no command grows it, so the two are " +
+            "one number written twice — InventoryTuning.Read refuses the set when they differ, so " +
+            "this does not ship, it fails on the first command of every session.");
+
+        ceiling.ShouldBeLessThan(
             baseCapacity + (purchases * slots),
-            $"{ForgeDocument} caps capacity at {ceiling} and {CurrenciesDocument} sells " +
-            $"{purchases} expansions of +{slots} from a base of {baseCapacity}. The two cannot both " +
-            "be right, and InventoryTuning.Read refuses the data set when they disagree — so this " +
-            "does not ship, it fails on the first command of every session.");
+            $"{CurrenciesDocument} prices {purchases} expansions of +{slots} from a base of " +
+            $"{baseCapacity}, which reaches {baseCapacity + (purchases * slots)}, and the ceiling is " +
+            $"{ceiling}. The ladder is DEFERRED: it stays authored and priced because the owner will " +
+            "deal with the limit later, and every rung of it has to buy slots the ceiling refuses. " +
+            "The pre-ruling documents met this reach exactly — that is the state now refused.");
     }
 
     /// <summary>

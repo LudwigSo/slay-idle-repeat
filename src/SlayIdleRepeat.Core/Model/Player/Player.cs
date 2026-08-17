@@ -50,14 +50,16 @@ namespace SlayIdleRepeat.Core.Model;
 /// the aggregate, which is the shape the luck-routing rule was narrowed to see.
 /// </para>
 /// <para>
-/// ⚠️ <b>Nothing calls into the component yet, and that is worth saying plainly rather than
-/// describing a mechanism that does not exist.</b> No handler reaches <c>player.Inventory</c>; no
-/// type in <c>src/</c> outside this file touches it, so <c>Content.InventoryTuning.Read</c> has no
-/// production caller either. M4-05 landed the container, its numbers and its persistence, and left
-/// the wiring to the tasks that own the operations: <b>M4-04</b> is the first consumer — merge,
-/// enhance and salvage all act on a held item — and the <c>DROP_RUN</c> grant path that would call
-/// <c>Place</c> is still unwired, carried in <c>GapRegister</c>'s inventory discharge note with its
-/// owner named. Until one of those lands, the component is reachable and unused.
+/// ✅ <b>The component is wired, and this paragraph used to say the opposite.</b> M4-05 landed the
+/// container, its numbers and its persistence and left the wiring to the tasks that own the
+/// operations; every one of them has since landed. <b>M4-04</b> was the first consumer — merge,
+/// enhance and salvage all act on a held item — the in-run drop path banks grants through
+/// <see cref="Inventory"/>.<c>Place</c>, M7-00d's <c>EQUIP</c> reads the stock, and the M4 retro
+/// ruling of 2026-08-17 added <c>LOCK_ITEM</c>, the first caller of
+/// <see cref="Inventory"/>.<c>SetLock</c> and therefore the first thing in the game's life that can
+/// make an item <c>LOCKED</c> in production. <c>Content.InventoryTuning.Read</c> has production
+/// callers through all of them. A note describing a mechanism as unwired after it was wired is how
+/// a reader concludes the whole remark is stale.
 /// </para>
 /// <para>
 /// Still deliberately absent: the unopened-container shelf, pets, mounts, talents, presets and
@@ -242,13 +244,64 @@ public sealed class Player
     /// Empty until they set one, and an empty filter sweeps nothing.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Nothing writes it yet, and that is a statement of what is left rather than of what was
-    /// done.</b> The command vocabulary is closed and authors no command that sets a filter, and none
-    /// that applies one at run end either; the forge screen that would set it and the run-end payout
-    /// that would apply it are both later tasks. The rule that reads a filter is written and tested,
-    /// and this is the place its rows live when a command finally sends them.
+    /// <para>
+    /// 🔴 <b><c>SET_AUTO_SALVAGE_RULES</c> writes it as of the M4 retro ruling of 2026-08-17</b>,
+    /// which added the command to `14` §2.3's vocabulary. Until then nothing wrote it, which left
+    /// <c>Rules.Forge.AutoSalvageFilter</c> — written, documented and tested against a hand-built
+    /// fixture — unreachable from any command a player can send.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Still nothing APPLIES it.</b> No run-end payout consults the filter, so a player can
+    /// configure rows that sweep nothing; the sweep at run end is not this ruling's scope, and the
+    /// forge screen that edits the rows is M9-01's. What changed is that the rows can now exist.
+    /// </para>
+    /// <para>
+    /// Replaced wholesale rather than mutated, like the wallet: the list handed out here can never
+    /// change afterwards, so a snapshot that has already been taken cannot be rewritten by a later
+    /// command.
+    /// </para>
     /// </remarks>
-    public IReadOnlyList<AutoSalvageRule> AutoSalvageRules { get; }
+    public IReadOnlyList<AutoSalvageRule> AutoSalvageRules { get; private set; }
+
+    /// <summary>Replaces the auto-salvage filter with the rows a command carried.</summary>
+    /// <param name="rules">
+    /// The rows to store, <b>already validated</b> — a band that exists, one row per band, a ceiling
+    /// inside the authored enhancement range. Which rows are legal is a rule over authored content
+    /// and belongs to the handler that read the tuning, not to the aggregate that stores them.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// Copied on the way in for <see cref="ReadAutoSalvageRules"/>'s reason: the caller's list stays
+    /// writable, and a record compares an <c>IReadOnlyList&lt;T&gt;</c> component by reference, so
+    /// the sharing would be invisible to every comparison that looked for it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>No <c>SnapshotSchema.SchemaVersion</c> bump comes with this writer, and that is a
+    /// decision rather than an omission.</b> `14` §16.6 makes a field ADDED, REMOVED or REORDERED a
+    /// versioned migration; this adds none. <see cref="PlayerSnapshot.AutoSalvageRules"/> has been a
+    /// column since M4-05 and its position is unchanged — what changed is that something finally
+    /// writes it. The two sibling commands the same ruling added are the same story:
+    /// <c>UNEQUIP</c> writes <see cref="PlayerSnapshot.Loadout"/> and <c>LOCK_ITEM</c> writes the
+    /// <c>Locked</c> flag on a persisted gear row, both existing columns. A row a player wrote will
+    /// now carry values it used to carry only as empty or false, which changes their
+    /// <c>stateHash</c> — but a state hash changing when the state changes is the contract, not a
+    /// serialisation change.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="rules"/> is null.</exception>
+    internal void SetAutoSalvageRules(IReadOnlyList<AutoSalvageRule> rules)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+
+        var copy = new AutoSalvageRule[rules.Count];
+
+        for (var i = 0; i < rules.Count; i++)
+        {
+            copy[i] = rules[i];
+        }
+
+        AutoSalvageRules = Array.AsReadOnly(copy);
+    }
 
     /// <summary>The aggregate root's identity.</summary>
     public PlayerId Id { get; }

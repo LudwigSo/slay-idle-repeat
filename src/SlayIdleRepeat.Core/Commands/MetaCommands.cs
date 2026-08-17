@@ -52,6 +52,33 @@ public sealed record EquipCommand(GearInstanceId ItemId, GearSlot GearSlot) : Ga
 }
 
 /// <summary>
+/// <c>UNEQUIP</c> — empty one gear slot. The half of <see cref="EquipCommand"/> that was missing:
+/// a slot could be overwritten but never cleared.
+/// </summary>
+/// <param name="GearSlot">The slot to empty. One of the six the domain declares, not free text.</param>
+/// <remarks>
+/// It names the <b>slot</b> and not the item, and that is the payload decision. A slot holds at most
+/// one identity, so the slot names the target unambiguously; naming the item instead would let a
+/// client send an identity that is not worn at all and turn "empty this slot" into a question about
+/// ownership. `07` §4's pets and mounts already unequip by passing a null id to their own commands —
+/// those slots are numbered rather than named, which is why they can and this cannot.
+/// </remarks>
+public sealed record UnequipCommand(GearSlot GearSlot) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(GearSlot)} = {GearSlot}");
+
+        return true;
+    }
+}
+
+/// <summary>
 /// <c>MERGE</c> ⚄ — fuse three items into one of the next rarity. The affix re-roll at the new
 /// rarity draws from this command's seed.
 /// </summary>
@@ -183,6 +210,100 @@ public sealed record SalvageCommand : GameCommand
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Append(CultureInfo.InvariantCulture, $"{nameof(ItemIds)} = {CommandPayload.Text(ItemIds)}");
+
+        return true;
+    }
+}
+
+/// <summary>
+/// <c>LOCK_ITEM</c> — protect one stored item from destruction, or stop protecting it.
+/// </summary>
+/// <param name="ItemId">The gear instance to set the flag on.</param>
+/// <param name="Locked">The state to leave the flag in. <see langword="true"/> locks, <see langword="false"/> unlocks.</param>
+/// <remarks>
+/// 🔒 <b>An explicit boolean, not a toggle, and that is the ruling rather than a preference.</b> A
+/// toggle is not idempotent: `14` §16.3 replays a duplicated command by returning the first
+/// outcome, but a client that retries under a new <c>commandId</c> after a timeout would flip the
+/// flag back, and the player would find the item they had just protected unprotected. Every other
+/// command in this file that sets state states the state it wants, and this one is no different —
+/// sending the value already held is a no-op, which is exactly what an idempotent write should be.
+/// </remarks>
+public sealed record LockItemCommand(GearInstanceId ItemId, bool Locked) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ItemId)} = {ItemId}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Locked)} = {Locked}");
+
+        return true;
+    }
+}
+
+/// <summary>
+/// <c>SET_AUTO_SALVAGE_RULES</c> — replace the player's auto-salvage filter with the rows they
+/// configured.
+/// </summary>
+/// <remarks>
+/// <para>
+/// 🔴 <b>The payload is DERIVED from the shipped <see cref="AutoSalvageRule"/> primitive, not
+/// invented.</b> `14` §2.3 authors no payload sketch for this command, and steering S6 forbids
+/// filling that hole with a plausible shape. What the repository already authors is
+/// <c>Core/Primitives/AutoSalvageRule.cs</c> — a <c>(Rarity, BelowEnhanceLevel)</c> pair, itself read
+/// literally off `08` §4.3's own example, <em>"salvage all C and B below +3"</em> — persisted as
+/// <c>PlayerSnapshot.AutoSalvageRules</c> and read by <c>Rules.Forge.AutoSalvageFilter</c>. The
+/// command carries a list of exactly that row and nothing else: no new type, no new vocabulary, and
+/// no field the filter would not read.
+/// </para>
+/// <para>
+/// <b>A whole filter per command, not one row.</b> The rows are a set the player edits on one
+/// screen, and a per-row command would need a delete row beside it plus an ordering rule for two
+/// rows on one band. Replacing wholesale makes the command idempotent and makes an empty list the
+/// natural "sweep nothing", which is what an unconfigured filter already means.
+/// </para>
+/// <para>
+/// Equality and hashing are hand-written for the reason <see cref="SalvageCommand"/> records: a
+/// record compares an <c>IReadOnlyList&lt;T&gt;</c> member by reference.
+/// </para>
+/// </remarks>
+public sealed record SetAutoSalvageRulesCommand : GameCommand
+{
+    /// <summary>Replaces the filter with the given rows.</summary>
+    /// <param name="rules">The filter rows, in the order the client sent them. Empty sweeps nothing.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="rules"/> is null.</exception>
+    public SetAutoSalvageRulesCommand(IReadOnlyList<AutoSalvageRule> rules) =>
+        Rules = CommandPayload.Copy(rules, nameof(rules));
+
+    /// <summary>The filter rows, in the order the client sent them.</summary>
+    /// <remarks>
+    /// Whether the rows are legal — a band that exists, a ceiling that means something, one row per
+    /// band, no more rows than there are bands — is not enforced here. It is a rule over authored
+    /// content, and a command that could not be constructed could not be answered with a rejection.
+    /// </remarks>
+    public IReadOnlyList<AutoSalvageRule> Rules { get; }
+
+    /// <summary>Two filters are equal when they carry the same rows in the same order.</summary>
+    /// <param name="other">The other command.</param>
+    /// <returns>Whether the two describe the same intent.</returns>
+    public bool Equals(SetAutoSalvageRulesCommand? other) =>
+        other is not null && CommandPayload.SameIds(Rules, other.Rules);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() =>
+        HashCode.Combine(EqualityContract, CommandPayload.HashIds(Rules));
+
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(Rules)} = {CommandPayload.Text(Rules)}");
 
         return true;
     }

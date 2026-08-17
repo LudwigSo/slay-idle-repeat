@@ -10,10 +10,11 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// <remarks>
 /// <para>
 /// <b>The reader spans two documents, and the interesting rule is the one that crosses them.</b>
-/// Capacity is a forge number; the ladder that moves it is a currency number. The two used to
-/// disagree — one document authored a ceiling the other's ladder could never reach — and the whole
-/// point of reading them together is that the disagreement is a refusal at load time rather than a
-/// ceiling nobody can buy their way to.
+/// Capacity is a forge number; the ladder that <em>would</em> move it is a currency number. As of
+/// the M4 retro's ruling of 2026-08-17 the ceiling is FLAT and the ladder is DEFERRED, so the
+/// crossing rule is no longer "the two agree" but "the ladder stays out of reach": its reach must be
+/// strictly above the ceiling, so not one rung is buyable. The pre-ruling documents met that reach
+/// exactly, which is the state the rule now refuses.
 /// </para>
 /// <para>
 /// Hermetic: every case here runs over <see cref="InventoryDocuments"/>, which mirrors the shipped
@@ -58,12 +59,13 @@ public sealed class InventoryTuningTests
     {
         var tuning = Read();
 
-        tuning.BaseCapacity.ShouldBe(120);
+        tuning.BaseCapacity.ShouldBe(1000);
         tuning.ExpansionStep.ShouldBe(20);
         tuning.MaxCapacity.ShouldBe(
-            320,
-            "120 + 10 purchases of +20. The forge document carried 400 until this task, which is a " +
-            "ceiling no player could ever buy their way to.");
+            1000,
+            "the M4 retro of 2026-08-17 ruled capacity flat at 1000 — 'virtually unlimited, cap it " +
+            "by default at 1000 for now' — so the ceiling IS the base. It read 320 (120 + 10 × 20) " +
+            "until then, which was M4 kickoff decision 4's derivation off a ladder nothing sells.");
         tuning.MaxPurchases.ShouldBe(10);
         tuning.SlotsPerPurchase.ShouldBe(20);
         tuning.FlatSoulShardPrice.ShouldBe(400L);
@@ -73,28 +75,57 @@ public sealed class InventoryTuningTests
     }
 
     /// <summary>
-    /// 🔒 The ruling itself: the ceiling must be exactly what the ladder reaches, and a document that
-    /// says otherwise is refused with the ceiling's own pointer named.
+    /// 🔒 The ruling itself, in its two arms, <b>told apart by the pointer each names</b>: the
+    /// deferred ladder must stay entirely out of reach, and the ceiling must be the base.
     /// </summary>
     /// <remarks>
-    /// 400 is not an arbitrary probe — it is the number the forge document actually carried, and the
-    /// number a future edit would most plausibly restore. The reference in the refusal is the
-    /// discriminating part: a reader that threw naming the ladder instead would be telling whoever
-    /// reads the crash to edit the prices.
+    /// <para>
+    /// The two arms are the whole replacement for the old "ceiling EQUALS the ladder's reach"
+    /// equality, and they answer different pointers on purpose — a reader that threw one shared
+    /// refusal would pass a case that only asked whether it threw (S2). The ladder arm names the
+    /// LADDER, because a ceiling inside the ladder's range means somebody has decided expansions are
+    /// spendable again and that is a `14` §2.3 vocabulary decision, not a capacity edit.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>1200 is not an arbitrary probe.</b> It is exactly what the shipped ladder reaches
+    /// (<c>1000 + 10 × 20</c>) and therefore the exact state the pre-ruling documents were in: a
+    /// ceiling equal to the reach. The rule that used to <em>demand</em> that equality now refuses
+    /// it, so this probe fails on the old invariant's success case and nothing else.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void A_ceiling_the_ladder_cannot_reach_is_refused_and_names_the_ceiling()
+    public void The_deferred_ladder_must_stay_out_of_reach_and_the_ceiling_must_be_the_base()
     {
+        // The ladder's reach, met exactly — the pre-ruling shape. It names the LADDER.
         Should.Throw<InvalidTunableException>(
                 () => InventoryTuning.Read(
-                    InventoryDocuments.With(maxCapacity: ContentValue.Number(400))))
-            .Reference.ShouldBe(InventoryTuning.MaxCapacityReference);
+                    InventoryDocuments.With(maxCapacity: ContentValue.Number(1200))))
+            .Reference.ShouldBe(
+                InventoryTuning.LadderReference,
+                "a ceiling ON the ladder's reach makes the last purchase buyable, which is the " +
+                "state the 2026-08-17 ruling deferred.");
 
-        // The other side of the same equation: a ceiling BELOW what the ladder reaches is the same
-        // fault, and would otherwise read as "merely conservative".
+        // Past the reach: every rung buyable, not merely the last. Same arm, same pointer.
         Should.Throw<InvalidTunableException>(
                 () => InventoryTuning.Read(
-                    InventoryDocuments.With(maxCapacity: ContentValue.Number(300))))
+                    InventoryDocuments.With(maxCapacity: ContentValue.Number(5000))))
+            .Reference.ShouldBe(InventoryTuning.LadderReference);
+
+        // Inside the ladder's range but not the base: capacity is no longer flat. The OTHER arm,
+        // and the other pointer — a value the ladder arm passes, so it discriminates.
+        Should.Throw<InvalidTunableException>(
+                () => InventoryTuning.Read(
+                    InventoryDocuments.With(maxCapacity: ContentValue.Number(1100))))
+            .Reference.ShouldBe(
+                InventoryTuning.MaxCapacityReference,
+                "1100 is below the ladder's 1200 reach, so the ladder arm is satisfied and only the " +
+                "flatness arm can be firing. If this answers the ladder's pointer, the two arms have " +
+                "collapsed into one.");
+
+        // …and below the base, which would otherwise read as "merely conservative".
+        Should.Throw<InvalidTunableException>(
+                () => InventoryTuning.Read(
+                    InventoryDocuments.With(maxCapacity: ContentValue.Number(900))))
             .Reference.ShouldBe(InventoryTuning.MaxCapacityReference);
     }
 
@@ -104,10 +135,10 @@ public sealed class InventoryTuningTests
     /// a reader that threw one shared exception naming one shared pointer would pass seven separate
     /// cases that each only asked "did it throw".
     /// <para>
-    /// Each row moves <b>one</b> leaf and keeps the ceiling equation satisfiable where it can be. The
-    /// two capacity floors and the flat-price floor cannot — moving <c>baseCapacity</c> to zero also
-    /// breaks the ceiling equation — so those rows are stated over the pointer whose <em>own</em>
-    /// floor is meant to fire first, which is exactly the ordering claim.
+    /// Each row moves <b>one</b> leaf. Several of them also disturb the flat-ceiling and
+    /// out-of-reach arms — moving <c>baseCapacity</c> to zero leaves a ceiling that is no longer the
+    /// base — so those rows are stated over the pointer whose <em>own</em> floor is meant to fire
+    /// first, which is exactly the ordering claim.
     /// </para>
     /// </remarks>
     [Fact]
@@ -161,44 +192,65 @@ public sealed class InventoryTuningTests
             "whether it threw.");
     }
 
-    // ------------------------------------------------------------------- the expansion curve
+    // ------------------------------------------------------- the flat ceiling and the dead curve
 
-    /// <summary>Capacity at every purchase count the ladder authorises: 120, 140, … 320.</summary>
+    /// <summary>
+    /// 🔒 Capacity is one number, and there is no member that takes a purchase count to compute it.
+    /// </summary>
     /// <remarks>
-    /// Written as the whole sequence against a literal, not as a spot check at either end. A reader
-    /// that added the step twice per purchase, or clamped early, agrees with 120 and disagrees only
-    /// in the middle.
+    /// <para>
+    /// The structural half, said with reflection because no assertion over a <em>value</em> can see
+    /// it: <c>CapacityAt(expansionsPurchased)</c> used to walk 120, 140, … 320, and re-adding it is
+    /// exactly how a future caller would grow a stock past the flat ceiling the 2026-08-17 ruling
+    /// set. The ladder itself is still read — see <see cref="The_crown_price_of_a_purchase_is_its_own_rung_of_the_ladder"/>
+    /// — because the owner deferred the limit rather than deleting it, so "the growth is gone" cannot
+    /// be stated as "the ladder is gone".
+    /// </para>
+    /// <para>
+    /// The negative control is <c>CrownPriceOf</c>: it takes an <c>int</c> purchase index and must
+    /// survive, so a rule spelled "no member takes a purchase index" would be wrong rather than
+    /// merely weak. The claim is about the <em>capacity</em>, so it is stated over the name.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void Capacity_walks_the_authored_step_from_the_base_to_the_ceiling()
+    public void There_is_one_flat_capacity_and_no_member_derives_it_from_a_purchase_count()
     {
         var tuning = Read();
 
-        Enumerable.Range(0, 11).Select(tuning.CapacityAt).ShouldBe(
-            new[] { 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320 });
+        tuning.MaxCapacity.ShouldBe(
+            tuning.BaseCapacity,
+            "the ceiling and the base are one number as of the 2026-08-17 ruling. If these ever " +
+            "differ, Read's own flatness arm has stopped firing.");
 
-        tuning.CapacityAt(tuning.MaxPurchases).ShouldBe(
-            tuning.MaxCapacity,
-            "the last purchase lands exactly on the ceiling — that agreement IS the ruling, and it " +
-            "would be worth stating even if the sequence above did not already show it.");
+        var members = typeof(InventoryTuning)
+            .GetMembers(System.Reflection.BindingFlags.Instance |
+                        System.Reflection.BindingFlags.Static |
+                        System.Reflection.BindingFlags.Public |
+                        System.Reflection.BindingFlags.NonPublic |
+                        System.Reflection.BindingFlags.DeclaredOnly)
+            .Select(member => member.Name)
+            .ToArray();
+
+        members.ShouldContain(
+            nameof(InventoryTuning.CrownPriceOf),
+            "the negative control: the DEFERRED ladder is still read and still priced, so a sweep " +
+            "that had lost every expansion member would satisfy the claim below for the wrong reason.");
+
+        members.Where(name => name.Contains("CapacityAt", StringComparison.Ordinal)).ShouldBeEmpty(
+            "capacity does not depend on a purchase count any more, so a member taking one would be " +
+            "a function of an argument it has to ignore. MaxCapacity is the capacity.");
     }
 
-    /// <summary>An eleventh expansion has no capacity and no price, and both refusals say so.</summary>
+    /// <summary>An eleventh expansion has no price on the deferred ladder, and the refusal says so.</summary>
     /// <remarks>
-    /// Two separate refusals rather than one: "there is no capacity past the cap" and "there is no
-    /// price past the ladder" are different sentences to whoever reads the crash, and a caller that
-    /// got a clamped 320 back from the first would go on to charge for a purchase that added nothing.
+    /// It used to have no <em>capacity</em> either, through a <c>CapacityAt</c> that threw past the
+    /// cap. Capacity no longer moves with purchases at all, so only the price half survives — and it
+    /// still matters, because the ladder is authored for the day the owner deals with the limit.
     /// </remarks>
     [Fact]
-    public void There_is_no_capacity_and_no_price_past_the_last_purchase()
+    public void There_is_no_price_past_the_last_rung_of_the_deferred_ladder()
     {
         var tuning = Read();
-
-        Should.Throw<ArgumentOutOfRangeException>(() => tuning.CapacityAt(11))
-            .ParamName.ShouldBe("expansionsPurchased");
-
-        Should.Throw<ArgumentOutOfRangeException>(() => tuning.CapacityAt(-1))
-            .ParamName.ShouldBe("expansionsPurchased");
 
         // CrownPriceOf takes the index of the NEXT purchase, so index 9 is the tenth and last rung
         // and index 10 is the purchase that cannot be made.
