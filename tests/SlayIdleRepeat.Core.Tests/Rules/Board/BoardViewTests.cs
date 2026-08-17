@@ -78,7 +78,7 @@ public sealed class BoardViewTests
     /// </summary>
     /// <remarks>
     /// Measured on this checkout: the walk travels from the trailhead to the boss node and checks
-    /// <b>11</b> landings. Floored one under that, on
+    /// <b>13</b> landings. Floored well under that, on
     /// <c>StageBoundaryTraversalTests.MustCross</c>'s precedent — a hero can still die and one board
     /// changing shape is not a failure — and far enough over zero that a run which stopped on its
     /// first tile cannot satisfy it.
@@ -95,6 +95,22 @@ public sealed class BoardViewTests
     /// in stage 3 into a failure of this case.
     /// </remarks>
     private const int MustSpanStages = 2;
+
+    /// <summary>
+    /// How many of the checked landings must be OFF the spine, inside a fork branch (steering S2).
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Without this floor the walk proves the projection only where it cannot be wrong.</b> On
+    /// a spine node the node id and the linear index are interchangeable, so a projection that
+    /// resolved <c>Position</c> as a track offset agrees with the run at every spine landing and
+    /// disagrees at every branch one — which is precisely the mistake
+    /// <see cref="A_run_standing_inside_a_branch_resolves_to_the_branch_node_not_the_spine_node"/>
+    /// describes and the reason <see cref="NextCommand"/> takes the BRANCH at each fork. Measured on
+    /// this checkout: the walk lands on <b>five</b> off-spine nodes, across three different branches.
+    /// Floored at two rather than five, so a board whose forks move — or a hero who dies inside the
+    /// last branch — is not a failure, while a walk that never left the spine at all still is.
+    /// </remarks>
+    private const int MustLandOffSpine = 2;
 
     // ------------------------------------------------------------------------------------------
     // A — the view is the SAME board the run is actually played on.
@@ -122,6 +138,7 @@ public sealed class BoardViewTests
         game.Send(player, new StartRunCommand(Chapter, DifficultyTier.NORMAL));
 
         var checkedLandings = new HashSet<int>();
+        var offSpineLandings = new HashSet<int>();
         var stagesSeen = new HashSet<int>();
         var acknowledged = new HashSet<int>();
         var trace = new List<string>();
@@ -138,7 +155,11 @@ public sealed class BoardViewTests
 
             if (run.HasPendingTile && checkedLandings.Add(run.Position))
             {
-                AssertLandingAgrees(run);
+                if (AssertLandingAgrees(run))
+                {
+                    offSpineLandings.Add(run.Position);
+                }
+
                 stagesSeen.Add(run.PendingTileStage);
             }
 
@@ -203,9 +224,19 @@ public sealed class BoardViewTests
             "every checked landing was in the same stage, so the walk never crossed a Stage Gate and " +
             "the agreement is a claim about one corner of one stage." + Environment.NewLine +
             "commands: " + string.Join(Environment.NewLine + "  ", trace));
+
+        offSpineLandings.Count.ShouldBeGreaterThanOrEqualTo(
+            MustLandOffSpine,
+            "only " + Text(offSpineLandings.Count) + " of the walk's landings were off the spine, so " +
+            "the agreement above is a claim about nodes whose id and linear index happen to be the " +
+            "same number — and a projection that read Position as a track offset would satisfy every " +
+            "one of them. CHOOSE_FORK takes the branch first here precisely so it does not." +
+            Environment.NewLine +
+            "commands: " + string.Join(Environment.NewLine + "  ", trace));
     }
 
-    private static void AssertLandingAgrees(RunAggregate run)
+    /// <returns><c>true</c> when the run landed off the spine, inside a fork branch.</returns>
+    private static bool AssertLandingAgrees(RunAggregate run)
     {
         var snapshot = run.ToSnapshot();
         var view = BoardView.Project(snapshot, ShippedHarness.Content);
@@ -227,6 +258,18 @@ public sealed class BoardViewTests
 
         view.StandingOn.Stage.ShouldBe(
             snapshot.PendingTileStage, "the view's stage disagrees with the run's at " + at + ".");
+
+        // Read off the PRODUCER rather than off the view: the off-spine floor this feeds must not be
+        // satisfiable by a projection that simply answers OnSpine = false everywhere.
+        var onSpine = Oracle(snapshot.RunSeed)
+            .SpineNode(snapshot.PendingTileLinearIndex).Value == run.Position;
+
+        view.StandingOn.OnSpine.ShouldBe(
+            onSpine,
+            "the view says " + at + " is " + (view.StandingOn.OnSpine ? "on" : "off") +
+            " the spine and the board the run is being played on says the opposite.");
+
+        return !onSpine;
     }
 
     /// <summary>
@@ -484,16 +527,19 @@ public sealed class BoardViewTests
     }
 
     /// <summary>
-    /// 🔒 `03` §3.1 — all four fork labels are reachable across the twenty fixed seeds. A floor over
-    /// the label SET, so the label plumbing cannot silently collapse to one value.
+    /// 🔒 `03` §3.1 — every declared fork label is reachable across the twenty fixed seeds. A floor
+    /// over the label SET, so the label plumbing cannot silently collapse to one value.
     /// </summary>
     /// <remarks>
     /// Twenty seeds rather than one: a label is drawn uniformly per fork, so any single board says
-    /// nothing about the other three. Stated over every declared member rather than over a count, so
-    /// a fifth label added later is covered without editing a number (steering S3).
+    /// nothing about the others. Stated over every declared member rather than over a count, so a
+    /// fifth label added later is covered without editing a number (steering S3) — and the NAME says
+    /// "every declared" rather than "all four" for the same reason, so it cannot promise a quantity
+    /// the assertion has stopped delivering. Measured on this checkout: the twenty seeds produce 86
+    /// forks carrying Perilous 24, Sheltered 19, Arcane 22, Feral 21.
     /// </remarks>
     [Fact]
-    public void All_four_fork_labels_are_reachable_across_the_fixed_seeds()
+    public void Every_declared_fork_label_is_reachable_across_the_fixed_seeds()
     {
         var seen = new HashSet<ForkLabel>();
 
@@ -811,7 +857,12 @@ public sealed class BoardViewTests
 
         if (run.PendingFork is not null)
         {
-            return new ChooseForkCommand(choice);
+            // 🔒 The BRANCH first (edge 1), the spine continuation only if the branch is refused.
+            // Continuing every time would keep the whole walk on the spine, where a node's id and its
+            // linear index are interchangeable — and the case this projection exists for is the one
+            // where they are not. Measured: branch-first lands on five off-spine nodes across three
+            // branches and still reaches the boss; continue-first lands on none.
+            return new ChooseForkCommand(choice == 0 ? 1 : 0);
         }
 
         if (run.BossDefeated || run.CurrentHp == 0)
