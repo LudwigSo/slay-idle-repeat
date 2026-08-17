@@ -42,10 +42,22 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// two clauses are satisfied by there being nothing to disable.
 /// </para>
 /// <para>
-/// 🔴 Three things this screen cannot name, each named instead — see
+/// 🔴 Four things this screen cannot name or draw, each named instead — see
 /// <see cref="TheResultScreensAreNotBuiltHere"/>,
-/// <see cref="ASurvivingEnemysHealthBarHasNoDenominator"/> and
-/// <see cref="AStatusEffectHasNoNameOrIconHere"/>.
+/// <see cref="ASurvivingEnemysHealthBarHasNoDenominator"/>,
+/// <see cref="AStatusEffectHasNoNameOrIconHere"/> and
+/// <see cref="LargeNumbersAreNotAbbreviatedHere"/>.
+/// </para>
+/// <para>
+/// 🔒 <b>The banner and the control row are fixed; everything between them scrolls.</b> The stage is
+/// floored at a height the two actor tokens fit inside, and the health readout sits in a scroll
+/// container, so the parts that grow without a bound — a bar for each of the seven actors a fight can
+/// field, under a stall sentence that runs past a hundred characters — take the scroll rather than
+/// the column. That is what keeps the skip on screen: it is an accessibility control before it is a
+/// convenience, and a column whose children outgrow it pushes its last child off the bottom edge
+/// instead of shrinking. The tight case is the narrow end of the supported range, 9:16, where the
+/// canvas is exactly as tall as it was designed; at 9:20 the stretch mode hands the extra room over
+/// as height and the stage and the readout share it by their stretch ratios.
 /// </para>
 /// <para>
 /// 🔒 <b>Nothing here reads the combat log.</b> The presenter hands over one
@@ -104,6 +116,20 @@ public partial class BattleReplay : Control
         "the enum behind it and every potency it implies are internal to the rules, and there is no " +
         "icon set in this build for anything. So a status is drawn as a coloured chip with its " +
         "number and its stack count on it, which claims exactly what is known.";
+
+    /// <summary>
+    /// 🔴 Deliberately not done, and named so it can be found. The design shortens any number past
+    /// ten thousand and gives the exact one back on a long press; no screen in this build does, and
+    /// this one does not become the first.
+    /// </summary>
+    private const string LargeNumbersAreNotAbbreviatedHere =
+        "The design abbreviates a number past ten thousand and returns the exact value on a long " +
+        "press. Nothing in this build abbreviates anything — the board's gold and health, the home " +
+        "screen's energy and this screen's damage and health are all written out — so a shortening " +
+        "introduced on this one screen would be the only one, and the reading-back half needs a press " +
+        "handler on every number rather than a format. It belongs with the shared formatting M8-03's " +
+        "UI kit owes every screen at once, and until then a health readout stays honest by being " +
+        "long rather than by being rounded to a letter.";
 
     /// <summary>
     /// How long a finished fight is held on screen before control goes back to the board.
@@ -174,6 +200,9 @@ public partial class BattleReplay : Control
     /// <summary>The theme entry a label's own text colour is written into.</summary>
     private const string FontColourOverride = "font_color";
 
+    /// <summary>And the one a container's gap between its children is written into.</summary>
+    private const string SeparationConstant = "separation";
+
     /// <summary>The property one floating number's rise is tweened along.</summary>
     private const string PositionProperty = "position";
 
@@ -231,16 +260,30 @@ public partial class BattleReplay : Control
     private const int BodyTextSize = 52;
 
     /// <summary>And a critical one, which the design draws larger as well as yellower.</summary>
-    private const int CritTextSize = 76;
+    private const int CritTextSize = 72;
 
     /// <summary>How large one status chip's number is drawn.</summary>
-    private const int ChipTextSize = 32;
+    private const int ChipTextSize = 40;
 
     /// <summary>How large an actor's caption and its health readout are drawn.</summary>
     private const int BarTextSize = 40;
 
+    /// <summary>
+    /// The gap between the parts of one thing — a health row's three lines, or a status chip's swatch
+    /// and its number.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Written out rather than left to the engine's default of four, which is a default and not a
+    /// decision: four canvas units on a canvas a thousand and eighty wide is a hairline, and a bar
+    /// touching the caption above it reads as one smeared block.
+    /// </remarks>
+    private const int TightGap = 8;
+
+    /// <summary>And the gap between two separate status chips, which have to read as two.</summary>
+    private const int ChipGap = 16;
+
     /// <summary>One status chip's square, in canvas units.</summary>
-    private static readonly Vector2 ChipSwatchSize = new(28, 28);
+    private static readonly Vector2 ChipSwatchSize = new(32, 32);
 
     /// <summary>How tall one actor's health bar is drawn.</summary>
     private static readonly Vector2 BarSize = new(0, 28);
@@ -622,9 +665,17 @@ public partial class BattleReplay : Control
             return;
         }
 
+        // 🔒 One source of truth for which colour a side is. The tokens carry it in the scene file,
+        // and a bar tinted from a second copy of the same two colours here is a copy that drifts the
+        // first time either is adjusted.
+        var heroTint = _heroToken?.Color ?? StandingColour;
+        var enemyTint = _enemyToken?.Color ?? StandingColour;
+
         foreach (var actor in presenter.Actors)
         {
             var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+
+            row.AddThemeConstantOverride(SeparationConstant, TightGap);
 
             var captionRow = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 
@@ -649,9 +700,18 @@ public partial class BattleReplay : Control
                 MaxValue = Math.Max(actor.StartingHp ?? 0, 1),
                 Value = actor.StartingHp ?? 0,
                 Visible = actor.StartingHp is not null,
+
+                // Every actor's bar is stacked in one column here rather than split left and right
+                // the way the design draws two of them, because a fight can field seven. Tinting each
+                // to the side's own token is what puts the column back in touch with the stage — and
+                // it is never the only thing saying so, since the row is captioned and the sides are
+                // drawn where they stand.
+                Modulate = actor.Side == ReplaySide.Enemy ? enemyTint : heroTint,
             };
 
             var statuses = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
+
+            statuses.AddThemeConstantOverride(SeparationConstant, ChipGap);
 
             row.AddChild(captionRow);
             row.AddChild(bar);
@@ -1005,9 +1065,16 @@ public partial class BattleReplay : Control
         {
             var chip = new HBoxContainer();
 
+            chip.AddThemeConstantOverride(SeparationConstant, TightGap);
+
             chip.AddChild(new ColorRect
             {
                 CustomMinimumSize = ChipSwatchSize,
+
+                // Shrunk to its own size and centred, because a control in a row fills that row's
+                // height by default: left alone the swatch stretches to whatever the number beside it
+                // measures and the chip stops reading as a chip.
+                SizeFlagsVertical = SizeFlags.ShrinkCenter,
                 Color = StatusChipColours[status % StatusChipColours.Length],
             });
 

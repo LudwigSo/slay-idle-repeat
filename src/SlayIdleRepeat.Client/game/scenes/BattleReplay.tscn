@@ -45,6 +45,7 @@ theme_override_constants/separation = 24
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 4
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 72
 autowrap_mode = 3
@@ -53,12 +54,15 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+size_flags_vertical = 4
+size_flags_stretch_ratio = 2.0
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 44
 horizontal_alignment = 2
 autowrap_mode = 3
 
 [node name="Stage" type="Control" parent="SafeArea/Column"]
+custom_minimum_size = Vector2(0, 400)
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 1.0
@@ -81,9 +85,9 @@ theme_override_constants/separation = 16
 
 [node name="HeroToken" type="ColorRect" parent="SafeArea/Column/Stage/Arena/HeroSide"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 280)
+custom_minimum_size = Vector2(280, 280)
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 4
 color = Color(0.36, 0.52, 0.82, 1)
 
 [node name="HeroName" type="Label" parent="SafeArea/Column/Stage/Arena/HeroSide"]
@@ -103,9 +107,9 @@ theme_override_constants/separation = 16
 
 [node name="EnemyToken" type="ColorRect" parent="SafeArea/Column/Stage/Arena/EnemySide"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 280)
+custom_minimum_size = Vector2(280, 280)
 layout_mode = 2
-size_flags_horizontal = 3
+size_flags_horizontal = 4
 color = Color(0.72, 0.34, 0.36, 1)
 
 [node name="EnemyName" type="Label" parent="SafeArea/Column/Stage/Arena/EnemySide"]
@@ -183,16 +187,29 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="Bars" type="VBoxContainer" parent="SafeArea/Column"]
+[node name="ReadoutScroll" type="ScrollContainer" parent="SafeArea/Column"]
+custom_minimum_size = Vector2(0, 200)
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 0.8
+horizontal_scroll_mode = 0
+
+[node name="Readout" type="VBoxContainer" parent="SafeArea/Column/ReadoutScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 32
+
+[node name="Bars" type="VBoxContainer" parent="SafeArea/Column/ReadoutScroll/Readout"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="StatusLabel" type="Label" parent="SafeArea/Column"]
+[node name="StatusLabel" type="Label" parent="SafeArea/Column/ReadoutScroll/Readout"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 44
+theme_override_font_sizes/font_size = 48
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -211,16 +228,16 @@ autowrap_mode = 3
 
 [node name="SpeedButton" type="Button" parent="SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(240, 168)
+custom_minimum_size = Vector2(200, 168)
 layout_mode = 2
-theme_override_font_sizes/font_size = 56
+theme_override_font_sizes/font_size = 52
 autowrap_mode = 3
 
 [node name="SkipButton" type="Button" parent="SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(340, 168)
+custom_minimum_size = Vector2(320, 168)
 layout_mode = 2
-theme_override_font_sizes/font_size = 56
+theme_override_font_sizes/font_size = 52
 autowrap_mode = 3
 
 [node name="PhaseBand" type="ColorRect" parent="."]
