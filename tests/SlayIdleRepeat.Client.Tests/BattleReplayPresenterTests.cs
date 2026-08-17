@@ -29,6 +29,9 @@ public sealed class BattleReplayPresenterTests
     /// <summary>The log's slot for a second enemy.</summary>
     private const byte SecondEnemySlot = 5;
 
+    /// <summary>One of the three pet slots — 1 to 3, reserved whether they are filled or not.</summary>
+    private const byte PetSlot = 2;
+
     /// <summary>The slot the log uses for "nobody" — 255.</summary>
     private const byte NoActorSlot = 255;
 
@@ -1159,6 +1162,403 @@ public sealed class BattleReplayPresenterTests
             "long again as the fight itself took.");
     }
 
+    // ---- 🔒 what one event of the log asks the screen to draw ----------------------------------
+
+    /// <summary>
+    /// 🔒 The crit↔hit pairing, which is a reconstruction of the rules layer's private per-attack
+    /// emission order and the only way a client can colour the number.
+    /// </summary>
+    /// <remarks>
+    /// A critical hit is its own event rather than a flag on the blow, and it is emitted BEFORE the
+    /// blow it describes. So the announcement has to be held across the events between the two and
+    /// then spent — and the spending is what this case is about: an implementation that set the flag
+    /// and never cleared it would colour every number in the fight gold from the first crit onward,
+    /// which is a screen that shouts about every blow and therefore about none.
+    /// </remarks>
+    [Fact]
+    public async Task A_blow_the_log_announced_as_critical_is_drawn_as_one_and_the_next_blow_is_not()
+    {
+        var presenter = await Playing(CritFight());
+
+        await presenter.AdvanceAsync(0.5, CancellationToken.None);
+
+        TheBlowIn(presenter).Floater.ShouldBe(
+            ReplayFloater.Crit,
+            "the crit event carries no value of its own and the hit that follows carries no " +
+            "flag, so the only thing that can tell the screen to draw this number yellow and larger " +
+            "is the announcement held over from the event before it.");
+
+        await presenter.AdvanceAsync(0.5, CancellationToken.None);
+
+        TheBlowIn(presenter).Floater.ShouldBe(
+            ReplayFloater.Hit,
+            "and the announcement belongs to ONE blow. A flag that survived its own hit " +
+            "would paint every later number in the fight as a critical one, which tells the player " +
+            "nothing at the exact moment the design wants them told something.");
+    }
+
+    /// <summary>
+    /// 🔒 The case the pairing is most likely to get wrong: a crit whose blow never lands.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The per-attack sequence is <c>Attack → Miss → Crit → Block → WardBroken → Hit</c>, and a
+    /// ward that swallows the whole blow ends it with no <c>Hit</c> at all. The announcement is then
+    /// about a number that is never drawn, and an implementation that only cleared the flag on a hit
+    /// would carry it forward and gild the next unrelated blow — a critical hit the player is shown
+    /// for an attack that was never critical, several ticks after the one that was.
+    /// </remarks>
+    [Fact]
+    public async Task A_critical_announcement_whose_blow_never_lands_does_not_colour_the_next_one()
+    {
+        var presenter = await Playing(AbsorbedCritFight());
+
+        await presenter.AdvanceAsync(1.5, CancellationToken.None);
+
+        presenter.StepCues.Count(cue => cue.Burst == ReplayBurst.CritPop).ShouldBe(
+            1,
+            "the announcement itself is still drawn — something did happen — so this case is " +
+            "about the number that follows it rather than about the announcement going missing.");
+        TheBlowIn(presenter).Floater.ShouldBe(
+            ReplayFloater.Hit,
+            "the announced blow was absorbed whole and emitted no number at all, so the next " +
+            "attack's ordinary hit is the first number the screen draws. Colouring it as the critical " +
+            "one attributes a blow to an attack that never landed it.");
+    }
+
+    /// <summary>
+    /// 🔒 The announcement bursts before the number, because that is the order the log puts them in.
+    /// </summary>
+    [Fact]
+    public async Task A_critical_announcement_bursts_ahead_of_the_number_it_belongs_to()
+    {
+        var presenter = await Playing(CritFight());
+
+        await presenter.AdvanceAsync(0.5, CancellationToken.None);
+
+        presenter.StepCues.Select(cue => cue.Burst).ShouldBe(
+            [ReplayBurst.CritPop, ReplayBurst.HitSpark],
+            "the two are one blow told in two events, and a screen that reordered them would " +
+            "pop the announcement after the number it was announcing.");
+    }
+
+    /// <summary>
+    /// 🔒 Each kind of number is told apart, because the design draws each of them differently.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 A KIND rather than a colour. The half that draws owns the palette; this half owns the
+    /// reading of the log that decides which entry of it applies — including that a damage-over-time
+    /// tick carries a SIGNED delta and is drawn unsigned, because a minus sign in front of a floating
+    /// damage number reads as healing.
+    /// </remarks>
+    [Fact]
+    public async Task Every_kind_of_floating_number_the_design_draws_is_told_apart_by_its_own_event()
+    {
+        var presenter = await Playing(CueFight());
+
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        var floaters = presenter.StepCues
+                                .Where(cue => cue.Floater != ReplayFloater.None)
+                                .Select(cue => (cue.Floater, cue.FloaterAmount))
+                                .ToArray();
+
+        floaters.ShouldBe(
+            [
+                (ReplayFloater.Crit, CueFightBlow),
+                (ReplayFloater.DamageOverTime, CueFightTick),
+                (ReplayFloater.Heal, CueFightHeal),
+            ],
+            "the design draws four kinds of number and pays for the difference in the one " +
+            "moment a player is reading the screen fastest: an ordinary blow, a critical one, healing " +
+            "and a tick of something already on them. Collapsing any two of them leaves the player " +
+            "unable to tell being healed from being burned — and the tick's size is drawn unsigned, " +
+            "because a minus sign in front of a damage number reads as the opposite of what happened.");
+    }
+
+    /// <summary>🔒 The bursts, likewise, and the actor each one belongs to.</summary>
+    [Fact]
+    public async Task A_pets_ability_bursts_over_the_pet_that_used_it_rather_than_over_its_target()
+    {
+        var presenter = await Playing(CueFight());
+
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        var acted = presenter.StepCues.Single(cue => cue.ActorId == PetSlot);
+
+        acted.Burst.ShouldBe(
+            ReplayBurst.HitSpark,
+            "a pet doing something is the one moment a player sees that their pets are in " +
+            "the fight at all, since nothing else on the screen names them.");
+        acted.Side.ShouldBe(
+            ReplaySide.Pet,
+            "and it belongs to the SOURCE of the event rather than its target — every other " +
+            "event on this screen is drawn over the actor it happened TO, so a pet ability read the " +
+            "same way would flash over the enemy the pet was helping against.");
+    }
+
+    /// <summary>🔒 A death, which is the one event that fixes an actor's final health.</summary>
+    [Fact]
+    public async Task A_death_takes_its_actor_to_nothing_and_puffs_once()
+    {
+        var presenter = await Playing(CueFight());
+
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        var fell = presenter.StepCues.Single(cue => cue.Died);
+
+        fell.ActorId.ShouldBe(
+            FirstEnemySlot,
+            "a death names the actor that DIED in its target and whatever killed it in its " +
+            "source, so a screen reading the wrong end of it would grey out the winner.");
+        fell.Health.ShouldNotBeNull(
+            "the death is what fixes this actor's final health, so a cue that carried none " +
+            "would leave the bar wherever the last blow happened to stop.");
+        fell.Health!.Value.ShouldBe(
+            0,
+            tolerance: HealthTolerance,
+            customMessage:
+            "a bar with a sliver left under an actor the log has just killed is the one " +
+            "thing on this screen a player can prove wrong by looking at it.");
+        fell.Burst.ShouldBe(ReplayBurst.DeathPuff);
+    }
+
+    /// <summary>🔒 A status arrives with a STACK COUNT rather than a potency, and leaves with none.</summary>
+    [Fact]
+    public async Task A_status_arrives_with_its_stack_count_and_leaves_with_none()
+    {
+        var presenter = await Playing(CueFight());
+
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        var stacked = presenter.StepCues.Where(cue => cue.StatusId is not null).ToArray();
+
+        stacked.ShouldAllBe(cue => cue.StatusId == CueFightStatus);
+        stacked.Select(cue => cue.StatusStacks).ShouldBe(
+            [CueFightStacks, 0],
+            "an applied status carries how many are stacked rather than how hard it bites, " +
+            "and the design puts that number on the chip under the bar — so a screen reading it as a " +
+            "potency would write the wrong integer beside every stacking effect in the game. An " +
+            "expiry carries none at all, and the chip has to come off rather than freeze at its last " +
+            "count for the rest of the fight.");
+    }
+
+    /// <summary>
+    /// 🔒 The negative control: most of the log asks the screen to draw nothing whatever.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The events are still crossed and still handed over — a screen that dropped them would lose
+    /// the opening of every fight — but none of them puts a number in the air or fires a burst. A
+    /// projection that emitted something for each of these would spray the screen with numbers for a
+    /// telegraph, a queued run effect and the fight's own end.
+    /// </remarks>
+    [Fact]
+    public async Task The_events_that_ask_for_no_drawing_produce_no_instruction_at_all()
+    {
+        var presenter = await Playing(QuietFight());
+
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        presenter.StepEvents.Count.ShouldBe(
+            QuietFightEventCount,
+            "every one of them still has to be crossed, or this case is stating the emptiness " +
+            "of a step that consumed nothing rather than the quietness of a step that consumed a lot.");
+        presenter.StepCues.ShouldBeEmpty(
+            "an opening, an attack, a miss, a block, a broken ward, a ward granted, a phase " +
+            "change, a telegraph, a queued run effect and the fight's own end are all things that " +
+            "happened and none of them is a number over an actor's head. A screen drawing one for " +
+            "each would put ten floating numbers on a tick where nothing was hit.");
+    }
+
+    // ---- 🔒 one reading of the actor roster, and it is this one ---------------------------------
+
+    /// <summary>
+    /// 🔒 The transcribed roster — slot 0 the hero, 1 to 3 the pets, 4 upward the enemies — read
+    /// once, here, where a case can hold it.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The roster is internal to the rules assembly and has no public restatement, so a client has
+    /// to transcribe it. A second transcription in whatever draws the screen is a second thing to
+    /// keep in step with the first, and this repository has no harness that could ever check the
+    /// second one — the day the rules layer widens the pet block, one copy learns and the other
+    /// silently draws a pet standing among the enemies.
+    /// </remarks>
+    [Theory]
+    [InlineData(HeroSlot, ReplaySide.Hero, 0)]
+    [InlineData(PetSlot, ReplaySide.Pet, PetSlot)]
+    [InlineData(FirstEnemySlot, ReplaySide.Enemy, 1)]
+    [InlineData(SecondEnemySlot, ReplaySide.Enemy, 2)]
+    public async Task Each_actor_stands_on_the_side_its_own_slot_names(
+        byte slot, ReplaySide side, int index)
+    {
+        var presenter = await Playing(RosterFight());
+
+        var actor = Actor(presenter, slot);
+
+        actor.Side.ShouldBe(
+            side,
+            $"slot {slot} is the log's own way of saying which side of the fight this actor is " +
+            "on, and a screen that read it wrong would stand the hero among the enemies — or, worse, " +
+            "aim the hero's own healing at the actor trying to kill them.");
+        actor.SideIndex.ShouldBe(
+            index,
+            "and the index is what tells two enemies of the same fight apart. The first of a " +
+            "side is the first rather than the fourth, because the player is not reading slot numbers.");
+    }
+
+    [Fact]
+    public async Task An_actor_is_captioned_by_the_side_it_stands_on_and_which_one_of_it_it_is()
+    {
+        var presenter = await Playing(RosterFight());
+
+        presenter.CaptionOf(HeroSlot).ShouldBe(
+            BattleContent.EnglishValueOf(BattleContent.HeroLabelKey),
+            "there is only ever one hero, so numbering it would put a '1' beside the player's " +
+            "own character for no reason a player could work out.");
+        presenter.CaptionOf(PetSlot).ShouldBe(
+            BattleContent.EnglishValueOf(BattleContent.HeroLabelKey) + " " + PetSlot,
+            "a pet has no caption of its own in either locale, so it borrows the hero's side " +
+            "rather than putting an untranslated English word in front of a German player.");
+        presenter.CaptionOf(SecondEnemySlot).ShouldBe(
+            BattleContent.EnglishValueOf(BattleContent.EnemyLabelKey) + " 2",
+            "and both halves come out of the content set, so a caption a player reads is a " +
+            "caption a translator was paid for.");
+    }
+
+    [Fact]
+    public async Task The_banner_names_every_enemy_the_fight_carries_and_no_one_else()
+    {
+        var presenter = await Playing(RosterFight());
+
+        presenter.OpponentLabel.ShouldBe(
+            BattleContent.EnglishValueOf(BattleContent.EnemyLabelKey) + " 1 · " +
+            BattleContent.EnglishValueOf(BattleContent.EnemyLabelKey) + " 2",
+            "the banner is what the player is told they are fighting, and no enemy's real " +
+            "name is reachable from a client at all — so it names them by side and index. A banner " +
+            "that swept in the hero and its pets would list the player among their own opponents.");
+    }
+
+    [Fact]
+    public void A_fight_with_no_enemy_in_its_roster_still_has_a_banner()
+    {
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), BattleRun()));
+
+        presenter.OpponentLabel.ShouldBe(
+            BattleContent.EnglishValueOf(BattleContent.EnemyLabelKey),
+            "the banner is drawn before the read answers and in every state where the read " +
+            "answered with no fight, and a blank one is a heading a player can see room for and " +
+            "cannot read.");
+    }
+
+    // ---- 🔒 one arithmetic for one health bar --------------------------------------------------
+
+    /// <summary>
+    /// 🔒 The load-bearing claim: watching a fight and skipping it leave the health on the SAME
+    /// number, to the last decimal.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Exact equality on purpose. A watched fight walks the health one blow at a time and a
+    /// skipped one is put straight onto what the fight ended with, so the two are different
+    /// arithmetics over the same log — and an unrounded walk over enough small blows drifts off the
+    /// value the result reports by whatever the doubles lost on the way. The player never sees a
+    /// tolerance; they see two screenshots of one boss kill that disagree.
+    /// </remarks>
+    [Fact]
+    public async Task A_watched_fight_and_a_skipped_one_leave_the_health_on_the_same_number()
+    {
+        var fight = FractionFight();
+
+        var watched = await Playing(fight);
+        var skipped = await Playing(fight);
+
+        await watched.AdvanceAsync(30, CancellationToken.None);
+        await skipped.SkipAsync(CancellationToken.None);
+
+        watched.Complete.ShouldBeTrue(
+            "the watched fight has to have actually reached its end, or the two are being " +
+            "compared at different points of the same log.");
+        watched.HealthOf(HeroSlot).ShouldBe(
+            fight.HeroHpRemaining,
+            "the fight itself reports what the hero was left with, so a walk that finished " +
+            "anywhere else has accumulated an error over the fight — and it is the walk, not the " +
+            "result, that the player watched arrive.");
+        skipped.HealthOf(HeroSlot).ShouldBe(
+            watched.HealthOf(HeroSlot),
+            "and the outcome was fixed before the first frame was drawn, so patience must " +
+            "not change a number. Two arithmetics over one health bar is two answers to the same " +
+            "fight, differing in exactly the decimal nobody thinks to check.");
+    }
+
+    [Fact]
+    public async Task A_skipped_fight_puts_every_actor_on_the_health_it_ended_the_fight_with()
+    {
+        var presenter = await Playing(ShortFight());
+
+        await presenter.SkipAsync(CancellationToken.None);
+
+        presenter.HealthOf(HeroSlot).ShouldBe(
+            HeroHpAtTheEnd,
+            "a skip draws none of the blows, so the bars cannot be walked to the end — they " +
+            "are put there. A skipped fight that left every bar full would end on a screen showing a " +
+            "hero at full health beside the news that they lost.");
+        presenter.HealthOf(FirstEnemySlot).ShouldBe(
+            0,
+            "and the actor the log records a death for ended at nothing, however little of " +
+            "the fight was watched.");
+        presenter.HealthOf(SecondEnemySlot).ShouldBeNull(
+            "while an enemy still standing anchors no arithmetic at all — a number invented " +
+            "for it on the skip path would be a bar that only appears when the player is in a hurry.");
+    }
+
+    /// <summary>🔴 The absence again, this time in the middle of a fight.</summary>
+    [Fact]
+    public async Task A_blow_against_an_actor_whose_health_was_never_fixed_moves_no_bar()
+    {
+        var presenter = await Playing(ShortFight());
+
+        await presenter.AdvanceAsync(1.0, CancellationToken.None);
+
+        var struck = presenter.StepCues.Single(cue => cue.ActorId == SecondEnemySlot);
+
+        struck.Floater.ShouldBe(
+            ReplayFloater.Hit,
+            "the blow itself is real and its number is drawn — what is missing is the bar to " +
+            "take it off, not the hit.");
+        struck.FloaterAmount.ShouldBe(
+            DamageDealtToTheSurvivingEnemy,
+            tolerance: HealthTolerance,
+            customMessage: "and the number drawn is the health the blow actually removed.");
+        struck.Health.ShouldBeNull(
+            "an enemy that survives anchors neither end of the arithmetic, so there is no " +
+            "value to move. Moving a bar from a starting point that was guessed would draw a fraction " +
+            "of a fight that is fiction, on the actor the player is most anxiously watching.");
+    }
+
+    /// <summary>
+    /// 🔒 A tick of a damage-over-time is health lost like any other, and the derivation knows it.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The derivation runs the walk backwards. If it counted one fewer kind of event than the walk
+    /// applies, a fight with a burn on the hero would walk past the health the result reports and
+    /// stop somewhere below it — the bar would end lower than the number printed beside it.
+    /// </remarks>
+    [Fact]
+    public async Task A_fight_whose_hero_burns_still_ends_on_the_health_the_result_reports()
+    {
+        var fight = CueFight();
+
+        var presenter = await Playing(fight);
+
+        await presenter.AdvanceAsync(CueFightSeconds, CancellationToken.None);
+
+        presenter.Complete.ShouldBeTrue(
+            "the whole fight has to have played for its end to be the thing being compared.");
+        presenter.HealthOf(HeroSlot).ShouldBe(
+            fight.HeroHpRemaining,
+            "a tick takes health off exactly as a blow does, so a derivation blind to ticks " +
+            "would start the hero's bar too high and walk it to a value the result contradicts — two " +
+            "numbers for the same hero, on the same screen, at the same moment.");
+    }
+
     // ---- fixture -------------------------------------------------------------------------------
 
     private static PlayerSnapshot AnyPlayer() => PlayerState.Player(Player);
@@ -1301,6 +1701,196 @@ public sealed class BattleReplayPresenterTests
                 At(100, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
             ],
             LogHash: 424243UL);
+
+    /// <summary>How much the hero takes off the enemy that survives <see cref="ShortFight"/>.</summary>
+    private const double DamageDealtToTheSurvivingEnemy = 8.25;
+
+    /// <summary>Long enough to consume the whole of <see cref="CueFight"/> in one advance.</summary>
+    private const double CueFightSeconds = 5.0;
+
+    /// <summary>The one blow of <see cref="CueFight"/>, which the log announces as a critical one.</summary>
+    private const double CueFightBlow = 12.0;
+
+    /// <summary>The size of its one damage-over-time tick, which the log carries as a negative.</summary>
+    private const double CueFightTick = 4.5;
+
+    /// <summary>And its one heal.</summary>
+    private const double CueFightHeal = 2.25;
+
+    /// <summary>What the hero is left with when <see cref="CueFight"/> ends.</summary>
+    private const double CueFightHeroHpRemaining = 50.0;
+
+    /// <summary>The status <see cref="CueFight"/> applies and later expires.</summary>
+    private const ushort CueFightStatus = 7;
+
+    /// <summary>How many of it are stacked — a count, not a potency.</summary>
+    private const int CueFightStacks = 3;
+
+    /// <summary>
+    /// A fight carrying one of every event that asks the screen to draw something.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The hero is burned and then healed, which is the pair the health derivation has to account
+    /// for as carefully as it accounts for blows: a tick removes health exactly as a hit does, and a
+    /// derivation blind to one of them starts the bar in a place its own end cannot be reached from.
+    /// </remarks>
+    private static SimulationResult CueFight() =>
+        new(
+            HeroWon: true,
+            DurationTicks: 80,
+            HeroHpRemaining: CueFightHeroHpRemaining,
+            Log:
+            [
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(10, CombatEventType.Attack),
+                At(10, CombatEventType.Crit),
+                At(10, CombatEventType.Hit, HeroSlot, FirstEnemySlot, value: CueFightBlow),
+                At(20, CombatEventType.StatusApplied, HeroSlot, FirstEnemySlot,
+                    value: CueFightStacks, dataId: CueFightStatus),
+                At(30, CombatEventType.StatusTick, FirstEnemySlot, HeroSlot, value: -CueFightTick),
+                At(40, CombatEventType.Heal, HeroSlot, HeroSlot, value: CueFightHeal),
+                At(50, CombatEventType.PetAbility, PetSlot, FirstEnemySlot),
+                At(60, CombatEventType.StatusExpired, HeroSlot, FirstEnemySlot, dataId: CueFightStatus),
+                At(70, CombatEventType.ActorDeath, HeroSlot, FirstEnemySlot),
+                At(80, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 515151UL);
+
+    /// <summary>
+    /// Two attacks, the first of them announced as a critical hit and the second not.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Shaped the way the rules layer emits an attack: the attack opens the sequence and the crit
+    /// is its own event, emitted BEFORE the blow it describes and carrying no value of its own.
+    /// </remarks>
+    private static SimulationResult CritFight() =>
+        new(
+            HeroWon: true,
+            DurationTicks: 40,
+            HeroHpRemaining: 30,
+            Log:
+            [
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(10, CombatEventType.Attack),
+                At(10, CombatEventType.Crit),
+                At(10, CombatEventType.Hit, HeroSlot, FirstEnemySlot, value: 9),
+                At(20, CombatEventType.Attack),
+                At(20, CombatEventType.Hit, HeroSlot, FirstEnemySlot, value: 4),
+                At(40, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 606060UL);
+
+    /// <summary>
+    /// A critical hit a ward swallows whole, followed by an ordinary one.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The announced attack emits no <c>Hit</c> at all — a block and a broken ward end it — so the
+    /// announcement belongs to a number that is never drawn. The ordinary blow that follows is the
+    /// one a mispaired implementation gilds.
+    /// </remarks>
+    private static SimulationResult AbsorbedCritFight() =>
+        new(
+            HeroWon: true,
+            DurationTicks: 40,
+            HeroHpRemaining: 30,
+            Log:
+            [
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(10, CombatEventType.Attack),
+                At(10, CombatEventType.Crit),
+                At(10, CombatEventType.Block),
+                At(10, CombatEventType.WardBroken),
+                At(20, CombatEventType.Attack),
+                At(20, CombatEventType.Hit, HeroSlot, FirstEnemySlot, value: 6),
+                At(40, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 707070UL);
+
+    /// <summary>How many events <see cref="QuietFight"/> carries, none of which is drawn.</summary>
+    private const int QuietFightEventCount = 10;
+
+    /// <summary>A fight made entirely of events that put nothing on the screen.</summary>
+    private static SimulationResult QuietFight() =>
+        new(
+            HeroWon: true,
+            DurationTicks: 40,
+            HeroHpRemaining: 30,
+            Log:
+            [
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(5, CombatEventType.Attack),
+                At(5, CombatEventType.Miss),
+                At(10, CombatEventType.Attack),
+                At(10, CombatEventType.Block),
+                At(10, CombatEventType.WardBroken),
+                At(15, CombatEventType.Shield, HeroSlot, HeroSlot, value: 20),
+                At(20, CombatEventType.Telegraph, FirstEnemySlot, FirstEnemySlot, value: 1.25),
+                At(25, CombatEventType.RunEffectQueued, NoActorSlot, NoActorSlot),
+                At(40, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 808080UL);
+
+    /// <summary>A fight whose roster reaches the hero, a pet and two enemies.</summary>
+    private static SimulationResult RosterFight() =>
+        new(
+            HeroWon: true,
+            DurationTicks: 40,
+            HeroHpRemaining: 30,
+            Log:
+            [
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(10, CombatEventType.PetAbility, PetSlot, FirstEnemySlot),
+                At(20, CombatEventType.Hit, HeroSlot, SecondEnemySlot, value: 5),
+                At(30, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 5),
+                At(40, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 909090UL);
+
+    /// <summary>What the hero is left with when <see cref="FractionFight"/> ends.</summary>
+    private const double FractionFightHeroHpRemaining = 1.5;
+
+    /// <summary>
+    /// A fight of many small blows, whose health cannot be walked without rounding it.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Seven tenths, taken one at a time. A tenth has no exact binary form, so a walk that does
+    /// not hold each step to the rounding the rules layer holds its own values to arrives at
+    /// something that is not the health the result reports — which is precisely the disagreement
+    /// between a fight watched and the same fight skipped. A fixture of round numbers could not
+    /// state this at all.
+    /// </remarks>
+    private static SimulationResult FractionFight() =>
+        new(
+            HeroWon: false,
+            DurationTicks: 20,
+            HeroHpRemaining: FractionFightHeroHpRemaining,
+            Log:
+            [
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(1, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 0.1),
+                At(2, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 0.1),
+                At(3, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 0.1),
+                At(4, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 0.1),
+                At(5, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 0.1),
+                At(6, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 0.1),
+                At(7, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 0.1),
+                At(20, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 121212UL);
+
+    /// <summary>The one damage number a step drew, failing legibly when it drew any other count.</summary>
+    private static ReplayCue TheBlowIn(BattleReplayPresenter presenter)
+    {
+        var blows = presenter.StepCues
+                             .Where(cue => cue.Floater is ReplayFloater.Hit or ReplayFloater.Crit)
+                             .ToArray();
+
+        return blows.Length == 1
+            ? blows[0]
+            : throw new InvalidOperationException(
+                $"The step asked for {blows.Length} damage numbers rather than one, so there is no " +
+                "single blow to read a kind off — a stronger failure than reading the wrong kind.");
+    }
 
     /// <summary>
     /// A REAL fight, built through the public stat factory and run by the real simulator, tuned so

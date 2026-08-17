@@ -1,7 +1,6 @@
 using System.Globalization;
 using Godot;
 using SlayIdleRepeat.Client.Game.Presenters;
-using SlayIdleRepeat.Core.Rules.Combat;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
 
@@ -45,8 +44,15 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// <para>
 /// 🔴 Three things this screen cannot name, each named instead — see
 /// <see cref="TheResultScreensAreNotBuiltHere"/>,
-/// <see cref="ASurvivingEnemysHealthBarHasNoDenominator"/>,
-/// <see cref="AStatusEffectHasNoNameOrIconHere"/> and <see cref="APetHasNoCaptionOfItsOwn"/>.
+/// <see cref="ASurvivingEnemysHealthBarHasNoDenominator"/> and
+/// <see cref="AStatusEffectHasNoNameOrIconHere"/>.
+/// </para>
+/// <para>
+/// 🔒 <b>Nothing here reads the combat log.</b> The presenter hands over one
+/// <see cref="ReplayCue"/> per event that asks for anything — which actor, which side, which number
+/// in which kind, which burst, what the health now stands at, whether the actor went down, which
+/// status changed and by how many — and this file turns each of those into a colour, a particle
+/// system and a tween. The reading of the log used to live here, where nothing can test it.
 /// </para>
 /// </remarks>
 public partial class BattleReplay : Control
@@ -81,8 +87,9 @@ public partial class BattleReplay : Control
     /// </summary>
     private const string ASurvivingEnemysHealthBarHasNoDenominator =
         "A health bar needs a starting value and the log carries none. The hero's follows from the " +
-        "reported remaining health plus every hit taken minus every heal received, and any actor the " +
-        "log records a death for ended at zero, which anchors the same arithmetic. An enemy still " +
+        "reported remaining health with every change the log records undone in reverse, and any " +
+        "actor the log records a death for ended at zero, which anchors the same arithmetic. An " +
+        "enemy still " +
         "standing at the end anchors neither equation. A denominator invented here would draw a bar " +
         "wrong by exactly however far the guess was off, and a player watching a bar is reading the " +
         "fraction, not the number — so that actor is drawn with its name and no bar at all.";
@@ -97,32 +104,6 @@ public partial class BattleReplay : Control
         "the enum behind it and every potency it implies are internal to the rules, and there is no " +
         "icon set in this build for anything. So a status is drawn as a coloured chip with its " +
         "number and its stack count on it, which claims exactly what is known.";
-
-    /// <summary>
-    /// 🔴 Deliberately borrowed, and named so it can be found. The content set names a hero and an
-    /// enemy and nothing between them.
-    /// </summary>
-    private const string APetHasNoCaptionOfItsOwn =
-        "The log reserves three slots for pets whether they are filled or not, and a pet that acts " +
-        "appears in the roster like anything else. There is no caption for one: this screen's " +
-        "strings name the hero's side and the enemy's side, and inventing a third word here would " +
-        "put an untranslated literal on screen in front of a German player. A pet is captioned as " +
-        "the hero's side with its slot number until a string exists for it.";
-
-    /// <summary>
-    /// The slot the log identifies the hero by, and the slot its enemies start at.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 A transcription of the rules layer's actor roster, which is internal and has no public
-    /// restatement: slot 0 is the hero, 1 to 3 are the pet slots, 4 to 254 are the encounter's
-    /// enemies in order and then any summons, and 255 is nobody. It is transcribed here rather than
-    /// asked of the presenter because the presenter reports a slot number and nothing about sides,
-    /// and a screen with a hero on the left and enemies on the right has to know which is which.
-    /// </remarks>
-    private const byte HeroSlot = 0;
-
-    /// <summary>The first slot the log gives to an enemy — every slot below it is the hero's side.</summary>
-    private const byte FirstEnemySlot = 4;
 
     /// <summary>
     /// How long a finished fight is held on screen before control goes back to the board.
@@ -207,9 +188,6 @@ public partial class BattleReplay : Control
 
     /// <summary>And how many of it are stacked.</summary>
     private const string StackPrefix = " ×";
-
-    /// <summary>Joins the actors an intro banner names, in slot order.</summary>
-    private const string OpponentJoin = " · ";
 
     /// <summary>What the readout writes where a value the screen has not settled would go.</summary>
     private const string NoValue = "none";
@@ -303,15 +281,6 @@ public partial class BattleReplay : Control
     private Label[] _floaters = [];
     private Tween?[] _floatTweens = [];
     private int _nextFloater;
-
-    /// <summary>Whether the blow now being consumed was announced as a critical one.</summary>
-    /// <remarks>
-    /// 🔒 A crit is its own event rather than a flag on the blow, and it is emitted before the blow
-    /// it belongs to: the attack opens the sequence, a miss ends it, and a crit, a block, a broken
-    /// ward and the hit itself follow in that order. So the announcement is held across the events
-    /// between it and the number it is about, and cleared by the next attack.
-    /// </remarks>
-    private bool _critPending;
 
     /// <summary>Whether a call into the presenter is in flight, so a frame cannot start another.</summary>
     private bool _busy;
@@ -540,11 +509,11 @@ public partial class BattleReplay : Control
     /// <summary>Draws the step the presenter has just handed over.</summary>
     private void Settle(BattleReplayPresenter presenter)
     {
-        var crossed = presenter.StepEvents;
+        var cues = presenter.StepCues;
 
-        for (var index = 0; index < crossed.Count; index++)
+        for (var index = 0; index < cues.Count; index++)
         {
-            Consume(crossed[index]);
+            DrawCue(cues[index]);
         }
 
         Render();
@@ -601,50 +570,12 @@ public partial class BattleReplay : Control
         _speedLabel.Text = presenter.SpeedLabel;
         _skipButton.Text = presenter.SkipText;
 
-        var opponents = OpponentsOf(presenter);
+        // 🔴 By role and index rather than by name — no enemy name is reachable from a client, and
+        // the presenter is where that is decided and said.
+        var opponents = presenter.OpponentLabel;
 
         _opponentLabel.Text = opponents;
         _enemyName.Text = opponents;
-    }
-
-    /// <summary>
-    /// Names the fight's opponents by role and index.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 By role rather than by name — see <see cref="BattleReplayPresenter"/> for why no enemy name
-    /// is reachable from a client, and <see cref="APetHasNoCaptionOfItsOwn"/> for the side of the
-    /// roster the strings do not cover. Built once, off a roster that does not change mid-fight.
-    /// </remarks>
-    private static string OpponentsOf(BattleReplayPresenter presenter)
-    {
-        var named = "";
-
-        foreach (var actor in presenter.Actors)
-        {
-            if (actor.ActorId < FirstEnemySlot)
-            {
-                continue;
-            }
-
-            named = named.Length == 0
-                ? CaptionOf(presenter, actor.ActorId)
-                : named + OpponentJoin + CaptionOf(presenter, actor.ActorId);
-        }
-
-        return named.Length > 0 ? named : presenter.EnemyLabel;
-    }
-
-    private static string CaptionOf(BattleReplayPresenter presenter, byte slot)
-    {
-        if (slot == HeroSlot)
-        {
-            return presenter.HeroLabel;
-        }
-
-        var side = slot < FirstEnemySlot ? presenter.HeroLabel : presenter.EnemyLabel;
-        var index = slot < FirstEnemySlot ? slot : slot - FirstEnemySlot + 1;
-
-        return $"{side} {index.ToString(CultureInfo.InvariantCulture)}";
     }
 
     /// <summary>Builds the pool of floating combat numbers, once, before any of them is needed.</summary>
@@ -700,7 +631,7 @@ public partial class BattleReplay : Control
             // 🔒 The wrapping half of the pair expands and the fixed half does not. An autowrapping
             // label in a row with no expand flag is measured as one character wide, which collapses
             // it to a sliver and pushes everything beside it off the far edge of the screen.
-            var caption = Caption(CaptionOf(presenter, actor.ActorId), UnavailableColour, wrapping: true);
+            var caption = Caption(presenter.CaptionOf(actor.ActorId), UnavailableColour, wrapping: true);
 
             caption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
@@ -728,7 +659,7 @@ public partial class BattleReplay : Control
 
             column.AddChild(row);
 
-            var tracked = new ActorBar(value, bar, statuses, actor.StartingHp, actor.EndingHp);
+            var tracked = new ActorBar(actor.ActorId, value, bar, statuses, actor.StartingHp);
 
             _rows.Add(tracked);
             _rowBySlot[actor.ActorId] = tracked;
@@ -753,85 +684,82 @@ public partial class BattleReplay : Control
         return label;
     }
 
-    /// <summary>Draws one event of the step the playhead has just crossed.</summary>
-    private void Consume(CombatEvent entry)
+    /// <summary>
+    /// Draws one instruction of the step the playhead has just crossed.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Nothing is decided here. Which actor, which number, which kind of number, which burst, what
+    /// the health now stands at and whether the actor went down are all settled before this file sees
+    /// them; what is left is a colour, a size, a particle system and a tween.
+    /// </remarks>
+    private void DrawCue(ReplayCue cue)
     {
-        switch (entry.Type)
+        if (cue.Health is { } health)
         {
-            case CombatEventType.Attack:
-                _critPending = false;
-                break;
-
-            case CombatEventType.Crit:
-                _critPending = true;
-                Burst(_critPop, PointOf(entry.TargetId));
-                break;
-
-            case CombatEventType.Hit:
-                Spend(entry.TargetId, -entry.Value);
-                Float(entry.TargetId, entry.Value,
-                    _critPending ? CritTextColour : HitTextColour,
-                    _critPending ? CritTextSize : BodyTextSize);
-                Burst(_hitSparks, PointOf(entry.TargetId));
-                _critPending = false;
-                break;
-
-            case CombatEventType.Heal:
-                Spend(entry.TargetId, entry.Value);
-                Float(entry.TargetId, entry.Value, HealTextColour, BodyTextSize);
-                break;
-
-            case CombatEventType.StatusTick:
-                // Signed: a tick that heals is still a tick, and the number drawn is its size.
-                Spend(entry.TargetId, entry.Value);
-                Float(entry.TargetId, Math.Abs(entry.Value), DotTextColour, BodyTextSize);
-                break;
-
-            case CombatEventType.StatusApplied:
-                // The applied value IS the stack count rather than a potency — see
-                // AStatusEffectHasNoNameOrIconHere for what is drawn and what is not.
-                Stack(entry.TargetId, entry.DataId, (int)Math.Round(entry.Value));
-                break;
-
-            case CombatEventType.StatusExpired:
-                Stack(entry.TargetId, entry.DataId, 0);
-                break;
-
-            case CombatEventType.PetAbility:
-                Burst(_hitSparks, PointOf(entry.SourceId));
-                break;
-
-            case CombatEventType.ActorDeath:
-                Fell(entry.TargetId);
-                Burst(_deathPuff, PointOf(entry.TargetId));
-                break;
+            Spend(cue.ActorId, health);
         }
+
+        if (cue.StatusId is { } status)
+        {
+            Stack(cue.ActorId, status, cue.StatusStacks);
+        }
+
+        if (cue.Died)
+        {
+            Fell(cue.Side);
+        }
+
+        if (cue.Floater != ReplayFloater.None)
+        {
+            Float(cue.Side, cue.FloaterAmount, ColourOf(cue.Floater), SizeOf(cue.Floater));
+        }
+
+        Burst(ParticlesFor(cue.Burst), PointOf(cue.Side));
     }
 
-    /// <summary>Moves an actor's health by what the log says it moved, where the log fixes a start.</summary>
-    private void Spend(byte slot, double delta)
+    /// <remarks>
+    /// The design's palette, and the one place it is written: ordinary damage plain, a critical one
+    /// yellow, healing green, a damage-over-time tick purple.
+    /// </remarks>
+    private static Color ColourOf(ReplayFloater floater) => floater switch
     {
-        if (!_rowBySlot.TryGetValue(slot, out var row) || row.Current is not { } current)
+        ReplayFloater.Crit => CritTextColour,
+        ReplayFloater.Heal => HealTextColour,
+        ReplayFloater.DamageOverTime => DotTextColour,
+        _ => HitTextColour,
+    };
+
+    /// <remarks>A critical hit is the one number the design draws larger as well as louder.</remarks>
+    private static int SizeOf(ReplayFloater floater) =>
+        floater == ReplayFloater.Crit ? CritTextSize : BodyTextSize;
+
+    private CpuParticles2D? ParticlesFor(ReplayBurst burst) => burst switch
+    {
+        ReplayBurst.HitSpark => _hitSparks,
+        ReplayBurst.CritPop => _critPop,
+        ReplayBurst.DeathPuff => _deathPuff,
+        _ => null,
+    };
+
+    /// <summary>Puts an actor's health bar on the value the playhead has walked it to.</summary>
+    private void Spend(byte slot, double health)
+    {
+        if (!_rowBySlot.TryGetValue(slot, out var row) || row.Current is null)
         {
             return;
         }
 
-        row.Current = Math.Max(0, current + delta);
+        row.Current = health;
         row.Dirty = true;
     }
 
-    private void Fell(byte slot)
+    /// <summary>Greys the token of a side one of whose actors has just gone down.</summary>
+    private void Fell(ReplaySide side)
     {
-        if (_rowBySlot.TryGetValue(slot, out var row))
+        var token = side switch
         {
-            row.Current = 0;
-            row.Dirty = true;
-        }
-
-        var token = slot switch
-        {
-            HeroSlot => _heroToken,
-            >= FirstEnemySlot => _enemyToken,
+            ReplaySide.Hero => _heroToken,
+            ReplaySide.Enemy => _enemyToken,
             _ => null,
         };
 
@@ -866,7 +794,7 @@ public partial class BattleReplay : Control
     /// one frame have to be readable as two, and a random offset in a scene is a second source of
     /// randomness in a game whose every other one is seeded and reproducible.
     /// </remarks>
-    private void Float(byte slot, double amount, Color colour, int size)
+    private void Float(ReplaySide side, double amount, Color colour, int size)
     {
         if (_floaters.Length == 0)
         {
@@ -887,7 +815,7 @@ public partial class BattleReplay : Control
         floater.Modulate = StandingColour;
         floater.Visible = true;
 
-        var from = PointOf(slot);
+        var from = PointOf(side);
 
         floater.Position = new Vector2(from.X, from.Y + (index * FloatFanStep));
 
@@ -922,7 +850,7 @@ public partial class BattleReplay : Control
     }
 
     /// <summary>Where on the stage an actor's effects happen — the hero's side, or the enemies'.</summary>
-    private Vector2 PointOf(byte slot)
+    private Vector2 PointOf(ReplaySide side)
     {
         if (_effects is not { } stage)
         {
@@ -931,7 +859,7 @@ public partial class BattleReplay : Control
 
         var size = stage.Size;
 
-        return new Vector2(size.X * (slot < FirstEnemySlot ? 0.25f : 0.75f), size.Y * 0.5f);
+        return new Vector2(size.X * (side == ReplaySide.Enemy ? 0.75f : 0.25f), size.Y * 0.5f);
     }
 
     /// <summary>Writes what has changed since the previous draw, and nothing that has not.</summary>
@@ -1133,7 +1061,7 @@ public partial class BattleReplay : Control
         {
             var outcome = await presenter.SkipAsync(_lifetime);
 
-            AnchorToEnd();
+            AnchorToEnd(presenter);
             Render();
             Report(presenter);
 
@@ -1153,17 +1081,19 @@ public partial class BattleReplay : Control
     }
 
     /// <remarks>
-    /// A skipped fight emits none of the events it skipped, so the bars are put where the fight ENDED
-    /// rather than walked there. An actor whose end the log does not fix is left alone, which is the
-    /// same answer it had all along.
+    /// A skipped fight emits none of the instructions it skipped, so the bars are re-read rather than
+    /// walked. Where they are read to is the presenter's answer, and it is the presenter's answer
+    /// precisely so that a fight watched to its end and one skipped to it cannot land on two
+    /// different numbers. An actor whose health the log never fixed is left alone, which is the same
+    /// answer it had all along.
     /// </remarks>
-    private void AnchorToEnd()
+    private void AnchorToEnd(BattleReplayPresenter presenter)
     {
         for (var index = 0; index < _rows.Count; index++)
         {
             var row = _rows[index];
 
-            if (row.End is { } ending)
+            if (presenter.HealthOf(row.Slot) is { } ending)
             {
                 row.Current = ending;
                 row.Dirty = true;
@@ -1204,8 +1134,11 @@ public partial class BattleReplay : Control
     /// screen has least room to.
     /// </remarks>
     private sealed class ActorBar(
-        Label value, ProgressBar bar, HBoxContainer statuses, double? start, double? end)
+        byte slot, Label value, ProgressBar bar, HBoxContainer statuses, double? start)
     {
+        /// <summary>The slot the log identifies this actor by, which the presenter is asked about it by.</summary>
+        internal byte Slot { get; } = slot;
+
         /// <summary>The readout beside the bar.</summary>
         internal Label Value { get; } = value;
 
@@ -1217,9 +1150,6 @@ public partial class BattleReplay : Control
 
         /// <summary>What the log fixes this actor started on, or null when it fixes nothing.</summary>
         internal double? Start { get; } = start;
-
-        /// <summary>And what it finished on, for the jump a skip makes.</summary>
-        internal double? End { get; } = end;
 
         /// <summary>Where the playhead has walked this actor's health to.</summary>
         internal double? Current { get; set; } = start;

@@ -45,8 +45,105 @@ public enum BattleSubmission
     RefusedByRules = 4,
 }
 
+/// <summary>Which side of the stage an actor stands on, from the slot the log gives it.</summary>
+/// <remarks>
+/// 🔒 The one reading of the rules layer's actor roster in this build. The roster is internal and has
+/// no public restatement, so it is transcribed — and transcribed <b>once</b>: a screen with a hero on
+/// the left and enemies on the right has to know which is which, and a second copy of the boundary
+/// living where nothing can test it is a copy that drifts silently into drawing a pet as an enemy.
+/// </remarks>
+public enum ReplaySide
+{
+    /// <summary>The player's own character, slot 0.</summary>
+    Hero = 1,
+
+    /// <summary>One of the three pet slots, 1 to 3, reserved whether they are filled or not.</summary>
+    Pet = 2,
+
+    /// <summary>An enemy or a summon, from slot 4 upward.</summary>
+    Enemy = 3,
+}
+
+/// <summary>Which floating combat number an event calls for, if any.</summary>
+/// <remarks>
+/// 🔒 A kind rather than a colour. The design pairs each kind with a colour and a size — ordinary
+/// damage plain, a critical one larger and louder, healing and a damage-over-time tick each their
+/// own — but a colour is an engine value and this half of the screen is deliberately unable to name
+/// one. Naming the kind keeps the reading of the log here, where a case can check it, and leaves the
+/// palette with the half that draws.
+/// </remarks>
+public enum ReplayFloater
+{
+    /// <summary>No number rises for this event.</summary>
+    None = 0,
+
+    /// <summary>An ordinary blow.</summary>
+    Hit = 1,
+
+    /// <summary>A blow the log announced as a critical one, which is drawn larger as well.</summary>
+    Crit = 2,
+
+    /// <summary>Healing received.</summary>
+    Heal = 3,
+
+    /// <summary>A tick of something already on the actor, which is neither a blow nor a heal.</summary>
+    DamageOverTime = 4,
+}
+
+/// <summary>Which procedural burst an event calls for, if any.</summary>
+public enum ReplayBurst
+{
+    /// <summary>Nothing bursts for this event.</summary>
+    None = 0,
+
+    /// <summary>A blow landing.</summary>
+    HitSpark = 1,
+
+    /// <summary>The announcement of a critical blow, before the number it belongs to.</summary>
+    CritPop = 2,
+
+    /// <summary>An actor going down.</summary>
+    DeathPuff = 3,
+}
+
+/// <summary>
+/// One event of the log, read into what it asks the screen to draw.
+/// </summary>
+/// <param name="ActorId">The actor the drawing belongs to — the loser of the blow, or the pet that acted.</param>
+/// <param name="Side">Which side of the stage that actor stands on.</param>
+/// <param name="Floater">Which floating number rises, if any.</param>
+/// <param name="FloaterAmount">The size of that number, always positive.</param>
+/// <param name="Burst">Which procedural burst fires, if any.</param>
+/// <param name="Health">
+/// What this actor's health now stands at, or null when the event moves none or the log never fixed
+/// a starting value to move.
+/// </param>
+/// <param name="Died">Whether the log records this actor going down here.</param>
+/// <param name="StatusId">The status whose stack count changed, or null when none did.</param>
+/// <param name="StatusStacks">How many are stacked now — zero when the status has gone.</param>
+/// <remarks>
+/// 🔒 <b>The whole reading of the log lives on this side of the split.</b> A hit's value is the health
+/// actually lost after a ward absorbed what it could; a status tick's value is a signed delta and its
+/// number is drawn unsigned; an applied status carries a stack count rather than a potency; a
+/// critical hit is its own event emitted <em>before</em> the blow it describes. Every one of those is
+/// a fact about the rules layer, and every one of them is checked by a case here rather than trusted
+/// in a file no test can instantiate.
+/// </remarks>
+public readonly record struct ReplayCue(
+    byte ActorId,
+    ReplaySide Side,
+    ReplayFloater Floater,
+    double FloaterAmount,
+    ReplayBurst Burst,
+    double? Health,
+    bool Died,
+    ushort? StatusId,
+    int StatusStacks);
+
 /// <summary>One actor in the fight, as much of it as the log actually fixes.</summary>
 /// <param name="ActorId">The slot the log identifies this actor by.</param>
+/// <param name="Side">Which side of the stage it stands on, read off that slot.</param>
+/// <param name="SideIndex">Which one of its side it is — zero for the hero, first is one otherwise.</param>
 /// <param name="StartingHp">
 /// What it began the fight with, or null when the log does not fix it. Null is a real answer for a
 /// surviving enemy and must stay one.
@@ -54,12 +151,14 @@ public enum BattleSubmission
 /// <param name="EndingHp">What it finished the fight with, or null when the log does not fix that.</param>
 /// <remarks>
 /// 🔴 <b>A maximum HP is not in the log and is not derivable for every actor.</b> The hero's start
-/// follows from the reported remaining HP plus every hit taken minus every heal received, and any
-/// actor the log records a death for ended at zero, which makes its start follow the same way. An
+/// follows from the reported remaining HP with every change the log records — every blow, every heal
+/// and every tick of something already on it — undone in reverse, and any actor the log records a
+/// death for ended at zero, which makes its start follow the same way. An
 /// enemy that survived gives neither equation an anchor, so its bar has no denominator — and a
 /// denominator invented here would draw a health bar that is wrong by whatever the guess was off by.
 /// </remarks>
-public sealed record ReplayActor(byte ActorId, double? StartingHp, double? EndingHp);
+public sealed record ReplayActor(
+    byte ActorId, ReplaySide Side, int SideIndex, double? StartingHp, double? EndingHp);
 
 /// <summary>
 /// Drives the Battle Replay screen: what the pre-computed log shows, how fast it is shown, and the
@@ -128,19 +227,39 @@ public sealed class BattleReplayPresenter
     private const int TicksPerSecond = 20;
 
     /// <summary>
+    /// 🔴 Deliberately unwritten, and named so it can be found. The content set names a hero's side
+    /// and an enemy's side and nothing between them.
+    /// </summary>
+    private const string APetHasNoCaptionOfItsOwn =
+        "The log reserves three slots for pets whether they are filled or not, and a pet that acts " +
+        "appears in the roster like anything else. There is no caption for one: this screen's " +
+        "strings name the hero's side and the enemy's side, and inventing a third word here would " +
+        "put an untranslated literal on screen in front of a German player. A pet is captioned as " +
+        "the hero's side with its slot number until a string exists for it.";
+
+    /// <summary>
     /// The slot the log identifies the hero by.
     /// </summary>
     /// <remarks>
-    /// 🔒 A transcription of the rules layer's actor roster, which is internal and has no public
-    /// restatement: slot 0 is the hero, 1 to 3 are the pet slots — reserved whether they are filled
-    /// or not — 4 to 254 are the encounter's enemies in order and then any summons, and 255 is
-    /// nobody. Only the two ends are named here because only they are read: the hero's health is the
-    /// one bar the log always fixes, and "nobody" is what a fight-wide event puts in both slots.
+    /// 🔒 <b>The one transcription of the rules layer's actor roster in this build</b>, which is
+    /// internal and has no public restatement: slot 0 is the hero, 1 to 3 are the pet slots —
+    /// reserved whether they are filled or not — 4 to 254 are the encounter's enemies in order and
+    /// then any summons, and 255 is nobody. It is read here, where a case can check it, and handed on
+    /// as a <see cref="ReplaySide"/> so that nothing downstream has to know the numbers again.
     /// </remarks>
     private const byte HeroSlot = 0;
 
+    /// <summary>The first slot the log gives to an enemy — every slot below it is the hero's side.</summary>
+    private const byte FirstEnemySlot = 4;
+
     /// <summary>The slot the log uses for nobody, on the events that belong to no actor.</summary>
     private const byte NoActorSlot = 255;
+
+    /// <summary>Separates one actor's caption from its index, and joins the actors a banner names.</summary>
+    private const string CaptionGap = " ";
+
+    /// <summary>Joins the opponents a banner names, in slot order.</summary>
+    private const string OpponentJoin = " · ";
 
     /// <summary>The rounding every accumulated health value is held to, as the rules layer holds it.</summary>
     private const int HealthDecimals = 4;
@@ -234,6 +353,34 @@ public sealed class BattleReplayPresenter
     /// </remarks>
     private bool _confirmationSettled;
 
+    /// <summary>
+    /// Whether the blow now being read was announced as a critical one.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>A reconstruction of the rules layer's private per-attack emission order, and there is no
+    /// other way to colour the number.</b> A critical hit is its own event rather than a flag on the
+    /// blow, and it is emitted <em>before</em> the blow it describes: the attack opens the sequence, a
+    /// miss ends it, and a crit, a block, a broken ward and the hit itself follow in that order. So
+    /// the announcement is held across the events between it and the number it belongs to, and
+    /// cleared by the next attack — because an announcement whose blow never landed, fully absorbed
+    /// by a ward or dodged, must not colour somebody else's number several ticks later. It is a real
+    /// coupling to an order that is not promised to a client, which is exactly why it is kept on this
+    /// side of the split, where the cases below hold it.
+    /// </remarks>
+    private bool _critPending;
+
+    /// <summary>
+    /// Where the playhead has walked each actor's health to, by slot.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Walked here rather than by whatever draws the bars, so that a watched fight and a skipped
+    /// one cannot disagree: every step is held to the same four decimals the rules layer holds its own
+    /// values to, and a skip puts each actor on the value the fight ended on. Two arithmetics for one
+    /// health bar is two answers for the same fight, differing in whichever decimal the player is
+    /// least likely to look at and most likely to screenshot.
+    /// </remarks>
+    private readonly Dictionary<byte, double?> _health = new();
+
     /// <summary>Builds the screen over the host, the strings, the prediction and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and the result is submitted through.</param>
     /// <param name="strings">Key to display string, over the loaded content set.</param>
@@ -311,6 +458,18 @@ public sealed class BattleReplayPresenter
     /// </remarks>
     public IReadOnlyList<CombatEvent> StepEvents { get; private set; } = [];
 
+    /// <summary>
+    /// What those events ask the screen to draw, in the order the log put them in.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The events themselves say what happened; these say what is shown. Everything that reads the
+    /// log's own semantics to get from one to the other — that a hit's value is health lost, that a
+    /// tick's is signed, that an applied status carries stacks, that a crit announces the blow after
+    /// it — happens here and is checked here. Most events ask for nothing at all and produce none of
+    /// these, so a step that crossed only a battle's opening is empty.
+    /// </remarks>
+    public IReadOnlyList<ReplayCue> StepCues { get; private set; } = [];
+
     /// <summary>Every actor the log mentions, with whatever the log fixes about its health.</summary>
     public IReadOnlyList<ReplayActor> Actors { get; private set; } = [];
 
@@ -344,6 +503,36 @@ public sealed class BattleReplayPresenter
 
     /// <summary>The caption over the enemy's health bar.</summary>
     public string EnemyLabel => _strings.Resolve(EnemyLabelKey);
+
+    /// <summary>
+    /// The banner over the fight, naming every opponent in it.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 By role and index rather than by name — see <see cref="TheEnemysNameIsNotReachableHere"/>.
+    /// A fight whose roster is not settled yet falls back to the side's own caption, so the banner is
+    /// never blank.
+    /// </remarks>
+    public string OpponentLabel
+    {
+        get
+        {
+            var named = "";
+
+            foreach (var actor in Actors)
+            {
+                if (actor.Side != ReplaySide.Enemy)
+                {
+                    continue;
+                }
+
+                named = named.Length == 0
+                    ? CaptionOf(actor.ActorId)
+                    : named + OpponentJoin + CaptionOf(actor.ActorId);
+            }
+
+            return named.Length > 0 ? named : EnemyLabel;
+        }
+    }
 
     /// <summary>The caption beside the speed control.</summary>
     public string SpeedLabel => _strings.Resolve(SpeedLabelKey);
@@ -471,6 +660,7 @@ public sealed class BattleReplayPresenter
         // the scene every event of a ninety-second log in one frame would spray eighteen hundred
         // ticks of floating damage numbers across the screen a player asked to be spared.
         MovePlayheadTo(TotalTicks, emitting: false);
+        AnchorHealthToTheEnd();
 
         return await ConfirmAsync(fight, ct).ConfigureAwait(false);
     }
@@ -487,6 +677,51 @@ public sealed class BattleReplayPresenter
             BattleSpeed.Double => BattleSpeed.Triple,
             _ => BattleSpeed.Single,
         };
+
+    /// <summary>
+    /// Names one actor by the side its slot puts it on and which one of that side it is.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The hero's own caption carries no index — there is only ever one — and a pet borrows the
+    /// hero's side, see <see cref="APetHasNoCaptionOfItsOwn"/>. Both halves come out of the content
+    /// set, so a caption a player reads is a caption a translator was paid for.
+    /// </remarks>
+    /// <param name="actorId">The slot the log identifies the actor by.</param>
+    public string CaptionOf(byte actorId)
+    {
+        var side = SideOf(actorId);
+
+        if (side == ReplaySide.Hero)
+        {
+            return HeroLabel;
+        }
+
+        var caption = side == ReplaySide.Enemy ? EnemyLabel : HeroLabel;
+
+        return caption + CaptionGap + SideIndexOf(actorId).ToString(CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Where the playhead has walked one actor's health to, or null where the log fixes none.
+    /// </summary>
+    /// <param name="actorId">The slot the log identifies the actor by.</param>
+    public double? HealthOf(byte actorId) => _health.GetValueOrDefault(actorId);
+
+    /// <summary>Which side of the stage a slot puts an actor on.</summary>
+    private static ReplaySide SideOf(byte actorId) => actorId switch
+    {
+        HeroSlot => ReplaySide.Hero,
+        < FirstEnemySlot => ReplaySide.Pet,
+        _ => ReplaySide.Enemy,
+    };
+
+    /// <summary>Which one of its own side an actor is — the first of a side is one, the hero is none.</summary>
+    private static int SideIndexOf(byte actorId) => SideOf(actorId) switch
+    {
+        ReplaySide.Hero => 0,
+        ReplaySide.Pet => actorId,
+        _ => actorId - FirstEnemySlot + 1,
+    };
 
     /// <summary>How many log ticks the phase band stays up for, at the dwell in force.</summary>
     private int PhaseBandTicks =>
@@ -535,6 +770,11 @@ public sealed class BattleReplayPresenter
         TotalTicks = fight.DurationTicks;
         Actors = ActorsIn(fight);
         _phaseChanges = PhaseChangesIn(fight);
+
+        foreach (var actor in Actors)
+        {
+            _health[actor.ActorId] = actor.StartingHp;
+        }
     }
 
     /// <summary>Puts the playhead on a tick, clamped to the fight, and settles what that shows.</summary>
@@ -543,8 +783,8 @@ public sealed class BattleReplayPresenter
     private void MovePlayheadTo(int reachedTick, bool emitting)
     {
         CurrentTick = Math.Min(TotalTicks, reachedTick);
-        StepEvents = EventsCrossed(CurrentTick, emitting);
 
+        ConsumeThrough(CurrentTick, emitting);
         SettlePhaseBand();
     }
 
@@ -554,11 +794,14 @@ public sealed class BattleReplayPresenter
     /// walked whether the step is drawn or not, so what a skip jumped over is consumed rather than
     /// left for the next advance to spray across the screen.
     /// </remarks>
-    private IReadOnlyList<CombatEvent> EventsCrossed(int throughTick, bool emitting)
+    private void ConsumeThrough(int throughTick, bool emitting)
     {
+        StepEvents = [];
+        StepCues = [];
+
         if (_fight is not { } fight)
         {
-            return [];
+            return;
         }
 
         var log = fight.Log;
@@ -571,17 +814,224 @@ public sealed class BattleReplayPresenter
 
         if (!emitting || _logCursor == from)
         {
-            return [];
+            return;
         }
 
         var crossed = new CombatEvent[_logCursor - from];
+        var drawn = 0;
 
         for (var index = 0; index < crossed.Length; index++)
         {
             crossed[index] = log[from + index];
+
+            if (Draws(crossed[index].Type))
+            {
+                drawn++;
+            }
         }
 
-        return crossed;
+        StepEvents = crossed;
+        StepCues = CuesFor(crossed, drawn);
+    }
+
+    /// <summary>
+    /// Reads a step's events into what they ask the screen to draw.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Sized by <see cref="Draws"/> and filled by <see cref="CueFor"/>, which is why the two are
+    /// written next to each other: one array, exactly as long as the number of events that ask for
+    /// anything, on the frames that crossed one. Every other event still walks past here, because the
+    /// attack that opens a sequence draws nothing and yet is the thing that clears a stale critical
+    /// announcement.
+    /// </remarks>
+    private IReadOnlyList<ReplayCue> CuesFor(CombatEvent[] crossed, int drawn)
+    {
+        if (drawn == 0)
+        {
+            foreach (var entry in crossed)
+            {
+                Opened(entry);
+            }
+
+            return [];
+        }
+
+        var cues = new ReplayCue[drawn];
+        var next = 0;
+
+        foreach (var entry in crossed)
+        {
+            if (Draws(entry.Type))
+            {
+                cues[next++] = CueFor(entry);
+            }
+            else
+            {
+                Opened(entry);
+            }
+        }
+
+        return cues;
+    }
+
+    /// <summary>Which events ask the screen to draw something at all.</summary>
+    private static bool Draws(CombatEventType type) => type switch
+    {
+        CombatEventType.Crit => true,
+        CombatEventType.Hit => true,
+        CombatEventType.Heal => true,
+        CombatEventType.StatusTick => true,
+        CombatEventType.StatusApplied => true,
+        CombatEventType.StatusExpired => true,
+        CombatEventType.PetAbility => true,
+        CombatEventType.ActorDeath => true,
+        _ => false,
+    };
+
+    /// <summary>And what one of them asks for.</summary>
+    private ReplayCue CueFor(CombatEvent entry) => entry.Type switch
+    {
+        CombatEventType.Crit => Announced(entry),
+        CombatEventType.Hit => Struck(entry),
+        CombatEventType.Heal => Mended(entry),
+        CombatEventType.StatusTick => Ticked(entry),
+        CombatEventType.StatusApplied => Stacked(entry, (int)Math.Round(entry.Value)),
+        CombatEventType.StatusExpired => Stacked(entry, 0),
+        CombatEventType.PetAbility => Acted(entry),
+        _ => Slain(entry),
+    };
+
+    /// <remarks>
+    /// 🔒 The one thing an event that draws nothing still does: an attack opens a new sequence, so an
+    /// announcement left over from the previous one — a critical blow a ward swallowed whole, or one
+    /// that missed — dies here rather than colouring the next number gold.
+    /// </remarks>
+    private void Opened(CombatEvent entry)
+    {
+        if (entry.Type == CombatEventType.Attack)
+        {
+            _critPending = false;
+        }
+    }
+
+    private ReplayCue Announced(CombatEvent entry)
+    {
+        _critPending = true;
+
+        return Cue(entry.TargetId, burst: ReplayBurst.CritPop);
+    }
+
+    /// <remarks>The value is the health actually lost, after whatever a ward absorbed.</remarks>
+    private ReplayCue Struck(CombatEvent entry)
+    {
+        var critical = _critPending;
+
+        _critPending = false;
+
+        return Cue(
+            entry.TargetId,
+            floater: critical ? ReplayFloater.Crit : ReplayFloater.Hit,
+            amount: entry.Value,
+            burst: ReplayBurst.HitSpark,
+            health: Move(entry.TargetId, -entry.Value));
+    }
+
+    /// <remarks>The value is what was actually restored, with any overheal already excluded.</remarks>
+    private ReplayCue Mended(CombatEvent entry) =>
+        Cue(
+            entry.TargetId,
+            floater: ReplayFloater.Heal,
+            amount: entry.Value,
+            health: Move(entry.TargetId, entry.Value));
+
+    /// <remarks>
+    /// The value is signed — a tick that heals is still a tick — and the number drawn is its size.
+    /// </remarks>
+    private ReplayCue Ticked(CombatEvent entry) =>
+        Cue(
+            entry.TargetId,
+            floater: ReplayFloater.DamageOverTime,
+            amount: Math.Abs(entry.Value),
+            health: Move(entry.TargetId, entry.Value));
+
+    /// <remarks>An applied status carries a stack count rather than a potency.</remarks>
+    private ReplayCue Stacked(CombatEvent entry, int stacks) =>
+        Cue(entry.TargetId, statusId: entry.DataId, stacks: stacks);
+
+    /// <remarks>A pet's ability is drawn over the pet, which is the event's source rather than its target.</remarks>
+    private ReplayCue Acted(CombatEvent entry) =>
+        Cue(entry.SourceId, burst: ReplayBurst.HitSpark);
+
+    /// <remarks>The event's target is the actor that died; its source is whatever killed it.</remarks>
+    private ReplayCue Slain(CombatEvent entry) =>
+        Cue(entry.TargetId, burst: ReplayBurst.DeathPuff, health: Fell(entry.TargetId), died: true);
+
+    /// <summary>Takes an actor the log records a death for down to nothing.</summary>
+    /// <remarks>
+    /// Set outright rather than subtracted to. A death is the one thing that fixes an actor's final
+    /// health, and a walk that had drifted a fraction above zero would leave a sliver of bar standing
+    /// under an actor the log has just killed.
+    /// </remarks>
+    private double? Fell(byte slot)
+    {
+        if (_health.GetValueOrDefault(slot) is null)
+        {
+            return null;
+        }
+
+        _health[slot] = 0;
+
+        return 0;
+    }
+
+    private ReplayCue Cue(
+        byte actorId,
+        ReplayFloater floater = ReplayFloater.None,
+        double amount = 0,
+        ReplayBurst burst = ReplayBurst.None,
+        double? health = null,
+        bool died = false,
+        ushort? statusId = null,
+        int stacks = 0) =>
+        new(actorId, SideOf(actorId), floater, amount, burst, health, died, statusId, stacks);
+
+    /// <summary>
+    /// Moves one actor's health, held to the rounding the rules layer holds its own values to.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Rounded at every step rather than at the end. Health is walked one blow at a time over a
+    /// fight that can carry hundreds of them, and an unrounded walk drifts away from the value the
+    /// same fight ends on when it is skipped instead of watched — two numbers for one battle,
+    /// differing in the last decimal, which is the decimal a screenshot of a boss kill is read on.
+    /// </remarks>
+    private double? Move(byte slot, double delta)
+    {
+        if (_health.GetValueOrDefault(slot) is not { } current)
+        {
+            return null;
+        }
+
+        var moved = Math.Round(Math.Max(0, current + delta), HealthDecimals);
+
+        _health[slot] = moved;
+
+        return moved;
+    }
+
+    /// <remarks>
+    /// 🔒 What a skip owes the bars. Nothing of the fight was drawn, so the health cannot be walked
+    /// there — it is put on the value the fight ENDED on, which is the same value the walk lands on
+    /// and the whole reason both are held to the same rounding.
+    /// </remarks>
+    private void AnchorHealthToTheEnd()
+    {
+        foreach (var actor in Actors)
+        {
+            if (actor.EndingHp is { } ending)
+            {
+                _health[actor.ActorId] = Math.Round(ending, HealthDecimals);
+            }
+        }
     }
 
     /// <remarks>
@@ -654,8 +1104,7 @@ public sealed class BattleReplayPresenter
     private static IReadOnlyList<ReplayActor> ActorsIn(SimulationResult fight)
     {
         var mentioned = new SortedSet<byte>();
-        var damageTaken = new Dictionary<byte, double>();
-        var healingReceived = new Dictionary<byte, double>();
+        var moved = new Dictionary<byte, double>();
         var slain = new HashSet<byte>();
 
         foreach (var entry in fight.Log)
@@ -671,11 +1120,15 @@ public sealed class BattleReplayPresenter
             switch (entry.Type)
             {
                 case CombatEventType.Hit:
-                    Accumulate(damageTaken, entry.TargetId, entry.Value);
+                    Accumulate(moved, entry.TargetId, -entry.Value);
                     break;
 
                 case CombatEventType.Heal:
-                    Accumulate(healingReceived, entry.TargetId, entry.Value);
+                    Accumulate(moved, entry.TargetId, entry.Value);
+                    break;
+
+                case CombatEventType.StatusTick:
+                    Accumulate(moved, entry.TargetId, entry.Value);
                     break;
 
                 case CombatEventType.ActorDeath:
@@ -687,16 +1140,24 @@ public sealed class BattleReplayPresenter
         return
         [
             .. mentioned.Select(slot => Bar(
-                slot,
-                EndingHpOf(slot, fight, slain),
-                damageTaken.GetValueOrDefault(slot),
-                healingReceived.GetValueOrDefault(slot)))
+                slot, EndingHpOf(slot, fight, slain), moved.GetValueOrDefault(slot)))
         ];
     }
 
     /// <summary>One actor's bar: both ends where the log anchors one, and neither where it does not.</summary>
-    private static ReplayActor Bar(byte slot, double? endingHp, double damageTaken, double healingReceived) =>
-        new(slot, endingHp is { } ending ? ending + damageTaken - healingReceived : null, endingHp);
+    /// <remarks>
+    /// 🔒 The derivation runs the walk backwards, and it accounts for exactly what the walk accounts
+    /// for — every blow, every heal and every tick of something already on the actor. A derivation
+    /// that counted one fewer kind of event than the walk applies would put the bar's own beginning
+    /// out of reach of its end, so a fight watched to the finish would stop somewhere other than the
+    /// health the result reports.
+    /// </remarks>
+    private static ReplayActor Bar(byte slot, double? endingHp, double moved) =>
+        new(slot,
+            SideOf(slot),
+            SideIndexOf(slot),
+            endingHp is { } ending ? Math.Round(ending - moved, HealthDecimals) : null,
+            endingHp);
 
     /// <summary>What an actor finished on, when the log fixes it at all.</summary>
     private static double? EndingHpOf(byte slot, SimulationResult fight, HashSet<byte> slain)
