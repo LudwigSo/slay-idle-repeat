@@ -174,7 +174,11 @@ public partial class AppRoot : Node
     /// <summary>Writes a line of status into the scene, if the scene is still there to write it into.</summary>
     /// <remarks>
     /// ⚠️ Placeholder presentation. The root's three phases are text because the root is a seam,
-    /// not a screen; what a player actually sees while the game starts is the boot screen's.
+    /// not a screen; what a player actually sees while the game starts is the boot screen's. Its
+    /// size and colour repeat <c>Boot.tscn</c>'s status line by hand so the handover does not
+    /// change type mid-launch — theme-kit debt owed to M8-03, not a scheme either scene invented —
+    /// and the line count is capped, because a composition failure puts a whole exception message
+    /// through this one label and the untrimmed text goes to the error log above.
     /// </remarks>
     private void Render(string status)
     {

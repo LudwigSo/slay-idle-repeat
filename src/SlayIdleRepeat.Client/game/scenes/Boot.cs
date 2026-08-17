@@ -15,8 +15,11 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// </para>
 /// <para>
 /// ⚠️ Every type size, colour and gap in <c>Boot.tscn</c> is a per-node override, because the
-/// shared theme resource and the two display faces it will carry do not exist yet. The sizes were
-/// chosen against the engine's default font and the longest translated string, so they have to be
+/// shared theme resource and the two display faces it will carry do not exist yet — they are
+/// M8-03's, and these overrides are debt owed to it rather than a naming scheme of this screen's
+/// own. <c>AppRoot.tscn</c>'s status line repeats the same two values by hand for that reason, and
+/// both move together when the theme kit lands. The sizes were chosen against the engine's default
+/// font and the longest translated string, so they have to be
 /// re-checked — not merely re-applied — when the real faces land. The layout itself is structural:
 /// containers and stretch ratios, so it holds its proportions across the whole supported aspect
 /// range without an override taking part.
@@ -24,7 +27,9 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// <para>
 /// 🔴 <b>The player-facing failure SCREEN is deliberately not built here</b> — see
 /// <see cref="FailureScreenIsNotDesignedHere"/>. What a failed boot gets is the honest minimum: the
-/// failure's full identity on screen and the same identity in the engine's error log.
+/// failure's identity on screen — bounded to the lines that fit inside the safe rect, so a detail
+/// nobody sized cannot push itself off the bottom of the display — and the whole of it, untrimmed,
+/// in the engine's error log.
 /// </para>
 /// </remarks>
 public partial class Boot : Control
@@ -65,6 +70,13 @@ public partial class Boot : Control
     /// it: a cutout-free edge is not a reason to put text against the glass.
     /// </summary>
     private const int DesignGutter = 48;
+
+    /// <summary>
+    /// The most of one axis a single resolved inset may take. A display server answering in a
+    /// coordinate space this screen did not anticipate has to degrade to a wide margin, never to a
+    /// content rect with no room left inside it to draw.
+    /// </summary>
+    private const float MaxInsetShare = 0.25f;
 
     private BootPresenter? _presenter;
 
@@ -136,26 +148,45 @@ public partial class Boot : Control
         var safeArea = DisplayServer.GetDisplaySafeArea();
         var canvas = GetViewportRect().Size;
 
-        if (window.X <= 0 || window.Y <= 0 || safeArea.Size.X <= 0 || safeArea.Size.Y <= 0)
+        if (window.X <= 0 || window.Y <= 0 || safeArea.Size.X <= 0 || safeArea.Size.Y <= 0 ||
+            canvas.X <= 0 || canvas.Y <= 0)
         {
             return;
         }
+
+        // The display server answers in SCREEN coordinates, and the window is only ever part of one
+        // screen. Left unshifted, a window that does not sit at the desktop's origin resolves an
+        // inset measured from somebody else's corner — on a second monitor, one wider than the whole
+        // canvas.
+        var origin = DisplayServer.WindowGetPosition();
 
         var horizontal = canvas.X / window.X;
         var vertical = canvas.Y / window.Y;
 
         var margins = GetNode<MarginContainer>(SafeAreaPath);
 
-        margins.AddThemeConstantOverride(MarginLeftConstant, Inset(safeArea.Position.X * horizontal));
-        margins.AddThemeConstantOverride(MarginTopConstant, Inset(safeArea.Position.Y * vertical));
         margins.AddThemeConstantOverride(
-            MarginRightConstant, Inset((window.X - safeArea.End.X) * horizontal));
+            MarginLeftConstant, Inset((safeArea.Position.X - origin.X) * horizontal, canvas.X));
         margins.AddThemeConstantOverride(
-            MarginBottomConstant, Inset((window.Y - safeArea.End.Y) * vertical));
+            MarginTopConstant, Inset((safeArea.Position.Y - origin.Y) * vertical, canvas.Y));
+        margins.AddThemeConstantOverride(
+            MarginRightConstant,
+            Inset((window.X - (safeArea.End.X - origin.X)) * horizontal, canvas.X));
+        margins.AddThemeConstantOverride(
+            MarginBottomConstant,
+            Inset((window.Y - (safeArea.End.Y - origin.Y)) * vertical, canvas.Y));
     }
 
-    /// <summary>One resolved inset in canvas units, never narrower than the design gutter.</summary>
-    private static int Inset(float canvasUnits) => Mathf.Max(DesignGutter, Mathf.RoundToInt(canvasUnits));
+    /// <summary>
+    /// One resolved inset in canvas units: never narrower than the design gutter, and never wide
+    /// enough that the pair of them could close over the content between them.
+    /// </summary>
+    private static int Inset(float canvasUnits, float axis)
+    {
+        var ceiling = Mathf.Max(DesignGutter, Mathf.RoundToInt(axis * MaxInsetShare));
+
+        return Math.Clamp(Mathf.RoundToInt(canvasUnits), DesignGutter, ceiling);
+    }
 
     /// <remarks>
     /// <para>
