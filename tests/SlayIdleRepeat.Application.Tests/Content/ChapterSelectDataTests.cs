@@ -92,6 +92,9 @@ public sealed class ChapterSelectDataTests
     [InlineData("loc.chapter_select.loading.status")]
     [InlineData("loc.chapter_select.profile_missing.status")]
     [InlineData("loc.chapter_select.unavailable.status")]
+    [InlineData("loc.chapter_select.starting.status")]
+    [InlineData("loc.chapter_select.started.status")]
+    [InlineData("loc.chapter_select.refused.status")]
     [InlineData("loc.chapter_select.confirm.action")]
     public void Every_chapter_select_string_the_screen_shows_is_carried_by_both_locales(string key)
     {

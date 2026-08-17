@@ -30,6 +30,7 @@ internal sealed class RecordingGameHost : IGameHost
     private readonly Exception? _readFailure;
 
     private RejectionReason? _submitRejection;
+    private Exception? _submitFailure;
 
     private RecordingGameHost(OwnStateResult? read, Exception? readFailure)
     {
@@ -95,6 +96,24 @@ internal sealed class RecordingGameHost : IGameHost
         return this;
     }
 
+    /// <summary>
+    /// Makes every command this host is handed come back as a faulted task — how a real host fails
+    /// when the call itself does not complete, as opposed to completing with a refusal.
+    /// </summary>
+    /// <remarks>
+    /// Told apart from <see cref="RefusingCommands"/> on purpose: a refusal is an answer the caller
+    /// reads, a fault is an exception the caller catches, and a screen can handle one and drop the
+    /// other. The read is configured separately, because a submission only happens after a profile
+    /// was found.
+    /// </remarks>
+    /// <param name="failure">What the submission fails with.</param>
+    internal RecordingGameHost FaultingItsCommands(Exception failure)
+    {
+        _submitFailure = failure;
+
+        return this;
+    }
+
     /// <inheritdoc/>
     public Task<PlayerId> OpenProfileAsync(CancellationToken ct) =>
         throw new NotSupportedException(
@@ -126,6 +145,11 @@ internal sealed class RecordingGameHost : IGameHost
         SubmitRun = run;
         SubmitCommand = command;
         SubmitToken = ct;
+
+        if (_submitFailure is { } failure)
+        {
+            return Task.FromException<ApplyCommandOutcome>(failure);
+        }
 
         var unchanged = PlayerState.EmptySlice(player);
 

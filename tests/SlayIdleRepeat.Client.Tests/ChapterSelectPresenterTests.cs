@@ -650,6 +650,136 @@ public sealed class ChapterSelectPresenterTests
             "would put a cause on a screen that succeeded.");
     }
 
+    // ------------------------------------------- 🔒 the line the confirm's own press cannot say
+
+    /// <summary>
+    /// 🔒 The confirm is disabled on the press and comes back on every outcome but one, so the three
+    /// outcomes are one flicker of one button. These cases pin that each produces its own sentence —
+    /// and, above all, that the refusal produces one at all: it reached only the engine log before,
+    /// which is a primary action failing in silence on the screen every run starts from.
+    /// </summary>
+    [Fact]
+    public async Task ConfirmStatusText_says_nothing_before_a_confirm_has_been_answered()
+    {
+        var presenter = await Started(
+            RecordingGameHost.Finding(PlayerRow()), Authoring(AuthoredChapters));
+
+        presenter.ConfirmStatusText.ShouldBeEmpty(
+            "a screen nobody has confirmed on yet has nothing to report about a confirm. A line " +
+            "standing there from the start would be a verdict on a press that never happened.");
+    }
+
+    [Fact]
+    public async Task ConfirmStatusText_says_the_run_started_once_the_rules_layer_accepted_it()
+    {
+        var presenter = await Started(
+            RecordingGameHost.Finding(PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL)))),
+            Authoring(AuthoredChapters));
+
+        await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        presenter.ConfirmStatusText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.PickerStartedStatusKey),
+            "this is the one outcome that latches the control for good, so the screen never changes " +
+            "again — and with nothing said, the tap that actually worked is the one that looks most " +
+            "like the button breaking.");
+    }
+
+    [Fact]
+    public async Task ConfirmStatusText_says_the_run_was_not_started_when_the_rules_layer_refused_it()
+    {
+        var presenter = await Started(
+            RecordingGameHost
+                .Finding(PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))))
+                .RefusingCommands(RejectionReason.ILLEGAL_STATE),
+            Authoring(AuthoredChapters));
+
+        await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        presenter.ConfirmStatusText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.PickerRefusedStatusKey),
+            "the refusal the player can act on, and the one that used to reach the log and nothing " +
+            "else: the control came back live and the screen looked exactly as it had before the " +
+            "press, so the only reading available was that the tap had not registered.");
+    }
+
+    /// <summary>
+    /// The refusals this screen decides for itself are unreachable from a live control, and they
+    /// still may not be silent: a verdict with no sentence is the hole the catch-all closes.
+    /// </summary>
+    [Fact]
+    public async Task ConfirmStatusText_reports_a_refusal_this_screen_decided_for_itself_too()
+    {
+        var presenter = await Started(
+            RecordingGameHost.Finding(PlayerRow()), Authoring(AuthoredChapters));
+
+        await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        presenter.ConfirmStatusText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.PickerRefusedStatusKey),
+            "chapter two is blocked, so nothing was sent — and a verdict the switch has not been " +
+            "taught must land on the refusal line rather than on the empty string, or a confirm " +
+            "that did nothing is drawn as a confirm that has not happened.");
+    }
+
+    /// <summary>
+    /// 🔒 The path with no verdict at all. A host that faults rather than refusing takes the failure
+    /// out through the caller's catch, so nothing ever returns a <see cref="ChapterSelectSubmission"/>
+    /// — and a line driven off the returned verdict would leave the single press a player can make on
+    /// this screen failing in complete silence, which is the state it is worst to leave them in.
+    /// </summary>
+    [Fact]
+    public async Task ConfirmStatusText_says_the_run_was_not_started_when_the_host_faulted_instead_of_answering()
+    {
+        var presenter = await Started(
+            RecordingGameHost
+                .Finding(PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))))
+                .FaultingItsCommands(new InvalidOperationException(ReadFailureMessage)),
+            Authoring(AuthoredChapters));
+
+        await Should.ThrowAsync<InvalidOperationException>(
+            () => presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None));
+
+        presenter.ConfirmStatusText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.PickerRefusedStatusKey),
+            "no run started, so the one true sentence is the same one a refusal gets. The failure " +
+            "itself still travels to the caller, which is where an untranslated type name belongs — " +
+            "what may not happen is the screen going quiet because nothing came back to read.");
+    }
+
+    /// <summary>
+    /// 🔒 The case that fails if success and failure are ever wired to one key, or if the in-flight
+    /// line is the same words as either of them.
+    /// </summary>
+    [Fact]
+    public async Task The_three_things_a_confirm_can_say_stay_three_different_lines()
+    {
+        var accepted = await Started(
+            RecordingGameHost.Finding(PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL)))),
+            Authoring(AuthoredChapters));
+        var refused = await Started(
+            RecordingGameHost
+                .Finding(PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))))
+                .RefusingCommands(RejectionReason.ILLEGAL_STATE),
+            Authoring(AuthoredChapters));
+
+        await accepted.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+        await refused.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        new[] { accepted.StartingStatus, accepted.ConfirmStatusText, refused.ConfirmStatusText }
+            .Distinct(StringComparer.Ordinal)
+            .Count()
+            .ShouldBe(
+                3,
+                "still working, worked, and did not work are three different things to do next — " +
+                "wait, stop, and press again. Any two of them sharing a sentence puts one instruction " +
+                "on two states, and the pair most likely to collapse is the two that both end with a " +
+                "screen that has stopped moving.");
+        accepted.StartingStatus.ShouldNotBeEmpty(
+            "and the in-flight line is the one with no state behind it to notice if it went blank: " +
+            "the screen resolves it on the press and would draw an empty label without complaint.");
+    }
+
     // ------------------------------------------------------ 🔒 the absence, pinned as a fact
 
     /// <summary>
@@ -687,6 +817,8 @@ public sealed class ChapterSelectPresenterTests
         members.ShouldContain(nameof(ChapterSelectPresenter.ConfirmAsync), "the control the absent warning would have gated");
         members.ShouldContain(nameof(ChapterSelectPresenter.RulesRejection), "the one refusal on this screen that comes from behind it");
         members.ShouldContain(nameof(ChapterSelectPresenter.StatusText), "the one line the screen says about itself, which a power warning must not be smuggled into");
+        members.ShouldContain(nameof(ChapterSelectPresenter.StartingStatus), "the line drawn while the confirm is in flight, which a power warning must not be smuggled into either");
+        members.ShouldContain(nameof(ChapterSelectPresenter.ConfirmStatusText), "the line drawn after it, and the obvious place to bolt a 'your power is low' onto");
     }
 
     // ------------------------------------------------------------------------- the strings

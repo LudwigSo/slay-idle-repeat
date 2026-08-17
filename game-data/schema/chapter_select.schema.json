@@ -5,7 +5,7 @@
   "description": "M7-04 — the loc keys the Chapter Select screen (S04) renders. What is fixed here is that the screen shows a title, one name per difficulty tier, one caption per way a tier can be refused, one status line per state the screen can be in while its list is not yet an answer, and a confirm caption — and that every one of them is a key rather than a literal (X-04). Every value is a loc key, so ContentInvariants.CheckLocaleKeyReferences resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. The tier member set mirrors the DifficultyTier vocabulary, which is authored in tuning/progression.json#/chapterGating and in par_power.json's tier columns; adding a fourth tier is a tuning decision that would fail here until this schema was widened deliberately. additionalProperties is false throughout, so there is no slot for a par-power or expected-power warning: that readout belongs to the row that owns the power model, and a caption here would invite a screen-side power comparison ahead of it.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "title", "tier", "block", "status", "confirm"],
+  "required": ["$schema", "_doc", "title", "tier", "block", "status", "confirmStatus", "confirm"],
   "$defs": {
     "locKey": {
       "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
@@ -32,7 +32,7 @@
       }
     },
     "block": {
-      "description": "One caption per KIND of unmet requirement — a clear that has not happened, and a Legend Level that has not been reached. Two rather than one, because they are fixed by doing two different things. WHICH clear or WHICH level is carried in code as a payload rather than baked into a sentence here: there is no string-interpolation runtime in this repository yet, and a caption per (chapter, tier) pair would be a translation bill that grows with the campaign.",
+      "description": "One caption per KIND of unmet requirement — a clear that has not happened, and a Legend Level that has not been reached. Two rather than one, because they are fixed by doing two different things. WHICH clear or WHICH level is carried in code as a payload rather than baked into a sentence here: there is no string-interpolation runtime in this repository yet, and a caption per (chapter, tier) pair would be a translation bill that grows with the campaign. 🔒 Each value is therefore a LABEL that its payload completes, never a finished sentence: the screen renders caption, a space, then the payload, so 'Requires Chapter' becomes 'Requires Chapter 1 · Normal' and reads as one clause. A sentence here ('Clear the required chapter first.') welds two registers together and renders as a full stop followed by a bare id, which is what this note exists to stop coming back.",
       "type": "object",
       "additionalProperties": false,
       "required": ["requiresClear", "requiresLegendLevel"],
@@ -50,6 +50,17 @@
         "loading": { "$ref": "#/$defs/locKey" },
         "profileMissing": { "$ref": "#/$defs/locKey" },
         "unavailable": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "confirmStatus": {
+      "description": "One line per outcome the confirm can have, required in full. The control is disabled from the press until the host answers and comes back on every outcome but one, so with no words a press that is still in flight, a run that started and a run the rules layer refused are all the same flicker. Three rather than one, for the reason the status trio above is three: they are escaped by doing three different things, and only the middle one is success. There is deliberately no member here for a retry or an error panel either — the refused line says the control is live again, which is the whole of the recovery this screen offers.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["starting", "started", "refused"],
+      "properties": {
+        "starting": { "$ref": "#/$defs/locKey" },
+        "started": { "$ref": "#/$defs/locKey" },
+        "refused": { "$ref": "#/$defs/locKey" }
       }
     },
     "confirm": {

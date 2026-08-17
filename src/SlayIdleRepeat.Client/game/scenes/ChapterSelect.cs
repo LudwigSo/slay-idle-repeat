@@ -38,6 +38,14 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// a later milestone's, and half of one built here would make an unbuilt flow look shipped.
 /// </para>
 /// <para>
+/// 🔒 <b>And the same line answers the confirm, because that press is otherwise silent too.</b>
+/// The control is taken out of use on the press and comes back on every outcome but one, so a run
+/// still being started, a run that started and a run the rules layer refused are the same flicker of
+/// the same button — and the refusal, which is the one the player can act on, reached only the log.
+/// The line says which of the three it was and nothing more; it offers no retry, because the confirm
+/// itself is the retry and comes back live.
+/// </para>
+/// <para>
 /// ⚠️ Every type size, colour and gap in <c>ChapterSelect.tscn</c> and <c>ChapterRow.tscn</c> is a
 /// per-node override, because the shared theme resource and the display faces it will carry do not
 /// exist yet — they are M8-03's, and these overrides are debt owed to it rather than a naming
@@ -538,11 +546,26 @@ public partial class ChapterSelect : Control
         _titleLabel.Text = presenter.Title;
         _confirmButton.Text = presenter.ConfirmText;
 
-        // The line that says why the list below is dimmed. Hidden rather than blanked when the read
-        // has landed, for the same reason the requirement lines are: a blank line of the right
-        // height is a sentence the player can see room for and cannot read.
-        _statusLabel.Text = presenter.StatusText;
-        _statusLabel.Visible = _statusLabel.Text.Length > 0;
+        // The line that says why the list below is dimmed — and, once the list IS the answer, what
+        // the last press of the confirm did. One label rather than two, because the two can never be
+        // needed at once: nothing short of a Ready stage can reach the confirm at all. The read's own
+        // sentence wins where they would otherwise overlap, since a screen that cannot say which
+        // chapters are open has nothing useful to add about a run.
+        //
+        // Hidden rather than blanked when there is nothing to say, for the same reason the
+        // requirement lines are: a blank line of the right height is a sentence the player can see
+        // room for and cannot read.
+        var status = presenter.StatusText;
+
+        if (status.Length == 0)
+        {
+            // In flight is drawn from this screen's own flag rather than from the presenter: the
+            // control is taken out of use on the press, before the presenter is called at all.
+            status = _confirming ? presenter.StartingStatus : presenter.ConfirmStatusText;
+        }
+
+        _statusLabel.Text = status;
+        _statusLabel.Visible = status.Length > 0;
 
         // Repainted every pass rather than on the toggle that changed, because a button group tells
         // the buttons it deselects nothing: only the pressed one raises a signal, so the one that

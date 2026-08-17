@@ -188,6 +188,9 @@ public sealed class ChapterSelectPresenter
     private const string LoadingStatusKey = "loc.chapter_select.loading.status";
     private const string ProfileMissingStatusKey = "loc.chapter_select.profile_missing.status";
     private const string UnavailableStatusKey = "loc.chapter_select.unavailable.status";
+    private const string StartingStatusKey = "loc.chapter_select.starting.status";
+    private const string StartedStatusKey = "loc.chapter_select.started.status";
+    private const string RefusedStatusKey = "loc.chapter_select.refused.status";
 
     /// <summary>The status line of a screen whose list is the answer: there is nothing left to say.</summary>
     private const string NothingLeftToSay = "";
@@ -226,6 +229,15 @@ public sealed class ChapterSelectPresenter
 
     private int _legendLevel;
     private IReadOnlyDictionary<string, long>? _clearedChapterTiers;
+    /// <summary>
+    /// Whether the last confirm started a run — null until one has been answered.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately a yes/no rather than the verdict itself: the line it decides has exactly two
+    /// things to say, and a confirm whose host <em>threw</em> has no verdict to carry. Recording the
+    /// nearest named refusal there would put a cause on the screen that nothing decided.
+    /// </remarks>
+    private bool? _lastConfirmStartedARun;
 
     /// <summary>Builds the screen over the host, the strings, the content set and the profile.</summary>
     /// <param name="gameHost">The seam the player's state is read through and the run is started through.</param>
@@ -296,6 +308,43 @@ public sealed class ChapterSelectPresenter
     /// honest line is the whole of what this screen may say.
     /// </remarks>
     public string StatusText => KeyFor(Stage) is { } key ? _strings.Resolve(key) : NothingLeftToSay;
+
+    /// <summary>
+    /// The line shown from the moment a confirm is pressed until the host has answered it, resolved.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A caption rather than a state, because the screen holds the in-flight window and this class
+    /// cannot: the control is taken out of use on the press, before <see cref="ConfirmAsync"/> is
+    /// called at all, and a flag settled inside the call would be read one redraw too late. What the
+    /// player would otherwise see is the confirm greying out and nothing else — which is the same
+    /// thing they see when no chapter is chosen, so the one moment the screen is genuinely working
+    /// is drawn exactly like the one moment it has nothing to do.
+    /// </remarks>
+    public string StartingStatus => _strings.Resolve(StartingStatusKey);
+
+    /// <summary>
+    /// The line about the last confirm this screen answered, resolved — and empty until one has been.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 The three outcomes are told apart, because they are escaped by doing three different
+    /// things and only one of them is success. A run the rules layer refused leaves the control live
+    /// and is worth pressing again; a run that started leaves it latched forever, and the player has
+    /// no other way to learn that the tap they made was the one that worked.
+    /// </para>
+    /// <para>
+    /// ⚠️ Every refusal shares one sentence, and that IS a collapse — deliberately. The identity of
+    /// the refusal is carried by <see cref="RulesRejection"/> for the log; a sentence per
+    /// <see cref="RejectionReason"/> would be twenty authored strings, most of them for reasons this
+    /// screen cannot reach, and the two the player can act on are both acted on the same way.
+    /// </para>
+    /// </remarks>
+    public string ConfirmStatusText => _lastConfirmStartedARun switch
+    {
+        null => NothingLeftToSay,
+        true => _strings.Resolve(StartedStatusKey),
+        _ => _strings.Resolve(RefusedStatusKey),
+    };
 
     /// <summary>A difficulty tier's name, resolved.</summary>
     /// <remarks>
@@ -378,6 +427,31 @@ public sealed class ChapterSelectPresenter
     /// <param name="tier">The chosen tier.</param>
     /// <param name="ct">Cancellation.</param>
     public async Task<ChapterSelectSubmission> ConfirmAsync(
+        int chapterId, DifficultyTier tier, CancellationToken ct)
+    {
+        try
+        {
+            // Recorded on every path rather than at each return, so a verdict added later cannot be
+            // the one the screen has no sentence for.
+            var submission = await SubmitAsync(chapterId, tier, ct).ConfigureAwait(false);
+
+            _lastConfirmStartedARun = submission == ChapterSelectSubmission.Submitted;
+
+            return submission;
+        }
+        catch (Exception)
+        {
+            // 🔒 A confirm whose host threw started no run either, and that is the whole of what the
+            // screen may say about it. Recorded before the failure travels on, because the caller
+            // logs the exception and redraws — and without this the one press a player can make
+            // would fail in complete silence, which is the state it is worst to leave them in.
+            _lastConfirmStartedARun = false;
+
+            throw;
+        }
+    }
+
+    private async Task<ChapterSelectSubmission> SubmitAsync(
         int chapterId, DifficultyTier tier, CancellationToken ct)
     {
         if (Stage != ChapterSelectStage.Ready)
