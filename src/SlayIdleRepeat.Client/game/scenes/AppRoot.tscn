@@ -6,6 +6,7 @@
 script = ExtResource("1_approot")
 
 [node name="Ui" type="CanvasLayer" parent="."]
+unique_name_in_owner = true
 
 [node name="SafeArea" type="MarginContainer" parent="Ui"]
 anchors_preset = 15

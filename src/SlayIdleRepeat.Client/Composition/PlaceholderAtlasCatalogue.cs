@@ -66,7 +66,21 @@ public sealed class PlaceholderAtlasCatalogue : IBootAtlasCatalogue
                 "the placeholder generator has not been run here, and its output is never committed");
         }
 
-        var manifests = Directory.GetFiles(directory, ManifestSearchPattern);
+        string[] manifests;
+
+        try
+        {
+            manifests = Directory.GetFiles(directory, ManifestSearchPattern);
+        }
+        catch (Exception unreadable) when (unreadable is IOException or UnauthorizedAccessException)
+        {
+            // A directory that cannot be listed — no permission, or removed between the check and
+            // the listing — is absence with a cause, not a manifest that will not parse. This whole
+            // read is optional, so refusing to start the game over it would be the worse defect.
+            return BootAtlasResult.Absent(
+                $"'{directory}' could not be listed — {unreadable.GetType().Name}: " +
+                $"{unreadable.Message}");
+        }
 
         if (manifests.Length == 0)
         {
@@ -85,15 +99,36 @@ public sealed class PlaceholderAtlasCatalogue : IBootAtlasCatalogue
         return BootAtlasResult.Loaded(manifests.Length, placements);
     }
 
+    /// <summary>
+    /// How many placements one manifest holds — and a refusal to count a file that is not a
+    /// manifest, because reporting it as an atlas holding nothing would file a generator run that
+    /// emitted rubbish under the same word as one that packed an empty page.
+    /// </summary>
     private static int CountPlacements(string manifestPath)
     {
         using var document = JsonDocument.Parse(File.ReadAllBytes(manifestPath));
 
-        return document.RootElement.ValueKind == JsonValueKind.Object &&
-               document.RootElement.TryGetProperty(PlacementsMember, out var placements) &&
-               placements.ValueKind == JsonValueKind.Array
+        var root = document.RootElement;
+
+        if (root.ValueKind != JsonValueKind.Object)
+        {
+            throw new JsonException(
+                $"'{manifestPath}' is valid JSON but is not an atlas manifest: its root is " +
+                $"{root.ValueKind} rather than an object.");
+        }
+
+        // A manifest with no placements member at all packed nothing, which is a fact rather than a
+        // defect. One that carries the member as something other than an array is the defect.
+        if (!root.TryGetProperty(PlacementsMember, out var placements))
+        {
+            return 0;
+        }
+
+        return placements.ValueKind == JsonValueKind.Array
             ? placements.GetArrayLength()
-            : 0;
+            : throw new JsonException(
+                $"'{manifestPath}' carries '{PlacementsMember}' as {placements.ValueKind} rather " +
+                "than an array of placed rectangles.");
     }
 
     /// <summary>

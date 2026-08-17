@@ -62,6 +62,14 @@ public partial class Boot : Control
 
     private CancellationToken _lifetime;
 
+    private Label? _titleLabel;
+    private Label? _statusLabel;
+    private Label? _failureLabel;
+
+    private string? _drawnTitle;
+    private string? _drawnStatus;
+    private BootFailure? _drawnFailure;
+
     /// <summary>
     /// Takes the presenter the composition root built, and the token the app shuts down through.
     /// </summary>
@@ -78,6 +86,12 @@ public partial class Boot : Control
     /// <inheritdoc/>
     public override void _Ready()
     {
+        // Resolved once. Render runs every frame while the boot does, and a scene-unique lookup is
+        // a string search of the owner's table each time it is asked.
+        _titleLabel = GetNode<Label>(TitleLabelPath);
+        _statusLabel = GetNode<Label>(StatusLabelPath);
+        _failureLabel = GetNode<Label>(FailureLabelPath);
+
         ApplySafeArea();
         Render();
 
@@ -135,50 +149,90 @@ public partial class Boot : Control
     /// <summary>One resolved inset in canvas units, never narrower than the design gutter.</summary>
     private static int Inset(float canvasUnits) => Mathf.Max(DesignGutter, Mathf.RoundToInt(canvasUnits));
 
+    /// <remarks>
+    /// Nothing awaits this task, so its exceptions have nowhere to surface: the whole body is
+    /// guarded, or a continuation that threw would leave a screen that silently stopped moving.
+    /// </remarks>
     private async Task RunAsync()
     {
-        var presenter = _presenter;
+        try
+        {
+            var presenter = _presenter;
 
-        if (presenter is null)
+            if (presenter is null)
+            {
+                StopRedrawing();
+
+                GD.PushError(
+                    "The boot screen entered the tree with no presenter. Only the application root " +
+                    "may instantiate it, and it must call Drive before adding it to the tree.");
+
+                return;
+            }
+
+            // No ConfigureAwait(false): the continuation writes to nodes, and only the thread the
+            // engine runs the scene tree on may do that.
+            await presenter.StartAsync(_lifetime);
+
+            StopRedrawing();
+            Render();
+            Report(presenter);
+        }
+        catch (Exception failure)
+        {
+            GD.PushError($"The boot screen stopped unexpectedly: {failure}");
+        }
+    }
+
+    /// <summary>Stops the per-frame redraw, if there is still a node left to stop it on.</summary>
+    private void StopRedrawing()
+    {
+        if (IsInstanceValid(this))
         {
             SetProcess(false);
-
-            GD.PushError(
-                "The boot screen entered the tree with no presenter. Only the application root may " +
-                "instantiate it, and it must call Drive before adding it to the tree.");
-
-            return;
         }
-
-        // No ConfigureAwait(false): the continuation writes to nodes, and only the thread the engine
-        // runs the scene tree on may do that.
-        await presenter.StartAsync(_lifetime);
-
-        SetProcess(false);
-        Render();
-        Report(presenter);
     }
 
     /// <summary>Writes the presenter's state into the scene, if the scene is still there to write into.</summary>
+    /// <remarks>
+    /// Every write is compared against what was last drawn, because this runs per frame: setting a
+    /// label's text marshals a string into the engine whether or not it changed, and rendering a
+    /// failure would build its line again on every one of them.
+    /// </remarks>
     private void Render()
     {
         var presenter = _presenter;
 
         // Validity before tree membership: asking a freed node whether it is inside the tree is
         // itself the crash, and a shutdown during a slow start is the ordinary case on a handset.
-        if (presenter is null || !IsInstanceValid(this) || !IsInsideTree())
+        if (presenter is null || _titleLabel is null || _statusLabel is null ||
+            _failureLabel is null || !IsInstanceValid(this) || !IsInsideTree())
         {
             return;
         }
 
-        GetNode<Label>(TitleLabelPath).Text = presenter.Title;
-        GetNode<Label>(StatusLabelPath).Text = presenter.StatusText;
-
-        var failureLabel = GetNode<Label>(FailureLabelPath);
+        var title = presenter.Title;
+        var status = presenter.StatusText;
         var failure = presenter.Failure;
 
-        failureLabel.Visible = failure is not null;
-        failureLabel.Text = failure?.ToString() ?? string.Empty;
+        if (!string.Equals(_drawnTitle, title, StringComparison.Ordinal))
+        {
+            _drawnTitle = title;
+            _titleLabel.Text = title;
+        }
+
+        if (!string.Equals(_drawnStatus, status, StringComparison.Ordinal))
+        {
+            _drawnStatus = status;
+            _statusLabel.Text = status;
+        }
+
+        if (!ReferenceEquals(_drawnFailure, failure))
+        {
+            _drawnFailure = failure;
+            _failureLabel.Visible = failure is not null;
+            _failureLabel.Text = failure?.ToString() ?? string.Empty;
+        }
     }
 
     /// <summary>

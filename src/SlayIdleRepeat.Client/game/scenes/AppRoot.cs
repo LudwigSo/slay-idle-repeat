@@ -40,7 +40,7 @@ public partial class AppRoot : Node
     private const string StatusLabelPath = "%StatusLabel";
 
     /// <summary>The root's own layer, hidden the moment the first screen takes over.</summary>
-    private const string UiLayerPath = "Ui";
+    private const string UiLayerPath = "%Ui";
 
     /// <summary>Cancelled when the root leaves the tree, so a half-finished open stops there.</summary>
     private readonly CancellationTokenSource _lifetime = new();
@@ -136,9 +136,33 @@ public partial class AppRoot : Node
     /// </remarks>
     private void ShowBoot(ComposedGodotClient composed)
     {
-        var boot = GD.Load<PackedScene>(Boot.ScenePath).Instantiate<Boot>();
+        // This runs in a continuation, so the root may have been freed or pulled out of the tree
+        // while the profile was opening. Validity before tree membership, for the same reason
+        // Render checks them in that order.
+        if (!IsInstanceValid(this) || !IsInsideTree())
+        {
+            return;
+        }
 
-        boot.Drive(BootComposition.CreateBootPresenter(composed), _lifetime.Token);
+        // Presenter first, scene second: composing it resolves the content root through the engine
+        // and throws by name when there is none, and a scene instantiated before that throw is a
+        // node with no parent that nothing ever frees.
+        var presenter = BootComposition.CreateBootPresenter(composed);
+        var scene = GD.Load<PackedScene>(Boot.ScenePath);
+
+        if (scene is null)
+        {
+            // Load answers null rather than throwing when the resource is missing or its import
+            // cannot be read, so an unnamed null reference is all a caller gets unless it says so.
+            GD.PushError($"The boot screen could not be loaded from '{Boot.ScenePath}'.");
+            Render($"Failed — the boot screen is missing from this build ({Boot.ScenePath})");
+
+            return;
+        }
+
+        var boot = scene.Instantiate<Boot>();
+
+        boot.Drive(presenter, _lifetime.Token);
 
         // The root's own layer sits above the default one, so it would draw over the screen it just
         // handed control to.
