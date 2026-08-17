@@ -177,6 +177,7 @@ public partial class BattleReplay : Control
     private const string SafeAreaPath = "%SafeArea";
     private const string TitleLabelPath = "%TitleLabel";
     private const string OpponentLabelPath = "%OpponentLabel";
+    private const string StagePath = "%Stage";
     private const string HeroTokenPath = "%HeroToken";
     private const string HeroNamePath = "%HeroName";
     private const string EnemyTokenPath = "%EnemyToken";
@@ -196,6 +197,16 @@ public partial class BattleReplay : Control
 
     /// <summary>The theme entry a control's own text size is written into.</summary>
     private const string FontSizeOverride = "font_size";
+
+    /// <summary>The theme entry one health bar's filled part is drawn from.</summary>
+    /// <remarks>
+    /// 🔒 The fill alone, rather than the whole control's modulation. Modulating a bar multiplies
+    /// its EMPTY track by the same tint, and the track is already a dark grey on a near-black
+    /// ground: the hero's blue takes it to within a hair of the ground itself, which erases the one
+    /// thing a health bar is read as — the fraction. Tinting the fill leaves the track where the
+    /// engine's own theme put it, and lets the tint be checked against the ground on its own.
+    /// </remarks>
+    private const string BarFillStyle = "fill";
 
     /// <summary>The theme entry a label's own text colour is written into.</summary>
     private const string FontColourOverride = "font_color";
@@ -221,6 +232,24 @@ public partial class BattleReplay : Control
     /// <summary>What the readout writes where a value the screen has not settled would go.</summary>
     private const string NoValue = "none";
 
+    /// <summary>What a floating number that GIVES an actor health is written with.</summary>
+    /// <remarks>
+    /// 🔒 <b>An accessibility clause rather than decoration, and it is why the sign is here at
+    /// all.</b> The design distinguishes the four kinds of floating number by colour — ordinary
+    /// damage plain, a critical one yellow, healing green, a damage-over-time tick purple — and a
+    /// critical hit carries a second channel already, because it is drawn larger. Healing did not:
+    /// a player who cannot separate green from white read the same bare number over the same actor
+    /// whether it had just been hurt or mended, which is the one distinction on this screen that
+    /// decides what the fight is doing. The sign is a second channel that needs no palette and no
+    /// translation — and it is the design's own, which writes a blow as a signed number. The three
+    /// colourblind palettes themselves are unbuilt and belong to the settings screen; this is what
+    /// keeps the screen readable without one.
+    /// </remarks>
+    private const string GainSign = "+";
+
+    /// <summary>And one that takes health away.</summary>
+    private const string LossSign = "-";
+
     /// <summary>What ordinary damage is drawn in.</summary>
     private static readonly Color HitTextColour = new(0.95f, 0.95f, 0.97f);
 
@@ -238,6 +267,21 @@ public partial class BattleReplay : Control
 
     /// <summary>And one with nothing to do — the same quiet grey every caption is drawn in.</summary>
     private static readonly Color UnavailableColour = new(0.66f, 0.67f, 0.73f);
+
+    /// <summary>
+    /// What a line saying the fight cannot be shown is drawn in.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The board's own amber, taken rather than chosen. Both screens have exactly one thing to
+    /// say when a run cannot go on — the board's is a roll it will not take, this one's is a fight
+    /// it cannot stage — and a player who has learnt what amber means on the screen every run is
+    /// played on should not have to learn it a second time here. It is the same value as the
+    /// board's block line, and the two are only two because there is no theme resource to hold one.
+    /// </remarks>
+    private static readonly Color BlockedColour = new(0.98f, 0.83f, 0.45f);
+
+    /// <summary>And one saying the rules layer turned the result down — the board's refusal colour.</summary>
+    private static readonly Color RefusedColour = new(0.94f, 0.62f, 0.58f);
 
     /// <summary>An actor still in the fight.</summary>
     private static readonly Color StandingColour = new(1, 1, 1, 1);
@@ -299,6 +343,7 @@ public partial class BattleReplay : Control
 
     private Label? _titleLabel;
     private Label? _opponentLabel;
+    private Control? _stage;
     private ColorRect? _heroToken;
     private Label? _heroName;
     private ColorRect? _enemyToken;
@@ -366,6 +411,7 @@ public partial class BattleReplay : Control
         // is asked, and this screen redraws on every frame of a ninety-second fight.
         _titleLabel = GetNode<Label>(TitleLabelPath);
         _opponentLabel = GetNode<Label>(OpponentLabelPath);
+        _stage = GetNode<Control>(StagePath);
         _heroToken = GetNode<ColorRect>(HeroTokenPath);
         _heroName = GetNode<Label>(HeroNamePath);
         _enemyToken = GetNode<ColorRect>(EnemyTokenPath);
@@ -671,6 +717,11 @@ public partial class BattleReplay : Control
         var heroTint = _heroToken?.Color ?? StandingColour;
         var enemyTint = _enemyToken?.Color ?? StandingColour;
 
+        // Two fills built once and shared by every row on a side, rather than one per bar: a fight
+        // can field seven actors and nothing about the two colours differs between rows.
+        var heroFill = FillOf(heroTint);
+        var enemyFill = FillOf(enemyTint);
+
         foreach (var actor in presenter.Actors)
         {
             var row = new VBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
@@ -700,14 +751,15 @@ public partial class BattleReplay : Control
                 MaxValue = Math.Max(actor.StartingHp ?? 0, 1),
                 Value = actor.StartingHp ?? 0,
                 Visible = actor.StartingHp is not null,
-
-                // Every actor's bar is stacked in one column here rather than split left and right
-                // the way the design draws two of them, because a fight can field seven. Tinting each
-                // to the side's own token is what puts the column back in touch with the stage — and
-                // it is never the only thing saying so, since the row is captioned and the sides are
-                // drawn where they stand.
-                Modulate = actor.Side == ReplaySide.Enemy ? enemyTint : heroTint,
             };
+
+            // Every actor's bar is stacked in one column here rather than split left and right the
+            // way the design draws two of them, because a fight can field seven. Tinting each to the
+            // side's own token is what puts the column back in touch with the stage — and it is
+            // never the only thing saying so, since the row is captioned and the sides are drawn
+            // where they stand. The FILL takes the tint, not the control: see BarFillStyle.
+            bar.AddThemeStyleboxOverride(
+                BarFillStyle, actor.Side == ReplaySide.Enemy ? enemyFill : heroFill);
 
             var statuses = new HBoxContainer { SizeFlagsHorizontal = SizeFlags.ExpandFill };
 
@@ -725,6 +777,15 @@ public partial class BattleReplay : Control
             _rowBySlot[actor.ActorId] = tracked;
         }
     }
+
+    /// <summary>One side's filled bar, in that side's own colour.</summary>
+    /// <remarks>
+    /// Flat and unrounded, so it is the engine's own bar in a different colour rather than a second
+    /// bar shape this screen alone draws. Both tints clear the three-to-one floor a non-text
+    /// element owes its background against the ground behind them; the token colours they are taken
+    /// from were chosen against that same ground.
+    /// </remarks>
+    private static StyleBoxFlat FillOf(Color tint) => new() { BgColor = tint };
 
     private static Label Caption(string text, Color colour, bool wrapping)
     {
@@ -771,7 +832,9 @@ public partial class BattleReplay : Control
 
         if (cue.Floater != ReplayFloater.None)
         {
-            Float(cue.Side, cue.FloaterAmount, ColourOf(cue.Floater), SizeOf(cue.Floater));
+            Float(
+                cue.Side, cue.FloaterAmount, SignOf(cue.Floater), ColourOf(cue.Floater),
+                SizeOf(cue.Floater));
         }
 
         Burst(ParticlesFor(cue.Burst), PointOf(cue.Side));
@@ -792,6 +855,13 @@ public partial class BattleReplay : Control
     /// <remarks>A critical hit is the one number the design draws larger as well as louder.</remarks>
     private static int SizeOf(ReplayFloater floater) =>
         floater == ReplayFloater.Crit ? CritTextSize : BodyTextSize;
+
+    /// <remarks>
+    /// 🔒 The channel that is not colour — see <see cref="GainSign"/>. Healing is the only kind that
+    /// gives health back; a blow, a critical blow and a tick of something burning all take it.
+    /// </remarks>
+    private static string SignOf(ReplayFloater floater) =>
+        floater == ReplayFloater.Heal ? GainSign : LossSign;
 
     private CpuParticles2D? ParticlesFor(ReplayBurst burst) => burst switch
     {
@@ -852,9 +922,11 @@ public partial class BattleReplay : Control
     /// <remarks>
     /// Fanned by a fixed step round the pool rather than scattered randomly: two numbers landing on
     /// one frame have to be readable as two, and a random offset in a scene is a second source of
-    /// randomness in a game whose every other one is seeded and reproducible.
+    /// randomness in a game whose every other one is seeded and reproducible. The fan is centred on
+    /// the actor rather than hung below it — a one-sided ladder puts the pool's last number half the
+    /// arena beneath the fight, over the health readout, and it puts it there every time round.
     /// </remarks>
-    private void Float(ReplaySide side, double amount, Color colour, int size)
+    private void Float(ReplaySide side, double amount, string sign, Color colour, int size)
     {
         if (_floaters.Length == 0)
         {
@@ -869,7 +941,7 @@ public partial class BattleReplay : Control
 
         _floatTweens[index]?.Kill();
 
-        floater.Text = Math.Round(amount).ToString("0", CultureInfo.InvariantCulture);
+        floater.Text = sign + Math.Round(amount).ToString("0", CultureInfo.InvariantCulture);
         floater.AddThemeFontSizeOverride(FontSizeOverride, size);
         floater.AddThemeColorOverride(FontColourOverride, colour);
         floater.Modulate = StandingColour;
@@ -877,7 +949,8 @@ public partial class BattleReplay : Control
 
         var from = PointOf(side);
 
-        floater.Position = new Vector2(from.X, from.Y + (index * FloatFanStep));
+        floater.Position = new Vector2(
+            from.X, from.Y + ((index - (FloaterCount / 2)) * FloatFanStep));
 
         var seconds = _reducedMotion ? ReducedMotionSeconds : FloatSeconds;
 
@@ -936,10 +1009,17 @@ public partial class BattleReplay : Control
         // itself the crash, and this is the one screen in the build that genuinely frees itself.
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
             _statusLabel is null || _speedButton is null || _skipButton is null ||
-            _phaseBand is null || _phaseBandLabel is null)
+            _phaseBand is null || _phaseBandLabel is null || _stage is null)
         {
             return;
         }
+
+        // 🔒 The arena is staged only when there is a fight to stage it for. Two captioned tokens
+        // facing each other under a sentence saying the fight cannot be shown is a screen claiming
+        // a fight is about to happen while it says the opposite — and the tokens are the largest
+        // thing on it, so the claim is the part a player reads first. A stall state is the banner,
+        // the reason, and the way out.
+        _stage.Visible = presenter.Readiness == BattleReadiness.Ready;
 
         var status = presenter.StatusText;
 
@@ -947,6 +1027,11 @@ public partial class BattleReplay : Control
         {
             _lastStatusText = status;
             _statusLabel.Text = status;
+
+            // Written with the sentence rather than beside it, because the sentence settles the
+            // class: every one of the three is its own string, so the text cannot change class
+            // without changing, and the colour cannot go stale behind it.
+            _statusLabel.AddThemeColorOverride(FontColourOverride, StatusColourOf(presenter));
 
             // Hidden rather than blanked once it has nothing to say, which is what every other screen
             // in this build does with the same line: an empty label still claims a full line of
@@ -968,6 +1053,24 @@ public partial class BattleReplay : Control
 
         RenderBand(presenter);
         RenderBars();
+    }
+
+    /// <summary>Which of the three things the status line can be saying it is saying now.</summary>
+    /// <remarks>
+    /// The line carries a result, a refusal and every reason there is no fight, and those are not
+    /// one kind of news. Drawn in one grey they read as one, and the two that stop a run read as the
+    /// quietest thing on the screen.
+    /// </remarks>
+    private static Color StatusColourOf(BattleReplayPresenter presenter)
+    {
+        if (presenter.RulesRejection is not null)
+        {
+            return RefusedColour;
+        }
+
+        return presenter.Readiness is not null and not BattleReadiness.Ready
+            ? BlockedColour
+            : UnavailableColour;
     }
 
     private string SpeedTextOf(BattleReplayPresenter presenter) => presenter.Speed switch
