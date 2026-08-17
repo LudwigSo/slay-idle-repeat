@@ -23,6 +23,13 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// handshake, no atlas load and no cold-start budget — the boot screen owns all four, and a
 /// root that grew them would be the boot screen under another name.
 /// </para>
+/// <para>
+/// ⚠️ The scene's SafeArea margin is a static worst-case guess, not a measurement: 128/64
+/// canvas units land between roughly 43 and 53 dp across the density range, which clears a
+/// 40 dp cutout even at the narrow end. The real insets are a runtime question for the
+/// display server, and the boot screen is where it gets asked — a node named for a safe area
+/// is not evidence that one was resolved, and the number should not be copied as if it were.
+/// </para>
 /// </remarks>
 public partial class AppRoot : Node
 {
