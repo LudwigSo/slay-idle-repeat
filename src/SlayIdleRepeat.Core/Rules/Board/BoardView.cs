@@ -133,7 +133,20 @@ public sealed class BoardView
         return ordered;
     }
 
-    private static BoardFork[] ForksOf(BoardGraph board, NodeId[] nodeIdOrder)
+    /// <summary>
+    /// Projects one <see cref="BoardFork"/> per junction, and refuses a junction laid out any other
+    /// way than Continue-then-Branch-with-a-preview.
+    /// </summary>
+    /// <remarks>
+    /// Internal rather than private, and not a second entry point: <see cref="Project"/> can only
+    /// ever see a <see cref="BoardGenerator"/> board — it replays one out of the run seed — so the
+    /// refusal below is unreachable from the public door and would be silently deletable. The one
+    /// producer that CAN lay a junction out wrongly is <see cref="BoardGraph.FromLayout"/>, and the
+    /// only caller that can hand this a hand-built layout is the domain suite through
+    /// <c>InternalsVisibleTo</c>. <c>GameRules.Execute</c> is the same seam for the same reason.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">A junction is not laid out Continue-then-Branch, or its Branch edge carries no preview.</exception>
+    internal static BoardFork[] ForksOf(BoardGraph board, NodeId[] nodeIdOrder)
     {
         var forks = new List<BoardFork>();
 

@@ -10,7 +10,7 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="ChapterId">The chapter being played. No upper bound or existence check is enforced here.</param>
 /// <param name="Tier">The difficulty tier, part of <see cref="RunSeed"/>'s derivation.</param>
 /// <param name="LastAppliedAtUtc">The instant the last command was applied to this run — what the sliding run TTL is computed from. Distinct from <c>PlayerSnapshot.LastAppliedAtUtc</c>, which also advances on meta commands.</param>
-/// <param name="Position">The linear node index the run stands on. Floor is <b>-1</b>, the virtual trailhead a started-but-unrolled run legitimately persists at.</param>
+/// <param name="Position">The <b>identity</b> of the board node the run stands on, not a track offset: equal to the linear index for every spine node and for the boss, different inside a fork branch, where a branch node shares its linear index with the spine node the same distance ahead. Floor is <b>-1</b>, the virtual trailhead a started-but-unrolled run legitimately persists at.</param>
 /// <param name="CurrentHp">The hero's current hit points. Never negative, never above <paramref name="MaxHp"/>.</param>
 /// <param name="MaxHp">The hero's maximum hit points for this run. Stored rather than derived, so a resumed run can render its HP bar without recomputing the build. Never below 1.</param>
 /// <param name="Gold">The run's <c>GOLD</c> balance, the one run-scoped currency. Never negative.</param>
