@@ -85,6 +85,11 @@ public static class ContentLayout
             // convenient: the files are named after their language, so the stem rule would look for
             // schema/en.schema.json and schema/de.schema.json and find neither.
             [ContentDirectory + "profanity/"] = SchemaDirectory + "profanity" + SchemaSuffix,
+
+            // The boot screen's string slots. Another instance of the easy case above: the stem rule
+            // already answers correctly for the single boot.json here, so the row buys nothing today
+            // and everything on the day a second document lands beside it.
+            [ContentDirectory + "boot/"] = SchemaDirectory + "boot" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>
