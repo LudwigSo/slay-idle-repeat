@@ -136,6 +136,22 @@ public sealed class Run
     /// <summary>The perks this run has drafted: perk id → owned internal tier (1-3).</summary>
     private readonly Dictionary<string, int> _ownedPerkTiers;
 
+    /// <summary>
+    /// The three draft guarantee counters. Plain integers on the run, not entries in the player's
+    /// pity counter map: the draft class is scoped per run and authors no counter key, so there is
+    /// no id to form and nothing the profile could store them under.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 And that is also why moving one emits no <c>PityCounterAdvanced</c>: the event names the
+    /// counter it moved, the name is an authored key formed in one place, and this class authors
+    /// none. Spelling an id here to have something to emit would be inventing the very key the
+    /// document declined to author. They ride the run snapshot instead, which is where every other
+    /// piece of run-scoped state a client mirrors comes from.
+    /// </remarks>
+    private int _draftsSinceLegendaryOffered;
+    private int _draftsWithoutAboveCommon;
+    private int _draftsWithoutOwnedUpgrade;
+
     /// <summary>Reroll charges spent since the run's current stage began. Reset to 0 at every Stage Gate.</summary>
     private int _rerollChargesSpentThisStage;
 
@@ -183,8 +199,16 @@ public sealed class Run
         ulong stageGateDiceAnchor,
         long bankedLegendXp,
         long bankedSoulShards,
-        bool bossDefeated)
+        bool bossDefeated,
+        int draftsSinceLegendaryOffered,
+        int draftsWithoutAboveCommon,
+        int draftsWithoutOwnedUpgrade,
+        Loadout startingLoadout)
     {
+        StartingLoadout = startingLoadout;
+        _draftsSinceLegendaryOffered = draftsSinceLegendaryOffered;
+        _draftsWithoutAboveCommon = draftsWithoutAboveCommon;
+        _draftsWithoutOwnedUpgrade = draftsWithoutOwnedUpgrade;
         Id = id;
         PlayerId = playerId;
         RunSeed = runSeed;
@@ -216,6 +240,31 @@ public sealed class Run
         _bankedSoulShards = bankedSoulShards;
         _bossDefeated = bossDefeated;
     }
+
+    /// <summary>
+    /// 🔒 What the hero was wearing when this run started — frozen for the run's whole life.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// `07` §4: equipping is free and unlimited <em>outside</em> a run, and the loadout <em>cannot</em>
+    /// be changed during one — <em>"It is snapshotted at run start."</em> This field is that snapshot,
+    /// and it is a field rather than a rule stated over the player because a rule cannot survive the
+    /// player equipping something: read from <c>Player.Loadout</c> mid-run and the answer changes,
+    /// however carefully the commands are gated. Read from here and it cannot.
+    /// </para>
+    /// <para>
+    /// A <c>get</c>-only property with no mutator anywhere, deliberately. There is no
+    /// <c>ChangeLoadout</c>, no <c>Reequip</c> and no setter, so "cannot be changed during a run" is
+    /// enforced by the type's shape rather than by every future command remembering to check.
+    /// </para>
+    /// <para>
+    /// ⚠️ It holds identities, not items — so an enhancement applied to an equipped item mid-run is
+    /// worn immediately, and that is correct: `07` §4 freezes <em>which items are equipped</em>, and
+    /// what an item IS lives in the stock. The forge is a meta screen and cannot be reached mid-run
+    /// anyway.
+    /// </para>
+    /// </remarks>
+    public Loadout StartingLoadout { get; }
 
     /// <summary>What <see cref="RunSnapshot.PendingTileKind"/> holds when no tile is pending.</summary>
     /// <remarks>
@@ -366,8 +415,39 @@ public sealed class Run
     /// <inheritdoc cref="_stageGateDiceAnchor"/>
     internal ulong StageGateDiceAnchor => _stageGateDiceAnchor;
 
+    /// <summary>Drafts drawn since one last offered a Legendary option.</summary>
+    internal int DraftsSinceLegendaryOffered => _draftsSinceLegendaryOffered;
+
+    /// <summary>Consecutive drafts that offered nothing above Common.</summary>
+    internal int DraftsWithoutAboveCommon => _draftsWithoutAboveCommon;
+
+    /// <summary>Consecutive drafts that offered no owned-perk upgrade.</summary>
+    internal int DraftsWithoutOwnedUpgrade => _draftsWithoutOwnedUpgrade;
+
+    /// <summary>Stores the three draft counters a resolution answered.</summary>
+    /// <remarks>
+    /// The one writer, and it takes values rather than deltas for the same reason the player's
+    /// counter writer does: the two movements that matter are an advance and a reset, and a reset is
+    /// badly described as a negative.
+    /// </remarks>
+    /// <param name="sinceLegendaryOffered">Drafts since a Legendary was last offered. Never negative.</param>
+    /// <param name="withoutAboveCommon">Consecutive drafts with nothing above Common. Never negative.</param>
+    /// <param name="withoutOwnedUpgrade">Consecutive drafts with no owned upgrade. Never negative.</param>
+    /// <exception cref="ArgumentOutOfRangeException">Any argument is negative.</exception>
+    internal void SetDraftCounters(
+        int sinceLegendaryOffered, int withoutAboveCommon, int withoutOwnedUpgrade)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(sinceLegendaryOffered);
+        ArgumentOutOfRangeException.ThrowIfNegative(withoutAboveCommon);
+        ArgumentOutOfRangeException.ThrowIfNegative(withoutOwnedUpgrade);
+
+        _draftsSinceLegendaryOffered = sinceLegendaryOffered;
+        _draftsWithoutAboveCommon = withoutAboveCommon;
+        _draftsWithoutOwnedUpgrade = withoutOwnedUpgrade;
+    }
+
     /// <summary>The next draw index of one RNG stream, or zero for a registered stream this run has never drawn from.</summary>
-    /// <param name="streamName">A row of the stream registry — one of the eight fixed names, or <c>minigame:{index}</c>.</param>
+    /// <param name="streamName">A row of the stream registry — one of <c>RngStreams.FixedNames</c>, or <c>minigame:{index}</c>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="streamName"/> is null.</exception>
     /// <exception cref="ArgumentException"><paramref name="streamName"/> is not in the stream registry.</exception>
     public ulong StreamPosition(string streamName)
@@ -439,7 +519,11 @@ public sealed class Run
         CopyOwnedPerkTiers(_ownedPerkTiers),
         _bankedLegendXp,
         _bankedSoulShards,
-        _bossDefeated);
+        _bossDefeated,
+        _draftsSinceLegendaryOffered,
+        _draftsWithoutAboveCommon,
+        _draftsWithoutOwnedUpgrade,
+        StartingLoadout.ToSnapshot());
 
     /// <summary>The one validated entry point for a persisted run: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -487,12 +571,14 @@ public sealed class Run
         RequireDraftBattle(snapshot, faults);
         var ownedPerkTiers = ReadOwnedPerkTiers(snapshot, faults);
         RequireBankedRewards(snapshot, faults);
+        RequireDraftCounters(snapshot, faults);
+        var startingLoadout = ReadStartingLoadout(snapshot, faults);
 
-        // The four `is null` arms are unreachable while `faults` is empty — every path that returns
-        // null also adds a fault — but they are written as a pattern rather than as four `!`
+        // The `is null` arms are unreachable while `faults` is empty — every path that returns
+        // null also adds a fault — but they are written as a pattern rather than as `!`
         // operators so the correlation is checked rather than asserted at the compiler.
         if (faults.Count > 0 || streams is null || adUses is null || resolvedMinigames is null ||
-            ownedPerkTiers is null)
+            ownedPerkTiers is null || startingLoadout is null)
         {
             return Result<Run>.Failure(
                 "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -535,7 +621,65 @@ public sealed class Run
             snapshot.StageGateDiceAnchor,
             snapshot.BankedLegendXp,
             snapshot.BankedSoulShards,
-            snapshot.BossDefeated));
+            snapshot.BossDefeated,
+            snapshot.DraftsSinceLegendaryOffered,
+            snapshot.DraftsWithoutAboveCommon,
+            snapshot.DraftsWithoutOwnedUpgrade,
+            startingLoadout));
+    }
+
+    /// <summary>
+    /// Reads the loadout the run started with. <c>null</c> is a <b>fault</b>, on the player
+    /// inventory's precedent: a run whose starting loadout went missing is not a run fought naked,
+    /// and reading it as empty would silently strip the hero's whole build for the rest of the run.
+    /// </summary>
+    private static Loadout? ReadStartingLoadout(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.StartingLoadout is null)
+        {
+            faults.Add(
+                nameof(RunSnapshot.StartingLoadout) + " is null. 07 §4 snapshots the loadout at run " +
+                "start and forbids changing it during the run, so every run has one — an absent " +
+                "snapshot read as an empty loadout would fight the rest of the run with no gear and " +
+                "look exactly like a player who started one that way.");
+            return null;
+        }
+
+        var loadout = Loadout.Rehydrate(snapshot.StartingLoadout);
+
+        if (loadout.IsFailure)
+        {
+            faults.Add(nameof(RunSnapshot.StartingLoadout) + ": " + loadout.Error);
+            return null;
+        }
+
+        return loadout.Value;
+    }
+
+    /// <summary>The three draft guarantee counters count drafts, so none of them is negative.</summary>
+    /// <remarks>
+    /// A negative counter would push the guarantee it protects further away the longer the run went
+    /// on — the same fault the player-scoped counter map refuses at its own seam.
+    /// </remarks>
+    private static void RequireDraftCounters(RunSnapshot snapshot, List<string> faults)
+    {
+        RequireNonNegativeCounter(
+            snapshot.DraftsSinceLegendaryOffered, nameof(RunSnapshot.DraftsSinceLegendaryOffered), faults);
+        RequireNonNegativeCounter(
+            snapshot.DraftsWithoutAboveCommon, nameof(RunSnapshot.DraftsWithoutAboveCommon), faults);
+        RequireNonNegativeCounter(
+            snapshot.DraftsWithoutOwnedUpgrade, nameof(RunSnapshot.DraftsWithoutOwnedUpgrade), faults);
+    }
+
+    private static void RequireNonNegativeCounter(int value, string field, List<string> faults)
+    {
+        if (value < 0)
+        {
+            faults.Add(
+                field + " is " + Text(value) + ". A draft guarantee counter counts drafts since it " +
+                "last fired, and a negative one moves its guarantee further away the longer the run " +
+                "goes on.");
+        }
     }
 
     /// <summary>The two banked-reward pools are never negative.</summary>
@@ -1360,7 +1504,7 @@ public sealed class Run
 
         throw new ArgumentException(
             "'" + (streamName ?? "null") + "' is not a row of the 14 §8.1 stream registry, which is " +
-            "the eight fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus " +
+            "the fixed names (" + string.Join(", ", RngStreams.FixedNames) + ") plus " +
             "minigame:{index} for a non-negative index in canonical decimal form. The comparison " +
             "is ordinal and case-sensitive, and minigame:03 is deliberately a different string " +
             "from minigame:3: a name the registry does not recognise cannot be drawn from, so a " +

@@ -22,8 +22,6 @@ namespace SlayIdleRepeat.Application.Services.Content;
 /// Rules deliberately <b>not</b> stated, because the data contradicts them today and the conflict
 /// is documented rather than accidental:
 /// <list type="bullet">
-/// <item><c>forge#/inventory/maxCapacity == maxCapacityReachableFromLadder</c> — a documented
-/// conflict <c>forge.json</c>'s own <c>_doc</c> flags; the weaker true form is stated instead.</item>
 /// <item><c>totalRewardedPerDaySoftCap &gt;= maxInRun + maxMeta</c> — the soft cap sits
 /// deliberately below the theoretical maximum.</item>
 /// <item><c>hasPlus =&gt; ad rates are null</c> — <c>Plus_Lapsed</c> watches ads by design.</item>
@@ -227,7 +225,7 @@ internal static class DeclaredRules
 
         // The inventory ladder and the capacity it reaches are one fact.
         Derives("10 §4 (baseCapacity + maxPurchases x slotsPerPurchase)",
-            "tuning/forge.json#/inventory/maxCapacityReachableFromLadder",
+            "tuning/forge.json#/inventory/maxCapacity",
             d => Number(d, "tuning/forge.json#/inventory/baseCapacity") is { } capacity &&
                  Number(d, "tuning/currencies.json#/crowns/inventoryExpansionMaxPurchases") is { } purchases &&
                  Number(d, "tuning/currencies.json#/crowns/inventoryExpansionSlotsPerPurchase") is { } slots
@@ -953,6 +951,78 @@ internal static class DeclaredRules
             issues.Add(new ContentIssue(
                 ContentIssueCode.OutOfRange, "tuning/forge.json#/enhance/successRateBands",
                 $"08 §4.2: the bands end at level {next - 1m}, not at maxLevel {maxLevel}."));
+        }
+
+        SuccessLadderExpandsItsBands(documents, bands, minLevel.Value, issues);
+    }
+
+    /// <summary>
+    /// The per-level success ladder against the band endpoints it was expanded from: each band's
+    /// levels carry its start rate, its end rate, and an even step between them.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The reason this rule exists rather than the ladder simply being authored. The two are
+    /// separately authored statements of one thing — five endpoints and fifteen values — and the
+    /// second was expanded from the first by reading the arrow in <c>08</c> §4.2's bands as the
+    /// document's own ramp notation. Nothing else in the build would notice the two drifting, and a
+    /// ladder that had drifted would read as a deliberate re-tune rather than as a transcription
+    /// slip.
+    /// </remarks>
+    private static void SuccessLadderExpandsItsBands(
+        IReadOnlyDictionary<string, ContentValue> documents,
+        ContentValue bands,
+        decimal minLevel,
+        List<ContentIssue> issues)
+    {
+        const string reference = "tuning/forge.json#/enhance/perLevelSuccessRate";
+
+        var ladder = Find(documents, reference);
+
+        if (ladder is null || ladder.Kind != ContentValueKind.Array)
+        {
+            return;
+        }
+
+        foreach (var band in bands.Items)
+        {
+            if (!band.TryGetMember("fromLevel", out var from) || from!.Kind != ContentValueKind.Number ||
+                !band.TryGetMember("toLevel", out var to) || to!.Kind != ContentValueKind.Number ||
+                !band.TryGetMember("startRate", out var start) || start!.Kind != ContentValueKind.Number ||
+                !band.TryGetMember("endRate", out var end) || end!.Kind != ContentValueKind.Number)
+            {
+                continue;
+            }
+
+            var first = (int)from.AsNumber();
+            var last = (int)to.AsNumber();
+            var steps = last - first;
+
+            for (var level = first; level <= last; level++)
+            {
+                var index = level - (int)minLevel - 1;
+
+                if (index < 0 || index >= ladder.Items.Count ||
+                    ladder.Items[index].Kind != ContentValueKind.Number)
+                {
+                    continue;
+                }
+
+                var expected = steps == 0
+                    ? start.AsNumber()
+                    : start.AsNumber() +
+                      ((end.AsNumber() - start.AsNumber()) * (level - first) / steps);
+
+                if (ladder.Items[index].AsNumber() != expected)
+                {
+                    issues.Add(new ContentIssue(
+                        ContentIssueCode.OutOfRange,
+                        reference + "/" + index.ToString(CultureInfo.InvariantCulture),
+                        $"08 §4.2: level {level} carries {ladder.Items[index].AsNumber()}, but its " +
+                        $"band ramps {start.AsNumber()} to {end.AsNumber()} over {steps + 1} levels, " +
+                        $"which puts {expected} here. The ladder is the bands' own endpoints spread " +
+                        "evenly; the two must not drift."));
+                }
+            }
         }
     }
 

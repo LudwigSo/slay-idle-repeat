@@ -27,8 +27,20 @@ namespace SlayIdleRepeat.Core.Events;
 /// with no event name, a log row with no meaning and an animation frame with no instruction.
 /// </para>
 /// <para>
-/// An event may hold primitives and value objects describing what changed — not an aggregate, not
-/// a slice of content, and not a timestamp (time enters the domain as <c>GameContext.NowUtc</c> only).
+/// An event may hold primitives and value objects describing what changed — not a slice of content,
+/// and not a timestamp (time enters the domain as <c>GameContext.NowUtc</c> only).
+/// </para>
+/// <para>
+/// 🔒 <b>And it may hold a domain value record, narrowly.</b> This paragraph used to end "not an
+/// aggregate", which would have made <c>GearGranted</c> — carrying the rolled item whole — a
+/// contradiction in the same assembly. The ruling is that an event may name a type under
+/// <c>Core/Model/</c> <em>only</em> when that type is an immutable, fully serialisable value record
+/// with no mutators, and <em>never</em> an aggregate <b>root</b> nor any model type carrying an
+/// <c>internal</c> mutator. The permission is forced by the four consumers above: all of them
+/// serialise the list, so an event carrying an id instead of the value would send every one of them
+/// back to an aggregate whose state has since moved on. The restriction is what keeps it from being
+/// an open door — a root in an event is a mutation path around the single public one, handed to
+/// whoever reads the list. <c>AccessibilityBoundaryTests</c> enforces it.
 /// </para>
 /// </remarks>
 public abstract record DomainEvent(int Sequence)

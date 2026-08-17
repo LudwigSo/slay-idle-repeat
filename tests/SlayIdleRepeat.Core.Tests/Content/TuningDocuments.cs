@@ -20,6 +20,16 @@ internal static class TuningDocuments
     /// <summary>Where the calendar block lives.</summary>
     internal const string CurrenciesPath = "tuning/currencies.json";
 
+    /// <summary>Where the free preset allowance lives.</summary>
+    internal const string AdsPath = "tuning/ads.json";
+
+    /// <summary>A player without Plus may write three preset slots.</summary>
+    /// <remarks>
+    /// <c>const</c> for <c>[InlineData]</c>'s sake, like <see cref="ShippedCycleDays"/>. Pinned
+    /// against the real <c>tuning/ads.json</c> by an <c>Application.Tests</c> rule.
+    /// </remarks>
+    internal const int ShippedFreePresets = 3;
+
     /// <summary>The calendar runs 28 days and then restarts at day 1.</summary>
     /// <remarks>
     /// <c>const</c> rather than <c>static readonly</c> so <c>[InlineData]</c> can take it: a wrap
@@ -44,14 +54,33 @@ internal static class TuningDocuments
     /// Proving the read needs a content set whose floor is <em>not</em> the shipped one.
     /// </remarks>
     internal static ContentSnapshot With(
-        ContentValue? cycleDays = null, ContentValue? legendLevelMin = null) =>
+        ContentValue? cycleDays = null,
+        ContentValue? legendLevelMin = null,
+        ContentValue? freePresets = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
                 ProgressionDocuments.With(legendLevelMin: legendLevelMin)
                     .GetDocument(ProgressionDocuments.DocumentPath),
                 Currencies(cycleDays),
+
+                // The free preset allowance, because SAVE_PRESET reads it on every command — the
+                // entitlement question is answered before the payload is even shaped.
+                Ads(freePresets),
                 ChapterDocuments.Document(chapterId: 1, ChapterDocuments.ChapterOnePath),
+
+                // The pity registry, because MINIGAME_SUBMIT resolves the chest pick's guarantee
+                // through it on the same command that reads the reward table.
+                LuckDocuments.LuckOnly().GetDocument(LuckDocuments.DocumentPath),
+
+                // The forge numbers, because MERGE, ENHANCE and SALVAGE all read them. It carries
+                // the three free operations only; the capacity ladder in the same shipped document
+                // has its own reader and its own fixture.
+                ForgeDocuments.ShippedDocument(),
+
+                // The gear tables, because a fusion re-rolls its output's affixes out of the pool
+                // the new band authors.
+                GearDocuments.Shipped.GetDocument(GearDocuments.DropsDocumentPath),
             ]);
 
     /// <summary>
@@ -81,6 +110,31 @@ internal static class TuningDocuments
     /// <summary>The fork-bias suppression multiplier, as shipped.</summary>
     internal const double ShippedForkBiasMinusMultiplier = 0.2;
 
+    /// <summary>A <c>tuning/ads.json</c> holding the one leaf a preset command reads.</summary>
+    /// <remarks>
+    /// Only <c>#/plus/freePresets</c> is authored here. Transcribing the placement tables would imply
+    /// something in this suite reads them, and nothing does — <c>InRunIncomeDocuments</c> carries its
+    /// own <c>ads.json</c> with the one leaf ITS rules read, for the same reason.
+    /// </remarks>
+    internal static ContentDocument Ads(ContentValue? freePresets = null) =>
+        new(
+            AdsPath,
+            ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["plus"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["freePresets"] = freePresets ?? ContentValue.Number(ShippedFreePresets),
+                }),
+            }));
+
+    /// <summary>A content set holding <b>only</b> <c>tuning/ads.json</c>.</summary>
+    /// <remarks>
+    /// For <c>PresetTuning</c>'s own tests, which are about that reader and must not be able to pass
+    /// because some other document happened to be present — <see cref="CurrenciesOnly"/>'s argument.
+    /// </remarks>
+    internal static ContentSnapshot AdsOnly(ContentValue? freePresets = null) =>
+        new(ProgressionDocuments.Shipped.Version, [Ads(freePresets)]);
+
     private static ContentDocument Currencies(ContentValue? cycleDays)
     {
         var calendar = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
@@ -93,6 +147,27 @@ internal static class TuningDocuments
             ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
             {
                 ["loginCalendar"] = calendar,
+
+                // The expansion ladder and the flat alternative, because every forge command that
+                // removes an item hands InventoryTuning to the container for the reclaim. Read from
+                // the inventory fixture rather than transcribed a second time.
+                ["crowns"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["inventoryExpansionLadder"] =
+                        ContentValue.Array(InventoryDocuments.ShippedLadder.Select(rung => ContentValue.Number(rung))),
+                    ["inventoryExpansionMaxPurchases"] =
+                        ContentValue.Number(InventoryDocuments.ShippedMaxPurchases),
+                    ["inventoryExpansionSlotsPerPurchase"] =
+                        ContentValue.Number(InventoryDocuments.ShippedSlotsPerPurchase),
+                }),
+                ["soulShards"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                {
+                    ["sinks"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                    {
+                        ["INVENTORY_EXPANSION_FLAT"] =
+                            ContentValue.Number(InventoryDocuments.ShippedFlatSoulShardPrice),
+                    }),
+                }),
                 ["chapterScalars"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
                 {
                     ["adBundleScalar"] = ContentValue.Number((decimal)ShippedAdBundleScalar),
@@ -105,30 +180,34 @@ internal static class TuningDocuments
                 ["minigameRewards"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
                 {
                     ["MG_CHEST_PICK"] = Rewards(
-                        (150, 0, 0, 0, 0),
-                        (300, 20, 0, 0, 0),
-                        (500, 60, 15, 0, 0)),
+                        ("BRONZE", 150, 0, 0, 0, 0),
+                        ("SILVER", 300, 20, 0, 0, 0),
+                        (ShippedChestPickTopOutcome, 500, 60, 15, 0, 0)),
                     ["MG_TIMING_BAR"] = Rewards(
-                        (100, 0, 0, 0, 0),
-                        (250, 0, 0, 0, 0),
-                        (400, 30, 0, 0, 0),
-                        (600, 80, 0, 5, 0)),
+                        ("HITS_0", 100, 0, 0, 0, 0),
+                        ("HITS_1", 250, 0, 0, 0, 0),
+                        ("HITS_2", 400, 30, 0, 0, 0),
+                        ("HITS_3", 600, 80, 0, 5, 0)),
                     ["MG_DICE_DUEL"] = Rewards(
-                        (150, 0, 0, 0, 0),
-                        (400, 40, 0, 0, 0),
-                        (550, 50, 0, 0, 1)),
+                        ("LOSS", 150, 0, 0, 0, 0),
+                        ("TIE", 400, 40, 0, 0, 0),
+                        ("WIN", 550, 50, 0, 0, 1)),
                     ["MG_MEMORY_RUNE"] = Rewards(
-                        (100, 0, 0, 0, 0),
-                        (300, 25, 0, 0, 0),
-                        (550, 70, 20, 0, 0)),
+                        ("RUNES_0", 100, 0, 0, 0, 0),
+                        ("RUNES_1", 300, 25, 0, 0, 0),
+                        ("RUNES_2", 550, 70, 20, 0, 0)),
                 }),
             }));
     }
 
-    /// <summary>Per-minigame reward array, in (gold, crowns, beastFeed, enhanceStones, rerollCharges) order.</summary>
-    private static ContentValue Rewards(params (int Gold, int Crowns, int BeastFeed, int EnhanceStones, int RerollCharges)[] rows) =>
+    /// <summary>The authored top-tier outcome token of MG_CHEST_PICK — the chest pick's guarantee token.</summary>
+    internal const string ShippedChestPickTopOutcome = "GOLD";
+
+    /// <summary>Per-minigame reward array, in (outcome, gold, crowns, beastFeed, enhanceStones, rerollCharges) order.</summary>
+    private static ContentValue Rewards(params (string Outcome, int Gold, int Crowns, int BeastFeed, int EnhanceStones, int RerollCharges)[] rows) =>
         ContentValue.Array(rows.Select(row => ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
+            ["outcome"] = ContentValue.Text(row.Outcome),
             ["gold"] = ContentValue.Number(row.Gold),
             ["crowns"] = ContentValue.Number(row.Crowns),
             ["beastFeed"] = ContentValue.Number(row.BeastFeed),

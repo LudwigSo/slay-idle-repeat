@@ -1,0 +1,61 @@
+{
+  "$schema": "../../schema/gear.schema.json",
+  "_doc": "08 §1 — the 24 base items: 6 slots x 4 families, each family carrying the §1.1 axis that decides its stat bias and, at SS, its set. 24 base items x 5 rarities = the 120 distinct gear entries §1 counts. Nested by slot rather than flat so that 'four families per slot' is the shape of the document rather than a constraint on it. No displayName: the family names are authored in English only and D20 forbids a machine-translated German, so no loc key is claimed here.",
+  "_status": "transcribed",
+  "slots": [
+    {
+      "slot": "WEAPON",
+      "families": [
+        { "id": "GEAR_WEAPON_BLADE", "family": "BLADE", "familyAxis": "BALANCED" },
+        { "id": "GEAR_WEAPON_AXE", "family": "AXE", "familyAxis": "HEAVY" },
+        { "id": "GEAR_WEAPON_STAFF", "family": "STAFF", "familyAxis": "CASTER" },
+        { "id": "GEAR_WEAPON_BOW", "family": "BOW", "familyAxis": "AGILE" }
+      ]
+    },
+    {
+      "slot": "HELMET",
+      "families": [
+        { "id": "GEAR_HELMET_HOOD", "family": "HOOD", "familyAxis": "BALANCED" },
+        { "id": "GEAR_HELMET_HELM", "family": "HELM", "familyAxis": "HEAVY" },
+        { "id": "GEAR_HELMET_CIRCLET", "family": "CIRCLET", "familyAxis": "CASTER" },
+        { "id": "GEAR_HELMET_MASK", "family": "MASK", "familyAxis": "AGILE" }
+      ]
+    },
+    {
+      "slot": "ARMOR",
+      "families": [
+        { "id": "GEAR_ARMOR_LEATHERS", "family": "LEATHERS", "familyAxis": "BALANCED" },
+        { "id": "GEAR_ARMOR_PLATE", "family": "PLATE", "familyAxis": "HEAVY" },
+        { "id": "GEAR_ARMOR_ROBE", "family": "ROBE", "familyAxis": "CASTER" },
+        { "id": "GEAR_ARMOR_SCALEMAIL", "family": "SCALEMAIL", "familyAxis": "AGILE" }
+      ]
+    },
+    {
+      "slot": "BOOTS",
+      "families": [
+        { "id": "GEAR_BOOTS_TREADS", "family": "TREADS", "familyAxis": "BALANCED" },
+        { "id": "GEAR_BOOTS_GREAVES", "family": "GREAVES", "familyAxis": "HEAVY" },
+        { "id": "GEAR_BOOTS_SLIPPERS", "family": "SLIPPERS", "familyAxis": "CASTER" },
+        { "id": "GEAR_BOOTS_SANDALS", "family": "SANDALS", "familyAxis": "AGILE" }
+      ]
+    },
+    {
+      "slot": "RING",
+      "families": [
+        { "id": "GEAR_RING_BAND", "family": "BAND", "familyAxis": "BALANCED" },
+        { "id": "GEAR_RING_SIGNET", "family": "SIGNET", "familyAxis": "HEAVY" },
+        { "id": "GEAR_RING_LOOP", "family": "LOOP", "familyAxis": "CASTER" },
+        { "id": "GEAR_RING_SEAL", "family": "SEAL", "familyAxis": "AGILE" }
+      ]
+    },
+    {
+      "slot": "AMULET",
+      "families": [
+        { "id": "GEAR_AMULET_PENDANT", "family": "PENDANT", "familyAxis": "BALANCED" },
+        { "id": "GEAR_AMULET_TALISMAN", "family": "TALISMAN", "familyAxis": "HEAVY" },
+        { "id": "GEAR_AMULET_CHARM", "family": "CHARM", "familyAxis": "CASTER" },
+        { "id": "GEAR_AMULET_IDOL", "family": "IDOL", "familyAxis": "AGILE" }
+      ]
+    }
+  ]
+}

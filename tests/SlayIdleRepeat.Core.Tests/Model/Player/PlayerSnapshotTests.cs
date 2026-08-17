@@ -153,6 +153,48 @@ public sealed class PlayerSnapshotTests
 
             (nameof(PlayerSnapshot.ClearedChapterTiers), v,
                 PlayerSnapshots.With(clearedChapterTiers: PlayerSnapshots.Counters(("1:NORMAL", 1)))),
+
+            // M4-13. The lifetime feat counters are the substrate 28 D2's retroactivity guarantee
+            // rests on, so two players with different histories must never share a stateHash.
+            (nameof(PlayerSnapshot.FeatCounters), v,
+                PlayerSnapshots.With(featCounters: PlayerSnapshots.Counters(("dice_rolled", 1)))),
+
+            // M4-01b. Two players one chest apart on the same ladder are materially different
+            // players — the next open is forced for one and not the other — so a pity counter that
+            // did not reach the bytes would let the client mirror report agreement across it.
+            (nameof(PlayerSnapshot.PityCounters), v,
+                PlayerSnapshots.With(pityCounters: PlayerSnapshots.Pity(("chest.standard:A", 1)))),
+            // M4-05. Moved by the purchase count alone, which is the half of the field the item
+            // lists cannot stand in for: the two lists are pinned byte-for-byte — stored against
+            // held, one lock flag, one affix value — by InventoryPersistenceTests, and none of those
+            // cases would notice a bought expansion that reached no byte.
+            (nameof(PlayerSnapshot.Inventory), v,
+                PlayerSnapshots.With(inventory: new InventorySnapshot(1, [], []))),
+
+            // M4-04. Two players whose auto-salvage filters differ will be holding different stock
+            // by the end of their next run, so a filter that reached no byte would let the mirror
+            // report agreement right up until one of them lost an item the other kept.
+            (nameof(PlayerSnapshot.AutoSalvageRules), v,
+                PlayerSnapshots.With(autoSalvageRules: [new AutoSalvageRule(Rarity.C, 3)])),
+
+            // M4-10. Two players one Talent Point apart are materially different the moment M4-06
+            // gives them somewhere to spend it, and the point is granted by levelling rather than
+            // written by a command — so nothing else in the suite would notice it missing a byte.
+            (nameof(PlayerSnapshot.TalentPoints), v, PlayerSnapshots.With(talentPoints: 1L)),
+
+            // M4-10. The equipped slot is what the whole hero screen and every future power
+            // computation read; two players wearing different weapons must never share a stateHash.
+            (nameof(PlayerSnapshot.Loadout), v,
+                PlayerSnapshots.With(loadout: new LoadoutSnapshot(
+                    PlayerSnapshots.Gear((GearSlot.WEAPON, "GI_1"))))),
+
+            // M4-10. Probed by the preset's NAME rather than by its loadout, deliberately: the
+            // loadout inside a preset descends into the very same LoadoutSnapshot the probe above
+            // already moves, so a probe that changed it would pass on that record's encoding alone
+            // and say nothing about whether Presets[].Name reaches the bytes.
+            (nameof(PlayerSnapshot.Presets), v,
+                PlayerSnapshots.With(presets: [new LoadoutPresetSnapshot(
+                    1, "Boss push", new LoadoutSnapshot(PlayerSnapshots.Gear()))])),
         };
 
         var invisible = probes

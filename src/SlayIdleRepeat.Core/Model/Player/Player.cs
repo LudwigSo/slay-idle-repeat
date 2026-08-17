@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model.Gear;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -42,12 +43,38 @@ namespace SlayIdleRepeat.Core.Model;
 /// the same method puts it under that guard too.
 /// </para>
 /// <para>
-/// Deliberately absent: inventory, gear instances, the unopened-container shelf, pity counters and
-/// lifetime feat counters — each deferred with a <c>GapRegister</c> entry keyed on a type that must
-/// not yet exist, so the build fails the day one becomes writable without a home here. Entitlement
-/// lives on the session instead, reached as <c>GameContext.Entitlements</c>. There is no factory for a
-/// new player either: starting values are a later milestone's decision, and <see cref="Rehydrate"/> is
-/// the only way to obtain one.
+/// The stock lives here as of M4-05: <see cref="Inventory"/> is a component of this aggregate, and
+/// every item operation is the component's rather than the aggregate's. 🔒 <b>No member of this type
+/// names or builds a <c>GearInstance</c></b>, and that is a constraint rather than an accident — a
+/// convenience member here that took, returned or constructed an item would put a grant outcome on
+/// the aggregate, which is the shape the luck-routing rule was narrowed to see.
+/// </para>
+/// <para>
+/// ⚠️ <b>Nothing calls into the component yet, and that is worth saying plainly rather than
+/// describing a mechanism that does not exist.</b> No handler reaches <c>player.Inventory</c>; no
+/// type in <c>src/</c> outside this file touches it, so <c>Content.InventoryTuning.Read</c> has no
+/// production caller either. M4-05 landed the container, its numbers and its persistence, and left
+/// the wiring to the tasks that own the operations: <b>M4-04</b> is the first consumer — merge,
+/// enhance and salvage all act on a held item — and the <c>DROP_RUN</c> grant path that would call
+/// <c>Place</c> is still unwired, carried in <c>GapRegister</c>'s inventory discharge note with its
+/// owner named. Until one of those lands, the component is reachable and unused.
+/// </para>
+/// <para>
+/// Still deliberately absent: the unopened-container shelf, pets, mounts, talents, presets and
+/// unlocks. Only the <b>first</b> of the six is held by a <c>GapRegister</c> entry
+/// (<c>ContainerShelf</c>/M4-02, keyed on a <c>ContainerClass</c> that must not yet exist, so the
+/// build fails the day it becomes writable without a home here). The other five are exactly the ones
+/// that register says it does <em>not</em> transcribe: each would need the name of a type its
+/// milestone has not chosen, and inventing five is the fabrication the register exists to refuse.
+/// </para>
+/// <para>
+/// Pity counters are <b>not</b> among them any more: <see cref="PityCounters"/> is a field here as
+/// of M4-01b, together with its snapshot column and the <c>SchemaVersion</c> bump, because the
+/// chest-pick guarantee is player-scoped and lifetime and a run-scoped home would reset it every
+/// run. <b>M4-02</b> still owns the chest ladders and the in-run drop mercy that write it further;
+/// it does not own adding the field again. Entitlement lives on the session instead, reached as
+/// <c>GameContext.Entitlements</c>. There is no factory for a new player either: starting values are
+/// a later milestone's decision, and <see cref="Rehydrate"/> is the only way to obtain one.
 /// </para>
 /// </remarks>
 public sealed class Player
@@ -105,7 +132,49 @@ public sealed class Player
     /// <inheritdoc cref="_clearedChapterTiers"/>
     private readonly ReadOnlyDictionary<string, long> _clearedChapterTiersView;
 
+    // ---------------------------------------------------------------- feat counters
+
+    /// <summary>The lifetime feat counters, and the view <see cref="FeatCounters"/> hands out.</summary>
+    /// <remarks>Mutated in place like the daily and weekly counters, and — unlike them — never cleared.</remarks>
+    private readonly Dictionary<string, long> _featCounters;
+    private readonly FeatCounters _featCountersView;
+
+    // ---------------------------------------------------------------- pity counters
+
+    /// <summary>
+    /// The player-scoped pity counters. Replaced wholesale rather than mutated, because the luck
+    /// service answers the map it would leave behind and the aggregate decides whether to keep it.
+    /// </summary>
+    /// <remarks>
+    /// Lifetime, and reset only when the guarantee each counter protects fires: nothing here decays,
+    /// and no chapter change, tier change, season roll or logout touches it.
+    /// </remarks>
+    private PityCounters _pityCounters;
+
     private long _legendXp;
+
+    // ---------------------------------------------------------------- hero (M4-10)
+    //
+    // The hero's own state: the name, the Talent Points the Legend Levels have granted, what the
+    // hero is wearing, and the saved presets. Kept together and delimited so a sibling task editing
+    // this aggregate elsewhere merges cleanly around it.
+
+    /// <summary>The Talent Points the player's Legend Levels have granted. Only ever grows here; nothing spends one yet.</summary>
+    private long _talentPoints;
+
+    /// <summary>What the hero is wearing. Replaced wholesale, like the wallet — see <see cref="Model.Loadout"/>.</summary>
+    private Loadout _loadout;
+
+    /// <summary>The saved presets, keyed by slot, and the view <see cref="Presets"/> hands out.</summary>
+    /// <remarks>
+    /// Mutated in place like the daily counters, so the view stays valid across every save. A
+    /// <see cref="SortedDictionary{TKey,TValue}"/> rather than a plain one, and that is load-bearing
+    /// rather than tidy: the persisted shape is a LIST, whose order the canonical writer preserves,
+    /// so the slot order has to be a property of the store rather than of the order the player
+    /// happened to save in.
+    /// </remarks>
+    private readonly SortedDictionary<int, LoadoutPreset> _presets;
+    private readonly ReadOnlyDictionary<int, LoadoutPreset> _presetsView;
 
     /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
     private Player(
@@ -126,8 +195,20 @@ public sealed class Player
         Dictionary<string, long> weeklyCounters,
         int loginCalendarDay,
         bool loginCalendarDayClaimed,
-        Dictionary<string, long> clearedChapterTiers)
+        Dictionary<string, long> clearedChapterTiers,
+        Dictionary<string, long> featCounters,
+        PityCounters pityCounters,
+        Inventory inventory,
+        IReadOnlyList<AutoSalvageRule> autoSalvageRules,
+        long talentPoints,
+        Loadout loadout,
+        SortedDictionary<int, LoadoutPreset> presets)
     {
+        _talentPoints = talentPoints;
+        _loadout = loadout;
+        _presets = presets;
+        _presetsView = new ReadOnlyDictionary<int, LoadoutPreset>(presets);
+        _pityCounters = pityCounters;
         Id = id;
         DisplayName = displayName;
         LegendLevel = legendLevel;
@@ -149,17 +230,43 @@ public sealed class Player
         _loginCalendarDayClaimed = loginCalendarDayClaimed;
         _clearedChapterTiers = clearedChapterTiers;
         _clearedChapterTiersView = new ReadOnlyDictionary<string, long>(clearedChapterTiers);
+        _featCounters = featCounters;
+        _featCountersView = new FeatCounters(new ReadOnlyDictionary<string, long>(featCounters));
+        Inventory = inventory;
+        AutoSalvageRules = autoSalvageRules;
     }
+
+    /// <summary>
+    /// The auto-salvage filter this player configured — one row per band they want swept at run end.
+    /// Empty until they set one, and an empty filter sweeps nothing.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Nothing writes it yet, and that is a statement of what is left rather than of what was
+    /// done.</b> The command vocabulary is closed and authors no command that sets a filter, and none
+    /// that applies one at run end either; the forge screen that would set it and the run-end payout
+    /// that would apply it are both later tasks. The rule that reads a filter is written and tested,
+    /// and this is the place its rows live when a command finally sends them.
+    /// </remarks>
+    public IReadOnlyList<AutoSalvageRule> AutoSalvageRules { get; }
 
     /// <summary>The aggregate root's identity.</summary>
     public PlayerId Id { get; }
 
-    /// <summary>The player's display name, exactly as it was persisted. Never null or blank; otherwise never interpreted.</summary>
-    public string DisplayName { get; }
+    /// <summary>The player's display name, exactly as it was persisted or last set. Never null or blank.</summary>
+    /// <remarks>
+    /// <see cref="Rename"/> is the only mutator, and it takes a <see cref="HeroName"/> — a type only
+    /// the name rule can construct — so a name reaches this field having passed the length, character
+    /// and word-list checks or not at all. <see cref="Rehydrate"/> deliberately checks less; see
+    /// <see cref="RequireIdentity"/>.
+    /// </remarks>
+    public string DisplayName { get; private set; }
 
     /// <summary>The player's Legend Level.</summary>
-    /// <remarks>Get-only, with no mutator anywhere yet: the levelling curve and unlock ladder are a later milestone's.</remarks>
-    public int LegendLevel { get; }
+    /// <remarks>
+    /// Derived from <see cref="LegendXp"/> by the levelling curve and written by
+    /// <see cref="AdvanceLegendLevel"/>, which only ever moves it upwards.
+    /// </remarks>
+    public int LegendLevel { get; private set; }
 
     /// <summary>Lifetime Legend XP. Never negative. Mutated by <see cref="GrantLegendXp"/>.</summary>
     public long LegendXp => _legendXp;
@@ -229,6 +336,308 @@ public sealed class Player
     /// <summary>The (Chapter, Tier) pairs cleared at least once. See <see cref="_clearedChapterTiers"/>.</summary>
     internal IReadOnlyDictionary<string, long> ClearedChapterTiers => _clearedChapterTiersView;
 
+    /// <summary>The player's lifetime feat counters. A live view, like <see cref="DailyCounters"/>.</summary>
+    /// <remarks>
+    /// <see cref="ResetDailyCounters"/> and <see cref="ResetWeeklyCounters"/> deliberately do not
+    /// reach it — see <see cref="CountFeat"/>.
+    /// </remarks>
+    public FeatCounters FeatCounters => _featCountersView;
+
+    /// <summary>The player's pity counters, as the luck service takes them.</summary>
+    internal PityCounters PityCounters => _pityCounters;
+
+    /// <summary>
+    /// Applies the counter changes one resolution answered.
+    /// </summary>
+    /// <remarks>
+    /// The one writer. A resolution is stateless and reports what it <em>would</em> leave behind; the
+    /// aggregate is where that becomes state, which is what keeps a draw that is refused from moving
+    /// a counter.
+    /// </remarks>
+    /// <param name="key">The counter id, as the tuning reader forms it. Never hand-composed.</param>
+    /// <param name="value">The counter's value after the draw — not a delta. Never negative.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="key"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is negative.</exception>
+    internal void SetPityCounter(string key, int value) =>
+        _pityCounters = _pityCounters.With(key, value);
+
+    /// <summary>The stock this player carries, and the items a full stock is holding for them.</summary>
+    /// <remarks>
+    /// A live view of the component, not a copy taken at rehydration: a copy would make every
+    /// handler's mutation invisible to the very next read, and the aggregate would persist the state
+    /// it started with.
+    /// </remarks>
+    public Inventory Inventory { get; }
+
+    // ---------------------------------------------------------------- hero (M4-10)
+
+    /// <summary>
+    /// The Talent Points this player's Legend Levels have granted, minus nothing at all.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>Granted and stored; nothing spends one.</b> The tree, the spend path and the respec are
+    /// M4-06's, and this is deliberately a bare total rather than a "spent" and "available" pair —
+    /// how a spend is recorded is that task's decision, and inventing the shape of it here would fix
+    /// it before anybody had chosen it. What could not wait is the accrual: a point is earned by
+    /// levelling, so a counter that starts when the tree ships is a counter of zero for every player
+    /// who levelled first.
+    /// </remarks>
+    public long TalentPoints => _talentPoints;
+
+    /// <summary>What the hero is wearing.</summary>
+    /// <remarks>
+    /// A frozen value, unlike <see cref="Inventory"/>: the loadout is replaced wholesale on every
+    /// change, so an object a caller holds never changes afterwards — which is what lets a preset
+    /// store one directly.
+    /// </remarks>
+    public Loadout Loadout => _loadout;
+
+    /// <summary>The saved loadout presets, keyed by slot and enumerated in ascending slot order.</summary>
+    /// <remarks>
+    /// A live view, like <see cref="DailyCounters"/> and unlike <see cref="Wallet"/>: read it, do not
+    /// hold it. Kept ordered by the store rather than sorted on every read — the persisted shape is
+    /// a list, so two players holding the same three presets must not encode differently because of
+    /// the order they saved them in.
+    /// </remarks>
+    public IReadOnlyDictionary<int, LoadoutPreset> Presets => _presetsView;
+
+    /// <summary>The preset in one slot, if the player has saved one there.</summary>
+    /// <param name="presetSlot">The slot to read.</param>
+    /// <param name="preset">The preset saved there.</param>
+    /// <returns><see langword="true"/> when a preset is saved in that slot.</returns>
+    public bool TryGetPreset(int presetSlot, out LoadoutPreset? preset) =>
+        _presets.TryGetValue(presetSlot, out preset);
+
+    /// <summary>Sets the player's name.</summary>
+    /// <param name="name">A name the name rule has already accepted.</param>
+    /// <remarks>
+    /// Takes a <see cref="HeroName"/> and not a <see cref="string"/>, and that is the whole point of
+    /// that type existing: only <c>Rules.Hero.HeroNameRule.Validate</c> can produce one, so there is
+    /// no route into this field that skips the filter. `27` §1 filters at creation <em>and on every
+    /// edit</em>, and "every edit" is only true if there is one door.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="name"/> is null.</exception>
+    internal void Rename(HeroName name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+
+        DisplayName = name.Value;
+    }
+
+    /// <summary>
+    /// Applies one reconciliation of the Legend Level against lifetime XP: the new level and the
+    /// Talent Points reaching it granted, together.
+    /// </summary>
+    /// <param name="level">The level the player now stands at. Never below the current one.</param>
+    /// <param name="talentPoints">The points the level-ups granted. Never negative.</param>
+    /// <param name="tuning">The authored Legend Level range, so the cap is the document's.</param>
+    /// <remarks>
+    /// Takes both halves together because they are one fact: writing the level and forgetting the
+    /// points would silently owe the player one Talent Point per level for the rest of the account's
+    /// life, and no invariant here could catch it — each write is individually legal. The same
+    /// argument <see cref="AccrueEnergy"/> makes about the banks and the anchor.
+    /// <para>
+    /// 🔒 It refuses to go backwards. The curve's exponent is the pacing dial and is expected to
+    /// move; a steeper curve re-derives an existing player to a lower level, and applying that would
+    /// take back Talent Points, Max Energy and every gate they had passed. A balance patch may not
+    /// become an account rollback.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The level goes backwards, leaves the range, or the points are negative.</exception>
+    internal void AdvanceLegendLevel(int level, long talentPoints, LegendTuning tuning)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+
+        if (level < LegendLevel)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(level),
+                level,
+                "This player stands at Legend Level " + Text(LegendLevel) + " and " + Text(level) +
+                " is lower. A Legend Level only ever rises: the curve's exponent is a tunable, a " +
+                "steeper curve re-derives an existing player DOWN, and applying that would take " +
+                "back their Talent Points, their Max Energy and every gate they had passed.");
+        }
+
+        if (level > tuning.Maximum)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(level),
+                level,
+                "07 §1.1 caps Legend Level at " + Text(tuning.Maximum) + ". Excess Legend XP past " +
+                "the cap stays banked and buys nothing, which is what a cap is — a level above it " +
+                "is a rule that stopped applying one.");
+        }
+
+        if (talentPoints < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(talentPoints),
+                talentPoints,
+                "07 §1.1 grants points on the way up and nothing anywhere takes one back. A " +
+                "negative grant here would be a respec, which is M4-06's and free by design.");
+        }
+
+        try
+        {
+            _talentPoints = checked(_talentPoints + talentPoints);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(talentPoints),
+                talentPoints,
+                "Granting " + Text(talentPoints) + " Talent Points on top of " + Text(_talentPoints) +
+                " overflows a 64-bit total. 07 §1.1's ladder is 199 level-ups; a grant this size is " +
+                "a defect in whatever computed it.");
+        }
+
+        LegendLevel = level;
+    }
+
+    /// <summary>Puts a gear instance in a slot, taking it out of any slot it was already in.</summary>
+    /// <param name="slot">The slot to fill.</param>
+    /// <param name="item">The instance to wear. Its presence in the stock is the caller's to check.</param>
+    /// <remarks>
+    /// The aggregate holds the loadout's own invariants (a declared slot, a non-blank identity, one
+    /// slot per item) and deliberately not the cross-component one: whether the player actually owns
+    /// the item is <c>Rules.Hero.LoadoutRules</c>'s question, asked by the handler before it gets
+    /// here, and re-asking it here would put a stock lookup on a path that already did one.
+    /// </remarks>
+    internal void Equip(GearSlot slot, GearInstanceId item) => _loadout = _loadout.With(slot, item);
+
+    /// <summary>Empties one slot.</summary>
+    /// <param name="slot">The slot to empty.</param>
+    internal void Unequip(GearSlot slot) => _loadout = _loadout.Without(slot);
+
+    /// <summary>Installs a whole loadout, replacing what the hero was wearing.</summary>
+    /// <param name="loadout">The loadout to wear — already filtered to what the player owns.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="loadout"/> is null.</exception>
+    internal void WearLoadout(Loadout loadout)
+    {
+        ArgumentNullException.ThrowIfNull(loadout);
+
+        _loadout = loadout;
+    }
+
+    /// <summary>
+    /// 🔒 Takes an item out of this player's world: out of the stock, and off the hero, in one call.
+    /// </summary>
+    /// <param name="item">The instance to destroy.</param>
+    /// <param name="tuning">The inventory numbers, for the reclaim the removal may open room for.</param>
+    /// <returns><see langword="true"/> when the player owned it.</returns>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The seam every destructive item operation must use — merge, salvage, and anything a
+    /// later milestone adds.</b> A slot names an item rather than copying one, so removing an item
+    /// from the stock without taking it off the hero leaves a dangling reference that
+    /// <see cref="RequireLoadoutResolves"/> refuses. That refusal is a <em>defect</em> report, not a
+    /// rejection: it exists to stop the corrupt state being persisted, and the way not to trip it is
+    /// to do both halves together rather than to remember to.
+    /// </para>
+    /// <para>
+    /// It takes both halves for the reason <see cref="AccrueEnergy"/> and
+    /// <see cref="AdvanceLegendLevel"/> take theirs: they are one fact. Removing an item is the
+    /// aggregate's business precisely because the item is in one component and the reference to it is
+    /// in another, and no component can hold that pairing on its own.
+    /// </para>
+    /// <para>
+    /// ⚠️ It destroys; it does not move. Whatever the operation pays out for the item — Merge Dust, a
+    /// partial Enhance Stone refund, a Set Token — is the calling rule's, and this says nothing about
+    /// it.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
+    internal bool DiscardItem(GearInstanceId item, InventoryTuning tuning)
+    {
+        var removed = Inventory.Remove(item, tuning);
+
+        if (removed)
+        {
+            _loadout = _loadout.WithoutItem(item);
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// 🔴 The exit-side half of the equipped-item invariant: every slot still names an item the stock
+    /// holds, checked <b>after</b> a command rather than only on the way in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this exists, and why the load-time fault alone would have been the wrong half.</b> A
+    /// slot names an item rather than copying one, so any operation that destroys an item — merge,
+    /// salvage, and whatever else a later milestone adds — must take it off the hero in the same
+    /// change. If only <see cref="Rehydrate"/> checked, the command that broke the pairing would be
+    /// ACCEPTED, its state returned to the caller and written to the database, and every later
+    /// command would then fail at the clone. The account would be unplayable, permanently, and the
+    /// corrupt row would be the persisted one.
+    /// </para>
+    /// <para>
+    /// It throws rather than rejecting, because reaching it is a defect in a handler and never a
+    /// player asking for something they cannot have — the same distinction <c>MoveCurrency</c> draws
+    /// for an unaffordable spend. <c>Loadout.WithoutItem</c> is the seam the offending handler should
+    /// have used.
+    /// </para>
+    /// <para>
+    /// Six lookups against a stock of at most a few hundred items, on an accepted command only. A
+    /// full re-validation of the aggregate would be the thorough answer and would double the
+    /// rehydration cost of every command; this checks the one invariant that spans two components
+    /// and that no single component can hold on its own.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">A slot names an item the stock does not hold.</exception>
+    internal void RequireLoadoutResolves()
+    {
+        foreach (var (slot, item) in _loadout.Gear)
+        {
+            if (Inventory.Availability(item) != ItemAvailability.UNKNOWN_ITEM)
+            {
+                continue;
+            }
+
+            throw new InvalidOperationException(
+                "This command left '" + item.Value + "' equipped in " + slot + " while the player's " +
+                "stock no longer holds it. A slot NAMES an item rather than copying one, so whatever " +
+                "destroyed the item had to take it off the hero in the same change — " +
+                "Loadout.WithoutItem is that seam. Persisting this row would make every later " +
+                "command fail at the clone, for good.");
+        }
+    }
+
+    /// <summary>Writes a preset into its slot, replacing whatever was there.</summary>
+    /// <param name="preset">The preset. Its slot is its own.</param>
+    /// <remarks>
+    /// Whether the player is <em>allowed</em> that slot is not asked here. `12` §2 grants a Plus
+    /// subscriber unlimited slots and `12` §66 keeps presets beyond the free allowance readable when
+    /// Plus lapses, so the allowance is an entitlement question — and no aggregate can see the
+    /// session. The handler answers it.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="preset"/> is null.</exception>
+    internal void SavePreset(LoadoutPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+
+        _presets[preset.Slot] = preset;
+    }
+
+    // ------------------------------------------------------------ end hero (M4-10)
+
+    /// <summary>The lifetime count of one feat counter, or zero when nothing has advanced it.</summary>
+    /// <param name="counterId">The counter's id. Never null, empty or whitespace.</param>
+    /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
+    public long FeatCount(string counterId)
+    {
+        if (string.IsNullOrWhiteSpace(counterId))
+        {
+            throw new ArgumentException(BlankFeatCounterId, nameof(counterId));
+        }
+
+        return _featCounters.TryGetValue(counterId, out var count) ? count : 0L;
+    }
+
     /// <summary>The key <see cref="ClearedChapterTiers"/> is stored under.</summary>
     internal static string ChapterTierKey(int chapterId, DifficultyTier tier) =>
         chapterId.ToString(CultureInfo.InvariantCulture) + ":" + tier;
@@ -290,7 +699,42 @@ public sealed class Player
         Copy(_weeklyCounters),
         _loginCalendarDay,
         _loginCalendarDayClaimed,
-        Copy(_clearedChapterTiers));
+        Copy(_clearedChapterTiers),
+        Copy(_featCounters),
+        // Already immutable and replaced wholesale on every movement, so no copy is needed — the
+        // same argument the wallet makes.
+        _pityCounters.Counters,
+        Inventory.ToSnapshot(),
+        AutoSalvageRules,
+        _talentPoints,
+        _loadout.ToSnapshot(),
+        PersistPresets());
+
+    /// <summary>The presets as rows, in ascending slot order.</summary>
+    /// <remarks>
+    /// The order is load-bearing: the canonical writer preserves a LIST's order, so two players
+    /// holding the same three presets would hash differently depending on which slot each happened
+    /// to save first. The store is what keeps them in slot order.
+    /// </remarks>
+    private IReadOnlyList<LoadoutPresetSnapshot> PersistPresets()
+    {
+        if (_presets.Count == 0)
+        {
+            return NoPresets;
+        }
+
+        var rows = new LoadoutPresetSnapshot[_presets.Count];
+        var i = 0;
+
+        // SortedDictionary enumerates in key order, so the ascending slot order the encoding
+        // depends on is the store's rather than something restated here.
+        foreach (var preset in _presets.Values)
+        {
+            rows[i++] = preset.ToSnapshot();
+        }
+
+        return Array.AsReadOnly(rows);
+    }
 
     /// <summary>The one validated entry point for a persisted player: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -344,10 +788,21 @@ public sealed class Player
         var weekly = ReadCounters(snapshot.WeeklyCounters, nameof(PlayerSnapshot.WeeklyCounters), faults);
         RequireLoginCalendar(snapshot, faults);
         var clearedChapterTiers = ReadClearedChapterTiers(snapshot.ClearedChapterTiers, faults);
+        var featCounters = ReadCounters(
+            snapshot.FeatCounters, nameof(PlayerSnapshot.FeatCounters), faults, LifetimeLifespan);
+        var pityCounters = ReadPityCounters(snapshot, faults);
+        var inventory = ReadInventory(snapshot.Inventory, faults);
+        var autoSalvageRules = ReadAutoSalvageRules(snapshot.AutoSalvageRules, faults);
+        RequireTalentPoints(snapshot, faults);
+        var loadout = ReadLoadout(snapshot.Loadout, faults);
+        var presets = ReadPresets(snapshot.Presets, faults);
+        RequireEquippedItemsAreOwned(loadout, inventory, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns null
         // also adds a fault — but written as a pattern so the correlation is checked, not asserted.
-        if (faults.Count > 0 || wallet is null || daily is null || weekly is null || clearedChapterTiers is null)
+        if (faults.Count > 0 || wallet is null || daily is null || weekly is null ||
+            clearedChapterTiers is null || featCounters is null || pityCounters is null ||
+            inventory is null || autoSalvageRules is null || loadout is null || presets is null)
         {
             return Result<Player>.Failure(
                 "This PlayerSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -372,7 +827,295 @@ public sealed class Player
             weekly,
             snapshot.LoginCalendarDay,
             snapshot.LoginCalendarDayClaimed,
-            clearedChapterTiers));
+            clearedChapterTiers,
+            featCounters,
+            pityCounters,
+            inventory,
+            autoSalvageRules,
+            snapshot.TalentPoints,
+            loadout,
+            presets));
+    }
+
+    /// <summary>
+    /// Reads the auto-salvage filter. <c>null</c> is a <b>fault</b>, on <c>FeatCounters</c>' and the
+    /// inventory's precedent: an absent filter and an empty one are indistinguishable once read, and
+    /// only one of them is a row the game wrote.
+    /// </summary>
+    /// <remarks>
+    /// The rows are copied rather than held, for the reason the counter maps are: the caller's list
+    /// stays writable, and a record compares an <c>IReadOnlyList&lt;T&gt;</c> component by reference,
+    /// so the sharing would be invisible to every comparison that looked for it.
+    /// </remarks>
+    private static IReadOnlyList<AutoSalvageRule>? ReadAutoSalvageRules(
+        IReadOnlyList<AutoSalvageRule>? rules, List<string> faults)
+    {
+        if (rules is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.AutoSalvageRules) + " is null. An absent filter is not an " +
+                "empty one: read as empty it sweeps nothing, which looks exactly like a player who " +
+                "has not configured one — so a row that failed to write its filter would silently " +
+                "turn the feature off and nothing would ever say so.");
+
+            return null;
+        }
+
+        var copy = new AutoSalvageRule[rules.Count];
+        var sound = true;
+
+        for (var i = 0; i < rules.Count; i++)
+        {
+            var rule = rules[i];
+
+            if (!Enum.IsDefined(rule.Rarity))
+            {
+                sound = false;
+                faults.Add(
+                    nameof(PlayerSnapshot.AutoSalvageRules) + "[" + Text(i) + "] names band '" +
+                    rule.Rarity + "', which is not on the rarity ladder. A filter row over a band " +
+                    "nothing can be would sweep nothing, forever, invisibly.");
+            }
+            else if (rule.BelowEnhanceLevel < 0)
+            {
+                sound = false;
+                faults.Add(
+                    nameof(PlayerSnapshot.AutoSalvageRules) + "[" + Text(i) + "] sweeps below level " +
+                    Text(rule.BelowEnhanceLevel) + ". No item sits below zero, so a negative " +
+                    "ceiling is a row nobody could have set.");
+            }
+
+            copy[i] = rule;
+        }
+
+        return sound ? Array.AsReadOnly(copy) : null;
+    }
+
+    // ---------------------------------------------------------------- hero (M4-10)
+
+    /// <summary>The empty preset list every snapshot of a player with no presets shares.</summary>
+    /// <remarks>Safe to share, on <see cref="NoCounters"/>' argument: read-only and empty.</remarks>
+    private static readonly IReadOnlyList<LoadoutPresetSnapshot> NoPresets =
+        Array.AsReadOnly(Array.Empty<LoadoutPresetSnapshot>());
+
+    /// <summary>The Talent Point total only ever grows, so a negative one is a corrupt row.</summary>
+    private static void RequireTalentPoints(PlayerSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.TalentPoints >= 0)
+        {
+            return;
+        }
+
+        faults.Add(
+            nameof(PlayerSnapshot.TalentPoints) + " is " + Text(snapshot.TalentPoints) + ". 07 §1.1 " +
+            "grants a point per Legend Level and nothing anywhere takes one back, so the total " +
+            "counts upwards from zero.");
+    }
+
+    /// <summary>
+    /// Reads what the hero is wearing. <c>null</c> is a <b>fault</b>, on <c>Inventory</c>'s precedent:
+    /// an absent loadout read as an empty one silently unequips everything on the first load of a row
+    /// that merely failed to write it.
+    /// </summary>
+    private static Loadout? ReadLoadout(LoadoutSnapshot? snapshot, List<string> faults)
+    {
+        if (snapshot is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.Loadout) + " is null. An absent loadout is not a naked hero: " +
+                "read as empty, it strips the player on the first load of a row that merely failed " +
+                "to write it, and the result looks exactly like a player who has equipped nothing.");
+            return null;
+        }
+
+        var loadout = Loadout.Rehydrate(snapshot);
+
+        if (loadout.IsFailure)
+        {
+            faults.Add(nameof(PlayerSnapshot.Loadout) + ": " + loadout.Error);
+            return null;
+        }
+
+        return loadout.Value;
+    }
+
+    /// <summary>Reads the saved presets. <c>null</c> is a fault for the reason a null loadout is.</summary>
+    /// <remarks>
+    /// A repeated slot is refused rather than resolved: two presets in slot 2 make every
+    /// <c>APPLY_PRESET</c> that names it ambiguous, and which of the two wins would be an ordering
+    /// accident of however the row was written.
+    /// </remarks>
+    private static SortedDictionary<int, LoadoutPreset>? ReadPresets(
+        IReadOnlyList<LoadoutPresetSnapshot>? rows, List<string> faults)
+    {
+        if (rows is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.Presets) + " is null. An absent preset list is not an empty " +
+                "one: 12 §66 keeps presets a player may no longer WRITE as presets they may still " +
+                "LOAD, so reading absent as empty deletes builds the design set promises to keep.");
+            return null;
+        }
+
+        var presets = new SortedDictionary<int, LoadoutPreset>();
+        var faulted = false;
+
+        foreach (var row in rows)
+        {
+            if (row is null)
+            {
+                faults.Add(nameof(PlayerSnapshot.Presets) + " carries a null row, which names no preset.");
+                faulted = true;
+                continue;
+            }
+
+            var preset = LoadoutPreset.Rehydrate(row);
+
+            if (preset.IsFailure)
+            {
+                faults.Add(nameof(PlayerSnapshot.Presets) + ": " + preset.Error);
+                faulted = true;
+                continue;
+            }
+
+            if (!presets.TryAdd(preset.Value.Slot, preset.Value))
+            {
+                faults.Add(
+                    nameof(PlayerSnapshot.Presets) + " carries two presets in slot " +
+                    Text(preset.Value.Slot) + ". One slot is one preset; which of the two an " +
+                    "APPLY_PRESET naming that slot would load is an ordering accident.");
+                faulted = true;
+            }
+        }
+
+        return faulted ? null : presets;
+    }
+
+    /// <summary>
+    /// 🔒 Every equipped identity is one the stock actually holds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the cross-component invariant, and it is a <b>fault</b> rather than a tolerated state:
+    /// a slot names an item rather than copying one, so a slot naming an id the player does not own
+    /// is a dangling reference — the hero screen would show an item that cannot be found, and any
+    /// operation that resolved the slot would fail on a row the game itself wrote.
+    /// </para>
+    /// <para>
+    /// ⚠️ It is deliberately <b>not</b> applied to presets. A preset is a record of a build rather
+    /// than a claim of ownership: `12` §66 keeps presets loadable after Plus lapses, an item can be
+    /// salvaged long after a preset named it, and applying a preset restores what is still owned. A
+    /// preset validated like the live loadout would make a salvage able to corrupt a save.
+    /// </para>
+    /// <para>
+    /// ⚠️ It also means any operation that destroys an item must take it off the hero in the same
+    /// change — <c>Loadout.WithoutItem</c> is the seam for that. That is the intended consequence:
+    /// the alternative is a stale slot nobody notices until a screen renders it. 🔴 A load-time fault
+    /// alone would be the WRONG half to have: the command that broke the pairing would be accepted
+    /// and its state persisted, and the row would then refuse to load for the rest of the account's
+    /// life. <see cref="RequireLoadoutResolves"/> is the exit-side half, and it is what makes this
+    /// one safe to be a fault at all.
+    /// </para>
+    /// <para>
+    /// ⚠️ An item waiting in the overflow holding list counts as OWNED here, deliberately: the
+    /// reference resolves, so the row is not corrupt. Whether such an item may be <em>equipped</em>
+    /// is a different question with a different answer — <c>Rules.Hero.LoadoutRules.IsEquippable</c>
+    /// says no — and the two rules are meant to disagree. A player whose stock overflowed while
+    /// wearing an item keeps wearing it; they simply cannot re-equip it until it is reclaimed.
+    /// </para>
+    /// </remarks>
+    private static void RequireEquippedItemsAreOwned(
+        Loadout? loadout, Inventory? inventory, List<string> faults)
+    {
+        // Both halves already faulted on their own if either is null; a second complaint about the
+        // same row would report one defect twice.
+        if (loadout is null || inventory is null)
+        {
+            return;
+        }
+
+        foreach (var (slot, item) in loadout.Gear)
+        {
+            if (inventory.Availability(item) != ItemAvailability.UNKNOWN_ITEM)
+            {
+                continue;
+            }
+
+            faults.Add(
+                nameof(PlayerSnapshot.Loadout) + " wears '" + item.Value + "' in " + slot + " and " +
+                nameof(PlayerSnapshot.Inventory) + " does not hold it. A slot NAMES an item rather " +
+                "than copying one, so this row points at nothing: whatever destroyed the item did " +
+                "not take it off the hero, and every screen and rule that resolves the slot would " +
+                "fail on state the game wrote itself.");
+        }
+    }
+
+    // ------------------------------------------------------------ end hero (M4-10)
+
+    /// <summary>
+    /// Reads the pity counter map. A <c>null</c> map is a fault, never an empty one.
+    /// </summary>
+    /// <remarks>
+    /// The same asymmetry <see cref="PlayerSnapshot.FeatCounters"/> carries, for a sharper reason: a
+    /// lifetime pity counter read as zero is every ladder in the game silently started over, and a
+    /// counter that silently starts over is the exact failure the "counters never reset" rule exists
+    /// to forbid. The optional default on the record is a C# requirement, not a permitted value.
+    /// </remarks>
+    private static PityCounters? ReadPityCounters(PlayerSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.PityCounters is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.PityCounters) + " is null. An absent lifetime counter map is a " +
+                "corrupt row, not an empty one: reading it as empty would put every guarantee this " +
+                "player has been building towards back at zero, invisibly.");
+
+            return null;
+        }
+
+        try
+        {
+            return Model.PityCounters.Rehydrate(snapshot.PityCounters);
+        }
+        catch (ArgumentException malformed)
+        {
+            faults.Add(nameof(PlayerSnapshot.PityCounters) + " is malformed: " + malformed.Message);
+
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Reads the persisted stock. <c>null</c> is a <b>fault</b>, on <c>FeatCounters</c>' precedent
+    /// and unlike <c>ClearedChapterTiers</c>: reading an absent inventory as an empty one would
+    /// delete a player's entire stock on the first load of a row that merely failed to write it, and
+    /// the deletion would look exactly like a player who owns nothing.
+    /// </summary>
+    /// <remarks>
+    /// The component's own invariants are delegated rather than restated — a repeated identity, a
+    /// row the item constructor refuses — and the capacity ceiling is deliberately not among them:
+    /// see <c>Inventory.Rehydrate</c>'s remarks for why a tunable ceiling is enforced on mutation
+    /// rather than on load, which is the same rule this aggregate applies to Energy.
+    /// </remarks>
+    private static Inventory? ReadInventory(InventorySnapshot? snapshot, List<string> faults)
+    {
+        if (snapshot is null)
+        {
+            faults.Add(
+                nameof(PlayerSnapshot.Inventory) + " is null. An absent inventory is not an empty " +
+                "one: read as empty, it destroys everything the player owns on the first load.");
+            return null;
+        }
+
+        var inventory = Inventory.Rehydrate(snapshot);
+
+        if (inventory.IsFailure)
+        {
+            faults.Add(nameof(PlayerSnapshot.Inventory) + ": " + inventory.Error);
+            return null;
+        }
+
+        return inventory.Value;
     }
 
     /// <summary>Moves one player-scoped wallet currency and produces the <c>CurrencyChanged</c> that attributes it.</summary>
@@ -684,6 +1427,50 @@ public sealed class Player
     internal void CountWeekly(string counterKey, long amount) =>
         Count(_weeklyCounters, counterKey, amount, "weekly");
 
+    /// <summary>Advances a lifetime feat counter. The counter comes into existence on its first increment.</summary>
+    /// <param name="counterId">A stable <c>lower_snake_case</c> id owned by the projection that counts. Deliberately not a closed enum.</param>
+    /// <param name="amount">How much to add. Always positive.</param>
+    /// <remarks>
+    /// 🔒 <b>Nothing anywhere lowers or clears one of these.</b> An achievement is claimed
+    /// retroactively against the count, so a reset pays out against a history the player did not
+    /// have — and the real history cannot be recovered, because nothing retains the events it was
+    /// taken from.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="counterId"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="amount"/> is not positive, or the count overflows.</exception>
+    internal void CountFeat(string counterId, long amount)
+    {
+        if (string.IsNullOrWhiteSpace(counterId))
+        {
+            throw new ArgumentException(BlankFeatCounterId, nameof(counterId));
+        }
+
+        if (amount <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "A lifetime feat counter only ever grows; '" + counterId + "' cannot be advanced " +
+                "by " + Text(amount) + ". A negative advance is a refund and belongs in the rule " +
+                "that granted it; a zero advance registers a counter nothing has counted.");
+        }
+
+        _featCounters.TryGetValue(counterId, out var current);
+
+        try
+        {
+            _featCounters[counterId] = checked(current + amount);
+        }
+        catch (OverflowException)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(amount),
+                amount,
+                "Advancing the lifetime feat counter '" + counterId + "' by " + Text(amount) +
+                " from " + Text(current) + " overflows a 64-bit count.");
+        }
+    }
+
     /// <summary>Advances the tutorial to the next beat, as each beat's interaction completes.</summary>
     /// <param name="beat">The beat now reached. Strictly after the current one.</param>
     /// <remarks>Strictly forwards, and refused outright once the tutorial is complete.</remarks>
@@ -854,6 +1641,13 @@ public sealed class Player
         return counters.TryGetValue(counterKey, out var count) ? count : 0L;
     }
 
+    /// <summary>The blank-id refusal for a feat counter — a different open key space from <see cref="RequireCounterKey"/>'s.</summary>
+    private const string BlankFeatCounterId =
+        "A feat counter id names the projection that owns it, so it is never blank. The id space is " +
+        "deliberately open rather than a closed enum, because what each Feat measures is a decision " +
+        "the milestone that ships Feats still has to take — but 'open' means the owner picks the " +
+        "token, not that there is no token.";
+
     private static void RequireCounterKey(string counterKey, string parameterName)
     {
         if (!string.IsNullOrWhiteSpace(counterKey))
@@ -938,11 +1732,17 @@ public sealed class Player
         if (string.IsNullOrWhiteSpace(snapshot.DisplayName))
         {
             faults.Add(
-                nameof(PlayerSnapshot.DisplayName) + " is blank. 16 O34 leaves the name lifecycle " +
-                "(uniqueness, rename, sanction) open and M4-10 owns the profanity filter, so this " +
-                "is the only thing checked about it — and a blank name is a row that renders as " +
-                "nothing on every screen that shows one.");
+                nameof(PlayerSnapshot.DisplayName) + " is blank, which is a row that renders as " +
+                "nothing on every screen that shows a name.");
         }
+
+        // 🔒 Blank is still the ONLY thing checked here, and now that the filter exists that is a
+        // decision rather than a gap. The word lists are CONTENT and change without a build, so
+        // running them at rehydration would make a term added tomorrow refuse to load every account
+        // whose name matches it — an authoring edit becoming an outage, which is the same trade the
+        // Energy ceiling above and Inventory's capacity already refuse. The filter runs on MUTATION,
+        // through Rename, which is the only door into the field. 16 O34 still leaves the rest of the
+        // name lifecycle open: uniqueness, rename cost and sanction have no owner here.
     }
 
     private static void RequireProfile(PlayerSnapshot snapshot, LegendTuning legend, List<string> faults)
@@ -1116,7 +1916,10 @@ public sealed class Player
     }
 
     private static Dictionary<string, long>? ReadCounters(
-        IReadOnlyDictionary<string, long>? counters, string field, List<string> faults)
+        IReadOnlyDictionary<string, long>? counters,
+        string field,
+        List<string> faults,
+        string lifespan = PeriodicLifespan)
     {
         if (counters is null)
         {
@@ -1142,7 +1945,7 @@ public sealed class Player
             {
                 faults.Add(
                     field + "['" + key + "'] is " + Text(count) + ". A counter counts upwards from " +
-                    "zero and is cleared at its period boundary; it is never settled back down.");
+                    "zero and " + lifespan + "; it is never settled back down.");
                 faulted = true;
                 continue;
             }
@@ -1166,13 +1969,24 @@ public sealed class Player
         return ReadCounters(clearedChapterTiers, nameof(PlayerSnapshot.ClearedChapterTiers), faults);
     }
 
+    /// <summary>How long a counter read by <see cref="ReadCounters"/> lives, for the corrupt-row message.</summary>
+    private const string PeriodicLifespan = "is cleared at its period boundary";
+
+    /// <inheritdoc cref="PeriodicLifespan"/>
+    private const string LifetimeLifespan = "is never cleared at all";
+
     /// <summary>The empty counter map every snapshot of a player with no counters shares.</summary>
     /// <remarks>Safe to share: it is read-only and empty, so nothing can distinguish a shared instance from a private one.</remarks>
     private static readonly ReadOnlyDictionary<string, long> NoCounters =
         new(new Dictionary<string, long>(0, StringComparer.Ordinal));
 
     /// <summary>An ordinal copy of a counter map, so no caller shares the aggregate's dictionary.</summary>
-    /// <remarks>Short-circuits on empty, the normal state — this runs on every command, since the client recomputes its own state hash too.</remarks>
+    /// <remarks>
+    /// Short-circuits on empty — this runs on every command, since the client recomputes its own
+    /// state hash too. That is still the normal case for the daily and weekly maps, which clear at
+    /// their boundary, and stops being one for the lifetime map after a player's first counted
+    /// event: from then on it copies, and it must.
+    /// </remarks>
     private static ReadOnlyDictionary<string, long> Copy(Dictionary<string, long> counters) =>
         counters.Count == 0
             ? NoCounters

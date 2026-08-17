@@ -269,7 +269,7 @@ public sealed class InMemoryGameTests
         GameCommand[] deferred =
         [
             new SkipFtueCommand(),
-            new EquipCommand("ITEM_1", "WEAPON"),
+            new EquipCommand(new GearInstanceId("ITEM_1"), GearSlot.WEAPON),
             new RespecCommand(),
             new ClaimCalendarCommand(),
             new SpinWheelCommand(),

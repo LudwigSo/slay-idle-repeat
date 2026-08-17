@@ -372,6 +372,51 @@ public sealed class GapRegisterTests
             ignoreOrder: true,
             "30 §6 names these two and no others; a count-only floor is satisfied by whatever pair " +
             "replaced them.");
+
+        // 🔴 M4-13, and it is a hole this file already had. `30` §4's PLAYER-contents row was the
+        // one transcription in this array with no floor — the Run-contents row, `14` §2.3, `30`
+        // §2.3 and `30` §6 all have one, and this row was left on nothing. MEASURED, on this
+        // branch: deleting "FeatCounters" from it passed 14/14. Expired is silent (no entry is left
+        // dangling), Undeclared is silent (nothing asks for the type any more) and Unanchored is
+        // silent for the same reason — so the row a task discharges can be quietly un-asked-for the
+        // moment after it lands, which is precisely why M4-13 kept its subject there rather than
+        // dropping it on `PendingFork`'s precedent.
+        //
+        // Named by IDENTITY rather than counted (steering S3): a count of four is satisfied by any
+        // four names, including four that swapped in for the four `30` §4 actually enumerates.
+        var playerContents = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("30 §4 (the Player-contents row", StringComparison.Ordinal));
+
+        playerContents.Subjects.ShouldBe(
+            new[] { "Inventory", "ContainerShelf", "PityCounters", "FeatCounters" },
+            ignoreOrder: true,
+            "30 §4's Player row enumerates eighteen things and this transcription is the four that " +
+            "are genuinely absent AND genuinely type-shaped. Three are still deferred; FeatCounters " +
+            "is authored, and stays listed so that deleting the type fails the undeclared check " +
+            "rather than passing silently.");
+
+        playerContents.Namespace.ShouldBe(Domain.ModelNamespace);
+
+        // 🔒 M4-13. The floor under `28` D2's transcription, on the same pattern and for the same
+        // reason: a literal, never the transcription's own Count.
+        //
+        // ⚠️ This one guards a gap that is EASY to close by accident. M4-13 authored the feat
+        // counters' storage and left what each counter MEASURES to 16 O29 at the M16 kickoff. The
+        // FeatDefinition entry is the only thing in this repository that says so — and it is exactly
+        // the entry someone tidying up would delete, because 'FeatCounters' next door now reads as
+        // built. Trimming this row would make that deletion silent: Expired stays quiet (neither
+        // FeatDefinition nor FeatCounterId exists), Undeclared stays quiet (nothing asks for it any
+        // more) and Unanchored stays quiet (no entry is left dangling).
+        var feats = GapRegister.Surfaces.Single(
+            s => s.Citation.StartsWith("28 D2", StringComparison.Ordinal));
+
+        feats.Subjects.ShouldBe(
+            new[] { "FeatDefinition" },
+            "28 D2's deferral is exactly one type — the definition that reads feats.json and names " +
+            "the counter its measure is stated over. The counters themselves are BUILT (M4-13), and " +
+            "Renown is a number on the profile rather than a type (28 D5), so neither belongs here.");
+
+        feats.Namespace.ShouldBe(Domain.ContentNamespace);
     }
 
     /// <summary>
@@ -424,10 +469,17 @@ public sealed class GapRegisterTests
             .Select(m => m.Groups["wire"].Value)
             .ToArray();
 
+        // 🔴 TO THE INTEGRATOR — M4-04 MERGED FIRST AND MOVED THESE NUMBERS. It landed the
+        // MERGE/ENHANCE/SALVAGE handlers, taking milestone/M4 to 27 deferred / 22 handled. M4-10
+        // takes two more (SAVE_PRESET, APPLY_PRESET), so the merged figures are 25 DEFERRED and 24
+        // HANDLED, and the handled identity list is M4-04's twenty-two plus those two names. Checked
+        // against milestone/M4 directly rather than quoted (steering S9).
         owners.Length.ShouldBe(
-            30,
-            "14 §2.3's registry is 19 run + 30 meta, and 30 of the 49 rows are Deferred since M3-13 " +
-            "landed the REVIVE/END_RUN/ABANDON_RUN handlers (beside M3-06's " +
+            25,
+            "14 §2.3's registry is 19 run + 30 meta, and 25 of the 49 rows are Deferred since M4-10 " +
+            "landed the SAVE_PRESET/APPLY_PRESET handlers on top of M4-04's " +
+            "MERGE/ENHANCE/SALVAGE (beside M3-13's " +
+            "REVIVE/END_RUN/ABANDON_RUN, M3-06's " +
             "PICK_PERK/REROLL_DRAFT/SKIP_DRAFT, M3-05's START_BATTLE/CONFIRM_BATTLE_RESULT, M3-03's " +
             "RESOLVE_TILE/EVENT_CHOOSE/CAMPFIRE_CHOOSE, M3-02's CHOOSE_FORK, M3-08's " +
             "SHOP_BUY/SHOP_REFRESH, M3-15's START_RUN, M3-03c's MINIGAME_SUBMIT, M3-04's " +
@@ -445,6 +497,8 @@ public sealed class GapRegisterTests
                 "START_BATTLE", "CONFIRM_BATTLE_RESULT",
                 "PICK_PERK", "REROLL_DRAFT", "SKIP_DRAFT",
                 "REVIVE", "END_RUN", "ABANDON_RUN",
+                "MERGE", "ENHANCE", "SALVAGE",
+                "SAVE_PRESET", "APPLY_PRESET",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
@@ -462,7 +516,11 @@ public sealed class GapRegisterTests
             "REROLL_DRAFT and SKIP_DRAFT (M3-06) the fourteenth, fifteenth and sixteenth, resolving " +
             "the perk draft CONFIRM_BATTLE_RESULT opens; and 02 §5-6's REVIVE, END_RUN " +
             "and ABANDON_RUN (M3-13) the seventeenth, eighteenth and nineteenth — reward banking and " +
-            "run-end payout. ⚠️ EVENT_CHOOSE and " +
+            "run-end payout; and 08 §4's MERGE, ENHANCE and SALVAGE (M4-04) the twentieth, " +
+            "twenty-first and twenty-second — the first handlers in the game to write " +
+            "Player.Inventory at all, which is what makes INVENTORY_FULL reachable; and 12 §2's " +
+            "SAVE_PRESET and APPLY_PRESET (M4-10) the twenty-third and twenty-fourth — the first " +
+            "handlers to write the hero's loadout. ⚠️ EVENT_CHOOSE and " +
             "CAMPFIRE_CHOOSE were Deferred to 'M3-09' and 'M3-11' respectively, both STALE owners " +
             "read off an earlier tracker; the M3 kickoff put both under M3-03 with the rest of the " +
             "tile vocabulary. Their dispatch rows were corrected rather than left to go stale " +

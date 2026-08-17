@@ -23,6 +23,19 @@ namespace SlayIdleRepeat.Core.Rules.Combat.Enemies;
 /// Narrow, and to stay narrow: two members, since only the immediately preceding modifier is needed
 /// — not a history, not a count, not a per-modifier tally.
 /// </para>
+/// <para>
+/// ⚠️ <b>THE CONTRACT ABOVE IS NOT SATISFIED YET, AND THE OWNER IS <b>M4-02</b>.</b> The only
+/// production caller — <see cref="EncounterFight"/> — builds a fresh instance per battle with
+/// <see cref="EliteModifierHistory.Restore"/> and <c>null</c>, so
+/// <see cref="PreviousEliteModifier"/> is permanently <c>null</c>, the redraw never fires, and every
+/// test of the draw still passes. The luck milestone's first task did <em>not</em> discharge this:
+/// it wires no run, and the fix is not type-shaped at all — it is a field on the existing
+/// <c>Run</c> aggregate plus threading one instance through every Elite encounter of that run, which
+/// is the same commit that gives <c>Run</c> its first persisted luck state. Do not implement it on
+/// the luck façade: the run-scoped memory belongs on the run-controller side, and putting it inside
+/// the luck namespace would make that namespace name the combat namespace, which the intra-rules
+/// layering forbids outright.
+/// </para>
 /// </remarks>
 internal interface IEliteModifierHistory
 {

@@ -290,12 +290,50 @@ public sealed class SubjectSetFloorTests
         //
         // This entry is the expiry: Every_rule_subject_is_present_or_declared_pending fails the
         // moment a type named LuckService exists, which is exactly when the obligation lands.
-        new("LuckService", SubjectKind.CoreType, "M4-01",
-            "SlayIdleRepeat.Core.Rules.Combat.Enemies.IEliteModifierHistory — see the note above this " +
-            "entry: 05 §6.2's no-repeat rule is run-scoped state that 24 §4.10 B2 owns, the seam only " +
-            "works if ONE history instance spans the whole run, and the implementation must live on " +
-            "the run-controller side rather than on LuckService itself, or Rules.Luck ends up naming " +
-            "Rules.Combat and R17 has no edge for it"),
+        //
+        // 🔴 M4-01 LANDED THE TYPE AND DID **NOT** DISCHARGE THE OBLIGATION. The entry has therefore
+        // MOVED to Live below — the mechanism fired exactly as designed, and leaving it here would
+        // fail the rule — but moving it is bookkeeping, not a discharge, and the two must not be
+        // confused. What follows is the state of the obligation itself, written here because this is
+        // where the next reader of the LuckService row will be standing.
+        //
+        // ⚠️ STILL OPEN, AND STILL BROKEN. EncounterFight.Run — the only production caller — builds
+        // its history as a LOCAL, one per battle: `EliteModifierHistory.Restore(null)`. So
+        // PreviousEliteModifier is permanently null, 05 §6.2's redraw has never once excluded
+        // anything, and every test of the draw passes over a rule that is present and inert. That is
+        // worse than a missing rule, because nothing looks wrong.
+        //
+        // 🔒 WHY M4-01 COULD NOT TAKE IT, and why it is not re-keyed to a later type here. M4-01
+        // wires no run at all: it authors the pity façade, the guarantee primitives, the tuning
+        // reader and the counter map, and touches nothing that spans two battles. And the fix is NOT
+        // TYPE-SHAPED — it is a FIELD on the existing Run aggregate plus threading one instance
+        // through every Elite encounter of that run — so a type-keyed Pending row is the wrong home
+        // for it, by this file's own filter. That is precisely the argument the IStatOpBehaviour note
+        // in Live below makes for itself: Live and Pending exist for subjects whose SILENT
+        // disappearance would leave a rule vacuous, and a row that can never fire is dilution. The
+        // finding is carried in PRODUCTION CODE instead, where the next reader of the seam will
+        // actually look — IEliteModifierHistory's own remarks and EncounterFight's, both strengthened
+        // in M4-01's commit to name the defect, the shape of the fix and the owner.
+        //
+        // 🔒 OWNER: M4-02, which still owns DROP_RUN's D1-D3 counters — the per-run luck state this
+        // history was expected to ride in beside.
+        //
+        // 🔴 THE PREMISE THAT PICKED THAT OWNER HAS SINCE GONE FALSE, recorded rather than quietly
+        // left: the row was written on the argument that M4-02 would be "the task that gives the Run
+        // aggregate its FIRST persisted luck state", so a per-run instance would have to be threaded
+        // for the first time in that commit anyway. M4-01b got there first — the three run-scoped
+        // DRAFT guarantee counters are persisted Run fields as of that task — and it did NOT carry
+        // the Elite history, because the counters need no per-battle instance threaded through the
+        // encounter path and this does. The owner is unchanged and the obligation is undischarged;
+        // what is gone is the "it comes along for free" half of the reason. Naming a later milestone
+        // would be this file inventing a plan; naming none is what let PowerCalculator's entry go
+        // stale inside its own milestone.
+        //
+        // ⚠️ AND ONE THING M4-01 DID SETTLE, so M4-02 does not have to re-derive it: the
+        // implementation must NOT live on the façade. R17 now carries three Luck edges
+        // (IntraRulesLayeringRuleTests.ForbiddenEdges), and Rules.Luck naming Rules.Combat is
+        // forbidden outright rather than merely undecided — which is what the original entry
+        // predicted and what the edges make true.
 
         // 🔒 A DEFERRAL with teeth, recorded because the architecture review found the hole it
         // closes. 05 §6.2's eight modifiers are authored as named PARAMETER numbers rather than as
@@ -395,15 +433,36 @@ public sealed class SubjectSetFloorTests
         // EffectSourceCatalogueTests.The_pending_expiry_subjects_are_distinct keeps two sources from
         // sharing one entry, which would untrack the second when the first arrived.
 
+        // 🔒 M4-03 RAN, AND THESE THREE STAY PENDING — with their reasons rewritten, because the
+        // reason going stale while the predicate still holds is the one case CI cannot catch and
+        // this milestone is the reader that has to falsify it. What M4-03 landed is the DATA MODEL:
+        // Model.Gear.GearInstance, the fourteen-affix pool behind Content.DropsTuning, and
+        // Rules.Gear.SetBonusResolver, which answers which of the authored breakpoints an equipped
+        // loadout has reached. What step 1 still cannot collect from is TWO things, neither of them
+        // M4-03's: an EQUIPPED LOADOUT on the aggregate (M4-05 has since landed the INVENTORY —
+        // Player.Inventory holds what a player owns — but owning an item is not wearing one, and
+        // which items are equipped is M4-10's), and the EFFECT CONTENT itself — no affix and no set bonus has an authored
+        // EffectDefinition, op or magnitude anywhere in the design set, and inventing one would be
+        // the plausible-looking hole S6 forbids sitting under the whole stat pipeline.
+        //
+        // ⚠️ The subject names are still the catalogue's inferences and M4-03 deliberately did not
+        // author a type by any of them — its types are GearInstance, GearAffixRoll (the rolled
+        // affix), GearAffixDefinition (the pool row) and ActiveSet. If the milestone that wires
+        // these picks other names, rename the entries rather than deleting them: what is tracked is
+        // "this source now has something to collect from", not the string.
         new("GearItem", SubjectKind.CoreType, "M4-03",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 1 of 10, " +
-            "'gear'. Its IEffectSource has no data model until M4-03's gear instance schema lands"),
+            "'gear'. M4-03 landed the instance; what is missing is an equipped loadout to collect one " +
+            "from and an authored effect for it to contribute"),
         new("GearAffix", SubjectKind.CoreType, "M4-03",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 2 of 10, " +
-            "'affixes'. 08 §3's 14 affixes are M4-03's"),
+            "'affixes'. M4-03 landed all 14 with their ranges, slot restrictions and ids; what is " +
+            "missing is the EffectDefinition each one contributes, which no document authors"),
         new("SetBonus", SubjectKind.CoreType, "M4-03",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 3 of 10, " +
-            "'set bonuses'. 08 §3's 4 SS set-bonus engines are M4-03's"),
+            "'set bonuses'. M4-03 landed the four engines as far as the data goes — which set a " +
+            "loadout is wearing and which authored breakpoints it has met; the 2/4/6 bonuses " +
+            "themselves are described in prose and have no effect id, op or magnitude anywhere"),
         new("TalentNode", SubjectKind.CoreType, "M4-06",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 4 of 10, " +
             "'talents'. 09's 60-node tree is M4-06's"),
@@ -602,25 +661,32 @@ public sealed class SubjectSetFloorTests
         // declared_pending requires every namespace 30 §11.4 enumerates to appear in one of these two
         // lists, so dropping the row goes red.
         //
-        // ⚠️ DOC CONTRADICTION, CARRIED FORWARD (steering S16). Events appears in no row of
-        // Core_internal_layering_holds' FORBIDDEN-PAIR table, and it must not be given one on a
-        // guess. 30 §11.4's chain is "Handlers -> Rules -> Model -> Content -> Primitives" and
-        // omits Commands and Events entirely, while 30 §7 writes
-        // GearGranted(int, GearInstance, SourceClass, bool) — and GearInstance is a Model
-        // aggregate. A row forbidding Events -> Model would therefore contradict 30 §7 and block
-        // M4-03 outright.
-        //   OWNER: M1-06's task brief takes the first cut, because it lands Commands/ and Handlers/
-        //   and turns one ungoverned region into two. The binding ruling is due at the M4 KICKOFF,
-        //   before M4-03 authors GearGranted — that is the commit where Events -> Model stops being
-        //   hypothetical. Whoever rules amends 30 §11.4 rather than only the table.
-        // What IS settled and enforced meanwhile: Events is in that rule's mustNotReachTheRoot
-        // list (an event naming GameRules or GameContext is a cycle under every reading), and
-        // DomainEventTests.Core_Events_holds_the_event_hierarchy_and_nothing_else governs what the
-        // namespace DECLARES. Neither says anything about Events -> Model, which is the open half.
+        // 🔒 THE DOC CONTRADICTION THIS ROW CARRIED SINCE M1-03 IS DISCHARGED (steering S16). It read:
+        // 30 §11.4's chain omits Commands and Events entirely, while 30 §7 writes
+        // GearGranted(int, GearInstance, SourceClass, bool) — so a row forbidding Events -> Model
+        // would contradict 30 §7 and block M4-03, and a row permitting it would put an aggregate in
+        // a list that leaves the domain. M1-03, M1-06 and M1-11 each closed the halves that were
+        // unambiguous and left this one open BY NAME, with the M4 kickoff as its owner.
+        //
+        // RULED at the M4 kickoff (2026-08-16) and landed by M4-03: Events -> Model is PERMITTED,
+        // NARROWLY — an event may name a Model/ type only when that type is an immutable, fully
+        // serialisable value record with no mutators, never an aggregate ROOT and never a Model/
+        // type carrying an internal mutator. 30 §11.4 carries the amendment (the chain is now
+        // Testing -> Handlers -> Rules -> Model -> Content -> Primitives with Commands and Events as
+        // peer leaves), DomainEvent's own remarks no longer say "not an aggregate", and the
+        // enforcement is AccessibilityBoundaryTests
+        // .An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record — a rule of its own
+        // rather than a forbidden PAIR, because the permitted reference and the forbidden one go to
+        // the same namespace and differ only in the shape of the type reached.
+        //
+        // Events still has no row in the forbidden-pair table for Model, and now that is a decision
+        // with a reason rather than a gap: it has one for Rules, Handlers and Testing, and it is in
+        // mustNotReachTheRoot.
         new(Domain.EventsNamespace, SubjectKind.CoreNamespace, "M1-03",
             "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace, " +
-            "AccessibilityBoundaryTests.Core_internal_layering_holds (the mustNotReachTheRoot half only — " +
-            "Events has no row in the forbidden-pair table; see the note above)"),
+            "AccessibilityBoundaryTests.Core_internal_layering_holds (the mustNotReachTheRoot half and " +
+            "the Rules/Handlers/Testing row), " +
+            "AccessibilityBoundaryTests.An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record"),
 
         // 🔒 M1-vs-M2 MERGE NOTE: Domain.RulesNamespace was moved out of Pending independently by BOTH
         // milestones — M1-10 (Core/Rules/Economy/, the 10 §3 / 28 C energy math) and M2-15
@@ -777,14 +843,81 @@ public sealed class SubjectSetFloorTests
         //                           delete it and nothing reads 05 §6's tables at all, while the
         //                           namespace floor stays satisfied by the value types beside it and
         //                           the whole enemy-derivation suite goes on passing over fixtures.
+        // 🔴 M4-01 CORRECTED THIS ROW'S CROSS-REFERENCE. It said the seam was "paired with the
+        // LuckService entry in Pending, which is where its persistence lands", and both halves of
+        // that went stale in the same commit: LuckService has arrived and is a Live row three
+        // entries down, so there is no Pending entry to pair with — and it was never where the
+        // persistence lands either. The persistence is a field on Run, owned by M4-02; the discharge
+        // note in Pending above carries the full argument and the reason a type-keyed row is the
+        // wrong home for what is left.
         new("IEliteModifierHistory", SubjectKind.CoreType, "M2-11",
             "EliteModifierHistoryContract — the shared contract suite every implementation of 05 §6.2's " +
-            "run-scoped no-repeat memory is run through (steering S7); paired with the LuckService " +
-            "entry in Pending, which is where its persistence lands"),
+            "run-scoped no-repeat memory is run through (steering S7). ⚠️ Its run-scoped persistence " +
+            "does NOT land on the luck façade — see the discharge note in Pending above: it is a field " +
+            "on the Run aggregate, owned by M4-02, and R17's Luck edges now forbid the alternative " +
+            "outright"),
         new("EnemyCatalogue", SubjectKind.CoreType, "M2-11",
             "the single reader of content/enemies/enemies.json — 05 §6's derivation constants, level " +
             "table, archetype rows, on-hit tables, elite modifiers and identities and chapter pools " +
             "all enter Core through it, and EnemiesDataTests asserts the document it names"),
+
+        // ── M4-01 ───────────────────────────────────────────────────────────────────────────
+        //
+        // 🔒 MOVED out of Pending by M4-01 rather than deleted, on this file's own doctrine and for
+        // CombatSimulator's stated reason: a name that has arrived is TRACKED here, not dropped. The
+        // Pending entry it replaces carried a cross-milestone obligation that is NOT discharged —
+        // the full note is in Pending above, and the short version is that 05 §6.2's run-scoped
+        // Elite history is a field on Run owned by M4-02, not anything M4-01 could build.
+        //
+        // ⚠️ WHY THE NAME NEEDS TRACKING NOW THAT IT EXISTS, which is a different reason from the
+        // one it was tracked for while absent. LuckRoutingRuleTests keys on the literal simple name
+        // in FIVE places at once: the routing arm asks whether a producer calls it, the guarantee
+        // arm exempts the namespace it lives in, the identity floor asserts that it declares a
+        // Resolve member at all, the grant-class coverage arm asks which of its members each class
+        // is reached through, and the closed-surface arm asks whether every member production calls
+        // is one this file classifies. Rename the façade without renaming
+        // LuckRoutingRuleTests.LuckFacade and the failure is LOUD rather than silent — the identity
+        // floor fires — which is worth writing down because it is the opposite of this file's usual
+        // failure mode, and because the row is what tells whoever does the rename which arms they
+        // have just moved.
+        new("LuckService", SubjectKind.CoreType, "M4-01",
+            "LuckRoutingRuleTests.No_grant_outcome_is_produced_outside_the_luck_service (the routing " +
+            "arm — 24 §11's 'every protected grant goes through one façade', matched by this exact " +
+            "simple name), LuckRoutingRuleTests.A_guarantee_can_only_fire_inside_Rules_Luck (the " +
+            "sole-façade arm, which is what stops a producer naming the façade and reaching past it " +
+            "into HardPity anyway), LuckRoutingRuleTests." +
+            "The_routing_rules_subject_set_is_the_one_it_was_written_against (the identity floor — it " +
+            "asserts the type exists, sits under Rules.Luck and declares Resolve, so a rename turns " +
+            "this red instead of quiet), LuckRoutingRuleTests." +
+            "Every_live_grant_source_class_routes_through_the_facade_and_the_rest_have_no_caller " +
+            "(the coverage arm — per 24 §3 grant class, which façade member reaches it and who " +
+            "calls that member), LuckRoutingRuleTests." +
+            "Every_facade_member_production_calls_is_a_grant_class_this_file_classifies (the closed " +
+            "surface — every member production reaches for is one a row classifies, which is what " +
+            "covers a class no entry point serves yet)"),
+
+        // 🔒 The counter map, tracked by NAME because two mechanisms key on it and neither is a
+        // compile-time reference. GapRegister's 30 §4 Player-contents transcription still lists
+        // "PityCounters", and Undeclared() now finds it authored under Domain.ModelNamespace with no
+        // Deferred entry carrying it — rename or move the type out of Core/Model/ and that
+        // transcription reports an undeclared gap for a type that exists.
+        //
+        // 🔴 THE HALF THIS ROW USED TO CARRY IS DISCHARGED, and the note is corrected rather than
+        // left standing. It said the type was "the ARGUMENT the stateless luck façade takes, not a
+        // field on Player", that 30 §4's "all pity counters (24)" line had no home on the aggregate,
+        // and that M4-02 owned the field, the snapshot column and the SchemaVersion bump. M4-01b
+        // landed all three: the chest pick's gold-tier guarantee is PLAYER-scoped and lifetime, so a
+        // run-scoped home would reset it every run and put a four-miss guarantee out of reach.
+        // M4-02 still owns the chest ladders and the in-run drop mercy that write the map further;
+        // it does not own adding the field a second time. Nothing mechanical fires on either version
+        // of that note — GapRegister's predicate is a type simple name and the type is authored —
+        // which is exactly why it had to be re-read rather than trusted (steering S4's known limit).
+        new("PityCounters", SubjectKind.CoreType, "M4-01",
+            "GapRegister.Surfaces — 30 §4's Player-contents transcription enumerates it, and " +
+            "GapRegisterTests.Every_subject_the_design_docs_enumerate_is_authored_or_declared_deferred " +
+            "is what decides whether an enumerated name is authored under Domain.ModelNamespace or " +
+            "carried by a Deferred entry. M4-01 authored it, so the entry that used to carry it is " +
+            "gone and the transcription now rests on the type being where it is"),
 
         // ── M2-16a ──────────────────────────────────────────────────────────────────────────
         //

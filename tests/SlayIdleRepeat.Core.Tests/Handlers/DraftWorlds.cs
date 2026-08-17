@@ -29,9 +29,12 @@ internal static class DraftWorlds
     {
         var baseline = InRunIncomeDocuments.Shipped;
 
+        // The pity registry too: the draft draws under 24 §4.7's rules now, so the handler reads
+        // luck.json on the same command that reads the perk catalogue.
         var documents = baseline.DocumentPaths
             .Select(baseline.GetDocument)
-            .Append(PerkDocuments.Document);
+            .Append(PerkDocuments.Document)
+            .Append(LuckDocuments.LuckOnly().GetDocument(LuckDocuments.DocumentPath));
 
         return new ContentSnapshot(baseline.Version, documents);
     }
@@ -44,14 +47,16 @@ internal static class DraftWorlds
         TileKind battleKind = TileKind.Enemy,
         int stage = 1,
         long gold = 0,
-        IReadOnlyDictionary<string, int>? ownedPerkTiers = null)
+        IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
+        int draftsWithoutOwnedUpgrade = 0)
     {
         var snapshot = RunSnapshots.With(
             draftPending: true,
             draftBattleKind: (int)battleKind,
             draftBattleStage: stage,
             gold: gold,
-            ownedPerkTiers: ownedPerkTiers);
+            ownedPerkTiers: ownedPerkTiers,
+            draftsWithoutOwnedUpgrade: draftsWithoutOwnedUpgrade);
 
         var run = RunAggregate.Rehydrate(snapshot);
 

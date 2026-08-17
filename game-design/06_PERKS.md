@@ -209,7 +209,7 @@ Additional rules:
 - **Codex bias:** never-drafted perks carry a `×1.35` weight in the fresh-pool draw, capped at 1 bias-selected option per draft.
 - **Upgrade famine:** 5 consecutive drafts with no owned-perk upgrade offered (while a non-maxed owned perk exists) force one.
 
-🔒 All five rules above are the `DRAFT` source class and are specified in full in **`24_LUCK_PROTECTION.md` §4.7**, which is the authority. They resolve through `LuckService`, not in the draft code.
+🔒 The last five rules above are the `DRAFT` source class and are specified in full in **`24_LUCK_PROTECTION.md` §4.7**, which is the authority. They resolve through `LuckService`, not in the draft code.
 
 📐 TUNABLE: all weights above.
 

@@ -6,11 +6,19 @@ namespace SlayIdleRepeat.Core.Commands;
 /// <remarks>
 /// <para>
 /// Payload fields carry the shape they already have on the wire rather than inventing new id
-/// types: an index into a server-issued list is <see cref="int"/>, an opaque identifier is
-/// <see cref="string"/>, and an authored optionality is a nullable reference. No new id primitive
-/// or enum is declared here, since <c>Commands/</c> sits above <c>Primitives/</c> in the dependency
-/// chain and the id vocabularies those types would describe have no authored content yet to check
-/// them against.
+/// types: an index into a server-issued list is <see cref="int"/>, an opaque identifier with no
+/// declared vocabulary is <see cref="string"/>, and an authored optionality is a nullable reference.
+/// </para>
+/// <para>
+/// 🔒 <b>Where a vocabulary <em>has</em> been declared, the payload carries it.</b> The original
+/// wording of the paragraph above went further and said no id primitive or enum is declared for a
+/// payload at all — which was true only while none existed. The gear commands now carry a gear
+/// instance id, an equipment slot and an item family as their real types, because the alternative is
+/// two vocabularies for one concept with every architecture rule green: nothing anywhere fails when a
+/// command says <c>string</c> and the domain says <c>GearSlot</c>, which is precisely why it had to
+/// be retyped in the commit that declared them. The types live in <c>Primitives/</c>, which
+/// <c>Commands/</c> may name; the aggregate they describe stays out, because a command carries ids,
+/// never items.
 /// </para>
 /// <para>
 /// Bounds named in payload remarks (e.g. an index range) are transcribed, not enforced by the
@@ -139,4 +147,97 @@ internal static class CommandPayload
 
         return hash.ToHashCode();
     }
+
+    // The same four helpers over a declared id vocabulary rather than raw text. They are overloads
+    // rather than replacements so the text-typed callers keep the ordinal comparer they name
+    // explicitly; a declared id compares by its own value equality, which is ordinal on the text
+    // underneath it.
+
+    /// <summary>A defensive, read-only copy of a payload list of declared ids.</summary>
+    /// <typeparam name="TId">The declared id type.</typeparam>
+    /// <param name="values">The caller's list.</param>
+    /// <param name="parameter">The parameter name to blame when it is null.</param>
+    /// <returns>A snapshot of <paramref name="values"/> that nothing outside this command can write.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="values"/> is null.</exception>
+    internal static IReadOnlyList<TId> Copy<TId>(IReadOnlyList<TId>? values, string parameter)
+        where TId : struct
+    {
+        if (values is null)
+        {
+            throw new ArgumentNullException(
+                parameter,
+                "This payload list is required and null is not one of its values. A list that is " +
+                "legitimately absent is declared nullable on the command that has one, where the " +
+                "absence MEANS something.");
+        }
+
+        var copy = new TId[values.Count];
+
+        for (var i = 0; i < values.Count; i++)
+        {
+            copy[i] = values[i];
+        }
+
+        return new ReadOnlyCollection<TId>(copy);
+    }
+
+    /// <summary>Whether two payload lists carry the same declared ids in the same order.</summary>
+    /// <typeparam name="TId">The declared id type.</typeparam>
+    /// <param name="left">One list, or null.</param>
+    /// <param name="right">The other, or null.</param>
+    /// <returns>True when both are null, or both carry the same sequence.</returns>
+    internal static bool SameIds<TId>(IReadOnlyList<TId>? left, IReadOnlyList<TId>? right)
+        where TId : struct
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null || left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < left.Count; i++)
+        {
+            if (!EqualityComparer<TId>.Default.Equals(left[i], right[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>An order-sensitive hash of a payload list, consistent with <see cref="SameIds{TId}"/>.</summary>
+    /// <typeparam name="TId">The declared id type.</typeparam>
+    /// <param name="values">The list, or null.</param>
+    /// <returns>A hash code equal for any two lists <see cref="SameIds{TId}"/> accepts.</returns>
+    internal static int HashIds<TId>(IReadOnlyList<TId>? values)
+        where TId : struct
+    {
+        if (values is null)
+        {
+            return 0;
+        }
+
+        var hash = new HashCode();
+        hash.Add(values.Count);
+
+        foreach (var value in values)
+        {
+            hash.Add(value);
+        }
+
+        return hash.ToHashCode();
+    }
+
+    /// <summary>A payload list of declared ids rendered for <c>ToString()</c>: <c>[a, b]</c>, or <c>null</c>.</summary>
+    /// <typeparam name="TId">The declared id type.</typeparam>
+    /// <param name="values">The list, or null.</param>
+    /// <returns>The rendered list.</returns>
+    internal static string Text<TId>(IReadOnlyList<TId>? values)
+        where TId : struct =>
+        values is null ? "null" : "[" + string.Join(", ", values) + "]";
 }

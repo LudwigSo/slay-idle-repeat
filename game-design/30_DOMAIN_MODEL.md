@@ -132,8 +132,36 @@ public sealed record GameContext(
 | **Time** | `IClockPort` in `Application` (`23` §4.3) | ⚠️ **A value on `GameContext`.** Energy regeneration, daily resets at 05:00 UTC, event windows (`26` §4), guild weeks (`27` §4), PvP seasons (`11` §5.3) and subscription expiry (`12` §2.2) are *all* time-dependent rules. A rule that calls a clock is not pure. `IClockPort` remains — the **composition root** calls it and puts the answer in the context. |
 | **Randomness** | `DeterministicRng` in `Core`, seeded externally (`23` §4.3) | ⚠️ **Two regimes** (ruled in `16` A7). **In-run draws never touch the context:** they come from the `Run` aggregate's committed `runSeed` and its persisted per-stream draw counters (`02` §2, `14` §8) — state, not ambience. `CommandSeed` is **reserved for meta commands** — wheel spins, container opens, the `BEGIN_SESSION` quest draw — whose draws are `Hash64(CommandSeed, stream, i)` from `i = 0` (`14` §8.1). *(The earlier wording cited `14` §8.1 in support of a per-command-seed model; that was a mis-citation — §8.1 specifies the run-stream model.)* The invariant that survives, restated accurately: **the domain never invents entropy.** Every draw is a pure function of committed state or a server-supplied context value — `runSeed` itself is derived deterministically inside `Apply` on `START_RUN` from `(playerId, chapter, tier, NowUtc, runCounter)` (`02` §2). |
 | **Content** | `game-data`, "embedded in both" (`14` §6) | ⚠️ **An immutable, version-stamped `ContentSnapshot` on the context.** Loading JSON is I/O and belongs in an adapter; *reading* content is a rule. The version stamp is what makes a replayed command reproduce its original outcome after a balance patch. |
-| **Entitlement** | Server session payload (`12` §2.1) | ✅ A read-only value. 🔒 **The domain may read `HasPlus` only to resolve ad-reward auto-grant caps — never to alter a stat, a rate or a drop.** An architecture test asserts `Entitlements` is unreachable from the power computation (`29` §3) and from every rule in `Core/Rules/`. |
+| **Entitlement** | Server session payload (`12` §2.1) | ✅ A read-only value. 🔒 **The domain may read `HasPlus` only at the two sites enumerated below — never to alter a stat, a rate or a drop.** An architecture test asserts `Entitlements` is unreachable from the power computation (`29` §3) and from every rule in `Core/Rules/`. |
+
 | **Feature flags** | `IRemoteConfigPort` | ⚠️ Resolved at the composition root into a plain record. The domain must not call a config service mid-rule. |
+
+🔒 **Amendment (M4-10): the entitlement row's enumerated readers are TWO, not one.** It said *"only to
+resolve ad-reward auto-grant caps"* and contradicted `14` §16.2, which classifies `NOT_ENTITLED` as a
+**domain**-tier rejection — meaning `GameRules.Apply` is the only thing allowed to return it — and
+whose sole worked example is *"a Plus-gated operation without Plus (e.g. preset slot 4+, `09` §2.1)"*.
+A domain-tier value the domain is forbidden to compute cannot both be true. The licensed sites are:
+
+| Site | Licensed for | Authority |
+|---|---|---|
+| `Rules/…/AdGrantCapRule` (M15-03) | the ad-reward auto-grant cap | `30` §3, `12` §2 |
+| `Handlers/SavePreset` (M4-10) | the preset slot allowance, and nothing else | `14` §16.2, `12` §2 |
+
+The list is closed and enumerated in `IsolationTests.EntitlementReaders`, matched by **exact type
+name and exact file path**, with a written licence per entry, and a rule fails when a listed site
+stops reading the entitlement — so an exemption cannot outlive what it excused. `APPLY_PRESET`
+deliberately does *not* read the entitlement: `12` §66 keeps presets beyond the free allowance
+**read-only, not deleted**, so only the write path asks about Plus. A third reader is a decision that
+belongs in a diff and in this table, not in a widened predicate.
+
+⚠️ **The alternative that would need no exemption, recorded because it was considered and not taken.**
+The allowance could be resolved *outside* the domain — a number on the session, composed at the
+composition root from `ads.json#/plus/freePresets` for a free player and unbounded for a subscriber —
+and `SAVE_PRESET` would then compare a slot against a number without ever naming `HasPlus`. That obeys
+this section's own generalisation below more literally. It was not taken because it puts a tuning read
+in a composition root that does not exist yet, and because "unbounded" has no representation on the
+context that does not collide with this repository's `null`-means-unauthorised convention. **Owner: the
+M5 kickoff**, which authors the composition root and can decide it with that root in front of it.
 
 🔒 **The rule that generalises all of this: if a rule needs to know something about the outside world, that something is an argument, not a call.**
 
@@ -408,7 +436,8 @@ SlayIdleRepeat.Core/
 │   ├── Board/ Dice/     #   03, 04
 │   ├── Effects/         #   18 — the DSL interpreter
 │   ├── Luck/            #   24 — LuckService
-│   └── Economy/         #   08, 10 — merge, enhance, energy, currency math
+│   ├── Gear/            #   08 §1–3 — item power, quality, affix rolls, set bonuses
+│   └── Economy/         #   08 §4, 10 — merge, enhance, energy, currency math
 ├── Commands/            # public GameCommand hierarchy
 ├── Events/              # public DomainEvent hierarchy
 ├── Handlers/            # internal. One per command. The services that steer the model.
@@ -420,10 +449,41 @@ SlayIdleRepeat.Core/
 **Dependency direction inside `Core`**, enforced by namespace-level architecture tests:
 
 ```
-Handlers ──▶ Rules ──▶ Model ──▶ Content ──▶ Primitives
+Testing ──▶ Handlers ──▶ Rules ──▶ Model ──▶ Content ──▶ Primitives
+                                                 ▲
+                    Commands ─────────────────────┘ (Content, Primitives, Rng — never Model)
+                    Events   ─────────────────────┘ (Content, Primitives, Rng, and Model
+                                                      under the value-record rule below)
 ```
 
-`Rules` never references `Handlers`. `Model` never references `Rules`.
+`Rules` never references `Handlers`. `Model` never references `Rules`. `Rng` is pure arithmetic (`14` §8.1) and sits beside `Content`, beneath `Model`. Nothing beneath the `SlayIdleRepeat.Core` root reaches up into it.
+
+🔒 **Amended by the M4 kickoff (2026-08-16), closing M1 carry-forward 8.** The chain above used to be written `Handlers ▶ Rules ▶ Model ▶ Content ▶ Primitives` and named **five** of the ten namespaces this section's own tree enumerates. `Rng`, `Commands`, `Events`, `Testing` and the `SlayIdleRepeat.Core` root had no place in it at all, so a type under any of them was matched by no rule in either direction — three separate milestones each found one of those regions ungoverned with every architecture rule green. The two positions that were genuinely undecided are settled here:
+
+| Namespace | May name | May **not** name |
+|---|---|---|
+| **`Testing`** | the root, `Handlers`' peers below it — `Model`, `Commands`, `Events`, `Content`, `Rng`, `Primitives` | `Rules`, `Handlers`. `30` §6's harness drives the domain through `GameRules.Apply` and nothing else; nothing beneath it, the root included, names the harness |
+| **`Handlers`** | `Rules`, `Model`, `Commands`, `Events`, `Content`, `Rng`, `Primitives`, the root | `Testing` |
+| **`Rules`** | `Model`, `Content`, `Rng`, `Primitives` | `Handlers`, `Testing` |
+| **`Model`** | `Content`, `Rng`, `Primitives` | `Rules`, `Handlers`, `Testing`, the root |
+| **`Commands`** *(peer leaf)* | `Content`, `Primitives`, `Rng` | **`Model`**, `Rules`, `Handlers`, `Testing`, the root |
+| **`Events`** *(peer leaf)* | `Content`, `Primitives`, `Rng`, **`Model`** — under the restriction below | `Rules`, `Handlers`, `Testing`, the root |
+| **`Content`**, **`Rng`** | `Primitives` (and each other) | everything above them, and the root |
+| **`Primitives`** | nothing | everything |
+
+**`Commands` and `Events` are peer leaves, not a rung of the chain.** Neither sits above or below the other: a command is an input to `Apply` and an event is its output, and nothing may name either from below.
+
+🔒 **`Commands` may not name `Model`.** A command carries **ids**, not aggregates — `14` §2.3's payload columns are ids and indices throughout, a merge names gear *instance ids* rather than `GearInstance`s, and `30` §11.6's one-vocabulary rule makes a command a wire value, which an aggregate is not. A command carrying a `WorldSlice` would additionally smuggle the aggregates past the clone §2.1's P4 depends on.
+
+🔒 **`Events` may name `Model`, and only under this restriction:**
+
+> An event may name a `Model/` type **only** when that type is an **immutable, fully-serialisable value record with no mutators** — snapshot-shaped. It may **never** name an aggregate **root** (`Player`, `Run`), nor any `Model/` type that carries an `internal` mutator.
+
+The permission is forced by §7: `GearGranted(int Sequence, GearInstance Item, SourceClass Source, bool FromPity)` carries the item itself, and all four consumers of the event list — analytics, the economy log, Feats and the client's replay — **serialise** it, so an event carrying an id instead would send every one of them back to an aggregate whose state has since moved on. `08` §7's `GearInstance` is exactly the shape the restriction describes: a flat, serialisable record whose computed stats are never stored.
+
+The restriction is what keeps the permission from being an open door. An event naming `Player` would put an aggregate root — with its `internal` mutators — into a list that leaves the domain, handing the outside world a mutation path around the single public one §11.2 exists to be. A value record has no such path: there is nothing on it to call.
+
+⚠️ **It is enforced as a rule of its own, not as a row in the layering table**, and that is forced rather than stylistic: the table matches namespace *pairs*, while the permitted reference and the forbidden one here go to the same namespace and differ only in the **shape** of the type reached. `AccessibilityBoundaryTests.An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record` carries it, beside `Core_internal_layering_holds` rather than inside it.
 
 🔴 **Erratum, recorded by M2-09 — `Rules/` is not entirely stateless, and the exceptions are enumerated.** `05` §3's simulator is a **fixed-tick loop**: 1800 iterations that accumulate HP, cooldowns, an event log, `18` §2.4's charges and `05` §4.1's ward segments. A stateless function would have to take and return the whole battle on every call. So a handful of types under `Rules/Combat/` hold per-battle or per-actor state, each owned by exactly one caller, never shared and never `static`, so none carries the properties this annotation exists to protect. The list is **closed and mechanical**: `StatefulRuleTypeRuleTests.Stateful` is the authority, it fails the build on a type that is not on it, and equally on a listed type that has stopped holding state. Adding one is allowed and is a deliberate edit with its reason in the diff, which is the point. Everything else under `Rules/` — including every type in `Rules/Combat/` not on that list, `AttackPipeline` among them — is still the static, stateless calculator this line describes. ⚠️ The rule is scoped to `Rules/Combat/`; whether the same enumeration should cover `Rules/Effects/`'s trigger and stacking state is a milestone-review question, not M2-09's.
 

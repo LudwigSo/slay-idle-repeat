@@ -123,6 +123,13 @@ public sealed class InMemoryGame
 
     /// <summary>Creates a player and returns its identity.</summary>
     /// <param name="displayName">A display name, or <c>null</c> for one derived from the generated id. Stored and never interpreted.</param>
+    /// <param name="inventory">
+    /// The stock the player starts with, or <c>null</c> for the empty inventory a new player has.
+    /// 🔴 Appended LAST, and every caller passes it by name — a parameter inserted ahead of an
+    /// existing optional one merges textually clean and silently re-binds every positional argument
+    /// after it. The seam exists because a caller measuring how the per-command cost moves with the
+    /// size of the stock cannot build one grant command at a time; it would be measuring the grants.
+    /// </param>
     /// <returns>The new player's identity, for <see cref="Send"/> and <see cref="State"/>.</returns>
     /// <remarks>
     /// <para>
@@ -148,7 +155,7 @@ public sealed class InMemoryGame
     /// The starting row does not rehydrate — a defect in this method or a content set whose
     /// <c>legendLevel</c> range excludes its own minimum.
     /// </exception>
-    public PlayerId CreatePlayer(string? displayName = null)
+    public PlayerId CreatePlayer(string? displayName = null, InventorySnapshot? inventory = null)
     {
         if (displayName is not null && string.IsNullOrWhiteSpace(displayName))
         {
@@ -183,7 +190,33 @@ public sealed class InMemoryGame
             GameCalendar.GameWeekStartAt(nowUtc),
             new Dictionary<string, long>(StringComparer.Ordinal),
             LoginCalendarTuning.FirstDay,
-            LoginCalendarDayClaimed: false);
+            LoginCalendarDayClaimed: false,
+            FeatCounters: new Dictionary<string, long>(StringComparer.Ordinal),
+            PityCounters: new Dictionary<string, int>(StringComparer.Ordinal),
+
+            // Empty, never null: an absent inventory is a fault, so the starting row states the
+            // empty stock a brand-new player has rather than leaving the field to a default.
+            Inventory: inventory ?? new InventorySnapshot(0, [], []),
+
+            // Empty for the same reason, and it is the ordinary state rather than a placeholder: a
+            // player sweeps nothing until they configure a filter.
+            AutoSalvageRules: [],
+
+            // 07 §1.1 grants Talent Points on the way up; a player at the floor has made no level-up.
+            TalentPoints: 0L,
+
+            // Empty, never null, for the reason the inventory above is: an absent loadout and an
+            // absent preset list are both faults, so the starting row states them.
+            //
+            // ⚠️ THE NAME DOES NOT GO THROUGH Rules.Hero.HeroNameRule HERE, and that is forced rather
+            // than chosen: this harness runs on hermetic content sets that carry the tuning documents
+            // and nothing else, so reading content/profanity/ would make every fixture in the suite
+            // depend on the shipped data set. The filter runs on Player.Rename, which is the door a
+            // real player-chosen name comes through. No such door exists yet — 14 §2.3's registry is
+            // exhaustive and authors no rename command — so account creation, wherever it lands, is
+            // the first production caller. Recorded here rather than left silent.
+            Loadout: new LoadoutSnapshot(new Dictionary<GearSlot, GearInstanceId>(0)),
+            Presets: []);
 
         var player = Player.Rehydrate(snapshot, Content);
 

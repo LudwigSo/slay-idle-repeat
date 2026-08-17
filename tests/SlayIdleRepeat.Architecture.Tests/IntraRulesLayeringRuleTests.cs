@@ -59,6 +59,31 @@ public sealed class IntraRulesLayeringRuleTests
     /// <summary>M3-06's draft rarity weights/composition seams — outside the ordering entirely, like <see cref="BoardNamespace"/>.</summary>
     internal const string PerksNamespace = "SlayIdleRepeat.Core.Rules.Perks";
 
+    /// <summary>M4-13's event → lifetime-counter table — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
+    internal const string FeatsNamespace = "SlayIdleRepeat.Core.Rules.Feats";
+
+    /// <summary>M4-03's `08` gear generation and set-bonus rules — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
+    internal const string GearNamespace = "SlayIdleRepeat.Core.Rules.Gear";
+
+    /// <summary>M4-05's inventory sorting and side-by-side comparison — outside the ordering entirely, like <see cref="GearNamespace"/>.</summary>
+    internal const string InventoryNamespace = "SlayIdleRepeat.Core.Rules.Inventory";
+
+    /// <summary>M4-01's `24` §11 pity façade and its guarantee primitives — outside the ordering entirely, like <see cref="PerksNamespace"/>.</summary>
+    /// <remarks>
+    /// 🔒 The namespace <see cref="Every_namespace_under_Rules_has_a_declared_place_in_R17"/>'s own
+    /// remarks named as the next one to arrive, and it has. It is also
+    /// <c>LuckRoutingRuleTests</c>' subject namespace, which reads this constant rather than
+    /// restating it — one statement of the name for the two rules that quantify over it.
+    /// </remarks>
+    internal const string LuckNamespace = "SlayIdleRepeat.Core.Rules.Luck";
+
+    /// <summary>M4-04's `08` §4 forge — fusion, enhancement, salvage and the auto-salvage filter — outside the ordering entirely, like <see cref="GearNamespace"/>.</summary>
+    internal const string ForgeNamespace = "SlayIdleRepeat.Core.Rules.Forge";
+
+    /// <summary>M4-10's hero rules — the Legend XP curve, the unlock gate, the name filter and the
+    /// loadout/preset rules. Outside the ordering entirely, like <see cref="LuckNamespace"/>.</summary>
+    internal const string HeroNamespace = "SlayIdleRepeat.Core.Rules.Hero";
+
     /// <remarks>
     /// 🔒 Stated as a <b>table</b>, in <c>AccessibilityBoundaryTests.Core_internal_layering_holds</c>'
     /// shape, rather than as one scan over <c>Rules.Effects</c>. R17 is an ordering of three
@@ -154,6 +179,239 @@ public sealed class IntraRulesLayeringRuleTests
         (PerksNamespace, CombatNamespace,
             "Perks is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — the draft engine has no current reason to read the combat simulator."),
+
+        // 🔒 M4-13's Rules/Feats/ (FeatCounterProjection, FeatCounterIncrement), pinned OUTSIDE the
+        // ordering the same way Perks is, for the same reason: the projection's only Core
+        // dependencies outside its own namespace are Events, Content.Dice and Primitives — zero
+        // current coupling to Combat/Stats/Effects in either direction. It is a pure fold over the
+        // event list GameRules.Apply has already produced; it never asks how a fight went, only what
+        // the fight said happened, and a counter that reached into the simulator to ask again would
+        // be counting a second, differently-derived answer.
+        //
+        // ⚠️ The direction these edges leave OPEN is the one that will eventually be needed: when a
+        // combat event lands (28 D2.1's 'Slaughter' category is 20 feats over enemies defeated,
+        // crits and overkill), it will be an Events type that Rules.Combat produces and this
+        // projection consumes — Events, not Rules.Combat, so no edge here has to move.
+        (FeatsNamespace, EffectsNamespace,
+            "Feats is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a counter projection reads the event list, not the effect DSL's resolver."),
+        (FeatsNamespace, StatsNamespace,
+            "Feats is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a counter projection has no reason to read stat aggregation."),
+        (FeatsNamespace, CombatNamespace,
+            "Feats is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a counter projection reads what the simulation REPORTED, through the event " +
+            "list, rather than re-deriving it from the simulator."),
+
+        // 🔒 M4-01's Rules/Luck/ (LuckService, HardPity, SoftPity, MercyAccrual, RarityTable and the
+        // resolution records), pinned OUTSIDE the ordering the same way Perks is, for the same
+        // reason — and this is the namespace Every_namespace_under_Rules_has_a_declared_place_in_R17
+        // was written against by name, so the edges and the first Rules/Luck/ type land together.
+        // Verified by inspection, not assumed: the whole namespace's Core dependencies outside
+        // itself are Content (LuckTuning and, since M4-01b, Content.Perks' PerkRarity/PerkCategory —
+        // the vocabulary the DRAFT class's guarantees floor a pool by), Model (PityCounters),
+        // Primitives (SourceClass, Rarity) and Rng (DeterministicRng) — ZERO coupling to
+        // Combat/Stats/Effects in either direction, and nothing under those three names a Luck type
+        // either. Pity is a draw-shaping concern; it decides which rarity a grant lands on and never
+        // evaluates what the grant then does, so it has no business reading the effect DSL, stat
+        // aggregation or the tick loop.
+        //
+        // ⚠️ Content.Perks is CONTENT, not Rules.Perks, and the difference is the whole reason
+        // M4-01b's draft guarantees could live here: Content sits beneath Rules, so naming a perk
+        // band is a downward read, while Rules.Luck naming Rules.Perks would be a sideways edge with
+        // no declaration. The permitted direction is Perks -> Luck, and that is the one the draft
+        // engine uses.
+        //
+        // ⚠️ The reverse direction is deliberately left open, exactly as it is for Board and Perks:
+        // `05` §6.2's no-repeat Elite draw is `24` §4.10 B2's rule and lives in
+        // Rules/Combat/Enemies/, so Rules.Combat calling INTO the luck primitives one day is the
+        // direction these edges permit by forbidding only the other. SubjectSetFloorTests' own
+        // IEliteModifierHistory note says the same thing from the other side: the run-scoped history
+        // must NOT be implemented on LuckService, "or Rules.Luck ends up naming Rules.Combat and R17
+        // has no edge for it". These three edges are that edge.
+        (LuckNamespace, EffectsNamespace,
+            "Luck is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a pity guarantee has no current reason to read the effect DSL's resolver."),
+        (LuckNamespace, StatsNamespace,
+            "Luck is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a pity guarantee has no current reason to read stat aggregation."),
+        (LuckNamespace, CombatNamespace,
+            "Luck is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a pity guarantee has no current reason to read the combat simulator, and " +
+            "05 §6.2's run-scoped Elite no-repeat memory belongs on the run controller rather than " +
+            "on LuckService for exactly this reason."),
+
+        // 🔒 M4-03's Rules/Gear/ (ItemPower, GearMinting, GearAffixRoller, GearGeneration,
+        // GearStatDerivation, SetBonusResolver), pinned OUTSIDE the ordering the same way Luck is,
+        // for the same reason — verified by inspection, not assumed: the namespace's Core
+        // dependencies outside itself are Content (the gear catalogue, the drop tables, the par
+        // table), Model (the gear instance), Primitives, Rng and Rules.Luck (the façade every drop
+        // routes through). ZERO coupling to Combat/Stats/Effects in either direction, and nothing
+        // under those three names a Gear type either.
+        //
+        // ⚠️ THE REVERSE DIRECTION IS THE ONE THAT WILL BE WANTED, and it is deliberately left open,
+        // exactly as it is for Board, Perks and Luck. `18` §8 step 1 collects effects from gear,
+        // affixes and set bonuses, and that collector lives in Rules.Effects — so Rules.Effects (or
+        // Rules.Stats) reading a derived gear stat one day is the direction these edges permit by
+        // forbidding only the other. What must not happen is the inverse: a gear derivation that
+        // reached into the aggregator or the tick loop would put the item's own stats downstream of
+        // the fight they are an input to.
+        (GearNamespace, EffectsNamespace,
+            "Gear is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — deriving an item's stats from what it rolled has no reason to read the " +
+            "effect DSL's resolver; the collection runs the other way."),
+        (GearNamespace, StatsNamespace,
+            "Gear is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — an item contributes TO stat aggregation and must not read it back, or the " +
+            "item's own numbers become a function of the aggregate they are an input to."),
+        (GearNamespace, CombatNamespace,
+            "Gear is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — gear generation and set-bonus counting have no reason to read the combat " +
+            "simulator."),
+
+        // 🔒 M4-05's Rules/Inventory/ (InventorySorting, InventoryComparison), pinned OUTSIDE the
+        // ordering the same way Gear is, for the same reason. Its Core dependencies outside itself
+        // are Content (the gear tables, the par table, the catalogue), Model (the gear instance and
+        // the inventory) and Rules.Gear — that last one deliberately: the side-by-side delta consumes
+        // GearStatDerivation rather than deriving an item's stats a second time, and a second
+        // derivation is exactly what would eventually disagree with the hero screen by a rounding
+        // step.
+        //
+        // ⚠️ Rules.Inventory -> Rules.Gear is therefore left OPEN and is not an omission. The
+        // INVERSE is closed below, in the same commit that created the pair's first edge —
+        // Every_namespace_under_Rules_has_a_declared_place_in_R17 only asks that each namespace
+        // appears SOMEWHERE in this table, never that a given pair is ordered, so Rules.Gear naming
+        // Rules.Inventory would compile and pass the whole suite. That is verbatim the cycle this
+        // file was created to end, and — as the ForbiddenEdges remarks say of the Stats -> Combat
+        // edge — it costs nothing to close today, because Rules/Gear/ names nothing under
+        // Rules.Inventory (verified by inspection), and it will not be free later.
+        (GearNamespace, InventoryNamespace,
+            "R17 runs this pair ONE WAY: the side-by-side delta consumes GearStatDerivation, so " +
+            "Rules.Inventory names Rules.Gear and never the reverse. Gear generation must not read " +
+            "the container that stores what it mints — a mint that consulted a sorting or comparison " +
+            "rule would be downstream of the screen that displays its own output, and the cycle " +
+            "would close through the hottest grant path in the game."),
+        (InventoryNamespace, EffectsNamespace,
+            "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — ordering a list of owned items and subtracting two derived stats have no " +
+            "reason to read the effect DSL's resolver."),
+        (InventoryNamespace, StatsNamespace,
+            "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the side-by-side delta compares two ITEMS, not two aggregated loadouts; " +
+            "reading the aggregator here would make an item's own numbers a function of the build " +
+            "it is being considered for."),
+        (InventoryNamespace, CombatNamespace,
+            "Inventory is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — sorting a stock has no reason to read the combat simulator."),
+
+        // 🔒 M4-04's Rules/Forge/ (GearMerge, GearEnhancement, GearSalvage, AutoSalvageFilter),
+        // pinned OUTSIDE the ordering the same way Gear and Inventory are, and for the same reason.
+        // Verified by inspection, not assumed: the namespace's Core dependencies outside itself are
+        // Content (the forge numbers and the gear tables), Model (the gear instance and the stock),
+        // Primitives, Rng, Rules.Gear (the affix roller and the band's authored affix count) and
+        // Rules.Luck (the façade the output band and the enhancement rate come back from). ZERO
+        // coupling to Combat/Stats/Effects in either direction.
+        //
+        // ⚠️ THE REVERSE DIRECTION IS THE ONE THAT WILL BE WANTED, exactly as it is for Gear:
+        // GearEnhancement.StatMultiplier is the +7%-per-level half that GearStatDerivation
+        // deliberately does not fold in, so the aggregator composing the two one day is Rules.Stats
+        // (or Rules.Effects) reading Rules.Forge — the direction these three edges permit by
+        // forbidding only the other.
+        (ForgeNamespace, EffectsNamespace,
+            "Forge is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — fusing, enhancing and breaking down an item have no reason to read the " +
+            "effect DSL's resolver; the collection runs the other way."),
+        (ForgeNamespace, StatsNamespace,
+            "Forge is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — an enhanced item contributes TO stat aggregation and must not read it back, " +
+            "or what an item is worth becomes a function of the build it is being enhanced for."),
+        (ForgeNamespace, CombatNamespace,
+            "Forge is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a fusion, an attempt and a salvage payout have no reason to read the combat " +
+            "simulator."),
+
+        // 🔒 The three INVERSE edges, closed in the same commit that created the pair's first edge —
+        // the (Gear, Inventory) precedent, for the reason recorded there. Nothing under Gear, Luck or
+        // Inventory names a Forge type today (verified by inspection), so all three cost nothing now
+        // and would not be free later.
+        //
+        // ⚠️ TWO of the three are the inverse of an edge that EXISTS: Rules.Forge names Rules.Gear
+        // (GearAffixRoller, GearMinting) and Rules.Luck (the façade), and those directions are
+        // deliberately left open. The (Inventory, Forge) row is NOT that shape and is not claimed to
+        // be — Rules.Forge names nothing under Rules.Inventory at all. AutoSalvageFilter takes
+        // Model.Gear.Inventory, the AGGREGATE COMPONENT, which is a Model read and not a Rules edge;
+        // the file has to spell it `Model.Gear.Inventory` precisely because the bare name resolves to
+        // the sibling Rules.Inventory namespace it does not use. That row is therefore an ordering
+        // taken BEFORE the pair has any edge in either direction, which R17's own contract permits
+        // (Every_namespace_under_Rules_has_a_declared_place_in_R17 asks only that each namespace be
+        // placed, never that a pair be edged) and which costs nothing to take now.
+        (GearNamespace, ForgeNamespace,
+            "R17 runs this pair ONE WAY: a fusion re-rolls affixes through GearAffixRoller and asks " +
+            "GearMinting how many the band rolls, so Rules.Forge names Rules.Gear and never the " +
+            "reverse. A mint that consulted the forge would be downstream of the operation that " +
+            "consumes what it mints."),
+        (InventoryNamespace, ForgeNamespace,
+            "R17 orders this pair BEFORE either direction exists: the auto-salvage filter reads the " +
+            "stock through Model.Gear.Inventory, so Rules.Forge names nothing under Rules.Inventory " +
+            "and Rules.Inventory names nothing under Rules.Forge. Forge -> Inventory is the " +
+            "direction left open, because both rules read one stock and the sweep is the operation. " +
+            "A sorting or comparison rule that asked the forge what an item salvages for would put " +
+            "the screen that lists a stock downstream of the operation that empties it."),
+        (LuckNamespace, ForgeNamespace,
+            "R17 runs this pair ONE WAY: the forge asks the façade for a fusion's output band and " +
+            "for an enhancement's effective rate, so Rules.Forge names Rules.Luck and never the " +
+            "reverse. A guarantee that read the forge would be a pity rule whose answer depended on " +
+            "what the player happened to be building, which is the cycle 24 §11's one-façade rule " +
+            "exists to prevent."),
+
+        // 🔒 M4-10's Rules/Hero/ (LegendLevelCurve, LegendProgression, UnlockGate, HeroNameRule,
+        // NameNormalisation, LoadoutRules), pinned OUTSIDE the ordering the same way Inventory is.
+        // Verified by inspection, not assumed: the namespace's Core dependencies outside itself are
+        // Content (the Legend curve, the unlock ladder, the free preset allowance, the word lists),
+        // Model (the player's loadout and inventory), Primitives and Rules.Economy — that last one
+        // deliberately, because 10 §3.1 refills Energy to full on a level-up and EnergyMath.
+        // RefillToFull is already the one place that arithmetic lives. ZERO coupling to
+        // Combat/Stats/Effects in either direction, and nothing under those three names a Hero type.
+        //
+        // ⚠️ Rules.Hero -> Rules.Economy is therefore left OPEN and is not an omission. The INVERSE
+        // is closed below, in the same commit that creates the pair's first edge — this rule only
+        // asks that each namespace appears SOMEWHERE in this table, never that a given pair is
+        // ordered, so Rules.Economy naming Rules.Hero would compile and pass the whole suite. It
+        // costs nothing to close today, because Rules/Economy/ names nothing under Rules.Hero
+        // (verified by inspection), and it will not be free later. The direction matters: energy
+        // accrual and run payout are arithmetic the hero's progression CONSUMES, and an energy rule
+        // that reached back into the Legend curve would make the tank a function of the level-up it
+        // is an input to.
+        //
+        // ⚠️ WHAT Rules.Hero DELIBERATELY DOES NOT NAME, stated because the alternative was
+        // available and the choice is load-bearing: Rules.Gear and Rules.Inventory. LoadoutRules asks
+        // Model.Gear.Inventory whether an identity is held rather than going through Rules.Inventory's
+        // sorting and comparison rules, and it derives no item stats — so the Hero <-> Gear and
+        // Hero <-> Inventory pairs stay UNORDERED and no edge is invented for either. The commit that
+        // gives one of them a real dependency picks the direction and closes the inverse here, exactly
+        // as Gear -> Inventory did.
+        //
+        // ⚠️ THE REVERSE DIRECTION FROM COMBAT IS THE ONE THAT WILL BE WANTED, and it is left open
+        // exactly as it is for Gear and Luck: 05 §2's hero base stats grow with the Legend Level and
+        // the loadout is what a stat aggregation collects gear from, so Rules.Stats reading a hero
+        // rule one day is the direction these edges permit by forbidding only the other.
+        (HeroNamespace, EffectsNamespace,
+            "Hero is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — a level curve, an unlock rung and a name filter have no reason to read the " +
+            "effect DSL's resolver."),
+        (HeroNamespace, StatsNamespace,
+            "Hero is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — the loadout is an INPUT to stat aggregation and must not read it back, or " +
+            "which items the hero wears becomes a function of the build they produce."),
+        (HeroNamespace, CombatNamespace,
+            "Hero is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
+            "remarks) — levelling up and saving a preset have no reason to read the combat simulator."),
+        (EconomyNamespace, HeroNamespace,
+            "R17 runs this pair ONE WAY: 10 §3.1 refills Energy on a Legend Level-up, so Rules.Hero " +
+            "names EnergyMath and never the reverse. Energy accrual must not read the level curve — " +
+            "Max Energy is already a function of the Legend Level through EnergyTuning, which sits " +
+            "in Content BENEATH both, and an energy rule that reached up into the progression rule " +
+            "would close the cycle through the one calculation every single command runs."),
     };
 
     /// <summary>

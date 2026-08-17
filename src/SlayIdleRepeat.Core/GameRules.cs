@@ -9,6 +9,8 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Economy;
+using SlayIdleRepeat.Core.Rules.Feats;
+using SlayIdleRepeat.Core.Rules.Hero;
 
 namespace SlayIdleRepeat.Core;
 
@@ -62,9 +64,9 @@ public static class GameRules
         .Handled<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, BeginSession.Handle)
         .Deferred<SkipFtueCommand>("SKIP_FTUE", CommandKind.Meta, "M4-12")
         .Deferred<EquipCommand>("EQUIP", CommandKind.Meta, "M4-03")
-        .Deferred<MergeCommand>("MERGE", CommandKind.Meta, "M4-04")
-        .Deferred<EnhanceCommand>("ENHANCE", CommandKind.Meta, "M4-04")
-        .Deferred<SalvageCommand>("SALVAGE", CommandKind.Meta, "M4-04")
+        .Handled<MergeCommand>("MERGE", CommandKind.Meta, Merge.Handle)
+        .Handled<EnhanceCommand>("ENHANCE", CommandKind.Meta, Enhance.Handle)
+        .Handled<SalvageCommand>("SALVAGE", CommandKind.Meta, Salvage.Handle)
         .Deferred<SpendTalentCommand>("SPEND_TALENT", CommandKind.Meta, "M4-06")
         .Deferred<RespecCommand>("RESPEC", CommandKind.Meta, "M4-06")
         .Deferred<LevelPetCommand>("LEVEL_PET", CommandKind.Meta, "M4-07")
@@ -80,8 +82,8 @@ public static class GameRules
         .Deferred<SetFocusCommand>("SET_FOCUS", CommandKind.Meta, "M4-04")
         .Deferred<ReforgeItemCommand>("REFORGE_ITEM", CommandKind.Meta, "M4-04")
         .Deferred<RetuneItemCommand>("RETUNE_ITEM", CommandKind.Meta, "M4-04")
-        .Deferred<SavePresetCommand>("SAVE_PRESET", CommandKind.Meta, "M4-10")
-        .Deferred<ApplyPresetCommand>("APPLY_PRESET", CommandKind.Meta, "M4-10")
+        .Handled<SavePresetCommand>("SAVE_PRESET", CommandKind.Meta, SavePreset.Handle)
+        .Handled<ApplyPresetCommand>("APPLY_PRESET", CommandKind.Meta, ApplyPreset.Handle)
         .Deferred<ShopPurchaseCommand>("SHOP_PURCHASE", CommandKind.Meta, "M4-09")
         .Deferred<OpenChestCommand>("OPEN_CHEST", CommandKind.Meta, "M4-02")
         .Deferred<OpenEggCommand>("OPEN_EGG", CommandKind.Meta, "M4-02")
@@ -119,7 +121,8 @@ public static class GameRules
     /// <exception cref="InvalidOperationException">
     /// A defect, never a refusal: the slice doesn't carry the run its command acts on, an aggregate
     /// doesn't round-trip through its own snapshot, a handler hand-wrote an RNG stream position or
-    /// its own event sequence, or a meta command's handler tried to draw randomness. Every case is a
+    /// its own event sequence, a meta command's handler tried to draw randomness, or a handler
+    /// produced an event carrying a value no lifetime counter can be named for. Every case is a
     /// miswired caller or a broken rule, never a player asking for something they cannot have.
     /// </exception>
     public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context) =>
@@ -244,7 +247,97 @@ public static class GameRules
         RequireRunUntouched(untouchedRun, working.Run, registration);
         MarkApplied(working, context.NowUtc, registration.Kind);
 
-        return CommandResult.Accept(working, Stamp(Combine(caughtUp, handled.Events)));
+        // 🔴 The exit-side half of the equipped-item invariant. Player.Rehydrate refuses a row whose
+        // loadout names an item the stock does not hold — on the way IN, which on its own would let
+        // the command that broke the pairing be accepted and persisted, and brick the account from
+        // the next command onwards. Checked here, the offending command fails instead.
+        working.Player.RequireLoadoutResolves();
+
+        // After the handler, because the handler is what banks the XP; before the events are
+        // stamped, because a level-up's Energy refill is a CurrencyChanged like any other.
+        var levelled = LevelUp(working.Player, context.Content);
+
+        var events = Stamp(Combine(caughtUp, Combine(handled.Events, levelled)));
+
+        CountFeats(working.Player, events);
+
+        return CommandResult.Accept(working, events);
+    }
+
+    /// <summary>
+    /// Reconciles the player's Legend Level against the lifetime XP the command left them with, and
+    /// applies what the level-ups grant.
+    /// </summary>
+    /// <returns>The <c>CurrencyChanged</c> the Energy refill produced, or nothing when no level was gained.</returns>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Here rather than in the handlers that bank XP, and that is the whole point.</b> A level is
+    /// a function of a number the player already carries, so reconciling it once per accepted command
+    /// means every path that banks Legend XP levels the player up — the two that exist today
+    /// (<c>END_RUN</c>, <c>ABANDON_RUN</c>), the ad-doubled payout, and every one a later milestone
+    /// adds without knowing this rule exists. A grant that levelled the player in its own handler
+    /// would be one more place to forget.
+    /// </para>
+    /// <para>
+    /// It runs on accepted commands only, on the same argument <see cref="CountFeats"/> makes: a
+    /// refused command discards the working copy, so a rejection cannot leave a Talent Point behind.
+    /// Being idempotent, it is also safe on a replay — the second reconciliation of the same lifetime
+    /// total derives the same level and grants nothing.
+    /// </para>
+    /// <para>
+    /// `10` §3.1 refills Energy to full on a level-up, and that refill is the one thing here that is
+    /// not pure player state, so it comes back as an event rather than being applied silently.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The cost, stated because this runs on every accepted command.</b> The level is derived
+    /// by walking the ladder, so a player at Legend Level <i>N</i> pays <i>N</i> iterations of the
+    /// authored curve — at most 198, and none at all at the cap, which
+    /// <c>LegendProgression.Reconcile</c> short-circuits. Each tuning is read exactly once here and
+    /// handed to both the rule and the aggregate, rather than re-read per use.
+    /// </para>
+    /// </remarks>
+    private static IReadOnlyList<DomainEvent> LevelUp(Player player, ContentSnapshot content)
+    {
+        var range = LegendTuning.Read(content);
+        var energy = EnergyTuning.Read(content);
+
+        var levelUp = LegendProgression.Reconcile(
+            player.LegendLevel, player.LegendXp, player.Energy, content, range, energy);
+
+        if (!levelUp.Occurred)
+        {
+            return NoEvents;
+        }
+
+        // The level is written FIRST: SetEnergy derives the ceiling it checks against from the
+        // player's Legend Level, and refilling before the level moved would refuse the very tank
+        // the level-up just enlarged.
+        player.AdvanceLegendLevel(levelUp.ToLevel, levelUp.TalentPointsGranted, range);
+
+        return new DomainEvent[]
+        {
+            player.SetEnergy(levelUp.Banks, energy, LegendLevelUpReason),
+        };
+    }
+
+    /// <summary>The attribution token a Legend Level-up's Energy refill is logged under.</summary>
+    private const string LegendLevelUpReason = "legend_level_up";
+
+    /// <summary>Advances the player's lifetime feat counters for everything this command's events imply.</summary>
+    /// <remarks>
+    /// Runs only on an accepted command, and over the <b>stamped</b> list — the same one the caller
+    /// receives — so what the client replays and what the counters say can never disagree. Indexed
+    /// rather than enumerated: this is on every command's path and the interface would box the
+    /// list's enumerator.
+    /// </remarks>
+    private static void CountFeats(Player player, IReadOnlyList<DomainEvent> events)
+    {
+        var advances = FeatCounterProjection.Project(events);
+
+        for (var i = 0; i < advances.Count; i++)
+        {
+            player.CountFeat(advances[i].CounterId, advances[i].Amount);
+        }
     }
 
     /// <summary>The catch-up's events followed by the handler's — one list, in the order they happened.</summary>

@@ -142,15 +142,15 @@ This table is the **complete** command vocabulary — wire protocol and domain `
 | `END_RUN` | `{}` | |
 | `ABANDON_RUN` | `{}` | |
 
-**Meta commands (29)** — `POST /player/command`, sequence per player (§16.3). Commands whose outcome needs randomness are marked **⚄** and draw from the command's server-issued seed (`30` §3, §8.1).
+**Meta commands (30)** — `POST /player/command`, sequence per player (§16.3). Commands whose outcome needs randomness are marked **⚄** and draw from the command's server-issued seed (`30` §3, §8.1). *(M4-04 corrected the count — the table has held thirty rows since the A7 additions — and marked `MERGE` and `ENHANCE` ⚄: both draw, and neither was marked. Eleven rows carry the die.)*
 
 | Command | Payload sketch | Notes |
 |---|---|---|
 | `BEGIN_SESSION` ⚄ | `{ clientVersion, contentHash }` | *(A7)* Server-acknowledged first contact of a session **and** of each game day. Carries the calendar advance, the daily free Energy refill (`10` §3) and the day's random draws — the quest slate (`19` B) and the Daily shop block (`10` §5.1) — its command seed is the day's draw seed. Semantics: `30` §2.3 |
 | `SKIP_FTUE` | `{}` | *(A7)* Valid only while `ftueProgress` is between beats 2 and 8; grants the full scripted payout and jumps to beat 9 (`19` D6). Idempotent — a resend after completion is a no-op |
 | `EQUIP` | `{ itemId, gearSlot }` | Gear only; pets and mounts have their own commands below |
-| `MERGE` | `{ inputItemIdA, inputItemIdB, dustSubstituted }` | |
-| `ENHANCE` | `{ itemId }` | |
+| `MERGE` ⚄ | `{ inputItemIds[2–3], dustSubstituted }` | *(M4-04)* `08` §4.1 fuses **three** items, and the earlier two-id sketch could not express that at all — two ids plus a flag is only complete when `dustSubstituted` is true. The list carries the real inputs: **three** ids with `dustSubstituted: false`, **two** with `dustSubstituted: true`, and no other combination is legal. The affix re-roll at the new rarity draws from this command's seed |
+| `ENHANCE` ⚄ | `{ itemId }` | *(M4-04)* The success roll draws from this command's seed |
 | `SALVAGE` | `{ itemIds[] }` | |
 | `SPEND_TALENT` | `{ nodeId }` | |
 | `RESPEC` | `{}` | |
@@ -475,6 +475,7 @@ One run seed spawns independent named streams so consuming randomness in one sys
 | `shrine` | Shrine option draws (`03` §7a.5) |
 | `combat` | Per battle, **re-rooted at `battleSeed`** — see the Battles rule below, which is the sole derivation |
 | `events` | Event card outcomes |
+| `forge` | *(M4-04)* A fusion's affix re-roll and an enhancement attempt (`08` §4.1, §4.2). Drawn only in the meta regime, so it never appears in a run's `rngStreamStates` |
 | `minigame:{index}` | Minigame randomisation |
 
 This table is the complete stream registry — a system that needs randomness draws from one of these streams or gets a new row here.

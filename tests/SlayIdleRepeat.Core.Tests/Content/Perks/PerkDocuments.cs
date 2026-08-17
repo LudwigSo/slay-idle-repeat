@@ -27,8 +27,41 @@ internal static class PerkDocuments
         Common1, Common2, Rare1, Epic1, Legendary1,
     };
 
+    /// <summary>A second Offense Common, so one category can hold more rows than a draft has slots.</summary>
+    /// <remarks>
+    /// Only in <see cref="OneCategoryDominates"/>. The five-row catalogue above gives every perk its
+    /// own category, which makes "no duplicate options" and "at least two categories" indistinguishable
+    /// — a draft of three distinct perks is diverse there by construction, so a diversity rule that
+    /// did nothing would pass. This row and the next are what tell the two rules apart.
+    /// </remarks>
+    internal const string OffenseCommon2 = "PK_TEST_OFFENSE_COMMON_2";
+
+    /// <summary>A third Offense Common. Three of them is what lets an unconstrained draft go mono-category.</summary>
+    internal const string OffenseCommon3 = "PK_TEST_OFFENSE_COMMON_3";
+
     /// <summary>The document, for composing into a larger fixture snapshot alongside it.</summary>
     internal static ContentDocument Document { get; } = new(DocumentPath, Root());
+
+    /// <summary>
+    /// A catalogue whose Common band is three Offense rows and one Defense row, plus one row in each
+    /// higher band — the shape the category-diversity rule has to bite on.
+    /// </summary>
+    internal static ContentSnapshot OneCategoryDominates { get; } =
+        new(
+            ContentVersion.FromHex(new string('d', ContentVersion.HexLength)),
+            [
+                new ContentDocument(DocumentPath, Obj(
+                    ("perks", ContentValue.Array(new[]
+                    {
+                        Perk(Common1, "OFFENSE", "COMMON"),
+                        Perk(OffenseCommon2, "OFFENSE", "COMMON"),
+                        Perk(OffenseCommon3, "OFFENSE", "COMMON"),
+                        Perk(Common2, "DEFENSE", "COMMON"),
+                        Perk(Rare1, "SUSTAIN", "RARE"),
+                        Perk(Epic1, "ECONOMY", "EPIC"),
+                        Perk(Legendary1, "TRIGGER_SYNERGY", "LEGENDARY"),
+                    })))),
+            ]);
 
     /// <summary>The whole fixture catalogue, three tiers each.</summary>
     internal static ContentSnapshot Shipped { get; } = Build();

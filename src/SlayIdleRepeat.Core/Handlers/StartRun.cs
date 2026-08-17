@@ -130,7 +130,13 @@ internal static class StartRun
             NoPendingTile,
             NoPendingTileLinearIndex,
             NoPendingTileStage,
-            NoPendingEventCard);
+            NoPendingEventCard,
+
+            // 07 §4's snapshot-at-run-start, taken here because here is the only moment it can be:
+            // the run does not exist before this line and the loadout may not change after it.
+            // Named rather than positional, since every parameter past this point is optional and a
+            // positional argument would bind to whichever one a later append happened to displace.
+            StartingLoadout: player.Loadout.ToSnapshot());
 
         var run = Run.Rehydrate(snapshot);
 

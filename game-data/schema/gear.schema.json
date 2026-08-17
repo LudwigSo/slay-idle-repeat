@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/gear.schema.json",
+  "title": "content/gear/gear.json",
+  "description": "08 §1 — the 24 base items, nested by slot: six slots with four families each, every family carrying the §1.1 axis that fixes its stat bias and, at SS rarity, its set. Content transcription only: no stat numbers live here (those are drops.json's slot coefficients and rarity multipliers), and no rolled instance does either — a GearInstance is server state, not content. Nested rather than flat so 'four families per slot' is the document's shape; a flat array would also repeat `slot` four times per slot, which the shared duplicate-identity invariant reads as four rows declaring the same thing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "slots"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "slots": {
+      "description": "08 §1 — exactly six, one per equipment slot, each carrying its four families.",
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slot", "families"],
+        "properties": {
+          "slot": { "enum": ["WEAPON", "HELMET", "ARMOR", "BOOTS", "RING", "AMULET"] },
+          "families": {
+            "description": "Exactly four, one per family axis. Four axes x six slots is the 24-piece roster and the reason a full set is six pieces.",
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["id", "family", "familyAxis"],
+              "properties": {
+                "id": {
+                  "description": "08 §7 authors GEAR_WEAPON_BLADE; the remaining twenty-three follow that GEAR_<SLOT>_<FAMILY> spelling.",
+                  "type": "string",
+                  "pattern": "^GEAR_[A-Z]+_[A-Z]+$"
+                },
+                "family": {
+                  "enum": [
+                    "BLADE", "AXE", "STAFF", "BOW",
+                    "HOOD", "HELM", "CIRCLET", "MASK",
+                    "LEATHERS", "PLATE", "ROBE", "SCALEMAIL",
+                    "TREADS", "GREAVES", "SLIPPERS", "SANDALS",
+                    "BAND", "SIGNET", "LOOP", "SEAL",
+                    "PENDANT", "TALISMAN", "CHARM", "IDOL"
+                  ]
+                },
+                "familyAxis": {
+                  "description": "08 §1.1's four axes. The axis IS the SS set identity — there are exactly four sets, one per axis — which is why no setId is authored on an item or stored on an instance.",
+                  "enum": ["BALANCED", "HEAVY", "CASTER", "AGILE"]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

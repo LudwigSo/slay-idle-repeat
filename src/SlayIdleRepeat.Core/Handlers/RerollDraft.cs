@@ -56,7 +56,7 @@ internal static class RerollDraft
         var cost = run.MoveCurrency(CurrencyId.GOLD, -economy.RerollGoldCost, CostReason);
 
         // Discarded on purpose — see this type's remarks. Consuming the draws is the reroll.
-        _ = PickPerk.GenerateCurrentOptions(input, run);
+        _ = PickPerk.GenerateCurrentOptions(input, run, out _);
 
         return HandlerResult.Accept(cost);
     }

@@ -69,6 +69,12 @@ internal static class PlayerSnapshots
         new ReadOnlyDictionary<string, long>(
             entries.ToDictionary(e => e.Key, e => e.Count, StringComparer.Ordinal));
 
+    /// <summary>A pity counter map of the shape the snapshot carries. Ordinal, like the aggregate's.</summary>
+    internal static IReadOnlyDictionary<string, int> Pity(
+        params (string Key, int Misses)[] entries) =>
+        new ReadOnlyDictionary<string, int>(
+            entries.ToDictionary(e => e.Key, e => e.Misses, StringComparer.Ordinal));
+
     /// <summary>
     /// A valid row: Legend Level 1, an empty wallet, empty banks, the tutorial at its first beat,
     /// both counter periods open and empty.
@@ -83,7 +89,30 @@ internal static class PlayerSnapshots
     /// the shipped value", which is what makes it readable — so the null cases get their own door
     /// rather than a sentinel that every other call site would have to understand.
     /// </remarks>
-    internal static PlayerSnapshot WithNull(bool wallet = false, bool daily = false, bool weekly = false) =>
+    /// <remarks>
+    /// <paramref name="cleared"/> and <paramref name="feats"/> are the two appended maps, and they
+    /// are deliberately asymmetric: a null <c>ClearedChapterTiers</c> is READ as "nothing cleared
+    /// yet", while a null <c>FeatCounters</c> is a FAULT. Both stay expressible here so that
+    /// asymmetry is testable rather than assumed. <paramref name="inventory"/>,
+    /// <paramref name="autoSalvage"/>, <paramref name="loadout"/> and <paramref name="presets"/> all
+    /// join the FAULT side.
+    /// <para>
+    /// 🔴 Every parameter here is optional and every call site passes them BY NAME. A new one is
+    /// appended LAST and nowhere else: a parameter inserted mid-signature merges textually clean and
+    /// silently re-binds every positional argument after it.
+    /// </para>
+    /// </remarks>
+    internal static PlayerSnapshot WithNull(
+        bool wallet = false,
+        bool daily = false,
+        bool weekly = false,
+        bool cleared = false,
+        bool feats = false,
+        bool pity = false,
+        bool inventory = false,
+        bool autoSalvage = false,
+        bool loadout = false,
+        bool presets = false) =>
         new(
             SnapshotSchema.SchemaVersion,
             Id,
@@ -102,7 +131,15 @@ internal static class PlayerSnapshots
             Monday,
             weekly ? null! : Counters(),
             LoginCalendarTuning.FirstDay,
-            false);
+            false,
+            cleared ? null : Counters(),
+            feats ? null! : Counters(),
+            pity ? null! : Pity(),
+            Inventory: inventory ? null! : EmptyInventory,
+            AutoSalvageRules: autoSalvage ? null! : NoAutoSalvage,
+            TalentPoints: 0L,
+            Loadout: loadout ? null! : EmptyLoadout,
+            Presets: presets ? null! : NoPresets);
 
     /// <summary>The valid row with individual fields replaced. Omit a parameter to keep it.</summary>
     internal static PlayerSnapshot With(
@@ -124,7 +161,14 @@ internal static class PlayerSnapshots
         IReadOnlyDictionary<string, long>? weeklyCounters = null,
         int? loginCalendarDay = null,
         bool? loginCalendarDayClaimed = null,
-        IReadOnlyDictionary<string, long>? clearedChapterTiers = null) =>
+        IReadOnlyDictionary<string, long>? clearedChapterTiers = null,
+        IReadOnlyDictionary<string, long>? featCounters = null,
+        IReadOnlyDictionary<string, int>? pityCounters = null,
+        InventorySnapshot? inventory = null,
+        IReadOnlyList<AutoSalvageRule>? autoSalvageRules = null,
+        long? talentPoints = null,
+        LoadoutSnapshot? loadout = null,
+        IReadOnlyList<LoadoutPresetSnapshot>? presets = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -148,5 +192,51 @@ internal static class PlayerSnapshots
             // exception rather than the rule.
             loginCalendarDay ?? LoginCalendarTuning.FirstDay,
             loginCalendarDayClaimed ?? false,
-            clearedChapterTiers ?? Counters());
+            clearedChapterTiers ?? Counters(),
+            featCounters ?? Counters(),
+            pityCounters ?? Pity(),
+            Inventory: inventory ?? EmptyInventory,
+            AutoSalvageRules: autoSalvageRules ?? NoAutoSalvage,
+            TalentPoints: talentPoints ?? 0L,
+            Loadout: loadout ?? EmptyLoadout,
+            Presets: presets ?? NoPresets);
+
+    /// <summary>A hero wearing nothing — where a new player stands.</summary>
+    /// <remarks>
+    /// Empty, never <c>null</c>: an absent loadout is a fault on <see cref="EmptyInventory"/>'s
+    /// precedent. Expression-bodied for the reason that member records.
+    /// </remarks>
+    internal static LoadoutSnapshot EmptyLoadout => new(Gear());
+
+    /// <summary>A player who has saved no presets.</summary>
+    /// <remarks>Empty, never <c>null</c>, for the reason <see cref="EmptyLoadout"/> records.</remarks>
+    internal static IReadOnlyList<LoadoutPresetSnapshot> NoPresets => [];
+
+    /// <summary>A slot → instance map of the shape a loadout carries.</summary>
+    internal static IReadOnlyDictionary<GearSlot, GearInstanceId> Gear(
+        params (GearSlot Slot, string InstanceId)[] entries) =>
+        new ReadOnlyDictionary<GearSlot, GearInstanceId>(
+            entries.ToDictionary(e => e.Slot, e => new GearInstanceId(e.InstanceId)));
+
+    /// <summary>An inventory holding nothing, with no expansion bought — where a new player stands.</summary>
+    /// <remarks>
+    /// Empty, never <c>null</c>: an absent inventory is a fault on <c>FeatCounters</c>' precedent, so
+    /// a fixture defaulting to one would make every rehydration case in this suite fail for a reason
+    /// unrelated to what it asserts.
+    /// </remarks>
+    /// <remarks>
+    /// Expression-bodied rather than an initialised static, and that is load-bearing: a static
+    /// initialiser runs in DECLARATION order, and <see cref="Valid"/> is declared above this — so an
+    /// initialised property here would still be <c>null</c> when <see cref="Valid"/> was built, and
+    /// every fixture in the suite would carry the very absent inventory this member exists to avoid.
+    /// </remarks>
+    internal static InventorySnapshot EmptyInventory => new(0, [], []);
+
+    /// <summary>An auto-salvage filter with no rows — where every player stands until they set one.</summary>
+    /// <remarks>
+    /// Empty, never <c>null</c>, and expression-bodied, for the two reasons
+    /// <see cref="EmptyInventory"/> records: an absent filter is a fault, and a static initialiser
+    /// declared below <see cref="Valid"/> would still be null when <see cref="Valid"/> was built.
+    /// </remarks>
+    internal static IReadOnlyList<AutoSalvageRule> NoAutoSalvage => [];
 }

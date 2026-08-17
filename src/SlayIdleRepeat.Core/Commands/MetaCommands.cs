@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Commands;
 
@@ -33,24 +34,111 @@ public sealed record SkipFtueCommand : GameCommand;
 /// <c>EQUIP</c> — put a gear item in a slot. Gear only: pets and mounts have their own commands below.
 /// </summary>
 /// <param name="ItemId">The gear instance to equip.</param>
-/// <param name="GearSlot">The slot (Weapon, Helmet, Armor, Boots, Ring, or Amulet).</param>
-public sealed record EquipCommand(string ItemId, string GearSlot) : GameCommand;
+/// <param name="GearSlot">The slot. One of the six the domain declares, not free text.</param>
+public sealed record EquipCommand(GearInstanceId ItemId, GearSlot GearSlot) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ItemId)} = {ItemId}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(GearSlot)} = {GearSlot}");
+
+        return true;
+    }
+}
 
 /// <summary>
-/// <c>MERGE</c> — fuse items into one of the next rarity.
+/// <c>MERGE</c> ⚄ — fuse three items into one of the next rarity. The affix re-roll at the new
+/// rarity draws from this command's seed.
 /// </summary>
-/// <param name="InputItemIdA">The first input instance.</param>
-/// <param name="InputItemIdB">The second input instance.</param>
-/// <param name="DustSubstituted">
-/// Whether Merge Dust fills an input slot in place of a third item; a dust-filled slot does not
-/// count toward the output's quality maxima.
-/// </param>
-public sealed record MergeCommand(string InputItemIdA, string InputItemIdB, bool DustSubstituted)
-    : GameCommand;
+/// <remarks>
+/// <para>
+/// 🔴 <b>A list, because the fusion takes three inputs and the two-id payload could not say so.</b>
+/// The earlier shape named two instances plus a flag, which expresses a real merge only when the
+/// flag is true — there was no way at all to send three items, which is the ordinary case. The list
+/// carries the real inputs and the flag says whether Merge Dust fills the remaining slot, so the
+/// two members together always add up to three: three ids with the flag clear, two with it set.
+/// </para>
+/// <para>
+/// The arithmetic is deliberately <em>not</em> enforced here. How many inputs a fusion takes and how
+/// many of them dust may fill are authored numbers, not payload shape, so a command carrying four
+/// ids is a rejection the player is told about rather than a command that refuses to be constructed
+/// — and a command that cannot be built cannot be answered.
+/// </para>
+/// <para>
+/// Equality and hashing are hand-written for the reason <see cref="SalvageCommand"/> records: a
+/// record compares an <c>IReadOnlyList&lt;T&gt;</c> member by reference.
+/// </para>
+/// </remarks>
+public sealed record MergeCommand : GameCommand
+{
+    /// <summary>Fuses the named instances, optionally with Merge Dust in the remaining slot.</summary>
+    /// <param name="inputItemIds">The input instances, in the order the client sent them.</param>
+    /// <param name="dustSubstituted">
+    /// Whether Merge Dust fills an input slot in place of an item. A dust-filled slot contributes
+    /// neither a quality nor a chapter of origin to the output's maxima.
+    /// </param>
+    /// <exception cref="ArgumentNullException"><paramref name="inputItemIds"/> is null.</exception>
+    public MergeCommand(IReadOnlyList<GearInstanceId> inputItemIds, bool dustSubstituted)
+    {
+        InputItemIds = CommandPayload.Copy(inputItemIds, nameof(inputItemIds));
+        DustSubstituted = dustSubstituted;
+    }
+
+    /// <summary>The input instances, in the order the client sent them.</summary>
+    public IReadOnlyList<GearInstanceId> InputItemIds { get; }
+
+    /// <summary>Whether Merge Dust fills an input slot in place of an item.</summary>
+    public bool DustSubstituted { get; }
+
+    /// <summary>Two merges are equal when they name the same inputs in the same order and agree on the dust.</summary>
+    /// <param name="other">The other command.</param>
+    /// <returns>Whether the two describe the same intent.</returns>
+    public bool Equals(MergeCommand? other) =>
+        other is not null &&
+        DustSubstituted == other.DustSubstituted &&
+        CommandPayload.SameIds(InputItemIds, other.InputItemIds);
+
+    /// <inheritdoc/>
+    public override int GetHashCode() =>
+        HashCode.Combine(EqualityContract, CommandPayload.HashIds(InputItemIds), DustSubstituted);
+
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(
+            CultureInfo.InvariantCulture,
+            $"{nameof(InputItemIds)} = {CommandPayload.Text(InputItemIds)}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(DustSubstituted)} = {DustSubstituted}");
+
+        return true;
+    }
+}
 
 /// <summary><c>ENHANCE</c> — +0 to +15 with mercy inheritance.</summary>
 /// <param name="ItemId">The gear instance to enhance.</param>
-public sealed record EnhanceCommand(string ItemId) : GameCommand;
+public sealed record EnhanceCommand(GearInstanceId ItemId) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ItemId)} = {ItemId}");
+
+        return true;
+    }
+}
 
 /// <summary>
 /// <c>SALVAGE</c> — break items down for Merge Dust and a partial Enhance Stone refund; an SS item
@@ -67,11 +155,11 @@ public sealed record SalvageCommand : GameCommand
     /// <summary>Salvages the given gear instances.</summary>
     /// <param name="itemIds">The instances to salvage.</param>
     /// <exception cref="ArgumentNullException"><paramref name="itemIds"/> is null.</exception>
-    public SalvageCommand(IReadOnlyList<string> itemIds) =>
+    public SalvageCommand(IReadOnlyList<GearInstanceId> itemIds) =>
         ItemIds = CommandPayload.Copy(itemIds, nameof(itemIds));
 
     /// <summary>The gear instances to salvage, in the order the client sent them.</summary>
-    public IReadOnlyList<string> ItemIds { get; }
+    public IReadOnlyList<GearInstanceId> ItemIds { get; }
 
     /// <summary>Two salvage commands are equal when they name the same instances in the same order.</summary>
     /// <param name="other">The other command.</param>
@@ -232,11 +320,43 @@ public sealed record SpinWheelCommand : GameCommand;
 /// </summary>
 /// <param name="GearSlot">The slot. <see langword="null"/> clears.</param>
 /// <param name="Family">The item family. <see langword="null"/> clears.</param>
-public sealed record SetFocusCommand(string? GearSlot, string? Family) : GameCommand;
+/// <remarks>
+/// Both halves are nullable because clearing the Focus is one of the command's two meanings, and a
+/// nullable enum keeps "cleared" distinguishable from a slot that happens to sit at the bottom of the
+/// vocabulary — which is the same reason neither enum declares a zero member.
+/// </remarks>
+public sealed record SetFocusCommand(GearSlot? GearSlot, GearFamily? Family) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(GearSlot)} = {GearSlot}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(Family)} = {Family}");
+
+        return true;
+    }
+}
 
 /// <summary><c>REFORGE_ITEM</c> ⚄ — re-roll an item's quality, keeping the better of the two. The roll comes from this command's seed.</summary>
 /// <param name="ItemId">The gear instance to reforge.</param>
-public sealed record ReforgeItemCommand(string ItemId) : GameCommand;
+public sealed record ReforgeItemCommand(GearInstanceId ItemId) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(ItemId)} = {ItemId}");
+
+        return true;
+    }
+}
 
 /// <summary><c>RETUNE_ITEM</c> ⚄ — re-roll an item's affixes with locks and a wishlist. The roll comes from this command's seed.</summary>
 /// <remarks>
@@ -253,7 +373,9 @@ public sealed record RetuneItemCommand : GameCommand
     /// <param name="wishlistAffixIds">The wanted affixes.</param>
     /// <exception cref="ArgumentNullException">Either list is null.</exception>
     public RetuneItemCommand(
-        string itemId, IReadOnlyList<string> lockedAffixIds, IReadOnlyList<string> wishlistAffixIds)
+        GearInstanceId itemId,
+        IReadOnlyList<string> lockedAffixIds,
+        IReadOnlyList<string> wishlistAffixIds)
     {
         ItemId = itemId;
         LockedAffixIds = CommandPayload.Copy(lockedAffixIds, nameof(lockedAffixIds));
@@ -261,9 +383,13 @@ public sealed record RetuneItemCommand : GameCommand
     }
 
     /// <summary>The gear instance being retuned.</summary>
-    public string ItemId { get; }
+    public GearInstanceId ItemId { get; }
 
-    /// <summary>The affixes held through the re-roll, in the order the client sent them.</summary>
+    /// <summary>
+    /// The affixes held through the re-roll, in the order the client sent them. Text, not a declared
+    /// id: the affix vocabulary is authored content and a fifteenth affix is a tuning edit, so an
+    /// enum here would make the one table whose purpose is to be re-tuned a code edit instead.
+    /// </summary>
     public IReadOnlyList<string> LockedAffixIds { get; }
 
     /// <summary>The wanted affixes, which persist on the item after the command.</summary>
@@ -274,7 +400,7 @@ public sealed record RetuneItemCommand : GameCommand
     /// <returns>Whether the two describe the same intent.</returns>
     public bool Equals(RetuneItemCommand? other) =>
         other is not null &&
-        string.Equals(ItemId, other.ItemId, StringComparison.Ordinal) &&
+        ItemId.Equals(other.ItemId) &&
         CommandPayload.SameIds(LockedAffixIds, other.LockedAffixIds) &&
         CommandPayload.SameIds(WishlistAffixIds, other.WishlistAffixIds);
 

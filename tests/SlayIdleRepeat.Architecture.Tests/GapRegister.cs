@@ -143,19 +143,42 @@ internal static class GapRegister
             "30 §7 writes it as (int Sequence, TileType Type, NodeId Node). Both payload types are the " +
             "board's (03), authored by M3-03. Keyed on TileType; NodeId lands in the same task."),
 
-        new("GearGranted", "M4-03", "GearInstance",
-            "30 §7 writes it as (int Sequence, GearInstance Item, SourceClass Source, bool FromPity). " +
-            "GearInstance is the gear aggregate's (08), authored by M4-03. Keyed on GearInstance rather " +
-            "than on SourceClass deliberately: SourceClass arrives earlier, with M4-01's LuckService, and " +
-            "the event still could not be written on that day."),
+        // 🔒 M4-03 discharged the GearGranted entry that used to sit here, and it is a discharge
+        // rather than an expiry — in BOTH directions at once, which is the strongest form this
+        // register has: Model.Gear.GearInstance is authored (Expired()'s WaitsFor arm would fire) AND
+        // Events.GearGranted is written (Expired()'s Subject arm would fire too). The removal is
+        // FORCED by the commit that authored the payload, exactly as the register's own remarks
+        // promise, rather than remembered at a later kickoff. The Surfaces transcription below still
+        // lists "GearGranted" under 30 §7 — Undeclared() now finds it authored under
+        // Domain.EventsNamespace directly, on the DiceRolled and PityCounterAdvanced precedents.
+        //
+        // The entry's real question was not "does the payload type exist" but whether an event may
+        // carry a Model/ type at all: 30 §11.4's chain named neither Commands nor Events, so the
+        // Events -> Model edge was ungoverned in both directions and M1-03, M1-06 and M1-11 each
+        // closed the unambiguous halves and left this one open by name. IT IS NOW RULED, at the M4
+        // kickoff, and permitted NARROWLY: an event may name a Model/ type only when that type is an
+        // immutable, fully serialisable value record with no mutators, and never an aggregate ROOT
+        // nor any Model/ type carrying an internal mutator. 30 §11.4 carries the amendment, and
+        // AccessibilityBoundaryTests.An_event_names_a_Model_type_only_when_it_is_an_immutable_value_record
+        // carries the enforcement — as its own rule, because a forbidden namespace PAIR cannot state
+        // a condition on the shape of the type reached.
 
-        new("PityCounterAdvanced", "M4-01", "LuckService",
-            "30 §7 writes it as (int Sequence, string Key, int Value), which compiles today — and that is " +
-            "the trap. The payload is a SKETCH, not a ruling: the pity-key vocabulary is LuckService's " +
-            "(24 §11), and nothing in M1 can emit one. Authoring it now would freeze 'string Key' before " +
-            "the milestone that knows whether a key is a closed enum, a primitive or a content id, and " +
-            "would leave a public type with no producer, no consumer and no rule watching it. Keyed on " +
-            "the producer rather than on a payload type, because the payload is not what is missing."),
+        // 🔒 M4-01 discharged the PityCounterAdvanced entry that used to sit here, and it is a
+        // discharge rather than an expiry: LuckService exists (Expired()'s WaitsFor arm would fire)
+        // AND Events.PityCounterAdvanced is authored (Expired()'s Subject arm would fire too). The
+        // Surfaces transcription below still lists "PityCounterAdvanced" under 30 §7 — Undeclared()
+        // now finds it authored under Domain.EventsNamespace directly, with no entry needed to carry
+        // it, on the DiceRolled precedent at the head of this array.
+        //
+        // The entry's question was answered rather than merely outlived. It asked whether a pity key
+        // is "a closed enum, a primitive or a content id", and refused to let M1 freeze `string Key`
+        // before someone knew. It is a CONTENT-DERIVED STRING ID, and the reason is decidable rather
+        // than a preference: 24 §3's counter keys are authored in luck.json, and CHEST_STANDARD runs
+        // THREE counters at once, so a source class cannot address a counter on its own and an enum
+        // over the classes would not be a key space at all. The key is (authored counterKey +
+        // the guarantee rarity it protects), formed in exactly one place — Content.LuckTuning, the
+        // reader of the authored keys — so adding a fourth rung stays a data edit. `30` §7's sketched
+        // shape therefore stands, with reasons, rather than being inherited.
 
         new("GuildContribution", "M14-01", "GuildId",
             "30 §7 writes it as (int Sequence, GuildId Guild, string CounterId, long Delta). GuildId is " +
@@ -166,19 +189,105 @@ internal static class GapRegister
         // Four things 30 §4 puts on the Player aggregate that M1-04 authored the aggregate WITHOUT.
         // None of them has an element type yet, and one of them has no decided content at all.
 
-        new("Inventory", "M4-03", "GearInstance",
-            "🔒 M1-02 ALSO HANGS SIX COMMAND PAYLOADS ON THIS ENTRY. 14 §2.3's payload column names " +
-            "gear instance ids and a gear SLOT that no type expresses today, so EquipCommand, " +
-            "EnhanceCommand, SalvageCommand, SetFocusCommand, ReforgeItemCommand and " +
-            "RetuneItemCommand carry them as text. The commit that declares GearInstance retypes " +
-            "those six in the same change — otherwise M4-03's vocabulary and the wire's are two " +
-            "vocabularies for one concept, which is 30 §11.6's failure mode one layer in. " +
-            "30 §4 lists 'inventory, gear instances' among Player's contents, and 08 §5 caps it at 400 " +
-            "slots. Neither can be stored before the thing being stored exists: GearInstance carries " +
-            "quality, chapterOrigin, a mercy counter, affixes and a lock (08 §2-3), and every one of " +
-            "those is a decision M4-03 makes. A List<something> authored now would freeze the item " +
-            "shape under M4-04's forge and M4-05's capacity curve (S6). Keyed on GearInstance because " +
-            "the shelf and the slots are the same missing type."),
+        // 🔒 M4-05 DISCHARGED THE Inventory ENTRY THAT USED TO SIT HERE, and it is a discharge
+        // rather than an expiry — in BOTH directions at once, which is the strongest form this
+        // register has and exactly what the entry predicted of itself: Content.InventoryTuning is
+        // authored (Expired()'s WaitsFor arm would fire) AND Model.Gear.Inventory is written, with
+        // Player.Inventory the field 30 §4's row was really about (Expired()'s Subject arm would
+        // fire too). The removal is FORCED by the commit that authored the field, rather than
+        // remembered at a later kickoff. The 30 §4 Player-contents transcription below still lists
+        // "Inventory" — Undeclared() now finds it authored under Domain.ModelNamespace directly, on
+        // 'PityCounters'' and 'FeatCounters'' precedent, which keeps the other direction: delete the
+        // type or move it out of Core/Model/ and the undeclared check fails naming 30 §4's row.
+        //
+        // The entry's WaitsFor was an INFERENCE — "the name is an inference from this repository's
+        // own <X>Tuning convention rather than a type M4-05 has chosen" — and the inference held:
+        // the reader is Content.InventoryTuning, spanning forge.json#/inventory and the Crown ladder
+        // in currencies.json, because capacity and the price of moving it are authored in different
+        // documents and the interesting rule is the one that crosses them.
+        //
+        // ⚠️ WHAT M4-05 DID NOT DISCHARGE. Two obligations survive the discharge above, and neither
+        // is tracked by an entry in this array — the mechanism keys on a TYPE, and neither of these
+        // is a type. So they are written down with an OWNER each, which is the only thing this
+        // register can do for a gap it cannot hold.
+        //
+        // (1) THERE IS NO EXPAND_INVENTORY COMMAND, and the entry's own text promised the capacity
+        //     model rather than the shop. 14 §2.3's registry is exhaustive — "a command not listed
+        //     here does not exist" — and it authors no inventory-expansion row among its 19 run + 30
+        //     meta commands, so inventing a thirty-first wire name would be filling a VOCABULARY hole
+        //     with a plausible value. The ladder is modelled and tested at the tuning and model tier
+        //     (InventoryTuning.CrownPriceOf, Inventory.PurchaseExpansion), which is as far as code
+        //     can go without a ruling. OWNER: THE M4 MILESTONE REVIEW, the same reader that holds
+        //     M4-03's consecutiveMissesBeforeForce rename — it either amends 14 §2.3 to author the
+        //     row, or rules the ladder model-tier-only, and nothing below that level may decide it.
+        //     Sorting and comparison need no command at all: §2.3's own table records them as purely
+        //     local.
+        //
+        // (2) NOTHING CALLS Inventory.Place YET. The container takes a granted item and never
+        //     refuses one, but no production caller hands it anything — Player.Inventory is reachable
+        //     and unused, and Content.InventoryTuning.Read has no production caller either. OWNER:
+        //     M4-02, which owns 24 §4's DROP_RUN D1–D3 and is where a run drop becomes an item the
+        //     player keeps; M4-04 is the first consumer of an item once it is in there (merge,
+        //     enhance, salvage), and M4-15's end-to-end exit criterion — "a run banks gear" — is the
+        //     test that cannot pass while this path is missing.
+        //
+        //     🔒 THAT WITNESS HAS LANDED and is named rather than merely anticipated: MetaLoopTests.
+        //     A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory. It drives a run
+        //     through commands and asserts the player's stock is byte-identical across it, so it goes
+        //     RED on the commit that wires this path — which is the signal to close BOTH halves: this
+        //     note, and the exit criterion's "banks gear" clause, which that test currently records
+        //     as unreachable.
+
+        // ⚠️ M4-10 BUILT THE HERO NAME FILTER AND NOTHING CALLS IT, and that is written here rather
+        // than as an entry because this register keys on a TYPE and the gap is a missing CALLER.
+        // The same shape, and the same treatment, as M4-05's "nothing calls Inventory.Place yet" note
+        // above: an obligation with an owner is the most this mechanism can do for a gap it cannot
+        // hold.
+        //
+        // WHAT EXISTS: Rules.Hero.HeroNameRule (07 §1's twelve characters, 27 §1's EN + DE lists, at
+        // creation and on every edit), Content.ProfanityLexicon, the two word lists under
+        // content/profanity/, Primitives.HeroName — a name only the rule can construct — and
+        // Player.Rename, which takes that type and nothing else. The filter cannot be bypassed by any
+        // caller that exists.
+        //
+        // WHAT DOES NOT EXIST: a caller. 14 §2.3's registry is EXHAUSTIVE and authors no rename
+        // command, so setting a name is not a command at all — it happens when an account is created,
+        // and no account-creation path exists. Core.Testing.InMemoryGame.CreatePlayer writes
+        // DisplayName directly and says so in its own comment: it runs on hermetic content sets that
+        // carry the tuning documents and nothing else, so reading content/profanity/ there would make
+        // every fixture in the Core suite depend on the shipped data set.
+        //
+        // OWNER: M5-06, "Auth: anonymous device accounts (keystore-held secret)" — the task that
+        // first creates an account, and therefore the first place a hero name is set. It calls
+        // HeroNameRule.Validate for a player-chosen name and HeroNameRule.Default for the "Wanderer"
+        // 07 §1 gives every account that has not chosen one. Until it lands, the filter is reachable
+        // and unused, and no player-facing name has ever been through it.
+        //
+        // 🔒 THIS NOTE HAS A FAILING WITNESS, which is what separates it from a comment nobody owns:
+        // HeroNameWritePathRuleTests.Nothing_in_production_calls_the_name_filter_yet_and_this_fails_
+        // when_something_does goes RED on the commit that wires the first caller, and its failure
+        // message says to delete both itself and this note in that commit.
+        //
+        // 🔴 The M4-05 note above said the same requirement "could not have one, because its subject
+        // was a call that must eventually EXIST rather than one that must not yet." M4-15 showed
+        // that reasoning was wrong: a witness for a call that must not yet exist can assert the
+        // BEHAVIOUR its absence produces, which is decidable today and stops being true on the
+        // commit that adds the call. MetaLoopTests.
+        // A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory drives a whole run
+        // and compares the player's stock by canonical bytes across it; the day anything hands an
+        // item to Inventory.Place mid-run, it goes RED and says to delete itself. Corrected here
+        // rather than left standing, because a register that records an obligation as unwitnessable
+        // is a register nobody will try to witness.
+        //
+        // ⚠️ M4-10 ALSO LEFT AN OBLIGATION ON A SIBLING TASK, and it is written here because the
+        // tracker row is the conductor's to edit and this file is the place a later agent reads.
+        // Player.Rehydrate now refuses a row whose loadout names an item the stock does not hold,
+        // and GameRules.Execute checks the same invariant on the way OUT (Player.
+        // RequireLoadoutResolves). So ANY OPERATION THAT DESTROYS AN ITEM MUST TAKE IT OFF THE HERO
+        // IN THE SAME CHANGE, or Apply throws on a legal player action. Player.DiscardItem is the
+        // seam that does both halves together and is the one every such operation should call.
+        // OWNER: M4-04, which owns merge, salvage and enhance — the three destructive operations
+        // that exist — and which was in flight when this landed.
 
         new("ContainerShelf", "M4-02", "ContainerClass",
             "🔒 M1-02 ALSO HANGS THREE COMMAND PAYLOADS ON THIS ENTRY: OpenChestCommand, " +
@@ -193,25 +302,69 @@ internal static class GapRegister
             "eggs and crates yield pets and mounts, so gear arriving first would not make this " +
             "writable."),
 
-        new("PityCounters", "M4-01", "LuckService",
-            "30 §4 lists 'all pity counters (24)' on Player, and 24 §1.1 requires them to be " +
-            "server-owned, visible and never reset. The storage is trivial; the KEY SPACE is not, and " +
-            "it is the same trap PityCounterAdvanced is deferred for — the pity-key vocabulary belongs " +
-            "to LuckService (24 §11, ten source classes in data/luck.json). A map authored now would " +
-            "freeze whether a key is an enum, a primitive or a content id before M4-01 knows. Keyed on " +
-            "the producer, because the payload is not what is missing."),
+        // 🔒 M4-01 discharged the PityCounters entry that used to sit here, in both directions at
+        // once for the reason its sibling above was: LuckService exists, and Model.PityCounters is
+        // authored under Domain.ModelNamespace, so Undeclared() finds it without an entry and
+        // Expired() would fire on either arm if one were left. The key-space question the entry was
+        // guarding is answered in the PityCounterAdvanced discharge note above — the same answer,
+        // because it was always the same question.
+        //
+        // ⚠️ M4-01 DISCHARGED THE TYPE; M4-01b HAS NOW DISCHARGED THE Player FIELD TOO, and the
+        // note that used to stand here — "deliberately NOT yet a field on Player, M4-02 lands the
+        // field, the snapshot column and the version bump in one commit" — went false in that
+        // commit. It is corrected rather than left standing because its only readers are future
+        // tasks, and a note that tells M4-02 to add a field that already exists is worse than none.
+        //
+        // WHAT CHANGED THE ARGUMENT: the old reasoning was that a public field nothing writes is a
+        // producer-less shape. M4-01b produced the writer — MG_CHEST_PICK's gold-tier guarantee is
+        // PLAYER-scoped and lifetime, and parking it on the run would reset it every run and make a
+        // four-miss guarantee unreachable — so the field, the PlayerSnapshot column, the
+        // CanonicalStateWriter row and the SchemaVersion bump all landed together there. M4-02 still
+        // owns the chest ladders and DROP_RUN's D1-D3 counters; what it no longer owns is the field
+        // itself, and it must not add a second one.
+        //
+        // ⚠️ AND THE VERSION-NUMBER CONSTRAINT STANDS, restated because it is the one part of the
+        // old note that is still true and still costs a task an hour to rediscover: a reserved
+        // number cannot simply be jumped to. SnapshotFieldOrderPinTests iterates
+        // Enumerable.Range(1, SchemaVersion) and demands a pin section for every intervening
+        // version, all owned by tasks that have not run — so M4-01b took the next contiguous number
+        // rather than the one reserved for it, and a sibling collision is renumbered at merge.
 
-        new("FeatCounters", "M4-13", "FeatDefinition",
-            "30 §4 lists 'Feats and Renown (28 D)' on Player, and 28 D2 requires the counters to be " +
-            "LIFETIME aggregate state rather than a projection over the event stream, incremented " +
-            "inside Apply. That makes them the sharpest S6 case in this register and NOT merely early: " +
-            "28 D2.2 catalogues 140 feats, but 16 O29 defers what each counter MEASURES ('feat counter " +
-            "semantics per feat, counters.json') until the M16 kickoff, and 30 §12.7 forbids rebuilding " +
-            "a counter after the fact. So the counter SET ITSELF IS UNDECIDED, and a set invented in " +
-            "M1-04 would be permanently unfixable the day it ships. M4-13 lands the counters early " +
-            "precisely because retroactivity needs them to predate the M16 feature; it cannot land " +
-            "them before O29 names them. Keyed on FeatDefinition, the type that reads feats.json / " +
-            "counters.json and therefore cannot exist until O29 is ruled."),
+        // 🔒 M4-13 DISCHARGED THE FeatCounters ENTRY THAT USED TO SIT HERE, in the Subject
+        // direction: SlayIdleRepeat.Core.Model.FeatCounters is authored — the read-only wrapper over
+        // Player's own lifetime counter map — so Expired()'s second arm would fire on the entry, and
+        // removing it is FORCED rather than remembered. The 30 §4 Player-contents transcription below
+        // still lists "FeatCounters"; Undeclared() now finds it authored under Domain.ModelNamespace
+        // directly, on 'DraftedPerks'' precedent, which keeps the other direction — delete the type
+        // and the undeclared check fails naming the row.
+        //
+        // ⚠️ WHAT M4-13 DID NOT DISCHARGE, and it is the half the old entry was really about: what
+        // each counter MEASURES. 16 O29 defers 'feat counter semantics per feat (counters.json)' to
+        // the M16 kickoff, and 30 §12.7 forbids rebuilding a counter after the fact — so M4-13 built
+        // the MECHANISM (an open, additive, string-keyed map advanced inside Apply from the event
+        // list it already returns) and authored only the ids the events that exist today can support.
+        // That remaining gap is the FeatDefinition entry below, and it is owned by M16, not by M4-13.
+
+        new("FeatDefinition", "M16", "FeatCounterId",
+            "28 D2 catalogues 140 feats across 9 categories and 28 D3 pays them in Renown; a " +
+            "FeatDefinition is the type that reads feats.json and names the counter its measure is " +
+            "stated over. It cannot be written before 16 O29 rules WHAT A COUNTER ID IS — a closed " +
+            "enum, a primitive, or a content id — which is the same trap PityCounterAdvanced is " +
+            "deferred for: a payload that compiles is not a payload that was decided. " +
+            "🔒 THE LIVE PREDICATE HERE IS THE SUBJECT ARM, NOT WaitsFor, and this entry says so " +
+            "rather than overselling itself. No design document names a 'FeatCounterId': it is the " +
+            "name a closed vocabulary WOULD take, and if O29 rules that ids stay bare strings — " +
+            "which is what M4-13 itself chose for the ids it writes — the type never exists and that " +
+            "arm is inert for good. What cannot be inert is Expired()'s second arm, which fires on " +
+            "IsPresentInCore('FeatDefinition'): M16 cannot author the feature and leave this entry " +
+            "standing, whatever it decides an id is. WaitsFor is carried as the earlier of the two " +
+            "tripwires, not as the load-bearing one. " +
+            "⚠️ M4-13 already writes lifetime counters under ids of its own. They are internal to " +
+            "Core and cover only what DiceRolled and CurrencyChanged can support — but they are " +
+            "dictionary keys inside PlayerSnapshot, so they are folded into every stateHash and are " +
+            "cheap to EXTEND and effectively impossible to RENAME. That is the sense in which O29 " +
+            "is not pre-empted: the storage shape is open, the id set is not a published contract, " +
+            "and what each feat MEASURES is still undecided."),
 
         // ---------------------------------------------------------------- M1-05, 30 §4 + 02 §1.1
         //
@@ -471,7 +624,35 @@ internal static class GapRegister
             "Inventory",
             "ContainerShelf",
             "PityCounters",
+
+            // 🔒 M4-13 AUTHORED THIS ONE and it stays in the transcription, on 'DraftedPerks''
+            // precedent rather than 'PendingFork''s: Undeclared() finds Model.FeatCounters authored
+            // and is silent, and what the row still buys is the OTHER direction — delete the type or
+            // move it out of Core/Model/ and the undeclared check fails naming 30 §4's row. The
+            // storage is built; what M16 still owes is the counter SEMANTICS, carried by the
+            // FeatDefinition entry above rather than by this name. 🔒 GapRegisterTests floors this
+            // row by identity — without that floor, dropping the name here was silent in all four
+            // directions, measured.
             "FeatCounters",
+        }),
+
+        // 🔒 M4-13, `28` D2 — the anchor for the FeatDefinition entry above, and a FRAGMENT for the
+        // reason the two aggregate-contents rows are: Part D enumerates a 140-row catalogue, nine
+        // categories, a tiering rule, a Renown ladder and a retroactivity guarantee, and almost none
+        // of that is type-shaped.
+        //
+        // BUILT (M4-13, and therefore not deferred): the LIFETIME COUNTERS themselves —
+        // Model.FeatCounters plus Rules.Feats.FeatCounterProjection, advanced inside GameRules.Apply
+        // off the event list it already returns. `28` D2's Evaluation row and `30` §12.7 are explicit
+        // that the counters are aggregate state, and D2's Retroactivity row is why they could not
+        // wait for M16: a counter that starts when the feature ships is a counter of zero.
+        //
+        // GENUINELY ABSENT AND TYPE-SHAPED — the definition, and only that. Renown is a NUMBER on the
+        // profile (28 D5 is titled 'Why Renown is a number and not a rank'), so it is not transcribed
+        // here for the reason 'Legend Level' is left off 30 §4's row: it will be a field, not a type.
+        new("28 D2 (the feat catalogue — the vocabulary 16 O29 must rule)", Domain.ContentNamespace, new[]
+        {
+            "FeatDefinition",
         }),
 
         // 🔒 M3-02 dropped BOTH 'Board' and 'PendingFork' from this row, for two different reasons —

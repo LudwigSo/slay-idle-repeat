@@ -22,6 +22,47 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="LoginCalendarDay">The login-calendar day currently open, counted from 1. Never below 1.</param>
 /// <param name="LoginCalendarDayClaimed">Whether <see cref="LoginCalendarDay"/> has been claimed. A missed or unclaimed day pauses the calendar rather than skipping it.</param>
 /// <param name="ClearedChapterTiers">The (Chapter, Tier) pairs cleared at least once, gating the one-time first-clear Soul Shard grant. Defaulted to <c>null</c>, read as "nothing cleared yet".</param>
+/// <param name="FeatCounters">
+/// The lifetime feat counters: counter id → count, additive, never reset. ⚠️ Unlike
+/// <see cref="ClearedChapterTiers"/>, <c>null</c> is a <b>fault</b>, not an empty map — a missing
+/// lifetime map read as empty is a whole history silently zeroed. The optional default is a C#
+/// requirement, not a permitted value.
+/// </param>
+/// <param name="PityCounters">
+/// The player-scoped pity counters: counter id → misses since that guarantee last fired. ⚠️ Like
+/// <see cref="FeatCounters"/> and unlike <see cref="ClearedChapterTiers"/>, <c>null</c> is a
+/// <b>fault</b>: a lifetime counter map read as empty is every ladder in the game silently started
+/// over, which is the one thing a pity counter may never do.
+/// </param>
+/// <param name="Inventory">
+/// The stock this player carries, plus the items a full stock is holding for them. ⚠️ Like
+/// <see cref="FeatCounters"/> and unlike <see cref="ClearedChapterTiers"/>, <c>null</c> is a
+/// <b>fault</b>: an absent inventory is not an empty one, and reading it as empty would destroy
+/// everything the player owns on the first load of a row that merely failed to write it. The
+/// optional default is a C# requirement, not a permitted value.
+/// </param>
+/// <param name="AutoSalvageRules">
+/// The auto-salvage filter this player configured: one row per band they want swept, and the
+/// enhancement level below which it is. An <b>empty</b> list is the ordinary state and sweeps
+/// nothing; <c>null</c> is a <b>fault</b>, on <see cref="FeatCounters"/>' precedent, because a filter
+/// read as empty and a filter that failed to write look identical and only one of them is safe.
+/// </param>
+/// <param name="TalentPoints">
+/// The Talent Points this player's Legend Levels have granted. Never negative, and only ever grows:
+/// nothing spends one until M4-06 builds the tree.
+/// </param>
+/// <param name="Loadout">
+/// What the hero is wearing — slot → the gear instance in it. ⚠️ <c>null</c> is a <b>fault</b>, like
+/// <see cref="Inventory"/>: an absent loadout read as an empty one strips the player on the first
+/// load of a row that merely failed to write it, and the result is indistinguishable from a player
+/// who has equipped nothing. Every id here is also required to be one <see cref="Inventory"/> holds.
+/// </param>
+/// <param name="Presets">
+/// The saved loadout presets, in ascending slot order — the order is part of the encoding, so it is
+/// imposed on the way out rather than inherited from whatever order they were saved in. ⚠️
+/// <c>null</c> is a <b>fault</b>: presets beyond the free allowance stay loadable rather than being
+/// deleted, so reading absent as empty destroys builds the design set promises to keep.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.PlayerId"/> and
 /// <see cref="Primitives.EnergyBanks"/>, plus the counter dictionaries. Every timestamp is refused
@@ -51,4 +92,11 @@ public sealed record PlayerSnapshot(
     IReadOnlyDictionary<string, long> WeeklyCounters,
     int LoginCalendarDay,
     bool LoginCalendarDayClaimed,
-    IReadOnlyDictionary<string, long>? ClearedChapterTiers = null);
+    IReadOnlyDictionary<string, long>? ClearedChapterTiers = null,
+    IReadOnlyDictionary<string, long>? FeatCounters = null,
+    IReadOnlyDictionary<string, int>? PityCounters = null,
+    InventorySnapshot? Inventory = null,
+    IReadOnlyList<AutoSalvageRule>? AutoSalvageRules = null,
+    long TalentPoints = 0L,
+    LoadoutSnapshot? Loadout = null,
+    IReadOnlyList<LoadoutPresetSnapshot>? Presets = null);

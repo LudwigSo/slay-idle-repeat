@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Testing;
 using SlayIdleRepeat.Core.Tests.Content;
@@ -36,12 +37,27 @@ internal static class Harnesses
         new(content ?? TuningDocuments.Shipped, seed ?? Seed, new VirtualClock(start ?? Start));
 
     /// <summary>A harness with one player already created, and that player's id.</summary>
+    /// <param name="start">When the simulation starts. Defaults to <see cref="Start"/>.</param>
+    /// <param name="seed">The root seed. Defaults to <see cref="Seed"/>.</param>
+    /// <param name="inventory">
+    /// The stock the player starts with, or <c>null</c> for the empty inventory a new player has.
+    /// </param>
+    /// <remarks>
+    /// 🔴 <paramref name="inventory"/> is APPENDED, and every caller passes it by name. A parameter
+    /// inserted ahead of an existing optional one merges textually clean and silently re-binds every
+    /// positional argument after it.
+    /// <para>
+    /// The seam exists because a comparison whose subject is "how does the per-command cost move with
+    /// the size of the stock" cannot build a three-hundred-item inventory one grant command at a time
+    /// — it would be measuring the grants.
+    /// </para>
+    /// </remarks>
     internal static (InMemoryGame Game, PlayerId Player) WithPlayer(
-        DateTimeOffset? start = null, ulong? seed = null)
+        DateTimeOffset? start = null, ulong? seed = null, InventorySnapshot? inventory = null)
     {
         var game = New(start, seed);
 
-        return (game, game.CreatePlayer());
+        return (game, game.CreatePlayer(inventory: inventory));
     }
 
     /// <summary>The multi-day drive every long assertion shares: for each game day, send

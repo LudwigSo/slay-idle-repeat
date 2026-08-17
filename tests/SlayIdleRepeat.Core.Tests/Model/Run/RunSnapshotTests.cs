@@ -190,6 +190,24 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.BankedLegendXp), v, RunSnapshots.With(bankedLegendXp: 5L)),
             (nameof(RunSnapshot.BankedSoulShards), v, RunSnapshots.With(bankedSoulShards: 5L)),
             (nameof(RunSnapshot.BossDefeated), v, RunSnapshots.With(bossDefeated: true)),
+
+            // M4-01b. Three runs one draft apart on the same guarantee are materially different
+            // runs: the next draft is floored for one and not the other. Probed separately rather
+            // than as one "draft counters" row, because they move independently and a writer that
+            // reached only the first would be invisible to a combined probe.
+            (nameof(RunSnapshot.DraftsSinceLegendaryOffered), v,
+                RunSnapshots.With(draftsSinceLegendaryOffered: 1)),
+            (nameof(RunSnapshot.DraftsWithoutAboveCommon), v,
+                RunSnapshots.With(draftsWithoutAboveCommon: 1)),
+            (nameof(RunSnapshot.DraftsWithoutOwnedUpgrade), v,
+                RunSnapshots.With(draftsWithoutOwnedUpgrade: 1)),
+
+            // M4-10. 07 §4 freezes the loadout at run start, so two runs fought with different gear
+            // are two different runs — and the field is written once, by START_RUN, and never
+            // touched again, which is exactly the shape an encoder can silently skip.
+            (nameof(RunSnapshot.StartingLoadout), v,
+                RunSnapshots.With(startingLoadout: new LoadoutSnapshot(
+                    new Dictionary<GearSlot, GearInstanceId> { [GearSlot.WEAPON] = new("GI_1") }))),
         };
 
         var invisible = probes
