@@ -230,13 +230,13 @@
     "loc.battle.loading.status": "Preparing the fight.",
     "loc.battle.no_run.status": "There is no run here to fight in.",
     "loc.battle.phase_not_battle.status": "This run has no battle waiting to be fought.",
-    "loc.battle.seed_unavailable.status": "This fight cannot be replayed: the run no longer records which battle it is.",
-    "loc.battle.hero_stats_unavailable.status": "This fight cannot be replayed yet: your hero's combat stats are not something this build can assemble.",
-    "loc.battle.simulator_failed.status": "The fight could not be simulated, so there is nothing to show.",
-    "loc.battle.log_empty.status": "The fight was simulated but reported no blows to play back.",
-    "loc.battle.read_unavailable.status": "Your run could not be reached, so this fight cannot be loaded.",
+    "loc.battle.seed_unavailable.status": "The run no longer records which battle this is, so the fight cannot be played back. The run cannot go past this battle.",
+    "loc.battle.hero_stats_unavailable.status": "The part of the game that works out your hero's power is not finished, so this fight cannot be played yet. It is nothing you did, and there is nothing to fix — but the run cannot go past this battle.",
+    "loc.battle.simulator_failed.status": "Something went wrong working this fight out, so there is nothing to play back. The run cannot go past this battle.",
+    "loc.battle.log_empty.status": "This fight was worked out and came back with no blows in it, so there is nothing to play back. The run cannot go past this battle.",
+    "loc.battle.read_unavailable.status": "Your run could not be reached just now, so this fight cannot be loaded.",
     "loc.battle.victory.status": "Victory.",
     "loc.battle.defeat.status": "Defeated.",
-    "loc.battle.refused.status": "That result was refused."
+    "loc.battle.refused.status": "The game did not accept this fight's result, so the run cannot go past this battle."
   }
 }

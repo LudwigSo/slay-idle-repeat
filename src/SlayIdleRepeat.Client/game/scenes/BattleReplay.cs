@@ -232,6 +232,18 @@ public partial class BattleReplay : Control
     /// <summary>What the readout writes where a value the screen has not settled would go.</summary>
     private const string NoValue = "none";
 
+    /// <summary>
+    /// What stands beside an actor whose health the log never fixes.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A dash rather than an empty space — see
+    /// <see cref="ASurvivingEnemysHealthBarHasNoDenominator"/>. The row is drawn either way, so
+    /// leaving the number blank draws a captioned actor with a gap where every other actor has a
+    /// figure, which reads as a number that failed to arrive rather than as one nothing knows. The
+    /// dash says the same thing the missing bar says, in the place a player is looking.
+    /// </remarks>
+    private const string UnknownValue = "—";
+
     /// <summary>What a floating number that GIVES an actor health is written with.</summary>
     /// <remarks>
     /// 🔒 <b>An accessibility clause rather than decoration, and it is why the sign is here at
@@ -737,7 +749,10 @@ public partial class BattleReplay : Control
 
             caption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-            var value = Caption("", LiveColour, wrapping: false);
+            var known = actor.StartingHp is not null;
+
+            var value = Caption(
+                known ? "" : UnknownValue, known ? LiveColour : UnavailableColour, wrapping: false);
 
             value.HorizontalAlignment = HorizontalAlignment.Right;
 

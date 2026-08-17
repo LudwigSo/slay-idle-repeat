@@ -231,14 +231,15 @@ autowrap_mode = 3
 unique_name_in_owner = true
 custom_minimum_size = Vector2(200, 168)
 layout_mode = 2
-theme_override_font_sizes/font_size = 52
+size_flags_vertical = 4
+theme_override_font_sizes/font_size = 48
 autowrap_mode = 3
 
 [node name="SkipButton" type="Button" parent="SafeArea/Column/ControlRow"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(320, 168)
+custom_minimum_size = Vector2(380, 220)
 layout_mode = 2
-theme_override_font_sizes/font_size = 52
+theme_override_font_sizes/font_size = 64
 autowrap_mode = 3
 
 [node name="PhaseBand" type="ColorRect" parent="."]
