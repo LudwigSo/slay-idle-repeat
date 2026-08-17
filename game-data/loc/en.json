@@ -153,6 +153,9 @@
     "loc.chapter_select.tier_mythic.name": "Mythic",
     "loc.chapter_select.requires_clear.block": "Clear the required chapter first.",
     "loc.chapter_select.requires_legend_level.block": "Your Legend Level is too low.",
+    "loc.chapter_select.loading.status": "Checking which chapters you have unlocked…",
+    "loc.chapter_select.profile_missing.status": "No profile is stored on this device, so no chapter can be started.",
+    "loc.chapter_select.unavailable.status": "Your progress could not be read, so no chapter can be started.",
     "loc.chapter_select.confirm.action": "Start"
   }
 }

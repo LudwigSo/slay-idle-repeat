@@ -31,6 +31,13 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// list is the screen saying it is still reading, not the screen saying no.
 /// </para>
 /// <para>
+/// 🔒 <b>And the dimming never has to carry that on its own.</b> A status line above the confirm
+/// says in words which of the three unread states this is, because opacity is identical in all of
+/// them and two of them never end. It goes away the moment the list becomes the answer. It is one
+/// sentence and nothing else: no retry, no reload, no panel — the failure screen and its ladder are
+/// a later milestone's, and half of one built here would make an unbuilt flow look shipped.
+/// </para>
+/// <para>
 /// ⚠️ Every type size, colour and gap in <c>ChapterSelect.tscn</c> and <c>ChapterRow.tscn</c> is a
 /// per-node override, because the shared theme resource and the display faces it will carry do not
 /// exist yet — they are M8-03's, and these overrides are debt owed to it rather than a naming
@@ -80,6 +87,7 @@ public partial class ChapterSelect : Control
     private const string TitleLabelPath = "%TitleLabel";
     private const string TierPickerPath = "%TierPicker";
     private const string ChapterListPath = "%ChapterList";
+    private const string StatusLabelPath = "%StatusLabel";
     private const string ConfirmButtonPath = "%ConfirmButton";
 
     private const string RowNameButtonPath = "NameButton";
@@ -141,6 +149,7 @@ public partial class ChapterSelect : Control
     private Label? _titleLabel;
     private BoxContainer? _tierPicker;
     private BoxContainer? _chapterList;
+    private Label? _statusLabel;
     private Button? _confirmButton;
 
     /// <summary>True once a run has been submitted, because there is nowhere to go afterwards.</summary>
@@ -204,6 +213,7 @@ public partial class ChapterSelect : Control
         _titleLabel = GetNode<Label>(TitleLabelPath);
         _tierPicker = GetNode<BoxContainer>(TierPickerPath);
         _chapterList = GetNode<BoxContainer>(ChapterListPath);
+        _statusLabel = GetNode<Label>(StatusLabelPath);
         _confirmButton = GetNode<Button>(ConfirmButtonPath);
 
         _confirmButton.Pressed += OnConfirmPressed;
@@ -485,13 +495,20 @@ public partial class ChapterSelect : Control
         // Validity before tree membership: asking a freed node whether it is inside the tree is
         // itself the crash, and a shutdown during a slow read is the ordinary case on a handset.
         if (presenter is null || _titleLabel is null || _chapterList is null ||
-            _confirmButton is null || !IsInstanceValid(this) || !IsInsideTree())
+            _statusLabel is null || _confirmButton is null ||
+            !IsInstanceValid(this) || !IsInsideTree())
         {
             return;
         }
 
         _titleLabel.Text = presenter.Title;
         _confirmButton.Text = presenter.ConfirmText;
+
+        // The line that says why the list below is dimmed. Hidden rather than blanked when the read
+        // has landed, for the same reason the requirement lines are: a blank line of the right
+        // height is a sentence the player can see room for and cannot read.
+        _statusLabel.Text = presenter.StatusText;
+        _statusLabel.Visible = _statusLabel.Text.Length > 0;
 
         foreach (var tier in _tiers)
         {

@@ -686,6 +686,7 @@ public sealed class ChapterSelectPresenterTests
         members.ShouldContain(nameof(ChapterSelectPresenter.Availability), "the answer the absent warning must not become part of");
         members.ShouldContain(nameof(ChapterSelectPresenter.ConfirmAsync), "the control the absent warning would have gated");
         members.ShouldContain(nameof(ChapterSelectPresenter.RulesRejection), "the one refusal on this screen that comes from behind it");
+        members.ShouldContain(nameof(ChapterSelectPresenter.StatusText), "the one line the screen says about itself, which a power warning must not be smuggled into");
     }
 
     // ------------------------------------------------------------------------- the strings
@@ -725,6 +726,92 @@ public sealed class ChapterSelectPresenterTests
             $"{tier} is the tier the player is choosing, and the three names are what the picker is. " +
             "Stated per tier rather than over the set, because two keys swapped leaves every caption " +
             "resolved, every string non-blank, and a Mythic button labelled Normal.");
+    }
+
+    // ------------------------------------------------- 🔒 the line the dimmed list cannot say
+
+    /// <summary>
+    /// 🔒 Every stage short of <see cref="ChapterSelectStage.Ready"/> draws the same dimmed,
+    /// non-interactive list, so opacity carries no identity at all: the four cases below pin which
+    /// SENTENCE each stage produces, and the case after them pins that the four stay apart.
+    /// Asserted against the catalogue's value for a named key rather than against "not empty",
+    /// because one sentence shown for all three failures is exactly the defect these exist to catch.
+    /// </summary>
+    [Fact]
+    public void StatusText_before_the_read_says_the_screen_is_still_finding_out()
+    {
+        var presenter = Screen(RecordingGameHost.Finding(PlayerRow()), Authoring(AuthoredChapters));
+
+        presenter.StatusText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.PickerLoadingStatusKey),
+            "the frame before the read answers dims the whole list and disables every row, and with " +
+            "no words that is indistinguishable from a campaign the player has not unlocked. This " +
+            "one ends by itself, and saying so is the difference between waiting and giving up.");
+    }
+
+    [Fact]
+    public async Task StatusText_is_cleared_once_the_read_lands_and_the_list_itself_is_the_answer()
+    {
+        var presenter = await Started(RecordingGameHost.Finding(PlayerRow()), Authoring(AuthoredChapters));
+
+        presenter.StatusText.ShouldBeEmpty(
+            "the rows are live and each refusal carries its own requirement line, so there is " +
+            "nothing left for a status line to add. A loading line left up over a working list is a " +
+            "screen still talking about itself while the player is already reading it.");
+    }
+
+    [Fact]
+    public async Task StatusText_names_a_missing_profile_rather_than_repeating_the_loading_line()
+    {
+        var presenter = await Started(RecordingGameHost.FindingNoSuchPlayer(), Authoring(AuthoredChapters));
+
+        presenter.StatusText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.PickerProfileMissingStatusKey),
+            "this one never ends. Left saying the screen is still reading, the player waits out a " +
+            "dead end for something that is never coming, and nothing on the screen ever admits it.");
+    }
+
+    [Fact]
+    public async Task StatusText_names_a_read_that_did_not_answer_rather_than_a_missing_profile()
+    {
+        var presenter = await Started(
+            RecordingGameHost.FaultingItsRead(new InvalidOperationException(ReadFailureMessage)),
+            Authoring(AuthoredChapters));
+
+        presenter.StatusText.ShouldBe(
+            ScreenContent.EnglishValueOf(ScreenContent.PickerUnavailableStatusKey),
+            "a profile that is not there and a profile that would not be read are fixed by different " +
+            "things — one by getting an account back, one by trying again later — and a single " +
+            "sentence for both tells the player to do neither.");
+    }
+
+    /// <summary>
+    /// 🔒 The case that fails if the three failing stages are ever wired to one key. Compared against
+    /// each other rather than against literals: three stages resolving to one line would satisfy a
+    /// "the line is not blank" assertion on every one of them.
+    /// </summary>
+    [Fact]
+    public async Task The_four_stages_of_the_picker_produce_four_different_status_lines()
+    {
+        var lines = new[]
+        {
+            Screen(RecordingGameHost.Finding(PlayerRow()), Authoring(AuthoredChapters)),
+            await Started(RecordingGameHost.Finding(PlayerRow()), Authoring(AuthoredChapters)),
+            await Started(RecordingGameHost.FindingNoSuchPlayer(), Authoring(AuthoredChapters)),
+            await Started(
+                RecordingGameHost.FaultingItsRead(new InvalidOperationException(ReadFailureMessage)),
+                Authoring(AuthoredChapters)),
+        }.Select(presenter => presenter.StatusText).ToArray();
+
+        lines.Distinct(StringComparer.Ordinal).Count().ShouldBe(
+            4,
+            "four stages, four outcomes. Any two that collapse put one sentence on two states that " +
+            "are escaped in different ways, and the pair most likely to collapse is the two dead " +
+            "ends — they are the two the screen can do least about and the two a player can do most.");
+        lines.Count(line => line.Length == 0).ShouldBe(
+            1,
+            "and exactly one of the four is silent. A screen that said nothing in two of them would " +
+            "still have four distinct entries here while leaving a dead end wordless.");
     }
 
     // ------------------------------------------------------------------------- null guards

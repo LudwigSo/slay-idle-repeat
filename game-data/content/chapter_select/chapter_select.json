@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/chapter_select.schema.json",
-  "_doc": "M7-04 — the strings the Chapter Select screen (S04) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. The chapter NAMES are not here: each chapter document carries its own displayName key (content/chapters/*.json), so a chapter added later brings its name with it rather than needing a second edit here. The tier ladder itself is authored in tuning/progression.json#/chapterGating and is read from there, never transcribed into code or into this file. There is deliberately no par-power or expected-power caption: the power readout is a separate row's and a caption here would invite a power comparison this screen must not make.",
+  "_doc": "M7-04 — the strings the Chapter Select screen (S04) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. The chapter NAMES are not here: each chapter document carries its own displayName key (content/chapters/*.json), so a chapter added later brings its name with it rather than needing a second edit here. The tier ladder itself is authored in tuning/progression.json#/chapterGating and is read from there, never transcribed into code or into this file. The three status lines are one per state the screen can be in while its list is not yet an answer, and they are three rather than one because a dimmed wordless list reads the same whether the read is still running, the profile is missing or the read failed — and only the first of those ever ends. There is deliberately no par-power or expected-power caption: the power readout is a separate row's and a caption here would invite a power comparison this screen must not make.",
   "title": "loc.chapter_select.title.name",
   "tier": {
     "normal": "loc.chapter_select.tier_normal.name",
@@ -10,6 +10,11 @@
   "block": {
     "requiresClear": "loc.chapter_select.requires_clear.block",
     "requiresLegendLevel": "loc.chapter_select.requires_legend_level.block"
+  },
+  "status": {
+    "loading": "loc.chapter_select.loading.status",
+    "profileMissing": "loc.chapter_select.profile_missing.status",
+    "unavailable": "loc.chapter_select.unavailable.status"
   },
   "confirm": "loc.chapter_select.confirm.action"
 }

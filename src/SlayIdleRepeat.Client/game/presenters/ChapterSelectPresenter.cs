@@ -185,6 +185,12 @@ public sealed class ChapterSelectPresenter
     private const string TierNormalKey = "loc.chapter_select.tier_normal.name";
     private const string TierHeroicKey = "loc.chapter_select.tier_heroic.name";
     private const string TierMythicKey = "loc.chapter_select.tier_mythic.name";
+    private const string LoadingStatusKey = "loc.chapter_select.loading.status";
+    private const string ProfileMissingStatusKey = "loc.chapter_select.profile_missing.status";
+    private const string UnavailableStatusKey = "loc.chapter_select.unavailable.status";
+
+    /// <summary>The status line of a screen whose list is the answer: there is nothing left to say.</summary>
+    private const string NothingLeftToSay = "";
 
     /// <summary>Where the chapter documents sit in the content set.</summary>
     private const string ChaptersDirectoryPrefix = "content/chapters/";
@@ -276,6 +282,21 @@ public sealed class ChapterSelectPresenter
     /// <summary>The caption shown against an unmet <see cref="LegendLevelRequirement"/>, resolved.</summary>
     public string RequiresLegendLevelCaption => _strings.Resolve(RequiresLegendLevelBlockKey);
 
+    /// <summary>
+    /// The line saying what the screen is doing while its list is not yet an answer, resolved —
+    /// never a raw key, and empty once it is.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 One sentence per stage, and the three that are not <see cref="ChapterSelectStage.Ready"/>
+    /// say three different things. The list is dimmed and non-interactive in all three, so without
+    /// words a player cannot tell a read that is still running from one that found no profile or did
+    /// not answer at all — and only the first of those ever ends, which makes the other two a wait
+    /// with no end that nothing on the screen admits to. What is <em>not</em> here is a retry, a
+    /// reload or a panel: the failure screen and its ladder belong to the row that owns them, and one
+    /// honest line is the whole of what this screen may say.
+    /// </remarks>
+    public string StatusText => KeyFor(Stage) is { } key ? _strings.Resolve(key) : NothingLeftToSay;
+
     /// <summary>A difficulty tier's name, resolved.</summary>
     /// <remarks>
     /// A tier the game does not define is answered with its own value rather than with the last
@@ -339,8 +360,9 @@ public sealed class ChapterSelectPresenter
         }
         catch (Exception)
         {
-            // The stage is the whole answer this screen has room for: nothing it draws could act on
-            // the failure's identity, and the screen the player reaches this one from carries it.
+            // The stage is the whole answer this screen has room for. It picks which sentence the
+            // player reads; the failure's own identity goes to the log, because an untranslated
+            // type name beside a line that was just translated helps nobody reading it.
             Stage = ChapterSelectStage.ReadUnavailable;
         }
     }
@@ -378,6 +400,21 @@ public sealed class ChapterSelectPresenter
             ? ChapterSelectSubmission.Submitted
             : ChapterSelectSubmission.RefusedByRules;
     }
+
+    /// <summary>The status key each stage is drawn from, or null for the stage that needs none.</summary>
+    /// <remarks>
+    /// Ready is the null: the chapters and their requirement lines are the answer by then, and a
+    /// fourth sentence over a live list would be a screen still talking about itself. The catch-all
+    /// is the failure line rather than that null, so a stage this switch has not been taught is
+    /// reported as a read that did not answer instead of falling silently into "everything is fine".
+    /// </remarks>
+    private static string? KeyFor(ChapterSelectStage stage) => stage switch
+    {
+        ChapterSelectStage.NotYetRead => LoadingStatusKey,
+        ChapterSelectStage.Ready => null,
+        ChapterSelectStage.ProfileMissing => ProfileMissingStatusKey,
+        _ => UnavailableStatusKey,
+    };
 
     private static IReadOnlyList<ChapterListing> ReadChapters(
         ContentSnapshot content, LocaleStringCatalogue strings)

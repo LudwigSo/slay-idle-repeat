@@ -39,6 +39,10 @@ internal static class ScreenContent
     internal const string RequiresLegendLevelBlockKey = "loc.chapter_select.requires_legend_level.block";
     internal const string ConfirmActionKey = "loc.chapter_select.confirm.action";
 
+    internal const string PickerLoadingStatusKey = "loc.chapter_select.loading.status";
+    internal const string PickerProfileMissingStatusKey = "loc.chapter_select.profile_missing.status";
+    internal const string PickerUnavailableStatusKey = "loc.chapter_select.unavailable.status";
+
     /// <summary>Where the tier ladder is authored. Read, never transcribed.</summary>
     internal const string ChapterGatingMember = "chapterGating";
 
@@ -72,6 +76,7 @@ internal static class ScreenContent
     [
         ChapterSelectTitleKey, TierNormalKey, TierHeroicKey, TierMythicKey,
         RequiresClearBlockKey, RequiresLegendLevelBlockKey, ConfirmActionKey,
+        PickerLoadingStatusKey, PickerProfileMissingStatusKey, PickerUnavailableStatusKey,
     ];
 
     /// <summary>The loc key a chapter document names its own display name with.</summary>
