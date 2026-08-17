@@ -233,13 +233,21 @@ public sealed class ChapterSelectPresenter
     public string RequiresLegendLevelCaption => _strings.Resolve(RequiresLegendLevelBlockKey);
 
     /// <summary>A difficulty tier's name, resolved.</summary>
+    /// <remarks>
+    /// A tier the game does not define is answered with its own value rather than with the last
+    /// arm's caption. The enum has no zero member, so <c>default(DifficultyTier)</c> is such a
+    /// value, and a catch-all that named it "Mythic" would put a real tier's name on a tier nobody
+    /// chose — a plausible answer to a question with no answer, which is worse than a visibly wrong
+    /// one.
+    /// </remarks>
     /// <param name="tier">The tier to name.</param>
-    public string TierName(DifficultyTier tier) => _strings.Resolve(tier switch
+    public string TierName(DifficultyTier tier) => tier switch
     {
-        DifficultyTier.NORMAL => TierNormalKey,
-        DifficultyTier.HEROIC => TierHeroicKey,
-        _ => TierMythicKey,
-    });
+        DifficultyTier.NORMAL => _strings.Resolve(TierNormalKey),
+        DifficultyTier.HEROIC => _strings.Resolve(TierHeroicKey),
+        DifficultyTier.MYTHIC => _strings.Resolve(TierMythicKey),
+        _ => tier.ToString(),
+    };
 
     /// <summary>What the player may do with one (chapter, tier) pair.</summary>
     /// <param name="chapterId">The chapter asked about.</param>
@@ -398,6 +406,10 @@ public sealed class ChapterSelectPresenter
 
             // A clear this screen cannot name is a clear it cannot ask the player for, and a
             // refusal carrying no requirement is the "it is disabled" this screen exists to avoid.
+            // Note which way that fails: an unrecognised token OPENS the rung. The vocabulary is
+            // therefore closed by an enum in progression.schema.json, so a typo is a content
+            // failure rather than an unlocked tier, and this arm is the honest answer to data that
+            // got past it rather than the thing standing between a typo and a shipped bug.
             _ => null,
         };
     }

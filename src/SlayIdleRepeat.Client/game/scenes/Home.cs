@@ -187,19 +187,25 @@ public partial class Home : Control
 
         // Validity before tree membership: asking a freed node whether it is inside the tree is
         // itself the crash, and a shutdown during a slow read is the ordinary case on a handset.
-        if (presenter is null || _actionButton is null || !IsInstanceValid(this) || !IsInsideTree())
+        // Every node this writes to is checked, not just the one: a scene-unique name that no
+        // longer resolves leaves a null behind, and a null-forgiving operator over it would turn a
+        // renamed node into a crash here instead of a blank label.
+        if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
+            _displayNameLabel is null || _legendLevelLabel is null || _legendLevelValue is null ||
+            _energyLabel is null || _energyValue is null || _energyReserveLabel is null ||
+            _energyReserveValue is null || _statusLabel is null || _actionButton is null)
         {
             return;
         }
 
-        _displayNameLabel!.Text = presenter.DisplayName;
-        _legendLevelLabel!.Text = presenter.LegendLevelLabel;
-        _legendLevelValue!.Text = presenter.LegendLevel.ToString(CultureInfo.InvariantCulture);
-        _energyLabel!.Text = presenter.EnergyLabel;
-        _energyValue!.Text = presenter.Energy.ToString(CultureInfo.InvariantCulture);
-        _energyReserveLabel!.Text = presenter.EnergyReserveLabel;
-        _energyReserveValue!.Text = presenter.EnergyReserve.ToString(CultureInfo.InvariantCulture);
-        _statusLabel!.Text = presenter.StatusText;
+        _displayNameLabel.Text = presenter.DisplayName;
+        _legendLevelLabel.Text = presenter.LegendLevelLabel;
+        _legendLevelValue.Text = presenter.LegendLevel.ToString(CultureInfo.InvariantCulture);
+        _energyLabel.Text = presenter.EnergyLabel;
+        _energyValue.Text = presenter.Energy.ToString(CultureInfo.InvariantCulture);
+        _energyReserveLabel.Text = presenter.EnergyReserveLabel;
+        _energyReserveValue.Text = presenter.EnergyReserve.ToString(CultureInfo.InvariantCulture);
+        _statusLabel.Text = presenter.StatusText;
 
         _actionButton.Text = presenter.ActionText;
 

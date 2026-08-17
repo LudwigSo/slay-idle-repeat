@@ -126,6 +126,9 @@ public partial class ChapterSelect : Control
     /// <summary>True once a run has been submitted, because there is nowhere to go afterwards.</summary>
     private bool _submitted;
 
+    /// <summary>True from the press until the host has answered it.</summary>
+    private bool _confirming;
+
     /// <summary>Takes the presenter the composition root built, and the app's shutdown token.</summary>
     /// <param name="presenter">Drives this screen.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
@@ -334,9 +337,18 @@ public partial class ChapterSelect : Control
                 return;
             }
 
-            // No ConfigureAwait(false): the continuation writes to nodes, and only the thread the
-            // engine runs the scene tree on may do that.
-            await presenter.StartAsync(_lifetime);
+            // The screen this one opens from starts the same presenter before the tap, so the read
+            // has usually already answered. Repeating it would buy nothing and could cost
+            // everything: StartAsync settles the stage from whatever the LAST read did, so a second
+            // read that failed would demote a picker that knows its gating back to knowing nothing
+            // and dim a list the player is already looking at. A stage short of Ready still reads,
+            // because then there is something left to find out.
+            if (presenter.Stage != ChapterSelectStage.Ready)
+            {
+                // No ConfigureAwait(false): the continuation writes to nodes, and only the thread
+                // the engine runs the scene tree on may do that.
+                await presenter.StartAsync(_lifetime);
+            }
 
             Render();
         }
@@ -346,48 +358,70 @@ public partial class ChapterSelect : Control
         }
     }
 
+    /// <remarks>
+    /// The control is taken out of use here, on the press, rather than when the host answers.
+    /// Nothing waits for the task this starts, so the button stays live for every frame the host
+    /// takes — and two presses inside that window are two START_RUN commands, of which the rules
+    /// layer refuses the second for a reason this screen has no way to show.
+    /// </remarks>
     private void OnConfirmPressed()
     {
-        if (_presenter is null || SelectedChapter() is not { } chapterId || SelectedTier() is not { } tier)
+        if (_submitted || _confirming || _presenter is null ||
+            SelectedChapter() is not { } chapterId || SelectedTier() is not { } tier)
         {
             return;
         }
 
+        _confirming = true;
+
+        Render();
+
         _ = ConfirmAsync(chapterId, tier);
     }
 
+    /// <remarks>
+    /// Nothing awaits this task either, so the whole body stays inside the guard — including the
+    /// redraw, which is what gives the control back.
+    /// </remarks>
     private async Task ConfirmAsync(int chapterId, DifficultyTier tier)
     {
         try
         {
-            if (_presenter is not { } presenter)
+            if (_presenter is { } presenter)
             {
-                return;
+                var submission = await presenter.ConfirmAsync(chapterId, tier, _lifetime);
+
+                if (submission == ChapterSelectSubmission.Submitted)
+                {
+                    // Latched rather than re-enabled: there is no screen to leave for, so a second
+                    // press on a screen that never changed would start a second run.
+                    _submitted = true;
+
+                    GD.PushError(
+                        $"START_RUN was submitted for chapter {chapterId} on {tier} · " +
+                        TheRunScreenIsNotBuiltHere);
+                }
+                else
+                {
+                    GD.PushWarning(
+                        $"No run was started for chapter {chapterId} on {tier}: {submission}.");
+                }
             }
 
-            var submission = await presenter.ConfirmAsync(chapterId, tier, _lifetime);
-
-            if (submission == ChapterSelectSubmission.Submitted)
-            {
-                // Latched rather than re-enabled: there is no screen to leave for, so a second
-                // press on a screen that never changed would start a second run.
-                _submitted = true;
-
-                GD.PushError(
-                    $"START_RUN was submitted for chapter {chapterId} on {tier} · " +
-                    TheRunScreenIsNotBuiltHere);
-            }
-            else
-            {
-                GD.PushWarning(
-                    $"No run was started for chapter {chapterId} on {tier}: {submission}.");
-            }
+            _confirming = false;
 
             Render();
         }
         catch (Exception failure)
         {
+            // Cleared on this way out too, and not through a finally, so that the redraw that acts
+            // on it stays inside the guard: a confirm left marked in flight would be a control dead
+            // for the rest of the screen's life with nothing left running to re-enable it.
+            _confirming = false;
+
             GD.PushError($"The chapter picker could not confirm a run: {failure}");
+
+            Render();
         }
     }
 
@@ -439,7 +473,7 @@ public partial class ChapterSelect : Control
                           row.Name.ButtonPressed;
         }
 
-        _confirmButton.Disabled = _submitted || !selectable;
+        _confirmButton.Disabled = _submitted || _confirming || !selectable;
     }
 
     /// <summary>Draws one chapter at the chosen tier, with its refusal told apart from the others.</summary>
