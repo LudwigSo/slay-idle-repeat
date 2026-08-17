@@ -2,6 +2,7 @@ using SlayIdleRepeat.Core;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using CorePlayer = SlayIdleRepeat.Core.Model.Player;
+using CoreRun = SlayIdleRepeat.Core.Model.Run;
 
 namespace SlayIdleRepeat.Client.Tests;
 
@@ -24,6 +25,19 @@ internal static class PlayerState
 {
     /// <summary>Anchors every timestamp a row needs but no case cares about.</summary>
     private static readonly DateTimeOffset FixtureInstant = new(2026, 5, 2, 9, 0, 0, TimeSpan.Zero);
+
+    /// <summary>
+    /// A run started wearing nothing — an EMPTY loadout, which is not the same as an absent one.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The distinction is the domain's, not this fixture's: a run whose starting loadout is null
+    /// is refused at rehydration as a state the game could never have persisted, while a run whose
+    /// loadout holds no gear is an ordinary first run. No case here is about equipment, so every
+    /// fixture run is the second — and stating it once is what keeps that from reading as an
+    /// oversight in each.
+    /// </remarks>
+    private static readonly LoadoutSnapshot BareHanded =
+        new(new Dictionary<GearSlot, GearInstanceId>());
 
     /// <summary>A player row with the header values a case names and defaults for the rest.</summary>
     /// <param name="id">Whose row this is.</param>
@@ -63,33 +77,99 @@ internal static class PlayerState
             LoginCalendarDayClaimed: false,
             ClearedChapterTiers: clearedChapterTiers);
 
-    /// <summary>A run row in a named phase.</summary>
+    /// <summary>A run row in a named phase, with whatever board state a case is about.</summary>
+    /// <remarks>
+    /// Every board-facing field is a defaulted parameter rather than a second builder, so a case's
+    /// arrangement names the one or two facts it depends on and the rest reads as "an ordinary run".
+    /// The defaults are a freshly started run: standing at the trailhead, nothing pending, nothing
+    /// spent.
+    /// </remarks>
     /// <param name="id">The run's identity — what a CONTINUE has to carry.</param>
     /// <param name="player">Whose run it is.</param>
     /// <param name="phase">The phase the run stands in.</param>
-    internal static RunSnapshot Run(RunId id, PlayerId player, RunPhase phase) =>
+    /// <param name="position">The node the run stands on.</param>
+    /// <param name="currentHp">The hero's hit points.</param>
+    /// <param name="maxHp">The hero's maximum hit points.</param>
+    /// <param name="gold">The run's Gold balance.</param>
+    /// <param name="chapterId">Which chapter is being played — what the stage lengths are read for.</param>
+    /// <param name="pendingTileKind">The unresolved tile's kind, or -1 for none.</param>
+    /// <param name="pendingTileLinearIndex">Where that tile sits along the track.</param>
+    /// <param name="pendingTileStage">Which stage it belongs to.</param>
+    /// <param name="pendingForkJunctionPosition">The paused junction, or null when movement is not paused.</param>
+    /// <param name="pendingForkRemainingSteps">Steps left once the chosen edge is taken.</param>
+    /// <param name="draftPending">Whether a won battle's draft is open.</param>
+    /// <param name="rerollChargesSpentThisStage">Reroll charges spent since the stage began.</param>
+    internal static RunSnapshot Run(
+        RunId id,
+        PlayerId player,
+        RunPhase phase,
+        int position = -1,
+        int currentHp = 100,
+        int maxHp = 100,
+        long gold = 0,
+        int chapterId = 1,
+        int pendingTileKind = -1,
+        int pendingTileLinearIndex = 0,
+        int pendingTileStage = 0,
+        int? pendingForkJunctionPosition = null,
+        int? pendingForkRemainingSteps = null,
+        bool draftPending = false,
+        int rerollChargesSpentThisStage = 0) =>
         new(
             SnapshotSchema.SchemaVersion,
             id,
             player,
             RunSeed: 1,
-            ChapterId: 1,
+            chapterId,
             Tier: DifficultyTier.NORMAL,
             LastAppliedAtUtc: FixtureInstant,
-            Position: -1,
-            CurrentHp: 100,
-            MaxHp: 100,
-            Gold: 0,
+            position,
+            currentHp,
+            maxHp,
+            gold,
             RngStreamPositions: new Dictionary<string, ulong>(),
             AdUses: new Dictionary<string, long>(),
             ResolvedMinigames: new Dictionary<int, string>(),
-            PendingForkJunctionPosition: null,
-            PendingForkRemainingSteps: null,
-            PendingTileKind: -1,
-            PendingTileLinearIndex: 0,
-            PendingTileStage: 0,
+            pendingForkJunctionPosition,
+            pendingForkRemainingSteps,
+            pendingTileKind,
+            pendingTileLinearIndex,
+            pendingTileStage,
             PendingEventCardId: "",
-            Phase: phase);
+            Phase: phase,
+            DraftPending: draftPending,
+            RerollChargesSpentThisStage: rerollChargesSpentThisStage,
+            StartingLoadout: BareHanded);
+
+    /// <summary>The same slice, carrying a run rehydrated from the given row.</summary>
+    /// <remarks>
+    /// 🔒 Through <c>Run.Rehydrate</c> rather than around it. That is the domain's only construction
+    /// path for a stored run and it validates every field, so a row a case invented but the game
+    /// could never persist fails here, in the arrangement, instead of proving a screen against a
+    /// state that cannot occur.
+    /// </remarks>
+    /// <param name="slice">The slice whose player is kept.</param>
+    /// <param name="run">The row to rehydrate, or null to leave the slice without a run.</param>
+    internal static WorldSlice SliceWith(WorldSlice slice, RunSnapshot? run)
+    {
+        ArgumentNullException.ThrowIfNull(slice);
+
+        if (run is null)
+        {
+            return slice;
+        }
+
+        var rehydrated = CoreRun.Rehydrate(run);
+
+        if (rehydrated.IsFailure)
+        {
+            throw new InvalidOperationException(
+                "The run row a case arranged is not one the domain can rehydrate, so the fixture " +
+                $"describes a state the game could never have persisted: {rehydrated.Error}");
+        }
+
+        return slice with { Run = rehydrated.Value };
+    }
 
     /// <summary>The key <c>Player</c> stores one cleared (chapter, tier) pair under.</summary>
     /// <remarks>

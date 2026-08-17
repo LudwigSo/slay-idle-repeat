@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/board.schema.json",
+  "title": "content/board/board.json",
+  "description": "M7-05 — the loc keys the Board screen (S05) renders. What is fixed here is that the screen labels HP, Gold, the stage, the face last rolled and the tile it stands on; offers a roll, a reroll, a tile acknowledgement, the die panel and the two fork branches; carries one status line per state the read can be in and one per reason a roll is refused; and names all fourteen tile kinds. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Two absences are load-bearing. There is no member for a reroll charge REMAINING count, because the per-stage cap is computed inside the rules and no client can read it; the screen shows what was spent and learns exhaustion from the refusal instead. And there is no member for a fork branch LABEL or icon set, because the board generator that authors them never leaves the rules assembly — the two branches are named by what the client actually knows, which is that one edge continues the spine and the other enters the side path.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "label", "action", "name", "status", "block", "tile"],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "label": {
+      "description": "The captions beside the values the run row literally carries. HP and Gold are on the run; the stage is derived from the run's pending tile against the chapter's own stage list; 'rolled' captions the face the last accepted roll reported, and 'standing on' the tile that has not been resolved yet.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hp", "gold", "stage", "rolled", "standingOn"],
+      "properties": {
+        "hp": { "$ref": "#/$defs/locKey" },
+        "gold": { "$ref": "#/$defs/locKey" },
+        "stage": { "$ref": "#/$defs/locKey" },
+        "rolled": { "$ref": "#/$defs/locKey" },
+        "standingOn": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "action": {
+      "description": "Every control the screen offers. The two fork captions are separate keys rather than one parameterised caption because they are the run's one real navigation decision and a player choosing between two identical words has not chosen anything.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roll", "reroll", "resolve", "diePanel", "forkContinue", "forkBranch"],
+      "properties": {
+        "roll": { "$ref": "#/$defs/locKey" },
+        "reroll": { "$ref": "#/$defs/locKey" },
+        "resolve": { "$ref": "#/$defs/locKey" },
+        "diePanel": { "$ref": "#/$defs/locKey" },
+        "forkContinue": { "$ref": "#/$defs/locKey" },
+        "forkBranch": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "name": {
+      "description": "The fork prompt's heading. A heading rather than a status line, because a junction is a question the screen is asking rather than a state it is reporting.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fork"],
+      "properties": {
+        "fork": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "status": {
+      "description": "The line shown while the screen has no board to act on, plus the two lines about an action that was refused. 'refused' covers every rejection the rules layer can answer with; 'rerollExhausted' is separated from it because the reroll cap arrives as its own distinct wire value and is the one refusal on this screen a player can plan around.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["loading", "runMissing", "runEnded", "unavailable", "refused", "rerollExhausted"],
+      "properties": {
+        "loading": { "$ref": "#/$defs/locKey" },
+        "runMissing": { "$ref": "#/$defs/locKey" },
+        "runEnded": { "$ref": "#/$defs/locKey" },
+        "unavailable": { "$ref": "#/$defs/locKey" },
+        "refused": { "$ref": "#/$defs/locKey" },
+        "rerollExhausted": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "block": {
+      "description": "🔒 One sentence per reason the roll is not live, and the reason this object exists at all: a tile left unresolved, a fork left unchosen, a battle left unfought and a draft left untaken all refuse a roll with the SAME wire value. A screen that showed one sentence for all four would tell the player the roll failed and not one thing they could do about it — and each of the four is escaped by doing something different. The screen therefore decides the cause from the run's own state before submitting anything, and these are the four things it can then say.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tile", "fork", "battle", "draft"],
+      "properties": {
+        "tile": { "$ref": "#/$defs/locKey" },
+        "fork": { "$ref": "#/$defs/locKey" },
+        "battle": { "$ref": "#/$defs/locKey" },
+        "draft": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "tile": {
+      "description": "All fourteen tile kinds by name. Required in full rather than as an open map: the run reports the tile it stands on as a bare integer, the enum that gives that integer a name is internal to the rules, and the client's own integer-to-name table is therefore a transcription. Requiring every member here is what makes a kind added to the game fail this document rather than render as a number.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enemy", "elite", "boss", "shrine", "curse", "treasure", "shop",
+        "campfire", "minigame", "event", "portal", "cache", "diceForge", "empty"
+      ],
+      "properties": {
+        "enemy": { "$ref": "#/$defs/locKey" },
+        "elite": { "$ref": "#/$defs/locKey" },
+        "boss": { "$ref": "#/$defs/locKey" },
+        "shrine": { "$ref": "#/$defs/locKey" },
+        "curse": { "$ref": "#/$defs/locKey" },
+        "treasure": { "$ref": "#/$defs/locKey" },
+        "shop": { "$ref": "#/$defs/locKey" },
+        "campfire": { "$ref": "#/$defs/locKey" },
+        "minigame": { "$ref": "#/$defs/locKey" },
+        "event": { "$ref": "#/$defs/locKey" },
+        "portal": { "$ref": "#/$defs/locKey" },
+        "cache": { "$ref": "#/$defs/locKey" },
+        "diceForge": { "$ref": "#/$defs/locKey" },
+        "empty": { "$ref": "#/$defs/locKey" }
+      }
+    }
+  }
+}

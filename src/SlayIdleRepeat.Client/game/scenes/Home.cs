@@ -1,6 +1,8 @@
 using System.Globalization;
 using Godot;
+using SlayIdleRepeat.Client.Composition;
 using SlayIdleRepeat.Client.Game.Presenters;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
 
@@ -32,8 +34,9 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// taking part. There is no art here at all, placeholder or otherwise.
 /// </para>
 /// <para>
-/// 🔴 <b>Continuing a run has nowhere to go</b> — see <see cref="TheRunScreenIsNotBuiltHere"/>.
-/// Starting one does: the picker is a screen this task built, so the primary action reaches it.
+/// Both primary actions now reach a screen: START opens the picker, and CONTINUE opens the board
+/// the run is played on — unless the read named no run to resume, which is reported rather than
+/// guessed at. See <see cref="TheRunToResumeWasNotNamed"/>.
 /// </para>
 /// </remarks>
 public partial class Home : Control
@@ -42,15 +45,15 @@ public partial class Home : Control
     public const string ScenePath = "res://game/scenes/Home.tscn";
 
     /// <summary>
-    /// 🔴 Deliberately unbuilt, and named so it can be found. S05 — the board a run is actually
-    /// played on — is a later task's and does not exist in this build, so an open run has no screen
-    /// to resume onto. The run is named and reported rather than silently swallowed, and nothing is
-    /// navigated to: inventing a destination would put a screen on the only path a returning player
-    /// takes, chosen by the task least equipped to choose it.
+    /// ⚠️ Named so a resume that cannot happen is still reported. S05 exists now, so an open run
+    /// does have a screen to go back to — but the decision to resume is taken from the run the
+    /// profile read named, and a read that answered <c>ContinueRun</c> without naming one is a
+    /// state nothing should paper over. Nothing is navigated to in that case: a board opened on a
+    /// run nobody named would read the wrong run, or none.
     /// </summary>
-    private const string TheRunScreenIsNotBuiltHere =
-        "S05, the board screen a run is played on, is not built in this milestone: there is no " +
-        "scene to resume an open run onto. The run above is reported, not resumed.";
+    private const string TheRunToResumeWasNotNamed =
+        "The profile read answered that a run is open but carried no run id, so there is nothing " +
+        "to resume onto. The decision above is reported, not taken.";
 
     /// <summary>
     /// The one line a headless run's screen state is read off. Distinctive on purpose: a decision
@@ -93,6 +96,7 @@ public partial class Home : Control
 
     private HomePresenter? _presenter;
     private ChapterSelectPresenter? _picker;
+    private Func<RunId, ComposedBoardScreen>? _board;
 
     private CancellationToken _lifetime;
 
@@ -118,15 +122,26 @@ public partial class Home : Control
     /// </remarks>
     /// <param name="presenter">Drives this screen.</param>
     /// <param name="picker">Drives the screen the primary action opens.</param>
+    /// <param name="board">
+    /// Builds the board for a run. A factory rather than a presenter, because which run this screen
+    /// resumes is not known until the profile read answers — and because the picker it hands on
+    /// needs the same factory for the run its own confirm starts.
+    /// </param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
-    /// <exception cref="ArgumentNullException">Either presenter is null.</exception>
-    public void Drive(HomePresenter presenter, ChapterSelectPresenter picker, CancellationToken lifetime)
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public void Drive(
+        HomePresenter presenter,
+        ChapterSelectPresenter picker,
+        Func<RunId, ComposedBoardScreen> board,
+        CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(presenter);
         ArgumentNullException.ThrowIfNull(picker);
+        ArgumentNullException.ThrowIfNull(board);
 
         _presenter = presenter;
         _picker = picker;
+        _board = board;
         _lifetime = lifetime;
     }
 
@@ -290,11 +305,44 @@ public partial class Home : Control
             return;
         }
 
-        if (presenter.Decision == HomeContinueDecision.ContinueRun)
+        if (presenter.Decision != HomeContinueDecision.ContinueRun)
+        {
+            return;
+        }
+
+        if (presenter.ContinuableRun is not { } run)
+        {
+            GD.PushError($"Continue was taken · {TheRunToResumeWasNotNamed}");
+
+            return;
+        }
+
+        ShowBoard(run);
+    }
+
+    /// <summary>Puts the board for one run beside this screen and stands down.</summary>
+    /// <remarks>
+    /// The same one-way handover <see cref="ShowChapterSelect"/> makes, and it inherits the same
+    /// caveat: this instantiates unconditionally, so the first back path that returns a player here
+    /// and lets them press CONTINUE again adds a second board beside the first.
+    /// </remarks>
+    private void ShowBoard(RunId run)
+    {
+        if (!IsInstanceValid(this) || !IsInsideTree())
+        {
+            return;
+        }
+
+        if (_board is not { } board)
         {
             GD.PushError(
-                $"Continue was taken for run {presenter.ContinuableRun} · {TheRunScreenIsNotBuiltHere}");
+                $"Continue was taken for run {run} and this screen has no way to build its board. " +
+                "Only the boot screen may instantiate it, and it must pass the board factory.");
+
+            return;
         }
+
+        BoardHandover.Show(this, board(run), _lifetime);
     }
 
     /// <summary>Puts the chapter picker beside this screen and stands down.</summary>
@@ -320,7 +368,7 @@ public partial class Home : Control
     /// </remarks>
     private void ShowChapterSelect()
     {
-        if (!IsInstanceValid(this) || !IsInsideTree() || _picker is not { } picker)
+        if (!IsInstanceValid(this) || !IsInsideTree() || _picker is not { } picker || _board is null)
         {
             return;
         }
@@ -347,7 +395,7 @@ public partial class Home : Control
 
         var picked = scene.Instantiate<ChapterSelect>();
 
-        picked.Drive(picker, _lifetime);
+        picked.Drive(picker, _board!, _lifetime);
 
         Visible = false;
 

@@ -96,6 +96,12 @@ public static class ContentLayout
 
             // The Chapter Select screen's string slots — likewise.
             [ContentDirectory + "chapter_select/"] = SchemaDirectory + "chapter_select" + SchemaSuffix,
+
+            // The Board screen's string slots — likewise.
+            [ContentDirectory + "board/"] = SchemaDirectory + "board" + SchemaSuffix,
+
+            // The Die Panel's string slots — likewise.
+            [ContentDirectory + "die_panel/"] = SchemaDirectory + "die_panel" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

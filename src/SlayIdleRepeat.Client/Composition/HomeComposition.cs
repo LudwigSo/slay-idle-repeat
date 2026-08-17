@@ -16,14 +16,22 @@ namespace SlayIdleRepeat.Client.Composition;
 public sealed class ComposedHomeScreen
 {
     /// <summary>Pairs the Home presenter with the Chapter Select presenter it hands on.</summary>
-    /// <exception cref="ArgumentNullException">Either presenter is null.</exception>
-    public ComposedHomeScreen(HomePresenter home, ChapterSelectPresenter chapterSelect)
+    /// <param name="home">Drives the Home screen.</param>
+    /// <param name="chapterSelect">Drives the picker Home's primary action opens.</param>
+    /// <param name="board">Builds the board for a run, once there is a run to build one for.</param>
+    /// <exception cref="ArgumentNullException">Any argument is null.</exception>
+    public ComposedHomeScreen(
+        HomePresenter home,
+        ChapterSelectPresenter chapterSelect,
+        Func<RunId, ComposedBoardScreen> board)
     {
         ArgumentNullException.ThrowIfNull(home);
         ArgumentNullException.ThrowIfNull(chapterSelect);
+        ArgumentNullException.ThrowIfNull(board);
 
         Home = home;
         ChapterSelect = chapterSelect;
+        Board = board;
     }
 
     /// <summary>Drives the Home screen.</summary>
@@ -31,6 +39,18 @@ public sealed class ComposedHomeScreen
 
     /// <summary>Drives the Chapter Select screen Home's primary action opens.</summary>
     public ChapterSelectPresenter ChapterSelect { get; }
+
+    /// <summary>
+    /// Builds the board for one run.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A factory rather than a built presenter, because a board is about a run and neither of
+    /// the two screens that reach it knows which run until the moment it opens: Home learns it from
+    /// the profile read, and the picker learns it from the state its own <c>START_RUN</c> answered
+    /// with. Handing the scenes a factory is what keeps them out of composition entirely — they call
+    /// it, they do not assemble it.
+    /// </remarks>
+    public Func<RunId, ComposedBoardScreen> Board { get; }
 }
 
 /// <summary>
@@ -70,6 +90,7 @@ public static class HomeComposition
 
         return new ComposedHomeScreen(
             new HomePresenter(composed.Client.GameHost, strings, player),
-            new ChapterSelectPresenter(composed.Client.GameHost, strings, content, player));
+            new ChapterSelectPresenter(composed.Client.GameHost, strings, content, player),
+            run => BoardComposition.CreateBoardScreen(composed, player, run));
     }
 }

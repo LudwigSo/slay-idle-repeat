@@ -282,6 +282,17 @@ public sealed class ChapterSelectPresenter
     /// </remarks>
     public RejectionReason? RulesRejection { get; private set; }
 
+    /// <summary>
+    /// The run the last accepted <c>START_RUN</c> opened, or null while none has been accepted.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Taken from the state the command answered with rather than from a read that follows it.
+    /// A second read would be a second round trip on the one tap in the game that must not stall,
+    /// and — worse — the run it found would be whichever run the player is in, which is the same
+    /// run only until it is not.
+    /// </remarks>
+    public RunId? StartedRun { get; private set; }
+
     /// <summary>The screen's heading, resolved.</summary>
     public string Title => _strings.Resolve(TitleKey);
 
@@ -470,9 +481,14 @@ public sealed class ChapterSelectPresenter
 
         RulesRejection = outcome.Rejection;
 
-        return outcome.Accepted
-            ? ChapterSelectSubmission.Submitted
-            : ChapterSelectSubmission.RefusedByRules;
+        if (!outcome.Accepted)
+        {
+            return ChapterSelectSubmission.RefusedByRules;
+        }
+
+        StartedRun = outcome.State.Run?.Id;
+
+        return ChapterSelectSubmission.Submitted;
     }
 
     /// <summary>The status key each stage is drawn from, or null for the stage that needs none.</summary>

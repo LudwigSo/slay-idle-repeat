@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/die_panel.schema.json",
+  "title": "content/die_panel/die_panel.json",
+  "description": "M7-05 — the loc keys the Die Panel (S12) renders. What is fixed here is that the panel carries a heading, a name and an effect line for each of the six face kinds, a caption for the face last rolled, and two status lines. Every value is a loc key, so a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. Both face groups require all six members: the panel exists because a hidden die is a hostile die, so a face kind that had no line here would be a face the player could roll and never read about. additionalProperties is false throughout, which is what makes two absences enforced rather than merely observed. There is no member for a face's TIER and none for the source that granted it, because no client can read the composed die at all — the type that would compose one is internal to the rules and is not wired to a run; `status.facesUnavailable` is where the panel says so in words instead. And no effect line may be joined by a magnitude member, because every face's magnitude is a tunable owned by the rules and a second copy of it here could not be tuned with the first.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "name", "effect", "label", "status"],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "name": {
+      "description": "The panel's heading and one name per face kind. All six are required, because the panel lists the vocabulary rather than the player's own die, and a vocabulary with a hole in it is the hidden die this screen exists to prevent.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "pip", "star", "surge", "fortune", "void", "chain"],
+      "properties": {
+        "title": { "$ref": "#/$defs/locKey" },
+        "pip": { "$ref": "#/$defs/locKey" },
+        "star": { "$ref": "#/$defs/locKey" },
+        "surge": { "$ref": "#/$defs/locKey" },
+        "fortune": { "$ref": "#/$defs/locKey" },
+        "void": { "$ref": "#/$defs/locKey" },
+        "chain": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "effect": {
+      "description": "One line per face kind saying what it does. Its identity, never its magnitude — see this schema's own description.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pip", "star", "surge", "fortune", "void", "chain"],
+      "properties": {
+        "pip": { "$ref": "#/$defs/locKey" },
+        "star": { "$ref": "#/$defs/locKey" },
+        "surge": { "$ref": "#/$defs/locKey" },
+        "fortune": { "$ref": "#/$defs/locKey" },
+        "void": { "$ref": "#/$defs/locKey" },
+        "chain": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "label": {
+      "description": "The caption over the face the last accepted roll reported. The one thing about the player's OWN die this panel can honestly show, because it is observed rather than composed.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lastFace"],
+      "properties": {
+        "lastFace": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "status": {
+      "description": "The line shown before any roll has been observed, and the panel's admission that the composed die is not readable. The second is a required member rather than an optional one on purpose: while the die cannot be read, a panel that quietly showed six generic faces would be asserting a die the player may not have.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["noRollYet", "facesUnavailable"],
+      "properties": {
+        "noRollYet": { "$ref": "#/$defs/locKey" },
+        "facesUnavailable": { "$ref": "#/$defs/locKey" }
+      }
+    }
+  }
+}
