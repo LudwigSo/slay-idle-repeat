@@ -60,7 +60,7 @@
       }
     },
     "status": {
-      "description": "🔒 One sentence per state the replay can be in, and the reason this object is the largest one here: six of these ten are reasons the screen has nothing to animate, and on screen all six look the same — a still frame. A screen with one sentence for all six would tell a player that the fight did not play and nothing they or anyone reading their report could do about it, while the six causes are as different as a run that has no battle open, a battle whose seed the run no longer carries, a hero stat block this build cannot assemble at all, and a simulator that threw. 'victory' and 'defeat' close the replay; 'refused' covers a result the rules layer would not accept.",
+      "description": "🔒 One sentence per state the replay can be in, and the reason this object is the largest one here: six of these eleven are reasons the screen has nothing to animate, and on screen all six look the same — a still frame. A screen with one sentence for all six would tell a player that the fight did not play and nothing they or anyone reading their report could do about it, while the six causes are as different as a run that has no battle open, a battle whose seed the run no longer carries, a hero stat block this build cannot assemble at all, and a simulator that threw. 'victory' and 'defeat' close the replay; 'refused' covers a result the rules layer would not accept.",
       "type": "object",
       "additionalProperties": false,
       "required": [

@@ -41,6 +41,12 @@ public sealed class BattleReplayPresenterTests
     /// <summary>The stream whose counter says how many battles a run has started.</summary>
     private const string CombatStream = "combat";
 
+    /// <summary>How long <see cref="ShortFight"/> runs, so a case can pin the clamp against it.</summary>
+    private const int ShortFightDurationTicks = 40;
+
+    /// <summary>How long <see cref="LongFight"/> runs.</summary>
+    private const int LongFightDurationTicks = 600;
+
     private static readonly PlayerId Player = new("PLAYER_battle_5d21");
     private static readonly RunId Run = new("RUN_battle_9b04");
 
@@ -110,6 +116,80 @@ public sealed class BattleReplayPresenterTests
             "scene down mid-run rather than putting a sentence on the screen.");
         presenter.StatusText.ShouldBe(
             BattleContent.EnglishValueOf(BattleContent.ReadUnavailableStatusKey));
+    }
+
+    // ---- every caption comes out of the content set ---------------------------------------------
+
+    /// <summary>
+    /// 🔒 Every fixed caption on the screen, resolved through the catalogue rather than written into
+    /// the screen.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The fixture value of a key is the key with a marker in front, so a caption written as an
+    /// English literal in the presenter cannot match one — which is the whole reason the fixture is
+    /// built that way, and it buys nothing until something actually READS the captions. X-04 wants
+    /// every user-facing string keyed in EN and DE from day one; a literal here ships a screen that
+    /// stays English in German for as long as nobody looks.
+    /// </remarks>
+    [Fact]
+    public void Every_fixed_caption_on_the_screen_is_resolved_from_the_content_set()
+    {
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), BattleRun()));
+
+        string[] drawn =
+        [
+            presenter.Title,
+            presenter.HeroLabel,
+            presenter.EnemyLabel,
+            presenter.SpeedLabel,
+            presenter.SpeedSingleText,
+            presenter.SpeedDoubleText,
+            presenter.SpeedTripleText,
+            presenter.SkipText,
+        ];
+
+        drawn.ShouldBe(
+            [.. FixedCaptionKeys.Select(BattleContent.EnglishValueOf)],
+            "every one of these is authored, named by the battle content document and paid for in " +
+            "two locales. A caption that came from anywhere else is a string the translator never " +
+            "sees and the player reads in the wrong language — and the speed and skip captions are " +
+            "the labels on the only four controls this screen has.");
+    }
+
+    /// <summary>The keys behind the captions above, in the order they are read.</summary>
+    private static readonly string[] FixedCaptionKeys =
+    [
+        BattleContent.TitleNameKey,
+        BattleContent.HeroLabelKey,
+        BattleContent.EnemyLabelKey,
+        BattleContent.SpeedLabelKey,
+        BattleContent.SpeedSingleActionKey,
+        BattleContent.SpeedDoubleActionKey,
+        BattleContent.SpeedTripleActionKey,
+        BattleContent.SkipActionKey,
+    ];
+
+    /// <summary>
+    /// 🔒 A caption the content set does not carry still reads as something a player can report.
+    /// </summary>
+    /// <remarks>
+    /// The skip is the one control on this screen an accessibility clause requires, so a build whose
+    /// locale has lost its caption must still draw a labelled button. Falling back to the key leaves
+    /// an ugly control; falling back to blank leaves an invisible one, on the only way off a screen
+    /// a player may not be able to watch.
+    /// </remarks>
+    [Fact]
+    public void A_caption_the_content_set_is_missing_falls_back_to_its_key_rather_than_to_nothing()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(AnyPlayer(), BattleRun()),
+            content: BattleContent.Authoring(BattleContent.SkipActionKey));
+
+        presenter.SkipText.ShouldBe(
+            BattleContent.SkipActionKey,
+            "an unauthored caption has to degrade to its own key: a blank skip button is a control " +
+            "a player cannot see on the one screen an accessibility clause promises they can always " +
+            "leave, and it is invisible to whoever would otherwise report the missing string.");
     }
 
     // ---- 🔒 S2: the five ways a replay can have nothing to animate, told apart ------------------
@@ -211,12 +291,20 @@ public sealed class BattleReplayPresenterTests
     /// 🔒 A revive re-enters the same battle without starting a new one, so the counter does not
     /// move and the same seed must come back out.
     /// </summary>
+    /// <remarks>
+    /// 🔴 The two runs are deliberately NOT identical. A revive pays to stand the hero back up, so
+    /// the row that comes back differs in exactly the fields a revive touches — health and the gold
+    /// or ad use it cost. Handing the derivation two byte-identical rows would assert only that a
+    /// pure function is pure, which every implementation that reads either field satisfies; varying
+    /// what a revive varies is what makes this a statement about the seed depending on the run's own
+    /// seed and its battle counter and on nothing else the row happens to carry.
+    /// </remarks>
     [Fact]
     public void A_revived_battle_re_derives_the_seed_the_first_attempt_was_fought_under()
     {
         var simulation = new LocalBattleSimulation(BootContent.Shipped);
-        var firstAttempt = BattleRun(runSeed: 991, battlesStarted: 2);
-        var afterRevive = BattleRun(runSeed: 991, battlesStarted: 2);
+        var firstAttempt = BattleRun(runSeed: 991, battlesStarted: 2, currentHp: 0, gold: 400);
+        var afterRevive = BattleRun(runSeed: 991, battlesStarted: 2, currentHp: 50, gold: 150);
 
         var before = simulation.Simulate(firstAttempt);
         var after = simulation.Simulate(afterRevive);
@@ -314,6 +402,36 @@ public sealed class BattleReplayPresenterTests
             "one, so a seed reported here would be a real number for the wrong fight.");
     }
 
+    /// <summary>
+    /// 🔒 The seed the prediction derived reaches the SCREEN, and so a bug report.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The split between the two properties is the load-bearing finding made visible: reporting
+    /// a seed of zero with no flag beside it is indistinguishable from deriving zero, and zero is a
+    /// legal seed. A screen that dropped either would leave "the fight did not play" as the whole of
+    /// what anybody can say about it.
+    /// </remarks>
+    [Fact]
+    public async Task The_screen_reports_the_seed_the_prediction_derived_and_that_it_derived_one()
+    {
+        var attempt = new BattleSimulationAttempt(
+            BattleReadiness.HeroStatsUnavailable, BattleSeed: 0, SeedDerived: true, Result: null);
+        var presenter = Build(
+            RecordingGameHost.Finding(AnyPlayer(), BattleRun()),
+            StubBattleSimulation.Attempting(attempt));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.BattleSeed.ShouldBe(
+            0UL,
+            "the seed is what turns 'the fight did not play' into a report somebody can act on, " +
+            "because it is the one number the server and the client can compare afterwards.");
+        presenter.SeedDerived.ShouldBeTrue(
+            "and zero is a legal seed, so the flag beside it is the only thing separating a real " +
+            "derivation of zero from an attempt that never reached the derivation at all — which is " +
+            "exactly the difference between filing this against the stat block and against the run.");
+    }
+
     // ---- what it animates ----------------------------------------------------------------------
 
     [Fact]
@@ -362,6 +480,10 @@ public sealed class BattleReplayPresenterTests
 
         await presenter.AdvanceAsync(30, CancellationToken.None);
 
+        presenter.TotalTicks.ShouldBe(
+            ShortFightDurationTicks,
+            "the fight's own length is what the playhead is clamped to, so a screen that never " +
+            "learned it would satisfy the assertion below by holding both numbers at zero.");
         presenter.CurrentTick.ShouldBe(
             presenter.TotalTicks,
             "the log is the whole fight, so a playhead that ran past its end would report a " +
@@ -421,6 +543,11 @@ public sealed class BattleReplayPresenterTests
         await presenter.AdvanceAsync(1.0, CancellationToken.None);
         var beforeCycle = presenter.CurrentTick;
 
+        beforeCycle.ShouldBe(
+            SimulatorTicksPerSecond,
+            "the playhead has to have MOVED before a case can say a speed change does not move it " +
+            "— a screen frozen at zero would agree with both assertions below and prove neither.");
+
         presenter.CycleSpeed();
 
         presenter.CurrentTick.ShouldBe(
@@ -473,26 +600,54 @@ public sealed class BattleReplayPresenterTests
     }
 
     /// <summary>
-    /// 🔒 The floor under the case above, by NAMED MEMBER and never by count. A rule quantified over
-    /// an enum passes vacuously the day the enum is emptied or its members are renamed away.
+    /// 🔒 The floor under both enum-driven sweeps, by NAMED MEMBER and never by count. A rule
+    /// quantified over an enum passes vacuously the day the enum is emptied or its members are
+    /// renamed away — and the second sweep it floors is the S6 negative control, where a member
+    /// quietly leaving the set is a readiness in which nobody ever again checks that the screen
+    /// submits nothing.
     /// </summary>
+    /// <remarks>
+    /// 🔴 Every member is named, not the three the skip rule leans on hardest. A count would be no
+    /// floor at all — a rename keeps the count — and a partial list is a floor with a hole in it
+    /// exactly where the enum is most likely to be reorganised.
+    /// </remarks>
     [Fact]
-    public void The_readiness_vocabulary_still_names_the_states_the_skip_rule_depends_on()
+    public void The_readiness_vocabulary_still_names_every_state_the_two_sweeps_are_quantified_over()
     {
         var members = Enum.GetValues<BattleReadiness>();
 
         members.ShouldContain(
             BattleReadiness.Ready,
-            "without it the sweep above never once exercises a screen that HAS a fight, so 'skip is " +
+            "without it the skip sweep never once exercises a screen that HAS a fight, so 'skip is " +
             "always offered' would be proven only over screens where skipping does nothing.");
+        members.ShouldContain(
+            BattleReadiness.NoRun,
+            "a player who reached a battle screen with no run at all is the one stall a navigation " +
+            "bug produces, and it dropping out of the sweeps takes the S6 guard with it.");
+        members.ShouldContain(
+            BattleReadiness.PhaseNotBattle,
+            "this is the state a screen opened over the wrong run lands in, and it is the one where " +
+            "submitting a fabricated result would confirm a battle the run never entered.");
+        members.ShouldContain(
+            BattleReadiness.SeedUnavailable,
+            "a run that no longer names its own battle is the corrupt row of the set, and a screen " +
+            "that invented a hash for it would report a result for a fight nothing can identify.");
         members.ShouldContain(
             BattleReadiness.HeroStatsUnavailable,
             "this is the state every real player is in today, so a sweep that stopped covering it " +
             "would stop covering the shipped behaviour entirely.");
         members.ShouldContain(
+            BattleReadiness.SimulatorFailed,
+            "a simulator that threw is the state most tempting to treat as a transient nothing, " +
+            "which is exactly how a screen learns to submit a result it never computed.");
+        members.ShouldContain(
             BattleReadiness.LogEmpty,
             "and this is the state where a skip is most tempting to withdraw — there is nothing to " +
             "skip to — which is precisely why it has to stay in the sweep.");
+        members.ShouldContain(
+            BattleReadiness.ReadUnavailable,
+            "a read that never answered is the one stall whose answer is retry, and a screen that " +
+            "cannot report it is a screen a player is stranded on with no instruction.");
     }
 
     [Fact]
@@ -503,7 +658,7 @@ public sealed class BattleReplayPresenterTests
         await presenter.SkipAsync(CancellationToken.None);
 
         presenter.TotalTicks.ShouldBe(
-            600,
+            LongFightDurationTicks,
             "the fight's own length is what a skip lands on, so a screen that never learned it " +
             "would satisfy the assertion below by leaving both numbers at zero.");
         presenter.CurrentTick.ShouldBe(
@@ -597,6 +752,98 @@ public sealed class BattleReplayPresenterTests
             "battle phase refuses.");
     }
 
+    /// <summary>
+    /// 🔒 The other half of "confirmed once": a fight still playing has not been confirmed at all.
+    /// </summary>
+    [Fact]
+    public async Task A_fight_still_playing_has_not_confirmed_anything_yet()
+    {
+        var host = RecordingGameHost.Finding(AnyPlayer(), BattleRun());
+        var presenter = await Playing(LongFight(), host);
+
+        var submission = await presenter.AdvanceAsync(1.0, CancellationToken.None);
+
+        presenter.CurrentTick.ShouldBe(
+            SimulatorTicksPerSecond,
+            "the playhead has to have MOVED and stopped short of the end, or this says nothing " +
+            "about a fight in progress — a screen frozen at zero submits nothing either, and would " +
+            "satisfy every assertion below while animating no fight at all.");
+        presenter.TotalTicks.ShouldBe(
+            LongFightDurationTicks,
+            "and it is short of the end only if the screen knows where the end is.");
+        presenter.Complete.ShouldBeFalse(
+            "the fight has to still be running for this to be a statement about a running fight.");
+        submission.ShouldBe(
+            BattleSubmission.NothingToSubmit,
+            "an advance mid-fight owes nothing, and reporting it as a submission would have the " +
+            "scene tear the screen down and hand the run on while the player is still watching.");
+        host.SubmitCallCount.ShouldBe(
+            0,
+            "and confirming a result before the log has finished would close the battle on an " +
+            "outcome the player has not been shown, from a frame that has no idea how it ended.");
+    }
+
+    /// <summary>
+    /// 🔒 The status line closes the fight by saying which way it went.
+    /// </summary>
+    /// <remarks>
+    /// Both keys are authored and named by the battle content document, so a screen that never
+    /// resolved either would leave two paid-for translations unreachable and the player looking at
+    /// a finished fight with no word on whether they won it.
+    /// </remarks>
+    [Theory]
+    [InlineData(true, BattleContent.VictoryStatusKey)]
+    [InlineData(false, BattleContent.DefeatStatusKey)]
+    public async Task A_finished_replay_says_which_way_the_fight_went(bool heroWon, string sentenceKey)
+    {
+        var presenter = await Playing(ShortFight(heroWon: heroWon));
+
+        await presenter.AdvanceAsync(30, CancellationToken.None);
+
+        presenter.HeroWon.ShouldBe(
+            heroWon,
+            "the outcome is the one thing the whole screen exists to deliver, and a screen that " +
+            "did not carry it could not tell the two sentences below apart either.");
+        presenter.StatusText.ShouldBe(
+            BattleContent.EnglishValueOf(sentenceKey),
+            "a defeat announced as a victory is the worst sentence this screen could print: the " +
+            "player is about to be offered a revive for a fight they were just told they won.");
+    }
+
+    /// <summary>
+    /// 🔒 A confirmation the rules layer refuses is reported, not swallowed.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The run is parked in the battle phase and every command but this one is refused there, so
+    /// a refused confirmation leaves the run stuck for good — the board will not roll and the revive
+    /// is itself one of the commands the phase blocks. A screen that dropped the refusal on the
+    /// floor would look exactly like one that succeeded.
+    /// </remarks>
+    [Fact]
+    public async Task A_result_the_rules_layer_refuses_is_reported_rather_than_swallowed()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), BattleRun())
+            .RefusingCommands(RejectionReason.ILLEGAL_STATE);
+        var presenter = await Playing(ShortFight(), host);
+
+        var submission = await presenter.AdvanceAsync(30, CancellationToken.None);
+
+        submission.ShouldBe(
+            BattleSubmission.RefusedByRules,
+            "a refusal is an answer rather than a success, and a caller that could not tell them " +
+            "apart would hand the run on to a board that is still standing in the battle phase.");
+        presenter.RulesRejection.ShouldBe(
+            RejectionReason.ILLEGAL_STATE,
+            "and the reason has to survive to the screen: it is the only thing distinguishing a " +
+            "run whose battle was already confirmed from a malformed hash, and the two are fixed by " +
+            "completely different people.");
+        presenter.StatusText.ShouldBe(
+            BattleContent.EnglishValueOf(BattleContent.RefusedStatusKey),
+            "a refusal the player is never told about is a screen that appears to have worked and " +
+            "a run that has silently stopped — the failure mode a support ticket cannot describe.");
+    }
+
     [Fact]
     public async Task The_result_is_confirmed_once_however_many_frames_run_past_the_end()
     {
@@ -662,12 +909,39 @@ public sealed class BattleReplayPresenterTests
 
         await presenter.AdvanceAsync(1.0, CancellationToken.None);
 
-        presenter.CurrentTick.ShouldBe(20);
+        presenter.CurrentTick.ShouldBe(
+            SimulatorTicksPerSecond,
+            "the playhead has to be standing between two of the fight's phase changes for the " +
+            "assertion below to be about which one it reads.");
         presenter.CurrentBossPhase.ShouldBe(
             2,
-            "a phase-change event carries the phase ENTERED as its value, so the band reads " +
-            "the value itself. Counting the events instead would agree here by coincidence and " +
-            "disagree the first time a fight opens at a phase above the first.");
+            "the fight's third phase is in the log already and the playhead has not reached it, " +
+            "so a band folded over the WHOLE log rather than over the part that has played would " +
+            "announce a transition the player has not watched happen — a full-width flash for a " +
+            "phase the boss is still a third of its health away from.");
+    }
+
+    /// <summary>
+    /// 🔒 The band reads the phase-change event's own VALUE rather than counting the events crossed.
+    /// </summary>
+    /// <remarks>
+    /// The two agree in every log the simulator emits today — see <see cref="ElevatedPhaseFight"/>
+    /// — so this is the only case that separates them, and it is worth separating because the thing
+    /// that makes them agree is the rules layer's private emission order and not any promise made
+    /// to a client.
+    /// </remarks>
+    [Fact]
+    public async Task The_phase_band_reads_the_phase_the_event_names_rather_than_counting_events()
+    {
+        var presenter = await Playing(ElevatedPhaseFight());
+
+        await presenter.AdvanceAsync(1.0, CancellationToken.None);
+
+        presenter.CurrentBossPhase.ShouldBe(
+            3,
+            "one phase change has been crossed and it names the third phase, so a screen that " +
+            "counted them would put the band on phase ONE — announcing the opening of a fight at " +
+            "the moment it enters its final phase, with the drums of the wrong transition.");
     }
 
     [Fact]
@@ -710,17 +984,32 @@ public sealed class BattleReplayPresenterTests
         await presenter.AdvanceAsync(0.5, CancellationToken.None);
         presenter.PhaseBandVisible.ShouldBeTrue(
             "the band's whole job is to announce the transition at the moment it happens.");
+        presenter.PhaseBandText.ShouldBe(
+            BattleContent.EnglishValueOf(BattleContent.PhaseTwoNameKey),
+            "and it announces it by NAME. The log reports a phase as a bare number and the table " +
+            "that gives that number a meaning is inside the rules assembly, so a band that drew the " +
+            "number would flash '2' across the screen at the moment a boss changes what it does.");
 
         await presenter.AdvanceAsync(1.0, CancellationToken.None);
         presenter.PhaseBandVisible.ShouldBeFalse(
             "and a band that never came down would cover the fight it was announcing for " +
             "the rest of the battle.");
+        presenter.PhaseBandText.ShouldBeEmpty(
+            "a band that is down has nothing to say, and a caption left standing behind it is a " +
+            "phase name a scene can still draw once the band that framed it has gone.");
     }
 
     /// <summary>
     /// 🔒 The accessibility clause, stated as behaviour rather than as the number itself: reduced
     /// motion shortens every animation on this screen to a tenth of a second.
     /// </summary>
+    /// <remarks>
+    /// 🔒 The playhead is deliberately parked BETWEEN the two dwells — four tenths of a second past
+    /// the phase change, which is past the reduced-motion tenth and short of the ordinary six
+    /// tenths. A fixture whose phase change sat on the playhead itself would put zero elapsed time
+    /// behind both dwells, leaving the band up under each and the two assertions below in flat
+    /// contradiction.
+    /// </remarks>
     [Fact]
     public async Task Reduced_motion_takes_the_phase_band_down_within_a_tenth_of_a_second()
     {
@@ -734,9 +1023,9 @@ public sealed class BattleReplayPresenterTests
             "the ordinary dwell is the control — without it a band that was simply never " +
             "drawn would satisfy the reduced-motion claim below and prove nothing.");
         reduced.PhaseBandVisible.ShouldBeFalse(
-            "reduced motion shortens every animation here to a tenth of a second, and half " +
-            "a second of playback is five times that. A player who set it because full-width flashes " +
-            "make them ill still gets the flash otherwise.");
+            "reduced motion shortens every animation here to a tenth of a second, and the " +
+            "playhead stands four tenths past the transition — four times that. A player who set it " +
+            "because full-width flashes make them ill still gets the flash otherwise.");
     }
 
     // ---- health bars: derived where the log fixes it, unknown where it does not ------------------
@@ -748,14 +1037,23 @@ public sealed class BattleReplayPresenterTests
 
         await presenter.AdvanceAsync(30, CancellationToken.None);
 
-        Actor(presenter, HeroSlot).StartingHp.ShouldBe(
-            47,
+        var hero = Actor(presenter, HeroSlot);
+
+        hero.StartingHp.ShouldNotBeNull(
+            "the hero is the one actor whose starting health the log always fixes, so reporting it " +
+            "as unknown would leave the player's own bar the only one on screen without a " +
+            "denominator.");
+        hero.StartingHp!.Value.ShouldBe(
+            HeroHpAtTheStart,
+            tolerance: HealthTolerance,
+            customMessage:
             "no maximum HP is anywhere in the log, so a hero's bar has no denominator unless " +
             "it is reconstructed: what was left, plus every point taken off, minus every point healed " +
             "back. A bar drawn against a guess is a bar that lies about how close the fight was.");
-        Actor(presenter, HeroSlot).EndingHp.ShouldBe(
-            40,
-            "and the finishing value is the one number the result states outright.");
+        hero.EndingHp!.Value.ShouldBe(
+            HeroHpAtTheEnd,
+            tolerance: HealthTolerance,
+            customMessage: "and the finishing value is the one number the result states outright.");
     }
 
     [Fact]
@@ -765,12 +1063,23 @@ public sealed class BattleReplayPresenterTests
 
         await presenter.AdvanceAsync(30, CancellationToken.None);
 
-        Actor(presenter, FirstEnemySlot).EndingHp.ShouldBe(
+        var slain = Actor(presenter, FirstEnemySlot);
+
+        slain.EndingHp.ShouldNotBeNull(
+            "the log records this actor's death, so its bar is one of the two the arithmetic can " +
+            "anchor — reporting it as unknown throws away the only measurement an enemy bar gets.");
+        slain.StartingHp.ShouldNotBeNull(
+            "and the same death is what fixes the other end of it.");
+        slain.EndingHp!.Value.ShouldBe(
             0,
+            tolerance: HealthTolerance,
+            customMessage:
             "a death event is the one thing that fixes an enemy's final health, and it is " +
             "what lets its bar be drawn at all.");
-        Actor(presenter, FirstEnemySlot).StartingHp.ShouldBe(
-            30,
+        slain.StartingHp!.Value.ShouldBe(
+            DamageTakenByTheDyingEnemy,
+            tolerance: HealthTolerance,
+            customMessage:
             "an actor that ended at zero started at exactly the damage it absorbed, so the " +
             "one death event turns an unmeasurable bar into a measured one.");
     }
@@ -859,11 +1168,18 @@ public sealed class BattleReplayPresenterTests
         new Dictionary<string, ulong>(StringComparer.Ordinal) { [CombatStream] = (ulong)battlesStarted };
 
     /// <summary>A run parked in the battle phase, which is the only state this screen opens over.</summary>
-    private static RunSnapshot BattleRun(ulong runSeed = 4242, int battlesStarted = 1) =>
+    /// <param name="runSeed">The run's committed seed, half of the battle seed's derivation.</param>
+    /// <param name="battlesStarted">The combat counter, the other half.</param>
+    /// <param name="currentHp">The hero's health — a field a revive changes and the seed must not read.</param>
+    /// <param name="gold">The run's Gold — likewise.</param>
+    private static RunSnapshot BattleRun(
+        ulong runSeed = 4242, int battlesStarted = 1, int currentHp = 100, long gold = 0) =>
         PlayerState.Run(
             Run,
             Player,
             RunPhase.BattlePending,
+            currentHp: currentHp,
+            gold: gold,
             runSeed: runSeed,
             rngStreamPositions: Counters(battlesStarted));
 
@@ -884,21 +1200,43 @@ public sealed class BattleReplayPresenterTests
     /// The second enemy is alive at the end on purpose — it is the actor whose starting health is
     /// deliberately unknowable, and a fixture where every enemy dies could not state that.
     /// </remarks>
+    /// <summary>What the hero has left when <see cref="ShortFight"/> ends.</summary>
+    private const double HeroHpAtTheEnd = 40.0;
+
+    /// <summary>The one blow the hero takes in <see cref="ShortFight"/>.</summary>
+    private const double DamageTakenByTheHero = 12.3456;
+
+    /// <summary>The one heal the hero receives in <see cref="ShortFight"/>.</summary>
+    private const double HealingReceivedByTheHero = 5.1234;
+
+    /// <summary>What the hero must therefore have started <see cref="ShortFight"/> with.</summary>
+    private const double HeroHpAtTheStart =
+        HeroHpAtTheEnd + DamageTakenByTheHero - HealingReceivedByTheHero;
+
+    /// <summary>The whole of the damage the first enemy absorbs before it dies.</summary>
+    private const double DamageTakenByTheDyingEnemy = 30.8765;
+
+    /// <summary>
+    /// The width a health derivation may be wrong by. Four decimals is what the rules layer rounds
+    /// its own values to, so anything wider than a rounding artefact is a real disagreement.
+    /// </summary>
+    private const double HealthTolerance = 1e-9;
+
     private static SimulationResult ShortFight(bool heroWon = true) =>
         new(
             heroWon,
-            DurationTicks: 40,
-            HeroHpRemaining: 40,
+            DurationTicks: ShortFightDurationTicks,
+            HeroHpRemaining: HeroHpAtTheEnd,
             Log:
             [
                 At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
                 At(10, CombatEventType.Attack),
-                At(10, CombatEventType.Hit, HeroSlot, FirstEnemySlot, value: 30),
-                At(20, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: 12),
-                At(20, CombatEventType.Hit, HeroSlot, SecondEnemySlot, value: 8),
-                At(30, CombatEventType.Heal, HeroSlot, HeroSlot, value: 5),
-                At(40, CombatEventType.ActorDeath, HeroSlot, FirstEnemySlot),
-                At(40, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+                At(10, CombatEventType.Hit, HeroSlot, FirstEnemySlot, value: DamageTakenByTheDyingEnemy),
+                At(20, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: DamageTakenByTheHero),
+                At(20, CombatEventType.Hit, HeroSlot, SecondEnemySlot, value: 8.25),
+                At(30, CombatEventType.Heal, HeroSlot, HeroSlot, value: HealingReceivedByTheHero),
+                At(ShortFightDurationTicks, CombatEventType.ActorDeath, HeroSlot, FirstEnemySlot),
+                At(ShortFightDurationTicks, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
             ],
             LogHash: 17278238499121983245UL);
 
@@ -916,7 +1254,14 @@ public sealed class BattleReplayPresenterTests
             ],
             LogHash: 991UL);
 
-    /// <summary>A boss fight that walks all three phases, one every half second.</summary>
+    /// <summary>A boss fight that walks all three phases, shaped the way a real one is.</summary>
+    /// <remarks>
+    /// 🔒 The phase-1 entry sits on tick zero because that is where the rules layer puts it: a boss
+    /// enters its first phase as the fight opens, and that entry emits a phase change like any
+    /// other. The later two are spaced so that a case can stand the playhead well inside a band's
+    /// dwell, well outside it, and between the ordinary dwell and the reduced-motion one — three
+    /// positions a fixture whose changes land exactly on the playhead cannot offer at all.
+    /// </remarks>
     private static SimulationResult BossFight() =>
         new(
             HeroWon: true,
@@ -925,12 +1270,37 @@ public sealed class BattleReplayPresenterTests
             Log:
             [
                 At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
-                At(10, CombatEventType.PhaseChange, FirstEnemySlot, FirstEnemySlot, value: 1),
-                At(20, CombatEventType.PhaseChange, FirstEnemySlot, FirstEnemySlot, value: 2),
-                At(30, CombatEventType.PhaseChange, FirstEnemySlot, FirstEnemySlot, value: 3),
+                At(0, CombatEventType.PhaseChange, FirstEnemySlot, FirstEnemySlot, value: 1),
+                At(2, CombatEventType.PhaseChange, FirstEnemySlot, FirstEnemySlot, value: 2),
+                At(35, CombatEventType.PhaseChange, FirstEnemySlot, FirstEnemySlot, value: 3),
                 At(100, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
             ],
             LogHash: 424242UL);
+
+    /// <summary>
+    /// A boss fight whose one phase change carries a phase the count of events does not.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Not a log the simulator emits today, and that is the point.</b> The rules layer walks a
+    /// boss upward one phase at a time from an entry on tick zero, so in every log it currently
+    /// produces the number of phase changes crossed happens to equal the phase entered — which
+    /// means no realistic fixture can tell a screen that READS the payload apart from one that
+    /// COUNTS the events. The payload is the contract the client is given; the emission sequence is
+    /// internal to the rules assembly and can change without a single client test noticing. So the
+    /// discrimination is stated over a log built to state it.
+    /// </remarks>
+    private static SimulationResult ElevatedPhaseFight() =>
+        new(
+            HeroWon: true,
+            DurationTicks: 100,
+            HeroHpRemaining: 30,
+            Log:
+            [
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(10, CombatEventType.PhaseChange, FirstEnemySlot, FirstEnemySlot, value: 3),
+                At(100, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 424243UL);
 
     /// <summary>
     /// A REAL fight, built through the public stat factory and run by the real simulator, tuned so
@@ -1023,6 +1393,10 @@ public sealed class BattleReplayPresenterTests
         private readonly BattleSimulationAttempt _attempt;
 
         private StubBattleSimulation(BattleSimulationAttempt attempt) => _attempt = attempt;
+
+        /// <summary>A prediction that answers with exactly the attempt a case built.</summary>
+        internal static StubBattleSimulation Attempting(BattleSimulationAttempt attempt) =>
+            new(attempt);
 
         /// <summary>A prediction that hands back the given fight.</summary>
         internal static StubBattleSimulation Playing(SimulationResult fight) =>
