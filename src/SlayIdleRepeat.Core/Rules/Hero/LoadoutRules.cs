@@ -72,7 +72,7 @@ internal static class LoadoutRules
     /// or lost to any later operation. Refusing the whole preset because one ring is gone would make
     /// presets stop working as the player plays, which is exactly when they are worth having — and
     /// the alternative of deleting the preset would destroy the only record of the build. So the
-    /// missing slots are simply left empty, and the preset is unchanged: `12` §66 keeps a preset the
+    /// missing slots are simply left empty, and the preset is unchanged: `12` §2.2 keeps a preset the
     /// player may no longer write as one they may still load.
     /// <para>
     /// It builds up from <see cref="Loadout.Empty"/> rather than editing the current loadout, so

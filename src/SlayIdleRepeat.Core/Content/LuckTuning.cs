@@ -373,25 +373,63 @@ internal sealed class LuckTuning
 
     /// <summary>Reads the <c>DRAFT</c> class's five rules — none of which is a rarity ladder.</summary>
     private static DraftRule ReadDraft(ContentSnapshot content) => new(
-        RequirePositive(content, DraftReference + "/legendaryPityDraftNumber"),
+        RequirePositive(
+            content,
+            DraftReference + "/legendaryPityDraftNumber",
+            "A guarantee counts drafts from one, and this is the ordinal of the draft it forces. " +
+            "There is no zeroth draft to force a Legendary onto."),
         new SustainAntiBrickRule(
             content.ReadBoolean(DraftReference + "/sustainAntiBrick/enabled"),
             ReadCategory(content, DraftReference + "/sustainAntiBrick/forceCategory")),
-        RequirePositive(content, DraftReference + "/qualityFloor/consecutiveDraftsWithoutAboveCommon"),
+        RequirePositive(
+            content,
+            DraftReference + "/qualityFloor/consecutiveDraftsWithoutAboveCommon",
+            "This is the length of the drought the quality floor waits out. A drought of zero is " +
+            "satisfied before the first draft is taken, which makes the floor unconditional rather " +
+            "than a mercy — every draft would be forced above Common and the rarity table would " +
+            "stop meaning anything."),
         ReadPerkRarity(content, DraftReference + "/qualityFloor/forceRarityAtLeast"),
         content.ReadDouble(DraftReference + "/codexBias/neverDraftedWeightMultiplier"),
         content.ReadInt32(DraftReference + "/codexBias/maxBiasSelectedOptions"),
         content.ReadDouble(DraftReference + "/upgradeFamine/ownedUpgradeBias"),
-        RequirePositive(content, DraftReference + "/upgradeFamine/consecutiveDraftsWithoutOwnedUpgrade"));
+        RequirePositive(
+            content,
+            DraftReference + "/upgradeFamine/consecutiveDraftsWithoutOwnedUpgrade",
+            "This is the length of the famine the owned-upgrade guarantee waits out. A famine of " +
+            "zero is satisfied before the first draft is taken, so every draft would be forced to " +
+            "offer an upgrade to something already owned and no new perk could ever be drafted."));
 
     /// <summary>Reads the chest pick's guarantee — the one <c>MINIGAME</c> rule that carries a counter.</summary>
     private static ChestPickRule ReadChestPick(ContentSnapshot content) => new(
-        RequirePositive(content, ChestPickReference + "/chestCount"),
-        RequirePositive(content, ChestPickReference + "/goldTierChests"),
-        RequirePositive(content, ChestPickReference + "/guaranteeOnNthPick"));
+        RequirePositive(
+            content,
+            ChestPickReference + "/chestCount",
+            "This is how many chests the minigame puts in front of the player — a board size, not a " +
+            "draw count. A board with no chests on it is a minigame that cannot be played at all, " +
+            "and the reward table this is reconciled against would have no rows to match."),
+        RequirePositive(
+            content,
+            ChestPickReference + "/goldTierChests",
+            "This is how many of the offered chests carry the top tier. At zero the guarantee below " +
+            "forces a tier the board does not contain, so the one thing 24 §4.9 promises could " +
+            "never be paid out."),
+        RequirePositive(
+            content,
+            ChestPickReference + "/guaranteeOnNthPick",
+            "A guarantee counts picks from one, and this is the ordinal of the pick it forces onto " +
+            "the top tier. There is no zeroth pick to force."));
 
     /// <summary>An authored count that has to be at least one to name anything at all.</summary>
-    private static int RequirePositive(ContentSnapshot content, string reference)
+    /// <param name="content">The version-stamped snapshot the command is reading.</param>
+    /// <param name="reference">The pointer the count is authored at.</param>
+    /// <param name="what">
+    /// What a zero would mean <em>at this call site</em>, as a sentence completing "…, and this
+    /// document authors 0." 🔒 Passed rather than assumed: not every count read through here is a
+    /// draw counter — the chest pick's board size and its gold-tier rung are neither guarantees nor
+    /// draws — and a single message about "no zeroth draw to force" told an author the wrong thing
+    /// about three of the six pointers that reach it.
+    /// </param>
+    private static int RequirePositive(ContentSnapshot content, string reference, string what)
     {
         var value = content.ReadInt32(reference);
 
@@ -399,19 +437,18 @@ internal sealed class LuckTuning
             ? value
             : throw new InvalidTunableException(
                 reference,
-                $"A guarantee counts draws from one, and this document authors {Render(value)}. " +
-                "There is no zeroth draw to force.");
+                $"This document authors {Render(value)}. " + what);
     }
 
     private static PerkRarity ReadPerkRarity(ContentSnapshot content, string reference)
     {
         var authored = content.ReadText(reference);
 
-        return TryParseName<PerkRarity>(Pascal(authored), out var rarity)
+        return AuthoredToken.TryParse<PerkRarity>(Pascal(authored), out var rarity)
             ? rarity
             : throw new InvalidTunableException(
                 reference,
-                $"'{authored}' is not a perk band. The authored set is {Names<PerkRarity>()}, spelled " +
+                $"'{authored}' is not a perk band. The authored set is {AuthoredToken.Names<PerkRarity>()}, spelled " +
                 "in the documents' upper-case form. The gear rarity ladder is a different vocabulary " +
                 "over different things, and a token from one must not resolve in the other.");
     }
@@ -420,11 +457,11 @@ internal sealed class LuckTuning
     {
         var authored = content.ReadText(reference);
 
-        return TryParseName<PerkCategory>(Pascal(authored), out var category)
+        return AuthoredToken.TryParse<PerkCategory>(Pascal(authored), out var category)
             ? category
             : throw new InvalidTunableException(
                 reference,
-                $"'{authored}' is not a perk category. The authored set is {Names<PerkCategory>()}, " +
+                $"'{authored}' is not a perk category. The authored set is {AuthoredToken.Names<PerkCategory>()}, " +
                 "spelled in the documents' SCREAMING_SNAKE form.");
     }
 
@@ -480,23 +517,23 @@ internal sealed class LuckTuning
             var pointer = SourceClassesReference + "/" + Render(i);
 
             var id = content.ReadText(pointer + "/id");
-            if (!TryParseName<SourceClass>(id, out var source))
+            if (!AuthoredToken.TryParse<SourceClass>(id, out var source))
             {
                 throw new InvalidTunableException(
                     pointer + "/id",
                     $"'{id}' is not a grant source class. Adding a new grant source means assigning " +
-                    $"it one of {Names<SourceClass>()}; a row naming a class Core does not declare " +
+                    $"it one of {AuthoredToken.Names<SourceClass>()}; a row naming a class Core does not declare " +
                     "is a source with no class, and skipping it silently is exactly the unprotected " +
                     "grant the founding rule forbids.");
             }
 
             var scopeName = content.ReadText(pointer + "/counterScope");
-            if (!TryParseName<CounterScope>(scopeName, out var scope))
+            if (!AuthoredToken.TryParse<CounterScope>(scopeName, out var scope))
             {
                 throw new InvalidTunableException(
                     pointer + "/counterScope",
                     $"'{scopeName}' is not a place a counter is kept. The authored scopes are " +
-                    $"{Names<CounterScope>()}.");
+                    $"{AuthoredToken.Names<CounterScope>()}.");
             }
 
             rows[i] = new SourceClassRow(source, ReadCounterKey(content, pointer), scope);
@@ -562,12 +599,12 @@ internal sealed class LuckTuning
 
             var guaranteeReference = pointer + "/guaranteeRarityAtLeast";
             var guaranteeName = content.ReadText(guaranteeReference);
-            if (!TryParseName<Rarity>(guaranteeName, out var guarantee))
+            if (!AuthoredToken.TryParse<Rarity>(guaranteeName, out var guarantee))
             {
                 throw new InvalidTunableException(
                     guaranteeReference,
                     $"'{guaranteeName}' is not a band on the gear rarity ladder, which is " +
-                    $"{Names<Rarity>()}. The perk band ladder is a different vocabulary over " +
+                    $"{AuthoredToken.Names<Rarity>()}. The perk band ladder is a different vocabulary over " +
                     "different things, and a token from one must not resolve in the other.");
             }
 
@@ -622,12 +659,12 @@ internal sealed class LuckTuning
     {
         var authored = content.ReadText(RenormalisationReference);
 
-        if (!TryParseName<RarityFloorRenormalisation>(authored, out var renormalisation))
+        if (!AuthoredToken.TryParse<RarityFloorRenormalisation>(authored, out var renormalisation))
         {
             throw new InvalidTunableException(
                 RenormalisationReference,
                 $"'{authored}' is not a renormalisation this engine implements. The authored set is " +
-                $"{Names<RarityFloorRenormalisation>()}, deliberately a one-member enum in both the " +
+                $"{AuthoredToken.Names<RarityFloorRenormalisation>()}, deliberately a one-member enum in both the " +
                 "schema and here, so widening it is an edit in both places rather than a token that " +
                 "slipped through a string comparison.");
         }
@@ -636,36 +673,11 @@ internal sealed class LuckTuning
             renormalisation, content.ReadBoolean(CountersAdvanceNormallyReference));
     }
 
-    /// <summary>
-    /// Reads an authored token as a member of a closed vocabulary, case-sensitively and by name only.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <c>Enum.TryParse</c> accepts three spellings a name is not, and each one is refused here
-    /// before it is parsed rather than after, because all three land on a member
-    /// <see cref="Enum.IsDefined{TEnum}(TEnum)"/> then reports as real:
-    /// </para>
-    /// <list type="bullet">
-    /// <item>the underlying wire value — an authored <c>"3"</c> would load as a real band, a wire
-    /// value leaking into a place the documents spell with a name;</item>
-    /// <item>a comma-separated list, which is combined bitwise even for a non-flags enum — an
-    /// authored <c>"C, B"</c> is <c>1 | 2</c> and would load, silently, as <c>A</c>;</item>
-    /// <item>surrounding whitespace, which is trimmed away — an authored <c>" SS"</c> is not the
-    /// token the schema's enum lists, and accepting it would let two spellings of one band exist.</item>
-    /// </list>
-    /// </remarks>
-    /// <typeparam name="TEnum">The closed vocabulary.</typeparam>
-    /// <param name="authored">The token the document spells.</param>
-    /// <param name="parsed">The member, when this returns <see langword="true"/>.</param>
-    /// <returns><see langword="true"/> when the token is exactly one member's name.</returns>
-    private static bool TryParseName<TEnum>(string authored, out TEnum parsed)
-        where TEnum : struct, Enum =>
-        AuthoredToken.TryParse(authored, out parsed);
-
-    /// <summary>A closed vocabulary's names, for a failure message that shows the whole table.</summary>
-    private static string Names<TEnum>()
-        where TEnum : struct, Enum =>
-        AuthoredToken.Names<TEnum>();
+    // 🔴 Two one-line pass-throughs to AuthoredToken — TryParseName<TEnum> and Names<TEnum> — used
+    // to sit here, each carrying a verbatim copy of AuthoredToken's own multi-bullet rationale for
+    // why Enum.TryParse is not enough. Two files stating one piece of reasoning as if they had
+    // reached it independently is one edit away from disagreeing, and the shims bought nothing: the
+    // call sites above name AuthoredToken directly now, which is also where the reasoning is.
 
     /// <summary>Renders a number with <see cref="CultureInfo.InvariantCulture"/>.</summary>
     /// <param name="value">The number to render.</param>

@@ -64,7 +64,7 @@ internal sealed class PresetTuning
     /// How many preset slots a player without Plus may <b>write</b>. 3 as shipped.
     /// </summary>
     /// <remarks>
-    /// Writing, not holding: `12` §66 is explicit that presets beyond the free allowance become
+    /// Writing, not holding: `12` §2.2 is explicit that presets beyond the free allowance become
     /// <em>read-only</em> rather than deleted when Plus lapses, so this number bounds
     /// <c>SAVE_PRESET</c> and never <c>APPLY_PRESET</c>.
     /// </remarks>
@@ -108,7 +108,7 @@ internal sealed class PresetTuning
     /// Not authored anywhere, and stated here once rather than spelled at each call site: `09` §2.1
     /// and `12` §2 both count presets ("3 saved preset slots", "beyond the free 3") without ever
     /// numbering them, so the origin is a representation choice. It is 1 rather than 0 because
-    /// `14` §662's own example is "preset slot 4+", which only names the fourth slot if the first
+    /// `14` §16.2's own example is "preset slot 4+", which only names the fourth slot if the first
     /// is 1.
     /// </remarks>
     internal const int FirstSlot = 1;
@@ -135,7 +135,7 @@ internal sealed class PresetTuning
             throw new InvalidTunableException(
                 FreePresetsReference,
                 "09 §2.1 makes presets a CORE FREE FEATURE — '3 saved preset slots from the start', " +
-                "with no ad placement attached — and 09 §53 says the allowance may be raised and " +
+                "with no ad placement attached — and 09 §2.1 says the allowance may be raised and " +
                 "never gated further. A free allowance of " + Render(freeSlots) + " would put the " +
                 "whole feature behind Plus, which is the one thing that document forbids.");
         }

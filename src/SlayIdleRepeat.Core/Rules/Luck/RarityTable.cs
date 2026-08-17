@@ -9,11 +9,28 @@ namespace SlayIdleRepeat.Core.Rules.Luck;
 /// </summary>
 /// <remarks>
 /// <para>
+/// 🔒 <b>THE INVARIANT: a row's weight is RELATIVE, never a probability.</b> Only the ratios between
+/// rows carry meaning; <see cref="TotalWeight"/> is whatever the numbers happen to sum to and is
+/// <b>not</b> guaranteed to be 1 — or 100, or anything. Every consumer normalises by the running
+/// total, which is what <c>DeterministicRng.WeightedPick</c> does. A rule that read a row as a
+/// probability would be right about some tables and wrong about others.
+/// </para>
+/// <para>
+/// ⚠️ <b>That is not a theoretical caution — the two totals both occur, on the same table.</b>
+/// <see cref="Of"/> is fed <c>DropsTuning</c>'s authored drop shares, which are 0–100 percentages
+/// summing to <b>100</b>; <see cref="FloorAt"/> rescales the survivors and answers a table summing
+/// to <b>1</b>; <see cref="Scale"/> multiplies one row and answers a table summing to neither. So
+/// one chapter's table sums to 100 before a floor and to 1 after it, and nothing anywhere converts
+/// between the two, because under this invariant there is nothing to convert. Stating it is what
+/// stops the first rule that wants "the chance of an S drop" from reading a row and getting an
+/// answer that is out by a factor of a hundred, silently, on half the code paths.
+/// </para>
+/// <para>
 /// <b>Flooring is proportional, and it is one rule for every source class.</b> A floor zeroes the
-/// weight of every rarity strictly below it and rescales the survivors to sum to one, preserving
-/// their relative ratios. Nothing here is per-class: a class-specific renormalisation would make
-/// "an A-or-better guarantee" mean a different distribution in a chest than in a crate, which is
-/// exactly the kind of quiet divergence a single stated rule prevents.
+/// weight of every rarity strictly below it and rescales the survivors, preserving their relative
+/// ratios. Nothing here is per-class: a class-specific renormalisation would make "an A-or-better
+/// guarantee" mean a different distribution in a chest than in a crate, which is exactly the kind of
+/// quiet divergence a single stated rule prevents.
 /// </para>
 /// <para>
 /// <b>Forcing a guarantee is flooring the table.</b> A forced draw floors at the guaranteed rarity
@@ -35,9 +52,15 @@ internal sealed class RarityTable
     private RarityTable(IReadOnlyList<RarityWeight> rows) => _rows = rows;
 
     /// <summary>Builds a table from weighted rows.</summary>
+    /// <remarks>
+    /// 🔒 <b>The weights are taken as authored and are never normalised here</b> — see the type's
+    /// invariant. Its live caller hands it <c>DropsTuning</c>'s 0–100 drop shares, so the table this
+    /// answers sums to 100; a caller handing it three weights of 7 gets a table summing to 21, and
+    /// the two behave identically at every draw.
+    /// </remarks>
     /// <param name="rows">
     /// The rows, at most one per rarity. Every weight must be finite and non-negative, and at least
-    /// one must be positive.
+    /// one must be positive. Relative weights, not probabilities — they need not sum to anything.
     /// </param>
     /// <returns>The table.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="rows"/> is null.</exception>
@@ -95,7 +118,14 @@ internal sealed class RarityTable
     /// <summary>The rows, in ascending rarity order.</summary>
     internal IReadOnlyList<RarityWeight> Rows => _rows;
 
-    /// <summary>The sum of every row's weight.</summary>
+    /// <summary>
+    /// The sum of every row's weight — the divisor a consumer normalises by, <b>not</b> a constant.
+    /// </summary>
+    /// <remarks>
+    /// See the type's invariant. It is 100 for a table built straight out of the authored drop
+    /// shares, 1 after <see cref="FloorAt"/>, and neither after <see cref="Scale"/>. A caller that
+    /// assumed any of the three is reading a row as a probability.
+    /// </remarks>
     internal double TotalWeight => Sum(_rows);
 
     /// <summary>
@@ -123,9 +153,17 @@ internal sealed class RarityTable
     }
 
     /// <summary>
-    /// This table with every rarity below <paramref name="floor"/> zeroed and the survivors rescaled
-    /// to sum to one, preserving their relative ratios.
+    /// This table with every rarity below <paramref name="floor"/> zeroed and the survivors rescaled,
+    /// preserving their relative ratios.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>The division by the surviving total is how the ratios are preserved, not a promise that
+    /// the answer is a probability distribution.</b> It does leave the rows summing to 1, and that is
+    /// an artefact of dividing by their own sum rather than a contract — the type's invariant says a
+    /// weight is relative, and a floored table draws identically to one whose surviving rows were
+    /// left at their authored 0–100 values. Nothing may read a floored row as "the chance of this
+    /// band"; it is only that after a rescale by the survivors' own total.
+    /// </remarks>
     /// <param name="floor">The lowest rarity the draw may produce.</param>
     /// <returns>A new table; this one is unchanged.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="floor"/> is not a declared rarity.</exception>
@@ -171,7 +209,15 @@ internal sealed class RarityTable
     /// <remarks>
     /// The soft-pity ramp's only effect on a table. A rarity the table does not carry is left alone
     /// rather than added: a curve targeting a rarity a class cannot drop must not conjure it.
-    /// </remarks>
+    /// <para>
+    /// 🔒 <b>It deliberately does not renormalise, and under the type's invariant it must not.</b>
+    /// Raising one row's weight while leaving the rest is exactly what "this band got more likely
+    /// relative to its neighbours" means, and dividing the table back down to a fixed total
+    /// afterwards would be arithmetic with no effect on any draw. It is the same reason
+    /// <see cref="FloorAt"/>'s rescale is an artefact rather than a contract: a total is not a fact
+    /// about this type. The consequence, stated because it looks like an inconsistency and is not:
+    /// a scaled table sums to more than it did, a floored one sums to 1, and both draw correctly.
+    /// </para>
     /// <param name="rarity">The rarity whose weight is scaled.</param>
     /// <param name="multiplier">The multiplier. Finite and never negative.</param>
     /// <returns>A new table; this one is unchanged.</returns>

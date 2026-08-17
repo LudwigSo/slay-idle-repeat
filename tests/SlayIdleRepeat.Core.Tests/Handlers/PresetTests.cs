@@ -43,7 +43,7 @@ public sealed class PresetTests
     /// <para>
     /// Both sides of the boundary, driven off the tunable rather than off the literal 3: a handler
     /// that compared against a hard-coded number would pass this while ignoring the document.
-    /// `14` §662's own example of <c>NOT_ENTITLED</c> is "preset slot 4+".
+    /// `14` §16.2's own example of <c>NOT_ENTITLED</c> is "preset slot 4+".
     /// </para>
     /// <para>
     /// 🔴 <b><c>PresetTuning.FirstSlot</c> is pinned, and the loop is floored on its length.</b>
@@ -165,11 +165,11 @@ public sealed class PresetTests
     }
 
     /// <summary>
-    /// 🔒 Applying is never entitlement-gated: `12` §66 keeps a preset past the allowance READ-ONLY.
+    /// 🔒 Applying is never entitlement-gated: `12` §2.2 keeps a preset past the allowance READ-ONLY.
     /// </summary>
     /// <remarks>
     /// Saved with Plus, applied without it. A handler that copied <c>SAVE_PRESET</c>'s check would
-    /// pass every other case in this suite and delete the one promise `12` §66 makes to a lapsed
+    /// pass every other case in this suite and delete the one promise `12` §2.2 makes to a lapsed
     /// subscriber.
     /// </remarks>
     [Fact]

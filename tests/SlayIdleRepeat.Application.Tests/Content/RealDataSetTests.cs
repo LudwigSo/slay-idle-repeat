@@ -343,6 +343,35 @@ public sealed partial class RealDataSetTests
         }
     }
 
+    // ⚠️ 🔴 THE ARM THAT BELONGS HERE AND IS NOT WRITTEN, recorded because a hole nobody named is
+    // indistinguishable from a hole nobody noticed — this file's own argument, one directory over.
+    //
+    // Every_spec_debt_entry_is_closed_by_a_task_that_exists_in_the_tracker asserts only that the id
+    // EXISTS. It is therefore satisfied forever by a task that merged three milestones ago and closed
+    // nothing, which is steering S4's failure mode inside the mechanism built to prevent it. The
+    // missing arm is one predicate wide: read the ✅ out of each tracker row's LAST cell (not the
+    // whole line — M18-07's row is ⬜ and its notes say "(O18 ✅)"), and fail on a spec-debt entry
+    // whose closedBy is in that set.
+    //
+    // 🔒 IT WAS WRITTEN, RUN, AND REVERTED IN THE M4 REVIEW — deliberately, not abandoned. It works:
+    // against the tracker's 37 completed rows it reported EIGHT orphaned entries, not the two the
+    // review went looking for:
+    //
+    //     08 §4.1  -> M4-04   08 §4.2  -> M4-04    (re-pointed at M4-04b in this pass)
+    //     02 §3    -> M3-05                        (re-pointed at M7-07 in this pass)
+    //     03 §1    -> M3-01   03 §1.1  -> M3-02
+    //     04 §3    -> M3-04   04 §4    -> M3-04
+    //     05 §6.4  -> M3-14
+    //
+    // Landing the arm means re-pointing the last five, and none of their real owners is derivable
+    // from this repository: 04 §3 and §4 are dice numbers with no tuning/dice.json to hold them at
+    // all, and 03 §1 / 05 §6.4 name keys under content/chapters/, which this audit's tuning-schema
+    // join does not reach — so they are a SCANNER-SCOPE gap wearing spec-debt's clothes rather than
+    // five separate task debts. Assigning five owners on that evidence is steering S6's fabricated
+    // value with a task id instead of a number, and re-deciding it is milestone work rather than a
+    // hardening fix. OWNER: the next milestone kickoff that touches this baseline — it lands the
+    // predicate and the five re-points in one commit, because either alone is red.
+
     /// <summary>
     /// The count the header prose states. It said "four" while seven entries carried it — a file
     /// that miscounts its own conspicuous exceptions is not being read.

@@ -279,7 +279,7 @@ public sealed class IsolationTests
     /// than a relaxation.</b> `30` §3 says the domain may read the entitlement <em>only</em> for the
     /// ad-reward auto-grant cap. `14` §16.2 classifies <c>NOT_ENTITLED</c> as a <b>domain</b>-tier
     /// rejection — this repository's own <c>RejectionReasons.TierOf</c> already agrees, which means
-    /// <c>GameRules.Apply</c> is the only thing allowed to return it — and §662 gives it exactly one
+    /// <c>GameRules.Apply</c> is the only thing allowed to return it — and §16.2 gives it exactly one
     /// worked example: <em>"a Plus-gated operation without Plus (e.g. preset slot 4+, `09` §2.1)"</em>.
     /// A domain-tier value the domain is forbidden to compute cannot both be true. The design set
     /// names the second reader; the architecture rule's prose had not caught up.
@@ -314,9 +314,9 @@ public sealed class IsolationTests
             "conditional, and 12 §2's second grant (every rewarded placement becomes a one-tap " +
             "CLAIM at the same daily cap) is what makes it one. M15-03 authors it."),
         (PresetAllowanceHandlerType,
-            "14 §16.2 — the preset slot allowance, and §662's own worked example of NOT_ENTITLED. " +
+            "14 §16.2 — the preset slot allowance, and §16.2's own worked example of NOT_ENTITLED. " +
             "12 §2 grants Plus unlimited loadout presets and ads.json#/plus/freePresets authors the " +
-            "free three; 12 §66 keeps presets beyond the allowance READ-ONLY rather than deleted, so " +
+            "free three; 12 §2.2 keeps presets beyond the allowance READ-ONLY rather than deleted, so " +
             "the read is confined to SAVE_PRESET and APPLY_PRESET must never make it. M4-10 authors it."),
     };
 

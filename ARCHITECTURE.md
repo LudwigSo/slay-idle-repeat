@@ -34,10 +34,12 @@ Pure, deterministic game logic — must stay playable and testable without Godot
 
 - `Commands/` + `Handlers/` — one command → one handler (e.g. `RollDice.cs`, `ResolveTile.cs`,
   `StartRun.cs`, `ChooseFork.cs`, `ShopBuy.cs`, `PickPerk.cs`), dispatched via `CommandDispatch.cs`.
-- `Rules/` — game systems, subfoldered: `Board`, `Combat`, `Dice`, `Economy`, `Effects`, `Luck`,
-  `Perks`, `Stats`. Tile-kind resolution (Portal, Minigame, Shop, Dice Forge, …) lives here,
-  driven from `Handlers/ResolveTile.cs`.
-- `Model/` — `Player`, `Run`, `Guild`, `Snapshots` (versioned state via `SchemaVersion`).
+- `Rules/` — game systems, subfoldered: `Board`, `Combat`, `Dice`, `Economy`, `Effects`, `Feats`,
+  `Forge`, `Gear`, `Hero`, `Inventory`, `Luck`, `Perks`, `Stats`. Tile-kind resolution (Portal,
+  Minigame, Shop, Dice Forge, …) lives here, driven from `Handlers/ResolveTile.cs`.
+  `Economy` is energy, currency math, shop pricing and run rewards; **merge, enhance and salvage
+  are `Forge`**, not `Economy`.
+- `Model/` — `Player`, `Run`, `Guild`, `Gear`, `Snapshots` (versioned state via `SchemaVersion`).
 - `Events/` — domain events (`DiceRolled.cs`, `CurrencyChanged.cs`, …).
 - `Rng/` — deterministic RNG (seeded, reproducible across client/server).
 

@@ -588,23 +588,37 @@ public sealed class Player
     /// rehydration cost of every command; this checks the one invariant that spans two components
     /// and that no single component can hold on its own.
     /// </para>
+    /// <para>
+    /// 🔒 <b>The accepted set is stated as the two arms that are legal, not as "anything but
+    /// <c>UNKNOWN_ITEM</c>".</b> <c>Rules.Hero.LoadoutRules.IsEquippable</c> is the entry-side half of
+    /// this same invariant and it admits exactly <c>AVAILABLE</c> and <c>LOCKED</c>; written as a
+    /// single exclusion, this half additionally admitted <c>HELD_IN_OVERFLOW</c>, so one invariant was
+    /// stated twice and the two statements disagreed. Unreachable today only because
+    /// <c>Inventory.Place</c> holds nothing but <em>newly arrived</em> items, which no slot can
+    /// already name — which is precisely why it would not have failed on the change that stopped that
+    /// being true. An item in the holding list is one <em>nothing can be done to</em> (see
+    /// <c>ItemAvailability</c>), and a hero wearing one is a hero wearing something the stock is not
+    /// holding for them.
+    /// </para>
     /// </remarks>
-    /// <exception cref="InvalidOperationException">A slot names an item the stock does not hold.</exception>
+    /// <exception cref="InvalidOperationException">A slot names an item the stock does not hold in stock.</exception>
     internal void RequireLoadoutResolves()
     {
         foreach (var (slot, item) in _loadout.Gear)
         {
-            if (Inventory.Availability(item) != ItemAvailability.UNKNOWN_ITEM)
+            var availability = Inventory.Availability(item);
+
+            if (availability is ItemAvailability.AVAILABLE or ItemAvailability.LOCKED)
             {
                 continue;
             }
 
             throw new InvalidOperationException(
                 "This command left '" + item.Value + "' equipped in " + slot + " while the player's " +
-                "stock no longer holds it. A slot NAMES an item rather than copying one, so whatever " +
-                "destroyed the item had to take it off the hero in the same change — " +
-                "Loadout.WithoutItem is that seam. Persisting this row would make every later " +
-                "command fail at the clone, for good.");
+                "stock no longer holds it (" + availability + "). A slot NAMES an item rather than " +
+                "copying one, so whatever destroyed the item — or pushed it into the holding list — " +
+                "had to take it off the hero in the same change; Loadout.WithoutItem is that seam. " +
+                "Persisting this row would make every later command fail at the clone, for good.");
         }
     }
 
@@ -612,7 +626,7 @@ public sealed class Player
     /// <param name="preset">The preset. Its slot is its own.</param>
     /// <remarks>
     /// Whether the player is <em>allowed</em> that slot is not asked here. `12` §2 grants a Plus
-    /// subscriber unlimited slots and `12` §66 keeps presets beyond the free allowance readable when
+    /// subscriber unlimited slots and `12` §2.2 keeps presets beyond the free allowance readable when
     /// Plus lapses, so the allowance is an entitlement question — and no aggregate can see the
     /// session. The handler answers it.
     /// </remarks>
@@ -1185,7 +1199,7 @@ public sealed class Player
         {
             faults.Add(
                 nameof(PlayerSnapshot.Presets) + " is null. An absent preset list is not an empty " +
-                "one: 12 §66 keeps presets a player may no longer WRITE as presets they may still " +
+                "one: 12 §2.2 keeps presets a player may no longer WRITE as presets they may still " +
                 "LOAD, so reading absent as empty deletes builds the design set promises to keep.");
             return null;
         }
@@ -1236,7 +1250,7 @@ public sealed class Player
     /// </para>
     /// <para>
     /// ⚠️ It is deliberately <b>not</b> applied to presets. A preset is a record of a build rather
-    /// than a claim of ownership: `12` §66 keeps presets loadable after Plus lapses, an item can be
+    /// than a claim of ownership: `12` §2.2 keeps presets loadable after Plus lapses, an item can be
     /// salvaged long after a preset named it, and applying a preset restores what is still owned. A
     /// preset validated like the live loadout would make a salvage able to corrupt a save.
     /// </para>

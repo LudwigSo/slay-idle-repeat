@@ -136,6 +136,16 @@ public sealed class Run
     /// <summary>The perks this run has drafted: perk id → owned internal tier (1-3).</summary>
     private readonly Dictionary<string, int> _ownedPerkTiers;
 
+    /// <inheritdoc cref="_ownedPerkTiers"/>
+    /// <remarks>
+    /// The view <see cref="DraftedPerks"/> hands out, built once, on <c>Player</c>'s
+    /// <c>_featCountersView</c> precedent. The map above is mutated in place by
+    /// <see cref="UpsertPerkTier"/>, so a single wrapper stays live — and a fresh wrapper plus a
+    /// fresh <see cref="ReadOnlyDictionary{TKey,TValue}"/> per read was two allocations on a property
+    /// the draft engine reads on every option of every draft.
+    /// </remarks>
+    private readonly DraftedPerks _draftedPerksView;
+
     /// <summary>
     /// The three draft guarantee counters. Plain integers on the run, not entries in the player's
     /// pity counter map: the draft class is scoped per run and authors no counter key, so there is
@@ -247,6 +257,7 @@ public sealed class Run
         _draftBattleKind = draftBattleKind;
         _draftBattleStage = draftBattleStage;
         _ownedPerkTiers = ownedPerkTiers;
+        _draftedPerksView = new DraftedPerks(new ReadOnlyDictionary<string, int>(ownedPerkTiers));
         _rerollChargesSpentThisStage = rerollChargesSpentThisStage;
         _stageGateDiceAnchor = stageGateDiceAnchor;
         _bankedLegendXp = bankedLegendXp;
@@ -411,7 +422,8 @@ public sealed class Run
         _draftPending ? _draftBattleStage : throw NoDraftPending(nameof(DraftBattleStage));
 
     /// <inheritdoc cref="_ownedPerkTiers"/>
-    internal DraftedPerks DraftedPerks => new(new ReadOnlyDictionary<string, int>(_ownedPerkTiers));
+    /// <remarks>A live view over the run's own map — see <see cref="_draftedPerksView"/>.</remarks>
+    internal DraftedPerks DraftedPerks => _draftedPerksView;
 
     /// <inheritdoc cref="_rerollChargesSpentThisStage"/>
     internal int RerollChargesSpentThisStage => _rerollChargesSpentThisStage;

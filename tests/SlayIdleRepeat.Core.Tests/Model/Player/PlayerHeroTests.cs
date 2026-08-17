@@ -276,7 +276,7 @@ public sealed class PlayerHeroTests
 
     /// <summary>An absent preset list is a fault, never a player who has saved none.</summary>
     /// <remarks>
-    /// `12` §66 keeps presets a player may no longer write as presets they may still load, so
+    /// `12` §2.2 keeps presets a player may no longer write as presets they may still load, so
     /// reading absent as empty deletes builds the design set promises to keep.
     /// </remarks>
     [Fact]
@@ -317,7 +317,7 @@ public sealed class PlayerHeroTests
         ]);
 
         Core.Model.Player.Rehydrate(row, Content).IsSuccess.ShouldBeTrue(
-            "12 §66 keeps a preset loadable; only the LIVE loadout must resolve against the stock.");
+            "12 §2.2 keeps a preset loadable; only the LIVE loadout must resolve against the stock.");
     }
 
     /// <summary>The whole hero state round-trips through the snapshot.</summary>

@@ -217,9 +217,13 @@ internal static class GapRegister
         //     meta commands, so inventing a thirty-first wire name would be filling a VOCABULARY hole
         //     with a plausible value. The ladder is modelled and tested at the tuning and model tier
         //     (InventoryTuning.CrownPriceOf, Inventory.PurchaseExpansion), which is as far as code
-        //     can go without a ruling. OWNER: THE M4 MILESTONE REVIEW, the same reader that holds
-        //     M4-03's consecutiveMissesBeforeForce rename — it either amends 14 §2.3 to author the
-        //     row, or rules the ladder model-tier-only, and nothing below that level may decide it.
+        //     can go without a ruling. OWNER: THE M4 MILESTONE REVIEW — it either amends 14 §2.3 to
+        //     author the row, or rules the ladder model-tier-only, and nothing below that level may
+        //     decide it. (This used to name "M4-03's consecutiveMissesBeforeForce rename" as the
+        //     sibling obligation the same reader held. That rename has LANDED — the key is spelled
+        //     forceOnNthKill in luck.json and its schema — so the pairing is gone and only this
+        //     obligation is still open. A note that describes a pending change as pending after it
+        //     shipped is how a reader concludes the whole paragraph is stale.)
         //     Sorting and comparison need no command at all: §2.3's own table records them as purely
         //     local.
 

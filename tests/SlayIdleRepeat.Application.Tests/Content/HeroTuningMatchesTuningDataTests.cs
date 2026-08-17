@@ -135,7 +135,7 @@ public sealed class HeroTuningMatchesTuningDataTests
         value.GetInt32().ShouldBe(
             3,
             "09 §2.1 and 12 §2 — three saved preset slots from the start, unlimited with Plus. " +
-            "09 §53 permits raising this and forbids lowering it: presets are a core free feature.");
+            "09 §2.1 permits raising this and forbids lowering it: presets are a core free feature.");
     }
 
     private static JsonElement Block(string documentPath, string member)

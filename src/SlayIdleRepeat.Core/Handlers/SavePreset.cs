@@ -15,7 +15,7 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// is the ad-reward cap's — so "may this player write a fourth slot" is answered in a handler, where
 /// the session is visible. It is two reads and a comparison: the free allowance is authored at
 /// <c>ads.json#/plus/freePresets</c>, and Plus is on the session. Inside the allowance, anybody may
-/// write. Outside it, only a subscriber may, and everyone else gets <c>NOT_ENTITLED</c> — `14` §662's
+/// write. Outside it, only a subscriber may, and everyone else gets <c>NOT_ENTITLED</c> — `14` §16.2's
 /// own example of that value is "a Plus-gated operation without Plus (e.g. preset slot 4+)".
 /// </para>
 /// <para>

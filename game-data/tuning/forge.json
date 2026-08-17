@@ -40,7 +40,7 @@
     "plusLuckyChargesAccumulate": false
   },
   "salvage": {
-    "_doc": "08 §4.3. Merge Dust and the stone refund only: 24 §5.1's Set Token yield has no number here and no wallet row to move into, so it stays absent rather than guessed. The auto-salvage filter's rules are per-player configuration rather than tuning, so no default filter is authored.",
+    "_doc": "08 §4.3. Merge Dust and the stone refund only: 24 §5.1's Set Token yield has no number here and no wallet row to move into, so it stays absent rather than guessed. The auto-salvage filter's rules are per-player configuration rather than tuning, so no default filter is authored. ROUNDING, and it is the game's one exception: both payouts here FLOOR, while every other whole-currency conversion in Core rounds to nearest (progression/minigame/run-reward scaling round AwayFromZero, the shop rounds ToEven in decimal). No document authors any of those directions. Salvage is the return leg of a SINK — it hands back part of what was already spent — so rounding it up would pay out material that was never paid in, and the stone refund would exceed the stone cost at some levels; the others convert authored REWARDS, where nearest is the neutral choice. Do not unify this one towards the others without a ruling on the refund ladder. Rules.Forge.GearSalvage carries the same note.",
     "baseDustByRarity": { "C": 10, "B": 40, "A": 160, "S": 640, "SS": 2560 },
     "dustPerEnhanceLevel": 0.15,
     "stoneRefundShare": 0.6

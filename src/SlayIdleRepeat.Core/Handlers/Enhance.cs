@@ -32,8 +32,21 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// </remarks>
 internal static class Enhance
 {
-    /// <summary>The attribution token an attempt's stone cost is logged under.</summary>
-    private const string StoneReason = "enhance_cost";
+    /// <summary>The attribution token a <em>successful</em> attempt's stone cost is logged under.</summary>
+    /// <remarks>
+    /// 🔒 <b>Two tokens rather than one, and that is the whole reason the outcome is not discarded.</b>
+    /// The stones are spent either way, so a single token would make an attempt that bought a level
+    /// and an attempt that bought nothing the same row of `21` §8.3's attribution report — and the
+    /// enhancement success rate, which `24` §4.6's mercy exists to protect, would be unanswerable
+    /// from the event log. The item itself carries the level and the failure counter, but only as
+    /// they stand <em>now</em>: a stock read after the fact cannot say which command moved them, and
+    /// `30` §12.7 forbids rebuilding what was never written down.
+    /// </remarks>
+    private const string StoneReasonOnSuccess = "enhance_cost_success";
+
+    /// <summary>The attribution token a <em>failed</em> attempt's stone cost is logged under.</summary>
+    /// <remarks>See <see cref="StoneReasonOnSuccess"/> for why the outcome is spelled into the token.</remarks>
+    private const string StoneReasonOnFailure = "enhance_cost_failure";
 
     /// <summary>Takes one enhancement attempt.</summary>
     /// <param name="command">The item to enhance.</param>
@@ -75,7 +88,12 @@ internal static class Enhance
 
         var mercy = LuckTuning.Read(input.Context.Content).Enhance;
 
-        var (enhanced, _, _) = GearEnhancement.Attempt(
+        // ⚠️ The RATE is deliberately the one part of the answer that is not carried out of the
+        // handler. No event in today's vocabulary can hold a double, and unlike the outcome it is
+        // recomputable without one: GearEnhancement.EffectiveRate is a pure function of the level
+        // and the failure counter the item carried going in, both of which the previous accepted
+        // command wrote down. The outcome is not — see StoneReasonOnSuccess.
+        var (enhanced, succeeded, _) = GearEnhancement.Attempt(
             item,
             GearEnhancement.NoLuckyBonus,
             forge,
@@ -85,6 +103,9 @@ internal static class Enhance
         stock.Replace(enhanced);
 
         return HandlerResult.Accept(
-            player.MoveCurrency(CurrencyId.ENHANCE_STONES, -stones, StoneReason));
+            player.MoveCurrency(
+                CurrencyId.ENHANCE_STONES,
+                -stones,
+                succeeded ? StoneReasonOnSuccess : StoneReasonOnFailure));
     }
 }

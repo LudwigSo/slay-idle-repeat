@@ -19,6 +19,22 @@ namespace SlayIdleRepeat.Core.Model;
 /// nobody wrote for it.
 /// </para>
 /// <para>
+/// 🔴 <b>The uncomfortable half, recorded in the M4 review because the paragraph above stated only
+/// the comfortable one.</b> The kickoff ruling that put a filter on the hero name (<b>R9</b>) argued
+/// from consistency in as many words — <em>"running two different standards on two name fields in
+/// one product is the worse outcome, and `27`'s is the one that was actually written down"</em> —
+/// and this repository now runs two different standards on two name fields. The reason above is a
+/// real distinction and it is <em>not</em> the distinction R9 drew: R9 was about the <em>standard</em>
+/// being one, and the answer here is that the <em>audience</em> is not. Both readings are defensible
+/// and neither is authored, which makes this a <b>product decision</b> rather than an engineering
+/// one — so no filter is added on either reading, and the tension is written down instead of being
+/// resolved by whoever edits this file next. What would settle it: a design section saying which
+/// player-authored fields are filtered, which R9 itself observed does not exist. ⚠️ If the answer
+/// turns out to be "filter it", note that this type cannot host the change — the filter is a
+/// <c>Rules/Hero/</c> rule and `30` §11.4 forbids <c>Model</c> naming <c>Rules</c>, so it lands in
+/// <see cref="Create"/>'s caller exactly as the hero name's does.
+/// </para>
+/// <para>
 /// 🔴 <b>No <em>design</em> bound is authored on the name or the slot number.</b> `07` §4 and
 /// `09` §2.1 both say "named" without saying how long, `12` §2 grants a subscriber "unlimited"
 /// presets, and the hero name's own 12 is `07` §1's number for a different field. None of those

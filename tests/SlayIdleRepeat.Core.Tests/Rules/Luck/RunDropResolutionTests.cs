@@ -70,11 +70,12 @@ public sealed class RunDropResolutionTests
     /// guarantee and four do not.
     /// </summary>
     /// <remarks>
-    /// The authored key is spelled <c>consecutiveMissesBeforeForce</c>, which reads as "misses
-    /// tolerated before the force" and would put the guarantee on the seventh kill. The design text is
-    /// unambiguous — count consecutive Elite kills whose drop was below A, and on the sixth force A or
-    /// better — so five misses precede the forced draw. A case that only checked "forced eventually"
-    /// would pass under either reading.
+    /// The authored key <em>was</em> spelled <c>consecutiveMissesBeforeForce</c>, which reads as
+    /// "misses tolerated before the force" and would put the guarantee on the seventh kill; the M4
+    /// review renamed it to <c>forceOnNthKill</c>. The design text was always unambiguous — count
+    /// consecutive Elite kills whose drop was below A, and on the sixth force A or better — so five
+    /// misses precede the forced draw. This case is what pins the reading whatever the key is called:
+    /// one that only checked "forced eventually" would pass under either.
     /// </remarks>
     [Theory]
     [InlineData(4, false)]

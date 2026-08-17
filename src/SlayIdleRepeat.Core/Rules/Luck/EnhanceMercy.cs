@@ -24,9 +24,13 @@ namespace SlayIdleRepeat.Core.Rules.Luck;
 /// the caller is told which counter its bonus moves.
 /// </para>
 /// <para>
-/// <b>The cap is applied once, at the end.</b> Clamping the mercy first and then adding the bonus
-/// would let a bonus push the rate past a cap the mercy alone was held below, which is the one thing
-/// a ceiling exists to stop.
+/// <b>The cap is applied twice, and only the second application is load-bearing.</b>
+/// <c>SoftPity.RateWithMercy</c> already clamps the mercy ramp at the same ceiling, so the earned
+/// share arrives here at or below the cap; the clamp in <see cref="EffectiveRate"/> is there for the
+/// bonus, which is added <em>after</em> that first clamp and would otherwise push the rate past a
+/// ceiling the mercy alone was held below. The redundancy is stated rather than removed because the
+/// two clamps belong to two different rules — one guards a ramp this type does not own, the other
+/// guards an addition <c>SoftPity</c> never sees.
 /// </para>
 /// </remarks>
 internal static class EnhanceMercy

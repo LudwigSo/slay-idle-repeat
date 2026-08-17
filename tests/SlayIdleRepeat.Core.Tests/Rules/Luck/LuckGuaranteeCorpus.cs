@@ -50,9 +50,10 @@ internal sealed class LuckGuaranteeCorpus
     /// `24` §4.3 D1's elite dry-streak breaker: the 6th elite kill of a streak is the forced one.
     /// </summary>
     /// <remarks>
-    /// An <b>ordinal</b>, not a miss count — five misses precede it. The authored key is spelled
-    /// <c>consecutiveMissesBeforeForce</c> and reads as the other thing; the reader calls it
-    /// <c>ForceOnNthKill</c>, which is what the design text says.
+    /// An <b>ordinal</b>, not a miss count — five misses precede it. The authored key <em>was</em>
+    /// spelled <c>consecutiveMissesBeforeForce</c>, which read as the other thing; the M4 review
+    /// renamed the data to <c>forceOnNthKill</c>, so the document and the reader's
+    /// <c>ForceOnNthKill</c> now say the same thing the design text does.
     /// </remarks>
     internal const int EliteMercyRung = LuckDocuments.ShippedDropRunEliteMercyN;
 
