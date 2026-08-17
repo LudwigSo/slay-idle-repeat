@@ -30,7 +30,8 @@ internal sealed class CommandDispatch
     /// <param name="opensRun">
     /// <c>true</c> only for <c>START_RUN</c>: the one command that creates the run its own
     /// <c>CommandKind.Run</c> would otherwise require to already exist. Every other row leaves
-    /// this <c>false</c> and is refused on a run-less slice by <see cref="GameRules.Execute"/>.
+    /// this <c>false</c> and is refused by <see cref="GameRules.Execute"/> both on a run-less slice
+    /// and on a slice whose run has ended.
     /// </param>
     internal CommandDispatch Handled<TCommand>(
         string wireName, CommandKind kind, CommandHandler<TCommand> handler, bool opensRun = false)
@@ -101,6 +102,23 @@ internal sealed class CommandDispatch
                 "A command is either a RUN command or a META command (14 §2.3, 19 + 30). The kind " +
                 "decides whether Apply builds a RunRngScope and whether the run's 14 §16.3 sliding " +
                 "TTL moves, so an undefined one is not a default to fall back on.");
+        }
+
+        // Enforced once here rather than re-checked on every command's path: the flag exempts a row
+        // from both of Execute's run guards — the run-less one and the ended-run one — and the
+        // second of those clears the slice's finished run. A meta row carrying it would drop a run
+        // it is not even allowed to write, and would slip past the ownership check that exists to
+        // catch exactly that, since there would be no run left to compare.
+        if (registration.OpensRun && registration.Kind != CommandKind.Run)
+        {
+            throw new ArgumentException(
+                "'" + registration.WireName + "' is registered CommandKind.Meta and opensRun. Only a " +
+                "run command can open a run: the flag is what lets a row act on a slice carrying no " +
+                "run, and what lets it discard a run that has ended. A meta command is dispatched " +
+                "with the player's run in the slice precisely so it can READ it, and marking one " +
+                "here would silently drop that run from the result while the ownership check that " +
+                "guards it found nothing left to compare.",
+                nameof(registration));
         }
 
         // Both refusals run before either index is written, so a row never ends up half-registered
@@ -226,7 +244,8 @@ internal delegate HandlerResult CommandHandler<in TCommand>(TCommand command, Ha
 /// </param>
 /// <param name="OpensRun">
 /// <c>true</c> for exactly one row, <c>START_RUN</c> — the one command allowed to run on a
-/// run-less slice, since its job is to create the run its own kind would otherwise require.
+/// run-less slice, and on a slice whose run has ended, since its job is to create the run its own
+/// kind would otherwise require.
 /// </param>
 internal sealed record CommandRegistration(
     Type CommandType,

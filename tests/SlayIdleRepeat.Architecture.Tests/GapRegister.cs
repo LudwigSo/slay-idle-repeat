@@ -222,40 +222,36 @@ internal static class GapRegister
         //     row, or rules the ladder model-tier-only, and nothing below that level may decide it.
         //     Sorting and comparison need no command at all: §2.3's own table records them as purely
         //     local.
-        //
-        // (2) NOTHING CALLS Inventory.Place YET. The container takes a granted item and never
-        //     refuses one, but no production caller hands it anything — Player.Inventory is reachable
-        //     and unused, and Content.InventoryTuning.Read has no production caller either. OWNER:
-        //     M4-02, which owns 24 §4's DROP_RUN D1–D3 and is where a run drop becomes an item the
-        //     player keeps; M4-04 is the first consumer of an item once it is in there (merge,
-        //     enhance, salvage), and M4-15's end-to-end exit criterion — "a run banks gear" — is the
-        //     test that cannot pass while this path is missing.
-        //
-        //     🔒 THAT WITNESS HAS LANDED and is named rather than merely anticipated: MetaLoopTests.
-        //     A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory. It drives a run
-        //     through commands and asserts the player's stock is byte-identical across it, so it goes
-        //     RED on the commit that wires this path — which is the signal to close BOTH halves: this
-        //     note, and the exit criterion's "banks gear" clause, which that test currently records
-        //     as unreachable.
 
         // ⚠️ M4-10 BUILT THE HERO NAME FILTER AND NOTHING CALLS IT, and that is written here rather
         // than as an entry because this register keys on a TYPE and the gap is a missing CALLER.
-        // The same shape, and the same treatment, as M4-05's "nothing calls Inventory.Place yet" note
-        // above: an obligation with an owner is the most this mechanism can do for a gap it cannot
-        // hold.
+        // The same shape, and the same treatment, as M4-05's "nothing calls Inventory.Place yet"
+        // note, which used to stand above and which M7-00d DELETED in the commit that wired the
+        // first caller — the note's own text asked for exactly that. An obligation with an owner is
+        // the most this mechanism can do for a gap it cannot hold; being deleted on the wiring
+        // commit is what stops it becoming a comment nobody owns.
         //
         // WHAT EXISTS: Rules.Hero.HeroNameRule (07 §1's twelve characters, 27 §1's EN + DE lists, at
         // creation and on every edit), Content.ProfanityLexicon, the two word lists under
         // content/profanity/, Primitives.HeroName — a name only the rule can construct — and
-        // Player.Rename, which takes that type and nothing else. The filter cannot be bypassed by any
-        // caller that exists.
+        // Player.Rename, which takes that type and nothing else. No name a PLAYER chooses can reach
+        // the aggregate without passing the filter, because there is no door that takes one.
         //
         // WHAT DOES NOT EXIST: a caller. 14 §2.3's registry is EXHAUSTIVE and authors no rename
-        // command, so setting a name is not a command at all — it happens when an account is created,
-        // and no account-creation path exists. Core.Testing.InMemoryGame.CreatePlayer writes
-        // DisplayName directly and says so in its own comment: it runs on hermetic content sets that
-        // carry the tuning documents and nothing else, so reading content/profanity/ there would make
-        // every fixture in the Core suite depend on the shipped data set.
+        // command, so setting a name is not a command at all — it happens when an account is created.
+        //
+        // ⚠️ M7-09 CHANGED THE SECOND HALF OF THIS NOTE AND IT IS RESTATED RATHER THAN LEFT TO ROT.
+        // An account-creation path now exists: Application.Hosting.InProcessGameHost.OpenProfileAsync
+        // mints an identity and commits a starting row. It does NOT weaken 27 §1, because it names the
+        // profile after the identity it minted and no player text reaches DisplayName — nothing has
+        // asked a player for a name yet, which is still the whole of this gap. What DID move is where
+        // the unfiltered write lives: it used to be inside Core.Testing.InMemoryGame.CreatePlayer,
+        // excused because that harness runs on hermetic content sets carrying no word lists. The row
+        // is now built once, by the public Core.Model.Player.CreateStarting, which takes a plain
+        // string and stores it exactly as given; the harness and the in-process host both go through
+        // it, and its own remarks record the limit. So the unfiltered door is public on the aggregate
+        // rather than private to a harness, and M5-06 inherits a wider surface than this note used to
+        // describe: it has to route ITS name through HeroNameRule, not merely add a caller.
         //
         // OWNER: M5-06, "Auth: anonymous device accounts (keystore-held secret)" — the task that
         // first creates an account, and therefore the first place a hero name is set. It calls
@@ -268,16 +264,16 @@ internal static class GapRegister
         // when_something_does goes RED on the commit that wires the first caller, and its failure
         // message says to delete both itself and this note in that commit.
         //
-        // 🔴 The M4-05 note above said the same requirement "could not have one, because its subject
-        // was a call that must eventually EXIST rather than one that must not yet." M4-15 showed
-        // that reasoning was wrong: a witness for a call that must not yet exist can assert the
-        // BEHAVIOUR its absence produces, which is decidable today and stops being true on the
-        // commit that adds the call. MetaLoopTests.
-        // A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory drives a whole run
-        // and compares the player's stock by canonical bytes across it; the day anything hands an
-        // item to Inventory.Place mid-run, it goes RED and says to delete itself. Corrected here
-        // rather than left standing, because a register that records an obligation as unwitnessable
-        // is a register nobody will try to witness.
+        // 🔴 The deleted M4-05 note said the same requirement "could not have one, because its
+        // subject was a call that must eventually EXIST rather than one that must not yet." M4-15
+        // showed that reasoning was wrong: a witness for a call that must not yet exist can assert
+        // the BEHAVIOUR its absence produces, which is decidable today and stops being true on the
+        // commit that adds the call. It wrote one — a whole run driven through commands, with the
+        // player's stock compared by canonical bytes across it — and M7-00d turned it red by wiring
+        // the drop path, which is the whole mechanism working: that case is now the POSITIVE claim
+        // (MetaLoopTests.A_run_banks_gear_into_the_players_own_stock) and the note it guarded is
+        // gone. Recorded here rather than dropped, because a register that records an obligation as
+        // unwitnessable is a register nobody will try to witness.
         //
         // ⚠️ M4-10 ALSO LEFT AN OBLIGATION ON A SIBLING TASK, and it is written here because the
         // tracker row is the conductor's to edit and this file is the place a later agent reads.
@@ -804,7 +800,9 @@ internal static class GapRegister
         // §2.3's boundaries. Catch-up never touches Run.LastAppliedAtUtc (M1-05's ruling), and
         // EXPIRING a run needed RunPhase, which M3-05 has now authored (see the discharged entry's
         // note above) — GameRules.Execute's phase gate answers RUN_ALREADY_ENDED once a run reaches
-        // RunPhase.Ended, which is M3-13's to produce (EndRunCommand/AbandonRunCommand).
+        // RunPhase.Ended, which is M3-13's to produce (EndRunCommand/AbandonRunCommand). M7-00b
+        // narrowed that: the gate answers it for every run command EXCEPT the one row marked
+        // OpensRun, which opens a fresh run over the ended one.
         new("30 §2.3 (the lazy-catch-up boundaries whose state does not exist)", Domain.ModelNamespace, new[]
         {
             "QuestSlate",

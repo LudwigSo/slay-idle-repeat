@@ -29,12 +29,12 @@ internal static class DraftWorlds
     {
         var baseline = InRunIncomeDocuments.Shipped;
 
-        // The pity registry too: the draft draws under 24 §4.7's rules now, so the handler reads
-        // luck.json on the same command that reads the perk catalogue.
+        // The pity registry the draft draws under is already in the baseline — it arrived there with
+        // the in-run gear grant, which reads the same document — so appending it again would be the
+        // same path twice, which ContentSnapshot refuses rather than resolving by ordering accident.
         var documents = baseline.DocumentPaths
             .Select(baseline.GetDocument)
-            .Append(PerkDocuments.Document)
-            .Append(LuckDocuments.LuckOnly().GetDocument(LuckDocuments.DocumentPath));
+            .Append(PerkDocuments.Document);
 
         return new ContentSnapshot(baseline.Version, documents);
     }

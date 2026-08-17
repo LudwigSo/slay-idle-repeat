@@ -1,0 +1,13 @@
+{
+  "$schema": "../../schema/boot.schema.json",
+  "_doc": "M7-03 — the strings the boot screen (S01) shows, and nothing else. 13 §1's screen inventory is S01's entire specification and authors no strings, so these are authored rather than transcribed and the file carries no _status fidelity claim (content/chapters/*.json is the same shape). It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. Deliberately not a screen script: no first-run beat, no tutorial, no maintenance or forced-update copy, no retry ladder. Those are M9's and M18-01's, and inventing them here would make unbuilt flows look shipped.",
+  "title": "loc.boot.title.name",
+  "stageStatus": {
+    "splash": "loc.boot.splash.status",
+    "content": "loc.boot.content.status",
+    "profile": "loc.boot.profile.status",
+    "atlas": "loc.boot.atlas.status",
+    "ready": "loc.boot.ready.status"
+  },
+  "failureStatus": "loc.boot.failure.status"
+}

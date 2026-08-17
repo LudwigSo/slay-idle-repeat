@@ -99,10 +99,14 @@ public sealed class HeroNameWritePathRuleTests
     /// available for "this is not wired up yet".
     /// </para>
     /// <para>
-    /// ⚠️ Scoped to <c>src/</c> only. <c>Core/Testing/InMemoryGame</c> is production code by
-    /// assembly and writes <c>DisplayName</c> directly rather than through the rule, which its own
-    /// comment records — it runs on hermetic content sets that carry no word lists, so it cannot call
-    /// the filter. If it ever does, that is progress too and this rule says so.
+    /// ⚠️ Scoped to <c>src/</c> only, and one production path writes <c>DisplayName</c> without the
+    /// filter: <c>Player.CreateStarting</c>, which takes a plain string and stores it as given, and
+    /// records that limit in its own remarks. Both the domain harness and the in-process host build
+    /// their starting row through it, and neither hands it player-chosen text — the harness runs on
+    /// hermetic content sets that carry no word lists, and the host names the profile after the
+    /// identity it minted. 🔴 Neither scan below can see that parameter: a caller that passed
+    /// player-chosen text to it would set an unfiltered name with both rules still green. What the
+    /// second scan sees is the filter GAINING a caller, which is the other direction.
     /// </para>
     /// </remarks>
     [Fact]

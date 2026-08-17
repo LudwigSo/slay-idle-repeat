@@ -118,9 +118,10 @@ internal static class Domain
     internal const string BattleRngScopeType = "BattleRngScope";
 
     /// <summary>
-    /// The <c>Rules</c> types that may be public: <c>30</c> §11.2's two documented entry points —
-    /// the client's local battle simulation (<c>14</c> §2.4) and the Hero screen's power readout
-    /// (<c>29</c> §1) — plus the enumerated signature closure of <c>CombatSimulator.Simulate</c>.
+    /// The <c>Rules</c> types that may be public: three documented entry points — <c>30</c> §11.2's
+    /// two, the client's local battle simulation (<c>14</c> §2.4) and the Hero screen's power
+    /// readout (<c>29</c> §1), plus M7-05b's board projection for the client's Board screen (S05) —
+    /// and the enumerated signature closure of each.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -137,7 +138,7 @@ internal static class Domain
     /// </para>
     /// <para>
     /// 🔒 <b>R16 — the list is ENUMERATED, never a blanket "anything reachable from a public
-    /// type".</b> These six are exactly the signature closure of
+    /// type".</b> The first six are exactly the signature closure of
     /// <c>Simulate(ulong, ActorStats, int, IReadOnlyList&lt;ActorStats&gt;, int)</c> and its
     /// <c>SimulationResult</c> return. A blanket rule would let a third public entry point appear
     /// without anyone deciding to add one; enumerated, it costs a line in this diff. Everything a
@@ -152,6 +153,25 @@ internal static class Domain
     /// also drag <c>StatRounding</c> across the layering boundary to solve a visibility problem that
     /// visibility solves.
     /// </para>
+    /// <para>
+    /// 🔒 <b>M7-05b adds a THIRD entry point, <c>BoardView</c>, and its four signature types.</b> Its
+    /// named consumer is the client's Board screen (S05) and its Die Panel: `03` §1.1's board is
+    /// deliberately never persisted — it regenerates from <c>RunSeed</c> on every command — so before
+    /// this widening no assembly outside <c>Core</c> could see a tile track or a fork preview at all,
+    /// and the Board screen could draw neither. <c>BoardView.Project</c> replays that layout and
+    /// hands back a read-only projection: <c>BoardTrackNode</c> and <c>BoardFork</c> are its return
+    /// shapes, and <c>TileKind</c> and <c>ForkLabel</c> are public by the same CONSEQUENCE R15
+    /// records — a public member returning an internal enum does not compile.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The producer is deliberately not here.</b> <c>BoardGenerator</c>, <c>BoardGraph</c>,
+    /// <c>BoardNode</c>, <c>BoardEdge</c>, <c>MovementEngine</c>, <c>BoardResolution</c> and
+    /// <c>ForkPreview</c> stay <c>internal</c>: what M7-05b exports is the VIEW, not the machinery
+    /// that decides a board, and <c>BoardViewSurfaceRuleTests</c> is what keeps the two apart. The
+    /// entry point takes a <c>RunSnapshot</c> and a <c>ContentSnapshot</c> — both already public —
+    /// and hands out no draw stream, so nothing outside <c>Core</c> gains a way to generate a board
+    /// or to move a run along one.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
     {
@@ -161,6 +181,11 @@ internal static class Domain
         "CombatEvent",
         "CombatEventType",
         "ActorStats",
+        "BoardView",
+        "BoardTrackNode",
+        "BoardFork",
+        "TileKind",
+        "ForkLabel",
     };
 
     /// <summary>

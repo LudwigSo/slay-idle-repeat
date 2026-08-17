@@ -21,8 +21,8 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// </para>
 /// <para>
 /// Two ways that happens. A set built by a naming filter can be emptied by a rename:
-/// <c>AdapterNames</c> is <c>StartsWith("SlayIdleRepeat.Adapters.")</c> over 21 projects,
-/// and renaming them to the singular <c>SlayIdleRepeat.Adapter.*</c> would empty it and
+/// <c>AdapterNames</c> is <c>StartsWith("SlayIdleRepeat.Adapters.")</c> over every adapter
+/// project, and renaming them to the singular <c>SlayIdleRepeat.Adapter.*</c> would empty it and
 /// take five rules green with it, at which point <c>Application</c> could reach a vendor
 /// driver through a renamed adapter with the whole `23` §5/§6 isolation block passing. A
 /// set built by looking a type up by name can be emptied by M1 choosing a different name:
@@ -1362,8 +1362,24 @@ public sealed class SubjectSetFloorTests
     // is a deliberate decision that belongs in the same commit as the deletion that forces
     // it, with the reason in the message.
 
-    private const int ProductionProjectFloor = 29;   // 26 under src/ + 3 under tools/
-    private const int AdapterFloor = 21;
+    // 🔒 M5-01 raised both of these by exactly the two adapter projects it adds: the shared
+    // Adapters.Ambient.System (the real system clock and id generator) and the client
+    // Adapters.Cache.LocalFile that `23` §3 already catalogues and nothing had built. They move
+    // together because every adapter is also a production project; if a later task raises one
+    // without the other, one of the two sets has gained a member the other did not see.
+    //
+    // ⚠️ The project floor's trailing sum was ALREADY STALE and is corrected rather than shifted:
+    // it read "26 under src/ + 3 under tools/", written before the four asset tools landed. The
+    // tree holds 26 under src/ and 7 under tools/ today, and 28 + 7 once the two adapters above
+    // exist — so 31 is a floor with genuine headroom rather than the count minus nothing, which is
+    // what this block's preamble asks for. AdapterFloor stays tight against the tree because a
+    // renamed adapter is the specific silence it watches for.
+    // 🔒 M7-01b raised both by exactly the one adapter project it adds: the client
+    // Adapters.Platform.Host, the real non-engine IPlatformInfoPort that `23` §5 A5 needs beside the
+    // fake. Same pairing rule as M5-01's above, and ContractSuiteCoverageTests.AdapterAssemblyFloor
+    // — which is stated over the same adapters from the other test assembly — moved with them.
+    private const int ProductionProjectFloor = 32;   // src/ + tools/, floored below the 36 the tree holds
+    private const int AdapterFloor = 24;
     // 🔒 M1-02 raised this from 26 to 110 (measured: 120 today). It is the one floor in this file
     // that had gone quiet by standing still: the file's own preamble says these numbers are
     // "derived from the tree as it stands on this commit", and 26 was M0-08's tree. At 26 the ENTIRE
@@ -1375,7 +1391,15 @@ public sealed class SubjectSetFloorTests
     // compiler-generated types a refactor moves either way, and low enough that lowering it is still
     // the deliberate act the comment above describes.
     private const int CoreTypeFloor = 110;           // Il.AllTypes over SlayIdleRepeat.Core
-    private const int PortFloor = 1;                 // IContentSourcePort (M0-09)
+    // 🔒 M5-01 raised this from 1 to 5. At 1 the entire `23` §4 catalogue could be deleted down to
+    // IContentSourcePort with DependencyRuleTests' two port rules still clearing the floor — and
+    // those two rules are the only thing making a port more than a folder convention. The four this
+    // task adds are IClockPort, IIdGeneratorPort, ILocalCachePort and IRewardedAdPort; every other
+    // port `23` §4 declares is carried by PortCatalogue.Deferred with the task that builds it.
+    // 🔒 M7-01b raised this from 5 to 6 for IPlatformInfoPort, the first of `23` §4.1's three
+    // platform ports to become declarable — with PortCatalogueTests.DeclaredPortFloor and
+    // ContractSuiteCoverageTests.PortFloor, the two other floors over this same set.
+    private const int PortFloor = 6;                 // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     // 🔒 M1-12. The constants whose register row carries a citation THIS assembly can resolve, and

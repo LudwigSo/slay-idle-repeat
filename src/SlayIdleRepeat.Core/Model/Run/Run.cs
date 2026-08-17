@@ -170,6 +170,17 @@ public sealed class Run
     /// <summary>Whether this run's Boss has been killed.</summary>
     private bool _bossDefeated;
 
+    /// <summary>
+    /// How many items at or above the session floor's band this run has produced.
+    /// </summary>
+    /// <remarks>
+    /// Persisted rather than recomputed at run end: the floor asks what the RUN produced, and the
+    /// stock it produced into is the player's — an item salvaged, merged away or banked by an
+    /// earlier run is indistinguishable there, so a tally taken from the inventory would pay the
+    /// floor to a run that dropped nothing and refuse it to one that dropped and then spent.
+    /// </remarks>
+    private int _itemsAtOrAboveFloorBand;
+
     /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
     private Run(
         RunId id,
@@ -203,9 +214,11 @@ public sealed class Run
         int draftsSinceLegendaryOffered,
         int draftsWithoutAboveCommon,
         int draftsWithoutOwnedUpgrade,
-        Loadout startingLoadout)
+        Loadout startingLoadout,
+        int itemsAtOrAboveFloorBand)
     {
         StartingLoadout = startingLoadout;
+        _itemsAtOrAboveFloorBand = itemsAtOrAboveFloorBand;
         _draftsSinceLegendaryOffered = draftsSinceLegendaryOffered;
         _draftsWithoutAboveCommon = draftsWithoutAboveCommon;
         _draftsWithoutOwnedUpgrade = draftsWithoutOwnedUpgrade;
@@ -424,6 +437,16 @@ public sealed class Run
     /// <summary>Consecutive drafts that offered no owned-perk upgrade.</summary>
     internal int DraftsWithoutOwnedUpgrade => _draftsWithoutOwnedUpgrade;
 
+    /// <inheritdoc cref="_itemsAtOrAboveFloorBand"/>
+    internal int ItemsAtOrAboveFloorBand => _itemsAtOrAboveFloorBand;
+
+    /// <summary>Records that this run produced one more item at or above the floor's band.</summary>
+    /// <remarks>
+    /// A count rather than a flag, because the floor is authored as a threshold on how many such
+    /// items a run produced and the document is free to move that threshold off one.
+    /// </remarks>
+    internal void CountItemAtOrAboveFloorBand() => _itemsAtOrAboveFloorBand++;
+
     /// <summary>Stores the three draft counters a resolution answered.</summary>
     /// <remarks>
     /// The one writer, and it takes values rather than deltas for the same reason the player's
@@ -523,7 +546,8 @@ public sealed class Run
         _draftsSinceLegendaryOffered,
         _draftsWithoutAboveCommon,
         _draftsWithoutOwnedUpgrade,
-        StartingLoadout.ToSnapshot());
+        StartingLoadout.ToSnapshot(),
+        _itemsAtOrAboveFloorBand);
 
     /// <summary>The one validated entry point for a persisted run: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -572,6 +596,7 @@ public sealed class Run
         var ownedPerkTiers = ReadOwnedPerkTiers(snapshot, faults);
         RequireBankedRewards(snapshot, faults);
         RequireDraftCounters(snapshot, faults);
+        RequireFloorBandTally(snapshot, faults);
         var startingLoadout = ReadStartingLoadout(snapshot, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns
@@ -625,7 +650,8 @@ public sealed class Run
             snapshot.DraftsSinceLegendaryOffered,
             snapshot.DraftsWithoutAboveCommon,
             snapshot.DraftsWithoutOwnedUpgrade,
-            startingLoadout));
+            startingLoadout,
+            snapshot.ItemsAtOrAboveFloorBand));
     }
 
     /// <summary>
@@ -669,6 +695,23 @@ public sealed class Run
             snapshot.DraftsWithoutAboveCommon, nameof(RunSnapshot.DraftsWithoutAboveCommon), faults);
         RequireNonNegativeCounter(
             snapshot.DraftsWithoutOwnedUpgrade, nameof(RunSnapshot.DraftsWithoutOwnedUpgrade), faults);
+    }
+
+    /// <summary>The run's tally of items at or above the session floor's band counts items, so it is never negative.</summary>
+    /// <remarks>
+    /// A negative tally would read as a run that produced less than nothing worth keeping, and the
+    /// floor would pay it a grant on top of the items it already dropped.
+    /// </remarks>
+    private static void RequireFloorBandTally(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.ItemsAtOrAboveFloorBand < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.ItemsAtOrAboveFloorBand) + " is " +
+                Text(snapshot.ItemsAtOrAboveFloorBand) + ". It counts the items this run produced at " +
+                "or above the session floor's band, and a count below zero is not a state a run " +
+                "reaches by producing anything.");
+        }
     }
 
     private static void RequireNonNegativeCounter(int value, string field, List<string> faults)

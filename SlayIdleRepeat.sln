@@ -101,6 +101,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetPlaceho
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.AssetPlaceholders.Tests", "tests\SlayIdleRepeat.AssetPlaceholders.Tests\SlayIdleRepeat.AssetPlaceholders.Tests.csproj", "{C4F85F57-CB6A-40EE-9948-4747077841CE}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Ambient.System", "src\adapters\shared\SlayIdleRepeat.Adapters.Ambient.System\SlayIdleRepeat.Adapters.Ambient.System.csproj", "{08417B64-9DFE-4267-BE4C-2B42578BC616}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Cache.LocalFile", "src\adapters\client\SlayIdleRepeat.Adapters.Cache.LocalFile\SlayIdleRepeat.Adapters.Cache.LocalFile.csproj", "{CD400156-F3DE-495E-AF56-261CF9182328}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Client.Tests", "tests\SlayIdleRepeat.Client.Tests\SlayIdleRepeat.Client.Tests.csproj", "{61F4CD4F-998B-4F0B-8FB5-45BB18E320A5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Platform.Host", "src\adapters\client\SlayIdleRepeat.Adapters.Platform.Host\SlayIdleRepeat.Adapters.Platform.Host.csproj", "{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -274,6 +282,22 @@ Global
 		{C4F85F57-CB6A-40EE-9948-4747077841CE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C4F85F57-CB6A-40EE-9948-4747077841CE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C4F85F57-CB6A-40EE-9948-4747077841CE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{08417B64-9DFE-4267-BE4C-2B42578BC616}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{08417B64-9DFE-4267-BE4C-2B42578BC616}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{08417B64-9DFE-4267-BE4C-2B42578BC616}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{08417B64-9DFE-4267-BE4C-2B42578BC616}.Release|Any CPU.Build.0 = Release|Any CPU
+		{CD400156-F3DE-495E-AF56-261CF9182328}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{CD400156-F3DE-495E-AF56-261CF9182328}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{CD400156-F3DE-495E-AF56-261CF9182328}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{CD400156-F3DE-495E-AF56-261CF9182328}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61F4CD4F-998B-4F0B-8FB5-45BB18E320A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61F4CD4F-998B-4F0B-8FB5-45BB18E320A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61F4CD4F-998B-4F0B-8FB5-45BB18E320A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61F4CD4F-998B-4F0B-8FB5-45BB18E320A5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{673B7BF0-F824-4555-BAFA-1875DBE42927} = {3DC05598-070C-4A81-B839-1DE39A7CAA92}
@@ -322,5 +346,9 @@ Global
 		{66B71B79-8639-489C-A20C-E4DCC25E17C5} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
 		{92683381-7F92-4481-B138-A4057D3C1A41} = {AA433BF3-56C0-4FED-8C6F-A2894989E102}
 		{C4F85F57-CB6A-40EE-9948-4747077841CE} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
+		{08417B64-9DFE-4267-BE4C-2B42578BC616} = {7A1C0E3D-5B42-4F6A-9C18-3E0D2A7B4F51}
+		{CD400156-F3DE-495E-AF56-261CF9182328} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
+		{61F4CD4F-998B-4F0B-8FB5-45BB18E320A5} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
+		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
 	EndGlobalSection
 EndGlobal

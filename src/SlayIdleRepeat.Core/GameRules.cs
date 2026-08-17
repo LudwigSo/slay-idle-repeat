@@ -63,7 +63,7 @@ public static class GameRules
         // ----------------------------------------------- the 30 META commands
         .Handled<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, BeginSession.Handle)
         .Deferred<SkipFtueCommand>("SKIP_FTUE", CommandKind.Meta, "M4-12")
-        .Deferred<EquipCommand>("EQUIP", CommandKind.Meta, "M4-03")
+        .Handled<EquipCommand>("EQUIP", CommandKind.Meta, Equip.Handle)
         .Handled<MergeCommand>("MERGE", CommandKind.Meta, Merge.Handle)
         .Handled<EnhanceCommand>("ENHANCE", CommandKind.Meta, Enhance.Handle)
         .Handled<SalvageCommand>("SALVAGE", CommandKind.Meta, Salvage.Handle)
@@ -128,6 +128,35 @@ public static class GameRules
     public static CommandResult Apply(WorldSlice state, GameCommand command, GameContext context) =>
         Execute(Dispatch, state, command, context);
 
+    /// <summary>Whether a host must issue this command a per-command <c>CommandSeed</c>.</summary>
+    /// <param name="command">The command about to be applied.</param>
+    /// <returns>
+    /// <c>true</c> for a command that acts outside a run, <c>false</c> for one that acts inside one,
+    /// and <c>false</c> for a type no dispatch row names — such a command draws nothing and
+    /// <see cref="Apply"/> refuses it with <c>ILLEGAL_STATE</c> on its own, so answering here keeps
+    /// both this predicate and <see cref="Apply"/> total.
+    /// </returns>
+    /// <exception cref="ArgumentNullException"><paramref name="command"/> is null.</exception>
+    /// <remarks>
+    /// <para>
+    /// The one public door onto the run/meta split, and it exists because a composition root has to
+    /// answer this question per command and cannot: <c>GameCommand</c> declares no members, and the
+    /// answer lives on the dispatch row, which is internal. The endpoint cannot answer it either —
+    /// <c>START_RUN</c> is a run command submitted on the player endpoint.
+    /// </para>
+    /// <para>
+    /// Phrased as the question rather than as the taxonomy: it publishes a fact
+    /// <see cref="GameContext.CommandSeed"/>'s own documentation already states, without exporting
+    /// the dispatch row, its handler delegate, or a kind a caller could start branching on.
+    /// </para>
+    /// </remarks>
+    public static bool RequiresCommandSeed(GameCommand command)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+
+        return RegistrationFor(command.GetType())?.Kind == CommandKind.Meta;
+    }
+
     /// <summary><see cref="Apply"/>'s body, over an explicit dispatch table so the domain test suite can drive it against shapes never committed to production.</summary>
     /// <remarks>
     /// Internal, and not a second entry point: the architecture rule that <c>Apply</c> is the only
@@ -168,10 +197,17 @@ public static class GameRules
         {
             if (state.Run.Phase == RunPhase.Ended)
             {
-                return CommandResult.Reject(RejectionReason.RUN_ALREADY_ENDED, state);
+                // Exempted by the same flag as the run-less guard above: nothing else in the game
+                // clears a finished run, so without this a player gets one run for the life of their
+                // account. Only a finished one — a live run falls to the arms below instead, and to
+                // START_RUN's own already-active-run refusal, so it is never discarded.
+                if (!registration.OpensRun)
+                {
+                    return CommandResult.Reject(RejectionReason.RUN_ALREADY_ENDED, state);
+                }
             }
-
-            if (state.Run.Phase == RunPhase.BattlePending && command is not ConfirmBattleResultCommand)
+            else if (state.Run.Phase == RunPhase.BattlePending &&
+                     command is not ConfirmBattleResultCommand)
             {
                 // A battle is open; CONFIRM_BATTLE_RESULT is the only legal next move.
                 return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
@@ -179,9 +215,10 @@ public static class GameRules
 
             // DraftPending is orthogonal to RunPhase, so it's checked separately rather than added
             // as a fourth phase value. PICK_PERK/REROLL_DRAFT/SKIP_DRAFT are the only legal moves
-            // while a draft is open.
-            if (state.Run.DraftPending &&
-                command is not (PickPerkCommand or RerollDraftCommand or SkipDraftCommand))
+            // while a draft is open. Not asked of an ended run: a draft left open on a run that has
+            // finished would otherwise refuse the exempted row for a second, unrelated reason.
+            else if (state.Run.DraftPending &&
+                     command is not (PickPerkCommand or RerollDraftCommand or SkipDraftCommand))
             {
                 return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
             }
@@ -189,6 +226,15 @@ public static class GameRules
 
         // Everything from here works on a copy; the caller's slice is never written to.
         var working = Clone(state, context.Content);
+
+        // 🔒 Before the RunRngScope below, not after: the scope and committedPositions would
+        // otherwise be the FINISHED run's, and FoldRngPositions would compare them against the fresh
+        // run's empty map and raise a determinism defect. The only place Apply clears Run, and only
+        // for a run row whose job is to open one.
+        if (registration.OpensRun && working.Run is { Phase: RunPhase.Ended })
+        {
+            working = working with { Run = null };
+        }
 
         // The handler never receives the raw slice, only the one this produces, so nothing a
         // handler writes runs before the catch-up. Its events are prepended to the handler's since

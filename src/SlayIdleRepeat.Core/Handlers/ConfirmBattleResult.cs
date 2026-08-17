@@ -1,9 +1,14 @@
 using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Gear;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Economy;
+using SlayIdleRepeat.Core.Rules.Gear;
+using SlayIdleRepeat.Core.Rules.Luck;
 
 namespace SlayIdleRepeat.Core.Handlers;
 
@@ -92,6 +97,8 @@ internal static class ConfirmBattleResult
             }
 
             run.BankRewards(reward.LegendXp, reward.SoulShards);
+
+            GrantKillDrops(input, kind, events);
         }
 
         if (kind == TileKind.Boss)
@@ -111,6 +118,99 @@ internal static class ConfirmBattleResult
         run.MarkDraftPending(run.PendingTileKindValue, run.PendingTileStage);
         run.ClearPendingTile();
     }
+
+    /// <summary>
+    /// The gear a kill drops: how many items, each one's band, and where they land.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The count is decided first and the rest of the content is read only once it is above zero.
+    /// An ordinary kill drops at a chance under a tenth, so on the overwhelming majority of kills
+    /// the catalogue, the pity registry and the gear tables are never touched at all.
+    /// </para>
+    /// <para>
+    /// 🔒 The item is <b>placed</b>, never refused: at capacity the stock holds it instead, and the
+    /// grant is reported either way. No random source in this game may be able to starve a player,
+    /// and a drop that vanished because the bag was full is that wound from the other side.
+    /// </para>
+    /// </remarks>
+    private static void GrantKillDrops(HandlerInput input, TileKind kind, List<DomainEvent> events)
+    {
+        var content = input.Context.Content;
+        var trigger = TriggerFor(kind);
+        var draws = input.Rng.Stream(RngStreams.Drops);
+        var items = DropCount(trigger, GearAcquisitionTuning.Read(content), draws);
+
+        if (items == 0)
+        {
+            return;
+        }
+
+        var run = input.Run;
+        var player = input.Player;
+        var catalogue = GearCatalogue.Read(content);
+        var luck = LuckTuning.Read(content);
+        var dropRun = DropRunTuning.Read(content);
+        var tables = DropsTuning.Read(content);
+        var stock = InventoryTuning.Read(content);
+
+        for (var item = 0; item < items; item++)
+        {
+            // Captured before the roll: the position the roll STARTS at is what names the item, and
+            // reading it afterwards would name every item by the draw index of the next one.
+            var ordinal = draws.Position;
+
+            var rolled = GearGeneration.RollRunDrop(
+                DropInstanceIds.ForKillDrop(run.Id, ordinal),
+                catalogue,
+                luck,
+                dropRun,
+                tables,
+                run.ChapterId,
+                trigger,
+                player.PityCounters,
+                draws);
+
+            foreach (var moved in rolled.Changes)
+            {
+                player.SetPityCounter(moved.Key, moved.Value);
+            }
+
+            player.Inventory.Place(rolled.Item, stock);
+
+            events.Add(new GearGranted(
+                DomainEvent.UnstampedSequence, rolled.Item, SourceClass.DROP_RUN, rolled.FromPity));
+
+            if (rolled.Item.Rarity >= dropRun.SessionFloor.GrantRarity)
+            {
+                run.CountItemAtOrAboveFloorBand();
+            }
+        }
+    }
+
+    /// <summary>How many items this kill owes, spending a draw only where the count is drawn.</summary>
+    private static int DropCount(
+        RunDropTrigger trigger, GearAcquisitionTuning rates, DeterministicRng draws) => trigger switch
+    {
+        RunDropTrigger.NORMAL_ENEMY => draws.NextDouble() < rates.NormalEnemyChance ? 1 : 0,
+        RunDropTrigger.ELITE => rates.EliteKillItems,
+        RunDropTrigger.BOSS => draws.Range(rates.BossKillItemsMin, rates.BossKillItemsMax + 1),
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(trigger), trigger, "That is not a source of an in-run gear drop."),
+    };
+
+    /// <summary>Which drop trigger a kill of this tile kind is.</summary>
+    private static RunDropTrigger TriggerFor(TileKind kind) => kind switch
+    {
+        TileKind.Enemy => RunDropTrigger.NORMAL_ENEMY,
+        TileKind.Elite => RunDropTrigger.ELITE,
+        TileKind.Boss => RunDropTrigger.BOSS,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(kind),
+            kind,
+            "That tile kind is not a kill, so nothing about it can drop gear. Every in-run drop " +
+            "trigger names a kill — a treasure tile has no path to a grant at all."),
+    };
 
     /// <summary>Income-attribution reason for a kill's Gold payment.</summary>
     private const string RewardReason = "battle_kill";

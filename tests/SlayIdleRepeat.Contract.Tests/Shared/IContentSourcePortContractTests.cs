@@ -12,6 +12,7 @@ namespace SlayIdleRepeat.Contract.Tests.Shared;
 /// instead of each adapter drifting on its own (as the two already had: differing exception types
 /// for an unlisted/escaping path before this suite existed).
 /// </summary>
+[ContractSuiteFor(typeof(IContentSourcePort))]
 public abstract class IContentSourcePortContractTests : IDisposable
 {
     private bool _disposed;

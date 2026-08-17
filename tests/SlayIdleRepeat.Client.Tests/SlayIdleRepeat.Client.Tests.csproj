@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The client suite: presenters and the pure half of the composition root.
+
+    Presenters take their ports as constructor arguments and name no engine type, so
+    everything here runs under an ordinary test runner with no Godot installed and no
+    engine booted — that is the payoff adapter rule A10 was bought for. It stays true
+    only while the presenter boundary rule in SlayIdleRepeat.Architecture.Tests keeps
+    biting; this suite asserts behaviour, that one asserts the boundary.
+
+    A plain SDK project deliberately, even though the project it references is a Godot
+    SDK one: nothing here is a Node.
+
+    build/ci/test-suites.json discovers it through tests/*/*.csproj with no edit, and
+    requires it to contain tests from day one — knownEmpty is [] and stays [].
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <!--
+      Not optional: without the VSTest adapter the TRX reports zero tests and the suite
+      passes vacuously, which is exactly what test-suites.json exists to prevent.
+    -->
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SlayIdleRepeat.Client\SlayIdleRepeat.Client.csproj" />
+  </ItemGroup>
+
+  <!--
+    Shared test vocabulary, linked rather than project-referenced. tests/Shared/ holds no
+    .csproj on purpose: the discovery glob would find it and fail it as an empty suite.
+  -->
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" LinkBase="Shared" />
+  </ItemGroup>
+
+</Project>

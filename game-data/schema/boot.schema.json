@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/boot.schema.json",
+  "title": "content/boot/boot.json",
+  "description": "M7-03 — the loc keys the boot screen (S01) renders. 13 §1's screen inventory is S01's whole specification and authors no strings; what is fixed here is that the screen shows a title, one status line per boot stage, and one failure line, and that every one of them is a key rather than a literal (X-04). Every value is a loc key, so ContentInvariants.CheckLocaleKeyReferences resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. Deliberately narrow: a maintenance dialog, a forced-update prompt, a retry ladder and a first-run beat are M18-01's and M9's, and a schema that made room for them here would invite authoring them.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "title", "stageStatus", "failureStatus"],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "title": {
+      "description": "The application title the splash draws. project.godot's application/config/name is the window title and is not localisable; this is the one a player reads.",
+      "$ref": "#/$defs/locKey"
+    },
+    "stageStatus": {
+      "description": "One line per boot stage the player can be waiting in. The member set is closed and required in full: a stage with no line renders blank, and a blank line during a slow start is indistinguishable from a hung game.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["splash", "content", "profile", "atlas", "ready"],
+      "properties": {
+        "splash": { "$ref": "#/$defs/locKey" },
+        "content": { "$ref": "#/$defs/locKey" },
+        "profile": { "$ref": "#/$defs/locKey" },
+        "atlas": { "$ref": "#/$defs/locKey" },
+        "ready": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "failureStatus": {
+      "description": "The one line shown when boot does not complete. One line, not one per cause: the CAUSE is carried in code as a named failure kind and stage so it can be logged and told apart, while what a player is shown stays a single honest sentence until M18-01 authors the screen that says more.",
+      "$ref": "#/$defs/locKey"
+    }
+  }
+}

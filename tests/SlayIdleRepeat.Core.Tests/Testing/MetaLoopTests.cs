@@ -8,6 +8,7 @@ using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Gear;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Testing;
 using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using SlayIdleRepeat.Core.Tests.Model.Gear;
@@ -23,18 +24,18 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔴 <b>THE CRITERION IS MET IN PART, AND THE PART THAT IS NOT MET IS ASSERTED RATHER THAN OMITTED.</b>
-/// Four of the six clauses are driven end to end here. Two are unreachable through the command
-/// vocabulary as it stands, and each is pinned by a case below that <b>fails on the commit that
-/// closes it</b> — so this file stops overstating the milestone the moment the gap is filled, rather
-/// than quietly continuing to skip the hard half.
+/// 🔒 <b>EVERY CLAUSE IS NOW DRIVEN END TO END.</b> The last two closed together: a run can leave a
+/// Shop and a Dice Forge, so it walks the whole board and ends in a <em>victory</em> — and a victory
+/// pays enough to carry the hero over the first Legend rung, which is what made "levels the hero"
+/// assertable at last. Nothing below is skipped or substituted except the forge's stock, which is
+/// seeded rather than banked and says so.
 /// </para>
 /// <list type="table">
 ///   <item><term>a simulated player runs</term><description>✅ driven — <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/>.</description></item>
-///   <item><term>banks gear</term><description>❌ <b>unreachable.</b> No production caller anywhere hands an item to the inventory, so a run cannot add one. Pinned by <see cref="A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory"/>.</description></item>
+///   <item><term>banks gear</term><description>✅ driven — <see cref="A_run_banks_gear_into_the_players_own_stock"/>.</description></item>
 ///   <item><term>merges and enhances it</term><description>✅ driven, over a <em>seeded</em> stock rather than a banked one, and funded by currency the run itself paid — <see cref="The_forge_half_of_the_loop_runs_on_what_the_run_paid_for_it"/>.</description></item>
-///   <item><term>levels the hero</term><description>⚠️ <b>the path is live, the rung is not reachable.</b> The run's payout does move Legend XP through <c>Apply</c>, and the level reconciliation runs on every accepted command; the reachable board cannot bank enough to cross the first rung. Pinned by <see cref="The_run_pays_Legend_XP_but_no_reachable_run_reaches_the_first_rung"/>.</description></item>
-///   <item><term>carries the loadout into the next run</term><description>❌ <b>unreachable, twice over.</b> There is no next run, and the loadout is always empty. Pinned by <see cref="No_second_run_can_be_started_so_nothing_is_carried_into_one"/> and <see cref="The_loadout_carried_into_a_run_is_the_players_own_but_nothing_can_fill_it"/>.</description></item>
+///   <item><term>levels the hero</term><description>✅ <b>driven, and the level-up itself is asserted rather than its absence.</b> A run that reaches a victory banks lifetime Legend XP well over the first rung, and the reconciliation that runs on every accepted command raises the Legend Level, grants Talent Points and refills Energy — <see cref="A_run_that_wins_levels_the_hero_past_the_first_Legend_rung"/>.</description></item>
+///   <item><term>carries the loadout into the next run</term><description>✅ <b>both halves closed, by two different tasks that could not see each other.</b> M7-00b made a second run startable and M7-00d made the loadout fillable, so the carry is now compared across a real boundary with a non-empty loadout — <see cref="A_second_run_starts_after_the_first_ends_and_carries_the_players_loadout"/> and <see cref="The_loadout_carried_into_a_run_is_the_one_EQUIP_filled"/>. Until both landed, each half made the other's assertion vacuous.</description></item>
 /// </list>
 /// <para>
 /// 🔒 <b>Why the content is the shipped set.</b> The harness takes a pre-built
@@ -89,6 +90,15 @@ public sealed class MetaLoopTests
     /// </summary>
     private const double LoopBudgetMs = 100;
 
+    /// <summary>How many Stage Gates a whole run crosses: out of stage 1 and out of stage 2, never a third.</summary>
+    private const int ExpectedStageGates = 2;
+
+    /// <summary><c>MetaLoopDriver</c>'s own wording for a run that ended by beating the boss.</summary>
+    private const string VictoryEnding = "END_RUN after a victory";
+
+    /// <summary>The attribution token <c>GameRules</c> logs a Legend level-up's Energy refill under.</summary>
+    private const string LegendLevelUpReason = "legend_level_up";
+
     private static readonly DateTimeOffset Start = new(2026, 8, 12, 5, 0, 0, TimeSpan.Zero);
 
     /// <summary>
@@ -96,19 +106,36 @@ public sealed class MetaLoopTests
     /// preference.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// A run's board is derived from its own seed, which folds in the instant the run started — so
     /// the clock, not <see cref="Seed"/>, is what selects a board. The board
-    /// <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/> drives pays
-    /// <b>80</b> Crowns before the stall parks it, and the cheapest fusion costs
-    /// <see cref="FusionCrownFloor"/>. Swept across both authored chapters and two thousand start
-    /// instants each while writing this, no board paid a fusion's price <em>and</em> ended in a
-    /// death; the ones that pay it end by being abandoned. This is the one that funds a fusion, and
-    /// it is a chapter 2 board because chapter 1's do not. That a run barely covers a single C-band
-    /// fusion is itself a consequence of the stall
-    /// (<see cref="A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss"/>): four tiles
-    /// is what a stalled run gets to resolve.
+    /// <see cref="A_simulated_player_plays_a_whole_run_through_commands_alone"/> drives did not
+    /// cover <see cref="FusionCrownFloor"/>, the cheapest fusion's price. Swept across both authored
+    /// chapters and two thousand start instants each while this was written, no board paid a
+    /// fusion's price <em>and</em> ended in a death; the ones that pay it end by being abandoned.
+    /// This is the one that funds a fusion, and it is a chapter 2 board because chapter 1's do not.
+    /// </para>
+    /// <para>
+    /// ⚠️ That sweep was measured before X-10 was repaired, when a run resolved four tiles and then
+    /// parked. A repaired run travels much further and pays more, so this instant is now a
+    /// sufficient choice rather than a uniquely necessary one — the assertions below still hold, and
+    /// re-sweeping for a cheaper board would only be tidying.
+    /// </para>
     /// </remarks>
     private static readonly DateTimeOffset ForgeStart = Start.AddHours(12);
+
+    /// <summary>
+    /// 🔴 The gear-banking case's own start instant, and it exists for the same reason
+    /// <see cref="ForgeStart"/> does: the board is selected by the clock.
+    /// </summary>
+    /// <remarks>
+    /// The board <see cref="Start"/> produces resolves two Treasure tiles and one ordinary enemy, and
+    /// an ordinary kill drops at the authored per-kill chance — under a tenth — so a run on it banks
+    /// gear only by luck. This board resolves an <b>Elite</b>, which is the kill kind the acquisition
+    /// rates guarantee a drop from, so the clause is driven rather than hoped for. Swept across both
+    /// authored chapters and a day of start instants while writing this.
+    /// </remarks>
+    private static readonly DateTimeOffset DropStart = Start.AddHours(3);
 
     // ═════════════════════════════════════════════════════════ the run
 
@@ -134,12 +161,11 @@ public sealed class MetaLoopTests
         run!.Phase.ShouldBe(
             RunPhase.Ended,
             "the run did not end. " + driver.Ending + Environment.NewLine +
-            "⚠️ If the command budget was exhausted, the likeliest cause is that " +
-            "A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss has done its job and " +
-            "movement was repaired: this driver was written against a run that parks in stage 1 " +
-            "after four tiles, and a run that crosses a whole board needs a resolver for the tile " +
-            "kinds a stalled run never reaches — Shop has no command that clears it, and DiceForge " +
-            "has no command at all. Teach the driver those two before widening the budget again." +
+            "⚠️ If the command budget was exhausted, the likeliest cause is a tile the driver has no " +
+            "command for and does not yet name — it will re-send RESOLVE_TILE at one position until " +
+            "the budget runs out. MetaLoopDriver.StuckOn concludes that from the commands and ends " +
+            "the run; teach the driver the kind's own command rather than widening the budget. " +
+            "add the kind there rather than widening the budget." +
             Trace(driver));
 
         driver.Visited.Distinct().Count().ShouldBeGreaterThan(
@@ -172,64 +198,59 @@ public sealed class MetaLoopTests
     }
 
     /// <summary>
-    /// 🔒 <b>Clause 2 — "banks gear" — is NOT reachable, and this is the failing witness the register
-    /// says is waiting for it.</b> The run above resolves its tiles, fights, drafts and pays out at
-    /// its end, and the player's stock is byte-for-byte what it started as.
+    /// 🔒 <b>Clause 2 — "banks gear".</b> A run resolves its tiles, fights and pays out, and the
+    /// player's stock is larger at the end than it was at the start — every item of the difference
+    /// reported by a <c>GearGranted</c> the run itself emitted.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>The cause is a missing caller, not a missing rule.</b> <c>Rules.Gear.GearGeneration</c>
-    /// rolls a run drop and a session floor, <c>Model.Gear.Inventory.Place</c> takes a granted item,
-    /// and <c>Events.GearGranted</c> reports one — and nothing in <c>SlayIdleRepeat.Core</c> calls
-    /// any of the three. <c>GapRegister</c> writes this down with an owner (M4-02) and names this
-    /// very test as the witness; that is what this case makes executable.
+    /// 🔴 <b>The board is chosen so the clause is driven rather than hoped for</b> — see
+    /// <see cref="DropStart"/>. An ordinary kill drops at the authored per-kill chance, which is
+    /// under a tenth; an Elite kill drops the authored count every time, so the run has to reach one
+    /// for "banks gear" to be a claim about the wiring rather than about a coin.
     /// </para>
     /// <para>
-    /// 🔒 <b>It expires by itself (steering S4).</b> The day a run drop reaches the stock, the
-    /// comparison below stops holding and this case goes red — which is the signal to delete it and
-    /// drive the merge and enhance clauses off <em>banked</em> gear instead of the seeded stock they
-    /// use today.
-    /// </para>
-    /// <para>
-    /// Compared as canonical bytes rather than by count or by record equality (steering S17): an
-    /// <c>InventorySnapshot</c>'s item list compares by reference under synthesized equality, and a
-    /// count is satisfied by a run that swapped one item for another.
+    /// The stock is compared by the identities that appeared in it rather than by canonical bytes,
+    /// because the interesting quantity here is <em>which</em> items arrived: the same comparison has
+    /// to be able to say that every one of them is an item a <c>GearGranted</c> named, and a byte
+    /// difference cannot.
     /// </para>
     /// </remarks>
     [Fact]
-    public void A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory()
+    public void A_run_banks_gear_into_the_players_own_stock()
     {
-        var (game, player) = Loop();
-        var before = StockBytes(game, player);
+        var (game, player) = Loop(DropStart);
+        var before = Owned(game, player);
 
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
 
         game.State(player).Run!.Phase.ShouldBe(RunPhase.Ended, Trace(driver));
 
-        // 🔒 The premise, asserted rather than narrated. "The stock did not change across a run" is
-        // a claim about a run that RESOLVED SOMETHING and PAID OUT; a run that refused every command
-        // would satisfy it just as well, and this case would then keep reporting "banks gear is
-        // unreachable" long after it stopped being true.
-        driver.Tiles.ShouldNotBeEmpty(
-            "the run resolved no tile at all, so nothing was in a position to grant anything." +
+        // 🔒 The premise, asserted rather than narrated: "the stock grew across a run" is a claim
+        // about a run that actually fought something. A run that refused every command would make
+        // the assertion below fail for a reason that has nothing to do with the grant path.
+        // KillsWon, not Tiles: an Elite the run merely ARRIVED at owes nothing — the drop is owed by
+        // the kill — so a board that offered one and a hero that lost to it would leave the
+        // assertion below a coin toss again.
+        driver.KillsWon.ShouldContain(
+            TileKind.Elite,
+            "this run won no Elite battle, so no kill it made is guaranteed to drop. Pick a start " +
+            "instant whose reachable tiles include an Elite the hero beats — see DropStart." +
             Trace(driver));
 
-        game.Events.OfType<CurrencyChanged>().ShouldNotBeEmpty(
-            "the run paid the player nothing, so it did not reach the reward paths a gear grant " +
-            "would sit beside." + Trace(driver));
+        var banked = Owned(game, player).Except(before).ToArray();
 
-        StockBytes(game, player).ShouldBe(
-            before,
-            "the player's stock CHANGED across a whole run — so something now grants gear mid-run, " +
-            "and the M4 exit criterion's 'banks gear' clause has become reachable. Delete this case " +
-            "and drive the merge and enhance clauses off the banked item instead of the seeded " +
-            "stock. Until that commit, the criterion is met in part and this is the part that is " +
-            "not: no production caller in Core hands an item to Inventory.Place, so a run cannot " +
-            "add one." + Trace(driver));
+        banked.ShouldNotBeEmpty(
+            "the run won " + driver.BattlesWon + " battle(s), at least one of them an Elite, and " +
+            "banked nothing at all. The M4 exit criterion's 'banks gear' clause is exactly this: a " +
+            "kill hands an item to the stock." + Trace(driver));
 
-        game.Events.OfType<GearGranted>().ShouldBeEmpty(
-            "a GearGranted event was emitted, so a grant path has been wired. Same consequence as " +
-            "above — this case is now the stale half of the claim, not the true one.");
+        game.Events.OfType<GearGranted>().Select(granted => granted.Item.InstanceId).ShouldBe(
+            banked,
+            ignoreOrder: true,
+            "the items that appeared in the stock and the items GearGranted reported are not the " +
+            "same set, so either an item arrived unannounced or an announcement named an item the " +
+            "player never received." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the forge
@@ -287,6 +308,10 @@ public sealed class MetaLoopTests
         var stock = Ids(game, player);
         var scrapped = stock.Skip(1 + FusionInputs).Take(4).ToArray();
 
+        // Counted off what the stock holds NOW rather than off StartingStock: the run itself may
+        // have banked gear into it, and the claim here is about what the salvage removed.
+        var stockedAfterRun = afterRun.Inventory.Stored.Count;
+
         Accepted(driver.Send(new SalvageCommand(scrapped)), "SALVAGE", driver);
 
         var afterSalvage = game.State(player).Player;
@@ -294,7 +319,7 @@ public sealed class MetaLoopTests
         afterSalvage.BalanceOf(CurrencyId.MERGE_DUST).ShouldBeGreaterThan(
             0L, "salvaging four items paid no Merge Dust." + Trace(driver));
         afterSalvage.Inventory.Stored.Count.ShouldBe(
-            StartingStock - scrapped.Length, "the salvaged items are gone." + Trace(driver));
+            stockedAfterRun - scrapped.Length, "the salvaged items are gone." + Trace(driver));
 
         // ⚠️ No stone refund is asserted, and that is the rule rather than a gap — see this case's
         // remarks.
@@ -334,7 +359,7 @@ public sealed class MetaLoopTests
             "fusion was not paid for." + Trace(driver));
 
         afterMerge.Inventory.Stored.Count.ShouldBe(
-            StartingStock - scrapped.Length - FusionInputs + 1,
+            stockedAfterRun - scrapped.Length - FusionInputs + 1,
             "a fusion consumes three items and leaves one." + Trace(driver));
 
         var fused = afterMerge.Inventory.Find(inputs[0]);
@@ -357,234 +382,308 @@ public sealed class MetaLoopTests
     // ═════════════════════════════════════════════════════════ the hero
 
     /// <summary>
-    /// ⚠️ <b>Clause 4 — "levels the hero" — the path is live and the rung is out of reach.</b> The
-    /// run's payout moves lifetime Legend XP through <c>Apply</c>, and <c>GameRules</c> reconciles
-    /// the level on every accepted command; what no reachable run can do is bank enough to cross the
-    /// first rung.
+    /// 🔒 <b>Clause 4 — "levels the hero".</b> A run that ends in a victory banks lifetime Legend XP
+    /// past the first rung, and the reconciliation <c>GameRules</c> runs on every accepted command
+    /// turns that into a level, Talent Points and an Energy refill.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>The arithmetic, so the claim is checkable rather than asserted.</b> The first rung costs
-    /// <c>120</c> lifetime XP. A run that ends in a stage-1 death — one of the two endings a
-    /// command-driven run can reach, the other being an abandon at a tenth, see
-    /// <see cref="A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss"/> — pays a quarter
-    /// of what it banked, so it needs <c>480</c> banked. Chapter 1 at NORMAL pays 25 a normal kill,
-    /// and the reachable part of the board holds a handful of them. Swept across chapters 1–2, all
-    /// three tiers and forty seeds while writing this, the best any run reached was <b>93</b> lifetime
-    /// XP from <b>372</b> banked. There is no second run to accumulate across.
+    /// 🔴 <b>Measured on this checkout rather than predicted.</b> A victory pays the boss kill and
+    /// the completion bonus, and this board banks <b>750</b> lifetime XP against the rung's
+    /// <see cref="RungOne"/> — six times over, and comfortably over on every board swept while this
+    /// was written (700 the lowest, 1666 the highest). The assertion is a floor at the rung rather
+    /// than that number: what the clause needs is that a reachable run crosses it, not that it
+    /// crosses it by exactly this much.
     /// </para>
     /// <para>
-    /// 🔒 <b>It expires by itself (steering S4).</b> Both halves are asserted: the XP has to move
-    /// (so a broken payout is caught), and the level has to still be the floor (so the day the boss
-    /// becomes reachable — a victory pays the boss kill plus the victory bonus, far over the rung —
-    /// this case goes red and asks for the level-up to be asserted properly).
+    /// ⚠️ <b>The level-up is asserted through all three of its effects</b> (steering S2). Lifetime XP
+    /// over the rung is what a broken reconciliation would leave standing on its own; the level, the
+    /// Talent Point and the <c>legend_level_up</c> Energy row are what say the curve was actually
+    /// applied.
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_run_pays_Legend_XP_but_no_reachable_run_reaches_the_first_rung()
+    public void A_run_that_wins_levels_the_hero_past_the_first_Legend_rung()
     {
         var (game, player) = Loop();
         var floor = game.State(player).Player.LegendLevel;
+
+        // Both floors are READ rather than assumed to be zero: an assertion against a literal 0 would
+        // stop discriminating the day a harness player started holding either.
+        var talentFloor = game.State(player).Player.TalentPoints;
 
         game.State(player).Player.LegendXp.ShouldBe(0L, "a harness player starts with no XP.");
 
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
         var hero = game.State(player).Player;
 
-        hero.LegendXp.ShouldBeGreaterThan(
-            0L,
-            "the run ended and paid no lifetime Legend XP at all, so END_RUN's payout never reached " +
-            "the player — the half of this clause that IS reachable." + Trace(driver));
+        game.State(player).Run!.BossDefeated.ShouldBeTrue(
+            "the premise: only a victory pays enough to cross the rung, so a run that ended any " +
+            "other way makes every assertion below a claim about the wrong ending." + Trace(driver));
 
-        hero.LegendXp.ShouldBeLessThan(
+        hero.LegendXp.ShouldBeGreaterThanOrEqualTo(
             RungOne,
-            "the run banked enough to cross the first Legend rung, which no run this loop can drive " +
-            "was able to do when this was written. That is good news and this case is now the stale " +
-            "half of the claim: assert the level-up itself — LegendLevel, TalentPoints and the " +
-            "legend_level_up Energy refill — and delete this bound." + Trace(driver));
+            "the run banked " + hero.LegendXp + " lifetime Legend XP against the first rung's " +
+            RungOne + ". A victory pays the boss kill plus the completion bonus, so a payout this " +
+            "small means END_RUN did not pay a victory out." + Trace(driver));
 
-        hero.LegendLevel.ShouldBe(
+        hero.LegendLevel.ShouldBeGreaterThan(
             floor,
-            "the Legend Level moved while lifetime XP stayed under the first rung, which means the " +
-            "reconciliation is deriving a level the curve does not authorise." + Trace(driver));
+            "lifetime XP crossed the first rung and the Legend Level stayed at " + floor + ", so the " +
+            "reconciliation on the accepted command never derived the level the curve authorises." +
+            Trace(driver));
 
-        hero.TalentPoints.ShouldBe(
-            0L, "07 §1.1 grants Talent Points on the way up, and no level was gained." + Trace(driver));
+        hero.TalentPoints.ShouldBeGreaterThan(
+            talentFloor,
+            "a level was gained and the hero holds the " + talentFloor + " Talent Points they started " +
+            "with, so the level-up granted none — the curve grants them on the way up." + Trace(driver));
+
+        game.Events.OfType<CurrencyChanged>().ShouldContain(
+            row => row.Reason == LegendLevelUpReason,
+            "no Energy row is attributed to the level-up, so the refill the rung owes the player was " +
+            "never paid — or was paid unattributed." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the carry
 
     /// <summary>
-    /// 🔒 <b>Clause 5a — there is no next run.</b> Once a run has ended, <c>START_RUN</c> is refused
-    /// <c>RUN_ALREADY_ENDED</c> for good: it is a run command, the gate ahead of dispatch refuses
-    /// every run command on an ended run, and nothing in <c>Apply</c> ever puts the slice's run back
-    /// to absent.
+    /// 🔒 <b>Clause 5a — there IS a next run, and the loadout crosses into it.</b> Once a run has
+    /// ended, <c>START_RUN</c> opens a fresh one: it is the single dispatch row marked
+    /// <c>OpensRun</c>, and the phase gate lets that row through an ended run rather than answering
+    /// <c>RUN_ALREADY_ENDED</c> to it.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>This is the clause the exit criterion cannot reach, and it is structural.</b> "Carries
-    /// the loadout into the next run" needs a next run; through <c>GameRules.Apply</c> a player gets
-    /// exactly one, for the life of the slice. Clearing the ended run is something only a caller
-    /// outside <c>Apply</c> could do — the Application layer loading a fresh slice — and the harness,
-    /// which is the artefact that demonstrates the domain is playable from <c>Core</c> alone, has no
-    /// seam for it and stores whatever <c>Apply</c> returned.
+    /// ⚠️ <b>The acceptance is asserted by identity, not by "it went through" (steering S2).</b> Two
+    /// different failures refuse this command and they mean opposite things:
+    /// <c>RUN_ALREADY_ENDED</c> is the gate never opening at all, and <c>ILLEGAL_STATE</c> is the
+    /// gate opening while the ended run stayed in the working slice, so <c>StartRun.Handle</c>'s
+    /// already-active-run guard fired instead. The message prints which one arrived.
     /// </para>
     /// <para>
-    /// ⚠️ <b>The refusal is asserted by identity, not by "it was refused" (steering S2).</b> Three
-    /// other rules answer <c>ILLEGAL_STATE</c> to a <c>START_RUN</c> — a run already open, a chapter
-    /// below one, an undeclared tier — so a case that only checked for a rejection would pass while
-    /// the ended-run gate had gone.
+    /// ⚠️ <b>The byte comparison is vacuous today and that is recorded rather than dressed up.</b>
+    /// The loadout is empty on both sides — <c>EQUIP</c> is still a deferred row, so nothing can put
+    /// an item in a slot — and an empty loadout has exactly one canonical encoding. It is written in
+    /// the shape that will discriminate the day a slot can be filled: canonical bytes per steering
+    /// S17, since <c>LoadoutSnapshot</c> holds an <c>IReadOnlyDictionary</c> that record equality
+    /// compares by reference. What carries the weight here is the second run existing at all, and
+    /// being a genuinely different run from the first.
     /// </para>
     /// <para>
-    /// 🔒 <b>It expires by itself (steering S4)</b>: the day a second run can be started, this goes
-    /// red and asks for the carry to be asserted across the boundary for real.
+    /// 🔒 <b>The draw counters are the sharpest half of "genuinely different", and this is the one
+    /// file where they bite hardest.</b> The first run here actually played — it rolled, fought and
+    /// drafted — so its counter map is non-empty, and a second run that came back holding those
+    /// counters is the ended run wearing a new phase. The sibling cases seed that map by fixture
+    /// (<c>GameRulesRunPhaseGateTests</c>) or cannot produce one at all
+    /// (<c>InMemoryGameRunLifecycleTests</c>, whose two-command run draws nothing).
     /// </para>
     /// </remarks>
     [Fact]
-    public void No_second_run_can_be_started_so_nothing_is_carried_into_one()
+    public void A_second_run_starts_after_the_first_ends_and_carries_the_players_loadout()
     {
         var (game, player) = Loop();
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
 
         game.State(player).Run!.Phase.ShouldBe(RunPhase.Ended, Trace(driver));
 
+        var ended = game.State(player).Run!;
+        var firstId = ended.Id;
+        var firstSeed = ended.RunSeed;
+        var firstDraws = ended.RngStreamPositions;
+
+        // 🔒 The premise under the counter assertion below, asserted rather than narrated: against a
+        // first run that had drawn nothing, "the second run has drawn nothing" would be equally true
+        // of the first one re-phased, and the sharpest assertion here would be worth nothing.
+        firstDraws.ShouldNotBeEmpty(
+            "the run that just ended drew from no stream at all, which the loop above makes " +
+            "impossible — it rolls, fights and drafts. Something stopped the run travelling." +
+            Trace(driver));
+
+        // Read between the two runs, which is the only moment the carry can be compared against.
+        var heldBetweenRuns = Canonical(game.State(player).Player.Loadout.ToSnapshot());
+
         var second = driver.Send(new StartRunCommand(Chapter, DifficultyTier.NORMAL));
 
-        second.Accepted.ShouldBeFalse(
-            "a SECOND run started. The M4 exit criterion's last clause — 'carries the loadout into " +
-            "the next run' — is reachable now: drive the carry across the boundary and compare the " +
-            "second run's StartingLoadout with the loadout the player held between the two, by " +
-            "canonical bytes." + Trace(driver));
+        second.Accepted.ShouldBeTrue(
+            "START_RUN after an ended run was refused " + second.Rejection + ", so the M4 exit " +
+            "criterion's last clause is unreachable again. RUN_ALREADY_ENDED means the phase gate " +
+            "refuses every run command on an ended run, START_RUN included — the gate never opened. " +
+            "ILLEGAL_STATE means the gate DID let it through but the ended run was never cleared off " +
+            "the working slice, so StartRun.Handle's already-active-run guard refused it instead." +
+            Trace(driver));
 
-        second.Rejection.ShouldBe(
-            RejectionReason.RUN_ALREADY_ENDED,
-            "START_RUN was refused for some OTHER reason than the ended run still sitting in the " +
-            "slice, so this case is no longer about the thing it was written for." + Trace(driver));
+        var opened = game.State(player).Run;
+
+        opened.ShouldNotBeNull("START_RUN was accepted and attached no run." + Trace(driver));
+
+        opened!.Phase.ShouldBe(
+            RunPhase.InProgress, "the second run came back unplayable." + Trace(driver));
+
+        opened.Id.ShouldNotBe(
+            firstId,
+            "the second run carries the FIRST run's identity, so the ended run was re-phased rather " +
+            "than replaced." + Trace(driver));
+
+        opened.RunSeed.ShouldNotBe(
+            firstSeed,
+            "the second run committed the FIRST run's seed, so it would replay the board the player " +
+            "has already walked." + Trace(driver));
+
+        opened.RngStreamPositions.ShouldBeEmpty(
+            "the second run opened holding the draw counters the first run left behind (" +
+            string.Join(", ", opened.RngStreamPositions.Select(row => row.Key + "=" + row.Value)) +
+            "), which a run that has drawn nothing cannot have — so the ended run was never cleared " +
+            "off the working slice and what came back is it, re-phased." + Trace(driver));
 
         game.State(player).Player.RunsStarted.ShouldBe(
-            1L, "a refused START_RUN must not spend the run counter." + Trace(driver));
+            2L,
+            "two runs were opened and the lifetime counter says otherwise. That counter is what both " +
+            "run seeds are derived from, so a second run that did not spend it replays the first " +
+            "run's board." + Trace(driver));
+
+        // ⚠️ Vacuous while the loadout is empty — see this case's remarks.
+        Canonical(opened.StartingLoadout.ToSnapshot()).ShouldBe(
+            heldBetweenRuns,
+            "the loadout the second run froze at START_RUN is not the one the player was holding " +
+            "between the two runs." + Trace(driver));
     }
 
     /// <summary>
-    /// 🔒 <b>Clause 5b — the carry mechanism is wired, and nothing can put anything in it.</b> The
-    /// run freezes the player's loadout at <c>START_RUN</c> and it is byte-identical to the one the
-    /// player holds; that loadout is empty, and no command in the vocabulary can fill it.
+    /// 🔒 <b>Clause 5b — the loadout a run carries is the one the player filled.</b> <c>EQUIP</c>
+    /// puts an item in a slot, <c>START_RUN</c> freezes what the hero is wearing, and the two are
+    /// byte-identical.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>An empty loadout would make the comparison vacuous, so the reason it is empty is
-    /// asserted too.</b> <c>EQUIP</c> is a deferred dispatch row, so a player cannot put an item in a
-    /// slot; <c>SAVE_PRESET</c> stores whatever the loadout currently is and <c>APPLY_PRESET</c>
-    /// puts that back, so the two of them together cannot introduce a first item either. Both are
-    /// driven below — they are the only wired loadout writers, and they round-trip.
+    /// 🔴 <b>The byte comparison only means something over a NON-EMPTY loadout, so filling one is
+    /// half the case.</b> An empty loadout has exactly one canonical encoding, so a
+    /// <c>START_RUN</c> that froze <c>Loadout.Empty</c> instead of the player's own would leave the
+    /// carry provably broken and the comparison green. The <c>EQUIP</c> above is what makes the
+    /// comparison below discriminate, which is why the slot is asserted filled before the run starts.
     /// </para>
     /// <para>
-    /// 🔴 <b>THE BYTE COMPARISON BELOW CANNOT FAIL TODAY, AND THAT IS RECORDED RATHER THAN DRESSED
-    /// UP.</b> An empty loadout has exactly one canonical encoding, so the run's frozen copy, the
-    /// player's live loadout and any unrelated empty loadout all encode identically: a
-    /// <c>START_RUN</c> that froze <c>Loadout.Empty</c> instead of the player's would leave the
-    /// carry provably broken and that assertion green. It is written in the shape it will need —
-    /// canonical bytes, per steering S17, because <c>LoadoutSnapshot</c> holds an
-    /// <c>IReadOnlyDictionary</c> that record equality compares by reference — and it is worth
-    /// nothing until something can put an item in a slot. What carries the weight here is the
-    /// <c>EQUIP</c> refusal and the preset round-trip, both of which discriminate today.
+    /// Canonical bytes rather than record equality (steering S17): <c>LoadoutSnapshot</c> holds an
+    /// <c>IReadOnlyDictionary</c>, which a record's synthesized equality compares by reference.
     /// </para>
     /// <para>
-    /// 🔴 <b>An object-identity check does not rescue it either, and finding that out is the point.</b>
-    /// "The run froze a COPY, not an alias" reads like the one claim that survives an empty loadout
-    /// — and it does not: <c>Loadout.Rehydrate</c> answers the <c>Loadout.Empty</c> <em>singleton</em>
-    /// for an empty snapshot, so the run's loadout and the player's are literally the same object,
-    /// and a <c>ReferenceEquals</c> assertion fails against correct code. It was written, run, and
-    /// removed. Steering S17 names the empty-map singleton as the thing that makes these comparisons
-    /// lie; this is that same hazard from the other direction.
+    /// <c>SAVE_PRESET</c> is driven alongside because it reads the live loadout: a preset saved after
+    /// the equip has to record the item, which is the other half of "the loadout is the player's own".
     /// </para>
     /// </remarks>
     [Fact]
-    public void The_loadout_carried_into_a_run_is_the_players_own_but_nothing_can_fill_it()
+    public void The_loadout_carried_into_a_run_is_the_one_EQUIP_filled()
     {
         var (game, player) = Loop();
-
-        // The two wired loadout writers, before the run — APPLY_PRESET is refused mid-run.
         var driver = MetaLoopDriver.Idle(game, player);
+        var item = Ids(game, player)[0];
 
+        Accepted(driver.Send(new EquipCommand(item, GearSlot.WEAPON)), "EQUIP", null);
         Accepted(driver.Send(new SavePresetCommand(1, "opener")), "SAVE_PRESET", null);
-        Accepted(driver.Send(new ApplyPresetCommand(1)), "APPLY_PRESET", null);
 
-        var equip = driver.Send(new EquipCommand(Ids(game, player)[0], GearSlot.WEAPON));
-
-        equip.Accepted.ShouldBeFalse(
-            "EQUIP was accepted, so a hero can wear an item now. The loadout clause of the M4 exit " +
-            "criterion stops being vacuous on this commit: equip an item, then compare what the next " +
-            "run froze against what the player holds.");
-        equip.Rejection.ShouldBe(
-            RejectionReason.ILLEGAL_STATE,
-            "a deferred command answers ILLEGAL_STATE; some other reason means EQUIP is handled and " +
-            "refusing for a reason of its own.");
+        game.State(player).Player.Loadout.TryGet(GearSlot.WEAPON, out var worn).ShouldBeTrue(
+            "EQUIP was accepted and the weapon slot is still empty, so nothing was actually worn — " +
+            "and the comparison below would be back to the vacuous empty-versus-empty one.");
+        worn.ShouldBe(item, "the slot names some other item than the one EQUIP was given.");
 
         var play = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
         var slice = game.State(player);
 
-        // ⚠️ Vacuous while the loadout is empty — see this case's remarks. Kept because it is the
-        // assertion the criterion actually asks for, and because it is already in the shape that
-        // will discriminate the moment a slot can be filled.
+        slice.Run!.StartingLoadout.Gear.ShouldNotBeEmpty(
+            "the run froze an EMPTY loadout over a hero who was wearing something, so it is fighting " +
+            "naked and the comparison below is comparing two empties." + Trace(play));
+
         Canonical(slice.Run!.StartingLoadout.ToSnapshot()).ShouldBe(
             Canonical(slice.Player.Loadout.ToSnapshot()),
             "the loadout the run froze at START_RUN is not the one the player was holding." +
             Trace(play));
 
-        slice.Player.Loadout.Gear.ShouldBeEmpty(
-            "the loadout is no longer empty, which means something filled it — so the comparison " +
-            "above has become a real one, and the EQUIP assertion has already said what to write " +
-            "instead." + Trace(play));
-
-        slice.Player.Presets.Count.ShouldBe(
-            1, "SAVE_PRESET stored one preset and nothing removed it." + Trace(play));
+        slice.Player.TryGetPreset(1, out var preset).ShouldBeTrue(
+            "SAVE_PRESET stored one preset and nothing removed it." + Trace(play));
+        preset!.Loadout.TryGet(GearSlot.WEAPON, out var saved).ShouldBeTrue(
+            "the preset recorded an empty weapon slot over a hero who was wearing one, so it is not " +
+            "reading the live loadout at all." + Trace(play));
+        saved.ShouldBe(item, "and the preset names the item the hero was actually wearing." + Trace(play));
     }
 
-    // ═════════════════════════════════════════════════════════ the two blockers, named
+    // ═════════════════════════════════════════════════════════ the whole board
 
     /// <summary>
-    /// 🔴 <b>Why the run above cannot win.</b> A roll taken from the last node of a stage is accepted
-    /// and moves the run nowhere, and every roll after it does the same — so a command-driven run can
-    /// never leave stage 1, never reach the boss node, and never end in a victory.
+    /// 🔒 <b>The run crosses both stage boundaries, meets no tile it cannot leave, and beats the
+    /// boss.</b> It is the claim every clause above rests on, and it is what makes the victory
+    /// ending — and therefore the hero clause — reachable at all.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>03</c> §1.1 authors the stage-end clamp as <em>"if a die roll would move the player past
-    /// the last node of a stage, the player stops on the last node and the Stage Gate fires"</em> — a
-    /// one-time stop, after which the next roll carries on. The implementation applies the clamp
-    /// whenever the <em>next</em> node belongs to another stage, which is also true when the run is
-    /// already standing on the boundary node, so it returns the current node with the whole roll
-    /// unspent. Stage 3 → boss is the one transition with an explicit exception.
+    /// 🔴 <b>This case has now asserted the repair of two defects in turn.</b> It began as X-10's:
+    /// <c>StalledAt</c> non-null, a roll accepted from a stage's last node that moved the run
+    /// nowhere for ever. It then required <c>StuckOn</c> non-null, because <c>RESOLVE_TILE</c>
+    /// acknowledged <c>TILE_SHOP</c> and <c>TILE_DICE_FORGE</c> and left them pending for a command
+    /// that did not exist. Both are now clearing commands' work, and the requirements below are
+    /// those same claims turned the right way up.
     /// </para>
     /// <para>
-    /// 🔒 <b>Recorded here rather than repaired.</b> The repair is a change to how every run in the
-    /// game moves, and it belongs with the board rules and their own suite, not inside the milestone's
-    /// exit-criterion test. What this case buys is that the criterion's "runs" clause stops being
-    /// quietly satisfied by a run that never got anywhere: the day movement is fixed, this goes red
-    /// and the loop above can be driven to a boss and a victory payout.
+    /// ⚠️ <b>Four requirements rather than one, because "the run reached the boss" is satisfied by
+    /// several different wrong runs</b> (steering S2): a run that stalls, a run that stops on a tile
+    /// it cannot clear, and a run that never leaves stage 1 each fail a different one of them.
     /// </para>
     /// </remarks>
     [Fact]
-    public void A_run_stalls_on_its_stage_boundary_and_can_never_reach_the_boss()
+    public void A_run_crosses_both_stage_boundaries_and_ends_in_a_victory()
     {
         var (game, player) = Loop();
         var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
 
-        driver.StalledAt.ShouldNotBeNull(
-            "no roll was accepted without moving the run, so the stage-boundary stall is gone. If " +
-            "movement was repaired, this case has done its job: delete it, and drive the loop above " +
-            "to the boss node so the run ends in a VICTORY and the hero clause becomes assertable." +
+        driver.StalledAt.ShouldBeNull(
+            "a ROLL_DICE was accepted, moved the run nowhere and opened no fork. That is X-10 back: " +
+            "03 §1.1's stage-end clamp re-firing on a run already standing on the stage's last node." +
             Trace(driver));
 
-        game.State(player).Run!.BossDefeated.ShouldBeFalse(
-            "the run reached and beat the boss, which the stall makes impossible — so the stall is " +
-            "gone and this case is stale." + Trace(driver));
+        driver.StuckOn.ShouldBeNull(
+            "the run met a " + driver.StuckOn + " tile that RESOLVE_TILE accepted and left pending, " +
+            "and no second command clears — so it is held there and a pending tile refuses every " +
+            "roll." + Trace(driver));
 
-        driver.Ending.StartsWith("END_RUN", StringComparison.Ordinal).ShouldBeTrue(
-            "the run ended as '" + driver.Ending + "' rather than by a death after the stall. That " +
-            "is the only ending a stalled run has, so a different one means the shape of this loop " +
-            "has changed." + Trace(driver));
+        driver.Stages.ShouldContain(
+            2, "the run never resolved a tile in stage 2, so it did not cross the first boundary." +
+            Trace(driver));
+
+        driver.Stages.ShouldContain(
+            3, "the run never resolved a tile in stage 3, so it did not cross the second boundary." +
+            Trace(driver));
+
+        game.State(player).Run!.BossDefeated.ShouldBeTrue(
+            "the run travelled the whole board and did not beat the boss." + Trace(driver));
+
+        driver.Ending.ShouldBe(
+            VictoryEnding,
+            "the run ended some other way than by winning, so the ending the meta half is paid out " +
+            "of is not a victory's." + Trace(driver));
+    }
+
+    /// <summary>
+    /// 🔒 <b>A run crosses exactly two Stage Gates</b> — one out of stage 1 and one out of stage 2.
+    /// Stage 3's last node leads to the boss, which belongs to no stage, so it gates nothing.
+    /// </summary>
+    /// <remarks>
+    /// An exact count rather than a floor: the interstitial ad cadence is authored against a run
+    /// having two, so a third would be a real balance change and a first-only would be the trigger
+    /// having narrowed back to the overshoot clamp.
+    /// </remarks>
+    [Fact]
+    public void A_whole_run_crosses_exactly_two_stage_gates()
+    {
+        var (game, player) = Loop();
+        var driver = MetaLoopDriver.Play(game, player, Chapter, DifficultyTier.NORMAL);
+
+        game.State(player).Run!.BossDefeated.ShouldBeTrue(
+            "the premise: a run that stopped short of the boss was never in a position to cross two " +
+            "boundaries." + Trace(driver));
+
+        driver.StageGatesCrossed.ShouldBe(
+            ExpectedStageGates,
+            "the run crossed " + driver.StageGatesCrossed + " Stage Gates. One means the gate still " +
+            "only fires on an overshoot clamp; three means stage 3's last node gated on its way to " +
+            "the boss." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the budget
@@ -600,7 +699,7 @@ public sealed class MetaLoopTests
     /// </para>
     /// <para>
     /// 🔴 <b>The bound is anchored to the measurement, not to `30` §6's command budget, and the
-    /// difference matters.</b> A whole loop is about <b>4 ms</b> here — a stalled run is twenty-odd
+    /// difference matters.</b> A whole loop is about <b>4 ms</b> here — this run is twenty-odd
     /// commands, not the seven hundred <c>InMemoryGamePerformanceTests</c> drives — so borrowing that
     /// file's 200 ms × 10 would have left a bound five hundred times the real cost, under which a
     /// hundredfold regression passes in silence. This is ~25× the measured figure, which is loose
@@ -660,6 +759,14 @@ public sealed class MetaLoopTests
 
     private static IReadOnlyList<GearInstanceId> Ids(InMemoryGame game, PlayerId player) =>
         game.State(player).Player.Inventory.Stored.Select(item => item.InstanceId).ToArray();
+
+    /// <summary>Every identity the player owns, stored or held — a drop at a full stock lands in the latter.</summary>
+    private static IReadOnlyList<GearInstanceId> Owned(InMemoryGame game, PlayerId player)
+    {
+        var inventory = game.State(player).Player.Inventory;
+
+        return inventory.Stored.Concat(inventory.Held).Select(item => item.InstanceId).ToArray();
+    }
 
     private static byte[] StockBytes(InMemoryGame game, PlayerId player) =>
         CanonicalStateWriter.CanonicalBytes(game.State(player).Player.Inventory.ToSnapshot());

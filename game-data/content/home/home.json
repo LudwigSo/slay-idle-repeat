@@ -1,0 +1,17 @@
+{
+  "$schema": "../../schema/home.schema.json",
+  "_doc": "M7-04 — the strings the Home screen (S03) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. Deliberately narrow, and the narrowness is the design: Home shows the two Energy amounts the player snapshot literally carries and no denominator, no regeneration countdown, no Legend-XP percentage and no run Energy cost, because every tuning reader that could compute one is internal to Core and IGameHost exposes no derived-value read — a label authored here would invite a second copy of a formula Core already owns. The hero diorama, daily quests, ad widgets, chest pity, event and guild cards, the inbox envelope, the account-link banner, the bottom navigation and the Dungeons entry are later milestones' and author no strings here.",
+  "label": {
+    "legendLevel": "loc.home.legend_level.label",
+    "energy": "loc.home.energy.label",
+    "energyReserve": "loc.home.energy_reserve.label"
+  },
+  "action": {
+    "startRun": "loc.home.start_run.action",
+    "continueRun": "loc.home.continue_run.action"
+  },
+  "status": {
+    "loading": "loc.home.loading.status",
+    "unavailable": "loc.home.unavailable.status"
+  }
+}

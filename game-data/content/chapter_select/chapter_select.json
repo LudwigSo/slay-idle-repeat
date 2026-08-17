@@ -1,0 +1,25 @@
+{
+  "$schema": "../../schema/chapter_select.schema.json",
+  "_doc": "M7-04 — the strings the Chapter Select screen (S04) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. The chapter NAMES are not here: each chapter document carries its own displayName key (content/chapters/*.json), so a chapter added later brings its name with it rather than needing a second edit here. The tier ladder itself is authored in tuning/progression.json#/chapterGating and is read from there, never transcribed into code or into this file. The three status lines are one per state the screen can be in while its list is not yet an answer, and they are three rather than one because a dimmed wordless list reads the same whether the read is still running, the profile is missing or the read failed — and only the first of those ever ends. The confirmStatus trio is that same argument applied to the one action the screen has: a confirm hands a command to a host that takes time to answer and may refuse it, and a control that merely greys out and comes back says nothing about which of the three outcomes happened — so each gets its own sentence. None of them is a retry, a reload or an error panel; the failure screen and its ladder belong to the row that owns them. There is deliberately no par-power or expected-power caption: the power readout is a separate row's and a caption here would invite a power comparison this screen must not make.",
+  "title": "loc.chapter_select.title.name",
+  "tier": {
+    "normal": "loc.chapter_select.tier_normal.name",
+    "heroic": "loc.chapter_select.tier_heroic.name",
+    "mythic": "loc.chapter_select.tier_mythic.name"
+  },
+  "block": {
+    "requiresClear": "loc.chapter_select.requires_clear.block",
+    "requiresLegendLevel": "loc.chapter_select.requires_legend_level.block"
+  },
+  "status": {
+    "loading": "loc.chapter_select.loading.status",
+    "profileMissing": "loc.chapter_select.profile_missing.status",
+    "unavailable": "loc.chapter_select.unavailable.status"
+  },
+  "confirmStatus": {
+    "starting": "loc.chapter_select.starting.status",
+    "started": "loc.chapter_select.started.status",
+    "refused": "loc.chapter_select.refused.status"
+  },
+  "confirm": "loc.chapter_select.confirm.action"
+}

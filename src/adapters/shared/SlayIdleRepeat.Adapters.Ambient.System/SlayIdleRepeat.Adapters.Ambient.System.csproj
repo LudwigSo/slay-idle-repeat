@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The two determinism-critical ports' real implementation: IClockPort and
+    IIdGeneratorPort over the BCL. No vendor package, nothing but System.
+
+    shared/, not client/ or server/: both hosts need to know what time it is and both
+    hosts mint identifiers, so a single project serves them rather than two copies of
+    four lines drifting apart.
+
+    It exists at all because ambient time and ambient identity are exactly what must not
+    be reachable from the rules. DateTimeOffset.UtcNow and Guid.NewGuid() are banned
+    outright above this layer, so a reading and a fresh id enter through a port like any
+    other outside dependency — and the composition root is the only place that names this
+    project.
+
+    🔒 A1 — WHAT MAY JOIN THESE TWO, AND WHAT MAY NOT. `23` §5 A1 is "one adapter project
+    per external dependency. Never a shared 'Infrastructure' project", and two ports in
+    one project is only A1-compliant because they wrap ONE dependency: the host process's
+    ambient state, reached through System and nothing else. That is the same licence
+    `23` §3 grants Platform.Godot, which carries four ports over one runtime.
+
+    So the bound is the dependency, not the word "ambient": an implementation belongs here
+    if and only if it is a handful of lines over the BCL with no package, no configuration
+    and no I/O. Ambient ENVIRONMENT — a filesystem path, an environment variable, a locale,
+    a device fact — is a different dependency with a different failure mode and gets its own
+    project (Cache.LocalFile and Platform.Godot already own two of those). A third port added
+    here that needs a PackageReference is A1 breached and this comment is the thing that
+    should have stopped it.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

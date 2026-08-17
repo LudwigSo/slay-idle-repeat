@@ -10,7 +10,7 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="ChapterId">The chapter being played. No upper bound or existence check is enforced here.</param>
 /// <param name="Tier">The difficulty tier, part of <see cref="RunSeed"/>'s derivation.</param>
 /// <param name="LastAppliedAtUtc">The instant the last command was applied to this run — what the sliding run TTL is computed from. Distinct from <c>PlayerSnapshot.LastAppliedAtUtc</c>, which also advances on meta commands.</param>
-/// <param name="Position">The linear node index the run stands on. Floor is <b>-1</b>, the virtual trailhead a started-but-unrolled run legitimately persists at.</param>
+/// <param name="Position">The <b>identity</b> of the board node the run stands on, not a track offset: equal to the linear index for every spine node and for the boss, different inside a fork branch, where a branch node shares its linear index with the spine node the same distance ahead. Floor is <b>-1</b>, the virtual trailhead a started-but-unrolled run legitimately persists at.</param>
 /// <param name="CurrentHp">The hero's current hit points. Never negative, never above <paramref name="MaxHp"/>.</param>
 /// <param name="MaxHp">The hero's maximum hit points for this run. Stored rather than derived, so a resumed run can render its HP bar without recomputing the build. Never below 1.</param>
 /// <param name="Gold">The run's <c>GOLD</c> balance, the one run-scoped currency. Never negative.</param>
@@ -42,6 +42,12 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// missing is not a run fought naked, and reading it as empty would silently strip the build for the
 /// rest of the run. It holds instance IDENTITIES, so an item enhanced between two commands is worn
 /// at its new value; what is frozen is which items are equipped.
+/// </param>
+/// <param name="ItemsAtOrAboveFloorBand">
+/// How many items at or above the session floor's authored band this run has produced. Never
+/// negative. Carried on the run rather than derived from the stock at run end: the stock is the
+/// player's and holds items from every run they have ever made, so a tally taken from it could not
+/// tell what THIS session earned.
 /// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.RunId"/> and
@@ -89,4 +95,5 @@ public sealed record RunSnapshot(
     int DraftsSinceLegendaryOffered = 0,
     int DraftsWithoutAboveCommon = 0,
     int DraftsWithoutOwnedUpgrade = 0,
-    LoadoutSnapshot? StartingLoadout = null);
+    LoadoutSnapshot? StartingLoadout = null,
+    int ItemsAtOrAboveFloorBand = 0);

@@ -24,20 +24,20 @@ namespace SlayIdleRepeat.Core.Tests.Testing;
 /// only reason the distinction is worth a paragraph is that the two look alike from a diff.
 /// </para>
 /// <para>
-/// 🔴 <b>The driver resolves each board position once — until the run stalls, and then exactly once
-/// more, to end it.</b> The first half is what keeps the loop honest: <see cref="MetaLoopTests"/>
-/// records that a run parks on the last node of its stage and re-arrives at that same tile on every
-/// subsequent roll, so a driver that kept fighting would farm one enemy indefinitely and could make
-/// any income or XP assertion pass.
+/// 🔴 <b>The driver resolves each board position once, and the re-arrival guard is what keeps the
+/// loop honest.</b> A driver that kept resolving the tile it is standing on would farm one enemy
+/// indefinitely and could make any income or XP assertion pass. The guard is lifted only once the
+/// run is committed to dying, below.
 /// </para>
 /// <para>
-/// ⚠️ The second half is <b>not</b> free, and pretending otherwise would be the same dishonesty in
-/// smaller print. Once <see cref="StalledAt"/> is set the guard is lifted, because losing a battle
-/// is the only way a run reaches an ending and the only battle left is the one on the stalled node.
-/// So on a board that stalls on an enemy, that enemy is fought twice: won once, then lost. What
-/// rests on the second fight is the <em>ending</em> — and therefore the run payout, and therefore
-/// every assertion downstream of it. What does not rest on it is any claim about how far the run
-/// travelled or how many distinct tiles it resolved, which is what the first half protects.
+/// ⚠️ <b>How a run ends here, in the order the driver tries them.</b> A victory (the boss beaten) and
+/// a death both have endings written for them, and a victory is now the ordinary one. Failing those,
+/// the run travels until it meets a tile no command can clear — see <see cref="StuckOn"/> — and is
+/// abandoned there, which still pays it out so the meta half of the loop keeps its input.
+/// <see cref="StalledAt"/> is the fourth and it should now never fire: it was X-10's signature, a
+/// roll accepted that moved the run nowhere, and the repair of the stage-end clamp closed it. Both
+/// of those last two are kept because they are the only things that would notice their defect coming
+/// back.
 /// </para>
 /// </remarks>
 internal sealed class MetaLoopDriver
@@ -53,11 +53,11 @@ internal sealed class MetaLoopDriver
     /// The most commands one run may take, so a defect cannot hang the suite.
     /// </summary>
     /// <remarks>
-    /// 🔒 Sized for a board the run can cross END TO END, not for the four tiles a stalled run gets:
-    /// chapter 1 is 42 spine nodes plus the boss, and a node costs up to five commands (roll, resolve,
-    /// battle, confirm, draft). A budget sized to today's stalled run would turn the repair of
-    /// <c>MovementEngine</c>'s stage-end clamp into a failure of the one clause this file drives
-    /// cleanly — measured: at 200 the repaired run exhausts the budget mid-board.
+    /// 🔒 Sized for a board the run can cross END TO END: chapter 1 is 42 spine nodes plus the boss,
+    /// and a node costs up to five commands (roll, resolve, battle, confirm, draft). It was sized
+    /// that way before <c>MovementEngine</c>'s stage-end clamp was repaired and deliberately so — a
+    /// budget cut to the four tiles a stalled run reached would have turned that repair into a
+    /// failure of the one clause this file drives cleanly.
     /// </remarks>
     private const int CommandBudget = 600;
 
@@ -79,11 +79,19 @@ internal sealed class MetaLoopDriver
     private readonly List<string> _log = [];
     private readonly HashSet<int> _resolved = [];
     private readonly HashSet<int> _seen = [];
+
+    /// <summary>Positions where a <c>RESOLVE_TILE</c> was accepted and left the tile still pending.</summary>
+    private readonly HashSet<int> _acknowledged = [];
     private readonly List<int> _visited = [];
     private readonly List<TileKind> _tiles = [];
+    private readonly List<int> _stages = [];
+    private readonly List<TileKind> _killed = [];
 
     /// <summary>Which option of a choice this player is on. Reset the moment one is accepted.</summary>
     private int _choice;
+
+    /// <summary>The Fair-Dice reset anchor as of the last command — see <see cref="StageGatesCrossed"/>.</summary>
+    private ulong _diceAnchor;
 
     private MetaLoopDriver(InMemoryGame game, PlayerId player)
     {
@@ -108,21 +116,90 @@ internal sealed class MetaLoopDriver
     internal IReadOnlyList<TileKind> Tiles => _tiles;
 
     /// <summary>
+    /// The stage of every tile the run arrived at, in arrival order — <c>1</c>, <c>2</c>, <c>3</c>,
+    /// or <c>BoardGraph.BossStage</c>.
+    /// </summary>
+    /// <remarks>
+    /// The evidence a run crossed a stage boundary, read off the run's own pending-tile state rather
+    /// than inferred from node numbering: a branch node's id is not its spine position, so "the
+    /// position went up" cannot tell a stage apart.
+    /// </remarks>
+    internal IReadOnlyList<int> Stages => _stages;
+
+    /// <summary>
+    /// 🔴 The tile kind the run could not leave, or <c>null</c> if it never met one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Concluded from what the commands actually did, never from a list of kinds: a position earns
+    /// this only when a <c>RESOLVE_TILE</c> was <em>accepted</em> there and left the tile
+    /// <em>still pending</em>, and this driver has no second command for that kind. A pending tile
+    /// blocks <c>ROLL_DICE</c>, so the run cannot move again.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Behavioural on purpose, so it expires by itself (steering S4).</b> Naming the kinds in a
+    /// constant would have kept reporting "stuck" long after a resolver landed, which is the same
+    /// dishonesty this driver exists to avoid — and it did land: <c>TILE_SHOP</c> and
+    /// <c>TILE_DICE_FORGE</c>, the two kinds this used to catch, now clear through
+    /// <c>RESOLVE_TILE</c>, so this reports <c>null</c> on every board the loop drives. It is kept
+    /// because it is the one thing that would notice the next kind with no way out.
+    /// </para>
+    /// </remarks>
+    internal TileKind? StuckOn { get; private set; }
+
+    /// <summary>The position <see cref="StuckOn"/> was concluded at, or <c>null</c>.</summary>
+    internal int? StuckAt { get; private set; }
+
+    /// <summary>
+    /// Why a <c>ROLL_DICE</c> sent from <see cref="StuckAt"/> was refused — the evidence that the run
+    /// genuinely cannot leave, taken rather than inferred. <c>null</c> if the roll was accepted, or
+    /// if the run never got stuck.
+    /// </summary>
+    internal RejectionReason? StuckRollRejection { get; private set; }
+
+    /// <summary>
     /// How many <c>CONFIRM_BATTLE_RESULT</c>s were accepted — not how many distinct enemies were
-    /// met. The stalled node's enemy is fought twice; see this type's remarks.
+    /// met. Once the run is committed to dying the re-arrival guard is lifted, so the last enemy can
+    /// be fought twice; see this type's remarks.
     /// </summary>
     internal int BattlesFought { get; private set; }
 
     /// <summary>How many of those were won.</summary>
     internal int BattlesWon { get; private set; }
 
+    /// <summary>
+    /// The kind of tile behind every battle this run <em>won</em>, in order.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Tiles"/> says what the run arrived at, which is not the same claim: a case that
+    /// needs an Elite to have <b>died</b> — a drop is owed by the kill, not by the encounter — would
+    /// otherwise be satisfied by a board that offered one and a hero that lost to it.
+    /// </remarks>
+    internal IReadOnlyList<TileKind> KillsWon => _killed;
+
     /// <summary>How many drafts the run opened and this player skipped.</summary>
     internal int DraftsSkipped { get; private set; }
 
+    /// <summary>How many Stage Gates this run crossed.</summary>
+    /// <remarks>
+    /// Counted off the run's own Fair-Dice reset anchor moving, which is the one thing nothing but a
+    /// gate touches — a counter built on "the run stood on a boundary node" would be a second
+    /// implementation of the rule under test, and would agree with a broken one.
+    /// </remarks>
+    internal int StageGatesCrossed { get; private set; }
+
     /// <summary>
-    /// The position a <c>ROLL_DICE</c> was first accepted at without moving the run, or <c>null</c>
-    /// if that never happened. See <see cref="MetaLoopTests"/> for what it means.
+    /// The position a <c>ROLL_DICE</c> was first accepted at without moving the run <em>and without
+    /// opening a fork</em>, or <c>null</c> if that never happened. See <see cref="MetaLoopTests"/>
+    /// for what it means.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>The fork clause is what makes this an identity rather than a symptom (steering S2).</b>
+    /// A roll taken while standing on a junction also leaves the position unchanged — <c>03</c> §1.1
+    /// pauses the instant movement must leave one, and the run is already there — so a check on the
+    /// position alone reports a legal junction pause as a stall. That is reachable: landing exactly
+    /// on a junction with nothing left to spend does not prompt, so the next roll is taken from it.
+    /// </remarks>
     internal int? StalledAt { get; private set; }
 
     /// <summary>How the run finished: the command that ended it, or why none could.</summary>
@@ -202,6 +279,7 @@ internal sealed class MetaLoopDriver
 
             var before = run.Position;
             var hadTile = run.HasPendingTile;
+            var tileBefore = hadTile ? run.PendingTileLinearIndex : (int?)null;
             var result = Send(next);
 
             if (!result.Accepted)
@@ -231,6 +309,10 @@ internal sealed class MetaLoopDriver
                     if (confirmed.Won)
                     {
                         BattlesWon++;
+
+                        // Off the run as it stood BEFORE the command: the confirmation clears the
+                        // pending tile, so the kind is gone by the time the result comes back.
+                        _killed.Add((TileKind)run.PendingTileKindValue);
                     }
 
                     break;
@@ -245,6 +327,12 @@ internal sealed class MetaLoopDriver
 
             var after = _game.State(_player).Run;
 
+            if (after is not null && after.StageGateDiceAnchor != _diceAnchor)
+            {
+                _diceAnchor = after.StageGateDiceAnchor;
+                StageGatesCrossed++;
+            }
+
             // A tile counts as resolved once it is CLEARED, not once a command was aimed at it: an
             // Event needs RESOLVE_TILE and then EVENT_CHOOSE, and marking it on the first would make
             // the second look like a re-arrival.
@@ -253,7 +341,21 @@ internal sealed class MetaLoopDriver
                 _resolved.Add(before);
             }
 
-            if (next is RollDiceCommand && StalledAt is null && after?.Position == before && before >= 0)
+            // Recorded on a CHANGE of pending tile, not on one merely appearing: RESOLVE_TILE on a
+            // Portal clears its tile and arrives at the landing tile in the same command, so a
+            // crossing made by a Portal jump would otherwise go unrecorded.
+            if (after?.HasPendingTile == true && after.PendingTileLinearIndex != tileBefore)
+            {
+                _stages.Add(after.PendingTileStage);
+            }
+
+            if (next is ResolveTileCommand && after?.HasPendingTile == true && before >= 0)
+            {
+                _acknowledged.Add(before);
+            }
+
+            if (next is RollDiceCommand && StalledAt is null && after?.Position == before &&
+                after.PendingFork is null && before >= 0)
             {
                 StalledAt = before;
             }
@@ -282,12 +384,9 @@ internal sealed class MetaLoopDriver
             return new ChooseForkCommand(_choice);
         }
 
-        // 🔒 The victory ending is unreachable today — the stage-boundary stall parks every run in
-        // stage 1, so no board this driver can walk reaches the boss node. It is written anyway, and
-        // FIRST: the day movement is repaired, a run that beats the boss must have an ending waiting
-        // for it, or this driver would walk to the boss and then exhaust its budget. That would fail
-        // the one clause of the exit criterion this file drives cleanly, for a reason that has
-        // nothing to do with the clause.
+        // Checked FIRST because it is now the ordinary ending: a run walks the whole board and beats
+        // the boss, so it must have an ending waiting for it rather than exhausting its budget at
+        // the boss node.
         if (run.BossDefeated)
         {
             Ending = "END_RUN after a victory";
@@ -309,9 +408,9 @@ internal sealed class MetaLoopDriver
 
         if (dying)
         {
-            // Stalled on a tile that cannot kill anybody. Abandoning is the only ending left, and it
-            // pays the run out, so the meta half of the loop still has something to spend.
-            Ending = "ABANDON_RUN, stalled with no battle to lose";
+            // Committed to dying, on a tile with no battle to lose. Abandoning is the only ending
+            // left, and it pays the run out, so the meta half of the loop still has something to spend.
+            Ending = "ABANDON_RUN, no battle left to lose";
             Abandon();
 
             return null;
@@ -326,8 +425,8 @@ internal sealed class MetaLoopDriver
 
         if (_resolved.Contains(run.Position) && !dying)
         {
-            // Already resolved here — this is a re-arrival on the stalled node, not a second tile.
-            // Roll on and let the stall detector see it.
+            // Already resolved here — a re-arrival at this position, not a second tile. Roll on, and
+            // let the stall detector see it if the run cannot actually leave.
             return new RollDiceCommand();
         }
 
@@ -336,9 +435,9 @@ internal sealed class MetaLoopDriver
             _tiles.Add(kind);
         }
 
-        return kind switch
+        var next = kind switch
         {
-            TileKind.Enemy or TileKind.Elite or TileKind.Boss => new StartBattleCommand(),
+            TileKind.Enemy or TileKind.Elite or TileKind.Boss => (GameCommand)new StartBattleCommand(),
             TileKind.Minigame when !run.HasResolvedMinigameAt(run.Position) =>
                 new MinigameSubmitCommand(ChestPick, 0),
             TileKind.Campfire => new CampfireChooseCommand(_choice),
@@ -347,6 +446,30 @@ internal sealed class MetaLoopDriver
             TileKind.Minigame => new RollDiceCommand(),
             _ => new ResolveTileCommand(),
         };
+
+        // 🔴 About to re-send the one command already tried here, which was accepted and left the
+        // tile pending. The run's travel ends here; abandoning still pays it out, so the meta half of
+        // the loop keeps its input. Checked after the switch, not before: an Event's first
+        // RESOLVE_TILE also leaves the tile pending, and its EVENT_CHOOSE is a different command.
+        if (next is ResolveTileCommand && _acknowledged.Contains(run.Position))
+        {
+            StuckOn = kind;
+            StuckAt = run.Position;
+
+            // The claim is "the run cannot leave", so it is taken as evidence rather than reasoned
+            // about: a roll from here has to come back refused.
+            var probe = Send(new RollDiceCommand());
+            StuckRollRejection = probe.Accepted ? null : probe.Rejection;
+
+            Ending = "ABANDON_RUN, stuck on " + kind + " at " + Text(run.Position) +
+                " — RESOLVE_TILE was accepted and left it pending, and ROLL_DICE answered " +
+                (StuckRollRejection?.ToString() ?? "ACCEPTED");
+            Abandon();
+
+            return null;
+        }
+
+        return next;
     }
 
     /// <summary>
