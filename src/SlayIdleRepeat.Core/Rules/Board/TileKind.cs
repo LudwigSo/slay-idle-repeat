@@ -1,7 +1,7 @@
 namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>The closed set of 14 tile kinds a board node can hold, including the boss.</summary>
-internal enum TileKind
+public enum TileKind
 {
     Enemy,
     Elite,

@@ -36,7 +36,17 @@ internal static class BoardResolution
             return BoardGenerator.GenerateBoard(config, rngScope.Stream(RngStreams.Board));
         }
 
-        var replay = DeterministicRng.OpenAt(run.RunSeed, RngStreams.Board, 0);
-        return BoardGenerator.GenerateBoard(config, replay);
+        return Replay(config, run.RunSeed);
     }
+
+    /// <summary>
+    /// Rebuilds a run's board off an ephemeral stream reopened at draw 0, touching no tracked
+    /// counter. The one replay in the codebase: <see cref="BoardView"/> reads the board through it
+    /// too, so the track a player is shown cannot drift onto a different layout from the one the
+    /// movement handlers walk.
+    /// </summary>
+    /// <param name="config">The run's chapter's board-relevant content.</param>
+    /// <param name="runSeed">The run's committed seed, the board's only other input.</param>
+    internal static BoardGraph Replay(ChapterBoardConfig config, ulong runSeed) =>
+        BoardGenerator.GenerateBoard(config, DeterministicRng.OpenAt(runSeed, RngStreams.Board, 0));
 }

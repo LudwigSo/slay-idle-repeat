@@ -1,7 +1,7 @@
 namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>The four fork-branch preview labels.</summary>
-internal enum ForkLabel
+public enum ForkLabel
 {
     /// <summary>+Elite, +Enemy, +Treasure, −Shrine.</summary>
     Perilous,
