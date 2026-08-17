@@ -150,8 +150,17 @@ public partial class Boot : Control
     private static int Inset(float canvasUnits) => Mathf.Max(DesignGutter, Mathf.RoundToInt(canvasUnits));
 
     /// <remarks>
+    /// <para>
     /// Nothing awaits this task, so its exceptions have nowhere to surface: the whole body is
     /// guarded, or a continuation that threw would leave a screen that silently stopped moving.
+    /// </para>
+    /// <para>
+    /// 🔴 A finished boot stops here, and that is the second thing this file deliberately does not
+    /// build. There is no screen to hand over to yet — Home is a later task's, as is whatever
+    /// decides between Home and a resumed run — so <see cref="BootStage.Ready"/> is reported and
+    /// drawn rather than navigated away from. Inventing a destination would put a screen on the
+    /// only path every player takes, chosen by the task least equipped to choose it.
+    /// </para>
     /// </remarks>
     private async Task RunAsync()
     {

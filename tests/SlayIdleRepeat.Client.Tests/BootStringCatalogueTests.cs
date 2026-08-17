@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Client.Game.Presenters;
+using SlayIdleRepeat.Core.Content;
 using Xunit;
 
 namespace SlayIdleRepeat.Client.Tests;
@@ -10,6 +11,66 @@ namespace SlayIdleRepeat.Client.Tests;
 /// </summary>
 public sealed class BootStringCatalogueTests
 {
+    /// <summary>The document that names the boot screen's strings for the content invariants.</summary>
+    private const string BootDocumentPath = "content/boot/boot.json";
+
+    /// <summary>What a loc key looks like, so the document's prose members are not mistaken for one.</summary>
+    private const string LocKeyPrefix = "loc.";
+
+    /// <summary>
+    /// 🔒 Slot by slot, the document says the same thing the screen does.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Nothing reads the document at runtime — the keys are constants in the presenter — so a slot
+    /// pointed at the wrong key changes no behaviour and reddens no other case in this repository.
+    /// The orphan invariant pins the key SET from below, since a key the document stops naming
+    /// fails the content load; what it cannot see is two slots swapped, which leaves every key
+    /// referenced and the document describing a screen that does not exist.
+    /// </para>
+    /// <para>
+    /// Stated per slot rather than over the set for exactly that reason, and against
+    /// <see cref="BootContent"/>'s constants rather than literals, because those are what the
+    /// presenter cases resolve through — a key the screen stopped rendering is red there first.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("title", BootContent.TitleKey)]
+    [InlineData("stageStatus/splash", BootContent.SplashStatusKey)]
+    [InlineData("stageStatus/content", BootContent.ContentStatusKey)]
+    [InlineData("stageStatus/profile", BootContent.ProfileStatusKey)]
+    [InlineData("stageStatus/atlas", BootContent.AtlasStatusKey)]
+    [InlineData("stageStatus/ready", BootContent.ReadyStatusKey)]
+    [InlineData("failureStatus", BootContent.FailureStatusKey)]
+    public void The_boot_document_points_each_slot_at_the_key_the_screen_renders_there(
+        string slot, string key)
+    {
+        BootContent.Shipped.ReadText($"{BootDocumentPath}#/{slot}").ShouldBe(
+            key,
+            $"'{slot}' is the document's claim about what the boot screen shows there, and it is " +
+            "authored data no code path loads — so the claim is worth nothing unless something " +
+            "holds it against the screen. Two slots swapped leaves every key referenced, the " +
+            "content load green, and the document describing a screen nobody built.");
+    }
+
+    /// <summary>
+    /// 🔒 And the document names no key beyond those — the direction the orphan invariant cannot see.
+    /// </summary>
+    /// <remarks>
+    /// A key added to both locales and named here but rendered nowhere loads clean, validates
+    /// clean, and buys a translation nobody will ever read. The theory above pins seven slots; this
+    /// is what stops an eighth appearing beside them.
+    /// </remarks>
+    [Fact]
+    public void The_boot_document_names_no_key_the_boot_screen_does_not_render()
+    {
+        LocKeysNamedByTheBootDocument().ShouldBe(
+            BootContent.AllKeys.Order(StringComparer.Ordinal).ToArray(),
+            "the document is the only statement of which loc keys the boot screen is about. Held " +
+            "against the keys the presenter actually resolves it stops being a claim and starts " +
+            "being a fact — which is what makes it worth keeping in game-data at all.");
+    }
+
     [Fact]
     public void Resolve_returns_the_English_string_for_a_key_the_English_locale_carries()
     {
@@ -123,6 +184,49 @@ public sealed class BootStringCatalogueTests
             "the shipped locales do not carry it. Every other case in this suite runs against an " +
             "in-memory fixture and would keep passing while the boot screen rendered dotted " +
             "identifiers on a handset — this is the one that notices.");
+    }
+
+    /// <summary>Every loc key the shipped boot document names, wherever in it they sit.</summary>
+    private static IReadOnlyList<string> LocKeysNamedByTheBootDocument()
+    {
+        BootContent.Shipped.TryGetDocument(BootDocumentPath, out var document).ShouldBeTrue(
+            $"'{BootDocumentPath}' is not in the shipped content set, so this case would compare the " +
+            "screen's keys against nothing at all and pass hardest on the checkout that deleted the " +
+            "document.");
+
+        var keys = new List<string>();
+        CollectLocKeys(document!.Root, keys);
+
+        return keys.Order(StringComparer.Ordinal).ToArray();
+    }
+
+    /// <summary>Walks a document collecting loc keys, so a restructured document still reads.</summary>
+    private static void CollectLocKeys(ContentValue value, List<string> keys)
+    {
+        if (value.Kind == ContentValueKind.Text)
+        {
+            var text = value.AsText();
+
+            if (text.StartsWith(LocKeyPrefix, StringComparison.Ordinal))
+            {
+                keys.Add(text);
+            }
+
+            return;
+        }
+
+        if (value.Kind != ContentValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var name in value.MemberNames)
+        {
+            if (value.TryGetMember(name, out var member))
+            {
+                CollectLocKeys(member!, keys);
+            }
+        }
     }
 
     [Fact]
