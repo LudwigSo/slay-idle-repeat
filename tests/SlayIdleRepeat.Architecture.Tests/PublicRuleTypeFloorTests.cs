@@ -261,8 +261,9 @@ public sealed class PublicRuleTypeFloorTests
             offenders.Add(
                 $"Domain.PublicRuleTypes resolves {resolved} of {Domain.PublicRuleTypes.Count} names to a " +
                 $"Core type; the floor is {ResolvedPublicRuleTypeFloor}. R16 enumerated the signature " +
-                "closure of CombatSimulator.Simulate and the list is the only place that closure is " +
-                "written down — a rename that empties it takes the exemption arm of " +
+                "closures of the public entry points — CombatSimulator.Simulate, and M7-05b's " +
+                "BoardView — and the list is the only place they are written down; a rename that " +
+                "empties it takes the exemption arm of " +
                 "Handlers_and_Rules_are_internal with it. If this shrank on purpose, lower the floor in " +
                 "the same commit and say why in the message.");
         }

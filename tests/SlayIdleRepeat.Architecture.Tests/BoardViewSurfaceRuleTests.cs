@@ -20,10 +20,23 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// ⚠️ <b>Nothing in the existing suite would notice that narrowness being lost.</b>
 /// <c>Handlers_and_Rules_are_internal</c> is satisfied the moment a name is added to
 /// <c>Domain.PublicRuleTypes</c>, and <c>PublicRuleTypeFloorTests</c> asks whether the listed names
-/// resolve and are public — neither asks <em>which</em> types they are. A <c>BoardView.Graph</c>
-/// property, a <c>Project(RunSnapshot, DeterministicRng)</c> overload, or a public
-/// <c>BoardGenerator</c> added "so the client can preview a board" would each pass every rule in
-/// this repository and would hand the outside world the machinery that decides where a run goes.
+/// resolve and are public — neither asks <em>which</em> types they are. A
+/// <c>Project(RunSnapshot, DeterministicRng)</c> overload, or a public <c>BoardGenerator</c> added
+/// "so the client can preview a board", would pass every rule in this repository and would hand the
+/// outside world the machinery that decides where a run goes.
+/// </para>
+/// <para>
+/// ⚠️ <b>C# closes one half of this on its own, and these rules do not take credit for it.</b> A
+/// public member naming an <c>internal</c> type does not compile — <c>public BoardGraph Graph</c>
+/// on <c>BoardView</c> is <c>CS0053</c>, and the method and parameter forms are
+/// <c>CS0050</c>/<c>CS0051</c> — so while the machinery stays internal, no member CAN name it and
+/// the arms below that mention <c>BoardGenerator</c> and <c>BoardGraph</c> are unreachable. They
+/// are kept as the other half of a pair rather than as coverage: they become reachable exactly when
+/// <see cref="The_boards_producer_stays_internal"/> has already gone red, which is the moment a
+/// second rule is worth having. What the two rules below actually catch on their own is a member
+/// naming an ALREADY-PUBLIC <c>Core</c> type outside the permitted set — a <c>DeterministicRng</c>
+/// parameter, a <c>RunPhase</c> or <c>PlayerSnapshot</c> member — which compiles fine and which
+/// nothing else in the suite would notice.
 /// </para>
 /// <para>
 /// So three rules: the producer stays <c>internal</c>; the public surface's signature closure names
@@ -168,10 +181,12 @@ public sealed class BoardViewSurfaceRuleTests
     /// two snapshots the projection already took.
     /// </summary>
     /// <remarks>
-    /// This is the rule that fires the day somebody adds a <c>BoardView.Graph</c>, a
-    /// <c>ForkPreview</c>-returning member or a <c>Project</c> overload taking a
-    /// <c>DeterministicRng</c>. R16's discipline, applied to the board half of the list: the surface
-    /// is ENUMERATED, so growing it costs a line in a diff.
+    /// This is the rule that fires the day somebody adds a <c>Project</c> overload taking a
+    /// <c>DeterministicRng</c>, or any other member naming a public <c>Core</c> type outside the
+    /// permitted set. It is <em>not</em> what stops a <c>BoardView.Graph</c> or a
+    /// <c>ForkPreview</c>-returning member — the compiler does, per the class remarks — and saying
+    /// otherwise would count the language's work as this rule's. R16's discipline, applied to the
+    /// board half of the list: the surface is ENUMERATED, so growing it costs a line in a diff.
     /// </remarks>
     [Fact]
     public void The_public_board_surface_names_nothing_beyond_its_own_five_types()

@@ -118,9 +118,10 @@ internal static class Domain
     internal const string BattleRngScopeType = "BattleRngScope";
 
     /// <summary>
-    /// The <c>Rules</c> types that may be public: <c>30</c> §11.2's two documented entry points —
-    /// the client's local battle simulation (<c>14</c> §2.4) and the Hero screen's power readout
-    /// (<c>29</c> §1) — plus the enumerated signature closure of <c>CombatSimulator.Simulate</c>.
+    /// The <c>Rules</c> types that may be public: three documented entry points — <c>30</c> §11.2's
+    /// two, the client's local battle simulation (<c>14</c> §2.4) and the Hero screen's power
+    /// readout (<c>29</c> §1), plus M7-05b's board projection for the client's Board screen (S05) —
+    /// and the enumerated signature closure of each.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -137,7 +138,7 @@ internal static class Domain
     /// </para>
     /// <para>
     /// 🔒 <b>R16 — the list is ENUMERATED, never a blanket "anything reachable from a public
-    /// type".</b> These six are exactly the signature closure of
+    /// type".</b> The first six are exactly the signature closure of
     /// <c>Simulate(ulong, ActorStats, int, IReadOnlyList&lt;ActorStats&gt;, int)</c> and its
     /// <c>SimulationResult</c> return. A blanket rule would let a third public entry point appear
     /// without anyone deciding to add one; enumerated, it costs a line in this diff. Everything a

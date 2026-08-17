@@ -9,6 +9,15 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// same helper the movement handlers resolve it with — so this is the only way anything outside
 /// <c>Core</c> can see a tile track or a fork preview at all.
 /// </summary>
+/// <remarks>
+/// ⚠️ <b>The whole board is projected, ungated.</b> Tile preview range is authored content —
+/// <c>StatId.TilePreviewRange</c> and <c>EffectOp.REVEAL_TILES</c>, which perks, a talent rank, an
+/// event outcome and a curse all move — and nothing reads either yet: <c>REVEAL_TILES</c> is one of
+/// the ops queued for the run rather than resolved. Every caller therefore sees every tile. When
+/// that gate is built it belongs in <see cref="Project"/> and not in whatever draws the track — a
+/// screen that clipped the track itself would be a rule living outside the rules assembly, and a
+/// second screen would clip it differently.
+/// </remarks>
 public sealed class BoardView
 {
     private readonly IReadOnlyDictionary<int, BoardTrackNode> _byNodeId;
