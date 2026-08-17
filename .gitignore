@@ -62,6 +62,16 @@ project.fragment.lock.json
 # instead — see docs/spikes/O23-godot-android-export.md.
 spikes/**/android/
 
+# --- M7-01 / the real Godot client (src/SlayIdleRepeat.Client) ---
+# The same Android build template as above, in the project that actually ships it.
+# Regenerable, ~1260 MB, and the Godot SDK globs every .cs beneath the project
+# directory — hence the matching <Compile Remove> block in the .csproj.
+src/SlayIdleRepeat.Client/android/
+# The game-data mirror. res://data/ is a copy of game-data/ produced at build time
+# so an exported build can read content without walking up to the solution file.
+# Generated, never authored: edit game-data/ instead.
+src/SlayIdleRepeat.Client/data/
+
 # --- M0-05b / O23 iOS export spike (spikes/godot-ios-export) ---
 # The iOS export destination is chosen in export_presets.cfg and deliberately
 # points OUTSIDE the Godot project, at artifacts/ios/ — which is already covered

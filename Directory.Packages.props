@@ -115,4 +115,23 @@
     <PackageVersion Include="StackExchange.Redis" Version="3.1.13" />
   </ItemGroup>
 
+  <!--
+    🔒 The engine's managed API, pinned to the 4.7.1-stable the export spike ran
+    against. SlayIdleRepeat.Adapters.Platform.Godot is a plain SDK project, so it must
+    name GodotSharp explicitly and therefore needs a version here. That one reference
+    is the whole vendor budget for the engine, and the uniqueness gate above is what
+    keeps it there.
+
+    🔴 The condition is not tidiness. SlayIdleRepeat.Client builds on Godot.NET.Sdk,
+    which references GodotSharp implicitly, and NuGet fails RESTORE with NU1009 the
+    moment a central version exists for an implicitly-referenced package — measured on
+    this repository, not guessed, and NoWarn does not reach a restore error. Excluding
+    the one project that never names the package by hand is the narrowest fix
+    available. Both halves still land on the same bits: Godot.NET.Sdk/4.7.1 injects
+    GodotSharp 4.7.1.
+  -->
+  <ItemGroup Condition=" '$(MSBuildProjectName)' != 'SlayIdleRepeat.Client' ">
+    <PackageVersion Include="GodotSharp" Version="4.7.1" />
+  </ItemGroup>
+
 </Project>

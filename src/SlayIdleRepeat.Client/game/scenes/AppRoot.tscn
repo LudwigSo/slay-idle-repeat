@@ -1,0 +1,26 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/AppRoot.cs" id="1_approot"]
+
+[node name="AppRoot" type="Node"]
+script = ExtResource("1_approot")
+
+[node name="Ui" type="CanvasLayer" parent="."]
+
+[node name="SafeArea" type="MarginContainer" parent="Ui"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 128
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 128
+
+[node name="StatusLabel" type="Label" parent="Ui/SafeArea"]
+unique_name_in_owner = true
+text = "Composing…"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3

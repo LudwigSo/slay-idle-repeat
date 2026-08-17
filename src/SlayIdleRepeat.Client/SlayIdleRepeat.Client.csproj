@@ -1,20 +1,89 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Godot.NET.Sdk/4.7.1">
 
   <!--
-    SlayIdleRepeat.Client — COMPOSITION ROOT for the Godot client (23 §7.2).
+    SlayIdleRepeat.Client — the Godot client, and the client-side COMPOSITION
+    ROOT: the only project besides SlayIdleRepeat.Server that may name a
+    concrete adapter.
 
-    M0 PLACEHOLDER: this is a plain net8.0 class library so that
-    `dotnet build SlayIdleRepeat.sln` works on a machine without Godot installed —
-    Godot must not be a build prerequisite for the solution.
-
-    M7 converts this project to the Godot SDK (Sdk="Godot.NET.Sdk/4.x") alongside
-    the real project.godot, at which point SlayIdleRepeat.Adapters.Platform.Godot
-    picks up its GodotSharp reference. project.godot next to this file is a stub
-    carrying the app name and the bundle id only — do not open the Godot editor
-    against it during M0.
+    The Godot SDK and GodotSharp both come from nuget.org, so `dotnet build
+    SlayIdleRepeat.sln` still succeeds on a machine with no Godot installed —
+    the engine is a runtime and an editor here, never a build prerequisite.
 
     Deliberately does NOT reference the in-memory fakes — they ship in tests only.
   -->
+
+  <PropertyGroup>
+    <RootNamespace>SlayIdleRepeat.Client</RootNamespace>
+
+    <!--
+      Godot loads the game assembly into a collectible AssemblyLoadContext so the
+      editor can hot-reload it; without this the second reload leaks the first.
+    -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+
+    <!--
+      ⚠️ Duplicates Directory.Build.props, and is here anyway. The engine inspects
+      this file on every import, and a Godot project whose .csproj does not state
+      a target framework literally gets one written in — it rewrote this file and
+      left a .csproj.old behind the first time. Stating it removes the reason for
+      that rewrite. It must be kept in step with Directory.Build.props by hand:
+      that file is still the decision, this is a copy the engine insists on.
+    -->
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <!--
+    ⚠️ The Godot SDK globs every .cs BENEATH this directory, not just the ones an
+    ordinary SDK project would compile. Four of these directories are generated and
+    one is vendored engine source of over a gigabyte, so without these removals the
+    first Android build template Godot unpacks turns the solution build into a
+    compile of that template.
+  -->
+  <ItemGroup>
+    <Compile Remove="android/**" />
+    <Compile Remove="bin/**" />
+    <Compile Remove="obj/**" />
+    <Compile Remove=".godot/**" />
+    <Compile Remove="data/**" />
+  </ItemGroup>
+
+  <!--
+    game-data -> res://data/
+
+    The engine can only see files inside its own project directory, and the walk-up to
+    SlayIdleRepeat.sln that locates game-data everywhere else does not exist once the game
+    is exported. So the content tree is mirrored in at build time. game-data stays the one
+    place it is authored; data/ is generated, gitignored, and removed from the compile
+    globs above.
+
+    Plain MSBuild with no engine involved, so `dotnet build SlayIdleRepeat.sln` produces
+    the mirror on a machine that has never had Godot installed.
+
+    ⚠️ Copies, and never deletes. A document removed from game-data lingers in an existing
+    mirror until data/ is deleted by hand. Content is only ever added today; if a removal
+    ever matters, delete the directory rather than teaching this target to.
+  -->
+  <PropertyGroup>
+    <GameDataRoot>$(MSBuildThisFileDirectory)..\..\game-data\</GameDataRoot>
+    <GameDataMirrorRoot>$(MSBuildThisFileDirectory)data\</GameDataMirrorRoot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <GameDataDocument Include="$(GameDataRoot)**\*.json" />
+  </ItemGroup>
+
+  <Target Name="MirrorGameDataIntoProject" BeforeTargets="BeforeBuild">
+    <!--
+      An empty mirror is the one outcome worth failing over: the game would build, start, and
+      then find no content, three steps away from the thing that actually went wrong.
+    -->
+    <Error Condition="'@(GameDataDocument)' == ''" Text="No content documents under '$(GameDataRoot)'. The client mirrors game-data into the Godot project at build time, so an empty source means the exported game would ship with no content at all. Check that the checkout is complete." />
+    <!--
+      SkipUnchangedFiles rather than target-level Inputs/Outputs: with Inputs, MSBuild skips a
+      target whose item list is empty, which would take the check above with it.
+    -->
+    <Copy SourceFiles="@(GameDataDocument)" DestinationFiles="@(GameDataDocument->'$(GameDataMirrorRoot)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
@@ -23,6 +92,8 @@
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Billing.GooglePlay\SlayIdleRepeat.Adapters.Billing.GooglePlay.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Billing.StoreKit\SlayIdleRepeat.Adapters.Billing.StoreKit.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Api.Http\SlayIdleRepeat.Adapters.Api.Http.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Cache.LocalFile\SlayIdleRepeat.Adapters.Cache.LocalFile.csproj" />
+    <ProjectReference Include="..\adapters\shared\SlayIdleRepeat.Adapters.Ambient.System\SlayIdleRepeat.Adapters.Ambient.System.csproj" />
     <ProjectReference Include="..\adapters\shared\SlayIdleRepeat.Adapters.Content.LocalFile\SlayIdleRepeat.Adapters.Content.LocalFile.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Push.Firebase\SlayIdleRepeat.Adapters.Push.Firebase.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
