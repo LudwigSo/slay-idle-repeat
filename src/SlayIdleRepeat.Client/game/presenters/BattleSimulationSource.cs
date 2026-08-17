@@ -1,5 +1,7 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Combat;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
@@ -131,6 +133,18 @@ public sealed class LocalBattleSimulation : IBattleSimulationSource
     /// <summary>The stream whose counter says how many battles this run has started.</summary>
     private const string CombatStreamName = "combat";
 
+    /// <summary>
+    /// The content set the simulator takes its caps from — the last argument of the call this type
+    /// exists to make.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Held and deliberately unread, for exactly as long as
+    /// <see cref="TheHerosStatBlockCannotBeBuiltHere"/> holds. Every other argument of that call is
+    /// in hand — the seed is derived, the levels are on the run row — and this one is too; the stat
+    /// block is the only missing piece. Dropping it would make the day it becomes readable a change
+    /// to the composition root as well as to this file, and would read as though the simulation
+    /// needed nothing it does not have.
+    /// </remarks>
     private readonly ContentSnapshot _content;
 
     /// <summary>Builds the prediction over the loaded content set the simulator reads its caps from.</summary>
@@ -148,13 +162,50 @@ public sealed class LocalBattleSimulation : IBattleSimulationSource
     {
         ArgumentNullException.ThrowIfNull(run);
 
-        _ = _content;
-        _ = CombatStreamName;
-        _ = TheHerosStatBlockCannotBeBuiltHere;
-        _ = TheRunsCombatCounterIsTheOnlyBattleIndexThereIs;
+        // Refused before anything is derived: the counter of a run with no open battle names the
+        // LAST fight, so a seed reported here would be a real number for the wrong fight.
+        if (run.Phase != RunPhase.BattlePending)
+        {
+            return Refused(BattleReadiness.PhaseNotBattle);
+        }
 
-        throw new NotImplementedException(
-            "M7-06 phase 1 declares this so its cases compile and fail on their own assertions. " +
-            "The implementation derives the battle seed and then refuses at the hero's stat block.");
+        if (!TryReadBattleIndex(run, out var battleIndex))
+        {
+            return Refused(BattleReadiness.SeedUnavailable);
+        }
+
+        var battleSeed = SeedDerivation.BattleSeed(run.RunSeed, battleIndex);
+
+        // 🔴 And this is as far as it goes — see TheHerosStatBlockCannotBeBuiltHere. The seed is
+        // reported anyway, because which half is missing is the whole of what a report can say.
+        return new BattleSimulationAttempt(
+            BattleReadiness.HeroStatsUnavailable, battleSeed, SeedDerived: true, Result: null);
     }
+
+    /// <summary>
+    /// Reads the index of the battle the run is standing in, or refuses when the row does not name
+    /// one. See <see cref="TheRunsCombatCounterIsTheOnlyBattleIndexThereIs"/>.
+    /// </summary>
+    /// <remarks>
+    /// An absent counter and a zero one are the same fact — a run whose open battle nothing can
+    /// name — so they take the same exit rather than one of them reaching a derivation that refuses
+    /// a negative index by throwing.
+    /// </remarks>
+    private static bool TryReadBattleIndex(RunSnapshot run, out int battleIndex)
+    {
+        battleIndex = 0;
+
+        if (!run.RngStreamPositions.TryGetValue(CombatStreamName, out var battlesStarted) ||
+            battlesStarted == 0)
+        {
+            return false;
+        }
+
+        battleIndex = (int)(battlesStarted - 1);
+
+        return true;
+    }
+
+    private static BattleSimulationAttempt Refused(BattleReadiness readiness) =>
+        new(readiness, BattleSeed: 0, SeedDerived: false, Result: null);
 }

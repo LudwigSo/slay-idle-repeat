@@ -1,4 +1,6 @@
+using System.Globalization;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Combat;
@@ -125,6 +127,24 @@ public sealed class BattleReplayPresenter
     /// </remarks>
     private const int TicksPerSecond = 20;
 
+    /// <summary>
+    /// The slot the log identifies the hero by.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A transcription of the rules layer's actor roster, which is internal and has no public
+    /// restatement: slot 0 is the hero, 1 to 3 are the pet slots — reserved whether they are filled
+    /// or not — 4 to 254 are the encounter's enemies in order and then any summons, and 255 is
+    /// nobody. Only the two ends are named here because only they are read: the hero's health is the
+    /// one bar the log always fixes, and "nobody" is what a fight-wide event puts in both slots.
+    /// </remarks>
+    private const byte HeroSlot = 0;
+
+    /// <summary>The slot the log uses for nobody, on the events that belong to no actor.</summary>
+    private const byte NoActorSlot = 255;
+
+    /// <summary>The rounding every accumulated health value is held to, as the rules layer holds it.</summary>
+    private const int HealthDecimals = 4;
+
     private const string TitleNameKey = "loc.battle.title.name";
     private const string HeroLabelKey = "loc.battle.hero.label";
     private const string EnemyLabelKey = "loc.battle.enemy.label";
@@ -169,6 +189,37 @@ public sealed class BattleReplayPresenter
     private readonly PlayerId _player;
     private readonly RunId _run;
     private readonly bool _reducedMotion;
+
+    /// <summary>The fight being animated, or null while there is none to animate.</summary>
+    private SimulationResult? _fight;
+
+    /// <summary>How much of the LOG's own time the playhead has consumed, in seconds.</summary>
+    /// <remarks>
+    /// Log time rather than wall time: every advance folds the speed multiplier in as it arrives, so
+    /// a rate change applies to the time that has not happened yet and never rescales what has.
+    /// </remarks>
+    private double _elapsed;
+
+    /// <summary>
+    /// The playhead the last step was emitted up to, or -1 before the first step.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Minus one rather than zero, so the first step's window is open at the true beginning of the
+    /// fight. Tick zero carries the one event that says a fight has begun, and a window starting
+    /// above zero would drop it from every fight in the game.
+    /// </remarks>
+    private int _lastEmittedTick = -1;
+
+    /// <summary>The tick of the last phase change the playhead has crossed.</summary>
+    private int _lastPhaseChangeTick;
+
+    /// <summary>Whether the result has already been put to the host, however it answered.</summary>
+    /// <remarks>
+    /// 🔒 Set on the attempt rather than on acceptance. The scene drives this from a per-frame
+    /// callback that keeps firing after the fight ends, so a flag set only on success would resubmit
+    /// a refused confirmation sixty times a second for as long as the screen is up.
+    /// </remarks>
+    private bool _confirmationSettled;
 
     /// <summary>Builds the screen over the host, the strings, the prediction and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and the result is submitted through.</param>
@@ -267,7 +318,7 @@ public sealed class BattleReplayPresenter
     /// It is an accessibility clause rather than a convenience, and a screen that withdraws it in
     /// the states where it is least sure of itself is a screen a player can be trapped on.
     /// </remarks>
-    public bool SkipAvailable => false;
+    public bool SkipAvailable => true;
 
     /// <summary>Why the rules layer refused the result, or null when it did not.</summary>
     public RejectionReason? RulesRejection { get; private set; }
@@ -297,18 +348,69 @@ public sealed class BattleReplayPresenter
     public string SkipText => _strings.Resolve(SkipActionKey);
 
     /// <summary>What the boss phase band reads, or nothing when no band is up.</summary>
-    public string PhaseBandText => NothingLeftToSay;
+    /// <remarks>
+    /// By name rather than by number: the log reports a phase as a bare integer and the table giving
+    /// that integer a meaning is inside the rules assembly, so a band drawing the number would flash
+    /// a digit across the screen at the moment a boss changes what it does.
+    /// </remarks>
+    public string PhaseBandText =>
+        PhaseBandVisible && PhaseNameKeyFor(CurrentBossPhase) is { } key
+            ? _strings.Resolve(key)
+            : NothingLeftToSay;
 
-    /// <summary>What the screen says about its own state.</summary>
-    public string StatusText => NothingLeftToSay;
+    /// <summary>
+    /// What the screen says about its own state, resolved.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The refusal is read before the outcome. A confirmation the rules layer turned down leaves
+    /// the run parked in the battle phase for good — the board will not roll and the revive is itself
+    /// one of the commands that phase refuses — so a screen printing "you won" over it would look
+    /// exactly like one that had worked.
+    /// </remarks>
+    public string StatusText
+    {
+        get
+        {
+            if (RulesRejection is not null)
+            {
+                return _strings.Resolve(RefusedStatusKey);
+            }
+
+            return Readiness switch
+            {
+                null => _strings.Resolve(LoadingStatusKey),
+                BattleReadiness.Ready => FinishedText(),
+                BattleReadiness.NoRun => _strings.Resolve(NoRunStatusKey),
+                BattleReadiness.PhaseNotBattle => _strings.Resolve(PhaseNotBattleStatusKey),
+                BattleReadiness.SeedUnavailable => _strings.Resolve(SeedUnavailableStatusKey),
+                BattleReadiness.HeroStatsUnavailable => _strings.Resolve(HeroStatsUnavailableStatusKey),
+                BattleReadiness.SimulatorFailed => _strings.Resolve(SimulatorFailedStatusKey),
+                BattleReadiness.LogEmpty => _strings.Resolve(LogEmptyStatusKey),
+                _ => _strings.Resolve(ReadUnavailableStatusKey),
+            };
+        }
+    }
 
     /// <summary>Reads the run this screen is about and settles the fight it will animate.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task StartAsync(CancellationToken ct)
+    public async Task StartAsync(CancellationToken ct)
     {
-        Scaffold(ct);
+        try
+        {
+            // Awaited inside the guard rather than merely called inside it: a real host's read is an
+            // async method, so its failure arrives as a faulted task and a try around the call alone
+            // would never see it.
+            var state = await _gameHost.ReadOwnStateAsync(_player, _run, ct).ConfigureAwait(false);
 
-        return Task.CompletedTask;
+            Settle(state);
+        }
+        catch (Exception)
+        {
+            // The readiness is the whole answer this screen has room for. It picks which sentence the
+            // player reads; the failure's own identity goes to the log, because an untranslated type
+            // name beside a line that was just translated helps nobody reading it.
+            Readiness = BattleReadiness.ReadUnavailable;
+        }
     }
 
     /// <summary>
@@ -316,52 +418,256 @@ public sealed class BattleReplayPresenter
     /// </summary>
     /// <param name="deltaSeconds">How much wall time has passed since the last advance.</param>
     /// <param name="ct">Cancellation.</param>
-    public Task<BattleSubmission> AdvanceAsync(double deltaSeconds, CancellationToken ct) =>
-        Task.FromResult(BattleSubmission.NothingToSubmit);
+    public async Task<BattleSubmission> AdvanceAsync(double deltaSeconds, CancellationToken ct)
+    {
+        if (_fight is not { } fight)
+        {
+            return BattleSubmission.NothingToSubmit;
+        }
+
+        // The multiplier is folded in as the time arrives, so the setting decides how much of the log
+        // the NEXT frame consumes and never restates how much the previous ones did.
+        _elapsed += deltaSeconds * (int)Speed;
+
+        MovePlayheadTo((int)Math.Floor(_elapsed * TicksPerSecond), emitting: true);
+
+        return Complete
+            ? await ConfirmAsync(fight, ct).ConfigureAwait(false)
+            : BattleSubmission.NothingToSubmit;
+    }
 
     /// <summary>
     /// Jumps to the end of the fight and closes the battle, without replaying what was skipped.
     /// </summary>
+    /// <remarks>
+    /// 🔒 Nothing whatever is submitted when there is no simulated fight. The rules layer checks the
+    /// hash's shape and never recomputes it, so a well-formed number invented here would buy a full
+    /// kill payout for a battle nobody fought.
+    /// </remarks>
     /// <param name="ct">Cancellation.</param>
-    public Task<BattleSubmission> SkipAsync(CancellationToken ct) =>
-        Task.FromResult(BattleSubmission.NothingToSubmit);
+    public async Task<BattleSubmission> SkipAsync(CancellationToken ct)
+    {
+        if (_fight is not { } fight)
+        {
+            return BattleSubmission.RefusedNotAvailable;
+        }
+
+        _elapsed = TotalTicks / (double)TicksPerSecond;
+
+        // Emitting nothing on purpose: the point of skipping is not watching the fight, and handing
+        // the scene every event of a ninety-second log in one frame would spray eighteen hundred
+        // ticks of floating damage numbers across the screen a player asked to be spared.
+        MovePlayheadTo(TotalTicks, emitting: false);
+
+        return await ConfirmAsync(fight, ct).ConfigureAwait(false);
+    }
 
     /// <summary>Steps the speed setting on, wrapping the fastest back round to real time.</summary>
-    public void CycleSpeed()
+    /// <remarks>
+    /// The playhead is deliberately untouched: this control changes how fast the rest of the fight is
+    /// watched, not which part of it is being watched.
+    /// </remarks>
+    public void CycleSpeed() =>
+        Speed = Speed switch
+        {
+            BattleSpeed.Single => BattleSpeed.Double,
+            BattleSpeed.Double => BattleSpeed.Triple,
+            _ => BattleSpeed.Single,
+        };
+
+    /// <summary>How many log ticks the phase band stays up for, at the dwell in force.</summary>
+    private int PhaseBandTicks =>
+        (int)Math.Round((_reducedMotion ? ReducedMotionDwell : PhaseBandDwell).TotalSeconds *
+                        TicksPerSecond);
+
+    private string FinishedText()
     {
+        if (!Complete || HeroWon is not { } won)
+        {
+            return NothingLeftToSay;
+        }
+
+        return _strings.Resolve(won ? VictoryStatusKey : DefeatStatusKey);
     }
 
-    /// <summary>
-    /// ⚠️ Phase-1 scaffolding: reads every collaborator once so the declarations above compile
-    /// under warnings-as-errors before the behaviour behind them exists. Deleted by the phase that
-    /// implements them.
-    /// </summary>
-    private void Scaffold(CancellationToken ct)
+    private static string? PhaseNameKeyFor(int? phase) => phase switch
     {
-        _ = _gameHost;
-        _ = _simulations;
-        _ = _player;
-        _ = _run;
-        _ = _reducedMotion;
-        _ = ct;
-        _ = TicksPerSecond;
-        _ = PhaseBandDwell;
-        _ = ReducedMotionDwell;
-        _ = TheSpeedSettingHasNowhereToPersistYet;
-        _ = TheEnemysNameIsNotReachableHere;
-        _ = PhaseOneNameKey;
-        _ = PhaseTwoNameKey;
-        _ = PhaseThreeNameKey;
-        _ = LoadingStatusKey;
-        _ = NoRunStatusKey;
-        _ = PhaseNotBattleStatusKey;
-        _ = SeedUnavailableStatusKey;
-        _ = HeroStatsUnavailableStatusKey;
-        _ = SimulatorFailedStatusKey;
-        _ = LogEmptyStatusKey;
-        _ = ReadUnavailableStatusKey;
-        _ = VictoryStatusKey;
-        _ = DefeatStatusKey;
-        _ = RefusedStatusKey;
+        1 => PhaseOneNameKey,
+        2 => PhaseTwoNameKey,
+        3 => PhaseThreeNameKey,
+        _ => null,
+    };
+
+    private void Settle(OwnStateResult state)
+    {
+        if (state.Lookup != OwnStateLookup.Found || state.View?.Run is not { } run)
+        {
+            Readiness = BattleReadiness.NoRun;
+            return;
+        }
+
+        var attempt = _simulations.Simulate(run);
+
+        Readiness = attempt.Readiness;
+        BattleSeed = attempt.BattleSeed;
+        SeedDerived = attempt.SeedDerived;
+
+        if (attempt.Readiness != BattleReadiness.Ready || attempt.Result is not { } fight)
+        {
+            return;
+        }
+
+        _fight = fight;
+        HeroWon = fight.HeroWon;
+        TotalTicks = fight.DurationTicks;
+        Actors = ActorsIn(fight);
     }
+
+    /// <summary>Puts the playhead on a tick, clamped to the fight, and settles what that shows.</summary>
+    /// <param name="reachedTick">Where the playhead would land.</param>
+    /// <param name="emitting">Whether the events crossed are handed on to be drawn.</param>
+    private void MovePlayheadTo(int reachedTick, bool emitting)
+    {
+        CurrentTick = Math.Min(TotalTicks, reachedTick);
+        StepEvents = emitting ? EventsCrossed(_lastEmittedTick, CurrentTick) : [];
+        _lastEmittedTick = CurrentTick;
+
+        SettlePhaseBand();
+    }
+
+    /// <remarks>
+    /// Half-open. An event sitting exactly on the previous playhead was drawn by the advance that
+    /// reached it, and one sitting exactly on the new playhead has just happened.
+    /// </remarks>
+    private IReadOnlyList<CombatEvent> EventsCrossed(int afterTick, int throughTick) =>
+        _fight is { } fight && throughTick > afterTick
+            ? [.. fight.Log.Where(entry => entry.Tick > afterTick && entry.Tick <= throughTick)]
+            : [];
+
+    /// <remarks>
+    /// 🔒 The phase is read off the event's own value rather than counted from the events crossed.
+    /// The two agree in every log the simulator emits today, because a boss enters its first phase on
+    /// tick zero and only ever walks upward — but that is the rules layer's private emission order
+    /// and not a promise made to a client, and a screen that counted would announce the wrong
+    /// transition the moment it changed.
+    /// </remarks>
+    private void SettlePhaseBand()
+    {
+        if (_fight is not { } fight)
+        {
+            return;
+        }
+
+        int? entered = null;
+
+        foreach (var entry in fight.Log)
+        {
+            if (entry.Type == CombatEventType.PhaseChange && entry.Tick <= CurrentTick)
+            {
+                entered = (int)Math.Round(entry.Value);
+                _lastPhaseChangeTick = entry.Tick;
+            }
+        }
+
+        CurrentBossPhase = entered;
+        PhaseBandVisible = entered is not null && CurrentTick - _lastPhaseChangeTick < PhaseBandTicks;
+    }
+
+    private async Task<BattleSubmission> ConfirmAsync(SimulationResult fight, CancellationToken ct)
+    {
+        if (_confirmationSettled)
+        {
+            return BattleSubmission.NothingToSubmit;
+        }
+
+        _confirmationSettled = true;
+
+        // Bare decimal digits, because the handler parses with no number styles permitted at all: a
+        // hexadecimal form, a prefix, a sign or a separator is refused as a malformed command, and a
+        // refused confirmation leaves the run stuck in the battle phase for good.
+        var confirmation = new ConfirmBattleResultCommand(
+            fight.LogHash.ToString(CultureInfo.InvariantCulture), fight.HeroWon);
+
+        var outcome = await _gameHost
+            .SubmitAsync(_player, _run, confirmation, ct)
+            .ConfigureAwait(false);
+
+        RulesRejection = outcome.Rejection;
+
+        return outcome.Accepted ? BattleSubmission.Submitted : BattleSubmission.RefusedByRules;
+    }
+
+    /// <remarks>
+    /// 🔴 See <see cref="ReplayActor"/> for why two of the three bars are derivable and the third is
+    /// not. Nothing is guessed for the third.
+    /// </remarks>
+    private static IReadOnlyList<ReplayActor> ActorsIn(SimulationResult fight)
+    {
+        var mentioned = new SortedSet<byte>();
+        var damageTaken = new Dictionary<byte, double>();
+        var healingReceived = new Dictionary<byte, double>();
+        var slain = new HashSet<byte>();
+
+        foreach (var entry in fight.Log)
+        {
+            Mention(mentioned, entry.SourceId);
+            Mention(mentioned, entry.TargetId);
+
+            if (entry.TargetId == NoActorSlot)
+            {
+                continue;
+            }
+
+            switch (entry.Type)
+            {
+                case CombatEventType.Hit:
+                    Accumulate(damageTaken, entry.TargetId, entry.Value);
+                    break;
+
+                case CombatEventType.Heal:
+                    Accumulate(healingReceived, entry.TargetId, entry.Value);
+                    break;
+
+                case CombatEventType.ActorDeath:
+                    slain.Add(entry.TargetId);
+                    break;
+            }
+        }
+
+        return
+        [
+            .. mentioned.Select(slot => Bar(
+                slot,
+                EndingHpOf(slot, fight, slain),
+                damageTaken.GetValueOrDefault(slot),
+                healingReceived.GetValueOrDefault(slot)))
+        ];
+    }
+
+    /// <summary>One actor's bar: both ends where the log anchors one, and neither where it does not.</summary>
+    private static ReplayActor Bar(byte slot, double? endingHp, double damageTaken, double healingReceived) =>
+        new(slot, endingHp is { } ending ? ending + damageTaken - healingReceived : null, endingHp);
+
+    /// <summary>What an actor finished on, when the log fixes it at all.</summary>
+    private static double? EndingHpOf(byte slot, SimulationResult fight, HashSet<byte> slain)
+    {
+        if (slot == HeroSlot)
+        {
+            return fight.HeroHpRemaining;
+        }
+
+        return slain.Contains(slot) ? 0 : null;
+    }
+
+    private static void Mention(SortedSet<byte> mentioned, byte slot)
+    {
+        if (slot != NoActorSlot)
+        {
+            mentioned.Add(slot);
+        }
+    }
+
+    /// <remarks>Rounded at each accumulation, the way the rules layer rounds its own values.</remarks>
+    private static void Accumulate(Dictionary<byte, double> totals, byte slot, double amount) =>
+        totals[slot] = Math.Round(totals.GetValueOrDefault(slot) + amount, HealthDecimals);
 }
