@@ -126,6 +126,46 @@ public sealed class SalvageTests
         ForgeWorlds.StockBytes(result.NewState).ShouldBe(before);
     }
 
+    /// <summary>
+    /// 🔴 Salvaging an item the hero is <b>wearing</b> takes it off the hero in the same command.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The failure this pins is not a wrong payout — it is <c>Apply</c> throwing.</b> A slot names
+    /// an item rather than copying one, so destroying a worn item without clearing its slot leaves
+    /// the aggregate in a state <c>Player.RequireLoadoutResolves</c> refuses, and it refuses by
+    /// throwing <see cref="InvalidOperationException"/> because reaching it is a handler defect and
+    /// never a player asking for something they cannot have. The player's action here is entirely
+    /// legal, so the throw is the defect surfacing on a legitimate command.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Asserted through the seam's effect, not through the seam (steering S2).</b> The
+    /// assertion is that the slot is empty and the stock no longer holds the item — not that
+    /// <c>Player.DiscardItem</c> was called — so the case still discriminates if a later task moves
+    /// the pairing somewhere else. What it must never do is pass while the loadout still names a
+    /// destroyed item.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Salvaging_a_worn_item_takes_it_off_the_hero()
+    {
+        var world = ForgeWorlds.Wearing(
+            (GearSlot.WEAPON, "blade"), Inventories.Item("blade", rarity: Rarity.A));
+
+        var result = GameRules.Apply(world, Command("blade"), Context);
+
+        result.Accepted.ShouldBeTrue(
+            "salvaging an item the hero happens to be wearing is a legal action. A refusal here " +
+            "means the handler grew a guard instead of clearing the slot; a throw out of Apply " +
+            "means it destroyed the item and left the slot naming it.");
+
+        result.NewState.Player.Inventory.Stored.ShouldBeEmpty();
+
+        result.NewState.Player.Loadout.TryGet(GearSlot.WEAPON, out _).ShouldBeFalse(
+            "the item was destroyed and the weapon slot still names it, so the hero is wearing " +
+            "something that no longer exists — the state RequireLoadoutResolves throws on.");
+    }
+
     /// <summary>An item waiting in overflow is not acted on.</summary>
     [Fact]
     public void An_item_waiting_in_overflow_is_refused_as_inventory_full()

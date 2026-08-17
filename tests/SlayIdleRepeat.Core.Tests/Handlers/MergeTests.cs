@@ -44,6 +44,40 @@ public sealed class MergeTests
     }
 
     /// <summary>
+    /// 🔴 Merging away an item the hero is <b>wearing</b> takes it off the hero in the same command.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The consumed inputs are the ones at risk, not the surviving one.</b> A fusion keeps the
+    /// first input's identity — <c>Inventory.Replace</c> writes the output over <c>a</c>'s slot — so
+    /// a hero wearing <c>a</c> is unharmed and a hero wearing <c>b</c> or <c>c</c> is left naming an
+    /// item that no longer exists. This case wears <c>b</c> for that reason: wearing <c>a</c> would
+    /// pass against the defect.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What a failure looks like is a throw, not a bad answer.</b>
+    /// <c>Player.RequireLoadoutResolves</c> runs after the handler and throws
+    /// <see cref="InvalidOperationException"/> out of <c>Apply</c>, because a slot naming a destroyed
+    /// item is a handler defect rather than an illegal player action.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Merging_away_a_worn_input_takes_it_off_the_hero()
+    {
+        var world = ForgeWorlds.Wearing((GearSlot.WEAPON, "b"), Triple());
+
+        var result = GameRules.Apply(world, Command("a", "b", "c"), Context);
+
+        result.Accepted.ShouldBeTrue(
+            "fusing away an item the hero happens to be wearing is a legal action. A throw out of " +
+            "Apply means the input was destroyed with the weapon slot still naming it.");
+
+        result.NewState.Player.Loadout.TryGet(GearSlot.WEAPON, out _).ShouldBeFalse(
+            "the consumed input was destroyed and the weapon slot still names it, so the hero is " +
+            "wearing an item the stock no longer holds.");
+    }
+
+    /// <summary>
     /// 🔒 The whole stock is compared by canonical bytes, not by record equality: a fusion changes
     /// a collection, and a synthesized <c>Equals</c> compares one by reference (steering S17).
     /// </summary>

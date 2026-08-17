@@ -50,6 +50,41 @@ internal static class ForgeWorlds
     /// <returns>The slice.</returns>
     internal static WorldSlice Holding(params GearInstance[] items) => Holding(Funded, items);
 
+    /// <summary>
+    /// 🔴 A slice whose player holds these items <b>and is wearing one of them</b> — the state a
+    /// destructive forge command has to survive.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the state <see cref="Holding(GearInstance[])"/> cannot produce, and its absence is why
+    /// merge and salvage shipped destroying an item without taking it off the hero. A slot names an
+    /// item rather than copying one, so a stock that loses an item a slot still names leaves the
+    /// aggregate in a state <c>Player.RequireLoadoutResolves</c> throws on — <b>after</b> the command
+    /// was accepted.
+    /// </para>
+    /// <para>
+    /// Built through <c>Player.Rehydrate</c> like every other world here, so the pairing is one the
+    /// aggregate itself accepts on the way in: the fixture cannot manufacture a state that was
+    /// already broken, which is what makes a failure here the command's doing.
+    /// </para>
+    /// </remarks>
+    /// <param name="worn">Which slot the hero has filled, and with which of <paramref name="items"/>.</param>
+    /// <param name="items">The stored stock, in grant order. Must contain the worn instance.</param>
+    /// <returns>The slice.</returns>
+    internal static WorldSlice Wearing(
+        (GearSlot Slot, string InstanceId) worn, params GearInstance[] items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        return new WorldSlice(
+            Worlds.Rehydrated(PlayerSnapshots.With(
+                wallet: Funded,
+                inventory: new InventorySnapshot(
+                    Inventories.Tuning.MaxPurchases, items.Select(Inventories.Persist).ToArray(), []),
+                loadout: new LoadoutSnapshot(PlayerSnapshots.Gear(worn)))),
+            null);
+    }
+
     /// <summary>A slice whose stock is full and whose overflow is holding one more item.</summary>
     /// <param name="held">The item waiting for space.</param>
     /// <returns>The slice.</returns>

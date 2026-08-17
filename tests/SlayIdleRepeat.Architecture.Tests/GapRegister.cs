@@ -275,15 +275,22 @@ internal static class GapRegister
         // gone. Recorded here rather than dropped, because a register that records an obligation as
         // unwitnessable is a register nobody will try to witness.
         //
-        // ⚠️ M4-10 ALSO LEFT AN OBLIGATION ON A SIBLING TASK, and it is written here because the
-        // tracker row is the conductor's to edit and this file is the place a later agent reads.
-        // Player.Rehydrate now refuses a row whose loadout names an item the stock does not hold,
-        // and GameRules.Execute checks the same invariant on the way OUT (Player.
+        // ✅ M4-10 ALSO LEFT AN OBLIGATION ON A SIBLING TASK, and it went undischarged until the M4
+        // milestone review. Player.Rehydrate refuses a row whose loadout names an item the stock does
+        // not hold, and GameRules.Execute checks the same invariant on the way OUT (Player.
         // RequireLoadoutResolves). So ANY OPERATION THAT DESTROYS AN ITEM MUST TAKE IT OFF THE HERO
         // IN THE SAME CHANGE, or Apply throws on a legal player action. Player.DiscardItem is the
-        // seam that does both halves together and is the one every such operation should call.
-        // OWNER: M4-04, which owns merge, salvage and enhance — the three destructive operations
-        // that exist — and which was in flight when this landed.
+        // seam that does both halves together and is the one every such operation must call.
+        // The obligation was written against M4-04, which owned merge, salvage and enhance and was in
+        // flight when this landed — and M4-04 shipped both destructive handlers calling
+        // Inventory.Remove directly instead, so DiscardItem had ZERO production callers at the end of
+        // the milestone. It stayed invisible because EQUIP was deferred throughout M4: no command
+        // could fill a slot, so no fixture could reach the state. M7-00d wired EQUIP and made it live
+        // without either task seeing the other. Discharged by the M4 review — Merge.Handle and
+        // Salvage.Handle now call DiscardItem, witnessed by MergeTests.
+        // Merging_away_a_worn_input_takes_it_off_the_hero and SalvageTests.
+        // Salvaging_a_worn_item_takes_it_off_the_hero, both of which fail with the domain's own
+        // "left 'x' equipped in WEAPON" throw against the pre-fix handlers.
 
         new("ContainerShelf", "M4-02", "ContainerClass",
             "🔒 M1-02 ALSO HANGS THREE COMMAND PAYLOADS ON THIS ENTRY: OpenChestCommand, " +
