@@ -1,5 +1,6 @@
 using System.Globalization;
 using Godot;
+using SlayIdleRepeat.Client.Composition;
 using SlayIdleRepeat.Client.Game.Presenters;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
@@ -43,11 +44,18 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// range without an override taking part.
 /// </para>
 /// <para>
-/// 🔴 <b>Three destinations this screen stops at rather than builds.</b> A battle, a perk draft and
-/// a run that has ended each belong to a screen this task does not own — see
-/// <see cref="TheBattleScreenIsNotBuiltHere"/>, <see cref="TheDraftScreenIsNotBuiltHere"/> and
-/// <see cref="TheRunEndScreensAreNotBuiltHere"/>. In each case the board says in words what the
-/// player is waiting on, disables the roll, and navigates nowhere.
+/// 🔴 <b>Two destinations this screen stops at rather than builds.</b> A perk draft and a run that
+/// has ended each belong to a screen this task does not own — see
+/// <see cref="TheDraftScreenIsNotBuiltHere"/> and <see cref="TheRunEndScreensAreNotBuiltHere"/>. In
+/// both cases the board says in words what the player is waiting on, disables the roll, and
+/// navigates nowhere.
+/// </para>
+/// <para>
+/// 🔒 <b>An open battle is the one destination it does navigate to, and it navigates there once.</b>
+/// The replay hands control back to this same screen rather than to a new one, so the board is read
+/// again on return — the confirmation that ends a fight has moved the run underneath it. A battle
+/// still open after its own replay is a dead end rather than a reason to go round again; see
+/// <see cref="TheBattleDidNotCloseWhenItsReplayEnded"/>.
 /// </para>
 /// </remarks>
 public partial class Board : Control
@@ -56,14 +64,17 @@ public partial class Board : Control
     public const string ScenePath = "res://game/scenes/Board.tscn";
 
     /// <summary>
-    /// 🔴 Deliberately unbuilt, and named so it can be found. S06, the battle replay, is M7-06's.
-    /// A run whose battle is open is reported and its roll is refused for a named reason; nothing is
-    /// navigated to, because inventing a destination would put a screen on the path of every fight
-    /// in the game, chosen by the task least equipped to choose it.
+    /// 🔴 Named so the dead end can be found. A battle that is still open once its replay has been
+    /// watched is a battle nothing on either screen can close, and re-entering it would put the
+    /// player in a loop between two screens with no way out of either.
     /// </summary>
-    private const string TheBattleScreenIsNotBuiltHere =
-        "S06, the battle replay a run's fights are watched on, is not built in this milestone: a " +
-        "run standing in BattlePending has no scene to enter. The board reports it and stops.";
+    private const string TheBattleDidNotCloseWhenItsReplayEnded =
+        "A battle was still open when its replay handed control back, so it is not entered a second " +
+        "time. The confirmation that closes a battle is the replay's last step, and it is not made " +
+        "when the fight could not be simulated at all — the hero's stat block is not something this " +
+        "build can assemble — or when the rules layer refused the result. Either way the run stays " +
+        "parked in the battle phase, which refuses every command except that confirmation, and a " +
+        "board that re-entered the replay on every read would trap the player between two screens.";
 
     /// <summary>
     /// 🔴 Deliberately unbuilt, and named so it can be found. S07, the perk draft, is a later row's.
@@ -183,6 +194,12 @@ public partial class Board : Control
     private BoardPresenter? _presenter;
     private DiePanelPresenter? _diePanel;
 
+    /// <summary>Builds the replay of the fight the run is standing in, once there is one.</summary>
+    private Func<ComposedBattleScreen>? _battle;
+
+    /// <summary>Whether the battle now open has already had its replay watched.</summary>
+    private bool _battleShown;
+
     private CancellationToken _lifetime;
 
     private ColorRect? _ground;
@@ -234,16 +251,42 @@ public partial class Board : Control
     /// <summary>Takes both presenters the composition root built, and the app's shutdown token.</summary>
     /// <param name="presenter">Drives the board.</param>
     /// <param name="diePanel">Drives the panel the board's HUD opens over itself.</param>
+    /// <param name="battle">Builds the replay of the fight the run stands in, one per fight.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
-    /// <exception cref="ArgumentNullException">Either presenter is null.</exception>
-    public void Drive(BoardPresenter presenter, DiePanelPresenter diePanel, CancellationToken lifetime)
+    /// <exception cref="ArgumentNullException">A presenter or the battle factory is null.</exception>
+    public void Drive(
+        BoardPresenter presenter,
+        DiePanelPresenter diePanel,
+        Func<ComposedBattleScreen> battle,
+        CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(presenter);
         ArgumentNullException.ThrowIfNull(diePanel);
+        ArgumentNullException.ThrowIfNull(battle);
 
         _presenter = presenter;
         _diePanel = diePanel;
+        _battle = battle;
         _lifetime = lifetime;
+    }
+
+    /// <summary>Shows this screen again and reads the run afresh, for a fight handing control back.</summary>
+    /// <remarks>
+    /// 🔒 The read is the point, not the showing. A replay that reached its end submitted the
+    /// confirmation that closes the battle, so the run behind this screen is a different row from the
+    /// one it drew: the phase has moved, the health has moved, and a won fight has opened a draft.
+    /// Un-hiding without reading again would put a pre-battle board in front of a post-battle run.
+    /// </remarks>
+    public void Resume()
+    {
+        if (!IsInstanceValid(this) || !IsInsideTree())
+        {
+            return;
+        }
+
+        Visible = true;
+
+        _ = StartAsync();
     }
 
     /// <inheritdoc/>
@@ -895,17 +938,17 @@ public partial class Board : Control
             $"faces=[{FaceReadout(presenter)}] rejection={Describe(presenter.RulesRejection)}");
 
         ReportUnbuiltDestination(presenter);
+        OpenBattle(presenter);
     }
 
     /// <remarks>
-    /// Reported rather than navigated to. Each of the three is a screen a later row owns, and a run
+    /// Reported rather than navigated to. Each of the two is a screen a later row owns, and a run
     /// that reaches one stops here with the reason named in the log.
     /// </remarks>
     private static void ReportUnbuiltDestination(BoardPresenter presenter)
     {
         var destination = presenter.RollBlock switch
         {
-            BoardRollBlock.BattleOpen => TheBattleScreenIsNotBuiltHere,
             BoardRollBlock.DraftOpen => TheDraftScreenIsNotBuiltHere,
             BoardRollBlock.RunEnded => TheRunEndScreensAreNotBuiltHere,
             _ => null,
@@ -915,6 +958,50 @@ public partial class Board : Control
         {
             GD.PushError($"{BoardMarker} halted · {destination}");
         }
+    }
+
+    /// <summary>Hands over to the replay of the fight the run is standing in, at most once per fight.</summary>
+    /// <remarks>
+    /// 🔒 The latch is what makes the return path terminate. This runs after every read and after
+    /// every accepted command, and the replay's return path is itself a read — so without it a
+    /// battle the replay could not close would send the player straight back into the replay, and
+    /// round again, forever. A run that has left the battle phase clears the latch, because the next
+    /// battle is a different battle.
+    /// </remarks>
+    private void OpenBattle(BoardPresenter presenter)
+    {
+        if (presenter.RollBlock != BoardRollBlock.BattleOpen)
+        {
+            _battleShown = false;
+
+            return;
+        }
+
+        if (_battleShown)
+        {
+            GD.PushError($"{BoardMarker} halted · {TheBattleDidNotCloseWhenItsReplayEnded}");
+
+            return;
+        }
+
+        if (!IsInstanceValid(this) || !IsInsideTree())
+        {
+            return;
+        }
+
+        if (_battle is not { } battle)
+        {
+            GD.PushError(
+                "A battle is open and this screen has no way to build its replay. Only a screen " +
+                "that already has a run may instantiate the board, and it must pass the battle " +
+                "factory to Drive.");
+
+            return;
+        }
+
+        _battleShown = true;
+
+        BattleHandover.Show(this, battle(), _lifetime);
     }
 
     private static string Describe<T>(T? value) where T : struct =>
