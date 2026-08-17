@@ -67,8 +67,16 @@ public sealed class PublicRuleTypeFloorTests
     /// <c>IntraRulesLayeringRuleTests.The_floors_are_below_the_counts_the_rule_was_written_against</c>
     /// makes about its own numbers, applied in the direction that had gone stale.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Eleven since M7-05b widened the list to <c>BoardView</c> and its signature closure</b>
+    /// — <c>BoardTrackNode</c>, <c>BoardFork</c>, <c>TileKind</c> and <c>ForkLabel</c>. Raised in the
+    /// same commit as the widening, and by exactly the number of names it adds, for the reason the
+    /// paragraph above gives: a floor left at six over an eleven-name list carries five units of
+    /// slack, and `03` §1.1's whole board projection could be deleted — taking the Board screen's
+    /// only way to see a tile track with it — with every rule in this file still green.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 6;
+    private const int ResolvedPublicRuleTypeFloor = 11;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -260,18 +268,25 @@ public sealed class PublicRuleTypeFloorTests
         }
 
         // 🔒 R16: ENUMERATED, never a blanket "anything reachable from a public type". The count is
-        // pinned from above as well as below, so a third public entry point — or a closure that grew
+        // pinned from above as well as below, so a fourth public entry point — or a closure that grew
         // because somebody widened a signature — is a deliberate edit to this number and not a silent
-        // drift. `30` §11.2's two entry points plus `05` §7's four signature types is six.
-        if (Domain.PublicRuleTypes.Count > 6)
+        // drift. `30` §11.2's two entry points plus `05` §7's four signature types was six.
+        //
+        // 🔒 ELEVEN since M7-05b. It added ONE entry point — BoardView, whose consumer is the client's
+        // Board screen (S05) — plus the four types its public members name: BoardTrackNode, BoardFork,
+        // TileKind and ForkLabel. The cap is raised by exactly those five and no further, so the next
+        // person who wants a sixth board type has to say so in a diff; that is the whole mechanism,
+        // and it is what keeps BoardGenerator and BoardGraph out of the list by cost rather than by
+        // good intentions.
+        if (Domain.PublicRuleTypes.Count > 11)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +
-                "that the widening is the ENUMERATED signature closure of CombatSimulator.Simulate and " +
-                "'never a blanket anything-reachable-from-a-public-type rule', so that a third public " +
+                "that the widening is the ENUMERATED signature closure of a public entry point and " +
+                "'never a blanket anything-reachable-from-a-public-type rule', so that a fourth public " +
                 "entry point stays a deliberate decision in a diff. Adding one is allowed — raise this " +
                 "number in the same commit and name the entry point and its consumer, the way 30 §11.2 " +
-                "names 14 §2.4 and 29 §1.");
+                "names 14 §2.4 and 29 §1 and the way M7-05b names the Board screen.");
         }
 
         ArchRule.Empty(
