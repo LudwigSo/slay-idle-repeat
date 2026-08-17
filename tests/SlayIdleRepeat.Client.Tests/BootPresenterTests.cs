@@ -689,7 +689,7 @@ public sealed class BootPresenterTests
     private static RecordingBootAtlasCatalogue ThrowingAtlas() =>
         RecordingBootAtlasCatalogue.Throwing(new InvalidOperationException(AtlasFailureMessage));
 
-    private static BootStringCatalogue Strings(ContentSnapshot content) =>
+    private static LocaleStringCatalogue Strings(ContentSnapshot content) =>
         new(content, BootContent.English);
 
     private static BootPresenter Boot(

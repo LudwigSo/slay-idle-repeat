@@ -1,0 +1,130 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/Home.cs" id="1_home"]
+
+[node name="Home" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_home")
+
+[node name="Ground" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="SafeArea" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 128
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 128
+
+[node name="Column" type="VBoxContainer" parent="SafeArea"]
+layout_mode = 2
+theme_override_constants/separation = 48
+
+[node name="Header" type="VBoxContainer" parent="SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="DisplayNameLabel" type="Label" parent="SafeArea/Column/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 72
+autowrap_mode = 3
+
+[node name="LegendLevelRow" type="HBoxContainer" parent="SafeArea/Column/Header"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="LegendLevelLabel" type="Label" parent="SafeArea/Column/Header/LegendLevelRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+[node name="LegendLevelValue" type="Label" parent="SafeArea/Column/Header/LegendLevelRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
+horizontal_alignment = 2
+
+[node name="Energy" type="VBoxContainer" parent="SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="EnergyRow" type="HBoxContainer" parent="SafeArea/Column/Energy"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="EnergyLabel" type="Label" parent="SafeArea/Column/Energy/EnergyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+[node name="EnergyValue" type="Label" parent="SafeArea/Column/Energy/EnergyRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
+horizontal_alignment = 2
+
+[node name="EnergyReserveRow" type="HBoxContainer" parent="SafeArea/Column/Energy"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="EnergyReserveLabel" type="Label" parent="SafeArea/Column/Energy/EnergyReserveRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+[node name="EnergyReserveValue" type="Label" parent="SafeArea/Column/Energy/EnergyReserveRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 48
+horizontal_alignment = 2
+
+[node name="StatusFrame" type="VBoxContainer" parent="SafeArea/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.0
+alignment = 2
+
+[node name="StatusLabel" type="Label" parent="SafeArea/Column/StatusFrame"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 48
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ActionButton" type="Button" parent="SafeArea/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 168)
+layout_mode = 2
+theme_override_font_sizes/font_size = 52
+autowrap_mode = 3

@@ -12,7 +12,10 @@
       "additionalProperties": false,
       "required": ["requiresClear", "requiresLegendLevel"],
       "properties": {
-        "requiresClear": { "type": ["string", "null"], "minLength": 1 },
+        "requiresClear": {
+          "description": "Which clear the rung demands, or null for none. A CLOSED vocabulary, and the enum is the point of it: the only reader of this member resolves these three tokens and treats anything else as demanding nothing, because a refusal it cannot name would be a locked door with no instruction under it. That fallback makes an unrecognised token silently OPEN the gate, so a one-character typo here would ship a tier unlocked. The enum moves that failure to content validation, where it is loud, and a fourth token becomes a deliberate widening of this list rather than an accident.",
+          "enum": ["PREVIOUS_CHAPTER_NORMAL", "SAME_CHAPTER_NORMAL", "SAME_CHAPTER_HEROIC", null]
+        },
         "requiresLegendLevel": { "type": ["integer", "null"], "minimum": 1, "maximum": 200 }
       }
     }

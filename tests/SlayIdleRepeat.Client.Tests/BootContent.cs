@@ -10,7 +10,7 @@ namespace SlayIdleRepeat.Client.Tests;
 /// <remarks>
 /// <para>
 /// The keys are stated once here and pinned against the checkout's own <c>game-data</c> by
-/// <c>BootStringCatalogueTests</c>, so a key the presenter resolves but the shipped locales do
+/// <c>LocaleStringCatalogueTests</c>, so a key the presenter resolves but the shipped locales do
 /// not carry is caught here rather than as a screen full of dotted identifiers on a handset.
 /// </para>
 /// <para>

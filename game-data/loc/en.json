@@ -137,6 +137,28 @@
     "loc.boot.profile.status": "Opening your profile…",
     "loc.boot.atlas.status": "Preparing artwork…",
     "loc.boot.ready.status": "Ready",
-    "loc.boot.failure.status": "The game could not start."
+    "loc.boot.failure.status": "The game could not start.",
+
+    "loc.home.legend_level.label": "Legend Level",
+    "loc.home.energy.label": "Energy",
+    "loc.home.energy_reserve.label": "Reserve",
+    "loc.home.start_run.action": "Start Run",
+    "loc.home.continue_run.action": "Continue Run",
+    "loc.home.loading.status": "Reading your profile…",
+    "loc.home.unavailable.status": "Your profile could not be read.",
+
+    "loc.chapter_select.title.name": "Choose a Chapter",
+    "loc.chapter_select.tier_normal.name": "Normal",
+    "loc.chapter_select.tier_heroic.name": "Heroic",
+    "loc.chapter_select.tier_mythic.name": "Mythic",
+    "loc.chapter_select.requires_clear.block": "Requires Chapter",
+    "loc.chapter_select.requires_legend_level.block": "Requires Legend Level",
+    "loc.chapter_select.loading.status": "Checking which chapters you have unlocked…",
+    "loc.chapter_select.profile_missing.status": "No profile is stored on this device, so no chapter can be started.",
+    "loc.chapter_select.unavailable.status": "Your progress could not be read, so no chapter can be started.",
+    "loc.chapter_select.starting.status": "Starting your run…",
+    "loc.chapter_select.started.status": "Your run has started.",
+    "loc.chapter_select.refused.status": "Your run could not be started. Try again.",
+    "loc.chapter_select.confirm.action": "Start Run"
   }
 }

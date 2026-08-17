@@ -4,6 +4,7 @@ namespace SlayIdleRepeat.Client.Game.Presenters;
 
 /// <summary>
 /// Turns a loc key into the words a player reads, out of the content set the game already loaded.
+/// One catalogue answers for one locale, for every screen in the client.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -12,9 +13,19 @@ namespace SlayIdleRepeat.Client.Game.Presenters;
 /// </para>
 /// <para>
 /// It reads the locale documents out of the <see cref="ContentSnapshot"/> the composition root
-/// already built, so the boot screen's strings cost no extra I/O, are validated by the same content
+/// already built, so a screen's strings cost no extra I/O, are validated by the same content
 /// invariants as everything else, and stay reachable from a build where the resources are packed
-/// and the BCL cannot open them.
+/// and the BCL cannot open them. One instance serves every screen: a second class over the same
+/// documents would be the same lookup written twice, drifting on the first fix to either.
+/// </para>
+/// <para>
+/// 🔒 <b>This is not a localisation runtime and must not grow into one.</b> It is a key-to-string
+/// lookup with a fallback chain, and that is the whole of it: there are no plurals, no gender or
+/// case selection, no ICU or message formatting, no interpolation or argument substitution, no
+/// number, date or currency formatting, no font fallback for a script the bundled faces do not
+/// cover, and no way to change locale after construction. No such runtime exists anywhere in this
+/// repository and no task owns building one, so a screen that needs one of those things has found
+/// an unowned gap to report rather than a hole to fill here.
 /// </para>
 /// <para>
 /// Nothing here throws on a miss. An unusable content set is a boot failure with a named kind and a
@@ -22,7 +33,7 @@ namespace SlayIdleRepeat.Client.Game.Presenters;
 /// instead would take the exception out through an engine callback where nothing catches it.
 /// </para>
 /// </remarks>
-public sealed class BootStringCatalogue
+public sealed class LocaleStringCatalogue
 {
     /// <summary>Where the locale documents sit in the content set.</summary>
     private const string LocaleDirectoryPrefix = "loc/";
@@ -49,7 +60,7 @@ public sealed class BootStringCatalogue
     /// <param name="content">The loaded content set the locale documents are read from.</param>
     /// <param name="localeTag">The locale the device reported, as a BCP-47 tag.</param>
     /// <exception cref="ArgumentNullException"><paramref name="content"/> or <paramref name="localeTag"/> is null.</exception>
-    public BootStringCatalogue(ContentSnapshot content, string localeTag)
+    public LocaleStringCatalogue(ContentSnapshot content, string localeTag)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(localeTag);

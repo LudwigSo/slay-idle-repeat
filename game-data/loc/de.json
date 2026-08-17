@@ -137,6 +137,28 @@
     "loc.boot.profile.status": "##TODO_DE## Opening your profile…",
     "loc.boot.atlas.status": "##TODO_DE## Preparing artwork…",
     "loc.boot.ready.status": "##TODO_DE## Ready",
-    "loc.boot.failure.status": "##TODO_DE## The game could not start."
+    "loc.boot.failure.status": "##TODO_DE## The game could not start.",
+
+    "loc.home.legend_level.label": "##TODO_DE## Legend Level",
+    "loc.home.energy.label": "##TODO_DE## Energy",
+    "loc.home.energy_reserve.label": "##TODO_DE## Reserve",
+    "loc.home.start_run.action": "##TODO_DE## Start Run",
+    "loc.home.continue_run.action": "##TODO_DE## Continue Run",
+    "loc.home.loading.status": "##TODO_DE## Reading your profile…",
+    "loc.home.unavailable.status": "##TODO_DE## Your profile could not be read.",
+
+    "loc.chapter_select.title.name": "##TODO_DE## Choose a Chapter",
+    "loc.chapter_select.tier_normal.name": "##TODO_DE## Normal",
+    "loc.chapter_select.tier_heroic.name": "##TODO_DE## Heroic",
+    "loc.chapter_select.tier_mythic.name": "##TODO_DE## Mythic",
+    "loc.chapter_select.requires_clear.block": "##TODO_DE## Requires Chapter",
+    "loc.chapter_select.requires_legend_level.block": "##TODO_DE## Requires Legend Level",
+    "loc.chapter_select.loading.status": "##TODO_DE## Checking which chapters you have unlocked…",
+    "loc.chapter_select.profile_missing.status": "##TODO_DE## No profile is stored on this device, so no chapter can be started.",
+    "loc.chapter_select.unavailable.status": "##TODO_DE## Your progress could not be read, so no chapter can be started.",
+    "loc.chapter_select.starting.status": "##TODO_DE## Starting your run…",
+    "loc.chapter_select.started.status": "##TODO_DE## Your run has started.",
+    "loc.chapter_select.refused.status": "##TODO_DE## Your run could not be started. Try again.",
+    "loc.chapter_select.confirm.action": "##TODO_DE## Start Run"
   }
 }

@@ -90,6 +90,12 @@ public static class ContentLayout
             // already answers correctly for the single boot.json here, so the row buys nothing today
             // and everything on the day a second document lands beside it.
             [ContentDirectory + "boot/"] = SchemaDirectory + "boot" + SchemaSuffix,
+
+            // The Home screen's string slots — the same easy case as boot/ above.
+            [ContentDirectory + "home/"] = SchemaDirectory + "home" + SchemaSuffix,
+
+            // The Chapter Select screen's string slots — likewise.
+            [ContentDirectory + "chapter_select/"] = SchemaDirectory + "chapter_select" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

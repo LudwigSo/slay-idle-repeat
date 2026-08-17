@@ -62,6 +62,35 @@ public sealed class SceneBoundaryRuleTests
     /// </remarks>
     private const string HostingInterfaceName = "IGameHost";
 
+    /// <summary>
+    /// The scene-side helpers the floor is stated over by name — the governed subjects the escape
+    /// arm below is structurally unable to recapture.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 M7-04 put the first free-standing types that are NOT nodes into the scenes namespace: a
+    /// static helper that resolves the display server's safe area for every screen drawing to the
+    /// edge, and a second that writes a button's text colour into every draw state the engine picks
+    /// between. Both rules in this file govern them <em>today</em>, because both quantify over the
+    /// namespace and the directory rather than over the node classifier. Nothing holds them there.
+    /// </para>
+    /// <para>
+    /// 🔴 The escape arm asks "does this type derive from <c>Godot.Node</c>?", and the answer for a
+    /// static helper is no. So moving a file to <c>game/util/</c> and its namespace with it would
+    /// take it out of both subject sets with every arm of this file green — and a helper that
+    /// already names <c>DisplayServer</c> or <c>Button</c> would then be free to name a port beside
+    /// it. That is the hole the escape arm's own remarks disclose; naming the members is the only
+    /// thing that closes it for the members that exist.
+    /// </para>
+    /// <para>
+    /// 🔒 By NAMED MEMBER and never by count. A count over this list would be satisfied by two
+    /// helpers of any kind in any state, including one that had been replaced by a copy of itself
+    /// somewhere else — which is the shape a count floor has already been satisfied by on this
+    /// project. Every scene-side helper that is not a node owes itself a line here.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] SceneHelperNames = ["SafeAreaInsets", "ButtonTextColours"];
+
     /// <summary>An engine node reached only through intermediate engine types — the walk's control.</summary>
     /// <remarks>
     /// <c>Godot.Control</c> is <c>CanvasItem</c> is <c>Node</c>. Every screen M7-03 onwards adds
@@ -208,9 +237,19 @@ public sealed class SceneBoundaryRuleTests
     /// ⚠️ <b>What it still cannot catch, stated plainly because a later task will rely on it.</b>
     /// A scene written in GDScript is not in this assembly and no C# metadata rule will ever see
     /// it. A scene-side helper that is not itself a node — a static formatter, a struct of view
-    /// data — is not classified as a scene and is governed by nothing here. And a <c>.tscn</c>
-    /// with no script at all is outside every arm of this file. The claim is bounded to: every
-    /// C# type in the client assembly that derives from <c>Godot.Node</c>.
+    /// data — is not classified as a scene, so the escape arm cannot drag it back once it leaves.
+    /// And a <c>.tscn</c> with no script at all is outside every arm of this file. The escape arm's
+    /// claim is bounded to: every C# type in the client assembly that derives from
+    /// <c>Godot.Node</c>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Which is why the named half of the floor carries the helpers too.</b> M7-04 shipped
+    /// them — <see cref="SceneHelperNames"/> — and a rule whose disclosed blind spot has just been
+    /// populated is a rule with a live hole, not a documented one. Naming them does not make the arm
+    /// self-growing for helpers written later; it holds the ones that exist inside the set both
+    /// rules quantify over. The second such helper duly took the same line the first did, and until
+    /// this project finds a mechanical answer to "is this a scene-side helper?", that is the honest
+    /// shape: population-wide for nodes, by name for everything else in the namespace.
     /// </para>
     /// <para>
     /// A base type this arm cannot RESOLVE is reported as an offender rather than waved through.
@@ -228,14 +267,40 @@ public sealed class SceneBoundaryRuleTests
             "longer holds the scenes. Either the namespace moved or the scene did; point the rule at wherever " +
             "they went rather than leaving it green.");
 
-        RepoLayout.SourceFiles(PresenterBoundaryRuleTests.SceneSourceDirectory)
-                  .Select(Path.GetFileNameWithoutExtension)
-                  .ShouldContain(
-                      PresenterBoundaryRuleTests.AppRootSceneName,
-                      $"no '{PresenterBoundaryRuleTests.AppRootSceneName}.cs' under " +
-                      $"{RepoLayout.Relative(PresenterBoundaryRuleTests.SceneSourceDirectory)}, so the source arm " +
-                      "is grepping a directory the scenes have left. That arm is the only one that can see a " +
-                      "#if-excluded branch or a nameof, and a grep over the wrong directory sees neither.");
+        var sceneTypeNames = Scenes.Select(type => type.Name).ToArray();
+
+        foreach (var helper in SceneHelperNames)
+        {
+            sceneTypeNames.ShouldContain(
+                helper,
+                $"'{helper}' is not among the types under {PresenterBoundaryRuleTests.ScenesNamespace}. It " +
+                "is not a node, so the escape arm below cannot notice it has gone: it would simply stop being " +
+                "scanned, in a namespace of its own, still naming the engine and free to name a port. Either it " +
+                "moved and must move back, or it was renamed — in which case rename it here rather than deleting " +
+                "the assertion.");
+        }
+
+        var sceneFileNames = RepoLayout.SourceFiles(PresenterBoundaryRuleTests.SceneSourceDirectory)
+                                       .Select(Path.GetFileNameWithoutExtension)
+                                       .ToArray();
+
+        sceneFileNames.ShouldContain(
+            PresenterBoundaryRuleTests.AppRootSceneName,
+            $"no '{PresenterBoundaryRuleTests.AppRootSceneName}.cs' under " +
+            $"{RepoLayout.Relative(PresenterBoundaryRuleTests.SceneSourceDirectory)}, so the source arm " +
+            "is grepping a directory the scenes have left. That arm is the only one that can see a " +
+            "#if-excluded branch or a nameof, and a grep over the wrong directory sees neither.");
+
+        foreach (var helper in SceneHelperNames)
+        {
+            sceneFileNames.ShouldContain(
+                helper,
+                $"no '{helper}.cs' under " +
+                $"{RepoLayout.Relative(PresenterBoundaryRuleTests.SceneSourceDirectory)}. The type may still be in " +
+                "the scenes namespace while its FILE has left the directory the source arm greps — and that arm is " +
+                "the only one that can see a #if-excluded branch or a nameof, so the helper would keep half its " +
+                "governance and lose the other half silently.");
+        }
 
         var offenders = new List<string>();
 
