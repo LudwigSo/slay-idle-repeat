@@ -974,6 +974,54 @@ public sealed class ChapterSelectPresenterTests
                   "null one surfaces on the confirm, which is the one tap a player must never lose.");
     }
 
+    // ------------------------------------------------------------------- the run it starts
+
+    /// <summary>
+    /// 🔒 The run a confirm opened is taken from the state that command answered with. Without it
+    /// the board could only be opened on "whichever run the player is in", which is the same run
+    /// only until it is not — and on the one tap in the game that creates a run, it is not.
+    /// </summary>
+    [Fact]
+    public async Task An_accepted_confirm_names_the_run_it_started()
+    {
+        var started = new RunId("RUN_select_started_04c7");
+
+        var presenter = await Started(
+            RecordingGameHost
+                .Finding(PlayerRow())
+                .AcceptingInto(PlayerState.Run(started, Profile, RunPhase.InProgress)),
+            Authoring(AuthoredChapters));
+
+        presenter.StartedRun.ShouldBeNull(
+            "a run was named before any confirm was made, so the value cannot be coming from the " +
+            "command's own answer.");
+
+        var submission = await presenter.ConfirmAsync(1, DifficultyTier.NORMAL, CancellationToken.None);
+
+        submission.ShouldBe(ChapterSelectSubmission.Submitted);
+        presenter.StartedRun.ShouldBe(started);
+    }
+
+    /// <summary>
+    /// A refused confirm started nothing, so it names nothing. A run id left behind by a refusal
+    /// would open a board on a run that does not exist.
+    /// </summary>
+    [Fact]
+    public async Task A_refused_confirm_names_no_run()
+    {
+        var presenter = await Started(
+            RecordingGameHost
+                .Finding(PlayerRow())
+                .AcceptingInto(PlayerState.Run(
+                    new RunId("RUN_select_refused_9b31"), Profile, RunPhase.InProgress))
+                .RefusingCommands(RejectionReason.ILLEGAL_STATE),
+            Authoring(AuthoredChapters));
+
+        await presenter.ConfirmAsync(1, DifficultyTier.NORMAL, CancellationToken.None);
+
+        presenter.StartedRun.ShouldBeNull();
+    }
+
     // ---------------------------------------------------------------------------- fixtures
 
     private static ContentSnapshot Authoring(IReadOnlyList<int> chapterIds, int? mythicLegendLevel = 60) =>

@@ -60,6 +60,20 @@ public sealed class PresenterBoundaryRuleTests
     /// </remarks>
     private const string LocaleStringCatalogueName = "LocaleStringCatalogue";
 
+    /// <summary>
+    /// The tile-kind table M7-05 put in the presenters namespace — the third subject here whose
+    /// name does not end in <see cref="PresenterTypeSuffix"/>.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 It transcribes an enum that is internal to the rules assembly, which is the only reason
+    /// the board can name the tile a player is standing on rather than numbering it. A helper table
+    /// is exactly the shape a later tidy-up files under <c>game/model/</c> or <c>game/util/</c>,
+    /// and the stray arm below cannot see it go: its name is not spelled as a presenter. Outside
+    /// these rules a plain-C# lookup table would be free to reach for the engine's own translation
+    /// server, so it takes the same pair of lines the two subjects above take.
+    /// </remarks>
+    private const string BoardTileKindsName = "BoardTileKinds";
+
     /// <summary>The scene script the negative control is stated over by name.</summary>
     internal const string AppRootSceneName = "AppRoot";
 
@@ -185,13 +199,20 @@ public sealed class PresenterBoundaryRuleTests
     /// a presenter is inside it — rather than over the one that happened to be first.
     /// </para>
     /// <para>
-    /// 🔒 <b>And "spelled as a presenter" is not all of the population.</b> The namespace holds two
-    /// types whose names do not end in <see cref="PresenterTypeSuffix"/> — see
-    /// <see cref="BootAtlasResultName"/> and <see cref="LocaleStringCatalogueName"/> — and the stray
-    /// arm's own predicate cannot see either of them leave. Both are therefore named here, in both
-    /// arms, because the type staying in the namespace and its file staying in the directory are
-    /// two separate facts and each rule depends on a different one. A second such type owes itself
-    /// the same pair of lines.
+    /// 🔒 <b>And "spelled as a presenter" is not all of the population.</b> The namespace holds
+    /// three types whose names do not end in <see cref="PresenterTypeSuffix"/> — see
+    /// <see cref="BootAtlasResultName"/>, <see cref="LocaleStringCatalogueName"/> and
+    /// <see cref="BoardTileKindsName"/> — and the stray arm's own predicate cannot see any of them
+    /// leave. All three are therefore named here, in both arms, because the type staying in the
+    /// namespace and its file staying in the directory are two separate facts and each rule depends
+    /// on a different one. A further such type owes itself the same pair of lines.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The discriminant is owning a FILE, not merely being unsuffixed.</b> A record or enum
+    /// declared inside a presenter's own file — and every presenter here declares several — moves
+    /// only when that presenter's file moves, and the file-name arm already pins the presenter. The
+    /// three named above are the ones whose files can leave on their own, with no presenter file
+    /// touched and every arm of both rules green.
     /// </para>
     /// </remarks>
     [Fact]
@@ -219,6 +240,13 @@ public sealed class PresenterBoundaryRuleTests
             "arm cannot see it leave either. It is the resolver every screen reads its strings through, so " +
             "outside these rules it is one edit away from asking the engine for them.");
 
+        presenterTypeNames.ShouldContain(
+            BoardTileKindsName,
+            $"'{BoardTileKindsName}' is not among the types under {PresentersNamespace}, and the stray arm " +
+            "cannot see it leave either — its name is not spelled as a presenter. It is the transcription of " +
+            "a rules-internal enum that lets the board name the tile a player stands on; filed anywhere else " +
+            "it keeps doing that job with nothing governing what it may reference.");
+
         var presenterFileNames = RepoLayout.SourceFiles(PresenterSourceDirectory)
                                            .Select(Path.GetFileNameWithoutExtension)
                                            .ToArray();
@@ -241,6 +269,12 @@ public sealed class PresenterBoundaryRuleTests
             $"no '{LocaleStringCatalogueName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, for " +
             "the same reason: the namespace and the directory are pinned separately because a move can break " +
             "either one alone, and the source arm greps the directory.");
+
+        presenterFileNames.ShouldContain(
+            BoardTileKindsName,
+            $"no '{BoardTileKindsName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, for the same " +
+            "reason again: the type may still be in the presenters namespace while its FILE has left the " +
+            "directory the source arm greps, and that arm is the only one that can see an inlined const.");
 
         var strays =
             from type in Il.AllTypes(ProductionAssemblies.Module(ProductionAssemblies.ClientName))

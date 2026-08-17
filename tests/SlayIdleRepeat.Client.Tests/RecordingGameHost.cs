@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -31,6 +32,8 @@ internal sealed class RecordingGameHost : IGameHost
 
     private RejectionReason? _submitRejection;
     private Exception? _submitFailure;
+    private RunSnapshot? _acceptedRun;
+    private IReadOnlyList<DomainEvent> _acceptedEvents = [];
 
     private RecordingGameHost(OwnStateResult? read, Exception? readFailure)
     {
@@ -114,6 +117,37 @@ internal sealed class RecordingGameHost : IGameHost
         return this;
     }
 
+    /// <summary>
+    /// Makes an accepted command hand back a run in the given state — which is how a real host
+    /// answers, and the only way a screen that redraws from the outcome can be exercised at all.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Rehydrated through the aggregate rather than smuggled in as a row, because that is the
+    /// only construction path the domain has and it validates: a fixture that bypassed it could
+    /// hand a screen a run the game could never produce, and the screen would then be proven
+    /// against a state that does not exist.
+    /// </remarks>
+    /// <param name="run">The row the command's outcome carries back.</param>
+    internal RecordingGameHost AcceptingInto(RunSnapshot run)
+    {
+        _acceptedRun = run;
+
+        return this;
+    }
+
+    /// <summary>Makes an accepted command hand back the given events, in order.</summary>
+    /// <remarks>
+    /// The events are how a rolled face reaches a screen at all — no persisted field carries one —
+    /// so a case about what the board shows after a roll is a case about this list.
+    /// </remarks>
+    /// <param name="events">What the command produced.</param>
+    internal RecordingGameHost Emitting(params DomainEvent[] events)
+    {
+        _acceptedEvents = events;
+
+        return this;
+    }
+
     /// <inheritdoc/>
     public Task<PlayerId> OpenProfileAsync(CancellationToken ct) =>
         throw new NotSupportedException(
@@ -153,9 +187,12 @@ internal sealed class RecordingGameHost : IGameHost
 
         var unchanged = PlayerState.EmptySlice(player);
 
+        if (_submitRejection is { } rejection)
+        {
+            return Task.FromResult(ApplyCommandOutcome.Reject(rejection, unchanged));
+        }
+
         return Task.FromResult(
-            _submitRejection is { } rejection
-                ? ApplyCommandOutcome.Reject(rejection, unchanged)
-                : ApplyCommandOutcome.Accept(unchanged, [], []));
+            ApplyCommandOutcome.Accept(PlayerState.SliceWith(unchanged, _acceptedRun), _acceptedEvents, []));
     }
 }

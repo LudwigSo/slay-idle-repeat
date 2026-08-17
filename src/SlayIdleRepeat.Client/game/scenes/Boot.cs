@@ -222,7 +222,7 @@ public partial class Boot : Control
 
         var home = scene.Instantiate<Home>();
 
-        home.Drive(screen.Home, screen.ChapterSelect, _lifetime);
+        home.Drive(screen.Home, screen.ChapterSelect, screen.Board, _lifetime);
 
         Visible = false;
 

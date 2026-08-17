@@ -83,13 +83,20 @@ public sealed class SceneBoundaryRuleTests
     /// thing that closes it for the members that exist.
     /// </para>
     /// <para>
-    /// 🔒 By NAMED MEMBER and never by count. A count over this list would be satisfied by two
+    /// 🔒 By NAMED MEMBER and never by count. A count over this list would be satisfied by any
     /// helpers of any kind in any state, including one that had been replaced by a copy of itself
     /// somewhere else — which is the shape a count floor has already been satisfied by on this
     /// project. Every scene-side helper that is not a node owes itself a line here.
     /// </para>
+    /// <para>
+    /// 🔴 M7-05 added the third: the handover onto the board, shared by the two screens that make
+    /// it. Unlike the first two it does more than format — it loads a packed scene, drives it and
+    /// adds it to the tree — so a copy of it filed outside these rules would be a screen transition
+    /// nothing governs, one edit from holding the graph it is handed and reading a port off it.
+    /// </para>
     /// </remarks>
-    private static readonly string[] SceneHelperNames = ["SafeAreaInsets", "ButtonTextColours"];
+    private static readonly string[] SceneHelperNames =
+        ["SafeAreaInsets", "ButtonTextColours", "BoardHandover"];
 
     /// <summary>An engine node reached only through intermediate engine types — the walk's control.</summary>
     /// <remarks>

@@ -1,5 +1,6 @@
 using System.Globalization;
 using Godot;
+using SlayIdleRepeat.Client.Composition;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -58,7 +59,8 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// otherwise.
 /// </para>
 /// <para>
-/// 🔴 <b>A confirmed run has nowhere to go</b> — see <see cref="TheRunScreenIsNotBuiltHere"/>.
+/// A confirmed run opens onto the board it is played on, unless the accepted command named no run
+/// — see <see cref="TheStartedRunWasNotNamed"/>.
 /// </para>
 /// <para>
 /// ⚠️ <b>Only an accepted run takes the confirm out of use.</b> A run the rules layer refused is a
@@ -78,15 +80,14 @@ public partial class ChapterSelect : Control
     public const string ScenePath = "res://game/scenes/ChapterSelect.tscn";
 
     /// <summary>
-    /// 🔴 Deliberately unbuilt, and named so it can be found. S05 — the board a run is actually
-    /// played on — is a later task's and does not exist in this build. A confirmed chapter and tier
-    /// really is submitted, so the run exists; what is missing is the screen it should open onto,
-    /// and that absence is reported rather than papered over with a destination this task invented.
+    /// ⚠️ Named so an accepted run that cannot be entered is still reported. S05 exists now, so a
+    /// confirmed chapter does open onto the board — but only when the accepted command answered
+    /// with the run it created. A run that was started and not named is a state nothing should
+    /// paper over: a board opened without one would read whichever run the player happens to be in.
     /// </summary>
-    private const string TheRunScreenIsNotBuiltHere =
-        "S05, the board screen a started run is played on, is not built in this milestone: " +
-        "START_RUN was submitted and there is no scene to open onto. The run above is reported, " +
-        "not entered.";
+    private const string TheStartedRunWasNotNamed =
+        "START_RUN was accepted but the state it answered with carried no run, so there is nothing " +
+        "to open the board on. The run above is reported, not entered.";
 
     /// <summary>Where the per-chapter row lives, instantiated once per authored chapter.</summary>
     private const string ChapterRowScenePath = "res://game/scenes/ChapterRow.tscn";
@@ -201,7 +202,15 @@ public partial class ChapterSelect : Control
     private Label? _statusLabel;
     private Button? _confirmButton;
 
-    /// <summary>True once a run has been submitted, because there is nowhere to go afterwards.</summary>
+    private Func<RunId, ComposedBoardScreen>? _board;
+
+    /// <summary>
+    /// True once a run has been started, so this screen's one action cannot be taken twice.
+    /// </summary>
+    /// <remarks>
+    /// It was latched because there was nowhere to go; it stays latched now that there is, because
+    /// the handover is one-way and this screen remains in the tree behind the board.
+    /// </remarks>
     private bool _submitted;
 
     /// <summary>True from the press until the host has answered it.</summary>
@@ -209,13 +218,22 @@ public partial class ChapterSelect : Control
 
     /// <summary>Takes the presenter the composition root built, and the app's shutdown token.</summary>
     /// <param name="presenter">Drives this screen.</param>
+    /// <param name="board">
+    /// Builds the board for the run a confirm starts. A factory rather than a presenter, because
+    /// the run does not exist until <c>START_RUN</c> has been accepted.
+    /// </param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="presenter"/> is null.</exception>
-    public void Drive(ChapterSelectPresenter presenter, CancellationToken lifetime)
+    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    public void Drive(
+        ChapterSelectPresenter presenter,
+        Func<RunId, ComposedBoardScreen> board,
+        CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(presenter);
+        ArgumentNullException.ThrowIfNull(board);
 
         _presenter = presenter;
+        _board = board;
         _lifetime = lifetime;
     }
 
@@ -486,6 +504,46 @@ public partial class ChapterSelect : Control
         _ = ConfirmAsync(chapterId, tier);
     }
 
+    /// <summary>Opens the board on the run the accepted confirm created.</summary>
+    /// <remarks>
+    /// Reported either way, because a confirm that reached the rules layer is the one moment on
+    /// this screen worth being able to find in a log — and because the run it names is what the
+    /// board is then about. 🔒 Every way of NOT reaching the board says so out loud: the confirm has
+    /// already been latched by the time this runs, so a silent return leaves a screen whose one
+    /// action is spent and whose run is playing somewhere the player cannot see.
+    /// </remarks>
+    private void EnterStartedRun(ChapterSelectPresenter presenter, int chapterId, DifficultyTier tier)
+    {
+        if (presenter.StartedRun is not { } run)
+        {
+            GD.PushError(
+                $"START_RUN was accepted for chapter {chapterId} on {tier} · {TheStartedRunWasNotNamed}");
+
+            return;
+        }
+
+        GD.Print($"START_RUN accepted for chapter {chapterId} on {tier}, entering run {run}.");
+
+        if (!IsInstanceValid(this) || !IsInsideTree())
+        {
+            // The screen went away while the command was in flight — an ordinary shutdown, and the
+            // one case here that is not a defect.
+            return;
+        }
+
+        if (_board is not { } board)
+        {
+            GD.PushError(
+                $"Run {run} was started and this screen has no way to build its board, so the " +
+                "confirm is spent and the run is unreachable. Only a screen that was handed the " +
+                "board factory may instantiate the picker.");
+
+            return;
+        }
+
+        BoardHandover.Show(this, board(run), _lifetime);
+    }
+
     /// <remarks>
     /// Nothing awaits this task either, so the whole body stays inside the guard — including the
     /// redraw, which is what gives the control back.
@@ -500,15 +558,13 @@ public partial class ChapterSelect : Control
 
                 if (submission == ChapterSelectSubmission.Submitted)
                 {
-                    // Latched rather than re-enabled, and only here: there is no screen to leave
-                    // for, so a second press on a screen that never changed would start a second
-                    // run. Every other verdict leaves the flag alone and the redraw below gives the
+                    // Latched rather than re-enabled, and only here: the handover is one-way and
+                    // leaves this screen in the tree, so a second press would start a second run.
+                    // Every other verdict leaves the flag alone and the redraw below gives the
                     // control back.
                     _submitted = true;
 
-                    GD.PushError(
-                        $"START_RUN was submitted for chapter {chapterId} on {tier} · " +
-                        TheRunScreenIsNotBuiltHere);
+                    EnterStartedRun(presenter, chapterId, tier);
                 }
                 else
                 {

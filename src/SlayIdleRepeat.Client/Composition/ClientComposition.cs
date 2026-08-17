@@ -4,6 +4,7 @@ using SlayIdleRepeat.Adapters.Cache.LocalFile;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Client;
+using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core;
 
@@ -62,15 +63,21 @@ public sealed class ComposedClient
 {
     /// <summary>Carries the composed graph. Built only by <see cref="ClientComposition"/>.</summary>
     /// <exception cref="ArgumentNullException">Any part of the graph is null.</exception>
-    public ComposedClient(IGameHost gameHost, RewardedAdSelection rewardedAds, ContentProvider content)
+    public ComposedClient(
+        IGameHost gameHost,
+        RewardedAdSelection rewardedAds,
+        ContentProvider content,
+        IClockPort clock)
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(rewardedAds);
         ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(clock);
 
         GameHost = gameHost;
         RewardedAds = rewardedAds;
         Content = content;
+        Clock = clock;
     }
 
     /// <summary>The single entry point the presenters drive the game through.</summary>
@@ -81,6 +88,17 @@ public sealed class ComposedClient
 
     /// <summary>The provider the host's snapshot was loaded from, kept so the load is reachable.</summary>
     public ContentProvider Content { get; }
+
+    /// <summary>
+    /// The one clock the graph runs on, handed out so a screen measuring a soft timer measures
+    /// against the same instant source the host stamps its commands with.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Exposed rather than left inside the host, because the alternative is a screen calling
+    /// <c>DateTimeOffset.UtcNow</c> — an ambient read that no case can drive, on the one part of the
+    /// board a player experiences as a deadline.
+    /// </remarks>
+    public IClockPort Clock { get; }
 }
 
 /// <summary>
@@ -134,16 +152,21 @@ public static class ClientComposition
 
         var rewardedAds = SelectRewardedAdPort(entitlements);
 
+        // Built once and shared, rather than constructed at each use site: the host stamps commands
+        // with it and a board screen times its prompt against it, and two clocks would be two
+        // answers to "what time is it" in one process.
+        var clock = new SystemClock();
+
         var gameHost = new InProcessGameHost(
             new LocalFileCache(cacheDirectoryPath),
-            new SystemClock(),
+            clock,
             new SystemIdGenerator(),
             content.Current,
             entitlements,
             featureFlags,
             sinks: []);
 
-        return new ComposedClient(gameHost, rewardedAds, content);
+        return new ComposedClient(gameHost, rewardedAds, content, clock);
     }
 
     /// <summary>
