@@ -14,6 +14,14 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// the engine-level cold-start reading.
 /// </para>
 /// <para>
+/// ⚠️ Every type size, colour and gap in <c>Boot.tscn</c> is a per-node override, because the
+/// shared theme resource and the two display faces it will carry do not exist yet. The sizes were
+/// chosen against the engine's default font and the longest translated string, so they have to be
+/// re-checked — not merely re-applied — when the real faces land. The layout itself is structural:
+/// containers and stretch ratios, so it holds its proportions across the whole supported aspect
+/// range without an override taking part.
+/// </para>
+/// <para>
 /// 🔴 <b>The player-facing failure SCREEN is deliberately not built here</b> — see
 /// <see cref="FailureScreenIsNotDesignedHere"/>. What a failed boot gets is the honest minimum: the
 /// failure's full identity on screen and the same identity in the engine's error log.

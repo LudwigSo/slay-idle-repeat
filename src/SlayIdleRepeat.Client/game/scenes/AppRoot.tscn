@@ -21,6 +21,7 @@ theme_override_constants/margin_bottom = 128
 
 [node name="StatusLabel" type="Label" parent="Ui/SafeArea"]
 unique_name_in_owner = true
+theme_override_font_sizes/font_size = 40
 text = "Composing…"
 horizontal_alignment = 1
 vertical_alignment = 1
