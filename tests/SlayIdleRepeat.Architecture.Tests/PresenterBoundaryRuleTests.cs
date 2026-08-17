@@ -24,6 +24,42 @@ public sealed class PresenterBoundaryRuleTests
     /// <summary>The presenter the floor is stated over by name.</summary>
     internal const string AppRootPresenterName = "AppRootPresenter";
 
+    /// <summary>
+    /// The atlas outcome M7-03 put in the presenters namespace — a governed subject the stray arm
+    /// below is structurally unable to recapture.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 The stray arm asks "is this type spelled as a presenter and living outside the
+    /// namespace?", and it recognises a presenter by the <see cref="PresenterTypeSuffix"/>. This
+    /// type is not spelled that way. Both rules in this file govern it <em>today</em>, because both
+    /// quantify over the namespace and the directory rather than over the name — but moving its
+    /// file to <c>game/model/</c> and its namespace with it would take it out of both subject sets
+    /// with every arm of both rules green, and a plain-C# type that had escaped the rule against
+    /// naming the engine would then be free to name it.
+    /// </para>
+    /// <para>
+    /// 🔒 Naming it does not make the stray arm self-growing for types written later; it holds the
+    /// one that exists inside the set both rules quantify over. The same shape
+    /// <see cref="SceneBoundaryRuleTests"/> settled on for its first non-node subject: population-wide
+    /// for the types this repository spells as presenters, by name for everything else in the
+    /// namespace.
+    /// </para>
+    /// </remarks>
+    private const string BootAtlasResultName = "BootAtlasResult";
+
+    /// <summary>
+    /// The key→string resolver every screen reads its captions through — the second subject in the
+    /// presenters namespace whose name does not end in <see cref="PresenterTypeSuffix"/>.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 It was <c>BootStringCatalogue</c> until M7-04 renamed it, and a type that has just been
+    /// renamed once is exactly the one a later task renames again or files somewhere tidier. It
+    /// reads the content snapshot and hands text to three presenters; out from under these rules it
+    /// could reach for the engine's own translation server instead, and nothing here would notice.
+    /// </remarks>
+    private const string LocaleStringCatalogueName = "LocaleStringCatalogue";
+
     /// <summary>The scene script the negative control is stated over by name.</summary>
     internal const string AppRootSceneName = "AppRoot";
 
@@ -148,23 +184,63 @@ public sealed class PresenterBoundaryRuleTests
     /// floor has to be stated over the whole population — every type this repository spells as
     /// a presenter is inside it — rather than over the one that happened to be first.
     /// </para>
+    /// <para>
+    /// 🔒 <b>And "spelled as a presenter" is not all of the population.</b> The namespace holds two
+    /// types whose names do not end in <see cref="PresenterTypeSuffix"/> — see
+    /// <see cref="BootAtlasResultName"/> and <see cref="LocaleStringCatalogueName"/> — and the stray
+    /// arm's own predicate cannot see either of them leave. Both are therefore named here, in both
+    /// arms, because the type staying in the namespace and its file staying in the directory are
+    /// two separate facts and each rule depends on a different one. A second such type owes itself
+    /// the same pair of lines.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_presenter_subject_set_contains_AppRootPresenter()
     {
-        Presenters.Select(type => type.Name).ShouldContain(
+        var presenterTypeNames = Presenters.Select(type => type.Name).ToArray();
+
+        presenterTypeNames.ShouldContain(
             AppRootPresenterName,
             $"'{AppRootPresenterName}' is not among the types under {PresentersNamespace}, so the IL arm " +
             "is quantifying over a set that no longer holds the presenters. Either the namespace moved " +
             "or the presenter did; point the rule at wherever they went rather than leaving it green.");
 
-        RepoLayout.SourceFiles(PresenterSourceDirectory)
-                  .Select(Path.GetFileNameWithoutExtension)
-                  .ShouldContain(
-                      AppRootPresenterName,
-                      $"no '{AppRootPresenterName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, so " +
-                      "the source arm is grepping a directory the presenters have left. That arm is the only " +
-                      "one that can see an inlined const, and a grep over the wrong directory sees nothing.");
+        presenterTypeNames.ShouldContain(
+            BootAtlasResultName,
+            $"'{BootAtlasResultName}' is not among the types under {PresentersNamespace}. Its name does not " +
+            "end in '" + PresenterTypeSuffix + "', so the stray arm below cannot notice it has gone: it " +
+            "would simply stop being scanned, in a namespace of its own, free to name the engine or an " +
+            "adapter. Either it moved and must move back, or it was renamed — in which case rename it here " +
+            "rather than deleting the assertion.");
+
+        presenterTypeNames.ShouldContain(
+            LocaleStringCatalogueName,
+            $"'{LocaleStringCatalogueName}' is not among the types under {PresentersNamespace}, and the stray " +
+            "arm cannot see it leave either. It is the resolver every screen reads its strings through, so " +
+            "outside these rules it is one edit away from asking the engine for them.");
+
+        var presenterFileNames = RepoLayout.SourceFiles(PresenterSourceDirectory)
+                                           .Select(Path.GetFileNameWithoutExtension)
+                                           .ToArray();
+
+        presenterFileNames.ShouldContain(
+            AppRootPresenterName,
+            $"no '{AppRootPresenterName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, so " +
+            "the source arm is grepping a directory the presenters have left. That arm is the only " +
+            "one that can see an inlined const, and a grep over the wrong directory sees nothing.");
+
+        presenterFileNames.ShouldContain(
+            BootAtlasResultName,
+            $"no '{BootAtlasResultName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}. The type " +
+            "may still be in the presenters namespace while its FILE has left the directory the source arm " +
+            "greps — and that arm is the only one that can see an inlined const, so the type would keep half " +
+            "its governance and lose the other half silently.");
+
+        presenterFileNames.ShouldContain(
+            LocaleStringCatalogueName,
+            $"no '{LocaleStringCatalogueName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, for " +
+            "the same reason: the namespace and the directory are pinned separately because a move can break " +
+            "either one alone, and the source arm greps the directory.");
 
         var strays =
             from type in Il.AllTypes(ProductionAssemblies.Module(ProductionAssemblies.ClientName))
