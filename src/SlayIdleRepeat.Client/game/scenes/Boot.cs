@@ -26,10 +26,12 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// </para>
 /// <para>
 /// 🔴 <b>The player-facing failure SCREEN is deliberately not built here</b> — see
-/// <see cref="FailureScreenIsNotDesignedHere"/>. What a failed boot gets is the honest minimum: the
-/// failure's identity on screen — bounded to the lines that fit inside the safe rect, so a detail
-/// nobody sized cannot push itself off the bottom of the display — and the whole of it, untrimmed,
-/// in the engine's error log.
+/// <see cref="FailureScreenIsNotDesignedHere"/>. What a failed boot shows a player is the one
+/// localised failure line the status label already carries, and nothing else. The failure's full
+/// identity — its kind, its stage and the exception behind it — goes to the engine's error log,
+/// which is where the person who can act on it reads. Putting that identity on the display instead
+/// would put untranslated type names and a filesystem path in front of somebody who cannot use
+/// either, under a sentence that had just been translated for them.
 /// </para>
 /// </remarks>
 public partial class Boot : Control
@@ -57,7 +59,6 @@ public partial class Boot : Control
     private const string SafeAreaPath = "%SafeArea";
     private const string TitleLabelPath = "%TitleLabel";
     private const string StatusLabelPath = "%StatusLabel";
-    private const string FailureLabelPath = "%FailureLabel";
 
     private const string MarginLeftConstant = "margin_left";
     private const string MarginTopConstant = "margin_top";
@@ -84,11 +85,9 @@ public partial class Boot : Control
 
     private Label? _titleLabel;
     private Label? _statusLabel;
-    private Label? _failureLabel;
 
     private string? _drawnTitle;
     private string? _drawnStatus;
-    private BootFailure? _drawnFailure;
 
     /// <summary>
     /// Takes the presenter the composition root built, and the token the app shuts down through.
@@ -110,7 +109,6 @@ public partial class Boot : Control
         // a string search of the owner's table each time it is asked.
         _titleLabel = GetNode<Label>(TitleLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
-        _failureLabel = GetNode<Label>(FailureLabelPath);
 
         ApplySafeArea();
         Render();
@@ -244,8 +242,9 @@ public partial class Boot : Control
     /// <summary>Writes the presenter's state into the scene, if the scene is still there to write into.</summary>
     /// <remarks>
     /// Every write is compared against what was last drawn, because this runs per frame: setting a
-    /// label's text marshals a string into the engine whether or not it changed, and rendering a
-    /// failure would build its line again on every one of them.
+    /// label's text marshals a string into the engine whether or not it changed. The failure is not
+    /// among the things written — the status line already says, in the player's language, that the
+    /// game could not start, and the identity behind it is logged rather than displayed.
     /// </remarks>
     private void Render()
     {
@@ -254,14 +253,13 @@ public partial class Boot : Control
         // Validity before tree membership: asking a freed node whether it is inside the tree is
         // itself the crash, and a shutdown during a slow start is the ordinary case on a handset.
         if (presenter is null || _titleLabel is null || _statusLabel is null ||
-            _failureLabel is null || !IsInstanceValid(this) || !IsInsideTree())
+            !IsInstanceValid(this) || !IsInsideTree())
         {
             return;
         }
 
         var title = presenter.Title;
         var status = presenter.StatusText;
-        var failure = presenter.Failure;
 
         if (!string.Equals(_drawnTitle, title, StringComparison.Ordinal))
         {
@@ -273,13 +271,6 @@ public partial class Boot : Control
         {
             _drawnStatus = status;
             _statusLabel.Text = status;
-        }
-
-        if (!ReferenceEquals(_drawnFailure, failure))
-        {
-            _drawnFailure = failure;
-            _failureLabel.Visible = failure is not null;
-            _failureLabel.Text = failure?.ToString() ?? string.Empty;
         }
     }
 

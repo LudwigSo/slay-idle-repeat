@@ -133,7 +133,7 @@
 
     "loc.boot.title.name": "Slay. Idle. Repeat.",
     "loc.boot.splash.status": "Starting…",
-    "loc.boot.content.status": "Loading content…",
+    "loc.boot.content.status": "Loading the game…",
     "loc.boot.profile.status": "Opening your profile…",
     "loc.boot.atlas.status": "Preparing artwork…",
     "loc.boot.ready.status": "Ready",
