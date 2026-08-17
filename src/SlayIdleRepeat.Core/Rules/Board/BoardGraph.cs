@@ -66,6 +66,9 @@ internal sealed class BoardGraph
     /// <summary>Every node this board contains, spine, branch and boss alike.</summary>
     public int NodeCount => _nodes.Count;
 
+    /// <summary>How many linear indices this board has — every spine node plus the boss.</summary>
+    internal int SpineLength => _spineByLinearIndex.Count;
+
     /// <summary>The spine node (or the boss) at a linear index, <c>0..42</c>.</summary>
     /// <exception cref="ArgumentOutOfRangeException">The index is outside <c>0..42</c>.</exception>
     public NodeId SpineNode(int linearIndex)

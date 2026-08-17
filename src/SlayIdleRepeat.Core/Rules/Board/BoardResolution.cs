@@ -36,7 +36,13 @@ internal static class BoardResolution
             return BoardGenerator.GenerateBoard(config, rngScope.Stream(RngStreams.Board));
         }
 
-        var replay = DeterministicRng.OpenAt(run.RunSeed, RngStreams.Board, 0);
-        return BoardGenerator.GenerateBoard(config, replay);
+        return Replay(config, run.RunSeed);
     }
+
+    /// <summary>
+    /// The one replay in the codebase, per the remarks above — <see cref="BoardView"/> reads a
+    /// board through it too, so a drawn track cannot drift off the layout the handlers walk.
+    /// </summary>
+    internal static BoardGraph Replay(ChapterBoardConfig config, ulong runSeed) =>
+        BoardGenerator.GenerateBoard(config, DeterministicRng.OpenAt(runSeed, RngStreams.Board, 0));
 }
