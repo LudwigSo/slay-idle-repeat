@@ -398,6 +398,48 @@ public sealed class ChapterSelectPresenterTests
             "confirm through against a Legend Level and a clear history nobody has fetched yet.");
     }
 
+    /// <summary>
+    /// 🔒 The picker's first frame is drawn before the read answers, so every tier on every row is
+    /// asked about while the Legend Level and the clear history it is decided against are still
+    /// unknown. Chapter one on Normal is the pair a permissive presenter opens first, and it is
+    /// genuinely selectable once the read lands — so it is the pair that tells a real answer apart
+    /// from a hopeful one.
+    /// </summary>
+    /// <remarks>
+    /// Named rather than merely non-selectable: <c>Blocked</c> here would be a refusal carrying no
+    /// requirement, which is the one shape this screen's refusals must never take — "the chapter is
+    /// disabled" reads identically to every other cause and sends the player nowhere. Which of the
+    /// three unread states it is stays legible through <c>Stage</c>.
+    /// </remarks>
+    [Fact]
+    public async Task Availability_is_NotYetKnown_before_StartAsync_has_fetched_the_state_it_is_decided_against()
+    {
+        var presenter = Screen(RecordingGameHost.Finding(PlayerRow()), Authoring(AuthoredChapters));
+
+        var beforeTheRead = presenter.Availability(1, DifficultyTier.NORMAL);
+
+        beforeTheRead.Lookup.ShouldBe(
+            ChapterTierLookup.NotYetKnown,
+            "answering Selectable against a Legend Level and a clear history nobody has fetched " +
+            "opens every tier for exactly as long as the read takes, and a tap landing in that " +
+            "window reaches a confirm that refuses for a reason the screen never showed.");
+        beforeTheRead.Unmet.ShouldBeEmpty(
+            "nothing is unmet, because nothing is known. A requirement invented here would be a " +
+            "demand made of a player whose progress has not been looked at.");
+
+        presenter.Availability(UnauthoredChapter, DifficultyTier.NORMAL).Lookup.ShouldBe(
+            ChapterTierLookup.NotAuthored,
+            "and the unread state does not swallow the one cause that never depended on the read: " +
+            "whether anybody wrote the chapter is a fact about the content set alone.");
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Availability(1, DifficultyTier.NORMAL).Lookup.ShouldBe(
+            ChapterTierLookup.Selectable,
+            "the read is what changes the answer. A presenter that reported NotYetKnown forever " +
+            "would satisfy the assertions above and lock the campaign shut.");
+    }
+
     [Fact]
     public async Task StartAsync_reports_ProfileMissing_rather_than_Ready_when_no_such_player_is_stored()
     {

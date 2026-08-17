@@ -1,4 +1,6 @@
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.UseCases;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
@@ -59,6 +61,21 @@ public enum HomeContinueDecision
 /// </remarks>
 public sealed class HomePresenter
 {
+    private const string LegendLevelLabelKey = "loc.home.legend_level.label";
+    private const string EnergyLabelKey = "loc.home.energy.label";
+    private const string EnergyReserveLabelKey = "loc.home.energy_reserve.label";
+    private const string StartRunActionKey = "loc.home.start_run.action";
+    private const string ContinueRunActionKey = "loc.home.continue_run.action";
+    private const string LoadingStatusKey = "loc.home.loading.status";
+    private const string UnavailableStatusKey = "loc.home.unavailable.status";
+
+    /// <summary>The status line of a screen that has an action to offer: there is nothing left to say.</summary>
+    private const string NothingLeftToSay = "";
+
+    private readonly IGameHost _gameHost;
+    private readonly LocaleStringCatalogue _strings;
+    private readonly PlayerId _player;
+
     /// <summary>Builds the screen over the host, the strings and the profile boot opened.</summary>
     /// <param name="gameHost">The seam the player's own state is read through.</param>
     /// <param name="strings">Key to display string, over the loaded content set.</param>
@@ -69,54 +86,100 @@ public sealed class HomePresenter
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(strings);
 
-        _ = player;
+        _gameHost = gameHost;
+        _strings = strings;
+        _player = player;
     }
 
     /// <summary>What the primary action does, and why.</summary>
-    public HomeContinueDecision Decision => throw NotBuilt();
+    public HomeContinueDecision Decision { get; private set; } = HomeContinueDecision.NotYetRead;
 
     /// <summary>The run to resume, or null unless <see cref="Decision"/> is <see cref="HomeContinueDecision.ContinueRun"/>.</summary>
-    public RunId? ContinuableRun => throw NotBuilt();
+    public RunId? ContinuableRun { get; private set; }
 
     /// <summary>The player's display name, as the snapshot carries it.</summary>
-    public string DisplayName => throw NotBuilt();
+    public string DisplayName { get; private set; } = "";
 
     /// <summary>The player's Legend Level, as the snapshot carries it.</summary>
-    public int LegendLevel => throw NotBuilt();
+    public int LegendLevel { get; private set; }
 
     /// <summary>The main Energy bar's amount, as the snapshot carries it — no denominator exists.</summary>
-    public int Energy => throw NotBuilt();
+    public int Energy { get; private set; }
 
     /// <summary>The Energy Reserve's amount, as the snapshot carries it — no capacity exists.</summary>
-    public int EnergyReserve => throw NotBuilt();
+    public int EnergyReserve { get; private set; }
 
     /// <summary>The caption beside <see cref="LegendLevel"/>, resolved.</summary>
-    public string LegendLevelLabel => throw NotBuilt();
+    public string LegendLevelLabel => _strings.Resolve(LegendLevelLabelKey);
 
     /// <summary>The caption beside <see cref="Energy"/>, resolved.</summary>
-    public string EnergyLabel => throw NotBuilt();
+    public string EnergyLabel => _strings.Resolve(EnergyLabelKey);
 
     /// <summary>The caption beside <see cref="EnergyReserve"/>, resolved.</summary>
-    public string EnergyReserveLabel => throw NotBuilt();
+    public string EnergyReserveLabel => _strings.Resolve(EnergyReserveLabelKey);
 
     /// <summary>The primary action's caption for the current <see cref="Decision"/>, resolved.</summary>
-    public string ActionText => throw NotBuilt();
+    public string ActionText => _strings.Resolve(
+        Decision == HomeContinueDecision.ContinueRun ? ContinueRunActionKey : StartRunActionKey);
 
     /// <summary>The line shown while there is no decision to offer, resolved.</summary>
-    public string StatusText => throw NotBuilt();
+    public string StatusText => Decision switch
+    {
+        HomeContinueDecision.NotYetRead => _strings.Resolve(LoadingStatusKey),
+        HomeContinueDecision.StartNewRun or HomeContinueDecision.ContinueRun => NothingLeftToSay,
+        _ => _strings.Resolve(UnavailableStatusKey),
+    };
 
     /// <summary>What went wrong when <see cref="Decision"/> is <see cref="HomeContinueDecision.ReadUnavailable"/>.</summary>
-    public string? FailureDetail => throw NotBuilt();
+    public string? FailureDetail { get; private set; }
 
     /// <summary>Reads the player's own state and settles <see cref="Decision"/>.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task StartAsync(CancellationToken ct)
+    public async Task StartAsync(CancellationToken ct)
     {
-        _ = ct;
+        try
+        {
+            // Awaited inside the guard rather than merely called inside it: a real host's read is an
+            // async method, so its failure arrives as a faulted task and a try around the call alone
+            // would never see it.
+            var state = await _gameHost.ReadOwnStateAsync(_player, run: null, ct).ConfigureAwait(false);
 
-        throw NotBuilt();
+            Settle(state);
+        }
+        catch (Exception failure)
+        {
+            Decision = HomeContinueDecision.ReadUnavailable;
+            FailureDetail = $"{failure.GetType().Name}: {failure.Message}";
+        }
     }
 
-    private static NotImplementedException NotBuilt() =>
-        new("HomePresenter is a declaration-only stub: the tests that describe it are written, the behaviour is not.");
+    private void Settle(OwnStateResult state)
+    {
+        if (state.Lookup != OwnStateLookup.Found || state.View is not { } view)
+        {
+            Decision = HomeContinueDecision.ProfileMissing;
+            return;
+        }
+
+        Carry(view.Player);
+
+        // A finished run is still a row the read hands back, and the next START_RUN is the only
+        // thing that clears it — so an ended run is a run to start over, not a run to resume.
+        if (view.Run is { Phase: RunPhase.InProgress or RunPhase.BattlePending } open)
+        {
+            Decision = HomeContinueDecision.ContinueRun;
+            ContinuableRun = open.Id;
+            return;
+        }
+
+        Decision = HomeContinueDecision.StartNewRun;
+    }
+
+    private void Carry(PlayerSnapshot player)
+    {
+        DisplayName = player.DisplayName;
+        LegendLevel = player.LegendLevel;
+        Energy = player.Energy.Energy;
+        EnergyReserve = player.Energy.Reserve;
+    }
 }
