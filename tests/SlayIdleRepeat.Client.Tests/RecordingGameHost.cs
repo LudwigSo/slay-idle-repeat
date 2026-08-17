@@ -59,6 +59,9 @@ internal sealed class RecordingGameHost : IGameHost
     /// <summary>The last command submitted, or null while none has been.</summary>
     internal GameCommand? SubmitCommand { get; private set; }
 
+    /// <summary>The token the last submission was handed.</summary>
+    internal CancellationToken? SubmitToken { get; private set; }
+
     /// <summary>A host whose state read answers with the given result.</summary>
     internal static RecordingGameHost Reading(OwnStateResult result) => new(result, readFailure: null);
 
@@ -103,7 +106,7 @@ internal sealed class RecordingGameHost : IGameHost
         SubmitPlayer = player;
         SubmitRun = run;
         SubmitCommand = command;
-        _ = ct;
+        SubmitToken = ct;
 
         return Task.FromResult(
             ApplyCommandOutcome.Accept(PlayerState.EmptySlice(player), [], []));

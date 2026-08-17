@@ -148,6 +148,9 @@ internal static class ScreenContent
         [
             new KeyValuePair<string, ContentValue>(ChapterGatingMember, ContentValue.Object(
             [
+                // The shipped ladder carries this prose member beside the three rungs. Kept here so
+                // a reader that walks the rungs meets it under a fixture too, not only on a handset.
+                new KeyValuePair<string, ContentValue>("_doc", ContentValue.Text("fixture ladder")),
                 new KeyValuePair<string, ContentValue>("NORMAL", Rung(PreviousChapterNormal, null)),
                 new KeyValuePair<string, ContentValue>("HEROIC", Rung(SameChapterNormal, null)),
                 new KeyValuePair<string, ContentValue>("MYTHIC", Rung(SameChapterHeroic, mythicLegendLevel)),

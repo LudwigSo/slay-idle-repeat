@@ -431,6 +431,30 @@ public sealed class HomePresenterTests
             "one control cannot be trusted.");
     }
 
+    /// <summary>
+    /// 🔒 The status line is authored for the two states that have nothing to offer, and a settled
+    /// screen is neither of them.
+    /// </summary>
+    /// <remarks>
+    /// Without this the loading line is only ever asserted to be <em>present</em> at the start, and
+    /// a presenter that never cleared it would satisfy every case here while leaving "reading your
+    /// profile…" under a working button for the rest of the session. The content document authors
+    /// exactly two status strings — loading and unavailable — so a screen with a decision to offer
+    /// has no third line to show and must show none.
+    /// </remarks>
+    [Fact]
+    public async Task StatusText_is_cleared_once_the_read_has_settled_on_a_decision()
+    {
+        var presenter = Home(RecordingGameHost.Finding(PlayerRow()));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.StatusText.ShouldBeEmpty(
+            "the read answered and the button says what it does, so there is nothing left for a " +
+            "status line to say. Leaving the loading line up is the state that reads as a screen " +
+            "still working on something, next to a control that is already live.");
+    }
+
     [Fact]
     public async Task StatusText_is_the_unavailable_line_when_no_such_player_is_stored()
     {

@@ -270,6 +270,28 @@ public sealed class ChapterSelectPresenterTests
     }
 
     /// <summary>
+    /// 🔒 The other shape of the same rule: a rung that authors <em>no</em> level demands none. The
+    /// case above varies the number; this one removes it, which is the edit a presenter carrying its
+    /// own copy of 60 would ignore just as completely while still answering Blocked.
+    /// </summary>
+    [Fact]
+    public async Task Availability_demands_no_Legend_Level_when_the_authored_rung_names_none()
+    {
+        var presenter = await Started(
+            RecordingGameHost.Finding(PlayerRow(
+                legendLevel: 1,
+                cleared: PlayerState.Cleared(
+                    (1, DifficultyTier.NORMAL), (2, DifficultyTier.NORMAL), (2, DifficultyTier.HEROIC)))),
+            Authoring(AuthoredChapters, mythicLegendLevel: null));
+
+        presenter.Availability(2, DifficultyTier.MYTHIC).Unmet.ShouldBeEmpty(
+            "the ladder authors requiresLegendLevel as nullable and Normal and Heroic ship it null " +
+            "today, so 'no level demanded' is a shape the data really takes. A presenter that read " +
+            "an unauthored hole as a level would demand zero — or, worse, treat Mythic as always " +
+            "gated — and no amount of tuning could unlock it.");
+    }
+
+    /// <summary>
     /// 🔒 And the number the checkout actually authors, held against reality rather than a fixture.
     /// </summary>
     [Fact]
@@ -346,6 +368,11 @@ public sealed class ChapterSelectPresenterTests
         var fromNull = overNull.Availability(2, DifficultyTier.NORMAL);
         var fromEmpty = overEmpty.Availability(2, DifficultyTier.NORMAL);
 
+        fromEmpty.Unmet.ShouldBe(
+            new ChapterTierRequirement[] { new ClearRequirement(1, DifficultyTier.NORMAL) },
+            "the answer itself, pinned before the two are held against each other: a reader that " +
+            "answered 'selectable, nothing unmet' for both spellings of nothing would agree with " +
+            "itself perfectly and open the whole campaign to a brand-new account.");
         fromNull.Lookup.ShouldBe(
             fromEmpty.Lookup,
             "a player who has cleared nothing and a player whose map was written empty are the same " +
@@ -404,8 +431,13 @@ public sealed class ChapterSelectPresenterTests
             PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))));
         var presenter = await Started(host, Authoring(AuthoredChapters));
 
-        await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+        var submission = await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
 
+        submission.ShouldBe(
+            ChapterSelectSubmission.Submitted,
+            "the verdict a legal confirm reports, stated here because every other confirm case pins " +
+            "a REFUSAL — a screen that answered RefusedNotSelectable while submitting anyway would " +
+            "satisfy all of them, and the caller has no other way to know the tap took.");
         host.SubmitCommand.ShouldBe(
             new StartRunCommand(2, DifficultyTier.NORMAL),
             "the chapter and the tier are what the command exists to carry: they seed the run and " +
@@ -428,6 +460,23 @@ public sealed class ChapterSelectPresenterTests
             "there is no run yet — that is what START_RUN is for. Addressing it to a run id would " +
             "route it at something that does not exist, and on a real host that is a sequencing key " +
             "for a stream nothing has opened.");
+    }
+
+    [Fact]
+    public async Task ConfirmAsync_hands_the_host_the_cancellation_token_it_was_given()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var host = RecordingGameHost.Finding(
+            PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))));
+        var presenter = await Started(host, Authoring(AuthoredChapters));
+
+        await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, cancellation.Token);
+
+        host.SubmitToken.ShouldBe(
+            cancellation.Token,
+            "the token is how the app says 'the screen is going away, stop'. A presenter that " +
+            "swallows it and passes None leaves a START_RUN in flight against a screen that is " +
+            "already gone, and this is the one call that writes.");
     }
 
     [Fact]
