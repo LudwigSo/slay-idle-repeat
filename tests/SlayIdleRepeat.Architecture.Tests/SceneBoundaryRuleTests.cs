@@ -62,6 +62,28 @@ public sealed class SceneBoundaryRuleTests
     /// </remarks>
     private const string HostingInterfaceName = "IGameHost";
 
+    /// <summary>
+    /// The scene-side helper the floor is stated over by name — the one governed subject the escape
+    /// arm below is structurally unable to recapture.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 M7-04 put the first free-standing type that is NOT a node into the scenes namespace: a
+    /// static helper that resolves the display server's safe area for every screen drawing to the
+    /// edge. Both rules in this file govern it <em>today</em>, because both quantify over the
+    /// namespace and the directory rather than over the node classifier. Nothing holds it there.
+    /// </para>
+    /// <para>
+    /// 🔴 The escape arm asks "does this type derive from <c>Godot.Node</c>?", and the answer for a
+    /// static helper is no. So moving its file to <c>game/util/</c> and its namespace with it would
+    /// take it out of both subject sets with every arm of this file green — and a helper that
+    /// already names <c>DisplayServer</c> would then be free to name a port beside it. That is the
+    /// hole the escape arm's own remarks disclose; naming the member is the only thing that closes
+    /// it for the member that exists.
+    /// </para>
+    /// </remarks>
+    private const string SceneHelperName = "SafeAreaInsets";
+
     /// <summary>An engine node reached only through intermediate engine types — the walk's control.</summary>
     /// <remarks>
     /// <c>Godot.Control</c> is <c>CanvasItem</c> is <c>Node</c>. Every screen M7-03 onwards adds
@@ -208,9 +230,19 @@ public sealed class SceneBoundaryRuleTests
     /// ⚠️ <b>What it still cannot catch, stated plainly because a later task will rely on it.</b>
     /// A scene written in GDScript is not in this assembly and no C# metadata rule will ever see
     /// it. A scene-side helper that is not itself a node — a static formatter, a struct of view
-    /// data — is not classified as a scene and is governed by nothing here. And a <c>.tscn</c>
-    /// with no script at all is outside every arm of this file. The claim is bounded to: every
-    /// C# type in the client assembly that derives from <c>Godot.Node</c>.
+    /// data — is not classified as a scene, so the escape arm cannot drag it back once it leaves.
+    /// And a <c>.tscn</c> with no script at all is outside every arm of this file. The escape arm's
+    /// claim is bounded to: every C# type in the client assembly that derives from
+    /// <c>Godot.Node</c>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Which is why the named half of the floor carries the helper too.</b> M7-04 shipped the
+    /// first of them — <see cref="SceneHelperName"/> — and a rule whose disclosed blind spot has
+    /// just been populated is a rule with a live hole, not a documented one. Naming it does not
+    /// make the arm self-growing for helpers written later; it holds the one that exists inside the
+    /// set both rules quantify over. A second such helper owes itself the same line, and until this
+    /// project finds a mechanical answer to "is this a scene-side helper?", that is the honest
+    /// shape: population-wide for nodes, by name for everything else in the namespace.
     /// </para>
     /// <para>
     /// A base type this arm cannot RESOLVE is reported as an offender rather than waved through.
@@ -228,14 +260,32 @@ public sealed class SceneBoundaryRuleTests
             "longer holds the scenes. Either the namespace moved or the scene did; point the rule at wherever " +
             "they went rather than leaving it green.");
 
-        RepoLayout.SourceFiles(PresenterBoundaryRuleTests.SceneSourceDirectory)
-                  .Select(Path.GetFileNameWithoutExtension)
-                  .ShouldContain(
-                      PresenterBoundaryRuleTests.AppRootSceneName,
-                      $"no '{PresenterBoundaryRuleTests.AppRootSceneName}.cs' under " +
-                      $"{RepoLayout.Relative(PresenterBoundaryRuleTests.SceneSourceDirectory)}, so the source arm " +
-                      "is grepping a directory the scenes have left. That arm is the only one that can see a " +
-                      "#if-excluded branch or a nameof, and a grep over the wrong directory sees neither.");
+        Scenes.Select(type => type.Name).ShouldContain(
+            SceneHelperName,
+            $"'{SceneHelperName}' is not among the types under {PresenterBoundaryRuleTests.ScenesNamespace}. It " +
+            "is not a node, so the escape arm below cannot notice it has gone: it would simply stop being " +
+            "scanned, in a namespace of its own, still naming the engine and free to name a port. Either it " +
+            "moved and must move back, or it was renamed — in which case rename it here rather than deleting " +
+            "the assertion.");
+
+        var sceneFileNames = RepoLayout.SourceFiles(PresenterBoundaryRuleTests.SceneSourceDirectory)
+                                       .Select(Path.GetFileNameWithoutExtension)
+                                       .ToArray();
+
+        sceneFileNames.ShouldContain(
+            PresenterBoundaryRuleTests.AppRootSceneName,
+            $"no '{PresenterBoundaryRuleTests.AppRootSceneName}.cs' under " +
+            $"{RepoLayout.Relative(PresenterBoundaryRuleTests.SceneSourceDirectory)}, so the source arm " +
+            "is grepping a directory the scenes have left. That arm is the only one that can see a " +
+            "#if-excluded branch or a nameof, and a grep over the wrong directory sees neither.");
+
+        sceneFileNames.ShouldContain(
+            SceneHelperName,
+            $"no '{SceneHelperName}.cs' under " +
+            $"{RepoLayout.Relative(PresenterBoundaryRuleTests.SceneSourceDirectory)}. The type may still be in " +
+            "the scenes namespace while its FILE has left the directory the source arm greps — and that arm is " +
+            "the only one that can see a #if-excluded branch or a nameof, so the helper would keep half its " +
+            "governance and lose the other half silently.");
 
         var offenders = new List<string>();
 

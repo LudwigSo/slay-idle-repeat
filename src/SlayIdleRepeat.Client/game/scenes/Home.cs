@@ -246,10 +246,24 @@ public partial class Home : Control
 
     /// <summary>Puts the chapter picker beside this screen and stands down.</summary>
     /// <remarks>
+    /// <para>
     /// The picker is added to this screen's own parent rather than to this screen, and this screen
     /// is hidden — the same handover shape the application root uses for the boot screen. A child
     /// would be drawn inside a ground this screen still owns, and freeing the outgoing screen from
     /// inside its own handler is a node destroying the object the call is running on.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The handover is ONE-WAY, and hiding instead of freeing is only safe because of it.</b>
+    /// Every screen this build opens stays in the tree for the life of the application: three of
+    /// them by the time the picker is up, two hidden. That is bounded at three and inert — a hidden
+    /// <c>Control</c> takes no input, so the button above cannot be reached again, and neither
+    /// screen draws or processes. What it is NOT is reusable. This method instantiates
+    /// unconditionally, so the first back path that returns a player here and lets them press START
+    /// again adds a second picker beside the first, with its own presenter and its own read, and
+    /// one more on every traversal after that. The navigation stack that introduces a back path
+    /// therefore owes this pair a free-or-reuse decision; it does not inherit one, and no comment
+    /// here substitutes for making it.
+    /// </para>
     /// </remarks>
     private void ShowChapterSelect()
     {

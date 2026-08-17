@@ -134,6 +134,10 @@ public enum ChapterSelectStage
 /// ⚠️ <b>This gate is presentation only</b> — see <see cref="TheRulesLayerDoesNotEnforceThisGate"/>.
 /// </para>
 /// <para>
+/// ⚠️ <b>And it is decided from one of the two places the gate is authored</b> — see
+/// <see cref="TheChapterUnlockConditionIsNotReadHere"/>.
+/// </para>
+/// <para>
 /// 🔒 There is deliberately no par-power, expected-power or power-warning member. The power model
 /// belongs to the row that owns it, and a comparison invented here would be a second answer to a
 /// question that already has one owner.
@@ -152,6 +156,22 @@ public sealed class ChapterSelectPresenter
         "START_RUN is refused only for a chapter id below one or an undefined tier, and no task " +
         "currently owns making the rules check the ladder. A client that skipped this screen could " +
         "start any chapter on any tier and would be accepted.";
+
+    /// <summary>
+    /// ⚠️ Deliberately unread, and named so it can be found. The clear half of this gate is authored
+    /// TWICE — once generically, in the ladder this class reads, and once per chapter, in a member
+    /// this class does not read at all. Nothing reconciles the two, and nothing else in the
+    /// repository reads the second one either, so a divergence between them is silent in both
+    /// directions.
+    /// </summary>
+    private const string TheChapterUnlockConditionIsNotReadHere =
+        "Every chapter document carries its own unlockCondition — a required (clearChapter, tier) " +
+        "pair, or null — and no code in this repository reads it at runtime. This screen decides " +
+        "the clear requirement from tuning/progression.json#/chapterGating alone, and the two " +
+        "sources agree only because the two shipped chapters were authored by hand to agree. The " +
+        "chapter schema permits an unlockCondition the generic ladder does not describe, and a " +
+        "chapter authored with one would be gated by the ladder and opened regardless of what its " +
+        "own document asked for. Which source wins is a content-model decision no task owns.";
 
     /// <summary>
     /// The screen's own strings. The chapter names are not among them: each chapter document names
