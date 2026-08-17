@@ -380,17 +380,40 @@ jobs:
         # nothing of its own until M5-11, but a broken collector or a mistyped
         # scrape config would make M5-11 look broken instead, and this catches it
         # here. `otel-collector-app` must exist even while it is empty.
+        #
+        # The retry loop is deliberate: `docker compose up --wait` returns as soon
+        # as every healthcheck passes, but Prometheus's healthcheck (/-/healthy)
+        # passes the moment the process starts — before it has completed its first
+        # scrape cycle (15 s interval). A one-shot query races that cycle and can
+        # return only the self-scrape (`prometheus`) that Prometheus runs
+        # immediately, with the other targets not yet visible in `up`. Polling
+        # with a timeout of 60 s gives Prometheus at least three full intervals to
+        # reach all configured targets while still failing fast on a genuine
+        # misconfiguration.
         shell: pwsh
         run: |
-          $response = Invoke-RestMethod -Uri 'http://127.0.0.1:9090/api/v1/query?query=up' -TimeoutSec 30
-          $jobs = @($response.data.result | ForEach-Object { $_.metric.job })
+          $required  = @('prometheus', 'otel-collector-internal', 'otel-collector-app', 'jaeger')
+          $timeout   = 60
+          $deadline  = (Get-Date).AddSeconds($timeout)
+
+          do {
+            $response = Invoke-RestMethod -Uri 'http://127.0.0.1:9090/api/v1/query?query=up' -TimeoutSec 30
+            $jobs     = @($response.data.result | ForEach-Object { $_.metric.job })
+            $missing  = @($required | Where-Object { $_ -notin $jobs })
+
+            Write-Host "Scraped jobs: $($jobs -join ', ')"
+            if ($missing.Count -eq 0) { break }
+            Write-Host "Waiting for jobs to be scraped: $($missing -join ', ')"
+
+            if ((Get-Date) -ge $deadline) {
+              Write-Host "::error::Prometheus scrape jobs still missing after ${timeout}s: $($missing -join ', '). Verify infra/prometheus/prometheus.yml."
+              exit 1
+            }
+            Start-Sleep -Seconds 5
+          } while ($true)
+
           $down = @($response.data.result | Where-Object { $_.value[1] -ne '1' } |
                     ForEach-Object { "$($_.metric.job)=$($_.value[1])" })
-          Write-Host "Scraped jobs: $($jobs -join ', ')"
-          if ('otel-collector-app' -notin $jobs) {
-            Write-Host "::error::the otel-collector-app scrape job must be configured in infra/prometheus/prometheus.yml"
-            exit 1
-          }
           if ($down.Count -gt 0) {
             Write-Host "::error::Prometheus targets not up: $($down -join ', ')"
             exit 1
