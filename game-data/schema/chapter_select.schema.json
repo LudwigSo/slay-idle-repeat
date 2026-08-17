@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/chapter_select.schema.json",
+  "title": "content/chapter_select/chapter_select.json",
+  "description": "M7-04 — the loc keys the Chapter Select screen (S04) renders. What is fixed here is that the screen shows a title, one name per difficulty tier, one caption per way a tier can be refused, and a confirm caption — and that every one of them is a key rather than a literal (X-04). Every value is a loc key, so ContentInvariants.CheckLocaleKeyReferences resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. The tier member set mirrors the DifficultyTier vocabulary, which is authored in tuning/progression.json#/chapterGating and in par_power.json's tier columns; adding a fourth tier is a tuning decision that would fail here until this schema was widened deliberately. additionalProperties is false throughout, so there is no slot for a par-power or expected-power warning: that readout belongs to the row that owns the power model, and a caption here would invite a screen-side power comparison ahead of it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "title", "tier", "block", "confirm"],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "title": {
+      "description": "The screen's own heading. Chapter names are not here — each chapter document carries its own displayName key.",
+      "$ref": "#/$defs/locKey"
+    },
+    "tier": {
+      "description": "One name per difficulty tier. The member set is closed and required in full: a tier with no name renders as a blank picker entry, which is indistinguishable from a tier that does not exist.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["normal", "heroic", "mythic"],
+      "properties": {
+        "normal": { "$ref": "#/$defs/locKey" },
+        "heroic": { "$ref": "#/$defs/locKey" },
+        "mythic": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "block": {
+      "description": "One caption per KIND of unmet requirement — a clear that has not happened, and a Legend Level that has not been reached. Two rather than one, because they are fixed by doing two different things. WHICH clear or WHICH level is carried in code as a payload rather than baked into a sentence here: there is no string-interpolation runtime in this repository yet, and a caption per (chapter, tier) pair would be a translation bill that grows with the campaign.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["requiresClear", "requiresLegendLevel"],
+      "properties": {
+        "requiresClear": { "$ref": "#/$defs/locKey" },
+        "requiresLegendLevel": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "confirm": {
+      "description": "The caption on the control that submits START_RUN for the chosen chapter and tier.",
+      "$ref": "#/$defs/locKey"
+    }
+  }
+}

@@ -113,7 +113,7 @@ public sealed class BootPresenter
         "can be resolved — the build did not ship its data";
 
     private readonly IGameHost _gameHost;
-    private readonly BootStringCatalogue _strings;
+    private readonly LocaleStringCatalogue _strings;
     private readonly IBootAtlasCatalogue _atlas;
     private readonly IClockPort _clock;
 
@@ -127,7 +127,7 @@ public sealed class BootPresenter
     /// <exception cref="ArgumentNullException">Any collaborator is null.</exception>
     public BootPresenter(
         IGameHost gameHost,
-        BootStringCatalogue strings,
+        LocaleStringCatalogue strings,
         IBootAtlasCatalogue atlas,
         IClockPort clock)
     {

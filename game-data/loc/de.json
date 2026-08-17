@@ -137,6 +137,22 @@
     "loc.boot.profile.status": "##TODO_DE## Opening your profile…",
     "loc.boot.atlas.status": "##TODO_DE## Preparing artwork…",
     "loc.boot.ready.status": "##TODO_DE## Ready",
-    "loc.boot.failure.status": "##TODO_DE## The game could not start."
+    "loc.boot.failure.status": "##TODO_DE## The game could not start.",
+
+    "loc.home.legend_level.label": "##TODO_DE## Legend Level",
+    "loc.home.energy.label": "##TODO_DE## Energy",
+    "loc.home.energy_reserve.label": "##TODO_DE## Reserve",
+    "loc.home.start_run.action": "##TODO_DE## Start Run",
+    "loc.home.continue_run.action": "##TODO_DE## Continue Run",
+    "loc.home.loading.status": "##TODO_DE## Reading your profile…",
+    "loc.home.unavailable.status": "##TODO_DE## Your profile could not be read.",
+
+    "loc.chapter_select.title.name": "##TODO_DE## Choose a Chapter",
+    "loc.chapter_select.tier_normal.name": "##TODO_DE## Normal",
+    "loc.chapter_select.tier_heroic.name": "##TODO_DE## Heroic",
+    "loc.chapter_select.tier_mythic.name": "##TODO_DE## Mythic",
+    "loc.chapter_select.requires_clear.block": "##TODO_DE## Clear the required chapter first.",
+    "loc.chapter_select.requires_legend_level.block": "##TODO_DE## Your Legend Level is too low.",
+    "loc.chapter_select.confirm.action": "##TODO_DE## Start"
   }
 }

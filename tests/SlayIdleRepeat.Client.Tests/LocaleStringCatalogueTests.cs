@@ -9,7 +9,7 @@ namespace SlayIdleRepeat.Client.Tests;
 /// Key to display string, over the content set the game already loaded: which locale answers, and
 /// what happens when none does.
 /// </summary>
-public sealed class BootStringCatalogueTests
+public sealed class LocaleStringCatalogueTests
 {
     /// <summary>The document that names the boot screen's strings for the content invariants.</summary>
     private const string BootDocumentPath = "content/boot/boot.json";
@@ -74,7 +74,7 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void Resolve_returns_the_English_string_for_a_key_the_English_locale_carries()
     {
-        var catalogue = new BootStringCatalogue(BootContent.Complete(), BootContent.English);
+        var catalogue = new LocaleStringCatalogue(BootContent.Complete(), BootContent.English);
 
         catalogue.Resolve(BootContent.TitleKey).ShouldBe(
             BootContent.EnglishTitle,
@@ -86,8 +86,8 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void Resolve_returns_the_German_string_rather_than_the_English_one_for_a_German_catalogue()
     {
-        var german = new BootStringCatalogue(BootContent.Complete(), BootContent.German);
-        var english = new BootStringCatalogue(BootContent.Complete(), BootContent.English);
+        var german = new LocaleStringCatalogue(BootContent.Complete(), BootContent.German);
+        var english = new LocaleStringCatalogue(BootContent.Complete(), BootContent.English);
 
         german.Resolve(BootContent.TitleKey).ShouldBe(
             BootContent.GermanValueOf(BootContent.TitleKey),
@@ -105,7 +105,7 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void Resolve_falls_back_to_English_for_a_locale_the_content_set_does_not_carry()
     {
-        var catalogue = new BootStringCatalogue(BootContent.Complete(), BootContent.UnshippedLocale);
+        var catalogue = new LocaleStringCatalogue(BootContent.Complete(), BootContent.UnshippedLocale);
 
         catalogue.Resolve(BootContent.TitleKey).ShouldBe(
             BootContent.EnglishTitle,
@@ -116,7 +116,7 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void Resolve_returns_the_key_itself_for_a_key_no_locale_carries()
     {
-        var catalogue = new BootStringCatalogue(
+        var catalogue = new LocaleStringCatalogue(
             BootContent.Missing(BootContent.ReadyStatusKey), BootContent.English);
 
         catalogue.Resolve(BootContent.ReadyStatusKey).ShouldBe(
@@ -129,7 +129,7 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void Resolve_returns_the_key_itself_when_the_content_set_carries_no_locale_at_all()
     {
-        var catalogue = new BootStringCatalogue(BootContent.Nothing(), BootContent.English);
+        var catalogue = new LocaleStringCatalogue(BootContent.Nothing(), BootContent.English);
 
         catalogue.Resolve(BootContent.TitleKey).ShouldBe(
             BootContent.TitleKey,
@@ -140,7 +140,7 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void Constructing_over_a_content_set_with_no_locale_at_all_does_not_throw()
     {
-        var construct = () => new BootStringCatalogue(BootContent.Nothing(), BootContent.English);
+        var construct = () => new LocaleStringCatalogue(BootContent.Nothing(), BootContent.English);
 
         Should.NotThrow(
             construct,
@@ -153,7 +153,7 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void LocaleTag_reports_the_locale_the_catalogue_was_built_for()
     {
-        var catalogue = new BootStringCatalogue(BootContent.Complete(), BootContent.German);
+        var catalogue = new LocaleStringCatalogue(BootContent.Complete(), BootContent.German);
 
         catalogue.LocaleTag.ShouldBe(
             BootContent.German,
@@ -172,7 +172,7 @@ public sealed class BootStringCatalogueTests
     [InlineData(BootContent.FailureStatusKey)]
     public void Resolve_finds_every_boot_string_in_the_checkouts_own_content(string key)
     {
-        var catalogue = new BootStringCatalogue(BootContent.Shipped, BootContent.English);
+        var catalogue = new LocaleStringCatalogue(BootContent.Shipped, BootContent.English);
 
         catalogue.Resolve(key).ShouldNotBeNullOrWhiteSpace(
             $"'{key}' resolved to nothing at all against the real game-data. Blank is the one answer " +
@@ -232,7 +232,7 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void Constructor_rejects_a_null_content_snapshot()
     {
-        Should.Throw<ArgumentNullException>(() => new BootStringCatalogue(content: null!, localeTag: BootContent.English))
+        Should.Throw<ArgumentNullException>(() => new LocaleStringCatalogue(content: null!, localeTag: BootContent.English))
               .ParamName.ShouldBe(
                   "content",
                   "the snapshot is where every string comes from, and a null one fails at whichever " +
@@ -242,7 +242,7 @@ public sealed class BootStringCatalogueTests
     [Fact]
     public void Constructor_rejects_a_null_locale_tag()
     {
-        Should.Throw<ArgumentNullException>(() => new BootStringCatalogue(BootContent.Complete(), localeTag: null!))
+        Should.Throw<ArgumentNullException>(() => new LocaleStringCatalogue(BootContent.Complete(), localeTag: null!))
               .ParamName.ShouldBe(
                   "localeTag",
                   "a null tag is not 'English' — it is a device query that did not happen. Silently " +

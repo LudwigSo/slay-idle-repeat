@@ -29,7 +29,7 @@ public static class BootComposition
 
         return new BootPresenter(
             composed.Client.GameHost,
-            new BootStringCatalogue(
+            new LocaleStringCatalogue(
                 composed.Client.Content.Current, composed.Capabilities.PlatformInfo.Locale),
             new PlaceholderAtlasCatalogue(composed.Capabilities.Paths.ResolveContentDataRoot()),
             new SystemClock());

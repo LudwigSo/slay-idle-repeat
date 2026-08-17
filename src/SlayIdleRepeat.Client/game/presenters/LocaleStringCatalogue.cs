@@ -22,7 +22,7 @@ namespace SlayIdleRepeat.Client.Game.Presenters;
 /// instead would take the exception out through an engine callback where nothing catches it.
 /// </para>
 /// </remarks>
-public sealed class BootStringCatalogue
+public sealed class LocaleStringCatalogue
 {
     /// <summary>Where the locale documents sit in the content set.</summary>
     private const string LocaleDirectoryPrefix = "loc/";
@@ -49,7 +49,7 @@ public sealed class BootStringCatalogue
     /// <param name="content">The loaded content set the locale documents are read from.</param>
     /// <param name="localeTag">The locale the device reported, as a BCP-47 tag.</param>
     /// <exception cref="ArgumentNullException"><paramref name="content"/> or <paramref name="localeTag"/> is null.</exception>
-    public BootStringCatalogue(ContentSnapshot content, string localeTag)
+    public LocaleStringCatalogue(ContentSnapshot content, string localeTag)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(localeTag);
