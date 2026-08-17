@@ -74,6 +74,31 @@ public sealed class PresenterBoundaryRuleTests
     /// </remarks>
     private const string BoardTileKindsName = "BoardTileKinds";
 
+    /// <summary>
+    /// The battle replay's local prediction, filed under M7-06 — the fourth subject here whose name
+    /// does not end in <see cref="PresenterTypeSuffix"/>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 It calls the combat simulator, so out from under these rules it is the shortest path from
+    /// a screen's collaborator to an adapter or to the engine's own random source. The stray arm
+    /// below cannot see it go: its name is not spelled as a presenter.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The type and its file are named by two different constants here, and that is not an
+    /// oversight.</b> Every other subject in this list is a type whose file is named after it, so
+    /// one string served both arms. This file is named after the CONCEPT it holds — a readiness
+    /// vocabulary, an attempt record, the interface and this one implementation — and no type in it
+    /// is called <c>BattleSimulationSource</c>. Reusing that string for the namespace arm would
+    /// assert a type that has never existed, which is a floor that fails on the day it is written
+    /// rather than on the day something moves.
+    /// </para>
+    /// </remarks>
+    private const string LocalBattleSimulationName = "LocalBattleSimulation";
+
+    /// <summary>The file <see cref="LocalBattleSimulationName"/> and its companions are declared in.</summary>
+    private const string BattleSimulationSourceFileName = "BattleSimulationSource";
+
     /// <summary>The scene script the negative control is stated over by name.</summary>
     internal const string AppRootSceneName = "AppRoot";
 
@@ -247,6 +272,13 @@ public sealed class PresenterBoundaryRuleTests
             "a rules-internal enum that lets the board name the tile a player stands on; filed anywhere else " +
             "it keeps doing that job with nothing governing what it may reference.");
 
+        presenterTypeNames.ShouldContain(
+            LocalBattleSimulationName,
+            $"'{LocalBattleSimulationName}' is not among the types under {PresentersNamespace}, and the stray " +
+            "arm cannot see it leave either — its name is not spelled as a presenter. It is the battle " +
+            "replay's local prediction and the one type here that calls the combat simulator; outside " +
+            "these rules it keeps that job with nothing governing what it may reference.");
+
         var presenterFileNames = RepoLayout.SourceFiles(PresenterSourceDirectory)
                                            .Select(Path.GetFileNameWithoutExtension)
                                            .ToArray();
@@ -275,6 +307,13 @@ public sealed class PresenterBoundaryRuleTests
             $"no '{BoardTileKindsName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, for the same " +
             "reason again: the type may still be in the presenters namespace while its FILE has left the " +
             "directory the source arm greps, and that arm is the only one that can see an inlined const.");
+
+        presenterFileNames.ShouldContain(
+            BattleSimulationSourceFileName,
+            $"no '{BattleSimulationSourceFileName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, " +
+            "for the same reason once more: the namespace and the directory are pinned separately because a " +
+            "move can break either one alone, and the source arm greps the directory. This is the file " +
+            $"'{LocalBattleSimulationName}' and its companions are declared in.");
 
         var strays =
             from type in Il.AllTypes(ProductionAssemblies.Module(ProductionAssemblies.ClientName))

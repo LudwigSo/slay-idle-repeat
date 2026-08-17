@@ -214,6 +214,29 @@
     "loc.die_panel.chain.effect": "Move, then roll again.",
     "loc.die_panel.last_face.label": "Last rolled",
     "loc.die_panel.no_roll_yet.status": "You have not rolled yet in this session.",
-    "loc.die_panel.faces_unavailable.status": "Which face sits in which slot is not shown: the game does not yet report your composed die."
+    "loc.die_panel.faces_unavailable.status": "Which face sits in which slot is not shown: the game does not yet report your composed die.",
+
+    "loc.battle.title.name": "Battle",
+    "loc.battle.hero.label": "You",
+    "loc.battle.enemy.label": "Enemy",
+    "loc.battle.speed.label": "Speed",
+    "loc.battle.speed_single.action": "×1",
+    "loc.battle.speed_double.action": "×2",
+    "loc.battle.speed_triple.action": "×3",
+    "loc.battle.skip.action": "Skip",
+    "loc.battle.phase_one.name": "Phase One",
+    "loc.battle.phase_two.name": "Phase Two",
+    "loc.battle.phase_three.name": "Final Phase",
+    "loc.battle.loading.status": "Preparing the fight.",
+    "loc.battle.no_run.status": "There is no run here to fight in.",
+    "loc.battle.phase_not_battle.status": "This run has no battle waiting to be fought.",
+    "loc.battle.seed_unavailable.status": "This fight cannot be replayed: the run no longer records which battle it is.",
+    "loc.battle.hero_stats_unavailable.status": "This fight cannot be replayed yet: your hero's combat stats are not something this build can assemble.",
+    "loc.battle.simulator_failed.status": "The fight could not be simulated, so there is nothing to show.",
+    "loc.battle.log_empty.status": "The fight was simulated but reported no blows to play back.",
+    "loc.battle.read_unavailable.status": "Your run could not be reached, so this fight cannot be loaded.",
+    "loc.battle.victory.status": "Victory.",
+    "loc.battle.defeat.status": "Defeated.",
+    "loc.battle.refused.status": "That result was refused."
   }
 }

@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/battle.schema.json",
+  "title": "content/battle/battle.json",
+  "description": "M7-06 — the loc keys the Battle Replay screen (S06) renders. What is fixed here is that the screen titles the fight, labels the two sides and the speed control, offers three speed settings and an always-available skip, names the three boss phases the band flashes, and carries one status line per state the replay can be in — including one per reason it can have nothing to animate. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Three absences are load-bearing. There is no member for an enemy NAME or elite modifier, because enemy derivation and the chapter pools are internal to the rules assembly and nothing a client holds carries either — the banner names the actor by its role in the log instead of inventing a name. There is no member for a maximum-HP caption on a surviving enemy, because the log fixes a starting HP only for the hero and for actors that die, and a bar drawn against a guessed maximum is a bar that lies. And there is no member for a speed setting that persists across runs, because the Settings screen that would store it is unbuilt and this screen takes its opening speed as an argument rather than pretending to remember one.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "name", "label", "action", "phase", "status"],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "name": {
+      "description": "The screen's own heading, shown while the fight plays.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "label": {
+      "description": "The captions beside the two health bars and the speed control. 'hero' and 'enemy' are roles rather than names: the log identifies an actor by a slot number whose meaning is fixed (0 is the hero, 4 upwards are enemies) and carries no name for any of them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hero", "enemy", "speed"],
+      "properties": {
+        "hero": { "$ref": "#/$defs/locKey" },
+        "enemy": { "$ref": "#/$defs/locKey" },
+        "speed": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "action": {
+      "description": "🔒 Every control the screen offers, and all four are offered at all times. The skip is required in full rather than as a convenience: it is an accessibility clause, so a build that can render this screen without a skip caption is a build a player cannot leave a fight from.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["speedSingle", "speedDouble", "speedTriple", "skip"],
+      "properties": {
+        "speedSingle": { "$ref": "#/$defs/locKey" },
+        "speedDouble": { "$ref": "#/$defs/locKey" },
+        "speedTriple": { "$ref": "#/$defs/locKey" },
+        "skip": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "phase": {
+      "description": "All three boss phases by name. Required in full rather than as an open map: the log reports a phase change as the bare number of the phase entered, the rules that give that number a meaning are internal, and the client's number-to-name table is therefore a transcription. There is no fourth phase, and requiring exactly these three is what makes a fourth fail this document rather than flash a blank band.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["one", "two", "three"],
+      "properties": {
+        "one": { "$ref": "#/$defs/locKey" },
+        "two": { "$ref": "#/$defs/locKey" },
+        "three": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "status": {
+      "description": "🔒 One sentence per state the replay can be in, and the reason this object is the largest one here: six of these ten are reasons the screen has nothing to animate, and on screen all six look the same — a still frame. A screen with one sentence for all six would tell a player that the fight did not play and nothing they or anyone reading their report could do about it, while the six causes are as different as a run that has no battle open, a battle whose seed the run no longer carries, a hero stat block this build cannot assemble at all, and a simulator that threw. 'victory' and 'defeat' close the replay; 'refused' covers a result the rules layer would not accept.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading", "noRun", "phaseNotBattle", "seedUnavailable", "heroStatsUnavailable",
+        "simulatorFailed", "logEmpty", "readUnavailable", "victory", "defeat", "refused"
+      ],
+      "properties": {
+        "loading": { "$ref": "#/$defs/locKey" },
+        "noRun": { "$ref": "#/$defs/locKey" },
+        "phaseNotBattle": { "$ref": "#/$defs/locKey" },
+        "seedUnavailable": { "$ref": "#/$defs/locKey" },
+        "heroStatsUnavailable": { "$ref": "#/$defs/locKey" },
+        "simulatorFailed": { "$ref": "#/$defs/locKey" },
+        "logEmpty": { "$ref": "#/$defs/locKey" },
+        "readUnavailable": { "$ref": "#/$defs/locKey" },
+        "victory": { "$ref": "#/$defs/locKey" },
+        "defeat": { "$ref": "#/$defs/locKey" },
+        "refused": { "$ref": "#/$defs/locKey" }
+      }
+    }
+  }
+}
