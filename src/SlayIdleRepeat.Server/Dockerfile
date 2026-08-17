@@ -46,7 +46,7 @@ WORKDIR /src
 # projects the csproj-only trick needs either a fragile per-project COPY list or
 # a BuildKit bind mount, and both rot faster than they save time. Restore is
 # cached by NuGet inside the layer instead.
-COPY global.json Directory.Build.props ./
+COPY global.json Directory.Build.props Directory.Packages.props ./
 COPY src/ ./src/
 
 RUN dotnet restore src/SlayIdleRepeat.Server/SlayIdleRepeat.Server.csproj
