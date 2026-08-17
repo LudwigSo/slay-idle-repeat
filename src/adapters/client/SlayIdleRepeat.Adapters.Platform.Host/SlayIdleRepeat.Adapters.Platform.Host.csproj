@@ -19,11 +19,14 @@
     comparing them finds both. Ambient.System sits under shared/ because ITS
     ports are `23` §4.3 shared ones, so that rule points here, not there.
 
-    ⚠️ NOTHING COMPOSES THIS YET, and that is stated rather than left to be
-    found: the shipping client is the Godot one, whose engine adapter cannot be
-    put behind the port (see HostPlatformInfo's remarks and `23` §7.2's
-    contradiction, recorded in GodotUserPaths). Its live consumers today are the
-    desktop and editor hosts and the tools.
+    ⚠️ NOTHING COMPOSES THIS YET. No composition root names it; the only
+    projects that reference it are Contract.Tests and Architecture.Tests. The
+    shipping client is the Godot one, and its engine adapter cannot be put
+    behind the port at all - calling it outside the runtime is a fatal
+    AccessViolationException, measured, and recorded where the measurement
+    lives, in Platform.Godot's GodotUserPaths. So this exists to satisfy
+    `23` §5 A5 with a REAL implementation rather than a second fake, which is
+    the same reason M5-01 shipped Cache.LocalFile before M7-09 consumed it.
 
     🔒 WHY IT EXISTS AT ALL, stated plainly because the alternative reading is
     "a fake with a csproj around it": `23` §5 A5 needs two implementations and
@@ -36,6 +39,16 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+  <!--
+    The version chain takes its two assemblies as arguments so that every arm,
+    including the failure, can be reached by a test rather than argued about.
+    That makes it internal rather than public: the arms are a test's business,
+    not a caller's.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="SlayIdleRepeat.Contract.Tests" />
   </ItemGroup>
 
 </Project>

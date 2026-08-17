@@ -145,9 +145,15 @@ public sealed class InMemoryPlatformInfoGuardTests
     /// <remarks>
     /// The message is pinned because this guard and the one below both throw
     /// <see cref="ArgumentException"/> over the same argument, and the type alone cannot say which
-    /// of the two rules fired. <c>de_DE</c> is a real culture name to the runtime — verified: the
-    /// lookup succeeds and returns it — so only the spelling rule can reject it, and a case that
-    /// accepted either message would pass if the two guards were swapped.
+    /// of the two rules fired.
+    /// <para>
+    /// ⚠️ <b>An earlier draft of this remark claimed <c>de_DE</c> is a name the runtime knows, and
+    /// that was measured FALSE</b>: <c>GetCultureInfo("de_DE").Name</c> is <c>de_de</c>, so it does
+    /// not round-trip, and <c>de_DE</c> is not among the 813 cultures this host enumerates — the
+    /// second guard would reject it too. The case still discriminates, because the punctuation guard
+    /// runs first and the message is pinned; what was wrong was the stated reason, left over from
+    /// the round-trip design this guard replaced.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_host_spelled_locale_is_refused_for_its_punctuation()
@@ -177,20 +183,70 @@ public sealed class InMemoryPlatformInfoGuardTests
     }
 
     /// <summary>
-    /// The negative control over both locale guards: a real, standard-spelled culture is accepted,
-    /// and comes back read-only.
+    /// The negative control over both locale guards: a real, <em>named</em>, standard-spelled
+    /// culture is accepted, and comes back read-only.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Named, and that word is the whole case.</b> This was written against
+    /// <see cref="CultureInfo.InvariantCulture"/>, whose <see cref="CultureInfo.Name"/> is the empty
+    /// string — so it proved only that the guards admit the empty name, and a guard that rejected
+    /// every real language would have passed it. Combined with the fake's invariant fallback that
+    /// was a live hole: tighten the enumeration comparison to ordinal and <c>en-GB</c> starts
+    /// throwing while the fallback quietly reports invariant, with every case still green.
+    /// <para>
+    /// The subject is taken from the host's own enumeration rather than hard-coded, so the case
+    /// says the same thing on a host with cultures and skips no assertion on one without.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void A_real_culture_is_accepted_and_handed_back_read_only()
+    public void A_named_culture_is_accepted_and_handed_back_read_only()
     {
         var platform = new InMemoryPlatformInfo();
-        var writable = (CultureInfo)CultureInfo.InvariantCulture.Clone();
+        var named = CultureInfo.GetCultures(CultureTypes.AllCultures)
+            .Select(known => known.Name)
+            .FirstOrDefault(name => !string.IsNullOrEmpty(name));
 
-        platform.ReportLocale(writable);
+        var subject = named is null
+            ? CultureInfo.InvariantCulture
+            : CultureInfo.GetCultureInfo(named);
 
-        platform.Locale.Name.ShouldBe(writable.Name);
+        platform.ReportLocale((CultureInfo)subject.Clone());
+
+        platform.Locale.Name.ShouldBe(
+            subject.Name,
+            "the guards must admit a language this runtime actually has. A control driven with the "
+            + "invariant culture asserts only that the EMPTY name is admitted, which every guard "
+            + "that rejects real languages also satisfies.");
         platform.Locale.IsReadOnly.ShouldBeTrue(
             "a guard that stored the caller's own mutable culture would let the caller keep "
             + "changing what the fake reports after the fact.");
+    }
+
+    /// <summary>
+    /// 🔒 Both branches of the fake's start locale, which nothing else in the tree can see.
+    /// </summary>
+    /// <remarks>
+    /// The shared suite asserts shapes, and the invariant culture satisfies every shape
+    /// <c>en-GB</c> does — so inverting that ternary left all 143 cases green while the fake
+    /// silently stopped reporting a language on every host. The expectation is derived from the
+    /// same host fact the production code branches on, but independently, so the case still fails
+    /// if the branch is inverted.
+    /// </remarks>
+    [Fact]
+    public void The_start_locale_is_the_preferred_language_where_the_host_has_it()
+    {
+        var hostEnumeratesIt = CultureInfo.GetCultures(CultureTypes.AllCultures)
+            .Any(known => known.Name.Equals(
+                InMemoryPlatformInfo.PreferredStartLocaleName, StringComparison.OrdinalIgnoreCase));
+
+        InMemoryPlatformInfo.StartLocale.Name.ShouldBe(
+            hostEnumeratesIt ? InMemoryPlatformInfo.PreferredStartLocaleName : string.Empty,
+            $"this host {(hostEnumeratesIt ? "does" : "does not")} enumerate "
+            + $"'{InMemoryPlatformInfo.PreferredStartLocaleName}', so the fake must start on "
+            + (hostEnumeratesIt ? "it" : "the invariant culture")
+            + ". The fallback exists so the fake can be CONSTRUCTED in globalization-invariant mode; "
+            + "it is not a licence to report no language on a host that has them.");
+
+        InMemoryPlatformInfo.StartLocale.IsReadOnly.ShouldBeTrue();
     }
 }

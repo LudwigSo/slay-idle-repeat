@@ -91,6 +91,10 @@ public sealed class PortCatalogueTests
     {
         ("23 §4.1", "IPlatformInfoPort",
             new[] { "DeviceModel", "OsVersion", "AppVersion", "Locale", "IsLowEndDevice" }),
+        ("23 §4.1", "ILocalCachePort", new[] { "ReadAsync", "WriteAsync", "DeleteAsync" }),
+        ("23 §4.1", "IRewardedAdPort", new[] { "IsReady", "ShowAsync", "PreloadAsync" }),
+        ("23 §4.3", "IClockPort", new[] { "UtcNow" }),
+        ("23 §4.3", "IIdGeneratorPort", new[] { "NewGuid", "NewCommandId" }),
     };
 
     /// <summary>
@@ -168,6 +172,55 @@ public sealed class PortCatalogueTests
             PortCatalogue.UndeclaredMembers(
                 PortCatalogue.SpecifiedMembers, Domain.Ports, PortCatalogue.OmittedMembers),
             "Every member 23 §4 writes on a declared port is declared or omitted with an owner (23 §4, 23 §6).");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §4 / §6 — every declared port that `23` §4 writes a member list for has one
+    /// transcribed here.
+    /// </summary>
+    /// <remarks>
+    /// Without this the member register governs exactly the ports somebody remembered to add, and
+    /// the next port declared narrower than its section reopens the hole M7-01b closed. Not
+    /// hypothetical: <c>ILocalCachePort</c> is a declared `23` §4.1 port whose own remarks
+    /// acknowledge a departure from that section, and it had no row until this rule demanded one.
+    /// </remarks>
+    [Fact]
+    public void Every_declared_specified_port_has_a_member_transcription()
+    {
+        ArchRule.Empty(
+            PortCatalogue.PortsWithoutAMemberTranscription(
+                PortCatalogue.SpecifiedPorts, Domain.Ports, PortCatalogue.SpecifiedMembers),
+            "Every declared 23 §4 port has a member transcription (23 §4, 23 §6, steering S3).");
+    }
+
+    /// <summary>
+    /// `23` §6 — the teeth of the transcription-coverage direction, and its silent half.
+    /// </summary>
+    [Fact]
+    public void The_member_transcription_rule_fires_on_a_declared_port_with_no_row()
+    {
+        var group = new PortCatalogue.SpecifiedPortGroup(
+            "23 §4.3", PortCatalogue.SharedPortsNamespace, new[] { Domain.ClockPortType });
+
+        var row = new PortCatalogue.SpecifiedPortMembers("23 §4.3", Domain.ClockPortType, new[] { "UtcNow" });
+
+        PortCatalogue.PortsWithoutAMemberTranscription(new[] { group }, Domain.Ports, new[] { row })
+            .ShouldBeEmpty("IClockPort is declared and transcribed, which is the arrangement the rule permits.");
+
+        PortCatalogue.PortsWithoutAMemberTranscription(
+                new[] { group }, Domain.Ports, Array.Empty<PortCatalogue.SpecifiedPortMembers>())
+            .ShouldHaveSingleItem()
+            .ShouldContain("nothing here transcribes", Case.Sensitive);
+
+        // ⚠️ The quantifier's control: a port the document names and this repository has NOT
+        // declared is the Deferred register's business, not this one.
+        PortCatalogue.PortsWithoutAMemberTranscription(
+                new[] { group with { Ports = new[] { "IAudioPort" } } },
+                Domain.Ports,
+                Array.Empty<PortCatalogue.SpecifiedPortMembers>())
+            .ShouldBeEmpty(
+                "IAudioPort is deferred, so demanding a member transcription for it would ask every "
+                + "deferred port for a shape the milestone that owns it has not decided.");
     }
 
     /// <summary>

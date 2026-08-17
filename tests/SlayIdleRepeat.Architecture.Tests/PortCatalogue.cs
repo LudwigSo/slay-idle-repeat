@@ -363,6 +363,17 @@ internal static class PortCatalogue
     /// <c>IPlatformInfoPort</c> without <c>IsLowEndDevice</c>, so M7-01b closes it.
     /// </para>
     /// <para>
+    /// ⚠️ <b>NAMES, and that is the whole of what the member directions can see.</b> A port that
+    /// declares every name `23` §4 writes and types them differently satisfies all of them, and two
+    /// such departures are live and green right now: §4.1 writes <c>string DeviceModel</c> where
+    /// <c>IPlatformInfoPort</c> declares <c>string?</c>, and <c>IsReady(AdPlacementId)</c> where
+    /// <c>IRewardedAdPort</c> takes a <c>string</c>. Both are deliberate and argued in their ports'
+    /// own remarks. Widening to types would mean transcribing §4's signatures, which are written in
+    /// a C# that does not compile against this repository's vocabulary — so the limit is stated
+    /// here rather than closed, and <c>UndeclaredMemberConsequence</c> says "missing" rather than
+    /// "narrower" for the same reason.
+    /// </para>
+    /// <para>
     /// ⚠️ Only ports that are <b>declared</b> are transcribed here. An undeclared port's members are
     /// its <see cref="Deferred"/> entry's business, and transcribing them would demand a shape from
     /// the milestone that has not built it yet — steering S6, and the same reason
@@ -378,6 +389,41 @@ internal static class PortCatalogue
             "AppVersion",
             "Locale",
             "IsLowEndDevice",
+        }),
+
+        // ⚠️ Not M7-01b's port, and that is the point: a register one row wide reopens the hole it
+        // was written to close the moment the NEXT port is declared narrower. ILocalCachePort is
+        // the live case — a declared 23 §4.1 port whose own remarks acknowledge a departure from
+        // the section — and Every_declared_specified_port_has_a_member_transcription is what makes
+        // the next one impossible to forget. Its three members are all present, differently typed;
+        // see the shape caveat on UndeclaredMemberConsequence for what that rule does NOT see.
+        new("23 §4.1", "ILocalCachePort", new[]
+        {
+            "ReadAsync",
+            "WriteAsync",
+            "DeleteAsync",
+        }),
+
+        // 🔒 These three were NOT in the first draft of this register, and the coverage rule above
+        // is what produced them: it named IRewardedAdPort, IClockPort and IIdGeneratorPort on its
+        // first run as declared ports nothing transcribed. That is the difference between a
+        // register and a list somebody maintains.
+        new("23 §4.1", "IRewardedAdPort", new[]
+        {
+            "IsReady",
+            "ShowAsync",
+            "PreloadAsync",
+        }),
+
+        new("23 §4.3", "IClockPort", new[]
+        {
+            "UtcNow",
+        }),
+
+        new("23 §4.3", "IIdGeneratorPort", new[]
+        {
+            "NewGuid",
+            "NewCommandId",
         }),
     };
 
@@ -615,10 +661,18 @@ internal static class PortCatalogue
     /// <summary>What an undeclared member means, said once.</summary>
     internal const string UndeclaredMemberConsequence =
         "23 §4 writes it on a port this repository has DECLARED, the declaration does not carry it, " +
-        "and nothing here says who decided that. A port narrower than the section it transcribes is " +
+        "and nothing here says who decided that. A port MISSING a member the section writes is " +
         "indistinguishable from one nobody finished — the port-name register cannot see the " +
         "difference, because it transcribes names. Either declare the member, or add a " +
         "PortCatalogue.OmittedMembers entry naming the owning task and why it is absent.";
+
+    /// <summary>What a port with no member transcription means, said once.</summary>
+    internal const string UntranscribedPortConsequence =
+        "It is declared, and 23 §4 writes a member list for it that nothing here transcribes — so " +
+        "the member directions quantify over nothing for this port and a narrower declaration goes " +
+        "unnoticed exactly the way IPlatformInfoPort's would have. Add a " +
+        "PortCatalogue.SpecifiedMembers row transcribing the section's declaration.";
+
 
     /// <summary>
     /// Every member of a declared port, whatever kind it is.
@@ -681,6 +735,35 @@ internal static class PortCatalogue
                 select $"{transcription.Citation} writes '{transcription.Port}.{member}'. The declared port " +
                        $"does not carry it, and PortCatalogue.OmittedMembers does not either. " +
                        UndeclaredMemberConsequence)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Every declared port that some <see cref="SpecifiedPorts"/> transcription enumerates and no
+    /// <see cref="SpecifiedMembers"/> row carries. Empty means the register holds.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The direction that keeps the member register from being one row wide. Without it,
+    /// <see cref="UndeclaredMembers"/> governs exactly the ports somebody remembered to transcribe,
+    /// which is the state the port-name register exists instead of. Its subject is derived from
+    /// <see cref="SpecifiedPorts"/> rather than from a second hand-kept list, so a port cannot be
+    /// exempted by being left off two lists instead of one.
+    /// </remarks>
+    internal static IReadOnlyList<string> PortsWithoutAMemberTranscription(
+        IEnumerable<SpecifiedPortGroup> groups,
+        IEnumerable<TypeDefinition> ports,
+        IEnumerable<SpecifiedPortMembers> transcriptions)
+    {
+        var declared = ports.Select(p => p.Name).ToHashSet(StringComparer.Ordinal);
+        var transcribed = transcriptions.Select(t => t.Port).ToHashSet(StringComparer.Ordinal);
+
+        return (from subsection in groups
+                from port in subsection.Ports
+                where declared.Contains(port)
+                where !transcribed.Contains(port)
+                select $"{subsection.Citation} declares '{port}' and {Domain.PortsNamespace} declares it too. " +
+                       UntranscribedPortConsequence)
+            .Distinct(StringComparer.Ordinal)
             .ToArray();
     }
 

@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using SlayIdleRepeat.Application.Ports.Client;
+using SlayIdleRepeat.Application.Services;
 
 namespace SlayIdleRepeat.Adapters.Platform.Host;
 
@@ -36,7 +37,7 @@ public sealed class HostPlatformInfo : IPlatformInfoPort
     {
         _osVersion = RuntimeInformation.OSDescription;
         _appVersion = ReadBuildVersion();
-        _locale = CultureInfo.ReadOnly(CultureInfo.CurrentUICulture);
+        _locale = HostAnswers.ToLocale(CultureInfo.CurrentUICulture.Name);
     }
 
     /// <summary>
@@ -88,8 +89,8 @@ public sealed class HostPlatformInfo : IPlatformInfoPort
     /// <para>
     /// ⚠️ <b>Build metadata is stripped, and it is there in every real build.</b> The SDK writes
     /// the source revision into the informational version by default, so the raw attribute reads
-    /// <c>0.1.0+133648de8ba9…</c> — measured on this repository's own output, not assumed. The port
-    /// asks for the version.
+    /// <c>0.1.0+&lt;commit sha&gt;</c> — measured on this repository's own output, not assumed. The
+    /// port asks for the version.
     /// </para>
     /// <para>
     /// ⚠️ Under a test host the entry assembly is the <em>test platform</em>, so this answers the
@@ -98,10 +99,26 @@ public sealed class HostPlatformInfo : IPlatformInfoPort
     /// a player would see.
     /// </para>
     /// </remarks>
-    /// <exception cref="InvalidOperationException">Neither assembly states a version of any kind.</exception>
     private static string ReadBuildVersion() =>
-        VersionOf(Assembly.GetEntryAssembly())
-        ?? VersionOf(typeof(HostPlatformInfo).Assembly)
+        ReadBuildVersion(Assembly.GetEntryAssembly(), typeof(HostPlatformInfo).Assembly);
+
+    /// <summary>
+    /// The build version, from <paramref name="entry"/> if it states one and from
+    /// <paramref name="self"/> otherwise.
+    /// </summary>
+    /// <param name="entry">The assembly that started the process, or null when an unmanaged host did.</param>
+    /// <param name="self">This adapter's own assembly, or null only in a test driving the last arm.</param>
+    /// <remarks>
+    /// 🔒 <b>Both assemblies are parameters so that every arm of this chain can be reached by a
+    /// test</b>, including the failure. The previous shape terminated in a throw that no input could
+    /// produce — <c>typeof(HostPlatformInfo).Assembly</c> is never null and its
+    /// <c>GetName().Version</c> is <c>0.1.0.0</c> — so the guard was a comment with an exception
+    /// around it, which is exactly the defect class steering S1 names.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException">Neither assembly states a version of any kind.</exception>
+    internal static string ReadBuildVersion(Assembly? entry, Assembly? self) =>
+        VersionOf(entry)
+        ?? VersionOf(self)
         ?? throw new InvalidOperationException(
             "neither the assembly that started this process nor this adapter's own states a version "
             + "of any kind — no informational version and no assembly version. IPlatformInfoPort."
@@ -110,10 +127,6 @@ public sealed class HostPlatformInfo : IPlatformInfoPort
             + "real build number.");
 
     /// <summary>An assembly's version, without whatever the build stamped after it.</summary>
-    /// <remarks>
-    /// Never blank: an assembly that states no informational version still has the one the loader
-    /// resolved it by, which is where the chain terminates rather than in an invented placeholder.
-    /// </remarks>
     private static string? VersionOf(Assembly? assembly)
     {
         if (assembly is null)

@@ -35,11 +35,13 @@ namespace SlayIdleRepeat.Application.Ports.Client;
 /// a threshold below which a device is degraded. Declaring the member would mean each implementation
 /// inventing its own cut-off, and a shared contract suite cannot state what two implementations mean
 /// by it — so the two would disagree silently, which is the failure a port exists to prevent. It
-/// belongs to whichever task first has a quality setting to drive with it — and no tracker row owns
-/// one today, so this is a gap needing an owner rather than a wait on a known task. The omission is
-/// carried in <c>PortCatalogue.OmittedMembers</c>, which expires it: the entry fails the build on the
-/// commit that declares the member. <c>ILocalCachePort</c> departs from `23` §4.1 too — differently
-/// shaped rather than narrower — and says so in the same place, its own remarks.
+/// belongs to whichever task first has a quality setting to drive with it. The omission is carried
+/// in <c>PortCatalogue.OmittedMembers</c>, which expires it: the entry fails the build on the commit
+/// that declares the member. ⚠️ That entry names <c>M9-04</c> — the Settings screen, the nearest row
+/// and <b>not</b> a row that claims this — because an entry with no owner has no expiry at all; the
+/// caveat above it says so, and a reader checking M9-04 at kickoff may well find it disowns this.
+/// <c>ILocalCachePort</c> departs from `23` §4.1 too, differently shaped rather than narrower, and
+/// argues its own departure in its own remarks — on serializer placement, not by citing the section.
 /// </para>
 /// </remarks>
 public interface IPlatformInfoPort

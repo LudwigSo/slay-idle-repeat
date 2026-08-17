@@ -1,3 +1,5 @@
+using SlayIdleRepeat.Application.Services;
+
 namespace SlayIdleRepeat.Adapters.Platform.Godot;
 
 /// <summary>
@@ -15,37 +17,38 @@ namespace SlayIdleRepeat.Adapters.Platform.Godot;
 /// </remarks>
 public sealed class GodotPlatformInfo
 {
-    /// <summary>Separates the engine's trailing keyword list from the locale proper.</summary>
-    private const char ExtraKeywordSeparator = '@';
+    /// <summary>
+    /// The literal the engine answers on every platform it cannot identify — which is every
+    /// platform except Android, iOS, macOS and Windows.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 It lives here and not in <c>HostAnswers</c>: an engine's own word for "I do not know" is
+    /// this adapter's knowledge, and a table of engine literals in <c>Application</c> would be the
+    /// vendor concept crossing the boundary `23` §5 A2 exists to stop.
+    /// </remarks>
+    private const string UnidentifiedDeviceLiteral = "GenericDevice";
 
     /// <summary>The player's locale, as a BCP-47 tag.</summary>
     /// <remarks>
-    /// The engine answers in its own shape — <c>language_Script_COUNTRY_VARIANT@extra</c> —
-    /// which is the same information under different punctuation for everything up to the
-    /// variant. ⚠️ The trailing keyword list has no BCP-47 counterpart to translate into, so
-    /// it is dropped rather than guessed at; nothing in the game reads currency or calendar
-    /// preferences from the host today.
+    /// 🔒 <b>The translation is <see cref="HostAnswers.ToLocale"/>'s, not this class's.</b> The
+    /// engine answers in its own shape — <c>language_Script_COUNTRY_VARIANT@extra</c> — and every
+    /// implementation of the platform port faces the same normalisation. Doing it here as well
+    /// would be the same rule written twice, in the one place no test can reach: calling this
+    /// property outside the runtime is a fatal fault. What is left here is the engine call.
     /// </remarks>
-    public string Locale
-    {
-        get
-        {
-            var engineLocale = global::Godot.OS.GetLocale();
-            var extra = engineLocale.IndexOf(ExtraKeywordSeparator);
+    public string Locale => HostAnswers.ToLocale(global::Godot.OS.GetLocale()).Name;
 
-            return (extra < 0 ? engineLocale : engineLocale[..extra]).Replace('_', '-');
-        }
-    }
-
-    /// <summary>The device model, for crash grouping and support.</summary>
+    /// <summary>The device model, or <see langword="null"/> when the engine cannot identify it.</summary>
     /// <remarks>
-    /// ⚠️ Passed through exactly as the engine gives it, including the literal
-    /// <c>GenericDevice</c> it answers on every platform it cannot identify — which is every
-    /// platform except Android, iOS, macOS and Windows. That string is the engine stating an
-    /// absence, and a caller must read it as one; substituting something friendlier here
-    /// would turn "we do not know" into a device model that does not exist.
+    /// ⚠️ <b>Behaviour change, deliberate:</b> this used to pass <c>GenericDevice</c> through
+    /// verbatim on the argument that the string is the engine stating an absence and a caller must
+    /// read it as one. <c>IPlatformInfoPort</c> has since ruled how an absence arrives — as
+    /// <see langword="null"/>, so that no caller has to know which host produced it — and this now
+    /// answers that way. Nothing reads this member yet; <c>GodotClientComposition</c> only holds the
+    /// instance.
     /// </remarks>
-    public string DeviceModel => global::Godot.OS.GetModelName();
+    public string? DeviceModel =>
+        HostAnswers.ToDeviceModel(global::Godot.OS.GetModelName(), UnidentifiedDeviceLiteral);
 
     /// <summary>The host platform's name.</summary>
     /// <remarks>
