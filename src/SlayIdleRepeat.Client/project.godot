@@ -31,6 +31,13 @@ config/icon="res://icon.svg"
 ; the boot task and to art that does not exist yet. Until then the background
 ; colour stands, which shows no more than a blank frame but claims nothing.
 boot_splash/show_image=false
+; The designing half of the decision above, and written out rather than left to
+; the engine's default: this is the very first thing on screen, drawn before any
+; scene exists, and Boot.tscn paints the same colour. Together with
+; default_clear_color below it makes one continuous ground from the window
+; opening to our first drawn frame — a different value here is a visible flash
+; of somebody else's grey at the exact moment a player is judging the launch.
+boot_splash/bg_color=Color(0.07, 0.07, 0.09, 1)
 ; 4.7 — M0-05a pinned the engine at 4.7.1-stable, and both spike projects say
 ; "4.7". config/features is what the editor reads to decide whether a project
 ; needs an upgrade pass, so a stale "4.4" here would make the first person to
@@ -81,3 +88,9 @@ renderer/rendering_method.mobile="mobile"
 ; texture compression is required for Android export." The iOS exporter checks
 ; the same setting.
 textures/vram_compression/import_etc2_astc=true
+; The third of the three grounds, and the one that covers the gap: the engine's
+; splash colour is shown until the first scene draws, Boot.tscn paints from its
+; first frame on, and this is what shows anywhere neither does. All three are
+; the same colour on purpose — the goal is that nothing flashes, not that three
+; settings each look reasonable alone.
+environment/defaults/default_clear_color=Color(0.07, 0.07, 0.09, 1)
