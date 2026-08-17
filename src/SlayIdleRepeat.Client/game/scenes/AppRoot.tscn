@@ -7,7 +7,7 @@ script = ExtResource("1_approot")
 
 [node name="Ui" type="CanvasLayer" parent="."]
 
-[node name="Screen" type="MarginContainer" parent="Ui"]
+[node name="SafeArea" type="MarginContainer" parent="Ui"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
@@ -18,7 +18,7 @@ theme_override_constants/margin_top = 128
 theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 128
 
-[node name="StatusLabel" type="Label" parent="Ui/Screen"]
+[node name="StatusLabel" type="Label" parent="Ui/SafeArea"]
 unique_name_in_owner = true
 text = "Composing…"
 horizontal_alignment = 1
