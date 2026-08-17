@@ -40,20 +40,36 @@ public sealed class PresetTests
     /// past it is not.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Both sides of the boundary, driven off the tunable rather than off the literal 3: a handler
     /// that compared against a hard-coded number would pass this while ignoring the document.
     /// `14` §662's own example of <c>NOT_ENTITLED</c> is "preset slot 4+".
+    /// </para>
+    /// <para>
+    /// 🔴 <b><c>PresetTuning.FirstSlot</c> is pinned, and the loop is floored on its length.</b>
+    /// Nothing pinned the first slot at all: moving it to 4 makes the loop below iterate <em>zero
+    /// times</em>, so the whole "every free slot is writable" half evaporates while the case stays
+    /// green and `07` §4's slot 1 stops being savable for every free player.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_free_allowance_is_the_authored_one_and_the_slot_past_it_is_NOT_ENTITLED()
     {
         FreeSlots.ShouldBe(3, "12 §2: free players get 3, and ads.json#/plus/freePresets authors it.");
+        PresetTuning.FirstSlot.ShouldBe(
+            1, "07 §4 numbers the preset slots from one, and the loop below spans FirstSlot..FreeSlots.");
+
+        var written = 0;
 
         for (var slot = PresetTuning.FirstSlot; slot <= FreeSlots; slot++)
         {
             Save(Outside(PlayerSnapshots.Valid), slot, "Build").Accepted.ShouldBeTrue(
                 $"slot {slot} is inside the free allowance.");
+            written++;
         }
+
+        written.ShouldBe(
+            FreeSlots, "the assertion above lives inside a loop that a moved FirstSlot could empty.");
 
         var refused = Save(Outside(PlayerSnapshots.Valid), FreeSlots + 1, "Fourth");
 

@@ -146,6 +146,36 @@ public sealed class EnhanceMercyTests
             .ShouldBe(3);
     }
 
+    /// <summary>
+    /// 🔒 …and a document that authors <c>adEnhanceLuckAdvancesCounter = true</c> advances it, so the
+    /// standing case above is a claim about the <b>data</b> rather than about the code.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b><c>EnhanceMercy</c> negates the flag, and only one of its two values was ever driven.</b>
+    /// The shipped value is <c>false</c> and every case here read the shipped block, so the negation
+    /// — the whole reason the flag is a flag — was dead to the suite: deleting the <c>!</c> left this
+    /// file entirely green while an ad-boosted failure silently started spending the mercy the player
+    /// had already earned. The two cases are the same call over the same numbers; only the authored
+    /// flag differs.
+    /// </remarks>
+    [Fact]
+    public void A_document_that_advances_on_a_lucky_bonus_advances_the_counter()
+    {
+        var advancing = LuckTuning.Read(
+            LuckDocuments.LuckOnly(enhanceAdAdvancesCounter: ContentValue.True)).Enhance;
+
+        advancing.AdEnhanceLuckAdvancesCounter.ShouldBeTrue("the fixture's premise");
+        Rule.AdEnhanceLuckAdvancesCounter.ShouldBeFalse(
+            "…and the shipped block says otherwise, which is what makes this pair a pair.");
+
+        LuckService.EnhanceFailuresAfter(3, succeeded: false, carriedLuckyBonus: true, advancing)
+            .ShouldBe(
+                4,
+                "with the flag authored true a helped failure counts like any other. The case above " +
+                "asserts the opposite over the shipped block, so between them the rule is pinned to " +
+                "the document rather than to a hard-coded answer.");
+    }
+
     /// <summary>A success clears the counter whether or not the attempt was helped.</summary>
     [Fact]
     public void A_successful_attempt_clears_the_counter_however_it_was_helped()

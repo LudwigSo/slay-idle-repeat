@@ -215,6 +215,15 @@ public sealed class MetaLoopTests
     /// to be able to say that every one of them is an item a <c>GearGranted</c> named, and a byte
     /// difference cannot.
     /// </para>
+    /// <para>
+    /// 🔴 <b>The exit criterion says "banks gear, merges and enhances <em>it</em>", and until now the
+    /// <em>it</em> was never driven.</b> The forge case operates on a <c>Inventories.Stock(12)</c>
+    /// seeded through <c>CreatePlayer</c>, on a different board from this one, so the two halves of
+    /// one clause never met: gear was banked here and something else was enhanced there, and a
+    /// banked item that no forge command would accept — a wrong slot, an unrehydratable roll, an
+    /// identity the stock could not find again — passed both. The <c>ENHANCE</c> below closes the
+    /// chain on the item this run actually handed the player.
+    /// </para>
     /// </remarks>
     [Fact]
     public void A_run_banks_gear_into_the_players_own_stock()
@@ -251,6 +260,36 @@ public sealed class MetaLoopTests
             "the items that appeared in the stock and the items GearGranted reported are not the " +
             "same set, so either an item arrived unannounced or an announcement named an item the " +
             "player never received." + Trace(driver));
+
+        // ── …and the exit criterion's "merges and enhances IT": the forge acts on the item the run
+        //    just banked, not on a seeded stand-in.
+        var target = banked[0];
+        var beforeAttempt = game.State(player).Player.Inventory.Find(target);
+
+        beforeAttempt.ShouldNotBeNull(
+            "the banked item is in the STORED stock, which is where a forge command looks for it. An " +
+            "item that only ever reached overflow cannot be enhanced, and the clause would be " +
+            "unreachable through the front door." + Trace(driver));
+
+        var stonesBefore = game.State(player).Player.BalanceOf(CurrencyId.ENHANCE_STONES);
+
+        Accepted(driver.Send(new EnhanceCommand(target)), "ENHANCE on the banked item", driver);
+
+        var enhanced = game.State(player).Player.Inventory.Find(target);
+
+        enhanced.ShouldNotBeNull("the enhanced item is still in the stock." + Trace(driver));
+
+        game.State(player).Player.BalanceOf(CurrencyId.ENHANCE_STONES).ShouldBeLessThan(
+            stonesBefore,
+            "08 §4.2 charges the stones whether the attempt lands or misses, so a balance that did " +
+            "not move means no attempt was made on the banked item at all." + Trace(driver));
+
+        (enhanced!.EnhanceLevel > beforeAttempt!.EnhanceLevel ||
+         enhanced.EnhanceFailures > beforeAttempt.EnhanceFailures).ShouldBeTrue(
+            "the attempt on the BANKED item neither raised its level nor recorded a failure, so " +
+            "nothing happened to it — 24 §4.6's mercy counts the failures, and one of the two has to " +
+            "move. This is the assertion that makes the exit criterion's 'enhances IT' a chain " +
+            "rather than two unrelated boards." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the forge
@@ -275,11 +314,19 @@ public sealed class MetaLoopTests
     /// asserting a bug.
     /// </para>
     /// <para>
-    /// ⚠️ The stock those three commands operate on is <b>seeded</b>, not banked — see
-    /// <see cref="A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory"/>. That is
-    /// the one substitution this file makes for the criterion, and it is made through
-    /// <c>CreatePlayer</c>'s starting row (which goes through <c>Player.Rehydrate</c>, the validated
-    /// construction path) rather than by reaching past <c>Apply</c>.
+    /// ⚠️ The stock these three commands operate on is <b>seeded</b>, not banked, and it stays that
+    /// way on purpose: it is a chapter-2 board chosen for what it <em>pays</em>
+    /// (see <see cref="ForgeStart"/>), not for what it drops, so a fusion needs three matching items
+    /// the run has no reason to have produced. The banked-gear half of the same clause is driven on
+    /// its own board by <see cref="A_run_banks_gear_into_the_players_own_stock"/>, which enhances the
+    /// item the run actually handed the player. The seeding is made through <c>CreatePlayer</c>'s
+    /// starting row — which goes through <c>Player.Rehydrate</c>, the validated construction path —
+    /// rather than by reaching past <c>Apply</c>.
+    /// <para>
+    /// 🔴 This used to point at <c>A_run_banks_no_gear_because_no_production_caller_stocks_the_inventory</c>,
+    /// a member deleted when the grant path landed. The dangling <c>cref</c> was silent because
+    /// <c>GenerateDocumentationFile</c> is off in this project.
+    /// </para>
     /// </para>
     /// </remarks>
     [Fact]

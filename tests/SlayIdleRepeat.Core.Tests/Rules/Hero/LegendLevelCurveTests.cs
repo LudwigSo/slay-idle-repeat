@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Hero;
 using SlayIdleRepeat.Core.Tests.Content;
 using Xunit;
@@ -124,21 +125,84 @@ public sealed class LegendLevelCurveTests
 
     /// <summary>The cumulative sum and the per-level costs are the same arithmetic.</summary>
     /// <remarks>
+    /// <para>
     /// A cumulative implemented with its own closed form — or with a different rounding — would
     /// drift from the per-level costs the client shows on the level-up screen, and the two are the
     /// same promise to the player.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>This case cannot see the rounding itself, and says so rather than pretending.</b> The
+    /// expectation is built by calling production's own <c>XpForLevel</c> through production's own
+    /// number of decimal places, so dropping <c>DeterminismRounding.Round</c> from the curve moves
+    /// both sides of the comparison identically and this stays green.
+    /// <see cref="Every_figure_the_curve_answers_is_rounded"/> is the half that bites there. The
+    /// magic <c>4</c> is gone with it: the places are
+    /// <see cref="DeterminismRounding.Decimals"/>' to state, and a test restating them as a literal
+    /// would keep agreeing with a curve that had moved off them.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_cumulative_is_the_running_sum_of_the_per_level_costs()
     {
         var running = 0d;
+        var compared = 0;
 
         for (var level = Range.Minimum; level < Range.Minimum + 30; level++)
         {
-            running = Math.Round(running + LegendLevelCurve.XpForLevel(level, Curve, Range), 4);
+            running = Math.Round(
+                running + LegendLevelCurve.XpForLevel(level, Curve, Range),
+                DeterminismRounding.Decimals);
 
             LegendLevelCurve.CumulativeXpTo(level + 1, Curve, Range).ShouldBe(running);
+            compared++;
         }
+
+        compared.ShouldBe(30, "the assertion above lives inside a loop (steering S3).");
+    }
+
+    /// <summary>
+    /// 🔒 Every figure the curve hands out is already in the form
+    /// <c>DeterminismRounding.Round</c> produces.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The claim the case above cannot make.</b> Legend XP is banked as a whole number and
+    /// compared between a client's arithmetic and the server's, so an unrounded <c>double</c>
+    /// escaping either half of this curve is a figure the two sides can disagree about — and it is
+    /// invisible to any comparison built by calling the curve. <c>120 × L^1.05</c> is irrational at
+    /// almost every level, so an unrounded answer is the DEFAULT here rather than an edge case:
+    /// deleting the rounding from <c>XpForLevel</c> or from <c>CumulativeXpTo</c> fails this at the
+    /// first level it reaches.
+    /// </para>
+    /// <para>
+    /// Both members, and floored on the count: a rule quantifying over a range that could be empty
+    /// passes forever (steering S3).
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_figure_the_curve_answers_is_rounded()
+    {
+        var checkedFigures = 0;
+
+        for (var level = Range.Minimum; level < Range.Maximum; level++)
+        {
+            DeterminismRounding.IsRounded(LegendLevelCurve.XpForLevel(level, Curve, Range))
+                .ShouldBeTrue(
+                    $"XpForLevel({level}) answered " +
+                    LegendLevelCurve.XpForLevel(level, Curve, Range) +
+                    ", which persisted state and a replay comparison cannot carry.");
+
+            DeterminismRounding.IsRounded(LegendLevelCurve.CumulativeXpTo(level, Curve, Range))
+                .ShouldBeTrue(
+                    $"CumulativeXpTo({level}) answered " +
+                    LegendLevelCurve.CumulativeXpTo(level, Curve, Range) + ", likewise.");
+
+            checkedFigures += 2;
+        }
+
+        checkedFigures.ShouldBe(
+            (Range.Maximum - Range.Minimum) * 2,
+            "the assertions above live inside a loop over a range the tuning could narrow.");
     }
 
     /// <summary>The exact cumulative total for a level is the boundary a player levels at.</summary>

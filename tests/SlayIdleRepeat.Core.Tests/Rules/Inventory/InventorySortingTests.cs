@@ -111,9 +111,14 @@ public sealed class InventorySortingTests
     /// each other — a weapon and a ring derive different stats, and ordering the two by "power" would
     /// be comparing two different quantities.
     /// <para>
-    /// The expectation is restated from the fixture's own fields rather than written out as a
-    /// twenty-four-long literal, because the interesting claim is <em>band before quality</em>: a
-    /// comparer that ranked quality first would rank an unlucky S below a perfect C.
+    /// 🔴 <b>A literal permutation, like every other ordering case in this file, and for exactly the
+    /// reason they are.</b> The expectation used to be built by re-running the ordering rule in
+    /// LINQ — <c>OrderByDescending(Rarity).ThenByDescending(Quality).ThenBy(arrival)</c> — which is
+    /// the claim restated as its own evidence: a comparer that ranked quality before band would have
+    /// been matched by a LINQ chain written the same wrong way round, and only a hand-written
+    /// sequence can disagree with the code under test. The fixture is deterministic
+    /// (<see cref="OneSlot"/> deals band on a four-cycle and quality on a three-cycle), so the
+    /// sequence below is derivable by hand and is written out.
     /// </para>
     /// </remarks>
     [Fact]
@@ -121,15 +126,15 @@ public sealed class InventorySortingTests
     {
         var oneSlot = OneSlot();
 
-        var expected = oneSlot
-            .Select((item, arrival) => (item, arrival))
-            .OrderByDescending(row => row.item.Rarity)
-            .ThenByDescending(row => row.item.Quality)
-            .ThenBy(row => row.arrival)
-            .Select(row => row.item.InstanceId)
-            .ToArray();
-
-        Sorted(InventorySortKey.POWER, oneSlot).ShouldBe(expected);
+        Sorted(InventorySortKey.POWER, oneSlot).ShouldBe(
+            Ids(
+                11, 23, 7, 19, 3, 15,
+                2, 14, 10, 22, 6, 18,
+                5, 17, 1, 13, 9, 21,
+                8, 20, 4, 16, 0, 12),
+            "S first, then A, B and C; inside a band the best roll first, and arrival order breaks " +
+            "what is left. Six items share every band and two share every band-and-roll pair, so a " +
+            "tie the comparer does not break scrambles here.");
 
         // The claim the expectation above encodes, said once in plain terms so a future reader does
         // not have to derive it: the worst item of a band still outranks the best of the band below.
