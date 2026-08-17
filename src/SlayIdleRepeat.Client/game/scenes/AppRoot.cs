@@ -162,7 +162,11 @@ public partial class AppRoot : Node
 
         var boot = scene.Instantiate<Boot>();
 
-        boot.Drive(presenter, _lifetime.Token);
+        // The graph goes with the presenter because the boot screen hands over in turn, to a screen
+        // whose presenter does not exist yet — and by then the root is no longer the one handing.
+        // Still ownership, not use: the root keeps the reference that makes the graph outlive every
+        // screen built from it.
+        boot.Drive(presenter, composed, _lifetime.Token);
 
         // The root's own layer sits above the default one, so it would draw over the screen it just
         // handed control to.

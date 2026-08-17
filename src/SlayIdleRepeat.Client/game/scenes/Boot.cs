@@ -1,5 +1,7 @@
 using Godot;
+using SlayIdleRepeat.Client.Composition;
 using SlayIdleRepeat.Client.Game.Presenters;
+using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
 
@@ -60,26 +62,18 @@ public partial class Boot : Control
     private const string TitleLabelPath = "%TitleLabel";
     private const string StatusLabelPath = "%StatusLabel";
 
-    private const string MarginLeftConstant = "margin_left";
-    private const string MarginTopConstant = "margin_top";
-    private const string MarginRightConstant = "margin_right";
-    private const string MarginBottomConstant = "margin_bottom";
-
-    /// <summary>
-    /// The narrowest gap between the screen edge and anything drawn, in canvas units — roughly
-    /// 16 dp across the supported density range. A resolved inset smaller than this is widened to
-    /// it: a cutout-free edge is not a reason to put text against the glass.
-    /// </summary>
-    private const int DesignGutter = 48;
-
-    /// <summary>
-    /// The most of one axis a single resolved inset may take. A display server answering in a
-    /// coordinate space this screen did not anticipate has to degrade to a wide margin, never to a
-    /// content rect with no room left inside it to draw.
-    /// </summary>
-    private const float MaxInsetShare = 0.25f;
-
     private BootPresenter? _presenter;
+
+    /// <summary>
+    /// The composed graph, carried through rather than used.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 This screen reads nothing out of it. It holds it because the screen it hands over to
+    /// needs a presenter built from the graph the application root already owns, and composing a
+    /// second graph here would mean a second cache over the same directory. Ownership stays the
+    /// root's; this is the handover carrying it one hop further down the only path there is.
+    /// </remarks>
+    private ComposedGodotClient? _composed;
 
     private CancellationToken _lifetime;
 
@@ -90,15 +84,25 @@ public partial class Boot : Control
     private string? _drawnStatus;
 
     /// <summary>
-    /// Takes the presenter the composition root built, and the token the app shuts down through.
+    /// Takes the presenter the composition root built, the graph it was built from, and the token
+    /// the app shuts down through.
     /// </summary>
-    /// <remarks>Called before the node enters the tree, so <c>_Ready</c> has something to draw.</remarks>
-    /// <exception cref="ArgumentNullException"><paramref name="presenter"/> is null.</exception>
-    public void Drive(BootPresenter presenter, CancellationToken lifetime)
+    /// <remarks>
+    /// Called before the node enters the tree, so <c>_Ready</c> has something to draw. The graph
+    /// comes with the presenter because a finished boot hands over to a screen whose presenter does
+    /// not exist yet, and the root that owns the graph is no longer the one doing the handing.
+    /// </remarks>
+    /// <param name="presenter">Drives this screen.</param>
+    /// <param name="composed">The graph the application root built and holds.</param>
+    /// <param name="lifetime">Cancelled when the application shuts down.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="presenter"/> or <paramref name="composed"/> is null.</exception>
+    public void Drive(BootPresenter presenter, ComposedGodotClient composed, CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(presenter);
+        ArgumentNullException.ThrowIfNull(composed);
 
         _presenter = presenter;
+        _composed = composed;
         _lifetime = lifetime;
     }
 
@@ -110,7 +114,7 @@ public partial class Boot : Control
         _titleLabel = GetNode<Label>(TitleLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
 
-        ApplySafeArea();
+        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
         Render();
 
         _ = RunAsync();
@@ -124,79 +128,17 @@ public partial class Boot : Control
     /// </remarks>
     public override void _Process(double delta) => Render();
 
-    /// <summary>
-    /// Resolves the real safe-area insets from the display server and applies them to the scene.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔒 This is the query the root scene's static margins stand in for. The display server answers
-    /// in physical screen pixels while the scene is laid out in canvas units, so each inset is
-    /// scaled by the ratio the stretch mode is already applying.
-    /// </para>
-    /// <para>
-    /// ⚠️ A platform with no cutouts reports the whole window as safe, and a headless or
-    /// not-yet-sized window reports nothing usable at all. The second case keeps the margins the
-    /// scene was authored with rather than collapsing them to zero — an unanswered query is not a
-    /// measurement of no inset.
-    /// </para>
-    /// </remarks>
-    private void ApplySafeArea()
-    {
-        var window = DisplayServer.WindowGetSize();
-        var safeArea = DisplayServer.GetDisplaySafeArea();
-        var canvas = GetViewportRect().Size;
-
-        if (window.X <= 0 || window.Y <= 0 || safeArea.Size.X <= 0 || safeArea.Size.Y <= 0 ||
-            canvas.X <= 0 || canvas.Y <= 0)
-        {
-            return;
-        }
-
-        // The display server answers in SCREEN coordinates, and the window is only ever part of one
-        // screen. Left unshifted, a window that does not sit at the desktop's origin resolves an
-        // inset measured from somebody else's corner — on a second monitor, one wider than the whole
-        // canvas.
-        var origin = DisplayServer.WindowGetPosition();
-
-        var horizontal = canvas.X / window.X;
-        var vertical = canvas.Y / window.Y;
-
-        var margins = GetNode<MarginContainer>(SafeAreaPath);
-
-        margins.AddThemeConstantOverride(
-            MarginLeftConstant, Inset((safeArea.Position.X - origin.X) * horizontal, canvas.X));
-        margins.AddThemeConstantOverride(
-            MarginTopConstant, Inset((safeArea.Position.Y - origin.Y) * vertical, canvas.Y));
-        margins.AddThemeConstantOverride(
-            MarginRightConstant,
-            Inset((window.X - (safeArea.End.X - origin.X)) * horizontal, canvas.X));
-        margins.AddThemeConstantOverride(
-            MarginBottomConstant,
-            Inset((window.Y - (safeArea.End.Y - origin.Y)) * vertical, canvas.Y));
-    }
-
-    /// <summary>
-    /// One resolved inset in canvas units: never narrower than the design gutter, and never wide
-    /// enough that the pair of them could close over the content between them.
-    /// </summary>
-    private static int Inset(float canvasUnits, float axis)
-    {
-        var ceiling = Mathf.Max(DesignGutter, Mathf.RoundToInt(axis * MaxInsetShare));
-
-        return Math.Clamp(Mathf.RoundToInt(canvasUnits), DesignGutter, ceiling);
-    }
-
     /// <remarks>
     /// <para>
     /// Nothing awaits this task, so its exceptions have nowhere to surface: the whole body is
     /// guarded, or a continuation that threw would leave a screen that silently stopped moving.
     /// </para>
     /// <para>
-    /// 🔴 A finished boot stops here, and that is the second thing this file deliberately does not
-    /// build. There is no screen to hand over to yet — Home is a later task's, as is whatever
-    /// decides between Home and a resumed run — so <see cref="BootStage.Ready"/> is reported and
-    /// drawn rather than navigated away from. Inventing a destination would put a screen on the
-    /// only path every player takes, chosen by the task least equipped to choose it.
+    /// A finished boot hands over to <see cref="Home"/>, which is the seam this file named while
+    /// Home was still a later task's. A boot that FAILED hands over to nothing: the localised
+    /// failure line stays on screen, because the alternative is a home screen drawn over a profile
+    /// that never opened. The decision between Home and a resumed run is Home's own, made from the
+    /// stored state and nothing this screen carries forward.
     /// </para>
     /// </remarks>
     private async Task RunAsync()
@@ -223,11 +165,68 @@ public partial class Boot : Control
             StopRedrawing();
             Render();
             Report(presenter);
+
+            if (presenter.Stage == BootStage.Ready && presenter.PlayerId is { } player)
+            {
+                ShowHome(player);
+            }
         }
         catch (Exception failure)
         {
             GD.PushError($"The boot screen stopped unexpectedly: {failure}");
         }
+    }
+
+    /// <summary>Puts the home screen beside this one and stands down.</summary>
+    /// <remarks>
+    /// <para>
+    /// Presenter first, scene second — the same order and the same reasons the application root
+    /// uses for this screen: a scene instantiated before a throw is a node with no parent that
+    /// nothing ever frees, and <c>Load</c> answers null rather than throwing when a resource is
+    /// missing, so an unnamed null reference is all a caller gets unless it says so.
+    /// </para>
+    /// <para>
+    /// Home is added to this screen's own parent rather than to this screen, and this screen is
+    /// hidden. A child would be drawn inside a ground this screen still owns, and the root above
+    /// holds the graph both screens were built from either way.
+    /// </para>
+    /// </remarks>
+    private void ShowHome(PlayerId player)
+    {
+        // This runs in a continuation, so the screen may have been freed or pulled out of the tree
+        // while the boot was running. Validity before tree membership, for the same reason Render
+        // checks them in that order.
+        if (!IsInstanceValid(this) || !IsInsideTree() || _composed is not { } composed)
+        {
+            return;
+        }
+
+        var parent = GetParent();
+
+        if (parent is null)
+        {
+            GD.PushError("The boot screen has no parent to hand the home screen to.");
+
+            return;
+        }
+
+        var screen = HomeComposition.CreateHomeScreen(composed, player);
+        var scene = GD.Load<PackedScene>(Home.ScenePath);
+
+        if (scene is null)
+        {
+            GD.PushError($"The home screen could not be loaded from '{Home.ScenePath}'.");
+
+            return;
+        }
+
+        var home = scene.Instantiate<Home>();
+
+        home.Drive(screen.Home, screen.ChapterSelect, _lifetime);
+
+        Visible = false;
+
+        parent.AddChild(home);
     }
 
     /// <summary>Stops the per-frame redraw, if there is still a node left to stop it on.</summary>
