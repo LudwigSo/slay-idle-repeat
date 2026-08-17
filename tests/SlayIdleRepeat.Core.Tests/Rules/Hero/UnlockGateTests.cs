@@ -144,9 +144,30 @@ public sealed class UnlockGateTests
     }
 
     /// <summary>The block's <c>_doc</c> prose is not read as a rung.</summary>
+    /// <remarks>
+    /// 🔴 <b>The fixture ladder authors a <c>_doc</c> member, and that is the whole case.</b> It used
+    /// to assert the absence of a key the fixture never carried — so <c>UnlockTuning.Read</c>'s
+    /// <c>continue</c> over the member could be deleted and this stayed green, while the shipped
+    /// <c>progression.json#/unlocks</c> <em>does</em> carry one and would have been read as a rung
+    /// and refused as a level outside the Legend range. The rung count comes with it: "no <c>_doc</c>
+    /// key" is also satisfied by a reader that dropped every member, and the count is what tells the
+    /// two apart.
+    /// </remarks>
     [Fact]
-    public void The_doc_member_is_not_a_rung()
+    public void The_doc_member_is_read_as_prose_and_not_as_a_rung()
     {
-        Ladder.Ladder.Keys.ShouldNotContain("_doc");
+        ProgressionDocuments.Shipped
+            .Read(UnlockTuning.UnlocksReference)
+            .MemberNames.ShouldContain(
+                ProgressionDocuments.ShippedUnlocksDocMember,
+                "the premise: a ladder with no _doc member exercises none of this.");
+
+        Ladder.Ladder.Keys.ShouldNotContain(ProgressionDocuments.ShippedUnlocksDocMember);
+
+        Ladder.Ladder.Count.ShouldBe(
+            ProgressionDocuments.ShippedUnlocks.Count,
+            "every rung the document authors is read and the prose member is not, so the ladder holds " +
+            "exactly the authored rows — a reader that skipped more than the prose would leave a gate " +
+            "with nothing to compare against.");
     }
 }

@@ -5,8 +5,9 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// Forty-three single-edit mutations of the real game-data, each of which the validator must
-/// reject at a named code and a named pointer.
+/// Forty-four single-edit mutations of the real game-data, each of which the validator must
+/// reject at a named code and a named pointer — one of them at a named citation instead, because
+/// its rule shares both with the rule beside it (see the inventory ceiling cases).
 /// </summary>
 /// <remarks>
 /// Committing these negative cases is the point: a validator whose negative cases are never
@@ -377,12 +378,57 @@ public sealed class RealDataNegativeCaseTests
             ContentIssueCode.OutOfRange, "tuning/guilds.json#/quests/perDay");
     }
 
-    /// <summary>Derives: the ladder and the capacity it reaches are one fact.</summary>
+    /// <summary>
+    /// StaysBelow: the deferred expansion ladder stays out of reach of the flat ceiling.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 1200 is the exact reach of the shipped ladder (<c>1000 + 10 × 20</c>) — the state the
+    /// pre-ruling documents were in and the state the old <c>Derives</c> rule <em>demanded</em>. The
+    /// M4 retro ruling of 2026-08-17 refuses it: a ceiling on the ladder's reach makes the last
+    /// purchase buyable, and no command sells one.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Asserted by CITATION, not by code and pointer, and that is not decoration.</b> The
+    /// flatness rule beside it reports the same code at the same pointer for this edit, because
+    /// 1200 is also not the base — with positive purchase counts and step sizes, every ceiling the
+    /// ladder can reach is also a ceiling that is not the base, so the ladder rule's trigger set is
+    /// a strict SUBSET of the flatness rule's and no data edit can separate them. What it adds is
+    /// the diagnosis, so the diagnosis is what this pins: written as code-and-pointer, weakening the
+    /// ladder rule to <c>&gt;</c> left this case green, which is how the subsumption was found.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void An_inventory_capacity_that_its_own_ladder_cannot_reach_is_rejected()
+    public void An_inventory_ceiling_that_the_deferred_ladder_reaches_is_rejected()
+    {
+        var issues = ContentLoader
+            .Load(RepoData.SourceWithEdit(
+                "tuning/forge.json", "\"maxCapacity\": 1000", "\"maxCapacity\": 1200"))
+            .Issues;
+
+        issues.ShouldContain(
+            issue => issue.Code == ContentIssueCode.OrphanedReference &&
+                     issue.Location == "tuning/forge.json#/inventory/maxCapacity" &&
+                     issue.Message.Contains("deferred ladder", StringComparison.Ordinal),
+            "the LADDER rule must be one of the rules that fires on a ceiling standing exactly on " +
+            "the ladder's reach. The flatness rule reports the same code at the same pointer for " +
+            "this edit, so a case stated only over those two would pass with the ladder rule " +
+            "switched off entirely — and the reader of the failure would be told the ceiling is not " +
+            "the base rather than that somebody just made an expansion buyable.");
+    }
+
+    /// <summary>Mirrors: capacity is flat, so the ceiling is the base.</summary>
+    /// <remarks>
+    /// 1100 is BELOW the ladder's 1200 reach on purpose: the rule above is satisfied by it, so only
+    /// the flatness rule can be firing here. That asymmetry is the whole relationship between the two
+    /// — flatness catches everything the ladder rule catches and more, and the ladder rule exists for
+    /// the diagnosis and for the day capacity stops being flat.
+    /// </remarks>
+    [Fact]
+    public void An_inventory_ceiling_that_is_not_the_base_is_rejected()
     {
         Rejects("tuning/forge.json",
-            "\"maxCapacity\": 320", "\"maxCapacity\": 400",
+            "\"maxCapacity\": 1000", "\"maxCapacity\": 1100",
             ContentIssueCode.OrphanedReference, "tuning/forge.json#/inventory/maxCapacity");
     }
 

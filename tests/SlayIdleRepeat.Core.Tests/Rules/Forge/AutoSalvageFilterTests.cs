@@ -86,7 +86,7 @@ public sealed class AutoSalvageFilterTests
     [Fact]
     public void An_item_waiting_in_overflow_is_never_swept()
     {
-        var capacity = Inventories.Tuning.CapacityAt(0);
+        var capacity = Inventories.Tuning.MaxCapacity;
         var stock = Inventories.Empty();
 
         foreach (var item in Inventories.Fill(capacity, "stored"))

@@ -8,11 +8,21 @@ namespace SlayIdleRepeat.Core.Model;
 /// and the real history cannot be recovered.
 /// </para>
 /// <para>
-/// A live view over <c>Player</c>'s own map: read it, do not hold it across a mutation. Record
-/// equality compares <see cref="Counts"/> by reference and is meaningless for it.
+/// A live view over <c>Player</c>'s own map: read it, do not hold it across a mutation.
+/// </para>
+/// <para>
+/// 🔒 <b>A <c>class</c>, not a <c>record</c>, and that is steering S17 rather than a style choice.</b>
+/// A synthesized record <c>Equals</c> compares an <c>IReadOnlyDictionary</c> component <b>by
+/// reference</b>, so two views over equal maps would have compared unequal and two views over one map
+/// would have compared equal whatever it held — an equality that means nothing while looking like it
+/// means something, which is the shape M1's two Criticals had. This type used none of what a record
+/// buys: no positional syntax, no <c>with</c>, an explicit constructor and one get-only property. So
+/// the meaningless equality is <em>deleted</em> rather than documented, and identity comparison —
+/// which is what a live view actually supports — is what is left. Aggregate state is compared by
+/// `14` §16.6's canonical bytes, never by a value comparison on a view.
 /// </para>
 /// </remarks>
-public sealed record FeatCounters
+public sealed class FeatCounters
 {
     /// <summary>Builds a view over <paramref name="counts"/>.</summary>
     internal FeatCounters(IReadOnlyDictionary<string, long> counts) => Counts = counts;

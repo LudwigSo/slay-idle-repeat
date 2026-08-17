@@ -20,12 +20,20 @@ public sealed class MergeTests
     private static MergeCommand Command(params string[] ids) =>
         new(ids.Select(id => new GearInstanceId(id)).ToArray(), dustSubstituted: false);
 
+    /// <summary>Three fusable items, optionally with one of them locked.</summary>
+    /// <param name="rarity">The band all three share.</param>
+    /// <param name="enhanceLevel">The level all three share.</param>
+    /// <param name="lockedPosition">
+    /// Which of the three carries a lock, counted from zero, or <c>-1</c> for none. A position rather
+    /// than a flag: locking the first input alone is satisfied by a handler that reads
+    /// <c>InputItemIds[0]</c> and stops.
+    /// </param>
     private static GearInstance[] Triple(
-        Rarity rarity = Rarity.C, int enhanceLevel = 0, bool locked = false) =>
+        Rarity rarity = Rarity.C, int enhanceLevel = 0, int lockedPosition = -1) =>
     [
-        Inventories.Item("a", rarity: rarity, enhanceLevel: enhanceLevel, locked: locked),
-        Inventories.Item("b", rarity: rarity, enhanceLevel: enhanceLevel),
-        Inventories.Item("c", rarity: rarity, enhanceLevel: enhanceLevel),
+        Inventories.Item("a", rarity: rarity, enhanceLevel: enhanceLevel, locked: lockedPosition == 0),
+        Inventories.Item("b", rarity: rarity, enhanceLevel: enhanceLevel, locked: lockedPosition == 1),
+        Inventories.Item("c", rarity: rarity, enhanceLevel: enhanceLevel, locked: lockedPosition == 2),
     ];
 
     /// <summary>Three matching items become one of the next band, and the other two are gone.</summary>
@@ -44,9 +52,53 @@ public sealed class MergeTests
     }
 
     /// <summary>
+    /// 🔴 Merging away an item the hero is <b>wearing</b> takes it off the hero in the same command.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>The consumed inputs are the ones at risk, not the surviving one.</b> A fusion keeps the
+    /// first input's identity — <c>Inventory.Replace</c> writes the output over <c>a</c>'s slot — so
+    /// a hero wearing <c>a</c> is unharmed and a hero wearing <c>b</c> or <c>c</c> is left naming an
+    /// item that no longer exists. This case wears <c>b</c> for that reason: wearing <c>a</c> would
+    /// pass against the defect.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What a failure looks like is a throw, not a bad answer.</b>
+    /// <c>Player.RequireLoadoutResolves</c> runs after the handler and throws
+    /// <see cref="InvalidOperationException"/> out of <c>Apply</c>, because a slot naming a destroyed
+    /// item is a handler defect rather than an illegal player action.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Merging_away_a_worn_input_takes_it_off_the_hero()
+    {
+        var world = ForgeWorlds.Wearing((GearSlot.WEAPON, "b"), Triple());
+
+        var result = GameRules.Apply(world, Command("a", "b", "c"), Context);
+
+        result.Accepted.ShouldBeTrue(
+            "fusing away an item the hero happens to be wearing is a legal action. A throw out of " +
+            "Apply means the input was destroyed with the weapon slot still naming it.");
+
+        result.NewState.Player.Loadout.TryGet(GearSlot.WEAPON, out _).ShouldBeFalse(
+            "the consumed input was destroyed and the weapon slot still names it, so the hero is " +
+            "wearing an item the stock no longer holds.");
+    }
+
+    /// <summary>
     /// 🔒 The whole stock is compared by canonical bytes, not by record equality: a fusion changes
     /// a collection, and a synthesized <c>Equals</c> compares one by reference (steering S17).
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The expected affixes are spelled out rather than read off the answer.</b> They used to
+    /// be taken from <c>after.NewState…Stored[0].Affixes</c> — and the affixes are the ONLY thing
+    /// <c>GearMerge.Fuse</c> actually draws, everything else being carried forward from the inputs —
+    /// so the comparison restated the handler's own answer to itself. A <c>Fuse</c> rolling from the
+    /// wrong slot's pool, at the wrong band's affix count, or off a different stream produced a
+    /// different item and this still passed. <see cref="ExpectedFusionAffixes"/> is what the fixed
+    /// <see cref="ForgeWorlds.Seed"/> buys, transcribed once; if the draw derivation legitimately
+    /// moves, the answer is to re-transcribe it, never to read it back off the handler.
+    /// </remarks>
     [Fact]
     public void The_stock_after_a_fusion_is_exactly_the_output_beside_what_was_untouched()
     {
@@ -56,14 +108,55 @@ public sealed class MergeTests
         var after = GameRules.Apply(before, Command("a", "b", "c"), Context);
 
         var expected = ForgeWorlds.Holding(
-            Inventories.Item(
-                "a",
-                rarity: Rarity.B,
-                affixes: after.NewState.Player.Inventory.Stored[0].Affixes),
+            Inventories.Item("a", rarity: Rarity.B, affixes: ExpectedFusionAffixes),
             Inventories.Item("spectator", rarity: Rarity.S));
 
         ForgeWorlds.StockBytes(after.NewState).ShouldBe(ForgeWorlds.StockBytes(expected));
     }
+
+    /// <summary>
+    /// 🔒 The affixes a fusion draws, stated rather than observed — the discriminating half of the
+    /// byte comparison above.
+    /// </summary>
+    /// <remarks>
+    /// Asserted here in a readable shape as well as inside the encoding, so a change to the draw
+    /// reports <em>which</em> affix moved and by how much, instead of a byte diff nobody can read.
+    /// The count comes with it: the gear tables author one affix at <c>B</c>, and a fusion that took
+    /// the affix count from the <em>input</em> band, or that drew off the wrong slot's pool, lands
+    /// somewhere this pair can see.
+    /// </remarks>
+    [Fact]
+    public void A_fusion_draws_the_output_bands_affixes_from_the_output_slots_pool()
+    {
+        var after = GameRules.Apply(ForgeWorlds.Holding(Triple()), Command("a", "b", "c"), Context);
+
+        var fused = after.NewState.Player.Inventory.Stored[0];
+
+        fused.Affixes.Select(affix => (affix.AffixId, affix.Value)).ShouldBe(
+            ExpectedFusionAffixes.Select(affix => (affix.AffixId, affix.Value)),
+            "the fusion is the only draw a MERGE makes, and this is what ForgeWorlds.Seed buys on the " +
+            "B-band pool of the WEAPON slot.");
+
+        fused.Affixes.Count.ShouldBe(
+            Inventories.Drops.Band(Rarity.B).AffixCount,
+            "the OUTPUT band's affix count, asked of the tables rather than restated — a fusion " +
+            "rolling the input band's count is the defect the literal above would otherwise merely " +
+            "record.");
+    }
+
+    /// <summary>
+    /// What <c>GearMerge.Fuse</c> rolls for a C-band <c>BLADE</c> trio fusing onto <c>B</c>, on
+    /// <see cref="ForgeWorlds.Seed"/> at the position the handler opens the forge stream at.
+    /// </summary>
+    /// <remarks>
+    /// Transcribed from a run of this suite, once. It is a statement about the seed, not about the
+    /// handler: if the draw derivation legitimately moves, re-transcribe it — reading it back off
+    /// <c>Apply</c> is what made the byte comparison above vacuous in the first place.
+    /// </remarks>
+    private static readonly GearAffixRoll[] ExpectedFusionAffixes =
+    [
+        new("AFX_CRIT_CHANCE", 0.0491),
+    ];
 
     /// <summary>The fusion charges the Crown price of the band it lands on.</summary>
     /// <param name="rarity">The band the inputs share.</param>
@@ -121,13 +214,30 @@ public sealed class MergeTests
     }
 
     /// <summary>🔒 A locked item is excluded from merge selection, which is what the lock is for.</summary>
-    [Fact]
-    public void A_locked_input_is_refused()
+    /// <remarks>
+    /// 🔴 <b>Every position, because the first one alone proves nothing.</b> This locked only
+    /// <c>"a"</c>, which the command names FIRST — so a handler inspecting <c>InputItemIds[0]</c> and
+    /// nothing else passed it, while a player fused away two locked items in the same command. The
+    /// consumed inputs are exactly the ones a lock is protecting: a fusion writes its output over the
+    /// first input's slot and destroys the other two, so positions 1 and 2 are where the loss is
+    /// permanent.
+    /// </remarks>
+    /// <param name="lockedPosition">Which of the three named inputs carries the lock.</param>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void A_locked_input_is_refused_wherever_the_command_names_it(int lockedPosition)
     {
         var result = GameRules.Apply(
-            ForgeWorlds.Holding(Triple(locked: true)), Command("a", "b", "c"), Context);
+            ForgeWorlds.Holding(Triple(lockedPosition: lockedPosition)),
+            Command("a", "b", "c"),
+            Context);
 
-        result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
+        result.Rejection.ShouldBe(
+            RejectionReason.ILLEGAL_STATE,
+            $"input {lockedPosition} of three is locked and the fusion was accepted, so the lock " +
+            "protects only the position the handler happens to look at.");
     }
 
     /// <summary>
@@ -235,7 +345,7 @@ public sealed class MergeTests
 
         stock.Stored.ShouldContain(item => item.InstanceId == new GearInstanceId("a"));
         stock.Held.ShouldNotContain(item => item.InstanceId == new GearInstanceId("a"));
-        stock.Stored.Count.ShouldBe(Inventories.Tuning.CapacityAt(0));
+        stock.Stored.Count.ShouldBe(Inventories.Tuning.MaxCapacity);
         stock.Held.Count.ShouldBe(1, "two slots opened and two of the three waiting items took them");
     }
 

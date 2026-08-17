@@ -60,13 +60,24 @@ public static class GameRules
         .Handled<EndRunCommand>("END_RUN", CommandKind.Run, EndRun.Handle)
         .Handled<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, AbandonRun.Handle)
 
-        // ----------------------------------------------- the 30 META commands
+        // ----------------------------------------------- the 33 META commands
+        //
+        // 🔒 33, not 30: the M4 retro's product-owner ruling of 2026-08-17 added UNEQUIP, LOCK_ITEM
+        // and SET_AUTO_SALVAGE_RULES to `14` §2.3's frozen vocabulary (49 -> 52) and explicitly did
+        // NOT add EXPAND_INVENTORY — capacity is flat instead. Each row lands in the document first;
+        // CommandVocabularyTests transcribes it back by hand in the document's order.
         .Handled<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, BeginSession.Handle)
         .Deferred<SkipFtueCommand>("SKIP_FTUE", CommandKind.Meta, "M4-12")
         .Handled<EquipCommand>("EQUIP", CommandKind.Meta, Equip.Handle)
+        .Handled<UnequipCommand>("UNEQUIP", CommandKind.Meta, Unequip.Handle)
         .Handled<MergeCommand>("MERGE", CommandKind.Meta, Merge.Handle)
         .Handled<EnhanceCommand>("ENHANCE", CommandKind.Meta, Enhance.Handle)
         .Handled<SalvageCommand>("SALVAGE", CommandKind.Meta, Salvage.Handle)
+        .Handled<LockItemCommand>("LOCK_ITEM", CommandKind.Meta, LockItem.Handle)
+        // 🔴 One line, deliberately, however long: GapRegisterTests reads this table as TEXT and its
+        // regex is anchored to a single line, so a row wrapped for width vanishes from the handled
+        // set and the rule goes quiet about it rather than red.
+        .Handled<SetAutoSalvageRulesCommand>("SET_AUTO_SALVAGE_RULES", CommandKind.Meta, SetAutoSalvageRules.Handle)
         .Deferred<SpendTalentCommand>("SPEND_TALENT", CommandKind.Meta, "M4-06")
         .Deferred<RespecCommand>("RESPEC", CommandKind.Meta, "M4-06")
         .Deferred<LevelPetCommand>("LEVEL_PET", CommandKind.Meta, "M4-07")

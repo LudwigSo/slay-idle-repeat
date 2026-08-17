@@ -50,15 +50,14 @@ public sealed class DraftCompositionRuleTests
     private static IReadOnlyList<DraftOption> Draft(
         PerkCatalogue catalogue, DraftedPerks owned, ulong seed, int stage) =>
         PerkDraftEngine.GenerateOptions(
-            catalogue,
-            owned,
-            new DeterministicRng(seed, RngStreams.Draft),
-            Tuning,
-            Array.Empty<DraftForce>(),
-            new HashSet<string>(StringComparer.Ordinal),
-            stage,
-            isElite: false,
-            isBoss: false);
+            new DraftRequest(
+                catalogue,
+                owned,
+                Tuning,
+                DraftRarityWeights.For(stage, isElite: false, isBoss: false),
+                Array.Empty<DraftForce>(),
+                new HashSet<string>(StringComparer.Ordinal)),
+            new DeterministicRng(seed, RngStreams.Draft));
 
     private static IEnumerable<ulong> Seeds =>
         Enumerable.Range(0, SeedCount).Select(offset => FirstSeed + (ulong)offset);

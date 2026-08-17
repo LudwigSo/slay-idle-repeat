@@ -133,7 +133,7 @@ public sealed class HardPityTests
             "the 160-chest SS rung is the longest guarantee in the game and the one a shortened list " +
             "would drop first");
         LuckDocuments.EveryAuthoredHardPityN.ShouldContain(
-            new AuthoredGuarantee("MINIGAME", "#/minigame/chestPick/guaranteeAfterConsecutiveMisses", 4),
+            new AuthoredGuarantee("MINIGAME", "#/minigame/chestPick/guaranteeOnNthPick", 4),
             "the classes whose rule is not a rarity ladder are the ones a ladder-shaped list forgets");
 
         LuckDocuments.EveryAuthoredHardPityN.Select(rule => rule.Reference).ShouldBeUnique(

@@ -52,8 +52,8 @@
       "closedBy": "M11-05" },
 
     { "doc": "02", "section": "3", "kind": "specDebt",
-      "reason": "Run and animation durations. 02 §1-3 is M3-05's spec: the run state machine authors the stage-gate timings and the schema key that holds them.",
-      "closedBy": "M3-05" },
+      "reason": "02 §3's 'TUNABLE: All durations above' — the turn-loop pacing budgets (roll, movement, up to 6 s per fork, 2-40 s tile resolution, up to 15 s draft, the x1/x2/x3 speed controls). 🔴 RE-POINTED IN THE M4 REVIEW, and it was found by the new closedBy-is-still-open assertion rather than by reading: it said '02 §1-3 is M3-05's spec: the run state machine authors the stage-gate timings and the schema key that holds them', and M3-05 SHIPPED (tracker ✅) without either. The diagnosis was wrong rather than merely late — every duration in that table is PRESENTATION pacing, and Core's run state machine neither reads nor could read one; there is no server-side rule that a fork-choice timer belongs to. It is the client run-flow that authors them, and M7-05 (board, fork choice) and M7-06 (battle replay, speed controls) have both merged without doing so, which leaves M7-07 as the last open run-loop screen task and the last point at which the table can be authored as one block. If M7-07 concludes these are UX budgets rather than data — which is a defensible reading of 'up to 6 s' and '2-40 s' — the entry converts to kind outOfScope with no closedBy, and that is a decidable outcome rather than a deferral.",
+      "closedBy": "M7-07" },
     { "doc": "02", "section": "6", "kind": "specDebt",
       "reason": "Campfire heal percentage. Belongs to the campfire tile, authored with the shrine/campfire/curse tiles.",
       "closedBy": "M3-11" },
@@ -145,11 +145,11 @@
 
   "unmarkedSchemaCitations": [
     { "doc": "08", "section": "4.1", "kind": "specDebt",
-      "reason": "forge.json crownCostByOutputRarity cites 08 §4.1, whose 📐 marker sits in §4 (the Forge header) — the join is one level off, not absent. M4-04 implements 08 §4 and either moves the marker down or the citation up. (Was M0-11, a task that has never existed.)",
-      "closedBy": "M4-04" },
+      "reason": "forge.json crownCostByOutputRarity cites 08 §4.1. 🔴 CORRECTED IN THE M4 REVIEW: this entry used to read 'the 📐 marker sits in §4 (the Forge header), so the join is one level off, not absent', and that is false — 08 carries six 📐 markers, in §2, §3, §3.0a, §5 (two) and §6, and NONE anywhere in §4. So this is not a granularity mismatch that moving a citation up would close; the Forge's numbers are simply unmarked in the document, and closing it means 08 §4.1 gaining a 📐 marker naming forge.json. Re-pointed from M4-04, which merged in M4 and closed neither entry while the stale reason made it look like a formatting nit. (Was M0-11, a task that has never existed.)",
+      "closedBy": "M4-04b" },
     { "doc": "08", "section": "4.2", "kind": "specDebt",
-      "reason": "forge.json stoneCostPerLevel cites 08 §4.2. 08 §4's 📐 marker covers it; the section granularity differs. Same owner as §4.1. (Was M0-11.)",
-      "closedBy": "M4-04" },
+      "reason": "forge.json stoneCostPerLevel cites 08 §4.2, and 08 §4.2 carries no 📐 marker either — see the §4.1 entry above for the correction and for why 'the granularity differs' was the wrong diagnosis. Same owner as §4.1. (Was M0-11, then M4-04.)",
+      "closedBy": "M4-04b" },
 
     { "doc": "24", "section": "4.4", "kind": "specDebt",
       "reason": "beasts.json eggOdds cites 24 §4.4 (egg pity). 24's 📐 markers sit in §4.1 and §9; §4.4 itself carries none. M4-02 implements 24 §4 incl. egg P1-P3. (Was M0-11.)",

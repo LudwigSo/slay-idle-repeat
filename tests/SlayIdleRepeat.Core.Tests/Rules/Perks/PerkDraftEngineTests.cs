@@ -52,15 +52,14 @@ public sealed class PerkDraftEngineTests
         IReadOnlyList<DraftForce>? forces = null,
         IReadOnlySet<string>? everDrafted = null) =>
         PerkDraftEngine.GenerateOptions(
-            catalogue,
-            owned,
-            rng,
-            Tuning,
-            forces ?? Unforced,
-            everDrafted ?? NothingEverDrafted,
-            stage,
-            isElite,
-            isBoss);
+            new DraftRequest(
+                catalogue,
+                owned,
+                Tuning,
+                DraftRarityWeights.For(stage, isElite, isBoss),
+                forces ?? Unforced,
+                everDrafted ?? NothingEverDrafted),
+            rng);
 
     // ------------------------------------------------------------------ shape
 
@@ -354,12 +353,32 @@ public sealed class PerkDraftEngineTests
             Generate(Catalogue, NoneOwned(), null!, 1, false, false));
         Should.Throw<ArgumentNullException>(() =>
             PerkDraftEngine.GenerateOptions(
-                Catalogue, NoneOwned(), Draft(1), null!, Unforced, NothingEverDrafted, 1, false, false));
+                new DraftRequest(
+                    Catalogue, NoneOwned(), null!, Weights, Unforced, NothingEverDrafted),
+                Draft(1)));
         Should.Throw<ArgumentNullException>(() =>
             PerkDraftEngine.GenerateOptions(
-                Catalogue, NoneOwned(), Draft(1), Tuning, null!, NothingEverDrafted, 1, false, false));
+                new DraftRequest(
+                    Catalogue, NoneOwned(), Tuning, null!, Unforced, NothingEverDrafted),
+                Draft(1)));
         Should.Throw<ArgumentNullException>(() =>
             PerkDraftEngine.GenerateOptions(
-                Catalogue, NoneOwned(), Draft(1), Tuning, Unforced, null!, 1, false, false));
+                new DraftRequest(
+                    Catalogue, NoneOwned(), Tuning, Weights, null!, NothingEverDrafted),
+                Draft(1)));
+        Should.Throw<ArgumentNullException>(() =>
+            PerkDraftEngine.GenerateOptions(
+                new DraftRequest(Catalogue, NoneOwned(), Tuning, Weights, Unforced, null!),
+                Draft(1)));
+
+        // 🔒 The whole request left at its default, which a record STRUCT reaches without running a
+        // constructor at all — the shape a guard inside DraftRequest could not have covered, and the
+        // reason GenerateOptions null-guards the members rather than trusting the type.
+        Should.Throw<ArgumentNullException>(() =>
+            PerkDraftEngine.GenerateOptions(default, Draft(1)));
     }
+
+    /// <summary>A neutral rarity table, for the cases that are not about which battle the draft follows.</summary>
+    private static IReadOnlyList<(PerkRarity Rarity, double Weight)> Weights =>
+        DraftRarityWeights.For(1, isElite: false, isBoss: false);
 }

@@ -84,7 +84,10 @@ internal static class Salvage
 
         foreach (var id in command.ItemIds)
         {
-            stock.Remove(id, inventoryTuning);
+            // 🔴 DiscardItem, not Inventory.Remove: a slot NAMES an item rather than copying one, so
+            // destroying one the hero is wearing has to clear the slot in the same change or
+            // Player.RequireLoadoutResolves throws out of Apply on a perfectly legal salvage.
+            player.DiscardItem(id, inventoryTuning);
         }
 
         var events = new List<DomainEvent>(2);

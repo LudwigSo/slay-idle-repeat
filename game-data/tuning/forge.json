@@ -40,7 +40,7 @@
     "plusLuckyChargesAccumulate": false
   },
   "salvage": {
-    "_doc": "08 §4.3. Merge Dust and the stone refund only: 24 §5.1's Set Token yield has no number here and no wallet row to move into, so it stays absent rather than guessed. The auto-salvage filter's rules are per-player configuration rather than tuning, so no default filter is authored.",
+    "_doc": "08 §4.3. Merge Dust and the stone refund only: 24 §5.1's Set Token yield has no number here and no wallet row to move into, so it stays absent rather than guessed. The auto-salvage filter's rules are per-player configuration rather than tuning, so no default filter is authored. ROUNDING, and it is the game's one exception: both payouts here FLOOR, while every other whole-currency conversion in Core rounds to nearest (progression/minigame/run-reward scaling round AwayFromZero, the shop rounds ToEven in decimal). No document authors any of those directions. Salvage is the return leg of a SINK — it hands back part of what was already spent — so rounding it up would pay out material that was never paid in, and the stone refund would exceed the stone cost at some levels; the others convert authored REWARDS, where nearest is the neutral choice. Do not unify this one towards the others without a ruling on the refund ladder. Rules.Forge.GearSalvage carries the same note.",
     "baseDustByRarity": { "C": 10, "B": 40, "A": 160, "S": 640, "SS": 2560 },
     "dustPerEnhanceLevel": 0.15,
     "stoneRefundShare": 0.6
@@ -59,9 +59,9 @@
     "wishlistMissWeightBonus": 0.1
   },
   "inventory": {
-    "_doc": "08 §5 and 10 §4 — expansion prices are authored in currencies.json (the Crown ladder) and 10 §2 (the flat Soul Shard alternative). maxCapacity is the ceiling the ladder actually reaches: baseCapacity + inventoryExpansionMaxPurchases × inventoryExpansionSlotsPerPurchase = 120 + 10 × 20 = 320. It is not an independent number, and InventoryTuning refuses the document if the three stop agreeing.",
-    "baseCapacity": 120,
+    "_doc": "08 §5, as amended by the M4 retro's product-owner ruling of 2026-08-17. 🔒 CAPACITY IS FLAT: baseCapacity == maxCapacity == 1000 and nothing buys an expansion — 'I don't see a reason to increase the inventory size. It should be virtually unlimited, cap it by default at 1000 for now.' The same ruling explicitly did NOT add an EXPAND_INVENTORY row to 14 §2.3's vocabulary, so no command exists that could move the ceiling. This SUPERSEDES M4 kickoff decision 4 (320 = 120 + 10 × 20), which was [auto-accepted] — a conductor call, never the owner's — and with it 08 §5's 'up to 320' derivation from 10 §4. ⚠️ DEFERRED, NOT DELETED: 10 §4's Crown ladder (inventoryExpansionLadder / inventoryExpansionMaxPurchases / inventoryExpansionSlotsPerPurchase in currencies.json) and 10 §2's flat 400-Soul-Shard alternative stay authored, priced and UNSPENT, because the owner said they will 'potentially deal with the limit itself later'. expansionStep stays here as the forge-side half of the one quantity authored twice, and InventoryTuning.Read still cross-checks it against inventoryExpansionSlotsPerPurchase. What the reader now enforces in place of the old equality is the DEFERRAL itself, in two arms: the ladder's reach (baseCapacity + inventoryExpansionMaxPurchases × inventoryExpansionSlotsPerPurchase = 1200) must stay STRICTLY ABOVE the ceiling, so not one rung of it is buyable, and the ceiling must equal the base. Restore the pre-ruling numbers and the first arm fires; raise the ceiling without ruling on what may move it and one of the two fires. That is the loud failure the day a purchase command is authored.",
+    "baseCapacity": 1000,
     "expansionStep": 20,
-    "maxCapacity": 320
+    "maxCapacity": 1000
   }
 }

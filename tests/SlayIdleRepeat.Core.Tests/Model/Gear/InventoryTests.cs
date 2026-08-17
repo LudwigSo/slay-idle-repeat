@@ -34,7 +34,10 @@ public sealed class InventoryTests
         inventory.Stored.ShouldBeEmpty();
         inventory.Held.ShouldBeEmpty();
         inventory.ExpansionsPurchased.ShouldBe(0);
-        inventory.CapacityWith(Inventories.Tuning).ShouldBe(120);
+        inventory.CapacityWith(Inventories.Tuning).ShouldBe(
+            1000,
+            "the M4 retro of 2026-08-17 ruled capacity flat at 1000. It was 120 with a ladder to " +
+            "320 until then; nothing buys a slot now, so the base IS the capacity.");
     }
 
     /// <summary>Stored order is grant order: the newest item is last.</summary>
@@ -335,38 +338,6 @@ public sealed class InventoryTests
             .ShouldBe(ItemAvailability.HELD_IN_OVERFLOW);
     }
 
-    /// <summary>Buying an expansion reclaims as many held items as the new slots hold, and no more.</summary>
-    /// <remarks>
-    /// The fixture holds thirty and buys twenty slots, so the arithmetic can be wrong in both
-    /// directions and be seen: a reclaim that emptied the list would store thirty into twenty slots,
-    /// and one that took a fixed one would leave nineteen slots idle.
-    /// </remarks>
-    [Fact]
-    public void Buying_an_expansion_reclaims_only_as_many_held_items_as_now_fit()
-    {
-        var inventory = Full();
-
-        foreach (var item in Inventories.Fill(30, "held"))
-        {
-            inventory.Place(item, Inventories.Tuning).ShouldBe(InventoryPlacement.HELD);
-        }
-
-        inventory.PurchaseExpansion(Inventories.Tuning);
-
-        inventory.ExpansionsPurchased.ShouldBe(1);
-        inventory.CapacityWith(Inventories.Tuning).ShouldBe(140);
-        inventory.Stored.Count.ShouldBe(140);
-        inventory.Held.Count.ShouldBe(10);
-
-        inventory.Stored.TakeLast(20).Select(item => item.InstanceId).ShouldBe(
-            Enumerable.Range(1, 20).Select(n => Inventories.Id("held", n)),
-            "arrival order, oldest first — a reclaim that took the newest twenty would leave the ten " +
-            "the player has been waiting longest for still waiting.");
-
-        inventory.Held.Select(item => item.InstanceId).ShouldBe(
-            Enumerable.Range(21, 10).Select(n => Inventories.Id("held", n)));
-    }
-
     /// <summary>Removing a held item removes that item, and does not reclaim in its place.</summary>
     /// <remarks>
     /// The stock did not change, so there is nothing to reclaim into — an implementation that
@@ -397,47 +368,71 @@ public sealed class InventoryTests
         inventory.Stored.Count.ShouldBe(1);
     }
 
-    // ------------------------------------------------------------------------- the purchase cap
+    // ---------------------------------------------------------------- the deferred expansion
 
-    /// <summary>Ten expansions can be bought, and the eleventh is a defect rather than a no-op.</summary>
+    /// <summary>
+    /// 🔒 <b>No expansion can be bought at all</b>, and the refusal names the flat ceiling rather
+    /// than a purchase cap.
+    /// </summary>
     /// <remarks>
-    /// A throw rather than a <c>false</c>, and deliberately unlike <see cref="An_unknown_id_cannot_be_locked"/>:
-    /// the handler checks the cap before it charges anybody, so reaching this method past the cap is
-    /// a miswired caller rather than a player asking for something they cannot have.
+    /// <para>
+    /// This case used to be two: "the eleventh expansion is refused" and "capacity grows by the
+    /// authored step with each purchase" (120, 140, … 320). The M4 retro of 2026-08-17 ruled capacity
+    /// flat and authored no <c>EXPAND_INVENTORY</c> command, so the <b>first</b> purchase is refused
+    /// and the growth is gone. The seam survives as a member that exists to throw, on
+    /// <c>InventoryTuning.RequireOverflowCapacity</c>'s precedent — deleting it would take the
+    /// deferral out of the code and leave it only in a comment.
+    /// </para>
+    /// <para>
+    /// A throw rather than a <c>false</c>, and deliberately unlike
+    /// <see cref="An_unknown_id_cannot_be_locked"/>: no command carries this request, so a caller
+    /// reaching it is miswired rather than a player asking for something they cannot have.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_eleventh_expansion_is_refused()
+    public void No_expansion_can_be_bought_and_capacity_does_not_move()
     {
         var inventory = Inventories.Empty();
+        var before = inventory.CapacityWith(Inventories.Tuning);
 
-        for (var purchase = 0; purchase < 10; purchase++)
-        {
-            inventory.PurchaseExpansion(Inventories.Tuning);
-        }
+        var refusal = Should.Throw<InvalidOperationException>(
+            () => Inventory.PurchaseExpansion(Inventories.Tuning));
 
-        inventory.ExpansionsPurchased.ShouldBe(10);
-        inventory.CapacityWith(Inventories.Tuning).ShouldBe(320);
+        refusal.Message.ShouldContain(
+            "flat",
+            Case.Sensitive,
+            "the refusal has to say WHY — a flat ceiling — rather than read as a purchase cap the " +
+            "player could still be under. A caller told 'all 10 expansions have been bought' would " +
+            "conclude the ladder works and this account has finished it.");
 
-        Should.Throw<InvalidOperationException>(
-            () => inventory.PurchaseExpansion(Inventories.Tuning));
-
-        inventory.ExpansionsPurchased.ShouldBe(10, "…and the refusal did not half-apply");
+        inventory.ExpansionsPurchased.ShouldBe(0, "…and the refusal did not half-apply.");
+        inventory.CapacityWith(Inventories.Tuning).ShouldBe(
+            before, "capacity is flat: nothing here can move it.");
     }
 
-    /// <summary>Capacity grows by the authored step with each purchase.</summary>
+    /// <summary>
+    /// 🔒 A row that <em>records</em> purchases still loads, and still gets the flat capacity.
+    /// </summary>
+    /// <remarks>
+    /// The other half, and the one a value assertion can see: the counter is persisted for the day
+    /// the owner deals with the limit, so it must not be read as capacity in the meantime. Ten
+    /// purchases of the authored +20 step would have paid for 1200 slots under the old arithmetic —
+    /// a number the flat ceiling refuses to hand over.
+    /// </remarks>
     [Fact]
-    public void Capacity_grows_by_the_authored_step_with_each_purchase()
+    public void A_recorded_purchase_count_buys_nothing()
     {
-        var inventory = Inventories.Empty();
-        var capacities = new List<int> { inventory.CapacityWith(Inventories.Tuning) };
+        var bought = Inventories.Rehydrated(
+            new InventorySnapshot(Inventories.Tuning.MaxPurchases, [], []));
 
-        for (var purchase = 0; purchase < 10; purchase++)
-        {
-            inventory.PurchaseExpansion(Inventories.Tuning);
-            capacities.Add(inventory.CapacityWith(Inventories.Tuning));
-        }
+        bought.ExpansionsPurchased.ShouldBe(
+            Inventories.Tuning.MaxPurchases, "the premise: the row really does record purchases.");
 
-        capacities.ShouldBe(new[] { 120, 140, 160, 180, 200, 220, 240, 260, 280, 300, 320 });
+        bought.CapacityWith(Inventories.Tuning).ShouldBe(
+            Inventories.Empty().CapacityWith(Inventories.Tuning),
+            "a player whose row records every purchase the deferred ladder prices holds exactly what " +
+            "a brand-new player holds. If this ever differs, capacity has started reading the count " +
+            "again and the flat ruling is gone.");
     }
 
     /// <summary>An inventory at capacity, built by placing exactly as many items as fit.</summary>

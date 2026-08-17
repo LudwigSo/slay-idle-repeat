@@ -14,7 +14,7 @@ namespace SlayIdleRepeat.Core.Tests;
 /// </summary>
 public sealed class CommandSeedPinTests
 {
-    /// <summary>Not one of the nine, and deliberately not one of the forty-nine either.</summary>
+    /// <summary>Not one of the nine, and deliberately not one of the fifty-two either.</summary>
     private const string DrawsNothing = "A_COMMAND_THAT_DRAWS_NOTHING";
 
     private const ulong AnySeed = 0x0123456789ABCDEFUL;
@@ -225,15 +225,22 @@ public sealed class CommandSeedPinTests
     {
         var metaCommands = WireNamesOfKind(CommandKind.Meta);
 
-        metaCommands.Count.ShouldBe(30, "14 §2.3's meta table has 30 rows.");
+        metaCommands.Count.ShouldBe(
+            33,
+            "14 §2.3's meta table has 33 rows since the M4 retro ruling of 2026-08-17 added UNEQUIP, " +
+            "LOCK_ITEM and SET_AUTO_SALVAGE_RULES. None of the three draws, so the ⚄ count is " +
+            "unchanged and all three land in the sweep below.");
 
         var quiet = metaCommands
             .Where(name => !CommandSeedPin.SeedBearingMetaCommands.Contains(name))
             .ToArray();
 
         quiet.Length.ShouldBe(
-            19,
-            "30 meta rows minus the 11 marked ⚄. If this is 30 the eleven have stopped naming " +
+            22,
+            "33 meta rows minus the 11 marked ⚄. The M4 retro ruling of 2026-08-17 added three rows " +
+            "and marked none of them: UNEQUIP writes a slot, LOCK_ITEM writes a flag and " +
+            "SET_AUTO_SALVAGE_RULES writes configuration, and not one of the three draws. If this " +
+            "is 33 the eleven have stopped naming " +
             "registered commands; if it is 0 the whole meta half has been declared seed-bearing — and " +
             "either way the sweep below would be quantifying over the wrong set rather than failing.");
 
@@ -270,7 +277,7 @@ public sealed class CommandSeedPinTests
         var meta = WireNamesOfKind(CommandKind.Meta);
 
         run.Count.ShouldBe(19);
-        meta.Count.ShouldBe(30);
+        meta.Count.ShouldBe(33);
         (run.Count + meta.Count).ShouldBe(
             SlayIdleRepeat.Core.GameRules.CommandTypesByWireName.Count,
             "every registered row is one kind or the other — CommandKind has no third member and no zero.");
@@ -327,8 +334,8 @@ public sealed class CommandSeedPinTests
             .ToHashSet(StringComparer.Ordinal);
 
         declared.Count.ShouldBe(
-            49,
-            "14 §2.3's registry is 19 run + 30 meta, and every one of them is declared under " +
+            52,
+            "14 §2.3's registry is 19 run + 33 meta, and every one of them is declared under " +
             $"{CommandSeedPin.CommandsNamespace} and registered on a dispatch row. If this is 0 the " +
             "selector has gone quiet — the vacuity this rule used to have on purpose, and must never " +
             "have again — and if it is anything else, a command has lost its declaration or its row.");

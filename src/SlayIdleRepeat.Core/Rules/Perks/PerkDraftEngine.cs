@@ -25,6 +25,49 @@ namespace SlayIdleRepeat.Core.Rules.Perks;
 internal readonly record struct DraftOption(
     string PerkId, PerkRarity Rarity, PerkCategory Category, bool IsUpgrade, int NewTier);
 
+/// <summary>Everything one draft is drawn against, beyond the stream it draws from.</summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>A parameter object at the boundary, not inside it.</b> <c>PerkDraftEngine.GenerateOptions</c>
+/// took nine positional parameters, six of which it immediately bundled into a private struct as its
+/// first statement — so the shape this type describes already existed and only the <em>call sites</em>
+/// were paying for its absence. Four of the nine (<c>tuning</c>, <c>forces</c>,
+/// <c>everDraftedPerkIds</c>, <c>owned</c>) are reference types and three
+/// (<c>stage</c>, <c>isElite</c>, <c>isBoss</c>) were adjacent same-typed flags, which is the
+/// argument-transposition hazard a positional list cannot state away.
+/// </para>
+/// <para>
+/// <see cref="PerkDraftEngine"/>'s draftable pool is the <b>only</b> member still derived inside the
+/// engine, because it is a function of two members of this type and of nothing a caller knows better.
+/// The rarity table is <em>not</em>: it is a function of the battle the draft follows, which is the
+/// caller's fact, and deriving it here would have re-stated <c>DraftRarityWeights</c>' three-way
+/// branch in a second place.
+/// </para>
+/// </remarks>
+/// <param name="Catalogue">The authored perks.</param>
+/// <param name="Owned">The run's currently-owned perks and their tiers.</param>
+/// <param name="Tuning">The pity registry, for the weights and the cap the draft draws under.</param>
+/// <param name="Weights">
+/// The rarity table this battle's draft draws bands from — <c>DraftRarityWeights.For</c>'s answer for
+/// the stage and battle kind the draft follows.
+/// </param>
+/// <param name="Forces">
+/// The slots the <c>DRAFT</c> guarantees have floored, as the luck façade answered them. The draft
+/// composes against these; it never restates any of them.
+/// </param>
+/// <param name="EverDrafted">
+/// Perk ids known to have been drafted before — the Codex bias's input. ⚠️ Incomplete today: no
+/// player-lifetime Codex exists (<b>M4-11</b> owns it), so the only set available is the run's own, a
+/// genuine subset. The rule is exact against whatever this carries.
+/// </param>
+internal readonly record struct DraftRequest(
+    PerkCatalogue Catalogue,
+    DraftedPerks Owned,
+    LuckTuning Tuning,
+    IReadOnlyList<(PerkRarity Rarity, double Weight)> Weights,
+    IReadOnlyList<DraftForce> Forces,
+    IReadOnlySet<string> EverDrafted);
+
 /// <summary>
 /// Draws one 3-option perk draft.
 /// </summary>
@@ -57,53 +100,39 @@ internal static class PerkDraftEngine
     private const double UnbiasedWeight = 1.0;
 
     /// <summary>Draws <see cref="OptionCount"/> options from <paramref name="rng"/>.</summary>
-    /// <param name="catalogue">The authored perks.</param>
-    /// <param name="owned">The run's currently-owned perks and their tiers.</param>
+    /// <param name="request">Everything the draft draws against — see <see cref="DraftRequest"/>.</param>
     /// <param name="rng">The run's draft RNG stream, continued — never restarted.</param>
-    /// <param name="stage">1, 2 or 3, ignored when <paramref name="isBoss"/> is true.</param>
-    /// <param name="isElite">Whether the just-won battle was an Elite tile.</param>
-    /// <param name="isBoss">Whether the just-won battle was the Boss tile.</param>
-    /// <exception cref="ArgumentNullException">Any reference argument is null.</exception>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="rng"/> is null, or a reference member of <paramref name="request"/> is.
+    /// </exception>
     /// <exception cref="InvalidOperationException">
     /// Every perk in the catalogue is already owned at its max tier, so there is nothing left to
     /// offer — see this type's remarks for why that cannot happen against the full catalogue.
     /// Refused before anything is drawn, so the stream is left where it stood.
     /// </exception>
-    /// <param name="tuning">The pity registry, for the weights and the cap the draft draws under.</param>
-    /// <param name="forces">
-    /// The slots the <c>DRAFT</c> guarantees have floored, as the luck façade answered them. The
-    /// draft composes against these; it never restates any of them.
-    /// </param>
-    /// <param name="everDraftedPerkIds">
-    /// Perk ids known to have been drafted before — the Codex bias's input. ⚠️ Incomplete today: no
-    /// player-lifetime Codex exists (<b>M4-11</b> owns it), so the only set available is the run's
-    /// own, a genuine subset. The rule is exact against whatever this carries.
-    /// </param>
+    /// <remarks>
+    /// The members of <paramref name="request"/> are null-guarded here rather than in the request's
+    /// own constructor: it is a <c>record struct</c>, so <c>default(DraftRequest)</c> is reachable
+    /// without running any constructor at all and a guard there would be one a caller can step past.
+    /// </remarks>
     internal static IReadOnlyList<DraftOption> GenerateOptions(
-        PerkCatalogue catalogue,
-        DraftedPerks owned,
-        DeterministicRng rng,
-        LuckTuning tuning,
-        IReadOnlyList<DraftForce> forces,
-        IReadOnlySet<string> everDraftedPerkIds,
-        int stage,
-        bool isElite,
-        bool isBoss)
+        DraftRequest request, DeterministicRng rng)
     {
-        ArgumentNullException.ThrowIfNull(catalogue);
-        ArgumentNullException.ThrowIfNull(owned);
+        ArgumentNullException.ThrowIfNull(request.Catalogue);
+        ArgumentNullException.ThrowIfNull(request.Owned);
         ArgumentNullException.ThrowIfNull(rng);
-        ArgumentNullException.ThrowIfNull(tuning);
-        ArgumentNullException.ThrowIfNull(forces);
-        ArgumentNullException.ThrowIfNull(everDraftedPerkIds);
+        ArgumentNullException.ThrowIfNull(request.Tuning);
+        ArgumentNullException.ThrowIfNull(request.Weights);
+        ArgumentNullException.ThrowIfNull(request.Forces);
+        ArgumentNullException.ThrowIfNull(request.EverDrafted);
 
         var draft = new DraftDraw(
-            Draftable(catalogue, owned),
-            owned,
-            tuning,
-            DraftRarityWeights.For(stage, isElite, isBoss),
-            forces,
-            everDraftedPerkIds);
+            Draftable(request.Catalogue, request.Owned),
+            request.Owned,
+            request.Tuning,
+            request.Weights,
+            request.Forces,
+            request.EverDrafted);
 
         if (draft.Draftable.Count == 0)
         {
@@ -118,7 +147,7 @@ internal static class PerkDraftEngine
         // How many of this draft's options the Codex bias is still allowed to select. Without the
         // cap a fresh account, whose whole catalogue is never-drafted, would see the bias on every
         // option and the rarity table would stop meaning anything.
-        var codexBudget = LuckService.MaxCodexBiasedOptions(tuning);
+        var codexBudget = LuckService.MaxCodexBiasedOptions(request.Tuning);
 
         var options = new DraftOption[OptionCount];
         var chosenIds = new List<string>(OptionCount);
@@ -135,7 +164,7 @@ internal static class PerkDraftEngine
             // An option the bias could have reached spends a unit of the cap. Which of the two pools
             // it came out of is not observable after the pick, so the budget is spent on the
             // observable half — a never-drafted perk offered while the bias was still live.
-            if (codexBudget > 0 && !everDraftedPerkIds.Contains(option.PerkId))
+            if (codexBudget > 0 && !request.EverDrafted.Contains(option.PerkId))
             {
                 codexBudget--;
             }

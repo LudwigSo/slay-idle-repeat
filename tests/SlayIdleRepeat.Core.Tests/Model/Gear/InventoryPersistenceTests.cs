@@ -134,35 +134,37 @@ public sealed class InventoryPersistenceTests
 
     /// <summary>The purchase count is persisted, and moving it moves the bytes.</summary>
     /// <remarks>
-    /// Without this the field would be state nothing reads back — the shape a player notices only
-    /// when their bought slots are gone after a reload.
+    /// Without this the field would be state nothing reads back. ⚠️ It no longer buys anything —
+    /// capacity is flat as of the 2026-08-17 ruling and nothing writes this column — but it is still
+    /// carried, because the ladder is deferred rather than deleted and this is the counter it moves
+    /// the day the owner deals with the limit. That it buys nothing is
+    /// <c>InventoryTests.A_recorded_purchase_count_buys_nothing</c>'s claim; this one is only that
+    /// the column survives.
     /// </remarks>
     [Fact]
     public void The_purchase_count_survives_the_round_trip()
     {
-        var bought = Inventories.Empty();
-        bought.PurchaseExpansion(Inventories.Tuning);
-        bought.PurchaseExpansion(Inventories.Tuning);
+        var bought = Inventories.Rehydrated(new InventorySnapshot(2, [], []));
 
         var rehydrated = Inventories.Rehydrated(bought.ToSnapshot());
 
         rehydrated.ExpansionsPurchased.ShouldBe(2);
-        rehydrated.CapacityWith(Inventories.Tuning).ShouldBe(160);
 
         Bytes(bought.ToSnapshot()).ShouldNotBe(Bytes(Inventories.Empty().ToSnapshot()));
     }
 
-    /// <summary>A row whose stored list is longer than the capacity it claims is refused.</summary>
+    /// <summary>A row whose stored list is longer than the flat ceiling is refused.</summary>
     /// <remarks>
-    /// The stock cannot exceed what the purchases paid for — a row that did is a save written by a
-    /// build with different tuning, and reading it would hand a player slots nobody bought.
+    /// The stock cannot exceed the ceiling — a row that does is a save written by a build with
+    /// different tuning, and reading it would hand a player slots the game says do not exist. One
+    /// item over, so the bound is the ceiling itself rather than "roughly that many".
     /// </remarks>
     [Fact]
-    public void A_row_holding_more_than_it_bought_is_refused()
+    public void A_row_holding_more_than_the_ceiling_is_refused()
     {
         var overfull = new InventorySnapshot(
             0,
-            Inventories.Fill(121).Select(Snapshot).ToArray(),
+            Inventories.Fill(Inventories.Tuning.MaxCapacity + 1).Select(Snapshot).ToArray(),
             []);
 
         var result = Inventory.Rehydrate(overfull, Inventories.Tuning);
@@ -177,16 +179,16 @@ public sealed class InventoryPersistenceTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The Energy ceiling's rule, on the other tunable this aggregate carries: capacity is bought
-    /// with an authored ladder, a balance patch that shortened that ladder leaves real players above
+    /// The Energy ceiling's rule, on the other tunable this aggregate carries: the count is a
+    /// tunable's worth of history, a balance patch that shortened the ladder leaves real rows above
     /// the new cap, and refusing to load them would turn a data edit into an account outage.
     /// </para>
     /// <para>
-    /// "Still loads" is only half of it, and the weaker half. Every capacity read on this type goes
-    /// through <c>InventoryTuning.CapacityAt</c>, which <em>throws</em> outside <c>0..MaxPurchases</c>
-    /// — so a row that loaded and then threw on the first grant would be an outage moved rather than
-    /// avoided, and a load-only assertion would report it as fixed. Hence the grant, the lock and the
-    /// removal below.
+    /// "Still loads" is only half of it, and the weaker half. A capacity read that derived anything
+    /// from this count could still <em>throw</em> on the first grant — which is exactly what happened
+    /// before the 2026-08-17 ruling, when every read went through a <c>CapacityAt</c> that refused an
+    /// argument outside <c>0..MaxPurchases</c> — and a load-only assertion would report that outage
+    /// as fixed. Hence the grant, the lock and the removal below.
     /// </para>
     /// </remarks>
     [Fact]
@@ -203,7 +205,8 @@ public sealed class InventoryPersistenceTests
             "player's state on the way in, invisibly.");
 
         loaded.Value.CapacityWith(Inventories.Tuning).ShouldBe(
-            320, "the capacity is the ceiling the ladder reaches, not an exception.");
+            Inventories.Tuning.MaxCapacity,
+            "the capacity is the flat ceiling, not an exception and not something the count moved.");
 
         loaded.Value.Place(Inventories.Item("gi_0001"), Inventories.Tuning)
             .ShouldBe(InventoryPlacement.STORED);
@@ -240,11 +243,14 @@ public sealed class InventoryPersistenceTests
     }
 
     /// <summary>An inventory holding a stored item, a locked item, an affixed item and two held items.</summary>
+    /// <remarks>
+    /// The purchase count is written into the row rather than bought, because nothing buys an
+    /// expansion since the 2026-08-17 ruling. It is still on the row on purpose: the byte comparison
+    /// above is only about a column that carries a value.
+    /// </remarks>
     private static Inventory Stocked()
     {
-        var inventory = Inventories.Empty();
-
-        inventory.PurchaseExpansion(Inventories.Tuning);
+        var inventory = Inventories.Rehydrated(new InventorySnapshot(1, [], []));
 
         foreach (var item in Inventories.Fill(inventory.CapacityWith(Inventories.Tuning) - 1))
         {

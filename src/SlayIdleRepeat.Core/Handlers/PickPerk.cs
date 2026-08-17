@@ -136,18 +136,17 @@ internal static class PickPerk
             PerkDraftEngine.OptionCount);
 
         return PerkDraftEngine.GenerateOptions(
-            catalogue,
-            owned,
-            rng,
-            tuning,
-            forces,
-            // ⚠️ The run's own drafted perks, which is a genuine SUBSET of "ever drafted": no
-            // player-lifetime Codex exists yet and M4-11 owns building one. The rule is exact
-            // against whatever set it is handed; the set is the incomplete half.
-            owned.Tiers.Keys.ToHashSet(StringComparer.Ordinal),
-            run.DraftBattleStage,
-            isElite,
-            isBoss);
+            new DraftRequest(
+                catalogue,
+                owned,
+                tuning,
+                DraftRarityWeights.For(run.DraftBattleStage, isElite, isBoss),
+                forces,
+                // ⚠️ The run's own drafted perks, which is a genuine SUBSET of "ever drafted": no
+                // player-lifetime Codex exists yet and M4-11 owns building one. The rule is exact
+                // against whatever set it is handed; the set is the incomplete half.
+                owned.Tiers.Keys.ToHashSet(StringComparer.Ordinal)),
+            rng);
     }
 
     /// <summary>What the run owns and where it stands, as the <c>DRAFT</c> guarantees read it.</summary>

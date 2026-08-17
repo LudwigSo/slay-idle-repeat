@@ -123,7 +123,7 @@ public sealed class LuckTuningDraftTests
 
         chestPick.ChestCount.ShouldBe(LuckDocuments.ShippedMinigameChestCount);
         chestPick.GoldTierChests.ShouldBe(LuckDocuments.ShippedMinigameGoldTierChests);
-        chestPick.GuaranteeAfterConsecutiveMisses.ShouldBe(LuckDocuments.ShippedMinigameChestPickN);
+        chestPick.GuaranteeOnNthPick.ShouldBe(LuckDocuments.ShippedMinigameChestPickN);
     }
 
     /// <summary>A guarantee of zero picks is refused rather than defaulted.</summary>
@@ -132,6 +132,6 @@ public sealed class LuckTuningDraftTests
     {
         Should.Throw<InvalidTunableException>(() =>
             LuckTuning.Read(LuckDocuments.LuckOnly(
-                minigameGuaranteeAfterConsecutiveMisses: ContentValue.Number(0))));
+                minigameGuaranteeOnNthPick: ContentValue.Number(0))));
     }
 }

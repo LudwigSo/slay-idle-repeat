@@ -25,6 +25,16 @@ namespace SlayIdleRepeat.Core.Rules.Forge;
 /// stock and the same filter always produce the same list, and a payout summed over it is the same
 /// number every time.
 /// </para>
+/// <para>
+/// ⚠️ <b>Half-reachable, and worth saying plainly.</b> Until the M4 retro ruling of 2026-08-17
+/// <c>Player.AutoSalvageRules</c> had no writer at all, so nothing a player could send could put a
+/// row in front of this rule. <c>SET_AUTO_SALVAGE_RULES</c> is that writer, and the rows it stores
+/// are driven through <see cref="Select"/> by <c>SetAutoSalvageRulesTests</c>. 🔴 <b>What is still
+/// missing is the caller</b>: no run-end payout consults this filter, so <see cref="Select"/> has no
+/// production caller even now. Applying the sweep at run end was deliberately out of that ruling's
+/// scope, and the forge screen that edits the rows is M9-01's. Adding a caller here to make the
+/// number look better would be wiring a feature nobody has ruled on.
+/// </para>
 /// </remarks>
 internal static class AutoSalvageFilter
 {

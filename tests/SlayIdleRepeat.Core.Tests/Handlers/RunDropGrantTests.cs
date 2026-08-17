@@ -181,7 +181,7 @@ public sealed class RunDropGrantTests
     [Fact]
     public void A_drop_arriving_at_a_full_stock_is_held_rather_than_refused_or_destroyed()
     {
-        var capacity = GearGrantWorlds.Stock.CapacityAt(0);
+        var capacity = GearGrantWorlds.Stock.MaxCapacity;
         var world = GearGrantWorlds.OnKill(TileKind.Elite, inventory: GearGrantWorlds.FullStock());
 
         world.Player.Inventory.Stored.Count.ShouldBe(

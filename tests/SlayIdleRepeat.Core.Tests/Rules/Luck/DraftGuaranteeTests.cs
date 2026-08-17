@@ -159,6 +159,41 @@ public sealed class DraftGuaranteeTests
             .ShouldNotContain(DraftGuarantee.SustainAntiBrick);
     }
 
+    /// <summary>
+    /// 🔒 An anti-brick the document switches <b>off</b> never fires, however loudly the run asks
+    /// for it.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b><c>DraftGuarantees.AntiBrickDue</c> opens with <c>rule.Enabled &amp;&amp;</c> and nothing
+    /// exercised that conjunct false.</b> The fixture hard-coded <c>enabled: true</c> with no
+    /// override, so the whole term could be deleted and every case in this file stayed green — and
+    /// the switch a designer reaches for to turn a guarantee off would have done nothing. The demand
+    /// here is exactly the one <see cref="The_anti_brick_fires_past_Stage_2_and_forces_the_Sustain_category"/>
+    /// drives, so the ONLY difference between firing and not is the authored flag.
+    /// </remarks>
+    [Fact]
+    public void An_anti_brick_the_document_disables_never_fires()
+    {
+        var disabled = LuckTuning.Read(LuckDocuments.LuckOnly(
+            draftSustainAntiBrickEnabled: ContentValue.False));
+
+        disabled.Draft.SustainAntiBrick.Enabled.ShouldBeFalse("the fixture's premise");
+
+        var demand = new DraftDemand(
+            Stage: 3, IsBoss: false, OwnsSustainPerk: false, OwnsNonMaxedPerk: true);
+
+        DraftGuarantees.AntiBrickDue(disabled.Draft.SustainAntiBrick, demand).ShouldBeFalse(
+            "the block is switched off, so the anti-brick is not due — the predicate's first " +
+            "conjunct is the whole claim.");
+
+        LuckService.ResolveDraft(disabled, DraftCounters.Unstarted, demand, optionCount: 3)
+            .Select(force => force.Guarantee)
+            .ShouldNotContain(
+                DraftGuarantee.SustainAntiBrick,
+                "…and the façade forces nothing either. This demand is the one the firing case above " +
+                "drives, so the authored flag is the only difference between the two.");
+    }
+
     /// <summary>The state predicate on its own, so the anti-brick's two inputs are separately pinned.</summary>
     [Theory]
     [InlineData(1, false, false, false)]

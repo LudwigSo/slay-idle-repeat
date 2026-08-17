@@ -198,13 +198,19 @@ StoneRefund = 60% of stones invested
 
 | Property | Value |
 |---|---|
-| Base capacity | 120 items 📐 |
-| Expansion | +20 per expansion, up to **320**, purchased with **Crowns** (earned currency only) 📐 |
+| Base capacity | **1000 items** 📐 — flat, and the whole capacity |
+| Expansion | ⛄ **Deferred.** `10` §4's +20-per-purchase Crown ladder (10 purchases) and `10` §2's flat 400-Soul-Shard alternative stay authored and **unspent**: no command buys one 📐 |
 | Sorting | By slot, rarity, power, quality, newest |
 | Comparison | Tapping an item always shows a side-by-side delta vs the currently equipped item in that slot, with green/red arrows per stat |
 | Lock | Items can be locked to exclude them from auto-salvage and merge selection |
 
-🔒 **The 320 ceiling is `10` §4's, and this row used to disagree with it.** The expansion prices, the hard cap of **10 purchases** and the flat 400-Soul-Shard alternative are all authored in **`10` §4** (the Crown ladder, ruled in `16` A7) and **`10` §2**; this table only restates the capacity they reach. `120 + 10 × 20 = 320`, so the ceiling is not an independent number — an earlier revision of this row read *"up to 400"*, which no ladder of +20 steps capped at 10 purchases can reach, and that figure is a transcription slip from `10` §2's 400-**Soul-Shard** price. Change the ladder in `10` §4 and this row follows; never the reverse.
+🔒 **ERRATA — the M4 retro's product-owner ruling of 2026-08-17 supersedes the 320 derivation.** Capacity is a **flat 1000** and there is no purchasable expansion: *"I don't see a reason to increase the inventory size. It should be virtually unlimited, cap it by default at 1000 for now and I will potentially deal with the limit itself later."* The same ruling implemented `UNEQUIP`, `LOCK_ITEM` and `SET_AUTO_SALVAGE_RULES` and **explicitly did not add `EXPAND_INVENTORY`** to `14` §2.3's vocabulary, so nothing can move the ceiling.
+
+This retires **M4 kickoff decision 4** (capacity 320 = base 120 + 10 × 20), which was `[auto-accepted]` — a conductor call, never the owner's — and with it the derivation this row used to carry: *"the 320 ceiling is `10` §4's; `120 + 10 × 20 = 320`, so the ceiling is not an independent number."* The ceiling **is** an independent number now, authored once at `data/tuning/forge.json#/inventory/maxCapacity` and equal to `baseCapacity`.
+
+⛄ **`10` §4's Crown ladder and `10` §2's flat 400-Soul-Shard alternative are deferred, not deleted.** Both stay authored, priced and unspendable, because the owner said they will *"potentially deal with the limit itself later"*. `Core.Content.InventoryTuning` enforces exactly that state and is what goes red if it changes: it refuses a document set where the ladder's reach (`baseCapacity + inventoryExpansionMaxPurchases × inventoryExpansionSlotsPerPurchase`) is **not strictly above** the ceiling — the pre-ruling numbers met it exactly — or where the ceiling is not the base.
+
+📎 The earlier slip this paragraph used to record is still worth keeping: a revision of this row once read *"up to 400"*, which no ladder of +20 steps capped at 10 purchases could reach, and that figure was a transcription of `10` §2's 400-**Soul-Shard** price rather than a capacity at all.
 
 **Never** sell inventory space for money.
 

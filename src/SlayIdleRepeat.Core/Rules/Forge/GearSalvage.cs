@@ -21,6 +21,26 @@ namespace SlayIdleRepeat.Core.Rules.Forge;
 /// very slow source. The choice is recorded here because it is a choice.
 /// </para>
 /// <para>
+/// 🔴 <b>And it is the ONLY whole-currency payout in the game that floors — recorded because "this
+/// is unauthored" and "this is the outlier" are two different facts, and the paragraph above only
+/// stated the first.</b> Every other real-to-whole currency conversion in <c>Core</c> rounds to
+/// nearest: <c>ChapterScalarTuning</c>, <c>MinigameRewardTuning</c>, <c>RunXpTuning</c> and
+/// <c>Rules.Economy.RunRewardMath</c> all take <c>MidpointRounding.AwayFromZero</c>, and
+/// <c>Rules.Economy.ShopPricing</c> takes <c>ToEven</c> in <c>decimal</c>. Nothing in the design set
+/// authors any of the six directions, so this is not a divergence from a stated rule — it is six
+/// independent unauthored choices, of which this one went the other way.
+/// </para>
+/// <para>
+/// <b>The reasoning that makes the divergence deliberate is sink-versus-source, and it does not
+/// generalise.</b> The five that round to nearest are <em>sources</em>: they convert an authored
+/// reward into a payout, and a half-unit either way is a rounding error in the player's favour half
+/// the time. Salvage is the return leg of a <em>sink</em> — it hands back part of what the player
+/// already spent — so rounding it up pays out material that was never paid in, and at some levels
+/// the stone refund would exceed the stone cost outright. Rounding up a reward is generous;
+/// rounding up a refund is a leak. If a later task unifies the six, this is the one that must not be
+/// unified <em>towards</em> the others without a ruling on the refund ladder first.
+/// </para>
+/// <para>
 /// 🔒 <b>The product is put through the determinism rounding before the floor, and the flooring
 /// alone is wrong without it.</b> A share authored at two decimal places is not exact in binary, so
 /// a product whose real value is a whole number can land a fraction of an ulp below it: at the

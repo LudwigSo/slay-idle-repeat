@@ -13,7 +13,7 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// </para>
 /// <para>
 /// ⚠️ <b>A preset is a wish, not a claim of ownership.</b> Unlike the live loadout, it is deliberately
-/// not validated against the player's stock: `12` §66 keeps presets beyond the free allowance
+/// not validated against the player's stock: `12` §2.2 keeps presets beyond the free allowance
 /// readable rather than deleting them, and an item can be salvaged or merged long after a preset
 /// named it. Applying a preset therefore restores what the player still owns and silently leaves the
 /// rest — refusing the whole preset because one ring is gone would be the worse answer, and deleting

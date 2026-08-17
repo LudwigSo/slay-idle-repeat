@@ -187,7 +187,10 @@ public sealed class MinigameChestPickPityTests
 
     // ------------------------------------------------------------------ the guarantee
 
-    /// <summary>Four consecutive chest picks in one player's life produce a gold tier.</summary>
+    /// <summary>
+    /// A pick standing on the last miss of the streak is <b>forced</b> onto the gold tier, where the
+    /// identical pick with a cold counter is not.
+    /// </summary>
     /// <remarks>
     /// <para>
     /// Driven end to end rather than against the resolver, because the claim is about what the
@@ -195,25 +198,41 @@ public sealed class MinigameChestPickPityTests
     /// persists guarantees nothing at all.
     /// </para>
     /// <para>
-    /// 🔒 On <see cref="MissingSeed"/>, whose natural draw is <b>not</b> gold. That is what makes
-    /// the gold below attributable to the guarantee: on a seed that rolls gold anyway, this case
-    /// observes the same outcome whether the guarantee fired or was never wired at all.
+    /// 🔴 <b>The "this seed does not roll gold naturally" premise is now established IN the case,
+    /// and the name no longer overstates the body.</b> This asserted only the gold outcome and the
+    /// counter reset — both of which a <em>natural</em> gold satisfies — so nothing said the
+    /// guarantee had fired rather than the draw (steering S2), and it was called "four consecutive
+    /// picks" while making one. The cold-counter submission below is the same seed at the same
+    /// position drawing the same index, so the counter is the <em>only</em> difference between the
+    /// two halves and the gold in the second is attributable to nothing else.
     /// </para>
     /// </remarks>
     [Fact]
-    public void Four_consecutive_picks_produce_a_gold_tier()
+    public void The_pick_that_completes_the_streak_is_forced_onto_the_gold_tier()
     {
-        var after = Submit(
+        var natural = Submit(AtTile(5, 0), MinigameCatalogue.ChestPick);
+
+        natural.Player.BalanceOf(CurrencyId.BEAST_FEED).ShouldBe(
+            0L,
+            "the premise, and the whole discriminating power of this case: on MissingSeed the pick " +
+            "MISSES the gold tier, and the gold row is the only chest-pick outcome that pays Beast " +
+            "Feed. If this seed ever starts rolling gold, the answer is a new seed picked the same " +
+            "way — never a relaxed assertion below, which would leave the guarantee unpinned again.");
+
+        natural.Player.PityCounters.Get(CounterKey).ShouldBe(
+            1, "…and a miss advances the counter rather than satisfying it.");
+
+        var forced = Submit(
             AtTile(5, LuckDocuments.ShippedMinigameChestPickN - 1), MinigameCatalogue.ChestPick);
 
-        after.Player.BalanceOf(CurrencyId.BEAST_FEED).ShouldBeGreaterThan(
+        forced.Player.BalanceOf(CurrencyId.BEAST_FEED).ShouldBeGreaterThan(
             0L,
-            "🔒 the TIER, not the counter movement that follows it. The gold row is the only " +
-            "chest-pick outcome that pays Beast Feed, so this is where the forced tier itself is " +
-            "pinned — a handler that reset the counter without forcing the tier satisfies the " +
-            "assertion below and guarantees the player nothing at all.");
+            "🔒 the TIER, not the counter movement that follows it. Same seed, same tile, same draw " +
+            "index as the miss above — only the counter differs, so this gold is 24 §4.9's guarantee " +
+            "and cannot be the draw. A handler that reset the counter without forcing the tier " +
+            "satisfies the assertion below and guarantees the player nothing at all.");
 
-        after.Player.PityCounters.Get(CounterKey).ShouldBe(
+        forced.Player.PityCounters.Get(CounterKey).ShouldBe(
             0,
             "the forced pick satisfies the guarantee, and satisfying a guarantee resets its counter.");
     }

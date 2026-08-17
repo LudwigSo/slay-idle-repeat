@@ -103,13 +103,19 @@ public sealed class InventoryComparisonTests
         var better = Inventories.Item("better", rarity: Rarity.S, quality: 0.5);
         var worse = Inventories.Item("worse", rarity: Rarity.B, quality: 0.5);
 
-        foreach (var delta in Compare(better, worn))
+        var gains = Compare(better, worn);
+        var losses = Compare(worse, worn);
+
+        gains.ShouldNotBeEmpty("the assertions below live inside a loop (steering S3)");
+        losses.ShouldNotBeEmpty("the assertions below live inside a loop (steering S3)");
+
+        foreach (var delta in gains)
         {
             delta.Delta.ShouldBeGreaterThan(0.0, $"{delta.Stat}: an S band beats an A band");
             delta.Equipped.ShouldBeGreaterThan(0.0, $"{delta.Stat}: something is worn");
         }
 
-        foreach (var delta in Compare(worse, worn))
+        foreach (var delta in losses)
         {
             delta.Delta.ShouldBeLessThan(0.0, $"{delta.Stat}: a B band loses to an A band");
         }
@@ -126,7 +132,12 @@ public sealed class InventoryComparisonTests
         var worn = Inventories.Item("worn", rarity: Rarity.A, quality: 0.5, chapterOrigin: 4);
         var same = Inventories.Item("same", rarity: Rarity.A, quality: 0.5, chapterOrigin: 4);
 
-        Compare(same, worn).ShouldAllBe(delta => delta.Delta == 0.0);
+        var deltas = Compare(same, worn);
+
+        deltas.ShouldNotBeEmpty(
+            "ShouldAllBe over an empty sequence is satisfied by a comparison that answers nothing " +
+            "(steering S3).");
+        deltas.ShouldAllBe(delta => delta.Delta == 0.0);
     }
 
     /// <summary>Every figure a comparison hands out is rounded to the assembly's determinism precision.</summary>
@@ -141,6 +152,8 @@ public sealed class InventoryComparisonTests
         var deltas = Compare(
             Inventories.Item("candidate", rarity: Rarity.S, quality: 0.3333, chapterOrigin: 7),
             Inventories.Item("worn", rarity: Rarity.A, quality: 0.6667, chapterOrigin: 3));
+
+        deltas.ShouldNotBeEmpty("the assertions below live inside a loop (steering S3)");
 
         foreach (var delta in deltas)
         {

@@ -223,14 +223,22 @@ internal static class DeclaredRules
         Mirrors("24 §6.2", "tuning/forge.json#/retune/lockCostMultiplier",
             "tuning/luck.json#/retune/lockCostMultiplier"),
 
-        // The inventory ladder and the capacity it reaches are one fact.
-        Derives("10 §4 (baseCapacity + maxPurchases x slotsPerPurchase)",
+        // 🔒 The M4 retro ruling of 2026-08-17: capacity is FLAT and 10 §4's ladder is DEFERRED.
+        // These two replace the old Derives rule (ceiling EQUALS baseCapacity + maxPurchases x
+        // slotsPerPurchase), which was M4 kickoff decision 4's derivation and is now superseded.
+        // The ladder must stay entirely out of reach — its reach STRICTLY ABOVE the ceiling, so not
+        // one rung of it is buyable — and the ceiling must be the base. The old equality is the
+        // exact state the first of the two refuses.
+        StaysBelow("08 §5 / 10 §4 (the deferred ladder's reach stays above the flat ceiling)",
             "tuning/forge.json#/inventory/maxCapacity",
             d => Number(d, "tuning/forge.json#/inventory/baseCapacity") is { } capacity &&
                  Number(d, "tuning/currencies.json#/crowns/inventoryExpansionMaxPurchases") is { } purchases &&
                  Number(d, "tuning/currencies.json#/crowns/inventoryExpansionSlotsPerPurchase") is { } slots
                 ? capacity + (purchases * slots)
                 : null),
+        Mirrors("08 §5 (capacity is flat: the ceiling IS the base)",
+            "tuning/forge.json#/inventory/maxCapacity",
+            "tuning/forge.json#/inventory/baseCapacity"),
         Mirrors("08 §5 / 10 §4 (one expansion step, authored twice)",
             "tuning/forge.json#/inventory/expansionStep",
             "tuning/currencies.json#/crowns/inventoryExpansionSlotsPerPurchase"),
@@ -1473,6 +1481,35 @@ internal static class DeclaredRules
                 issues.Add(new ContentIssue(
                     ContentIssueCode.OrphanedReference, reference,
                     $"{citation}: holds {actual.AsNumber()} but the values it is derived from give {target}."));
+            }
+        };
+
+    /// <summary>
+    /// A number the design docs say must stay <b>strictly below</b> an arithmetic combination of
+    /// others — a bound that is deliberately never met, unlike <see cref="Derives"/>'s equality.
+    /// </summary>
+    /// <remarks>
+    /// Written for the inventory ceiling and the deferred expansion ladder: the ladder's reach has to
+    /// stay out of reach, so "equals" is exactly the state that must be refused. An equality rule
+    /// cannot express that, and a rule that only checked "not equal" would pass a ceiling raised well
+    /// past the ladder.
+    /// </remarks>
+    private static Rule StaysBelow(
+        string citation, string reference, Func<IReadOnlyDictionary<string, ContentValue>, decimal?> bound) =>
+        (documents, issues) =>
+        {
+            var actual = Find(documents, reference);
+            if (actual is null || actual.IsUnauthorised || actual.Kind != ContentValueKind.Number)
+            {
+                return;
+            }
+
+            if (bound(documents) is { } target && actual.AsNumber() >= target)
+            {
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OrphanedReference, reference,
+                    $"{citation}: holds {actual.AsNumber()}, which is not below the {target} the " +
+                    "values it is bounded by give."));
             }
         };
 

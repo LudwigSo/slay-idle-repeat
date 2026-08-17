@@ -206,7 +206,7 @@ internal static class GearGrantWorlds
 
     /// <summary>A stock filled to the capacity an unexpanded inventory has, so the next grant overflows.</summary>
     internal static InventorySnapshot FullStock() =>
-        new(0, Inventories.Fill(Stock.CapacityAt(0)).Select(Inventories.Persist).ToArray(), []);
+        new(0, Inventories.Fill(Stock.MaxCapacity).Select(Inventories.Persist).ToArray(), []);
 
     /// <summary>
     /// The first <c>drops</c> position whose draw puts an ordinary kill on the side of

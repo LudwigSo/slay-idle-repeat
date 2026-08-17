@@ -18,11 +18,21 @@ namespace SlayIdleRepeat.Core.Tests;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Driven over a hand-built dispatch table rather than a real command, because <b>no shipped handler
-/// can break the pairing</b> — the destructive gear operations are M4-04's and the only seam this
-/// task exposes (<c>Player.DiscardItem</c>) does both halves together. The table seam exists for
+/// Driven over a hand-built dispatch table rather than a real command, so the invariant is pinned
+/// independently of whichever handlers happen to destroy an item today. The table seam exists for
 /// exactly this: <c>Execute</c> is internal <em>"so the domain test suite can drive it against
 /// shapes never committed to production"</em>.
+/// </para>
+/// <para>
+/// 🔴 <b>This file used to claim "no shipped handler can break the pairing", and that claim was
+/// false when it was written.</b> M4-04's <c>MERGE</c> and <c>SALVAGE</c> both destroyed items
+/// through <c>Inventory.Remove</c> without clearing the slot, leaving <c>Player.DiscardItem</c> with
+/// no production caller at all. Nothing caught it because <c>EQUIP</c> was deferred for the whole of
+/// M4, so no command could fill a slot and no fixture reached the state; M7-00d then wired
+/// <c>EQUIP</c> and made it reachable. Fixed in the M4 review. The real handler cases live beside
+/// their commands — <c>MergeTests.Merging_away_a_worn_input_takes_it_off_the_hero</c> and
+/// <c>SalvageTests.Salvaging_a_worn_item_takes_it_off_the_hero</c> — because a claim about what
+/// production handlers do belongs where those handlers are tested, not here.
 /// </para>
 /// <para>
 /// The claim is about WHEN the failure happens. <c>Player.Rehydrate</c> already refuses such a row on

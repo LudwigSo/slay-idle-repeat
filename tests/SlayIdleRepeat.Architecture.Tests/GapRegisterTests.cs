@@ -272,10 +272,13 @@ public sealed class GapRegisterTests
         // 🔒 M1-02. The floor under `14` §2.3's transcription, and it is the one in this file where
         // the number is itself contested: the table's own header says "Meta commands (29)" and this
         // repository used to say 48 commands. The M1 kickoff ruled both to be miscounts of a correct
-        // table, so 49 is a LITERAL here — taken from counting the document's rows, never from the
-        // transcription's own Count, which cannot notice itself being trimmed.
+        // table, so the number is a LITERAL here — taken from counting the document's rows, never
+        // from the transcription's own Count, which cannot notice itself being trimmed. It was 49
+        // until the M4 retro ruling of 2026-08-17 added UNEQUIP, LOCK_ITEM and
+        // SET_AUTO_SALVAGE_RULES, and the 30 meta rows it added them to were re-counted off the
+        // document line by line rather than carried forward from that contested header.
         //
-        // ⚠️ A count alone would be satisfied by 49 WRONG names, which is why it is not the only
+        // ⚠️ A count alone would be satisfied by 52 WRONG names, which is why it is not the only
         // guard: every name in that transcription must resolve to a real type under Core/Commands/
         // or Undeclared fires, and the wire names those types register under are pinned as a SET, in
         // both directions, by SlayIdleRepeat.Core.Tests.CommandVocabularyTests.
@@ -283,16 +286,16 @@ public sealed class GapRegisterTests
             s => s.Citation.StartsWith("14 §2.3", StringComparison.Ordinal));
 
         commandRegistry.Subjects.Count.ShouldBe(
-            49,
-            "14 §2.3's registry is 19 run commands plus 30 meta commands, and it is EXHAUSTIVE — 'a " +
+            52,
+            "14 §2.3's registry is 19 run commands plus 33 meta commands, and it is EXHAUSTIVE — 'a " +
             "command not listed here does not exist'. A transcription that shrank would stop asking " +
             "about the rows it dropped, and deleting a command type would then be silent.");
 
         commandRegistry.Namespace.ShouldBe(Domain.CommandsNamespace);
 
         commandRegistry.Subjects.Distinct(StringComparer.Ordinal).Count().ShouldBe(
-            49,
-            "a duplicated name would keep the count at 49 while one row went untranscribed.");
+            52,
+            "a duplicated name would keep the count at 52 while one row went untranscribed.");
 
         // 🔒 A shape check on the hand-written list, and it is load-bearing rather than tidy.
         // MEASURED: replacing "AbandonRunCommand" with "CommandPayload" passed 58/58 — the count
@@ -471,12 +474,13 @@ public sealed class GapRegisterTests
 
         // 🔴 TO THE INTEGRATOR — THESE NUMBERS MOVE ON EVERY BRANCH THAT WIRES A ROW. M4-04 landed
         // MERGE/ENHANCE/SALVAGE (27 deferred / 22 handled), M4-10 took two more with SAVE_PRESET
-        // and APPLY_PRESET (25 / 24), and M7-00d takes EQUIP — so the figures here are 24 DEFERRED
-        // and 25 HANDLED, and the handled identity list is M4-10's twenty-four plus that one name.
+        // and APPLY_PRESET (25 / 24), and M7-00d took EQUIP (24 / 25). The M4 retro ruling of
+        // 2026-08-17 then ADDED three already-handled rows, which is the first change here that
+        // moves the sum instead of the split: 24 DEFERRED and 28 HANDLED, summing to 52.
         // A sibling that wires another row moves both by one again; the SUM below is the invariant.
         owners.Length.ShouldBe(
             24,
-            "14 §2.3's registry is 19 run + 30 meta, and 24 of the 49 rows are Deferred since " +
+            "14 §2.3's registry is 19 run + 33 meta, and 24 of the 52 rows are Deferred since " +
             "M7-00d landed the EQUIP handler on top of M4-10's " +
             "SAVE_PRESET/APPLY_PRESET and M4-04's " +
             "MERGE/ENHANCE/SALVAGE (beside M3-13's " +
@@ -501,6 +505,7 @@ public sealed class GapRegisterTests
                 "MERGE", "ENHANCE", "SALVAGE",
                 "SAVE_PRESET", "APPLY_PRESET",
                 "EQUIP",
+                "UNEQUIP", "LOCK_ITEM", "SET_AUTO_SALVAGE_RULES",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
@@ -524,7 +529,13 @@ public sealed class GapRegisterTests
             "SAVE_PRESET and APPLY_PRESET (M4-10) the twenty-third and twenty-fourth — the first " +
             "handlers to write the hero's loadout; and 07 §4's EQUIP (M7-00d) the twenty-fifth, " +
             "which is what finally FILLS that loadout from the stock the in-run drop path now " +
-            "banks into. ⚠️ EVENT_CHOOSE and " +
+            "banks into; and the M4 retro ruling of 2026-08-17 added UNEQUIP, LOCK_ITEM and " +
+            "SET_AUTO_SALVAGE_RULES as the twenty-sixth, twenty-seventh and twenty-eighth — each " +
+            "one the missing caller of a mechanism that shipped unreachable: a slot that could be " +
+            "filled and never emptied, an Inventory.SetLock with no production caller (so LOCKED was " +
+            "a state no real player could be in), and a Player.AutoSalvageRules with no writer (so " +
+            "Rules/Forge/AutoSalvageFilter was reachable from a fixture and nothing else). ⚠️ " +
+            "EVENT_CHOOSE and " +
             "CAMPFIRE_CHOOSE were Deferred to 'M3-09' and 'M3-11' respectively, both STALE owners " +
             "read off an earlier tracker; the M3 kickoff put both under M3-03 with the rest of the " +
             "tile vocabulary. Their dispatch rows were corrected rather than left to go stale " +
@@ -532,10 +543,12 @@ public sealed class GapRegisterTests
 
 
         (owners.Length + handled.Length).ShouldBe(
-            49,
+            52,
             "…and the sum, because the two floors above are separately satisfiable while a row goes " +
             "missing entirely. 14 §2.3 says the registry is EXHAUSTIVE — 'a command not listed here " +
-            "does not exist' — so 49 is the number the table has, whatever the split.");
+            "does not exist' — so 52 is the number the table has, whatever the split. It was 49 " +
+            "until the M4 retro ruling of 2026-08-17 added three meta rows, all of them Handled: " +
+            "the DEFERRED floor above is the one number that ruling did not move.");
 
         var tracker = File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
 

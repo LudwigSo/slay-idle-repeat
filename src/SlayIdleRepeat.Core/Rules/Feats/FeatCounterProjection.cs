@@ -13,11 +13,21 @@ namespace SlayIdleRepeat.Core.Rules.Feats;
 /// counter instead of a call site in every handler that might feed it.
 /// </para>
 /// <para>
-/// 🔒 <b>The table covers only the events that exist today.</b> Anything measuring something no
-/// event reports yet would be a projection over a payload nobody has designed; those rows land with
-/// their events. What is here is deliberately generous in the other direction — a counter nobody
-/// ends up reading is dead weight, while a counter that was never written is history no achievement
-/// can ever claim, and nothing may be rebuilt after the fact.
+/// 🔴 <b>The table covers TWO of the FOUR events that exist today, and the other two are a recorded
+/// decision rather than a gap.</b> <c>GearGranted</c> and <c>PityCounterAdvanced</c> are emitted in
+/// production and reach no arm here. What either should measure is `16` O29's to decide — the M4
+/// kickoff ruling R10 keeps that decision open to M16 in as many words — and inventing an id for
+/// them would freeze the vocabulary that ruling protects. Both carry a row on
+/// <c>FeatCounterProjectionCoverageRuleTests.ProjectionExemptions</c> with M16-03 as the owner, and
+/// that rule fails the build the day a third event arrives with no decision attached, and again the
+/// day one of these two is projected and its row is left standing.
+/// </para>
+/// <para>
+/// ⚠️ <b>What that costs, said plainly.</b> Every <c>GearGranted</c> and every
+/// <c>PityCounterAdvanced</c> emitted between now and M16 is history no achievement can ever claim,
+/// because §12.7 forbids rebuilding a counter after the fact. Where a counter <em>is</em> written,
+/// this table is deliberately generous in the other direction — a counter nobody ends up reading is
+/// dead weight, and that is the cheaper of the two mistakes.
 /// </para>
 /// <para>
 /// 🔒 <b>The ids are full literals, never composed and never derived from <c>ToString()</c>.</b> A
@@ -26,7 +36,8 @@ namespace SlayIdleRepeat.Core.Rules.Feats;
 /// </para>
 /// <para>
 /// ⚠️ <b>This id set is not a published vocabulary.</b> What each achievement measures is still an
-/// open decision; these ids are <c>internal</c> and cover exactly what today's two events support.
+/// open decision (`16` O29, M16); these ids are <c>internal</c> and cover exactly what the two
+/// events with an arm below support.
 /// </para>
 /// </remarks>
 internal static class FeatCounterProjection
@@ -44,6 +55,11 @@ internal static class FeatCounterProjection
     /// A <see cref="DomainEvent"/> the switch has no arm for advances nothing. That is the correct
     /// default for an event whose measures have not been decided, and the wrong one for an event
     /// that should have counted — so a new event type is a decision taken here, not an omission.
+    /// 🔒 That sentence is now <em>enforced</em> rather than asserted:
+    /// <c>FeatCounterProjectionCoverageRuleTests</c> fails the build on a concrete
+    /// <see cref="DomainEvent"/> that neither reaches an arm below nor carries an owned exemption
+    /// row. It used to be a promise the file made about itself, and two events had already fallen
+    /// through it.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="events"/> is null.</exception>
     /// <exception cref="InvalidOperationException">An event carries a value no counter can be named for.</exception>

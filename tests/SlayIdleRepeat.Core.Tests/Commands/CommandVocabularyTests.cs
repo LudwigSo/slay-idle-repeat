@@ -47,9 +47,12 @@ public sealed class CommandVocabularyTests
         "BEGIN_SESSION",
         "SKIP_FTUE",
         "EQUIP",
+        "UNEQUIP",
         "MERGE",
         "ENHANCE",
         "SALVAGE",
+        "LOCK_ITEM",
+        "SET_AUTO_SALVAGE_RULES",
         "SPEND_TALENT",
         "RESPEC",
         "LEVEL_PET",
@@ -103,8 +106,20 @@ public sealed class CommandVocabularyTests
     /// row answers <c>NOT_OWNED</c>. Its own suite pins that by identity.
     /// </para>
     /// </remarks>
+    /// <remarks>
+    /// 🔴 <c>UNEQUIP</c> and <c>LOCK_ITEM</c> joined them with the M4 retro ruling of 2026-08-17,
+    /// each for its own reason rather than one shared one. <c>LOCK_ITEM</c> is the forge rows' case
+    /// exactly: it names a gear instance <c>Build</c>'s sample id says the sample player does not
+    /// own, so it answers <c>NOT_OWNED</c>. <c>UNEQUIP</c> is a different one - its payload is a
+    /// perfectly legal <c>GearSlot</c>, and the sample player is simply wearing nothing in it, so it
+    /// answers <c>ILLEGAL_STATE</c>. The third new row, <c>SET_AUTO_SALVAGE_RULES</c>, is NOT here:
+    /// its generic payload is the empty rule list, which is a legal filter meaning "sweep nothing",
+    /// so it accepts and is asserted below by identity.
+    /// </remarks>
     private static readonly string[] RowsBuildCannotSatisfy =
-        ["MERGE", "ENHANCE", "SALVAGE", "SAVE_PRESET", "APPLY_PRESET", "EQUIP"];
+    [
+        "MERGE", "ENHANCE", "SALVAGE", "SAVE_PRESET", "APPLY_PRESET", "EQUIP", "UNEQUIP", "LOCK_ITEM",
+    ];
 
     // ------------------------------------------------------------------ the floor under everything
 
@@ -113,7 +128,7 @@ public sealed class CommandVocabularyTests
     /// comparisons hold vacuously.
     /// </summary>
     [Fact]
-    public void The_transcription_is_the_nineteen_and_thirty_the_document_lists()
+    public void The_transcription_is_the_nineteen_and_thirty_three_the_document_lists()
     {
         RunCommandWireNames.Length.ShouldBe(
             19,
@@ -121,9 +136,12 @@ public sealed class CommandVocabularyTests
             "set comparisons below hold over less than the vocabulary.");
 
         MetaCommandWireNames.Length.ShouldBe(
-            30,
-            "14 §2.3's meta table has 30 rows. Its own header says 29 and this repository used to say " +
-            "48 commands in total; the M1 kickoff ruled both to be miscounts of a correct table.");
+            33,
+            "14 §2.3's meta table has 33 rows: the 30 it held since the A7 additions, plus UNEQUIP, " +
+            "LOCK_ITEM and SET_AUTO_SALVAGE_RULES from the M4 retro's product-owner ruling of " +
+            "2026-08-17. Its header said 29 over thirty rows until M4-04 counted them; the 30 above " +
+            "was verified line by line again before these three were added, rather than carried " +
+            "forward from that heading.");
 
         // Collection ShouldContain compares with EqualityComparer<string>.Default, which is ordinal —
         // the string overload's Case.Insensitive default does not reach here.
@@ -133,8 +151,8 @@ public sealed class CommandVocabularyTests
         MetaCommandWireNames.ShouldContain("BEGIN_SESSION");
 
         Transcribed().Count.ShouldBe(
-            49,
-            "19 + 30, with no name appearing in both halves. A duplicate across the two tables would " +
+            52,
+            "19 + 33, with no name appearing in both halves. A duplicate across the two tables would " +
             "keep both lengths right while the registry lost a row.");
     }
 
@@ -174,8 +192,8 @@ public sealed class CommandVocabularyTests
             "decision recorded in 16 and it lands in that table first.");
 
         Registry.Count.ShouldBe(
-            49,
-            "19 + 30. The two set comparisons above are floored by the transcription's own literal " +
+            52,
+            "19 + 33. The two set comparisons above are floored by the transcription's own literal " +
             "counts; this is the same floor on the OTHER side, so an emptied registry fails here " +
             "rather than making 'nothing unlisted' trivially true.");
     }
@@ -202,8 +220,8 @@ public sealed class CommandVocabularyTests
     {
         // Inline floor: an emptied registry would make this loop produce no offenders at all.
         RunCommandWireNames.Length.ShouldBe(19);
-        MetaCommandWireNames.Length.ShouldBe(30);
-        Registry.Count.ShouldBe(49, "an emptied registry makes the sweep below silent, not red.");
+        MetaCommandWireNames.Length.ShouldBe(33);
+        Registry.Count.ShouldBe(52, "an emptied registry makes the sweep below silent, not red.");
 
         var offenders = new List<string>();
 
@@ -255,7 +273,7 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void Every_registered_type_is_a_public_sealed_command_in_the_commands_namespace()
     {
-        Registry.Count.ShouldBe(49, "an emptied registry makes the sweep below quantify over nothing.");
+        Registry.Count.ShouldBe(52, "an emptied registry makes the sweep below quantify over nothing.");
 
         var offenders = Registry
             .OrderBy(row => row.Key, StringComparer.Ordinal)
@@ -307,7 +325,7 @@ public sealed class CommandVocabularyTests
     // -------------------------------------------------------------------- the vocabulary, applied
 
     /// <summary>
-    /// All forty-nine commands are constructible and every one is refused, not thrown, while its
+    /// All fifty-two commands are constructible and every one is refused, not thrown, while its
     /// milestone is unbuilt. Builds each type and hands it to <c>GameRules.Apply</c>, so the row
     /// resolves at runtime rather than only in IL.
     /// </summary>
@@ -336,19 +354,24 @@ public sealed class CommandVocabularyTests
         // loop can reach.
         deferred.ShouldBe(
             Registry.Count(row => !RegistrationFor(row.Key).IsHandled),
-            "every DEFERRED row of 14 §2.3 is driven here — 30 of the 49 since M3-13 landed the " +
+            "every DEFERRED row of 14 §2.3 is driven here — 24 of the 52 since the M4 retro ruling " +
+            "of 2026-08-17 added three rows ALREADY HANDLED. M3-13 landed the " +
             "REVIVE/END_RUN/ABANDON_RUN handlers. A mismatch means the loop skipped " +
             "a deferred row rather than that the count moved.");
 
         // 🔴 TO THE INTEGRATOR — THESE NUMBERS MOVE ON EVERY BRANCH THAT WIRES A ROW. M4-04 landed
         // MERGE/ENHANCE/SALVAGE (27 deferred), M4-10 took two more with SAVE_PRESET and APPLY_PRESET
-        // (25), and M7-00d takes EQUIP — so the figure here is 24 DEFERRED and 25 HANDLED. A sibling
-        // that wires another row lowers this by one again; 49 is the total that does not move.
+        // (25), and M7-00d took EQUIP (24). The M4 retro ruling of 2026-08-17 then added UNEQUIP,
+        // LOCK_ITEM and SET_AUTO_SALVAGE_RULES ALREADY HANDLED, which moves the TOTAL from 49 to 52
+        // and the HANDLED count from 25 to 28 while leaving the deferred figure at 24 — the one
+        // number here a purely additive vocabulary change does NOT move. A sibling that wires
+        // another row lowers this by one; 52 is the total that does not move.
         deferred.ShouldBe(
             24,
             "…and the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. 14 §2.3 " +
-            "is 49 rows and exactly twenty-five of them — EQUIP (07 §4's equip, M7-00d), " +
+            "is 52 rows and exactly twenty-eight of them — UNEQUIP, LOCK_ITEM and " +
+            "SET_AUTO_SALVAGE_RULES (the M4 retro ruling of 2026-08-17), EQUIP (07 §4's equip, M7-00d), " +
             "SAVE_PRESET and APPLY_PRESET (07 §4's named " +
             "loadout presets, M4-10), 08 §4's MERGE, ENHANCE and SALVAGE (M4-04's " +
             "forge), BEGIN_SESSION (30 §2.3's day cycle), START_RUN " +
@@ -377,11 +400,13 @@ public sealed class CommandVocabularyTests
         var handledAndRefused = new List<string>();
 
         RowsBuildCannotSatisfy.Length.ShouldBe(
-            6,
+            8,
             "the exemption is closed. Two entries are 07 §4's preset rows (Build fills every int " +
-            "with 0 and neither command has a legal slot 0); the other four are 08 §4's forge rows " +
-            "and 07 §4's EQUIP (each names a gear instance the sample player does not own). Every " +
-            "other handled meta row must still ACCEPT.");
+            "with 0 and neither command has a legal slot 0); five name a gear instance the sample " +
+            "player does not own (08 §4's three forge rows, 07 §4's EQUIP, and LOCK_ITEM); and " +
+            "UNEQUIP names a legal slot the sample player is wearing nothing in. Every other handled " +
+            "meta row must still ACCEPT - including SET_AUTO_SALVAGE_RULES, whose generic payload is " +
+            "the empty filter and therefore legal.");
 
         foreach (var (name, type) in Registry.OrderBy(r => r.Key, StringComparer.Ordinal))
         {
@@ -469,17 +494,19 @@ public sealed class CommandVocabularyTests
         }
 
         runRows.ShouldBe(19, "14 §2.3's run table has 19 rows.");
-        metaRows.ShouldBe(30, "14 §2.3's meta table has 30 rows.");
+        metaRows.ShouldBe(33, "14 §2.3's meta table has 33 rows.");
 
         // 🔒 Both sides by IDENTITY (steering S3), because the tier assertion above is satisfied by
         // a table in which every handled row refuses AND by one in which every handled row accepts.
         handledAndAccepted.ShouldBe(
-            new[] { "BEGIN_SESSION" },
+            new[] { "BEGIN_SESSION", "SET_AUTO_SALVAGE_RULES" },
             ignoreOrder: true,
             "BEGIN_SESSION is the handled meta row that takes a generically-built payload and does " +
             "something with it — it names no item, no slot and no id, so there is nothing about the " +
-            "sample for its handler to refuse. If it stops accepting here, the arm above has stopped " +
-            "proving that a handled meta command is reached at all.");
+            "sample for its handler to refuse. SET_AUTO_SALVAGE_RULES joined it with the M4 retro " +
+            "ruling: Build hands it the EMPTY rule list, which 08 §4.3 makes a legal filter meaning " +
+            "'sweep nothing', so it is accepted rather than exempted. If either stops accepting " +
+            "here, the arm above has stopped proving that a handled meta command is reached at all.");
 
         handledAndRefused.ShouldBe(
             RowsBuildCannotSatisfy,
@@ -821,7 +848,7 @@ public sealed class CommandVocabularyTests
     /// <summary>
     /// The <c>GameContext</c> a command of this wire name may legally be applied with — a
     /// server-issued <c>CommandSeed</c> for the nine seed-bearing rows, <c>null</c> for the other
-    /// forty. The seed is a fixed arbitrary constant: these sweeps are about reachability, not
+    /// forty-three. The seed is a fixed arbitrary constant: these sweeps are about reachability, not
     /// determinism.
     /// </summary>
     private static GameContext ContextFor(string wireName) =>
@@ -838,7 +865,7 @@ public sealed class CommandVocabularyTests
     /// vocabulary that silently stopped driving whichever command it forgot.
     /// </summary>
     /// <remarks>
-    /// Internal rather than private so a second sweep over the same forty-nine rows drives the same
+    /// Internal rather than private so a second sweep over the same fifty-two rows drives the same
     /// instances. A parallel builder would be a second transcription of the payload vocabulary.
     /// </remarks>
     internal static GameCommand Build(Type commandType)
@@ -852,7 +879,7 @@ public sealed class CommandVocabularyTests
         {
             throw new InvalidOperationException(
                 $"{commandType.Name} declares {constructors.Length} public constructors. A command is a " +
-                "value carrying exactly 14 §2.3's parameters for it, and this builder drives all 49 " +
+                "value carrying exactly 14 §2.3's parameters for it, and this builder drives all 52 " +
                 "through the one door each of them has. If a second is genuinely wanted, choose here " +
                 "deliberately rather than letting a tie-break pick.");
         }
@@ -916,6 +943,16 @@ public sealed class CommandVocabularyTests
         if (type == typeof(IReadOnlyList<GearInstanceId>))
         {
             return Array.Empty<GearInstanceId>();
+        }
+
+        // 🔒 SET_AUTO_SALVAGE_RULES', added by the M4 retro ruling of 2026-08-17. The sample is
+        // the EMPTY list rather than a fabricated row, and that is deliberate twice over: 08 §4.3
+        // makes an empty filter mean "sweep nothing", so it is a legal payload the sweep can assert
+        // an ACCEPTANCE on, and a sampled row would have to invent a band and a ceiling - exactly
+        // the fabrication S6 forbids in a builder with no design document in front of it.
+        if (type == typeof(IReadOnlyList<AutoSalvageRule>))
+        {
+            return Array.Empty<AutoSalvageRule>();
         }
 
         throw new InvalidOperationException(

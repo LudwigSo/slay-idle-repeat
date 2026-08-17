@@ -15,10 +15,18 @@ namespace SlayIdleRepeat.Core.Model.Gear;
 /// grant that arrives while the stock is full and is silently dropped is the same wound from the
 /// other side. <see cref="Place"/> therefore never refuses and never destroys: at capacity it
 /// answers <see cref="InventoryPlacement.HELD"/> and appends to the holding list, and
-/// <see cref="Remove"/> and <see cref="PurchaseExpansion"/> pull held items back in arrival order as
-/// soon as there is room. Nothing here caps, decays or expires the holding list, because no
-/// document authorises any of the three — <c>InventoryTuning.OverflowCapacity</c> carries that
-/// absence where a reader can find it.
+/// <see cref="Remove"/> pulls held items back in arrival order as soon as there is room. Nothing
+/// here caps, decays or expires the holding list, because no document authorises any of the three —
+/// <c>InventoryTuning.OverflowCapacity</c> carries that absence where a reader can find it.
+/// </para>
+/// <para>
+/// 🔒 <b>Capacity is FLAT, and the expansion is deferred rather than modelled.</b> The M4 retro's
+/// product-owner ruling of 2026-08-17 capped the stock at a flat 1000 and added no
+/// <c>EXPAND_INVENTORY</c> command, so <see cref="Capacity"/> is <c>tuning.MaxCapacity</c> and
+/// nothing here grows it. <see cref="PurchaseExpansion"/> survives as a member that exists to
+/// <em>throw</em> — the same shape <c>InventoryTuning.RequireOverflowCapacity</c> has, and for the
+/// same reason: the seam stays named and greppable for the day the owner deals with the limit,
+/// while no caller can be charged for slots the ceiling will not hand over.
 /// </para>
 /// <para>
 /// 🔒 <b>The lock transition lives here, not on the item.</b> A lock is not something an item
@@ -64,7 +72,13 @@ public sealed class Inventory
 
     private readonly ReadOnlyCollection<GearInstance> _heldView;
 
-    private int _expansionsPurchased;
+    /// <summary>
+    /// The expansions this player's row records as bought. ⚠️ <b>Read-only as of the 2026-08-17
+    /// ruling</b>: capacity is flat, nothing buys an expansion, and so nothing writes this outside
+    /// the constructor. It is kept because the ladder is deferred rather than deleted — the day a
+    /// purchase command is authored, this is the counter it moves.
+    /// </summary>
+    private readonly int _expansionsPurchased;
 
     /// <summary>The one constructor. Every value has already been checked by <see cref="Rehydrate"/>, its only caller.</summary>
     internal Inventory(List<GearInstance> stored, List<GearInstance> held, int expansionsPurchased)
@@ -88,10 +102,13 @@ public sealed class Inventory
     /// <remarks>Arrival order is what the reclaim rule pulls them back in, so it has to be an order at all.</remarks>
     public IReadOnlyList<GearInstance> Held => _heldView;
 
-    /// <summary>How many capacity expansions this player has bought.</summary>
+    /// <summary>
+    /// How many capacity expansions this player's persisted row records. ⚠️ It buys nothing: capacity
+    /// is flat as of the 2026-08-17 ruling, and <see cref="Capacity"/> does not read this.
+    /// </summary>
     public int ExpansionsPurchased => _expansionsPurchased;
 
-    /// <summary>How many items the stock can hold at the expansions bought so far.</summary>
+    /// <summary>How many items the stock can hold: the flat ceiling, the same for every player.</summary>
     /// <param name="tuning">The inventory numbers.</param>
     /// <returns>The capacity.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
@@ -274,30 +291,42 @@ public sealed class Inventory
         return true;
     }
 
-    /// <summary>Buys one capacity expansion and reclaims whatever the new slots can take.</summary>
-    /// <param name="tuning">The inventory numbers, for the cap and the new capacity.</param>
+    /// <summary>
+    /// 🔴 Buying one capacity expansion — <b>refused, always</b>, because capacity is flat and no
+    /// command sells one.
+    /// </summary>
+    /// <param name="tuning">The inventory numbers, for the ceiling the refusal names.</param>
     /// <remarks>
-    /// It does not charge for anything — the price is the handler's, and the handler checks the cap
-    /// before it debits anybody. Reaching this past the cap is therefore a miswired caller rather
-    /// than a player asking for something they cannot have, which is why it throws where
-    /// <see cref="SetLock"/> answers <see langword="false"/>.
+    /// <para>
+    /// A member that exists to throw, on <c>InventoryTuning.RequireOverflowCapacity</c>'s precedent:
+    /// the M4 retro's ruling of 2026-08-17 capped the stock flat at <c>maxCapacity</c> and
+    /// deliberately did <b>not</b> add an <c>EXPAND_INVENTORY</c> row to `14` §2.3's vocabulary, so
+    /// the ladder in <c>currencies.json</c> is authored, priced and unspendable. Deleting this seam
+    /// would take the deferral out of the code and leave it only in a comment; leaving it able to
+    /// <em>succeed</em> would let a caller be charged for slots the ceiling then refuses to hand
+    /// over, which is the one failure the flat ceiling exists to make impossible.
+    /// </para>
+    /// <para>
+    /// It throws where <see cref="SetLock"/> answers <see langword="false"/> for the reason it always
+    /// did: no player can ask for this, because no command carries the request. Reaching it is a
+    /// miswired caller. 🔒 The day the owner deals with the limit, this is the one method to
+    /// re-implement — and <c>InventoryTuning.Read</c>'s ladder-out-of-reach arm goes red on the same
+    /// change, so the data and the model are re-ruled together or not at all.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
-    /// <exception cref="InvalidOperationException">Every expansion the ladder prices has been bought.</exception>
-    internal void PurchaseExpansion(InventoryTuning tuning)
+    /// <exception cref="InvalidOperationException">Always — nothing buys an expansion.</exception>
+    internal static void PurchaseExpansion(InventoryTuning tuning)
     {
         ArgumentNullException.ThrowIfNull(tuning);
 
-        if (_expansionsPurchased >= tuning.MaxPurchases)
-        {
-            throw new InvalidOperationException(
-                "All " + Text(tuning.MaxPurchases) + " expansions have been bought, so there is no " +
-                "capacity and no price for another. The handler refuses the purchase before it " +
-                "charges anybody; reaching here means a caller debited without checking the cap.");
-        }
-
-        _expansionsPurchased++;
-        Reclaim(tuning);
+        throw new InvalidOperationException(
+            "Capacity is a flat " + Text(tuning.MaxCapacity) + " slots and an expansion buys none " +
+            "of them. The M4 retro ruling of 2026-08-17 made the ceiling flat and added no " +
+            "EXPAND_INVENTORY command, so 10 §4's " + Text(tuning.MaxPurchases) + "-rung Crown " +
+            "ladder and 10 §2's flat Soul Shard alternative are authored and DEFERRED — priced, and " +
+            "spendable by nothing. A caller reaching here would be about to charge a player for " +
+            "slots this container will not give them.");
     }
 
     /// <summary>The persisted shape of this component.</summary>
@@ -370,8 +399,9 @@ public sealed class Inventory
     /// refused exactly that row, which is the account outage the sibling's remarks say must not
     /// happen: <c>inventoryExpansionMaxPurchases</c> is a tunable, a balance patch that lowered it
     /// leaves real players above the new cap, and a load that refused them would turn a data edit into
-    /// a lockout. Such a player keeps the capacity they reached — <see cref="Capacity"/> clamps — and
-    /// the ceiling is enforced where it belongs, on the operations that grow the stock.
+    /// a lockout. Since the 2026-08-17 ruling the count buys nothing at all — <see cref="Capacity"/>
+    /// does not read it — so such a row loads, keeps the flat ceiling every player has, and the
+    /// ceiling is enforced where it belongs, on the operations that grow the stock.
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="snapshot"/> or <paramref name="tuning"/> is null.</exception>
     internal static Result<Inventory> Rehydrate(InventorySnapshot snapshot, InventoryTuning tuning)
@@ -386,16 +416,15 @@ public sealed class Inventory
         }
 
         var faults = new List<string>();
-        var capacity = structural.Value.Capacity(tuning);
+        var capacity = Capacity(tuning);
 
         if (structural.Value.Stored.Count > capacity)
         {
             faults.Add(
                 nameof(InventorySnapshot.Stored) + " holds " + Text(structural.Value.Stored.Count) +
-                " items and " + Text(snapshot.ExpansionsPurchased) + " expansion(s) pay for " +
-                Text(capacity) + ". A stock larger than the purchases bought is a row written " +
-                "against different tuning, and reading it would hand this player slots nobody paid " +
-                "for.");
+                " items and the flat ceiling is " + Text(capacity) + ". A stock larger than the " +
+                "ceiling is a row written against different tuning, and reading it would hand this " +
+                "player slots the game says do not exist.");
         }
 
         return faults.Count > 0 ? Failure(faults) : structural;
@@ -474,24 +503,25 @@ public sealed class Inventory
         return faulted ? null : items;
     }
 
-    /// <summary>
-    /// 🔒 The capacity this stock actually has, read <b>tolerantly</b>: a purchase count above what
-    /// the ladder currently prices is clamped to the cap rather than refused.
-    /// </summary>
+    /// <summary>🔒 The capacity this stock has: the authored ceiling, flat, for every player.</summary>
     /// <remarks>
-    /// The Energy ceiling's rule, applied to the other tunable this aggregate carries. A balance
-    /// patch that lowered <c>inventoryExpansionMaxPurchases</c> leaves real players above the new cap,
-    /// and <c>InventoryTuning.CapacityAt</c> throws outside <c>0..MaxPurchases</c> — correctly, since
-    /// for <em>its</em> caller a count past the ladder means a purchase was charged for slots nobody
-    /// priced. Letting that throw reach here would brick every grant, lock and removal such a player
-    /// makes, which is the account outage <see cref="Rehydrate(InventorySnapshot)"/>'s remarks refuse
-    /// to trade a tuning change for. So the tolerance is stated once, here, and every operation that
-    /// needs a capacity reads it: an over-cap player keeps the ceiling their purchases reached and
-    /// simply buys nothing more — <see cref="PurchaseExpansion"/>'s own guard fires first and is
-    /// untouched by this.
+    /// <para>
+    /// It reads no purchase count, and that is the 2026-08-17 ruling in one line — capacity is
+    /// "virtually unlimited, capped by default at 1000 for now" and nothing sells a slot, so
+    /// <see cref="ExpansionsPurchased"/> is a persisted record rather than an input to this.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The tolerance the old body needed is gone with the arithmetic that needed it.</b> This
+    /// used to be <c>tuning.CapacityAt(Math.Min(_expansionsPurchased, tuning.MaxPurchases))</c>,
+    /// clamped so that a balance patch lowering <c>inventoryExpansionMaxPurchases</c> could not brick
+    /// every grant, lock and removal a real over-cap player makes — the account outage
+    /// <see cref="Rehydrate(InventorySnapshot)"/>'s remarks refuse to trade a tuning change for. A
+    /// capacity that does not read the count cannot be thrown out of range by one, so the outage is
+    /// closed by construction rather than by a clamp. A patch that lowers the ceiling itself is still
+    /// the case <see cref="Rehydrate(InventorySnapshot)"/> declines to refuse a row for.
+    /// </para>
     /// </remarks>
-    private int Capacity(InventoryTuning tuning) =>
-        tuning.CapacityAt(Math.Min(_expansionsPurchased, tuning.MaxPurchases));
+    private static int Capacity(InventoryTuning tuning) => tuning.MaxCapacity;
 
     /// <summary>Pulls held items back into stock, oldest first, for as long as there is room.</summary>
     private void Reclaim(InventoryTuning tuning)

@@ -98,7 +98,12 @@ internal static class Merge
 
         for (var i = 1; i < items.Count; i++)
         {
-            stock.Remove(items[i].InstanceId, inventoryTuning);
+            // 🔴 DiscardItem, not Inventory.Remove: a slot NAMES an item rather than copying one, so
+            // consuming one the hero is wearing has to clear the slot in the same change or
+            // Player.RequireLoadoutResolves throws out of Apply on a perfectly legal fusion. Only the
+            // consumed inputs are at risk — items[0]'s identity survives, because Replace below
+            // writes the output over it.
+            player.DiscardItem(items[i].InstanceId, inventoryTuning);
         }
 
         stock.Replace(fused);

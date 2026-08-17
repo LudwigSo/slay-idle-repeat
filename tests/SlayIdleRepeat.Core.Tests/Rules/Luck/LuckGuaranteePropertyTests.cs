@@ -285,21 +285,52 @@ public sealed class LuckGuaranteePropertyTests
     /// Some sequences reach the guarantee naturally, and some are carried to it by the forced draw.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Both failure modes are silent and opposite. A service that forced every draw would satisfy
     /// every "never later than N" case above while making pity the drop rate — <c>24</c> §10 E3 caps
     /// a guarantee at 30% of grants in its class. A service that never forced would satisfy them too,
     /// on these tables, and would starve the tail the sweep exists to bound.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The bounds are the numbers the authored tables actually buy, not <c>&gt; 0</c>.</b> All
+    /// four of these were <c>ShouldBeGreaterThan(0)</c> — satisfiable by <em>one</em> walk in a
+    /// hundred thousand, which is to say by a service that forced (or never forced) 99 999 times out
+    /// of 100 000 while this case reported both paths healthy. Two of them carried no failure message
+    /// at all. The <c>DROP_RUN</c> sibling below already used measured bands for exactly this reason;
+    /// these now match it. Measured over the corpus by narrowing each bound until it reported:
+    /// <b>34 269</b> premium-SS forced against <b>65 731</b> natural, and <b>24 956</b> apex-SS forced
+    /// against <b>75 044</b> natural.
+    /// </para>
+    /// <para>
+    /// ⚠️ "Not forced" is spelled as "satisfied, and not forced", on the same argument the
+    /// <c>DROP_RUN</c> case records: a bare <c>!Forced</c> counts a walk whose guarantee <em>never
+    /// fired</em> as one that arrived naturally, so an implementation that satisfied nothing at all
+    /// would drive that count to the whole corpus and read as healthy. This is what the two chest
+    /// lines used to do.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Both_the_natural_path_and_the_forced_path_are_exercised()
     {
-        Corpus.Walks.Count(walk => walk.PremiumSsForced).ShouldBeGreaterThan(
-            0, "24 §4.2 authors SS at 5%, so a 25-draw window ends on the forced draw about a quarter of the time");
-        Corpus.Walks.Count(walk => !walk.PremiumSsForced).ShouldBeGreaterThan(
-            0, "and the other three quarters reach SS naturally — pity bounds the tail (24 §2)");
+        Forced(walk => walk.PremiumSsForced).ShouldBeInRange(
+            30_000, 40_000,
+            "24 §4.2 authors SS at 5% and the rung at 25, so about a third of the windows end on the " +
+            "forced draw. Outside this band the share or the rung has moved, and the two paths stop " +
+            "being exercised together.");
 
-        Corpus.Walks.Count(walk => walk.ApexSsForced).ShouldBeGreaterThan(0);
-        Corpus.Walks.Count(walk => !walk.ApexSsForced).ShouldBeGreaterThan(0);
+        Natural(walk => walk.PremiumSsAt, walk => walk.PremiumSsForced).ShouldBeInRange(
+            60_000, 70_000,
+            "and the other two thirds reach SS naturally inside the window — pity bounds the tail " +
+            "(24 §2) rather than being the drop rate (24 §10 E3).");
+
+        Forced(walk => walk.ApexSsForced).ShouldBeInRange(
+            20_000, 30_000,
+            "24 §4.2's apex rung is 3, so a quarter of the sequences run all three draws and are " +
+            "carried onto the SS by the guarantee.");
+
+        Natural(walk => walk.ApexSsAt, walk => walk.ApexSsForced).ShouldBeInRange(
+            70_000, 80_000,
+            "and three quarters draw an SS inside the first three apex chests on their own.");
     }
 
     /// <summary>

@@ -17,7 +17,7 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// the check is a rule over state rather than something the dispatch table could express.
 /// </para>
 /// <para>
-/// 🔒 <b>Applying is never entitlement-gated.</b> `12` §66 is explicit that presets beyond the free
+/// 🔒 <b>Applying is never entitlement-gated.</b> `12` §2.2 is explicit that presets beyond the free
 /// allowance become <b>read-only</b> rather than deleted when Plus lapses — so a lapsed subscriber
 /// may still load every preset they saved, and only <c>SAVE_PRESET</c> asks about Plus. This handler
 /// deliberately does not name <c>Entitlements</c> at all.

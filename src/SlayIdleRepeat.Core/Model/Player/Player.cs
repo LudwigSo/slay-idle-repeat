@@ -50,14 +50,16 @@ namespace SlayIdleRepeat.Core.Model;
 /// the aggregate, which is the shape the luck-routing rule was narrowed to see.
 /// </para>
 /// <para>
-/// ⚠️ <b>Nothing calls into the component yet, and that is worth saying plainly rather than
-/// describing a mechanism that does not exist.</b> No handler reaches <c>player.Inventory</c>; no
-/// type in <c>src/</c> outside this file touches it, so <c>Content.InventoryTuning.Read</c> has no
-/// production caller either. M4-05 landed the container, its numbers and its persistence, and left
-/// the wiring to the tasks that own the operations: <b>M4-04</b> is the first consumer — merge,
-/// enhance and salvage all act on a held item — and the <c>DROP_RUN</c> grant path that would call
-/// <c>Place</c> is still unwired, carried in <c>GapRegister</c>'s inventory discharge note with its
-/// owner named. Until one of those lands, the component is reachable and unused.
+/// ✅ <b>The component is wired, and this paragraph used to say the opposite.</b> M4-05 landed the
+/// container, its numbers and its persistence and left the wiring to the tasks that own the
+/// operations; every one of them has since landed. <b>M4-04</b> was the first consumer — merge,
+/// enhance and salvage all act on a held item — the in-run drop path banks grants through
+/// <see cref="Inventory"/>.<c>Place</c>, M7-00d's <c>EQUIP</c> reads the stock, and the M4 retro
+/// ruling of 2026-08-17 added <c>LOCK_ITEM</c>, the first caller of
+/// <see cref="Inventory"/>.<c>SetLock</c> and therefore the first thing in the game's life that can
+/// make an item <c>LOCKED</c> in production. <c>Content.InventoryTuning.Read</c> has production
+/// callers through all of them. A note describing a mechanism as unwired after it was wired is how
+/// a reader concludes the whole remark is stale.
 /// </para>
 /// <para>
 /// Still deliberately absent: the unopened-container shelf, pets, mounts, talents, presets and
@@ -242,13 +244,64 @@ public sealed class Player
     /// Empty until they set one, and an empty filter sweeps nothing.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>Nothing writes it yet, and that is a statement of what is left rather than of what was
-    /// done.</b> The command vocabulary is closed and authors no command that sets a filter, and none
-    /// that applies one at run end either; the forge screen that would set it and the run-end payout
-    /// that would apply it are both later tasks. The rule that reads a filter is written and tested,
-    /// and this is the place its rows live when a command finally sends them.
+    /// <para>
+    /// 🔴 <b><c>SET_AUTO_SALVAGE_RULES</c> writes it as of the M4 retro ruling of 2026-08-17</b>,
+    /// which added the command to `14` §2.3's vocabulary. Until then nothing wrote it, which left
+    /// <c>Rules.Forge.AutoSalvageFilter</c> — written, documented and tested against a hand-built
+    /// fixture — unreachable from any command a player can send.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Still nothing APPLIES it.</b> No run-end payout consults the filter, so a player can
+    /// configure rows that sweep nothing; the sweep at run end is not this ruling's scope, and the
+    /// forge screen that edits the rows is M9-01's. What changed is that the rows can now exist.
+    /// </para>
+    /// <para>
+    /// Replaced wholesale rather than mutated, like the wallet: the list handed out here can never
+    /// change afterwards, so a snapshot that has already been taken cannot be rewritten by a later
+    /// command.
+    /// </para>
     /// </remarks>
-    public IReadOnlyList<AutoSalvageRule> AutoSalvageRules { get; }
+    public IReadOnlyList<AutoSalvageRule> AutoSalvageRules { get; private set; }
+
+    /// <summary>Replaces the auto-salvage filter with the rows a command carried.</summary>
+    /// <param name="rules">
+    /// The rows to store, <b>already validated</b> — a band that exists, one row per band, a ceiling
+    /// inside the authored enhancement range. Which rows are legal is a rule over authored content
+    /// and belongs to the handler that read the tuning, not to the aggregate that stores them.
+    /// </param>
+    /// <remarks>
+    /// <para>
+    /// Copied on the way in for <see cref="ReadAutoSalvageRules"/>'s reason: the caller's list stays
+    /// writable, and a record compares an <c>IReadOnlyList&lt;T&gt;</c> component by reference, so
+    /// the sharing would be invisible to every comparison that looked for it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>No <c>SnapshotSchema.SchemaVersion</c> bump comes with this writer, and that is a
+    /// decision rather than an omission.</b> `14` §16.6 makes a field ADDED, REMOVED or REORDERED a
+    /// versioned migration; this adds none. <see cref="PlayerSnapshot.AutoSalvageRules"/> has been a
+    /// column since M4-05 and its position is unchanged — what changed is that something finally
+    /// writes it. The two sibling commands the same ruling added are the same story:
+    /// <c>UNEQUIP</c> writes <see cref="PlayerSnapshot.Loadout"/> and <c>LOCK_ITEM</c> writes the
+    /// <c>Locked</c> flag on a persisted gear row, both existing columns. A row a player wrote will
+    /// now carry values it used to carry only as empty or false, which changes their
+    /// <c>stateHash</c> — but a state hash changing when the state changes is the contract, not a
+    /// serialisation change.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="rules"/> is null.</exception>
+    internal void SetAutoSalvageRules(IReadOnlyList<AutoSalvageRule> rules)
+    {
+        ArgumentNullException.ThrowIfNull(rules);
+
+        var copy = new AutoSalvageRule[rules.Count];
+
+        for (var i = 0; i < rules.Count; i++)
+        {
+            copy[i] = rules[i];
+        }
+
+        AutoSalvageRules = Array.AsReadOnly(copy);
+    }
 
     /// <summary>The aggregate root's identity.</summary>
     public PlayerId Id { get; }
@@ -588,23 +641,37 @@ public sealed class Player
     /// rehydration cost of every command; this checks the one invariant that spans two components
     /// and that no single component can hold on its own.
     /// </para>
+    /// <para>
+    /// 🔒 <b>The accepted set is stated as the two arms that are legal, not as "anything but
+    /// <c>UNKNOWN_ITEM</c>".</b> <c>Rules.Hero.LoadoutRules.IsEquippable</c> is the entry-side half of
+    /// this same invariant and it admits exactly <c>AVAILABLE</c> and <c>LOCKED</c>; written as a
+    /// single exclusion, this half additionally admitted <c>HELD_IN_OVERFLOW</c>, so one invariant was
+    /// stated twice and the two statements disagreed. Unreachable today only because
+    /// <c>Inventory.Place</c> holds nothing but <em>newly arrived</em> items, which no slot can
+    /// already name — which is precisely why it would not have failed on the change that stopped that
+    /// being true. An item in the holding list is one <em>nothing can be done to</em> (see
+    /// <c>ItemAvailability</c>), and a hero wearing one is a hero wearing something the stock is not
+    /// holding for them.
+    /// </para>
     /// </remarks>
-    /// <exception cref="InvalidOperationException">A slot names an item the stock does not hold.</exception>
+    /// <exception cref="InvalidOperationException">A slot names an item the stock does not hold in stock.</exception>
     internal void RequireLoadoutResolves()
     {
         foreach (var (slot, item) in _loadout.Gear)
         {
-            if (Inventory.Availability(item) != ItemAvailability.UNKNOWN_ITEM)
+            var availability = Inventory.Availability(item);
+
+            if (availability is ItemAvailability.AVAILABLE or ItemAvailability.LOCKED)
             {
                 continue;
             }
 
             throw new InvalidOperationException(
                 "This command left '" + item.Value + "' equipped in " + slot + " while the player's " +
-                "stock no longer holds it. A slot NAMES an item rather than copying one, so whatever " +
-                "destroyed the item had to take it off the hero in the same change — " +
-                "Loadout.WithoutItem is that seam. Persisting this row would make every later " +
-                "command fail at the clone, for good.");
+                "stock no longer holds it (" + availability + "). A slot NAMES an item rather than " +
+                "copying one, so whatever destroyed the item — or pushed it into the holding list — " +
+                "had to take it off the hero in the same change; Loadout.WithoutItem is that seam. " +
+                "Persisting this row would make every later command fail at the clone, for good.");
         }
     }
 
@@ -612,7 +679,7 @@ public sealed class Player
     /// <param name="preset">The preset. Its slot is its own.</param>
     /// <remarks>
     /// Whether the player is <em>allowed</em> that slot is not asked here. `12` §2 grants a Plus
-    /// subscriber unlimited slots and `12` §66 keeps presets beyond the free allowance readable when
+    /// subscriber unlimited slots and `12` §2.2 keeps presets beyond the free allowance readable when
     /// Plus lapses, so the allowance is an entitlement question — and no aggregate can see the
     /// session. The handler answers it.
     /// </remarks>
@@ -774,6 +841,109 @@ public sealed class Player
         return Array.AsReadOnly(rows);
     }
 
+    /// <summary>
+    /// The starting state of a brand-new account whose player has chosen a name.
+    /// </summary>
+    /// <param name="id">The identity whatever creates accounts has already issued.</param>
+    /// <param name="displayName">
+    /// The chosen name, <b>already through `27` §1's filter</b> — that is what the type means and the
+    /// only reason it is the parameter's type. Stored exactly as the player typed it.
+    /// </param>
+    /// <param name="nowUtc">The instant the account is created at, which the period boundaries are derived from.</param>
+    /// <param name="content">The content set the authored starting values are read from.</param>
+    /// <param name="inventory">The stock the player starts with, or <c>null</c> for the empty one.</param>
+    /// <returns>The starting aggregate, or the failure the row was refused with.</returns>
+    /// <remarks>
+    /// 🔒 <b>The one door player-chosen text comes through, and it is typed rather than trusted.</b>
+    /// `27` §1 states the filter as "at creation <em>and</em> on every edit"; <see cref="Rename"/>
+    /// already delivered the edit half by taking a <see cref="HeroName"/>, and this delivers the
+    /// creation half the same way. It took a plain <c>string</c> until the M4 review, which meant the
+    /// one path `27` §1 names by name was the one path the filter did not stand on.
+    /// <para>
+    /// The two paths that name an account after something the player never typed do not come through
+    /// here: see <see cref="CreateStartingNamedAfterItsOwnId"/>.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="displayName"/> or <paramref name="content"/> is null.
+    /// </exception>
+    /// <exception cref="MissingContentException">The content set does not author a Legend Level range.</exception>
+    /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
+    /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
+    public static Result<Player> CreateStarting(
+        PlayerId id,
+        HeroName displayName,
+        DateTimeOffset nowUtc,
+        ContentSnapshot content,
+        InventorySnapshot? inventory = null)
+    {
+        ArgumentNullException.ThrowIfNull(displayName);
+
+        return StartingRow(id, displayName.Value, nowUtc, content, inventory);
+    }
+
+    /// <summary>
+    /// The starting state of a brand-new account named after its own identity, because nothing has
+    /// asked the player for a name.
+    /// </summary>
+    /// <param name="id">The identity whatever creates accounts has already issued, and the name.</param>
+    /// <param name="nowUtc">The instant the account is created at.</param>
+    /// <param name="content">The content set the authored starting values are read from.</param>
+    /// <param name="inventory">The stock the player starts with, or <c>null</c> for the empty one.</param>
+    /// <returns>The starting aggregate, or the failure the row was refused with.</returns>
+    /// <remarks>
+    /// 🔒 <b>It takes no name parameter at all, and that is the point.</b> A machine-minted identity
+    /// is not player-chosen text and must not go through `27` §1's filter — the in-process host's own
+    /// id is a prefix plus a GUID, which <c>HeroNameRule</c> would refuse for length before it ever
+    /// reached a word list. Passing it as a <c>string</c> to a factory that also accepts player text
+    /// is what left the creation path unfiltered in the first place, so there is deliberately no
+    /// parameter here for player text to arrive through.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
+    /// <exception cref="MissingContentException">The content set does not author a Legend Level range.</exception>
+    /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
+    /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
+    public static Result<Player> CreateStartingNamedAfterItsOwnId(
+        PlayerId id,
+        DateTimeOffset nowUtc,
+        ContentSnapshot content,
+        InventorySnapshot? inventory = null) =>
+        StartingRow(id, id.Value, nowUtc, content, inventory);
+
+    /// <summary>
+    /// ⚠️ The starting state of an account carrying a name <b>nothing filtered</b> — the domain
+    /// harness's door and no one else's.
+    /// </summary>
+    /// <param name="id">The identity the harness minted.</param>
+    /// <param name="displayName">The harness's own label for the player. Stored exactly as given.</param>
+    /// <param name="nowUtc">The instant the account is created at.</param>
+    /// <param name="content">The content set the authored starting values are read from.</param>
+    /// <param name="inventory">The stock the player starts with, or <c>null</c> for the empty one.</param>
+    /// <returns>The starting aggregate, or the failure the row was refused with.</returns>
+    /// <remarks>
+    /// 🔒 <b>Named for what it skips, which is the whole design.</b> <c>InMemoryGame</c> lets a caller
+    /// label a fixture player ("Ludwig the Unhurried") and runs on hermetic content sets that carry no
+    /// word lists at all, so it cannot go through the filter and has nothing player-chosen to filter.
+    /// That was true of the old <c>CreateStarting(string)</c> too — the difference is that this is a
+    /// <em>named method with an enumerable caller set</em> instead of an unfiltered parameter on the
+    /// method every caller reaches for, and <c>HeroNameWritePathRuleTests</c> asserts who calls it.
+    /// <para>
+    /// ⚠️ <c>public</c> rather than <c>internal</c>, and not by preference: <c>Core/Testing/</c> may
+    /// reach <c>Core/Model/</c> through its <b>public</b> seam only (`30` §6, asserted by
+    /// <c>AccessibilityBoundaryTests</c>), so an internal door would put the harness in breach of a
+    /// rule that matters more than this one's visibility. The IL rule over its callers is what makes
+    /// that safe, and it is stricter than <c>internal</c> would have been: it enumerates
+    /// <c>Application</c> as well as <c>Core</c>.
+    /// </para>
+    /// </remarks>
+    public static Result<Player> CreateStartingWithUnfilteredName(
+        PlayerId id,
+        string displayName,
+        DateTimeOffset nowUtc,
+        ContentSnapshot content,
+        InventorySnapshot? inventory = null) =>
+        StartingRow(id, displayName, nowUtc, content, inventory);
+
     /// <summary>The starting state of a brand-new account, as one row, declared in one place.</summary>
     /// <param name="id">The identity whatever creates accounts has already issued.</param>
     /// <param name="displayName">
@@ -807,17 +977,18 @@ public sealed class Player
     /// created account.
     /// </para>
     /// <para>
-    /// ⚠️ The name is stored without passing the hero-name rule, and that is a limit rather than an
-    /// oversight: nothing asks a player for a name at creation, so the caller's own text is all
-    /// there is. <see cref="Rename"/> is the door a player-chosen name comes through, and it is
-    /// where the filter runs.
+    /// 🔒 <b><c>private</c>: the row is declared once and reached through the three factories above,
+    /// each of which states what it does about the name.</b> The name is stored here without passing
+    /// the hero-name rule because by this point the decision has already been made — a
+    /// <see cref="HeroName"/> has been through the filter, an id was never player text, and the
+    /// harness's door says in its own name that it skipped it.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
     /// <exception cref="MissingContentException">The content set does not author a Legend Level range.</exception>
     /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
     /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
-    public static Result<Player> CreateStarting(
+    private static Result<Player> StartingRow(
         PlayerId id,
         string displayName,
         DateTimeOffset nowUtc,
@@ -1081,7 +1252,7 @@ public sealed class Player
         {
             faults.Add(
                 nameof(PlayerSnapshot.Presets) + " is null. An absent preset list is not an empty " +
-                "one: 12 §66 keeps presets a player may no longer WRITE as presets they may still " +
+                "one: 12 §2.2 keeps presets a player may no longer WRITE as presets they may still " +
                 "LOAD, so reading absent as empty deletes builds the design set promises to keep.");
             return null;
         }
@@ -1132,7 +1303,7 @@ public sealed class Player
     /// </para>
     /// <para>
     /// ⚠️ It is deliberately <b>not</b> applied to presets. A preset is a record of a build rather
-    /// than a claim of ownership: `12` §66 keeps presets loadable after Plus lapses, an item can be
+    /// than a claim of ownership: `12` §2.2 keeps presets loadable after Plus lapses, an item can be
     /// salvaged long after a preset named it, and applying a preset restores what is still owned. A
     /// preset validated like the live loadout would make a salvage able to corrupt a save.
     /// </para>

@@ -1219,13 +1219,50 @@ public sealed class AccessibilityBoundaryTests
             "exists to forbid, or the harness has stopped building one and the rule's subject set " +
             "is about to empty.");
 
+        // ⚠️ The M4 review split the starting factory into three named doors — one taking a filtered
+        // HeroName, one naming the account after its own id, one saying in its name that it skipped
+        // the filter — so the row itself moved onto a PRIVATE builder they all delegate to. The floor
+        // above still matches, because every door's name begins with CreateStarting; what changed is
+        // where the hop to Rehydrate lives, and naming the old method here would assert a member that
+        // no longer builds a row.
         Assert.True(
-            CallsRehydrate(Domain.FindInCore(PlayerType), StartingPlayerFactory),
-            $"Player.{StartingPlayerFactory} does not call Player.Rehydrate — 30 §11.3's one " +
+            CallsRehydrate(Domain.FindInCore(PlayerType), StartingRowBuilder),
+            $"Player.{StartingRowBuilder} does not call Player.Rehydrate — 30 §11.3's one " +
             "validated construction path. It is the seam the harness and the in-process host both " +
             "build a starting row through, so a version of it that assembled an aggregate any other " +
             "way would put an unvalidated Player into the harness AND into the local profile store, " +
             "with the scan above still reporting a public call.");
+
+        // 🔒 The hop above is only load-bearing if EVERY door takes it. There are three, they are
+        // told apart by what they do about 27 §1's name filter rather than by how they build a row,
+        // and a fourth added later that assembled its own row would leave both assertions above
+        // green — the floor because it matches on the name prefix, and CallsRehydrate because it
+        // names the builder rather than the doors.
+        var doors = Domain.FindInCore(PlayerType)?.Methods
+            .Where(m => m.Name.StartsWith(StartingPlayerFactory, StringComparison.Ordinal))
+            .ToArray() ?? [];
+
+        Assert.True(
+            doors.Length >= 3,
+            $"Player declares {doors.Length} {StartingPlayerFactory}* door(s). There are three — a " +
+            "filtered HeroName, an id-named account, and the harness's explicitly unfiltered one — " +
+            "and a scan that finds fewer is matching on something other than the name prefix, which " +
+            "would make the delegation check below quantify over nothing.");
+
+        ArchRule.Empty(
+            doors
+                .Where(door => !Il.Instructions(door)
+                    .Select(i => i.Operand as MethodReference)
+                    .Any(call =>
+                        call is not null &&
+                        call.Name.Equals(StartingRowBuilder, StringComparison.Ordinal)))
+                .Select(door =>
+                    $"{Il.Describe(door)} does not delegate to Player.{StartingRowBuilder}. Every " +
+                    "starting-account door builds THE SAME row and differs only in what it does " +
+                    "about 27 §1's name filter; a door that assembles its own is a second starting " +
+                    "state, and 30 §11.3's validated construction path is one hop further away " +
+                    "than this rule can see."),
+            $"Every Player.{StartingPlayerFactory}* door delegates to the one row builder (30 §11.3).");
 
         var offenders = reached
             .Where(r => !r.IsPublic)
@@ -1236,7 +1273,7 @@ public sealed class AccessibilityBoundaryTests
                 "past the P4 clone, past 30 §2.3's catch-up, past the 14 §8.1 RNG fold and past the " +
                 "30 §7 event stamping. Reaching an internal member of the CORE ROOT is worse: " +
                 "GameRules.Execute takes a CommandDispatch, so a harness calling it drives the domain " +
-                "against a fabricated command table, past all 49 of 14 §2.3's rows. Either way, every " +
+                "against a fabricated command table, past all 52 of 14 §2.3's rows. Either way, every " +
                 "claim the harness makes about 'the rules decided this' becomes a claim about the " +
                 "harness. 30 §11.3's Rehydrate/ToSnapshot pair and 30 §11.2's Apply are public " +
                 "precisely so this is not a cost: build the state through them and send a command.");
@@ -1252,8 +1289,14 @@ public sealed class AccessibilityBoundaryTests
     /// <summary>The aggregate root whose starting row both the harness and the in-process host build.</summary>
     private const string PlayerType = "Player";
 
-    /// <summary>The public factory that builds it, and the member the floor above is named on.</summary>
+    /// <summary>The public factories that build it, and the prefix the floor above is named on.</summary>
     private const string StartingPlayerFactory = "CreateStarting";
+
+    /// <summary>
+    /// The private row builder every <see cref="StartingPlayerFactory"/> door delegates to, and the
+    /// one hop that must end at <c>Rehydrate</c>.
+    /// </summary>
+    private const string StartingRowBuilder = "StartingRow";
 
     /// <summary>The one validated construction path <see cref="StartingPlayerFactory"/> must end at.</summary>
     private const string RehydrateMethod = "Rehydrate";
@@ -1372,7 +1415,7 @@ public sealed class AccessibilityBoundaryTests
     /// missed it.</b> <c>GameRules.Execute</c> is <c>internal static</c> and lives in the root, and
     /// <c>Core_internal_layering_holds</c>' <c>Testing</c> row deliberately permits
     /// <c>Testing → root</c> — so a harness calling <c>GameRules.Execute(someFabricatedDispatch, …)</c>
-    /// would drive the domain against a <em>made-up</em> command table, past all 49 production rows,
+    /// would drive the domain against a <em>made-up</em> command table, past all 52 production rows,
     /// and every rule in this suite would stay green. That is worse than reaching an aggregate's
     /// mutator, because it replaces the transition function's own dispatch rather than one write.
     /// <c>GameRules.Apply</c> is <c>public</c>, which is the whole point: `30` §11.2 makes it the one

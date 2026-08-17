@@ -143,7 +143,7 @@
       }
     },
     "inventory": {
-      "description": "08 §5 — capacity 120 to 320 in steps of 20, bought with Crowns (earned currency only). The design never sells inventory space for money.",
+      "description": "08 §5, as amended by the M4 retro ruling of 2026-08-17 — capacity is a FLAT 1000 slots and nothing buys an expansion. 10 §4's Crown ladder and 10 §2's flat Soul Shard alternative stay authored in currencies.json, deferred and unreachable: no EXPAND_INVENTORY command exists to spend them. The design never sells inventory space for money.",
       "type": "object",
       "additionalProperties": false,
       "required": ["_doc", "baseCapacity", "expansionStep", "maxCapacity"],
@@ -152,7 +152,7 @@
         "baseCapacity": { "type": "integer", "exclusiveMinimum": 0 },
         "expansionStep": { "type": "integer", "exclusiveMinimum": 0 },
         "maxCapacity": {
-          "description": "08 §5 / 10 §4 — the ceiling the purchase ladder reaches: baseCapacity + inventoryExpansionMaxPurchases * inventoryExpansionSlotsPerPurchase from currencies.json. A derived fact, not an independent number; DeclaredRules checks the three agree.",
+          "description": "08 §5 — the flat ceiling, equal to baseCapacity as of the M4 retro ruling of 2026-08-17. It is no longer derived from 10 §4's ladder: DeclaredRules now checks that the ladder's reach (baseCapacity + inventoryExpansionMaxPurchases * inventoryExpansionSlotsPerPurchase) stays STRICTLY ABOVE this ceiling, so every rung of the deferred ladder is unbuyable.",
           "type": "integer",
           "exclusiveMinimum": 0
         }

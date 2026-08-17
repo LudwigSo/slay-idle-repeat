@@ -1226,15 +1226,17 @@ public sealed class SubjectSetFloorTests
         // 30 §11.4 enumerates has to appear in one of these two arrays or its layering row governs
         // nothing. 🔒 Core_internal_layering_holds gained a Commands ROW on this commit — see the
         // note there for what it forbids and why the Events half is still open.
-        // 🔒 M1-02 filled it: 49 commands plus one internal payload helper. The two layering rows
+        // 🔒 M1-02 filled it: 49 commands plus one internal payload helper, and the M4 retro ruling of
+        // 2026-08-17 added three more commands. The two layering rows
         // M1-06 added were LIVE-BUT-THIN over a single abstract base with no members; they now
-        // govern 50 types, and the Commands row — read it in the table rather than here, since
+        // govern 53 types, and the Commands row — read it in the table rather than here, since
         // M1-11 appended Testing to it — was tested for real by the payload decision: every field
         // in the vocabulary is an int, a string, a bool or Primitives.DifficultyTier, and no command
         // names a Model aggregate. M1-06's brief asked to be told if one had to; none does.
         new(Domain.CommandsNamespace, SubjectKind.CoreNamespace, "M1-06",
             "AccessibilityBoundaryTests.Core_internal_layering_holds (the Commands row and the " +
-            "mustNotReachTheRoot row, both added in M1-06 and both governing 50 types since M1-02), " +
+            "mustNotReachTheRoot row, both added in M1-06 and both governing 53 types: M1-02's 49 " +
+            "commands, the internal payload helper, and the three the 2026-08-17 ruling added), " +
             "AccessibilityBoundaryTests.Every_Core_type_lives_under_a_documented_namespace"),
 
         // ---------------------------------------------------------------- M1-09, 30 §2.3
@@ -1257,7 +1259,7 @@ public sealed class SubjectSetFloorTests
         //    row would count as dispatched. It cannot be reached that way today — a handler is only
         //    ever named FROM a dispatch row — but the rule's guarantee is now "some type on the
         //    surface names it" rather than "the table names it", and the thing that keeps the two the
-        //    same is CommandVocabularyTests pinning the registry's 49 wire names in both directions.
+        //    same is CommandVocabularyTests pinning the registry's 52 wire names in both directions.
         //
         // ⚠️ WHAT THIS ROW DOES AND DOES NOT CATCH, stated exactly — an earlier draft of this
         // paragraph was wrong in both directions, in the one file whose job is to stop a comment

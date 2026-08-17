@@ -13,10 +13,34 @@ namespace SlayIdleRepeat.Core.Content;
 /// rules that read a stock both need these numbers from a layer beneath them both.
 /// </para>
 /// <para>
-/// <b>It spans two documents, and the interesting validation is the one that crosses them.</b>
-/// Capacity is a forge number and the ladder that moves it is a currency number, so the ceiling and
-/// the ladder are authored in different files by different hands. The reader refuses a set where
-/// they disagree — a ceiling no ladder can reach is a promise to the player that nothing can keep.
+/// 🔒 <b>Capacity is FLAT, and the ladder is deferred rather than deleted.</b> The M4 retro's
+/// product-owner ruling of 2026-08-17 made the stock "virtually unlimited, cap it by default at
+/// 1000 for now" and explicitly did <em>not</em> add an <c>EXPAND_INVENTORY</c> command to `14` §2.3's
+/// vocabulary — so nothing can move the ceiling, and <see cref="MaxCapacity"/> equals
+/// <see cref="BaseCapacity"/>. It supersedes M4 kickoff decision 4's <c>320 = 120 + 10 × 20</c>,
+/// which was <c>[auto-accepted]</c> rather than ruled.
+/// </para>
+/// <para>
+/// <b>It still spans two documents, and the validation that crosses them is now the deferral
+/// itself.</b> The old invariant — ceiling <em>equals</em> the ladder's reach — had two sources to
+/// reconcile and no longer does: the ceiling is an authored number rather than a derivation. What
+/// replaces it is the claim that makes the deferral checkable, and it can still fail in both
+/// directions: `10` §4's ladder must stay <b>authored and entirely out of reach</b> — its reach
+/// (<c>baseCapacity + maxPurchases × slotsPerPurchase</c>) strictly above the ceiling, so not one
+/// rung of it is buyable — and the ceiling must equal the base. Restore the pre-ruling numbers and
+/// the first arm fires on the exact equality that used to be required; raise the ceiling into the
+/// ladder's range and one of the two fires. The day a purchase command is authored, this is the
+/// loud failure that says the block has to be re-ruled first.
+/// </para>
+/// <para>
+/// ⚠️ <b>Said plainly, because it is the honest shape of the pair: the ladder arm's trigger set is a
+/// strict SUBSET of the flatness arm's.</b> Every step size and purchase count is positive, so a
+/// ceiling the ladder can reach is necessarily a ceiling above the base, and no document can trip
+/// the first without also tripping the second. What the ladder arm buys is the <em>diagnosis</em>,
+/// and that is why it is asked first: a reader told "the ceiling is not the base" would go and edit
+/// the base, where what actually happened is that somebody made an expansion buyable. It also
+/// outlives the flatness arm — the day capacity legitimately stops being flat, the flatness arm goes
+/// and this one is the guard that remains.
 /// </para>
 /// <para>
 /// A hole is never a default: every read below goes through <see cref="ContentSnapshot"/>'s typed
@@ -41,13 +65,16 @@ internal sealed class InventoryTuning
 
     private const string CrownsPointer = PricingDocumentPath + "#/crowns";
 
-    /// <summary>Slots a player holds before buying anything.</summary>
+    /// <summary>Slots a player holds. Flat: nothing buys more.</summary>
     internal const string BaseCapacityReference = InventoryPointer + "/baseCapacity";
 
-    /// <summary>Slots one expansion adds, as the forge document states it.</summary>
+    /// <summary>
+    /// Slots one expansion <em>would</em> add, as the forge document states it. Deferred, and kept
+    /// as the forge-side half of the one quantity both documents author.
+    /// </summary>
     internal const string ExpansionStepReference = InventoryPointer + "/expansionStep";
 
-    /// <summary>The ceiling capacity stops at. Derived, and checked against the ladder.</summary>
+    /// <summary>The ceiling capacity stops at. Authored flat, and checked against the deferred ladder.</summary>
     internal const string MaxCapacityReference = InventoryPointer + "/maxCapacity";
 
     /// <summary>The escalating Crown price of each expansion, one rung per purchase.</summary>
@@ -134,22 +161,31 @@ internal sealed class InventoryTuning
         FlatSoulShardPrice = flatSoulShardPrice;
     }
 
-    /// <summary>Slots a player starts with. 120 as shipped.</summary>
+    /// <summary>Slots a player holds. 1000 as shipped, and the whole capacity — nothing adds to it.</summary>
     internal int BaseCapacity { get; }
 
-    /// <summary>Slots one expansion adds. 20 as shipped, and equal to <see cref="SlotsPerPurchase"/> by rule.</summary>
+    /// <summary>
+    /// Slots one expansion would add. 20 as shipped, equal to <see cref="SlotsPerPurchase"/> by rule,
+    /// and <b>unspent</b>: no command buys an expansion.
+    /// </summary>
     internal int ExpansionStep { get; }
 
-    /// <summary>The ceiling capacity stops at. 320 as shipped — exactly what the ladder reaches.</summary>
+    /// <summary>
+    /// The ceiling capacity stops at. 1000 as shipped, and equal to <see cref="BaseCapacity"/> by rule
+    /// — capacity is flat, so this is the only capacity there is.
+    /// </summary>
     internal int MaxCapacity { get; }
 
-    /// <summary>The Crown price of each expansion, in purchase order. Strictly ascending.</summary>
+    /// <summary>
+    /// The Crown price of each expansion, in purchase order. Strictly ascending, and <b>deferred</b>:
+    /// authored, priced, and unreachable under the flat ceiling.
+    /// </summary>
     internal IReadOnlyList<long> Ladder { get; }
 
-    /// <summary>How many expansions can ever be bought. 10 as shipped.</summary>
+    /// <summary>How many expansions the deferred ladder prices. 10 as shipped; none is buyable.</summary>
     internal int MaxPurchases { get; }
 
-    /// <summary>Slots one expansion adds, as the currency document states it. 20 as shipped.</summary>
+    /// <summary>Slots one expansion would add, as the currency document states it. 20 as shipped.</summary>
     internal int SlotsPerPurchase { get; }
 
     /// <summary>
@@ -164,35 +200,15 @@ internal sealed class InventoryTuning
     /// </remarks>
     internal long FlatSoulShardPrice { get; }
 
-    /// <summary>
-    /// Capacity after <paramref name="expansionsPurchased"/> expansions: the base plus one step per
-    /// purchase. 120, 140, … 320 as shipped.
-    /// </summary>
-    /// <param name="expansionsPurchased">
-    /// Expansions already bought, from zero to <see cref="MaxPurchases"/> inclusive.
-    /// </param>
-    /// <returns>The capacity at that many purchases.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// Outside <c>0..MaxPurchases</c>. Refused rather than clamped: a clamped answer past the cap
-    /// would let a caller charge for a purchase that added nothing.
-    /// </exception>
-    internal int CapacityAt(int expansionsPurchased)
-    {
-        if (expansionsPurchased < 0 || expansionsPurchased > MaxPurchases)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(expansionsPurchased),
-                expansionsPurchased,
-                "The expansion ladder runs from 0 to " + Render(MaxPurchases) + " purchases, so " +
-                "there is no capacity outside it. Clamping would answer " + Render(MaxCapacity) +
-                " for a purchase count nobody can reach and let a caller charge for slots it did " +
-                "not add.");
-        }
+    // 🔒 There is deliberately no CapacityAt(expansionsPurchased) here any more. Capacity does not
+    // depend on a purchase count under the 2026-08-17 ruling, so a member taking one would be a
+    // function of an argument it has to ignore — and exactly the shape a future caller would reach
+    // for to grow a stock past the flat ceiling. MaxCapacity IS the capacity. Its old body,
+    // BaseCapacity + expansionsPurchased × ExpansionStep, is the arithmetic Read's
+    // ladder-out-of-reach arm now refuses to let the data satisfy. The ladder itself is still read
+    // and still priced — see CrownPriceOf — because the owner deferred the limit, not the ladder.
 
-        return BaseCapacity + (expansionsPurchased * ExpansionStep);
-    }
-
-    /// <summary>The Crown price of the next expansion.</summary>
+    /// <summary>The Crown price of the next expansion, on the deferred ladder nothing may buy.</summary>
     /// <param name="nextPurchaseIndex">
     /// The number of expansions <b>already</b> bought, which is the index of the rung the next one
     /// costs. Zero is a brand-new player's first expansion.
@@ -307,16 +323,35 @@ internal sealed class InventoryTuning
                 Render(flatSoulShardPrice) + ".");
         }
 
+        // 🔒 The two arms that replace the old "ceiling EQUALS the ladder's reach" equality, which
+        // the 2026-08-17 ruling superseded. The ladder arm is asked FIRST on purpose: it is the one
+        // that catches the pre-ruling document coming back, which is the failure a stale data set
+        // actually produces, and it fails on precisely the equality the old rule demanded.
         var reachable = (long)baseCapacity + ((long)maxPurchases * slotsPerPurchase);
-        if (maxCapacity != reachable)
+
+        if (reachable <= maxCapacity)
+        {
+            throw new InvalidTunableException(
+                LadderReference,
+                "The ladder reaches " + Render(reachable) + " (" + Render(baseCapacity) + " + " +
+                Render(maxPurchases) + " x " + Render(slotsPerPurchase) + ") and the ceiling is " +
+                Render(maxCapacity) + ", so a purchase this ladder prices would fit under it. It " +
+                "must not. The 2026-08-17 retro ruled capacity FLAT and added no EXPAND_INVENTORY " +
+                "command, so 10 §4's ladder is authored, priced and DEFERRED — every rung of it has " +
+                "to buy slots the ceiling refuses, or the game carries a purchase it can neither " +
+                "sell nor honour. Two ways to reach here: the pre-ruling derivation (120 + 10 x 20 " +
+                "= 320, where the two met exactly) is back in the documents, or the ceiling was " +
+                "raised into the ladder's range without anybody ruling on what may move it.");
+        }
+
+        if (maxCapacity != baseCapacity)
         {
             throw new InvalidTunableException(
                 MaxCapacityReference,
-                "The ceiling is " + Render(maxCapacity) + " and the ladder reaches " +
-                Render(reachable) + " (" + Render(baseCapacity) + " + " + Render(maxPurchases) +
-                " x " + Render(slotsPerPurchase) + "). The ceiling is not an independent number: " +
-                "above the ladder it promises slots no player can buy, and below it a purchase the " +
-                "ladder prices would push the stock past a limit the game says exists.");
+                "The ceiling is " + Render(maxCapacity) + " and the base is " + Render(baseCapacity) +
+                ". Capacity is flat as of the 2026-08-17 ruling — a player holds the base and no " +
+                "command grows it — so a ceiling ABOVE the base promises slots nothing can buy, and " +
+                "one BELOW it is a base no player may keep. The two are one number written twice.");
         }
 
         return new InventoryTuning(

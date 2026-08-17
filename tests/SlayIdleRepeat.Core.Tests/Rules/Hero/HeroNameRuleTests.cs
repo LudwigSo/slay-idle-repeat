@@ -55,9 +55,18 @@ public sealed class HeroNameRuleTests
     /// its own: <c>&gt;=</c> refuses a twelve-character name too, and nothing but the accepting half
     /// would notice.
     /// </remarks>
+    /// <remarks>
+    /// 🔴 <b>The limit itself is pinned first, and without that line nothing in this file pins it.</b>
+    /// Every probe here is <c>MaximumLength ± 1</c>, so the constant could be moved to twenty and the
+    /// whole suite would stay green while the hero name silently grew past what `07` §1's property
+    /// table — and every screen laid out against it — allows.
+    /// </remarks>
     [Fact]
     public void The_length_boundary_is_twelve_characters_from_both_sides()
     {
+        HeroNameRule.MaximumLength.ShouldBe(
+            12, "07 §1's property table gives the hero name twelve characters.");
+
         HeroNameRule.Validate(new string('a', HeroNameRule.MaximumLength), Lexicon)
             .Accepted.ShouldBeTrue("07 §1 authors 12 characters, so 12 is legal.");
 

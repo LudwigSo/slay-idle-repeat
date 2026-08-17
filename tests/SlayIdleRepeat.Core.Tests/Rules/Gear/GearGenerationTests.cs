@@ -29,16 +29,34 @@ public sealed class GearGenerationTests
 
     /// <summary>The drop's band is the band the façade resolved, not one the generator chose.</summary>
     /// <remarks>
+    /// <para>
     /// The façade is run separately over an identical stream and the two answers compared, which is
     /// what makes this a routing claim rather than a restatement of the drop table.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The table deals TWO bands evenly, and it has to.</b> It used to be the single-band probe
+    /// the cases below still use — 100% on one band at every chapter — under which both sides of the
+    /// comparison are that band whatever produced them, so a generator that ignored
+    /// <c>LuckService</c> entirely and minted a rarity of its own passed. Two bands make the façade's
+    /// answer seed-dependent, and the premise assertion below is what keeps it that way.
+    /// </para>
     /// </remarks>
+    /// <param name="lower">The lower of the two bands the probe table deals.</param>
+    /// <param name="higher">The higher of them.</param>
     [Theory]
-    [InlineData(Rarity.C)]
-    [InlineData(Rarity.B)]
-    [InlineData(Rarity.A)]
-    public void The_drops_band_is_the_one_the_facade_resolved(Rarity only)
+    [InlineData(Rarity.C, Rarity.B)]
+    [InlineData(Rarity.B, Rarity.A)]
+    [InlineData(Rarity.A, Rarity.S)]
+    public void The_drops_band_is_the_one_the_facade_resolved(Rarity lower, Rarity higher)
     {
-        var drops = EveryDropIs(only);
+        var drops = HalfAndHalf(lower, higher);
+
+        BandsAcrossSeeds(drops).Length.ShouldBe(
+            2,
+            $"the premise: at 50/50 between {lower} and {higher} the façade's answer is a draw. If " +
+            "this table ever answered one band for every seed, the comparison below would hold over a " +
+            "generator that never consulted the façade at all.");
+
         var expected = LuckService.ResolveRunDrop(
             Tuning(), DropRun(), drops, 3, RunDropTrigger.ELITE, Counters(Rarity.A, 2), Rng());
 
@@ -300,10 +318,47 @@ public sealed class GearGenerationTests
     private static DeterministicRng Rng() => DeterministicRng.OpenAt(Seed, RngStreams.Drops, 0);
 
     /// <summary>A drop table in which every chapter draws one band — a probe, not a balance table.</summary>
+    /// <remarks>
+    /// ⚠️ A single-band table makes a drop's rarity <em>independent of the draw</em>, which is what
+    /// the cases about counters and draw indices want and what a case about <em>routing</em> must not
+    /// have. Those use <see cref="HalfAndHalf"/>.
+    /// </remarks>
     private static DropsTuning EveryDropIs(Rarity only) => DropsTuning.Read(GearDocuments.With(
         dropShares: ContentValue.Array(
         [
             GearDocuments.ShareBand(
                 ContentValue.Number(1), ContentValue.Number(8), (only.ToString(), 100m)),
         ])));
+
+    /// <summary>A drop table dealing two bands evenly at every chapter, so the band is a draw.</summary>
+    /// <param name="lower">The lower band.</param>
+    /// <param name="higher">The higher band.</param>
+    private static DropsTuning HalfAndHalf(Rarity lower, Rarity higher) =>
+        DropsTuning.Read(GearDocuments.With(
+            dropShares: ContentValue.Array(
+            [
+                GearDocuments.ShareBand(
+                    ContentValue.Number(1),
+                    ContentValue.Number(8),
+                    (lower.ToString(), 50m),
+                    (higher.ToString(), 50m)),
+            ])));
+
+    /// <summary>
+    /// The distinct bands the façade answers for a table, across a sweep of seeds — the floor that
+    /// keeps a routing comparison from being satisfied by a constant.
+    /// </summary>
+    private static Rarity[] BandsAcrossSeeds(DropsTuning drops) =>
+        Enumerable.Range(1, 32)
+            .Select(seed => LuckService.ResolveRunDrop(
+                    Tuning(),
+                    DropRun(),
+                    drops,
+                    3,
+                    RunDropTrigger.ELITE,
+                    Counters(Rarity.A, 2),
+                    DeterministicRng.OpenAt((ulong)seed, RngStreams.Drops, 0))
+                .Outcome)
+            .Distinct()
+            .ToArray();
 }

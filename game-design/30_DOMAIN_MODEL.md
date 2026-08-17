@@ -133,7 +133,6 @@ public sealed record GameContext(
 | **Randomness** | `DeterministicRng` in `Core`, seeded externally (`23` §4.3) | ⚠️ **Two regimes** (ruled in `16` A7). **In-run draws never touch the context:** they come from the `Run` aggregate's committed `runSeed` and its persisted per-stream draw counters (`02` §2, `14` §8) — state, not ambience. `CommandSeed` is **reserved for meta commands** — wheel spins, container opens, the `BEGIN_SESSION` quest draw — whose draws are `Hash64(CommandSeed, stream, i)` from `i = 0` (`14` §8.1). *(The earlier wording cited `14` §8.1 in support of a per-command-seed model; that was a mis-citation — §8.1 specifies the run-stream model.)* The invariant that survives, restated accurately: **the domain never invents entropy.** Every draw is a pure function of committed state or a server-supplied context value — `runSeed` itself is derived deterministically inside `Apply` on `START_RUN` from `(playerId, chapter, tier, NowUtc, runCounter)` (`02` §2). |
 | **Content** | `game-data`, "embedded in both" (`14` §6) | ⚠️ **An immutable, version-stamped `ContentSnapshot` on the context.** Loading JSON is I/O and belongs in an adapter; *reading* content is a rule. The version stamp is what makes a replayed command reproduce its original outcome after a balance patch. |
 | **Entitlement** | Server session payload (`12` §2.1) | ✅ A read-only value. 🔒 **The domain may read `HasPlus` only at the two sites enumerated below — never to alter a stat, a rate or a drop.** An architecture test asserts `Entitlements` is unreachable from the power computation (`29` §3) and from every rule in `Core/Rules/`. |
-
 | **Feature flags** | `IRemoteConfigPort` | ⚠️ Resolved at the composition root into a plain record. The domain must not call a config service mid-rule. |
 
 🔒 **Amendment (M4-10): the entitlement row's enumerated readers are TWO, not one.** It said *"only to
@@ -150,7 +149,7 @@ A domain-tier value the domain is forbidden to compute cannot both be true. The 
 The list is closed and enumerated in `IsolationTests.EntitlementReaders`, matched by **exact type
 name and exact file path**, with a written licence per entry, and a rule fails when a listed site
 stops reading the entitlement — so an exemption cannot outlive what it excused. `APPLY_PRESET`
-deliberately does *not* read the entitlement: `12` §66 keeps presets beyond the free allowance
+deliberately does *not* read the entitlement: `12` §2.2 keeps presets beyond the free allowance
 **read-only, not deleted**, so only the write path asks about Plus. A third reader is a decision that
 belongs in a diff and in this table, not in a widened predicate.
 
@@ -429,6 +428,7 @@ SlayIdleRepeat.Core/
 ├── Rng/                 # DeterministicRng, seed streams
 ├── Model/               # THE AGGREGATES. Public getters, internal ctors, invariants only.
 │   ├── Player/ Run/ Guild/
+│   ├── Gear/            #   08 §7 — GearInstance, Inventory, ItemAvailability (M4-03, M4-05)
 │   └── Snapshots/       #   public persistence DTOs + Rehydrate (§11.3)
 ├── Rules/               # internal, static, stateless calculators (🔴 see the note below)
 │   ├── Combat/          #   05, 17 — CombatSimulator is public; per-battle state, enumerated
@@ -436,8 +436,13 @@ SlayIdleRepeat.Core/
 │   ├── Board/ Dice/     #   03, 04
 │   ├── Effects/         #   18 — the DSL interpreter
 │   ├── Luck/            #   24 — LuckService
-│   ├── Gear/            #   08 §1–3 — item power, quality, affix rolls, set bonuses
-│   └── Economy/         #   08 §4, 10 — merge, enhance, energy, currency math
+│   ├── Perks/           #   06 §1–2, §4, 24 §4.7 — the 3-option draft and its composition rules
+│   ├── Gear/            #   08 §2–3 — item power, quality, affix rolls, set bonuses
+│   ├── Forge/           #   08 §4 — merge, enhance, salvage, the auto-salvage filter
+│   ├── Inventory/       #   08 §5, 10 §4 — availability, sorting, side-by-side comparison
+│   ├── Hero/            #   07 §1, §4 — Legend curve, unlock gates, hero name, loadout rules
+│   ├── Feats/           #   28 D, §12.7 — the event → lifetime-counter projection
+│   └── Economy/         #   10, 03 §7 — energy, currency math, shop pricing, run rewards
 ├── Commands/            # public GameCommand hierarchy
 ├── Events/              # public DomainEvent hierarchy
 ├── Handlers/            # internal. One per command. The services that steer the model.
@@ -445,6 +450,8 @@ SlayIdleRepeat.Core/
 └── Testing/
     └── InMemoryGame.cs  # public harness (§6)
 ```
+
+🔴 **Corrected in the M4 review — the tree was four `Rules/` namespaces and one `Model/` namespace short, and one row pointed at the wrong one.** `Rules/` has **13** subdirectories on disk; this tree named **8**. `Forge/` (M4-04), `Hero/` (M4-10), `Inventory/` (M4-05), `Feats/` (M4-13) and `Perks/` (M3-06) were missing, as was `Model/Gear/` (M4-03, M4-05). Worse than absent: M4-03 amended the `Economy/` row to read *"`08` §4, 10 — merge, enhance…"* and M4-04 then created a **new** `Rules/Forge/` for exactly those two operations, so the row named a namespace they had left. `Economy/` is re-scoped above to what it actually holds. `ARCHITECTURE.md`'s copy of the same list was five short and is corrected in the same change. ⚠️ Two lists of one directory tree is what let this drift; neither is mechanically checked, so both are re-read at each milestone review rather than trusted.
 
 **Dependency direction inside `Core`**, enforced by namespace-level architecture tests:
 

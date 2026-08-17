@@ -195,10 +195,72 @@ public sealed class GearEnhancementTests
     }
 
     /// <summary>
+    /// 🔒 An attempt riding a lucky bonus that <b>fails</b> leaves the mercy counter exactly where it
+    /// stood, where the same attempt without the bonus advances it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Every other call site in this file passes <see cref="GearEnhancement.NoLuckyBonus"/>,
+    /// so <c>GearEnhancement.Attempt</c>'s own <c>luckyBonus &gt; 0.0</c> derivation was pinned by
+    /// nothing.</b> Mutating it to a bare <c>false</c> — or to <c>&gt;= 0.0</c>, which makes every
+    /// attempt look helped — left the suite entirely green. And it is not a hypothetical seam:
+    /// <c>forge.json</c> authors <c>plusLuckyPercentagePoints = 15</c>, so this is live tuning
+    /// waiting for its caller.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Both halves are driven on ONE seed, and it is walked for at the RAISED chance.</b> A
+    /// bonus makes the attempt more likely to land, so a seed that fails at 25% may well succeed at
+    /// 40% — and the pair would then be comparing a failure against a success rather than a helped
+    /// failure against an unhelped one. A seed that fails at the raised chance necessarily fails at
+    /// the plain one, which is why it is walked from that end.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_failing_attempt_that_carried_a_lucky_bonus_leaves_the_mercy_counter_standing()
+    {
+        var seed = FirstFailingSeed(LuckyBonus);
+        var item = Inventories.Item("blade", enhanceLevel: 14);
+
+        var helped = GearEnhancement.Attempt(
+            item, LuckyBonus, Forges.Tuning, Forges.Mercy, Forges.Draws(seed));
+        var unhelped = GearEnhancement.Attempt(
+            item, GearEnhancement.NoLuckyBonus, Forges.Tuning, Forges.Mercy, Forges.Draws(seed));
+
+        helped.Succeeded.ShouldBeFalse("the seed was walked for at the RAISED chance precisely so it fails there");
+        unhelped.Succeeded.ShouldBeFalse("…and a draw above the raised chance is above the plain one too");
+
+        helped.Rate.ShouldBeGreaterThan(
+            unhelped.Rate,
+            "the premise: the two attempts have to carry genuinely different chances, or this is one " +
+            "case run twice and says nothing about the bonus at all.");
+
+        unhelped.Item.EnhanceFailures.ShouldBe(
+            1, "an ordinary failure advances the item's mercy counter by one.");
+
+        helped.Item.EnhanceFailures.ShouldBe(
+            Core.Model.Gear.GearInstance.NoFailures,
+            "24 §4.6 authors adEnhanceLuckAdvancesCounter = false, so an attempt carrying the ad's " +
+            "bonus neither advances nor spends the counter — the bonus rides on top of the mercy " +
+            "rather than buying it. A derivation that reported every attempt as helped moves the " +
+            "assertion above instead, and one that reported none moves this one.");
+    }
+
+    /// <summary>
+    /// The rewarded ad's one-attempt bonus, as a share.
+    /// </summary>
+    /// <remarks>
+    /// A literal rather than a read: <c>forge.json#/plus/plusLuckyPercentagePoints</c> authors 15 and
+    /// <c>ForgeTuning</c> has no member for it yet, so there is nothing to ask. Any positive share
+    /// exercises the same branch; this one is the authored figure so the case reads as the shipped
+    /// scenario rather than an invented one.
+    /// </remarks>
+    private const double LuckyBonus = 0.15;
+
+    /// <summary>
     /// A seed whose first draw lands above the hardest level's chance — walked for rather than
     /// guessed, so the cases that need a failure fail loudly instead of asserting over a success.
     /// </summary>
-    private static ulong FailingSeed { get; } = FirstFailingSeed();
+    private static ulong FailingSeed { get; } = FirstFailingSeed(GearEnhancement.NoLuckyBonus);
 
     /// <summary>
     /// One attempt at the hardest level, on a seed whose draw lands above the chance — found by
@@ -209,7 +271,9 @@ public sealed class GearEnhancementTests
         GearEnhancement.Attempt(
             item, GearEnhancement.NoLuckyBonus, Forges.Tuning, Forges.Mercy, Forges.Draws(FailingSeed));
 
-    private static ulong FirstFailingSeed()
+    /// <summary>The first seed under two hundred whose attempt at the ceiling-1 level misses.</summary>
+    /// <param name="luckyBonus">The bonus the walked attempt carries. A higher one is harder to miss.</param>
+    private static ulong FirstFailingSeed(double luckyBonus)
     {
         var unenhanced = Inventories.Item("probe", enhanceLevel: 14);
 
@@ -217,7 +281,7 @@ public sealed class GearEnhancementTests
         {
             var attempt = GearEnhancement.Attempt(
                 unenhanced,
-                GearEnhancement.NoLuckyBonus,
+                luckyBonus,
                 Forges.Tuning,
                 Forges.Mercy,
                 Forges.Draws(seed));
@@ -230,7 +294,7 @@ public sealed class GearEnhancementTests
 
         throw new InvalidOperationException(
             "No seed under two hundred failed an attempt at the hardest level, whose authored chance " +
-            "is one in four. Either the draw is not being consulted or the ladder has moved, and " +
-            "either way the failure cases above would be asserting over a success.");
+            "is one in four before any bonus. Either the draw is not being consulted or the ladder " +
+            "has moved, and either way the failure cases above would be asserting over a success.");
     }
 }

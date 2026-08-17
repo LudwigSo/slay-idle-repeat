@@ -27,19 +27,22 @@ internal static class InventoryDocuments
     /// <summary>Where the expansion prices live.</summary>
     internal const string CurrenciesDocumentPath = "tuning/currencies.json";
 
-    /// <summary>Slots a player starts with.</summary>
-    internal const int ShippedBaseCapacity = 120;
+    /// <summary>Slots a player holds. Flat: nothing adds to it.</summary>
+    internal const int ShippedBaseCapacity = 1000;
 
-    /// <summary>Slots one expansion adds, as the forge document states it.</summary>
+    /// <summary>
+    /// Slots one expansion <em>would</em> add, as the forge document states it. Deferred and unspent.
+    /// </summary>
     internal const int ShippedExpansionStep = 20;
 
     /// <summary>
-    /// The ceiling: <c>120 + 10 × 20</c>. The forge document carried 400 until this task, which no
-    /// ladder could reach — the number here is the one the ladder actually walks to.
+    /// The ceiling, equal to <see cref="ShippedBaseCapacity"/> by rule as of the M4 retro's ruling of
+    /// 2026-08-17. It used to be <c>120 + 10 × 20 = 320</c> — the ladder's reach — and is now an
+    /// authored flat number the ladder must stay strictly above.
     /// </summary>
-    internal const int ShippedMaxCapacity = 320;
+    internal const int ShippedMaxCapacity = 1000;
 
-    /// <summary>How many expansions can ever be bought.</summary>
+    /// <summary>How many expansions the deferred ladder prices. None of them is buyable.</summary>
     internal const int ShippedMaxPurchases = 10;
 
     /// <summary>Slots one expansion adds, as the currency document states it. Equal to the step by rule.</summary>

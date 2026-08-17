@@ -200,11 +200,16 @@ public sealed class GearMintingTests
     [Fact]
     public void No_affix_repeats_on_one_item()
     {
+        var minted = 0;
+
         foreach (var seed in Seeds())
         {
             Mint(new GearInstanceId("gi"), 1, Rarity.S, At(seed))
                 .Affixes.Select(affix => affix.AffixId).ShouldBeUnique();
+            minted++;
         }
+
+        minted.ShouldBe(SweepWidth, "the assertion above lives inside a loop");
     }
 
     // ---------------------------------------------------------------- determinism and draw order

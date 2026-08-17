@@ -135,17 +135,19 @@ internal static class Inventories
             item.Locked);
     }
 
-    /// <summary>
-    /// A persisted inventory holding <paramref name="items"/> stored items, with every expansion the
-    /// ladder authorises already bought.
-    /// </summary>
+    /// <summary>A persisted inventory holding <paramref name="items"/> stored items.</summary>
     /// <remarks>
     /// For the callers that need a <em>large</em> inventory without paying for one command per item —
     /// the performance comparison in particular, whose whole subject is how the per-command cost moves
     /// with the size of this list.
+    /// <para>
+    /// It records <b>zero</b> expansions bought, and used to record every one the ladder prices.
+    /// Neither number buys a slot since the 2026-08-17 ruling made capacity flat, and zero is the
+    /// honest one: no command sells an expansion, so no real row can carry a purchase.
+    /// </para>
     /// </remarks>
     internal static InventorySnapshot Stock(int items) =>
-        new(Tuning.MaxPurchases, Fill(items).Select(Persist).ToArray(), []);
+        new(0, Fill(items).Select(Persist).ToArray(), []);
 
     /// <summary>Places every item in order and hands the inventory back, for a caller that wants a stocked one.</summary>
     internal static Inventory Holding(params GearInstance[] items)

@@ -120,6 +120,8 @@ public sealed class GearAffixRollerTests
     [Fact]
     public void Rolled_values_are_rounded_at_the_roll()
     {
+        var seen = 0;
+
         for (var seed = 1UL; seed <= 32UL; seed++)
         {
             foreach (var rolled in GearAffixRoller.Roll(
@@ -127,8 +129,13 @@ public sealed class GearAffixRollerTests
             {
                 DeterminismRounding.IsRounded(rolled.Value).ShouldBeTrue(
                     $"'{rolled.AffixId}' rolled {rolled.Value}, which persisted state cannot carry");
+                seen++;
             }
         }
+
+        seen.ShouldBe(
+            96, "the rounding assertion above is inside a loop, and a roller answering nothing would " +
+                "satisfy it by quantifying over an empty sequence.");
     }
 
     /// <summary>A zero-width range still consumes its value draw.</summary>

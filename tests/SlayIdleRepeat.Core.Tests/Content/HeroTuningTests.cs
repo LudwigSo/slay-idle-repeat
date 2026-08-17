@@ -158,4 +158,103 @@ public sealed class HeroTuningTests
         Should.Throw<MissingContentException>(
             () => PresetTuning.Read(ProgressionDocuments.Shipped));
     }
+
+    // ------------------------------------------------------------------- the two storage bounds
+
+    /// <summary>
+    /// Both storage bounds are read from the document, and a different authored pair is the one that
+    /// answers.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The discriminating half is what matters: these were two <c>const</c>s in
+    /// <c>LoadoutPreset</c> until the M4 review, so a reader that kept answering 999 and 64 would
+    /// pass any case written against the shipped numbers. Both replacements are deliberately
+    /// <em>not</em> the shipped values, and they differ from each other so a reader that crossed the
+    /// two pointers cannot pass either.
+    /// </remarks>
+    [Fact]
+    public void A_different_authored_pair_of_storage_bounds_is_the_one_that_answers()
+    {
+        PresetTuning.Read(TuningDocuments.AdsOnly()).HighestSlot
+            .ShouldBe(TuningDocuments.ShippedHighestPresetSlot);
+        PresetTuning.Read(TuningDocuments.AdsOnly()).LongestNameTextElements
+            .ShouldBe(TuningDocuments.ShippedLongestPresetName);
+
+        var retuned = PresetTuning.Read(TuningDocuments.AdsOnly(
+            highestSlot: ContentValue.Number(120), longestName: ContentValue.Number(31)));
+
+        retuned.HighestSlot.ShouldBe(120);
+        retuned.LongestNameTextElements.ShouldBe(31);
+    }
+
+    /// <summary>
+    /// A slot bound at or below the free allowance is refused: it would put slots <c>09</c> §2.1
+    /// gives away for free out of reach, which is the one thing these bounds claim not to do.
+    /// </summary>
+    /// <remarks>
+    /// The floor is the allowance rather than 1, so a bound of 2 is refused even though it names a
+    /// perfectly storable slot — the point is not that the number is small, it is that the third free
+    /// slot would stop being writable. A bound exactly equal to the allowance is accepted, and the
+    /// case below is the boundary control on that.
+    /// </remarks>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(TuningDocuments.ShippedFreePresets - 1)]
+    public void A_slot_bound_that_reaches_into_the_free_allowance_is_refused(int highestSlot)
+    {
+        var thrown = Should.Throw<InvalidTunableException>(() => PresetTuning.Read(
+            TuningDocuments.AdsOnly(highestSlot: ContentValue.Number(highestSlot))));
+
+        thrown.Reference.ShouldBe(
+            PresetTuning.HighestSlotReference,
+            "which bound, not merely that some bound was refused — this reader raises the same type " +
+            "for the name bound and for the free allowance itself.");
+        thrown.Message.ShouldContain("slot number", Case.Sensitive);
+    }
+
+    /// <summary>A slot bound exactly at the free allowance is accepted: every free slot is writable.</summary>
+    /// <remarks>
+    /// The boundary control on the case above. The refusal is "a free slot became unwritable", not
+    /// "the number looks low", and only a case on each side of the boundary tells those apart.
+    /// </remarks>
+    [Fact]
+    public void A_slot_bound_exactly_at_the_free_allowance_is_accepted()
+    {
+        PresetTuning.Read(TuningDocuments.AdsOnly(
+                highestSlot: ContentValue.Number(TuningDocuments.ShippedFreePresets)))
+            .HighestSlot.ShouldBe(TuningDocuments.ShippedFreePresets);
+    }
+
+    /// <summary>A name bound below one leaves no nameable preset at all, and is refused.</summary>
+    /// <remarks>
+    /// The negative control on the case above: the two bounds have different floors — the slot bound
+    /// is floored at the free allowance and the name bound at one — so a reader that shared one floor
+    /// between them would pass one case and fail the other.
+    /// </remarks>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void A_name_bound_below_one_is_refused(int longestName)
+    {
+        var thrown = Should.Throw<InvalidTunableException>(() => PresetTuning.Read(
+            TuningDocuments.AdsOnly(longestName: ContentValue.Number(longestName))));
+
+        thrown.Reference.ShouldBe(PresetTuning.LongestNameReference);
+        thrown.Message.ShouldContain("name length", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// A name bound of one is accepted — the floor is one, not the free allowance.
+    /// </summary>
+    /// <remarks>
+    /// The boundary control that stops the two floors being collapsed into a single number: 1 is
+    /// below <c>ShippedFreePresets</c>, so a reader that floored both bounds at the allowance would
+    /// refuse this and fail.
+    /// </remarks>
+    [Fact]
+    public void A_name_bound_of_one_is_accepted()
+    {
+        PresetTuning.Read(TuningDocuments.AdsOnly(longestName: ContentValue.Number(1)))
+            .LongestNameTextElements.ShouldBe(1);
+    }
 }

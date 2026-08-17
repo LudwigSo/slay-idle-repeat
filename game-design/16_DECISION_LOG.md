@@ -164,6 +164,17 @@ Made after M0's implementation landed and its two schedule-risk spikes reported.
 
 ---
 
+## A9. Rulings from the M4 milestone review (2026-08-17)
+
+Made by the **product owner** at the M4 retro, after the review found several fully-authored systems that no command could reach. M1 kickoff decision 1 froze the command vocabulary at **49** on the explicit terms that *"additions afterwards are logged decisions in `16`"* — this is that log entry.
+
+| ID | Decision | Rationale | Consequences |
+|---|---|---|---|
+| **D35** | 🔒 **The command vocabulary gains three commands: `UNEQUIP`, `LOCK_ITEM`, `SET_AUTO_SALVAGE_RULES`. 49 → 52.** | Each unblocks design that is **already authored and already tested**, so none of the three authorises new design — they make existing design reachable. `EQUIP` shipped in M7-00d but a slot could only be overwritten, never emptied. `Inventory.SetLock` had **zero production callers**, so `GearInstance.Locked` was never true in production and the whole `ItemAvailability.LOCKED` path — `InventoryAccess`'s refusal arm, `Enhance`'s deliberate lock-passthrough, `Equip`'s "a locked item is equippable" ruling — was dead code. `Player.AutoSalvageRules` had no writer, leaving `Rules/Forge/AutoSalvageFilter.cs` (75 lines, 149 lines of tests) unreachable. | Amends `14` §2.3's command table and its heading counts. Handlers land here; the **auto-salvage UI stays M9-01's** and the filter running at run end is not in scope. The pattern that produced all three — a rule authored with no command to drive it — is recorded as the reason this ruling was needed at all. |
+| **D36** | 🔒 **`EXPAND_INVENTORY` is refused. Inventory is virtually unlimited, capped by default at 1000.** *"I don't see a reason to increase the inventory size. It should be virtually unlimited, cap it by default at 1000 for now and I will potentially deal with the limit itself later."* | A purchasable capacity ladder is a friction the product does not want. Capacity becomes a flat engineering bound rather than a progression system. | 🔒 **Supersedes M4 kickoff decision 4**, which ruled capacity at **320** (base 120 + 10 × 20) — and which was `[auto-accepted]`, i.e. the conductor's own recommendation, never the owner's. Amends `08` §5. **`10` §4's ten-rung Crown ladder and `10` §2's flat 400-Soul-Shard alternative stay authored but unspent** — deferred, not deleted, pending the owner's later decision on the limit itself. ⚠️ **Carries a measured performance consequence**: M1 carry-forward 12 makes inventory size a per-command cost because `InMemoryGame` clones the player on every command, and M4-05 measured **101.8 ms at the 320 cap, ≈51 % of the 200 ms budget**. The move to 1000 is measured, not presumed safe; if it exceeds budget the answer is a narrower slice (`30` §4.1) or copy-on-write, and the number is reported to the owner either way. |
+
+---
+
 # PART B — Remaining Open Items (32)
 
 Everything still genuinely unresolved, prioritised. Nothing here blocks starting implementation.

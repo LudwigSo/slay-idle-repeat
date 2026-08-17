@@ -70,11 +70,12 @@ public sealed class RunDropResolutionTests
     /// guarantee and four do not.
     /// </summary>
     /// <remarks>
-    /// The authored key is spelled <c>consecutiveMissesBeforeForce</c>, which reads as "misses
-    /// tolerated before the force" and would put the guarantee on the seventh kill. The design text is
-    /// unambiguous — count consecutive Elite kills whose drop was below A, and on the sixth force A or
-    /// better — so five misses precede the forced draw. A case that only checked "forced eventually"
-    /// would pass under either reading.
+    /// The authored key <em>was</em> spelled <c>consecutiveMissesBeforeForce</c>, which reads as
+    /// "misses tolerated before the force" and would put the guarantee on the seventh kill; the M4
+    /// review renamed it to <c>forceOnNthKill</c>. The design text was always unambiguous — count
+    /// consecutive Elite kills whose drop was below A, and on the sixth force A or better — so five
+    /// misses precede the forced draw. This case is what pins the reading whatever the key is called:
+    /// one that only checked "forced eventually" would pass under either.
     /// </remarks>
     [Theory]
     [InlineData(4, false)]
@@ -291,6 +292,74 @@ public sealed class RunDropResolutionTests
         resolution.Outcome.ShouldBe(Rarity.A);
         resolution.Changes[0].Value.ShouldBe(
             3, "the boss breaker counts a drop below S as a miss, and an A is below S");
+    }
+
+    /// <summary>
+    /// 🔒 The miss band and the forced band are read from their <b>own</b> fields, over a breaker
+    /// whose two bands differ.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Every other case in this file uses the shipped pairing, where the two bands are the
+    /// same</b> — the elite breaker is A/A and the boss breaker is S/S — so a resolution that read
+    /// <c>belowRarity</c> where it meant <c>forceRarityAtLeast</c>, or the reverse, produces exactly
+    /// the same answers and the whole file stays green. On a data edit that split the two the game
+    /// would silently count the wrong drops as misses and floor the forced draw on the wrong band.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The asymmetry runs upward, and it has to.</b> <c>DropRunTuning</c> refuses a forced band
+    /// <em>below</em> the miss band by name — such a breaker would force a draw that is itself a miss,
+    /// so the counter would never reset — which makes A-miss/SS-force the only direction a fixture can
+    /// legally take the two apart. It discriminates in both halves all the same: an <c>A</c> drop is
+    /// not below <c>A</c>, so it <em>resets</em>, where a swapped reading would call it a miss below
+    /// <c>SS</c> and advance; and the forced draw floors at <c>SS</c>, which a table of nothing but
+    /// <c>A</c> cannot reach, where a swapped reading would floor at <c>A</c> and draw happily.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_miss_band_and_the_forced_band_are_read_from_their_own_fields()
+    {
+        var asymmetric = AsymmetricElite();
+
+        asymmetric.EliteMercy.BelowRarity.ShouldBe(Rarity.A, "the fixture's premise, from one side");
+        asymmetric.EliteMercy.ForceRarityAtLeast.ShouldBe(
+            Rarity.SS, "…and from the other. These two differing is the whole case.");
+
+        var atTheMissBand = LuckService.ResolveRunDrop(
+            Tuning(),
+            asymmetric,
+            EveryDropIs(Rarity.A),
+            1,
+            RunDropTrigger.ELITE,
+            Counters(Rarity.SS, 4),
+            Rng());
+
+        atTheMissBand.Outcome.ShouldBe(Rarity.A);
+        atTheMissBand.FromPity.ShouldBeFalse();
+        atTheMissBand.Changes[0].Value.ShouldBe(
+            0,
+            "an A is not STRICTLY BELOW A, so it is not a miss and the counter resets — even though " +
+            "it falls far short of the SS this breaker forces. A resolution reading the forced band " +
+            "as the miss band would advance the counter to five here.");
+
+        var refused = Rng();
+
+        Should.Throw<InvalidOperationException>(() => LuckService.ResolveRunDrop(
+                Tuning(),
+                asymmetric,
+                EveryDropIs(Rarity.A),
+                1,
+                RunDropTrigger.ELITE,
+                Counters(Rarity.SS, 5),
+                refused))
+            .Message.ShouldContain(
+                "floor",
+                Case.Insensitive,
+                "the sixth kill floors the table at SS, the FORCED band, and this table carries no " +
+                "weight there. A resolution flooring at the miss band instead would draw an A and " +
+                "report a guarantee it had not paid.");
+
+        refused.Position.ShouldBe(0UL, "a refusal is decided before the draw");
     }
 
     // ---------------------------------------------------------------- the draw stream
@@ -561,6 +630,20 @@ public sealed class RunDropResolutionTests
     /// </remarks>
     private static PityCounters Counters(Rarity forcedBand, int misses) =>
         PityCounters.Empty.With(Tuning().CounterKey(SourceClass.DROP_RUN, forcedBand), misses);
+
+    /// <summary>
+    /// The shipped block with the elite breaker's two bands pulled apart — a miss below <c>A</c>, a
+    /// forced draw at <c>SS</c>.
+    /// </summary>
+    /// <remarks>
+    /// The boss breaker is left as shipped, so the two breakers still form different counter keys and
+    /// the case reads one ladder rather than two ladders that happen to share a key.
+    /// </remarks>
+    private static DropRunTuning AsymmetricElite() => DropRunTuning.Read(LuckDocuments.LuckOnly(
+        dropRun: LuckDocuments.DropRun(eliteMercy: LuckDocuments.Breaker(
+            ContentValue.Number(LuckDocuments.ShippedDropRunEliteMercyN),
+            ContentValue.Text(nameof(Rarity.A)),
+            ContentValue.Text(nameof(Rarity.SS))))));
 
     private static LuckResolution Resolve(RunDropTrigger trigger, PityCounters counters) =>
         LuckService.ResolveRunDrop(Tuning(), DropRun(), Drops(), 1, trigger, counters, Rng());

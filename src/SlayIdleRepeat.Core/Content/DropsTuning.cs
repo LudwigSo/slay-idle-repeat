@@ -234,10 +234,23 @@ internal sealed class DropsTuning
     /// Both restrictions are applied here rather than at the roll: the slot restriction is what keeps
     /// lifesteal off boots, and the rarity floor is what keeps the reroll-charge affix off anything
     /// below its authored band. A roller that had to remember either would eventually forget one.
+    /// <para>
+    /// 🔒 <b>Wrapped rather than handed back as the live <c>List&lt;T&gt;</c></b>, on
+    /// <c>Rules.Inventory.InventorySorting</c>' precedent and for its reason: an
+    /// <c>IReadOnlyList&lt;T&gt;</c> that is really a <c>List&lt;T&gt;</c> can be cast back and
+    /// written through, and this reader is shared by every mint, merge and session-floor grant of the
+    /// command that built it — one caller adding a row would change what a later item may roll.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The per-call filter is deliberate and is not a candidate for precomputation.</b>
+    /// <see cref="Read"/> runs on every command that can produce an item, so materialising all
+    /// (slot, band) combinations there would allocate the whole grid on commands that mint nothing,
+    /// in place of one list per item that is actually rolled.
+    /// </para>
     /// </remarks>
     /// <param name="slot">The slot the item is worn in.</param>
     /// <param name="rarity">The item's band.</param>
-    /// <returns>The eligible affixes. May be empty.</returns>
+    /// <returns>The eligible affixes, read-only. May be empty.</returns>
     internal IReadOnlyList<GearAffixDefinition> EligibleAffixes(GearSlot slot, Rarity rarity)
     {
         var eligible = new List<GearAffixDefinition>(_affixes.Count);
@@ -259,7 +272,7 @@ internal sealed class DropsTuning
             }
         }
 
-        return eligible;
+        return eligible.AsReadOnly();
     }
 
     /// <summary>One affix's definition.</summary>

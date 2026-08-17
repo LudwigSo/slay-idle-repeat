@@ -49,6 +49,18 @@ internal static class SetBonusResolver
     /// <summary>The only band whose pieces count towards a set.</summary>
     internal const Rarity SetBand = Rarity.SS;
 
+    /// <summary>
+    /// The four family axes, in declaration order — the order <see cref="Resolve"/> answers its sets
+    /// in.
+    /// </summary>
+    /// <remarks>
+    /// Cached rather than re-read per call, on <c>Content.ProfanityLexicon.Languages</c>' precedent:
+    /// <see cref="Enum.GetValues{TEnum}()"/> allocates a fresh array every time it is called, and
+    /// <see cref="Resolve"/> runs once per loadout derivation. Read off the enum rather than
+    /// transcribed, so a fifth axis is carried here without an edit.
+    /// </remarks>
+    private static readonly GearFamilyAxis[] FamilyAxes = Enum.GetValues<GearFamilyAxis>();
+
     /// <summary>Every set the loadout is wearing at least one piece of, in family-axis order.</summary>
     /// <param name="catalogue">The base-item catalogue, which maps a family to its axis.</param>
     /// <param name="drops">The gear tables, for the authored breakpoints.</param>
@@ -81,7 +93,7 @@ internal static class SetBonusResolver
 
         var active = new List<ActiveSet>(pieces.Count);
 
-        foreach (var axis in Enum.GetValues<GearFamilyAxis>())
+        foreach (var axis in FamilyAxes)
         {
             if (pieces.TryGetValue(axis, out var worn))
             {

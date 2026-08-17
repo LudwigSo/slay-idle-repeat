@@ -5,7 +5,7 @@
   "description": "12 §4-6 — placement caps and bundle scaling. 12 §1: no ad reward may be uncapped, so every placement carries an integer cap and a cap window.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "_status", "fairnessContract", "plus", "inRunPlacements", "metaPlacements", "globalCaps", "rewardScaling", "interstitials", "banners", "preload"],
+  "required": ["$schema", "_doc", "_status", "fairnessContract", "plus", "presetStorage", "inRunPlacements", "metaPlacements", "globalCaps", "rewardScaling", "interstitials", "banners", "preload"],
   "$defs": {
     "placement": {
       "description": "12 §4 — a rewarded placement. cap is mandatory and must be a positive integer: 12 §1 forbids an uncapped ad reward outright.",
@@ -45,6 +45,17 @@
         "offerHiddenBeforeLegendLevel": { "type": "integer", "minimum": 0, "maximum": 200 },
         "gracePeriodDaysGoogle": { "type": "integer", "minimum": 0 },
         "gracePeriodDaysApple": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "presetStorage": {
+      "description": "Storage bounds on one saved loadout preset — NOT design limits, and no design section authors either number. Read the block's own _doc before touching them: they bound what an untrusted client can make the persisted player row grow to, nothing else. Authored rather than left as constants in code so they are greppable, retunable and visibly unowned.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["_doc", "highestSlot", "longestNameTextElements"],
+      "properties": {
+        "_doc": { "type": "string", "minLength": 1 },
+        "highestSlot": { "type": "integer", "minimum": 1 },
+        "longestNameTextElements": { "type": "integer", "minimum": 1 }
       }
     },
     "inRunPlacements": {
