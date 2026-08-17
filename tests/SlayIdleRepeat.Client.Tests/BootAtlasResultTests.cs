@@ -57,10 +57,12 @@ public sealed class BootAtlasResultTests
             "can act on, and a fixed string would read identically for every cause.");
     }
 
-    [Fact]
-    public void Absent_rejects_a_blank_reason()
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Absent_rejects_a_blank_reason(string reason)
     {
-        Should.Throw<ArgumentException>(() => BootAtlasResult.Absent("   "))
+        Should.Throw<ArgumentException>(() => BootAtlasResult.Absent(reason))
               .ParamName.ShouldBe(
                   "detail",
                   "an absent atlas with no stated reason is indistinguishable from one nobody looked " +

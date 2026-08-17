@@ -113,6 +113,10 @@ public sealed class BootStringCatalogueTests
     {
         var catalogue = new BootStringCatalogue(BootContent.Shipped, BootContent.English);
 
+        catalogue.Resolve(key).ShouldNotBeNullOrWhiteSpace(
+            $"'{key}' resolved to nothing at all against the real game-data. Blank is the one answer " +
+            "worse than the key itself: it renders as a gap that reads like a design choice, and it " +
+            "would satisfy the 'not the key' assertion below on its own.");
         catalogue.Resolve(key).ShouldNotBe(
             key,
             $"'{key}' resolved to itself against the real game-data, which is the fallback firing: " +

@@ -39,6 +39,9 @@ internal sealed class RecordingBootAtlasCatalogue : IBootAtlasCatalogue
     /// <summary>The stage the presenter was in when it asked.</summary>
     internal BootStage? StageWhenRead { get; private set; }
 
+    /// <summary>The status line the presenter was showing when it asked.</summary>
+    internal string? StatusTextWhenRead { get; private set; }
+
     /// <summary>The profile the presenter had open when it asked.</summary>
     internal PlayerId? PlayerWhenRead { get; private set; }
 
@@ -50,6 +53,7 @@ internal sealed class RecordingBootAtlasCatalogue : IBootAtlasCatalogue
     {
         WasRead = true;
         StageWhenRead = Observed?.Stage;
+        StatusTextWhenRead = Observed?.StatusText;
         PlayerWhenRead = Observed?.PlayerId;
         ElapsedWhenRead = Observed?.Elapsed;
 

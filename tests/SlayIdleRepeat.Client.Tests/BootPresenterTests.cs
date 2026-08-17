@@ -141,6 +141,23 @@ public sealed class BootPresenterTests
     }
 
     [Fact]
+    public async Task StatusText_is_the_stages_own_line_while_that_stage_is_running()
+    {
+        var atlas = LoadedAtlas();
+        var presenter = Boot(StubGameHost.Opening(OpenedProfile), BootContent.Complete(), atlas, Frozen());
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        atlas.StatusTextWhenRead.ShouldBe(
+            BootContent.EnglishAtlasStatus,
+            "the stages in between the first frame and the last one are the ones the player spends " +
+            "the boot looking at, and only a vantage point inside the boot can see them. A presenter " +
+            "that showed the splash line until Ready would pass every assertion taken before and " +
+            "after StartAsync while rendering one caption for the whole load — which is the mapping " +
+            "the boot document's stageStatus block exists to make.");
+    }
+
+    [Fact]
     public async Task StartAsync_does_not_reach_the_atlas_before_the_profile_is_open()
     {
         var atlas = LoadedAtlas();
@@ -218,6 +235,25 @@ public sealed class BootPresenterTests
         presenter.Failure!.Stage.ShouldBe(
             BootStage.Profile,
             "and it happened after content loaded, which is the fact that separates the two reports.");
+    }
+
+    [Fact]
+    public async Task StartAsync_fails_as_ProfileUnavailable_when_the_host_throws_before_returning_a_task()
+    {
+        var presenter = Boot(
+            StubGameHost.ThrowingBeforeReturning(HostFailure()), BootContent.Complete(), LoadedAtlas(), Frozen());
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Failure!.Kind.ShouldBe(
+            BootFailureKind.ProfileUnavailable,
+            "the same fault, thrown one instant earlier. A presenter that awaits the call inside a " +
+            "try block catches both shapes; one that starts the call outside it and awaits inside " +
+            "catches only the faulted task, and this arrangement is the one that tells them apart.");
+        presenter.Failure!.Stage.ShouldBe(
+            BootStage.Profile,
+            "and it is still the profile stage that broke — a synchronous throw must not escape the " +
+            "stage it happened in and get filed against whatever ran next.");
     }
 
     [Fact]
@@ -392,8 +428,11 @@ public sealed class BootPresenterTests
         presenter.Atlas!.IsAvailable.ShouldBeFalse(
             "non-fatal is not the same as invisible. Something has to be able to tell that the " +
             "artwork is placeholder rectangles rather than the real pages.");
-        presenter.Atlas!.Detail.ShouldNotBeNullOrWhiteSpace(
-            "and it has to say why, or 'absent' is a state with no trace and nobody can tell a " +
+        presenter.Atlas!.Detail.ShouldBe(
+            AtlasAbsenceReason,
+            "and it has to say why the catalogue said it was absent, not merely say something. " +
+            "Stated as the reason this read actually produced, because any fixed line — 'no atlas' — " +
+            "is non-blank, reads identically for every cause, and would leave nobody able to tell a " +
             "checkout that never generated one from a generator that silently produced nothing.");
     }
 
@@ -496,17 +535,38 @@ public sealed class BootPresenterTests
         var presenter = Boot(StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), clock);
 
         await presenter.StartAsync(CancellationToken.None);
+        var movedDuringTheBoot = clock.Moved;
 
         clock.Reads.ShouldBeGreaterThan(
             1,
             "a presenter that never reads the injected clock reports zero, and zero would agree with " +
             "a clock that never moved. Two readings are the minimum a measurement can be made from.");
         presenter.Elapsed.ShouldBe(
-            clock.Moved,
+            movedDuringTheBoot,
             "the number that gets compared against a cold-start budget has to come from the clock " +
             "that was injected. Stated as the span this clock actually moved, so an implementation " +
             "reading the ambient clock fails here instead of producing a plausible small number " +
-            "that no test can pin.");
+            "that no test can pin. Captured BEFORE the property is read: reading the clock is what " +
+            "moves it, so a presenter computing Elapsed live on every access would move both sides " +
+            "together and agree with itself.");
+    }
+
+    [Fact]
+    public async Task Elapsed_does_not_move_once_the_boot_has_finished()
+    {
+        var clock = Advancing();
+        var presenter = Boot(StubGameHost.Opening(OpenedProfile), BootContent.Complete(), LoadedAtlas(), clock);
+
+        await presenter.StartAsync(CancellationToken.None);
+        var whenTheBootFinished = presenter.Elapsed;
+        var readAgainAfterwards = presenter.Elapsed;
+
+        readAgainAfterwards.ShouldBe(
+            whenTheBootFinished,
+            "'the boot took this long' is a span that ended, not a stopwatch still running. A " +
+            "presenter computing it live off the clock keeps growing after Ready, so the number a " +
+            "cold-start report picks up depends on when the report was written rather than on how " +
+            "long the boot took — and every assertion that reads it once agrees with it.");
     }
 
     [Fact]
@@ -532,6 +592,11 @@ public sealed class BootPresenterTests
 
         await presenter.StartAsync(CancellationToken.None);
 
+        presenter.Elapsed.ShouldBeGreaterThan(
+            TimeSpan.Zero,
+            "an anchor for the comparison below, which two zeros would satisfy on their own: this " +
+            "clock advances on every reading and the boot takes several, so a span of nothing means " +
+            "the measurement never happened rather than that it never went backwards.");
         atlas.ElapsedWhenRead!.Value.ShouldBeLessThanOrEqualTo(
             presenter.Elapsed,
             "sampled from inside the boot rather than only at the end, because a monotonic reading " +
@@ -547,9 +612,10 @@ public sealed class BootPresenterTests
         var presenter = Boot(StubGameHost.FaultingItsTask(HostFailure()), BootContent.Complete(), LoadedAtlas(), clock);
 
         await presenter.StartAsync(CancellationToken.None);
+        var movedDuringTheBoot = clock.Moved;
 
         presenter.Elapsed.ShouldBe(
-            clock.Moved,
+            movedDuringTheBoot,
             "a failed boot is the one whose duration matters most — 'it hung for eleven seconds and " +
             "then said the profile was unreadable' is a different report from 'it failed at once'. A " +
             "presenter that only stops the measurement on the success path loses exactly that.");

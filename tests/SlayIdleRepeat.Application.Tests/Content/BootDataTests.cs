@@ -31,10 +31,21 @@ public sealed class BootDataTests
     [Fact]
     public void The_boot_document_pairs_with_the_boot_schema()
     {
+        var shipped = RepoData.Documents.Keys;
+
         ContentLayout.SchemaFor(BootDocument).ShouldBe(
             BootSchema,
             "an unpaired data file is one nobody validates. This is the pairing the loader resolves, " +
             "and it is the reason a malformed boot document fails the build rather than the boot.");
+        shipped.ShouldContain(
+            BootDocument,
+            "and the pairing is only real if the document is. SchemaFor is a pure transform over a " +
+            "string — it answers just as confidently for a path nobody ever authored, so the " +
+            "assertion above passes unchanged against a checkout carrying neither file.");
+        shipped.ShouldContain(
+            BootSchema,
+            "likewise the schema half: deleting schema/boot.schema.json leaves SchemaFor answering " +
+            "exactly as it does today, and this is the assertion that notices.");
     }
 
     /// <summary>
