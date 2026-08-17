@@ -572,6 +572,84 @@ public sealed class ChapterSelectPresenterTests
         host.SubmitCallCount.ShouldBe(0, "and nothing reaches the host either way");
     }
 
+    // ------------------------------------------- 🔒 the refusal this screen does not decide
+
+    /// <summary>
+    /// 🔒 A submitted command is not an accepted one. The rules layer refuses a <c>START_RUN</c>
+    /// while a run is already open, and a screen that read its own submission as the outcome would
+    /// report a run that never started.
+    /// </summary>
+    /// <remarks>
+    /// The pair here is selectable and the profile was read, so every check this screen makes has
+    /// already passed: the only thing left that can say no is the layer behind it, and the whole
+    /// question is whether its answer is looked at.
+    /// </remarks>
+    [Fact]
+    public async Task ConfirmAsync_reports_RefusedByRules_when_the_rules_layer_refuses_the_command()
+    {
+        var host = RecordingGameHost
+            .Finding(PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))))
+            .RefusingCommands(RejectionReason.ILLEGAL_STATE);
+        var presenter = await Started(host, Authoring(AuthoredChapters));
+
+        var submission = await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        submission.ShouldBe(
+            ChapterSelectSubmission.RefusedByRules,
+            "the command really was sent and really was refused, so neither refusal this screen " +
+            "decides for itself describes it. Reported as Submitted — which is what discarding the " +
+            "outcome amounts to — the caller latches its confirm on a run that does not exist and " +
+            "the player is left on a dead screen with nothing said.");
+        host.SubmitCallCount.ShouldBe(
+            1,
+            "and it is told apart from the two refusals above by having reached the host at all: " +
+            "those two are decided before anything is sent.");
+    }
+
+    /// <summary>
+    /// 🔒 The reason travels, rather than collapsing into one opaque "it failed". Two reasons in,
+    /// two reasons out — a presenter that kept only a bool satisfies the case above and loses the
+    /// difference between a player who is already mid-run and a build sending an impossible tier.
+    /// </summary>
+    [Theory]
+    [InlineData(RejectionReason.ILLEGAL_STATE)]
+    [InlineData(RejectionReason.RATE_LIMITED)]
+    public async Task ConfirmAsync_carries_the_rules_layers_own_reason_for_the_refusal(
+        RejectionReason rejection)
+    {
+        var host = RecordingGameHost
+            .Finding(PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))))
+            .RefusingCommands(rejection);
+        var presenter = await Started(host, Authoring(AuthoredChapters));
+
+        await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        presenter.RulesRejection.ShouldBe(
+            rejection,
+            $"{rejection} is the whole content of the refusal, and it is the only thing that could " +
+            "tell the player what to do next. Stated per reason rather than as 'not null', because " +
+            "a presenter that stored the first refusal it ever saw, or a constant, would pass a " +
+            "single case and report the wrong cause for every later one.");
+    }
+
+    [Fact]
+    public async Task ConfirmAsync_carries_no_rejection_when_the_rules_layer_accepts_the_command()
+    {
+        var host = RecordingGameHost.Finding(
+            PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))));
+        var presenter = await Started(host, Authoring(AuthoredChapters));
+
+        var submission = await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        submission.ShouldBe(
+            ChapterSelectSubmission.Submitted,
+            "the positive control the case above is worthless without: a presenter that answered " +
+            "RefusedByRules for everything would satisfy it and never start a run at all.");
+        presenter.RulesRejection.ShouldBeNull(
+            "an accepted command was refused for no reason, and a reason left standing from nowhere " +
+            "would put a cause on a screen that succeeded.");
+    }
+
     // ------------------------------------------------------ 🔒 the absence, pinned as a fact
 
     /// <summary>
@@ -607,6 +685,7 @@ public sealed class ChapterSelectPresenterTests
         members.ShouldContain(nameof(ChapterSelectPresenter.Chapters), "the list the absent warning would have sat beside");
         members.ShouldContain(nameof(ChapterSelectPresenter.Availability), "the answer the absent warning must not become part of");
         members.ShouldContain(nameof(ChapterSelectPresenter.ConfirmAsync), "the control the absent warning would have gated");
+        members.ShouldContain(nameof(ChapterSelectPresenter.RulesRejection), "the one refusal on this screen that comes from behind it");
     }
 
     // ------------------------------------------------------------------------- the strings

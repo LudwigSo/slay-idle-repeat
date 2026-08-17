@@ -29,6 +29,8 @@ internal sealed class RecordingGameHost : IGameHost
     private readonly OwnStateResult? _read;
     private readonly Exception? _readFailure;
 
+    private RejectionReason? _submitRejection;
+
     private RecordingGameHost(OwnStateResult? read, Exception? readFailure)
     {
         _read = read;
@@ -76,6 +78,23 @@ internal sealed class RecordingGameHost : IGameHost
     /// <summary>A host whose state read returns a faulted task — how a real async host fails.</summary>
     internal static RecordingGameHost FaultingItsRead(Exception failure) => new(read: null, failure);
 
+    /// <summary>
+    /// Makes every command this host is handed come back refused, carrying the given reason.
+    /// </summary>
+    /// <remarks>
+    /// A refusal is an ANSWER here, not a thrown failure: <c>ApplyCommandUseCase</c> refuses a
+    /// command that reached it by returning an outcome, and a fake that threw would exercise the
+    /// caller's catch instead of the branch that reads the outcome. The read is configured
+    /// separately, because a refused submission needs a profile that was found first.
+    /// </remarks>
+    /// <param name="rejection">Why. Whichever tier's reason the case is about.</param>
+    internal RecordingGameHost RefusingCommands(RejectionReason rejection)
+    {
+        _submitRejection = rejection;
+
+        return this;
+    }
+
     /// <inheritdoc/>
     public Task<PlayerId> OpenProfileAsync(CancellationToken ct) =>
         throw new NotSupportedException(
@@ -108,7 +127,11 @@ internal sealed class RecordingGameHost : IGameHost
         SubmitCommand = command;
         SubmitToken = ct;
 
+        var unchanged = PlayerState.EmptySlice(player);
+
         return Task.FromResult(
-            ApplyCommandOutcome.Accept(PlayerState.EmptySlice(player), [], []));
+            _submitRejection is { } rejection
+                ? ApplyCommandOutcome.Reject(rejection, unchanged)
+                : ApplyCommandOutcome.Accept(unchanged, [], []));
     }
 }

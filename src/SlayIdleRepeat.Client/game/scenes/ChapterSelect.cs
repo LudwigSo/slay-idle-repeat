@@ -42,6 +42,12 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// 🔴 <b>A confirmed run has nowhere to go</b> — see <see cref="TheRunScreenIsNotBuiltHere"/>.
 /// </para>
 /// <para>
+/// ⚠️ <b>Only an accepted run takes the confirm out of use.</b> A run the rules layer refused is a
+/// run that never started, so the control comes back and the choice can be made again. The latch
+/// below exists because there is nowhere to navigate to afterwards; latching on a refusal would
+/// strand the player on a screen whose one action had been spent for nothing.
+/// </para>
+/// <para>
 /// 🔒 There is deliberately no par-power readout, no expected-power number and no power warning.
 /// The power model belongs to the row that owns it, and a comparison drawn here would be a second
 /// answer to a question that already has one owner.
@@ -393,8 +399,10 @@ public partial class ChapterSelect : Control
 
                 if (submission == ChapterSelectSubmission.Submitted)
                 {
-                    // Latched rather than re-enabled: there is no screen to leave for, so a second
-                    // press on a screen that never changed would start a second run.
+                    // Latched rather than re-enabled, and only here: there is no screen to leave
+                    // for, so a second press on a screen that never changed would start a second
+                    // run. Every other verdict leaves the flag alone and the redraw below gives the
+                    // control back.
                     _submitted = true;
 
                     GD.PushError(
@@ -404,7 +412,8 @@ public partial class ChapterSelect : Control
                 else
                 {
                     GD.PushWarning(
-                        $"No run was started for chapter {chapterId} on {tier}: {submission}.");
+                        $"No run was started for chapter {chapterId} on {tier}: " +
+                        $"{submission}{DescribeRejection(presenter)}. The confirm stays live.");
                 }
             }
 
@@ -424,6 +433,15 @@ public partial class ChapterSelect : Control
             Render();
         }
     }
+
+    /// <summary>The rules layer's own reason for a refusal, or nothing when it made none.</summary>
+    /// <remarks>
+    /// Named rather than summarised: a run already open, a chapter id below one and an undefined
+    /// tier are three different defects, and a line saying only that the command failed would leave
+    /// whoever reads it unable to tell a player mid-run from a build sending nonsense.
+    /// </remarks>
+    private static string DescribeRejection(ChapterSelectPresenter presenter) =>
+        presenter.RulesRejection is { } rejection ? $" ({rejection})" : "";
 
     /// <summary>Writes the presenter's state into the scene, if the scene is still there to write into.</summary>
     private void Render()

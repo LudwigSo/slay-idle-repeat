@@ -85,6 +85,18 @@ public enum ChapterSelectSubmission
 
     /// <summary>Nothing was submitted, because there is no player state to start a run for.</summary>
     RefusedProfileUnavailable = 3,
+
+    /// <summary>
+    /// <c>START_RUN</c> went to the host and the rules layer refused it. Which refusal it was is
+    /// carried by <see cref="ChapterSelectPresenter.RulesRejection"/>.
+    /// </summary>
+    /// <remarks>
+    /// Told apart from the two refusals above because it is the only one this screen did not decide:
+    /// the pair was selectable, the profile was read, the command was sent, and the answer came back
+    /// no. Folded into either of the others it would report a screen state that is not true, and the
+    /// player would be shown a ladder that is not what stopped them.
+    /// </remarks>
+    RefusedByRules = 4,
 }
 
 /// <summary>How far the Chapter Select screen has got with the read its gating depends on.</summary>
@@ -220,6 +232,18 @@ public sealed class ChapterSelectPresenter
     /// <summary>How far the read the gating depends on has got.</summary>
     public ChapterSelectStage Stage { get; private set; } = ChapterSelectStage.NotYetRead;
 
+    /// <summary>
+    /// Why the rules layer refused the last <c>START_RUN</c> that reached it, or null when the last
+    /// one was accepted and when none has been sent.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The reason is carried across rather than collapsed into the verdict. A run already open, a
+    /// chapter id below one and an undefined tier are all refused, and they are the difference
+    /// between "you are already playing" and "this build sent nonsense" — a single flag saying the
+    /// command failed would leave the player and whoever reads the logs with the same blank.
+    /// </remarks>
+    public RejectionReason? RulesRejection { get; private set; }
+
     /// <summary>The screen's heading, resolved.</summary>
     public string Title => _strings.Resolve(TitleKey);
 
@@ -302,6 +326,12 @@ public sealed class ChapterSelectPresenter
     }
 
     /// <summary>Submits <c>START_RUN</c> for a selectable pair, and nothing at all for any other.</summary>
+    /// <remarks>
+    /// A submitted command is not an accepted one. This screen's gate is the only thing checking the
+    /// ladder, but it is not the only thing checking anything: the rules layer refuses a second run
+    /// while one is open, and a screen that reported the tap as taken would latch its confirm on a
+    /// run that never started.
+    /// </remarks>
     /// <param name="chapterId">The chosen chapter.</param>
     /// <param name="tier">The chosen tier.</param>
     /// <param name="ct">Cancellation.</param>
@@ -318,11 +348,15 @@ public sealed class ChapterSelectPresenter
             return ChapterSelectSubmission.RefusedNotSelectable;
         }
 
-        await _gameHost
+        var outcome = await _gameHost
             .SubmitAsync(_player, run: null, new StartRunCommand(chapterId, tier), ct)
             .ConfigureAwait(false);
 
-        return ChapterSelectSubmission.Submitted;
+        RulesRejection = outcome.Rejection;
+
+        return outcome.Accepted
+            ? ChapterSelectSubmission.Submitted
+            : ChapterSelectSubmission.RefusedByRules;
     }
 
     private static IReadOnlyList<ChapterListing> ReadChapters(
