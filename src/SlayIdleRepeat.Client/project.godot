@@ -24,6 +24,13 @@ run/main_scene="res://game/scenes/AppRoot.tscn"
 ; treats a missing icon as a configuration error. icon.svg is a project file,
 ; not artwork — see the comment inside it.
 config/icon="res://icon.svg"
+; Off, and that is a decision rather than a default: left alone the engine draws
+; its own logo as the first thing on screen, so an exported build would open on
+; another project's branding. Declining it is not the same as designing a
+; splash — the splash screen, and whatever image eventually goes here, belong to
+; the boot task and to art that does not exist yet. Until then the background
+; colour stands, which shows no more than a blank frame but claims nothing.
+boot_splash/show_image=false
 ; 4.7 — M0-05a pinned the engine at 4.7.1-stable, and both spike projects say
 ; "4.7". config/features is what the editor reads to decide whether a project
 ; needs an upgrade pass, so a stale "4.4" here would make the first person to
