@@ -120,6 +120,7 @@ sits at the end. It is authored per milestone (M2/M3/M11). M2 filled `enemies/`,
 | `liveops_events/` | `26` — live-ops event packages (`EVT_EMBERFALL`, …) |
 | `feats/` | `28` Part D |
 | `profanity/` | `27` §1 — the EN + DE name-filter word lists (`07` §1's hero name, `27` §1's guild name and tag) |
+| `boot/` | `13` S01 — which loc key fills each string slot on the boot screen |
 
 > `board_events/` and `liveops_events/` are two different things that the design docs both call
 > "events". The first is a tile you land on mid-run; the second is a two-week live-ops package. They
@@ -195,6 +196,7 @@ mistake the paragraph above warns about.
 | `content/curses/` | `schema/curses.schema.json` |
 | `content/perks/` | `schema/perk.schema.json` |
 | `content/profanity/` | `schema/profanity.schema.json` |
+| `content/boot/` | `schema/boot.schema.json` |
 
 The remaining directories have no schema yet. Their first file therefore fails the build with
 `MissingSchema` — deliberately. Authoring a content type means authoring its schema **and** adding
