@@ -129,6 +129,14 @@
     "loc.curse.miserly.name": "##TODO_DE## Miserly",
     "loc.curse.blind.name": "##TODO_DE## Blind",
     "loc.curse.leadfoot.name": "##TODO_DE## Leadfoot",
-    "loc.curse.tithe.name": "##TODO_DE## Tithe"
+    "loc.curse.tithe.name": "##TODO_DE## Tithe",
+
+    "loc.boot.title.name": "##TODO_DE## Slay. Idle. Repeat.",
+    "loc.boot.splash.status": "##TODO_DE## Starting…",
+    "loc.boot.content.status": "##TODO_DE## Loading content…",
+    "loc.boot.profile.status": "##TODO_DE## Opening your profile…",
+    "loc.boot.atlas.status": "##TODO_DE## Preparing artwork…",
+    "loc.boot.ready.status": "##TODO_DE## Ready",
+    "loc.boot.failure.status": "##TODO_DE## The game could not start."
   }
 }

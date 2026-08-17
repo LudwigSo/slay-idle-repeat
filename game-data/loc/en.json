@@ -129,6 +129,14 @@
     "loc.curse.miserly.name": "Miserly",
     "loc.curse.blind.name": "Blind",
     "loc.curse.leadfoot.name": "Leadfoot",
-    "loc.curse.tithe.name": "Tithe"
+    "loc.curse.tithe.name": "Tithe",
+
+    "loc.boot.title.name": "Slay. Idle. Repeat.",
+    "loc.boot.splash.status": "Starting…",
+    "loc.boot.content.status": "Loading content…",
+    "loc.boot.profile.status": "Opening your profile…",
+    "loc.boot.atlas.status": "Preparing artwork…",
+    "loc.boot.ready.status": "Ready",
+    "loc.boot.failure.status": "The game could not start."
   }
 }
