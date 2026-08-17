@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    IPlatformInfoPort over the host process itself: the operating system, the
+    build, and the language the user reads. No vendor package, nothing but
+    System.
+
+    🔒 A1 — WHY THIS IS ITS OWN PROJECT AND NOT TWO FILES IN Ambient.System.
+    That project's own header draws the line and names this case: "the bound is
+    the dependency, not the word 'ambient' … Ambient ENVIRONMENT — a filesystem
+    path, an environment variable, a locale, a device fact — is a different
+    dependency with a different failure mode and gets its own project." A clock
+    and an id generator cannot fail; a locale the runtime cannot resolve and a
+    device the host declines to name both can, and they fail in ways a caller
+    has to handle. Different failure mode, different project.
+
+    client/, beside Platform.Godot: this satisfies a `23` §4.1 CLIENT port, and
+    the two implementations of one concern belong in one lane where a reader
+    comparing them finds both. Ambient.System sits under shared/ because ITS
+    ports are `23` §4.3 shared ones, so that rule points here, not there.
+
+    ⚠️ NOTHING COMPOSES THIS YET, and that is stated rather than left to be
+    found: the shipping client is the Godot one, whose engine adapter cannot be
+    put behind the port (see HostPlatformInfo's remarks and `23` §7.2's
+    contradiction, recorded in GodotUserPaths). Its live consumers today are the
+    desktop and editor hosts and the tools.
+
+    🔒 WHY IT EXISTS AT ALL, stated plainly because the alternative reading is
+    "a fake with a csproj around it": `23` §5 A5 needs two implementations and
+    steering S7 needs one of them to be real. The engine adapter cannot be that
+    one — see this project's HostPlatformInfo remarks for the measurement — so
+    without this project the port could only have been declared over a fake, or
+    not declared at all. M5-01 shipped Cache.LocalFile for exactly this reason
+    and the M7-09 row records it.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

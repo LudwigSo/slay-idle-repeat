@@ -11,10 +11,23 @@ namespace SlayIdleRepeat.Adapters.Platform.Godot;
 /// conditionality of the composition root actually lives.
 /// </para>
 /// <para>
-/// ⚠️ Implements no port. Audio, haptics, locale and device info are catalogued as deferred
-/// ports with no adapters and no fakes yet, and declaring one here would pull in obligations
-/// this task cannot discharge. Until then these are concrete types the composition root
-/// names directly, which is a stated limitation rather than a design.
+/// 🔒 <b>Nothing in this project implements a port, and the reason is measured rather than
+/// argued.</b> Calling any of these classes outside the engine does not throw — it kills the
+/// process. Every member here reaches <c>GodotSharp</c>, whose managed API is a shim over native
+/// function pointers the engine populates at startup; headless, the first call marshals a string
+/// through a null pointer and raises an <see cref="AccessViolationException"/> that no
+/// <c>catch</c> can observe. M7-01b measured it from a <c>Contract.Tests</c> fixture and the test
+/// host died mid-run, taking every other case with it.
+/// </para>
+/// <para>
+/// That is what makes a port here impossible today rather than merely awkward:
+/// <c>ContractSuiteCoverageTests.Every_implementation_of_a_port_has_a_contract_fixture</c> demands
+/// a fixture for every concrete implementation it can see, this project is on
+/// <c>Contract.Tests</c>' reference list, and the unit tier is the only tier this repository has.
+/// So these stay concrete types the composition root names directly — a stated limitation, not a
+/// design. ⚠️ It is also a contradiction with `23` §7.2, whose composition root registers
+/// <c>GodotPlatformInfoAdapter</c>, <c>GodotAudioAdapter</c> and <c>GodotHapticsAdapter</c> against
+/// the ports: one of the two has to give, and neither M7-01 nor M7-01b owns choosing which.
 /// </para>
 /// </remarks>
 public sealed class GodotUserPaths

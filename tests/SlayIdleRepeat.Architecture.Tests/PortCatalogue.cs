@@ -180,20 +180,47 @@ internal static class PortCatalogue
             "the connection-state vocabulary its events carry is M7-02's, and M7-09's in-process " +
             "host answers one command at a time with no channel to push down."),
 
-        new("IPlatformInfoPort", "M7-01",
-            "Its only real implementation is the Godot platform adapter, which reads device model, " +
-            "OS version and locale from the engine runtime. There is no second non-engine source of " +
-            "those facts, and this task is forbidden to introduce the Godot runtime."),
+        // ⚠️ IPlatformInfoPort was here, deferred to M7-01. M7-01b declared it — Adapters.Platform.Host
+        // over the BCL beside the InMemory fake — and this register FORCED the deletion rather than
+        // relying on it being remembered: the commit that added the interface turned
+        // No_port_deferral_outlives_the_port_it_defers red on the entry, by name, with the repair in
+        // the message. The two entries below are its siblings and did NOT become declarable; the
+        // reason they share is now measured rather than argued.
 
         new("IHapticsPort", "M7-01",
-            "Its only real implementation is the Godot platform adapter driving the device's " +
-            "vibration motor. A fake that records pattern calls proves nothing a caller could not " +
-            "assert directly, and there is no second real implementation to compare it against."),
+            "🔒 MEASURED, not argued: its only real implementation is GodotHaptics, and calling it " +
+            "outside the engine does not throw — it FATALLY FAULTS THE PROCESS. Godot.Input's static " +
+            "constructor marshals a StringName through GodotSharp's native shim, whose function " +
+            "pointers the engine populates at startup, so a headless call is an " +
+            "AccessViolationException that no catch block can see and that takes the whole test host " +
+            "down with it. Verified on this repository from a Contract.Tests fixture: 'Der " +
+            "Testhostprozess ist abgestuerzt ... at Godot.NativeInterop.NativeFuncs." +
+            "godotsharp_string_new_with_utf16_chars ... at Godot.Input..cctor()'. So this adapter can " +
+            "never carry a contract fixture in the only tier this repository has, and the moment it " +
+            "implements the port Every_implementation_of_a_port_has_a_contract_fixture demands one. " +
+            "And there is no second real implementation to put in its place: a desktop host has no " +
+            "motor, so a non-engine sibling is a no-op, which is the hollow fake A5 refuses. M7-01b " +
+            "declared IPlatformInfoPort past the same engine problem only because THAT port has a " +
+            "genuine non-engine reader; haptics has none, and inventing one is worse than waiting. " +
+            "⚠️ THE SHAPE IS ALSO NOT SETTLED, and this half is cheap to fix when the rest is: 23 " +
+            "§4.1 writes Play(HapticPattern) and nothing in this repository declares HapticPattern, " +
+            "while the adapter that exists takes a duration in milliseconds. 04 §6 authorises exactly " +
+            "three patterns — light on roll start, medium on land, heavy on Star/Fortune — so the " +
+            "vocabulary is a transcription rather than an invention and is NOT what blocks this."),
 
         new("IAudioPort", "M7-01",
-            "Its only real implementation is the Godot audio bus. Its signature also names the sfx, " +
-            "music and bus vocabularies the audio pipeline milestone authors, none of which exists " +
-            "in Core today — declaring the port would mean inventing three enums on behalf of M8."),
+            "Carries the haptics entry's engine problem — GodotAudioOutput faults the same way, for " +
+            "the same reason, and has no non-engine sibling either. 🔒 AND A CORRECTION THE NEXT " +
+            "READER SHOULD NOT HAVE TO MAKE TWICE: the reason this entry USED to give was that " +
+            "declaring the port means inventing SfxId/MusicId/AudioBus on M8's behalf, and that is " +
+            "FALSE. The vocabularies are all transcribed and committed already — `20` §5's bus " +
+            "structure is Master over Music/SFX/UI with the ad duck ruled outright, and all 106 ids " +
+            "(§3's 12 music tracks, §4's 94 sfx) are in game-data/assets/asset_manifest_audio.json, " +
+            "schema-validated, _status 'transcribed'. Nothing would be invented. What is true is that " +
+            "NONE OF THE ASSETS THOSE IDS NAME EXISTS: M8-07 is blocked on an audio-tool licence " +
+            "nobody holds, zero audio files are delivered, and a port whose signature is 106 sounds " +
+            "that cannot be played has no implementation that could honour it — which is why turning " +
+            "manifest data into a Core vocabulary belongs to the task that first plays one."),
 
         new("IConsentPort", "M15-07",
             "Its only real implementation is the MAX consent-management SDK, which is the same " +
@@ -305,6 +332,81 @@ internal static class PortCatalogue
     };
 
     /// <summary>
+    /// One declared port's member list as `23` §4 writes it, transcribed.
+    /// </summary>
+    /// <param name="Citation">The document section, e.g. <c>23 §4.1</c>.</param>
+    /// <param name="Port">The interface's simple name.</param>
+    /// <param name="Members">Every member name the section's declaration writes.</param>
+    internal sealed record SpecifiedPortMembers(string Citation, string Port, IReadOnlyList<string> Members);
+
+    /// <summary>
+    /// A member `23` §4 writes on a port this repository <b>has declared</b>, and which that
+    /// declaration deliberately left out.
+    /// </summary>
+    /// <param name="Port">The declared port's simple name.</param>
+    /// <param name="Member">The member `23` §4 writes and the port does not declare.</param>
+    /// <param name="Owner">The milestone task that decides it, e.g. <c>M9-04</c>.</param>
+    /// <param name="Why">Why it is absent rather than declared. Something a later reader can falsify.</param>
+    internal sealed record PortMemberOmission(string Port, string Member, string Owner, string Why);
+
+    /// <summary>
+    /// 🔒 <c>23</c> §4's member lists for the ports this repository has declared.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Why this exists at all, and why the port-name register above is not enough.</b>
+    /// <see cref="SpecifiedPorts"/> transcribes interface NAMES, so a port declaring four of the
+    /// five members `23` §4 writes passes every one of the four directions identically to one
+    /// declaring all five. That is a hole with no floor under it: the omission lives in an XML
+    /// comment, nothing fails when it stops being true, and steering S4 is explicit that a declared
+    /// exception must expire by itself. M7-01b opened the hole by declaring
+    /// <c>IPlatformInfoPort</c> without <c>IsLowEndDevice</c>, so M7-01b closes it.
+    /// </para>
+    /// <para>
+    /// ⚠️ Only ports that are <b>declared</b> are transcribed here. An undeclared port's members are
+    /// its <see cref="Deferred"/> entry's business, and transcribing them would demand a shape from
+    /// the milestone that has not built it yet — steering S6, and the same reason
+    /// <see cref="SpecifiedPorts"/> deliberately omits `23` §4's payload types.
+    /// </para>
+    /// </remarks>
+    internal static readonly SpecifiedPortMembers[] SpecifiedMembers =
+    {
+        new("23 §4.1", "IPlatformInfoPort", new[]
+        {
+            "DeviceModel",
+            "OsVersion",
+            "AppVersion",
+            "Locale",
+            "IsLowEndDevice",
+        }),
+    };
+
+    /// <summary>
+    /// 🔒 Every member <see cref="SpecifiedMembers"/> transcribes that its declared port does not
+    /// carry, with the task that decides it and the reason it is absent. Each entry expires by
+    /// itself.
+    /// </summary>
+    internal static readonly PortMemberOmission[] OmittedMembers =
+    {
+        // ⚠️ M9-04 is the NEAREST row, not a row that names this, and the difference is recorded
+        // rather than smoothed over — it is the same weakness the IGhostRepository entry above
+        // carries. M9-04 is "Settings S26 (audio, accessibility, account, privacy) + Profile S27",
+        // which is where a quality or reduced-motion setting would live and therefore the first
+        // place a device-tier answer would have anything to drive. But no tracker row anywhere
+        // rules on what makes a device low-end, so a reader checking M9-04 at kickoff may well find
+        // that row does not think it owns this. That is the honest state; the alternative is an
+        // entry with no expiry at all.
+        new("IPlatformInfoPort", "IsLowEndDevice", "M9-04",
+            "Nothing in this repository rules what makes a device low-end. 01 §8's success criteria " +
+            "name a 2021 mid-range Android under 400 MB of RAM as the bar the game must CLEAR, which " +
+            "is not a threshold below which a device is degraded, and no other document offers one. " +
+            "Declared, the member would mean each implementation choosing its own cut-off with a " +
+            "shared contract suite unable to state what either of them means by it — so the two " +
+            "would answer differently for the same handset and nothing would go red. It is a bool " +
+            "whose whole content is a number this repository has not decided."),
+    };
+
+    /// <summary>
     /// 🔒 Infrastructure and vendor vocabulary that may not appear anywhere in a port's signature —
     /// its own type name, a member name, a parameter name, or the simple name of any type it names.
     /// Matched as an ordinal, case-insensitive substring.
@@ -322,7 +424,7 @@ internal static class PortCatalogue
     /// <para>
     /// 🔒 It is here, a milestone before M5-05 declares the object-store port, because the port's
     /// shape is decided here and the AzureBlob sibling at M18-06a shares it. A substring is a blunt
-    /// instrument on purpose: it is checked against the five ports that exist and against every name
+    /// instrument on purpose: it is checked against the six ports that exist and against every name
     /// `23` §4 itself writes, and any term that collided with legitimate domain vocabulary would
     /// have been dropped with the collision named rather than narrowed into a regex nobody can read.
     /// </para>
@@ -498,6 +600,119 @@ internal static class PortCatalogue
                     $"'{entry.Port}' carries no written reason worth falsifying. Every deferral here is a " +
                     "23 §5 A5 argument — one real implementation, which needs infrastructure or a vendor " +
                     "SDK — and the entry has to say WHICH, or the next kickoff cannot check it.");
+            }
+        }
+
+        return offenders;
+    }
+
+    /// <summary>What a stale member omission means, said once.</summary>
+    internal const string StaleMemberConsequence =
+        "The port now declares it, so this entry describes a decision that has already been taken. " +
+        "Delete it in the commit that declares the member — an entry kept past its expiry is the " +
+        "register saying a member is missing while the member is in the build.";
+
+    /// <summary>What an undeclared member means, said once.</summary>
+    internal const string UndeclaredMemberConsequence =
+        "23 §4 writes it on a port this repository has DECLARED, the declaration does not carry it, " +
+        "and nothing here says who decided that. A port narrower than the section it transcribes is " +
+        "indistinguishable from one nobody finished — the port-name register cannot see the " +
+        "difference, because it transcribes names. Either declare the member, or add a " +
+        "PortCatalogue.OmittedMembers entry naming the owning task and why it is absent.";
+
+    /// <summary>
+    /// Every member of a declared port, whatever kind it is.
+    /// </summary>
+    /// <remarks>
+    /// All four kinds, because `23` §4 writes properties and methods and a later section could write
+    /// either — and a rule that read only properties would report a method-shaped member missing
+    /// forever. A property's accessors are methods too, so the set is deliberately a union rather
+    /// than a partition.
+    /// </remarks>
+    private static IEnumerable<string> MemberNames(TypeDefinition port) =>
+        port.Properties.Select(p => p.Name)
+            .Concat(port.Methods.Select(m => m.Name))
+            .Concat(port.Fields.Select(f => f.Name))
+            .Concat(port.Events.Select(e => e.Name));
+
+    /// <summary>
+    /// Every entry whose member has since been declared on its port. Empty means the register holds.
+    /// </summary>
+    /// <remarks>Parameterised for the same reason as <see cref="Expired"/>.</remarks>
+    internal static IReadOnlyList<string> ExpiredMembers(
+        IEnumerable<TypeDefinition> ports,
+        IEnumerable<PortMemberOmission> entries)
+    {
+        var declared = ports.ToArray();
+
+        return (from entry in entries
+                let port = declared.FirstOrDefault(p => p.Name.Equals(entry.Port, StringComparison.Ordinal))
+                where port is not null
+                where MemberNames(port).Contains(entry.Member, StringComparer.Ordinal)
+                select $"'{entry.Port}.{entry.Member}' is declared omitted to {entry.Owner}, but the port " +
+                       $"already declares it. {StaleMemberConsequence}")
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Every transcribed member of a declared port that is neither declared on it nor carried by an
+    /// omission entry. Empty means the register holds.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Silent about a transcription whose port is not declared: those are
+    /// <see cref="Deferred"/>'s subject, and demanding members from an interface that does not exist
+    /// would be a second, contradictory answer to the same question.
+    /// </remarks>
+    internal static IReadOnlyList<string> UndeclaredMembers(
+        IEnumerable<SpecifiedPortMembers> transcriptions,
+        IEnumerable<TypeDefinition> ports,
+        IEnumerable<PortMemberOmission> entries)
+    {
+        var declared = ports.ToArray();
+        var omitted = entries.Select(e => (e.Port, e.Member)).ToHashSet();
+
+        return (from transcription in transcriptions
+                let port = declared.FirstOrDefault(p => p.Name.Equals(transcription.Port, StringComparison.Ordinal))
+                where port is not null
+                let members = MemberNames(port).ToHashSet(StringComparer.Ordinal)
+                from member in transcription.Members
+                where !members.Contains(member)
+                where !omitted.Contains((transcription.Port, member))
+                select $"{transcription.Citation} writes '{transcription.Port}.{member}'. The declared port " +
+                       $"does not carry it, and PortCatalogue.OmittedMembers does not either. " +
+                       UndeclaredMemberConsequence)
+            .ToArray();
+    }
+
+    /// <summary>
+    /// Every omission entry that is not well formed: a blank port or member, a malformed owning
+    /// task, or no written reason. Empty means the register holds.
+    /// </summary>
+    /// <remarks>Parameterised for the same reason as <see cref="Malformed"/>.</remarks>
+    internal static IReadOnlyList<string> MalformedMembers(IEnumerable<PortMemberOmission> entries)
+    {
+        var offenders = new List<string>();
+
+        foreach (var entry in entries)
+        {
+            if (string.IsNullOrWhiteSpace(entry.Port) || string.IsNullOrWhiteSpace(entry.Member))
+            {
+                offenders.Add($"an entry owned by '{entry.Owner}' names no port or no member.");
+            }
+
+            if (!TaskId.IsMatch(entry.Owner ?? string.Empty))
+            {
+                offenders.Add(
+                    $"'{entry.Port}.{entry.Member}' names owner '{entry.Owner}', which is not a milestone " +
+                    "task id (M12, M5-05, M18-06a). An entry with no owner has no expiry a reader can check.");
+            }
+
+            if (string.IsNullOrWhiteSpace(entry.Why) || entry.Why.Length < 40)
+            {
+                offenders.Add(
+                    $"'{entry.Port}.{entry.Member}' carries no written reason worth falsifying. A member " +
+                    "left off a declared port is a decision, and the entry has to say what the decision " +
+                    "rested on or the next kickoff cannot check whether it still holds.");
             }
         }
 

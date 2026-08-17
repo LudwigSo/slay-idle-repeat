@@ -1374,8 +1374,12 @@ public sealed class SubjectSetFloorTests
     // exist — so 31 is a floor with genuine headroom rather than the count minus nothing, which is
     // what this block's preamble asks for. AdapterFloor stays tight against the tree because a
     // renamed adapter is the specific silence it watches for.
-    private const int ProductionProjectFloor = 31;   // src/ + tools/, floored below the 35 the tree holds
-    private const int AdapterFloor = 23;
+    // 🔒 M7-01b raised both by exactly the one adapter project it adds: the client
+    // Adapters.Platform.Host, the real non-engine IPlatformInfoPort that `23` §5 A5 needs beside the
+    // fake. Same pairing rule as M5-01's above, and ContractSuiteCoverageTests.AdapterAssemblyFloor
+    // — which is stated over the same adapters from the other test assembly — moved with them.
+    private const int ProductionProjectFloor = 32;   // src/ + tools/, floored below the 36 the tree holds
+    private const int AdapterFloor = 24;
     // 🔒 M1-02 raised this from 26 to 110 (measured: 120 today). It is the one floor in this file
     // that had gone quiet by standing still: the file's own preamble says these numbers are
     // "derived from the tree as it stands on this commit", and 26 was M0-08's tree. At 26 the ENTIRE
@@ -1392,7 +1396,10 @@ public sealed class SubjectSetFloorTests
     // those two rules are the only thing making a port more than a folder convention. The four this
     // task adds are IClockPort, IIdGeneratorPort, ILocalCachePort and IRewardedAdPort; every other
     // port `23` §4 declares is carried by PortCatalogue.Deferred with the task that builds it.
-    private const int PortFloor = 5;                 // IContentSourcePort (M0-09) + M5-01's four
+    // 🔒 M7-01b raised this from 5 to 6 for IPlatformInfoPort, the first of `23` §4.1's three
+    // platform ports to become declarable — with PortCatalogueTests.DeclaredPortFloor and
+    // ContractSuiteCoverageTests.PortFloor, the two other floors over this same set.
+    private const int PortFloor = 6;                 // IContentSourcePort (M0-09) + M5-01's four + M7-01b's one
     private const int TypeConstantFloor = 10;        // Domain's *Type / *Event const fields
 
     // 🔒 M1-12. The constants whose register row carries a citation THIS assembly can resolve, and

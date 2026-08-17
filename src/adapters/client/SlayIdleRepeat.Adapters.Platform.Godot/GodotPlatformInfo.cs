@@ -4,9 +4,14 @@ namespace SlayIdleRepeat.Adapters.Platform.Godot;
 /// Reads the locale and the device the game is running on out of the engine.
 /// </summary>
 /// <remarks>
-/// ⚠️ Implements no port, for the reason <see cref="GodotUserPaths"/> records. Locale and
-/// device model are two members of one deferred platform-info port rather than two ports,
-/// and they are grouped here the same way so the eventual declaration is a rename.
+/// ⚠️ Implements no port, for the reason <see cref="GodotUserPaths"/> records — and this is the
+/// one class in the project whose port now exists. M7-01b declared
+/// <c>IPlatformInfoPort</c> over a BCL reader (<c>Adapters.Platform.Host</c>) and the in-memory
+/// fake, and deliberately did not conform this class to it: a fixture over these members would be
+/// a fatal fault, not a test. Conforming it is a rename plus one translation —
+/// <see cref="Locale"/> becomes a <c>CultureInfo</c> and an unidentified
+/// <see cref="DeviceModel"/> becomes <see langword="null"/> — waiting only on somewhere that can
+/// run it.
 /// </remarks>
 public sealed class GodotPlatformInfo
 {
