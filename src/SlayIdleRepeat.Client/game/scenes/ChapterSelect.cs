@@ -128,11 +128,6 @@ public partial class ChapterSelect : Control
     /// <summary>What a still-reading list is drawn at, so it reads as pending rather than refused.</summary>
     private const float UnknownListOpacity = 0.55f;
 
-    private const string FontColourOverride = "font_color";
-    private const string DisabledFontColourOverride = "font_disabled_color";
-    private const string PressedFontColourOverride = "font_pressed_color";
-    private const string HoverFontColourOverride = "font_hover_color";
-    private const string HoverPressedFontColourOverride = "font_hover_pressed_color";
     private const string FontOutlineColourOverride = "font_outline_color";
     private const string OutlineSizeConstant = "outline_size";
     private const string FontSizeOverride = "font_size";
@@ -180,6 +175,18 @@ public partial class ChapterSelect : Control
 
     /// <summary>A row the ladder refuses, and the requirement lines under it.</summary>
     private static readonly Color BlockedColour = new(0.78f, 0.62f, 0.40f);
+
+    /// <summary>
+    /// The confirm while there is nothing for it to start — the palette's quiet secondary, the same
+    /// grey the status line above it is drawn in.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Deliberately not <see cref="BlockedColour"/>. Amber means the ladder refused something on
+    /// this screen, and a confirm that is waiting for a read, waiting for a choice, or waiting for a
+    /// submission it already sent has been refused nothing. It is unavailable, which is quieter than
+    /// live and is not the same statement as no.
+    /// </remarks>
+    private static readonly Color UnavailableColour = new(0.66f, 0.67f, 0.73f);
 
     private readonly List<TierChoice> _tiers = [];
     private readonly List<ChapterRow> _rows = [];
@@ -259,6 +266,14 @@ public partial class ChapterSelect : Control
         _confirmButton = GetNode<Button>(ConfirmButtonPath);
 
         _confirmButton.Pressed += OnConfirmPressed;
+
+        // Painted once rather than on every redraw: unlike the two choice families below, this
+        // control's colour is decided entirely by the state the engine is drawing it in, so there is
+        // nothing for a later pass to recompute. It is painted at all because the primary action was
+        // the one control on this screen still drawing at the engine's own font colours — and the
+        // state it spends most of its life in, disabled, is the one whose default is furthest from
+        // anything this screen chose.
+        ButtonTextColours.ApplyTo(_confirmButton, LiveColour, UnavailableColour);
 
         BuildTiers();
         BuildChapters();
@@ -642,11 +657,10 @@ public partial class ChapterSelect : Control
     /// <remarks>
     /// <para>
     /// Every state, because the engine picks the font colour by draw mode and none of the other
-    /// modes falls back to <c>font_color</c>. Measured in the same headless run as the fills above:
-    /// the default theme's <c>font_pressed_color</c> is opaque white and its
-    /// <c>font_disabled_color</c> is a HALF-TRANSPARENT grey, so a chosen row was drawing at the
-    /// engine's colour rather than at the one this screen decided for it, and would have kept doing
-    /// so silently.
+    /// modes falls back to <c>font_color</c> — see <see cref="ButtonTextColours"/>, which owns that
+    /// list of states for every button on both screens so that no control can silently keep an
+    /// engine default. One colour for all of them here: a refused row stays amber whether the finger
+    /// is on it or not, and being unusable is not the news a chapter row carries.
     /// </para>
     /// <para>
     /// The outline colour matches the text rather than contrasting with it: the point is a thicker
@@ -658,11 +672,8 @@ public partial class ChapterSelect : Control
     /// <param name="selected">Whether it is the one a confirm would act on.</param>
     private static void Paint(Button button, Color colour, bool selected)
     {
-        button.AddThemeColorOverride(FontColourOverride, colour);
-        button.AddThemeColorOverride(DisabledFontColourOverride, colour);
-        button.AddThemeColorOverride(PressedFontColourOverride, colour);
-        button.AddThemeColorOverride(HoverFontColourOverride, colour);
-        button.AddThemeColorOverride(HoverPressedFontColourOverride, colour);
+        ButtonTextColours.ApplyTo(button, colour);
+
         button.AddThemeColorOverride(FontOutlineColourOverride, colour);
 
         button.AddThemeConstantOverride(

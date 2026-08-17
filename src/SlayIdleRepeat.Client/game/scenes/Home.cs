@@ -72,6 +72,25 @@ public partial class Home : Control
     private const string StatusLabelPath = "%StatusLabel";
     private const string ActionButtonPath = "%ActionButton";
 
+    /// <summary>The primary action while there is a run to start or one to go back to.</summary>
+    /// <remarks>
+    /// The same colour the name and the two Energy amounts above it are authored in, because it is
+    /// the same statement: this is a thing the screen currently has to say.
+    /// </remarks>
+    private static readonly Color LiveColour = new(0.93f, 0.93f, 0.96f);
+
+    /// <summary>
+    /// And while there is not — the palette's quiet secondary, the same grey the captions beside
+    /// each number and the status line above the button are drawn in.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Unavailable, not refused. The two states this screen disables its action in are a profile
+    /// that has not been read and one that could not be, and neither of them is a no: the status
+    /// line says which it is in words, and the button quietens rather than colouring itself against
+    /// the player.
+    /// </remarks>
+    private static readonly Color UnavailableColour = new(0.66f, 0.67f, 0.73f);
+
     private HomePresenter? _presenter;
     private ChapterSelectPresenter? _picker;
 
@@ -129,6 +148,13 @@ public partial class Home : Control
         _actionButton = GetNode<Button>(ActionButtonPath);
 
         _actionButton.Pressed += OnActionPressed;
+
+        // Painted once, because nothing about which colour belongs to which state changes while the
+        // screen is up. It is painted at all because a button reached none of these colours on its
+        // own: the sibling labels carry theirs in the scene file, but a Button draws its text by
+        // draw mode and the mode this control spends two of its four decisions in — disabled — has
+        // an engine default of half-transparent grey that no override of font_color reaches.
+        ButtonTextColours.ApplyTo(_actionButton, LiveColour, UnavailableColour);
 
         SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
         Render();
