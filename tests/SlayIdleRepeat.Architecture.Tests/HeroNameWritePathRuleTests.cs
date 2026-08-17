@@ -99,14 +99,29 @@ public sealed class HeroNameWritePathRuleTests
     /// available for "this is not wired up yet".
     /// </para>
     /// <para>
-    /// ⚠️ Scoped to <c>src/</c> only, and one production path writes <c>DisplayName</c> without the
-    /// filter: <c>Player.CreateStarting</c>, which takes a plain string and stores it as given, and
-    /// records that limit in its own remarks. Both the domain harness and the in-process host build
-    /// their starting row through it, and neither hands it player-chosen text — the harness runs on
-    /// hermetic content sets that carry no word lists, and the host names the profile after the
-    /// identity it minted. 🔴 Neither scan below can see that parameter: a caller that passed
-    /// player-chosen text to it would set an unfiltered name with both rules still green. What the
-    /// second scan sees is the filter GAINING a caller, which is the other direction.
+    /// ⚠️ Scoped to <c>src/</c> only. <b>The M4 review closed the hole this paragraph used to
+    /// admit.</b> It read: <em>"one production path writes <c>DisplayName</c> without the filter —
+    /// <c>Player.CreateStarting</c>, which takes a plain string… 🔴 Neither scan below can see that
+    /// parameter: a caller that passed player-chosen text to it would set an unfiltered name with
+    /// both rules still green."</em> That was the honest statement of a real gap, on the one path
+    /// `27` §1 names by name ("at creation and on every edit"), and it is now shut:
+    /// <c>CreateStarting</c> takes a <c>HeroName</c>, so it cannot be handed text the filter
+    /// has not seen.
+    /// </para>
+    /// <para>
+    /// The two callers that name an account after something the player never typed went to doors of
+    /// their own: <c>CreateStartingNamedAfterItsOwnId</c>, which takes <em>no name parameter at
+    /// all</em>, and <c>CreateStartingWithUnfilteredName</c>, which says so in its name. The second
+    /// is the one that still writes an unfiltered name — but it is a named method rather than a
+    /// parameter, so its callers are enumerable, and
+    /// <see cref="Only_the_harness_uses_the_explicitly_unfiltered_starting_door"/> enumerates them
+    /// across <c>Core</c> <em>and</em> <c>Application</c>.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>What is still not closed.</b> Nothing stops a future caller of the unfiltered door
+    /// beyond that rule's own sanctioned list, and no scan here says a name set through persistence
+    /// was ever filtered — <c>Rehydrate</c> loads a stored name as written, deliberately (see
+    /// <c>HeroNameRule</c>'s remarks on content changing without a build).
     /// </para>
     /// </remarks>
     [Fact]
@@ -157,6 +172,104 @@ public sealed class HeroNameWritePathRuleTests
             "if this finds callers the matcher is not comparing method names at all.");
     }
 
+    /// <summary>The starting-account door that stores a name <b>nothing filtered</b>.</summary>
+    private const string UnfilteredStartingDoor = "CreateStartingWithUnfilteredName";
+
+    /// <summary>The aggregate that declares it.</summary>
+    private const string PlayerType = "SlayIdleRepeat.Core.Model.Player";
+
+    /// <summary>
+    /// The types allowed to call it, with why. A closed list with a named owner per row — the shape
+    /// <c>GapRegister</c> and <c>RoutingExemptions</c> use.
+    /// </summary>
+    /// <remarks>
+    /// Exactly one row. The in-process host is deliberately <b>not</b> on it: it names a profile
+    /// after the identity it minted, which is <c>CreateStartingNamedAfterItsOwnId</c>'s job, and a
+    /// host that reached for this door instead would be storing a name from a path that could carry
+    /// player text tomorrow.
+    /// </remarks>
+    private static readonly (string Type, string Why)[] SanctionedUnfilteredCallers =
+    [
+        ("SlayIdleRepeat.Core.Testing.InMemoryGame",
+            "the 30 §6 domain harness. It labels fixture players ('Ludwig the Unhurried') and runs " +
+            "on hermetic content sets that carry no word lists at all, so there is no filter for it " +
+            "to pass and nothing player-chosen for it to filter. Owner: M5-06, with the rest of the " +
+            "account-creation wiring."),
+    ];
+
+    /// <summary>
+    /// 🔒 `27` §1 — the door that skips the filter has a <b>closed, reasoned caller list</b>, scanned
+    /// across <c>Core</c> and <c>Application</c> both.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is the rule that makes splitting the old <c>CreateStarting(string)</c> worth doing. The
+    /// unfiltered write did not disappear — the harness still needs it — but it stopped being an
+    /// invisible <em>parameter</em> on the method every caller reaches for and became a named method
+    /// whose callers an IL scan can enumerate. A new caller now has to argue for a row here.
+    /// </para>
+    /// <para>
+    /// S3: the subject set is floored on the sanctioned caller being <em>present</em>, not on a
+    /// count — a scan that matched nothing would otherwise report "no unsanctioned caller" forever,
+    /// which is indistinguishable from the door having been deleted.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Only_the_harness_uses_the_explicitly_unfiltered_starting_door()
+    {
+        var callers = CallersOf(PlayerType, UnfilteredStartingDoor)
+            .Concat(CallersOf(ProductionAssemblies.ApplicationModule, PlayerType, UnfilteredStartingDoor))
+            .Where(caller => !caller.DeclaringType.FullName.Equals(PlayerType, StringComparison.Ordinal))
+            .ToArray();
+
+        callers.Select(c => c.DeclaringType.FullName).ShouldContain(
+            SanctionedUnfilteredCallers[0].Type,
+            $"nothing calls Player.{UnfilteredStartingDoor}. Either the harness stopped using it — " +
+            "in which case delete the door and this rule in the same commit, because an unfiltered " +
+            "write path nobody needs is one nobody should be able to reach — or it was renamed and " +
+            "this rule is scanning for a method that does not exist.");
+
+        ArchRule.Empty(
+            callers
+                .Where(caller => !SanctionedUnfilteredCallers.Any(row =>
+                    row.Type.Equals(caller.DeclaringType.FullName, StringComparison.Ordinal)))
+                .Select(caller =>
+                    $"{Il.Describe(caller)} calls Player.{UnfilteredStartingDoor}, which stores a " +
+                    "display name 27 §1's filter has never seen. 27 §1 filters a name at creation " +
+                    "AND on every edit; this door exists for the one caller that has no filter " +
+                    "available and no player-chosen text to put through it. If yours has player " +
+                    "text, call Player.CreateStarting with the HeroName the filter answers. If it " +
+                    "is naming an account after an identity, call " +
+                    "Player.CreateStartingNamedAfterItsOwnId, which takes no name at all. If it is " +
+                    "genuinely neither, add a row to SanctionedUnfilteredCallers with the reason " +
+                    "and the milestone that removes it."),
+            $"Only the domain harness calls Player.{UnfilteredStartingDoor} (27 §1, 07 §1).");
+    }
+
+    /// <summary>
+    /// `23` §6 — the teeth on the rule above: the two-module scan finds a real site and none for an
+    /// absent one.
+    /// </summary>
+    /// <remarks>
+    /// The <c>Application</c> half is the one that needs proving — the door is <c>public</c>
+    /// precisely so the harness does not breach `30` §6's public-seam rule, which means
+    /// <c>Application</c> <em>can</em> reach it, which is the direction a <c>Core</c>-only scan would
+    /// miss entirely.
+    /// </remarks>
+    [Fact]
+    public void The_two_module_scan_sees_Application_as_well_as_Core()
+    {
+        CallersOf(ProductionAssemblies.ApplicationModule, PlayerType, "CreateStartingNamedAfterItsOwnId")
+            .ShouldNotBeEmpty(
+                "InProcessGameHost.OpenProfileAsync builds its starting row through this door, so a " +
+                "scan that finds nothing in Application is not reading that module at all — and the " +
+                "unfiltered-caller rule above would then be blind to every host, adapter and client " +
+                "that could reach the public door it guards.");
+
+        CallersOf(ProductionAssemblies.ApplicationModule, PlayerType, "AMethodPlayerDoesNotDeclare")
+            .ShouldBeEmpty("if this finds callers the matcher is not comparing method names at all.");
+    }
+
     /// <summary>Every method in <c>Core</c> whose body constructs the named type.</summary>
     private static IEnumerable<MethodDefinition> ConstructorsOf(string typeName) =>
         Il.MethodsWithBodies(ProductionAssemblies.CoreModule)
@@ -172,7 +285,12 @@ public sealed class HeroNameWritePathRuleTests
     /// <c>Call</c>-only scan sees none of those.
     /// </remarks>
     private static IEnumerable<MethodDefinition> CallersOf(string declaringType, string methodName) =>
-        Il.MethodsWithBodies(ProductionAssemblies.CoreModule)
+        CallersOf(ProductionAssemblies.CoreModule, declaringType, methodName);
+
+    /// <summary>The same scan over any production module.</summary>
+    private static IEnumerable<MethodDefinition> CallersOf(
+        ModuleDefinition module, string declaringType, string methodName) =>
+        Il.MethodsWithBodies(module)
             .Where(method => Il.Instructions(method).Any(instruction =>
                 (instruction.OpCode == OpCodes.Call || instruction.OpCode == OpCodes.Callvirt) &&
                 instruction.Operand is MethodReference called &&

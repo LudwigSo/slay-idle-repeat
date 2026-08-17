@@ -30,6 +30,12 @@ internal static class TuningDocuments
     /// </remarks>
     internal const int ShippedFreePresets = 3;
 
+    /// <summary>The highest slot number a persisted preset row may name. A storage bound, not a design one.</summary>
+    internal const int ShippedHighestPresetSlot = 999;
+
+    /// <summary>The longest a persisted preset name may be, in text elements. The same kind of bound.</summary>
+    internal const int ShippedLongestPresetName = 64;
+
     /// <summary>The calendar runs 28 days and then restarts at day 1.</summary>
     /// <remarks>
     /// <c>const</c> rather than <c>static readonly</c> so <c>[InlineData]</c> can take it: a wrap
@@ -116,7 +122,10 @@ internal static class TuningDocuments
     /// something in this suite reads them, and nothing does — <c>InRunIncomeDocuments</c> carries its
     /// own <c>ads.json</c> with the one leaf ITS rules read, for the same reason.
     /// </remarks>
-    internal static ContentDocument Ads(ContentValue? freePresets = null) =>
+    internal static ContentDocument Ads(
+        ContentValue? freePresets = null,
+        ContentValue? highestSlot = null,
+        ContentValue? longestName = null) =>
         new(
             AdsPath,
             ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
@@ -125,6 +134,13 @@ internal static class TuningDocuments
                 {
                     ["freePresets"] = freePresets ?? ContentValue.Number(ShippedFreePresets),
                 }),
+                ["presetStorage"] = ContentValue.Object(
+                    new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                    {
+                        ["highestSlot"] = highestSlot ?? ContentValue.Number(ShippedHighestPresetSlot),
+                        ["longestNameTextElements"] =
+                            longestName ?? ContentValue.Number(ShippedLongestPresetName),
+                    }),
             }));
 
     /// <summary>A content set holding <b>only</b> <c>tuning/ads.json</c>.</summary>
@@ -132,8 +148,13 @@ internal static class TuningDocuments
     /// For <c>PresetTuning</c>'s own tests, which are about that reader and must not be able to pass
     /// because some other document happened to be present — <see cref="CurrenciesOnly"/>'s argument.
     /// </remarks>
-    internal static ContentSnapshot AdsOnly(ContentValue? freePresets = null) =>
-        new(ProgressionDocuments.Shipped.Version, [Ads(freePresets)]);
+    internal static ContentSnapshot AdsOnly(
+        ContentValue? freePresets = null,
+        ContentValue? highestSlot = null,
+        ContentValue? longestName = null) =>
+        new(
+            ProgressionDocuments.Shipped.Version,
+            [Ads(freePresets, highestSlot, longestName)]);
 
     private static ContentDocument Currencies(ContentValue? cycleDays)
     {

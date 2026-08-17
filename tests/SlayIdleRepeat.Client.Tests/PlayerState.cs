@@ -206,14 +206,15 @@ internal static class PlayerState
     /// one rather than a null.
     /// </summary>
     /// <remarks>
-    /// Built through <c>Player.CreateStarting</c> over the checkout's own content, because the
-    /// aggregate is the only validated construction path and a hand-assembled one would be a second.
-    /// The identity is replaced afterwards so the slice names the player the case is about.
+    /// Built through <c>Player.CreateStartingNamedAfterItsOwnId</c> over the checkout's own content,
+    /// because the aggregate is the only validated construction path and a hand-assembled one would
+    /// be a second. The identity is replaced afterwards so the slice names the player the case is
+    /// about — which is also why the fixture name is the identity rather than a label of its own.
     /// </remarks>
     internal static WorldSlice EmptySlice(PlayerId player)
     {
-        var created = CorePlayer.CreateStarting(
-            player, "Fixture Hero", FixtureInstant, BootContent.Shipped);
+        var created = CorePlayer.CreateStartingNamedAfterItsOwnId(
+            player, FixtureInstant, BootContent.Shipped);
 
         if (created.IsFailure)
         {

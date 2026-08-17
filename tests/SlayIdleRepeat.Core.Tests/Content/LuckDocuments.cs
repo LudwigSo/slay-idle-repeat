@@ -232,14 +232,14 @@ internal static class LuckDocuments
         new("CHEST_PREMIUM", "#/chestPremium/hardPity/0/everyNth", ShippedChestPremiumSRung),
         new("CHEST_PREMIUM", "#/chestPremium/hardPity/1/everyNth", ShippedChestPremiumSsRung),
         new("CHEST_APEX", "#/chestApex/hardPity/0/everyNth", ShippedChestApexSsRung),
-        new("DROP_RUN", "#/dropRun/eliteMercy/consecutiveMissesBeforeForce", ShippedDropRunEliteMercyN),
-        new("DROP_RUN", "#/dropRun/bossMercy/consecutiveMissesBeforeForce", ShippedDropRunBossMercyN),
+        new("DROP_RUN", "#/dropRun/eliteMercy/forceOnNthKill", ShippedDropRunEliteMercyN),
+        new("DROP_RUN", "#/dropRun/bossMercy/forceOnNthKill", ShippedDropRunBossMercyN),
         new("EGG_PET", "#/eggPet/hardPity/0/everyNth", ShippedEggPetSRung),
         new("EGG_PET", "#/eggPet/hardPity/1/everyNth", ShippedEggPetSsRung),
         new("CRATE_MOUNT", "#/crateMount/hardPity/0/everyNth", ShippedCrateMountSRung),
         new("CRATE_MOUNT", "#/crateMount/hardPity/1/everyNth", ShippedCrateMountSsRung),
         new("WHEEL", "#/wheel/jackpotHardPitySpins", ShippedWheelJackpotN),
-        new("MINIGAME", "#/minigame/chestPick/guaranteeAfterConsecutiveMisses", ShippedMinigameChestPickN),
+        new("MINIGAME", "#/minigame/chestPick/guaranteeOnNthPick", ShippedMinigameChestPickN),
         new("DRAFT", "#/draft/legendaryPityDraftNumber", ShippedDraftLegendaryPityN),
         new("DRAFT", "#/draft/qualityFloor/consecutiveDraftsWithoutAboveCommon", ShippedDraftQualityFloorN),
         new("DRAFT", "#/draft/upgradeFamine/consecutiveDraftsWithoutOwnedUpgrade", ShippedDraftUpgradeFamineN),
@@ -278,7 +278,7 @@ internal static class LuckDocuments
     /// </param>
     /// <param name="draftLegendaryPityNumber">The draft ordinal the Legendary pity forces.</param>
     /// <param name="draftSustainForceCategory">The category the anti-brick forces.</param>
-    /// <param name="minigameGuaranteeAfterConsecutiveMisses">The chest pick that is forced onto the top tier.</param>
+    /// <param name="minigameGuaranteeOnNthPick">The chest pick that is forced onto the top tier.</param>
     internal static ContentSnapshot With(
         ContentValue? sourceClasses = null,
         ContentValue? chestStandardCounterKey = null,
@@ -296,9 +296,11 @@ internal static class LuckDocuments
         ContentValue? dropRun = null,
         ContentValue? draftLegendaryPityNumber = null,
         ContentValue? draftSustainForceCategory = null,
-        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null,
+        ContentValue? minigameGuaranteeOnNthPick = null,
         ContentValue? enhanceMercySlope = null,
-        ContentValue? enhanceRateCap = null) =>
+        ContentValue? enhanceRateCap = null,
+        ContentValue? enhanceAdAdvancesCounter = null,
+        ContentValue? draftSustainAntiBrickEnabled = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -319,9 +321,11 @@ internal static class LuckDocuments
                     dropRun,
                     draftLegendaryPityNumber,
                     draftSustainForceCategory,
-                    minigameGuaranteeAfterConsecutiveMisses,
+                    minigameGuaranteeOnNthPick,
                     enhanceMercySlope,
-                    enhanceRateCap),
+                    enhanceRateCap,
+                    enhanceAdAdvancesCounter,
+                    draftSustainAntiBrickEnabled),
                 ProgressionDocuments.Shipped.GetDocument(ProgressionDocuments.DocumentPath),
             ]);
 
@@ -348,9 +352,11 @@ internal static class LuckDocuments
         ContentValue? dropRun = null,
         ContentValue? draftLegendaryPityNumber = null,
         ContentValue? draftSustainForceCategory = null,
-        ContentValue? minigameGuaranteeAfterConsecutiveMisses = null,
+        ContentValue? minigameGuaranteeOnNthPick = null,
         ContentValue? enhanceMercySlope = null,
-        ContentValue? enhanceRateCap = null) =>
+        ContentValue? enhanceRateCap = null,
+        ContentValue? enhanceAdAdvancesCounter = null,
+        ContentValue? draftSustainAntiBrickEnabled = null) =>
         new(
             ProgressionDocuments.Shipped.Version,
             [
@@ -371,9 +377,11 @@ internal static class LuckDocuments
                     dropRun,
                     draftLegendaryPityNumber,
                     draftSustainForceCategory,
-                    minigameGuaranteeAfterConsecutiveMisses,
+                    minigameGuaranteeOnNthPick,
                     enhanceMercySlope,
-                    enhanceRateCap),
+                    enhanceRateCap,
+                    enhanceAdAdvancesCounter,
+                    draftSustainAntiBrickEnabled),
             ]);
 
     /// <summary>A content set with <b>no</b> <c>tuning/luck.json</c> at all.</summary>
@@ -391,7 +399,7 @@ internal static class LuckDocuments
     internal static ContentValue Breaker(
         ContentValue ordinal, ContentValue belowRarity, ContentValue forceRarityAtLeast) =>
         Members(
-            ("consecutiveMissesBeforeForce", ordinal),
+            ("forceOnNthKill", ordinal),
             ("belowRarity", belowRarity),
             ("forceRarityAtLeast", forceRarityAtLeast));
 
@@ -451,9 +459,11 @@ internal static class LuckDocuments
         ContentValue? dropRun,
         ContentValue? draftLegendaryPityNumber,
         ContentValue? draftSustainForceCategory,
-        ContentValue? minigameGuaranteeAfterConsecutiveMisses,
+        ContentValue? minigameGuaranteeOnNthPick,
         ContentValue? enhanceMercySlope = null,
-        ContentValue? enhanceRateCap = null) =>
+        ContentValue? enhanceRateCap = null,
+        ContentValue? enhanceAdAdvancesCounter = null,
+        ContentValue? draftSustainAntiBrickEnabled = null) =>
         new(
             DocumentPath,
             Members(
@@ -529,11 +539,14 @@ internal static class LuckDocuments
                     ("adEnhanceLuckStacksAdditively",
                         ContentValue.Boolean(ShippedEnhanceAdStacksAdditively)),
                     ("adEnhanceLuckAdvancesCounter",
-                        ContentValue.Boolean(ShippedEnhanceAdAdvancesCounter)))),
+                        enhanceAdAdvancesCounter
+                            ?? ContentValue.Boolean(ShippedEnhanceAdAdvancesCounter)))),
                 ("draft", Members(
                     ("legendaryPityDraftNumber", draftLegendaryPityNumber ?? ContentValue.Number(ShippedDraftLegendaryPityN)),
                     ("sustainAntiBrick", Members(
-                        ("enabled", ContentValue.Boolean(ShippedDraftSustainAntiBrickEnabled)),
+                        ("enabled",
+                            draftSustainAntiBrickEnabled
+                                ?? ContentValue.Boolean(ShippedDraftSustainAntiBrickEnabled)),
                         ("forceCategory", draftSustainForceCategory ?? ContentValue.Text(ShippedDraftSustainForceCategory)))),
                     ("qualityFloor", Members(
                         ("consecutiveDraftsWithoutAboveCommon", ContentValue.Number(ShippedDraftQualityFloorN)),
@@ -548,8 +561,8 @@ internal static class LuckDocuments
                     ("chestPick", Members(
                         ("chestCount", ContentValue.Number(ShippedMinigameChestCount)),
                         ("goldTierChests", ContentValue.Number(ShippedMinigameGoldTierChests)),
-                        ("guaranteeAfterConsecutiveMisses",
-                            minigameGuaranteeAfterConsecutiveMisses ?? ContentValue.Number(ShippedMinigameChestPickN))))))));
+                        ("guaranteeOnNthPick",
+                            minigameGuaranteeOnNthPick ?? ContentValue.Number(ShippedMinigameChestPickN))))))));
 
     private static ContentValue SourceClassRow(string id, ContentValue counterKey, string scope) =>
         Members(

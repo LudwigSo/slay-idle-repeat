@@ -45,14 +45,14 @@ public sealed class LuckTuningMatchesTuningDataTests
         { "#/chestPremium/hardPity/0/everyNth", 5 },
         { "#/chestPremium/hardPity/1/everyNth", 25 },
         { "#/chestApex/hardPity/0/everyNth", 3 },
-        { "#/dropRun/eliteMercy/consecutiveMissesBeforeForce", 6 },
-        { "#/dropRun/bossMercy/consecutiveMissesBeforeForce", 4 },
+        { "#/dropRun/eliteMercy/forceOnNthKill", 6 },
+        { "#/dropRun/bossMercy/forceOnNthKill", 4 },
         { "#/eggPet/hardPity/0/everyNth", 30 },
         { "#/eggPet/hardPity/1/everyNth", 150 },
         { "#/crateMount/hardPity/0/everyNth", 8 },
         { "#/crateMount/hardPity/1/everyNth", 30 },
         { "#/wheel/jackpotHardPitySpins", 60 },
-        { "#/minigame/chestPick/guaranteeAfterConsecutiveMisses", 4 },
+        { "#/minigame/chestPick/guaranteeOnNthPick", 4 },
         { "#/draft/legendaryPityDraftNumber", 15 },
         { "#/draft/qualityFloor/consecutiveDraftsWithoutAboveCommon", 3 },
         { "#/draft/upgradeFamine/consecutiveDraftsWithoutOwnedUpgrade", 5 },
@@ -391,7 +391,7 @@ public sealed class LuckTuningMatchesTuningDataTests
     /// <para>
     /// 🔴 <b>Only the two ordinals were pinned before this, and they are the two leaves that matter
     /// least on their own.</b> <c>EveryAuthoredN</c> carries
-    /// <c>consecutiveMissesBeforeForce</c> for both breakers because the theory it feeds is about
+    /// <c>forceOnNthKill</c> for both breakers because the theory it feeds is about
     /// integer <c>N</c>s; the <em>bands</em> those breakers count and force, and every leaf of the
     /// session floor, were resolved by <c>Core</c>'s reader against a hermetic fixture that nothing
     /// tied to this file. A breaker that counted a miss below the wrong band would keep firing on the
@@ -403,10 +403,10 @@ public sealed class LuckTuningMatchesTuningDataTests
     /// that throws at load.
     /// </para>
     /// <para>
-    /// ⚠️ <c>consecutiveMissesBeforeForce</c> is an <b>ordinal</b>, not a miss count — <c>24</c> §4.3
-    /// D1 reads <em>"on the 6th, force"</em>, so five misses precede the forced kill. The key name
-    /// reads as the other thing and is deliberately not renamed here; this file pins the shipped
-    /// spelling, and the rename is the milestone review's.
+    /// ⚠️ <c>forceOnNthKill</c> is an <b>ordinal</b>, not a miss count — <c>24</c> §4.3 D1 reads
+    /// <em>"on the 6th, force"</em>, so five misses precede the forced kill. The key was spelled
+    /// <c>consecutiveMissesBeforeForce</c> until the M4 review renamed it, because that spelling
+    /// read as the other thing and the two readings differ by exactly one drop.
     /// </para>
     /// </remarks>
     [Fact]
@@ -420,7 +420,7 @@ public sealed class LuckTuningMatchesTuningDataTests
             "sessionFloor",
         });
 
-        var breakerLeaves = new[] { "consecutiveMissesBeforeForce", "belowRarity", "forceRarityAtLeast" };
+        var breakerLeaves = new[] { "forceOnNthKill", "belowRarity", "forceRarityAtLeast" };
 
         Leaf("#/dropRun/eliteMercy").EnumerateObject().Select(member => member.Name).ShouldBe(
             breakerLeaves, "DropRunTuning reads exactly these three from #/dropRun/eliteMercy.");
@@ -520,7 +520,7 @@ public sealed class LuckTuningMatchesTuningDataTests
     {
         Leaf("#/minigame/chestPick/chestCount").GetInt32().ShouldBe(3);
         Leaf("#/minigame/chestPick/goldTierChests").GetInt32().ShouldBe(1);
-        Leaf("#/minigame/chestPick/guaranteeAfterConsecutiveMisses").GetInt32().ShouldBe(4);
+        Leaf("#/minigame/chestPick/guaranteeOnNthPick").GetInt32().ShouldBe(4);
     }
 
     /// <summary>

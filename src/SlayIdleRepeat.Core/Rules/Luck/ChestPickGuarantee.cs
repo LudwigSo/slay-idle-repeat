@@ -97,7 +97,7 @@ internal static class ChestPickGuarantee
     /// <returns><see langword="true"/> when the next pick is forced onto the top tier.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="missesBeforeDraw"/> is negative.</exception>
     internal static bool GuaranteeFires(ChestPickRule rule, int missesBeforeDraw) =>
-        HardPity.Fires(missesBeforeDraw, rule.GuaranteeAfterConsecutiveMisses);
+        HardPity.Fires(missesBeforeDraw, rule.GuaranteeOnNthPick);
 
     /// <summary>The top outcome tier of a table of <paramref name="tierCount"/> rows.</summary>
     /// <remarks>

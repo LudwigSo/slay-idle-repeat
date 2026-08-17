@@ -1219,13 +1219,50 @@ public sealed class AccessibilityBoundaryTests
             "exists to forbid, or the harness has stopped building one and the rule's subject set " +
             "is about to empty.");
 
+        // ⚠️ The M4 review split the starting factory into three named doors — one taking a filtered
+        // HeroName, one naming the account after its own id, one saying in its name that it skipped
+        // the filter — so the row itself moved onto a PRIVATE builder they all delegate to. The floor
+        // above still matches, because every door's name begins with CreateStarting; what changed is
+        // where the hop to Rehydrate lives, and naming the old method here would assert a member that
+        // no longer builds a row.
         Assert.True(
-            CallsRehydrate(Domain.FindInCore(PlayerType), StartingPlayerFactory),
-            $"Player.{StartingPlayerFactory} does not call Player.Rehydrate — 30 §11.3's one " +
+            CallsRehydrate(Domain.FindInCore(PlayerType), StartingRowBuilder),
+            $"Player.{StartingRowBuilder} does not call Player.Rehydrate — 30 §11.3's one " +
             "validated construction path. It is the seam the harness and the in-process host both " +
             "build a starting row through, so a version of it that assembled an aggregate any other " +
             "way would put an unvalidated Player into the harness AND into the local profile store, " +
             "with the scan above still reporting a public call.");
+
+        // 🔒 The hop above is only load-bearing if EVERY door takes it. There are three, they are
+        // told apart by what they do about 27 §1's name filter rather than by how they build a row,
+        // and a fourth added later that assembled its own row would leave both assertions above
+        // green — the floor because it matches on the name prefix, and CallsRehydrate because it
+        // names the builder rather than the doors.
+        var doors = Domain.FindInCore(PlayerType)?.Methods
+            .Where(m => m.Name.StartsWith(StartingPlayerFactory, StringComparison.Ordinal))
+            .ToArray() ?? [];
+
+        Assert.True(
+            doors.Length >= 3,
+            $"Player declares {doors.Length} {StartingPlayerFactory}* door(s). There are three — a " +
+            "filtered HeroName, an id-named account, and the harness's explicitly unfiltered one — " +
+            "and a scan that finds fewer is matching on something other than the name prefix, which " +
+            "would make the delegation check below quantify over nothing.");
+
+        ArchRule.Empty(
+            doors
+                .Where(door => !Il.Instructions(door)
+                    .Select(i => i.Operand as MethodReference)
+                    .Any(call =>
+                        call is not null &&
+                        call.Name.Equals(StartingRowBuilder, StringComparison.Ordinal)))
+                .Select(door =>
+                    $"{Il.Describe(door)} does not delegate to Player.{StartingRowBuilder}. Every " +
+                    "starting-account door builds THE SAME row and differs only in what it does " +
+                    "about 27 §1's name filter; a door that assembles its own is a second starting " +
+                    "state, and 30 §11.3's validated construction path is one hop further away " +
+                    "than this rule can see."),
+            $"Every Player.{StartingPlayerFactory}* door delegates to the one row builder (30 §11.3).");
 
         var offenders = reached
             .Where(r => !r.IsPublic)
@@ -1252,8 +1289,14 @@ public sealed class AccessibilityBoundaryTests
     /// <summary>The aggregate root whose starting row both the harness and the in-process host build.</summary>
     private const string PlayerType = "Player";
 
-    /// <summary>The public factory that builds it, and the member the floor above is named on.</summary>
+    /// <summary>The public factories that build it, and the prefix the floor above is named on.</summary>
     private const string StartingPlayerFactory = "CreateStarting";
+
+    /// <summary>
+    /// The private row builder every <see cref="StartingPlayerFactory"/> door delegates to, and the
+    /// one hop that must end at <c>Rehydrate</c>.
+    /// </summary>
+    private const string StartingRowBuilder = "StartingRow";
 
     /// <summary>The one validated construction path <see cref="StartingPlayerFactory"/> must end at.</summary>
     private const string RehydrateMethod = "Rehydrate";

@@ -163,8 +163,15 @@ public sealed class InMemoryGame
         // content set that cannot answer the Legend Level range does not silently consume an id.
         var id = new PlayerId("PLAYER_" + Text(_created.Count + 1));
 
-        var player = Player.CreateStarting(
-            id, displayName ?? id.Value, Clock.NowUtc, Content, inventory: inventory);
+        // Two doors, and which one is taken is decided by whether the caller supplied a label at all
+        // — not by what the label says. A generated name is the identity and was never player text;
+        // a supplied one is the harness's own and is stored unfiltered, which the door it goes
+        // through says in its name. Neither is 27 §1's creation path: that is CreateStarting, which
+        // takes a HeroName and can only be handed one the filter produced.
+        var player = displayName is null
+            ? Player.CreateStartingNamedAfterItsOwnId(id, Clock.NowUtc, Content, inventory: inventory)
+            : Player.CreateStartingWithUnfilteredName(
+                id, displayName, Clock.NowUtc, Content, inventory: inventory);
 
         if (player.IsFailure)
         {

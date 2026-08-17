@@ -45,8 +45,8 @@
   },
   "dropRun": {
     "_doc": "24 §4.3",
-    "eliteMercy": { "consecutiveMissesBeforeForce": 6, "belowRarity": "A", "forceRarityAtLeast": "A" },
-    "bossMercy": { "consecutiveMissesBeforeForce": 4, "belowRarity": "S", "forceRarityAtLeast": "S" },
+    "eliteMercy": { "forceOnNthKill": 6, "belowRarity": "A", "forceRarityAtLeast": "A" },
+    "bossMercy": { "forceOnNthKill": 4, "belowRarity": "S", "forceRarityAtLeast": "S" },
     "sessionFloor": { "grantRarity": "B", "grantCount": 1, "maxPerDay": 2, "requiresVictoryOrStage3Death": true }
   },
   "eggPet": {
@@ -104,7 +104,12 @@
   },
   "minigame": {
     "_doc": "24 §4.9 — MG_CHEST_PICK. The other three minigames are skill-scaled and carry no counter.",
-    "chestPick": { "chestCount": 3, "goldTierChests": 1, "guaranteeAfterConsecutiveMisses": 4 }
+    "chestPick": {
+      "_doc": "24 §4.9 reads 'guarantee the gold-tier chest every 4th consecutive miss', which is genuinely ambiguous: it can mean the cap is 3 misses (the 4th pick is forced) or 4 misses (the 5th pick is forced). The shipped reading is THE 4TH PICK IS FORCED — the value is an ordinal handed to HardPity.Fires, whose contract is misses >= everyNth - 1. The key is named forceOnNthPick-style for that reason. Changing the reading is a semantics change and needs a design ruling, not a rename.",
+      "chestCount": 3,
+      "goldTierChests": 1,
+      "guaranteeOnNthPick": 4
+    }
   },
   "boardAndEncounterVariance": {
     "_doc": "24 §4.10",

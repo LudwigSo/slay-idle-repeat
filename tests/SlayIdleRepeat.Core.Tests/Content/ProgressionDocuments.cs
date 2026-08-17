@@ -83,6 +83,19 @@ internal static class ProgressionDocuments
         ("CODEX_MASTERY", 100),
     ];
 
+    /// <summary>
+    /// The prose member <c>#/unlocks</c> carries beside its rungs, as shipped.
+    /// </summary>
+    /// <remarks>
+    /// Every authored block in <c>game-data/</c> carries one, and the ladder's is what makes
+    /// <c>UnlockTuning.Read</c>'s skip of it a live branch rather than dead code.
+    /// </remarks>
+    internal const string ShippedUnlocksDocMember = "_doc";
+
+    /// <summary>The prose the shipped ladder's <c>_doc</c> member holds.</summary>
+    /// <inheritdoc cref="ShippedUnlocksDocMember"/>
+    internal const string ShippedUnlocksDoc = "07 §1.1 — Legend Level unlock ladder.";
+
     /// <summary><c>BaseXp(c) = baseXpCoefficient * baseXpGrowth^(c-1)</c>'s coefficient, as shipped.</summary>
     internal const int ShippedBaseXpCoefficient = 25;
 
@@ -162,9 +175,17 @@ internal static class ProgressionDocuments
                 talentPointsPerLevel ?? ContentValue.Number(ShippedTalentPointsPerLevel),
         });
 
+        // 🔴 The `_doc` prose member is authored HERE, in the default ladder, because the shipped
+        // game-data/tuning/progression.json#/unlocks carries one and this fixture mirrors that file.
+        // Without it, UnlockTuning.Read's skip of the member is exercised by nothing: the reader
+        // could stop skipping it, and the whole hermetic suite would still be green while the real
+        // file's prose row was read as a rung and refused as a level outside the range.
         var unlockLadder = unlocks ?? ContentValue.Object(
-            ShippedUnlocks.ToDictionary(
-                row => row.Unlock, row => ContentValue.Number(row.Level), StringComparer.Ordinal));
+            new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                [ShippedUnlocksDocMember] = ContentValue.Text(ShippedUnlocksDoc),
+            }.Concat(ShippedUnlocks.Select(row =>
+                new KeyValuePair<string, ContentValue>(row.Unlock, ContentValue.Number(row.Level)))));
 
         var runXp = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {

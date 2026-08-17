@@ -115,8 +115,8 @@ public sealed class LuckSchemaTests
     public void A_chest_pick_guarantee_of_zero_is_rejected()
     {
         Issues(
-            "\"guaranteeAfterConsecutiveMisses\": 4",
-            "\"guaranteeAfterConsecutiveMisses\": 0")
+            "\"guaranteeOnNthPick\": 4",
+            "\"guaranteeOnNthPick\": 0")
             .ShouldContain(issue => issue.Code == ContentIssueCode.OutOfRange);
     }
 }

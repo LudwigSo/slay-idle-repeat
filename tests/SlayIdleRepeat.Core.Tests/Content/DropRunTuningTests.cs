@@ -22,9 +22,9 @@ public sealed class DropRunTuningTests
     /// misses tolerated before it — the sixth elite kill of a streak is the forced one.
     /// </summary>
     /// <remarks>
-    /// The authored key is spelled <c>consecutiveMissesBeforeForce</c>, which reads as the other
-    /// thing, and the two readings differ by exactly one drop. The property is named for what the
-    /// value is; this case is what stops the name and the reading drifting apart.
+    /// The two readings differ by exactly one drop. The authored key and the property are both named
+    /// for what the value is — <c>forceOnNthKill</c>; this case is what stops the name and the
+    /// reading drifting apart.
     /// </remarks>
     [Fact]
     public void The_elite_breaker_is_the_authored_ordinal_miss_band_and_forced_band()
@@ -92,7 +92,7 @@ public sealed class DropRunTuningTests
                     ContentValue.Text(LuckDocuments.ShippedEliteMercyForceRarity))))));
 
         thrown.Reference.ShouldBe(
-            DropRunTuning.EliteMercyReference + "/consecutiveMissesBeforeForce",
+            DropRunTuning.EliteMercyReference + "/forceOnNthKill",
             "which breaker, not merely that some ordinal was refused — this reader raises the same " +
             "type for the boss breaker, for an unsatisfiable band pairing and for a floor that grants " +
             "nothing.");
@@ -194,7 +194,7 @@ public sealed class DropRunTuningTests
                         ContentValue.Number(6.5m),
                         ContentValue.Text("A"),
                         ContentValue.Text("A"))))))
-            .Reference.ShouldBe(DropRunTuning.EliteMercyReference + "/consecutiveMissesBeforeForce");
+            .Reference.ShouldBe(DropRunTuning.EliteMercyReference + "/forceOnNthKill");
     }
 
     /// <summary>The reader refuses a null content set rather than dereferencing it.</summary>

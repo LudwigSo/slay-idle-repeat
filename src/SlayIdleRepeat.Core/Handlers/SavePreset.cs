@@ -60,7 +60,8 @@ internal static class SavePreset
             return HandlerResult.Reject(RejectionReason.NOT_ENTITLED);
         }
 
-        var preset = LoadoutPreset.Create(command.PresetSlot, command.Name, input.Player.Loadout);
+        var preset = LoadoutPreset.Create(
+            command.PresetSlot, command.Name, input.Player.Loadout, tuning);
 
         if (preset.IsFailure)
         {

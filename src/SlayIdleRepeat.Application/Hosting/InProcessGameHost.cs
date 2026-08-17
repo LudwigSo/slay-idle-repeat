@@ -117,7 +117,7 @@ public sealed class InProcessGameHost : IGameHost
 
         // The name is the identity until something asks the player for one: nothing has, and a name
         // invented here would be a value with no author.
-        var starting = Player.CreateStarting(id, id.Value, _clock.UtcNow, _content);
+        var starting = Player.CreateStartingNamedAfterItsOwnId(id, _clock.UtcNow, _content);
 
         if (starting.IsFailure)
         {

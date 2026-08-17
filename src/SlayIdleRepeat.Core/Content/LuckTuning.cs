@@ -388,7 +388,7 @@ internal sealed class LuckTuning
     private static ChestPickRule ReadChestPick(ContentSnapshot content) => new(
         RequirePositive(content, ChestPickReference + "/chestCount"),
         RequirePositive(content, ChestPickReference + "/goldTierChests"),
-        RequirePositive(content, ChestPickReference + "/guaranteeAfterConsecutiveMisses"));
+        RequirePositive(content, ChestPickReference + "/guaranteeOnNthPick"));
 
     /// <summary>An authored count that has to be at least one to name anything at all.</summary>
     private static int RequirePositive(ContentSnapshot content, string reference)
@@ -803,12 +803,21 @@ internal readonly record struct DraftRule(
 /// How many of them are the top tier. Descriptive, and deliberately not branched on: the guarantee
 /// forces the single highest tier, which satisfies the rule for any positive count of gold chests.
 /// </param>
-/// <param name="GuaranteeAfterConsecutiveMisses">
-/// The chest pick, counted from the last time the guarantee was satisfied, that is forced onto the
-/// top tier. The N-th pick is the forced one.
+/// <param name="GuaranteeOnNthPick">
+/// 🔒 <b>An ordinal, not a count of misses tolerated.</b> The chest pick, counted from the last time
+/// the guarantee was satisfied, that is forced onto the top tier: the N-th pick is the forced one,
+/// so N-1 misses precede it. It is handed straight to <c>HardPity.Fires</c>, whose contract is
+/// <c>misses &gt;= everyNth - 1</c>, and the authored key is spelled <c>guaranteeOnNthPick</c> to
+/// match.
+/// <para>
+/// ⚠️ <c>24</c> §4.9 — <i>"guarantee the gold-tier chest every 4th consecutive miss"</i> — is
+/// genuinely ambiguous about whether the cap is three misses or four. The shipped reading is that
+/// the 4th <em>pick</em> is forced; the block's own <c>_doc</c> records the ambiguity. Moving to the
+/// other reading is a semantics change and needs a design ruling, not a rename.
+/// </para>
 /// </param>
 internal readonly record struct ChestPickRule(
-    int ChestCount, int GoldTierChests, int GuaranteeAfterConsecutiveMisses);
+    int ChestCount, int GoldTierChests, int GuaranteeOnNthPick);
 
 /// <summary>The <c>ENHANCE</c> class's failure mercy.</summary>
 /// <remarks>

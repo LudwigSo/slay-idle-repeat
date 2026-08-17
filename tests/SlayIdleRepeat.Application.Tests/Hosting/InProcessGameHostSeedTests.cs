@@ -216,7 +216,8 @@ public sealed class InProcessGameHostSeedTests
     private static (InMemoryLocalCache Cache, PlayerId Player) AtTheCoinFlip()
     {
         var id = new PlayerId("PLAYER_COINFLIP");
-        var starting = Player.CreateStarting(id, id.Value, Worlds.Start, Worlds.Content, Stock());
+        var starting = Player.CreateStartingNamedAfterItsOwnId(
+            id, Worlds.Start, Worlds.Content, Stock());
 
         if (starting.IsFailure)
         {

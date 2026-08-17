@@ -14,6 +14,11 @@
     "gracePeriodDaysGoogle": 30,
     "gracePeriodDaysApple": 60
   },
+  "presetStorage": {
+    "_doc": "NOT design limits, and authored here precisely so that stays visible. 12 §2 grants a subscriber UNLIMITED loadout presets and 09 §2.1 makes 3 free slots a core free feature whose allowance may be raised and never gated further, so no design section authors a ceiling on a preset's slot number or on the length of its name. What these two bound is what an UNTRUSTED CLIENT can make the persisted player row grow to — that row is rehydrated and canonically hashed on every single command. They sit far above anything the design set describes (its own preset names are 'Boss push', 'Gold farm', 'PvP'; its own allowance is three), so they refuse abuse and constrain no design decision. O11 is the open decision that would replace them with authored numbers; until it lands, these are engineering bounds and a reader should read them as such rather than as a cap the design set asked for.",
+    "highestSlot": 999,
+    "longestNameTextElements": 64
+  },
   "inRunPlacements": [
     { "id": "AD_REVIVE", "cap": 1, "capWindow": "RUN" },
     { "id": "AD_DOUBLE_RUN_REWARDS", "cap": 1, "capWindow": "RUN" },

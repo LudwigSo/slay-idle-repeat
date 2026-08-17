@@ -10,13 +10,11 @@ namespace SlayIdleRepeat.Core.Content;
 /// 🔒 <b>The ordinal of the forced kill within a dry streak, not a count of misses tolerated before
 /// it</b> — the sixth elite kill of a streak <em>is</em> the forced one, so five misses precede it.
 /// <para>
-/// ⚠️ The authored key is spelled <c>consecutiveMissesBeforeForce</c>, which reads as the other
-/// thing, and the two readings differ by exactly one drop. The design text is the authority and is
-/// unambiguous — <i>"Count consecutive Elite kills whose drop was below A-rarity. On the 6th, force A
-/// or better"</i> — so the value is used as an ordinal and the property is named for what it is. The
-/// key itself is left alone: renaming it would touch the pity registry's own data, schema and pinned
-/// transcription tests, which belong to another task. <b>Carried forward: the key should be
-/// re-spelled with the registry, not with the gear generator.</b>
+/// The design text is the authority and is unambiguous — <i>"Count consecutive Elite kills whose
+/// drop was below A-rarity. On the 6th, force A or better"</i> — and the authored key is spelled
+/// <c>forceOnNthKill</c> to match, so the data and the reader now say the same thing. The two
+/// readings differ by exactly one drop, which is why the name is stated rather than left to the
+/// call site.
 /// </para>
 /// </param>
 /// <param name="BelowRarity">A drop counts as a miss when it lands strictly below this band.</param>
@@ -108,7 +106,7 @@ internal sealed class DropRunTuning
 
     private static DryStreakBreaker ReadBreaker(ContentSnapshot content, string reference)
     {
-        var ordinalReference = reference + "/consecutiveMissesBeforeForce";
+        var ordinalReference = reference + "/forceOnNthKill";
         var ordinal = content.ReadInt32(ordinalReference);
 
         if (ordinal < 1)

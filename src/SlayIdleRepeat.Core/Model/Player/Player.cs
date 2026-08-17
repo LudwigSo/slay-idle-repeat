@@ -774,6 +774,109 @@ public sealed class Player
         return Array.AsReadOnly(rows);
     }
 
+    /// <summary>
+    /// The starting state of a brand-new account whose player has chosen a name.
+    /// </summary>
+    /// <param name="id">The identity whatever creates accounts has already issued.</param>
+    /// <param name="displayName">
+    /// The chosen name, <b>already through `27` §1's filter</b> — that is what the type means and the
+    /// only reason it is the parameter's type. Stored exactly as the player typed it.
+    /// </param>
+    /// <param name="nowUtc">The instant the account is created at, which the period boundaries are derived from.</param>
+    /// <param name="content">The content set the authored starting values are read from.</param>
+    /// <param name="inventory">The stock the player starts with, or <c>null</c> for the empty one.</param>
+    /// <returns>The starting aggregate, or the failure the row was refused with.</returns>
+    /// <remarks>
+    /// 🔒 <b>The one door player-chosen text comes through, and it is typed rather than trusted.</b>
+    /// `27` §1 states the filter as "at creation <em>and</em> on every edit"; <see cref="Rename"/>
+    /// already delivered the edit half by taking a <see cref="HeroName"/>, and this delivers the
+    /// creation half the same way. It took a plain <c>string</c> until the M4 review, which meant the
+    /// one path `27` §1 names by name was the one path the filter did not stand on.
+    /// <para>
+    /// The two paths that name an account after something the player never typed do not come through
+    /// here: see <see cref="CreateStartingNamedAfterItsOwnId"/>.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException">
+    /// <paramref name="displayName"/> or <paramref name="content"/> is null.
+    /// </exception>
+    /// <exception cref="MissingContentException">The content set does not author a Legend Level range.</exception>
+    /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
+    /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
+    public static Result<Player> CreateStarting(
+        PlayerId id,
+        HeroName displayName,
+        DateTimeOffset nowUtc,
+        ContentSnapshot content,
+        InventorySnapshot? inventory = null)
+    {
+        ArgumentNullException.ThrowIfNull(displayName);
+
+        return StartingRow(id, displayName.Value, nowUtc, content, inventory);
+    }
+
+    /// <summary>
+    /// The starting state of a brand-new account named after its own identity, because nothing has
+    /// asked the player for a name.
+    /// </summary>
+    /// <param name="id">The identity whatever creates accounts has already issued, and the name.</param>
+    /// <param name="nowUtc">The instant the account is created at.</param>
+    /// <param name="content">The content set the authored starting values are read from.</param>
+    /// <param name="inventory">The stock the player starts with, or <c>null</c> for the empty one.</param>
+    /// <returns>The starting aggregate, or the failure the row was refused with.</returns>
+    /// <remarks>
+    /// 🔒 <b>It takes no name parameter at all, and that is the point.</b> A machine-minted identity
+    /// is not player-chosen text and must not go through `27` §1's filter — the in-process host's own
+    /// id is a prefix plus a GUID, which <c>HeroNameRule</c> would refuse for length before it ever
+    /// reached a word list. Passing it as a <c>string</c> to a factory that also accepts player text
+    /// is what left the creation path unfiltered in the first place, so there is deliberately no
+    /// parameter here for player text to arrive through.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
+    /// <exception cref="MissingContentException">The content set does not author a Legend Level range.</exception>
+    /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
+    /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
+    public static Result<Player> CreateStartingNamedAfterItsOwnId(
+        PlayerId id,
+        DateTimeOffset nowUtc,
+        ContentSnapshot content,
+        InventorySnapshot? inventory = null) =>
+        StartingRow(id, id.Value, nowUtc, content, inventory);
+
+    /// <summary>
+    /// ⚠️ The starting state of an account carrying a name <b>nothing filtered</b> — the domain
+    /// harness's door and no one else's.
+    /// </summary>
+    /// <param name="id">The identity the harness minted.</param>
+    /// <param name="displayName">The harness's own label for the player. Stored exactly as given.</param>
+    /// <param name="nowUtc">The instant the account is created at.</param>
+    /// <param name="content">The content set the authored starting values are read from.</param>
+    /// <param name="inventory">The stock the player starts with, or <c>null</c> for the empty one.</param>
+    /// <returns>The starting aggregate, or the failure the row was refused with.</returns>
+    /// <remarks>
+    /// 🔒 <b>Named for what it skips, which is the whole design.</b> <c>InMemoryGame</c> lets a caller
+    /// label a fixture player ("Ludwig the Unhurried") and runs on hermetic content sets that carry no
+    /// word lists at all, so it cannot go through the filter and has nothing player-chosen to filter.
+    /// That was true of the old <c>CreateStarting(string)</c> too — the difference is that this is a
+    /// <em>named method with an enumerable caller set</em> instead of an unfiltered parameter on the
+    /// method every caller reaches for, and <c>HeroNameWritePathRuleTests</c> asserts who calls it.
+    /// <para>
+    /// ⚠️ <c>public</c> rather than <c>internal</c>, and not by preference: <c>Core/Testing/</c> may
+    /// reach <c>Core/Model/</c> through its <b>public</b> seam only (`30` §6, asserted by
+    /// <c>AccessibilityBoundaryTests</c>), so an internal door would put the harness in breach of a
+    /// rule that matters more than this one's visibility. The IL rule over its callers is what makes
+    /// that safe, and it is stricter than <c>internal</c> would have been: it enumerates
+    /// <c>Application</c> as well as <c>Core</c>.
+    /// </para>
+    /// </remarks>
+    public static Result<Player> CreateStartingWithUnfilteredName(
+        PlayerId id,
+        string displayName,
+        DateTimeOffset nowUtc,
+        ContentSnapshot content,
+        InventorySnapshot? inventory = null) =>
+        StartingRow(id, displayName, nowUtc, content, inventory);
+
     /// <summary>The starting state of a brand-new account, as one row, declared in one place.</summary>
     /// <param name="id">The identity whatever creates accounts has already issued.</param>
     /// <param name="displayName">
@@ -807,17 +910,18 @@ public sealed class Player
     /// created account.
     /// </para>
     /// <para>
-    /// ⚠️ The name is stored without passing the hero-name rule, and that is a limit rather than an
-    /// oversight: nothing asks a player for a name at creation, so the caller's own text is all
-    /// there is. <see cref="Rename"/> is the door a player-chosen name comes through, and it is
-    /// where the filter runs.
+    /// 🔒 <b><c>private</c>: the row is declared once and reached through the three factories above,
+    /// each of which states what it does about the name.</b> The name is stored here without passing
+    /// the hero-name rule because by this point the decision has already been made — a
+    /// <see cref="HeroName"/> has been through the filter, an id was never player text, and the
+    /// harness's door says in its own name that it skipped it.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
     /// <exception cref="MissingContentException">The content set does not author a Legend Level range.</exception>
     /// <exception cref="UnauthorisedTunableException">That range holds a deliberate <c>null</c>.</exception>
     /// <exception cref="InvalidTunableException">That range is authorised but unusable.</exception>
-    public static Result<Player> CreateStarting(
+    private static Result<Player> StartingRow(
         PlayerId id,
         string displayName,
         DateTimeOffset nowUtc,

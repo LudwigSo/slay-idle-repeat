@@ -30,9 +30,17 @@ namespace SlayIdleRepeat.Core.Model;
 /// <c>PlayerSnapshot.Presets</c>, which is rehydrated and canonically hashed on <em>every</em>
 /// command — so an unbounded name and an unbounded slot number let a client make every future
 /// command of that account slower and eventually make the row unencodable at all. The two ceilings
-/// below are deliberately far above anything the design set describes (its own examples are "Boss
-/// push", "Gold farm", "PvP", and its own allowance is three): they refuse abuse and constrain no
-/// design decision. Author a real limit and it replaces them.
+/// are deliberately far above anything the design set describes (its own examples are "Boss push",
+/// "Gold farm", "PvP", and its own allowance is three): they refuse abuse and constrain no design
+/// decision.
+/// </para>
+/// <para>
+/// 🔒 <b>Both are read, not invented here.</b> They were two <c>const</c>s in this file until the M4
+/// review, which meant two numbers no document authorised sat where no rule in the repo could see
+/// them — a <c>const</c> is folded to a literal and leaves no IL trace. They are now authored at
+/// <c>ads.json#/presetStorage</c>, whose <c>_doc</c> says in as many words that no design section
+/// asks for either, and reach this type through <see cref="Content.PresetTuning"/>. Authoring a real
+/// design limit replaces them at that pointer rather than in this file.
 /// </para>
 /// </remarks>
 public sealed class LoadoutPreset
@@ -62,18 +70,23 @@ public sealed class LoadoutPreset
     /// <param name="slot">The slot to occupy, at or above <see cref="Content.PresetTuning.FirstSlot"/>.</param>
     /// <param name="name">The player's name for it.</param>
     /// <param name="loadout">What it restores. A snapshot of the live loadout, taken by the caller.</param>
+    /// <param name="tuning">The authored preset numbers, including the two storage bounds.</param>
     /// <returns>The preset, or a failure naming what was wrong with it.</returns>
     /// <remarks>
-    /// There is deliberately no upper bound on <paramref name="slot"/> here: how many slots a player
-    /// may write is an <em>entitlement</em> question that needs the authored free allowance and the
-    /// session's Plus flag, and neither is visible from inside the aggregate. The handler answers it.
+    /// There is deliberately no <em>design</em> upper bound on <paramref name="slot"/> here: how many
+    /// slots a player may write is an <em>entitlement</em> question that needs the authored free
+    /// allowance and the session's Plus flag, and neither is visible from inside the aggregate. The
+    /// handler answers it. What is checked here is the storage bound, which is a different question
+    /// with a different answer.
     /// </remarks>
-    /// <exception cref="ArgumentNullException"><paramref name="loadout"/> is null.</exception>
-    internal static Result<LoadoutPreset> Create(int slot, string name, Loadout loadout)
+    /// <exception cref="ArgumentNullException"><paramref name="loadout"/> or <paramref name="tuning"/> is null.</exception>
+    internal static Result<LoadoutPreset> Create(
+        int slot, string name, Loadout loadout, Content.PresetTuning tuning)
     {
         ArgumentNullException.ThrowIfNull(loadout);
+        ArgumentNullException.ThrowIfNull(tuning);
 
-        var fault = Fault(slot, name);
+        var fault = ShapeFault(slot, name) ?? StorageFault(slot, name, tuning);
 
         return fault is null
             ? Result<LoadoutPreset>.Success(new LoadoutPreset(slot, name, loadout))
@@ -83,12 +96,21 @@ public sealed class LoadoutPreset
     /// <summary>Reads a persisted preset.</summary>
     /// <param name="snapshot">The persisted row.</param>
     /// <returns>The preset, or a failure naming what was wrong with the row.</returns>
+    /// <remarks>
+    /// 🔒 <b>The two storage bounds are checked on write and deliberately <em>not</em> here.</b> They
+    /// are authored content now, and content changes without a build — so applying them on load would
+    /// mean lowering <c>longestNameTextElements</c> tomorrow makes today's stored presets unloadable,
+    /// turning an authoring edit into an account outage. That is the same trade <c>HeroNameRule</c>
+    /// refuses by name, and for the same reason. What is checked here is the row's <em>shape</em> —
+    /// a slot below the first, a blank name, a control character — none of which is tunable and none
+    /// of which a legitimately written row can ever have had.
+    /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="snapshot"/> is null.</exception>
     internal static Result<LoadoutPreset> Rehydrate(LoadoutPresetSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
 
-        var fault = Fault(snapshot.Slot, snapshot.Name);
+        var fault = ShapeFault(snapshot.Slot, snapshot.Name);
 
         if (fault is not null)
         {
@@ -111,24 +133,11 @@ public sealed class LoadoutPreset
     }
 
     /// <summary>
-    /// ⚠️ The highest slot number a preset may occupy — a bound on the persisted row's size, not a
-    /// design limit. See the type's remarks.
+    /// What is wrong with a slot and a name that <b>no</b> preset may ever have had, or
+    /// <see langword="null"/> when nothing is. Checked on write and on load alike: none of these is
+    /// tunable, so tightening one cannot strand a row that was legitimate when it was written.
     /// </summary>
-    internal const int HighestStorableSlot = 999;
-
-    /// <summary>
-    /// ⚠️ The longest a preset name may be, in text elements — the same kind of bound, for the same
-    /// reason.
-    /// </summary>
-    /// <remarks>
-    /// Text elements rather than <c>char</c>s, for <c>HeroNameRule.MaximumLength</c>'s reason: an
-    /// emoji is two UTF-16 code units, and counting those gives a limit that shortens depending on
-    /// what the player types.
-    /// </remarks>
-    internal const int LongestStorableName = 64;
-
-    /// <summary>What is wrong with a slot and a name, or <see langword="null"/> when nothing is.</summary>
-    private static string? Fault(int slot, string name)
+    private static string? ShapeFault(int slot, string name)
     {
         if (slot < Content.PresetTuning.FirstSlot)
         {
@@ -137,26 +146,10 @@ public sealed class LoadoutPreset
                    "as rather than a slot a player asked for.";
         }
 
-        if (slot > HighestStorableSlot)
-        {
-            return "preset slot " + Text(slot) + " is above " + Text(HighestStorableSlot) + ", the " +
-                   "highest a row can store. 12 §2 grants a subscriber unlimited presets and this " +
-                   "does not take that back — it bounds what an untrusted client can make the " +
-                   "persisted row grow to, which is rehydrated and hashed on every command.";
-        }
-
         if (string.IsNullOrWhiteSpace(name))
         {
             return "preset slot " + Text(slot) + " has a blank name. 07 §4 saves NAMED presets, and a " +
                    "preset that renders as nothing is one the player cannot tell from the next.";
-        }
-
-        if (new StringInfo(name).LengthInTextElements > LongestStorableName)
-        {
-            return "preset slot " + Text(slot) + " has a name longer than " +
-                   Text(LongestStorableName) + " characters, the longest a row can store. 07 §4's " +
-                   "own examples are 'Boss push', 'Gold farm' and 'PvP'; this bounds the persisted " +
-                   "row rather than the player's choice of label.";
         }
 
         foreach (var character in name)
@@ -174,6 +167,30 @@ public sealed class LoadoutPreset
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// What exceeds an authored storage bound, or <see langword="null"/> when nothing does. Checked
+    /// on write only — see <see cref="Rehydrate"/>'s remarks for why not on load.
+    /// </summary>
+    private static string? StorageFault(int slot, string name, Content.PresetTuning tuning)
+    {
+        if (slot > tuning.HighestSlot)
+        {
+            return "preset slot " + Text(slot) + " is above " + Text(tuning.HighestSlot) + ", the " +
+                   "highest a row can store. 12 §2 grants a subscriber unlimited presets and this " +
+                   "does not take that back — it bounds what an untrusted client can make the " +
+                   "persisted row grow to, which is rehydrated and hashed on every command. The " +
+                   "number is authored at " + Content.PresetTuning.HighestSlotReference + ".";
+        }
+
+        return new StringInfo(name).LengthInTextElements > tuning.LongestNameTextElements
+            ? "preset slot " + Text(slot) + " has a name longer than " +
+              Text(tuning.LongestNameTextElements) + " characters, the longest a row can store. " +
+              "07 §4's own examples are 'Boss push', 'Gold farm' and 'PvP'; this bounds the " +
+              "persisted row rather than the player's choice of label. The number is authored at " +
+              Content.PresetTuning.LongestNameReference + "."
+            : null;
     }
 
     /// <summary>Renders a number with <see cref="CultureInfo.InvariantCulture"/>, so messages read the same on every host.</summary>

@@ -95,9 +95,13 @@
         "eliteMercy": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["consecutiveMissesBeforeForce", "belowRarity", "forceRarityAtLeast"],
+          "required": ["forceOnNthKill", "belowRarity", "forceRarityAtLeast"],
           "properties": {
-            "consecutiveMissesBeforeForce": { "type": "integer", "minimum": 1 },
+            "forceOnNthKill": {
+              "description": "An ORDINAL, not a miss count: the N-th kill of a dry streak is the forced one, so N-1 misses precede it. The design text reads 'Count consecutive Elite kills whose drop was below A-rarity. On the 6th, force A or better.' The block's own citation covers the section.",
+              "type": "integer",
+              "minimum": 1
+            },
             "belowRarity": { "$ref": "#/$defs/rarity" },
             "forceRarityAtLeast": { "$ref": "#/$defs/rarity" }
           }
@@ -251,11 +255,16 @@
         "chestPick": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["chestCount", "goldTierChests", "guaranteeAfterConsecutiveMisses"],
+          "required": ["_doc", "chestCount", "goldTierChests", "guaranteeOnNthPick"],
           "properties": {
+            "_doc": { "type": "string", "minLength": 1 },
             "chestCount": { "type": "integer", "minimum": 2 },
             "goldTierChests": { "type": "integer", "minimum": 1 },
-            "guaranteeAfterConsecutiveMisses": { "type": "integer", "minimum": 1 }
+            "guaranteeOnNthPick": {
+              "description": "An ORDINAL, not a miss count: the N-th pick since the guarantee was last satisfied is the forced one, so N-1 misses precede it. See the block's own _doc for the ambiguity in the design text and the reading that shipped.",
+              "type": "integer",
+              "minimum": 1
+            }
           }
         }
       }
