@@ -122,7 +122,41 @@ public partial class ChapterSelect : Control
 
     private const string FontColourOverride = "font_color";
     private const string DisabledFontColourOverride = "font_disabled_color";
+    private const string PressedFontColourOverride = "font_pressed_color";
+    private const string HoverFontColourOverride = "font_hover_color";
+    private const string HoverPressedFontColourOverride = "font_hover_pressed_color";
+    private const string FontOutlineColourOverride = "font_outline_color";
+    private const string OutlineSizeConstant = "outline_size";
     private const string FontSizeOverride = "font_size";
+
+    /// <summary>
+    /// How much a chosen control's glyphs are thickened, in canvas units — the whole visible signal
+    /// that this chapter, and this tier, are the ones a confirm would start.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Weight, because the engine's own pressed state is not a signal at all.</b> Measured
+    /// off a real button in a headless run rather than assumed: the default theme fills a pressed
+    /// button with <c>(0, 0, 0, 0.6)</c> and an unpressed one with <c>(0.1, 0.1, 0.1, 0.6)</c>.
+    /// Composited over this screen's ground those are 0.028 and 0.088, which is <b>1.11:1</b>
+    /// against each other and <b>1.07:1</b> between the chosen control and the ground it sits on —
+    /// so the selected control does not merely look similar to the others, it disappears, and reads
+    /// as a hole where the unselected ones read as buttons. Both of the two choices this screen
+    /// exists to take were drawn that way.
+    /// </para>
+    /// <para>
+    /// 🔒 And weight rather than a brighter or a differently-hued text: a blocked row already spends
+    /// a hue AND a luminance step on <see cref="BlockedColour"/>, and a second colour meaning
+    /// "chosen" would land between the two that already mean "open" and "refused". Thickness is a
+    /// free channel — it survives every colour vision deficiency, it survives greyscale, and it adds
+    /// nothing to a palette that has no theme resource to hold it. It is still a per-node override
+    /// and still M8-03's to take away.
+    /// </para>
+    /// </remarks>
+    private const int SelectedOutlineSize = 3;
+
+    /// <summary>An unchosen control's glyphs, at the face's own weight.</summary>
+    private const int UnselectedOutlineSize = 0;
 
     /// <summary>
     /// The least of one axis a control a thumb lands on may take, in canvas units — the height the
@@ -510,9 +544,14 @@ public partial class ChapterSelect : Control
         _statusLabel.Text = presenter.StatusText;
         _statusLabel.Visible = _statusLabel.Text.Length > 0;
 
+        // Repainted every pass rather than on the toggle that changed, because a button group tells
+        // the buttons it deselects nothing: only the pressed one raises a signal, so the one that
+        // just stopped being chosen would keep the chosen weight if this drew a single control.
         foreach (var tier in _tiers)
         {
             tier.Button.Text = presenter.TierName(tier.Tier);
+
+            Paint(tier.Button, LiveColour, tier.Button.ButtonPressed);
         }
 
         // The whole list dims while the gating is unknown, which is what keeps a row that carries
@@ -560,8 +599,7 @@ public partial class ChapterSelect : Control
         // before the read answers is that it has not answered, and the dimmed list already says it.
         var colour = availability.Lookup == ChapterTierLookup.Blocked ? BlockedColour : LiveColour;
 
-        row.Name.AddThemeColorOverride(FontColourOverride, colour);
-        row.Name.AddThemeColorOverride(DisabledFontColourOverride, colour);
+        Paint(row.Name, colour, row.Name.ButtonPressed);
 
         Line(row.RequiresClear, presenter.RequiresClearCaption, availability.Unmet
             .OfType<ClearRequirement>()
@@ -572,6 +610,40 @@ public partial class ChapterSelect : Control
             .Select(level => string.Create(
                 CultureInfo.InvariantCulture,
                 $"{level.Required}{LevelSeparator}{level.Actual}")));
+    }
+
+    /// <summary>
+    /// Gives one button its colour in every state it can draw text in, and the weight that says
+    /// whether it is the chosen one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Every state, because the engine picks the font colour by draw mode and none of the other
+    /// modes falls back to <c>font_color</c>. Measured in the same headless run as the fills above:
+    /// the default theme's <c>font_pressed_color</c> is opaque white and its
+    /// <c>font_disabled_color</c> is a HALF-TRANSPARENT grey, so a chosen row was drawing at the
+    /// engine's colour rather than at the one this screen decided for it, and would have kept doing
+    /// so silently.
+    /// </para>
+    /// <para>
+    /// The outline colour matches the text rather than contrasting with it: the point is a thicker
+    /// glyph, not a rimmed one.
+    /// </para>
+    /// </remarks>
+    /// <param name="button">The control to draw.</param>
+    /// <param name="colour">What its text says about itself — open, refused, or not yet known.</param>
+    /// <param name="selected">Whether it is the one a confirm would act on.</param>
+    private static void Paint(Button button, Color colour, bool selected)
+    {
+        button.AddThemeColorOverride(FontColourOverride, colour);
+        button.AddThemeColorOverride(DisabledFontColourOverride, colour);
+        button.AddThemeColorOverride(PressedFontColourOverride, colour);
+        button.AddThemeColorOverride(HoverFontColourOverride, colour);
+        button.AddThemeColorOverride(HoverPressedFontColourOverride, colour);
+        button.AddThemeColorOverride(FontOutlineColourOverride, colour);
+
+        button.AddThemeConstantOverride(
+            OutlineSizeConstant, selected ? SelectedOutlineSize : UnselectedOutlineSize);
     }
 
     /// <summary>

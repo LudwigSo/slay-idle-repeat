@@ -60,6 +60,8 @@ public partial class Home : Control
     private const string HomeMarker = "SIR_HOME_READY";
 
     private const string SafeAreaPath = "%SafeArea";
+    private const string HeaderPath = "%Header";
+    private const string EnergyPath = "%Energy";
     private const string DisplayNameLabelPath = "%DisplayNameLabel";
     private const string LegendLevelLabelPath = "%LegendLevelLabel";
     private const string LegendLevelValuePath = "%LegendLevelValue";
@@ -75,6 +77,8 @@ public partial class Home : Control
 
     private CancellationToken _lifetime;
 
+    private Control? _header;
+    private Control? _energy;
     private Label? _displayNameLabel;
     private Label? _legendLevelLabel;
     private Label? _legendLevelValue;
@@ -112,6 +116,8 @@ public partial class Home : Control
     {
         // Resolved once. A scene-unique lookup is a string search of the owner's table each time it
         // is asked, and this screen redraws whenever the read behind it moves.
+        _header = GetNode<Control>(HeaderPath);
+        _energy = GetNode<Control>(EnergyPath);
         _displayNameLabel = GetNode<Label>(DisplayNameLabelPath);
         _legendLevelLabel = GetNode<Label>(LegendLevelLabelPath);
         _legendLevelValue = GetNode<Label>(LegendLevelValuePath);
@@ -191,12 +197,29 @@ public partial class Home : Control
         // longer resolves leaves a null behind, and a null-forgiving operator over it would turn a
         // renamed node into a crash here instead of a blank label.
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
+            _header is null || _energy is null ||
             _displayNameLabel is null || _legendLevelLabel is null || _legendLevelValue is null ||
             _energyLabel is null || _energyValue is null || _energyReserveLabel is null ||
             _energyReserveValue is null || _statusLabel is null || _actionButton is null)
         {
             return;
         }
+
+        // The one predicate the whole screen turns on: whether the read has produced a profile
+        // there is anything to say about.
+        var carried = presenter.Decision is HomeContinueDecision.StartNewRun or
+                                             HomeContinueDecision.ContinueRun;
+
+        // 🔒 The profile's numbers are drawn only when there ARE numbers. Before the read answers,
+        // and in the two states where it never will, the name is empty and the Legend Level, the
+        // Energy and the Reserve are all still the zero an unset int carries — and "Energy 0" told
+        // to a player who has plenty is not a placeholder, it is a plausible value in a hole, which
+        // is the one thing this codebase refuses to put on a screen anywhere else. The block leaves
+        // instead, the status line below says which of the three states this is, and nothing is
+        // invented. Two of those states never end, so this is not a flicker on the way to the
+        // truth: it is what the screen looks like for as long as it is up.
+        _header.Visible = carried;
+        _energy.Visible = carried;
 
         _displayNameLabel.Text = presenter.DisplayName;
         _legendLevelLabel.Text = presenter.LegendLevelLabel;
@@ -205,7 +228,12 @@ public partial class Home : Control
         _energyValue.Text = presenter.Energy.ToString(CultureInfo.InvariantCulture);
         _energyReserveLabel.Text = presenter.EnergyReserveLabel;
         _energyReserveValue.Text = presenter.EnergyReserve.ToString(CultureInfo.InvariantCulture);
+        // Hidden rather than blanked once there is nothing left to say, which is the same thing the
+        // picker does with the same line and for the same reason: an empty label still claims a
+        // full line of height, so a blank one is a sentence a player can see room for and cannot
+        // read. Hiding it also hands the space back to the frame above the primary action.
         _statusLabel.Text = presenter.StatusText;
+        _statusLabel.Visible = _statusLabel.Text.Length > 0;
 
         _actionButton.Text = presenter.ActionText;
 
@@ -213,8 +241,7 @@ public partial class Home : Control
         // nothing to do. Disabled rather than hidden: a primary action that vanishes reads as a
         // screen that lost its purpose, while a disabled one under the status line reads as a
         // screen waiting, which is what it is.
-        _actionButton.Disabled = presenter.Decision is not (HomeContinueDecision.StartNewRun or
-                                                            HomeContinueDecision.ContinueRun);
+        _actionButton.Disabled = !carried;
     }
 
     /// <remarks>

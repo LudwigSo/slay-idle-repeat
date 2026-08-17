@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [node name="ChapterRow" type="VBoxContainer"]
-theme_override_constants/separation = 12
+theme_override_constants/separation = 24
 
 [node name="NameButton" type="Button" parent="."]
 custom_minimum_size = Vector2(0, 144)

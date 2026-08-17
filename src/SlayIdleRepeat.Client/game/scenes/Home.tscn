@@ -35,6 +35,7 @@ layout_mode = 2
 theme_override_constants/separation = 48
 
 [node name="Header" type="VBoxContainer" parent="SafeArea/Column"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
@@ -65,6 +66,7 @@ theme_override_font_sizes/font_size = 48
 horizontal_alignment = 2
 
 [node name="Energy" type="VBoxContainer" parent="SafeArea/Column"]
+unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
