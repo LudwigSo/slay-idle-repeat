@@ -211,6 +211,9 @@ public partial class BattleReplay : Control
     /// <summary>Joins the actors an intro banner names, in slot order.</summary>
     private const string OpponentJoin = " · ";
 
+    /// <summary>What the readout writes where a value the screen has not settled would go.</summary>
+    private const string NoValue = "none";
+
     /// <summary>What ordinary damage is drawn in.</summary>
     private static readonly Color HitTextColour = new(0.95f, 0.95f, 0.97f);
 
@@ -498,6 +501,14 @@ public partial class BattleReplay : Control
         if (advancing.IsCompletedSuccessfully)
         {
             Settle(presenter);
+
+            // Reported on the one frame that had something to report, and never on an ordinary one:
+            // a host that answers synchronously would otherwise close the battle without the line
+            // this screen is read off, and the readout is the only gate a headless run has.
+            if (advancing.Result != BattleSubmission.NothingToSubmit)
+            {
+                Report(presenter);
+            }
 
             return;
         }
@@ -817,7 +828,12 @@ public partial class BattleReplay : Control
             row.Dirty = true;
         }
 
-        var token = slot == HeroSlot ? _heroToken : slot >= FirstEnemySlot ? _enemyToken : null;
+        var token = slot switch
+        {
+            HeroSlot => _heroToken,
+            >= FirstEnemySlot => _enemyToken,
+            _ => null,
+        };
 
         if (token is not null)
         {
@@ -1168,10 +1184,18 @@ public partial class BattleReplay : Control
             $"{presenter.TotalTicks.ToString(CultureInfo.InvariantCulture)} " +
             $"speed={presenter.Speed} skip={presenter.SkipAvailable} " +
             $"actors={presenter.Actors.Count.ToString(CultureInfo.InvariantCulture)} " +
-            $"phase={Describe(presenter.CurrentBossPhase)} won={Describe(presenter.HeroWon)} " +
+            $"phase={DescribePhase(presenter.CurrentBossPhase)} won={Describe(presenter.HeroWon)} " +
             $"rejection={Describe(presenter.RulesRejection)}");
 
-    private static string Describe<T>(T? value) where T : struct => value?.ToString() ?? "none";
+    /// <remarks>
+    /// Invariant, like every other number on the readout. The generic form below reaches
+    /// <c>ToString()</c>, which is the CURRENT culture for anything numeric — and a readout a grep
+    /// has to match cannot be one the device's locale gets a say in.
+    /// </remarks>
+    private static string DescribePhase(int? phase) =>
+        phase?.ToString(CultureInfo.InvariantCulture) ?? NoValue;
+
+    private static string Describe<T>(T? value) where T : struct => value?.ToString() ?? NoValue;
 
     /// <summary>One actor's row of the health column, and the running state behind it.</summary>
     /// <remarks>

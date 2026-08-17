@@ -48,8 +48,14 @@ public static class BattleHandover
     /// <param name="from">The board handing over, which is hidden on success and returned to later.</param>
     /// <param name="screen">The composed replay, already built for the battle being entered.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
+    /// <returns>
+    /// True when the replay is in the tree and the board has been hidden behind it. False says the
+    /// handover did not happen at all, which the board latches on: a screen that reported a battle as
+    /// watched when nothing was ever shown would then refuse to enter it a second time and blame the
+    /// battle for not closing.
+    /// </returns>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
-    public static void Show(Board from, ComposedBattleScreen screen, CancellationToken lifetime)
+    public static bool Show(Board from, ComposedBattleScreen screen, CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(from);
         ArgumentNullException.ThrowIfNull(screen);
@@ -60,7 +66,7 @@ public static class BattleHandover
         {
             GD.PushError("The board has no parent to hand the battle replay to.");
 
-            return;
+            return false;
         }
 
         var packed = GD.Load<PackedScene>(BattleReplay.ScenePath);
@@ -71,7 +77,7 @@ public static class BattleHandover
             // cannot be read, so an unnamed null reference is all a caller gets unless it says so.
             GD.PushError($"The battle replay could not be loaded from '{BattleReplay.ScenePath}'.");
 
-            return;
+            return false;
         }
 
         var replay = packed.Instantiate<BattleReplay>();
@@ -81,6 +87,8 @@ public static class BattleHandover
         from.Visible = false;
 
         parent.AddChild(replay);
+
+        return true;
     }
 
     /// <summary>Hands control back to the board the fight was entered from, and frees the replay.</summary>

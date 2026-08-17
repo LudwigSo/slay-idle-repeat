@@ -999,9 +999,11 @@ public partial class Board : Control
             return;
         }
 
-        _battleShown = true;
-
-        BattleHandover.Show(this, battle(), _lifetime);
+        // Latched on the handover having HAPPENED, not on having been attempted. A handover that
+        // could not load its scene left the board on screen with the battle still open, and a latch
+        // set anyway would answer the next read with the dead-end sentence for a replay nobody ever
+        // watched.
+        _battleShown = BattleHandover.Show(this, battle(), _lifetime);
     }
 
     private static string Describe<T>(T? value) where T : struct =>

@@ -201,14 +201,27 @@ public sealed class BattleReplayPresenter
     private double _elapsed;
 
     /// <summary>
-    /// The playhead the last step was emitted up to, or -1 before the first step.
+    /// The index of the first log entry the playhead has not crossed yet.
     /// </summary>
     /// <remarks>
-    /// 🔒 Minus one rather than zero, so the first step's window is open at the true beginning of the
-    /// fight. Tick zero carries the one event that says a fight has begun, and a window starting
-    /// above zero would drop it from every fight in the game.
+    /// 🔒 A cursor rather than a remembered tick. It starts at the very first entry, so the first
+    /// step's window is open at the true beginning of the fight: tick zero carries the one event that
+    /// says a fight has begun, and a window that started above it would drop that event from every
+    /// fight in the game. It is a cursor rather than a query because this is advanced from the
+    /// engine's per-frame callback — re-reading an eighteen-hundred-tick log sixty times a second to
+    /// find the handful of events one frame crossed is the shape that turns a ninety-second fight
+    /// into a collection pause on a handset. Ticks never decrease in a log, so one forward walk over
+    /// the whole fight sees every event exactly once.
     /// </remarks>
-    private int _lastEmittedTick = -1;
+    private int _logCursor;
+
+    /// <summary>Every phase change the log carries, in order, as the tick and the phase entered.</summary>
+    /// <remarks>
+    /// 🔒 Lifted out of the log once, for the same reason the cursor exists: the band is settled on
+    /// every frame and the log is not something to re-read on every frame. A real fight carries at
+    /// most three of these.
+    /// </remarks>
+    private (int Tick, int Phase)[] _phaseChanges = [];
 
     /// <summary>The tick of the last phase change the playhead has crossed.</summary>
     private int _lastPhaseChangeTick;
@@ -521,6 +534,7 @@ public sealed class BattleReplayPresenter
         HeroWon = fight.HeroWon;
         TotalTicks = fight.DurationTicks;
         Actors = ActorsIn(fight);
+        _phaseChanges = PhaseChangesIn(fight);
     }
 
     /// <summary>Puts the playhead on a tick, clamped to the fight, and settles what that shows.</summary>
@@ -529,20 +543,46 @@ public sealed class BattleReplayPresenter
     private void MovePlayheadTo(int reachedTick, bool emitting)
     {
         CurrentTick = Math.Min(TotalTicks, reachedTick);
-        StepEvents = emitting ? EventsCrossed(_lastEmittedTick, CurrentTick) : [];
-        _lastEmittedTick = CurrentTick;
+        StepEvents = EventsCrossed(CurrentTick, emitting);
 
         SettlePhaseBand();
     }
 
     /// <remarks>
     /// Half-open. An event sitting exactly on the previous playhead was drawn by the advance that
-    /// reached it, and one sitting exactly on the new playhead has just happened.
+    /// reached it, and one sitting exactly on the new playhead has just happened. The cursor is
+    /// walked whether the step is drawn or not, so what a skip jumped over is consumed rather than
+    /// left for the next advance to spray across the screen.
     /// </remarks>
-    private IReadOnlyList<CombatEvent> EventsCrossed(int afterTick, int throughTick) =>
-        _fight is { } fight && throughTick > afterTick
-            ? [.. fight.Log.Where(entry => entry.Tick > afterTick && entry.Tick <= throughTick)]
-            : [];
+    private IReadOnlyList<CombatEvent> EventsCrossed(int throughTick, bool emitting)
+    {
+        if (_fight is not { } fight)
+        {
+            return [];
+        }
+
+        var log = fight.Log;
+        var from = _logCursor;
+
+        while (_logCursor < log.Count && log[_logCursor].Tick <= throughTick)
+        {
+            _logCursor++;
+        }
+
+        if (!emitting || _logCursor == from)
+        {
+            return [];
+        }
+
+        var crossed = new CombatEvent[_logCursor - from];
+
+        for (var index = 0; index < crossed.Length; index++)
+        {
+            crossed[index] = log[from + index];
+        }
+
+        return crossed;
+    }
 
     /// <remarks>
     /// 🔒 The phase is read off the event's own value rather than counted from the events crossed.
@@ -551,21 +591,31 @@ public sealed class BattleReplayPresenter
     /// and not a promise made to a client, and a screen that counted would announce the wrong
     /// transition the moment it changed.
     /// </remarks>
-    private void SettlePhaseBand()
+    private static (int Tick, int Phase)[] PhaseChangesIn(SimulationResult fight)
     {
-        if (_fight is not { } fight)
-        {
-            return;
-        }
-
-        int? entered = null;
+        var changes = new List<(int Tick, int Phase)>();
 
         foreach (var entry in fight.Log)
         {
-            if (entry.Type == CombatEventType.PhaseChange && entry.Tick <= CurrentTick)
+            if (entry.Type == CombatEventType.PhaseChange)
             {
-                entered = (int)Math.Round(entry.Value);
-                _lastPhaseChangeTick = entry.Tick;
+                changes.Add((entry.Tick, (int)Math.Round(entry.Value)));
+            }
+        }
+
+        return [.. changes];
+    }
+
+    private void SettlePhaseBand()
+    {
+        int? entered = null;
+
+        foreach (var (tick, phase) in _phaseChanges)
+        {
+            if (tick <= CurrentTick)
+            {
+                entered = phase;
+                _lastPhaseChangeTick = tick;
             }
         }
 
