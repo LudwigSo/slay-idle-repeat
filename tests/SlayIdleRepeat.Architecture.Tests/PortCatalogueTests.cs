@@ -49,7 +49,13 @@ public sealed class PortCatalogueTests
     /// <see cref="No_port_signature_names_an_infrastructure_or_vendor_concept"/> and both
     /// <c>DependencyRuleTests</c> port rules quantify over a set that has lost members.
     /// </summary>
-    private const int DeclaredPortFloor = 5;
+    /// <remarks>
+    /// 🔒 M7-01b raised it 5 → 6 for <c>IPlatformInfoPort</c>, together with
+    /// <c>ContractSuiteCoverageTests.PortFloor</c> and <c>SubjectSetFloorTests.PortFloor</c>. Three
+    /// floors are stated over the same set in three assemblies; one moving without the others is one
+    /// of them having gained a member the other two cannot see.
+    /// </remarks>
+    private const int DeclaredPortFloor = 6;
 
     /// <summary>
     /// Entries in the register. At zero, <see cref="No_port_deferral_outlives_the_port_it_defers"/>,
@@ -74,6 +80,22 @@ public sealed class PortCatalogueTests
     /// vendor at a time.
     /// </remarks>
     private const int VocabularyFloor = 15;
+
+    /// <summary>
+    /// 🔒 The `23` §4 member transcriptions that must exist, named port by port and member by
+    /// member. An <b>identity</b> floor, for the reason
+    /// <see cref="PortCatalogue.ObjectStoreVocabulary"/> is one: a count over the transcriptions is
+    /// cleared by any row at all, and what has to survive is this row, with these five names.
+    /// </summary>
+    private static readonly (string Citation, string Port, string[] Members)[] RequiredMemberTranscriptions =
+    {
+        ("23 §4.1", "IPlatformInfoPort",
+            new[] { "DeviceModel", "OsVersion", "AppVersion", "Locale", "IsLowEndDevice" }),
+        ("23 §4.1", "ILocalCachePort", new[] { "ReadAsync", "WriteAsync", "DeleteAsync" }),
+        ("23 §4.1", "IRewardedAdPort", new[] { "IsReady", "ShowAsync", "PreloadAsync" }),
+        ("23 §4.3", "IClockPort", new[] { "UtcNow" }),
+        ("23 §4.3", "IIdGeneratorPort", new[] { "NewGuid", "NewCommandId" }),
+    };
 
     /// <summary>
     /// 🔒 `23` §4 / §6 — the undeclared direction: every port the catalogue specifies is either
@@ -130,6 +152,165 @@ public sealed class PortCatalogueTests
         ArchRule.Empty(
             PortCatalogue.Malformed(PortCatalogue.Deferred),
             "Every PortCatalogue entry is well formed: owning task, written reason (23 §6, steering S4).");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §4 / §6 — the member-level undeclared direction: every member `23` §4 writes on a
+    /// port this repository has <b>declared</b> is either on the interface or carried by an omission
+    /// entry with an owning task.
+    /// </summary>
+    /// <remarks>
+    /// The four directions above transcribe interface NAMES, so a port that declares four of a
+    /// section's five members satisfies all of them. That is how M7-01b's deliberate omission of
+    /// <c>IPlatformInfoPort.IsLowEndDevice</c> would otherwise have lived in an XML comment with
+    /// nothing able to notice it stopped being true — which steering <b>S4</b> is exactly about.
+    /// </remarks>
+    [Fact]
+    public void Every_specified_member_of_a_declared_port_is_declared_or_omitted_with_an_owner()
+    {
+        ArchRule.Empty(
+            PortCatalogue.UndeclaredMembers(
+                PortCatalogue.SpecifiedMembers, Domain.Ports, PortCatalogue.OmittedMembers),
+            "Every member 23 §4 writes on a declared port is declared or omitted with an owner (23 §4, 23 §6).");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §4 / §6 — every declared port that `23` §4 writes a member list for has one
+    /// transcribed here.
+    /// </summary>
+    /// <remarks>
+    /// Without this the member register governs exactly the ports somebody remembered to add, and
+    /// the next port declared narrower than its section reopens the hole M7-01b closed. Not
+    /// hypothetical: <c>ILocalCachePort</c> is a declared `23` §4.1 port whose own remarks
+    /// acknowledge a departure from that section, and it had no row until this rule demanded one.
+    /// </remarks>
+    [Fact]
+    public void Every_declared_specified_port_has_a_member_transcription()
+    {
+        ArchRule.Empty(
+            PortCatalogue.PortsWithoutAMemberTranscription(
+                PortCatalogue.SpecifiedPorts, Domain.Ports, PortCatalogue.SpecifiedMembers),
+            "Every declared 23 §4 port has a member transcription (23 §4, 23 §6, steering S3).");
+    }
+
+    /// <summary>
+    /// `23` §6 — the teeth of the transcription-coverage direction, and its silent half.
+    /// </summary>
+    [Fact]
+    public void The_member_transcription_rule_fires_on_a_declared_port_with_no_row()
+    {
+        var group = new PortCatalogue.SpecifiedPortGroup(
+            "23 §4.3", PortCatalogue.SharedPortsNamespace, new[] { Domain.ClockPortType });
+
+        var row = new PortCatalogue.SpecifiedPortMembers("23 §4.3", Domain.ClockPortType, new[] { "UtcNow" });
+
+        PortCatalogue.PortsWithoutAMemberTranscription(new[] { group }, Domain.Ports, new[] { row })
+            .ShouldBeEmpty("IClockPort is declared and transcribed, which is the arrangement the rule permits.");
+
+        PortCatalogue.PortsWithoutAMemberTranscription(
+                new[] { group }, Domain.Ports, Array.Empty<PortCatalogue.SpecifiedPortMembers>())
+            .ShouldHaveSingleItem()
+            .ShouldContain("nothing here transcribes", Case.Sensitive);
+
+        // ⚠️ The quantifier's control: a port the document names and this repository has NOT
+        // declared is the Deferred register's business, not this one.
+        PortCatalogue.PortsWithoutAMemberTranscription(
+                new[] { group with { Ports = new[] { "IAudioPort" } } },
+                Domain.Ports,
+                Array.Empty<PortCatalogue.SpecifiedPortMembers>())
+            .ShouldBeEmpty(
+                "IAudioPort is deferred, so demanding a member transcription for it would ask every "
+                + "deferred port for a shape the milestone that owns it has not decided.");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §4 / §6 — the member-level stale direction: no omission outlives the member it omits.
+    /// </summary>
+    [Fact]
+    public void No_port_member_omission_outlives_the_member_it_omits()
+    {
+        ArchRule.Empty(
+            PortCatalogue.ExpiredMembers(Domain.Ports, PortCatalogue.OmittedMembers),
+            "No PortCatalogue.OmittedMembers entry omits a member that now exists (23 §4, steering S4).");
+    }
+
+    /// <summary>
+    /// `23` §6 — every omission entry names an owning milestone task and a written reason.
+    /// </summary>
+    [Fact]
+    public void Every_port_member_omission_is_well_formed()
+    {
+        ArchRule.Empty(
+            PortCatalogue.MalformedMembers(PortCatalogue.OmittedMembers),
+            "Every PortCatalogue.OmittedMembers entry is well formed: owning task, written reason (23 §6, steering S4).");
+    }
+
+    /// <summary>
+    /// `23` §6 — the teeth of the member-level directions, driven against crafted inputs so each is
+    /// shown to bite without a violation ever being committed.
+    /// </summary>
+    /// <remarks>
+    /// Both halves of each direction, and the subjects are the real declared ports: a synthetic
+    /// interface would only prove the rules work on synthetic interfaces.
+    /// <c>IClockPort.UtcNow</c> is a member that genuinely exists, so it drives the stale direction
+    /// and the undeclared direction's silent half from opposite sides.
+    /// </remarks>
+    [Fact]
+    public void The_member_directions_fire_on_a_deliberately_bad_entry_and_are_silent_on_a_good_one()
+    {
+        var clock = new PortCatalogue.SpecifiedPortMembers(
+            "23 §4.3", Domain.ClockPortType, new[] { "UtcNow" });
+
+        var good = new PortCatalogue.PortMemberOmission(
+            Domain.ClockPortType, "MonotonicTicks", "M5-10",
+            "a reason long enough to be worth falsifying at the next kickoff.");
+
+        // Silent: UtcNow is on IClockPort, so nothing is missing and nothing has expired.
+        PortCatalogue.UndeclaredMembers(new[] { clock }, Domain.Ports, new[] { good }).ShouldBeEmpty(
+            "IClockPort declares UtcNow, which is the arrangement the rule exists to permit.");
+        PortCatalogue.ExpiredMembers(Domain.Ports, new[] { good }).ShouldBeEmpty(
+            "IClockPort declares no MonotonicTicks, so this omission has not expired.");
+        PortCatalogue.MalformedMembers(new[] { good }).ShouldBeEmpty();
+
+        // Undeclared: a transcribed member the declared port does not carry and no entry claims.
+        var withAnExtraMember = clock with { Members = new[] { "UtcNow", "MonotonicTicks" } };
+
+        PortCatalogue.UndeclaredMembers(
+                new[] { withAnExtraMember }, Domain.Ports, Array.Empty<PortCatalogue.PortMemberOmission>())
+            .ShouldHaveSingleItem()
+            .ShouldContain("PortCatalogue.OmittedMembers does not either", Case.Sensitive);
+
+        // 🔒 And silent again once an entry claims it — otherwise the direction above would be
+        // satisfied by a rule that flags every transcribed member it cannot find.
+        PortCatalogue.UndeclaredMembers(new[] { withAnExtraMember }, Domain.Ports, new[] { good })
+            .ShouldBeEmpty("the entry carries exactly the member the port does not declare.");
+
+        // ⚠️ The quantifier's own control: a transcription for a port that is NOT declared says
+        // nothing, or the register would demand a shape from every deferred port at once.
+        PortCatalogue.UndeclaredMembers(
+                new[] { clock with { Port = "IAudioPort", Members = new[] { "PlaySfx" } } },
+                Domain.Ports,
+                Array.Empty<PortCatalogue.PortMemberOmission>())
+            .ShouldBeEmpty(
+                "IAudioPort is deferred, not declared. Its members are its Deferred entry's business, "
+                + "and demanding them here would be a second answer to the same question.");
+
+        // Stale: an entry omitting a member that is on the port today.
+        PortCatalogue.ExpiredMembers(Domain.Ports, new[] { good with { Member = "UtcNow" } })
+            .ShouldHaveSingleItem()
+            .ShouldContain("already declares it", Case.Sensitive);
+
+        // Malformed, one crafted entry per branch.
+        PortCatalogue.MalformedMembers(new[] { good with { Member = "  " } })
+            .ShouldContain(o => o.Contains("names no port or no member", StringComparison.Ordinal));
+
+        PortCatalogue.MalformedMembers(new[] { good with { Owner = "someday" } })
+            .ShouldHaveSingleItem()
+            .ShouldContain("not a milestone task id", Case.Sensitive);
+
+        PortCatalogue.MalformedMembers(new[] { good with { Why = "later" } })
+            .ShouldHaveSingleItem()
+            .ShouldContain("no written reason worth falsifying", Case.Sensitive);
     }
 
     /// <summary>
@@ -219,6 +400,33 @@ public sealed class PortCatalogueTests
                    + "vocabulary out of that port, and the AzureBlob sibling at M18-06a shares it. "
                    + "Every one of these terms could be dropped together with the count floor still "
                    + "clearing, which is why they are named one by one.");
+
+        // 🔒 The member-level register's floor, and it is an IDENTITY floor rather than a count.
+        // A count over SpecifiedMembers is cleared by any row at all, and the row that has to
+        // survive is the one whose port is declared today — delete it and
+        // Every_specified_member_of_a_declared_port_is_declared_or_omitted_with_an_owner quantifies
+        // over nothing while still reporting success, which is the exact shape S3 names.
+        foreach (var (citation, port, members) in RequiredMemberTranscriptions)
+        {
+            var transcription = PortCatalogue.SpecifiedMembers.SingleOrDefault(
+                m => m.Port.Equals(port, StringComparison.Ordinal));
+
+            if (transcription is null)
+            {
+                offenders.Add(
+                    $"no PortCatalogue.SpecifiedMembers row transcribes {citation}'s '{port}'. That port "
+                    + "is declared, so its member list is the only thing standing between a narrower "
+                    + "declaration and nobody noticing.");
+                continue;
+            }
+
+            offenders.AddRange(
+                from member in members
+                where !transcription.Members.Contains(member, StringComparer.Ordinal)
+                select $"'{port}.{member}' is gone from the {citation} transcription. The member "
+                       + "directions are stated over what that list holds, so a trimmed list does not "
+                       + "fail — it stops asking about the member it lost.");
+        }
 
         PortCatalogue.SpecifiedPorts.Length.ShouldBe(
             3,

@@ -35,17 +35,25 @@ public sealed class ContractSuiteCoverageTests
     // breached; lowering one is a deliberate decision that belongs in the commit that forces it.
 
     /// <summary>Ports found under <c>Application.Ports</c>. At zero, rules 1 and 2 govern nothing.</summary>
-    private const int PortFloor = 5;
+    /// <remarks>
+    /// 🔒 M7-01b raised this from 5 to 6 for <c>IPlatformInfoPort</c>, and raised
+    /// <see cref="SuiteFloor"/> and <c>PortCatalogueTests.DeclaredPortFloor</c> with it. Left at 5,
+    /// the port declared on that commit could have been deleted again with every rule in this file
+    /// still reporting success over the five that remained — which is the drift the paragraph under
+    /// <see cref="AdapterAssemblyFloor"/> says these numbers exist to notice.
+    /// </remarks>
+    private const int PortFloor = 6;
 
     /// <summary>Attributed suites in this assembly. At zero, rule 3's suite arm has nothing to check.</summary>
-    private const int SuiteFloor = 5;
+    /// <remarks>Moves with <see cref="PortFloor"/>: rule 1 is one suite per port, exactly.</remarks>
+    private const int SuiteFloor = 6;
 
     /// <summary>
     /// Adapter assemblies the scan finds. At zero, rule 2 finds no implementations and reports
     /// success over every port at once — the single most expensive silence available here.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Exact against the scan, which finds 23 adapter assemblies today</b> — every
+    /// 🔒 <b>Exact against the scan, which finds 24 adapter assemblies today</b> — every
     /// <c>SlayIdleRepeat.Adapters.*</c> project this suite references, and adapters reference no
     /// other adapter, so the output directory holds exactly the direct references. A floor set below
     /// the real count is a floor only against total collapse: at 8, fifteen adapter
@@ -62,8 +70,14 @@ public sealed class ContractSuiteCoverageTests
     /// Both floors move together, or one set has gained a member the other did not see. Deleting an
     /// adapter project is still allowed; it is a deliberate act that lowers both in its own commit.
     /// </para>
+    /// <para>
+    /// 🔒 M7-01b raised it 23 → 24 for <c>Adapters.Platform.Host</c>, the real (non-engine)
+    /// implementation <c>IPlatformInfoPort</c> needed to be declarable under <c>23</c> §5 A5 at all,
+    /// and raised <c>SubjectSetFloorTests.AdapterFloor</c> in the same commit. The scan finds 24
+    /// today and this is still exact against it.
+    /// </para>
     /// </remarks>
-    private const int AdapterAssemblyFloor = 23;
+    private const int AdapterAssemblyFloor = 24;
 
     /// <summary>
     /// Fixtures per suite. At one, <c>23</c> §5 A5's "the real adapter AND the in-memory fake"
@@ -76,6 +90,61 @@ public sealed class ContractSuiteCoverageTests
     /// all four rules here stay green over a port nothing tests.
     /// </summary>
     private const int CasesPerSuiteFloor = 3;
+
+    /// <summary>
+    /// 🔒 Every port implementation this project exists to cover, named one by one. This is an
+    /// <b>identity</b> floor, and it is the one that closes the hole every count above leaves open.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The failure this exists for was observed on this exact seam, not imagined.</b> M5-01
+    /// zeroed the adapter-discovery scan and
+    /// <see cref="Every_implementation_of_a_port_has_a_contract_fixture"/> went on <em>passing</em> —
+    /// with no implementation to quantify over it reported success across every port at once, which
+    /// reads identically to full coverage. <see cref="AdapterAssemblyFloor"/> notices the assemblies
+    /// leaving, and it is the right shape for that; what neither it nor
+    /// <see cref="PortFloor"/> can say is <b>which</b> implementation stopped being seen. A count
+    /// falling from twelve to eleven is a number; four of these names disappearing while two new
+    /// ones arrive is a count that never moved.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>What this floor watches is the DISCOVERY MECHANISM, not the reference graph</b>, and
+    /// the distinction matters because the obvious reading is wrong. Deleting an adapter's
+    /// <c>ProjectReference</c> does not reach this rule at all: every name below is also a
+    /// <c>typeof</c> in a <c>[ContractFixtureFor]</c> in this same assembly, so the project stops
+    /// compiling first. What has no compile-time guard is <see cref="ScannedAssemblies"/> itself —
+    /// its glob, its prefix, its filter — and a narrowed scan is the M5-01 failure verbatim: rule 2
+    /// quantifies over what the scan returns, so a subject it stopped seeing is a subject every rule
+    /// here stopped constraining, silently and while still reporting success.
+    /// </para>
+    /// <para>
+    /// Names rather than <c>typeof</c> for the same reason: a type reference would be resolved by
+    /// the compiler and would therefore agree with the scan by construction, which is precisely the
+    /// disagreement this floor exists to detect. Same construction as
+    /// <c>PortCatalogue.ObjectStoreVocabulary</c>.
+    /// </para>
+    /// <para>
+    /// Both halves of every port are here, the real adapter and the fake, because
+    /// <c>23</c> §5 A5 is the pair rather than either one. Full names, not simple ones: a decoy of
+    /// the same simple name in another adapter would otherwise satisfy the floor for the type it
+    /// replaced.
+    /// </para>
+    /// </remarks>
+    private static readonly string[] CoveredImplementations =
+    {
+        "SlayIdleRepeat.Adapters.Ambient.System.SystemClock",
+        "SlayIdleRepeat.Adapters.InMemory.AdjustableClock",
+        "SlayIdleRepeat.Adapters.Ambient.System.SystemIdGenerator",
+        "SlayIdleRepeat.Adapters.InMemory.CountingIdGenerator",
+        "SlayIdleRepeat.Adapters.Content.LocalFile.LocalFileContentSource",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryContentSource",
+        "SlayIdleRepeat.Adapters.Cache.LocalFile.LocalFileCache",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryLocalCache",
+        "SlayIdleRepeat.Adapters.Ads.AutoGrant.AutoGrantRewardedAd",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryRewardedAd",
+        "SlayIdleRepeat.Adapters.Platform.Host.HostPlatformInfo",
+        "SlayIdleRepeat.Adapters.InMemory.InMemoryPlatformInfo",
+    };
 
     private const string PortsNamespace = "SlayIdleRepeat.Application.Ports";
     private const string ApplicationAssemblyName = "SlayIdleRepeat.Application";
@@ -192,7 +261,97 @@ public sealed class ContractSuiteCoverageTests
                 + "and rules 1 to 3 all stay green over a port nothing actually tests.");
         }
 
+        // 🔒 The IDENTITY floor under the same scan. Every count above is cleared by a set that has
+        // swapped members, and a rule whose subject vanished is a rule reporting success over its
+        // own absence.
+        offenders.AddRange(ImplementationsMissingFromTheScan(PortImplementations(ports), CoveredImplementations));
+
         Empty(offenders, "The contract-suite subject sets are the ones these rules were written against (23 §6, steering S3).");
+    }
+
+    /// <summary>
+    /// 🔒 Steering <b>S3</b>, the identity arm: the named-implementation floor fires on a scan that
+    /// lost a subject, on a scan that lost <em>all</em> of them, and is silent on the real one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three failing shapes, because one would not distinguish an identity floor from a count. The
+    /// <b>partial loss</b> is the realistic narrowing — one adapter dropping out of the scan while
+    /// the rest stay. The <b>same-count swap</b> is the one no count floor above can see at all, and
+    /// the reason this floor exists: twelve subjects in, twelve subjects out, two of them different.
+    /// The <b>empty scan</b> is M5-01's observed failure verbatim, the state in which
+    /// <see cref="Every_implementation_of_a_port_has_a_contract_fixture"/> reports success over
+    /// every port at once — and it is asserted by naming all twelve rather than by counting them,
+    /// since a count is what this floor is here to be better than.
+    /// </para>
+    /// <para>
+    /// Every arm mutates the <em>scan</em>, which is this floor's subject. Mutating the required
+    /// list instead would exercise the same predicate from the side nothing can actually go wrong
+    /// on.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_named_implementation_floor_fires_on_a_scan_that_lost_a_subject()
+    {
+        var scanned = PortImplementations(Ports().ToArray()).ToArray();
+        const string lost = "SlayIdleRepeat.Adapters.Platform.Host.HostPlatformInfo";
+
+        ImplementationsMissingFromTheScan(scanned, CoveredImplementations).ShouldBeEmpty(
+            "the real scan finds every named implementation, which is the arrangement this floor "
+            + "exists to permit. A floor that flagged this would be failing the build today.");
+
+        // Partial loss: one adapter stops being discovered and eleven others cover for it.
+        ImplementationsMissingFromTheScan(
+                scanned.Where(t => t.FullName != lost).ToArray(), CoveredImplementations)
+            .ShouldHaveSingleItem()
+            .ShouldContain(lost, Case.Sensitive);
+
+        // 🔒 Same count, different members — the arrangement every count floor above clears.
+        var swapped = scanned
+            .Where(t => t.FullName != lost && t.Name != "AdjustableClock")
+            .Concat(new[] { typeof(string), typeof(Uri) })
+            .ToArray();
+
+        ImplementationsMissingFromTheScan(swapped, CoveredImplementations).Count.ShouldBe(
+            2,
+            "the scan returned as many types as before and two of the named subjects are gone. A "
+            + "floor stated over the size of the set is satisfied by this and reports success.");
+
+        // The empty scan, named subject by subject rather than counted.
+        var everythingLost = ImplementationsMissingFromTheScan(Array.Empty<Type>(), CoveredImplementations);
+
+        foreach (var required in CoveredImplementations)
+        {
+            everythingLost.ShouldContain(
+                offender => offender.Contains(required, StringComparison.Ordinal),
+                $"the scan returned nothing at all and '{required}' was not reported lost. A floor "
+                + "that answers an empty scan with a number tells a reader how much went missing "
+                + "and not what.");
+        }
+    }
+
+    /// <summary>
+    /// The identity floor's body: every required implementation the scan did not find. Empty means
+    /// the floor holds.
+    /// </summary>
+    /// <remarks>Parameterised for the reason rules 1 to 3 are: so its arms can be driven.</remarks>
+    internal static IReadOnlyList<string> ImplementationsMissingFromTheScan(
+        IEnumerable<Type> scanned,
+        IEnumerable<string> required)
+    {
+        var found = scanned.Select(t => t.FullName).OfType<string>().ToHashSet(StringComparer.Ordinal);
+
+        return required
+            .Where(name => !found.Contains(name))
+            .Select(name =>
+                $"'{name}' implements a port and the scan of {AppContext.BaseDirectory} no longer "
+                + "finds it. Every rule in this file is stated over what that scan returns, so a "
+                + "subject it stopped seeing is a subject they all stopped constraining — silently, "
+                + "and while still reporting success. Look at the discovery mechanism first — "
+                + "ScannedAssemblies, its glob and its prefix — since a dropped ProjectReference "
+                + "would have failed to compile instead. If the implementation was genuinely "
+                + "deleted, delete the name here in the same commit.")
+            .ToArray();
     }
 
     // ------------------------------------------------------------------------------ self-tests

@@ -31,6 +31,7 @@
     <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
     <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Consent.AppLovinCmp\SlayIdleRepeat.Adapters.Consent.AppLovinCmp.csproj" />
     <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Platform.Godot\SlayIdleRepeat.Adapters.Platform.Godot.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Platform.Host\SlayIdleRepeat.Adapters.Platform.Host.csproj" />
     <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Persistence.Postgres\SlayIdleRepeat.Adapters.Persistence.Postgres.csproj" />
     <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Cache.Redis\SlayIdleRepeat.Adapters.Cache.Redis.csproj" />
     <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.ObjectStore.S3\SlayIdleRepeat.Adapters.ObjectStore.S3.csproj" />
