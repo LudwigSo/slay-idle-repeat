@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [node name="ChapterRow" type="VBoxContainer"]
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 
 [node name="NameButton" type="Button" parent="."]
 custom_minimum_size = Vector2(0, 144)
@@ -9,17 +9,18 @@ layout_mode = 2
 toggle_mode = true
 theme_override_font_sizes/font_size = 48
 alignment = 0
+autowrap_mode = 3
 
 [node name="RequiresClear" type="Label" parent="."]
 visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.62, 0.4, 1)
-theme_override_font_sizes/font_size = 34
+theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
 [node name="RequiresLegendLevel" type="Label" parent="."]
 visible = false
 layout_mode = 2
 theme_override_colors/font_color = Color(0.78, 0.62, 0.4, 1)
-theme_override_font_sizes/font_size = 34
+theme_override_font_sizes/font_size = 36
 autowrap_mode = 3

@@ -32,7 +32,7 @@ theme_override_constants/margin_bottom = 128
 
 [node name="Column" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 2
-theme_override_constants/separation = 40
+theme_override_constants/separation = 48
 
 [node name="TitleLabel" type="Label" parent="SafeArea/Column"]
 unique_name_in_owner = true
@@ -44,7 +44,7 @@ autowrap_mode = 3
 [node name="TierPicker" type="HBoxContainer" parent="SafeArea/Column"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 16
+theme_override_constants/separation = 24
 
 [node name="ChapterScroll" type="ScrollContainer" parent="SafeArea/Column"]
 layout_mode = 2
@@ -56,10 +56,11 @@ horizontal_scroll_mode = 0
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 32
+theme_override_constants/separation = 48
 
 [node name="ConfirmButton" type="Button" parent="SafeArea/Column"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 theme_override_font_sizes/font_size = 52
+autowrap_mode = 3

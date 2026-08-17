@@ -34,9 +34,13 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// ⚠️ Every type size, colour and gap in <c>ChapterSelect.tscn</c> and <c>ChapterRow.tscn</c> is a
 /// per-node override, because the shared theme resource and the display faces it will carry do not
 /// exist yet — they are M8-03's, and these overrides are debt owed to it rather than a naming
-/// scheme of this screen's own. The layout itself is structural: containers and stretch ratios, so
-/// it holds its proportions across the whole supported aspect range without an override taking
-/// part. There is no art here at all, placeholder or otherwise.
+/// scheme of this screen's own. The tier toggles carry theirs in this file instead, because the set
+/// is built from the enum and has no node in a scene to hold them; they are the same debt in a
+/// different place, and the sizes were chosen against the engine's default font, so all of them have
+/// to be re-checked rather than merely re-applied when the real faces land. The layout itself is
+/// structural: containers and stretch ratios, so it holds its proportions across the whole supported
+/// aspect range without an override taking part. There is no art here at all, placeholder or
+/// otherwise.
 /// </para>
 /// <para>
 /// 🔴 <b>A confirmed run has nowhere to go</b> — see <see cref="TheRunScreenIsNotBuiltHere"/>.
@@ -110,6 +114,16 @@ public partial class ChapterSelect : Control
 
     private const string FontColourOverride = "font_color";
     private const string DisabledFontColourOverride = "font_disabled_color";
+    private const string FontSizeOverride = "font_size";
+
+    /// <summary>
+    /// The least of one axis a control a thumb lands on may take, in canvas units — the height the
+    /// chapter rows are already authored at, and the smallest target the screen offers anywhere.
+    /// </summary>
+    private const int TouchTargetHeight = 144;
+
+    /// <summary>The size a chapter row is typed at, so a tier toggle reads as its peer rather than as a caption.</summary>
+    private const int BodyFontSize = 48;
 
     /// <summary>A row whose requirements are met, or are not yet known.</summary>
     private static readonly Color LiveColour = new(0.93f, 0.93f, 0.96f);
@@ -309,8 +323,28 @@ public partial class ChapterSelect : Control
         }
     }
 
-    private static Button NewToggle(ButtonGroup group) =>
-        Adopt(new Button { SizeFlagsHorizontal = SizeFlags.ExpandFill }, group);
+    /// <summary>One tier's toggle, sized and typed to match the rows it filters.</summary>
+    /// <remarks>
+    /// A control built in code inherits the engine's default face and its default height, which is a
+    /// caption-sized target on a handset canvas. The tier is one of the two choices this screen
+    /// exists to take, so it is given the chapter rows' own touch height and body size — still
+    /// short of the confirm below it, which stays the largest thing here. The text wraps rather than
+    /// widening: three toggles share one row, and a translation that outgrew its third would push
+    /// the row past the safe area instead of growing downwards.
+    /// </remarks>
+    private static Button NewToggle(ButtonGroup group)
+    {
+        var button = new Button
+        {
+            SizeFlagsHorizontal = SizeFlags.ExpandFill,
+            CustomMinimumSize = new Vector2(0, TouchTargetHeight),
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+        };
+
+        button.AddThemeFontSizeOverride(FontSizeOverride, BodyFontSize);
+
+        return Adopt(button, group);
+    }
 
     /// <summary>Makes a button one of a radio set, so the engine holds the selection.</summary>
     /// <remarks>

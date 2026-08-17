@@ -32,11 +32,11 @@ theme_override_constants/margin_bottom = 128
 
 [node name="Column" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 2
-theme_override_constants/separation = 56
+theme_override_constants/separation = 48
 
 [node name="Header" type="VBoxContainer" parent="SafeArea/Column"]
 layout_mode = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 24
 
 [node name="DisplayNameLabel" type="Label" parent="SafeArea/Column/Header"]
 unique_name_in_owner = true
@@ -54,19 +54,19 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 44
+theme_override_font_sizes/font_size = 48
 autowrap_mode = 3
 
 [node name="LegendLevelValue" type="Label" parent="SafeArea/Column/Header/LegendLevelRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 44
+theme_override_font_sizes/font_size = 48
 horizontal_alignment = 2
 
 [node name="Energy" type="VBoxContainer" parent="SafeArea/Column"]
 layout_mode = 2
-theme_override_constants/separation = 20
+theme_override_constants/separation = 24
 
 [node name="EnergyRow" type="HBoxContainer" parent="SafeArea/Column/Energy"]
 layout_mode = 2
@@ -77,14 +77,14 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 44
+theme_override_font_sizes/font_size = 48
 autowrap_mode = 3
 
 [node name="EnergyValue" type="Label" parent="SafeArea/Column/Energy/EnergyRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 44
+theme_override_font_sizes/font_size = 48
 horizontal_alignment = 2
 
 [node name="EnergyReserveRow" type="HBoxContainer" parent="SafeArea/Column/Energy"]
@@ -96,27 +96,27 @@ unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 44
+theme_override_font_sizes/font_size = 48
 autowrap_mode = 3
 
 [node name="EnergyReserveValue" type="Label" parent="SafeArea/Column/Energy/EnergyReserveRow"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 44
+theme_override_font_sizes/font_size = 48
 horizontal_alignment = 2
 
 [node name="StatusFrame" type="VBoxContainer" parent="SafeArea/Column"]
 layout_mode = 2
 size_flags_vertical = 3
 size_flags_stretch_ratio = 1.0
-alignment = 1
+alignment = 2
 
 [node name="StatusLabel" type="Label" parent="SafeArea/Column/StatusFrame"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 40
+theme_override_font_sizes/font_size = 48
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -125,3 +125,4 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 theme_override_font_sizes/font_size = 52
+autowrap_mode = 3
