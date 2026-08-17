@@ -4,16 +4,11 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>
-/// A run's board, projected into read-only records the Board screen can draw. The board itself is
-/// never persisted — it regenerates from the run seed — so this is the only way anything outside
+/// A run's board, projected into read-only records the Board screen can draw. The board is never
+/// persisted — it regenerates from the run seed through <see cref="BoardResolution.Replay"/>, the
+/// same helper the movement handlers resolve it with — so this is the only way anything outside
 /// <c>Core</c> can see a tile track or a fork preview at all.
 /// </summary>
-/// <remarks>
-/// The projection replays the layout through <see cref="BoardResolution.Replay"/>, the same helper
-/// the movement handlers resolve a run's board with, so the track a player is shown is the track the
-/// run is walked along. It hands out no graph, no edge and no draw stream: a caller can read where a
-/// run stands and what lies ahead, and can neither generate a board nor route one.
-/// </remarks>
 public sealed class BoardView
 {
     private readonly IReadOnlyDictionary<int, BoardTrackNode> _byNodeId;
@@ -49,8 +44,8 @@ public sealed class BoardView
     public BoardTrackNode? StandingOn { get; }
 
     /// <summary>
-    /// The fork the run is paused at waiting for a choice, or <c>null</c> when nothing is paused —
-    /// or when the paused position is no junction of this board.
+    /// The fork the run is paused at waiting for a choice — <c>null</c> when nothing is paused, or
+    /// when the paused position is no junction of this board.
     /// </summary>
     public BoardFork? PendingFork { get; }
 
@@ -58,6 +53,7 @@ public sealed class BoardView
     /// <param name="run">The run whose board is being drawn.</param>
     /// <param name="content">The loaded content set, read for the run's chapter.</param>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    /// <exception cref="MissingContentException"><paramref name="content"/> declares no such chapter.</exception>
     public static BoardView Project(RunSnapshot run, ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(run);
@@ -69,10 +65,10 @@ public sealed class BoardView
         var onSpine = new HashSet<NodeId>(spineIds);
         var reachable = ReachableInNodeIdOrder(board);
 
-        var nodes = new BoardTrackNode[reachable.Count];
-        var byNodeId = new Dictionary<int, BoardTrackNode>(reachable.Count);
+        var nodes = new BoardTrackNode[reachable.Length];
+        var byNodeId = new Dictionary<int, BoardTrackNode>(reachable.Length);
 
-        for (var i = 0; i < reachable.Count; i++)
+        for (var i = 0; i < reachable.Length; i++)
         {
             var source = board.Node(reachable[i]);
             var node = new BoardTrackNode(
@@ -82,8 +78,8 @@ public sealed class BoardView
             byNodeId[node.NodeId] = node;
         }
 
-        var spine = new BoardTrackNode[spineIds.Count];
-        for (var linearIndex = 0; linearIndex < spineIds.Count; linearIndex++)
+        var spine = new BoardTrackNode[spineIds.Length];
+        for (var linearIndex = 0; linearIndex < spineIds.Length; linearIndex++)
         {
             spine[linearIndex] = byNodeId[spineIds[linearIndex].Value];
         }
@@ -101,7 +97,7 @@ public sealed class BoardView
     public BoardTrackNode? Node(int nodeId) =>
         _byNodeId.TryGetValue(nodeId, out var node) ? node : null;
 
-    private static IReadOnlyList<NodeId> SpineIds(BoardGraph board)
+    private static NodeId[] SpineIds(BoardGraph board)
     {
         var ids = new NodeId[board.SpineLength];
 
@@ -113,11 +109,8 @@ public sealed class BoardView
         return ids;
     }
 
-    /// <summary>
-    /// Every node a run can arrive at, found by walking forward from the first node — the same
-    /// traversal movement makes, so an unreachable node cannot appear on a drawn track.
-    /// </summary>
-    private static IReadOnlyList<NodeId> ReachableInNodeIdOrder(BoardGraph board)
+    /// <summary>Every node a run can arrive at, walked forward from the first node the way movement walks it.</summary>
+    private static NodeId[] ReachableInNodeIdOrder(BoardGraph board)
     {
         var seen = new HashSet<NodeId> { board.FirstNodeId };
         var pending = new Stack<NodeId>();
@@ -140,7 +133,7 @@ public sealed class BoardView
         return ordered;
     }
 
-    private static BoardFork[] ForksOf(BoardGraph board, IReadOnlyList<NodeId> nodeIdOrder)
+    private static BoardFork[] ForksOf(BoardGraph board, NodeId[] nodeIdOrder)
     {
         var forks = new List<BoardFork>();
 
@@ -152,8 +145,19 @@ public sealed class BoardView
             }
 
             var edges = board.OutgoingEdges(id);
-            var branch = edges[1];
-            var preview = branch.Preview!;
+
+            if (edges.Count != 2 ||
+                edges[0].Kind != EdgeKind.Continue ||
+                edges[1] is not { Kind: EdgeKind.Branch, Preview: { } preview } branch)
+            {
+                throw new InvalidOperationException(
+                    $"junction {id} must offer a Continue edge then a Branch edge carrying a preview — " +
+                    "the order CHOOSE_FORK's branch index answers a fork by, so a junction laid out any " +
+                    "other way would have this view name one node and the command move the run to the " +
+                    "other. BoardGenerator emits that order; BoardGraph.FromLayout does not check it. A " +
+                    "preview is never derived from the label to fill the gap: the icons are the branch's " +
+                    "own tiles or the fork cannot be drawn at all.");
+            }
 
             forks.Add(new BoardFork(
                 id.Value,

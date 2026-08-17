@@ -40,13 +40,9 @@ internal static class BoardResolution
     }
 
     /// <summary>
-    /// Rebuilds a run's board off an ephemeral stream reopened at draw 0, touching no tracked
-    /// counter. The one replay in the codebase: <see cref="BoardView"/> reads the board through it
-    /// too, so the track a player is shown cannot drift onto a different layout from the one the
-    /// movement handlers walk.
+    /// The one replay in the codebase, per the remarks above — <see cref="BoardView"/> reads a
+    /// board through it too, so a drawn track cannot drift off the layout the handlers walk.
     /// </summary>
-    /// <param name="config">The run's chapter's board-relevant content.</param>
-    /// <param name="runSeed">The run's committed seed, the board's only other input.</param>
     internal static BoardGraph Replay(ChapterBoardConfig config, ulong runSeed) =>
         BoardGenerator.GenerateBoard(config, DeterministicRng.OpenAt(runSeed, RngStreams.Board, 0));
 }
