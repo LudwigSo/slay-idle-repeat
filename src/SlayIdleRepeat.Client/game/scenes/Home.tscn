@@ -128,3 +128,11 @@ custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
 theme_override_font_sizes/font_size = 52
 autowrap_mode = 3
+
+
+[node name="GearButton" type="Button" parent="SafeArea/Column"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 168)
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3

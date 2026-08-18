@@ -101,8 +101,16 @@ public sealed class PublicRuleTypeFloorTests
     /// deleted — silently returning S07 to the hidden-pity state that rule exists to forbid — with
     /// every rule in this file still green.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Twenty-two since M7-11 added <c>InventoryView</c> and its two return shapes</b> —
+    /// <c>InventoryItemView</c> and <c>GearStatDeltaView</c>. Raised in the same commit and by exactly
+    /// the three names it adds. The slack it closes: <c>08</c> §5's side-by-side delta is the only thing
+    /// that makes an equip decision legible, and it is computed by an <c>internal</c> comparison — a
+    /// floor left at nineteen would let the sole public reading of it be deleted, leaving the Inventory
+    /// screen able to list a stock and unable to say what any of it would change.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 19;
+    private const int ResolvedPublicRuleTypeFloor = 22;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -326,7 +334,12 @@ public sealed class PublicRuleTypeFloorTests
         // stated on its class's own screen. Raised by exactly those two and no further, so
         // DraftGuarantees, DraftCounters, DraftDemand, DraftForce and HardPity stay out: what is
         // exported is where the counters STAND, never the machinery that floors a slot.
-        if (Domain.PublicRuleTypes.Count > 19)
+        // 🔒 TWENTY-TWO since M7-11. One entry point — InventoryView, whose consumer is the client's
+        // Inventory screen (S16) — plus the two types its public members name. Raised by exactly those
+        // three and no further, so InventoryComparison, InventorySorting, GearStatDerivation and
+        // SetBonusResolver stay internal: what leaves is the stock and its comparison, never the
+        // derivation that answers it.
+        if (Domain.PublicRuleTypes.Count > 22)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +

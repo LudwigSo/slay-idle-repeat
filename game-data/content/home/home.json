@@ -8,7 +8,8 @@
   },
   "action": {
     "startRun": "loc.home.start_run.action",
-    "continueRun": "loc.home.continue_run.action"
+    "continueRun": "loc.home.continue_run.action",
+    "gear": "loc.home.gear.action"
   },
   "status": {
     "loading": "loc.home.loading.status",

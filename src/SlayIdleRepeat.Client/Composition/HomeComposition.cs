@@ -19,19 +19,23 @@ public sealed class ComposedHomeScreen
     /// <param name="home">Drives the Home screen.</param>
     /// <param name="chapterSelect">Drives the picker Home's primary action opens.</param>
     /// <param name="board">Builds the board for a run, once there is a run to build one for.</param>
+    /// <param name="gear">Builds the Inventory screen, which needs no run at all.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public ComposedHomeScreen(
         HomePresenter home,
         ChapterSelectPresenter chapterSelect,
-        Func<RunId, ComposedBoardScreen> board)
+        Func<RunId, ComposedBoardScreen> board,
+        Func<ComposedInventoryScreen> gear)
     {
         ArgumentNullException.ThrowIfNull(home);
         ArgumentNullException.ThrowIfNull(chapterSelect);
         ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(gear);
 
         Home = home;
         ChapterSelect = chapterSelect;
         Board = board;
+        Gear = gear;
     }
 
     /// <summary>Drives the Home screen.</summary>
@@ -39,6 +43,18 @@ public sealed class ComposedHomeScreen
 
     /// <summary>Drives the Chapter Select screen Home's primary action opens.</summary>
     public ChapterSelectPresenter ChapterSelect { get; }
+
+    /// <summary>
+    /// Builds the Inventory screen (S16).
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A factory for the same reason <see cref="Board"/> is one — the scene calls it when the player
+    /// presses, so the scene stays out of composition entirely. ⚠️ Unlike the board's, it takes NO
+    /// argument: S16 is between runs, reads the player's own stock and submits <c>EQUIP</c>, which is a
+    /// <c>CommandKind.Meta</c> command. Threading a run through would invite a screen that read one it
+    /// had no use for and broke the moment a player opened their bag without one.
+    /// </remarks>
+    public Func<ComposedInventoryScreen> Gear { get; }
 
     /// <summary>
     /// Builds the board for one run.
@@ -91,6 +107,7 @@ public static class HomeComposition
         return new ComposedHomeScreen(
             new HomePresenter(composed.Client.GameHost, strings, player),
             new ChapterSelectPresenter(composed.Client.GameHost, strings, content, player),
-            run => BoardComposition.CreateBoardScreen(composed, player, run));
+            run => BoardComposition.CreateBoardScreen(composed, player, run),
+            () => InventoryComposition.CreateInventoryScreen(composed, player));
     }
 }

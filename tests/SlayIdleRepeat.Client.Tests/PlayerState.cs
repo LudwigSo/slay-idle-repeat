@@ -49,6 +49,98 @@ internal static class PlayerState
     /// The clear history, keyed the way <c>Player</c> keys it. Left <c>null</c> by default because
     /// that is the row's own documented "nothing cleared yet".
     /// </param>
+    /// <summary>
+    /// A profile row that <c>Player.Rehydrate</c> accepts, which <see cref="Player"/> alone does not.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b><see cref="Player"/> builds a row this project never rehydrated, and that only became
+    /// visible when M7-11 projected one.</b> It leaves <c>Inventory</c>, <c>Loadout</c> and
+    /// <c>Presets</c> at their <c>null</c> defaults, and all three are <b>faults</b> to the domain — an
+    /// absent inventory and an empty one are indistinguishable once read, and only one of them is a row
+    /// the game ever wrote. Every earlier client test read the snapshot's fields directly, so a row that
+    /// could not become an aggregate was never asked to be one.
+    /// </remarks>
+    private static PlayerSnapshot Rehydratable(PlayerId id) => Player(id) with
+    {
+        // All six, because the domain refuses a partial wallet: a missing row read as zero is
+        // indistinguishable from a balance a migration dropped.
+        Wallet = new Dictionary<CurrencyId, long>
+        {
+            [CurrencyId.CROWNS] = 0,
+            [CurrencyId.SOUL_SHARDS] = 0,
+            [CurrencyId.ENHANCE_STONES] = 0,
+            [CurrencyId.MERGE_DUST] = 0,
+            [CurrencyId.BEAST_FEED] = 0,
+            [CurrencyId.HONOR] = 0,
+        },
+
+        // 05:00 UTC is the game-day boundary and the game WEEK starts Monday 05:00 UTC, so the two
+        // cannot share an instant that is merely convenient.
+        DailyPeriodStartUtc = GameDayStart,
+        WeeklyPeriodStartUtc = GameWeekStart,
+
+        // Each of these is a FAULT when absent rather than an empty default, and each says why in its
+        // own message: an absent pity map read as empty would put every guarantee a player has been
+        // building towards back at zero, invisibly.
+        FeatCounters = new Dictionary<string, long>(),
+        PityCounters = new Dictionary<string, int>(),
+        AutoSalvageRules = [],
+        Inventory = new InventorySnapshot(0, [], []),
+        Loadout = BareHanded,
+        Presets = [],
+    };
+
+    /// <summary>A 05:00 UTC game-day boundary (`30` §2.3).</summary>
+    private static readonly DateTimeOffset GameDayStart =
+        new(2026, 4, 27, 5, 0, 0, TimeSpan.Zero);
+
+    /// <summary>A MONDAY 05:00 UTC game-week boundary — 27 April 2026 is a Monday.</summary>
+    private static readonly DateTimeOffset GameWeekStart = GameDayStart;
+
+    /// <summary>A profile whose gear stock is empty — where a fresh account stands.</summary>
+    /// <remarks>
+    /// An <see cref="InventorySnapshot"/> holding nothing, never <c>null</c>: an absent inventory is a
+    /// rehydrate fault, and the state this fixture is for is a real one a player can be in.
+    /// </remarks>
+    internal static PlayerSnapshot WithEmptyStock(PlayerId id) => Rehydratable(id) with
+    {
+        Inventory = new InventorySnapshot(0, [], []),
+    };
+
+    /// <summary>
+    /// A profile carrying one item in the bag and one the bag is HOLDING — <c>08</c> §5's overflow.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Both bands populated, because the cases about this fixture are about the difference between
+    /// them: what is stored can be equipped and what is held cannot, and a fixture with only one band
+    /// could not tell a screen that honours that from one that ignores it.
+    /// </remarks>
+    internal static PlayerSnapshot WithOverflowingStock(PlayerId id) => Rehydratable(id) with
+    {
+        Inventory = new InventorySnapshot(
+            0,
+            [Item("stored_blade", GearSlot.WEAPON, GearFamily.BLADE)],
+            [Item("held_blade", GearSlot.WEAPON, GearFamily.BLADE)]),
+    };
+
+    /// <summary>One persisted gear row, at the bottom band and unenhanced.</summary>
+    /// <remarks>
+    /// Written out here rather than borrowed from a Core fixture: this project may not reference the
+    /// Core test assembly, and a row is a handful of fields whose shape the compiler checks anyway.
+    /// </remarks>
+    private static GearInstanceSnapshot Item(string id, GearSlot slot, GearFamily family) => new(
+        new GearInstanceId(id),
+        DefId: "GEAR_" + family,
+        slot,
+        family,
+        Rarity.C,
+        ChapterOrigin: 1,
+        Quality: 0.5,
+        EnhanceLevel: 0,
+        EnhanceFailures: 0,
+        Affixes: [],
+        Locked: false);
+
     internal static PlayerSnapshot Player(
         PlayerId id,
         string displayName = "Fixture Hero",

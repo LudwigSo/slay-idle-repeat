@@ -85,6 +85,31 @@ internal static class RunDecisionContent
     private static readonly ContentVersion FixtureStamp =
         ContentVersion.FromHex(new string('d', ContentVersion.HexLength));
 
+    internal const string InventoryTitleNameKey = "loc.inventory.title.name";
+    internal const string InventoryCapacityLabelKey = "loc.inventory.capacity.label";
+    internal const string InventoryHeldLabelKey = "loc.inventory.held.label";
+    internal const string InventoryEquippedBadgeKey = "loc.inventory.equipped.badge";
+    internal const string InventoryEquipActionKey = "loc.inventory.equip.action";
+    internal const string InventoryCloseActionKey = "loc.inventory.close.action";
+    internal const string InventoryHeldNotEquippableBlockKey = "loc.inventory.held_not_equippable.block";
+    internal const string InventoryLoadingStatusKey = "loc.inventory.loading.status";
+    internal const string InventoryEmptyStatusKey = "loc.inventory.empty.status";
+    internal const string InventoryUnavailableStatusKey = "loc.inventory.unavailable.status";
+    internal const string InventoryRefusedStatusKey = "loc.inventory.refused.status";
+    internal const string InventoryHostUnavailableStatusKey = "loc.inventory.host_unavailable.status";
+
+    /// <summary>Every string key the Inventory screen (S16) renders.</summary>
+    internal static IReadOnlyList<string> InventoryKeys { get; } =
+    [
+        InventoryTitleNameKey,
+        InventoryCapacityLabelKey, InventoryHeldLabelKey,
+        InventoryEquippedBadgeKey,
+        InventoryEquipActionKey, InventoryCloseActionKey,
+        InventoryHeldNotEquippableBlockKey,
+        InventoryLoadingStatusKey, InventoryEmptyStatusKey, InventoryUnavailableStatusKey,
+        InventoryRefusedStatusKey, InventoryHostUnavailableStatusKey,
+    ];
+
     /// <summary>Every string key the Perk Draft screen renders.</summary>
     internal static IReadOnlyList<string> DraftKeys { get; } =
     [
@@ -177,7 +202,12 @@ internal static class RunDecisionContent
 
     private static IReadOnlyList<ContentDocument> Locales()
     {
-        var keys = DraftKeys.Concat(ShopKeys).Concat(CampfireKeys).Concat(ShrineBuffNameKeys).ToArray();
+        var keys = DraftKeys
+            .Concat(ShopKeys)
+            .Concat(CampfireKeys)
+            .Concat(ShrineBuffNameKeys)
+            .Concat(InventoryKeys)
+            .ToArray();
 
         return
         [

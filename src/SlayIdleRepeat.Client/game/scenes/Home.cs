@@ -74,6 +74,7 @@ public partial class Home : Control
     private const string EnergyReserveValuePath = "%EnergyReserveValue";
     private const string StatusLabelPath = "%StatusLabel";
     private const string ActionButtonPath = "%ActionButton";
+    private const string GearButtonPath = "%GearButton";
 
     /// <summary>The primary action while there is a run to start or one to go back to.</summary>
     /// <remarks>
@@ -98,6 +99,7 @@ public partial class Home : Control
     private ChapterSelectPresenter? _picker;
     private Func<RunId, ComposedBoardScreen>? _board;
 
+    private Func<ComposedInventoryScreen>? _gear;
     private CancellationToken _lifetime;
 
     private Control? _header;
@@ -111,6 +113,7 @@ public partial class Home : Control
     private Label? _energyReserveValue;
     private Label? _statusLabel;
     private Button? _actionButton;
+    private Button? _gearButton;
 
     /// <summary>
     /// Takes both presenters the composition root built, and the token the app shuts down through.
@@ -133,15 +136,18 @@ public partial class Home : Control
         HomePresenter presenter,
         ChapterSelectPresenter picker,
         Func<RunId, ComposedBoardScreen> board,
+        Func<ComposedInventoryScreen> gear,
         CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(presenter);
         ArgumentNullException.ThrowIfNull(picker);
         ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(gear);
 
         _presenter = presenter;
         _picker = picker;
         _board = board;
+        _gear = gear;
         _lifetime = lifetime;
     }
 
@@ -163,6 +169,8 @@ public partial class Home : Control
         _actionButton = GetNode<Button>(ActionButtonPath);
 
         _actionButton.Pressed += OnActionPressed;
+        _gearButton = GetNode<Button>(GearButtonPath);
+        _gearButton.Pressed += OnGearPressed;
 
         // Painted once, because nothing about which colour belongs to which state changes while the
         // screen is up. It is painted at all because a button reached none of these colours on its
@@ -170,6 +178,7 @@ public partial class Home : Control
         // draw mode and the mode this control spends two of its four decisions in — disabled — has
         // an engine default of half-transparent grey that no override of font_color reaches.
         ButtonTextColours.ApplyTo(_actionButton, LiveColour, UnavailableColour);
+        ButtonTextColours.ApplyTo(_gearButton, LiveColour, UnavailableColour);
 
         SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
         Render();
@@ -188,6 +197,11 @@ public partial class Home : Control
         if (_actionButton is not null)
         {
             _actionButton.Pressed -= OnActionPressed;
+
+            if (_gearButton is not null && IsInstanceValid(_gearButton))
+            {
+                _gearButton.Pressed -= OnGearPressed;
+            }
         }
     }
 
@@ -278,6 +292,11 @@ public partial class Home : Control
 
         _actionButton.Text = presenter.ActionText;
 
+        if (_gearButton is { } gear)
+        {
+            gear.Text = presenter.GearText;
+        }
+
         // A read that has not answered, or that answered with no profile, leaves an action with
         // nothing to do. Disabled rather than hidden: a primary action that vanishes reads as a
         // screen that lost its purpose, while a disabled one under the status line reads as a
@@ -289,6 +308,25 @@ public partial class Home : Control
     /// The two live decisions go different ways, and only one of them has anywhere to go. Every
     /// other decision leaves the button disabled, so this cannot be reached from them.
     /// </remarks>
+    /// <summary>Opens S16, the gear stock and the equip path.</summary>
+    /// <remarks>
+    /// 🔒 <b>Between runs is the only place this belongs, and Home is where a player already is.</b>
+    /// M7's exit criterion reads *"gear banked and equipped between runs"*, and the equipping half had
+    /// nowhere to happen: a run freezes its loadout at <c>START_RUN</c> (`07` §4), so a bag opened
+    /// mid-run could change nothing about the fight in progress. ⚠️ `13` §1.1 also reaches S16 from the
+    /// Hero screen, which is M9's — <c>InventoryHandover</c> takes a <c>Control</c> rather than a named
+    /// screen so that arrival is a caller rather than a change here.
+    /// </remarks>
+    private void OnGearPressed()
+    {
+        if (_gear is not { } compose)
+        {
+            return;
+        }
+
+        _ = InventoryHandover.Show(this, compose(), _lifetime);
+    }
+
     private void OnActionPressed()
     {
         var presenter = _presenter;
