@@ -24,6 +24,14 @@ public sealed class BoardPresenterTests
     /// <summary>An ordinary combat tile — kind 0, the first member of the rules layer's own enum.</summary>
     private const int EnemyTileKind = 0;
 
+    /// <summary>An ordinary tile that <c>RESOLVE_TILE</c> really does clear — the other arm's subject.</summary>
+    /// <remarks>
+    /// 🔒 Read off the rules layer's enum rather than transcribed, unlike the literal above it: this
+    /// one was added with a branch that depends on which kinds are fights, so a renumbering that moved
+    /// Treasure into a fight's slot has to be visible here.
+    /// </remarks>
+    private const int TreasureTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Treasure;
+
     /// <summary>The reroll ring's authored duration (`04` §3, "Reroll prompt UX").</summary>
     private static readonly TimeSpan AuthoredRingDuration = TimeSpan.FromSeconds(4);
 
@@ -420,27 +428,75 @@ public sealed class BoardPresenterTests
         presenter.PendingTileName.ShouldBeEmpty();
     }
 
+    /// <summary>
+    /// 🔴 <b>A FIGHT TILE IS LEFT BY FIGHTING IT, and this case previously asserted the
+    /// opposite.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It was <c>Resolving_the_pending_tile_submits_RESOLVE_TILE</c>, it was arranged on an ENEMY tile,
+    /// and it pinned <c>ResolveTileCommand</c>. <c>Handlers.ResolveTile</c> says of Enemy, Elite and
+    /// Boss that they are *"acknowledged and not cleared"* — so the behaviour this case protected left
+    /// a run stuck on its first enemy for good, and <c>START_BATTLE</c> had no caller anywhere in the
+    /// client. Found by PLAYING an exported build, not by any test.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Worth understanding why it passed, because the mechanism will do it again.</b> The
+    /// case ended by asserting the tile was gone and the roll live — and it was, because
+    /// <c>AcceptingInto</c> let the fixture DECLARE the resulting run by hand. So the arrangement said
+    /// "after this command there is no pending tile", which the real handler never does for a fight.
+    /// The fake agreed with the test instead of with the domain, and the two assertions that looked
+    /// like proof of clearing were proof of the fixture.
+    /// </para>
+    /// <para>
+    /// 🔒 The command is now asserted for BOTH arms — a fight tile and an ordinary resolvable one —
+    /// because one arm alone cannot tell a branch from a constant.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public async Task Resolving_the_pending_tile_submits_RESOLVE_TILE()
+    public async Task A_fight_tile_submits_START_BATTLE_and_an_ordinary_tile_submits_RESOLVE_TILE()
     {
-        var host = RecordingGameHost
+        var fightHost = RecordingGameHost
             .Finding(
                 AnyPlayer(),
                 PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EnemyTileKind))
+            .AcceptingInto(PlayerState.Run(Run, Player, RunPhase.BattlePending, pendingTileKind: EnemyTileKind));
+
+        var fighting = Build(fightHost);
+
+        await fighting.StartAsync(CancellationToken.None);
+
+        fighting.PendingTileOpensAFight.ShouldBeTrue("the premise: an enemy tile is left by fighting it.");
+        (await fighting.ResolvePendingTileAsync(CancellationToken.None)).ShouldBe(BoardSubmission.Submitted);
+
+        fightHost.SubmitCommand.ShouldBeOfType<StartBattleCommand>(
+            "an enemy tile was sent RESOLVE_TILE, which the rules ACCEPT and which clears nothing — so " +
+            "the board would redraw the identical state for ever and the run could never fight. " +
+            "START_BATTLE is what moves it to BattlePending, which is the state this screen already " +
+            "opens the replay on.");
+
+        // 🔒 And the run really is in the fight, which is what the board opens the replay on.
+        fighting.RollBlock.ShouldBe(BoardRollBlock.BattleOpen);
+
+        var treasureHost = RecordingGameHost
+            .Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: TreasureTileKind))
             .AcceptingInto(PlayerState.Run(Run, Player, RunPhase.InProgress));
 
-        var presenter = Build(host);
+        var resolving = Build(treasureHost);
 
-        await presenter.StartAsync(CancellationToken.None);
+        await resolving.StartAsync(CancellationToken.None);
 
-        var submission = await presenter.ResolveTileAsync(CancellationToken.None);
+        resolving.PendingTileOpensAFight.ShouldBeFalse("a treasure tile is resolved, not fought.");
+        (await resolving.ResolvePendingTileAsync(CancellationToken.None)).ShouldBe(BoardSubmission.Submitted);
 
-        submission.ShouldBe(BoardSubmission.Submitted);
-        host.SubmitCommand.ShouldBeOfType<ResolveTileCommand>();
+        treasureHost.SubmitCommand.ShouldBeOfType<ResolveTileCommand>(
+            "an ordinary tile was sent START_BATTLE, so the branch is inverted — or every tile now " +
+            "opens a fight, which is the same defect wearing the other hat.");
 
-        // S24: the tile really is left behind, so the roll is live again.
-        presenter.PendingTile.ShouldBeNull();
-        presenter.RollBlock.ShouldBe(BoardRollBlock.None);
+        resolving.PendingTile.ShouldBeNull();
+        resolving.RollBlock.ShouldBe(BoardRollBlock.None);
     }
 
     [Fact]
@@ -451,7 +507,7 @@ public sealed class BoardPresenterTests
 
         await presenter.StartAsync(CancellationToken.None);
 
-        (await presenter.ResolveTileAsync(CancellationToken.None))
+        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
             .ShouldBe(BoardSubmission.RefusedNotAvailable);
 
         host.SubmitCallCount.ShouldBe(0);
@@ -873,7 +929,7 @@ public sealed class BoardPresenterTests
 
         // Now something else is refused, for a completely different reason.
         host.RefusingCommands(RejectionReason.ILLEGAL_STATE);
-        await presenter.ResolveTileAsync(CancellationToken.None);
+        await presenter.ResolvePendingTileAsync(CancellationToken.None);
 
         presenter.RulesRejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
         presenter.RerollExhausted.ShouldBeFalse();

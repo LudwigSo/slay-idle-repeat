@@ -860,7 +860,8 @@ public partial class Board : Control
 
     private void OnRerollPressed() => _ = SubmitAsync(presenter => presenter.UseRerollAsync(_lifetime));
 
-    private void OnResolvePressed() => _ = SubmitAsync(presenter => presenter.ResolveTileAsync(_lifetime));
+    private void OnResolvePressed() =>
+        _ = SubmitAsync(presenter => presenter.ResolvePendingTileAsync(_lifetime));
 
     private void OnBranchPressed(int branchIndex) =>
         _ = SubmitAsync(presenter => presenter.ChooseForkAsync(branchIndex, _lifetime));

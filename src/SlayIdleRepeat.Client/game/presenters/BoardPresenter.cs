@@ -701,16 +701,48 @@ public sealed class BoardPresenter
         return await SubmitAsync(new ChooseForkCommand(branchIndex), ct).ConfigureAwait(false);
     }
 
-    /// <summary>Submits <c>RESOLVE_TILE</c> for the tile the run is standing on.</summary>
+    /// <summary>
+    /// Whether the pending tile is one that is left by FIGHTING it rather than by resolving it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Asked of the battle screen rather than answered here, so the three tile numbers have one
+    /// home — the same way this screen asks <c>ShopPresenter</c> and <c>CampfirePresenter</c> about
+    /// theirs.
+    /// </remarks>
+    public bool PendingTileOpensAFight =>
+        PendingTile is { } tile && BattleReplayPresenter.OpensAFight(tile.Kind);
+
+    /// <summary>
+    /// Acts on the tile the run is standing on, with the command that tile is actually left by.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>THIS BRANCH IS THE FIX FOR A RUN THAT COULD NOT FIGHT.</b> It submitted
+    /// <c>RESOLVE_TILE</c> unconditionally, and <c>Handlers.ResolveTile</c> says of Enemy, Elite and Boss
+    /// that they are *"acknowledged and not cleared"* — so on a fight tile the command was ACCEPTED,
+    /// cleared nothing, and left the board redrawing the identical state. No rejection, no error, no
+    /// fight: the run was stuck on that tile permanently. Found by playing an exported build, on an
+    /// enemy tile at position 20, and confirmed by grep: <c>START_BATTLE</c> had no caller anywhere in
+    /// the client.
+    /// </para>
+    /// <para>
+    /// 🔒 <c>START_BATTLE</c> is the whole fix, because everything after it already worked: it moves
+    /// the run to <c>RunPhase.BattlePending</c>, which is the state the board already watches for and
+    /// already opens the replay screen on. Nothing new was needed downstream — only the command that
+    /// gets a run into a fight.
+    /// </para>
+    /// </remarks>
     /// <param name="ct">Cancellation.</param>
-    public async Task<BoardSubmission> ResolveTileAsync(CancellationToken ct)
+    public async Task<BoardSubmission> ResolvePendingTileAsync(CancellationToken ct)
     {
         if (Stage != BoardStage.Ready || PendingTile is null)
         {
             return BoardSubmission.RefusedNotAvailable;
         }
 
-        return await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
+        return PendingTileOpensAFight
+            ? await SubmitAsync(new StartBattleCommand(), ct).ConfigureAwait(false)
+            : await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
     }
 
     /// <summary>
