@@ -54,6 +54,17 @@ internal sealed class SetBonusCatalogue
     private static readonly string[] KnownEffectKeys =
         ["id", "op", "stat", "value", "valueMode", "trigger", "condition", "target"];
 
+    /// <summary>The keys one authored set-bonus trigger may carry.</summary>
+    /// <remarks>
+    /// 🔒 <b>The nested half of the same guard, and it is not optional.</b> A trigger carries eleven
+    /// other parameters this reader does not map — <c>once</c>, <c>chance</c>, <c>cooldown</c>,
+    /// <c>interval</c> and the rest — so without this, checking only the effect's own keys leaves the
+    /// lossiness one level down. It is reachable at the very next authoring step: a
+    /// once-per-battle save is spelled with <c>once</c> on an <c>ON_LETHAL</c> trigger, and dropping
+    /// it silently would turn one save per fight into one every time the hero would die.
+    /// </remarks>
+    private static readonly string[] KnownTriggerKeys = ["kind", "everyNth"];
+
     private readonly IReadOnlyDictionary<GearFamilyAxis, IReadOnlyList<SetBonusRow>> _bonuses;
 
     private SetBonusCatalogue(IReadOnlyDictionary<GearFamilyAxis, IReadOnlyList<SetBonusRow>> bonuses) =>
@@ -178,6 +189,19 @@ internal sealed class SetBonusCatalogue
             rows[i] = new SetBonusRow(pieces, ReadEffects(content, pointer + "/effects"));
         }
 
+        // Every breakpoint carries a row, not merely every row a breakpoint. A set that dropped one
+        // would load cleanly and be indistinguishable from a set whose bonus is unauthored — and the
+        // whole document is built on telling those two apart, so the reader has to as well.
+        if (rows.Length != breakpoints.Count)
+        {
+            throw new InvalidTunableException(
+                reference,
+                $"The set authors {AuthoredToken.Render(rows.Length)} bonus row(s) against " +
+                $"{AuthoredToken.Render(breakpoints.Count)} authored breakpoint(s). A missing row is a " +
+                "breakpoint the loadout can reach and this document says nothing about, which reads " +
+                "exactly like one whose bonus nobody has written — and those are different facts.");
+        }
+
         return Array.AsReadOnly(rows);
     }
 
@@ -211,7 +235,7 @@ internal sealed class SetBonusCatalogue
 
     private static EffectDefinition ReadEffect(ContentSnapshot content, string pointer)
     {
-        RequireKnownKeys(content, pointer);
+        RequireKnownKeys(content, pointer, KnownEffectKeys, "a set bonus");
 
         // `condition` is a known key so a set bonus can write the vocabulary's canonical "ungated"
         // null, and an authorised one is refused rather than mapped: the aggregation this feeds
@@ -248,15 +272,19 @@ internal sealed class SetBonusCatalogue
             Target = content.IsAuthorised(targetPointer)
                 ? AuthoredToken.Parse<EffectTarget>(content, targetPointer, "an effect target")
                 : null,
-            Trigger = content.IsAuthorised(triggerPointer)
-                ? new EffectTrigger
-                {
-                    Kind = AuthoredToken.Parse<TriggerKind>(
-                        content, triggerPointer + "/kind", "a trigger kind"),
-                    EveryNth = content.IsAuthorised(triggerPointer + "/everyNth")
-                        ? content.ReadInt32(triggerPointer + "/everyNth")
-                        : null,
-                }
+            Trigger = content.IsAuthorised(triggerPointer) ? ReadTrigger(content, triggerPointer) : null,
+        };
+    }
+
+    private static EffectTrigger ReadTrigger(ContentSnapshot content, string pointer)
+    {
+        RequireKnownKeys(content, pointer, KnownTriggerKeys, "a set bonus's trigger");
+
+        return new EffectTrigger
+        {
+            Kind = AuthoredToken.Parse<TriggerKind>(content, pointer + "/kind", "a trigger kind"),
+            EveryNth = content.IsAuthorised(pointer + "/everyNth")
+                ? content.ReadInt32(pointer + "/everyNth")
                 : null,
         };
     }
@@ -268,20 +296,19 @@ internal sealed class SetBonusCatalogue
     /// permanent, unstacked effect instead — the document and the game disagreeing with everything
     /// green.
     /// </remarks>
-    private static void RequireKnownKeys(ContentSnapshot content, string pointer)
+    private static void RequireKnownKeys(
+        ContentSnapshot content, string pointer, IReadOnlyList<string> known, string what)
     {
-        var effect = content.Read(pointer);
-
-        foreach (var name in effect.MemberNames)
+        foreach (var name in content.Read(pointer).MemberNames)
         {
-            if (!KnownEffectKeys.Contains(name, StringComparer.Ordinal))
+            if (!known.Contains(name, StringComparer.Ordinal))
             {
                 throw new InvalidTunableException(
                     pointer + "/" + name,
                     $"'{name}' is a key this reader does not map, so authoring it would change nothing " +
                     "about the effect the game builds while changing what the document says. The keys " +
-                    $"a set bonus may carry are {string.Join(", ", KnownEffectKeys)}; teaching it a new " +
-                    "one is a deliberate edit here.");
+                    $"{what} may carry are {string.Join(", ", known)}; teaching it a new one is a " +
+                    "deliberate edit here.");
             }
         }
     }

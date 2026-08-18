@@ -103,9 +103,5 @@ internal static class GearEnhancement
         return (enhanced, succeeded, rate);
     }
 
-    // 🔒 StatMultiplier used to live here and now lives on ForgeTuning, moved by the change that gave
-    //    it its first production callers. It is a straight reading of one authored number, and the two
-    //    rules that need it — the gear stat derivation's composer and the strongest-first ordering —
-    //    sit in namespaces the intra-Rules layering deliberately keeps out of this one. Content sits
-    //    beneath all three, so that is where both can read it without an edge or a second copy.
+    // StatMultiplier moved to ForgeTuning when it gained its first callers; its reasons are there.
 }

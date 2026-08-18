@@ -119,17 +119,19 @@ internal static class InventorySorting
     /// 🔒 <b>Enhancement is folded in, and it is the whole point of this key.</b> Without it the
     /// strongest-first ordering ranks a maxed item below a lucky fresh roll of the same band —
     /// several hundred stones of investment sorted underneath the drop that replaced nothing. It is
-    /// the same composition the hero build makes, so the list and the stat block agree about which
-    /// item is stronger.
+    /// the same <em>factor</em> the hero's stat block scales by, read from the same place, so the two
+    /// cannot disagree about how much a level is worth; it is not the same composition, because the
+    /// block scales each derived stat and this scales the item's power scalar.
     /// </para>
     /// </remarks>
     private static double PowerOf(
         ParPowerTuning par, DropsTuning drops, ForgeTuning forge, GearInstance item) =>
-        ItemPower.For(
-            par.ChapterPowerTarget(item.ChapterOrigin),
-            drops.ItemPowerCoefficient,
-            drops.Band(item.Rarity).StatMultiplier) *
-        forge.StatMultiplier(item.EnhanceLevel);
+        DeterminismRounding.Round(
+            ItemPower.For(
+                par.ChapterPowerTarget(item.ChapterOrigin),
+                drops.ItemPowerCoefficient,
+                drops.Band(item.Rarity).StatMultiplier) *
+            forge.StatMultiplier(item.EnhanceLevel));
 
     /// <summary>Where a slot sits in the catalogue's declared grid.</summary>
     /// <remarks>

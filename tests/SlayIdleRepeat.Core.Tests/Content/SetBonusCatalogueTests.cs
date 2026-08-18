@@ -71,7 +71,7 @@ public sealed class SetBonusCatalogueTests
     public void A_set_the_document_does_not_author_is_refused()
     {
         var sets = SetBonusCatalogue.Read(
-            Snapshot(SetRow("BALANCED", BonusRow(2, StatEffect("SET_X")))), Breakpoints);
+            Snapshot(CoveringSet("BALANCED", StatEffect("SET_X"))), Breakpoints);
 
         Should.Throw<MissingContentException>(() => sets.Bonuses(GearFamilyAxis.HEAVY))
             .Message.ShouldContain("Every family axis is a set", Case.Sensitive);
@@ -130,8 +130,52 @@ public sealed class SetBonusCatalogueTests
 
         Should.Throw<InvalidTunableException>(
                 () => SetBonusCatalogue.Read(
-                    Snapshot(SetRow("BALANCED", BonusRow(2, effect))), Breakpoints))
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
             .Message.ShouldContain("a key this reader does not map", Case.Sensitive);
+    }
+
+    /// <summary>A key the reader does not map INSIDE the trigger is refused too.</summary>
+    /// <remarks>
+    /// 🔴 The second probe of the guard above, and the one that found something: checking the
+    /// effect's own keys leaves the same lossiness one level down, where a trigger carries eleven
+    /// parameters this reader does not map. It is reachable at the next authoring step — a
+    /// once-per-battle save is <c>once</c> on an <c>ON_LETHAL</c> trigger, and dropping it silently
+    /// turns one save per fight into one every time the hero would die.
+    /// </remarks>
+    [Fact]
+    public void A_trigger_key_the_reader_does_not_map_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_FLAT"),
+            ["stat"] = ContentValue.Text("LIFESTEAL"),
+            ["value"] = ContentValue.Number(0.1m),
+            ["trigger"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            {
+                ["kind"] = ContentValue.Text("ON_LETHAL"),
+                ["once"] = ContentValue.True,
+            }),
+        });
+
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
+            .Message.ShouldContain("a set bonus's trigger may carry", Case.Sensitive);
+    }
+
+    /// <summary>A set authoring fewer rows than the ladder has breakpoints is refused.</summary>
+    /// <remarks>
+    /// A dropped row is indistinguishable from an unauthored bonus, and telling those two apart is
+    /// what the whole document is built on.
+    /// </remarks>
+    [Fact]
+    public void A_set_that_does_not_cover_the_whole_breakpoint_ladder_is_refused()
+    {
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(SetRow("BALANCED", BonusRow(2, StatEffect("SET_A")))), Breakpoints))
+            .Message.ShouldContain("different facts", Case.Sensitive);
     }
 
     /// <summary>An authorised condition on a set bonus is refused.</summary>
@@ -155,7 +199,7 @@ public sealed class SetBonusCatalogueTests
 
         Should.Throw<InvalidTunableException>(
                 () => SetBonusCatalogue.Read(
-                    Snapshot(SetRow("BALANCED", BonusRow(2, effect))), Breakpoints))
+                    Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
             .Message.ShouldContain("carries no condition", Case.Sensitive);
     }
 
@@ -180,8 +224,8 @@ public sealed class SetBonusCatalogueTests
         Should.Throw<InvalidTunableException>(
                 () => SetBonusCatalogue.Read(
                     Snapshot(
-                        SetRow("BALANCED", BonusRow(2, StatEffect("SET_A"))),
-                        SetRow("BALANCED", BonusRow(2, StatEffect("SET_B")))),
+                        CoveringSet("BALANCED", StatEffect("SET_A")),
+                        CoveringSet("BALANCED", StatEffect("SET_B"))),
                     Breakpoints))
             .Message.ShouldContain("authored twice", Case.Sensitive);
     }
@@ -203,6 +247,30 @@ public sealed class SetBonusCatalogueTests
                         ["sets"] = ContentValue.Array(sets),
                     })),
             ]);
+
+    /// <summary>
+    /// One set covering the whole authored ladder: the given effects at the first breakpoint, and
+    /// the rest unauthored.
+    /// </summary>
+    /// <remarks>
+    /// The reader refuses a set that does not cover the ladder, so a fixture about anything else has
+    /// to cover it — which is the guard doing its job on this file's own author.
+    /// </remarks>
+    private static ContentValue CoveringSet(string axis, params ContentValue[] firstBreakpoint) =>
+        SetRow(
+            axis,
+            [
+                BonusRow(Breakpoints[0], firstBreakpoint),
+                Unauthored(Breakpoints[1]),
+                Unauthored(Breakpoints[2]),
+            ]);
+
+    private static ContentValue Unauthored(int pieces) =>
+        ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["pieces"] = ContentValue.Number(pieces),
+            ["effects"] = ContentValue.Unauthorised,
+        });
 
     private static ContentValue SetRow(string axis, params ContentValue[] bonuses) =>
         ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)

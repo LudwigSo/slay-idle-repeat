@@ -62,10 +62,16 @@ internal static class EffectSourceCatalogue
     /// </remarks>
     internal static IReadOnlyList<EffectSourceRow> Rows { get; } = new EffectSourceRow[]
     {
-        // The three gear sources are WIRED. GearEffectSource, GearAffixEffectSource and
-        // SetBonusEffectSource read the equipped loadout, so these rows carry neither an owning
-        // milestone nor an expiry subject — and clearing them is what lowers the floor the deferral
-        // rule quantifies over, in the same commit as the register entries they were keyed on.
+        // The three gear sources are WIRED: GearEffectSource, GearAffixEffectSource and
+        // SetBonusEffectSource read a real equipped loadout and Rules.Stats.HeroBuild composes all
+        // three. So these rows carry neither an owning milestone nor an expiry subject, and clearing
+        // them is what lowers the floor the deferral rule quantifies over, in the same commit as the
+        // register entries they were keyed on.
+        //
+        // ⚠️ Wired is not the same as REACHED BY A COMMAND, and the rows say the first rather than the
+        // second on purpose: what a pending subject tracks is "this source now has something to
+        // collect from", which is true the moment a data model exists for it. The build these three
+        // feed is internal and its public surface belongs to the task after this one.
         new(EffectSourceKind.GEAR, "gear", null, null),
         new(EffectSourceKind.AFFIXES, "affixes", null, null),
         new(EffectSourceKind.SET_BONUSES, "set bonuses", null, null),

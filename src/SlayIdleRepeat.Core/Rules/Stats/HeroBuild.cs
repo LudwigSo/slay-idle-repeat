@@ -48,9 +48,19 @@ internal sealed record HeroBuild(
     /// </summary>
     /// <param name="player">The player aggregate.</param>
     /// <param name="run">
-    /// The run in the command's slice, or <see langword="null"/> outside a run. A run fights with the
-    /// loadout it was started with, not the one the hero screen shows now — that snapshot is the
-    /// whole reason a run carries one.
+    /// The run in the command's slice, or <see langword="null"/> outside a run.
+    /// <para>
+    /// 🔒 A run fights with the loadout it was started with — but that snapshot holds <em>identities</em>,
+    /// not items, and the aggregate's own ruling is that this is correct: what is frozen is which
+    /// items are equipped, and what an item IS lives in the stock. So an enhancement applied to a worn
+    /// item mid-run is worn immediately, and this build reflects it.
+    /// </para>
+    /// <para>
+    /// ⚠️ That has a consequence for anything checking a client's reported fight against a re-derived
+    /// one: the hero is a function of the stock at the moment of derivation, so a battle opened
+    /// before an enhancement and confirmed after it is two different heroes at the same seed. The
+    /// answer is a matter for whichever handler compares the two, not for this type.
+    /// </para>
     /// </param>
     /// <param name="content">The version-stamped content snapshot the command is reading.</param>
     /// <returns>The build.</returns>

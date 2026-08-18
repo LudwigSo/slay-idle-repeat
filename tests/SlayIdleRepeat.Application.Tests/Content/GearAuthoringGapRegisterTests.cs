@@ -186,10 +186,18 @@ public sealed partial class GearAuthoringGapRegisterTests
     /// every entry while tracking nothing.
     /// </summary>
     /// <remarks>
-    /// The probe is stated over two <b>literal</b> task ids of known and opposite status rather than
-    /// over the register's own owners: reusing an owner would make the control a restatement of the
-    /// rule it is controlling. Should either row's status legitimately change, this fails and names
-    /// the row — which is the correct amount of noise for a control.
+    /// <para>
+    /// The probe is stated over two <b>literal</b> task ids of known and opposite status. One of them
+    /// — M4-05 — is deliberately <em>not</em> one of this register's owners, so the control cannot be
+    /// a restatement of the rule it is controlling; the other is unstarted. Should either row's
+    /// status legitimately change, this fails and names the row, which is the correct amount of noise
+    /// for a control.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It must not be anchored on the task that wrote this register.</b> That id's status is
+    /// <c>in flight</c> today and <c>merged</c> the moment this branch lands, so a probe on it would
+    /// go red on a healthy repository while reporting a predicate that was working correctly.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_open_predicate_separates_a_shipped_task_from_an_unstarted_one()
@@ -206,14 +214,11 @@ public sealed partial class GearAuthoringGapRegisterTests
         Gaps.Select(g => g.Pointer).Distinct(StringComparer.Ordinal).Count().ShouldBe(
             Gaps.Length, "two entries on one pointer would untrack the second when the first is filled");
 
-        HasShipped(rows["M4-10"]).ShouldBeTrue(
-            "M4-10 merged and is marked done; a predicate that cannot see that is not watching anything");
+        HasShipped(rows["M4-05"]).ShouldBeTrue(
+            "M4-05 merged and is marked done, and it owns nothing in this register; a predicate that " +
+            "cannot see a shipped task is not watching anything");
 
-        HasShipped(rows["M4-07"]).ShouldBeFalse("M4-07 has not started");
-
-        HasShipped(rows["M4-16"]).ShouldBeFalse(
-            "the task that wrote this register is itself in flight — the predicate must read the " +
-            "row's own status glyph and not merely look for a tick somewhere in the line");
+        HasShipped(rows["M4-14"]).ShouldBeFalse("M4-14 has not started");
     }
 
     /// <summary>

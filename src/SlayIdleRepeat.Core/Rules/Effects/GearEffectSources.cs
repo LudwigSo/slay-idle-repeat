@@ -53,9 +53,25 @@ internal static class GearEffectNames
 
     /// <summary>The equipped items in slot order — the order every gear source enumerates in.</summary>
     /// <remarks>
+    /// <para>
     /// Slot order rather than the caller's, because the collection order is a tiebreak of the
     /// resolution order and therefore has to be a function of the build. A list handed over in
     /// whatever order a dictionary enumerated would put a device-dependent order into a stat block.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The comparator is total, and the slot alone is not.</b> This is a plain unstable sort, so
+    /// two items sharing a slot would be ordered by the algorithm rather than by the data — which is
+    /// the same defect the effect resolution order exists to close, reintroduced at the step before
+    /// it. A worn loadout holds one item per slot and could never reach it; the seam that takes an
+    /// explicit list can, and a side-by-side preview is exactly a candidate item beside the equipped
+    /// one in its own slot. The identity breaks the tie because it is the only other thing an item
+    /// carries that orders at all.
+    /// </para>
+    /// <para>
+    /// Each source re-orders rather than trusting its caller, and pays for the pass with the
+    /// per-element null check: a source is constructible on its own, so "already ordered" is not
+    /// something it can assume.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<GearInstance> InSlotOrder(IReadOnlyList<GearInstance> equipped)
     {
@@ -69,9 +85,16 @@ internal static class GearEffectNames
             ordered.Add(item);
         }
 
-        ordered.Sort(static (left, right) => left.Slot.CompareTo(right.Slot));
+        ordered.Sort(static (left, right) =>
+        {
+            var bySlot = left.Slot.CompareTo(right.Slot);
 
-        return ordered;
+            return bySlot != 0
+                ? bySlot
+                : string.CompareOrdinal(left.InstanceId.Value, right.InstanceId.Value);
+        });
+
+        return ordered.AsReadOnly();
     }
 }
 
