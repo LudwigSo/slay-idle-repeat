@@ -40,6 +40,15 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// the worn items in inventory, which <c>Player.Rehydrate</c> requires of anything equipped.
 /// </para>
 /// <para>
+/// 🔒 <b>And <c>geared: false</c> is how a case asks for a LOSS.</b> Since the server decides the
+/// outcome, a test about losing cannot get one by sending <c>Won: false</c> — that field is the
+/// client's claim and the recomputation overrules it. It has to hand the handler a fight the hero
+/// actually loses, which is the bare loadout. ⚠️ <b>The tile kind matters and Enemy is not enough:</b>
+/// a Legend-20 hero beats a chapter-1 ordinary enemy bare-handed, so a losing case needs an
+/// <c>Elite</c> or a <c>Boss</c>. That asymmetry is measured, not assumed — it is the same measurement
+/// that showed which arm of the win probe discriminates.
+/// </para>
+/// <para>
 /// ⚠️ <b>A drift this fixture cannot detect, named because it is real.</b> "Geared enough to win" is
 /// measured against <c>ChapterPowerTarget</c>, which M6 exists to retune. A retune that raised chapter
 /// 1's target past this loadout would turn these tests back into loss-asserting no-ops <em>silently</em>.
@@ -120,7 +129,8 @@ internal static class TileWorlds
         ulong runSeed = Seed,
         int linearIndex = 7,
         int stage = 1,
-        RunPhase phase = RunPhase.InProgress) =>
+        RunPhase phase = RunPhase.InProgress,
+        bool geared = true) =>
         new(
             Worlds.Rehydrated(RunBattleWorlds.PlayerRow()),
             Rehydrated(RunSnapshots.With(
@@ -135,7 +145,9 @@ internal static class TileWorlds
                 pendingEventCardId: eventCardId ?? RunSnapshots.NoPendingEventCard,
                 phase: phase,
                 rngStreamPositions: CombatStreamFor(phase),
-                startingLoadout: RunBattleWorlds.WornLoadout)));
+                startingLoadout: geared
+                    ? RunBattleWorlds.WornLoadout
+                    : RunBattleWorlds.BareLoadout)));
 
     /// <summary>
     /// 🔒 The <c>combat</c> stream position a run in <see cref="RunPhase.BattlePending"/> must carry.

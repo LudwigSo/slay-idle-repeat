@@ -180,7 +180,12 @@ public sealed class ConfirmBattleResultTests
     [Fact]
     public void Losing_a_battle_sets_HP_to_zero_and_pays_nothing()
     {
-        var opened = TileWorlds.OnTile(TileKind.Enemy, gold: 250, currentHp: 60, phase: RunPhase.BattlePending);
+        // 🔒 An Elite fought bare-handed, because the server decides the outcome now: Won: false is the
+        // client's claim and the recomputation overrules it, so a losing case has to hand over a fight
+        // the hero genuinely loses. Enemy would not do — a Legend-20 hero beats a chapter-1 ordinary
+        // enemy with no gear at all.
+        var opened = TileWorlds.OnTile(
+            TileKind.Elite, gold: 250, currentHp: 60, phase: RunPhase.BattlePending, geared: false);
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
             opened, new ConfirmBattleResultCommand("1", Won: false), TileWorlds.Context);

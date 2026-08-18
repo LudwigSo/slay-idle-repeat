@@ -11,6 +11,7 @@ using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using SlayIdleRepeat.Core.Tests.Model;
 using SlayIdleRepeat.Core.Tests.Model.Gear;
 using RunAggregate = SlayIdleRepeat.Core.Model.Run;
+using SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
@@ -116,6 +117,13 @@ internal static class GearGrantWorlds
     /// <param name="chapterId">The chapter the drop is scaled against.</param>
     /// <param name="stage">The stage the kill tile belongs to.</param>
     /// <param name="runId">The run's identity. Distinct per run when a case drives more than one.</param>
+    /// <param name="geared">
+    /// 🔒 Whether the run froze the fixture's worn loadout. <c>false</c> is how a case asks for a LOSS:
+    /// since CONFIRM_BATTLE_RESULT recomputes the fight (14 §9), <c>Won: false</c> is only the client's
+    /// claim and the recomputation overrules it, so a losing case has to hand over a fight the hero
+    /// genuinely loses. ⚠️ The tile kind matters — a Legend-20 hero beats a chapter-1 ordinary Enemy
+    /// bare-handed, so a losing case wants an Elite or a Boss.
+    /// </param>
     internal static WorldSlice OnKill(
         TileKind kind,
         InventorySnapshot? inventory = null,
@@ -123,9 +131,14 @@ internal static class GearGrantWorlds
         IReadOnlyDictionary<string, int>? pity = null,
         int chapterId = 1,
         int stage = 1,
-        string? runId = null) =>
+        string? runId = null,
+        bool geared = true) =>
         new(
-            Worlds.Rehydrated(PlayerSnapshots.With(inventory: inventory, pityCounters: pity)),
+            Worlds.Rehydrated(PlayerSnapshots.With(
+                legendLevel: RunBattleWorlds.LegendLevel,
+                inventory: Wearing(inventory),
+                pityCounters: pity,
+                loadout: RunBattleWorlds.WornLoadout)),
             Rehydrated(RunSnapshots.With(
                 id: runId is null ? null : new RunId(runId),
                 runSeed: Seed,
@@ -145,7 +158,10 @@ internal static class GearGrantWorlds
                 pendingTileKind: (int)kind,
                 pendingTileLinearIndex: KillNode,
                 pendingTileStage: stage,
-                phase: RunPhase.BattlePending)));
+                phase: RunPhase.BattlePending,
+                startingLoadout: geared
+                    ? RunBattleWorlds.WornLoadout
+                    : RunBattleWorlds.BareLoadout)));
 
     /// <summary>
     /// The combat-stream position exactly one <c>START_BATTLE</c> leaves behind — the first battle's.
@@ -319,7 +335,41 @@ internal static class GearGrantWorlds
         return player.Inventory.Stored
             .Concat(player.Inventory.Held)
             .Select(item => item.InstanceId)
+            .Where(id => !WornIds.Contains(id))
             .ToArray();
+    }
+
+    /// <summary>The worn items' ids, which are furniture rather than anything a kill banked.</summary>
+    /// <remarks>
+    /// 🔒 <b>Excluded from <see cref="Owned"/> rather than added to every expectation.</b> This suite's
+    /// question is "what did this kill bank", and the fixture hero's equipped gear is not an answer to
+    /// it — it is there because <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9) and a
+    /// bare-handed hero loses, which would make every drop assertion here read zero. Adding six to
+    /// thirteen expected counts instead would have left each of them stating a number that is partly
+    /// about the loadout, and the next reader could not tell which part.
+    /// </remarks>
+    private static readonly HashSet<GearInstanceId> WornIds =
+        RunBattleWorlds.Worn.Select(item => item.InstanceId).ToHashSet();
+
+    /// <summary>The test's own inventory, with the fixture's worn items added to it.</summary>
+    /// <remarks>
+    /// The worn items have to be OWNED as well as equipped — <c>Player.Rehydrate</c> refuses a loadout
+    /// naming an item the stock does not hold — so they are appended to whatever stock the case built
+    /// rather than replacing it. Appended, so a case that filled the stock to capacity on purpose still
+    /// has its own items at the positions it put them.
+    /// </remarks>
+    private static InventorySnapshot Wearing(InventorySnapshot? inventory)
+    {
+        // Null is the caller's "no stock of its own", not a defect: the parameter it comes from is
+        // optional, and a case that names no inventory still needs the worn six.
+        inventory ??= PlayerSnapshots.EmptyInventory;
+
+        return inventory with
+        {
+            Stored = inventory.Stored
+                .Concat(RunBattleWorlds.Worn.Select(Inventories.Persist))
+                .ToArray(),
+        };
     }
 
     /// <summary>Where a run's <c>drops</c> stream stands, reading an absent row as draw zero.</summary>
