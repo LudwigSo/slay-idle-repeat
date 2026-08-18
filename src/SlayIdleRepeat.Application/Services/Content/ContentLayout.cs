@@ -109,6 +109,17 @@ public static class ContentLayout
 
             // The Battle Replay screen's string slots — likewise.
             [ContentDirectory + "battle/"] = SchemaDirectory + "battle" + SchemaSuffix,
+
+            // The Perk Draft screen's string slots — likewise.
+            [ContentDirectory + "perk_draft/"] = SchemaDirectory + "perk_draft" + SchemaSuffix,
+
+            // The run Shop screen's string slots. The row here least likely to stay the easy case:
+            // the offer catalogue this screen cannot yet stock lands beside this document.
+            [ContentDirectory + "shop/"] = SchemaDirectory + "shop" + SchemaSuffix,
+
+            // The Campfire / Shrine screen's string slots — one document serving two arms, and
+            // splitting the shrine's half out is the tidy-up this row keeps buildable.
+            [ContentDirectory + "campfire/"] = SchemaDirectory + "campfire" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

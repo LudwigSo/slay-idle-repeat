@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/shop.schema.json",
+  "title": "content/shop/shop.json",
+  "description": "M7-07 — the loc keys the run Shop screen (S08) renders. What is fixed here is that the screen heads the tile, says in words why there is nothing to buy, offers one way out, and carries one status line per state the read and a departure can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. The absences are the point of this schema. There is no member for a buy slot, a price, a stock line, a refresh control or a consumable name, because the run row carries no offer state at all: the rules layer refuses every purchase and every refresh, and resolving the tile deliberately does nothing but let the run walk away. A caption authored for any of those would assert that an offer exists, and the only outcome a control drawn from it could ever have is telling a player their own purchase was illegal. The offer catalogue, the refresh economy and the consumable pouch are one later milestone's work, and they land as a second document in this directory governed by this same schema. These keys are also the RUN shop's and are three segments deep; the four-segment staple and daily keys already in the locales belong to the meta shop's offer catalogue and share a domain segment with these and nothing else.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "name", "action", "block", "status"],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "name": {
+      "description": "The screen's own heading, so a player can tell which tile they are standing on before reading why it is empty.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title"],
+      "properties": {
+        "title": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "action": {
+      "description": "🔒 The one control this screen has, and the only one it may have. Leaving submits the tile's own resolution, which is the whole of what a shop visit can legally do; a run whose leave caption went missing is a run standing on a tile it cannot read its way off.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["leave"],
+      "properties": {
+        "leave": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "block": {
+      "description": "🔒 The sentence this screen is mostly made of. Nothing about this build stocks a shop on a good day, so the line is permanent rather than shown on a failure: a line that came and went would suggest a state where the shop does have stock. It has to differ from the three status lines below, because an empty shop, a shop the player is not standing at, a refused departure and a host that never answered are the same blank page unless the wording separates them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nothingStocked"],
+      "properties": {
+        "nothingStocked": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "status": {
+      "description": "One line per state the read can be in, plus the two answers a departure can come back with. notAtAShop is separated from runMissing because a screen opened on the wrong tile is not a run that has gone; refused and hostUnavailable are separated because a refusal is an answer about the game and a fault is the game not answering, and a player told the first when it was the second retries a move the rules would have allowed all along.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading", "runMissing", "notAtAShop", "readUnavailable", "refused", "hostUnavailable"
+      ],
+      "properties": {
+        "loading": { "$ref": "#/$defs/locKey" },
+        "runMissing": { "$ref": "#/$defs/locKey" },
+        "notAtAShop": { "$ref": "#/$defs/locKey" },
+        "readUnavailable": { "$ref": "#/$defs/locKey" },
+        "refused": { "$ref": "#/$defs/locKey" },
+        "hostUnavailable": { "$ref": "#/$defs/locKey" }
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schema/campfire.schema.json",
+  "_doc": "M7-07 — the strings the Campfire / Shrine screen (S11) shows, and nothing else. One document for two arms, because a campfire and a shrine are two tile kinds that open one screen. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `block` group carries four unrelated absences with four different fixes: the campfire's perk-tier upgrade is refused because nothing outside a draft tracks a perk tier, its reroll-charge grant is refused because no reroll charge exists anywhere to be granted, the shrine's choice is absent because the frozen command vocabulary has no shrine choice in it and the first drawn row is simply taken, and the shrine's cleanse cannot fire because a run holds no curse list. Both campfire refusals arrive on the wire as one value, so the sentence is the only thing telling any of them apart. Deliberately absent, each for its own reason: the ten shrine buff NAMES are not here because the buff pool in the tuning set already names them as its own display names and two documents claiming one key is one document too many; there is no heal-amount line, because the rested share of Max HP is a tunable read at render time rather than a number written into a translated sentence; and there is no curse name, no cleanse caption and no shrine choose control, because none of those exists to caption.",
+  "name": {
+    "title": "loc.campfire.title.name",
+    "shrineTitle": "loc.campfire.shrine_title.name"
+  },
+  "label": {
+    "shrineBuffs": "loc.campfire.shrine_buffs.label"
+  },
+  "action": {
+    "rest": "loc.campfire.rest.action",
+    "upgradePerk": "loc.campfire.upgrade_perk.action",
+    "rerollCharges": "loc.campfire.reroll_charges.action",
+    "continue": "loc.campfire.continue.action"
+  },
+  "block": {
+    "upgradePerkUntracked": "loc.campfire.upgrade_perk_untracked.block",
+    "rerollChargesUntracked": "loc.campfire.reroll_charges_untracked.block",
+    "shrineChoiceAbsent": "loc.campfire.shrine_choice_absent.block",
+    "shrineCleanseAbsent": "loc.campfire.shrine_cleanse_absent.block"
+  },
+  "status": {
+    "loading": "loc.campfire.loading.status",
+    "runMissing": "loc.campfire.run_missing.status",
+    "notAtACampfire": "loc.campfire.not_at_a_campfire.status",
+    "readUnavailable": "loc.campfire.read_unavailable.status",
+    "shrineUnavailable": "loc.campfire.shrine_unavailable.status",
+    "refused": "loc.campfire.refused.status",
+    "hostUnavailable": "loc.campfire.host_unavailable.status"
+  }
+}

@@ -98,12 +98,35 @@ internal static class PlayerState
     /// <param name="pendingForkJunctionPosition">The paused junction, or null when movement is not paused.</param>
     /// <param name="pendingForkRemainingSteps">Steps left once the chosen edge is taken.</param>
     /// <param name="draftPending">Whether a won battle's draft is open.</param>
+    /// <param name="draftBattleKind">
+    /// The tile kind of the battle that opened that draft, or -1 for none.
+    /// <para>
+    /// 🔒 A case that sets <paramref name="draftPending"/> has to set this and
+    /// <paramref name="draftBattleStage"/> as well. <c>Run.Rehydrate</c> refuses a row whose draft
+    /// is open while these two stand at their no-draft values, and the rules layer's own draft
+    /// derivation is keyed on the stage — so a row left at the defaults describes a state the game
+    /// could never have persisted, and any screen projecting a draft from one is being proven
+    /// against a run that cannot occur.
+    /// </para>
+    /// </param>
+    /// <param name="draftBattleStage">The stage that battle belonged to, 1-3, or 0 for no draft.</param>
     /// <param name="rerollChargesSpentThisStage">Reroll charges spent since the stage began.</param>
     /// <param name="runSeed">
     /// The run's committed seed. Defaulted rather than left to a case, because only the cases about
     /// the battle replay depend on it — every other screen reads a run that has one and does not
     /// care which.
     /// </param>
+    /// <param name="rngStreamPositions">
+    /// <param name="draftsSinceLegendaryOffered">
+    /// The <c>DRAFT</c> Legendary-pity counter — drafts stood since one offered a Legendary.
+    /// </param>
+    /// <param name="draftsWithoutAboveCommon">The quality-floor counter (<c>24</c> §4.7 F1).</param>
+    /// <param name="draftsWithoutOwnedUpgrade">The upgrade-famine counter (<c>24</c> §4.7 F3).</param>
+    /// <param name="ownedPerkTiers">
+    /// The perks this run holds and their tiers. Load-bearing for the famine, whose guarantee is only
+    /// due while at least one owned perk sits below its top tier.
+    /// </param>
+    /// <param name="runSeed">The run's committed seed.</param>
     /// <param name="rngStreamPositions">
     /// The per-stream draw counters, whose <c>combat</c> row counts battles STARTED. Defaulted to
     /// the empty map a fresh run carries, which is also the shape a replay has to report as "this
@@ -124,7 +147,13 @@ internal static class PlayerState
         int? pendingForkJunctionPosition = null,
         int? pendingForkRemainingSteps = null,
         bool draftPending = false,
+        int draftBattleKind = -1,
+        int draftBattleStage = 0,
         int rerollChargesSpentThisStage = 0,
+        int draftsSinceLegendaryOffered = 0,
+        int draftsWithoutAboveCommon = 0,
+        int draftsWithoutOwnedUpgrade = 0,
+        IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
         ulong runSeed = 1,
         IReadOnlyDictionary<string, ulong>? rngStreamPositions = null) =>
         new(
@@ -151,6 +180,12 @@ internal static class PlayerState
             Phase: phase,
             DraftPending: draftPending,
             RerollChargesSpentThisStage: rerollChargesSpentThisStage,
+            DraftBattleKind: draftBattleKind,
+            DraftBattleStage: draftBattleStage,
+            OwnedPerkTiers: ownedPerkTiers,
+            DraftsSinceLegendaryOffered: draftsSinceLegendaryOffered,
+            DraftsWithoutAboveCommon: draftsWithoutAboveCommon,
+            DraftsWithoutOwnedUpgrade: draftsWithoutOwnedUpgrade,
             StartingLoadout: BareHanded);
 
     /// <summary>The same slice, carrying a run rehydrated from the given row.</summary>

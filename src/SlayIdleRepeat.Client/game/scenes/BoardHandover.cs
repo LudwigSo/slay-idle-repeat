@@ -63,7 +63,7 @@ public static class BoardHandover
 
         var board = packed.Instantiate<Board>();
 
-        board.Drive(screen.Board, screen.DiePanel, screen.Battle, lifetime);
+        board.Drive(screen, lifetime);
 
         from.Visible = false;
 

@@ -100,9 +100,27 @@ public sealed class SceneBoundaryRuleTests
     /// first BACK path in the client — so a copy of it filed outside these rules would be a screen
     /// transition nothing governs, in the one place a screen is also torn down.
     /// </para>
+    /// <para>
+    /// 🔴 M7-07 added the fifth through eighth: the handovers onto the run's three decision screens
+    /// and the shared one they are each a facade over. All four load a packed scene, drive it and add
+    /// it to the tree, and all four are half of a BACK path — so a copy of any of them filed outside
+    /// these rules would be a screen transition nothing governs, in a place a screen is also torn
+    /// down. The shared one is named for the same reason as the three, and not instead of them: it
+    /// holds the load, the guard and the free that the three delegate to, so a rule that governed
+    /// only the facades would govern only the part with nothing in it.
+    /// </para>
     /// </remarks>
     private static readonly string[] SceneHelperNames =
-        ["SafeAreaInsets", "ButtonTextColours", "BoardHandover", "BattleHandover"];
+    [
+        "SafeAreaInsets",
+        "ButtonTextColours",
+        "BoardHandover",
+        "BattleHandover",
+        "RunDecisionHandover",
+        "PerkDraftHandover",
+        "ShopHandover",
+        "CampfireHandover",
+    ];
 
     /// <summary>An engine node reached only through intermediate engine types — the walk's control.</summary>
     /// <remarks>

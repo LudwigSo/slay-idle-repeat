@@ -83,8 +83,26 @@ public sealed class PublicRuleTypeFloorTests
     /// deleted — and with them the only thing that lets a run leave <c>BattlePending</c> — with every
     /// rule in this file still green.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Seventeen since M7-07 widened the list to <c>DraftView</c> and <c>ShrineView</c></b> —
+    /// with <c>DraftOptionView</c> and <c>ShrineBuffRow</c>, their two return shapes. Raised in the
+    /// same commit and by exactly the number of names it adds, for the reason the two paragraphs
+    /// above give: the perk draft's and the shrine's projections are the only way the run-decision
+    /// screens can see an offer that is never persisted, and a floor left at thirteen would let both
+    /// be deleted with every rule in this file still green.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Nineteen since M7-07's UI review added <c>DraftGuaranteeView</c> and
+    /// <c>DraftGuaranteeKind</c></b> — no new entry point, two more shapes reached through
+    /// <c>DraftView.Guarantees</c>. Raised in the same commit and by exactly the two names it adds.
+    /// The slack this closes is the one that matters most of the three: <c>24</c> §1.1's Visibility
+    /// rule is a 🔒 and its Disclosure rule is a store-policy requirement on both platforms, so a
+    /// floor left at seventeen would let the only public reading of the <c>DRAFT</c> counters be
+    /// deleted — silently returning S07 to the hidden-pity state that rule exists to forbid — with
+    /// every rule in this file still green.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 13;
+    private const int ResolvedPublicRuleTypeFloor = 19;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -294,7 +312,21 @@ public sealed class PublicRuleTypeFloorTests
         // public members name was already public. The cap rises by exactly two: the derivation's own
         // machinery (StatAggregation, HeroBaseCurve, GearStatDerivation, EncounterFight, BossFight)
         // stays internal, and HeroBattleSurfaceRuleTests is what holds it there.
-        if (Domain.PublicRuleTypes.Count > 13)
+        //
+        // 🔒 SEVENTEEN since M7-07. It added TWO entry points — DraftView, whose consumer is the
+        // client's Perk Draft screen, and ShrineView, whose consumer is the Shrine arm of the
+        // campfire/shrine screen — plus the two types their public members name, DraftOptionView and
+        // ShrineBuffRow. Raised by exactly those four and no further, so PerkDraftEngine and
+        // ShrineResolver stay out of the list by cost rather than by good intentions.
+        //
+        // 🔒 NINETEEN since M7-07's UI review. It added NO entry point: DraftView.Guarantees is a new
+        // member on a list member, and DraftGuaranteeView and DraftGuaranteeKind are the two types it
+        // names. The consumer is the same Perk Draft screen (S07) and the authority is 24 §1.1, which
+        // requires every luck-protection counter shown always with a real number and every N in §4
+        // stated on its class's own screen. Raised by exactly those two and no further, so
+        // DraftGuarantees, DraftCounters, DraftDemand, DraftForce and HardPity stay out: what is
+        // exported is where the counters STAND, never the machinery that floors a slot.
+        if (Domain.PublicRuleTypes.Count > 19)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +

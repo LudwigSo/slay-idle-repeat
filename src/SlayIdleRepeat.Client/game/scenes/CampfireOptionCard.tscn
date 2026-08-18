@@ -1,0 +1,72 @@
+[gd_scene format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_option_face"]
+bg_color = Color(0.21, 0.22, 0.27, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.4, 0.42, 0.5, 1)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 16
+shadow_offset = Vector2(0, 8)
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_press_rest"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_press_hover"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_press_down"]
+bg_color = Color(0, 0, 0, 0.35)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.93, 0.93, 0.96, 0.9)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_press_unusable"]
+
+[node name="CampfireOptionCard" type="PanelContainer"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_option_face")
+
+[node name="Body" type="MarginContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 40
+
+[node name="Column" type="VBoxContainer" parent="Body"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="OptionLabel" type="Label" parent="Body/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 52
+autowrap_mode = 3
+
+[node name="BlockLabel" type="Label" parent="Body/Column"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
+
+[node name="PressButton" type="Button" parent="."]
+layout_mode = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_press_rest")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_press_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_press_down")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_press_unusable")

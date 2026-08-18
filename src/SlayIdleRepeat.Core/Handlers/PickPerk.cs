@@ -1,10 +1,8 @@
 using SlayIdleRepeat.Core.Commands;
-using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
-using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Luck;
 using SlayIdleRepeat.Core.Rules.Perks;
 
@@ -16,10 +14,10 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// <remarks>
 /// <para>
 /// The draft is regenerated, never persisted: the three options a client is shown are re-derived
-/// here from the run's committed draft-stream position, so drafting stays byte-identical for a given
-/// seed. <c>Handlers.RerollDraft</c> reaches <see cref="GenerateCurrentOptions"/> here rather than
-/// carrying a second copy, since every type under <c>Core/Handlers/</c> is expected to be a
-/// registered command handler and a shared non-handler type would not be one.
+/// from the run's committed draft-stream position, so drafting stays byte-identical for a given seed.
+/// That derivation is <see cref="CurrentDraft.Draw"/> and it lives in the rules layer rather than
+/// here, because <c>REROLL_DRAFT</c> and the Perk Draft screen's read-only projection have to arrive
+/// at the same three options this handler acts on — and a projection cannot reach a handler at all.
 /// </para>
 /// <para>
 /// The three run-scoped draft counters move when a draft is <em>taken</em>, not when one is drawn:
@@ -46,7 +44,10 @@ internal static class PickPerk
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
-        var options = GenerateCurrentOptions(input, run, out var demand);
+        var options = CurrentDraft.Draw(
+            DraftStanding.Of(run, input.Context.Content),
+            input.Rng.Stream(RngStreams.Draft),
+            out var demand);
 
         if (command.OptionIndex < 0 || command.OptionIndex >= options.Count)
         {
@@ -104,85 +105,5 @@ internal static class PickPerk
             moved.DraftsSinceLegendaryOffered,
             moved.DraftsWithoutAboveCommon,
             moved.DraftsWithoutOwnedUpgrade);
-    }
-
-    /// <summary>
-    /// The three options currently on offer, drawn from <paramref name="input"/>'s <c>draft</c>
-    /// stream at its current position, under whichever <c>DRAFT</c> guarantees the luck façade says
-    /// this draft owes — see this type's remarks for why <c>REROLL_DRAFT</c> shares this method.
-    /// </summary>
-    /// <param name="input">The command's world slice, content snapshot and draw streams.</param>
-    /// <param name="run">The run the draft belongs to.</param>
-    /// <param name="demand">
-    /// What the run owned and where it stood as these options were drawn. Answered out rather than
-    /// recomputed by the caller: the counter move reads the same facts the guarantees resolved
-    /// against, and answering the catalogue twice per command would be a second chance for the two
-    /// to disagree as much as it would be a second parse.
-    /// </param>
-    internal static IReadOnlyList<DraftOption> GenerateCurrentOptions(
-        HandlerInput input, Run run, out DraftDemand demand)
-    {
-        var catalogue = PerkCatalogue.Read(input.Context.Content);
-        var tuning = LuckTuning.Read(input.Context.Content);
-        var owned = run.DraftedPerks;
-        var rng = input.Rng.Stream(RngStreams.Draft);
-
-        var battleKind = (TileKind)run.DraftBattleKindValue;
-        var isElite = battleKind == TileKind.Elite;
-        var isBoss = battleKind == TileKind.Boss;
-
-        demand = Demand(catalogue, owned, run.DraftBattleStage, isBoss);
-
-        var forces = LuckService.ResolveDraft(
-            tuning,
-            new DraftCounters(
-                run.DraftsSinceLegendaryOffered,
-                run.DraftsWithoutAboveCommon,
-                run.DraftsWithoutOwnedUpgrade),
-            demand,
-            PerkDraftEngine.OptionCount);
-
-        return PerkDraftEngine.GenerateOptions(
-            new DraftRequest(
-                catalogue,
-                owned,
-                tuning,
-                DraftRarityWeights.For(run.DraftBattleStage, isElite, isBoss),
-                forces,
-                // ⚠️ The run's own drafted perks, which is a genuine SUBSET of "ever drafted": no
-                // player-lifetime Codex exists yet and M4-11 owns building one. The rule is exact
-                // against whatever set it is handed; the set is the incomplete half.
-                owned.Tiers.Keys.ToHashSet(StringComparer.Ordinal)),
-            rng);
-    }
-
-    /// <summary>What the run owns and where it stands, as the <c>DRAFT</c> guarantees read it.</summary>
-    /// <remarks>
-    /// Both facts are about the run's own perks and are answered against the catalogue rather than
-    /// stored: a perk's category and its top tier are content, and caching either on the run would be
-    /// a second copy of the catalogue that a content version could silently outdate.
-    /// </remarks>
-    private static DraftDemand Demand(
-        PerkCatalogue catalogue, DraftedPerks owned, int stage, bool isBoss)
-    {
-        var ownsSustain = false;
-        var ownsNonMaxed = false;
-
-        foreach (var (perkId, tier) in owned.Tiers)
-        {
-            // A run can outlive a content version that dropped a perk; an id the catalogue no longer
-            // carries is neither a Sustain perk nor an upgradable one, and is not a reason to throw.
-            if (!catalogue.Contains(perkId))
-            {
-                continue;
-            }
-
-            var perk = catalogue.Find(perkId);
-
-            ownsSustain |= perk.Category == PerkCategory.Sustain;
-            ownsNonMaxed |= tier < perk.TierCount;
-        }
-
-        return new DraftDemand(stage, isBoss, ownsSustain, ownsNonMaxed);
     }
 }
