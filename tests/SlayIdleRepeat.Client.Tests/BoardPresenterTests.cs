@@ -31,6 +31,34 @@ public sealed class BoardPresenterTests
     private static readonly RunId Run = new("RUN_board_2a95");
     private static readonly DateTimeOffset Noon = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// 🔒 <b>The reroll says what it changes, and the sentence is never empty.</b> <c>04</c> §3.1: a
+    /// reroll changes the NEXT roll and cannot undo the one it is offered beside.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Why this is a test and not a comment.</b> <c>ROLL_DICE</c> answers the face, the movement
+    /// and the landing in one command, so by the time a face is on screen the run has already moved.
+    /// A bare <em>"Reroll"</em> next to that face is read as a redo — the one thing the command cannot
+    /// do — and a player who acts on that reading spends a charge expecting their landing back. The
+    /// caption is the only thing standing between the control and that misreading, so it is pinned as
+    /// present rather than assumed.
+    /// </remarks>
+    [Fact]
+    public void The_reroll_says_that_it_changes_the_next_roll()
+    {
+        var presenter = Build(RecordingGameHost.FindingNoSuchPlayer());
+
+        presenter.RerollChangesNextRollText.ShouldNotBeNullOrWhiteSpace(
+            "04 §3.1 requires the wording beside the reroll not to promise an undo, and an empty " +
+            "caption leaves the bare button to be read as one.");
+        presenter.RerollChangesNextRollText.StartsWith("loc.", StringComparison.Ordinal).ShouldBeFalse(
+            "the caption fell through to its own key, so the string set does not carry it.");
+        presenter.RerollChangesNextRollText.ShouldNotBe(
+            presenter.RerollText,
+            "the caption and the button label are the same string, so the caption is adding nothing " +
+            "and the distinction 04 §3.1 exists to draw is not on screen.");
+    }
+
     [Fact]
     public void A_freshly_built_presenter_has_not_read_anything()
     {

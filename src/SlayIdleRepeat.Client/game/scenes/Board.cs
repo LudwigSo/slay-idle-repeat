@@ -145,6 +145,7 @@ public partial class Board : Control
     private const string RolledValuePath = "%RolledValue";
     private const string RingBarPath = "%RingBar";
     private const string RerollButtonPath = "%RerollButton";
+    private const string RerollChangesNextRollLabelPath = "%RerollChangesNextRollLabel";
     private const string DiePanelButtonPath = "%DiePanelButton";
     private const string RollButtonPath = "%RollButton";
     private const string ResolveButtonPath = "%ResolveButton";
@@ -241,6 +242,7 @@ public partial class Board : Control
     private Label? _rolledValue;
     private ProgressBar? _ringBar;
     private Button? _rerollButton;
+    private Label? _rerollChangesNextRollLabel;
     private Button? _diePanelButton;
     private Button? _rollButton;
     private Button? _resolveButton;
@@ -334,6 +336,7 @@ public partial class Board : Control
         _rolledValue = GetNode<Label>(RolledValuePath);
         _ringBar = GetNode<ProgressBar>(RingBarPath);
         _rerollButton = GetNode<Button>(RerollButtonPath);
+        _rerollChangesNextRollLabel = GetNode<Label>(RerollChangesNextRollLabelPath);
         _diePanelButton = GetNode<Button>(DiePanelButtonPath);
         _rollButton = GetNode<Button>(RollButtonPath);
         _resolveButton = GetNode<Button>(ResolveButtonPath);
@@ -749,6 +752,14 @@ public partial class Board : Control
 
         reroll.Text = presenter.RerollText;
         reroll.Disabled = _busy;
+
+        // 🔒 04 §3.1: the caption is what stops a bare "Reroll" beside a settled face reading as a
+        // redo. Drawn on every prompt rather than only the first — a player taught the rule once and
+        // then shown a bare control on every later roll has been taught the other thing by repetition.
+        if (_rerollChangesNextRollLabel is { } explains)
+        {
+            explains.Text = presenter.RerollChangesNextRollText;
+        }
     }
 
     private void BuildFaceList()
