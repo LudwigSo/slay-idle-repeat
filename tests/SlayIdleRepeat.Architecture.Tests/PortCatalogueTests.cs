@@ -923,9 +923,20 @@ public sealed class PortCatalogueTests
         // 🔒 The anchor, pinned by IDENTITY on the three rows that discriminate it. Each of these
         // would be read wrongly by a plausible simplification of the regex, and each is a real row.
         statuses["M7-10"].ShouldBe(
-            new[] { "⏳" },
-            "M7-10 is queued, and its status prose goes on to mention a ⛔ CI gap. Anchor this on "
+            new[] { "🔍" },
+            "M7-10 is in review, and its status prose goes on to mention a ⛔ CI gap. Anchor this on "
             + "the LAST glyph on the line and the row reads as blocked.");
+
+        // ⚠️ M7-10 was pinned as "⏳" here and this line went red the moment that row progressed to
+        // review — a fixture that named a transient status, which is the S4 shape arriving through
+        // the test rather than through the register. The glyph was never the discriminating property:
+        // what makes this row worth pinning is that a ⛔ appears LATER in the same cell, so a
+        // last-glyph anchor reads it as blocked. That survived the status change, which is why the
+        // pin above is updated rather than re-pointed.
+        //
+        // ⚠️ Not re-pointed at some still-queued row either: as of this commit no row is both queued
+        // and carries a later ⛔ (checked, not assumed), and a row without the later glyph would keep
+        // this assertion green while testing nothing.
 
         statuses["M2-16a"].ShouldBe(
             new[] { "🔍" },

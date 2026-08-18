@@ -516,13 +516,147 @@ jobs:
   # would hide exactly the failure the job exists to catch.
   android-export:
     name: Android debug APK (custom export template)
-    if: false  # ⛔ gated: turns on with M7-10, after M7-01 makes the client a real Godot project
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GODOT_VERSION: 4.7.1
+      GODOT_RELEASE: stable
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      GRADLE_USER_HOME: ${{ github.workspace }}/.gradle-home
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      # JDK 17 exactly. O23: the export template's own validateJavaVersion task fails
+      # hard on anything lower, and a runner default is not guaranteed to be 17.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # build-tools 36.1.0 is the exact version the template's config.gradle names, and
+      # aapt2 out of it is what checks the package id. The NDK is deliberately NOT
+      # installed: O23 re-verified the export with the NDK directory renamed away and it
+      # still succeeded, which saves ~2 GB per run.
+      - name: Android SDK packages (no NDK — O23 verified it is not needed)
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" 'platform-tools' 'platforms;android-36' 'build-tools;36.1.0'
+
+      # 🔒 The MONO editor and the MONO export templates. The non-mono pair have the same
+      # file names and produce an APK with no .NET in it — which is O23 failure 5 arriving
+      # through a different door, and the reason the gate script refuses a PATH lookup.
+      - name: Godot mono editor + export templates
+        run: |
+          base="https://github.com/godotengine/godot/releases/download"
+          tag="${GODOT_VERSION}-${GODOT_RELEASE}"
+          stem="Godot_v${tag}_mono_linux_x86_64"
+          curl -fsSL -o editor.zip "$base/$tag/${stem}.zip"
+          curl -fsSL -o templates.tpz "$base/$tag/Godot_v${tag}_mono_export_templates.tpz"
+          unzip -q editor.zip -d "$HOME/godot"
+          chmod +x "$HOME/godot/${stem}/Godot_v${tag}_mono_linux.x86_64"
+          # The .tpz is a zip whose templates/ CONTENTS go into the version directory, not
+          # the directory itself. Getting this wrong yields "no export template found" out
+          # of an export that looks correctly configured.
+          unzip -q templates.tpz -d /tmp/templates
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}.mono"
+          mv /tmp/templates/templates/* "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_RELEASE}.mono/"
+          echo "GODOT_BIN=$HOME/godot/${stem}/Godot_v${tag}_mono_linux.x86_64" >> "$GITHUB_ENV"
+
+      # The debug keystore Godot signs a debug export with. O23 one-time setup step 6.
+      - name: Android debug keystore
+        run: |
+          mkdir -p "$HOME/.android"
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey -keypass android -keystore "$HOME/.android/debug.keystore" -storepass android -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
+
+      # 🔒 The gate is a script in build/ci, not steps in this file, for the reason every
+      # other check here is: a developer has to be able to run it on a laptop with the same
+      # arguments. -WriteEditorSettings is mandatory on a runner — O23 failure 3 is that
+      # Godot reads the SDK/JDK/keystore out of its own editor settings and ignores
+      # ANDROID_HOME, and a fresh runner has no such file at all.
+      #
+      # 🔒 The script asserts the APK CONTAINS MANAGED ASSEMBLIES and never gates on the
+      # exit code. Both halves are load-bearing: O23 failure 5 is a successful export that
+      # produces a valid ~80 MB APK with zero .NET in it, reproduced deliberately during
+      # M7-10 to prove this gate bites.
+      - name: Export the debug APK and assert it contains managed assemblies
+        shell: pwsh
+        run: ./build/ci/Invoke-AndroidExport.ps1 -WriteEditorSettings
+
+      # O23 failure 6: the MSBuild log is NOT on stdout in headless mode. Without this
+      # upload a C# build failure inside the export surfaces only as the useless line
+      # "Failed to build project. Check MSBuild panel for details."
+      - name: Upload the MSBuild logs the export writes off-stdout
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-msbuild-logs
+          path: ~/.local/share/godot/mono/build_logs/
+          if-no-files-found: warn
+
+      - name: Upload the APK
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slayidlerepeat-debug-apk
+          path: src/SlayIdleRepeat.Client/bin/android/SlayIdleRepeat.apk
+          if-no-files-found: error
+
+  # ===========================================================================
+  # desktop-run-smoke — M7's exit criterion, the half that is NOT met
+  #
+  #   "full Chapter-1/2 runs through the in-process host AND a desktop export"
+  #
+  # ⛔ GATED OFF, and gated off after being ATTEMPTED rather than instead of being
+  # attempted. Ruled 2026-08-18 (D4): attempt the desktop-export Chapter-1/2 run
+  # inside M7-10, and if it cannot be driven headlessly on this machine, author the
+  # check gated off the way ios-export is and say so plainly rather than faking a
+  # pass. It cannot, for two independent reasons, and both were MEASURED:
+  #
+  #   1. 🔴 AN EXPORTED BUILD LOADS NO CONTENT AT ALL. This is M7-10x finding (1),
+  #      now reproduced against a real artefact rather than predicted. The desktop
+  #      export itself succeeds (98 MB .exe + 1.4 MB .pck, exit 0); running it
+  #      headlessly fails at AppRoot with the sentence
+  #      GodotUserPaths.ResolveContentDataRoot was written to print for exactly this
+  #      moment — "resources packed into a .pck or an APK are reachable only through
+  #      the engine's own file access, never through System.IO".
+  #      ⚠️ THIS APPLIES TO THE APK ABOVE TOO. android-export proves an APK builds
+  #      and carries 186 managed assemblies; it does NOT prove the game starts on a
+  #      handset, and on this evidence it does not. Closing it needs an
+  #      engine-FileAccess content source — M7-01c already ruled that is allowed as a
+  #      CAPABILITY behind a plain-C# port adapter (23 §7.2a), so the shape is settled
+  #      and only the work is outstanding — or an export that ships data/ loose, which
+  #      cannot help an APK because an APK has no "beside the executable".
+  #
+  #   2. 🔴 NOTHING CAN DRIVE THE CLIENT HEADLESSLY. Verified: no file under
+  #      src/SlayIdleRepeat.Client reads a command-line argument, so there is no way
+  #      to ask an exported build to play anything — a run advances only from input on
+  #      scenes. This is the decisive blocker, because fixing (1) would yield a build
+  #      that starts and still could not be asked to play a run. Closing it means an
+  #      automation entry point inside the game, which is a feature, not a CI job.
+  #
+  # 🔒 What IS proven, and by what: "full Chapter-1/2 runs complete headless through
+  # commands only" belongs to the unit tier and is driven by MetaLoopDriver in
+  # tests/SlayIdleRepeat.Core.Tests/Testing/ — chapter 1 to a defeated boss across two
+  # Stage Gates, chapter 2 for the forge case. That is a real claim about the rules and
+  # it holds. It is NOT a claim about the artefact a player installs, and this job is
+  # the difference between the two, left visible rather than quietly conflated.
+  #
+  # Left `if: false` for ios-export's reason: an `echo TODO && exit 0` would put a
+  # green tick beside "desktop run" while proving nothing, and this is the criterion
+  # most likely to be misread as met, because its sibling above now passes.
+  desktop-run-smoke:
+    name: Chapter-1/2 run through a desktop export
+    if: false  # ⛔ gated: needs a packed-resource content source (M7-10x 1) and an automation entry point
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Export debug APK through the custom template
+      - name: Play chapters 1-2 through an exported build
         run: |
-          echo "::error::Android export not implemented (M7-10). Recipe: docs/spikes/O23-godot-android-export.md"
+          echo "::error::Not implemented, and both reasons are measured rather than assumed — see this job's comment. (1) an exported build loads no content: res:// inside a .pck is unreachable by System.IO (M7-10x 1), which applies to the APK too. (2) nothing in the client reads a command line, so no exported build can be asked to play a run."
           exit 1
 
   # ===========================================================================
