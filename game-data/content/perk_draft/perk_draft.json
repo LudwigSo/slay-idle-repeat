@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/perk_draft.schema.json",
-  "_doc": "M7-07 — the strings the Perk Draft screen (S07) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `block` group is the load-bearing one: three separate absences sit around one reroll control, and a player who reads the wrong one waits for a feature instead of earning Gold, or the reverse. Rerolling by ad and the fourth card by ad are two different affordances waiting on the ad reward system; the free-reroll allowance the design describes was never written at all, so the reroll is Gold-priced and uncapped. The `label` group carries CAPTIONS only: the reroll's price and the skip's reward are tunables read from the draft economy and drawn beside these words, never written into them, because a magnitude inside a translated string cannot be tuned and would be wrong in two languages at once. Deliberately absent, each because it is unreachable rather than forgotten: a remaining-free-rerolls count (no counter exists in the rules layer, so there is no number to show), a per-draft reroll cap (there is none), any ad placement name, cap or reward (the ad reward command is deferred), and the perks' own names and effect sentences (those are the perk catalogue's, rendered with the tier's authored numbers substituted — and named as unavailable by the `effectNumbersUnavailable` line for the four shipped perks whose description tokens name no field in their own effect data).",
+  "_doc": "M7-07 — the strings the Perk Draft screen (S07) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `block` group is the load-bearing one: three separate absences sit around one reroll control, and a player who reads the wrong one waits for a feature instead of earning Gold, or the reverse. Rerolling by ad and the fourth card by ad are two different affordances waiting on the ad reward system; the free-reroll allowance the design describes was never written at all, so the reroll is Gold-priced and uncapped. The `label` group carries CAPTIONS only: the reroll's price and the skip's reward are tunables read from the draft economy and drawn beside these words, never written into them, because a magnitude inside a translated string cannot be tuned and would be wrong in two languages at once. The three DRAFT guarantee captions in `label` are what 24 §1.1 requires on this screen: its Visibility rule is a 🔒 — every counter shown to the player ALWAYS, as a plain sentence with a real number, because a hidden pity system is indistinguishable from no pity system — and its Disclosure rule makes stating every N in §4 on its class's own screen a store-policy requirement on both platforms. DRAFT is the class and S07 is the screen. They are captions like the reroll price's: the live countdown and the authored rung are drawn beside them from `DraftView.Guarantees`, never written into the string. Only three of §4.7's five rules get a row, because the Sustain anti-brick is a state predicate and the Codex bias is a weight and neither counts anything. `block.guaranteeNotDue` is a FOURTH absence and keeps its own sentence for the same reason the other three keep theirs: the upgrade famine is built and live and simply cannot be owed by a run holding no perk below its top tier, which is neither a deferred command nor a mechanic that was never written. ⚠️ Those three counters are not the free-reroll allowance named below — the counters exist and force real options; the allowance exists nowhere. Deliberately absent, each because it is unreachable rather than forgotten: a remaining-free-rerolls count (no counter exists in the rules layer, so there is no number to show), a per-draft reroll cap (there is none), any ad placement name, cap or reward (the ad reward command is deferred), and the perks' own names and effect sentences (those are the perk catalogue's, rendered with the tier's authored numbers substituted — and named as unavailable by the `effectNumbersUnavailable` line for the four shipped perks whose description tokens name no field in their own effect data).",
   "name": {
     "title": "loc.perk_draft.title.name",
     "adFourthOption": "loc.perk_draft.ad_fourth_option.name"
@@ -8,7 +8,10 @@
   "label": {
     "synergy": "loc.perk_draft.synergy.label",
     "rerollCost": "loc.perk_draft.reroll_cost.label",
-    "skipReward": "loc.perk_draft.skip_reward.label"
+    "skipReward": "loc.perk_draft.skip_reward.label",
+    "legendaryPity": "loc.perk_draft.legendary_pity.label",
+    "qualityFloor": "loc.perk_draft.quality_floor.label",
+    "upgradeFamine": "loc.perk_draft.upgrade_famine.label"
   },
   "badge": {
     "upgrade": "loc.perk_draft.upgrade.badge"
@@ -21,7 +24,8 @@
   "block": {
     "adReroll": "loc.perk_draft.ad_reroll_deferred.block",
     "adFourthOption": "loc.perk_draft.ad_fourth_option_deferred.block",
-    "freeReroll": "loc.perk_draft.free_reroll_unbuilt.block"
+    "freeReroll": "loc.perk_draft.free_reroll_unbuilt.block",
+    "guaranteeNotDue": "loc.perk_draft.guarantee_not_due.block"
   },
   "status": {
     "loading": "loc.perk_draft.loading.status",

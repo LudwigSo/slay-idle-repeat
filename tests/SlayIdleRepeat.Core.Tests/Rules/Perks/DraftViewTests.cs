@@ -6,6 +6,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Luck;
 using SlayIdleRepeat.Core.Rules.Perks;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Content.Perks;
@@ -377,6 +378,176 @@ public sealed class DraftViewTests
     }
 
     // ------------------------------------------------------------------------------------------
+    // 🔒 24 §1.1 — the three DRAFT counters, shown always and with the right number on each.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// Every draft reports all three counters, whatever they stand at. <c>24</c> §1.1's Visibility
+    /// rule is <em>always</em>, and a counter standing at zero is the case a "show it when it matters"
+    /// implementation would drop.
+    /// </summary>
+    [Fact]
+    public void Every_draft_projects_all_three_counter_lines()
+    {
+        var view = Projected(DraftWorlds.DraftPendingOn());
+
+        view.Guarantees.Select(g => g.Kind).ShouldBe(
+            [
+                DraftGuaranteeKind.LegendaryPity,
+                DraftGuaranteeKind.QualityFloor,
+                DraftGuaranteeKind.UpgradeFamine,
+            ],
+            "24 §1.1 says every counter is shown always, and DraftGuarantees.Forced assigns its " +
+            "slots in this order");
+    }
+
+    /// <summary>
+    /// 🔒 <b>The three rungs are read three different ways, and this is the case that says so.</b>
+    /// <c>luck.json</c> authors 15, 3 and 5. The Legendary pity's number is the forced draft's own
+    /// ordinal, so its rung is 15; the quality floor's and the famine's count the drafts that pass
+    /// BEFORE the next one is floored, so theirs are 4 and 6. Copying either reading onto all three
+    /// fails here — the expected triple is <c>15/4/6</c>, which no single reading produces.
+    /// </summary>
+    [Fact]
+    public void The_three_rungs_take_the_three_readings_DraftGuarantees_takes()
+    {
+        var view = Projected(DraftWorlds.DraftPendingOn());
+
+        view.Guarantees.Select(g => g.ForcedOnDraft).ShouldBe(
+            [15, 4, 6],
+            "authored 15/3/5: the pity's N is the forced draft's ordinal, the floor's and the " +
+            "famine's are the drafts that pass first, so their rungs are N + 1");
+    }
+
+    /// <summary>…and a fresh run's countdown is the rung itself, not the rung less one.</summary>
+    [Fact]
+    public void A_fresh_run_counts_down_from_the_rung_itself()
+    {
+        var view = Projected(DraftWorlds.DraftPendingOn());
+
+        view.Guarantees.Select(g => g.DraftsUntilForced).ShouldBe(
+            [15, 4, 6],
+            "a run that has drafted nothing has the whole ladder ahead of it");
+    }
+
+    /// <summary>…and the line reports where the counter actually stands, not only what is left.</summary>
+    [Fact]
+    public void Each_line_reports_where_its_own_counter_stands()
+    {
+        var view = ProjectedWith(legendary: 7, aboveCommon: 2, upgrade: 4);
+
+        view.Guarantees.Select(g => g.DraftsStood).ShouldBe([7, 2, 4]);
+    }
+
+    /// <summary>…and each countdown is measured against its own counter, never a shared one.</summary>
+    [Fact]
+    public void Each_countdown_is_measured_against_its_own_counter()
+    {
+        var view = ProjectedWith(legendary: 7, aboveCommon: 2, upgrade: 4);
+
+        view.Guarantees.Select(g => g.DraftsUntilForced).ShouldBe(
+            [8, 2, 2],
+            "15-7, 4-2 and 6-4 — three different subtractions, so a line reading another line's " +
+            "counter cannot pass");
+    }
+
+    /// <summary>
+    /// 🔒 <b>The countdown and the rule agree about which draft is the forced one.</b> This is the
+    /// load-bearing case (steering S2): the view is not compared against the document but against
+    /// <c>DraftGuarantees.Forced</c> itself. At the counter the view says is one draft short, the rule
+    /// fires; one draft earlier, it does not. A view off by one in either direction fails one arm.
+    /// </summary>
+    [Fact]
+    public void A_countdown_of_one_is_the_draft_the_rule_actually_forces()
+    {
+        var rule = LuckTuning.Read(Content).Draft;
+
+        // Owns a perk below its top tier, so all three guarantees — the famine included — are live.
+        var demand = new DraftDemand(
+            Stage: 1, IsBoss: false, OwnsSustainPerk: false, OwnsNonMaxedPerk: true);
+
+        foreach (var kind in Enum.GetValues<DraftGuaranteeKind>())
+        {
+            var due = Projected(DraftWorlds.DraftPendingOn()).Guarantees.Single(g => g.Kind == kind);
+
+            Fires(rule, Standing(kind, due.ForcedOnDraft - 1), demand, kind).ShouldBeTrue(
+                $"{kind}: the view counts down to draft {due.ForcedOnDraft}, so a counter standing " +
+                $"at {due.ForcedOnDraft - 1} must be the one the rule forces");
+
+            Fires(rule, Standing(kind, due.ForcedOnDraft - 2), demand, kind).ShouldBeFalse(
+                $"{kind}: and one draft earlier it must not — otherwise the countdown is a draft late");
+        }
+    }
+
+    /// <summary>…and the countdown a run one short of a rung reports is exactly one.</summary>
+    [Fact]
+    public void A_counter_one_short_of_its_rung_says_the_next_draft_is_the_forced_one()
+    {
+        var view = ProjectedWith(legendary: 14, aboveCommon: 3, upgrade: 5);
+
+        view.Guarantees.Select(g => g.DraftsUntilForced).ShouldBe([1, 1, 1]);
+    }
+
+    /// <summary>
+    /// …and it never reads zero, however high a counter stands. A rung retuned downwards leaves
+    /// counters above it, and <em>"in 0 drafts"</em> describes a draft that has already happened.
+    /// </summary>
+    [Fact]
+    public void The_countdown_never_reads_zero_however_high_the_counter_stands()
+    {
+        var view = ProjectedWith(legendary: 400, aboveCommon: 400, upgrade: 400);
+
+        view.Guarantees.Select(g => g.DraftsUntilForced).ShouldBe([1, 1, 1]);
+        view.Guarantees.Select(g => g.DraftsStood).ShouldBe(
+            [400, 400, 400], "the standing is reported as it is, never clamped to the rung");
+    }
+
+    /// <summary>
+    /// 🔒 The upgrade famine is not live while the run owns no perk below its top tier — the same
+    /// fact <c>DraftGuarantees.Forced</c> gates it on. A countdown drawn as live here would promise a
+    /// forced upgrade that cannot arrive.
+    /// </summary>
+    [Fact]
+    public void The_upgrade_famine_is_not_live_while_the_run_owns_no_upgradable_perk()
+    {
+        var view = Projected(DraftWorlds.DraftPendingOn());
+
+        view.Guarantees.Single(g => g.Kind == DraftGuaranteeKind.UpgradeFamine).Live.ShouldBeFalse(
+            "a run owning nothing has no upgrade to be starved of");
+    }
+
+    /// <summary>…and it becomes live the moment the run owns one.</summary>
+    [Fact]
+    public void The_upgrade_famine_is_live_once_the_run_owns_a_perk_below_its_top_tier()
+    {
+        var view = Projected(DraftWorlds.DraftPendingOn(
+            ownedPerkTiers: new Dictionary<string, int> { [OwnedNonMaxedPerk] = 1 }));
+
+        view.Guarantees.Single(g => g.Kind == DraftGuaranteeKind.UpgradeFamine).Live.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// …and the other two are live whatever the run owns, because every draft can offer a Legendary
+    /// and every draft can offer something above Common.
+    /// </summary>
+    [Fact]
+    public void The_pity_and_the_quality_floor_are_live_whatever_the_run_owns()
+    {
+        foreach (var owned in new IReadOnlyDictionary<string, int>?[]
+        {
+            null,
+            new Dictionary<string, int> { [OwnedNonMaxedPerk] = 1 },
+        })
+        {
+            var view = Projected(DraftWorlds.DraftPendingOn(ownedPerkTiers: owned));
+
+            view.Guarantees
+                .Where(g => g.Kind != DraftGuaranteeKind.UpgradeFamine)
+                .ShouldAllBe(g => g.Live);
+        }
+    }
+
+    // ------------------------------------------------------------------------------------------
     // Fixtures.
     // ------------------------------------------------------------------------------------------
 
@@ -391,6 +562,50 @@ public sealed class DraftViewTests
 
     /// <summary>The status both sharers name. An id, so nothing here keys on a perk.</summary>
     private const string SharedStatus = "RAGE";
+
+    /// <summary>An owned perk below its top tier, which is what makes the upgrade famine live.</summary>
+    /// <remarks>
+    /// Read off the hermetic catalogue rather than named as a literal: the fixture's rows carry three
+    /// tiers each, so tier 1 is below the top and the famine's precondition holds.
+    /// </remarks>
+    private static string OwnedNonMaxedPerk => PerkCatalogue.Read(Content).All.First(e => e.TierCount > 1).Id;
+
+    /// <summary>A projected draft whose three counters stand where a case needs them.</summary>
+    private static DraftView ProjectedWith(int legendary, int aboveCommon, int upgrade) =>
+        DraftView.Project(
+            RunSnapshots.With(
+                draftPending: true,
+                draftBattleKind: (int)TileKind.Enemy,
+                draftBattleStage: 1,
+                draftsSinceLegendaryOffered: legendary,
+                draftsWithoutAboveCommon: aboveCommon,
+                draftsWithoutOwnedUpgrade: upgrade),
+            Content)
+        ?? throw new InvalidOperationException("the fixture run has no draft pending");
+
+    /// <summary>One counter standing at a value, with the other two at zero.</summary>
+    private static DraftCounters Standing(DraftGuaranteeKind kind, int stood) => kind switch
+    {
+        DraftGuaranteeKind.LegendaryPity => new DraftCounters(stood, 0, 0),
+        DraftGuaranteeKind.QualityFloor => new DraftCounters(0, stood, 0),
+        DraftGuaranteeKind.UpgradeFamine => new DraftCounters(0, 0, stood),
+        _ => throw new InvalidOperationException("unreachable: " + kind),
+    };
+
+    /// <summary>Whether the rule itself forces the named guarantee at these counters.</summary>
+    private static bool Fires(
+        DraftRule rule, DraftCounters counters, DraftDemand demand, DraftGuaranteeKind kind) =>
+        DraftGuarantees.Forced(rule, counters, demand, optionCount: 3)
+            .Any(f => f.Guarantee == Expected(kind));
+
+    /// <summary>The rules-layer guarantee one projected kind reports on.</summary>
+    private static DraftGuarantee Expected(DraftGuaranteeKind kind) => kind switch
+    {
+        DraftGuaranteeKind.LegendaryPity => DraftGuarantee.LegendaryPity,
+        DraftGuaranteeKind.QualityFloor => DraftGuarantee.QualityFloor,
+        DraftGuaranteeKind.UpgradeFamine => DraftGuarantee.UpgradeFamine,
+        _ => throw new InvalidOperationException("unreachable: " + kind),
+    };
 
     private static DraftView Projected(WorldSlice state) =>
         DraftView.Project(state.Run!.ToSnapshot(), Content)

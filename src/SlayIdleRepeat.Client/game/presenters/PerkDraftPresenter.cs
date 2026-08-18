@@ -1,3 +1,4 @@
+using System.Globalization;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
@@ -50,6 +51,27 @@ public enum PerkDraftSubmission
     /// </summary>
     HostUnavailable = 4,
 }
+
+/// <summary>
+/// One <c>DRAFT</c> luck-protection counter as a row on this screen: the caption, the numbers, and
+/// whether the guarantee is currently due at all.
+/// </summary>
+/// <remarks>
+/// 🔒 Two fields, not four, and deliberately: the arithmetic that turns a counter and a rung into
+/// a countdown belongs to <c>DraftView</c>, and a row carrying the raw numbers would invite a second
+/// screen to subtract them differently. <c>24</c> §1.1's Authority rule is that the client displays
+/// and never computes.
+/// </remarks>
+/// <param name="Label">The counter's caption, already resolved through the locale catalogue.</param>
+/// <param name="Value">
+/// The numbers beside it: <c>drafts-remaining/rung</c> while the guarantee is due, and the rung alone
+/// while it is not. Numerals and a separator only — never a word, because words are the caption's.
+/// </param>
+/// <param name="Live">
+/// Whether the guarantee can fire as the run stands. False rows still show their rung, and
+/// <c>PerkDraftPresenter.GuaranteeNotDueBlockText</c> is the sentence that says why.
+/// </param>
+public sealed record PerkDraftGuaranteeRow(string Label, string Value, bool Live);
 
 /// <summary>One card of the open draft, as this screen draws it.</summary>
 /// <param name="OptionIndex">What <c>PICK_PERK</c> carries for this card.</param>
@@ -113,6 +135,23 @@ public sealed record PerkDraftCard(
 /// remaining-free count is invented to sit beside it.
 /// </para>
 /// <para>
+/// 🔒 <b>The three <c>DRAFT</c> luck-protection counters are shown, always.</b> <c>24</c> §1.1's
+/// Visibility rule is a 🔒 — <em>"a hidden pity system is indistinguishable from no pity system and
+/// buys none of the goodwill it costs to build"</em> — and its Disclosure rule makes stating every
+/// <c>N</c> in §4 on its class's own screen a store-policy requirement on both platforms. <c>DRAFT</c>
+/// is that class and S07 is that screen. 🔒 <b>These are not the free-reroll count.</b> That number
+/// does not exist anywhere (see <see cref="TheFreeRerollAllowanceDoesNotExist"/>); these three do,
+/// they are on the run, they drive real forced options, and <c>DraftView.Guarantees</c> is where they
+/// and their authored rungs are read. Two of §4.7's five rules carry no counter and so get no row —
+/// the Sustain anti-brick is a state predicate and the Codex bias is a weight.
+/// </para>
+/// <para>
+/// 🔒 <b>The counter rows carry captions and numerals, never a composed sentence.</b> The locale
+/// catalogue has no interpolation at all, so a magnitude can never be written into a translated
+/// string — the row is the caption from loc beside the numbers drawn separately, which is the same
+/// shape the reroll price already uses and the same reason.
+/// </para>
+/// <para>
 /// 🔒 <b>A card whose numbers cannot be rendered says so.</b> Four of the shipped perks carry
 /// description tokens that name no field in their own authored effect data; the renderer answers
 /// with the offending tokens instead of a sentence, and this screen draws a named line in place of
@@ -149,6 +188,12 @@ public sealed class PerkDraftPresenter
         "its OWN sentence: they are two different offers, and a player told the fourth card is " +
         "unavailable when it was the reroll they pressed learns nothing.";
 
+    /// <summary>
+    /// Separates a countdown from the rung it is counting towards, the way the scene half separates a
+    /// price from the balance it is read against.
+    /// </summary>
+    private const char OverSeparator = '/';
+
     private const string TitleNameKey = "loc.perk_draft.title.name";
     private const string AdFourthOptionNameKey = "loc.perk_draft.ad_fourth_option.name";
     private const string SynergyLabelKey = "loc.perk_draft.synergy.label";
@@ -161,6 +206,10 @@ public sealed class PerkDraftPresenter
     private const string AdRerollBlockKey = "loc.perk_draft.ad_reroll_deferred.block";
     private const string AdFourthOptionBlockKey = "loc.perk_draft.ad_fourth_option_deferred.block";
     private const string FreeRerollBlockKey = "loc.perk_draft.free_reroll_unbuilt.block";
+    private const string LegendaryPityLabelKey = "loc.perk_draft.legendary_pity.label";
+    private const string QualityFloorLabelKey = "loc.perk_draft.quality_floor.label";
+    private const string UpgradeFamineLabelKey = "loc.perk_draft.upgrade_famine.label";
+    private const string GuaranteeNotDueBlockKey = "loc.perk_draft.guarantee_not_due.block";
     private const string LoadingStatusKey = "loc.perk_draft.loading.status";
     private const string NoDraftStatusKey = "loc.perk_draft.no_draft.status";
     private const string RunMissingStatusKey = "loc.perk_draft.run_missing.status";
@@ -273,6 +322,31 @@ public sealed class PerkDraftPresenter
 
     /// <summary>The run's Gold balance, which is what the reroll's price is read against.</summary>
     public long Gold { get; private set; }
+
+    /// <summary>
+    /// The three <c>DRAFT</c> counter rows, in the order the guarantees fire. Empty only while there
+    /// is no draft to read at all — never trimmed because a counter stands at zero.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Every number in a row comes off <c>DraftView.Guarantees</c>. Nothing here subtracts,
+    /// clamps or counts: <c>24</c> §1.1 makes the client a display for these counters and says so in
+    /// the same breath as its Authority rule — <em>"the client displays; it never computes, never
+    /// predicts, never resets"</em>.
+    /// </remarks>
+    public IReadOnlyList<PerkDraftGuaranteeRow> Guarantees { get; private set; } = [];
+
+    /// <summary>
+    /// Why a row is showing its rung without a countdown, resolved — empty while all three are due.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A FOURTH absence on this screen, and it keeps its own sentence like the other three
+    /// (steering S2). It is not a deferred command and not an unbuilt mechanic: the upgrade famine is
+    /// built and live, and simply cannot be owed by a run that holds no perk below its top tier. A
+    /// player who read this as "waiting for a later milestone" would be misinformed in the one
+    /// direction this screen has already been careful about three times.
+    /// </remarks>
+    public string GuaranteeNotDueBlockText =>
+        Guarantees.Any(g => !g.Live) ? _strings.Resolve(GuaranteeNotDueBlockKey) : NothingLeftToSay;
 
     /// <summary>
     /// Whether the three numbers below are showing their exact values rather than their shortened
@@ -595,6 +669,7 @@ public sealed class PerkDraftPresenter
             CardsAvailable = false;
             RerollGoldCost = 0;
             SkipGoldReward = 0;
+            Guarantees = [];
             Stage = PerkDraftStage.NoDraft;
 
             return;
@@ -616,6 +691,7 @@ public sealed class PerkDraftPresenter
             CardsAvailable = draft is not null;
             RerollGoldCost = draft?.RerollGoldCost ?? 0;
             SkipGoldReward = draft?.SkipGoldReward ?? 0;
+            Guarantees = draft is null ? [] : Rows(draft);
         }
         catch (ContentException)
         {
@@ -623,8 +699,62 @@ public sealed class PerkDraftPresenter
             CardsAvailable = false;
             RerollGoldCost = 0;
             SkipGoldReward = 0;
+
+            // Emptied with the cards, on the same argument: a content read that failed answered
+            // nothing, and rows left standing from an earlier read would be a disclosure about a
+            // draft this screen can no longer see.
+            Guarantees = [];
         }
     }
+
+    /// <summary>The projection's counters as rows, each with its caption already resolved.</summary>
+    /// <remarks>
+    /// 🔒 The countdown is drawn only while the guarantee is live. A row that is not due shows its
+    /// authored rung alone, because <c>24</c> §1.1's Disclosure rule wants the <c>N</c> stated whatever
+    /// the run is doing, while a countdown on a guarantee that cannot fire would be a promise about a
+    /// draft that is not coming.
+    /// </remarks>
+    private IReadOnlyList<PerkDraftGuaranteeRow> Rows(DraftView draft)
+    {
+        var rows = new PerkDraftGuaranteeRow[draft.Guarantees.Count];
+
+        for (var index = 0; index < rows.Length; index++)
+        {
+            var standing = draft.Guarantees[index];
+
+            rows[index] = new PerkDraftGuaranteeRow(
+                _strings.Resolve(CaptionKey(standing.Kind)),
+                standing.Live
+                    ? Count(standing.DraftsUntilForced) + OverSeparator + Count(standing.ForcedOnDraft)
+                    : Count(standing.ForcedOnDraft),
+                standing.Live);
+        }
+
+        return Array.AsReadOnly(rows);
+    }
+
+    /// <summary>The caption one counter's row is drawn with.</summary>
+    /// <remarks>
+    /// 🔒 Three keys rather than one with the guarantee's name substituted in: the catalogue has no
+    /// interpolation, and a caption assembled from a stem plus a translated fragment is exactly the
+    /// construction X-04 exists to forbid. A kind this build was never taught throws rather than
+    /// borrowing a neighbour's caption — a wrong sentence beside a real number is worse than a crash
+    /// in a screen whose whole job here is disclosure.
+    /// </remarks>
+    private static string CaptionKey(DraftGuaranteeKind kind) => kind switch
+    {
+        DraftGuaranteeKind.LegendaryPity => LegendaryPityLabelKey,
+        DraftGuaranteeKind.QualityFloor => QualityFloorLabelKey,
+        DraftGuaranteeKind.UpgradeFamine => UpgradeFamineLabelKey,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(kind), kind, "No caption is authored for this DRAFT guarantee."),
+    };
+
+    /// <summary>
+    /// A draft count as a player reads it. Never abbreviated: a run holds a handful of drafts, so
+    /// these are two digits and the thousands rule has nothing to act on.
+    /// </summary>
+    private static string Count(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     /// <summary>The projection's options as cards, indexed the way <c>PICK_PERK</c> indexes them.</summary>
     private static IReadOnlyList<PerkDraftCard> Draw(DraftView draft)

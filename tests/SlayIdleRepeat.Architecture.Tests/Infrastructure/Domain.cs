@@ -187,6 +187,24 @@ internal static class Domain
     /// M7-07 exports is the VIEW of an offer, not the draw that decides one, and both entry points
     /// take the same two already-public snapshots and hand out no draw stream.
     /// </para>
+    /// <para>
+    /// 🔒 <b>M7-07's UI review adds NO entry point and two more signature types</b> —
+    /// <c>DraftGuaranteeView</c> and <c>DraftGuaranteeKind</c>, reached through
+    /// <c>DraftView.Guarantees</c>. The consumer is the same Perk Draft screen (S07), and the reason
+    /// is <c>24</c> §1.1, whose Visibility rule is a 🔒: every luck-protection counter is shown to the
+    /// player <em>always</em>, as a plain sentence with a real number, and its Disclosure rule puts
+    /// every <c>N</c> in §4 on the screen its class belongs to. <c>DRAFT</c>'s three counters live on
+    /// the run and its three rungs live in <c>data/luck.json</c>; before this widening no assembly
+    /// outside <c>Core</c> could read the rungs at all, so the required sentence could not be written.
+    /// The enum is public by the same CONSEQUENCE R15 records — a public member returning an internal
+    /// enum does not compile.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>And their producer stays out too.</b> <c>DraftGuarantees</c>, <c>DraftCounters</c>,
+    /// <c>DraftDemand</c>, <c>DraftForce</c> and <c>HardPity</c> stay <c>internal</c>: what leaves is
+    /// the counters' STANDING, never the machinery that decides which guarantee fires or floors a
+    /// slot. The projection hands out no <c>DraftForce</c> and no way to move a counter.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
     {
@@ -205,6 +223,8 @@ internal static class Domain
         "DraftOptionView",
         "ShrineView",
         "ShrineBuffRow",
+        "DraftGuaranteeView",
+        "DraftGuaranteeKind",
     };
 
     /// <summary>

@@ -47,6 +47,15 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// a stand-in glyph would not be — see <see cref="TheIconSlotIsEmptyBecauseThereIsNoArt"/>.
 /// </para>
 /// <para>
+/// 🔒 <b>The three <c>DRAFT</c> luck-protection counters are drawn, always.</b> <c>24</c> §1.1's
+/// Visibility rule is a 🔒 and its Disclosure rule is a store-policy requirement on both platforms;
+/// the presenter answers the rows already resolved and already counted, and this half only lays them
+/// out. They sit in the SCROLLING band with the offer they describe rather than in the bottom action
+/// column: a disclosure is standing information a player can go and read, where the two status lines
+/// above are transient answers about the last command, and four more rows of text pinned above the
+/// primary action would push it out of the thumb's reach on the tallest supported screen.
+/// </para>
+/// <para>
 /// 🔴 <b>Rarity is never carried by colour alone</b> — the gem takes a frame shape and a symbol as
 /// well, so a player who cannot separate the four hues still reads four distinct marks. See
 /// <see cref="RarityIsAShapeAndASymbolBeforeItIsAColour"/>.
@@ -116,11 +125,21 @@ public partial class PerkDraft : Control
     /// <summary>Where the per-option card lives, instantiated once per card on offer.</summary>
     private const string CardScenePath = "res://game/scenes/PerkDraftCard.tscn";
 
+    /// <summary>And where one counter row lives, instantiated once per counter.</summary>
+    /// <remarks>
+    /// A scene instanced three times rather than three hand-built rows: the three differ in their
+    /// caption and their numbers and in nothing else, and a fourth counter — <c>24</c> §4.7 could
+    /// grow one — should cost a row rather than a copy of a subtree.
+    /// </remarks>
+    private const string GuaranteeRowScenePath = "res://game/scenes/GuaranteeRow.tscn";
+
     private const string CardCategoryBarPath = "Body/Column/HeaderRow/CategoryBar";
     private const string CardIconSlotPath = "Body/Column/HeaderRow/IconSlot";
     private const string CardNameLabelPath = "Body/Column/HeaderRow/NameLabel";
     private const string CardRarityGemPath = "Body/Column/HeaderRow/RarityGem";
     private const string CardRarityGlyphPath = "Body/Column/HeaderRow/RarityGem/RarityGlyph";
+    private const string RowCaptionLabelPath = "CaptionLabel";
+    private const string RowValueLabelPath = "ValueLabel";
     private const string CardTierBadgePath = "Body/Column/TierBadge";
     private const string CardEffectLabelPath = "Body/Column/EffectLabel";
     private const string CardSynergyRowPath = "Body/Column/SynergyRow";
@@ -143,6 +162,8 @@ public partial class PerkDraft : Control
     private const string RerollCostValuePath = "%RerollCostValue";
     private const string RerollButtonPath = "%RerollButton";
     private const string FreeRerollBlockLabelPath = "%FreeRerollBlockLabel";
+    private const string GuaranteeColumnPath = "%GuaranteeColumn";
+    private const string GuaranteeNotDueBlockLabelPath = "%GuaranteeNotDueBlockLabel";
     private const string SkipRewardLabelPath = "%SkipRewardLabel";
     private const string SkipRewardValuePath = "%SkipRewardValue";
     private const string SkipButtonPath = "%SkipButton";
@@ -232,6 +253,8 @@ public partial class PerkDraft : Control
     private Label? _adFourthOptionBlockLabel;
     private Button? _adRerollButton;
     private Label? _adRerollBlockLabel;
+    private VBoxContainer? _guaranteeColumn;
+    private Label? _guaranteeNotDueBlockLabel;
     private Label? _statusLabel;
     private Label? _rejectionLabel;
     private Label? _rerollCostLabel;
@@ -244,6 +267,14 @@ public partial class PerkDraft : Control
 
     /// <summary>The press control of each card now drawn, in the order the presenter offers them.</summary>
     private readonly List<Button> _cardButtons = [];
+
+    /// <summary>The counter rows the last draw built, so they are rebuilt only when they change.</summary>
+    /// <remarks>
+    /// Held by reference-identity of the presenter's list, exactly as <c>_drawnFrom</c> holds the
+    /// cards': the rows are rebuilt on a new projection and left alone on a re-render that changed
+    /// nothing, which is what stops a scroll position resetting under the player's thumb every tick.
+    /// </remarks>
+    private IReadOnlyList<PerkDraftGuaranteeRow>? _rowsFrom;
 
     /// <summary>The entrances still running, with the card each one is settling, so a tap can end them.</summary>
     private readonly List<(Control Card, Tween Intro)> _intro = [];
@@ -298,6 +329,8 @@ public partial class PerkDraft : Control
         _adFourthOptionBlockLabel = GetNode<Label>(AdFourthOptionBlockLabelPath);
         _adRerollButton = GetNode<Button>(AdRerollButtonPath);
         _adRerollBlockLabel = GetNode<Label>(AdRerollBlockLabelPath);
+        _guaranteeColumn = GetNode<VBoxContainer>(GuaranteeColumnPath);
+        _guaranteeNotDueBlockLabel = GetNode<Label>(GuaranteeNotDueBlockLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
         _rejectionLabel = GetNode<Label>(RejectionLabelPath);
         _rerollCostLabel = GetNode<Label>(RerollCostLabelPath);
@@ -419,6 +452,7 @@ public partial class PerkDraft : Control
             _titleLabel is null || _cardColumn is null || _adFourthOptionCard is null ||
             _adFourthOptionNameLabel is null || _adFourthOptionBlockLabel is null ||
             _adRerollButton is null || _adRerollBlockLabel is null ||
+            _guaranteeColumn is null || _guaranteeNotDueBlockLabel is null ||
             _statusLabel is null || _rejectionLabel is null ||
             _rerollCostLabel is null || _rerollCostValue is null || _rerollButton is null ||
             _freeRerollBlockLabel is null || _skipRewardLabel is null ||
@@ -441,6 +475,8 @@ public partial class PerkDraft : Control
         _adRerollButton.Text = presenter.AdRerollText;
         _adRerollButton.Disabled = !presenter.AdRerollAvailable;
         _adRerollBlockLabel.Text = presenter.AdRerollBlockText;
+
+        RenderGuarantees(presenter);
 
         _rerollCostLabel.Text = presenter.RerollCostLabel;
 
@@ -532,6 +568,69 @@ public partial class PerkDraft : Control
             {
                 PlayEntrance(card);
             }
+        }
+    }
+
+    /// <summary>
+    /// Draws the three <c>DRAFT</c> counters, rebuilding the rows only when the projection changed.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Every row is drawn, whatever its counter stands at — <c>24</c> §1.1's Visibility rule is
+    /// <em>always</em>, and a row hidden at zero is the case a "show it when it matters" reading would
+    /// drop. A row whose guarantee is not currently due keeps its caption and its rung and is drawn in
+    /// the same quiet grey every other unavailable control on this screen takes, with the reason in its
+    /// own sentence beneath: the number is still disclosed, and nothing claims a countdown is running.
+    /// </remarks>
+    private void RenderGuarantees(PerkDraftPresenter presenter)
+    {
+        if (_guaranteeColumn is not { } column || _guaranteeNotDueBlockLabel is not { } block)
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(_rowsFrom, presenter.Guarantees))
+        {
+            BuildGuarantees(column, presenter.Guarantees);
+
+            _rowsFrom = presenter.Guarantees;
+        }
+
+        block.Text = presenter.GuaranteeNotDueBlockText;
+        block.Visible = block.Text.Length > 0;
+    }
+
+    /// <summary>Instantiates one row per counter, in the order the guarantees fire.</summary>
+    private static void BuildGuarantees(
+        VBoxContainer column, IReadOnlyList<PerkDraftGuaranteeRow> rows)
+    {
+        Clear(column);
+
+        if (GD.Load<PackedScene>(GuaranteeRowScenePath) is not { } rowScene)
+        {
+            GD.PushError(
+                "The guarantee row scene did not load, so the draft's luck-protection counters are " +
+                "not drawn. 24 §1.1 requires them shown, so this is a defect rather than a degradation.");
+
+            return;
+        }
+
+        foreach (var row in rows)
+        {
+            var drawn = rowScene.Instantiate<HBoxContainer>();
+            var ink = row.Live ? LiveColour : UnavailableColour;
+
+            var caption = drawn.GetNode<Label>(RowCaptionLabelPath);
+            var value = drawn.GetNode<Label>(RowValueLabelPath);
+
+            caption.Text = row.Label;
+            value.Text = row.Value;
+
+            // The VALUE takes the state colour and the caption keeps its own quiet grey: the caption is
+            // already the quiet half of the row, so dimming it too would leave the row's own emphasis
+            // pointing at nothing.
+            value.AddThemeColorOverride(FontColourOverride, ink);
+
+            column.AddChild(drawn);
         }
     }
 

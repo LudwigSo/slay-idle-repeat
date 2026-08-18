@@ -117,6 +117,17 @@ internal static class PlayerState
     /// care which.
     /// </param>
     /// <param name="rngStreamPositions">
+    /// <param name="draftsSinceLegendaryOffered">
+    /// The <c>DRAFT</c> Legendary-pity counter — drafts stood since one offered a Legendary.
+    /// </param>
+    /// <param name="draftsWithoutAboveCommon">The quality-floor counter (<c>24</c> §4.7 F1).</param>
+    /// <param name="draftsWithoutOwnedUpgrade">The upgrade-famine counter (<c>24</c> §4.7 F3).</param>
+    /// <param name="ownedPerkTiers">
+    /// The perks this run holds and their tiers. Load-bearing for the famine, whose guarantee is only
+    /// due while at least one owned perk sits below its top tier.
+    /// </param>
+    /// <param name="runSeed">The run's committed seed.</param>
+    /// <param name="rngStreamPositions">
     /// The per-stream draw counters, whose <c>combat</c> row counts battles STARTED. Defaulted to
     /// the empty map a fresh run carries, which is also the shape a replay has to report as "this
     /// run does not say which battle this is" rather than reading as battle zero.
@@ -139,6 +150,10 @@ internal static class PlayerState
         int draftBattleKind = -1,
         int draftBattleStage = 0,
         int rerollChargesSpentThisStage = 0,
+        int draftsSinceLegendaryOffered = 0,
+        int draftsWithoutAboveCommon = 0,
+        int draftsWithoutOwnedUpgrade = 0,
+        IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
         ulong runSeed = 1,
         IReadOnlyDictionary<string, ulong>? rngStreamPositions = null) =>
         new(
@@ -167,6 +182,10 @@ internal static class PlayerState
             RerollChargesSpentThisStage: rerollChargesSpentThisStage,
             DraftBattleKind: draftBattleKind,
             DraftBattleStage: draftBattleStage,
+            OwnedPerkTiers: ownedPerkTiers,
+            DraftsSinceLegendaryOffered: draftsSinceLegendaryOffered,
+            DraftsWithoutAboveCommon: draftsWithoutAboveCommon,
+            DraftsWithoutOwnedUpgrade: draftsWithoutOwnedUpgrade,
             StartingLoadout: BareHanded);
 
     /// <summary>The same slice, carrying a run rehydrated from the given row.</summary>

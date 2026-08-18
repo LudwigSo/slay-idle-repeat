@@ -26,6 +26,9 @@ internal static class RunDecisionContent
     internal const string DraftSynergyLabelKey = "loc.perk_draft.synergy.label";
     internal const string DraftRerollCostLabelKey = "loc.perk_draft.reroll_cost.label";
     internal const string DraftSkipRewardLabelKey = "loc.perk_draft.skip_reward.label";
+    internal const string DraftLegendaryPityLabelKey = "loc.perk_draft.legendary_pity.label";
+    internal const string DraftQualityFloorLabelKey = "loc.perk_draft.quality_floor.label";
+    internal const string DraftUpgradeFamineLabelKey = "loc.perk_draft.upgrade_famine.label";
     internal const string DraftUpgradeBadgeKey = "loc.perk_draft.upgrade.badge";
     internal const string DraftRerollActionKey = "loc.perk_draft.reroll.action";
     internal const string DraftAdRerollActionKey = "loc.perk_draft.ad_reroll.action";
@@ -33,6 +36,7 @@ internal static class RunDecisionContent
     internal const string DraftAdRerollBlockKey = "loc.perk_draft.ad_reroll_deferred.block";
     internal const string DraftAdFourthOptionBlockKey = "loc.perk_draft.ad_fourth_option_deferred.block";
     internal const string DraftFreeRerollBlockKey = "loc.perk_draft.free_reroll_unbuilt.block";
+    internal const string DraftGuaranteeNotDueBlockKey = "loc.perk_draft.guarantee_not_due.block";
     internal const string DraftLoadingStatusKey = "loc.perk_draft.loading.status";
     internal const string DraftNoDraftStatusKey = "loc.perk_draft.no_draft.status";
     internal const string DraftRunMissingStatusKey = "loc.perk_draft.run_missing.status";
@@ -86,9 +90,11 @@ internal static class RunDecisionContent
     [
         DraftTitleNameKey, DraftAdFourthOptionNameKey,
         DraftSynergyLabelKey, DraftRerollCostLabelKey, DraftSkipRewardLabelKey,
+        DraftLegendaryPityLabelKey, DraftQualityFloorLabelKey, DraftUpgradeFamineLabelKey,
         DraftUpgradeBadgeKey,
         DraftRerollActionKey, DraftAdRerollActionKey, DraftSkipActionKey,
         DraftAdRerollBlockKey, DraftAdFourthOptionBlockKey, DraftFreeRerollBlockKey,
+        DraftGuaranteeNotDueBlockKey,
         DraftLoadingStatusKey, DraftNoDraftStatusKey, DraftRunMissingStatusKey,
         DraftReadUnavailableStatusKey, DraftCardsUnavailableStatusKey,
         DraftEffectNumbersUnavailableStatusKey, DraftRefusedStatusKey,

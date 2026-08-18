@@ -918,6 +918,165 @@ public sealed class PerkDraftPresenterTests
     /// describes a state the game could never have persisted, and cards projected from one would be
     /// projected from a run that cannot occur.
     /// </remarks>
+    // ------------------------------------------------------------------------------------------
+    // 🔒 24 §1.1 — the three DRAFT counters reach the screen, always and correctly.
+    // ------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// All three counter rows are offered, whatever they stand at. <c>24</c> §1.1's Visibility rule is
+    /// <em>always</em>, so a run that has drafted nothing still discloses its ladder.
+    /// </summary>
+    [Fact]
+    public async Task All_three_guarantee_rows_are_offered_on_a_fresh_run()
+    {
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen()), BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Guarantees.Count.ShouldBe(
+            3,
+            "24 §1.1's Visibility rule is a 🔒 and reads 'always'. A row dropped because its counter " +
+            "stands at zero is the exact hidden-pity state that rule forbids.");
+    }
+
+    /// <summary>…each with a resolved caption rather than the loc key itself.</summary>
+    [Fact]
+    public async Task Every_guarantee_row_carries_a_resolved_caption()
+    {
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen()), BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Guarantees.ShouldAllBe(g => g.Label.Length > 0);
+        presenter.Guarantees.ShouldAllBe(g => !g.Label.StartsWith("loc.", StringComparison.Ordinal));
+    }
+
+    /// <summary>…and three DIFFERENT captions, so no row borrows another's sentence.</summary>
+    [Fact]
+    public async Task The_three_captions_are_three_different_sentences()
+    {
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen()), BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Guarantees
+            .Select(g => g.Label)
+            .Distinct(StringComparer.Ordinal)
+            .Count()
+            .ShouldBe(
+                3,
+                "one caption serving two counters tells a player the game protects them once where " +
+                "it protects them three times");
+    }
+
+    /// <summary>
+    /// 🔒 The value carries the live countdown AND the authored rung, because <c>24</c> §1.1 asks
+    /// for both — Visibility wants a real number now, Disclosure wants the <c>N</c> stated.
+    /// </summary>
+    [Fact]
+    public async Task A_due_row_shows_the_countdown_over_its_authored_rung()
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(),
+            WithADraftOpen() with { DraftsSinceLegendaryOffered = 7 }), BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Guarantees[0].Value.ShouldBe(
+            "8/15",
+            "the run has stood 7 of a 15-draft ladder, so 8 remain and the rung is still stated");
+    }
+
+    /// <summary>…and the number moves with the counter rather than being a fixed caption.</summary>
+    [Fact]
+    public async Task The_countdown_moves_as_the_counter_stands_higher()
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(), WithADraftOpen() with { DraftsSinceLegendaryOffered = 14 });
+        var presenter = Build(host, BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Guarantees[0].Value.ShouldBe("1/15", "the next draft is the forced one");
+    }
+
+    /// <summary>
+    /// 🔒 A row whose guarantee is not due shows its rung and NO countdown, and the screen carries
+    /// the reason in its own sentence — the fourth absence on this screen, kept distinct from the three
+    /// the reroll already has.
+    /// </summary>
+    [Fact]
+    public async Task A_row_that_is_not_due_shows_its_rung_without_a_countdown()
+    {
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen()), BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        var famine = presenter.Guarantees[2];
+
+        famine.Live.ShouldBeFalse("a run owning nothing has no upgrade to be starved of");
+        famine.Value.ShouldBe(
+            "6",
+            "the rung is disclosed whatever the run is doing, but a countdown would promise a " +
+            "forced upgrade that cannot arrive");
+    }
+
+    /// <summary>…and that state, not the other three absences, is what the fourth sentence names.</summary>
+    [Fact]
+    public async Task The_not_due_sentence_appears_only_while_a_row_is_not_due()
+    {
+        var idle = Build(RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen()), BootContent.Shipped);
+
+        await idle.StartAsync(CancellationToken.None);
+
+        idle.GuaranteeNotDueBlockText.ShouldNotBeEmpty();
+
+        var owning = Build(RecordingGameHost.Finding(
+            AnyPlayer(), WithADraftOpen() with { OwnedPerkTiers = OneUpgradablePerk }), BootContent.Shipped);
+
+        await owning.StartAsync(CancellationToken.None);
+
+        owning.Guarantees.ShouldAllBe(g => g.Live);
+        owning.GuaranteeNotDueBlockText.ShouldBeEmpty(
+            "with every guarantee due there is nothing to explain, and a sentence left standing " +
+            "would describe a state the run is not in");
+    }
+
+    /// <summary>
+    /// 🔒 And the fourth sentence never reuses the wording of the three the reroll carries. Steering
+    /// S2: a player who reads "waiting on a later milestone" beside a guarantee that is built and live
+    /// is misinformed in the direction this screen has already been careful about three times.
+    /// </summary>
+    [Fact]
+    public async Task The_not_due_sentence_is_none_of_the_three_absences_around_the_reroll()
+    {
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen()), BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        var others = new[]
+        {
+            presenter.AdRerollBlockText,
+            presenter.AdFourthOptionBlockText,
+            presenter.FreeRerollBlockText,
+        };
+
+        others.ShouldNotContain(presenter.GuaranteeNotDueBlockText);
+    }
+
+    /// <summary>…and a run with no draft open discloses nothing, because there is no draft to disclose.</summary>
+    [Fact]
+    public async Task A_run_with_no_draft_open_offers_no_guarantee_rows()
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(), WithADraftOpen() with { DraftPending = false }), BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Guarantees.ShouldBeEmpty();
+        presenter.GuaranteeNotDueBlockText.ShouldBeEmpty();
+    }
+
     private static RunSnapshot WithADraftOpen(long gold = 0) =>
         PlayerState.Run(
             Run, Player, RunPhase.InProgress,
@@ -925,6 +1084,19 @@ public sealed class PerkDraftPresenterTests
             draftPending: true,
             draftBattleKind: EnemyBattleTileKind,
             draftBattleStage: FirstStage);
+
+    /// <summary>
+    /// One owned perk sitting below its top tier, which is what makes the upgrade famine due.
+    /// </summary>
+    /// <remarks>
+    /// Read off the fixture catalogue rather than named as a literal, so a renamed fixture perk fails
+    /// the arrangement instead of quietly turning the famine's live case into its not-due one.
+    /// </remarks>
+    private static IReadOnlyDictionary<string, int> OneUpgradablePerk { get; } =
+        new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            [PerkCatalogue.Read(BootContent.Shipped).All.First(e => e.TierCount > 1).Id] = 1,
+        };
 
     /// <summary>One card, built directly, for the cases about how a card is WORDED rather than drawn.</summary>
     private static PerkDraftCard Card(
