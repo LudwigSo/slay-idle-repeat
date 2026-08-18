@@ -44,18 +44,18 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// range without an override taking part.
 /// </para>
 /// <para>
-/// 🔴 <b>Two destinations this screen stops at rather than builds.</b> A perk draft and a run that
-/// has ended each belong to a screen this task does not own — see
-/// <see cref="TheDraftScreenIsNotBuiltHere"/> and <see cref="TheRunEndScreensAreNotBuiltHere"/>. In
-/// both cases the board says in words what the player is waiting on, disables the roll, and
-/// navigates nowhere.
+/// 🔴 <b>One destination this screen stops at rather than builds.</b> A run that has ended belongs
+/// to a screen this milestone does not own — see <see cref="TheRunEndScreensAreNotBuiltHere"/>. The
+/// board says in words what the player is waiting on, disables the roll, and navigates nowhere.
 /// </para>
 /// <para>
-/// 🔒 <b>An open battle is the one destination it does navigate to, and it navigates there once.</b>
-/// The replay hands control back to this same screen rather than to a new one, so the board is read
-/// again on return — the confirmation that ends a fight has moved the run underneath it. A battle
-/// still open after its own replay is a dead end rather than a reason to go round again; see
-/// <see cref="TheBattleDidNotCloseWhenItsReplayEnded"/>.
+/// 🔒 <b>Four destinations it does navigate to, and it navigates to each once.</b> The open battle,
+/// the perk draft a won fight leaves, and the shop, campfire and shrine tiles a run lands on all
+/// hand control back to this same screen rather than to a new one, so the board is read again on
+/// return — every one of them is left by a command that has moved the run underneath it. A
+/// destination still open after its own screen has handed back is a dead end rather than a reason to
+/// go round again; see <see cref="TheBattleDidNotCloseWhenItsReplayEnded"/> and
+/// <see cref="TheDecisionDidNotCloseWhenItsScreenHandedBack"/>.
 /// </para>
 /// </remarks>
 public partial class Board : Control
@@ -77,24 +77,25 @@ public partial class Board : Control
         "board that re-entered the replay on every read would trap the player between two screens.";
 
     /// <summary>
-    /// 🔴 Deliberately unbuilt, and named so it can be found. S07, the perk draft, is a later row's.
-    /// A won battle leaves a draft open, and the roll stays refused until something resolves it —
-    /// which nothing in this build can do.
+    /// 🔴 Named so the dead end can be found, and the exact counterpart of the battle's. A decision
+    /// screen hands back once the run has left the state that opened it, so a run still in that state
+    /// on the read that follows is a decision nothing on either screen can close.
     /// </summary>
-    private const string TheDraftScreenIsNotBuiltHere =
-        "S07, the perk draft a won battle opens, is not built in this milestone: there is no scene " +
-        "to pick, reroll or skip a draft on, so a run that wins a fight cannot roll again. The " +
-        "board reports it and stops.";
+    private const string TheDecisionDidNotCloseWhenItsScreenHandedBack =
+        "A decision was still open when its screen handed control back, so it is not entered a " +
+        "second time. Every one of these screens leaves only once the run itself says the draft has " +
+        "closed or the tile has cleared, so a run that comes back still holding either could not be " +
+        "read at all or was refused the command that would have finished it — and a board that " +
+        "re-entered the screen on every read would trap the player between two screens.";
 
     /// <summary>
-    /// 🔴 Deliberately unbuilt, and named so it can be found. The run's decision screens are M7-07's
-    /// and its death and results screens are M7-08's. A finished run is drawn as finished and left
-    /// there; this screen offers no way out of it, because every way out is somebody else's.
+    /// 🔴 Deliberately unbuilt, and named so it can be found. The run's death and results screens are
+    /// M7-08's. A finished run is drawn as finished and left there; this screen offers no way out of
+    /// it, because every way out is somebody else's.
     /// </summary>
     private const string TheRunEndScreensAreNotBuiltHere =
-        "The run decision screens and the death and results screens are not built in this " +
-        "milestone: a run that has ended is drawn as ended and has nowhere to go. The board neither " +
-        "banks it nor abandons it.";
+        "The death and results screens are not built in this milestone: a run that has ended is " +
+        "drawn as ended and has nowhere to go. The board neither banks it nor abandons it.";
 
     /// <summary>
     /// ⚠️ This task's choice, and the only timing on this screen that is not authored. The design
@@ -197,8 +198,20 @@ public partial class Board : Control
     /// <summary>Builds the replay of the fight the run is standing in, once there is one.</summary>
     private Func<ComposedBattleScreen>? _battle;
 
+    /// <summary>Builds the draft screen for the draft a won fight has left open.</summary>
+    private Func<ComposedPerkDraftScreen>? _perkDraft;
+
+    /// <summary>Builds the shop screen for the shop tile the run has landed on.</summary>
+    private Func<ComposedShopScreen>? _shop;
+
+    /// <summary>Builds the campfire / shrine screen for the tile the run has landed on.</summary>
+    private Func<ComposedCampfireScreen>? _campfire;
+
     /// <summary>Whether the battle now open has already had its replay watched.</summary>
     private bool _battleShown;
+
+    /// <summary>Which decision the run's present state has already been handed over for, if any.</summary>
+    private RunDecision? _decisionShown;
 
     private CancellationToken _lifetime;
 
@@ -248,25 +261,26 @@ public partial class Board : Control
     /// <summary>Whether a submission is in flight, so a second press cannot start another.</summary>
     private bool _busy;
 
-    /// <summary>Takes both presenters the composition root built, and the app's shutdown token.</summary>
-    /// <param name="presenter">Drives the board.</param>
-    /// <param name="diePanel">Drives the panel the board's HUD opens over itself.</param>
-    /// <param name="battle">Builds the replay of the fight the run stands in, one per fight.</param>
+    /// <summary>Takes everything the composition root built for this screen, and the shutdown token.</summary>
+    /// <remarks>
+    /// The whole composed screen rather than its parts, because the parts had reached six: two
+    /// presenters and a factory for each of the four destinations a run can reach from here. The
+    /// holder is the client's own composition type, and this reads factories off it exactly as it
+    /// already did for the battle — it calls them, it assembles nothing.
+    /// </remarks>
+    /// <param name="screen">Everything the composition root built for this board's run.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
-    /// <exception cref="ArgumentNullException">A presenter or the battle factory is null.</exception>
-    public void Drive(
-        BoardPresenter presenter,
-        DiePanelPresenter diePanel,
-        Func<ComposedBattleScreen> battle,
-        CancellationToken lifetime)
+    /// <exception cref="ArgumentNullException"><paramref name="screen"/> is null.</exception>
+    public void Drive(ComposedBoardScreen screen, CancellationToken lifetime)
     {
-        ArgumentNullException.ThrowIfNull(presenter);
-        ArgumentNullException.ThrowIfNull(diePanel);
-        ArgumentNullException.ThrowIfNull(battle);
+        ArgumentNullException.ThrowIfNull(screen);
 
-        _presenter = presenter;
-        _diePanel = diePanel;
-        _battle = battle;
+        _presenter = screen.Board;
+        _diePanel = screen.DiePanel;
+        _battle = screen.Battle;
+        _perkDraft = screen.PerkDraft;
+        _shop = screen.Shop;
+        _campfire = screen.Campfire;
         _lifetime = lifetime;
     }
 
@@ -939,24 +953,18 @@ public partial class Board : Control
 
         ReportUnbuiltDestination(presenter);
         OpenBattle(presenter);
+        OpenDecision(presenter);
     }
 
     /// <remarks>
-    /// Reported rather than navigated to. Each of the two is a screen a later row owns, and a run
-    /// that reaches one stops here with the reason named in the log.
+    /// Reported rather than navigated to. A finished run belongs to a screen a later row owns, and a
+    /// run that reaches it stops here with the reason named in the log.
     /// </remarks>
     private static void ReportUnbuiltDestination(BoardPresenter presenter)
     {
-        var destination = presenter.RollBlock switch
+        if (presenter.RollBlock == BoardRollBlock.RunEnded)
         {
-            BoardRollBlock.DraftOpen => TheDraftScreenIsNotBuiltHere,
-            BoardRollBlock.RunEnded => TheRunEndScreensAreNotBuiltHere,
-            _ => null,
-        };
-
-        if (destination is not null)
-        {
-            GD.PushError($"{BoardMarker} halted · {destination}");
+            GD.PushError($"{BoardMarker} halted · {TheRunEndScreensAreNotBuiltHere}");
         }
     }
 
@@ -1006,6 +1014,103 @@ public partial class Board : Control
         _battleShown = BattleHandover.Show(this, battle(), _lifetime);
     }
 
+    /// <summary>Hands over to the screen the run's own state belongs on, at most once per state.</summary>
+    /// <remarks>
+    /// 🔒 The latch is what makes the return path terminate, exactly as the battle's does. Each of
+    /// these screens hands back by reading the run and finding the state that opened it gone — so a
+    /// run that comes back still holding it is one the screen could not finish, and without the latch
+    /// the board would send the player straight back in, and round again, forever. A run that has
+    /// left the state clears the latch, because the next shop is a different shop.
+    /// </remarks>
+    private void OpenDecision(BoardPresenter presenter)
+    {
+        if (DecisionFor(presenter) is not { } decision)
+        {
+            _decisionShown = null;
+
+            return;
+        }
+
+        if (_decisionShown == decision)
+        {
+            GD.PushError($"{BoardMarker} halted · {TheDecisionDidNotCloseWhenItsScreenHandedBack}");
+
+            return;
+        }
+
+        if (!IsInstanceValid(this) || !IsInsideTree())
+        {
+            return;
+        }
+
+        // Latched on the handover having HAPPENED, not on having been attempted — a handover that
+        // could not load its scene left the board on screen with the decision still open, and a latch
+        // set anyway would answer the next read with the dead-end sentence for a screen nobody saw.
+        _decisionShown = HandOver(decision) ? decision : null;
+    }
+
+    /// <summary>Which screen, if any, the run's present state belongs on.</summary>
+    /// <remarks>
+    /// 🔴 The tile numbers are NOT restated here. Which integer is a shop and which is a shrine is a
+    /// transcription of another assembly's internal enum, and each of those screens already owns its
+    /// own copy and pins it with a case of its own — so this asks them rather than keeping a third
+    /// copy that nothing would notice going stale.
+    /// </remarks>
+    private static RunDecision? DecisionFor(BoardPresenter presenter) => presenter.RollBlock switch
+    {
+        BoardRollBlock.DraftOpen => RunDecision.PerkDraft,
+        BoardRollBlock.TilePending => presenter.PendingTile?.Kind switch
+        {
+            ShopPresenter.ShopTileKind => RunDecision.Shop,
+            CampfirePresenter.CampfireTileKind or CampfirePresenter.ShrineTileKind =>
+                RunDecision.Campfire,
+            _ => null,
+        },
+        _ => null,
+    };
+
+    /// <summary>Builds the screen for one decision and puts it in front of this one.</summary>
+    private bool HandOver(RunDecision decision)
+    {
+        switch (decision)
+        {
+            case RunDecision.PerkDraft when _perkDraft is { } draft:
+                return PerkDraftHandover.Show(this, draft(), _lifetime);
+
+            case RunDecision.Shop when _shop is { } shop:
+                return ShopHandover.Show(this, shop(), _lifetime);
+
+            case RunDecision.Campfire when _campfire is { } campfire:
+                return CampfireHandover.Show(this, campfire(), _lifetime);
+
+            default:
+                GD.PushError(
+                    $"The run reached {decision} and this screen has no way to build it. Only a " +
+                    "screen that already has a run may instantiate the board, and it must pass the " +
+                    "composed screen to Drive.");
+
+                return false;
+        }
+    }
+
     private static string Describe<T>(T? value) where T : struct =>
         value?.ToString() ?? "none";
+
+    /// <summary>The screens a run's own state sends it to from here.</summary>
+    /// <remarks>
+    /// Named rather than tested inline, so the latch that stops a returned screen being re-entered
+    /// has one value to compare — and so a shrine and a campfire, which are two tile kinds on ONE
+    /// screen, count as one destination rather than two the run could be bounced between.
+    /// </remarks>
+    private enum RunDecision
+    {
+        /// <summary>S07, the perk draft a won fight leaves open.</summary>
+        PerkDraft = 1,
+
+        /// <summary>S08, the shop tile.</summary>
+        Shop = 2,
+
+        /// <summary>S11, the campfire and the shrine — one screen with two arms.</summary>
+        Campfire = 3,
+    }
 }

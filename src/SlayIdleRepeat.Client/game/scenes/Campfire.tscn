@@ -1,0 +1,123 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/Campfire.cs" id="1_campfire"]
+
+[node name="Campfire" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_campfire")
+
+[node name="Ground" type="ColorRect" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="SafeArea" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 128
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 128
+
+[node name="Column" type="VBoxContainer" parent="SafeArea"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="TitleLabel" type="Label" parent="SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 72
+autowrap_mode = 3
+
+[node name="MiddleScroll" type="ScrollContainer" parent="SafeArea/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.0
+horizontal_scroll_mode = 0
+
+[node name="MiddleColumn" type="VBoxContainer" parent="SafeArea/Column/MiddleScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="OptionColumn" type="VBoxContainer" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="ShrinePanel" type="VBoxContainer" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="ShrineBuffsLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn/ShrinePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 44
+autowrap_mode = 3
+
+[node name="ShrineRowList" type="VBoxContainer" parent="SafeArea/Column/MiddleScroll/MiddleColumn/ShrinePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="ShrineChoiceBlockLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn/ShrinePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
+
+[node name="ShrineCleanseBlockLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn/ShrinePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
+
+[node name="StatusLabel" type="Label" parent="SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="RejectionLabel" type="Label" parent="SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ActionColumn" type="VBoxContainer" parent="SafeArea/Column"]
+layout_mode = 2
+theme_override_constants/separation = 24
+
+[node name="ContinueButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+theme_override_font_sizes/font_size = 80
+autowrap_mode = 3

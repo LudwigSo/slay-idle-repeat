@@ -4,31 +4,54 @@ using SlayIdleRepeat.Core.Primitives;
 namespace SlayIdleRepeat.Client.Composition;
 
 /// <summary>
-/// The two presenters one Board screen needs: the board itself, and the die panel its HUD opens.
+/// Everything one Board screen needs: its own presenter, the die panel its HUD opens, and a factory
+/// for each screen the run's next stop can be.
 /// </summary>
 /// <remarks>
-/// 🔒 Built together because the panel is part of the board rather than a place the board navigates
-/// to — it is opened over the HUD and closed again without the run moving — and because building it
-/// on the press would put a content read behind a long press. The board renders the first and shows
-/// the second; it composes neither.
+/// <para>
+/// 🔒 The die panel is built alongside because the panel is part of the board rather than a place the
+/// board navigates to — it is opened over the HUD and closed again without the run moving — and
+/// because building it on the press would put a content read behind a long press. The board renders
+/// the first and shows the second; it composes neither.
+/// </para>
+/// <para>
+/// 🔒 The four destinations are FACTORIES rather than built presenters, for the reason
+/// <see cref="Battle"/> states at length about its own: each is about one fight, one draft or one
+/// tile, and building one at composition time would hand every fight, every draft and every shop of
+/// a run the first one's presenter, its projection and its read.
+/// </para>
 /// </remarks>
 public sealed class ComposedBoardScreen
 {
-    /// <summary>Pairs the Board presenter with the Die Panel presenter it shows.</summary>
+    /// <summary>Pairs the Board presenter with the panel it shows and the screens it hands over to.</summary>
     /// <param name="board">Drives the Board screen.</param>
     /// <param name="diePanel">Drives the Die Panel the board's HUD opens.</param>
     /// <param name="battle">Builds the replay for the fight the run is standing in.</param>
+    /// <param name="perkDraft">Builds the draft screen for the draft the run has open.</param>
+    /// <param name="shop">Builds the shop screen for the shop tile the run is standing on.</param>
+    /// <param name="campfire">Builds the campfire / shrine screen for the tile the run is standing on.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public ComposedBoardScreen(
-        BoardPresenter board, DiePanelPresenter diePanel, Func<ComposedBattleScreen> battle)
+        BoardPresenter board,
+        DiePanelPresenter diePanel,
+        Func<ComposedBattleScreen> battle,
+        Func<ComposedPerkDraftScreen> perkDraft,
+        Func<ComposedShopScreen> shop,
+        Func<ComposedCampfireScreen> campfire)
     {
         ArgumentNullException.ThrowIfNull(board);
         ArgumentNullException.ThrowIfNull(diePanel);
         ArgumentNullException.ThrowIfNull(battle);
+        ArgumentNullException.ThrowIfNull(perkDraft);
+        ArgumentNullException.ThrowIfNull(shop);
+        ArgumentNullException.ThrowIfNull(campfire);
 
         Board = board;
         DiePanel = diePanel;
         Battle = battle;
+        PerkDraft = perkDraft;
+        Shop = shop;
+        Campfire = campfire;
     }
 
     /// <summary>Drives the Board screen.</summary>
@@ -50,6 +73,24 @@ public sealed class ComposedBoardScreen
     /// entirely — it calls, it does not assemble.
     /// </remarks>
     public Func<ComposedBattleScreen> Battle { get; }
+
+    /// <summary>Builds the draft screen for the draft a won fight has left open.</summary>
+    /// <remarks>
+    /// A run drafts once per won battle and the offer is regenerated from the run's own committed
+    /// stream position, so each draft is a different three cards read at a different moment.
+    /// </remarks>
+    public Func<ComposedPerkDraftScreen> PerkDraft { get; }
+
+    /// <summary>Builds the shop screen for the shop tile the run has landed on.</summary>
+    public Func<ComposedShopScreen> Shop { get; }
+
+    /// <summary>Builds the campfire / shrine screen for the tile the run has landed on.</summary>
+    /// <remarks>
+    /// One factory for two tile kinds, because it is one screen with two arms: which arm opens is
+    /// answered inside the presenter, from the run's own pending tile, and neither the board nor
+    /// this decides it.
+    /// </remarks>
+    public Func<ComposedCampfireScreen> Campfire { get; }
 }
 
 /// <summary>
@@ -104,6 +145,9 @@ public static class BoardComposition
             // settings screen that would remember either is not built — see BattleComposition. The
             // ring's own accessibility flag above is deliberately not reused for them: a player who
             // turned off one soft timer has not said anything about how fast a fight should play.
-            () => BattleComposition.CreateBattleScreen(composed, player, run));
+            () => BattleComposition.CreateBattleScreen(composed, player, run),
+            () => PerkDraftComposition.CreatePerkDraftScreen(composed, player, run),
+            () => ShopComposition.CreateShopScreen(composed, player, run),
+            () => CampfireComposition.CreateCampfireScreen(composed, player, run));
     }
 }

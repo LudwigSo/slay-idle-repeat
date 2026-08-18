@@ -1,0 +1,204 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://game/scenes/PerkDraft.cs" id="1_perk_draft"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_ad_slot"]
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 4
+border_width_top = 4
+border_width_right = 4
+border_width_bottom = 4
+border_color = Color(0.28, 0.29, 0.34, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[node name="PerkDraft" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_perk_draft")
+
+[node name="Ground" type="ColorRect" parent="."]
+unique_name_in_owner = true
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.07, 0.07, 0.09, 1)
+
+[node name="SafeArea" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+mouse_filter = 2
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 128
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 128
+
+[node name="Column" type="VBoxContainer" parent="SafeArea"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="TitleLabel" type="Label" parent="SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 72
+autowrap_mode = 3
+
+[node name="CardScroll" type="ScrollContainer" parent="SafeArea/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.0
+horizontal_scroll_mode = 0
+
+[node name="ScrollColumn" type="VBoxContainer" parent="SafeArea/Column/CardScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="CardColumn" type="VBoxContainer" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="AdFourthOptionCard" type="PanelContainer" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_ad_slot")
+
+[node name="AdFourthOptionBody" type="MarginContainer" parent="SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="AdFourthOptionColumn" type="VBoxContainer" parent="SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="AdFourthOptionNameLabel" type="Label" parent="SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody/AdFourthOptionColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 48
+autowrap_mode = 3
+
+[node name="AdFourthOptionBlockLabel" type="Label" parent="SafeArea/Column/CardScroll/ScrollColumn/AdFourthOptionCard/AdFourthOptionBody/AdFourthOptionColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
+
+[node name="AdRerollButton" type="Button" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+theme_override_font_sizes/font_size = 40
+autowrap_mode = 3
+
+[node name="AdRerollBlockLabel" type="Label" parent="SafeArea/Column/CardScroll/ScrollColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
+
+[node name="StatusLabel" type="Label" parent="SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="RejectionLabel" type="Label" parent="SafeArea/Column"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.94, 0.62, 0.58, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="ActionColumn" type="VBoxContainer" parent="SafeArea/Column"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="RerollCostRow" type="HBoxContainer" parent="SafeArea/Column/ActionColumn"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="RerollCostLabel" type="Label" parent="SafeArea/Column/ActionColumn/RerollCostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 40
+autowrap_mode = 3
+
+[node name="RerollCostValue" type="Label" parent="SafeArea/Column/ActionColumn/RerollCostRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 40
+horizontal_alignment = 2
+text_overrun_behavior = 3
+
+[node name="RerollButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 168)
+layout_mode = 2
+theme_override_font_sizes/font_size = 52
+autowrap_mode = 3
+
+[node name="FreeRerollBlockLabel" type="Label" parent="SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
+theme_override_font_sizes/font_size = 32
+autowrap_mode = 3
+
+[node name="SkipRewardRow" type="HBoxContainer" parent="SafeArea/Column/ActionColumn"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="SkipRewardLabel" type="Label" parent="SafeArea/Column/ActionColumn/SkipRewardRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 40
+autowrap_mode = 3
+
+[node name="SkipRewardValue" type="Label" parent="SafeArea/Column/ActionColumn/SkipRewardRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 40
+horizontal_alignment = 2
+text_overrun_behavior = 3
+
+[node name="SkipButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 144)
+layout_mode = 2
+theme_override_font_sizes/font_size = 44
+autowrap_mode = 3
