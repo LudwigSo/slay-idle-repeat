@@ -158,10 +158,7 @@ public sealed class HeroBuild
     /// <exception cref="ArgumentNullException"><paramref name="player"/> or <paramref name="content"/> is null.</exception>
     /// <exception cref="ArgumentException">A row does not rehydrate.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The Legend Level is outside the authored curve.</exception>
-    public static HeroBuild Of(
-        Model.Snapshots.PlayerSnapshot player,
-        Model.Snapshots.RunSnapshot? run,
-        ContentSnapshot content)
+    public static HeroBuild Of(PlayerSnapshot player, RunSnapshot? run, ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(content);

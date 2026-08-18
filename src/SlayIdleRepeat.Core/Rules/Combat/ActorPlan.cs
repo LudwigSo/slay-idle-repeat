@@ -88,4 +88,23 @@ internal sealed record ActorPlan
 
     /// <summary>The <see cref="Id"/> of this actor's summoner — <c>OWNER</c>'s subject.</summary>
     public string? OwnerId { get; init; }
+
+    /// <summary>
+    /// The health this actor enters the fight on, or <see langword="null"/> for its full aggregated
+    /// Max HP.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Full is the aggregated maximum, not <see cref="BaseStats"/>'s.</b> Those were the same
+    /// number for as long as nothing standing modified Max HP, so an actor opening on its base block
+    /// was invisible — and the moment a loadout's Max HP reached the aggregation, a fully-equipped
+    /// hero began every fight on the fraction of a bar its base curve alone describes, and lost
+    /// timeouts decided on HP fraction that its build wins.
+    /// <para>
+    /// ⚠️ A run's own persisted current HP does <em>not</em> arrive here yet: a fight's remaining
+    /// health is not written back to the run, so opening at it would mean a hero who was wounded once
+    /// stayed wounded for the rest of the run with no way to be hurt further. Both halves belong to
+    /// whichever handler closes the loop.
+    /// </para>
+    /// </remarks>
+    public double? StartingHp { get; init; }
 }

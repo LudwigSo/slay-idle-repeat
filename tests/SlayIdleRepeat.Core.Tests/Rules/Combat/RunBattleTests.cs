@@ -393,28 +393,33 @@ public sealed class RunBattleTests
 
     // ══════════════════════════════════════════════════════════════ the tile's own scaling
 
-    /// <summary>A tile further along the track is a harder fight than the same tile near the start.</summary>
+    /// <summary>The tile's linear index reaches the enemy the seam composes.</summary>
     /// <remarks>
-    /// The linear index is what the enemy-power curve scales on, so a composition that dropped it —
-    /// or read the node id instead — would fight every tile of a chapter at identical strength. HP
-    /// remaining rather than the hash, because the direction is the claim.
+    /// 🔴 Stated as identity, not as "the later tile hurts more". The geared fixture hero wins both
+    /// fights outright and ends each at full health, so an outcome comparison is satisfied by a
+    /// composition that ignores the index entirely — which is the exact defect this case is about.
+    /// Each arm is instead compared against an encounter composed at the power the curve authorises
+    /// for that node, with the two powers proven different first.
     /// </remarks>
     [Fact]
-    public void A_later_tile_is_a_harder_fight_than_an_earlier_one()
+    public void The_tiles_linear_index_reaches_the_enemy_the_seam_composes()
     {
-        var early = RunBattle.Simulate(
-            RunBattleWorlds.PlayerRow(),
-            RunBattleWorlds.RunRow(linearIndex: 0),
-            RunBattleWorlds.Content);
+        var early = RunBattleWorlds.RunRow(linearIndex: 0);
+        var late = RunBattleWorlds.RunRow(linearIndex: 40);
+        var build = HeroBuild.Of(
+            RunBattleWorlds.Player(), RunBattleWorlds.Run(early), RunBattleWorlds.Content);
 
-        var late = RunBattle.Simulate(
-            RunBattleWorlds.PlayerRow(),
-            RunBattleWorlds.RunRow(linearIndex: 40),
-            RunBattleWorlds.Content);
+        RunBattleTestArithmetic.EnemyPower(late, RunBattleWorlds.Content).ShouldBeGreaterThan(
+            RunBattleTestArithmetic.EnemyPower(early, RunBattleWorlds.Content),
+            "the control: EnemyPower(i) grows with the index, or the two arms below are one arm");
 
-        late.HeroHpRemaining.ShouldBeLessThan(
-            early.HeroHpRemaining,
-            "EnemyPower(i) grows with the linear index, so node 40 has to hit harder than node 0");
+        RunBattle.Simulate(RunBattleWorlds.PlayerRow(), early, RunBattleWorlds.Content)
+            .LogHash.ShouldBe(Encounter(build, early, eliteIndex: -1).LogHash);
+
+        RunBattle.Simulate(RunBattleWorlds.PlayerRow(), late, RunBattleWorlds.Content)
+            .LogHash.ShouldBe(
+                Encounter(build, late, eliteIndex: -1).LogHash,
+                "a seam that dropped the index would fight node 40 at node 0's power");
     }
 
     /// <summary>A Heroic run is a harder fight than a Normal one on the same tile.</summary>

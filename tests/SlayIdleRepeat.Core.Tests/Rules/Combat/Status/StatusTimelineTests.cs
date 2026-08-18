@@ -371,7 +371,9 @@ public sealed class StatusTimelineTests
             {
                 BattleTestBench.Hero(BattleTestBench.Stats(maxHp: heroMaxHp, atk: 0.0)),
                 BattleTestBench.Enemy(
-                    0, BattleTestBench.Stats(maxHp: targetMaxHp, atk: 0.0, aspd: targetAspd, def: targetDef)),
+                    0,
+                    BattleTestBench.Stats(maxHp: targetMaxHp, atk: 0.0, aspd: targetAspd, def: targetDef))
+                    with { StartingHp = targetHp },
             },
             services =>
             {
@@ -391,11 +393,6 @@ public sealed class StatusTimelineTests
             rules: new CombatRules(ticks, OnKillTriggersFire: true));
 
         simulation = new BattleSimulation(plan);
-
-        if (targetHp is { } hp)
-        {
-            simulation.Actors.Single(a => a.Id == "ENEMY_0").SetCurrentHp(hp);
-        }
 
         var result = simulation.Run();
 

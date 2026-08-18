@@ -47,17 +47,16 @@ public static class RunBattle
     /// <param name="run">The run's row.</param>
     /// <returns>The battle seed.</returns>
     /// <exception cref="ArgumentNullException"><paramref name="run"/> is null.</exception>
+    /// <exception cref="ArgumentException">The row does not rehydrate.</exception>
     /// <exception cref="InvalidOperationException">The run's combat stream names no battle.</exception>
     public static ulong SeedOf(RunSnapshot run)
     {
         ArgumentNullException.ThrowIfNull(run);
 
-        return SeedFrom(
-            run.RunSeed,
-            run.RngStreamPositions is not null &&
-            run.RngStreamPositions.TryGetValue(RngStreams.Combat, out var started)
-                ? started
-                : 0UL);
+        // Through the same door the fight comes through, rather than off the row's counter map: a
+        // seed derived from a row the fight door refuses is a real seed for a fight nothing can
+        // compose, and reading the map here would also diagnose a corrupt one as an undrawn stream.
+        return SeedOf(RowDoor.Run(run, nameof(run)));
     }
 
     /// <summary>The seed of the battle this run is standing in.</summary>
@@ -80,6 +79,7 @@ public static class RunBattle
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="ArgumentException">A row does not rehydrate.</exception>
     /// <exception cref="InvalidOperationException">The run is not standing in a battle it can fight.</exception>
+    /// <exception cref="KeyNotFoundException">The chapter or its boss has no authored row.</exception>
     /// <exception cref="MissingContentException">A document or pointer the fight needs is absent.</exception>
     public static SimulationResult Simulate(
         PlayerSnapshot player, RunSnapshot run, ContentSnapshot content)
@@ -101,6 +101,7 @@ public static class RunBattle
     /// <returns>The replay, with the <c>LogHash</c> the confirming command carries.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
     /// <exception cref="InvalidOperationException">The run is not standing in a battle it can fight.</exception>
+    /// <exception cref="KeyNotFoundException">The chapter or its boss has no authored row.</exception>
     /// <exception cref="MissingContentException">A document or pointer the fight needs is absent.</exception>
     internal static SimulationResult Simulate(
         PlayerAggregate player, RunAggregate run, ContentSnapshot content)
@@ -136,7 +137,7 @@ public static class RunBattle
                 holdings);
         }
 
-        // One power, because 05 §6.4's normal battle is one draw from the chapter's pool. The Elite
+        // One power, because a normal battle is one draw from the chapter's pool. The Elite
         // multiplier is the encounter's to apply, so what is handed over is the pre-multiplier figure.
         return EncounterFight.Run(
             seed,
@@ -180,8 +181,7 @@ public static class RunBattle
     private const int NoElite = -1;
 
     /// <summary>
-    /// The kind of fight this run has open, refusing anything that is not one — by phase, by tile,
-    /// then by kind, each with its own sentence.
+    /// The kind of fight this run has open, refusing anything that is not one.
     /// </summary>
     private static TileKind OpenFightKind(RunAggregate run)
     {
@@ -231,7 +231,18 @@ public static class RunBattle
                 "Opening a battle is what advances that counter.");
         }
 
-        return SeedDerivation.BattleSeed(runSeed, (int)(battlesStarted - 1UL));
+        var battleIndex = battlesStarted - 1UL;
+
+        if (battleIndex > int.MaxValue)
+        {
+            throw new InvalidOperationException(
+                "This run's '" + RngStreams.Combat + "' stream stands at " +
+                battlesStarted.ToString(CultureInfo.InvariantCulture) + ", whose battle index is " +
+                "past the int the derivation takes. Narrowing it would wrap onto some other index " +
+                "and hand back a perfectly real seed for a fight this run never had.");
+        }
+
+        return SeedDerivation.BattleSeed(runSeed, (int)battleIndex);
     }
 
     /// <summary>The tier's ordinal in the enemy level table's authored order.</summary>

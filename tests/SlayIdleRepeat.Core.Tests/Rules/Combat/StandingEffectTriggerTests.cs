@@ -61,4 +61,47 @@ public sealed class StandingEffectTriggerTests
             "an authored ALWAYS is the DSL's own default spelled out, so it has to aggregate " +
             "identically — reading only the absent form leaves every gear effect inert in combat");
     }
+
+    /// <summary>An actor opens the fight on its AGGREGATED Max HP, not on its base block's.</summary>
+    /// <remarks>
+    /// 🔴 <b>The consequence of the rule above, and it does not show up until that rule is true.</b>
+    /// An actor is constructed on its base block and the aggregation runs afterwards, so while
+    /// nothing standing could modify Max HP the two numbers were always equal and opening on the base
+    /// one was invisible. The moment a loadout's Max HP reaches the aggregation, a hero in full gear
+    /// begins every fight on the fraction of a bar their naked curve describes — and the 1800-tick
+    /// timeout is decided on HP fraction, so they lose fights their own build wins.
+    /// <para>
+    /// The defender deals no damage, so the health left at the end IS the health the hero opened on.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void An_actor_opens_the_fight_on_its_aggregated_max_hp_and_not_on_its_base_block()
+    {
+        var maxHpBonus = new EffectDefinition
+        {
+            Id = "TEST_STANDING_MAX_HP",
+            Op = EffectOp.STAT_ADD_FLAT,
+            Stat = StatSelector.Of(StatId.MAX_HP),
+            Trigger = EffectDefaults.Always,
+            Value = BaseMaxHp,
+        };
+
+        Unhurt().ShouldBe(BaseMaxHp, "the floor: with no effect the hero opens on its base block");
+
+        Unhurt(maxHpBonus).ShouldBe(
+            BaseMaxHp * 2.0,
+            "an actor that opens on its base Max HP while its aggregated Max HP is twice that starts " +
+            "every fight half dead, and nothing about the fight says so");
+    }
+
+    /// <summary>The hero's health at the end of a fight it was never hit in.</summary>
+    private static double Unhurt(params EffectDefinition[] effects) =>
+        PublicFightBench.Duel(
+            PublicFightBench.Stats(BaseMaxHp, (StatId.ATK, BaseAtk)),
+            PublicFightBench.Stats(500_000.0),
+            attackerEffects: effects)
+        .HeroHpRemaining;
+
+    /// <summary>The base Max HP both arms start from.</summary>
+    private const double BaseMaxHp = 500.0;
 }
