@@ -88,4 +88,31 @@ internal sealed record ActorPlan
 
     /// <summary>The <see cref="Id"/> of this actor's summoner — <c>OWNER</c>'s subject.</summary>
     public string? OwnerId { get; init; }
+
+    /// <summary>
+    /// The health this actor enters the fight on, or <see langword="null"/> for its full aggregated
+    /// Max HP.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Full is the aggregated maximum, not <see cref="BaseStats"/>'s.</b> Those were the same
+    /// number for as long as nothing standing modified Max HP, so an actor opening on its base block
+    /// was invisible — and the moment a loadout's Max HP reached the aggregation, a fully-equipped
+    /// hero began every fight on the fraction of a bar its base curve alone describes, and lost
+    /// timeouts decided on HP fraction that its build wins.
+    /// <para>
+    /// 🔒 <b>A run's own persisted current HP DOES arrive here now, and the precondition this paragraph
+    /// used to state is what made it possible.</b> It read: <em>"a fight's remaining health is not
+    /// written back to the run, so opening at it would mean a hero who was wounded once stayed wounded
+    /// for the rest of the run with no way to be hurt further. Both halves belong to whichever handler
+    /// closes the loop."</em> M7-06d wrote the first half — <c>ConfirmBattleResult</c> stores the
+    /// simulation's ending HP — and M7-06e wires this one, so the loop is closed and a run is an
+    /// attrition rather than a series of independent encounters.
+    /// </para>
+    /// <para>
+    /// ⚠️ Which means the hero is the one actor whose starting HP is routinely NOT full. Enemies still
+    /// pass <see langword="null"/>: they are composed fresh per fight and have no persisted health to
+    /// carry, so full is not a default for them so much as the only answer.
+    /// </para>
+    /// </remarks>
+    public double? StartingHp { get; init; }
 }

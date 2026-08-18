@@ -18,8 +18,38 @@ public sealed class IsolationTests
     /// <c>if (isSubscriber)</c> anywhere in the game — the Plus promise is an adapter swap.
     /// </summary>
     private static readonly Regex EntitlementFlag = new(
-        @"\b(isSubscriber|hasPlus|isPlus|hasAds|hasSubscription)\b",
+        @"(?<![A-Za-z0-9])_*(isSubscriber|hasPlus|isPlus|hasAds|hasSubscription)\b",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    /// <summary>
+    /// 🔴 <b>M7-08 — the leading <c>\b</c> these two patterns opened with made the rule blind to
+    /// <c>_hasPlus</c>, and every private field in this repository is named <c>_camelCase</c>.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// So the single likeliest real shape of the violation was the one shape that could not be seen: an
+    /// underscore is a word character, so there is no boundary between the <c>_</c> and the <c>h</c>, and
+    /// <c>if (_hasPlus)</c> inside a presenter passed this rule while <c>if (hasPlus)</c> failed it. Found
+    /// by PROBING and not by reading — the probe was put into a new presenter, went green, and only then
+    /// was the pattern read closely enough to see why.
+    /// </para>
+    /// <para>
+    /// The lookbehind is what replaces the boundary: a preceding letter or digit still rejects the match,
+    /// so <c>thisPlus</c> is not read as <c>isPlus</c>, while any number of leading underscores is now
+    /// accepted.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>One residual gap, stated rather than left to be discovered: a flag buried mid-identifier is
+    /// still invisible.</b> <c>playerHasPlus</c> matches neither this pattern nor its predecessor, because
+    /// a case-insensitive regex cannot ask for a camelCase hump — a lookbehind class would match both
+    /// cases and reject every real occurrence along with it. That joins the limitation this rule already
+    /// names (a predicate renamed into something neutral) as a review obligation, and the IL arm below is
+    /// what covers the shapes no grep can reach.
+    /// </para>
+    /// </remarks>
+    private const string TheUnderscoreThatHidThisRuleFromItsOwnSubject =
+        "A private field named _hasPlus was invisible to a rule whose whole purpose is to find a branch " +
+        "on hasPlus. Probed, fixed and re-probed in M7-08.";
 
     /// <summary>
     /// A decision keyword and the parenthesised condition that follows it, matched with the
@@ -48,7 +78,7 @@ public sealed class IsolationTests
     /// A ternary on the same predicate is the same branch wearing a hat.
     /// </summary>
     private static readonly Regex EntitlementTernary = new(
-        @"\b(isSubscriber|hasPlus|isPlus|hasAds|hasSubscription)\s*\?",
+        @"(?<![A-Za-z0-9])_*(isSubscriber|hasPlus|isPlus|hasAds|hasSubscription)\s*\?",
         RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
     /// <summary>Conditional-branch opcodes — what "the code decided something" looks like in IL.</summary>

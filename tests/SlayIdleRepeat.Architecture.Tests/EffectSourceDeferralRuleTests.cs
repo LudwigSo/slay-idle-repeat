@@ -88,11 +88,19 @@ public sealed class EffectSourceDeferralRuleTests
     /// ten deferrals go untracked.
     /// </summary>
     /// <remarks>
-    /// The floor is <b>ten</b> rather than a lower number, and deliberately: `18` §8 step 1 names
-    /// exactly ten sources, <c>EffectSourceCatalogueTests</c> pins that against the document itself,
-    /// and every one of them is pending as this rule lands. A source that is genuinely wired clears
-    /// its own <c>PendingSubject</c>, which lowers this count on purpose — at which point lowering
-    /// the floor in the same commit is the deliberate act steering S4 asks for.
+    /// The floor was <b>ten</b> when this rule landed, and deliberately: `18` §8 step 1 names exactly
+    /// ten sources, <c>EffectSourceCatalogueTests</c> pins that against the document itself, and every
+    /// one of them was pending then. A source that is genuinely wired clears its own
+    /// <c>PendingSubject</c>, which lowers this count on purpose — at which point lowering the floor
+    /// in the same commit is the deliberate act steering S4 asks for.
+    /// <para>
+    /// 🔒 <b>It is now seven, and that is the first time this mechanism has been exercised.</b> M4-16
+    /// wired <c>GEAR</c>, <c>AFFIXES</c> and <c>SET_BONUSES</c> — the hero build collects from all
+    /// three off the equipped loadout — so those rows carry a null <c>PendingSubject</c> and their
+    /// three <c>SubjectSetFloorTests.Pending</c> entries were deleted in the same change. Anything
+    /// that reintroduced a pending subject for one of them without a register entry is still an
+    /// offender above; what this number now says is that <b>seven</b> sources remain deferred.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_catalogue_still_declares_the_expiry_subjects_this_rule_reads()
@@ -129,8 +137,8 @@ public sealed class EffectSourceDeferralRuleTests
         ArchRule.Empty(suspicious, "The recovered strings are the expiry subjects (23 §6).");
     }
 
-    /// <summary>Ten sources, all pending on the commit this rule landed.</summary>
-    private const int ExpirySubjectFloor = 10;
+    /// <summary>Seven sources still pending: the ten, less the three gear sources M4-16 wired.</summary>
+    private const int ExpirySubjectFloor = 7;
 
     /// <summary>
     /// The register holds a <c>Pending</c> <b>entry keyed on</b> <paramref name="subject"/> — not
@@ -173,10 +181,25 @@ public sealed class EffectSourceDeferralRuleTests
     /// constructor.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Each row is built as <c>new EffectSourceRow(kind, phrase, milestone, pendingSubject)</c>, so the
-    /// four operands are pushed in order and the expiry subject is the <b>last</b> <c>ldstr</c> before
-    /// each <c>newobj</c>. Reading it positionally rather than by name is what an IL scan can do; the
-    /// floor above is what stops that positional read going quietly wrong.
+    /// four operands are pushed in order and the expiry subject is whatever was pushed <b>immediately
+    /// before</b> the <c>newobj</c> — an <c>ldstr</c> for a pending source, an <c>ldnull</c> for a
+    /// wired one. Reading it positionally rather than by name is what an IL scan can do; the floor
+    /// above is what stops that positional read going quietly wrong.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>It <em>did</em> go quietly wrong, and the floor caught it — the first time a row ever
+    /// cleared its subject.</b> The original recovery kept "the last <c>ldstr</c> seen since the
+    /// previous <c>newobj</c>", which is the expiry subject only while every row has one. The three
+    /// rows M4-16 wired push <c>ldnull, ldnull</c> after their phrase, so that reading recovered
+    /// <c>"gear"</c>, <c>"affixes"</c> and <c>"set bonuses"</c> — the design document's own words —
+    /// and would have demanded register entries keyed on them. The rule above would then have been
+    /// comparing the register against three phrases while three real deferrals went untracked. What
+    /// reported it was the <i>second</i> arm of the floor test, the one that refuses a recovered
+    /// string containing a space; the count arm was satisfied, because there were still ten strings.
+    /// Two probes, and only the second discriminated.
+    /// </para>
     /// </remarks>
     private static IReadOnlyList<string> DeclaredExpirySubjects()
     {
@@ -192,24 +215,21 @@ public sealed class EffectSourceDeferralRuleTests
 
         foreach (var method in Il.AllMethods(catalogue).Where(m => m.HasBody))
         {
-            string? pending = null;
+            Instruction? previous = null;
 
             foreach (var instruction in Il.Instructions(method))
             {
-                if (instruction.OpCode.Code == Code.Ldstr)
-                {
-                    pending = instruction.Operand as string;
-                    continue;
-                }
-
                 if (instruction.OpCode.Code == Code.Newobj &&
                     instruction.Operand is MethodReference constructor &&
                     constructor.DeclaringType.Name.Equals("EffectSourceRow", StringComparison.Ordinal) &&
-                    !string.IsNullOrWhiteSpace(pending))
+                    previous?.OpCode.Code == Code.Ldstr &&
+                    previous.Operand is string subject &&
+                    !string.IsNullOrWhiteSpace(subject))
                 {
-                    subjects.Add(pending);
-                    pending = null;
+                    subjects.Add(subject);
                 }
+
+                previous = instruction;
             }
         }
 

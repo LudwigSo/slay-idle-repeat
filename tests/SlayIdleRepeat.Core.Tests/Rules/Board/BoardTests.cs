@@ -221,6 +221,14 @@ public sealed class BoardTests
 
                 board.Node(board.BossNodeId).Tile.ShouldBe(TileKind.Boss, $"chapter {config.ChapterId} seed {seed}");
 
+                // The content half of the same guarantee, and the one that could actually be broken
+                // by a draw: the boss tile is placed once, structurally, so no weighted fill, redraw
+                // fallback, constraint injection or fork bias may ever put a second one on the board.
+                // Re-derived by walking every reachable node, not read off the boss slot.
+                BossTiled(board).ShouldBe(
+                    new[] { board.BossNodeId },
+                    $"chapter {config.ChapterId} seed {seed}: the terminus is the board's only boss tile.");
+
                 swept++;
             }
         }
@@ -297,4 +305,7 @@ public sealed class BoardTests
 
     private static NodeId[] DeadEnds(CoreBoard board) =>
         Reachable(board).Where(id => board.OutgoingEdges(id).Count == 0).OrderBy(id => id.Value).ToArray();
+
+    private static NodeId[] BossTiled(CoreBoard board) =>
+        Reachable(board).Where(id => board.Node(id).Tile == TileKind.Boss).OrderBy(id => id.Value).ToArray();
 }

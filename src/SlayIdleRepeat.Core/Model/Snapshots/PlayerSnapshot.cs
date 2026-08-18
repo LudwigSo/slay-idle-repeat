@@ -9,6 +9,15 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="LegendLevel">The player's Legend Level.</param>
 /// <param name="LegendXp">Lifetime Legend XP. Never negative.</param>
 /// <param name="RunsStarted">The lifetime runs-started counter, incremented by every <c>START_RUN</c> and fed into <c>runSeed</c> derivation. Never negative, never reset.</param>
+/// <param name="BattleHashMismatches">
+/// 🔒 <c>14</c> §9's anti-cheat tally: how many times this account has confirmed a battle whose
+/// reported result disagreed with the server's own recomputation. Never negative, never reset, and
+/// <b>never player-facing</b> — §9's clause is <em>"server result wins, counter incremented, no
+/// player-facing error"</em>, so nothing may surface it to the client and no rejection may be raised
+/// from it. Persisted rather than emitted as telemetry because §9's sanctions ladder acts only on
+/// <em>"repeated, confirmed manipulation"</em>, which a per-account history is the only thing that can
+/// establish; flags go to a review queue, never to an automatic action.
+/// </param>
 /// <param name="Wallet">The six player-scoped wallet currencies; every one present, none negative. <c>GOLD</c> is run-scoped (<see cref="RunSnapshot"/>); <c>ENERGY</c> is carried separately by <see cref="Energy"/>.</param>
 /// <param name="Energy">The two Energy banks. This is where the <c>ENERGY</c> currency lives.</param>
 /// <param name="EnergyAnchorUtc">The instant regeneration has been accrued up to, not the last time anything happened — accrual advances this by whole units so the sub-unit remainder survives.</param>
@@ -99,4 +108,5 @@ public sealed record PlayerSnapshot(
     IReadOnlyList<AutoSalvageRule>? AutoSalvageRules = null,
     long TalentPoints = 0L,
     LoadoutSnapshot? Loadout = null,
-    IReadOnlyList<LoadoutPresetSnapshot>? Presets = null);
+    IReadOnlyList<LoadoutPresetSnapshot>? Presets = null,
+    int BattleHashMismatches = 0);

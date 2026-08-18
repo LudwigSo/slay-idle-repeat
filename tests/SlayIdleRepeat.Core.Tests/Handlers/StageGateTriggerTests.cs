@@ -375,7 +375,17 @@ public sealed class StageGateTriggerTests
     private static GameContext TinyContext()
     {
         var baseContent = TileWorlds.Context.Content;
+
+        // 🔒 Every OTHER chapter document is dropped, and the tiny one is the only one left that
+        // answers to this chapter id. ChapterBoardTuning.FindChapterDocument scans content/chapters/
+        // for the document whose `id` matches, so two documents claiming chapter 2 make the board an
+        // ordering accident — and the board decides every node number this suite asserts. It became
+        // reachable when TileWorlds.Context grew the whole shipped set (a fight needs it), which
+        // brought the real chapter 2 in beside this tiny one; before that the fixture set carried
+        // chapter 1 alone and appending was safe. Filtering rather than appending is what makes the
+        // tiny chapter authoritative regardless of what else the base set happens to hold.
         var documents = baseContent.DocumentPaths
+            .Where(path => !path.StartsWith(ChapterDirectory, StringComparison.Ordinal))
             .Select(baseContent.GetDocument)
             .Append(ChapterDocuments.TinyChapterDocument(ChapterId));
 
@@ -384,6 +394,10 @@ public sealed class StageGateTriggerTests
             Content = new ContentSnapshot(baseContent.Version, documents),
         };
     }
+
+    /// <summary>Where chapter documents live, which is the directory the chapter scan reads.</summary>
+    private const string ChapterDirectory = "content/chapters/";
+
 
     private static BoardGraph BoardFor(ulong seed) => BoardGenerator.GenerateBoard(
         ChapterBoardTuning.Read(Context.Content, ChapterId),

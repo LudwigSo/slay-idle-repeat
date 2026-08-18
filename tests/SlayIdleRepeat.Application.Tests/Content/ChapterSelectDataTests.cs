@@ -128,8 +128,8 @@ public sealed class ChapterSelectDataTests
             rungs,
             "the ladder is the vocabulary and the picker is the view of it. A fourth tier authored " +
             "in tuning with no caption here is a row the player is offered blank; a caption here " +
-            "with no rung is a difficulty the ladder cannot gate, and this screen is the only gate " +
-            "there is.");
+            "with no rung is a difficulty the ladder cannot gate, and the ladder is what StartRun " +
+            "answers every request against.");
     }
 
     private static IReadOnlyList<string> AuthoredMembers(

@@ -1,6 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content;
@@ -484,12 +485,136 @@ public sealed class DropsTuningTests
         var affixes = ContentValue.Array(
         [
             GearDocuments.AffixRow(new AuthoredAffix(
-                "AFX_BROKEN", (decimal)minimum, (decimal)maximum, ["WEAPON"], null)),
+                "AFX_BROKEN", "ATK", "STAT_ADD_FLAT", (decimal)minimum, (decimal)maximum, ["WEAPON"], null)),
         ]);
 
         Should.Throw<InvalidTunableException>(
                 () => DropsTuning.Read(GearDocuments.With(affixes: affixes)))
             .Message.ShouldContain("not a range a roll can land inside", Case.Sensitive);
+    }
+
+    // ------------------------------------------------- what an affix writes, and how
+
+    /// <summary>
+    /// 🔒 The shipped document writes the stat and the bucket this suite's fixture transcribes,
+    /// affix by affix.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The version of this that only walked the fixture could not fail.</b> The hermetic
+    /// snapshot is <em>built from</em> the same transcription the loop then read back, so it asserted
+    /// a list against itself and never opened the real document at all — and the properties it
+    /// checked (both-or-neither, and that the convenience predicate agreed with its own two fields)
+    /// are both restatements of guards the reader already enforces on the way in. Returning a
+    /// constant stat for every affix would have left it green.
+    /// </para>
+    /// <para>
+    /// So the assertion is now the mapping itself, read out of the file the game ships, one row at a
+    /// time. This is the only place the fourteen authored pairings are pinned.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_shipped_document_writes_the_stat_and_the_bucket_this_suite_transcribes()
+    {
+        var real = DropsTuning.Read(ShippedHarness.Content);
+
+        real.AffixCount.ShouldBe(
+            GearDocuments.ShippedAffixPoolSize, "the pool is the size the design set authors");
+
+        foreach (var affix in GearDocuments.ShippedAffixes)
+        {
+            var row = real.Affix(affix.AffixId);
+
+            row.Stat?.ToString().ShouldBe(affix.Stat, $"{affix.AffixId} writes a different stat");
+            row.Op?.ToString().ShouldBe(affix.Op, $"{affix.AffixId} writes through a different bucket");
+            row.WritesAStat.ShouldBe(affix.Stat is not null);
+        }
+    }
+
+    /// <summary>Exactly one of the fourteen writes nothing, and it is the one nothing can express.</summary>
+    /// <remarks>
+    /// The floor under the case above (steering S3): a transcription that quietly emptied, or one
+    /// that gained a second unmapped affix, would otherwise pass over whatever was left.
+    /// </remarks>
+    [Fact]
+    public void Exactly_one_shipped_affix_writes_no_stat_at_all()
+    {
+        var real = DropsTuning.Read(ShippedHarness.Content);
+
+        var unmapped = GearDocuments.ShippedAffixes
+            .Where(affix => !real.Affix(affix.AffixId).WritesAStat)
+            .Select(affix => affix.AffixId)
+            .ToArray();
+
+        unmapped.ShouldBe(
+            ["AFX_DAMAGE_VS_ELITES"],
+            "conditional damage is the one bonus the fourteen-stat block has no slot for; every " +
+            "other affix names a stat, and a second unmapped one is a bonus that silently stopped " +
+            "contributing");
+    }
+
+    /// <summary>An affix naming a stat with no bucket, or a bucket with no stat, is refused.</summary>
+    /// <remarks>
+    /// Both directions, because refusing only one leaves the other as a row that reads as a real
+    /// contribution and silently applies nothing.
+    /// </remarks>
+    [Theory]
+    [InlineData("CRIT", null)]
+    [InlineData(null, "STAT_ADD_FLAT")]
+    public void An_affix_authoring_half_of_its_contribution_is_refused(string? stat, string? op)
+    {
+        var affixes = ContentValue.Array(
+        [
+            GearDocuments.AffixRow(new AuthoredAffix("AFX_HALF", stat, op, 0.1m, 0.2m, ["WEAPON"], null)),
+        ]);
+
+        Should.Throw<InvalidTunableException>(
+                () => DropsTuning.Read(GearDocuments.With(affixes: affixes)))
+            .Message.ShouldContain("or neither", Case.Sensitive);
+    }
+
+    /// <summary>An affix writing through anything but the two additive buckets is refused.</summary>
+    /// <remarks>
+    /// Two probes of different shapes: a real effect op an affix has no business carrying, and a
+    /// token that is no op at all. A guard that only rejected nonsense would let an affix become a
+    /// multiplier — the one op the design set reserves for Legendary perks.
+    /// </remarks>
+    [Theory]
+    [InlineData("STAT_MULT", "writes through")]
+    [InlineData("NOT_AN_OP", "not the flat or the percent additive bucket")]
+    public void An_affix_writing_through_anything_but_an_additive_bucket_is_refused(
+        string op, string expected)
+    {
+        var affixes = ContentValue.Array(
+        [
+            GearDocuments.AffixRow(new AuthoredAffix("AFX_ODD", "ATK", op, 0.1m, 0.2m, ["WEAPON"], null)),
+        ]);
+
+        Should.Throw<InvalidTunableException>(
+                () => DropsTuning.Read(GearDocuments.With(affixes: affixes)))
+            .Message.ShouldContain(expected, Case.Sensitive);
+    }
+
+    /// <summary>An affix naming a stat the vocabulary does not have is refused.</summary>
+    /// <remarks>
+    /// The comma hole in particular: a token list is combined bitwise even for a non-flags enum, so
+    /// an authored <c>"CRIT, DEF"</c> would otherwise load as a third member nobody wrote.
+    /// </remarks>
+    [Theory]
+    [InlineData("NOT_A_STAT")]
+    [InlineData("CRIT, DEF")]
+    [InlineData("5")]
+    public void An_affix_naming_something_that_is_not_a_stat_is_refused(string stat)
+    {
+        var affixes = ContentValue.Array(
+        [
+            GearDocuments.AffixRow(
+                new AuthoredAffix("AFX_ODD", stat, "STAT_ADD_FLAT", 0.1m, 0.2m, ["WEAPON"], null)),
+        ]);
+
+        Should.Throw<InvalidTunableException>(
+                () => DropsTuning.Read(GearDocuments.With(affixes: affixes)))
+            .Message.ShouldContain("is not one of the stats", Case.Sensitive);
     }
 
     // ---------------------------------------------------------------- the set breakpoints

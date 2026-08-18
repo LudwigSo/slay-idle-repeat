@@ -227,9 +227,9 @@ public sealed class InventorySortingTests
         foreach (var key in Enum.GetValues<InventorySortKey>())
         {
             var once = InventorySorting.Sort(
-                Mixed(), key, Inventories.Par, Inventories.Drops, Inventories.Catalogue);
+                Mixed(), key, Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue);
             var twice = InventorySorting.Sort(
-                once, key, Inventories.Par, Inventories.Drops, Inventories.Catalogue);
+                once, key, Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue);
 
             twice.Select(item => item.InstanceId).ShouldBe(
                 once.Select(item => item.InstanceId),
@@ -266,12 +266,67 @@ public sealed class InventorySortingTests
             "quality independently means one of them is not reading its own field.");
     }
 
+    /// <summary>
+    /// 🔒 Strongest-first ranks an enhanced item above an unenhanced one of the same band.
+    /// </summary>
+    /// <remarks>
+    /// The defect this closes was silent and expensive: the key read the band and the chapter and
+    /// never the enhancement level, so a maxed item — several hundred stones of investment — sorted
+    /// underneath the fresh roll that replaced nothing. The fresh item is given the BETTER quality
+    /// here, so a comparer that had merely fallen through to the quality tie-break would put it
+    /// first and this case would go red.
+    /// </remarks>
+    [Fact]
+    public void Strongest_first_ranks_an_enhanced_item_above_a_fresh_one_of_the_same_band()
+    {
+        var maxed = Inventories.Item(
+            "maxed", GearFamily.BLADE, Rarity.S, quality: 0.0, enhanceLevel: Inventories.Forge.MaxEnhanceLevel);
+        var fresh = Inventories.Item("fresh", GearFamily.BLADE, Rarity.S, quality: 1.0);
+
+        Sorted(InventorySortKey.POWER, [fresh, maxed]).Select(id => id.Value).ShouldBe(
+            ["maxed", "fresh"],
+            "the investment outranks the lucky roll; without the enhancement term the perfect-quality " +
+            "fresh item wins on the tie-break instead");
+    }
+
+    /// <summary>
+    /// The negative control: at equal enhancement the band still decides, so the new term has not
+    /// simply taken the ordering over.
+    /// </summary>
+    [Fact]
+    public void Strongest_first_still_ranks_the_higher_band_first_at_equal_enhancement()
+    {
+        var low = Inventories.Item("low", GearFamily.BLADE, Rarity.C, enhanceLevel: 0);
+        var high = Inventories.Item("high", GearFamily.BLADE, Rarity.SS, enhanceLevel: 0);
+
+        Sorted(InventorySortKey.POWER, [low, high]).Select(id => id.Value).ShouldBe(["high", "low"]);
+    }
+
+    /// <summary>The enhancement term is priced at the authored slope, not merely at something.</summary>
+    /// <remarks>
+    /// The two cases above are satisfied by any function that climbs with the level, so this one
+    /// crosses a band boundary where the real slope decides: the ladder's total is worth less than
+    /// one band step, so a maxed A stays below a fresh SS. A term that over-priced the ladder — one
+    /// that read the level itself, say — flips this and stays green on both of the others.
+    /// </remarks>
+    [Fact]
+    public void Strongest_first_prices_the_ladder_at_the_authored_slope()
+    {
+        var maxedA = Inventories.Item(
+            "a15", GearFamily.BLADE, Rarity.A, enhanceLevel: Inventories.Forge.MaxEnhanceLevel);
+        var freshSs = Inventories.Item("ss0", GearFamily.BLADE, Rarity.SS);
+
+        Sorted(InventorySortKey.POWER, [maxedA, freshSs]).Select(id => id.Value).ShouldBe(
+            ["ss0", "a15"],
+            "the whole ladder is worth less than the A-to-SS step, so the band still decides");
+    }
+
     /// <summary>An empty list sorts to an empty list rather than throwing.</summary>
     [Fact]
     public void An_empty_inventory_sorts_to_nothing()
     {
         InventorySorting.Sort(
-                [], InventorySortKey.RARITY, Inventories.Par, Inventories.Drops, Inventories.Catalogue)
+                [], InventorySortKey.RARITY, Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue)
             .ShouldBeEmpty();
     }
 
@@ -282,7 +337,7 @@ public sealed class InventorySortingTests
         Should.Throw<ArgumentOutOfRangeException>(
                 () => InventorySorting.Sort(
                     Mixed(), (InventorySortKey)99,
-                    Inventories.Par, Inventories.Drops, Inventories.Catalogue))
+                    Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue))
             .ParamName.ShouldBe("key");
     }
 
@@ -293,25 +348,31 @@ public sealed class InventorySortingTests
         Should.Throw<ArgumentNullException>(
                 () => InventorySorting.Sort(
                     null!, InventorySortKey.RARITY,
-                    Inventories.Par, Inventories.Drops, Inventories.Catalogue))
+                    Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue))
             .ParamName.ShouldBe("items");
 
         Should.Throw<ArgumentNullException>(
                 () => InventorySorting.Sort(
                     Mixed(), InventorySortKey.POWER,
-                    null!, Inventories.Drops, Inventories.Catalogue))
+                    null!, Inventories.Drops, Inventories.Forge, Inventories.Catalogue))
             .ParamName.ShouldBe("par");
 
         Should.Throw<ArgumentNullException>(
                 () => InventorySorting.Sort(
                     Mixed(), InventorySortKey.RARITY,
-                    Inventories.Par, null!, Inventories.Catalogue))
+                    Inventories.Par, null!, Inventories.Forge, Inventories.Catalogue))
             .ParamName.ShouldBe("drops");
 
         Should.Throw<ArgumentNullException>(
                 () => InventorySorting.Sort(
+                    Mixed(), InventorySortKey.POWER,
+                    Inventories.Par, Inventories.Drops, null!, Inventories.Catalogue))
+            .ParamName.ShouldBe("forge");
+
+        Should.Throw<ArgumentNullException>(
+                () => InventorySorting.Sort(
                     Mixed(), InventorySortKey.RARITY,
-                    Inventories.Par, Inventories.Drops, null!))
+                    Inventories.Par, Inventories.Drops, Inventories.Forge, null!))
             .ParamName.ShouldBe("catalogue");
     }
 
@@ -377,6 +438,6 @@ public sealed class InventorySortingTests
 
     private static IEnumerable<GearInstanceId> Sorted(
         InventorySortKey key, IReadOnlyList<GearInstance> items) =>
-        InventorySorting.Sort(items, key, Inventories.Par, Inventories.Drops, Inventories.Catalogue)
+        InventorySorting.Sort(items, key, Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue)
             .Select(item => item.InstanceId);
 }

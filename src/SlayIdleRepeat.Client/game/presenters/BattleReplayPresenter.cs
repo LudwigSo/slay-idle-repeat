@@ -3,6 +3,7 @@ using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Combat;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
@@ -595,6 +596,40 @@ public sealed class BattleReplayPresenter
 
     /// <summary>Reads the run this screen is about and settles the fight it will animate.</summary>
     /// <param name="ct">Cancellation.</param>
+    /// <summary>The three tile kinds that open a fight, as the run reports them.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 Read off the rules layer's own enum and NOT transcribed, for the reason
+    /// <see cref="ShopPresenter.ShopTileKind"/> states at length: the pending tile arrives as a bare
+    /// number, the enum that assigns each kind its number is public, and a copied literal would go on
+    /// naming whatever moved into its slot.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>They live on THIS screen because a fight is how these tiles are left, and until M7-10z
+    /// nothing in the client knew that.</b> <c>RESOLVE_TILE</c> says of Enemy, Elite and Boss that they
+    /// are *"acknowledged and not cleared"* — so the board's Resolve control submitted a command that
+    /// succeeded and changed nothing, and a run standing on an enemy was stuck there for good. The way
+    /// out is <c>START_BATTLE</c>, which moves the run to <c>BattlePending</c>, which is the state the
+    /// board already opens this screen on.
+    /// </para>
+    /// </remarks>
+    public const int EnemyTileKind = (int)TileKind.Enemy;
+
+    /// <summary>The elite fight's tile kind. Read with the two beside it.</summary>
+    public const int EliteTileKind = (int)TileKind.Elite;
+
+    /// <summary>The Boss fight's tile kind. Read with the two beside it.</summary>
+    public const int BossTileKind = (int)TileKind.Boss;
+
+    /// <summary>Whether a pending tile of this kind is left by fighting it.</summary>
+    /// <remarks>
+    /// 🔒 Asked rather than restated, so the board holds no fourth copy of the three numbers. The
+    /// board already asks <c>ShopPresenter</c> and <c>CampfirePresenter</c> the same way.
+    /// </remarks>
+    /// <param name="tileKind">The kind the run reports for its pending tile.</param>
+    public static bool OpensAFight(int tileKind) =>
+        tileKind is EnemyTileKind or EliteTileKind or BossTileKind;
+
     public async Task StartAsync(CancellationToken ct)
     {
         try

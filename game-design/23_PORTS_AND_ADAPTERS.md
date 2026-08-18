@@ -21,7 +21,7 @@ Slay Idle Repeat has an unusually strong case for hexagonal architecture, and it
 | **Every external dependency here is genuinely swappable** | Ad network, analytics, crash reporting, push transport, object store and even the database are all "current best choice", not permanent commitments. |
 | **The economy simulator and balance harness need the whole game without any of the I/O** | Doc 21's simulator runs 180 days × 14 profiles headless. ✅ **After `30_DOMAIN_MODEL.md` it needs no adapters at all** — the whole game is playable from `SlayIdleRepeat.Core` alone via `InMemoryGame` (`30` §6). Ports remain what keeps everything *else* out of that assembly. |
 | **Determinism is a hard requirement** | The clock and randomness are external dependencies too. Making them ports is what makes `LogHash` reproducible across x64 and ARM64 (`14` §8). |
-| **Godot's SDK story is weak** | The MAX plugin is GDScript-only; billing needs a bridge; there is no first-party push. All of these are messy at the edge. Ports keep the mess in one small, isolated, individually-testable project each. |
+| **Godot's SDK story is weak** | The MAX plugin is GDScript-only; billing needs a bridge; there is no first-party push. All of these are messy at the edge. Ports keep the mess in one small, isolated, individually-testable project each — ⚠️ **except the engine adapter itself**, which is measurably testable at no tier at all (§7.2a). |
 
 ---
 
@@ -66,7 +66,7 @@ Adapters ──▶ Application ──▶ Core ──▶ (nothing)
 
 - `Core` references nothing but the .NET BCL. No Godot, no ASP.NET, no drivers, no clock, no RNG source. Internally it layers `Handlers → Rules → Model → Content → Primitives` (`30` §11.4), enforced by namespace-level architecture tests.
 - `Application` references `Core` and `Contracts`. It **defines** every port. It references no adapter, ever. It contains **no game rules** — its use cases load a slice, call `GameRules.Apply`, persist, and dispatch events (`30` §11.1).
-- `Adapters.*` reference `Application` (to implement its ports) and whatever vendor package they wrap. **Adapters never reference each other.**
+- `Adapters.*` reference `Application` (to implement its ports) and whatever vendor package they wrap. **Adapters never reference each other.** ⚠️ One adapter implements no port at all and cannot — see §7.2a.
 - **Composition roots** (`SlayIdleRepeat.Server`, `SlayIdleRepeat.Client`) are the only projects that reference concrete adapters. They exist to wire things up and do nothing else.
 
 ### 2.2 Where ports live
@@ -116,7 +116,11 @@ SlayIdleRepeat.sln
 │   │   │   ├── SlayIdleRepeat.Adapters.Push.Firebase/
 │   │   │   ├── SlayIdleRepeat.Adapters.Telemetry.Sentry/
 │   │   │   ├── SlayIdleRepeat.Adapters.Consent.AppLovinCmp/
-│   │   │   └── SlayIdleRepeat.Adapters.Platform.Godot/      # audio, haptics, locale, device info
+│   │   │   ├── SlayIdleRepeat.Adapters.Platform.Godot/      # ENGINE CAPABILITIES — audio, haptics,
+│   │   │   │                                                #   locale, device info, engine paths.
+│   │   │   │                                                #   Implements NO port (§7.2a)
+│   │   │   └── SlayIdleRepeat.Adapters.Platform.Host/       # the plain-C# sibling that DOES:
+│   │   │                                                    #   IPlatformInfoPort over the BCL
 │   │   │
 │   │   ├── server/
 │   │   │   ├── SlayIdleRepeat.Adapters.Persistence.Postgres/
@@ -342,12 +346,12 @@ Note that game randomness is **not** a port — `DeterministicRng` lives in `Cor
 | **A2** | **No vendor type crosses a port boundary.** Not in a parameter, a return type, a generic argument, an exception, or an event payload. | A single leaked `MaxAd` or `NpgsqlException` makes the port decorative. |
 | **A3** | **Adapters translate errors.** Vendor exceptions are caught at the adapter edge and mapped to domain results (`AdResultKind.NoFill`) or domain exceptions. | The application must never catch `Npgsql.PostgresException`. |
 | **A4** | **Ports are named in domain language, not vendor language.** `IRewardedAdPort`, never `IAppLovinService`. `IBattleLogStore`, never `IS3Client`. | If the port is named after the vendor, it will be shaped after the vendor. |
-| **A5** | **Every port has at least two implementations** — the real adapter and an in-memory fake. | Two implementations is the cheapest possible proof that the abstraction is real. A port with one implementation is usually a wrapper pretending to be an abstraction. |
+| **A5** | **Every port has at least two implementations** — the real adapter and an in-memory fake. ⚠️ Two ports are **deferred rather than implemented** because their only real implementation would be an engine call — see §7.2a. | Two implementations is the cheapest possible proof that the abstraction is real. A port with one implementation is usually a wrapper pretending to be an abstraction. |
 | **A6** | **Adapters contain no business rules.** They map, call, and translate. If an adapter has an `if` about game logic, that logic belongs in `Application`. | |
 | **A7** | **Adapters never reference other adapters.** Composition happens only at the root. | |
-| **A8** | **Every port is exercised by a shared contract-test suite** run against every one of its implementations, including the fake. | This is what stops the fake and the real adapter drifting apart — the failure mode that makes teams stop trusting their tests. |
+| **A8** | **Every port is exercised by a shared contract-test suite** run against every one of its implementations, including the fake. 🔒 This is the rule §7.2a collides with: a class that can reach the engine API cannot carry a fixture, so it may not implement a port. | This is what stops the fake and the real adapter drifting apart — the failure mode that makes teams stop trusting their tests. |
 | **A9** | **Vendor packages are referenced by exactly one project.** If two `.csproj` files reference the AppLovin plugin, one of them is wrong. | Trivially checkable in CI. |
-| **A10** | **Godot is an adapter, not a foundation.** Game logic lives in plain C# classes; scenes and nodes are driving adapters that call use cases and render results. | Also what makes the client logic testable without booting the engine. |
+| **A10** | **Godot is an adapter, not a foundation.** Game logic lives in plain C# classes; scenes and nodes are driving adapters that call use cases and render results. ⚠️ An adapter that implements no port — see §7.2a, which does not weaken this rule but does bound what the engine adapter can be. | Also what makes the client logic testable without booting the engine. |
 
 ---
 
@@ -392,6 +396,18 @@ Rules that are not enforced are suggestions. `SlayIdleRepeat.Architecture.Tests`
 
 🔒 **The last one is the load-bearing test in the entire codebase.** It is the only thing that will still be enforcing "the domain model is the centrepiece" in eighteen months, when someone is under deadline pressure and a repository reference in a rule would solve their problem in five minutes.
 
+**Three more, holding §7.2a** — the engine exception, made to expire by itself rather than to sit as a sentence:
+
+```csharp
+[Fact] public void No_type_in_the_engine_adapter_implements_a_port()        // the ruling itself
+[Fact] public void The_engine_adapter_is_still_on_the_contract_suites_reference_list()
+                                                                            // the premise it rests on
+[Fact] public void Every_port_catalogue_owner_is_a_task_the_tracker_still_has_open()
+                                                                            // no deferral outlives its owner
+```
+
+🔒 The first is what a future engine-port author trips over, and it is the intended route to §7.2a. The second exists because the ruling's whole argument is one `ProjectReference`: drop it and the other statements are describing a constraint that has been removed, with nothing going red.
+
 Additional CI checks:
 - **Vendor package uniqueness (A9):** parse every `.csproj`; fail if a vendor `PackageReference` appears in more than one project.
 - **Composition-root isolation:** only `SlayIdleRepeat.Server` and `SlayIdleRepeat.Client` may reference `SlayIdleRepeat.Adapters.*`.
@@ -430,10 +446,15 @@ Selection is **platform-conditional and entitlement-conditional**, and it is the
 // SlayIdleRepeat.Client/Composition/ClientComposition.cs
 container.Register<IGameApiPort, HttpGameApiAdapter>();
 container.Register<ILocalCachePort, LocalFileCacheAdapter>();
-container.Register<IPlatformInfoPort, GodotPlatformInfoAdapter>();
-container.Register<IAudioPort, GodotAudioAdapter>();
-container.Register<IHapticsPort, GodotHapticsAdapter>();
+container.Register<IPlatformInfoPort, HostPlatformInfo>();      // plain C#, NOT a Godot class — see 7.2a
 container.Register<ITelemetryPort, SentryTelemetryAdapter>();
+
+// The engine's own capabilities are named here as CONCRETE TYPES, behind no port (7.2a),
+// and handed to the presenters that need them — never registered against an interface
+var audio   = new GodotAudioOutput();
+var haptics = new GodotHaptics();
+var device  = new GodotPlatformInfo();   // locale + device model, for the engine's own consumers
+var paths   = new GodotUserPaths();
 
 #if ANDROID
     container.Register<IBillingPort, GooglePlayBillingAdapter>();
@@ -448,6 +469,32 @@ container.Register<IRewardedAdPort>(_ => session.Entitlements.HasPlus
 ```
 
 This is where the Plus subscription's "no ads, same rewards" promise is implemented — as **an adapter swap**, with no `if (isSubscriber)` anywhere in the game. It is the cleanest possible expression of `12` §1's fairness contract.
+
+⚠️ **`container.Register` here illustrates *selection*, not a container, and the snippet is now mixed on purpose.** **O15 closed at the M7 kickoff in favour of a hand-rolled composition root with explicit factories — no DI container, and no task may introduce one** — so the shipped root reads like the `new` lines above and not like the `Register` lines. Both spellings are left standing because §7.2's subject is *which concrete type answers which port*, and that is the same either way. 🔴 **Two sites still lag the closure and are errata for whoever owns doc reconciliation:** §9's closing `⚠️ NEEDS DETAIL` paragraph still asks the question, and `16`'s O15 row still reads as a recommendation.
+
+### 7.2a A class in the engine adapter may not implement a port 🔒
+
+**This section used to register `GodotPlatformInfoAdapter`, `GodotAudioAdapter` and `GodotHapticsAdapter` against their ports. It cannot, and the reason is a measured physical fact rather than a preference.**
+
+Every class in `SlayIdleRepeat.Adapters.Platform.Godot` reaches `GodotSharp`, whose managed API is a shim over native function pointers **the engine populates at startup**. Called from a test process, the first of them marshals a string through a null pointer and raises an `AccessViolationException` that no `catch` block can observe: the test host does not fail, it **dies**, taking every other case in the run with it. This was measured on this repository from a real fixture, not reasoned about.
+
+That collides with §5 A8. `SlayIdleRepeat.Contract.Tests` project-references the engine adapter and demands a contract fixture for **every concrete implementation of a port it can see**, so the moment a class there implements one, the suite asks for the fixture that kills the run. There is no second tier to put such a fixture in: §3 is explicit that this repository has no integration or end-to-end tier and none is to be added. One of the two statements had to give, and **the document is the half that yields** — the engine's behaviour is not negotiable and the test tier is a locked decision.
+
+So, three rules:
+
+| | |
+|---|---|
+| **A class under `Adapters.Platform.Godot` implements no port.** It is a *capability*: a concrete type the composition root names directly, as above. | §2.1 already makes the composition roots "the only projects that reference concrete adapters". This is that permission used deliberately, rather than by omission. |
+| **A port whose only plausible implementation is an engine call is DEFERRED, not implemented.** `IAudioPort` and `IHapticsPort` are both in that state, each with its own further blocker. | A no-op stand-in would satisfy §5 A5's two-implementations rule with two fakes, which is worse than an absent port because it looks built. |
+| **Ports are implemented by plain-C# host adapters.** `SlayIdleRepeat.Adapters.Platform.Host` is the shipped precedent: it answers `IPlatformInfoPort` from the BCL, with a real contract fixture beside the in-memory fake. ⚠️ It is honest about what a host cannot know — `DeviceModel` is always `null` there, by ruling rather than by omission — and **no composition root names it yet**: the client still reads locale from the engine capability. | An adapter that runs anywhere the BCL runs is an adapter the shared suite can actually exercise, which is the whole of §5 A8. |
+
+⚠️ **This is a limitation, not an architecture.** `A10` still holds — Godot is an adapter, not a foundation — and nothing here licenses game logic inside a `Node`. If an engine-capable test host or a sanctioned fixture exemption ever arrives, the honest change is to amend this subsection back, not to work around it: `PortCatalogueTests.No_type_in_the_engine_adapter_implements_a_port` is the rule that will be standing in the way, and it is standing there on purpose.
+
+⚠️ **The measurement binds any project that can reach the engine API, not only the one named above.** The rule's subject is `Adapters.Platform.Godot` **and** `SlayIdleRepeat.Client` — the client is in it because its `Composition/` folder is deliberately exempt from the scene and presenter boundary rules (naming concrete types is a composition root's job) and invisible to the contract suites, so a capability there growing `: IHapticsPort` would otherwise be seen by nothing at all.
+
+🔴 **§8 is not yet reconciled with this, and the reader should know before copying it.** That section's worked example puts `MaxBridge.cs` — a C# wrapper over a GDScript autoload — in the same project as `AppLovinRewardedAdAdapter`, which implements `IRewardedAdPort`. That is precisely the arrangement this subsection rules impossible, and it is `23`'s flagship example. The project holds no source file today. **`M15-01` is the row that writes both halves, and therefore the row that has to split them** — the engine-touching bridge as a capability, the port implemented over a plain-C# seam — or come back and amend this subsection with evidence.
+
+⚠️ **This is a rule about assemblies, listed by name.** A third project that reached the engine would be governed by nothing, and the list cannot be derived from the build: the engine adapter is a plain `Microsoft.NET.Sdk` project that takes `GodotSharp` as an ordinary package, so "projects using the Godot SDK" would miss the very project this is written for.
 
 ---
 
@@ -494,7 +541,7 @@ What this buys, concretely:
 |---|---|
 | **Anaemic ports** that mirror a vendor API 1:1 (`IAppLovinPort.LoadAd/ShowAd/OnAdRevenuePaid`) | Rule A4 + designing the port from the *use case* backwards, never from the SDK forwards |
 | **Mapping fatigue** — DTO ↔ domain conversion everywhere becoming the dominant code | Keep `Contracts` thin; let adapters map directly to domain types rather than through an intermediate model |
-| **Fakes drifting from reality**, so tests pass and production breaks | Rule A8: the shared contract-test suite runs against every implementation including the fake |
+| **Fakes drifting from reality**, so tests pass and production breaks | Rule A8: the shared contract-test suite runs against every implementation including the fake. 🔴 **Unguarded for the engine capabilities** — `GodotAudioOutput`, `GodotHaptics`, `GodotPlatformInfo`, `GodotUserPaths` have no suite and can have none (§7.2a). Nothing compares them to anything; they are covered by the export smoke test and by playing the game. |
 | **Over-abstraction** — porting things that are not actually external (the effect DSL, the RNG, board generation) | If it is a *rule*, it belongs in `Core`. Only things that cross a process, network, device or vendor boundary get a port. |
 | **Logic leaking into `Application`** — a use case that decides rather than choreographs | `internal` handlers in `Core` (`30` §11.2) make the shortcut a compile error rather than a code-review argument. The test `Apply_is_the_only_public_mutation` is the backstop. |
 

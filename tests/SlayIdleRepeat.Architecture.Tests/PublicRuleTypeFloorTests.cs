@@ -75,8 +75,60 @@ public sealed class PublicRuleTypeFloorTests
     /// slack, and `03` §1.1's whole board projection could be deleted — taking the Board screen's
     /// only way to see a tile track with it — with every rule in this file still green.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Thirteen since M7-06b widened the list to <c>HeroBuild</c> and <c>RunBattle</c></b> —
+    /// two entry points that add no signature type of their own, so the floor rises by exactly two.
+    /// Raised in the same commit as the widening, for the reason above: a floor left at eleven over a
+    /// thirteen-name list would let the hero's stat block and the run-to-fight composition both be
+    /// deleted — and with them the only thing that lets a run leave <c>BattlePending</c> — with every
+    /// rule in this file still green.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Seventeen since M7-07 widened the list to <c>DraftView</c> and <c>ShrineView</c></b> —
+    /// with <c>DraftOptionView</c> and <c>ShrineBuffRow</c>, their two return shapes. Raised in the
+    /// same commit and by exactly the number of names it adds, for the reason the two paragraphs
+    /// above give: the perk draft's and the shrine's projections are the only way the run-decision
+    /// screens can see an offer that is never persisted, and a floor left at thirteen would let both
+    /// be deleted with every rule in this file still green.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Nineteen since M7-07's UI review added <c>DraftGuaranteeView</c> and
+    /// <c>DraftGuaranteeKind</c></b> — no new entry point, two more shapes reached through
+    /// <c>DraftView.Guarantees</c>. Raised in the same commit and by exactly the two names it adds.
+    /// The slack this closes is the one that matters most of the three: <c>24</c> §1.1's Visibility
+    /// rule is a 🔒 and its Disclosure rule is a store-policy requirement on both platforms, so a
+    /// floor left at seventeen would let the only public reading of the <c>DRAFT</c> counters be
+    /// deleted — silently returning S07 to the hidden-pity state that rule exists to forbid — with
+    /// every rule in this file still green.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Twenty-two since M7-11 added <c>InventoryView</c> and its two return shapes</b> —
+    /// <c>InventoryItemView</c> and <c>GearStatDeltaView</c>. Raised in the same commit and by exactly
+    /// the three names it adds. The slack it closes: <c>08</c> §5's side-by-side delta is the only thing
+    /// that makes an equip decision legible, and it is computed by an <c>internal</c> comparison — a
+    /// floor left at nineteen would let the sole public reading of it be deleted, leaving the Inventory
+    /// screen able to list a stock and unable to say what any of it would change.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Twenty-five since M7-08 added <c>RunEndView</c> and its two shapes.</b> Raised in the same
+    /// commit and by exactly the three names it adds. The slack it closes: the completion multiplier is
+    /// the difference between what a run banked and what it is paid, and a floor left at twenty-two
+    /// would let the only public reading of it be deleted — leaving the results screen to reproduce
+    /// <c>Banked × CompletionMultiplier</c> itself, which is how a screen comes to promise a payout the
+    /// game does not honour.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Twenty-seven since M7-08's client half added <c>RunEndReviveStanding</c> and
+    /// <c>RunEndCounterKind</c>.</b> No new entry point — both are reached through <c>RunEndView</c>, one
+    /// on the view itself and one on <c>RunEndCounterView</c>. Raised in the same commit and by exactly
+    /// the two names it adds. The slack it closes is a sentence rather than a number: these two are the
+    /// only public readings of <em>which</em> refusal blocked a revive and of <em>which</em> breaker a
+    /// footer row counts, so a floor left at twenty-five would let either be deleted and leave the
+    /// screen inferring both — telling a player who never revived that they had used their one, and
+    /// captioning boss kills as Elite ones.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 11;
+    private const int ResolvedPublicRuleTypeFloor = 27;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -279,7 +331,43 @@ public sealed class PublicRuleTypeFloorTests
         // person who wants a sixth board type has to say so in a diff; that is the whole mechanism,
         // and it is what keeps BoardGenerator and BoardGraph out of the list by cost rather than by
         // good intentions.
-        if (Domain.PublicRuleTypes.Count > 11)
+        //
+        // 🔒 THIRTEEN since M7-06b. It added TWO entry points — HeroBuild, whose consumer is the
+        // client's Hero and Inventory screens, and RunBattle, whose consumer is the Application
+        // layer's SimulatePendingBattleUseCase — and NO signature types, because every type their
+        // public members name was already public. The cap rises by exactly two: the derivation's own
+        // machinery (StatAggregation, HeroBaseCurve, GearStatDerivation, EncounterFight, BossFight)
+        // stays internal, and HeroBattleSurfaceRuleTests is what holds it there.
+        //
+        // 🔒 SEVENTEEN since M7-07. It added TWO entry points — DraftView, whose consumer is the
+        // client's Perk Draft screen, and ShrineView, whose consumer is the Shrine arm of the
+        // campfire/shrine screen — plus the two types their public members name, DraftOptionView and
+        // ShrineBuffRow. Raised by exactly those four and no further, so PerkDraftEngine and
+        // ShrineResolver stay out of the list by cost rather than by good intentions.
+        //
+        // 🔒 NINETEEN since M7-07's UI review. It added NO entry point: DraftView.Guarantees is a new
+        // member on a list member, and DraftGuaranteeView and DraftGuaranteeKind are the two types it
+        // names. The consumer is the same Perk Draft screen (S07) and the authority is 24 §1.1, which
+        // requires every luck-protection counter shown always with a real number and every N in §4
+        // stated on its class's own screen. Raised by exactly those two and no further, so
+        // DraftGuarantees, DraftCounters, DraftDemand, DraftForce and HardPity stay out: what is
+        // exported is where the counters STAND, never the machinery that floors a slot.
+        // 🔒 TWENTY-TWO since M7-11. One entry point — InventoryView, whose consumer is the client's
+        // Inventory screen (S16) — plus the two types its public members name. Raised by exactly those
+        // three and no further, so InventoryComparison, InventorySorting, GearStatDerivation and
+        // SetBonusResolver stay internal: what leaves is the stock and its comparison, never the
+        // derivation that answers it.
+        // 🔒 TWENTY-FIVE since M7-08. One entry point -- RunEndView, whose consumers are S13 and S14,
+        // which 02 §6 makes one moment -- plus the two types its public members name. Raised by exactly
+        // those three, so RunRewardMath, RunPayoutTuning, RunCompletionOutcome, DropRunTuning and
+        // LuckTuning stay internal: what leaves is the run's outcome and figures, never the multipliers
+        // or the counter-key spelling.
+        // 🔒 TWENTY-SEVEN since M7-08's client half. NO new entry point: RunEndReviveStanding and
+        // RunEndCounterKind are both reached through RunEndView, and both exist so S13/S14 can name a
+        // fact rather than infer it -- which of the Revive handler's two refusals is blocking a revive,
+        // and which of 24 §4.3's two breakers a footer row is counting. Raised by exactly those two, so
+        // ReviveTuning and the counter-key spelling stay internal.
+        if (Domain.PublicRuleTypes.Count > 27)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +

@@ -27,8 +27,8 @@ internal static class EffectDefaults
     /// <summary>Ruling 1 — the trigger an effect with none resolves under.</summary>
     internal static EffectTrigger Always { get; } = new() { Kind = TriggerKind.ALWAYS };
 
-    // TriggerOf and IsAlwaysActive have no production caller yet; declared now so the tick loop and
-    // aggregation pass consume one ruling instead of each re-deriving it.
+    // TriggerOf has no production caller yet; declared alongside the others so a consumer that needs
+    // the whole trigger consumes this ruling instead of re-deriving it.
 
     /// <summary>Ruling 2 — the target an effect with none resolves against.</summary>
     internal const EffectTarget AbsentTarget = EffectTarget.SELF;

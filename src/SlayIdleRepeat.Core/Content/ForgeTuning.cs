@@ -173,6 +173,27 @@ internal sealed class ForgeTuning
     /// <exception cref="ArgumentOutOfRangeException">No attempt reaches that level.</exception>
     internal double EnhanceSuccessRate(int targetLevel) => _successRate[LadderIndex(targetLevel)];
 
+    /// <summary>The multiplier an item's own stats carry at a given enhancement level.</summary>
+    /// <param name="enhanceLevel">The level the item stands at.</param>
+    /// <returns>The multiplier — 1 at the floor, and the authored total at the ceiling.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The level is outside the authored range.</exception>
+    /// <remarks>
+    /// 🔒 <b>Here rather than with the forge rules, and the reason is which layers have to ask.</b>
+    /// Everything else about an attempt is a rule — it draws, it applies mercy, it decides an
+    /// outcome. This is a straight reading of one authored number against the level an item already
+    /// carries, and it is needed by the stat derivation and by the strongest-first ordering, which
+    /// sit in namespaces the layering deliberately keeps apart. A copy in either of them would be a
+    /// second answer to what a <c>+15</c> is worth; reaching across for it would be an edge the
+    /// layering closes. <c>Content</c> sits beneath both, so this is the one place both can read.
+    /// </remarks>
+    internal double StatMultiplier(int enhanceLevel)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(enhanceLevel, MinEnhanceLevel);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(enhanceLevel, MaxEnhanceLevel);
+
+        return DeterminismRounding.Round(1.0 + (StatBonusPerLevel * (enhanceLevel - MinEnhanceLevel)));
+    }
+
     /// <summary>The stones already spent getting an item to a level, which salvage refunds a share of.</summary>
     /// <param name="enhanceLevel">The level it stands at.</param>
     /// <returns>The total spent, counting only successful attempts.</returns>

@@ -3,6 +3,7 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using Xunit;
+using SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
@@ -12,6 +13,61 @@ public sealed class ConfirmBattleResultTests
     private static CommandResult Confirm(WorldSlice state, string logHash) =>
         SlayIdleRepeat.Core.GameRules.Apply(
             state, new ConfirmBattleResultCommand(logHash, Won: true), TileWorlds.Context);
+
+    // ------------------------------------------------------------- the fixture's own premise
+
+    /// <summary>
+    /// 🔒 <b>The fixture hero WINS every fight this suite asserts a payout for, and it is asserted
+    /// rather than assumed.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Every payout case below is conditional on this, and none of them would fail if it stopped
+    /// being true.</b> Since <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9), the server
+    /// decides whether a battle was won — so a fixture whose hero loses does not break the payout tests,
+    /// it makes them assert that a loss pays nothing. Twenty green tests, none of them testing the arm
+    /// M7-06c changed. This case turns that silence into one loud failure.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>All three tile kinds, because only one of them discriminates and it is not the one you
+    /// would guess.</b> The first draft asserted the Enemy fight alone — and PASSED with the loadout
+    /// stripped to bare, because a Legend-20 hero beats a chapter-1 ordinary enemy with no gear at all.
+    /// It was a cannot-fail pin guarding against cannot-fail pins. ⚠️ <b>Re-probed after widening, and
+    /// measured:</b> swapping <c>WornLoadout</c> for <c>BareLoadout</c> fails the <b>Elite</b> arm and
+    /// leaves Enemy and Boss green. So Elite is the arm carrying this case today. All three are kept
+    /// anyway — which arm discriminates is a fact about current tuning, and M6 will move it; a probe
+    /// narrowed to today's discriminator would go quiet the moment that changed.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The drift this exists to catch is real rather than hypothetical.</b> "Geared enough to win"
+    /// is measured against <c>ChapterPowerTarget</c>, which M6 exists to retune. This suite fought
+    /// bare-handed until M7-06c, and the sweep establishing that levelling could not fix it (Legend Level
+    /// 1 → 20 → 60 → 120 moved 39 whole-suite failures to 34) is recorded in <c>TileWorlds</c>.
+    /// </para>
+    /// <para>
+    /// Asserted through the HANDLER rather than by calling the simulation directly: what matters is not
+    /// that some fight is winnable but that the fight <em>this fixture</em> hands the handler is. Gold is
+    /// the observable rather than the phase, because the phase returns to <c>InProgress</c> on a loss too.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(TileKind.Enemy)]
+    [InlineData(TileKind.Elite)]
+    [InlineData(TileKind.Boss)]
+    public void The_fixture_hero_wins_every_fight_this_suite_pays_out_for(TileKind kind)
+    {
+        var opened = TileWorlds.OnTile(kind, gold: 0, phase: RunPhase.BattlePending);
+
+        var result = Confirm(opened, "1");
+
+        result.Accepted.ShouldBeTrue("a well-formed confirmation is accepted whatever the outcome was");
+        result.NewState.Run!.Gold.ShouldBeGreaterThan(
+            0L,
+            $"the fixture hero LOST its {kind} fight, so every payout case in this file that uses it is " +
+            "now asserting that a loss pays nothing — they will all stay green while testing none of " +
+            "the win arm. Either TileWorlds' fixture loadout has fallen behind ChapterPowerTarget (M6 " +
+            "retunes it) or the run no longer freezes that loadout. Fix the fixture; do not relax this.");
+    }
 
     // ------------------------------------------------------------------ the gate
 
@@ -115,7 +171,15 @@ public sealed class ConfirmBattleResultTests
         var result = Confirm(opened, "1");
 
         result.NewState.Run!.Gold.ShouldBe(290);
-        result.NewState.Run!.CurrentHp.ShouldBe(60);
+        // 🔒 A won fight now COSTS HP, where it used to cost nothing: M7-06d applies the
+        // recomputation's own HeroHpRemaining instead of discarding it. ⚠️ It lands at the ceiling here
+        // rather than somewhere interesting, and the reason is worth knowing: this fixture's run
+        // carries a Max HP of 100 while the over-par hero composes one in the thousands, so the fight
+        // ends far above the run's ceiling and the clamp takes it to full. A wounded-survivor case
+        // needs a hero near par, which is `05` §9's harness rather than this suite's fixture.
+        result.NewState.Run!.CurrentHp.ShouldBe(
+            result.NewState.Run!.MaxHp,
+            "a won fight writes its own ending HP, clamped into the run's range.");
         result.NewState.Run!.BankedLegendXp.ShouldBe(25);
         result.NewState.Run!.BankedSoulShards.ShouldBe(0);
         result.Events.ShouldNotBeEmpty();
@@ -125,7 +189,12 @@ public sealed class ConfirmBattleResultTests
     [Fact]
     public void Losing_a_battle_sets_HP_to_zero_and_pays_nothing()
     {
-        var opened = TileWorlds.OnTile(TileKind.Enemy, gold: 250, currentHp: 60, phase: RunPhase.BattlePending);
+        // 🔒 An Elite fought bare-handed, because the server decides the outcome now: Won: false is the
+        // client's claim and the recomputation overrules it, so a losing case has to hand over a fight
+        // the hero genuinely loses. Enemy would not do — a Legend-20 hero beats a chapter-1 ordinary
+        // enemy with no gear at all.
+        var opened = TileWorlds.OnTile(
+            TileKind.Elite, gold: 250, currentHp: 60, phase: RunPhase.BattlePending, geared: false);
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
             opened, new ConfirmBattleResultCommand("1", Won: false), TileWorlds.Context);
@@ -162,9 +231,12 @@ public sealed class ConfirmBattleResultTests
     {
         var opened = TileWorlds.OnTile(TileKind.Boss, phase: RunPhase.BattlePending);
 
-        // Rehydrate a player who has already cleared chapter 1 NORMAL.
-        var clearedPlayerSnapshot = SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.With(
-            clearedChapterTiers: SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.Counters(("1:NORMAL", 1)));
+        // Rehydrate a player who has already cleared chapter 1 NORMAL — through the geared row, not a
+        // fresh one. 🔒 A row built from scratch here would carry no loadout, and since the server now
+        // recomputes the fight (14 §9) a bare-handed hero LOSES this boss: the case would then pass or
+        // fail on whether a loss banks Soul Shards, which is not what it is about.
+        var clearedPlayerSnapshot = RunBattleWorlds.FarAboveParRow(
+            SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.Counters(("1:NORMAL", 1)));
         var clearedPlayer = SlayIdleRepeat.Core.Model.Player.Rehydrate(
             clearedPlayerSnapshot, TileWorlds.Context.Content).Value;
         var world = opened with { Player = clearedPlayer };

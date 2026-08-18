@@ -1,0 +1,21 @@
+{
+  "$schema": "../../schema/shop.schema.json",
+  "_doc": "M7-07 — the strings the run Shop screen (S08) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `block` group holds the one sentence this screen is mostly made of: a run's shop stocks nothing, because the run row carries no offer, no price, no visit count and no refresh allowance, so the rules layer refuses every purchase and every refresh and the tile's resolution deliberately does nothing but let the run walk away. That sentence has to differ from the ones for a shop the player is not standing at, a refused departure and a host that did not answer, because all four are a page of text and no purchase. These keys are the RUN shop's and are three segments deep; the four-segment staple and daily keys already in the locales belong to the meta shop's offer catalogue and are a different screen's. Deliberately absent, each because the offer model that would fill it is a later milestone's: any buy slot caption, any price or stock line, a refresh control and its free-per-visit and ad tiers, and every consumable name — an affordance drawn for an offer that does not exist would assert that an offer exists, and a price beside it would be a number this build invented.",
+  "name": {
+    "title": "loc.shop.title.name"
+  },
+  "action": {
+    "leave": "loc.shop.leave.action"
+  },
+  "block": {
+    "nothingStocked": "loc.shop.nothing_stocked.block"
+  },
+  "status": {
+    "loading": "loc.shop.loading.status",
+    "runMissing": "loc.shop.run_missing.status",
+    "notAtAShop": "loc.shop.not_at_a_shop.status",
+    "readUnavailable": "loc.shop.read_unavailable.status",
+    "refused": "loc.shop.refused.status",
+    "hostUnavailable": "loc.shop.host_unavailable.status"
+  }
+}

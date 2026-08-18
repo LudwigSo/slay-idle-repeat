@@ -5,6 +5,10 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Testing;
 using SlayIdleRepeat.Core.Tests.Content;
+using Shouldly;
+using SlayIdleRepeat.Core.Tests.Model.Gear;
+using SlayIdleRepeat.Core.Tests.Rules.Combat;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 namespace SlayIdleRepeat.Core.Tests;
 
@@ -15,6 +19,39 @@ namespace SlayIdleRepeat.Core.Tests;
 /// instant, and the two drives every multi-day assertion is written over.</summary>
 internal static class Harnesses
 {
+    /// <summary>
+    /// A starting stock holding one over-par item per slot, for a harness that must survive a run.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Since <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9), a bare-handed hero
+    /// loses its first battle — so any suite whose subject is downstream of a battle (the board, the
+    /// stage boundary, the meta loop) needs a hero that wins, or it measures dead runs while claiming
+    /// to measure its own subject. <c>RunBattleWorlds.FarAbovePar</c> is that loadout, deliberately
+    /// well above chapter-1 par so no fixture is one M6 retune away from silence.
+    /// </remarks>
+    internal static InventorySnapshot FarAboveParStock() =>
+        new(0, RunBattleWorlds.FarAbovePar.Select(Inventories.Persist).ToArray(), []);
+
+    /// <summary>Equips that stock through the real <c>EQUIP</c> command, one slot at a time.</summary>
+    /// <remarks>
+    /// ⚠️ Each result is asserted, because a refused <c>EQUIP</c> is silent: the run still starts, the
+    /// hero is still bare, and the failure surfaces far away as a claim about stage gates. The loadout
+    /// is frozen at <c>START_RUN</c> (<c>07</c> §4), so every one of these has to land before it.
+    /// </remarks>
+    internal static void Equip(InMemoryGame game, PlayerId player)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+
+        foreach (var item in RunBattleWorlds.FarAbovePar)
+        {
+            var equipped = game.Send(player, new EquipCommand(item.InstanceId, item.Slot));
+
+            equipped.Accepted.ShouldBeTrue(
+                "EQUIP of the harness's " + item.Slot + " was refused (" + equipped.Rejection +
+                "), so this run's hero fights bare-handed and loses its first battle.");
+        }
+    }
+
     /// <summary>The root seed every fixture harness uses unless a test is about the seed.</summary>
     internal const ulong Seed = 0xA11CE_0000_1111UL;
 
@@ -34,7 +71,13 @@ internal static class Harnesses
         DateTimeOffset? start = null,
         ulong? seed = null,
         ContentSnapshot? content = null) =>
-        new(content ?? TuningDocuments.Shipped, seed ?? Seed, new VirtualClock(start ?? Start));
+        new(
+            // 🔒 The shipped gaps filled in. START_RUN scores Max HP off the hero's build (M7-06d), so
+            // every harness that opens a run now reads the combat caps, the gear catalogue and the par
+            // table — documents a hand-assembled tuning set had no reason to carry.
+            content ?? ShippedHarness.WithShippedGaps(TuningDocuments.Shipped),
+            seed ?? Seed,
+            new VirtualClock(start ?? Start));
 
     /// <summary>A harness with one player already created, and that player's id.</summary>
     /// <param name="start">When the simulation starts. Defaults to <see cref="Start"/>.</param>
@@ -58,6 +101,26 @@ internal static class Harnesses
         var game = New(start, seed);
 
         return (game, game.CreatePlayer(inventory: inventory));
+    }
+
+    /// <summary>Records a chapter/tier clear straight onto the harness's player.</summary>
+    /// <param name="game">The harness.</param>
+    /// <param name="player">The player.</param>
+    /// <param name="chapter">The chapter cleared.</param>
+    /// <param name="tier">The tier it was cleared on.</param>
+    /// <remarks>
+    /// The fixture for a case whose subject is not the gate. `10` §7's ladder is enforced by
+    /// START_RUN and no command grants a clear — the only way to earn one is to play the chapter
+    /// below to victory, which a case about something else cannot afford to do first. Written onto
+    /// the aggregate directly, which is precisely what <c>InMemoryGame.State</c>'s own remarks say a
+    /// test with internals access can do.
+    /// </remarks>
+    internal static void HasCleared(
+        InMemoryGame game, PlayerId player, int chapter, DifficultyTier tier)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+
+        game.State(player).Player.MarkChapterTierCleared(chapter, tier);
     }
 
     /// <summary>The multi-day drive every long assertion shares: for each game day, send

@@ -119,9 +119,9 @@ public static class GodotClientComposition
     /// config have been reached — not the one that would be most convenient to develop against.
     /// </para>
     /// <para>
-    /// 🔒 The content root is resolved before anything is constructed, and its absence throws
-    /// rather than degrading. See <see cref="GodotUserPaths.ResolveContentDataRoot"/> for why a
-    /// packed build is the case that hits it.
+    /// 🔒 The content root is PROBED before anything is constructed, and its absence is a route
+    /// rather than a failure — see <see cref="ClientComposition.SelectContentSource"/>. It threw here
+    /// until M7-10y, which is why an exported build used to start with no content at all.
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException"><paramref name="capabilities"/> is null.</exception>
@@ -138,7 +138,13 @@ public static class GodotClientComposition
             capabilities,
             ClientComposition.Compose(
                 capabilities.Paths.ResolveWritableCacheRoot(),
-                capabilities.Paths.ResolveContentDataRoot(),
+
+                // Lookup, then decision, split the way this file's remarks describe: the engine half
+                // answers whether the mirror is on disk, and the pure half chooses the source. The
+                // engine-backed reader is constructed either way and costs nothing unpicked — it holds
+                // no handle and opens nothing until it is asked.
+                ClientComposition.SelectContentSource(
+                    capabilities.Paths.ContentDataRootOnDisk(), new GodotPackedDocuments()),
                 LocalHostAmbience.NoSubscriptionResolved(),
                 LocalHostAmbience.NoRemoteConfigResolved()));
     }

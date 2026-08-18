@@ -154,6 +154,17 @@ public sealed class Player
     /// </remarks>
     private PityCounters _pityCounters;
 
+    /// <summary>
+    /// <c>14</c> §9's battle-verification tally. Increment-only for the life of the account.
+    /// </summary>
+    /// <remarks>
+    /// Beside the pity counters because both are "how many times has this happened to this account",
+    /// and deliberately NOT one of them: <c>12</c> §4.2 reserves the pity map for luck protection and
+    /// forbids anything else advancing it, and an anti-cheat tally living in that map would be a
+    /// second system with the power to move a guarantee.
+    /// </remarks>
+    private int _battleHashMismatches;
+
     private long _legendXp;
 
     // ---------------------------------------------------------------- hero (M4-10)
@@ -205,8 +216,10 @@ public sealed class Player
         IReadOnlyList<AutoSalvageRule> autoSalvageRules,
         long talentPoints,
         Loadout loadout,
-        SortedDictionary<int, LoadoutPreset> presets)
+        SortedDictionary<int, LoadoutPreset> presets,
+        int battleHashMismatches)
     {
+        _battleHashMismatches = battleHashMismatches;
         _talentPoints = talentPoints;
         _loadout = loadout;
         _presets = presets;
@@ -414,6 +427,29 @@ public sealed class Player
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="value"/> is negative.</exception>
     internal void SetPityCounter(string key, int value) =>
         _pityCounters = _pityCounters.With(key, value);
+
+    /// <summary>
+    /// <c>14</c> §9's battle-verification tally: how many confirmed battles disagreed with the
+    /// server's own recomputation.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Read by nothing that can reach a player.</b> §9's clause is <em>"server result wins,
+    /// counter incremented, no player-facing error"</em> — all three parts, so this number exists for
+    /// the review queue §9 sends flags to and for nothing else. A screen, a rejection or an event
+    /// carrying it would each break the third part, and the third part is what stops an honest player
+    /// whose stock changed mid-battle from being told they cheated.
+    /// </remarks>
+    public int BattleHashMismatches => _battleHashMismatches;
+
+    /// <summary>Counts one battle whose reported result disagreed with the server's.</summary>
+    /// <remarks>
+    /// Increment-only and never reset: §9's ladder acts on <em>repeated</em> manipulation, and a
+    /// counter something could clear would answer "how many times recently", which is not a question
+    /// the ladder asks.
+    /// </remarks>
+    /// <exception cref="OverflowException">The tally would pass <see cref="int.MaxValue"/>.</exception>
+    internal void CountBattleHashMismatch() =>
+        _battleHashMismatches = checked(_battleHashMismatches + 1);
 
     /// <summary>The stock this player carries, and the items a full stock is holding for them.</summary>
     /// <remarks>
@@ -813,7 +849,8 @@ public sealed class Player
         AutoSalvageRules,
         _talentPoints,
         _loadout.ToSnapshot(),
-        PersistPresets());
+        PersistPresets(),
+        _battleHashMismatches);
 
     /// <summary>The presets as rows, in ascending slot order.</summary>
     /// <remarks>
@@ -1093,7 +1130,8 @@ public sealed class Player
         var pityCounters = ReadPityCounters(snapshot, faults);
         var inventory = ReadInventory(snapshot.Inventory, faults);
         var autoSalvageRules = ReadAutoSalvageRules(snapshot.AutoSalvageRules, faults);
-        RequireTalentPoints(snapshot, faults);
+        RequireTalentPoints(snapshot, faults);
+        RequireBattleHashMismatches(snapshot, faults);
         var loadout = ReadLoadout(snapshot.Loadout, faults);
         var presets = ReadPresets(snapshot.Presets, faults);
         RequireEquippedItemsAreOwned(loadout, inventory, faults);
@@ -1134,7 +1172,8 @@ public sealed class Player
             autoSalvageRules,
             snapshot.TalentPoints,
             loadout,
-            presets));
+            presets,
+            snapshot.BattleHashMismatches));
     }
 
     /// <summary>
@@ -1197,6 +1236,27 @@ public sealed class Player
     /// <remarks>Safe to share, on <see cref="NoCounters"/>' argument: read-only and empty.</remarks>
     private static readonly IReadOnlyList<LoadoutPresetSnapshot> NoPresets =
         Array.AsReadOnly(Array.Empty<LoadoutPresetSnapshot>());
+
+    /// <summary>The battle-mismatch tally only ever grows, so a negative one is a corrupt row.</summary>
+    /// <remarks>
+    /// Validated on <c>TalentPoints</c>' precedent and for its reason. 🔒 A row carrying a negative
+    /// tally is the one shape that matters here: this counter feeds <c>14</c> §9's sanctions ladder,
+    /// and a negative value would let an account bank credit against future mismatches — which is the
+    /// same class of defect as a pity counter that could be driven backwards.
+    /// </remarks>
+    private static void RequireBattleHashMismatches(PlayerSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.BattleHashMismatches >= 0)
+        {
+            return;
+        }
+
+        faults.Add(
+            nameof(PlayerSnapshot.BattleHashMismatches) + " is " +
+            Text(snapshot.BattleHashMismatches) + ". 14 §9's tally counts confirmed battles whose " +
+            "reported result disagreed with the server's, nothing ever clears one, so it counts " +
+            "upwards from zero.");
+    }
 
     /// <summary>The Talent Point total only ever grows, so a negative one is a corrupt row.</summary>
     private static void RequireTalentPoints(PlayerSnapshot snapshot, List<string> faults)

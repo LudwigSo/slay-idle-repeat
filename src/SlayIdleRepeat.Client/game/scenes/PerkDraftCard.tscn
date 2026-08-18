@@ -1,0 +1,138 @@
+[gd_scene format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_card_face"]
+bg_color = Color(0.21, 0.22, 0.27, 1)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.4, 0.42, 0.5, 1)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+shadow_color = Color(0, 0, 0, 0.45)
+shadow_size = 16
+shadow_offset = Vector2(0, 8)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gem_face"]
+bg_color = Color(0.6039, 0.6471, 0.6941, 1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.07, 0.07, 0.09, 1)
+corner_detail = 12
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_press_rest"]
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_press_hover"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_press_down"]
+bg_color = Color(0, 0, 0, 0.35)
+border_width_left = 8
+border_width_top = 8
+border_width_right = 8
+border_width_bottom = 8
+border_color = Color(0.93, 0.93, 0.96, 0.9)
+corner_radius_top_left = 63
+corner_radius_top_right = 63
+corner_radius_bottom_right = 63
+corner_radius_bottom_left = 63
+corner_detail = 12
+
+[sub_resource type="StyleBoxEmpty" id="StyleBoxEmpty_press_unusable"]
+
+[node name="PerkDraftCard" type="PanelContainer"]
+theme_override_styles/panel = SubResource("StyleBoxFlat_card_face")
+
+[node name="Body" type="MarginContainer" parent="."]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 40
+theme_override_constants/margin_top = 40
+theme_override_constants/margin_right = 40
+theme_override_constants/margin_bottom = 40
+
+[node name="Column" type="VBoxContainer" parent="Body"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="HeaderRow" type="HBoxContainer" parent="Body/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 24
+
+[node name="CategoryBar" type="ColorRect" parent="Body/Column/HeaderRow"]
+custom_minimum_size = Vector2(24, 0)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="IconSlot" type="ColorRect" parent="Body/Column/HeaderRow"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+color = Color(0.13, 0.13, 0.16, 1)
+
+[node name="NameLabel" type="Label" parent="Body/Column/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 4
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 52
+autowrap_mode = 3
+
+[node name="RarityGem" type="PanelContainer" parent="Body/Column/HeaderRow"]
+custom_minimum_size = Vector2(72, 72)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_gem_face")
+
+[node name="RarityGlyph" type="Label" parent="Body/Column/HeaderRow/RarityGem"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.07, 0.07, 0.09, 1)
+theme_override_font_sizes/font_size = 44
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TierBadge" type="Label" parent="Body/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 40
+autowrap_mode = 3
+
+[node name="EffectLabel" type="Label" parent="Body/Column"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 44
+autowrap_mode = 3
+
+[node name="SynergyRow" type="HBoxContainer" parent="Body/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 16
+
+[node name="SynergyLabel" type="Label" parent="Body/Column/SynergyRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 36
+text_overrun_behavior = 3
+
+[node name="SynergyValue" type="Label" parent="Body/Column/SynergyRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
+
+[node name="PressButton" type="Button" parent="."]
+layout_mode = 2
+theme_override_styles/normal = SubResource("StyleBoxEmpty_press_rest")
+theme_override_styles/hover = SubResource("StyleBoxEmpty_press_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_press_down")
+theme_override_styles/disabled = SubResource("StyleBoxEmpty_press_unusable")

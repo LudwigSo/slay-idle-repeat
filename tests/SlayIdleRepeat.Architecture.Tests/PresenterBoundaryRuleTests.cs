@@ -99,6 +99,20 @@ public sealed class PresenterBoundaryRuleTests
     /// <summary>The file <see cref="LocalBattleSimulationName"/> and its companions are declared in.</summary>
     private const string BattleSimulationSourceFileName = "BattleSimulationSource";
 
+    /// <summary>
+    /// The number-writing rule M7-07 put in the presenters namespace — the fifth subject here whose
+    /// name does not end in <see cref="PresenterTypeSuffix"/>.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 It is the one place that decides how a value a player reads is written, and every screen
+    /// showing a currency, a price or a stat is meant to come through it. A pure formatting helper is
+    /// exactly the shape a later tidy-up files under <c>game/util/</c>, and the stray arm below
+    /// cannot see it go: its name is not spelled as a presenter. Outside these rules it is one edit
+    /// away from asking the engine to format a number for it — which is the same edit that makes the
+    /// rule untestable, because nothing under a test runner can call the engine at all.
+    /// </remarks>
+    private const string PlayerNumberName = "PlayerNumber";
+
     /// <summary>The scene script the negative control is stated over by name.</summary>
     internal const string AppRootSceneName = "AppRoot";
 
@@ -225,10 +239,11 @@ public sealed class PresenterBoundaryRuleTests
     /// </para>
     /// <para>
     /// 🔒 <b>And "spelled as a presenter" is not all of the population.</b> The namespace holds
-    /// three types whose names do not end in <see cref="PresenterTypeSuffix"/> — see
-    /// <see cref="BootAtlasResultName"/>, <see cref="LocaleStringCatalogueName"/> and
-    /// <see cref="BoardTileKindsName"/> — and the stray arm's own predicate cannot see any of them
-    /// leave. All three are therefore named here, in both arms, because the type staying in the
+    /// several types whose names do not end in <see cref="PresenterTypeSuffix"/> — see
+    /// <see cref="BootAtlasResultName"/>, <see cref="LocaleStringCatalogueName"/>,
+    /// <see cref="BoardTileKindsName"/>, <see cref="LocalBattleSimulationName"/> and
+    /// <see cref="PlayerNumberName"/> — and the stray arm's own predicate cannot see any of them
+    /// leave. Every one is therefore named here, in both arms, because the type staying in the
     /// namespace and its file staying in the directory are two separate facts and each rule depends
     /// on a different one. A further such type owes itself the same pair of lines.
     /// </para>
@@ -279,6 +294,13 @@ public sealed class PresenterBoundaryRuleTests
             "replay's local prediction and the one type here that calls the combat simulator; outside " +
             "these rules it keeps that job with nothing governing what it may reference.");
 
+        presenterTypeNames.ShouldContain(
+            PlayerNumberName,
+            $"'{PlayerNumberName}' is not among the types under {PresentersNamespace}, and the stray arm " +
+            "cannot see it leave either — its name is not spelled as a presenter. It is the one rule for " +
+            "how a number a player reads is written, shortened past ten thousand and exact on a hold; " +
+            "filed anywhere else it keeps that job with nothing governing what it may reference.");
+
         var presenterFileNames = RepoLayout.SourceFiles(PresenterSourceDirectory)
                                            .Select(Path.GetFileNameWithoutExtension)
                                            .ToArray();
@@ -314,6 +336,12 @@ public sealed class PresenterBoundaryRuleTests
             "for the same reason once more: the namespace and the directory are pinned separately because a " +
             "move can break either one alone, and the source arm greps the directory. This is the file " +
             $"'{LocalBattleSimulationName}' and its companions are declared in.");
+
+        presenterFileNames.ShouldContain(
+            PlayerNumberName,
+            $"no '{PlayerNumberName}.cs' under {RepoLayout.Relative(PresenterSourceDirectory)}, for the same " +
+            "reason once more: the namespace and the directory are pinned separately because a move can " +
+            "break either one alone, and the source arm greps the directory.");
 
         var strays =
             from type in Il.AllTypes(ProductionAssemblies.Module(ProductionAssemblies.ClientName))

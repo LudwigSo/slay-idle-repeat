@@ -52,13 +52,27 @@ internal sealed class BoardGraph
     /// statement, so a generated board cannot separate them.
     /// </para>
     /// <para>
-    /// <see cref="FromLayout"/> enforces <em>half</em> of that agreement: only this node may dangle,
-    /// so a hand-authored layout can no longer end anywhere else. It does <b>not</b> require this
-    /// node to carry <see cref="TileKind.Boss"/>, so a layout can still hold a boss-tiled node that
-    /// is not this one. <c>Handlers.RollDice</c> and <c>Handlers.ChooseFork</c> carry a
-    /// <c>ReachedBoss</c> clause that covers the divergence; <c>RESOLVE_TILE</c>'s Portal jump does
-    /// not, and needs none today because a Portal cannot reach the boss. Whoever closes the
-    /// remaining tile-kind half retires all three of those clauses together.
+    /// <see cref="FromLayout"/> makes the two <em>node-valued</em> readings name the same node: only
+    /// this node may dangle, and only this node may carry <see cref="TileKind.Boss"/>. The tile-keyed
+    /// reading can therefore no longer answer "yes" at a node that is not this one. The <b>stage</b>
+    /// reading stays unconstrained — nothing here reads <see cref="BoardNode.Stage"/>, so a layout
+    /// may still hand <see cref="BossStage"/> to a mid-board node and collect the boss multiplier.
+    /// </para>
+    /// <para>
+    /// ⚠️ Neither handler's <c>ReachedBoss</c> clause is dead code, and only one of them is a
+    /// redundancy check at all. <c>Handlers.ChooseFork</c>'s is redundant on every board whose
+    /// terminus actually dangles — every generated one, but not every one this method accepts, since
+    /// nothing stops a layout giving the terminus an outgoing edge. <c>Handlers.RollDice</c>'s is the
+    /// branch that arrives at the boss and <em>ends the chain</em>; delete it and a roll-again face
+    /// keeps chaining from the boss node until the link cap stops it, rather than the boss doing so.
+    /// </para>
+    /// <para>
+    /// ⚠️ What is still not settled is the converse: nothing requires this node to carry
+    /// <see cref="TileKind.Boss"/> at all, so a layout may end on an ordinary tile and have movement
+    /// announce a boss standing on it. The <em>rule</em> is authored — a board ends on a boss or
+    /// mini-boss node — but the vocabulary to state it is missing: the tile set has one member for
+    /// the several things the design authors as a board's ending. <c>BoardTerminusTests</c> pins
+    /// today's behaviour, names the owning tasks and carries the expiry.
     /// </para>
     /// </remarks>
     public NodeId BossNodeId => _spineByLinearIndex[^1];
@@ -171,12 +185,25 @@ internal sealed class BoardGraph
     /// edge" as "the boss was reached", so a second dead end anywhere would have it announce a boss
     /// encounter at a node that is not the boss — a malformed board must fail loudly here instead.
     /// Every fork branch rejoins the spine, so the boss is a well-formed board's single terminus.
+    /// <para>
+    /// Refuses, for the same reason by a different route, any node other than the boss that carries
+    /// <see cref="TileKind.Boss"/>. <see cref="MovementEngine.Advance"/>'s boss-exact rule reads the
+    /// <em>tile</em> of the node a stage-crossing step would land on, not its identity, so a boss
+    /// tile parked anywhere else makes movement stop early, report a boss, and swallow the stage
+    /// gate that node's boundary owed. The check is safe for every generated board without
+    /// sampling: <see cref="ChapterBoardConfig"/> refuses a boss weight in every stage table, no
+    /// fallback or injection produces one, and <see cref="BoardGenerator"/> writes the boss tile in
+    /// exactly one statement, onto the last linear index.
+    /// </para>
     /// </remarks>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     /// <exception cref="ArgumentException">
     /// The spine index is empty, a node referenced by an edge or by <paramref name="spineByLinearIndex"/>
     /// is not in <paramref name="nodes"/>, a junction id is not a node with exactly two outgoing edges,
-    /// or a node other than the boss node has no outgoing edge.
+    /// a node other than the boss node has no outgoing edge, or a node other than the boss node
+    /// carries <see cref="TileKind.Boss"/>. ⚠️ The last two both answer <c>ParamName</c>
+    /// <c>"nodes"</c>, so that name no longer identifies which of them fired — the message does, and
+    /// the tests match on it.
     /// </exception>
     public static BoardGraph FromLayout(
         IReadOnlyList<BoardNode> nodes,
@@ -251,6 +278,24 @@ internal sealed class BoardGraph
             throw new ArgumentException(
                 $"{node.Id} has no outgoing edge, but only the boss node ({bossNodeId}) may end the board; " +
                 "every other node leads somewhere, and a fork branch rejoins the spine.",
+                nameof(nodes));
+        }
+
+        // A separate pass, not a fused one: any dead end anywhere outranks a misplaced boss tile
+        // anywhere, so a layout that simply stopped early always hears the topology complaint first
+        // even when the boss tile sits at a lower index.
+        foreach (var node in nodes)
+        {
+            // Matches TileKind.Boss and nothing else. A boss-tier kind added to the tile set later —
+            // a mini-boss, a dungeon Guardian — is NOT closed here and must be added to this test.
+            if (node.Tile != TileKind.Boss || node.Id.Equals(bossNodeId))
+            {
+                continue;
+            }
+
+            throw new ArgumentException(
+                $"{node.Id} carries the boss tile, but this board's boss node is {bossNodeId}; " +
+                "no node but the board's last may carry it.",
                 nameof(nodes));
         }
 

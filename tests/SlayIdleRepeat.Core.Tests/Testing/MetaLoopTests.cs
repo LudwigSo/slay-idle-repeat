@@ -13,6 +13,7 @@ using SlayIdleRepeat.Core.Testing;
 using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using SlayIdleRepeat.Core.Tests.Model.Gear;
 using Xunit;
+using SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 namespace SlayIdleRepeat.Core.Tests.Testing;
 
@@ -88,7 +89,7 @@ public sealed class MetaLoopTests
     /// The wall-clock bound on a whole loop, in milliseconds — ~25× the ~4 ms measured when this
     /// landed. See <see cref="The_whole_meta_loop_stays_inside_the_unit_tier_budget"/>.
     /// </summary>
-    private const double LoopBudgetMs = 100;
+    private const double LoopBudgetMs = 750;
 
     /// <summary>How many Stage Gates a whole run crosses: out of stage 1 and out of stage 2, never a third.</summary>
     private const int ExpectedStageGates = 2;
@@ -337,6 +338,10 @@ public sealed class MetaLoopTests
         game.State(player).Player.BalanceOf(CurrencyId.CROWNS).ShouldBe(
             0L, "a harness player starts every wallet column at zero, so anything spent below was " +
             "earned by a command.");
+
+        // 10 §7 gates chapter 2 Normal on a chapter 1 Normal clear, and START_RUN enforces it. The
+        // chapter stays 2 for the reason ForgeChapter records — this case needs the richer payout.
+        Harnesses.HasCleared(game, player, 1, DifficultyTier.NORMAL);
 
         var driver = MetaLoopDriver.Play(game, player, ForgeChapter, DifficultyTier.NORMAL);
         var afterRun = game.State(player).Player;
@@ -746,13 +751,33 @@ public sealed class MetaLoopTests
     /// </para>
     /// <para>
     /// 🔴 <b>The bound is anchored to the measurement, not to `30` §6's command budget, and the
-    /// difference matters.</b> A whole loop is about <b>4 ms</b> here — this run is twenty-odd
-    /// commands, not the seven hundred <c>InMemoryGamePerformanceTests</c> drives — so borrowing that
-    /// file's 200 ms × 10 would have left a bound five hundred times the real cost, under which a
-    /// hundredfold regression passes in silence. This is ~25× the measured figure, which is loose
-    /// enough for a contended CI container and still catches the regression this loop is actually
-    /// exposed to: a content read moved inside the command loop, which is what it cost the
-    /// <c>DROP_RUN</c> sweep an order of magnitude when that landed.
+    /// difference matters.</b> Borrowing <c>InMemoryGamePerformanceTests</c>' 200 ms × 10 would leave a
+    /// bound far above the real cost, under which a hundredfold regression passes in silence. The
+    /// figure is written into the message so a failure reports what it actually cost, and the next
+    /// person to move this number owes the same attribution.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>4 ms → 100 ms → 750 ms, and the middle number's own instruction said "do not raise it".
+    /// Raising it anyway is a premise change, not an exception.</b> That bound was measured against a
+    /// loop in which <c>CONFIRM_BATTLE_RESULT</c> <em>simulated nothing</em>: it shape-checked the
+    /// client's <c>LogHash</c> and trusted the reported result. M7-06c made the server recompute every
+    /// fight, because <c>14</c> §9 requires it — so the loop now pays for real battles, and the old
+    /// bound was measuring a loop that no longer exists.
+    /// </para>
+    /// <para>
+    /// <b>Measured on this branch, and attributed rather than asserted.</b> The loop fights
+    /// <b>4 battles</b>; best-of-three is <b>~47 ms</b> run alone and <b>~226 ms</b> under a full-suite
+    /// run, i.e. roughly <b>12 ms per battle</b> isolated. That is the same order as the authored fight
+    /// cost — <c>05</c>'s budget is under 5 ms and M2-08 measured a 5.4 ms median for worst-case
+    /// synthetic fights, 8.2 ms at 1800 ticks — so the increase is the simulation arriving, not a
+    /// defect. 750 is ~3× the contended figure: still loose enough for a CI container, still an order
+    /// of magnitude below what a content read moved inside the command loop would cost.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What this bound no longer catches on its own:</b> a per-command regression is now hidden
+    /// behind four battles' worth of simulation. If that becomes the thing to guard, the measurement to
+    /// take is milliseconds per COMMAND with the battles subtracted, not a tighter whole-loop number —
+    /// <c>driver.BattlesFought</c> is on the driver for exactly that.
     /// </para>
     /// </remarks>
     [Fact]
@@ -778,8 +803,11 @@ public sealed class MetaLoopTests
             LoopBudgetMs,
             "the whole meta loop took " + best.ToString("F1", CultureInfo.InvariantCulture) +
             " ms against a bound of " + LoopBudgetMs.ToString("F0", CultureInfo.InvariantCulture) +
-            " — about twenty-five times the ~4 ms measured when this landed. If it fires, look for " +
-            "a content read moved inside the command loop; do not raise it.");
+            " — about three times the ~226 ms measured under a full-suite run when M7-06c made the " +
+            "server recompute every fight. If it fires, FIRST divide by driver.BattlesFought and " +
+            "compare against 05's per-fight budget: a rise in cost per battle is a simulation " +
+            "regression, and a rise with the per-battle figure flat is a content read moved inside " +
+            "the command loop. Do not raise this number without that attribution.");
     }
 
     // ═════════════════════════════════════════════════════════ fixtures
@@ -792,17 +820,72 @@ public sealed class MetaLoopTests
     }
 
     /// <summary>
-    /// A harness over the shipped content, and a player holding a stock the run cannot give them.
+    /// A harness over the shipped content, and a player holding a stock the run cannot give them —
+    /// <b>wearing six of it</b>.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The hero is equipped, and every run this file drives depends on it.</b> Since
+    /// <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9), the server decides whether a
+    /// battle was won — and <c>05</c> §2 is explicit that the base curve is not the whole hero:
+    /// <em>"Gear, talents, pets and mounts then multiply these"</em>, with <c>EnemyPowerFormula</c>
+    /// scaled against a geared one. A bare-handed hero loses, so the run never opens a draft, never
+    /// crosses a stage gate and never reaches the boss — and every claim in this file about the loop
+    /// becomes a claim about a run that died on its first fight.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Equipped through <c>EQUIP</c>, not by handing the harness a loadout.</b>
+    /// <c>InMemoryGame.CreatePlayer</c> builds a STARTING player, and starting players own no gear —
+    /// so the honest way to a geared hero is the command a real player uses, which this file's own
+    /// headnote insists on: there is no call to an aggregate's mutator anywhere in it. It also means
+    /// the equip path is exercised on the way to every assertion here rather than only in
+    /// <c>EquipTests</c>.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Each result is asserted, because a refused <c>EQUIP</c> is silent.</b> The run would still
+    /// start, the hero would still be bare, and every case would fail somewhere far away with a
+    /// message about stage gates. The loadout is frozen at <c>START_RUN</c> (<c>07</c> §4), so these
+    /// six have to land before the driver sends it.
+    /// </para>
+    /// </remarks>
     private static (InMemoryGame Game, PlayerId Player) Loop(DateTimeOffset? start = null)
     {
         var game = new InMemoryGame(ShippedHarness.Content, Seed, new VirtualClock(start ?? Start));
-        var player = game.CreatePlayer(inventory: Inventories.Stock(StartingStock));
+        var player = game.CreatePlayer(inventory: WearableStock());
 
         game.Send(player, new BeginSessionCommand("1.0.0", "content"));
 
+        foreach (var item in RunBattleWorlds.FarAbovePar)
+        {
+            var equipped = game.Send(player, new EquipCommand(item.InstanceId, item.Slot));
+
+            equipped.Accepted.ShouldBeTrue(
+                "EQUIP of the fixture's " + item.Slot + " was refused (" + equipped.Rejection +
+                "), so this run's hero fights bare-handed and loses every battle. Nothing below would " +
+                "name that as the cause — the failures land on stage gates and drafts instead.");
+        }
+
         return (game, player);
     }
+
+    /// <summary>
+    /// The starting stock, plus one item per slot for the hero to wear.
+    /// </summary>
+    /// <remarks>
+    /// The filler twelve are kept at their own count: this file's stock assertions read what the
+    /// inventory holds NOW rather than off <see cref="StartingStock"/>, so the worn six are additional
+    /// rather than a replacement, and the salvage and fusion cases still have their twelve to work on.
+    /// The worn items are <c>RunBattleWorlds</c>' rather than a seventh loadout built here, so every
+    /// suite that needs a geared hero composes the same one.
+    /// </remarks>
+    private static InventorySnapshot WearableStock() =>
+        new(
+            0,
+            Inventories.Fill(StartingStock)
+                .Concat(RunBattleWorlds.FarAbovePar)
+                .Select(Inventories.Persist)
+                .ToArray(),
+            []);
 
     private static IReadOnlyList<GearInstanceId> Ids(InMemoryGame game, PlayerId player) =>
         game.State(player).Player.Inventory.Stored.Select(item => item.InstanceId).ToArray();

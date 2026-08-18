@@ -1,0 +1,20 @@
+[gd_scene format=3]
+
+[node name="GuaranteeRow" type="HBoxContainer"]
+theme_override_constants/separation = 24
+
+[node name="CaptionLabel" type="Label" parent="."]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
+
+[node name="ValueLabel" type="Label" parent="."]
+custom_minimum_size = Vector2(144, 144)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 36
+vertical_alignment = 1
+horizontal_alignment = 2
+text_overrun_behavior = 3

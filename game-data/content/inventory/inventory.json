@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schema/inventory.schema.json",
+  "_doc": "M7-11 — the strings the Inventory screen (S16) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences treats a key referenced only from C# as an orphan, which is fatal. 🔒 The `label` group carries CAPTIONS only: the bag's occupancy and every per-stat delta are numbers read at render time and drawn beside these words, never written into them — a magnitude inside a translated string cannot be tuned and would be wrong in two languages at once. 08 §5's green/red arrows are the SIGN of a delta and carry no wording at all, which is why no key here names one. Deliberately absent, each because it is unreachable rather than forgotten: sorting, filters, the lock control and the Forge tabs are M9-01's, so no caption offers any of them; and there is no key for buying bag space, because 08 §5's errata made capacity a flat 1000 and the same ruling declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary — nothing can move the ceiling, so nothing may offer to. `block.heldNotEquippable` is the one absence with a sentence: an item in overflow is owned and shown but cannot be worn, and EQUIP refuses it with INVENTORY_FULL.",
+  "name": {
+    "title": "loc.inventory.title.name"
+  },
+  "label": {
+    "capacity": "loc.inventory.capacity.label",
+    "held": "loc.inventory.held.label"
+  },
+  "badge": {
+    "equipped": "loc.inventory.equipped.badge"
+  },
+  "action": {
+    "equip": "loc.inventory.equip.action",
+    "close": "loc.inventory.close.action"
+  },
+  "block": {
+    "heldNotEquippable": "loc.inventory.held_not_equippable.block"
+  },
+  "status": {
+    "loading": "loc.inventory.loading.status",
+    "empty": "loc.inventory.empty.status",
+    "unavailable": "loc.inventory.unavailable.status",
+    "refused": "loc.inventory.refused.status",
+    "hostUnavailable": "loc.inventory.host_unavailable.status"
+  }
+}

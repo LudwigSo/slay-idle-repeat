@@ -172,6 +172,101 @@ internal static class Domain
     /// and hands out no draw stream, so nothing outside <c>Core</c> gains a way to generate a board
     /// or to move a run along one.
     /// </para>
+    /// <para>
+    /// 🔒 <b>M7-06b adds a FOURTH and FIFTH entry point, <c>HeroBuild</c> and <c>RunBattle</c>, and
+    /// neither adds a signature type.</b> <c>HeroBuild</c>'s named consumer is the client's Hero and
+    /// Inventory screens, whose side-by-side stat delta IS the gear derivation; <c>RunBattle</c>'s is
+    /// the Application layer's <c>SimulatePendingBattleUseCase</c>, which is what lets a run leave
+    /// <c>BattlePending</c> at all — before it, the hero's stat block could not be built at any
+    /// accessibility, so a run entering a battle could never produce the fight it was standing in.
+    /// Their public members name only types that were already public: <c>ActorStats</c>,
+    /// <c>SimulationResult</c>, <c>EffectDefinition</c>, <c>GearInstance</c>, <c>PlayerSnapshot</c>,
+    /// <c>RunSnapshot</c> and <c>ContentSnapshot</c>.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The machinery stays internal here too.</b> <c>StatAggregation</c>,
+    /// <c>AggregatedStats</c>, <c>HeroBaseCurve</c>, <c>GearStatDerivation</c>, <c>GearCatalogue</c>,
+    /// <c>LoadoutRules</c>, <c>EncounterFight</c>, <c>BossFight</c>, <c>BattlePlan</c> and
+    /// <c>ActorPlan</c> are all still <c>internal</c>, and <c>HeroBattleSurfaceRuleTests</c> is what
+    /// keeps them there. <c>HeroBuild</c> is a <c>class</c> rather than a <c>record</c> precisely so
+    /// its aggregate can stay internal: a positional record's parameters are public properties, and
+    /// exporting <c>AggregatedStats</c> would have exported the battle pipeline's heal ceiling with
+    /// it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>M7-07 adds a SIXTH and a SEVENTH entry point, <c>DraftView</c> and <c>ShrineView</c>,
+    /// on exactly <c>BoardView</c>'s precedent and for its reason.</b> Neither a draft's three
+    /// options nor a shrine's two rows is persisted — both regenerate from the run's committed
+    /// stream positions — so before this widening the Perk Draft screen could not see what the
+    /// player was being offered and the Shrine screen could not see what the tile was about to
+    /// apply. <c>DraftOptionView</c> and <c>ShrineBuffRow</c> are the two return shapes, public by
+    /// the same CONSEQUENCE R15 records.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Their producers are deliberately not here either.</b> <c>PerkDraftEngine</c>,
+    /// <c>DraftOption</c>, <c>DraftRequest</c> and <c>ShrineResolver</c> stay <c>internal</c>: what
+    /// M7-07 exports is the VIEW of an offer, not the draw that decides one, and both entry points
+    /// take the same two already-public snapshots and hand out no draw stream.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>M7-07's UI review adds NO entry point and two more signature types</b> —
+    /// <c>DraftGuaranteeView</c> and <c>DraftGuaranteeKind</c>, reached through
+    /// <c>DraftView.Guarantees</c>. The consumer is the same Perk Draft screen (S07), and the reason
+    /// is <c>24</c> §1.1, whose Visibility rule is a 🔒: every luck-protection counter is shown to the
+    /// player <em>always</em>, as a plain sentence with a real number, and its Disclosure rule puts
+    /// every <c>N</c> in §4 on the screen its class belongs to. <c>DRAFT</c>'s three counters live on
+    /// the run and its three rungs live in <c>data/luck.json</c>; before this widening no assembly
+    /// outside <c>Core</c> could read the rungs at all, so the required sentence could not be written.
+    /// The enum is public by the same CONSEQUENCE R15 records — a public member returning an internal
+    /// enum does not compile.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>M7-11 adds an EIGHTH entry point, <c>InventoryView</c>, and its two return shapes</b> —
+    /// <c>InventoryItemView</c> and <c>GearStatDeltaView</c>. Its consumer is the client's Inventory
+    /// screen (S16), and the reason is <c>08</c> §5: <em>"tapping an item always shows a side-by-side
+    /// delta vs the currently equipped item in that slot, with green/red arrows per stat"</em>. That
+    /// delta is <c>InventoryComparison</c>'s, which is <c>internal</c> — so before this widening the
+    /// screen could see a player's stock but could not say what any of it would change, which is the
+    /// one thing `08` §5 requires of it.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The machinery stays internal here too.</b> <c>InventoryComparison</c>,
+    /// <c>InventorySorting</c>, <c>GearStatDerivation</c>, <c>SetBonusResolver</c> and
+    /// <c>InventoryTuning</c> are all still <c>internal</c>: what M7-11 exports is the STOCK and its
+    /// comparison, never the derivation that answers it or the sorting M9-01 will need. The entry point
+    /// takes an already-public <c>PlayerSnapshot</c> and a <c>ContentSnapshot</c> and hands out no draw
+    /// stream, so nothing outside <c>Core</c> gains a way to mint an item or to move a band.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>M7-08 adds a NINTH entry point, <c>RunEndView</c>, with <c>RunEndKind</c>,
+    /// <c>RunEndReviveStanding</c>, <c>RunEndCounterView</c> and <c>RunEndCounterKind</c>.</b> Its consumer is the client's death/revive and run-results screens
+    /// (S13/S14), which <c>02</c> §6 makes one moment — <em>"if declined or already used, go to
+    /// <c>RUN_RESULTS</c> with the Death completion multiplier"</em>. Before this widening a screen could
+    /// not say what a run was about to be paid: <c>RunRewardMath</c> is <c>internal</c>, and reproducing
+    /// <c>Banked × CompletionMultiplier</c> on the client would be a second implementation that parts
+    /// company with the payout the first time a multiplier is retuned.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The two enums are the client half's, and each closes a way for the screen to lie.</b>
+    /// <c>RunEndReviveStanding</c> exists because <c>Handlers.Revive</c> refuses a revive with
+    /// <c>CAP_REACHED</c> or with <c>ILLEGAL_STATE</c> and the player needs to be told which — a screen
+    /// inferring "you already used it" from a bool would say it to someone who never revived.
+    /// <c>RunEndCounterKind</c> exists because <c>24</c> §9 requires each <c>DROP_RUN</c> counter to name
+    /// its own unit, and a footer row recognised by its POSITION in a list gets the wrong caption the
+    /// day a third breaker is authored between the two.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The machinery stays internal here too.</b> <c>RunRewardMath</c>, <c>RunPayoutTuning</c>,
+    /// <c>RunCompletionOutcome</c>, <c>DropRunTuning</c> and <c>LuckTuning</c> are all still
+    /// <c>internal</c>: what leaves is the run's own outcome and figures, never the multipliers or the
+    /// counter-key spelling. The entry point takes two already-public snapshots and grants nothing.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>And their producer stays out too.</b> <c>DraftGuarantees</c>, <c>DraftCounters</c>,
+    /// <c>DraftDemand</c>, <c>DraftForce</c> and <c>HardPity</c> stay <c>internal</c>: what leaves is
+    /// the counters' STANDING, never the machinery that decides which guarantee fires or floors a
+    /// slot. The projection hands out no <c>DraftForce</c> and no way to move a counter.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
     {
@@ -186,6 +281,22 @@ internal static class Domain
         "BoardFork",
         "TileKind",
         "ForkLabel",
+        "HeroBuild",
+        "RunBattle",
+        "DraftView",
+        "DraftOptionView",
+        "ShrineView",
+        "ShrineBuffRow",
+        "DraftGuaranteeView",
+        "DraftGuaranteeKind",
+        "InventoryView",
+        "InventoryItemView",
+        "GearStatDeltaView",
+        "RunEndView",
+        "RunEndKind",
+        "RunEndReviveStanding",
+        "RunEndCounterView",
+        "RunEndCounterKind",
     };
 
     /// <summary>

@@ -31,6 +31,27 @@ namespace SlayIdleRepeat.Core;
 /// </remarks>
 public static class GameRules
 {
+    /// <summary>
+    /// 🔒 Named so the battle gate's reason can be found from either end, because it is the least
+    /// obvious rule in this file and the one most likely to be deleted as over-cautious.
+    /// </summary>
+    /// <remarks>
+    /// It is not anti-cheat. <c>CONFIRM_BATTLE_RESULT</c> recomposes the hero out of the PERSISTED
+    /// stock in order to recompute the fight (<c>14</c> §9), and the run's battle seed is fixed at
+    /// <c>START_BATTLE</c> — so an equip, merge, enhancement or salvage in between produces a
+    /// legitimately different fight from the one the client just played, which the server cannot tell
+    /// apart from a forged log. Without this gate <em>server result wins</em> lands on a player who did
+    /// nothing wrong, and their mismatch tally rises for it.
+    /// </remarks>
+    private const string BattlePendingRefusesAStockChange =
+        "While a run is BattlePending, every command flagged changesHeroBuild is refused with " +
+        "BATTLE_IN_PROGRESS. The gate is asked of every registration rather than only the " +
+        "CommandKind.Run ones, because all five of the commands it exists to stop — EQUIP, UNEQUIP, " +
+        "MERGE, ENHANCE, SALVAGE — are CommandKind.Meta and the run-command arm below never sees " +
+        "them. That gap is what made a battle opened before an enhancement and confirmed after it " +
+        "two different heroes at one seed. LOCK_ITEM and SET_AUTO_SALVAGE_RULES stay legal because " +
+        "neither moves a stat.";
+
     /// <summary>The dispatch table: binds each command to its handler, wire name and <see cref="CommandKind"/>.</summary>
     /// <remarks>
     /// <c>START_RUN</c> is the one row worth pausing on: it is <c>CommandKind.Run</c> even though it
@@ -68,11 +89,17 @@ public static class GameRules
         // CommandVocabularyTests transcribes it back by hand in the document's order.
         .Handled<BeginSessionCommand>("BEGIN_SESSION", CommandKind.Meta, BeginSession.Handle)
         .Deferred<SkipFtueCommand>("SKIP_FTUE", CommandKind.Meta, "M4-12")
-        .Handled<EquipCommand>("EQUIP", CommandKind.Meta, Equip.Handle)
-        .Handled<UnequipCommand>("UNEQUIP", CommandKind.Meta, Unequip.Handle)
-        .Handled<MergeCommand>("MERGE", CommandKind.Meta, Merge.Handle)
-        .Handled<EnhanceCommand>("ENHANCE", CommandKind.Meta, Enhance.Handle)
-        .Handled<SalvageCommand>("SALVAGE", CommandKind.Meta, Salvage.Handle)
+        // 🔒 The five rows below are `changesHeroBuild: true`, and it is not decoration — see
+        // <see cref="BattlePendingRefusesAStockChange"/>. Each of them changes what HeroBuild composes, so each of
+        // them can turn a battle the client is fighting into a different fight than the one the server
+        // will recompute at CONFIRM_BATTLE_RESULT. LOCK_ITEM and SET_AUTO_SALVAGE_RULES are
+        // deliberately NOT flagged: a lock is a flag and auto-salvage rules are settings, and neither
+        // moves a stat, so refusing them mid-battle would cost a player a harmless action for nothing.
+        .Handled<EquipCommand>("EQUIP", CommandKind.Meta, Equip.Handle, changesHeroBuild: true)
+        .Handled<UnequipCommand>("UNEQUIP", CommandKind.Meta, Unequip.Handle, changesHeroBuild: true)
+        .Handled<MergeCommand>("MERGE", CommandKind.Meta, Merge.Handle, changesHeroBuild: true)
+        .Handled<EnhanceCommand>("ENHANCE", CommandKind.Meta, Enhance.Handle, changesHeroBuild: true)
+        .Handled<SalvageCommand>("SALVAGE", CommandKind.Meta, Salvage.Handle, changesHeroBuild: true)
         .Handled<LockItemCommand>("LOCK_ITEM", CommandKind.Meta, LockItem.Handle)
         // 🔴 One line, deliberately, however long: GapRegisterTests reads this table as TEXT and its
         // regex is anchored to a single line, so a row wrapped for width vanishes from the handled
@@ -202,6 +229,14 @@ public static class GameRules
                 "14 §16.2's RUN_NOT_FOUND is a TRANSPORT-tier value, refused before the domain is " +
                 "invoked, so Apply may not return it (30 §2). This is a miswired caller, not a " +
                 "player asking for something they cannot have.");
+        }
+
+        // 🔒 Asked of EVERY command, not only CommandKind.Run ones, and that is the whole point of
+        // this arm. See <see cref="BattlePendingRefusesAStockChange"/>.
+        if (state.Run is { Phase: RunPhase.BattlePending } &&
+            registration.ChangesHeroBuild)
+        {
+            return CommandResult.Reject(RejectionReason.BATTLE_IN_PROGRESS, state);
         }
 
         if (registration.Kind == CommandKind.Run && state.Run is not null)

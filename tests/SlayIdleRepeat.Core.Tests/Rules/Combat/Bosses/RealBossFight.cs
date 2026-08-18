@@ -16,11 +16,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Bosses;
 /// <see cref="BossTestBench"/>'s fakes.
 /// </summary>
 /// <remarks>
-/// Neither existing bench serves: <see cref="Bosses.BossFight.Run"/> takes only an
-/// <see cref="ActorStats"/> hero and has no way to give it a held effect, while
 /// <see cref="BossTestBench"/> composes a pipeline that deals no damage and statuses that apply
 /// nothing — right for the phase-machinery suite, but unable to prove a real op resolves against
-/// the real engine.
+/// the real engine. <see cref="Bosses.BossFight.Run"/> now takes the hero's held effects, so this
+/// bench no longer exists for that reason; what it still holds is the seeded percent bucket below,
+/// which no production build produces.
 /// <para>
 /// The one hero-held effect this bench seeds: <c>BOSS_COGITATOR_PRIME_P2_RECALIBRATE</c> is a
 /// <c>STAT_COPY HIGHEST_PCT_BONUS</c> whose source is the hero, and

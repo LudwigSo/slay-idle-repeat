@@ -49,6 +49,115 @@ internal static class PlayerState
     /// The clear history, keyed the way <c>Player</c> keys it. Left <c>null</c> by default because
     /// that is the row's own documented "nothing cleared yet".
     /// </param>
+    /// <summary>
+    /// A profile row that <c>Player.Rehydrate</c> accepts, which <see cref="Player"/> alone does not.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b><see cref="Player"/> builds a row this project never rehydrated, and that only became
+    /// visible when M7-11 projected one.</b> It leaves <c>Inventory</c>, <c>Loadout</c> and
+    /// <c>Presets</c> at their <c>null</c> defaults, and all three are <b>faults</b> to the domain — an
+    /// absent inventory and an empty one are indistinguishable once read, and only one of them is a row
+    /// the game ever wrote. Every earlier client test read the snapshot's fields directly, so a row that
+    /// could not become an aggregate was never asked to be one.
+    /// </remarks>
+    private static PlayerSnapshot Rehydratable(PlayerId id) => Player(id) with
+    {
+        // All six, because the domain refuses a partial wallet: a missing row read as zero is
+        // indistinguishable from a balance a migration dropped.
+        Wallet = new Dictionary<CurrencyId, long>
+        {
+            [CurrencyId.CROWNS] = 0,
+            [CurrencyId.SOUL_SHARDS] = 0,
+            [CurrencyId.ENHANCE_STONES] = 0,
+            [CurrencyId.MERGE_DUST] = 0,
+            [CurrencyId.BEAST_FEED] = 0,
+            [CurrencyId.HONOR] = 0,
+        },
+
+        // 05:00 UTC is the game-day boundary and the game WEEK starts Monday 05:00 UTC, so the two
+        // cannot share an instant that is merely convenient.
+        DailyPeriodStartUtc = GameDayStart,
+        WeeklyPeriodStartUtc = GameWeekStart,
+
+        // Each of these is a FAULT when absent rather than an empty default, and each says why in its
+        // own message: an absent pity map read as empty would put every guarantee a player has been
+        // building towards back at zero, invisibly.
+        FeatCounters = new Dictionary<string, long>(),
+        PityCounters = new Dictionary<string, int>(),
+        AutoSalvageRules = [],
+        Inventory = new InventorySnapshot(0, [], []),
+        Loadout = BareHanded,
+        Presets = [],
+    };
+
+    /// <summary>A 05:00 UTC game-day boundary (`30` §2.3).</summary>
+    private static readonly DateTimeOffset GameDayStart =
+        new(2026, 4, 27, 5, 0, 0, TimeSpan.Zero);
+
+    /// <summary>A MONDAY 05:00 UTC game-week boundary — 27 April 2026 is a Monday.</summary>
+    private static readonly DateTimeOffset GameWeekStart = GameDayStart;
+
+    /// <summary>
+    /// A profile row carrying the given luck-protection counters — what the S14 footer reads.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Keyed by the caller rather than by this fixture, because the KEY is the thing under test
+    /// on the screens that read one: <c>LuckTuning.CounterKey</c> is the only place a counter key is
+    /// spelled, and a fixture that spelled its own would prove a screen against counters the game never
+    /// writes. A case wanting a standing counter therefore takes the key off the projection first.
+    /// </remarks>
+    /// <param name="id">Whose row this is.</param>
+    /// <param name="pityCounters">The counters, keyed as the game keys them.</param>
+    internal static PlayerSnapshot WithPityCounters(
+        PlayerId id, IReadOnlyDictionary<string, int> pityCounters) => Rehydratable(id) with
+    {
+        PityCounters = pityCounters,
+    };
+
+    /// <summary>A profile whose gear stock is empty — where a fresh account stands.</summary>
+    /// <remarks>
+    /// An <see cref="InventorySnapshot"/> holding nothing, never <c>null</c>: an absent inventory is a
+    /// rehydrate fault, and the state this fixture is for is a real one a player can be in.
+    /// </remarks>
+    internal static PlayerSnapshot WithEmptyStock(PlayerId id) => Rehydratable(id) with
+    {
+        Inventory = new InventorySnapshot(0, [], []),
+    };
+
+    /// <summary>
+    /// A profile carrying one item in the bag and one the bag is HOLDING — <c>08</c> §5's overflow.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Both bands populated, because the cases about this fixture are about the difference between
+    /// them: what is stored can be equipped and what is held cannot, and a fixture with only one band
+    /// could not tell a screen that honours that from one that ignores it.
+    /// </remarks>
+    internal static PlayerSnapshot WithOverflowingStock(PlayerId id) => Rehydratable(id) with
+    {
+        Inventory = new InventorySnapshot(
+            0,
+            [Item("stored_blade", GearSlot.WEAPON, GearFamily.BLADE)],
+            [Item("held_blade", GearSlot.WEAPON, GearFamily.BLADE)]),
+    };
+
+    /// <summary>One persisted gear row, at the bottom band and unenhanced.</summary>
+    /// <remarks>
+    /// Written out here rather than borrowed from a Core fixture: this project may not reference the
+    /// Core test assembly, and a row is a handful of fields whose shape the compiler checks anyway.
+    /// </remarks>
+    private static GearInstanceSnapshot Item(string id, GearSlot slot, GearFamily family) => new(
+        new GearInstanceId(id),
+        DefId: "GEAR_" + family,
+        slot,
+        family,
+        Rarity.C,
+        ChapterOrigin: 1,
+        Quality: 0.5,
+        EnhanceLevel: 0,
+        EnhanceFailures: 0,
+        Affixes: [],
+        Locked: false);
+
     internal static PlayerSnapshot Player(
         PlayerId id,
         string displayName = "Fixture Hero",
@@ -98,11 +207,46 @@ internal static class PlayerState
     /// <param name="pendingForkJunctionPosition">The paused junction, or null when movement is not paused.</param>
     /// <param name="pendingForkRemainingSteps">Steps left once the chosen edge is taken.</param>
     /// <param name="draftPending">Whether a won battle's draft is open.</param>
+    /// <param name="draftBattleKind">
+    /// The tile kind of the battle that opened that draft, or -1 for none.
+    /// <para>
+    /// 🔒 A case that sets <paramref name="draftPending"/> has to set this and
+    /// <paramref name="draftBattleStage"/> as well. <c>Run.Rehydrate</c> refuses a row whose draft
+    /// is open while these two stand at their no-draft values, and the rules layer's own draft
+    /// derivation is keyed on the stage — so a row left at the defaults describes a state the game
+    /// could never have persisted, and any screen projecting a draft from one is being proven
+    /// against a run that cannot occur.
+    /// </para>
+    /// </param>
+    /// <param name="draftBattleStage">The stage that battle belonged to, 1-3, or 0 for no draft.</param>
     /// <param name="rerollChargesSpentThisStage">Reroll charges spent since the stage began.</param>
     /// <param name="runSeed">
     /// The run's committed seed. Defaulted rather than left to a case, because only the cases about
     /// the battle replay depend on it — every other screen reads a run that has one and does not
     /// care which.
+    /// </param>
+    /// <param name="rngStreamPositions">
+    /// <param name="draftsSinceLegendaryOffered">
+    /// The <c>DRAFT</c> Legendary-pity counter — drafts stood since one offered a Legendary.
+    /// </param>
+    /// <param name="draftsWithoutAboveCommon">The quality-floor counter (<c>24</c> §4.7 F1).</param>
+    /// <param name="draftsWithoutOwnedUpgrade">The upgrade-famine counter (<c>24</c> §4.7 F3).</param>
+    /// <param name="ownedPerkTiers">
+    /// The perks this run holds and their tiers. Load-bearing for the famine, whose guarantee is only
+    /// due while at least one owned perk sits below its top tier.
+    /// </param>
+    /// <param name="runSeed">The run's committed seed.</param>
+    /// <param name="bankedLegendXp">Legend XP the run banked, before the completion multiplier.</param>
+    /// <param name="bankedSoulShards">Soul Shards the run banked, before the same multiplier.</param>
+    /// <param name="bossDefeated">
+    /// Whether the Boss is dead — what makes a run-end a victory rather than a death or an abandonment.
+    /// </param>
+    /// <param name="itemsAtOrAboveFloorBand">
+    /// How many items at or above the session floor's band the run produced (<c>24</c> §4.3 D3).
+    /// </param>
+    /// <param name="adUses">
+    /// Per-run ad counts by placement — where the run's ONE revive is counted (<c>02</c> §6). Defaulted
+    /// to the empty map a run that has used nothing carries.
     /// </param>
     /// <param name="rngStreamPositions">
     /// The per-stream draw counters, whose <c>combat</c> row counts battles STARTED. Defaulted to
@@ -124,9 +268,20 @@ internal static class PlayerState
         int? pendingForkJunctionPosition = null,
         int? pendingForkRemainingSteps = null,
         bool draftPending = false,
+        int draftBattleKind = -1,
+        int draftBattleStage = 0,
         int rerollChargesSpentThisStage = 0,
+        int draftsSinceLegendaryOffered = 0,
+        int draftsWithoutAboveCommon = 0,
+        int draftsWithoutOwnedUpgrade = 0,
+        IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
         ulong runSeed = 1,
-        IReadOnlyDictionary<string, ulong>? rngStreamPositions = null) =>
+        IReadOnlyDictionary<string, ulong>? rngStreamPositions = null,
+        long bankedLegendXp = 0,
+        long bankedSoulShards = 0,
+        bool bossDefeated = false,
+        int itemsAtOrAboveFloorBand = 0,
+        IReadOnlyDictionary<string, long>? adUses = null) =>
         new(
             SnapshotSchema.SchemaVersion,
             id,
@@ -140,7 +295,7 @@ internal static class PlayerState
             maxHp,
             gold,
             RngStreamPositions: rngStreamPositions ?? new Dictionary<string, ulong>(),
-            AdUses: new Dictionary<string, long>(),
+            AdUses: adUses ?? new Dictionary<string, long>(),
             ResolvedMinigames: new Dictionary<int, string>(),
             pendingForkJunctionPosition,
             pendingForkRemainingSteps,
@@ -151,7 +306,17 @@ internal static class PlayerState
             Phase: phase,
             DraftPending: draftPending,
             RerollChargesSpentThisStage: rerollChargesSpentThisStage,
-            StartingLoadout: BareHanded);
+            DraftBattleKind: draftBattleKind,
+            DraftBattleStage: draftBattleStage,
+            OwnedPerkTiers: ownedPerkTiers,
+            DraftsSinceLegendaryOffered: draftsSinceLegendaryOffered,
+            DraftsWithoutAboveCommon: draftsWithoutAboveCommon,
+            DraftsWithoutOwnedUpgrade: draftsWithoutOwnedUpgrade,
+            StartingLoadout: BareHanded,
+            BankedLegendXp: bankedLegendXp,
+            BankedSoulShards: bankedSoulShards,
+            BossDefeated: bossDefeated,
+            ItemsAtOrAboveFloorBand: itemsAtOrAboveFloorBand);
 
     /// <summary>The same slice, carrying a run rehydrated from the given row.</summary>
     /// <remarks>

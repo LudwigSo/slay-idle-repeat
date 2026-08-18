@@ -109,6 +109,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Client.Tests
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Platform.Host", "src\adapters\client\SlayIdleRepeat.Adapters.Platform.Host\SlayIdleRepeat.Adapters.Platform.Host.csproj", "{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SlayIdleRepeat.Adapters.Content.Packed", "src\adapters\client\SlayIdleRepeat.Adapters.Content.Packed\SlayIdleRepeat.Adapters.Content.Packed.csproj", "{64F5948F-D718-48BB-8020-983C8A14E7D8}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -298,6 +300,10 @@ Global
 		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{64F5948F-D718-48BB-8020-983C8A14E7D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{64F5948F-D718-48BB-8020-983C8A14E7D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{64F5948F-D718-48BB-8020-983C8A14E7D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{64F5948F-D718-48BB-8020-983C8A14E7D8}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{673B7BF0-F824-4555-BAFA-1875DBE42927} = {3DC05598-070C-4A81-B839-1DE39A7CAA92}
@@ -350,5 +356,6 @@ Global
 		{CD400156-F3DE-495E-AF56-261CF9182328} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
 		{61F4CD4F-998B-4F0B-8FB5-45BB18E320A5} = {1E385CB1-63A5-4697-B2D9-48D6B08B565C}
 		{6183DE84-6220-461E-BD63-FF4CD3BA2E0F} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
+		{64F5948F-D718-48BB-8020-983C8A14E7D8} = {2BF39CA5-3425-4B95-8203-5E7F79A4FCE7}
 	EndGlobalSection
 EndGlobal

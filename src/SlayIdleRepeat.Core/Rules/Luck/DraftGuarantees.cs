@@ -30,9 +30,9 @@ internal enum DraftGuarantee
 /// and authors no counter key at all, so there is no id to form and nothing to store on the profile.
 /// The anti-brick and the Codex bias carry no counter — one is a state predicate, the other a weight.
 /// </remarks>
-/// <param name="DraftsSinceLegendaryOffered">Drafts drawn since one last offered a Legendary.</param>
-/// <param name="DraftsWithoutAboveCommon">Consecutive drafts offering nothing above Common.</param>
-/// <param name="DraftsWithoutOwnedUpgrade">Consecutive drafts offering no owned-perk upgrade.</param>
+/// <param name="DraftsSinceLegendaryOffered">Drafts picked from since one last offered a Legendary.</param>
+/// <param name="DraftsWithoutAboveCommon">Consecutive drafts picked from offering nothing above Common.</param>
+/// <param name="DraftsWithoutOwnedUpgrade">Consecutive drafts picked from offering no owned-perk upgrade.</param>
 internal readonly record struct DraftCounters(
     int DraftsSinceLegendaryOffered,
     int DraftsWithoutAboveCommon,
@@ -154,8 +154,14 @@ internal static class DraftGuarantees
         return forces.AsReadOnly();
     }
 
-    /// <summary>The counters after a draft whose offering is known.</summary>
+    /// <summary>The counters after a draft the run picked from, whose offering is known.</summary>
     /// <remarks>
+    /// <para>
+    /// 🔒 The unit all three count is a draft <b>picked from</b>: only a taken draft reaches here at
+    /// all, so a draft that was skipped or rerolled leaves every counter standing. The two omissions
+    /// are not the same omission — a reroll is bought, and a counter it moved would put the
+    /// guarantee itself up for sale, while a skip simply takes no option and pays the player for it.
+    /// </para>
     /// <para>
     /// A draft that offered a Legendary resets the Legendary counter whether or not pity forced it,
     /// on the same argument the ladder path makes: overshooting a guarantee is satisfying it.

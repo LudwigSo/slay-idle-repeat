@@ -9,11 +9,18 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Nothing in <c>Core</c> can build the hero's <c>ActorStats</c> yet, so this handler cannot run the
-/// actual simulation — the client simulates locally from a server-issued seed instead. This
-/// handler's job is narrower: commit the battle seed and record that a battle is open.
+/// This handler's job is narrow: commit the battle seed and record that a battle is open.
 /// <see cref="Rng.RunRngScope.BeginBattle"/> derives the seed and advances the combat stream by
 /// exactly one; the seed itself is recoverable from the accepted run snapshot without a domain event.
+/// </para>
+/// <para>
+/// ⚠️ <b>It does not simulate, and that is now a choice rather than a limit.</b> The hero's stat block
+/// is buildable — <see cref="Rules.Stats.HeroBuild"/> composes the base curve, the equipped items,
+/// their affixes and their set bonuses, and a run fights with the loadout it started with — so the
+/// server can compute the same fight from the same seed. What it must not do is compute it <em>here</em>:
+/// this command opens the battle and the client renders it, so the fight the server checks is the one
+/// the client reports back, at the point the result is confirmed. Running it twice would spend the
+/// work on every battle a player abandons and would still leave the confirming handler to re-derive it.
 /// </para>
 /// <para>
 /// A battle can only open against a pending Enemy/Elite/Boss tile. The phase gate that refuses a

@@ -1,5 +1,8 @@
 using Shouldly;
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Adapters.Content.LocalFile;
+using SlayIdleRepeat.Adapters.Content.Packed;
+using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Client.Composition;
 using SlayIdleRepeat.Core;
 using Xunit;
@@ -118,7 +121,7 @@ public sealed class ClientCompositionTests : IDisposable
     {
         Should.Throw<ArgumentException>(() => ClientComposition.Compose(
                   cacheDirectoryPath: "   ",
-                  contentDataRootPath: RepoPaths.ContentDataRoot,
+                  contentSource: ShippedContentSource(),
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
                   featureFlags: LocalHostAmbience.NoRemoteConfigResolved()))
               .ParamName.ShouldBe(
@@ -129,18 +132,94 @@ public sealed class ClientCompositionTests : IDisposable
     }
 
     [Fact]
-    public void Compose_rejects_a_blank_content_data_root_path()
+    public void Compose_rejects_a_null_content_source()
     {
-        Should.Throw<ArgumentException>(() => ClientComposition.Compose(
+        Should.Throw<ArgumentNullException>(() => ClientComposition.Compose(
                   cacheDirectoryPath: _cacheRoot,
-                  contentDataRootPath: "   ",
+                  contentSource: null!,
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
                   featureFlags: LocalHostAmbience.NoRemoteConfigResolved()))
               .ParamName.ShouldBe(
-                  "contentDataRootPath",
-                  "the content root is the one input that cannot be recovered from at runtime. Failing " +
+                  "contentSource",
+                  "the content set is the one input that cannot be recovered from at runtime. Failing " +
                   "here by name is the difference between 'the export shipped no data' and a game that " +
                   "starts and then has no enemies in it.");
+    }
+
+    // ---- M7-10y: where the content is read from ---------------------------------------------
+
+    /// <summary>
+    /// 🔒 <b>A checkout on disk is read off the disk, and a packed artefact through the engine.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 Until M7-10y there was one source and an exported build had NO CONTENT AT ALL — measured
+    /// against a real desktop export, which started and then died at <c>AppRoot</c> because
+    /// <c>res://data</c> globalises to a path that is not on disk. These two arms are that fix, and the
+    /// assertion is on the TYPE because the two differ in exactly the way that matters: one reads with
+    /// <c>System.IO</c> and one cannot.
+    /// </para>
+    /// <para>
+    /// 🔒 Both arms are driven, because one is not enough to tell a selection from a constant — the
+    /// same argument <see cref="Compose_carries_the_arm_the_entitlement_selected"/> makes about its own.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void SelectContentSource_reads_the_disk_when_there_is_one_and_the_artefact_otherwise()
+    {
+        ClientComposition.SelectContentSource(RepoPaths.ContentDataRoot, new StubPackedDocuments())
+            .ShouldBeOfType<LocalFileContentSource>(
+                "the mirror is on disk here, and the disk route is the only one whose revision moves " +
+                "when a developer edits a tuning value.");
+
+        ClientComposition.SelectContentSource(null, new StubPackedDocuments())
+            .ShouldBeOfType<PackedContentSource>(
+                "no mirror on disk is every packed build, and it is the case the game used to start " +
+                "with no content in.");
+    }
+
+    /// <summary>…and a blank path is the same absence as a null one, not a root at the process's cwd.</summary>
+    [Fact]
+    public void SelectContentSource_treats_a_blank_disk_root_as_no_disk_root()
+    {
+        ClientComposition.SelectContentSource("   ", new StubPackedDocuments())
+            .ShouldBeOfType<PackedContentSource>(
+                "a blank path silently resolves to the process working directory, which holds no " +
+                "content — so reading it as a disk root would produce a source that lists nothing and " +
+                "a game that starts with no enemies rather than one that says what is wrong.");
+    }
+
+    [Fact]
+    public void SelectContentSource_rejects_a_null_packed_reader()
+    {
+        Should.Throw<ArgumentNullException>(
+                  () => ClientComposition.SelectContentSource(RepoPaths.ContentDataRoot, packedDocuments: null!))
+              .ParamName.ShouldBe(
+                  "packedDocuments",
+                  "the packed route is the fallback, so a null reader is a graph with no answer for the " +
+                  "case the fallback exists to serve — and it would only be discovered in an export.");
+    }
+
+    /// <summary>
+    /// ⚠️ <b>Nothing in this tier can prove the real graph CALLS <c>SelectContentSource</c>.</b>
+    /// </summary>
+    /// <remarks>
+    /// The call site is <c>GodotClientComposition.ComposeLocalHost</c>, which reaches the engine, and
+    /// M7-01b measured that a GodotSharp call from the unit tier kills the test host. So the counterpart
+    /// of <see cref="Compose_carries_the_arm_the_entitlement_selected"/> — "the branch is on the path the
+    /// game actually takes" — cannot be written here for this branch. What proves it instead is running
+    /// an exported build and watching it load its content, which is why that check is part of M7-10y's
+    /// evidence rather than a nicety. This case exists to say so where somebody looking for the missing
+    /// assertion will find it.
+    /// </remarks>
+    [Fact]
+    public void The_wiring_of_the_content_source_is_proved_by_an_export_and_not_here()
+    {
+        typeof(ClientComposition)
+            .GetMethod(nameof(ClientComposition.SelectContentSource))
+            .ShouldNotBeNull(
+                "the selection has to exist and be public for the engine half to call it; whether it " +
+                "does call it is proved by an exported build loading content, not by this tier.");
     }
 
     [Fact]
@@ -148,7 +227,7 @@ public sealed class ClientCompositionTests : IDisposable
     {
         Should.Throw<ArgumentNullException>(() => ClientComposition.Compose(
                   cacheDirectoryPath: _cacheRoot,
-                  contentDataRootPath: RepoPaths.ContentDataRoot,
+                  contentSource: ShippedContentSource(),
                   entitlements: null!,
                   featureFlags: LocalHostAmbience.NoRemoteConfigResolved()))
               .ParamName.ShouldBe(
@@ -162,7 +241,7 @@ public sealed class ClientCompositionTests : IDisposable
     {
         Should.Throw<ArgumentNullException>(() => ClientComposition.Compose(
                   cacheDirectoryPath: _cacheRoot,
-                  contentDataRootPath: RepoPaths.ContentDataRoot,
+                  contentSource: ShippedContentSource(),
                   entitlements: LocalHostAmbience.NoSubscriptionResolved(),
                   featureFlags: null!))
               .ParamName.ShouldBe(
@@ -177,7 +256,7 @@ public sealed class ClientCompositionTests : IDisposable
     {
         var composed = ClientComposition.Compose(
             cacheDirectoryPath: _cacheRoot,
-            contentDataRootPath: RepoPaths.ContentDataRoot,
+            contentSource: ShippedContentSource(),
             entitlements: LocalHostAmbience.NoSubscriptionResolved(),
             featureFlags: LocalHostAmbience.NoRemoteConfigResolved());
 
@@ -188,18 +267,18 @@ public sealed class ClientCompositionTests : IDisposable
     }
 
     [Fact]
-    public void Compose_loads_the_content_out_of_the_data_root_it_was_handed()
+    public void Compose_loads_the_content_out_of_the_source_it_was_handed()
     {
         var composed = ClientComposition.Compose(
             cacheDirectoryPath: _cacheRoot,
-            contentDataRootPath: RepoPaths.ContentDataRoot,
+            contentSource: ShippedContentSource(),
             entitlements: LocalHostAmbience.NoSubscriptionResolved(),
             featureFlags: LocalHostAmbience.NoRemoteConfigResolved());
 
         composed.Content.Current.DocumentPaths.ShouldContain(
             ShippedDocument,
-            $"the composed snapshot does not hold '{ShippedDocument}', so the path handed in was not the " +
-            "root the content actually came from — the parameter is being validated and then ignored, " +
+            $"the composed snapshot does not hold '{ShippedDocument}', so the source handed in was not " +
+            "where the content actually came from — the parameter is being validated and then ignored, " +
             "or the source was pointed somewhere else. Every rule in the game reads its numbers through " +
             "this snapshot, and a graph built over an empty one is a game with no enemies, no gear and " +
             "no drops that nonetheless starts.");
@@ -212,7 +291,7 @@ public sealed class ClientCompositionTests : IDisposable
     {
         var composed = ClientComposition.Compose(
             cacheDirectoryPath: _cacheRoot,
-            contentDataRootPath: RepoPaths.ContentDataRoot,
+            contentSource: ShippedContentSource(),
             entitlements: new Entitlements(hasPlus, expiresAtUtc: null),
             featureFlags: LocalHostAmbience.NoRemoteConfigResolved());
 
@@ -222,5 +301,31 @@ public sealed class ClientCompositionTests : IDisposable
             "in isolation but never reached from Compose leaves the real graph on whichever arm happened " +
             "to be written first — and one entitlement is not enough to tell 'selected' from 'constant', " +
             "which is why both are driven through here.");
+    }
+    /// <summary>The shipped content, read off the checkout — what every Compose case here is about.</summary>
+    private static IContentSourcePort ShippedContentSource() =>
+        new LocalFileContentSource(RepoPaths.ContentDataRoot);
+
+    /// <summary>
+    /// A packed reader that holds nothing and is never read — the cases about
+    /// <see cref="ClientComposition.SelectContentSource"/> are about WHICH source is chosen, not about
+    /// what it can find.
+    /// </summary>
+    /// <remarks>
+    /// Hand-written rather than mocked, on the grounds every fake in this repository is: there is no
+    /// mocking library here and adding one to stand in for two members would be a dependency bought for
+    /// nothing. It answers empty rather than throwing, because a selection that constructed its source
+    /// eagerly and read it would then fail for a reason the case is not about.
+    /// </remarks>
+    private sealed class StubPackedDocuments : IPackedDocumentReader
+    {
+        public IReadOnlyList<string> EnumerateDocuments() => [];
+
+        public bool TryRead(string documentPath, out ReadOnlyMemory<byte> bytes)
+        {
+            bytes = ReadOnlyMemory<byte>.Empty;
+
+            return false;
+        }
     }
 }

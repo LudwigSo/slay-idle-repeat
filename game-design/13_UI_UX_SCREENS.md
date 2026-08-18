@@ -59,6 +59,7 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 | S17 Forge | **Reforge** and **Retune** tabs; Set Token counter; Focus row | `24` §9 |
 | S19 Menagerie | Beast Mark exchange row with all three tiers | `24` §9 |
 | S23 Shop | Every chest listing states its class and current pity counter before purchase | `24` §9 |
+| S07 Perk Draft | The three `DRAFT` counters, each naming its unit rather than a bare number: *"Rare or better guaranteed in 2 more drafts you pick from"* | `24` §9 |
 | S26 Settings | **Odds & Guarantees** page — every rate and every pity `N`, in plain language, in EN and DE | `24` §1.1 |
 | S26 Settings | **Account** row: link status, provider, linked date, delete-account path | `28` Part B |
 | S03 Home | Envelope icon with unread count; account-link banner (fortnightly, dismissible, unlinked players only) | `28` Parts A, B |

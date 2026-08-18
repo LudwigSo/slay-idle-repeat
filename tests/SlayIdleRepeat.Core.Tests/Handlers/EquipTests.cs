@@ -205,7 +205,14 @@ public sealed class EquipTests
             "nothing else's — and the player needs to be told their bag is full, not that they do " +
             "not own the item.");
 
-        result.NewState.Player.Loadout.EquippedCount.ShouldBe(0, "a refused EQUIP changes nothing.");
+        // 🔒 Unchanged, not zero. The fixture hero arrives already wearing six slots — it has to, since
+        // 14 §9 makes the server recompute the fight and a bare-handed hero loses the kill this case
+        // needs in order to have an overflow item at all. "A refused EQUIP changes nothing" is a claim
+        // about the DELTA, and stating it as a delta is what keeps it true of a dressed hero as well as
+        // a naked one.
+        result.NewState.Player.Loadout.EquippedCount.ShouldBe(
+            kill.NewState.Player.Loadout.EquippedCount,
+            "a refused EQUIP changes nothing — the equipped count moved.");
     }
 
     // ═══════════════════════════════════════════════════════ 5 · the slot is not the item's

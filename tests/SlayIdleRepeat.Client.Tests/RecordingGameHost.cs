@@ -30,8 +30,11 @@ internal sealed class RecordingGameHost : IGameHost
     private readonly OwnStateResult? _read;
     private readonly Exception? _readFailure;
 
+    private OwnStateResult? _laterRead;
+
     private RejectionReason? _submitRejection;
     private Exception? _submitFailure;
+    private int _submitFailuresLeft;
     private RunSnapshot? _acceptedRun;
     private IReadOnlyList<DomainEvent> _acceptedEvents = [];
 
@@ -83,6 +86,23 @@ internal sealed class RecordingGameHost : IGameHost
     internal static RecordingGameHost FaultingItsRead(Exception failure) => new(read: null, failure);
 
     /// <summary>
+    /// Makes the second and every later read answer with a different state from the first.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A moving store, which is the only fixture a re-read can be proved against: a host that
+    /// answered the same thing twice would satisfy a screen that re-read and a screen that never
+    /// did. Left unset, every read answers alike and nothing about the existing cases changes.
+    /// </remarks>
+    /// <param name="player">The row the store holds by the time it is asked again.</param>
+    /// <param name="run">Whatever run that row carries by then.</param>
+    internal RecordingGameHost ThenFinding(PlayerSnapshot player, RunSnapshot? run = null)
+    {
+        _laterRead = new OwnStateResult(OwnStateLookup.Found, new OwnStateView(player, run));
+
+        return this;
+    }
+
+    /// <summary>
     /// Makes every command this host is handed come back refused, carrying the given reason.
     /// </summary>
     /// <remarks>
@@ -110,9 +130,19 @@ internal sealed class RecordingGameHost : IGameHost
     /// was found.
     /// </remarks>
     /// <param name="failure">What the submission fails with.</param>
-    internal RecordingGameHost FaultingItsCommands(Exception failure)
+    /// <param name="times">
+    /// How many submissions fault before the host starts answering normally. Every one by default.
+    /// <para>
+    /// A finite count is what lets a case ask the question a permanently faulting host cannot: a
+    /// screen that latched "the host did not answer" and never cleared it prints that sentence under
+    /// the next command's real answer, and nothing about a host that faults forever can tell the two
+    /// apart.
+    /// </para>
+    /// </param>
+    internal RecordingGameHost FaultingItsCommands(Exception failure, int times = int.MaxValue)
     {
         _submitFailure = failure;
+        _submitFailuresLeft = times;
 
         return this;
     }
@@ -162,9 +192,12 @@ internal sealed class RecordingGameHost : IGameHost
         ReadRun = run;
         ReadToken = ct;
 
-        return _readFailure is null
-            ? Task.FromResult(_read!)
-            : Task.FromException<OwnStateResult>(_readFailure);
+        if (_readFailure is { } failure)
+        {
+            return Task.FromException<OwnStateResult>(failure);
+        }
+
+        return Task.FromResult(ReadCallCount > 1 && _laterRead is { } later ? later : _read!);
     }
 
     /// <inheritdoc/>
@@ -180,8 +213,10 @@ internal sealed class RecordingGameHost : IGameHost
         SubmitCommand = command;
         SubmitToken = ct;
 
-        if (_submitFailure is { } failure)
+        if (_submitFailure is { } failure && _submitFailuresLeft > 0)
         {
+            _submitFailuresLeft--;
+
             return Task.FromException<ApplyCommandOutcome>(failure);
         }
 

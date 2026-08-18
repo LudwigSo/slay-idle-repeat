@@ -182,6 +182,15 @@ public sealed class PlayerSnapshotTests
             // written by a command — so nothing else in the suite would notice it missing a byte.
             (nameof(PlayerSnapshot.TalentPoints), v, PlayerSnapshots.With(talentPoints: 1L)),
 
+            // M7-06c. 14 §9's battle-verification tally. It is deliberately never shown to a player,
+            // which is exactly why it needs a probe here: no screen, event or rejection reads it, so
+            // this is the ONLY place that would notice it failing to reach the writer. Two accounts
+            // with different mismatch histories are materially different to §9's review queue, and a
+            // stateHash that agreed across them would report a mirror as in sync while the one fact
+            // the anti-cheat ladder acts on had diverged.
+            (nameof(PlayerSnapshot.BattleHashMismatches), v,
+                PlayerSnapshots.With(battleHashMismatches: 1)),
+
             // M4-10. The equipped slot is what the whole hero screen and every future power
             // computation read; two players wearing different weapons must never share a stateHash.
             (nameof(PlayerSnapshot.Loadout), v,

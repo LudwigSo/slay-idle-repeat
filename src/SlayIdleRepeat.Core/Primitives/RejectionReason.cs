@@ -98,4 +98,48 @@ public enum RejectionReason
 
     /// <summary>A grant would exceed capacity and cannot be held.</summary>
     INVENTORY_FULL = 20,
+
+    /// <summary>
+    /// The clear the chapter/tier ladder demands has not happened — a chapter or tier the player has
+    /// not opened yet.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="NOT_ENTITLED"/> on purpose: that one is a Plus paywall, and a client
+    /// that read them as one thing would offer a purchase to a player whose only problem is that they
+    /// have not finished the previous chapter.
+    /// </remarks>
+    PREREQUISITE_NOT_CLEARED = 21,
+
+    /// <summary>The Legend Level the chapter/tier ladder demands has not been reached.</summary>
+    /// <remarks>
+    /// Its own value rather than a second use of <see cref="PREREQUISITE_NOT_CLEARED"/>: the two are
+    /// answered by different actions — one by playing the tier below, one by levelling — and a
+    /// rejection carries no detail payload to tell them apart afterwards.
+    /// </remarks>
+    LEGEND_LEVEL_TOO_LOW = 22,
+
+    /// <summary>
+    /// A battle is open, and this command would change the hero the server is about to recompute
+    /// that battle with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Its own value rather than a second use of <see cref="ILLEGAL_STATE"/>, on the M7-04
+    /// precedent.</b> <c>ILLEGAL_STATE</c> already answers five unrelated situations on this seam
+    /// alone, and this one is the only refusal in the set the player can act on directly — finish the
+    /// fight, then change your gear. A shared value would leave them re-reading a screen that cannot
+    /// tell them which of the five happened, which is exactly the conflation that put
+    /// <c>NOT_ENTITLED</c> and a malformed slot index behind one number.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>It protects the honest player, not the server.</b> It would be easy to read this as
+    /// anti-cheat and it is not: <c>CONFIRM_BATTLE_RESULT</c> recomposes the hero from the persisted
+    /// stock, so an equip or an enhancement between opening a battle and confirming it produces a
+    /// legitimately different fight from the one the client played — and the server, which cannot tell
+    /// that apart from tampering, would take its own result and count a mismatch against a player who
+    /// did nothing wrong. Refusing the stock change is what keeps <c>14</c> §9's <em>server result
+    /// wins</em> from being a punishment for a legal action.
+    /// </para>
+    /// </remarks>
+    BATTLE_IN_PROGRESS = 23,
 }

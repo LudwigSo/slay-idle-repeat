@@ -131,11 +131,26 @@ public enum ChapterSelectStage
 /// could no longer move.
 /// </para>
 /// <para>
-/// ⚠️ <b>This gate is presentation only</b> — see <see cref="TheRulesLayerDoesNotEnforceThisGate"/>.
+/// 🔒 <b>This gate is drawn here and enforced in the rules layer, from the same ladder.</b>
+/// <c>StartRun.Handle</c> reads <c>tuning/progression.json#/chapterGating</c> too and refuses a
+/// request that does not meet it with <c>PREREQUISITE_NOT_CLEARED</c> or
+/// <c>LEGEND_LEVEL_TOO_LOW</c>, so a client that skipped this screen gains nothing. What this
+/// screen owns is the <em>instruction</em>: the refusal a player can read and act on, before a
+/// command is sent at all.
 /// </para>
 /// <para>
-/// ⚠️ <b>And it is decided from one of the two places the gate is authored</b> — see
-/// <see cref="TheChapterUnlockConditionIsNotReadHere"/>.
+/// ⚠️ <b>The one asymmetry, and it is deliberate:</b> this screen lists <em>every</em> unmet
+/// requirement, and the handler names one. A rejection carries no detail payload, so a Mythic
+/// request blocked by a missing clear and by Legend Level at the same time comes back as the clear
+/// alone — which is why a screen that showed only the first requirement would send the player to
+/// do half the work and come back to the same locked button.
+/// </para>
+/// <para>
+/// 🔒 <b>The generic ladder is the single runtime authority.</b> Each chapter document also carries
+/// its own <c>unlockCondition</c>, and it is a restatement, never a second source: the chapter
+/// schema pins its tier to the one tier the ladder's Normal rung names, and a declared loader rule
+/// pins the chapter number and cross-checks the schema against the ladder, so a chapter authored
+/// with a prerequisite the ladder cannot express fails the build. That is why nothing here reads it.
 /// </para>
 /// <para>
 /// 🔒 There is deliberately no par-power, expected-power or power-warning member. The power model
@@ -145,34 +160,6 @@ public enum ChapterSelectStage
 /// </remarks>
 public sealed class ChapterSelectPresenter
 {
-    /// <summary>
-    /// ⚠️ Deliberately unenforced elsewhere, and named so it can be found. Every refusal this class
-    /// makes is a refusal to draw a control and to submit a command; nothing behind it checks the
-    /// same thing again. Closing that would be a rules change rather than a screen's, so it is
-    /// stated here rather than papered over with a rejection reason this layer would have to invent.
-    /// </summary>
-    private const string TheRulesLayerDoesNotEnforceThisGate =
-        "The clear ladder and the Legend Level are enforced on this screen and nowhere else: " +
-        "START_RUN is refused only for a chapter id below one or an undefined tier, and no task " +
-        "currently owns making the rules check the ladder. A client that skipped this screen could " +
-        "start any chapter on any tier and would be accepted.";
-
-    /// <summary>
-    /// ⚠️ Deliberately unread, and named so it can be found. The clear half of this gate is authored
-    /// TWICE — once generically, in the ladder this class reads, and once per chapter, in a member
-    /// this class does not read at all. Nothing reconciles the two, and nothing else in the
-    /// repository reads the second one either, so a divergence between them is silent in both
-    /// directions.
-    /// </summary>
-    private const string TheChapterUnlockConditionIsNotReadHere =
-        "Every chapter document carries its own unlockCondition — a required (clearChapter, tier) " +
-        "pair, or null — and no code in this repository reads it at runtime. This screen decides " +
-        "the clear requirement from tuning/progression.json#/chapterGating alone, and the two " +
-        "sources agree only because the two shipped chapters were authored by hand to agree. The " +
-        "chapter schema permits an unlockCondition the generic ladder does not describe, and a " +
-        "chapter authored with one would be gated by the ladder and opened regardless of what its " +
-        "own document asked for. Which source wins is a content-model decision no task owns.";
-
     /// <summary>
     /// The screen's own strings. The chapter names are not among them: each chapter document names
     /// its own, so a chapter added later brings its name with it rather than needing a second edit.
@@ -276,9 +263,10 @@ public sealed class ChapterSelectPresenter
     /// </summary>
     /// <remarks>
     /// 🔒 The reason is carried across rather than collapsed into the verdict. A run already open, a
-    /// chapter id below one and an undefined tier are all refused, and they are the difference
-    /// between "you are already playing" and "this build sent nonsense" — a single flag saying the
-    /// command failed would leave the player and whoever reads the logs with the same blank.
+    /// chapter id below one, an undefined tier and either half of the ladder are all refused, and
+    /// they are the difference between "you are already playing", "this build sent nonsense" and
+    /// "this screen was drawing a ladder that had already moved" — a single flag saying the command
+    /// failed would leave the player and whoever reads the logs with the same blank.
     /// </remarks>
     public RejectionReason? RulesRejection { get; private set; }
 
@@ -347,7 +335,15 @@ public sealed class ChapterSelectPresenter
     /// ⚠️ Every refusal shares one sentence, and that IS a collapse — deliberately. The identity of
     /// the refusal is carried by <see cref="RulesRejection"/> for the log; a sentence per
     /// <see cref="RejectionReason"/> would be twenty authored strings, most of them for reasons this
-    /// screen cannot reach, and the two the player can act on are both acted on the same way.
+    /// screen cannot reach.
+    /// </para>
+    /// <para>
+    /// 🔒 And the collapse holds even now that a ladder refusal is reachable, because a sentence is
+    /// the weaker of the two surfaces this screen has. A refusal re-reads the state before it
+    /// returns, so the row the player is looking at redraws as blocked and its requirement lines
+    /// name the very chapter, tier and Legend Level the handler refused on — the whole instruction,
+    /// not the one requirement a wire value has room for. A sentence per reason would restate the
+    /// worse half of that and would have to be kept true against a ladder it does not read.
     /// </para>
     /// </remarks>
     public string ConfirmStatusText => _lastConfirmStartedARun switch
@@ -399,7 +395,9 @@ public sealed class ChapterSelectPresenter
 
     /// <summary>Reads the player's own state, which is what the gating is decided against.</summary>
     /// <param name="ct">Cancellation.</param>
-    public async Task StartAsync(CancellationToken ct)
+    public Task StartAsync(CancellationToken ct) => ReadOwnStateAsync(ct);
+
+    private async Task ReadOwnStateAsync(CancellationToken ct)
     {
         try
         {
@@ -429,10 +427,9 @@ public sealed class ChapterSelectPresenter
 
     /// <summary>Submits <c>START_RUN</c> for a selectable pair, and nothing at all for any other.</summary>
     /// <remarks>
-    /// A submitted command is not an accepted one. This screen's gate is the only thing checking the
-    /// ladder, but it is not the only thing checking anything: the rules layer refuses a second run
-    /// while one is open, and a screen that reported the tap as taken would latch its confirm on a
-    /// run that never started.
+    /// A submitted command is not an accepted one. The rules layer checks the same ladder this screen
+    /// drew, and more besides — it refuses a second run while one is open — so a screen that reported
+    /// the tap as taken would latch its confirm on a run that never started.
     /// </remarks>
     /// <param name="chapterId">The chosen chapter.</param>
     /// <param name="tier">The chosen tier.</param>
@@ -483,6 +480,14 @@ public sealed class ChapterSelectPresenter
 
         if (!outcome.Accepted)
         {
+            // The pair was selectable, so the ladder this screen drew and the ladder the rules layer
+            // answered against disagreed — and the only thing this screen owns that can be wrong is
+            // the state it read once, before the tap. Re-read it here, because nothing else ever
+            // will: the confirm comes back live over whatever the rows are still drawing, and a
+            // refusal the player cannot see the cause of is a refusal they can only answer by
+            // pressing the same button again.
+            await ReadOwnStateAsync(ct).ConfigureAwait(false);
+
             return ChapterSelectSubmission.RefusedByRules;
         }
 

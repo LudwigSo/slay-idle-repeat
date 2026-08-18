@@ -71,6 +71,10 @@ public static class ContentLayout
             // forget, because the gap only becomes visible the day a second file arrives.
             [ContentDirectory + "gear/"] = SchemaDirectory + "gear" + SchemaSuffix,
 
+            // The set-bonus effects. A directory of its own rather than a second file under gear/,
+            // because that row already binds every file under gear/ to the base-item grid's schema.
+            [ContentDirectory + "sets/"] = SchemaDirectory + "sets" + SchemaSuffix,
+
             // Named explicitly (schema/perk.schema.json, singular) because the stem of
             // content/perks/perks.json is "perks" (plural) and the bare stem rule cannot bridge
             // a one-letter difference.
@@ -105,6 +109,17 @@ public static class ContentLayout
 
             // The Battle Replay screen's string slots — likewise.
             [ContentDirectory + "battle/"] = SchemaDirectory + "battle" + SchemaSuffix,
+
+            // The Perk Draft screen's string slots — likewise.
+            [ContentDirectory + "perk_draft/"] = SchemaDirectory + "perk_draft" + SchemaSuffix,
+
+            // The run Shop screen's string slots. The row here least likely to stay the easy case:
+            // the offer catalogue this screen cannot yet stock lands beside this document.
+            [ContentDirectory + "shop/"] = SchemaDirectory + "shop" + SchemaSuffix,
+
+            // The Campfire / Shrine screen's string slots — one document serving two arms, and
+            // splitting the shrine's half out is the tidy-up this row keeps buildable.
+            [ContentDirectory + "campfire/"] = SchemaDirectory + "campfire" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

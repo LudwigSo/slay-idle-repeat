@@ -158,21 +158,27 @@ public sealed record DieFaceReading(int Sequence, string Kind, int Value);
 public sealed class BoardPresenter
 {
     /// <summary>
-    /// ⚠️ Deliberately not papered over, and named so it can be found. The design's reroll prompt
-    /// offers to replace the face just shown; the command the rules layer actually ships cannot,
-    /// because the roll, the movement and the landing are one command and are already committed by
-    /// the time any face is known. What <c>USE_REROLL</c> does instead is spend a charge to advance
-    /// the die so the NEXT roll differs. Reconciling the two is a dice-system decision no task owns,
-    /// so the divergence is stated here rather than hidden behind a caption that would promise an
-    /// undo and deliver a different mechanic.
+    /// 🔒 <b>SETTLED, and kept because the reasoning is still load-bearing.</b> The divergence this
+    /// used to state as unowned was ruled at the M7 kickoff (D6) and the document yielded: <c>04</c>
+    /// §3.1 now says a reroll changes the NEXT roll and cannot undo the one it is offered beside.
     /// </summary>
-    private const string TheRerollCannotReplaceTheFaceItIsShownBeside =
-        "04's reroll prompt offers to replace the face the die just settled on. USE_REROLL cannot: " +
-        "ROLL_DICE answers with the face, the movement and the landing in one command, so the run " +
-        "has already moved before a face is known, and the handler's own remarks say it instead " +
-        "burns a dice-stream draw so the next ROLL_DICE differs. The prompt below is therefore the " +
-        "authored acceptance window, and the control inside it is offered for what the command " +
-        "does rather than for what the design describes.";
+    /// <remarks>
+    /// ⚠️ The constant stays rather than being deleted with the divergence. It is the argument for why
+    /// the amendment went the way it did, and the next person to read <c>04</c> §3's prompt UX and
+    /// think a bare <em>"Reroll"</em> would do is the person who needs it: <c>ROLL_DICE</c> answers the
+    /// face, the movement and the landing in one command, so the run has already moved before any face
+    /// is known. The alternative was splitting that command in two, at the cost of a 53rd and 54th
+    /// entry in <c>14</c> §2.3's frozen vocabulary, a change to RNG consumption on the dice stream, and
+    /// divergence in every saved command log.
+    /// </remarks>
+    private const string TheRerollChangesTheNextRollAndTheDocumentSaysSoNow =
+        "04 §3.1 (kickoff decision D6): a reroll changes the NEXT roll. USE_REROLL cannot replace the " +
+        "face the die just settled on, because ROLL_DICE answers with the face, the movement and the " +
+        "landing in one command, so the run has already moved before a face is known — the handler's " +
+        "own remarks say it burns a dice-stream draw so the next ROLL_DICE differs. The prompt is the " +
+        "authored acceptance window and the control inside it is offered for what the command does. " +
+        "RerollChangesNextRollText is the caption that says so on screen, because a bare 'Reroll' " +
+        "beside a settled face is read as a redo.";
 
     /// <summary>
     /// ⚠️ Deliberately unread, and named so it can be found. Nothing reachable from a client
@@ -221,6 +227,7 @@ public sealed class BoardPresenter
     private const string StandingOnLabelKey = "loc.board.standing_on.label";
     private const string RollActionKey = "loc.board.roll.action";
     private const string RerollActionKey = "loc.board.reroll.action";
+    private const string RerollChangesNextRollLabelKey = "loc.board.reroll_changes_next_roll.label";
     private const string ResolveActionKey = "loc.board.resolve.action";
     private const string DiePanelActionKey = "loc.board.die_panel.action";
     private const string ForkNameKey = "loc.board.fork.name";
@@ -328,6 +335,26 @@ public sealed class BoardPresenter
 
     /// <summary>The hero's current hit points, as the run carries them.</summary>
     public int CurrentHp { get; private set; }
+
+    /// <summary>
+    /// Whether this run has reached its end and has NOT been closed yet — the moment S13/S14 owns.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Told apart from <see cref="BoardStage.RunEnded"/>, which is a run already CLOSED.</b> A
+    /// run whose hero is dead or whose Boss is dead is over, but nothing has been banked until
+    /// <c>END_RUN</c> runs — and <c>END_RUN</c> is submitted from the run-end screen this flags the way
+    /// to. A board that could not tell the two apart would either hand a player to a results screen for
+    /// a payout already taken, or leave them on the board with a dead hero and a roll button.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It says the run is over, never WHY.</b> Which of <c>02</c> §6's outcomes this is — and what it
+    /// pays — is <c>RunEndView</c>'s, projected on the screen that draws it. A second derivation here
+    /// would be a second answer to "was this a victory", and the two would part company the first time
+    /// either moved.
+    /// </para>
+    /// </remarks>
+    public bool RunAwaitingResults { get; private set; }
 
     /// <summary>The hero's maximum hit points for this run, as the run carries them.</summary>
     public int MaxHp { get; private set; }
@@ -479,6 +506,19 @@ public sealed class BoardPresenter
 
     /// <summary>The reroll control's caption, resolved.</summary>
     public string RerollText => _strings.Resolve(RerollActionKey);
+
+    /// <summary>
+    /// The sentence beside the reroll saying what it changes, resolved.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Not optional decoration — see
+    /// <see cref="TheRerollChangesTheNextRollAndTheDocumentSaysSoNow"/>. <c>04</c> §3.1 requires the
+    /// wording not to promise an undo, and a button label alone cannot carry the distinction between
+    /// "re-roll this" and "change the next one". Always resolved rather than shown only on the first
+    /// prompt: a player who learns the rule once and then sees a bare control on every later roll has
+    /// been taught the wrong thing by repetition.
+    /// </remarks>
+    public string RerollChangesNextRollText => _strings.Resolve(RerollChangesNextRollLabelKey);
 
     /// <summary>The tile acknowledgement's caption, resolved.</summary>
     public string ResolveText => _strings.Resolve(ResolveActionKey);
@@ -661,16 +701,48 @@ public sealed class BoardPresenter
         return await SubmitAsync(new ChooseForkCommand(branchIndex), ct).ConfigureAwait(false);
     }
 
-    /// <summary>Submits <c>RESOLVE_TILE</c> for the tile the run is standing on.</summary>
+    /// <summary>
+    /// Whether the pending tile is one that is left by FIGHTING it rather than by resolving it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Asked of the battle screen rather than answered here, so the three tile numbers have one
+    /// home — the same way this screen asks <c>ShopPresenter</c> and <c>CampfirePresenter</c> about
+    /// theirs.
+    /// </remarks>
+    public bool PendingTileOpensAFight =>
+        PendingTile is { } tile && BattleReplayPresenter.OpensAFight(tile.Kind);
+
+    /// <summary>
+    /// Acts on the tile the run is standing on, with the command that tile is actually left by.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>THIS BRANCH IS THE FIX FOR A RUN THAT COULD NOT FIGHT.</b> It submitted
+    /// <c>RESOLVE_TILE</c> unconditionally, and <c>Handlers.ResolveTile</c> says of Enemy, Elite and Boss
+    /// that they are *"acknowledged and not cleared"* — so on a fight tile the command was ACCEPTED,
+    /// cleared nothing, and left the board redrawing the identical state. No rejection, no error, no
+    /// fight: the run was stuck on that tile permanently. Found by playing an exported build, on an
+    /// enemy tile at position 20, and confirmed by grep: <c>START_BATTLE</c> had no caller anywhere in
+    /// the client.
+    /// </para>
+    /// <para>
+    /// 🔒 <c>START_BATTLE</c> is the whole fix, because everything after it already worked: it moves
+    /// the run to <c>RunPhase.BattlePending</c>, which is the state the board already watches for and
+    /// already opens the replay screen on. Nothing new was needed downstream — only the command that
+    /// gets a run into a fight.
+    /// </para>
+    /// </remarks>
     /// <param name="ct">Cancellation.</param>
-    public async Task<BoardSubmission> ResolveTileAsync(CancellationToken ct)
+    public async Task<BoardSubmission> ResolvePendingTileAsync(CancellationToken ct)
     {
         if (Stage != BoardStage.Ready || PendingTile is null)
         {
             return BoardSubmission.RefusedNotAvailable;
         }
 
-        return await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
+        return PendingTileOpensAFight
+            ? await SubmitAsync(new StartBattleCommand(), ct).ConfigureAwait(false)
+            : await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -899,6 +971,12 @@ public sealed class BoardPresenter
         // the screen reports an ended run rather than blanking, and the roll is refused by the block
         // this stage produces rather than by an absent board.
         Stage = run.Phase == RunPhase.Ended ? BoardStage.RunEnded : BoardStage.Ready;
+
+        // Read off the two facts that end a run, and only while it is still open: a hero at zero hit
+        // points (02 §6) or a dead Boss. A closed run is excluded because its rewards are already
+        // banked — END_RUN has run — and a results screen opened over one would show a tally for a
+        // payout the player has had.
+        RunAwaitingResults = run.Phase != RunPhase.Ended && (run.CurrentHp == 0 || run.BossDefeated);
     }
 
     /// <remarks>See <see cref="TheForkPreviewIsNotReachableHere"/> for why these carry no preview.</remarks>

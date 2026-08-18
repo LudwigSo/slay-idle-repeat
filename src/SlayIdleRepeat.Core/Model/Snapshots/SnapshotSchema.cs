@@ -9,5 +9,5 @@ public static class SnapshotSchema
     /// serialisation change: it bumps this number and is a versioned migration, never silent — and
     /// changes every existing <c>stateHash</c>.
     /// </summary>
-    public const int SchemaVersion = 14;
+    public const int SchemaVersion = 15;
 }
