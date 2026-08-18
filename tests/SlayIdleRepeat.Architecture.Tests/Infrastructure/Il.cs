@@ -69,6 +69,17 @@ internal static class Il
     /// to name it rather than to claim it, and to keep the branch because deleting it would be a
     /// hole rather than a simplification.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>Generic substitution is not carried, and that is the sharper blind spot.</b>
+    /// <c>Resolve()</c> on a constructed generic returns the OPEN definition, whose interfaces are
+    /// stated in terms of <c>!0</c> — so <c>Foo : Base&lt;Bar&gt;</c> where
+    /// <c>Base&lt;T&gt; : IPort&lt;T&gt;</c> answers FALSE for <c>IPort&lt;Bar&gt;</c>, in the base
+    /// walk and in the interface recursion alike. No port here is generic and nothing reaches one
+    /// this way today, so it is latent; the probe that passes
+    /// (<c>CurrencyChanged</c> inheriting <c>IEquatable&lt;DomainEvent&gt;</c>) works because that
+    /// instantiation is concrete. The day a generic port lands, this predicate is what has to
+    /// change first — not the rules built on it.
+    /// </para>
     /// </remarks>
     internal static bool ImplementsInterface(TypeDefinition type, string interfaceFullName)
     {
@@ -80,7 +91,7 @@ internal static class Il
                 return true;
             }
 
-            current = current.BaseType?.Resolve();
+            current = TryResolve(current.BaseType);
         }
 
         return false;
@@ -93,10 +104,36 @@ internal static class Il
             return true;
         }
 
-        var resolved = candidate.Resolve();
+        var resolved = TryResolve(candidate);
         return resolved is not null &&
                (resolved.FullName.Equals(interfaceFullName, StringComparison.Ordinal) ||
                 resolved.Interfaces.Any(i => InterfaceMatches(i.InterfaceType, interfaceFullName)));
+    }
+
+    /// <summary>
+    /// Resolves a type reference, treating one that cannot be resolved as "not a match" rather than
+    /// as an aborted run.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Cecil's resolver <b>throws</b> <c>AssemblyResolutionException</c> for a scope it cannot
+    /// find on disk — it does not return null — and the resolver here searches exactly one
+    /// directory, the test output. That is total today only because every production project is
+    /// referenced by this suite and so lands there. The first package that does not flow
+    /// (<c>PrivateAssets="all"</c>, <c>ExcludeAssets="runtime"</c>, analyzer-only, RID-specific)
+    /// beneath a type that derives from or implements something in it would turn
+    /// <c>Every_port_has_at_least_two_implementations</c> from "reports its offenders" into
+    /// "errors out", which is a rule failing for a reason that is not the rule.
+    /// </remarks>
+    private static TypeDefinition? TryResolve(TypeReference? reference)
+    {
+        try
+        {
+            return reference?.Resolve();
+        }
+        catch (AssemblyResolutionException)
+        {
+            return null;
+        }
     }
 
     /// <summary>

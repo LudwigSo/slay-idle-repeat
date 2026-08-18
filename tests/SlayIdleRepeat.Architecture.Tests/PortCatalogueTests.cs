@@ -714,7 +714,7 @@ public sealed class PortCatalogueTests
     public void The_engine_adapter_is_still_on_the_contract_suites_reference_list()
     {
         ArchRule.Empty(
-            PortCatalogue.EnginePremise(ContractSuiteProjectReferences()),
+            PortCatalogue.EnginePremiseBroken(ContractSuiteProjectReferences()),
             "The contract suites still reference the engine adapter (23 §5 A8, steering S4).");
     }
 
@@ -796,7 +796,7 @@ public sealed class PortCatalogueTests
     /// <para>
     /// 🔒 The rule this project could most easily have shipped without teeth, and the one whose
     /// silence would cost the most: it is green today and its live input can only be seen passing,
-    /// so <c>EnginePremise</c> rewritten as <c>=&gt; Array.Empty&lt;string&gt;()</c> would leave the
+    /// so <c>EnginePremiseBroken</c> rewritten as <c>=&gt; Array.Empty&lt;string&gt;()</c> would leave the
     /// whole suite green while the premise under three other statements went unwatched.
     /// </para>
     /// <para>
@@ -812,7 +812,7 @@ public sealed class PortCatalogueTests
     {
         var live = ContractSuiteProjectReferences();
 
-        PortCatalogue.EnginePremise(live).ShouldBeEmpty(
+        PortCatalogue.EnginePremiseBroken(live).ShouldBeEmpty(
             "Contract.Tests project-references the engine adapter today, which is the arrangement "
             + "the deferrals and 23 §7.2's amendment are written against.");
 
@@ -824,22 +824,22 @@ public sealed class PortCatalogueTests
             + "attributes, and the whole-name match below is comparing two different vocabularies.");
 
         // The realistic edit: the engine reference is dropped and its sibling stays.
-        PortCatalogue.EnginePremise(live.Where(r => !r.Equals(PortCatalogue.EngineAdapterAssembly, StringComparison.Ordinal)))
+        PortCatalogue.EnginePremiseBroken(live.Where(r => !r.Equals(PortCatalogue.EngineAdapterAssembly, StringComparison.Ordinal)))
             .ShouldHaveSingleItem()
             .ShouldContain("no longer project-references", Case.Sensitive);
 
         // The reader coming back empty must be loud, not silently "nothing to complain about".
-        PortCatalogue.EnginePremise(Array.Empty<string>())
+        PortCatalogue.EnginePremiseBroken(Array.Empty<string>())
             .ShouldHaveSingleItem()
             .ShouldContain(PortCatalogue.EngineAdapterAssembly, Case.Sensitive);
 
         // The control on the matcher: a whole-name match, not a prefix or a substring.
-        PortCatalogue.EnginePremise(new[] { PortCatalogue.EngineAdapterAssembly + ".Extra" })
+        PortCatalogue.EnginePremiseBroken(new[] { PortCatalogue.EngineAdapterAssembly + ".Extra" })
             .ShouldHaveSingleItem()
             .ShouldContain("no longer project-references", Case.Sensitive);
 
         // …and the other side of the same control: the exact name alone satisfies it.
-        PortCatalogue.EnginePremise(new[] { PortCatalogue.EngineAdapterAssembly }).ShouldBeEmpty(
+        PortCatalogue.EnginePremiseBroken(new[] { PortCatalogue.EngineAdapterAssembly }).ShouldBeEmpty(
             "the reference is what the rule asks for, and nothing else about the list matters — "
             + "otherwise this would be a second, unstated rule about what Contract.Tests may hold.");
     }
@@ -894,7 +894,8 @@ public sealed class PortCatalogueTests
     [Fact]
     public void The_owner_status_rule_fires_on_a_shipped_or_missing_owner_and_is_silent_on_an_open_one()
     {
-        var statuses = PortCatalogue.TrackerStatuses(Tracker());
+        var tracker = Tracker();
+        var statuses = PortCatalogue.TrackerStatuses(tracker);
 
         // 🔒 The anchor, pinned by IDENTITY on the three rows that discriminate it. Each of these
         // would be read wrongly by a plausible simplification of the regex, and each is a real row.
@@ -914,22 +915,36 @@ public sealed class PortCatalogueTests
             + "the status cell. Drop the '|' from the anchor and this row reads as done, which is "
             + "the one arm the two rows above cannot cover.");
 
-        // 🔒 And the tracker's own legend, pinned by identity: the alternation the parser accepts is
-        // a transcription of that line plus ⏳, which four live rows use and the legend omits. A
-        // sixth documented status would otherwise arrive as rows silently missing from the lookup.
-        var legend = Tracker()
+        // 🔒 The tracker's own legend, read OUT of the document and checked against the parser —
+        // this direction and not the other. Asserting "the legend still contains our five" is
+        // satisfied by a legend that has grown a SIXTH, which is exactly the change that makes
+        // TrackerTaskRow drop every row using it while staying green.
+        var legend = tracker
             .Split('\n')
             .First(line => line.Contains("**Statuses:**", StringComparison.Ordinal));
 
-        foreach (var glyph in PortCatalogue.LegendStatuses)
+        var documented = PortCatalogue.LegendGlyphs(legend);
+
+        documented.ShouldBe(
+            PortCatalogue.LegendStatuses,
+            "PortCatalogue.LegendStatuses transcribes that line, and the transcription is what tells "
+            + "this rule which characters on it are statuses at all. If they have diverged, fix the "
+            + "transcription before reading anything below it.");
+
+        foreach (var glyph in documented)
         {
-            legend.ShouldContain(
+            PortCatalogue.KnownStatuses.ShouldContain(
                 glyph,
-                Case.Sensitive,
-                $"'{glyph}' is gone from the tracker's status legend. TrackerTaskRow transcribes "
-                + "that line; a glyph it does not know makes every row using it vanish from the "
-                + "lookup, and a vanished owner is reported as an owner nobody declared.");
+                $"the tracker documents the status '{glyph}' and TrackerTaskRow does not accept it. "
+                + "Every row carrying it vanishes from the lookup — silently — and its owners are "
+                + "then reported as owners nobody declared, which sends the reader to the register "
+                + "instead of to the parser.");
         }
+
+        // The extractor's own control: a legend carrying a status the parser does not know is
+        // exactly the arrangement the loop above exists to catch, driven without editing the doc.
+        PortCatalogue.LegendGlyphs("- **Statuses:** `⬜ todo` · `🆕 brand new`")
+            .ShouldBe(new[] { "⬜", "🆕" });
 
         var open = new[] { (Subject: "IUnitOfWork", Owner: "M5-04") };
         var shipped = new[] { (Subject: "IUnitOfWork", Owner: "M7-01") };

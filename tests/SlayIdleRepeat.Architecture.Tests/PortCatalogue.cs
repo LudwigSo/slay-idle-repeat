@@ -948,6 +948,10 @@ internal static class PortCatalogue
     // M7-01c — the engine exception, and the two things that make it expire.
     // ─────────────────────────────────────────────────────────────────────────────────────────
 
+    // ⚠️ All three are read as PROJECT names (against RepoLayout.ProjectReferences) and as ASSEMBLY
+    // names (against ProductionAssemblies.Module). The two coincide throughout this repository —
+    // no .csproj here sets AssemblyName — so the differing suffixes are history, not a distinction.
+
     /// <summary>The adapter project whose every class reaches <c>GodotSharp</c>.</summary>
     internal const string EngineAdapterAssembly = "SlayIdleRepeat.Adapters.Platform.Godot";
 
@@ -998,12 +1002,13 @@ internal static class PortCatalogue
     /// </para>
     /// <para>
     /// ⚠️ <b>What this does NOT close, said so the next reader does not over-trust it.</b> Its
-    /// subject is one named assembly. <c>SlayIdleRepeat.Client</c> is the other <c>Godot.NET.Sdk</c>
-    /// project in the tree, and it is scanned neither here nor by
+    /// subject is one named assembly. <c>SlayIdleRepeat.Client</c> is the other project in the tree
+    /// that can reach the engine API, and it is scanned neither here nor by
     /// <c>ContractSuiteCoverageTests</c>, which globs <c>SlayIdleRepeat.Adapters.*</c> — so a port
     /// implemented on a scene script would evade both. It is not added here because the client is a
     /// composition root: the rule that keeps ports out of it is
-    /// <c>PresenterBoundaryRuleTests</c>' territory, not this register's.
+    /// <c>PresenterBoundaryRuleTests</c>' territory, not this register's. `23` §7.2a states the
+    /// same limit in prose, so a reader of the document meets it too.
     /// </para>
     /// <para>
     /// ⚠️ The <c>IsInterface</c> / <c>IsAbstract</c> / compiler-generated filters are carried
@@ -1042,7 +1047,7 @@ internal static class PortCatalogue
     /// removed. That is the shape steering S4 calls an exemption outliving its reason, and this is
     /// the half of it a rule can actually see.
     /// </remarks>
-    internal static IReadOnlyList<string> EnginePremise(IEnumerable<string> contractSuiteReferences) =>
+    internal static IReadOnlyList<string> EnginePremiseBroken(IEnumerable<string> contractSuiteReferences) =>
         contractSuiteReferences.Contains(EngineAdapterAssembly, StringComparer.Ordinal)
             ? Array.Empty<string>()
             : new[]
@@ -1065,17 +1070,30 @@ internal static class PortCatalogue
     /// <c>IAudioPort</c>'s owner is in.
     /// </para>
     /// <para>
-    /// ⚠️ <b>The tracker's own legend lists five statuses and the alternation above accepts six.</b>
-    /// ⏳ is used by four live rows and appears in no legend. The extra alternative is deliberate —
-    /// a glyph the pattern does not know makes its rows vanish from the lookup silently, and a
-    /// vanished owner is reported as "no row this parser could read", which is loud but points at
-    /// the wrong thing. <c>PortCatalogueTests</c> pins the legend line by identity so a seventh
-    /// glyph arrives as a failure rather than as a silence.
+    /// ⚠️ <b>The tracker's own legend lists five statuses and <see cref="KnownStatuses"/> accepts
+    /// six.</b> ⏳ is used by four live rows and appears in no legend. The extra alternative is
+    /// deliberate — a glyph the pattern does not know makes its rows vanish from the lookup
+    /// silently, and a vanished owner is then reported as "no row this parser could read", which is
+    /// loud but points at the wrong thing.
     /// </para>
     /// </remarks>
     internal static readonly string[] ShippedStatuses = { "✅", "🔍" };
 
-    /// <summary>The tracker's own status legend, transcribed. Pinned by identity, not by count.</summary>
+    /// <summary>
+    /// 🔒 Every status glyph <see cref="TrackerTaskRow"/> accepts. The pattern is BUILT from this
+    /// list rather than repeating it, so the two cannot disagree.
+    /// </summary>
+    internal static readonly string[] KnownStatuses = { "⬜", "🔄", "🔍", "✅", "⛔", "⏳" };
+
+    /// <summary>The tracker's own status legend, transcribed.</summary>
+    /// <remarks>
+    /// 🔒 <b>The direction here is the whole point, and the first draft had it backwards.</b>
+    /// Asserting that the legend line contains each of these five is satisfied by a legend that has
+    /// grown a SIXTH — which is precisely the change that would make <see cref="TrackerTaskRow"/>
+    /// drop every row using it, silently. <c>PortCatalogueTests</c> therefore reads the glyphs OUT
+    /// of the legend line and asserts each is in <see cref="KnownStatuses"/>; this list is what
+    /// tells it which characters on that line are statuses at all.
+    /// </remarks>
     internal static readonly string[] LegendStatuses = { "⬜", "🔄", "🔍", "✅", "⛔" };
 
     /// <summary>
@@ -1100,8 +1118,24 @@ internal static class PortCatalogue
     /// </list>
     /// </remarks>
     private static readonly Regex TrackerTaskRow = new(
-        @"^\| (?<id>M\d{1,2}-\d{2}[a-z]?) \|.*?\| ?(?<status>⬜|✅|🔍|🔄|⛔|⏳)",
+        @"^\| (?<id>M\d{1,2}-\d{2}[a-z]?) \|.*?\| ?(?<status>" + string.Join("|", KnownStatuses) + ")",
         RegexOptions.Multiline | RegexOptions.Compiled);
+
+    /// <summary>
+    /// The status glyphs a tracker legend line documents, read out of the line itself.
+    /// </summary>
+    /// <remarks>
+    /// The legend writes each status as a code span whose first word is the glyph —
+    /// <c>`⬜ todo` · `🔄 in progress` · …</c> — so the code spans are the whole of it and no
+    /// character-class guess about "what an emoji looks like" is needed. Parameterised so the
+    /// self-tests can drive it with a legend carrying a status the parser does not know.
+    /// </remarks>
+    internal static IReadOnlyList<string> LegendGlyphs(string legendLine) =>
+        legendLine.Split('`')
+            .Where((_, index) => index % 2 == 1)
+            .Select(span => span.Split(' ')[0])
+            .Where(glyph => glyph.Length > 0)
+            .ToArray();
 
     /// <summary>Every task id the tracker declares, with the status glyphs its rows carry.</summary>
     /// <remarks>
@@ -1141,7 +1175,11 @@ internal static class PortCatalogue
     ///   <c>USE_CONSUMABLE</c> to M3-08 (✅). Pointing that rule at this predicate would turn the
     ///   build red on four re-points that are milestone decisions — which task builds reforge,
     ///   retune, focus and consumables — and inventing four owners is steering S6 with a task id
-    ///   instead of a number. M7-01c reports it instead of guessing.</item>
+    ///   instead of a number. M7-01c reports it instead of guessing. ⚠️ Its PARSER is separable
+    ///   from that decision and was deliberately left alone too: its id pattern lacks the
+    ///   <c>[a-z]?</c> suffix, so lettered ids (<c>M7-01b</c>, <c>M2-16a</c>) fall out of its
+    ///   declared set and are reported as owners nobody declared — loud, not silent, and no row it
+    ///   governs names one today.</item>
     ///   <item><c>RealDataSetTests</c> in <c>SlayIdleRepeat.Application.Tests</c> already records
     ///   this predicate as owed work, names its eight offenders and names its owner ("the next
     ///   milestone kickoff that touches this baseline"). It cannot share code with this file — it
@@ -1158,9 +1196,7 @@ internal static class PortCatalogue
 
         foreach (var (subject, owner) in entries)
         {
-            var rows = statuses[owner].ToArray();
-
-            if (rows.Length == 0)
+            if (!statuses.Contains(owner))
             {
                 offenders.Add(
                     $"'{subject}' names owner '{owner}', and no task row this parser could read " +
@@ -1172,12 +1208,13 @@ internal static class PortCatalogue
                 continue;
             }
 
-            var shipped = rows.Where(s => ShippedStatuses.Contains(s, StringComparer.Ordinal)).ToArray();
+            var shipped = statuses[owner]
+                .FirstOrDefault(status => ShippedStatuses.Contains(status, StringComparer.Ordinal));
 
-            if (shipped.Length > 0)
+            if (shipped is not null)
             {
                 offenders.Add(
-                    $"'{subject}' names owner '{owner}', whose tracker row reads '{shipped[0]}' — " +
+                    $"'{subject}' names owner '{owner}', whose tracker row reads '{shipped}' — " +
                     "that task has already shipped. The entry can now never expire: the milestone " +
                     "that was going to build this is behind us, so nothing will ever delete the " +
                     "exception and no kickoff will ever be asked about it. Name the task that " +

@@ -66,7 +66,7 @@ Adapters ──▶ Application ──▶ Core ──▶ (nothing)
 
 - `Core` references nothing but the .NET BCL. No Godot, no ASP.NET, no drivers, no clock, no RNG source. Internally it layers `Handlers → Rules → Model → Content → Primitives` (`30` §11.4), enforced by namespace-level architecture tests.
 - `Application` references `Core` and `Contracts`. It **defines** every port. It references no adapter, ever. It contains **no game rules** — its use cases load a slice, call `GameRules.Apply`, persist, and dispatch events (`30` §11.1).
-- `Adapters.*` reference `Application` (to implement its ports) and whatever vendor package they wrap. **Adapters never reference each other.**
+- `Adapters.*` reference `Application` (to implement its ports) and whatever vendor package they wrap. **Adapters never reference each other.** ⚠️ One adapter implements no port at all and cannot — see §7.2a.
 - **Composition roots** (`SlayIdleRepeat.Server`, `SlayIdleRepeat.Client`) are the only projects that reference concrete adapters. They exist to wire things up and do nothing else.
 
 ### 2.2 Where ports live
@@ -117,7 +117,8 @@ SlayIdleRepeat.sln
 │   │   │   ├── SlayIdleRepeat.Adapters.Telemetry.Sentry/
 │   │   │   ├── SlayIdleRepeat.Adapters.Consent.AppLovinCmp/
 │   │   │   ├── SlayIdleRepeat.Adapters.Platform.Godot/      # ENGINE CAPABILITIES — audio, haptics,
-│   │   │   │                                                #   engine paths. Implements NO port (§7.2a)
+│   │   │   │                                                #   locale, device info, engine paths.
+│   │   │   │                                                #   Implements NO port (§7.2a)
 │   │   │   └── SlayIdleRepeat.Adapters.Platform.Host/       # the plain-C# sibling that DOES:
 │   │   │                                                    #   IPlatformInfoPort over the BCL
 │   │   │
@@ -436,9 +437,11 @@ container.Register<ILocalCachePort, LocalFileCacheAdapter>();
 container.Register<IPlatformInfoPort, HostPlatformInfo>();      // plain C#, NOT a Godot class — see 7.2a
 container.Register<ITelemetryPort, SentryTelemetryAdapter>();
 
-// The engine's own capabilities are named here as CONCRETE TYPES, behind no port (7.2a)
+// The engine's own capabilities are named here as CONCRETE TYPES, behind no port (7.2a),
+// and handed to the presenters that need them — never registered against an interface
 var audio   = new GodotAudioOutput();
 var haptics = new GodotHaptics();
+var device  = new GodotPlatformInfo();   // locale + device model, for the engine's own consumers
 var paths   = new GodotUserPaths();
 
 #if ANDROID
@@ -455,7 +458,7 @@ container.Register<IRewardedAdPort>(_ => session.Entitlements.HasPlus
 
 This is where the Plus subscription's "no ads, same rewards" promise is implemented — as **an adapter swap**, with no `if (isSubscriber)` anywhere in the game. It is the cleanest possible expression of `12` §1's fairness contract.
 
-### 7.2a A Godot class may not implement a port 🔒
+### 7.2a A class in the engine adapter may not implement a port 🔒
 
 **This section used to register `GodotPlatformInfoAdapter`, `GodotAudioAdapter` and `GodotHapticsAdapter` against their ports. It cannot, and the reason is a measured physical fact rather than a preference.**
 
@@ -472,6 +475,8 @@ So, three rules:
 | **Ports are implemented by plain-C# host adapters.** `SlayIdleRepeat.Adapters.Platform.Host` is the shipped precedent: it answers `IPlatformInfoPort` from the BCL, on the desktop *and* on the device, with a real contract fixture beside the in-memory fake. | An adapter that runs anywhere the BCL runs is an adapter the shared suite can actually exercise, which is the whole of §5 A8. |
 
 ⚠️ **This is a limitation, not an architecture.** `A10` still holds — Godot is an adapter, not a foundation — and nothing here licenses game logic inside a `Node`. If an engine-capable test host or a sanctioned fixture exemption ever arrives, the honest change is to amend this subsection back, not to work around it: `PortCatalogueTests.No_type_in_the_engine_adapter_implements_a_port` is the rule that will be standing in the way, and it is standing there on purpose.
+
+⚠️ **And the heading says "in the engine adapter" rather than "a Godot class" because that is the whole of what is enforced.** `SlayIdleRepeat.Client` also reaches the engine API, and neither that rule nor the contract suites' implementation scan — which globs `SlayIdleRepeat.Adapters.*` — looks at it. A port implemented on a scene script would evade both, and would fail the boundary rules instead, for a different reason. The limit is stated rather than closed.
 
 ---
 
