@@ -19,6 +19,53 @@ namespace SlayIdleRepeat.Core.Rules.Economy;
 internal static class RunRewardMath
 {
     /// <summary>
+    /// Which completion row a run pays, derived from the row rather than told to the caller.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Here rather than in a handler, because two callers need the same answer.</b>
+    /// <c>Handlers.EndRun</c> applies the payout and <c>RunEndView</c> shows it, and the outcome is
+    /// what selects the completion multiplier — so two implementations would be two multipliers, and
+    /// the screen would promise a number the payout did not honour. It lives beside the arithmetic it
+    /// feeds.
+    /// </para>
+    /// <para>
+    /// ⚠️ A dead run with no pending tile is paid as a Stage 3 death, defensively:
+    /// <c>ConfirmBattleResult</c>'s loss branch always leaves the tile pending, so the arm is
+    /// unreachable through the production dispatch table — and paying the gentlest row for a state
+    /// nobody can produce would be the wrong way to be wrong.
+    /// </para>
+    /// </remarks>
+    /// <param name="bossDefeated">Whether the run's Boss is dead.</param>
+    /// <param name="pendingTileStage">
+    /// The stage the unresolved tile belongs to — 1, 2, 3, or the Boss's own — or <see langword="null"/>
+    /// when the run has no pending tile. ⚠️ Nullable rather than paired with a <c>bool</c>, because
+    /// <c>Run.PendingTileStage</c> <b>throws</b> when nothing is pending: a caller holding the aggregate
+    /// cannot evaluate the stage in order to pass it alongside a flag saying it is meaningless.
+    /// </param>
+    internal static RunCompletionOutcome OutcomeFor(bool bossDefeated, int? pendingTileStage)
+    {
+        if (bossDefeated)
+        {
+            return RunCompletionOutcome.Victory;
+        }
+
+        if (pendingTileStage is not { } stage)
+        {
+            return RunCompletionOutcome.Stage3Death;
+        }
+
+        return stage switch
+        {
+            1 => RunCompletionOutcome.Stage1Death,
+            2 => RunCompletionOutcome.Stage2Death,
+
+            // The Boss node belongs to no stage; treated as the closest of the three named ones.
+            _ => RunCompletionOutcome.Stage3Death,
+        };
+    }
+
+    /// <summary>
     /// The reward one kill pays: immediate Gold, banked Legend XP, and (Boss only) banked Soul
     /// Shards.
     /// </summary>

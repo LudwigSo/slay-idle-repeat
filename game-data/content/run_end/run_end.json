@@ -1,0 +1,32 @@
+{
+  "$schema": "../../schema/run_end.schema.json",
+  "_doc": "M7-08 — the strings the death/revive (S13) and run-results (S14) screens show. They are ONE document because 02 §6 makes them one moment: its step 3 is 'if declined or already used, go to RUN_RESULTS with the Death completion multiplier', so the revive offer and the tally are the same instant either side of one decision. Every value is a loc key, so the content build resolves it against every locale file. 🔒 The `label` group carries CAPTIONS only: the banked and paid figures, the session-floor count and both DROP_RUN countdowns are numbers read at render time and drawn beside these words — a magnitude inside a translated string cannot be tuned. The two mercy captions exist separately because 24 §9 wants each counter to NAME ITS UNIT rather than show a bare number, and the two count different things. 🔒 `block.reviveNeedsPlus` is the one absence with a sentence: 02 §6 gives Plus subscribers an instant no-ad revive, and the ad path that would serve everyone else needs CLAIM_AD_REWARD, which is deferred to M15-03 — so the entitled player gets a button and everyone else gets a reason, never a dead control. Deliberately absent: any doubled-reward figure or offer (AD_DOUBLE_RUN_REWARDS is the same deferred command), and any second revive (02 §6's limit is once per run, hard).",
+  "name": {
+    "defeated": "loc.run_end.defeated.name",
+    "victory": "loc.run_end.victory.name",
+    "abandoned": "loc.run_end.abandoned.name"
+  },
+  "label": {
+    "banked": "loc.run_end.banked.label",
+    "payout": "loc.run_end.payout.label",
+    "floorItems": "loc.run_end.floor_items.label",
+    "eliteMercy": "loc.run_end.elite_mercy.label",
+    "bossMercy": "loc.run_end.boss_mercy.label"
+  },
+  "action": {
+    "revive": "loc.run_end.revive.action",
+    "finish": "loc.run_end.finish.action"
+  },
+  "block": {
+    "reviveNeedsPlus": "loc.run_end.revive_needs_plus.block",
+    "reviveSpent": "loc.run_end.revive_spent.block",
+    "deathCostsRewards": "loc.run_end.death_costs_rewards.block"
+  },
+  "status": {
+    "loading": "loc.run_end.loading.status",
+    "runMissing": "loc.run_end.run_missing.status",
+    "unavailable": "loc.run_end.unavailable.status",
+    "refused": "loc.run_end.refused.status",
+    "hostUnavailable": "loc.run_end.host_unavailable.status"
+  }
+}

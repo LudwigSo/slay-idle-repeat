@@ -376,10 +376,19 @@ public sealed partial class RealDataSetTests
     /// The count the header prose states. It said "four" while seven entries carried it — a file
     /// that miscounts its own conspicuous exceptions is not being read.
     /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Six since M7-08, and the entry that went is the point.</b> `24` §9 was excluded as *"an
+    /// instruction … not a number"*, which was true of it as a MARKER — the instruction is that counter
+    /// strings are localisation keys, width-tested in German. M7-07 honoured it for S07's three `DRAFT`
+    /// counters and M7-08 for S14's `DROP_RUN` footer, so a schema now cites the section and
+    /// <c>StaleBaselineEntry</c> reported the exclusion as covering nothing. An out-of-scope entry whose
+    /// instruction has since been carried out is a rule quietly narrowed, so it was removed rather than
+    /// left to age.
+    /// </remarks>
     [Fact]
-    public void The_baseline_carries_exactly_seven_permanent_scope_exclusions()
+    public void The_baseline_carries_exactly_six_permanent_scope_exclusions()
     {
-        Entries().Count(e => e.Kind == TunableBaselineKind.OutOfScope).ShouldBe(7);
+        Entries().Count(e => e.Kind == TunableBaselineKind.OutOfScope).ShouldBe(6);
     }
 
     private static IReadOnlyList<TunableBaselineEntry> Entries()

@@ -54,10 +54,6 @@
     { "doc": "02", "section": "3", "kind": "specDebt",
       "reason": "02 §3's 'TUNABLE: All durations above' — the turn-loop pacing budgets (roll, movement, up to 6 s per fork, 2-40 s tile resolution, up to 15 s draft, the x1/x2/x3 speed controls). 🔴 RE-POINTED IN THE M4 REVIEW, and it was found by the new closedBy-is-still-open assertion rather than by reading: it said '02 §1-3 is M3-05's spec: the run state machine authors the stage-gate timings and the schema key that holds them', and M3-05 SHIPPED (tracker ✅) without either. The diagnosis was wrong rather than merely late — every duration in that table is PRESENTATION pacing, and Core's run state machine neither reads nor could read one; there is no server-side rule that a fork-choice timer belongs to. It is the client run-flow that authors them, and M7-05 (board, fork choice) and M7-06 (battle replay, speed controls) have both merged without doing so, which leaves M7-07 as the last open run-loop screen task and the last point at which the table can be authored as one block. If M7-07 concludes these are UX budgets rather than data — which is a defensible reading of 'up to 6 s' and '2-40 s' — the entry converts to kind outOfScope with no closedBy, and that is a decidable outcome rather than a deferral.",
       "closedBy": "M7-07" },
-    { "doc": "02", "section": "6", "kind": "specDebt",
-      "reason": "Campfire heal percentage. Belongs to the campfire tile, authored with the shrine/campfire/curse tiles.",
-      "closedBy": "M3-11" },
-
     { "doc": "03", "section": "1", "kind": "specDebt",
       "reason": "Board topology: nodes per stage, fork count, fork length. Board generation is M3-01 (spec 03 §1-3); the keys land in the chapter content schema, not in tuning/.",
       "closedBy": "M3-01" },
@@ -132,9 +128,6 @@
     { "doc": "24", "section": "4.1", "kind": "specDebt",
       "reason": "The standard-chest pity ladder. luck.json holds hardPity and softPity, but the schema key cites 24 §4.2 rather than §4.1, so the join misses by one section. M4-02 owns 24 §4 (chest ladders, soft-pity slopes) and corrects the citation with the code that reads it. (Was M0-11, a task that has never existed.)",
       "closedBy": "M4-02" },
-    { "doc": "24", "section": "9", "kind": "outOfScope",
-      "reason": "An instruction that counter strings are localisation keys and must be width-tested in German. Not a number." },
-
     { "doc": "25", "section": "9", "kind": "outOfScope",
       "reason": "An art-budget line (three dungeon-select illustrations). Not a tunable at all; it sits in the asset manifest." },
 

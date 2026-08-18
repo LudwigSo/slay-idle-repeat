@@ -50,9 +50,8 @@ internal static class EndRun
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
-        var outcome = run.BossDefeated
-            ? RunCompletionOutcome.Victory
-            : DeathOutcomeFor(run);
+        var outcome = RunRewardMath.OutcomeFor(
+            run.BossDefeated, run.HasPendingTile ? run.PendingTileStage : null);
 
         if (outcome == RunCompletionOutcome.Victory)
         {
@@ -160,26 +159,6 @@ internal static class EndRun
 
     /// <summary>The daily counter the floor's per-day allowance is spent out of.</summary>
     private const string DailyFloorGrantCounter = "session_floor_grant";
-
-    /// <summary>Which Death row a dead-but-not-victorious run pays.</summary>
-    private static RunCompletionOutcome DeathOutcomeFor(Run run)
-    {
-        if (!run.HasPendingTile)
-        {
-            // Defensive: ConfirmBattleResult's loss branch always leaves the tile pending.
-            return RunCompletionOutcome.Stage3Death;
-        }
-
-        return run.PendingTileStage switch
-        {
-            1 => RunCompletionOutcome.Stage1Death,
-            2 => RunCompletionOutcome.Stage2Death,
-            3 => RunCompletionOutcome.Stage3Death,
-
-            // The Boss node belongs to no stage; treat as Stage 3.
-            _ => RunCompletionOutcome.Stage3Death,
-        };
-    }
 
     /// <summary>Income-attribution reason for the run-end Soul Shard payout.</summary>
     private const string PayoutReason = "run_end_payout";

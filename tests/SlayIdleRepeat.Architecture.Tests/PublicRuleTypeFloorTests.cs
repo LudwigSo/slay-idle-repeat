@@ -109,8 +109,16 @@ public sealed class PublicRuleTypeFloorTests
     /// floor left at nineteen would let the sole public reading of it be deleted, leaving the Inventory
     /// screen able to list a stock and unable to say what any of it would change.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Twenty-five since M7-08 added <c>RunEndView</c> and its two shapes.</b> Raised in the same
+    /// commit and by exactly the three names it adds. The slack it closes: the completion multiplier is
+    /// the difference between what a run banked and what it is paid, and a floor left at twenty-two
+    /// would let the only public reading of it be deleted — leaving the results screen to reproduce
+    /// <c>Banked × CompletionMultiplier</c> itself, which is how a screen comes to promise a payout the
+    /// game does not honour.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 22;
+    private const int ResolvedPublicRuleTypeFloor = 25;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -339,7 +347,12 @@ public sealed class PublicRuleTypeFloorTests
         // three and no further, so InventoryComparison, InventorySorting, GearStatDerivation and
         // SetBonusResolver stay internal: what leaves is the stock and its comparison, never the
         // derivation that answers it.
-        if (Domain.PublicRuleTypes.Count > 22)
+        // 🔒 TWENTY-FIVE since M7-08. One entry point -- RunEndView, whose consumers are S13 and S14,
+        // which 02 §6 makes one moment -- plus the two types its public members name. Raised by exactly
+        // those three, so RunRewardMath, RunPayoutTuning, RunCompletionOutcome, DropRunTuning and
+        // LuckTuning stay internal: what leaves is the run's outcome and figures, never the multipliers
+        // or the counter-key spelling.
+        if (Domain.PublicRuleTypes.Count > 25)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +
