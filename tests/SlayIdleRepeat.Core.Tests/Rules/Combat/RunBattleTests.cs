@@ -243,6 +243,10 @@ public sealed class RunBattleTests
         var holdings = RunBattleTestArithmetic.Holdings(build);
         var composed = RunBattle.Simulate(RunBattleWorlds.PlayerRow(), runRow, RunBattleWorlds.Content);
 
+        // 🔒 Both arms take the run's current HP, exactly as RunBattle.Simulate does (M7-06e). The
+        // subject here is WHICH STAT BLOCK the seam hands over — the base curve or the aggregate — so
+        // every other argument has to match the seam's, or the case would be comparing two differences
+        // at once and reporting whichever it hit first.
         var fromTheCurve = EncounterFight.Run(
             seed,
             build.BaseStats,
@@ -252,7 +256,8 @@ public sealed class RunBattleTests
             powers,
             eliteIndex: -1,
             RunBattleWorlds.Content,
-            holdings);
+            holdings,
+            runRow.CurrentHp);
 
         var fromTheAggregate = EncounterFight.Run(
             seed,
@@ -263,7 +268,8 @@ public sealed class RunBattleTests
             powers,
             eliteIndex: -1,
             RunBattleWorlds.Content,
-            holdings);
+            holdings,
+            runRow.CurrentHp);
 
         composed.LogHash.ShouldBe(
             fromTheCurve.LogHash,
@@ -307,6 +313,60 @@ public sealed class RunBattleTests
     }
 
     /// <summary>One boss fight composed directly, at the row's own seed and power.</summary>
+    // ═══════════════════════════════════════════════ M7-06e · the run carries its wounds
+
+    /// <summary>
+    /// 🔒 <b>A run hurt badly enough LOSES a fight the same run wins at full health.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Without this the whole HP economy is decoration.</b> A fight used to open on the hero's full
+    /// aggregated Max HP whatever the run had left, so accumulated damage never threatened a run, `02`
+    /// §6's revive restored a number no fight read — making the revive button unable to change an
+    /// outcome — and the campfire's 40% rest and the Stage Gate's 15% heal healed nothing that mattered.
+    /// <c>ActorPlan.StartingHp</c> named this gap and its precondition; M7-06d wrote the run's HP back
+    /// and M7-06e reads it here.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Asserted on the VERDICT, and the first draft's mistake is worth keeping.</b> It compared
+    /// <c>LogHash</c> between a full run and one at a quarter health — and they were EQUAL, correctly:
+    /// measured, the hero took the same blows in the same 35 ticks and simply ended 863 points lower,
+    /// which is exactly its HP deficit. <c>LogHash</c> is over the event LIST, and a hero that survives
+    /// either way produces the same events. Starting HP is observable only where it changes who dies, so
+    /// that is what this case asserts.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_wounded_run_ends_its_fight_exactly_its_deficit_lower()
+    {
+        // The composed base ceiling, so "full" is the hero's own number rather than the fixture row's
+        // default of 100 — against which an over-par hero's health is a rounding error either way.
+        var full = (int)Math.Round(
+            HeroBuild.Of(
+                RunBattleWorlds.Player(),
+                null,
+                RunBattleWorlds.Content).BaseStats[Core.Content.Effects.StatId.MAX_HP]);
+
+        var deficit = full / 4;
+
+        var healthy = RunBattleWorlds.RunRow() with { CurrentHp = full, MaxHp = full };
+        var wounded = healthy with { CurrentHp = full - deficit };
+
+        var player = RunBattleWorlds.PlayerRow();
+
+        var atFull = RunBattle.Simulate(player, healthy, RunBattleWorlds.Content);
+        var hurt = RunBattle.Simulate(player, wounded, RunBattleWorlds.Content);
+
+        (atFull.HeroHpRemaining - hurt.HeroHpRemaining).ShouldBe(
+            deficit,
+            tolerance: 0.5,
+            "the two fights ended the same distance apart as they began, or they did not: a difference " +
+            "of zero means the run's hit points never reached the simulation at all, and everything " +
+            "that heals or hurts a run between battles is inert while that is true — 02 §6's revive " +
+            "included, which restarts the same battle from the same seed and would change nothing.");
+    }
+
+
     private static SimulationResult Boss(
         HeroBuild build, Core.Model.Snapshots.RunSnapshot row, ActorStats hero)
     {
@@ -322,7 +382,12 @@ public sealed class RunBattleTests
                 .Levels.Of(row.ChapterId, RunBattleTestArithmetic.TierOrdinal(row.Tier)),
             RunBattleWorlds.Content,
             !player.HasClearedChapterTier(row.ChapterId, row.Tier),
-            RunBattleTestArithmetic.Holdings(build));
+            RunBattleTestArithmetic.Holdings(build),
+
+            // 🔒 The run's own health, exactly as RunBattle.Simulate hands it over (M7-06e). A helper
+            // that let this default to full would be composing a DIFFERENT fight from the seam it is
+            // asserting against, and the assertion would fail for a reason that is about the helper.
+            row.CurrentHp);
     }
 
     /// <summary>The aggregated block is the bigger block, so re-applying it can only inflate the hero.</summary>
@@ -487,7 +552,11 @@ public sealed class RunBattleTests
             new[] { RunBattleTestArithmetic.EnemyPower(row, RunBattleWorlds.Content) },
             eliteIndex,
             RunBattleWorlds.Content,
-            RunBattleTestArithmetic.Holdings(build));
+            RunBattleTestArithmetic.Holdings(build),
+
+            // 🔒 See Boss above: the seam passes the run's current HP, so a helper comparing against it
+            // has to as well.
+            row.CurrentHp);
 
     /// <summary>A Boss tile fights the chapter's authored boss, not a nameless enemy.</summary>
     /// <remarks>

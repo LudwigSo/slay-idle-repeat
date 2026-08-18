@@ -158,6 +158,13 @@ public static class RunBattle
 
         var holdings = Holdings(build);
 
+        // 🔒 The run's own health, on BOTH arms. Without it every fight opens at full Max HP, so a
+        // run's accumulated damage never threatens it, `02` §6's revive restores a number no fight
+        // reads, and the campfire's rest heals nothing that matters. ActorPlan.StartingHp named this
+        // gap and its precondition — that a fight's remaining health be written back to the run — and
+        // M7-06d wrote it, which is what makes passing it correct rather than merely possible.
+        double heroStartingHp = run.CurrentHp;
+
         if (kind == TileKind.Boss)
         {
             return BossFight.Run(
@@ -169,7 +176,8 @@ public static class RunBattle
                 EnemyCatalogue.Read(content).Levels.Of(run.ChapterId, tierOrdinal),
                 content,
                 !player.HasClearedChapterTier(run.ChapterId, run.Tier),
-                holdings);
+                holdings,
+                heroStartingHp);
         }
 
         // One power, because a normal battle is one draw from the chapter's pool. The Elite
@@ -183,7 +191,8 @@ public static class RunBattle
             new[] { power },
             kind == TileKind.Elite ? EliteSlot : NoElite,
             content,
-            holdings);
+            holdings,
+            heroStartingHp);
     }
 
     /// <summary>
