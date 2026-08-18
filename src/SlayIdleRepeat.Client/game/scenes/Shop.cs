@@ -183,7 +183,9 @@ public partial class Shop : Control
         // Hidden rather than blanked once it has nothing to say: an empty label still claims a full
         // line of height, so a blank one is a sentence a player can see room for and cannot read.
         // They are two lines because they answer two different questions — what state the screen is
-        // in, and what the game said about the last command.
+        // in, and what the game said about the last command. Both sit OUTSIDE the scrolling band, on
+        // the column itself: a refusal parked inside a viewport is a refusal a scroll position can
+        // hide, which is the same silence as never printing it.
         _statusLabel.Text = presenter.StatusText;
         _statusLabel.Visible = _statusLabel.Text.Length > 0;
 

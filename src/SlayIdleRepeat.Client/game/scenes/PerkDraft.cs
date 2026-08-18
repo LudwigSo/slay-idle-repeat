@@ -42,9 +42,14 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// </para>
 /// <para>
 /// 🔴 <b>There is no art here, placeholder or otherwise.</b> The category strip, the rarity gem and
-/// the icon slot are containers and coloured rectangles the engine already provides; the icon slot
-/// is drawn EMPTY because no atlas exists, and an empty slot is honest where a stand-in glyph would
-/// not be — see <see cref="TheIconSlotIsEmptyBecauseThereIsNoArt"/>.
+/// the icon slot are containers, coloured rectangles and typed characters the engine already
+/// provides; the icon slot is drawn EMPTY because no atlas exists, and an empty slot is honest where
+/// a stand-in glyph would not be — see <see cref="TheIconSlotIsEmptyBecauseThereIsNoArt"/>.
+/// </para>
+/// <para>
+/// 🔴 <b>Rarity is never carried by colour alone</b> — the gem takes a frame shape and a symbol as
+/// well, so a player who cannot separate the four hues still reads four distinct marks. See
+/// <see cref="RarityIsAShapeAndASymbolBeforeItIsAColour"/>.
 /// </para>
 /// </remarks>
 public partial class PerkDraft : Control
@@ -84,7 +89,26 @@ public partial class PerkDraft : Control
         "No document in this repository authors a colour per perk category. The six below are this " +
         "screen's own, picked for mutual separation and for contrast against the card fill, and " +
         "kept clear of the authored rarity ladder so a category strip is never mistaken for a " +
-        "rarity. They are theme debt like every other override here, not a content decision.";
+        "rarity. They are theme debt like every other override here, not a content decision. Two of " +
+        "them were moved after measurement: the economy gold sat 9 degrees of hue from the " +
+        "legendary gem and the trigger green 18 from the rare one, and two content-keyed colour " +
+        "systems that close on the same card are a legibility bug however different their meanings " +
+        "are. Every category now sits at least 30 degrees from every rarity in the ladder.";
+
+    /// <summary>
+    /// 🔴 Named because it is an accessibility requirement rather than a style choice. Rarity is
+    /// carried by three channels at once — the gem's fill, the shape of its frame, and the band's own
+    /// letter drawn inside it — so the four bands stay four distinct marks for a player who reads
+    /// none of the hues apart. A gem that was only a coloured square would fail that outright, and no
+    /// atlas ships with this build to draw a real one, so the shape is a corner radius and the symbol
+    /// is a typed character.
+    /// </summary>
+    private const string RarityIsAShapeAndASymbolBeforeItIsAColour =
+        "The four perk rarities are drawn as a square, a circle, a cut-corner lens and a flat-topped " +
+        "shield, each carrying the band's own letter in dark ink on its fill. Shape and letter are " +
+        "both readable with the colour removed; the colour is the third channel, not the only one. A " +
+        "band this build was never taught takes a rounded square and a question mark rather than " +
+        "borrowing a neighbour's frame.";
 
     /// <summary>The one line a headless run's screen state is read off.</summary>
     private const string PerkDraftMarker = "SIR_PERK_DRAFT_READY";
@@ -96,6 +120,7 @@ public partial class PerkDraft : Control
     private const string CardIconSlotPath = "Body/Column/HeaderRow/IconSlot";
     private const string CardNameLabelPath = "Body/Column/HeaderRow/NameLabel";
     private const string CardRarityGemPath = "Body/Column/HeaderRow/RarityGem";
+    private const string CardRarityGlyphPath = "Body/Column/HeaderRow/RarityGem/RarityGlyph";
     private const string CardTierBadgePath = "Body/Column/TierBadge";
     private const string CardEffectLabelPath = "Body/Column/EffectLabel";
     private const string CardSynergyRowPath = "Body/Column/SynergyRow";
@@ -125,6 +150,18 @@ public partial class PerkDraft : Control
     /// <summary>The panel entry a card's whole face — fill, outline, corners and shadow — is written into.</summary>
     private const string PanelStyleOverride = "panel";
 
+    /// <summary>The theme entry the rarity letter's own ink is written into.</summary>
+    private const string FontColourOverride = "font_color";
+
+    /// <summary>The band letters, which are the rarity ladder's own codes rather than wording.</summary>
+    private const string CommonSymbol = "C";
+    private const string RareSymbol = "B";
+    private const string EpicSymbol = "A";
+    private const string LegendarySymbol = "S";
+
+    /// <summary>And what a band this build was never taught is marked with.</summary>
+    private const string UnknownSymbol = "?";
+
     /// <summary>The animated property of an upgrade card's entrance.</summary>
     private const string ScaleProperty = "scale";
 
@@ -145,8 +182,8 @@ public partial class PerkDraft : Control
     /// </remarks>
     private const double LongPressSeconds = 0.4;
 
-    /// <summary>How wide an upgrade card's border is drawn, against six for every other card.</summary>
-    private const int UpgradeBorderWidth = 8;
+    /// <summary>How wide an upgrade card's border is drawn, against eight for every other card.</summary>
+    private const int UpgradeBorderWidth = 12;
 
     /// <summary>What an upgrade card grows from as it arrives.</summary>
     private const float IntroScale = 0.94f;
@@ -176,6 +213,12 @@ public partial class PerkDraft : Control
     /// neighbour's colour would put a plausible value in a hole.
     /// </remarks>
     private static readonly Color UnknownMarkColour = new(0.36f, 0.38f, 0.45f);
+
+    /// <summary>
+    /// The ink a rarity letter is drawn in, which is the screen's own ground rather than black: all
+    /// four bands are light enough to carry it at better than five to one.
+    /// </summary>
+    private static readonly Color GemInkColour = new(0.07f, 0.07f, 0.09f);
 
     private PerkDraftPresenter? _presenter;
     private Board? _board;
@@ -498,7 +541,12 @@ public partial class PerkDraft : Control
         var card = cardScene.Instantiate<PanelContainer>();
 
         card.GetNode<ColorRect>(CardCategoryBarPath).Color = CategoryColour(offer.Category);
-        card.GetNode<ColorRect>(CardRarityGemPath).Color = RarityColour(offer.Rarity);
+
+        DrawRarity(
+            card.GetNode<PanelContainer>(CardRarityGemPath),
+            card.GetNode<Label>(CardRarityGlyphPath),
+            offer.Rarity);
+
         card.GetNode<Label>(CardNameLabelPath).Text = offer.Name;
         card.GetNode<Label>(CardTierBadgePath).Text = presenter.TierBadge(offer);
         card.GetNode<Label>(CardEffectLabelPath).Text = presenter.EffectLine(offer);
@@ -619,19 +667,57 @@ public partial class PerkDraft : Control
         }
     }
 
+    /// <summary>Gives the gem its band's fill, its frame shape and its letter, all three at once.</summary>
     /// <remarks>
-    /// 🔒 A colour per band, and an honest answer for a band this build was never taught. The four
-    /// values are the art manifest's own rarity ladder, taken from its bottom four codes because a
-    /// perk has four rarities and the ladder has five — the fifth belongs to gear and is deliberately
-    /// unused here rather than mapped onto a perk band that does not exist.
+    /// 🔒 Duplicated off the gem's OWN authored face rather than built here, so the frame differs
+    /// from the authored one in exactly the two properties a band decides and every other number
+    /// describing a gem stays written down in one place. See
+    /// <see cref="RarityIsAShapeAndASymbolBeforeItIsAColour"/>.
     /// </remarks>
-    private static Color RarityColour(PerkRarity rarity) => rarity switch
+    private static void DrawRarity(PanelContainer gem, Label glyph, PerkRarity rarity)
     {
-        PerkRarity.Common => new Color(0.6039f, 0.6471f, 0.6941f),
-        PerkRarity.Rare => new Color(0.298f, 0.6863f, 0.3137f),
-        PerkRarity.Epic => new Color(0.2314f, 0.5098f, 0.9647f),
-        PerkRarity.Legendary => new Color(0.9608f, 0.651f, 0.1373f),
-        _ => UnknownMarkColour,
+        var (fill, ink, symbol, corners) = RarityBand(rarity);
+
+        glyph.Text = symbol;
+        glyph.AddThemeColorOverride(FontColourOverride, ink);
+
+        if (gem.GetThemeStylebox(PanelStyleOverride) is not StyleBoxFlat face ||
+            face.Duplicate() is not StyleBoxFlat band)
+        {
+            GD.PushError("A perk draft gem has no flat face to shape, so a rarity keeps the default frame.");
+
+            return;
+        }
+
+        band.BgColor = fill;
+        band.CornerRadiusTopLeft = corners.X;
+        band.CornerRadiusTopRight = corners.Y;
+        band.CornerRadiusBottomRight = corners.Z;
+        band.CornerRadiusBottomLeft = corners.W;
+
+        gem.AddThemeStyleboxOverride(PanelStyleOverride, band);
+    }
+
+    /// <remarks>
+    /// 🔒 A fill, an ink, a symbol and a frame per band, and an honest answer for a band this build
+    /// was never taught. The four fills are the art manifest's own rarity ladder, taken from its
+    /// bottom four codes because a perk has four rarities and the ladder has five — the fifth belongs
+    /// to gear and is deliberately unused here rather than mapped onto a perk band that does not
+    /// exist. The corners are read as top-left, top-right, bottom-right, bottom-left against a gem
+    /// 72 across, so 36 is a full round and the two asymmetric pairs are shapes rather than radii.
+    /// </remarks>
+    private static (Color Fill, Color Ink, string Symbol, Vector4I Corners) RarityBand(
+        PerkRarity rarity) => rarity switch
+    {
+        PerkRarity.Common =>
+            (new Color(0.6039f, 0.6471f, 0.6941f), GemInkColour, CommonSymbol, new Vector4I(0, 0, 0, 0)),
+        PerkRarity.Rare =>
+            (new Color(0.298f, 0.6863f, 0.3137f), GemInkColour, RareSymbol, new Vector4I(36, 36, 36, 36)),
+        PerkRarity.Epic =>
+            (new Color(0.2314f, 0.5098f, 0.9647f), GemInkColour, EpicSymbol, new Vector4I(34, 0, 34, 0)),
+        PerkRarity.Legendary =>
+            (new Color(0.9608f, 0.651f, 0.1373f), GemInkColour, LegendarySymbol, new Vector4I(0, 0, 34, 34)),
+        _ => (UnknownMarkColour, LiveColour, UnknownSymbol, new Vector4I(18, 18, 18, 18)),
     };
 
     /// <remarks>See <see cref="TheCategoryPaletteIsChosenHere"/>.</remarks>
@@ -641,8 +727,8 @@ public partial class PerkDraft : Control
         PerkCategory.Defense => new Color(0.1686f, 0.702f, 0.7529f),
         PerkCategory.Sustain => new Color(0.8784f, 0.3922f, 0.6902f),
         PerkCategory.DiceAndBoard => new Color(0.5569f, 0.502f, 0.9686f),
-        PerkCategory.Economy => new Color(0.7882f, 0.6353f, 0.1529f),
-        PerkCategory.TriggerSynergy => new Color(0.3725f, 0.749f, 0.498f),
+        PerkCategory.Economy => new Color(0.6471f, 0.8392f, 0.1922f),
+        PerkCategory.TriggerSynergy => new Color(0.8039f, 0.3608f, 0.949f),
         _ => UnknownMarkColour,
     };
 

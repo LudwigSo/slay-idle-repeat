@@ -26,6 +26,12 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// trip would replace the sentence naming the missing system with one naming nothing.
 /// </para>
 /// <para>
+/// 🔒 <b>The option cards are PINNED, not scrolled.</b> They sit in the bottom action column beside
+/// the shrine's continue, because resting is this arm's primary action and every other screen in the
+/// build keeps its primary action in the thumb's reach whatever the scroll is doing. The scrolling
+/// band above them carries the shrine arm, and on a campfire it simply holds nothing.
+/// </para>
+/// <para>
 /// 🔴 <b>The shrine's choice is not the player's, and this screen says so.</b> No shrine-choose
 /// command exists, so the rows are shown with the one that will be taken marked, and the absence is
 /// named rather than drawn as two buttons one of which is a lie. The cleanse arm is named too — a
@@ -95,6 +101,9 @@ public partial class Campfire : Control
     /// <summary>The theme entry a label's own text colour is written into.</summary>
     private const string FontColourOverride = "font_color";
 
+    /// <summary>The panel entry an option card's whole face — fill, outline, corners, shadow — takes.</summary>
+    private const string PanelStyleOverride = "panel";
+
     /// <summary>A control with something to do.</summary>
     private static readonly Color LiveColour = new(0.93f, 0.93f, 0.96f);
 
@@ -106,6 +115,19 @@ public partial class Campfire : Control
 
     /// <summary>And the absence of one beside every other row — drawn as nothing, not as a colour.</summary>
     private static readonly Color UntakenMarkColour = new(0, 0, 0, 0);
+
+    /// <summary>What an option that cannot be taken has its fill and its outline drawn down to.</summary>
+    /// <remarks>
+    /// 🔒 The FACE recedes, never the text. Two of the three options are unavailable for the whole
+    /// life of this screen, and each carries the only sentence in the build naming the system it is
+    /// waiting on — so a translucent veil across the card, which is the obvious way to draw a control
+    /// out of use, would spend the screen's dominant state below a readable contrast. Dimming the
+    /// card's own fill and outline instead leaves every glyph on it at better than eleven to one.
+    /// </remarks>
+    private static readonly Color UnavailableFaceColour = new(0.13f, 0.13f, 0.17f);
+
+    /// <summary>The outline that goes with it, which is what still reads the card as a card.</summary>
+    private static readonly Color UnavailableOutlineColour = new(0.26f, 0.27f, 0.33f);
 
     private CampfirePresenter? _presenter;
     private Board? _board;
@@ -361,7 +383,34 @@ public partial class Campfire : Control
 
         _optionButtons.Add((press, offered.Available));
 
+        if (!offered.Available)
+        {
+            DimFace(card);
+        }
+
         return card;
+    }
+
+    /// <summary>Draws an option that cannot be taken down into the ground, face and outline only.</summary>
+    /// <remarks>
+    /// 🔒 Duplicated off the card's OWN authored face rather than built here, so an unavailable card
+    /// differs from its sibling in exactly two properties and every other number describing a card
+    /// stays written down in one place. See <see cref="UnavailableFaceColour"/>.
+    /// </remarks>
+    private static void DimFace(PanelContainer card)
+    {
+        if (card.GetThemeStylebox(PanelStyleOverride) is not StyleBoxFlat face ||
+            face.Duplicate() is not StyleBoxFlat dimmed)
+        {
+            GD.PushError("A campfire option card has no flat face to dim, so it is drawn as a live one.");
+
+            return;
+        }
+
+        dimmed.BgColor = UnavailableFaceColour;
+        dimmed.BorderColor = UnavailableOutlineColour;
+
+        card.AddThemeStyleboxOverride(PanelStyleOverride, dimmed);
     }
 
     /// <summary>Draws the rows the shrine drew, rebuilding them only when the draw has changed.</summary>
