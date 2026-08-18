@@ -203,13 +203,15 @@ Additional rules:
 - **No duplicate options** within a single draft of 3.
 - **Category diversity:** at least 2 distinct categories among the 3 options.
 - **Owned-upgrade bias:** each option has a 30% chance of being drawn from the player's owned-but-not-maxed perks instead of the fresh pool. This makes "going tall" reachable without feeling forced.
-- **Legendary pity:** if no Legendary has appeared by draft #14 of a run, force one into draft #15.
+- **Legendary pity:** if no Legendary has appeared in **14 consecutive drafts the player picked from**, force one into the 15th. The count restarts whenever a draft offers a Legendary, forced or not.
 - **Anti-brick:** if the player has no Sustain perk by the end of Stage 2, force one Sustain option into the next draft.
-- **Quality floor:** 3 consecutive drafts with no option above Common force a Rare-or-better option into the next draft.
+- **Quality floor:** 3 consecutive drafts **the player picked from** with no option above Common force a Rare-or-better option into the next draft.
 - **Codex bias:** never-drafted perks carry a `×1.35` weight in the fresh-pool draw, capped at 1 bias-selected option per draft.
-- **Upgrade famine:** 5 consecutive drafts with no owned-perk upgrade offered (while a non-maxed owned perk exists) force one.
+- **Upgrade famine:** 5 consecutive drafts **the player picked from** with no owned-perk upgrade among the 3 options — counted only while a non-maxed owned perk exists — force one.
 
 🔒 The last five rules above are the `DRAFT` source class and are specified in full in **`24_LUCK_PROTECTION.md` §4.7**, which is the authority. They resolve through `LuckService`, not in the draft code.
+
+🔒 **The unit those three counting rules count is a draft the player *picked from*.** Legendary pity, the quality floor and the upgrade famine advance only when a draft is closed by taking one of its options. A **skip** and a **reroll** (§1) both leave all three standing, and for different reasons: a skip takes no option, so there is no pick to count; a reroll is *bought*, and a counter a purchase could advance would put the guarantee itself up for sale — the shape `24_LUCK_PROTECTION.md` §1.2 exists to forbid. The accepted cost is that a player who skips meets each guarantee later; these rules protect the quality of the choices a player actually makes, not the number of battles they win. Ruled 2026-08-18.
 
 📐 TUNABLE: all weights above.
 

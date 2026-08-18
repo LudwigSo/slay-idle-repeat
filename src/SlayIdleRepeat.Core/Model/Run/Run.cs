@@ -440,13 +440,13 @@ public sealed class Run
     /// <inheritdoc cref="_stageGateDiceAnchor"/>
     internal ulong StageGateDiceAnchor => _stageGateDiceAnchor;
 
-    /// <summary>Drafts drawn since one last offered a Legendary option.</summary>
+    /// <summary>Drafts picked from since one last offered a Legendary option.</summary>
     internal int DraftsSinceLegendaryOffered => _draftsSinceLegendaryOffered;
 
-    /// <summary>Consecutive drafts that offered nothing above Common.</summary>
+    /// <summary>Consecutive drafts picked from that offered nothing above Common.</summary>
     internal int DraftsWithoutAboveCommon => _draftsWithoutAboveCommon;
 
-    /// <summary>Consecutive drafts that offered no owned-perk upgrade.</summary>
+    /// <summary>Consecutive drafts picked from that offered no owned-perk upgrade.</summary>
     internal int DraftsWithoutOwnedUpgrade => _draftsWithoutOwnedUpgrade;
 
     /// <inheritdoc cref="_itemsAtOrAboveFloorBand"/>
@@ -465,9 +465,9 @@ public sealed class Run
     /// counter writer does: the two movements that matter are an advance and a reset, and a reset is
     /// badly described as a negative.
     /// </remarks>
-    /// <param name="sinceLegendaryOffered">Drafts since a Legendary was last offered. Never negative.</param>
-    /// <param name="withoutAboveCommon">Consecutive drafts with nothing above Common. Never negative.</param>
-    /// <param name="withoutOwnedUpgrade">Consecutive drafts with no owned upgrade. Never negative.</param>
+    /// <param name="sinceLegendaryOffered">Drafts picked from since a Legendary was last offered. Never negative.</param>
+    /// <param name="withoutAboveCommon">Consecutive drafts picked from with nothing above Common. Never negative.</param>
+    /// <param name="withoutOwnedUpgrade">Consecutive drafts picked from with no owned upgrade. Never negative.</param>
     /// <exception cref="ArgumentOutOfRangeException">Any argument is negative.</exception>
     internal void SetDraftCounters(
         int sinceLegendaryOffered, int withoutAboveCommon, int withoutOwnedUpgrade)

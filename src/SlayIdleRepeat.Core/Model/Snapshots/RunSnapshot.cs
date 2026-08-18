@@ -33,9 +33,9 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="BankedLegendXp">Legend XP banked so far this run, pending the run-end payout. Never negative.</param>
 /// <param name="BankedSoulShards">Soul Shards banked so far this run, pending the same payout. Never negative.</param>
 /// <param name="BossDefeated">Whether this run's Boss has been killed.</param>
-/// <param name="DraftsSinceLegendaryOffered">Drafts drawn since one last offered a Legendary option. Never negative.</param>
-/// <param name="DraftsWithoutAboveCommon">Consecutive drafts that offered nothing above Common. Never negative.</param>
-/// <param name="DraftsWithoutOwnedUpgrade">Consecutive drafts that offered no owned-perk upgrade. Never negative.</param>
+/// <param name="DraftsSinceLegendaryOffered">Drafts picked from since one last offered a Legendary option. Never negative.</param>
+/// <param name="DraftsWithoutAboveCommon">Consecutive drafts picked from that offered nothing above Common. Never negative.</param>
+/// <param name="DraftsWithoutOwnedUpgrade">Consecutive drafts picked from that offered no owned-perk upgrade. Never negative.</param>
 /// <param name="StartingLoadout">
 /// What the hero was wearing when the run started, frozen for the run's whole life — `07` §4's
 /// "snapshotted at run start". ⚠️ <c>null</c> is a <b>fault</b>: a run whose starting loadout went

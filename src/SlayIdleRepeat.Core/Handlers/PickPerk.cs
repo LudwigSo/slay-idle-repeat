@@ -65,11 +65,18 @@ internal static class PickPerk
 
     /// <summary>Stores the run's three draft counters as the closing offering leaves them.</summary>
     /// <remarks>
-    /// Here rather than where the options are drawn, because a reroll draws a set nobody was ever
-    /// offered the chance to take: the counters count the drafts a run actually resolved, and a
-    /// counter a reroll advanced would let a player push a guarantee towards themselves with Gold.
+    /// <para>
+    /// Here rather than where the options are drawn, because the counters count the drafts a run
+    /// actually <em>picked from</em>. That excludes the two other ways a draft ends, for two
+    /// different reasons: a reroll draws a set nobody was ever offered the chance to take, and a
+    /// counter a reroll moved would let a player push a guarantee towards themselves with Gold; a
+    /// skip takes no option at all, so there is no pick to count — it pays the player rather than
+    /// costing them, so the purchasability argument never arises for it.
+    /// </para>
+    /// <para>
     /// The demand is the one the options were drawn under, read before the pick is applied — the
     /// counters are about the draft as it was offered, not about what taking it left the run holding.
+    /// </para>
     /// </remarks>
     private static void MoveDraftCounters(
         Run run, IReadOnlyList<DraftOption> options, DraftDemand demand)
