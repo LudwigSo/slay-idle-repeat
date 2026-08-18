@@ -125,7 +125,7 @@ public sealed class DependencyRuleTests
         foreach (var port in Domain.Ports)
         {
             var implementors = implementations
-                .Where(t => ImplementsInterface(t, port.FullName))
+                .Where(t => Il.ImplementsInterface(t, port.FullName))
                 .Select(t => t.FullName)
                 .Distinct(StringComparer.Ordinal)
                 .OrderBy(n => n, StringComparer.Ordinal)
@@ -215,34 +215,5 @@ public sealed class DependencyRuleTests
         {
             yield return (reference, "(base interface)");
         }
-    }
-
-    private static bool ImplementsInterface(TypeDefinition type, string interfaceFullName)
-    {
-        var current = type;
-        while (current is not null)
-        {
-            if (current.Interfaces.Any(i => InterfaceMatches(i.InterfaceType, interfaceFullName)))
-            {
-                return true;
-            }
-
-            current = current.BaseType?.Resolve();
-        }
-
-        return false;
-    }
-
-    private static bool InterfaceMatches(TypeReference candidate, string interfaceFullName)
-    {
-        if (candidate.FullName.Equals(interfaceFullName, StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        var resolved = candidate.Resolve();
-        return resolved is not null &&
-               (resolved.FullName.Equals(interfaceFullName, StringComparison.Ordinal) ||
-                resolved.Interfaces.Any(i => InterfaceMatches(i.InterfaceType, interfaceFullName)));
     }
 }

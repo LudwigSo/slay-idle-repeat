@@ -1,3 +1,4 @@
+using Mono.Cecil;
 using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
@@ -428,6 +429,22 @@ public sealed class PortCatalogueTests
                        + "fail — it stops asking about the member it lost.");
         }
 
+        // 🔒 The engine adapter's own IDENTITY floor. No_type_in_the_engine_adapter_implements_a_port
+        // is stated over whatever Cecil finds in that module, and a module the scan stopped reading
+        // — renamed, unreferenced, emptied — reports success over nothing, which reads exactly like
+        // "the engine implements no port". A count would be cleared by whatever replaced the class
+        // that left; these four are the whole project.
+        var engine = EngineTypes().Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+
+        offenders.AddRange(
+            from capability in PortCatalogue.EngineCapabilities
+            where !engine.Contains(capability)
+            select $"'{capability}' is gone from {PortCatalogue.EngineAdapterAssembly}. "
+                   + "No_type_in_the_engine_adapter_implements_a_port quantifies over that module's "
+                   + "types, so a subject it stopped seeing is a subject the rule stopped "
+                   + "constraining — silently, and while still reporting success. If the capability "
+                   + "was genuinely deleted, delete the name here in the same commit.");
+
         PortCatalogue.SpecifiedPorts.Length.ShouldBe(
             3,
             "23 §4 has three subsections — client, server and shared — and each is a separate "
@@ -645,6 +662,247 @@ public sealed class PortCatalogueTests
             .ShouldBeEmpty(
                 "the same two subjects, a term neither declares — otherwise both arms above would be "
                 + "satisfied by a scan that reports every generic parameter it sees.");
+    }
+
+    // ───────────────────────────────────────────────────────────────────── the engine exception
+    //
+    // 🔒 M7-01c. `23` §7.2 used to register GodotPlatformInfoAdapter, GodotAudioAdapter and
+    // GodotHapticsAdapter against ports. It cannot: a class in the engine adapter cannot carry a
+    // contract fixture, because a GodotSharp call from the unit tier faults the test host process
+    // instead of throwing. The document was amended; these three rules are what stop the amendment
+    // from being a sentence somebody remembers.
+
+    /// <summary>
+    /// 🔒 `23` §7.2 / §5 A8 — no class in the engine adapter implements a port. The ruling that
+    /// amended §7.2, stated where a future change to it has to go past.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The one rule in this file that is <b>about a limitation rather than about the register</b>.
+    /// `23` §5 A10 makes Godot an adapter and `23` §3 lists this project among the adapters, so a
+    /// reader is entitled to expect it to implement something — the whole point of an adapter. It
+    /// does not, and that is a stated exception with a measured reason, not an oversight.
+    /// </para>
+    /// <para>
+    /// ⚠️ It exists <em>in addition</em> to <c>ContractSuiteCoverageTests</c>' fixture demand
+    /// because of how that demand fails here. X-06 would notice an engine port implementation only
+    /// by asking for the fixture, and the fixture is the thing that kills the run: the failure a
+    /// developer would actually see is "Der Testhostprozess ist abgestürzt", with no rule name and
+    /// no offender. This one fails in the architecture job, in three seconds, naming the type and
+    /// the port.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void No_type_in_the_engine_adapter_implements_a_port()
+    {
+        ArchRule.Empty(
+            PortCatalogue.EnginePortImplementations(EngineTypes(), Domain.Ports),
+            "No class in the engine adapter implements a port (23 §7.2, 23 §5 A8).");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §5 A8 — the premise under the rule above: the contract suites still reference the
+    /// engine adapter, which is what makes an engine port impossible rather than merely unwise.
+    /// </summary>
+    /// <remarks>
+    /// Steering <b>S4</b>'s hard half. Every other statement of this ruling — the amended `23` §7.2,
+    /// the <c>IHapticsPort</c> and <c>IAudioPort</c> deferrals, the rule above — rests on one
+    /// <c>ProjectReference</c>. Delete it and all four are describing a constraint that no longer
+    /// exists, and not one of them goes red. This is the half of the reason that a rule can see.
+    /// </remarks>
+    [Fact]
+    public void The_engine_adapter_is_still_on_the_contract_suites_reference_list()
+    {
+        ArchRule.Empty(
+            PortCatalogue.EnginePremise(ContractSuiteProjectReferences()),
+            "The contract suites still reference the engine adapter (23 §5 A8, steering S4).");
+    }
+
+    /// <summary>
+    /// `23` §7.2 — the teeth of the engine rule, driven against real types so each arm is shown to
+    /// bite without the forbidden arrangement ever being committed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Three arms and two controls, because one probe would only prove the rule is not vacuous
+    /// (steering <b>S1</b>). The <b>subject</b> arm asks whether the scan reads the engine module's
+    /// types at all; the <b>port</b> arm asks whether it quantifies over every port or over one; the
+    /// <b>inheritance</b> arm is on <see cref="Il.ImplementsInterface"/> itself, since a check
+    /// written as <c>type.Interfaces.Any(…)</c> passes every probe above and still lets
+    /// <c>GodotHaptics : SomeBase</c> through.
+    /// </para>
+    /// <para>
+    /// <c>HostPlatformInfo</c> is the probe rather than a synthetic class because it is a real
+    /// implementation of a real port — the very arrangement the engine project is forbidden to
+    /// grow, standing in the sibling project the ruling says to put it in.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_engine_port_rule_fires_on_a_type_that_implements_one()
+    {
+        var engine = EngineTypes().ToArray();
+        var portImplementor = HostTypes().Single(
+            t => t.Name.Equals("HostPlatformInfo", StringComparison.Ordinal));
+
+        // The live claim, stated as a probe so a scan that lost the module is not mistaken for one.
+        PortCatalogue.EnginePortImplementations(engine, Domain.Ports).ShouldBeEmpty(
+            "no class in the engine adapter implements a port today, which is the arrangement this "
+            + "rule exists to permit — and 23 §7.2 was amended to say so.");
+
+        // The subject arm: one port-implementing class among the engine's own types.
+        PortCatalogue.EnginePortImplementations(engine.Append(portImplementor), Domain.Ports)
+            .ShouldHaveSingleItem()
+            .ShouldContain("implements the port 'IPlatformInfoPort'", Case.Sensitive);
+
+        // 🔒 The port arm: the scan reads EVERY port, not the first one it was written against.
+        // Driven with the same subject and a port set that deliberately excludes its port.
+        PortCatalogue.EnginePortImplementations(
+                new[] { portImplementor },
+                Domain.Ports.Where(p => !p.Name.Equals("IPlatformInfoPort", StringComparison.Ordinal)))
+            .ShouldBeEmpty(
+                "HostPlatformInfo implements IPlatformInfoPort and nothing else. A rule that "
+                + "reported it here would be flagging types for ports they do not implement.");
+
+        // The negative control on the subject axis: a real engine class that implements nothing.
+        PortCatalogue.EnginePortImplementations(
+                engine.Where(t => t.Name.Equals("GodotUserPaths", StringComparison.Ordinal)), Domain.Ports)
+            .ShouldBeEmpty(
+                "GodotUserPaths is a capability the composition root names directly. A rule that "
+                + "flagged it would be forbidding the engine adapter from existing.");
+
+        // 🔒 The inheritance arm, on the shared predicate the rule is built from. CurrencyChanged
+        // declares IEquatable<CurrencyChanged> and INHERITS IEquatable<DomainEvent> from its base
+        // record — so a direct-only check answers false here and true on the line above it.
+        var inheritedInterface = "System.IEquatable`1<" + Domain.CoreNamespace + ".Events." + Domain.DomainEventType + ">";
+        var derived = Domain.CoreTypes.Single(
+            t => t.Name.Equals(Domain.CurrencyChangedEvent, StringComparison.Ordinal));
+
+        Il.ImplementsInterface(derived, inheritedInterface).ShouldBeTrue(
+            $"'{Domain.CurrencyChangedEvent}' names '{inheritedInterface}' nowhere in its own "
+            + "metadata — it has it because its base record does. If this is false the walk stops at "
+            + "the type itself, and a Godot class implementing a port through a base class is "
+            + "invisible to every rule above.");
+
+        Il.ImplementsInterface(derived, "System.IEquatable`1<System.Uri>").ShouldBeFalse(
+            "the same subject and an interface neither it nor its base declares — otherwise the arm "
+            + "above would be satisfied by a walk that answers true for everything.");
+    }
+
+    /// <summary>
+    /// 🔒 `23` §6, steering <b>S4</b> — every owning task this register names is a tracker row that
+    /// is still <b>open</b>. Not merely one that exists.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// S4's M4 amendment, and it found two live offenders on the commit that introduced it:
+    /// <c>IHapticsPort</c> and <c>IAudioPort</c> were both owned by <c>M7-01</c>, a task that had
+    /// merged two tasks earlier — and that M7-01b's own row records as unable to discharge them even
+    /// while it was open. <see cref="Every_port_deferral_is_well_formed"/> checks the id's shape and
+    /// was green on both; a shape is not an expiry.
+    /// </para>
+    /// <para>
+    /// Both registers, because the member omissions are the same kind of promise made the same way,
+    /// and a mechanism that governed one of the two would leave the other exactly as it was.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Every_port_catalogue_owner_is_a_task_the_tracker_still_has_open()
+    {
+        var entries = PortCatalogue.Deferred
+            .Select(d => (Subject: d.Port, d.Owner))
+            .Concat(PortCatalogue.OmittedMembers.Select(o => (Subject: o.Port + "." + o.Member, o.Owner)));
+
+        ArchRule.Empty(
+            PortCatalogue.OwnersNoLongerOpen(entries, PortCatalogue.TrackerStatuses(Tracker())),
+            "Every PortCatalogue owner is a tracker task that is still open (23 §6, steering S4).");
+    }
+
+    /// <summary>
+    /// `23` §6 — the teeth of the owner rule, driven against a crafted tracker so both arms are
+    /// shown to bite without <c>IMPLEMENTATION_TRACKER.md</c> being edited to prove it.
+    /// </summary>
+    /// <remarks>
+    /// Three arms — a shipped owner, an owner no row declares, and the silent case — plus the
+    /// parser's own floor. The parser is the part that can go quiet: a regex that stopped matching
+    /// would make every owner "not declared" (loud, and therefore safe) but one anchored on the
+    /// wrong glyph reads real rows backwards, which is silent. Four rows carry a second status glyph
+    /// inside their prose, and two of those four are read wrongly by "the last glyph on the line".
+    /// </remarks>
+    [Fact]
+    public void The_owner_status_rule_fires_on_a_shipped_owner_and_is_silent_on_an_open_one()
+    {
+        var statuses = PortCatalogue.TrackerStatuses(Tracker());
+
+        // The parser's floor. Empty, every arm below is "the owner does not exist" and the rule
+        // reports the same failure for a healthy register as for a broken one.
+        statuses.Count.ShouldBeGreaterThan(
+            150,
+            "IMPLEMENTATION_TRACKER.md declares over two hundred task rows. A parser that returns "
+            + "few or none makes Every_port_catalogue_owner_is_a_task_the_tracker_still_has_open "
+            + "fail on every entry at once, for a reason that has nothing to do with the entries.");
+
+        // 🔒 The anchor, pinned by identity on the four rows that carry a second status glyph in
+        // their prose. M7-10 is queued and mentions a closed open item; M2-16a is merged and
+        // mentions a blocked CI gap. "The last glyph on the line" reads both backwards.
+        statuses["M7-10"].ShouldBe(new[] { "⏳" }, "M7-10 is queued; the ✅ later in its row is an open item's status.");
+        statuses["M2-16a"].ShouldBe(new[] { "🔍" }, "M2-16a is merged; the ⛔ later in its row is a CI gap it names.");
+
+        var open = new[] { (Subject: "IUnitOfWork", Owner: "M5-04") };
+        var shipped = new[] { (Subject: "IUnitOfWork", Owner: "M7-01") };
+        var absent = new[] { (Subject: "IUnitOfWork", Owner: "M9-99") };
+
+        PortCatalogue.OwnersNoLongerOpen(open, statuses).ShouldBeEmpty(
+            "M5-04 is a real tracker row and has not started, which is the arrangement every "
+            + "deferral here is supposed to be in.");
+
+        PortCatalogue.OwnersNoLongerOpen(shipped, statuses)
+            .ShouldHaveSingleItem()
+            .ShouldContain("has already shipped", Case.Sensitive);
+
+        PortCatalogue.OwnersNoLongerOpen(absent, statuses)
+            .ShouldHaveSingleItem()
+            .ShouldContain("is not a task row in IMPLEMENTATION_TRACKER.md", Case.Sensitive);
+
+        // ⚠️ The status arm's own control: ⛔ is BLOCKED, not finished, and IAudioPort's owner is in
+        // exactly that state. A rule that treated "not ⬜" as shipped would fire on it.
+        PortCatalogue.OwnersNoLongerOpen(new[] { (Subject: "IAudioPort", Owner: "M8-07") }, statuses)
+            .ShouldBeEmpty("M8-07 is blocked on an audio-tool licence — ahead of us, not behind us.");
+    }
+
+    /// <summary>Every type Cecil finds in the engine adapter.</summary>
+    private static IEnumerable<TypeDefinition> EngineTypes() =>
+        Il.AllTypes(ProductionAssemblies.Module(PortCatalogue.EngineAdapterAssembly));
+
+    /// <summary>Every type Cecil finds in the plain-C# platform adapter beside it.</summary>
+    private static IEnumerable<TypeDefinition> HostTypes() =>
+        Il.AllTypes(ProductionAssemblies.Module(PortCatalogue.HostAdapterAssembly));
+
+    /// <summary>The tracker's raw text.</summary>
+    private static string Tracker() =>
+        File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
+
+    /// <summary>
+    /// The project names <c>SlayIdleRepeat.Contract.Tests</c> references.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Throws on a missing project file rather than returning nothing, for the reason
+    /// <c>RepoLayout.SourceFiles</c> does: an empty list would make
+    /// <see cref="The_engine_adapter_is_still_on_the_contract_suites_reference_list"/> fail for the
+    /// wrong reason, and a renamed suite would look like a deleted reference.
+    /// </remarks>
+    private static IReadOnlyList<string> ContractSuiteProjectReferences()
+    {
+        var projectFile = Path.Combine(
+            RepoLayout.RepoRoot, "tests", PortCatalogue.ContractSuitesProject,
+            PortCatalogue.ContractSuitesProject + ".csproj");
+
+        return File.Exists(projectFile)
+            ? RepoLayout.ProjectReferences(projectFile)
+            : throw new FileNotFoundException(
+                $"'{RepoLayout.Relative(projectFile)}' does not exist. The engine deferrals and " +
+                "23 §7.2's amendment are stated over what that project references; if the suite " +
+                "moved, point this rule at the new location rather than letting it read nothing.",
+                projectFile);
     }
 
     private static void Floor(ICollection<string> offenders, string what, int actual, int floor, string consequence)

@@ -40,6 +40,52 @@ internal static class Il
     internal static IEnumerable<MethodDefinition> AllMethods(TypeDefinition type) => type.Methods;
 
     /// <summary>
+    /// True when <paramref name="type"/> implements the interface named by
+    /// <paramref name="interfaceFullName"/> — directly, through a base class, or through another
+    /// interface that derives from it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 One definition for the repository (steering S4). <c>DependencyRuleTests</c> asks it to
+    /// decide whether a port has its two implementations; <c>PortCatalogue</c> asks it to decide
+    /// whether the engine adapter has quietly grown one. Two spellings of "does this type implement
+    /// that port?" would eventually disagree, and the disagreement would show up as one of the two
+    /// rules being silently wrong about a subclass.
+    /// <para>
+    /// ⚠️ The walk is what distinguishes this from <c>type.Interfaces.Any(…)</c>, and it is not
+    /// decoration: <c>sealed class GodotHaptics : SomeBase</c> where <c>SomeBase : IHapticsPort</c>
+    /// implements the port without naming it once in its own metadata.
+    /// </para>
+    /// </remarks>
+    internal static bool ImplementsInterface(TypeDefinition type, string interfaceFullName)
+    {
+        var current = type;
+        while (current is not null)
+        {
+            if (current.Interfaces.Any(i => InterfaceMatches(i.InterfaceType, interfaceFullName)))
+            {
+                return true;
+            }
+
+            current = current.BaseType?.Resolve();
+        }
+
+        return false;
+    }
+
+    private static bool InterfaceMatches(TypeReference candidate, string interfaceFullName)
+    {
+        if (candidate.FullName.Equals(interfaceFullName, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var resolved = candidate.Resolve();
+        return resolved is not null &&
+               (resolved.FullName.Equals(interfaceFullName, StringComparison.Ordinal) ||
+                resolved.Interfaces.Any(i => InterfaceMatches(i.InterfaceType, interfaceFullName)));
+    }
+
+    /// <summary>
     /// True for an <c>init</c> accessor — a setter the language will only let a caller invoke
     /// while an object is being constructed.
     /// </summary>

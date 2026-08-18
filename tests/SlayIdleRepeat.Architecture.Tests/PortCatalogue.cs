@@ -919,4 +919,182 @@ internal static class PortCatalogue
             }
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+    // M7-01c — the engine exception, and the two things that make it expire.
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>The adapter project whose every class reaches <c>GodotSharp</c>.</summary>
+    internal const string EngineAdapterAssembly = "SlayIdleRepeat.Adapters.Platform.Godot";
+
+    /// <summary>The plain-C# platform adapter that ports are implemented by instead.</summary>
+    internal const string HostAdapterAssembly = "SlayIdleRepeat.Adapters.Platform.Host";
+
+    /// <summary>The project whose fixture demand is what makes an engine port impossible.</summary>
+    internal const string ContractSuitesProject = "SlayIdleRepeat.Contract.Tests";
+
+    /// <summary>
+    /// 🔒 The capabilities <see cref="EngineAdapterAssembly"/> carries, named one by one. An
+    /// <b>identity</b> floor, for the reason <see cref="ObjectStoreVocabulary"/> is one.
+    /// </summary>
+    /// <remarks>
+    /// A count over the module's types is cleared by whatever replaced the class that left, and a
+    /// module that lost every type would leave <c>No_type_in_the_engine_adapter_implements_a_port</c>
+    /// reporting success over nothing — which reads identically to "the engine implements no port".
+    /// These four are the whole of the project today.
+    /// </remarks>
+    internal static readonly string[] EngineCapabilities =
+    {
+        "GodotAudioOutput", "GodotHaptics", "GodotPlatformInfo", "GodotUserPaths",
+    };
+
+    /// <summary>What an engine class implementing a port means, said once.</summary>
+    internal const string EnginePortConsequence =
+        "23 §7.2 was amended by M7-01c so that it does not: a class in this project cannot carry a " +
+        "contract fixture, because every member of it reaches GodotSharp — a shim over native " +
+        "function pointers the engine populates at startup — and a headless call is an " +
+        "AccessViolationException no catch block can observe, which takes the test host process down " +
+        "rather than failing a case. M7-01b measured that from a Contract.Tests fixture. The moment " +
+        "a class here implements a port, ContractSuiteCoverageTests." +
+        "Every_implementation_of_a_port_has_a_contract_fixture demands the fixture that kills the " +
+        "run. Implement the port from " + HostAdapterAssembly + " — the plain-C# sibling that is " +
+        "already the shipped precedent — and keep the engine class a capability the composition " +
+        "root names directly. If an engine-capable test host or a fixture exemption has genuinely " +
+        "arrived, this rule is the thing to delete, and 23 §7.2 is the document to amend back.";
+
+    /// <summary>
+    /// Every concrete type in the engine adapter that implements a port. Empty means the ruling
+    /// holds.
+    /// </summary>
+    /// <remarks>
+    /// Parameterised over both its inputs for the reason <see cref="Expired"/> is: the self-tests
+    /// drive it with a type that genuinely implements a port, proving each arm bites, without the
+    /// forbidden arrangement ever being committed.
+    /// </remarks>
+    internal static IReadOnlyList<string> EnginePortImplementations(
+        IEnumerable<TypeDefinition> engineTypes,
+        IEnumerable<TypeDefinition> ports)
+    {
+        var declared = ports.ToArray();
+
+        return (from type in engineTypes
+                where type is { IsInterface: false, IsAbstract: false }
+                where !Domain.IsCompilerGenerated(type)
+                from port in declared
+                where Il.ImplementsInterface(type, port.FullName)
+                select $"'{type.FullName}' implements the port '{port.Name}'. {EnginePortConsequence}")
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The premise the rule above rests on: <see cref="ContractSuitesProject"/> still references
+    /// <see cref="EngineAdapterAssembly"/>. Empty means the premise holds.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Without this, <c>No_type_in_the_engine_adapter_implements_a_port</c> stays green while its
+    /// whole justification evaporates. Drop that <c>ProjectReference</c> and the engine adapter is
+    /// no longer in the fixture-coverage scan at all — so an engine class could implement a port,
+    /// nothing in <c>Contract.Tests</c> would ask for a fixture, and the deferral reasons for
+    /// <c>IHapticsPort</c> and <c>IAudioPort</c> would be describing a constraint that had been
+    /// removed. That is the shape steering S4 calls an exemption outliving its reason, and this is
+    /// the half of it a rule can actually see.
+    /// </remarks>
+    internal static IReadOnlyList<string> EnginePremise(IEnumerable<string> contractSuiteReferences) =>
+        contractSuiteReferences.Contains(EngineAdapterAssembly, StringComparer.Ordinal)
+            ? Array.Empty<string>()
+            : new[]
+            {
+                $"'{ContractSuitesProject}' no longer project-references '{EngineAdapterAssembly}'. " +
+                "The IHapticsPort and IAudioPort deferrals, 23 §7.2's amendment and " +
+                "No_type_in_the_engine_adapter_implements_a_port all rest on that reference: it is " +
+                "what puts the engine adapter inside ContractSuiteCoverageTests' implementation scan, " +
+                "and therefore what makes an engine port impossible rather than merely unwise. " +
+                "Without it those three say a thing that is no longer true, and none of them goes " +
+                "red. Restore the reference, or rewrite all three in the same commit.",
+            };
+
+    /// <summary>Tracker statuses that mean the owning task has already shipped.</summary>
+    /// <remarks>
+    /// ✅ is done and 🔍 is merged-awaiting-review; both are a task nobody is going to do again.
+    /// ⬜, ⏳, 🔄 and ⛔ are all still ahead — including ⛔, which is blocked rather than finished
+    /// and is precisely the state <c>IAudioPort</c>'s owner is in.
+    /// </remarks>
+    internal static readonly string[] ShippedStatuses = { "✅", "🔍" };
+
+    /// <summary>
+    /// A tracker task row: its id and the status glyph its status cell opens with.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Anchored on the <b>first</b> <c>| glyph</c> after the id rather than on the last glyph in
+    /// the line, and the difference is measured rather than assumed: four rows carry a second status
+    /// glyph inside their status prose (<c>M7-10</c>'s ⏳ row mentions an ✅ open item, <c>M2-16a</c>'s
+    /// 🔍 row mentions a ⛔ CI gap), so "the last glyph on the line" reads two of them backwards.
+    /// Splitting on <c>|</c> is worse still — a description cell that contains a pipe inside
+    /// backticks moves every column.
+    /// </remarks>
+    private static readonly Regex TrackerTaskRow = new(
+        @"^\| (?<id>M\d{1,2}-\d{2}[a-z]?) \|.*?\| ?(?<status>⬜|✅|🔍|🔄|⛔|⏳)",
+        RegexOptions.Multiline | RegexOptions.Compiled);
+
+    /// <summary>Every task id the tracker declares, with the status glyphs its rows carry.</summary>
+    /// <remarks>
+    /// A lookup rather than a dictionary so a duplicated id cannot throw out of a helper; a task
+    /// counts as still open only when <em>no</em> row of it has shipped.
+    /// </remarks>
+    internal static ILookup<string, string> TrackerStatuses(string tracker) =>
+        TrackerTaskRow.Matches(tracker)
+            .ToLookup(m => m.Groups["id"].Value, m => m.Groups["status"].Value, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Every register entry whose owning task the tracker does not declare, or declares as already
+    /// shipped. Empty means every entry still has an expiry a reader can reach.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Steering <b>S4</b>'s M4 amendment, made mechanical: an expiry check must test that the
+    /// owner is still OPEN, not that the owner EXISTS. <see cref="Malformed"/> checks the SHAPE of
+    /// the id and <c>GapRegisterTests</c>' dispatch rule checks that a row with that id exists —
+    /// neither can see an owner that has already merged, which is the state both engine deferrals
+    /// were in when M7-01c found them: owned by M7-01, a task that shipped two tasks ago and could
+    /// not discharge them even then.
+    /// <para>
+    /// Parameterised over the tracker text for the reason <see cref="Expired"/> is parameterised
+    /// over its entries: the self-tests drive it with a crafted tracker, so both arms are shown to
+    /// bite without <c>IMPLEMENTATION_TRACKER.md</c> ever being edited to prove it.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<string> OwnersNoLongerOpen(
+        IEnumerable<(string Subject, string Owner)> entries,
+        ILookup<string, string> statuses)
+    {
+        var offenders = new List<string>();
+
+        foreach (var (subject, owner) in entries)
+        {
+            var rows = statuses[owner].ToArray();
+
+            if (rows.Length == 0)
+            {
+                offenders.Add(
+                    $"'{subject}' names owner '{owner}', which is not a task row in " +
+                    "IMPLEMENTATION_TRACKER.md. A deferral whose owner does not exist expires when " +
+                    "nobody is looking: the entry keeps saying a seam is coming and no milestone is " +
+                    "on the hook for it.");
+                continue;
+            }
+
+            var shipped = rows.Where(s => ShippedStatuses.Contains(s, StringComparer.Ordinal)).ToArray();
+
+            if (shipped.Length > 0)
+            {
+                offenders.Add(
+                    $"'{subject}' names owner '{owner}', whose tracker row reads '{shipped[0]}' — " +
+                    "that task has already shipped. The entry can now never expire: the milestone " +
+                    "that was going to build this is behind us, so nothing will ever delete the " +
+                    "exception and no kickoff will ever be asked about it. Name the task that " +
+                    "actually builds it next, or build it.");
+            }
+        }
+
+        return offenders;
+    }
 }
