@@ -22,9 +22,11 @@ namespace SlayIdleRepeat.Client.Tests;
 /// could be swapped by a wrong-branch bug and every "is it blocked?" assertion would still pass.
 /// </para>
 /// <para>
-/// ⚠️ The gate is presentation only. The rules layer refuses a <c>START_RUN</c> for a chapter id
-/// below one or an undefined tier and for nothing else; no clear ladder and no Legend Level is
-/// enforced anywhere behind this screen, and no task currently owns making one so.
+/// 🔒 The gate is drawn here and enforced behind it, from the same authored ladder: a
+/// <c>START_RUN</c> the rules layer will not have comes back refused by name. So the cases below
+/// are about the <em>instruction</em> rather than the enforcement — and about the one refusal that
+/// only became reachable once the two agreed, which is the pair this screen offered and the rules
+/// layer then declined because the state behind the screen had moved.
 /// </para>
 /// </remarks>
 public sealed class ChapterSelectPresenterTests
@@ -648,6 +650,104 @@ public sealed class ChapterSelectPresenterTests
         presenter.RulesRejection.ShouldBeNull(
             "an accepted command was refused for no reason, and a reason left standing from nowhere " +
             "would put a cause on a screen that succeeded.");
+    }
+
+    // ------------------------------------------ 🔒 the refusal that means this screen went stale
+
+    /// <summary>
+    /// 🔒 The pair was offered, so a refusal of it says the state this screen drew from has moved.
+    /// The row therefore has to be redrawn against the state the rules layer answered from, and the
+    /// only way to get it is to read again — nothing else on this screen ever does, so a presenter
+    /// that skipped it leaves the same open row, the same live confirm and the same refusal for
+    /// every press the player is willing to make.
+    /// </summary>
+    /// <remarks>
+    /// Over a store that MOVES between the two reads, which is the whole fixture: a host answering
+    /// alike twice cannot tell a screen that re-read from one that never did. Chapter two was open
+    /// because chapter one read as cleared; by the time the command lands it is not, which is
+    /// exactly what the handler refused on.
+    /// </remarks>
+    [Fact]
+    public async Task A_refusal_from_the_rules_layer_redraws_the_row_against_state_read_again()
+    {
+        var host = RecordingGameHost
+            .Finding(PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))))
+            .ThenFinding(PlayerRow(cleared: PlayerState.NothingCleared()))
+            .RefusingCommands(RejectionReason.PREREQUISITE_NOT_CLEARED);
+        var presenter = await Started(host, Authoring(AuthoredChapters));
+
+        presenter.Availability(2, DifficultyTier.NORMAL).Lookup.ShouldBe(
+            ChapterTierLookup.Selectable,
+            "the premise: the screen offered this pair, so the tap that follows is one the player " +
+            "was invited to make rather than one they forced.");
+
+        await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        host.ReadCallCount.ShouldBe(
+            2,
+            "a refusal of a pair this screen offered is this screen being told its copy of the " +
+            "player's progress is wrong. Reading again is the only way it can stop being wrong, and " +
+            "no other path here ever reads a second time.");
+
+        var afterwards = presenter.Availability(2, DifficultyTier.NORMAL);
+
+        afterwards.Lookup.ShouldBe(
+            ChapterTierLookup.Blocked,
+            "and the point of reading again is what the player then sees: the row that was open is " +
+            "shut, so the confirm goes dead on it instead of coming back live over a ladder the " +
+            "rules layer has already refused once.");
+        afterwards.Unmet.ShouldBe(
+            [new ClearRequirement(1, DifficultyTier.NORMAL)],
+            "asserted by its payload, because this is the instruction the wire value cannot carry. " +
+            "PREREQUISITE_NOT_CLEARED names no chapter and no tier; the row does, and that is why " +
+            "the sentence under the confirm is allowed to stay generic.");
+    }
+
+    /// <summary>
+    /// 🔒 The negative control, and the reason the re-read is spent only where it buys something.
+    /// An accepted command is the one tap in the game that must not stall, and its own outcome
+    /// already carries the state — a screen that read again on the way to the board would pay a
+    /// second round trip for an answer it was handed.
+    /// </summary>
+    [Fact]
+    public async Task An_accepted_confirm_does_not_read_the_state_again()
+    {
+        var host = RecordingGameHost.Finding(
+            PlayerRow(cleared: PlayerState.Cleared((1, DifficultyTier.NORMAL))));
+        var presenter = await Started(host, Authoring(AuthoredChapters));
+
+        var submission = await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        submission.ShouldBe(
+            ChapterSelectSubmission.Submitted,
+            "the control is only a control if the command really was accepted; a presenter refusing " +
+            "everything would read once here for the wrong reason and still satisfy the count.");
+        host.ReadCallCount.ShouldBe(
+            1,
+            "the one from StartAsync and no other. A re-read on every outcome would put a round " +
+            "trip between the tap and the board on the path where nothing is in doubt.");
+    }
+
+    /// <summary>
+    /// The other control: a refusal this screen decided for itself sent nothing, so nothing behind
+    /// it disagreed with anything and there is no stale state to suspect.
+    /// </summary>
+    [Fact]
+    public async Task A_refusal_this_screen_decided_for_itself_does_not_read_the_state_again()
+    {
+        var host = RecordingGameHost.Finding(PlayerRow());
+        var presenter = await Started(host, Authoring(AuthoredChapters));
+
+        var submission = await presenter.ConfirmAsync(2, DifficultyTier.NORMAL, CancellationToken.None);
+
+        submission.ShouldBe(ChapterSelectSubmission.RefusedNotSelectable);
+        host.SubmitCallCount.ShouldBe(
+            0,
+            "the premise: nothing reached the rules layer, so nothing contradicted this screen.");
+        host.ReadCallCount.ShouldBe(
+            1,
+            "so the read stands. Re-reading on a verdict this screen reached on its own would make " +
+            "every blocked tap cost a round trip to be told what the screen already knew.");
     }
 
     // ------------------------------------------- 🔒 the line the confirm's own press cannot say

@@ -263,9 +263,10 @@ public sealed class ChapterSelectPresenter
     /// </summary>
     /// <remarks>
     /// 🔒 The reason is carried across rather than collapsed into the verdict. A run already open, a
-    /// chapter id below one and an undefined tier are all refused, and they are the difference
-    /// between "you are already playing" and "this build sent nonsense" — a single flag saying the
-    /// command failed would leave the player and whoever reads the logs with the same blank.
+    /// chapter id below one, an undefined tier and either half of the ladder are all refused, and
+    /// they are the difference between "you are already playing", "this build sent nonsense" and
+    /// "this screen was drawing a ladder that had already moved" — a single flag saying the command
+    /// failed would leave the player and whoever reads the logs with the same blank.
     /// </remarks>
     public RejectionReason? RulesRejection { get; private set; }
 
@@ -334,7 +335,15 @@ public sealed class ChapterSelectPresenter
     /// ⚠️ Every refusal shares one sentence, and that IS a collapse — deliberately. The identity of
     /// the refusal is carried by <see cref="RulesRejection"/> for the log; a sentence per
     /// <see cref="RejectionReason"/> would be twenty authored strings, most of them for reasons this
-    /// screen cannot reach, and the two the player can act on are both acted on the same way.
+    /// screen cannot reach.
+    /// </para>
+    /// <para>
+    /// 🔒 And the collapse holds even now that a ladder refusal is reachable, because a sentence is
+    /// the weaker of the two surfaces this screen has. A refusal re-reads the state before it
+    /// returns, so the row the player is looking at redraws as blocked and its requirement lines
+    /// name the very chapter, tier and Legend Level the handler refused on — the whole instruction,
+    /// not the one requirement a wire value has room for. A sentence per reason would restate the
+    /// worse half of that and would have to be kept true against a ladder it does not read.
     /// </para>
     /// </remarks>
     public string ConfirmStatusText => _lastConfirmStartedARun switch
@@ -386,7 +395,9 @@ public sealed class ChapterSelectPresenter
 
     /// <summary>Reads the player's own state, which is what the gating is decided against.</summary>
     /// <param name="ct">Cancellation.</param>
-    public async Task StartAsync(CancellationToken ct)
+    public Task StartAsync(CancellationToken ct) => ReadOwnStateAsync(ct);
+
+    private async Task ReadOwnStateAsync(CancellationToken ct)
     {
         try
         {
@@ -469,6 +480,14 @@ public sealed class ChapterSelectPresenter
 
         if (!outcome.Accepted)
         {
+            // The pair was selectable, so the ladder this screen drew and the ladder the rules layer
+            // answered against disagreed — and the only thing this screen owns that can be wrong is
+            // the state it read once, before the tap. Re-read it here, because nothing else ever
+            // will: the confirm comes back live over whatever the rows are still drawing, and a
+            // refusal the player cannot see the cause of is a refusal they can only answer by
+            // pressing the same button again.
+            await ReadOwnStateAsync(ct).ConfigureAwait(false);
+
             return ChapterSelectSubmission.RefusedByRules;
         }
 
