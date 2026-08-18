@@ -78,9 +78,10 @@ public sealed class RerollDraftTests
     /// settled together by the product owner on 2026-08-18; see that case for the ruling.
     /// </para>
     /// <para>
-    /// All three counters start at distinct non-zero values, so "unchanged", "reset" and "advanced"
-    /// are three different numbers for each and every assertion below separates all three. The run
-    /// owns an upgradable perk, so the famine's own gate is open rather than trivially closed.
+    /// All three counters start at distinct non-zero values, so for each one "unchanged", "reset"
+    /// and "advanced" are three different numbers, and every assertion below separates all three.
+    /// The run owns an upgradable perk, so the famine's own gate is open rather than trivially
+    /// closed.
     /// </para>
     /// </remarks>
     [Fact]

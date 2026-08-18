@@ -193,7 +193,7 @@ At `+15` this means a guaranteed success by the 10th attempt at worst, and a typ
 
 ### 4.7 `DRAFT` — supersedes `06` §4
 
-The existing Legendary pity (forced into the **15th** consecutive draft picked from without one) and Sustain anti-brick stand. Three additions:
+The existing Legendary pity (forced into the **15th** draft picked from, when the 14 before it offered none) and Sustain anti-brick stand. Three additions:
 
 | # | Addition |
 |---|---|
@@ -334,6 +334,7 @@ If the O10 review still wants seven wallet currencies, it can have them: these t
 | **S14 Run Results** | D3 announcement line when it fires; `DROP_RUN` mercy counters in the reward tally footer |
 | **S26 Settings** | **Odds & Guarantees** page: every rate and every `N` in this document, in plain language, in both launch languages |
 | **S23 Shop** | Every chest listing states its class and the class's current counter before purchase |
+| **S07 Perk Draft** | The three `DRAFT` counters, each naming its unit rather than a bare number: *"Rare or better guaranteed in 2 more drafts you pick from"* (§4.7). Without the unit the number reads as broken to a player who has been skipping or rerolling |
 
 📐 All counter strings are localisation keys. German runs ~30% longer (`13` §10) and these strings sit in tight widget rows — test them.
 

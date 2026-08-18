@@ -203,7 +203,7 @@ Additional rules:
 - **No duplicate options** within a single draft of 3.
 - **Category diversity:** at least 2 distinct categories among the 3 options.
 - **Owned-upgrade bias:** each option has a 30% chance of being drawn from the player's owned-but-not-maxed perks instead of the fresh pool. This makes "going tall" reachable without feeling forced.
-- **Legendary pity:** if no Legendary has appeared in **14 consecutive drafts the player picked from**, force one into the 15th. The count restarts whenever a draft offers a Legendary, forced or not.
+- **Legendary pity:** if no Legendary has appeared in **14 consecutive drafts the player picked from**, force one into the 15th. The count restarts whenever such a draft offers a Legendary, forced or not.
 - **Anti-brick:** if the player has no Sustain perk by the end of Stage 2, force one Sustain option into the next draft.
 - **Quality floor:** 3 consecutive drafts **the player picked from** with no option above Common force a Rare-or-better option into the next draft.
 - **Codex bias:** never-drafted perks carry a `×1.35` weight in the fresh-pool draw, capped at 1 bias-selected option per draft.

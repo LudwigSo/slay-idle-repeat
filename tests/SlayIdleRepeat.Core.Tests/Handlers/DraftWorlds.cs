@@ -48,9 +48,9 @@ internal static class DraftWorlds
         int stage = 1,
         long gold = 0,
         IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
-        int draftsWithoutOwnedUpgrade = 0,
         int draftsSinceLegendaryOffered = 0,
-        int draftsWithoutAboveCommon = 0)
+        int draftsWithoutAboveCommon = 0,
+        int draftsWithoutOwnedUpgrade = 0)
     {
         var snapshot = RunSnapshots.With(
             draftPending: true,
@@ -58,9 +58,9 @@ internal static class DraftWorlds
             draftBattleStage: stage,
             gold: gold,
             ownedPerkTiers: ownedPerkTiers,
-            draftsWithoutOwnedUpgrade: draftsWithoutOwnedUpgrade,
             draftsSinceLegendaryOffered: draftsSinceLegendaryOffered,
-            draftsWithoutAboveCommon: draftsWithoutAboveCommon);
+            draftsWithoutAboveCommon: draftsWithoutAboveCommon,
+            draftsWithoutOwnedUpgrade: draftsWithoutOwnedUpgrade);
 
         var run = RunAggregate.Rehydrate(snapshot);
 
