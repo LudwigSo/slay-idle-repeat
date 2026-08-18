@@ -418,11 +418,11 @@ public sealed class DraftGuaranteeTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The rule counts drafts that offered no owned-perk upgrade <em>while the player owns at least
-    /// one non-maxed perk</em>, and the second half is not decoration: a run's opening drafts own
-    /// nothing at all, so an unconditional counter spends the famine's whole allowance before an
-    /// upgrade is even a thing the draft could contain, and the guarantee arrives several drafts
-    /// early — for every run, every time.
+    /// The rule counts drafts picked from that offered no owned-perk upgrade <em>while the player
+    /// owns at least one non-maxed perk</em>, and the second half is not decoration: a run's
+    /// opening drafts own nothing at all, so an unconditional counter spends the famine's whole
+    /// allowance before an upgrade is even a thing the draft could contain, and the guarantee
+    /// arrives several drafts early — for every run, every time.
     /// </para>
     /// <para>
     /// Driven as a pair over the same counters and the same offering, so the only difference between
