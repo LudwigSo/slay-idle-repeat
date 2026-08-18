@@ -28,6 +28,12 @@ public sealed class PerkDraftPresenterTests
     /// <summary>Property names that would mean this screen had invented a free-reroll count.</summary>
     private static readonly string[] WordsOfAnEconomyThatDoesNotExist = ["Free", "Charge", "Allowance"];
 
+    /// <summary>The tile kind of the battle a draft opens after — an ordinary enemy fight.</summary>
+    private const int EnemyBattleTileKind = 0;
+
+    /// <summary>The stage that battle belonged to. Any of 1-3 would do; none of them may be 0.</summary>
+    private const int FirstStage = 1;
+
     private static readonly PlayerId Player = new("PLAYER_draft_c410");
     private static readonly RunId Run = new("RUN_draft_36bd");
 
@@ -702,8 +708,20 @@ public sealed class PerkDraftPresenterTests
     private static PlayerSnapshot AnyPlayer() => PlayerState.Player(Player);
 
     /// <summary>A run with a draft open, which is the only state this screen has anything to draw in.</summary>
+    /// <remarks>
+    /// 🔒 The battle that opened the draft is named, and it has to be. <c>Run.Rehydrate</c> refuses a
+    /// row whose draft is open while its battle kind and stage stand at their no-draft values, and
+    /// the rules layer's draft derivation is keyed on that stage — so a row left at the defaults
+    /// describes a state the game could never have persisted, and cards projected from one would be
+    /// projected from a run that cannot occur.
+    /// </remarks>
     private static RunSnapshot WithADraftOpen(long gold = 0) =>
-        PlayerState.Run(Run, Player, RunPhase.InProgress, gold: gold, draftPending: true);
+        PlayerState.Run(
+            Run, Player, RunPhase.InProgress,
+            gold: gold,
+            draftPending: true,
+            draftBattleKind: EnemyBattleTileKind,
+            draftBattleStage: FirstStage);
 
     /// <summary>One card, built directly, for the cases about how a card is WORDED rather than drawn.</summary>
     private static PerkDraftCard Card(

@@ -1,7 +1,10 @@
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
 
@@ -184,11 +187,22 @@ public sealed class CampfirePresenter
     /// <summary>The tile kind a campfire is, as the run reports it. Transcribed with the one above.</summary>
     public const int CampfireTileKind = 7;
 
+    /// <summary>The index <c>CAMPFIRE_CHOOSE</c> carries for resting — the one option that works.</summary>
+    private const int RestChoiceIndex = 0;
+
+    /// <summary>The index for raising a perk a tier, refused for its own named reason.</summary>
+    private const int UpgradePerkChoiceIndex = 1;
+
+    /// <summary>The index for taking reroll charges, refused for a different named reason.</summary>
+    private const int RerollChargesChoiceIndex = 2;
+
     private readonly IGameHost _gameHost;
     private readonly LocaleStringCatalogue _strings;
     private readonly ContentSnapshot _content;
     private readonly PlayerId _player;
     private readonly RunId _run;
+
+    private bool _submissionInFlight;
 
     /// <summary>Builds the screen over the host, the strings, the content set and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and its commands are submitted through.</param>
@@ -290,10 +304,22 @@ public sealed class CampfirePresenter
 
     /// <summary>Reads the run this screen is about and settles whichever arm its tile opened.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task StartAsync(CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in CampfirePresenterTests " +
-            "and filled in by the implementation phase.");
+    public async Task StartAsync(CancellationToken ct)
+    {
+        try
+        {
+            // Awaited inside the guard rather than merely called inside it: a real host's read is an
+            // async method, so its failure arrives as a faulted task and a try around the call alone
+            // would never see it.
+            var state = await _gameHost.ReadOwnStateAsync(_player, _run, ct).ConfigureAwait(false);
+
+            Settle(state);
+        }
+        catch (Exception)
+        {
+            Stage = CampfireStage.ReadUnavailable;
+        }
+    }
 
     /// <summary>Submits <c>CAMPFIRE_CHOOSE</c> for one of the campfire's options.</summary>
     /// <remarks>
@@ -303,24 +329,58 @@ public sealed class CampfirePresenter
     /// </remarks>
     /// <param name="option">The option pressed.</param>
     /// <param name="ct">Cancellation.</param>
-    public Task<CampfireSubmission> ChooseAsync(CampfireOption option, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in CampfirePresenterTests " +
-            "and filled in by the implementation phase.");
+    public async Task<CampfireSubmission> ChooseAsync(CampfireOption option, CancellationToken ct)
+    {
+        if (Stage != CampfireStage.Campfire)
+        {
+            return CampfireSubmission.RefusedNotAvailable;
+        }
+
+        var row = Options.FirstOrDefault(offered => offered.Option == option);
+
+        if (row is not { Available: true })
+        {
+            return CampfireSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new CampfireChooseCommand(row.ChoiceIndex), ct).ConfigureAwait(false);
+    }
 
     /// <summary>Submits <c>RESOLVE_TILE</c>, which is how the shrine arm is left.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task<CampfireSubmission> ContinueAsync(CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in CampfirePresenterTests " +
-            "and filled in by the implementation phase.");
+    public async Task<CampfireSubmission> ContinueAsync(CancellationToken ct)
+    {
+        if (Stage != CampfireStage.Shrine)
+        {
+            return CampfireSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
+    }
 
     /// <summary>The three option rows a campfire offers, built from the keys above.</summary>
     /// <remarks>See <see cref="TheTwoRefusedOptionsAreRefusedForDifferentReasons"/>.</remarks>
     private IReadOnlyList<CampfireOptionRow> CampfireOptions() =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in CampfirePresenterTests " +
-            "and filled in by the implementation phase.");
+    [
+        new CampfireOptionRow(
+            CampfireOption.Rest,
+            RestChoiceIndex,
+            _strings.Resolve(RestActionKey),
+            Available: true,
+            NothingLeftToSay),
+        new CampfireOptionRow(
+            CampfireOption.UpgradePerk,
+            UpgradePerkChoiceIndex,
+            _strings.Resolve(UpgradePerkActionKey),
+            Available: false,
+            _strings.Resolve(UpgradePerkBlockKey)),
+        new CampfireOptionRow(
+            CampfireOption.RerollCharges,
+            RerollChargesChoiceIndex,
+            _strings.Resolve(RerollChargesActionKey),
+            Available: false,
+            _strings.Resolve(RerollChargesBlockKey)),
+    ];
 
     /// <remarks>
     /// 🔒 The latch is taken BEFORE the await, not after it. Taken afterwards, a second press
@@ -328,8 +388,123 @@ public sealed class CampfirePresenter
     /// double-tap on the rest option heals twice, and how it shipped once already on another screen
     /// in this milestone.
     /// </remarks>
-    private Task<CampfireSubmission> SubmitAsync(GameCommand command, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: the single submission funnel, written against the failing " +
-            "cases in CampfirePresenterTests and filled in by the implementation phase.");
+    private async Task<CampfireSubmission> SubmitAsync(GameCommand command, CancellationToken ct)
+    {
+        if (_submissionInFlight)
+        {
+            return CampfireSubmission.RefusedNotAvailable;
+        }
+
+        _submissionInFlight = true;
+        HostFaulted = false;
+
+        try
+        {
+            var outcome = await _gameHost.SubmitAsync(_player, _run, command, ct).ConfigureAwait(false);
+
+            RulesRejection = outcome.Rejection;
+
+            if (!outcome.Accepted)
+            {
+                return CampfireSubmission.RefusedByRules;
+            }
+
+            // The state comes back with the outcome rather than being read again: a second read
+            // would be a window in which the screen still draws a tile the command has cleared.
+            if (outcome.State.Run?.ToSnapshot() is { } moved)
+            {
+                Carry(moved);
+            }
+
+            return CampfireSubmission.Submitted;
+        }
+        catch (Exception)
+        {
+            // A faulted call carried no outcome, so there is no rejection to report and reporting
+            // one would be inventing an answer the game never gave.
+            HostFaulted = true;
+            RulesRejection = null;
+
+            return CampfireSubmission.HostUnavailable;
+        }
+        finally
+        {
+            // Released on completion: a rest that never answered healed nothing and left the tile
+            // pending, so the retry has to be able to reach the host.
+            _submissionInFlight = false;
+        }
+    }
+
+    private void Settle(OwnStateResult state)
+    {
+        if (state.Lookup != OwnStateLookup.Found || state.View?.Run is not { } run)
+        {
+            Stage = CampfireStage.RunMissing;
+            return;
+        }
+
+        Carry(run);
+    }
+
+    private void Carry(RunSnapshot run)
+    {
+        Options = [];
+        ShrineRows = [];
+        ShrineRowsAvailable = false;
+
+        if (run.PendingTileKind == CampfireTileKind)
+        {
+            Stage = CampfireStage.Campfire;
+            Options = CampfireOptions();
+
+            return;
+        }
+
+        if (run.PendingTileKind != ShrineTileKind)
+        {
+            Stage = CampfireStage.NotAtEither;
+
+            return;
+        }
+
+        Stage = CampfireStage.Shrine;
+
+        ProjectShrine(run);
+    }
+
+    /// <remarks>See <see cref="ShrineRowsAvailable"/> for why only a content read's failure is caught.</remarks>
+    private void ProjectShrine(RunSnapshot run)
+    {
+        try
+        {
+            if (ShrineView.Project(run, _content) is not { } shrine)
+            {
+                return;
+            }
+
+            ShrineRows = Draw(shrine);
+            ShrineRowsAvailable = true;
+        }
+        catch (ContentException)
+        {
+            ShrineRows = [];
+            ShrineRowsAvailable = false;
+        }
+    }
+
+    /// <summary>The projection's rows as the screen draws them, named through the pool's own keys.</summary>
+    private IReadOnlyList<CampfireShrineRow> Draw(ShrineView shrine)
+    {
+        var rows = new CampfireShrineRow[shrine.Rows.Count];
+
+        for (var slot = 0; slot < rows.Length; slot++)
+        {
+            rows[slot] = new CampfireShrineRow(
+                shrine.Rows[slot].BuffId,
+                _strings.Resolve(shrine.Rows[slot].DisplayNameKey),
+                slot == shrine.TakenRowIndex);
+        }
+
+        return Array.AsReadOnly(rows);
+    }
 }

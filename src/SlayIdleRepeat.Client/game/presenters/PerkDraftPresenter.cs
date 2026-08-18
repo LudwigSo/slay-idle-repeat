@@ -1,8 +1,11 @@
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Perks;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
 
@@ -185,6 +188,8 @@ public sealed class PerkDraftPresenter
     private readonly PlayerId _player;
     private readonly RunId _run;
 
+    private bool _submissionInFlight;
+
     /// <summary>Builds the screen over the host, the strings, the content set and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and its commands are submitted through.</param>
     /// <param name="strings">Key to display string, over the loaded content set.</param>
@@ -341,10 +346,14 @@ public sealed class PerkDraftPresenter
     /// <summary>The badge one card carries — the numeral, or the upgrade wording and the numeral.</summary>
     /// <param name="card">The card to badge.</param>
     /// <exception cref="ArgumentNullException"><paramref name="card"/> is null.</exception>
-    public string TierBadge(PerkDraftCard card) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in PerkDraftPresenterTests " +
-            "and filled in by the implementation phase.");
+    public string TierBadge(PerkDraftCard card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+
+        return card.IsUpgrade
+            ? _strings.Resolve(UpgradeBadgeKey) + Numeral(card.NewTier)
+            : Numeral(card.NewTier);
+    }
 
     /// <summary>
     /// The effect line one card shows: its rendered sentence, or the named line saying the numbers
@@ -352,39 +361,71 @@ public sealed class PerkDraftPresenter
     /// </summary>
     /// <param name="card">The card to describe.</param>
     /// <exception cref="ArgumentNullException"><paramref name="card"/> is null.</exception>
-    public string EffectLine(PerkDraftCard card) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in PerkDraftPresenterTests " +
-            "and filled in by the implementation phase.");
+    public string EffectLine(PerkDraftCard card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+
+        return card.EffectText ?? _strings.Resolve(EffectNumbersUnavailableStatusKey);
+    }
 
     /// <summary>Reads the run this screen is about and projects the draft it has open.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task StartAsync(CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in PerkDraftPresenterTests " +
-            "and filled in by the implementation phase.");
+    public async Task StartAsync(CancellationToken ct)
+    {
+        try
+        {
+            // Awaited inside the guard rather than merely called inside it: a real host's read is an
+            // async method, so its failure arrives as a faulted task and a try around the call alone
+            // would never see it.
+            var state = await _gameHost.ReadOwnStateAsync(_player, _run, ct).ConfigureAwait(false);
+
+            Settle(state);
+        }
+        catch (Exception)
+        {
+            Stage = PerkDraftStage.ReadUnavailable;
+        }
+    }
 
     /// <summary>Submits <c>PICK_PERK</c> for one of the cards on offer.</summary>
     /// <param name="optionIndex">The chosen card's index, as <see cref="Cards"/> lists it.</param>
     /// <param name="ct">Cancellation.</param>
-    public Task<PerkDraftSubmission> PickAsync(int optionIndex, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in PerkDraftPresenterTests " +
-            "and filled in by the implementation phase.");
+    public async Task<PerkDraftSubmission> PickAsync(int optionIndex, CancellationToken ct)
+    {
+        // Checked against the cards actually on offer rather than against a bare range: an index the
+        // screen is not showing would come back carrying a value four other things share, and the
+        // sentence naming the real cause would be replaced by one naming nothing.
+        if (Stage != PerkDraftStage.Ready || optionIndex < 0 || optionIndex >= Cards.Count)
+        {
+            return PerkDraftSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new PickPerkCommand(optionIndex), ct).ConfigureAwait(false);
+    }
 
     /// <summary>Submits <c>REROLL_DRAFT</c>, which costs the authored Gold and has no free tier.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task<PerkDraftSubmission> RerollAsync(CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in PerkDraftPresenterTests " +
-            "and filled in by the implementation phase.");
+    public async Task<PerkDraftSubmission> RerollAsync(CancellationToken ct)
+    {
+        if (Stage != PerkDraftStage.Ready)
+        {
+            return PerkDraftSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new RerollDraftCommand(), ct).ConfigureAwait(false);
+    }
 
     /// <summary>Submits <c>SKIP_DRAFT</c>, which pays the authored Gold and grants nothing else.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task<PerkDraftSubmission> SkipAsync(CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in PerkDraftPresenterTests " +
-            "and filled in by the implementation phase.");
+    public async Task<PerkDraftSubmission> SkipAsync(CancellationToken ct)
+    {
+        if (Stage != PerkDraftStage.Ready)
+        {
+            return PerkDraftSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new SkipDraftCommand(), ct).ConfigureAwait(false);
+    }
 
     /// <remarks>
     /// 🔒 The latch is taken BEFORE the await, not after it. Taken afterwards, a second press
@@ -398,8 +439,136 @@ public sealed class PerkDraftPresenter
     /// one command's sentence is printed under the next command's answer.
     /// </para>
     /// </remarks>
-    private Task<PerkDraftSubmission> SubmitAsync(GameCommand command, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: the single submission funnel, written against the failing " +
-            "cases in PerkDraftPresenterTests and filled in by the implementation phase.");
+    private async Task<PerkDraftSubmission> SubmitAsync(GameCommand command, CancellationToken ct)
+    {
+        if (_submissionInFlight)
+        {
+            return PerkDraftSubmission.RefusedNotAvailable;
+        }
+
+        _submissionInFlight = true;
+        HostFaulted = false;
+        RerollWasTheLastSubmission = command is RerollDraftCommand;
+
+        try
+        {
+            var outcome = await _gameHost.SubmitAsync(_player, _run, command, ct).ConfigureAwait(false);
+
+            RulesRejection = outcome.Rejection;
+
+            if (!outcome.Accepted)
+            {
+                return PerkDraftSubmission.RefusedByRules;
+            }
+
+            // The state comes back with the outcome rather than being read again: a second read
+            // would be a window in which the screen still draws a draft the command has closed.
+            if (outcome.State.Run?.ToSnapshot() is { } moved)
+            {
+                Carry(moved);
+            }
+
+            return PerkDraftSubmission.Submitted;
+        }
+        catch (Exception)
+        {
+            // A faulted call carried no outcome, so there is no rejection to report and reporting
+            // one would be inventing an answer the game never gave.
+            HostFaulted = true;
+            RulesRejection = null;
+
+            return PerkDraftSubmission.HostUnavailable;
+        }
+        finally
+        {
+            // Released on completion: the reroll and the skip are controls a player presses again
+            // after one that never answered, and a latch left shut strands the run on the draft.
+            _submissionInFlight = false;
+        }
+    }
+
+    private void Settle(OwnStateResult state)
+    {
+        if (state.Lookup != OwnStateLookup.Found || state.View?.Run is not { } run)
+        {
+            Stage = PerkDraftStage.RunMissing;
+            return;
+        }
+
+        Carry(run);
+    }
+
+    private void Carry(RunSnapshot run)
+    {
+        Gold = run.Gold;
+
+        if (!run.DraftPending)
+        {
+            Cards = [];
+            CardsAvailable = false;
+            RerollGoldCost = 0;
+            SkipGoldReward = 0;
+            Stage = PerkDraftStage.NoDraft;
+
+            return;
+        }
+
+        Stage = PerkDraftStage.Ready;
+
+        Project(run);
+    }
+
+    /// <remarks>See <see cref="CardsAvailable"/> for why only a content read's failure is caught.</remarks>
+    private void Project(RunSnapshot run)
+    {
+        try
+        {
+            var draft = DraftView.Project(run, _content);
+
+            Cards = draft is null ? [] : Draw(draft);
+            CardsAvailable = draft is not null;
+            RerollGoldCost = draft?.RerollGoldCost ?? 0;
+            SkipGoldReward = draft?.SkipGoldReward ?? 0;
+        }
+        catch (ContentException)
+        {
+            Cards = [];
+            CardsAvailable = false;
+            RerollGoldCost = 0;
+            SkipGoldReward = 0;
+        }
+    }
+
+    /// <summary>The projection's options as cards, indexed the way <c>PICK_PERK</c> indexes them.</summary>
+    private static IReadOnlyList<PerkDraftCard> Draw(DraftView draft)
+    {
+        var cards = new PerkDraftCard[draft.Options.Count];
+
+        for (var slot = 0; slot < cards.Length; slot++)
+        {
+            var option = draft.Options[slot];
+
+            cards[slot] = new PerkDraftCard(
+                slot,
+                option.PerkId,
+                option.Name,
+                option.Category,
+                option.Rarity,
+                option.IconId,
+                option.IsUpgrade,
+                option.NewTier,
+                option.EffectText.Text,
+                option.EffectText.UnresolvedTokens,
+                option.SynergyPerkIds);
+        }
+
+        return Array.AsReadOnly(cards);
+    }
+
+    /// <remarks>
+    /// Empty for a tier this build has no numeral for, rather than a fabricated one: the catalogue
+    /// authors three tiers and a fourth would be a badge nobody has decided how to write.
+    /// </remarks>
+    private static string Numeral(int tier) =>
+        tier >= 1 && tier <= TierNumerals.Length ? TierNumerals[tier - 1] : NothingLeftToSay;
 }

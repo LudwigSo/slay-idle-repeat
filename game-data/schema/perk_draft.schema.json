@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/perk_draft.schema.json",
+  "title": "content/perk_draft/perk_draft.json",
+  "description": "M7-07 — the loc keys the Perk Draft screen (S07) renders. What is fixed here is that the screen heads the draft and captions the dashed fourth card; labels a synergy hint, the reroll's price and the skip's reward; carries the one translated word an upgrade badge is composed from; offers a reroll, a quieter ad reroll and a skip; carries one sentence per absence sitting around the reroll; and carries one status line per state the read, the projection and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Three absences are load-bearing. There is no member for a remaining-free-reroll count or for a per-draft cap, because neither exists in the rules layer at all — the reroll charges Gold on every call, with no counter and no ceiling, so a count drawn here would be a number nothing could compute. There is no member for an ad placement, cap or reward, because the ad reward command is deferred and a screen naming one would be inventing the grant. And there is no member carrying a MAGNITUDE: the reroll's price, the skip's reward and every perk effect number are tunables read at render time and drawn beside the captions here, because a number written into a translated string cannot be tuned and would be wrong in two languages at once.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "name", "label", "badge", "action", "block", "status"],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "name": {
+      "description": "The screen's own heading and the caption of the dashed fourth card. The fourth card keeps a name although it is never live, because its layout slot is kept for the milestone that fills it and a slot drawn with no caption reads as a rendering fault rather than as a deliberate placeholder.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["title", "adFourthOption"],
+      "properties": {
+        "title": { "$ref": "#/$defs/locKey" },
+        "adFourthOption": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "label": {
+      "description": "🔒 Captions only, and that is the rule this object exists to keep. rerollCost and skipReward are the words a number is drawn BESIDE — the price and the reward are authored tunables read through the draft economy, and one of them is flagged in its own document as a placeholder for the balance team. A magnitude written into either of these strings would be untunable, would have to be corrected in every locale at once, and would disagree with the rules layer the first time the balance changed. synergy leads in the hint naming which owned perks an option interacts with.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["synergy", "rerollCost", "skipReward"],
+      "properties": {
+        "synergy": { "$ref": "#/$defs/locKey" },
+        "rerollCost": { "$ref": "#/$defs/locKey" },
+        "skipReward": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "badge": {
+      "description": "The one translated part of a tier badge. A fresh card's badge is a tier numeral and nothing else, which is the same mark in every language; an upgrade's badge is this word followed by the numeral the option lands on. Composed on the client rather than authored whole, because a badge authored as finished English would be a user-facing string produced outside the loc system.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["upgrade"],
+      "properties": {
+        "upgrade": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "action": {
+      "description": "Every control the screen offers. The ad reroll is captioned although it is never live, because its layout slot is kept beside the priced reroll; the skip is the only way off this screen that costs the player nothing, so its caption going missing is a run that cannot read its way out of a draft.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reroll", "adReroll", "skip"],
+      "properties": {
+        "reroll": { "$ref": "#/$defs/locKey" },
+        "adReroll": { "$ref": "#/$defs/locKey" },
+        "skip": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "block": {
+      "description": "🔒 One sentence per absence sitting around the reroll, and the reason this object exists at all: three unrelated holes land on one control. Rerolling by ad waits on the ad reward system; a fourth card by ad waits on the same system but is a different affordance in a different place; and the free-reroll allowance the design describes was never written, so there is no allowance to be out of. Sharing a sentence between any two of them tells a player the game has one hole where it has three, and sends them to wait for a feature when they should be earning Gold.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adReroll", "adFourthOption", "freeReroll"],
+      "properties": {
+        "adReroll": { "$ref": "#/$defs/locKey" },
+        "adFourthOption": { "$ref": "#/$defs/locKey" },
+        "freeReroll": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "status": {
+      "description": "One line per state the screen can be in with nothing to choose from, plus the three answers a submission can come back with. cardsUnavailable is a draft that is genuinely open whose cards the content set could not project — three blank cards and no explanation looks exactly like a draft the player is expected to choose from. effectNumbersUnavailable stands in for one card's effect sentence when that perk's authored description names a token its own effect data cannot answer; a renderer filling the hole would state a magnitude the game does not have on a card a run is about to be committed to. rerollUnaffordable is separated from refused because a shortfall is the one refusal here a player can act on, and it is paired with the reroll so it is never printed under a command that spends nothing.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading", "noDraft", "runMissing", "readUnavailable", "cardsUnavailable",
+        "effectNumbersUnavailable", "refused", "rerollUnaffordable", "hostUnavailable"
+      ],
+      "properties": {
+        "loading": { "$ref": "#/$defs/locKey" },
+        "noDraft": { "$ref": "#/$defs/locKey" },
+        "runMissing": { "$ref": "#/$defs/locKey" },
+        "readUnavailable": { "$ref": "#/$defs/locKey" },
+        "cardsUnavailable": { "$ref": "#/$defs/locKey" },
+        "effectNumbersUnavailable": { "$ref": "#/$defs/locKey" },
+        "refused": { "$ref": "#/$defs/locKey" },
+        "rerollUnaffordable": { "$ref": "#/$defs/locKey" },
+        "hostUnavailable": { "$ref": "#/$defs/locKey" }
+      }
+    }
+  }
+}

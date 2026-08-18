@@ -1,5 +1,7 @@
 using SlayIdleRepeat.Application.Hosting;
+using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
@@ -122,6 +124,8 @@ public sealed class ShopPresenter
     private readonly PlayerId _player;
     private readonly RunId _run;
 
+    private bool _submissionInFlight;
+
     /// <summary>Builds the screen over the host, the strings and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and its commands are submitted through.</param>
     /// <param name="strings">Key to display string, over the loaded content set.</param>
@@ -186,17 +190,34 @@ public sealed class ShopPresenter
 
     /// <summary>Reads the run this screen is about and settles everything drawn from it.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task StartAsync(CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in ShopPresenterTests and " +
-            "filled in by the implementation phase.");
+    public async Task StartAsync(CancellationToken ct)
+    {
+        try
+        {
+            // Awaited inside the guard rather than merely called inside it: a real host's read is an
+            // async method, so its failure arrives as a faulted task and a try around the call alone
+            // would never see it.
+            var state = await _gameHost.ReadOwnStateAsync(_player, _run, ct).ConfigureAwait(false);
+
+            Settle(state);
+        }
+        catch (Exception)
+        {
+            Stage = ShopStage.ReadUnavailable;
+        }
+    }
 
     /// <summary>Submits <c>RESOLVE_TILE</c>, which is the whole of what a shop visit can do.</summary>
     /// <param name="ct">Cancellation.</param>
-    public Task<ShopSubmission> LeaveAsync(CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: written against the failing cases in ShopPresenterTests and " +
-            "filled in by the implementation phase.");
+    public async Task<ShopSubmission> LeaveAsync(CancellationToken ct)
+    {
+        if (Stage != ShopStage.Ready)
+        {
+            return ShopSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
+    }
 
     /// <remarks>
     /// 🔒 The latch is taken BEFORE the await, not after it. Taken afterwards, a second call
@@ -204,8 +225,64 @@ public sealed class ShopPresenter
     /// double-tap on the one control this screen has spends two commands, and how it shipped once
     /// already on another screen in this milestone.
     /// </remarks>
-    private Task<ShopSubmission> SubmitAsync(GameCommand command, CancellationToken ct) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: the single submission funnel, written against the failing " +
-            "cases in ShopPresenterTests and filled in by the implementation phase.");
+    private async Task<ShopSubmission> SubmitAsync(GameCommand command, CancellationToken ct)
+    {
+        if (_submissionInFlight)
+        {
+            return ShopSubmission.RefusedNotAvailable;
+        }
+
+        _submissionInFlight = true;
+        HostFaulted = false;
+
+        try
+        {
+            var outcome = await _gameHost.SubmitAsync(_player, _run, command, ct).ConfigureAwait(false);
+
+            RulesRejection = outcome.Rejection;
+
+            if (!outcome.Accepted)
+            {
+                return ShopSubmission.RefusedByRules;
+            }
+
+            // The state comes back with the outcome rather than being read again: a second read
+            // would be a window in which the screen still draws a tile the command has cleared.
+            if (outcome.State.Run?.ToSnapshot() is { } moved)
+            {
+                Carry(moved);
+            }
+
+            return ShopSubmission.Submitted;
+        }
+        catch (Exception)
+        {
+            // A faulted call carried no outcome, so there is no rejection to report and reporting
+            // one would be inventing an answer the game never gave.
+            HostFaulted = true;
+            RulesRejection = null;
+
+            return ShopSubmission.HostUnavailable;
+        }
+        finally
+        {
+            // Released on completion: a departure that never answered left the run on the tile, so
+            // the retry has to be able to reach the host.
+            _submissionInFlight = false;
+        }
+    }
+
+    private void Settle(OwnStateResult state)
+    {
+        if (state.Lookup != OwnStateLookup.Found || state.View?.Run is not { } run)
+        {
+            Stage = ShopStage.RunMissing;
+            return;
+        }
+
+        Carry(run);
+    }
+
+    private void Carry(RunSnapshot run) =>
+        Stage = run.PendingTileKind == ShopTileKind ? ShopStage.Ready : ShopStage.NotAtAShop;
 }
