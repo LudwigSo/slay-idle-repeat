@@ -492,6 +492,103 @@ public sealed class DropsTuningTests
             .Message.ShouldContain("not a range a roll can land inside", Case.Sensitive);
     }
 
+    // ------------------------------------------------- what an affix writes, and how
+
+    /// <summary>Every shipped affix either names both a stat and a bucket, or names neither.</summary>
+    /// <remarks>
+    /// Stated over the whole pool rather than a sample, because half a pair is the shape that reads
+    /// as authored and applies nothing.
+    /// </remarks>
+    [Fact]
+    public void Every_authored_affix_names_a_stat_and_a_bucket_together_or_neither()
+    {
+        var drops = DropsTuning.Read(GearDocuments.Shipped);
+
+        var pool = Enumerable.Range(0, drops.AffixCount)
+            .Select(_ => 0)
+            .ToArray();
+
+        pool.Length.ShouldBe(
+            GearDocuments.ShippedAffixPoolSize, "the pool is the size the design set authors");
+
+        foreach (var affix in GearDocuments.ShippedAffixes)
+        {
+            var row = drops.Affix(affix.AffixId);
+
+            (row.Stat is null).ShouldBe(
+                row.Op is null,
+                $"{affix.AffixId} authors one half of the pair. A stat with no bucket cannot be " +
+                "applied and a bucket with no stat cannot be aimed.");
+
+            row.WritesAStat.ShouldBe(
+                row.Stat is not null, $"{affix.AffixId} answers the same question twice differently");
+        }
+    }
+
+    /// <summary>An affix naming a stat with no bucket, or a bucket with no stat, is refused.</summary>
+    /// <remarks>
+    /// Both directions, because refusing only one leaves the other as a row that reads as a real
+    /// contribution and silently applies nothing.
+    /// </remarks>
+    [Theory]
+    [InlineData("CRIT", null)]
+    [InlineData(null, "STAT_ADD_FLAT")]
+    public void An_affix_authoring_half_of_its_contribution_is_refused(string? stat, string? op)
+    {
+        var affixes = ContentValue.Array(
+        [
+            GearDocuments.AffixRow(new AuthoredAffix("AFX_HALF", stat, op, 0.1m, 0.2m, ["WEAPON"], null)),
+        ]);
+
+        Should.Throw<InvalidTunableException>(
+                () => DropsTuning.Read(GearDocuments.With(affixes: affixes)))
+            .Message.ShouldContain("or neither", Case.Sensitive);
+    }
+
+    /// <summary>An affix writing through anything but the two additive buckets is refused.</summary>
+    /// <remarks>
+    /// Two probes of different shapes: a real effect op an affix has no business carrying, and a
+    /// token that is no op at all. A guard that only rejected nonsense would let an affix become a
+    /// multiplier — the one op the design set reserves for Legendary perks.
+    /// </remarks>
+    [Theory]
+    [InlineData("STAT_MULT", "writes through")]
+    [InlineData("NOT_AN_OP", "not the flat or the percent additive bucket")]
+    public void An_affix_writing_through_anything_but_an_additive_bucket_is_refused(
+        string op, string expected)
+    {
+        var affixes = ContentValue.Array(
+        [
+            GearDocuments.AffixRow(new AuthoredAffix("AFX_ODD", "ATK", op, 0.1m, 0.2m, ["WEAPON"], null)),
+        ]);
+
+        Should.Throw<InvalidTunableException>(
+                () => DropsTuning.Read(GearDocuments.With(affixes: affixes)))
+            .Message.ShouldContain(expected, Case.Sensitive);
+    }
+
+    /// <summary>An affix naming a stat the vocabulary does not have is refused.</summary>
+    /// <remarks>
+    /// The comma hole in particular: a token list is combined bitwise even for a non-flags enum, so
+    /// an authored <c>"CRIT, DEF"</c> would otherwise load as a third member nobody wrote.
+    /// </remarks>
+    [Theory]
+    [InlineData("NOT_A_STAT")]
+    [InlineData("CRIT, DEF")]
+    [InlineData("5")]
+    public void An_affix_naming_something_that_is_not_a_stat_is_refused(string stat)
+    {
+        var affixes = ContentValue.Array(
+        [
+            GearDocuments.AffixRow(
+                new AuthoredAffix("AFX_ODD", stat, "STAT_ADD_FLAT", 0.1m, 0.2m, ["WEAPON"], null)),
+        ]);
+
+        Should.Throw<InvalidTunableException>(
+                () => DropsTuning.Read(GearDocuments.With(affixes: affixes)))
+            .Message.ShouldContain("is not one of the stats", Case.Sensitive);
+    }
+
     // ---------------------------------------------------------------- the set breakpoints
 
     /// <summary>The breakpoints are the authored ascending ladder.</summary>

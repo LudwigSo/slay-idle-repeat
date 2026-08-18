@@ -266,6 +266,42 @@ public sealed class InventorySortingTests
             "quality independently means one of them is not reading its own field.");
     }
 
+    /// <summary>
+    /// 🔒 Strongest-first ranks an enhanced item above an unenhanced one of the same band.
+    /// </summary>
+    /// <remarks>
+    /// The defect this closes was silent and expensive: the key read the band and the chapter and
+    /// never the enhancement level, so a maxed item — several hundred stones of investment — sorted
+    /// underneath the fresh roll that replaced nothing. The fresh item is given the BETTER quality
+    /// here, so a comparer that had merely fallen through to the quality tie-break would put it
+    /// first and this case would go red.
+    /// </remarks>
+    [Fact]
+    public void Strongest_first_ranks_an_enhanced_item_above_a_fresh_one_of_the_same_band()
+    {
+        var maxed = Inventories.Item(
+            "maxed", GearFamily.BLADE, Rarity.S, quality: 0.0, enhanceLevel: Inventories.Forge.MaxEnhanceLevel);
+        var fresh = Inventories.Item("fresh", GearFamily.BLADE, Rarity.S, quality: 1.0);
+
+        Sorted(InventorySortKey.POWER, [fresh, maxed]).Select(id => id.Value).ShouldBe(
+            ["maxed", "fresh"],
+            "the investment outranks the lucky roll; without the enhancement term the perfect-quality " +
+            "fresh item wins on the tie-break instead");
+    }
+
+    /// <summary>
+    /// The negative control: at equal enhancement the band still decides, so the new term has not
+    /// simply taken the ordering over.
+    /// </summary>
+    [Fact]
+    public void Strongest_first_still_ranks_the_higher_band_first_at_equal_enhancement()
+    {
+        var low = Inventories.Item("low", GearFamily.BLADE, Rarity.C, enhanceLevel: 0);
+        var high = Inventories.Item("high", GearFamily.BLADE, Rarity.SS, enhanceLevel: 0);
+
+        Sorted(InventorySortKey.POWER, [low, high]).Select(id => id.Value).ShouldBe(["high", "low"]);
+    }
+
     /// <summary>An empty list sorts to an empty list rather than throwing.</summary>
     [Fact]
     public void An_empty_inventory_sorts_to_nothing()

@@ -1,0 +1,229 @@
+using Shouldly;
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Content.Gear;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using Xunit;
+
+namespace SlayIdleRepeat.Core.Tests.Content;
+
+/// <summary>
+/// The four SS sets' breakpoint bonuses, read out of <c>content/sets/sets.json</c>.
+/// </summary>
+/// <remarks>
+/// The reader is narrow on purpose — it maps the keys a set bonus authors and refuses any other —
+/// because the alternative is a document that says one thing and a game that does another. Most of
+/// the cases here are that refusal.
+/// </remarks>
+public sealed class SetBonusCatalogueTests
+{
+    private static readonly int[] Breakpoints = [2, 4, 6];
+
+    /// <summary>The shipped document authors one set per family axis.</summary>
+    [Fact]
+    public void The_shipped_catalogue_authors_one_set_per_family_axis()
+    {
+        var sets = Shipped();
+
+        sets.SetCount.ShouldBe(
+            Enum.GetValues<GearFamilyAxis>().Length,
+            "there is exactly one set per axis, and an axis with no row is a set a loadout can wear " +
+            "and nothing can grant");
+    }
+
+    /// <summary>Every breakpoint at or below the piece count grants, not only the highest.</summary>
+    /// <remarks>
+    /// The tiers escalate rather than replace, so a four-piece set is still granting its two-piece
+    /// bonus. A reader that answered only the highest would quietly delete a bonus from every set
+    /// past its first breakpoint.
+    /// </remarks>
+    [Fact]
+    public void Every_breakpoint_at_or_below_the_piece_count_grants()
+    {
+        var sets = Shipped();
+
+        sets.Granted(GearFamilyAxis.BALANCED, 1).ShouldBeEmpty("no breakpoint reached");
+        sets.Granted(GearFamilyAxis.BALANCED, 2).Count.ShouldBe(1, "the two-piece only");
+        sets.Granted(GearFamilyAxis.BALANCED, 4).Count.ShouldBe(2, "the two- and the four-piece");
+        sets.Granted(GearFamilyAxis.BALANCED, 6).Count.ShouldBe(
+            2, "the six-piece is deliberately unauthored, so it adds nothing");
+    }
+
+    /// <summary>An unauthored breakpoint grants nothing rather than refusing the whole set.</summary>
+    /// <remarks>
+    /// Seven of the twelve ship unauthored and a full set is reachable, so a reader that refused a
+    /// null would make the strongest loadout in the game unloadable.
+    /// </remarks>
+    [Fact]
+    public void An_unauthored_breakpoint_is_a_bonus_that_grants_nothing()
+    {
+        var rows = Shipped().Bonuses(GearFamilyAxis.HEAVY);
+
+        rows.Count.ShouldBe(3);
+        rows[0].Effects.ShouldNotBeNull("Ironvow's two-piece is +15% DEF");
+        rows[1].Effects.ShouldBeNull("its four-piece needs a conditional bucket that does not exist");
+        rows[2].Effects.ShouldBeNull("its six-piece names no survival HP for the op to arm");
+    }
+
+    /// <summary>A set the document does not author is refused, never answered as empty.</summary>
+    [Fact]
+    public void A_set_the_document_does_not_author_is_refused()
+    {
+        var sets = SetBonusCatalogue.Read(
+            Snapshot(SetRow("BALANCED", BonusRow(2, StatEffect("SET_X")))), Breakpoints);
+
+        Should.Throw<MissingContentException>(() => sets.Bonuses(GearFamilyAxis.HEAVY))
+            .Message.ShouldContain("Every family axis is a set", Case.Sensitive);
+    }
+
+    /// <summary>A bonus authored at a piece count the breakpoint ladder does not carry is refused.</summary>
+    /// <remarks>
+    /// 🔒 The cross-document invariant, and the only layer that can see both halves. Only a
+    /// breakpoint on the authored ladder is ever reported as met, so a bonus at three pieces reads as
+    /// authored and can never fire — the exact shape a null exists to keep visible, wearing the
+    /// clothes of a complete row.
+    /// </remarks>
+    [Fact]
+    public void A_bonus_at_a_piece_count_the_ladder_does_not_carry_is_refused()
+    {
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(SetRow("BALANCED", BonusRow(3, StatEffect("SET_X")))), Breakpoints))
+            .Message.ShouldContain("can never fire", Case.Sensitive);
+    }
+
+    /// <summary>A breakpoint granting an empty list is refused; null is how "unwritten" is said.</summary>
+    [Fact]
+    public void A_breakpoint_granting_an_empty_list_is_refused()
+    {
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(SetRow(
+                        "BALANCED",
+                        ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                        {
+                            ["pieces"] = ContentValue.Number(2),
+                            ["effects"] = ContentValue.EmptyArray,
+                        }))),
+                    Breakpoints))
+            .Message.ShouldContain("nobody has written this one", Case.Sensitive);
+    }
+
+    /// <summary>A key this reader does not map is refused rather than dropped.</summary>
+    /// <remarks>
+    /// The difference between a narrow reader and a lossy one: authoring a duration on a set bonus
+    /// would otherwise load cleanly and grant a permanent effect instead, with the document and the
+    /// game disagreeing and everything green.
+    /// </remarks>
+    [Fact]
+    public void A_key_the_reader_does_not_map_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_FLAT"),
+            ["stat"] = ContentValue.Text("LIFESTEAL"),
+            ["value"] = ContentValue.Number(0.1m),
+            ["duration"] = ContentValue.Text("BATTLE"),
+        });
+
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(SetRow("BALANCED", BonusRow(2, effect))), Breakpoints))
+            .Message.ShouldContain("a key this reader does not map", Case.Sensitive);
+    }
+
+    /// <summary>An authorised condition on a set bonus is refused.</summary>
+    /// <remarks>
+    /// <c>condition</c> is a mapped key so a bonus can write the vocabulary's canonical "ungated"
+    /// null — which is exactly why an authorised one would otherwise be accepted and then dropped.
+    /// The build aggregation re-evaluates conditions outside any attack, where the conditions worth
+    /// gating a set bonus on either throw or read false.
+    /// </remarks>
+    [Fact]
+    public void An_authorised_condition_on_a_set_bonus_is_refused()
+    {
+        var effect = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text("SET_X"),
+            ["op"] = ContentValue.Text("STAT_ADD_FLAT"),
+            ["stat"] = ContentValue.Text("LIFESTEAL"),
+            ["value"] = ContentValue.Number(0.1m),
+            ["condition"] = ContentValue.Text("TARGET_IS_ELITE"),
+        });
+
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(SetRow("BALANCED", BonusRow(2, effect))), Breakpoints))
+            .Message.ShouldContain("carries no condition", Case.Sensitive);
+    }
+
+    /// <summary>Bonuses authored out of ascending piece order are refused.</summary>
+    [Fact]
+    public void Bonuses_authored_out_of_ascending_order_are_refused()
+    {
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(SetRow(
+                        "BALANCED",
+                        BonusRow(4, StatEffect("SET_A")),
+                        BonusRow(2, StatEffect("SET_B")))),
+                    Breakpoints))
+            .Message.ShouldContain("ascending piece order", Case.Sensitive);
+    }
+
+    /// <summary>One axis authored twice is refused.</summary>
+    [Fact]
+    public void One_axis_authored_twice_is_refused()
+    {
+        Should.Throw<InvalidTunableException>(
+                () => SetBonusCatalogue.Read(
+                    Snapshot(
+                        SetRow("BALANCED", BonusRow(2, StatEffect("SET_A"))),
+                        SetRow("BALANCED", BonusRow(2, StatEffect("SET_B")))),
+                    Breakpoints))
+            .Message.ShouldContain("authored twice", Case.Sensitive);
+    }
+
+    // ------------------------------------------------------------------------ fixtures
+
+    private static SetBonusCatalogue Shipped() =>
+        SetBonusCatalogue.Read(
+            ShippedHarness.Content, DropsTuning.Read(ShippedHarness.Content).SetBreakpoints);
+
+    private static ContentSnapshot Snapshot(params ContentValue[] sets) =>
+        new(
+            ProgressionDocuments.Shipped.Version,
+            [
+                new ContentDocument(
+                    SetBonusCatalogue.DocumentPath,
+                    ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+                    {
+                        ["sets"] = ContentValue.Array(sets),
+                    })),
+            ]);
+
+    private static ContentValue SetRow(string axis, params ContentValue[] bonuses) =>
+        ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["familyAxis"] = ContentValue.Text(axis),
+            ["bonuses"] = ContentValue.Array(bonuses),
+        });
+
+    private static ContentValue BonusRow(int pieces, params ContentValue[] effects) =>
+        ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["pieces"] = ContentValue.Number(pieces),
+            ["effects"] = ContentValue.Array(effects),
+        });
+
+    private static ContentValue StatEffect(string id) =>
+        ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["id"] = ContentValue.Text(id),
+            ["op"] = ContentValue.Text(nameof(EffectOp.STAT_ADD_FLAT)),
+            ["stat"] = ContentValue.Text(nameof(StatId.LIFESTEAL)),
+            ["value"] = ContentValue.Number(0.1m),
+        });
+}

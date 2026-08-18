@@ -1,0 +1,366 @@
+using Shouldly;
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Model.Gear;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Effects;
+using SlayIdleRepeat.Core.Rules.Stats;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
+using SlayIdleRepeat.Core.Tests.Model.Gear;
+using Xunit;
+
+namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
+
+/// <summary>
+/// What the hero actually is: the base curve, plus everything the equipped loadout contributes,
+/// through the stat aggregation order.
+/// </summary>
+/// <remarks>
+/// The claim under test is the one the milestone was missing — that wearing an item changes a
+/// number. Every case here is stated so that it fails if any single link of the chain is dropped:
+/// the derivation, the enhancement multiplier, the affix mapping, the set breakpoint, or the
+/// aggregation bucket each contribution lands in.
+/// </remarks>
+public sealed class HeroBuildTests
+{
+    private const int Level = 1;
+
+    /// <summary>The shipped content, because the build reads six documents at once.</summary>
+    private static ContentSnapshot Content => ShippedHarness.Content;
+
+    // ────────────────────────────────────────────────────────────────── the base curve
+
+    /// <summary>
+    /// A hero wearing nothing is exactly the authored base curve — all fourteen stats, including the
+    /// ones whose base is zero and the one whose base is not.
+    /// </summary>
+    /// <remarks>
+    /// The floor under every other case: if the empty build already disagreed with the curve, a
+    /// difference measured against it would be measuring two things at once. <c>HEAL_PCT</c> is
+    /// checked by name because a base of 1.0 is the one value a "zero means unstated" bug would
+    /// destroy silently, disabling every heal and lifesteal tick in the game.
+    /// </remarks>
+    [Fact]
+    public void A_hero_wearing_nothing_is_the_authored_base_curve()
+    {
+        var build = HeroBuild.Of(Level, [], Content);
+
+        build.Effects.ShouldBeEmpty("an empty loadout contributes nothing to collect");
+
+        Stat(build, StatId.MAX_HP).ShouldBe(295.0, "250 + 45 x 1");
+        Stat(build, StatId.ATK).ShouldBe(36.0, "30 + 6 x 1");
+        Stat(build, StatId.DEF).ShouldBe(18.0, "15 + 3 x 1");
+        Stat(build, StatId.ASPD).ShouldBe(1.0);
+        Stat(build, StatId.CRIT).ShouldBe(0.05);
+        Stat(build, StatId.CDMG).ShouldBe(0.5);
+        Stat(build, StatId.HEAL_PCT).ShouldBe(1.0, "a multiplier on all healing received, not a zero");
+        Stat(build, StatId.LIFESTEAL).ShouldBe(0.0);
+        Stat(build, StatId.BLOCK).ShouldBe(0.0);
+        Stat(build, StatId.PEN).ShouldBe(0.0);
+    }
+
+    // ───────────────────────────────────────────────────── the item's own two stats
+
+    /// <summary>An equipped weapon raises attack above the bare hero's.</summary>
+    /// <remarks>
+    /// The whole milestone in one line, and it was false until this task: the derivation existed,
+    /// nothing called it, and a hero in full gear fought with the numbers of a naked one.
+    /// </remarks>
+    [Fact]
+    public void An_equipped_weapon_raises_attack()
+    {
+        var bare = Stat(HeroBuild.Of(Level, [], Content), StatId.ATK);
+        var armed = Stat(HeroBuild.Of(Level, [Weapon("w")], Content), StatId.ATK);
+
+        (armed > bare).ShouldBeTrue($"a blade raises {bare} to {armed}");
+    }
+
+    /// <summary>
+    /// A slot whose stat the table calls a percentage lands in the FLAT bucket, and the proof is that
+    /// it moves a stat whose base is zero.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The one case that separates the two readings of the slot table. Aggregation is
+    /// <c>(base + flat) x (1 + percent)</c> and the hero's base lifesteal is 0.0, so routing an
+    /// amulet's authored lifesteal into the percent bucket multiplies zero and hands the player an
+    /// item whose second stat does nothing at all. A test asserting only "lifesteal is higher than
+    /// nothing" would be satisfied by the broken reading too — it is not, because zero is what the
+    /// broken reading produces.
+    /// </remarks>
+    [Fact]
+    public void A_percent_typed_slot_stat_moves_a_stat_whose_base_is_zero()
+    {
+        var build = HeroBuild.Of(Level, [Amulet("a")], Content);
+
+        Stat(build, StatId.LIFESTEAL).ShouldBeGreaterThan(
+            0.0,
+            "the amulet's secondary is lifesteal and the hero's base lifesteal is 0.0, so a percent " +
+            "add would multiply zero and leave the stat exactly where it started");
+    }
+
+    /// <summary>An enhanced item is worth more than the same item unenhanced, by the authored ladder.</summary>
+    /// <remarks>
+    /// Two probes rather than one, and the second is what discriminates: "+15 beats +0" would also
+    /// pass if the multiplier were applied at some arbitrary strength, so the gain is compared
+    /// against the authored total the forge publishes. A ladder that stopped being applied fails the
+    /// first; one applied at the wrong slope fails the second.
+    /// </remarks>
+    [Fact]
+    public void An_enhanced_item_carries_the_authored_multiplier_over_the_same_unenhanced_item()
+    {
+        var forge = ForgeTuning.Read(Content);
+        var fresh = HeroBuild.Of(Level, [Weapon("w", enhanceLevel: forge.MinEnhanceLevel)], Content);
+        var maxed = HeroBuild.Of(Level, [Weapon("w", enhanceLevel: forge.MaxEnhanceLevel)], Content);
+
+        var freshGain = Stat(fresh, StatId.ATK) - 36.0;
+        var maxedGain = Stat(maxed, StatId.ATK) - 36.0;
+
+        maxedGain.ShouldBeGreaterThan(freshGain, "a maxed item is not the same item as a fresh one");
+
+        (maxedGain / freshGain).ShouldBe(
+            forge.StatMultiplier(forge.MaxEnhanceLevel),
+            tolerance: 1e-9,
+            "the gain scales by exactly the authored ladder, not by some other slope");
+    }
+
+    // ──────────────────────────────────────────────────────────────────── the affixes
+
+    /// <summary>
+    /// A <c>+X%</c> affix on a fraction-typed stat is X percentage points, not a percentage of a
+    /// base that is zero.
+    /// </summary>
+    /// <remarks>
+    /// The affix pool authors the bucket per row precisely so this is a data decision. Block's base
+    /// is 0.0, so the percent reading contributes nothing and the flat reading contributes the roll —
+    /// two answers a whole apart, and only one of them is a block chance.
+    /// </remarks>
+    [Fact]
+    public void A_fraction_typed_affix_contributes_its_roll_as_percentage_points()
+    {
+        var armor = Inventories.Item(
+            "armor", GearFamily.LEATHERS, Rarity.S, affixes: [new GearAffixRoll("AFX_BLOCK", 0.09)]);
+
+        Stat(HeroBuild.Of(Level, [armor], Content), StatId.BLOCK).ShouldBe(
+            0.09, "the hero's base block is 0.0, so the roll IS the block chance");
+    }
+
+    /// <summary>A <c>+X%</c> affix on a magnitude stat multiplies it.</summary>
+    /// <remarks>
+    /// The negative control on the case above: a mapping that made every affix flat would add 0.2 to
+    /// a Max HP of nearly three hundred, which is not a bonus anybody would notice. The armor also
+    /// contributes its own flat Max HP, so the expectation is stated over the whole aggregation
+    /// rather than over the base.
+    /// </remarks>
+    [Fact]
+    public void A_magnitude_affix_multiplies_the_stat_it_names()
+    {
+        var plain = Inventories.Item("plain", GearFamily.LEATHERS, Rarity.S);
+        var rolled = Inventories.Item(
+            "rolled", GearFamily.LEATHERS, Rarity.S, affixes: [new GearAffixRoll("AFX_MAX_HP", 0.2)]);
+
+        var without = Stat(HeroBuild.Of(Level, [plain], Content), StatId.MAX_HP);
+        var with = Stat(HeroBuild.Of(Level, [rolled], Content), StatId.MAX_HP);
+
+        with.ShouldBe(
+            DeterminismRounding.Round(without * 1.2),
+            tolerance: 1e-9,
+            "a +20% Max HP affix is a fifth more of everything flat, not a fifth of a hit point");
+    }
+
+    /// <summary>
+    /// An affix naming a non-combat stat is collected and REPORTED, never silently dropped.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The stat block holds fourteen combat stats, so a gold-gain affix cannot land in it. What
+    /// must not happen is the affix vanishing: the aggregation names what it did not apply, which is
+    /// how a caller finds out that a rolled bonus is waiting on a consumer that does not exist yet.
+    /// </remarks>
+    [Fact]
+    public void A_non_combat_affix_is_reported_rather_than_lost()
+    {
+        var ring = Inventories.Item(
+            "ring", GearFamily.BAND, Rarity.S, affixes: [new GearAffixRoll("AFX_GOLD_GAIN", 0.3)]);
+
+        var build = HeroBuild.Of(Level, [ring], Content);
+
+        build.Effects.ShouldContain(
+            e => e.Id.Contains("AFX_GOLD_GAIN", StringComparison.Ordinal),
+            "the affix is collected — it is a real bonus the player rolled");
+
+        build.Aggregated.SkippedNonCombatStatEffects.ShouldContain(
+            e => e.Contains("AFX_GOLD_GAIN", StringComparison.Ordinal),
+            "and it is named as unapplied rather than dropped on the floor");
+    }
+
+    /// <summary>An affix the pool authors with no stat contributes nothing and breaks nothing.</summary>
+    /// <remarks>
+    /// The damage-vs-Elites affix rolls onto real items today. It writes no stat, so the build must
+    /// carry the item without it — not throw, and not invent a stat for it.
+    /// </remarks>
+    [Fact]
+    public void An_affix_with_no_authored_stat_contributes_nothing()
+    {
+        var weapon = Inventories.Item(
+            "w", GearFamily.BLADE, Rarity.S, affixes: [new GearAffixRoll("AFX_DAMAGE_VS_ELITES", 0.25)]);
+
+        var build = HeroBuild.Of(Level, [weapon], Content);
+
+        build.Effects.ShouldNotContain(
+            e => e.Id.Contains("AFX_DAMAGE_VS_ELITES", StringComparison.Ordinal),
+            "the pool authors no stat and no op for it, so there is nothing to contribute");
+
+        build.Effects.Count.ShouldBe(2, "the weapon still contributes its own primary and secondary");
+    }
+
+    // ───────────────────────────────────────────────────────────────── the set bonuses
+
+    /// <summary>Two SS pieces of one family axis grant that set's two-piece bonus.</summary>
+    [Fact]
+    public void Two_SS_pieces_of_one_axis_grant_its_two_piece_bonus()
+    {
+        var build = HeroBuild.Of(Level, BloodmoonPieces(2), Content);
+
+        Stat(build, StatId.LIFESTEAL).ShouldBeGreaterThanOrEqualTo(
+            0.1, "Bloodmoon's two-piece bonus is +10% lifesteal");
+    }
+
+    /// <summary>One piece grants nothing, and a lower band does not count towards a set.</summary>
+    /// <remarks>
+    /// Two negative controls on the case above, and the second is the one that discriminates: a
+    /// resolver that counted every piece regardless of band would satisfy a "two pieces grant it"
+    /// test with two C-rarity items, and a set would stop being an endgame goal.
+    /// </remarks>
+    [Fact]
+    public void A_set_bonus_needs_two_pieces_and_needs_them_at_the_top_band()
+    {
+        var single = HeroBuild.Of(Level, BloodmoonPieces(1), Content);
+        var lowBand = HeroBuild.Of(
+            Level,
+            [
+                Inventories.Item("w", GearFamily.BLADE, Rarity.S),
+                Inventories.Item("a", GearFamily.LEATHERS, Rarity.S),
+            ],
+            Content);
+
+        single.Effects.ShouldNotContain(
+            e => e.Id.StartsWith("SET_BONUS", StringComparison.Ordinal),
+            "one piece has reached no breakpoint");
+
+        lowBand.Effects.ShouldNotContain(
+            e => e.Id.StartsWith("SET_BONUS", StringComparison.Ordinal),
+            "a set piece is an SS item; two S-rarity pieces of one axis are two items");
+    }
+
+    /// <summary>A set breakpoint nobody has authored grants nothing rather than throwing.</summary>
+    /// <remarks>
+    /// Seven of the twelve breakpoints ship unauthored, and a full six-piece set is reachable the
+    /// moment a player owns one. A reader that refused a null would make the strongest loadout in
+    /// the game unplayable.
+    /// </remarks>
+    [Fact]
+    public void An_unauthored_breakpoint_grants_nothing_and_does_not_refuse_the_build()
+    {
+        var full = HeroBuild.Of(Level, BloodmoonPieces(6), Content);
+
+        full.Effects.Count(e => e.Id.StartsWith("SET_BONUS", StringComparison.Ordinal)).ShouldBe(
+            2, "the two- and four-piece bonuses are authored; the six-piece is not");
+    }
+
+    // ──────────────────────────────────────────────────────────── order and determinism
+
+    /// <summary>The build is a function of what is worn, not of the order it was handed over in.</summary>
+    /// <remarks>
+    /// The collection order is a tiebreak of the resolution order, so a source enumerating whatever
+    /// order a caller happened to supply would put a device-dependent order into a stat block — the
+    /// determinism this whole layer exists to keep.
+    /// </remarks>
+    [Fact]
+    public void The_build_does_not_depend_on_the_order_the_items_were_handed_over_in()
+    {
+        var items = BloodmoonPieces(4);
+        var reversed = items.Reverse().ToArray();
+
+        var forwards = HeroBuild.Of(Level, items, Content);
+        var backwards = HeroBuild.Of(Level, reversed, Content);
+
+        backwards.Effects.Select(e => e.Id).ShouldBe(forwards.Effects.Select(e => e.Id));
+        backwards.Stats.ShouldBe(forwards.Stats);
+    }
+
+    /// <summary>The three gear sources are all live, and each one is the kind it claims.</summary>
+    /// <remarks>
+    /// Stated over the effect ids because the build hands back a flat list: the collection step's
+    /// first three sources are exactly the three this task wired, and a build that quietly stopped
+    /// collecting from one of them would still produce a plausible stat block.
+    /// </remarks>
+    [Fact]
+    public void All_three_gear_sources_contribute_to_one_build()
+    {
+        var pieces = BloodmoonPieces(2).ToList();
+        pieces[0] = Inventories.Item(
+            pieces[0].InstanceId.Value,
+            GearFamily.BLADE,
+            Rarity.SS,
+            affixes: [new GearAffixRoll("AFX_CRIT_CHANCE", 0.08)]);
+
+        var build = HeroBuild.Of(Level, pieces, Content);
+
+        build.Effects.ShouldContain(e => e.Id.StartsWith("(gear:", StringComparison.Ordinal));
+        build.Effects.ShouldContain(e => e.Id.StartsWith("(affix:", StringComparison.Ordinal));
+        build.Effects.ShouldContain(e => e.Id.StartsWith("SET_BONUS", StringComparison.Ordinal));
+    }
+
+    /// <summary>Caps are applied after aggregation, not per contribution.</summary>
+    /// <remarks>
+    /// Crit chance is capped, and a ring, a weapon and a crit affix together can pass the ceiling.
+    /// The claim is that the ceiling is the authored one and that the build does not exceed it — a
+    /// pipeline that capped each contribution instead would land below it and look correct.
+    /// </remarks>
+    [Fact]
+    public void A_capped_stat_is_bounded_by_the_authored_ceiling()
+    {
+        var caps = CombatCaps.Read(Content);
+
+        var stacked = new[]
+        {
+            Inventories.Item(
+                "r", GearFamily.BAND, Rarity.SS, affixes: [new GearAffixRoll("AFX_CRIT_CHANCE", 0.08)]),
+            Inventories.Item(
+                "w", GearFamily.BLADE, Rarity.SS, affixes: [new GearAffixRoll("AFX_CRIT_CHANCE", 0.08)]),
+        };
+
+        var crit = Stat(HeroBuild.Of(Level, stacked, Content), StatId.CRIT);
+
+        crit.ShouldBeLessThanOrEqualTo(caps.Caps.Apply(StatId.CRIT, double.MaxValue));
+        crit.ShouldBeGreaterThan(0.05, "and the stacking still moved it off the base");
+    }
+
+    // ──────────────────────────────────────────────────────────────────────── fixtures
+
+    private static double Stat(HeroBuild build, StatId stat) =>
+        build.Stats.Values.Single(pair => pair.Key == stat).Value;
+
+    private static GearInstance Weapon(string id, int enhanceLevel = 0) =>
+        Inventories.Item(id, GearFamily.BLADE, Rarity.S, enhanceLevel: enhanceLevel);
+
+    private static GearInstance Amulet(string id) =>
+        Inventories.Item(id, GearFamily.PENDANT, Rarity.S);
+
+    /// <summary>The Bloodmoon set — the BALANCED family of each slot — at SS, taking the first N.</summary>
+    private static IReadOnlyList<GearInstance> BloodmoonPieces(int count) =>
+        new[]
+        {
+            GearFamily.BLADE,
+            GearFamily.LEATHERS,
+            GearFamily.HOOD,
+            GearFamily.TREADS,
+            GearFamily.BAND,
+            GearFamily.PENDANT,
+        }
+        .Take(count)
+        .Select((family, index) => Inventories.Item(
+            "bloodmoon_" + index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            family,
+            Rarity.SS))
+        .ToArray();
+}
