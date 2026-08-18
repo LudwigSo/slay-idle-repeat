@@ -264,7 +264,6 @@
     "loc.battle.no_run.status": "##TODO_DE## There is no run here to fight in.",
     "loc.battle.phase_not_battle.status": "##TODO_DE## This run has no battle waiting to be fought.",
     "loc.battle.seed_unavailable.status": "##TODO_DE## The run no longer records which battle this is, so the fight cannot be played back. The run cannot go past this battle.",
-    "loc.battle.hero_stats_unavailable.status": "##TODO_DE## The part of the game that works out your hero's power is not finished, so this fight cannot be played yet. It is nothing you did, and there is nothing to fix — but the run cannot go past this battle.",
     "loc.battle.simulator_failed.status": "##TODO_DE## Something went wrong working this fight out, so there is nothing to play back. The run cannot go past this battle.",
     "loc.battle.log_empty.status": "##TODO_DE## This fight was worked out and came back with no blows in it, so there is nothing to play back. The run cannot go past this battle.",
     "loc.battle.read_unavailable.status": "##TODO_DE## Your run could not be reached just now, so this fight cannot be loaded.",

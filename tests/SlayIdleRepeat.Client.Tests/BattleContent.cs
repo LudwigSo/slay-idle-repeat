@@ -35,7 +35,6 @@ internal static class BattleContent
     internal const string NoRunStatusKey = "loc.battle.no_run.status";
     internal const string PhaseNotBattleStatusKey = "loc.battle.phase_not_battle.status";
     internal const string SeedUnavailableStatusKey = "loc.battle.seed_unavailable.status";
-    internal const string HeroStatsUnavailableStatusKey = "loc.battle.hero_stats_unavailable.status";
     internal const string SimulatorFailedStatusKey = "loc.battle.simulator_failed.status";
     internal const string LogEmptyStatusKey = "loc.battle.log_empty.status";
     internal const string ReadUnavailableStatusKey = "loc.battle.read_unavailable.status";
@@ -53,12 +52,12 @@ internal static class BattleContent
         SpeedSingleActionKey, SpeedDoubleActionKey, SpeedTripleActionKey, SkipActionKey,
         PhaseOneNameKey, PhaseTwoNameKey, PhaseThreeNameKey,
         LoadingStatusKey, NoRunStatusKey, PhaseNotBattleStatusKey, SeedUnavailableStatusKey,
-        HeroStatsUnavailableStatusKey, SimulatorFailedStatusKey, LogEmptyStatusKey,
+        SimulatorFailedStatusKey, LogEmptyStatusKey,
         ReadUnavailableStatusKey, VictoryStatusKey, DefeatStatusKey, RefusedStatusKey,
     ];
 
     /// <summary>
-    /// The five ways a replay can have nothing to animate, each with the sentence it is told by.
+    /// The four ways a replay can have nothing to animate, each with the sentence it is told by.
     /// </summary>
     /// <remarks>
     /// 🔒 The set the distinctness case is stated over. It deliberately excludes
@@ -70,7 +69,6 @@ internal static class BattleContent
     [
         (BattleReadiness.PhaseNotBattle, PhaseNotBattleStatusKey),
         (BattleReadiness.SeedUnavailable, SeedUnavailableStatusKey),
-        (BattleReadiness.HeroStatsUnavailable, HeroStatsUnavailableStatusKey),
         (BattleReadiness.SimulatorFailed, SimulatorFailedStatusKey),
         (BattleReadiness.LogEmpty, LogEmptyStatusKey),
     ];

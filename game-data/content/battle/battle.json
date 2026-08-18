@@ -25,7 +25,6 @@
     "noRun": "loc.battle.no_run.status",
     "phaseNotBattle": "loc.battle.phase_not_battle.status",
     "seedUnavailable": "loc.battle.seed_unavailable.status",
-    "heroStatsUnavailable": "loc.battle.hero_stats_unavailable.status",
     "simulatorFailed": "loc.battle.simulator_failed.status",
     "logEmpty": "loc.battle.log_empty.status",
     "readUnavailable": "loc.battle.read_unavailable.status",

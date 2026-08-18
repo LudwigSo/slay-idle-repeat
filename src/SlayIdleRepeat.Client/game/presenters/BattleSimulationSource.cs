@@ -10,13 +10,22 @@ namespace SlayIdleRepeat.Client.Game.Presenters;
 /// Why a battle replay has a fight to animate, or exactly why it has none.
 /// </summary>
 /// <remarks>
+/// <para>
 /// 🔒 <b>A vocabulary rather than a bool, because "nothing is animating" is the same still frame
 /// for every one of these reasons.</b> A read that never answered, a run with no battle open, a run
-/// whose phase is not the battle phase, a run that no longer records which battle this is, a hero
-/// whose stat block this build cannot assemble, a simulator that threw and a simulation that came
-/// back with an empty log all look identical on screen. Each is escaped by something completely
-/// different — retry, leave the screen, finish the tile, report the run, wait for the feature,
-/// report the crash, report the content — so each is named here and each gets its own sentence.
+/// whose phase is not the battle phase, a run that no longer records which battle this is, a
+/// simulator that threw and a simulation that came back with an empty log all look identical on
+/// screen. Each is escaped by something completely different — retry, leave the screen, finish the
+/// tile, report the run, report the crash, report the content — so each is named here and each gets
+/// its own sentence.
+/// </para>
+/// <para>
+/// 🔒 <b>There were eight, and the fifth was <c>HeroStatsUnavailable</c> — retired, not renumbered.</b>
+/// It said the hero's stat block could not be assembled by anything a client can reach, which was true
+/// when it was written and was made false by <c>HeroBuild</c> and <c>RunBattle.Simulate</c> going
+/// public. Its value 5 is deliberately left unused: a later state taking that number would inherit
+/// the retired one's meaning in every log line and screenshot that still carries it.
+/// </para>
 /// </remarks>
 public enum BattleReadiness
 {
@@ -32,11 +41,6 @@ public enum BattleReadiness
     /// <summary>The run carries no battle counter, so the battle's seed cannot be re-derived.</summary>
     SeedUnavailable = 4,
 
-    /// <summary>
-    /// 🔴 The hero's stat block cannot be built from anything a client can reach. Today's answer.
-    /// </summary>
-    HeroStatsUnavailable = 5,
-
     /// <summary>The simulator was called and threw. A state, never an escape.</summary>
     SimulatorFailed = 6,
 
@@ -47,7 +51,7 @@ public enum BattleReadiness
     /// The read this screen depends on did not answer at all. A state, never an escape.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Not one of the five stall causes the design enumerates — those are all reasons a fight
+    /// ⚠️ Not one of the four stall causes the design enumerates — those are all reasons a fight
     /// failed to materialise, and this is a screen that never learned whether there was one. It is
     /// named separately for the same reason they are named separately from each other: a retry is
     /// the answer here and is the answer to none of them.
@@ -70,55 +74,61 @@ public enum BattleReadiness
 public sealed record BattleSimulationAttempt(
     BattleReadiness Readiness, ulong BattleSeed, bool SeedDerived, SimulationResult? Result);
 
-/// <summary>Predicts one battle of a run locally, from the run's own snapshot.</summary>
+/// <summary>Predicts one battle of a run locally, from the persisted rows it is fought from.</summary>
 /// <remarks>
+/// <para>
 /// A client-local collaborator rather than a port: nothing crosses a process boundary here, and
-/// the whole computation is a pure function of the run row plus the loaded content set.
+/// the whole computation is a pure function of the two rows plus the loaded content set.
+/// </para>
+/// <para>
+/// 🔒 <b>Both rows, because a fight is composed from both.</b> The enemy is scaled by the run and the
+/// hero is composed from the profile's loadout, so a prediction handed the run alone could only fight
+/// a hero it had invented — which is the whole reason this took the player's row as soon as it took a
+/// fight at all. The screen already reads both in one call, so this costs no extra read.
+/// </para>
 /// </remarks>
 public interface IBattleSimulationSource
 {
     /// <summary>Attempts the prediction for the battle the given run is standing in.</summary>
+    /// <param name="player">The profile row the hero is composed from — where the loadout's items live.</param>
     /// <param name="run">The run whose open battle is to be predicted.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="run"/> is null.</exception>
-    BattleSimulationAttempt Simulate(RunSnapshot run);
+    /// <exception cref="ArgumentNullException">A row is null.</exception>
+    BattleSimulationAttempt Simulate(PlayerSnapshot player, RunSnapshot run);
 }
 
 /// <summary>
-/// The production prediction: derives the battle's seed for real, then refuses at the stat block.
+/// The production prediction: derives the battle's seed, then fights the battle through the same
+/// door the confirming handler settles it through.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔒 <b>The seed half is real and the stat half is not, and that split is the whole of this
-/// type.</b> The run snapshot carries the run's committed seed and a per-stream counter whose
-/// combat row counts battles started, and the derivation that turns those two into a battle seed
-/// is public. So this derives the seed, reports it, and can prove it against an independent
-/// derivation of the same two numbers.
+/// 🔒 <b>One composition behind two doors, and this is the client's door.</b> <c>14</c> §9 has the
+/// client compute the fight locally from the seed the run committed and report its <c>LogHash</c>,
+/// and <c>CONFIRM_BATTLE_RESULT</c> recompute the same fight and win any disagreement. Both go
+/// through <see cref="RunBattle.Simulate(PlayerSnapshot, RunSnapshot, ContentSnapshot)"/>, which is
+/// what makes the two answers the same answer: a second composition here would diverge from the
+/// handler's the first time either changed, and the divergence would read as tampering — so honest
+/// players would be the ones it caught.
 /// </para>
 /// <para>
-/// 🔴 It then stops, because <see cref="TheHerosStatBlockCannotBeBuiltHere"/>. It does not invent
-/// stats and it does not invent a hash.
+/// 🔴 <b>It refused at the hero's stat block until 2026-08-19, and that refusal was stale rather
+/// than wrong.</b> It was written when no <c>AffixId → StatId</c> mapping and no gear effect source
+/// existed at any accessibility; <c>M7-06b</c> authored both and made <c>HeroBuild</c> and
+/// <c>RunBattle</c> public for this caller, and nothing came back here to call them. What shipped
+/// was a battle screen that reported a missing feature that existed, and a run that could not leave
+/// <c>RunPhase.BattlePending</c> — which refuses every other command, so the profile could not start
+/// another run either. Found by playing the exported build, not by any test: the four cases that
+/// pinned the refusal quoted its reasoning back as their own justification.
+/// </para>
+/// <para>
+/// 🔒 <b>The phase and the counter are still answered here rather than by the exception.</b>
+/// <c>RunBattle</c> throws for both, and a screen that reported them as
+/// <see cref="BattleReadiness.SimulatorFailed"/> would send a player to report a crash for a run
+/// that is merely standing somewhere else.
 /// </para>
 /// </remarks>
 public sealed class LocalBattleSimulation : IBattleSimulationSource
 {
-    /// <summary>
-    /// 🔴 Deliberately not attempted, and named so it can be found. Nothing a client can reach can
-    /// turn a hero's stored row into the stat block the simulator takes, so this refuses by name
-    /// rather than fabricating one.
-    /// </summary>
-    private const string TheHerosStatBlockCannotBeBuiltHere =
-        "A stat block CAN be built from outside the rules assembly — the factory is public and the " +
-        "balance harness builds one every sweep. The HERO's stat block cannot, and not merely " +
-        "because the pieces are hidden: the code does not exist at any accessibility. There is no " +
-        "affix-to-stat mapping anywhere, in code or in content, and no gear, talent or pet effect " +
-        "source that could turn a loadout into a list of effects; the aggregation that would " +
-        "combine them, the base curve the hero starts from and every gear derivation rule are all " +
-        "internal on top of that. What a client is handed is the raw ingredients — legend level, " +
-        "inventory, loadout, talent points — and no build snapshot, no stat block and no power " +
-        "number. So the local prediction is blocked at the stat block, not at the seed, and a " +
-        "plausible-looking block invented here would produce a fight that is not the fight the " +
-        "server will settle, reported with a hash nobody recomputes.";
-
     /// <summary>
     /// 🔴 Named because the number it would need is the one thing the run row does not carry.
     /// </summary>
@@ -127,8 +137,8 @@ public sealed class LocalBattleSimulation : IBattleSimulationSource
         "a fight advances the run's combat stream and discards the generator, and its own remarks " +
         "say the seed is recoverable from the accepted run snapshot without an event. The counter " +
         "counts battles STARTED, so the battle now open is the one before it. A run whose counter " +
-        "is missing or zero is a run whose open battle nothing can name, which is a different " +
-        "failure from a hero this build cannot equip and is reported as one.";
+        "is missing or zero is a run whose open battle nothing can name — a corrupt row, which is a " +
+        "different failure from a simulator that threw on a sound one and is reported as one.";
 
     /// <summary>The stream whose counter says how many battles this run has started.</summary>
     private const string CombatStreamName = "combat";
@@ -138,12 +148,11 @@ public sealed class LocalBattleSimulation : IBattleSimulationSource
     /// exists to make.
     /// </summary>
     /// <remarks>
-    /// 🔴 Held and deliberately unread, for exactly as long as
-    /// <see cref="TheHerosStatBlockCannotBeBuiltHere"/> holds. Every other argument of that call is
-    /// in hand — the seed is derived, the levels are on the run row — and this one is too; the stat
-    /// block is the only missing piece. Dropping it would make the day it becomes readable a change
-    /// to the composition root as well as to this file, and would read as though the simulation
-    /// needed nothing it does not have.
+    /// The enemy's archetype, the chapter's par power, the combat caps and the boss's own row all
+    /// come out of it, so it is the argument that makes the fight this chapter's fight rather than an
+    /// arithmetic one. Held from construction rather than passed per call: it is the same loaded set
+    /// for the life of the screen, and a per-call one would let two fights of a run be predicted
+    /// against two different content versions.
     /// </remarks>
     private readonly ContentSnapshot _content;
 
@@ -158,8 +167,9 @@ public sealed class LocalBattleSimulation : IBattleSimulationSource
     }
 
     /// <inheritdoc/>
-    public BattleSimulationAttempt Simulate(RunSnapshot run)
+    public BattleSimulationAttempt Simulate(PlayerSnapshot player, RunSnapshot run)
     {
+        ArgumentNullException.ThrowIfNull(player);
         ArgumentNullException.ThrowIfNull(run);
 
         // Refused before anything is derived: the counter of a run with no open battle names the
@@ -174,12 +184,41 @@ public sealed class LocalBattleSimulation : IBattleSimulationSource
             return Refused(BattleReadiness.SeedUnavailable);
         }
 
+        // Derived here as well as inside the fight, and deliberately: this is the number a bug report
+        // carries, and it has to be reportable on the arms where the fight itself does not answer.
         var battleSeed = SeedDerivation.BattleSeed(run.RunSeed, battleIndex);
 
-        // 🔴 And this is as far as it goes — see TheHerosStatBlockCannotBeBuiltHere. The seed is
-        // reported anyway, because which half is missing is the whole of what a report can say.
+        SimulationResult fight;
+
+        try
+        {
+            fight = RunBattle.Simulate(player, run, _content);
+        }
+        catch (Exception)
+        {
+            // 🔒 Every exception, not a chosen list. RunBattle documents five types, four of them
+            // reachable once the arguments are non-null — a row that does not rehydrate, a run not
+            // standing in a fight, a chapter or boss with no authored row, a missing content pointer —
+            // and the one thing they have in common on screen is a still frame. Naming a subset here
+            // would let the fifth take the scene down mid-run instead of putting a sentence on it, and
+            // the identity of the failure belongs in the log rather than in a state vocabulary a
+            // player reads. The seed is reported alongside it, because it is what turns "the fight did
+            // not play" into a report somebody can reproduce.
+            return new BattleSimulationAttempt(
+                BattleReadiness.SimulatorFailed, battleSeed, SeedDerived: true, Result: null);
+        }
+
+        // A fight the simulator answered with no events at all is not something this screen can
+        // animate, and it is a content or rules fault rather than a crash — so it is reported as
+        // itself rather than as a fight of zero length that plays instantly and confirms.
+        if (fight.Log.Count == 0)
+        {
+            return new BattleSimulationAttempt(
+                BattleReadiness.LogEmpty, battleSeed, SeedDerived: true, Result: null);
+        }
+
         return new BattleSimulationAttempt(
-            BattleReadiness.HeroStatsUnavailable, battleSeed, SeedDerived: true, Result: null);
+            BattleReadiness.Ready, battleSeed, SeedDerived: true, fight);
     }
 
     /// <summary>

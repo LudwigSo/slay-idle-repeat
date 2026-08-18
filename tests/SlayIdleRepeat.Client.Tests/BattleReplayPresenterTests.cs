@@ -89,6 +89,35 @@ public sealed class BattleReplayPresenterTests
         host.ReadPlayer.ShouldBe(Player, "and the answer is only this player's to read.");
     }
 
+    /// <summary>
+    /// 🔴 <b>Both rows the read answered reach the prediction, and dropping one is how the fight went
+    /// missing for a whole milestone.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Stated over the rows themselves rather than over the readiness, because the readiness cannot
+    /// see the difference: a prediction handed the run alone still answers, and the screen still draws
+    /// whatever it answers. This is the assertion that would have gone red.
+    /// </remarks>
+    [Fact]
+    public async Task The_screen_hands_the_prediction_the_profile_row_as_well_as_the_run()
+    {
+        var player = AnyPlayer();
+        var run = BattleRun(runSeed: 31337);
+        var simulation = StubBattleSimulation.Answering(BattleReadiness.Ready);
+
+        await Build(RecordingGameHost.Finding(player, run), simulation)
+            .StartAsync(CancellationToken.None);
+
+        simulation.AskedAboutRun.ShouldBe(
+            run, "the run is what scales the enemy and names the tile being fought.");
+        simulation.AskedAboutPlayer.ShouldBe(
+            player,
+            "and the profile row is what the HERO is composed from — the loadout, the Legend Level, " +
+            "the stock the equipped items live in. A screen that read it and then predicted the fight " +
+            "without it can only animate a hero the rules invented, which is why this is asserted " +
+            "against the row the read actually answered with rather than against 'not null'.");
+    }
+
     [Fact]
     public async Task A_read_that_finds_no_run_is_named_as_having_no_run_rather_than_as_an_empty_fight()
     {
@@ -236,16 +265,23 @@ public sealed class BattleReplayPresenterTests
     }
 
     /// <summary>
-    /// 🔒 The five sentences are five DIFFERENT sentences, <b>as authored</b>.
+    /// 🔒 The four sentences are four DIFFERENT sentences, <b>as authored</b>.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔴 Stated over the shipped locale, not over a fixture. Every fixture string in this suite is
-    /// derived from its own key, so five distinct keys give five distinct values by construction and
+    /// derived from its own key, so four distinct keys give four distinct values by construction and
     /// a fixture-based version of this case could never fail whatever anyone wrote in
     /// <c>en.json</c>. The claim is about what a player reads.
     /// </remarks>
+    /// <para>
+    /// 🔒 There were five. The fifth said the hero's power was not implemented — the one sentence in the
+    /// set that promised a player nothing they did could help, and the one the shipped build showed for
+    /// every fight in the game. It is retired with its state.
+    /// </para>
+    /// </remarks>
     [Fact]
-    public void The_five_stall_sentences_are_five_different_authored_sentences()
+    public void The_four_stall_sentences_are_four_different_authored_sentences()
     {
         var authored = BattleContent.StallCauses.Select(cause =>
         {
@@ -256,13 +292,13 @@ public sealed class BattleReplayPresenterTests
             return sentence!;
         }).ToArray();
 
-        authored.Length.ShouldBe(5);
+        authored.Length.ShouldBe(4);
         authored.ShouldAllBe(sentence => sentence.Length > 0);
         authored.Distinct(StringComparer.Ordinal).Count().ShouldBe(
             authored.Length,
-            "two of the five stall causes are AUTHORED with the same sentence, so a player meeting " +
-            "one of them is told about the other. The whole reason these are five states rather than " +
-            "one is that they are escaped five different ways — waiting for a feature, reporting a " +
+            "two of the four stall causes are AUTHORED with the same sentence, so a player meeting " +
+            "one of them is told about the other. The whole reason these are four states rather than " +
+            "one is that they are escaped four different ways — finishing the tile, reporting a " +
             "crash, reporting a run, leaving the screen — and that is undone the moment two of the " +
             $"strings say the same thing: [{string.Join(" | ", authored)}]");
     }
@@ -278,7 +314,7 @@ public sealed class BattleReplayPresenterTests
     {
         var run = BattleRun(runSeed: 0xC0FFEE_1234_5678UL, battlesStarted: 4);
 
-        var attempt = new LocalBattleSimulation(BootContent.Shipped).Simulate(run);
+        var attempt = Predicting().Simulate(AnyRehydratablePlayer(), run);
 
         attempt.SeedDerived.ShouldBeTrue(
             "the seed half of local prediction is the half that IS reachable, and a screen " +
@@ -305,12 +341,12 @@ public sealed class BattleReplayPresenterTests
     [Fact]
     public void A_revived_battle_re_derives_the_seed_the_first_attempt_was_fought_under()
     {
-        var simulation = new LocalBattleSimulation(BootContent.Shipped);
+        var simulation = Predicting();
         var firstAttempt = BattleRun(runSeed: 991, battlesStarted: 2, currentHp: 0, gold: 400);
         var afterRevive = BattleRun(runSeed: 991, battlesStarted: 2, currentHp: 50, gold: 150);
 
-        var before = simulation.Simulate(firstAttempt);
-        var after = simulation.Simulate(afterRevive);
+        var before = simulation.Simulate(AnyRehydratablePlayer(), firstAttempt);
+        var after = simulation.Simulate(AnyRehydratablePlayer(), afterRevive);
 
         after.BattleSeed.ShouldBe(
             before.BattleSeed,
@@ -322,10 +358,10 @@ public sealed class BattleReplayPresenterTests
     [Fact]
     public void A_further_battle_in_the_same_run_is_a_different_fight()
     {
-        var simulation = new LocalBattleSimulation(BootContent.Shipped);
+        var simulation = Predicting();
 
-        var first = simulation.Simulate(BattleRun(runSeed: 991, battlesStarted: 2));
-        var second = simulation.Simulate(BattleRun(runSeed: 991, battlesStarted: 3));
+        var first = simulation.Simulate(AnyRehydratablePlayer(), BattleRun(runSeed: 991, battlesStarted: 2));
+        var second = simulation.Simulate(AnyRehydratablePlayer(), BattleRun(runSeed: 991, battlesStarted: 3));
 
         second.BattleSeed.ShouldNotBe(
             first.BattleSeed,
@@ -334,36 +370,110 @@ public sealed class BattleReplayPresenterTests
             "is STABLE, not that it depends on which battle this is.");
     }
 
+    // ---- 🔒 the fight itself, over the shipped content ------------------------------------------
+
     /// <summary>
-    /// 🔴 The load-bearing finding, stated as behaviour: the block is at the stat block, not at the
-    /// seed.
+    /// 🔴 <b>The case the whole screen exists for, and the one that was missing.</b>
     /// </summary>
+    /// <remarks>
+    /// 🔴 This suite used to assert the opposite — that the production prediction refuses at the hero's
+    /// stat block — and quoted the refusal's own reasoning as its justification. That reasoning had been
+    /// false since <c>M7-06b</c> made <c>HeroBuild</c> and <c>RunBattle</c> public, so four green cases
+    /// were pinning a client that could not fight. Stated over the <b>shipped</b> content and the
+    /// <b>production</b> prediction, because that pair is the thing that was broken: every other case
+    /// on this screen drives a double.
+    /// </remarks>
     [Fact]
-    public void The_seed_is_derived_even_though_the_prediction_then_refuses_at_the_heros_stat_block()
+    public void The_prediction_fights_the_battle_the_run_is_standing_in()
     {
-        var attempt = new LocalBattleSimulation(BootContent.Shipped)
-            .Simulate(BattleRun(runSeed: 7, battlesStarted: 1));
+        var attempt = Predicting().Simulate(AnyRehydratablePlayer(), OnAFightTile());
 
         attempt.Readiness.ShouldBe(
-            BattleReadiness.HeroStatsUnavailable,
-            "nothing reachable from a client can turn a stored hero into the stat block the " +
-            "simulator takes — there is no affix-to-stat mapping anywhere and no effect source that " +
-            "reads gear — so a prediction that answered anything else here has invented one, and an " +
-            "invented block produces a fight the server will not agree with.");
-        attempt.SeedDerived.ShouldBeTrue(
-            "and this is the whole point of reporting the seed separately from the result: " +
-            "'local prediction does not work' sends the next reader to the seed derivation, which is " +
-            "finished and correct. The refusal is at the stat block and the report has to say so.");
-        attempt.Result.ShouldBeNull(
-            "a refusal carrying a result would be a fabricated fight, and a fabricated fight " +
-            "carries a fabricated hash — which the rules layer accepts without recomputing.");
+            BattleReadiness.Ready,
+            "a run standing on an enemy tile with a drawn combat counter is a fight the rules can " +
+            "compose from the two persisted rows, and every piece of that composition is public. A " +
+            "refusal here is a client that cannot fight — which is exactly what shipped, and what a " +
+            "player met as a status line telling them their hero's power was not implemented.");
+        attempt.Result.ShouldNotBeNull(
+            "the readiness says a fight is in hand, so a null result would leave the screen " +
+            "reporting a fight it cannot animate and submitting nothing — the same dead end under a " +
+            "different name.");
+        attempt.Result!.Log.ShouldNotBeEmpty(
+            "an empty log is its own readiness. A fight reported as ready with no events would " +
+            "play in a single frame and confirm a result nobody watched.");
+        attempt.Result.DurationTicks.ShouldBeGreaterThan(
+            0,
+            "a fight of zero length is not a fight, and the playhead would land on the end of it " +
+            "before the first frame was drawn.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>The whole client half, end to end: a real fight is predicted, watched, and confirmed.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Every other playback case on this screen drives a fixture fight through a double, which is
+    /// right — they are about timing, bars and captions. None of them could see a prediction that never
+    /// produces a fight, and that is precisely what shipped. This one runs the <b>production</b>
+    /// prediction over the <b>shipped</b> content and asserts the confirming command comes out the far
+    /// end carrying that fight's own hash.
+    /// </remarks>
+    [Fact]
+    public async Task A_really_predicted_fight_is_watched_to_its_end_and_confirmed()
+    {
+        var run = OnAFightTile();
+        var host = RecordingGameHost.Finding(AnyRehydratablePlayer(), run);
+        var fight = Predicting().Simulate(AnyRehydratablePlayer(), run).Result.ShouldNotBeNull();
+        var presenter = Build(host, Predicting());
+
+        await presenter.StartAsync(CancellationToken.None);
+        var submission = await presenter.SkipAsync(CancellationToken.None);
+
+        submission.ShouldBe(
+            BattleSubmission.Submitted,
+            "a screen holding a real fight has a result to report, and a refusal here is the dead " +
+            "end this change exists to close: nothing submitted, the run parked in the battle phase, " +
+            "and every other command refused while it stands there.");
+        host.SubmitCommand.ShouldBeOfType<ConfirmBattleResultCommand>()
+            .LogHash.ShouldBe(
+                fight.LogHash.ToString(CultureInfo.InvariantCulture),
+                "and the hash it reports has to be the hash of the fight the prediction actually " +
+                "produced — the server recomputes the same fight from the same seed and compares, so a " +
+                "number from anywhere else reads as a forged log by an honest player.");
+    }
+
+    /// <summary>
+    /// 🔴 <b>The probe that discriminates: the hero's row reaches the fight.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Two Legend Levels over one battle seed. A prediction that composed the hero from the run
+    /// alone — or from anything but the profile row it was handed — answers both of these with the
+    /// same log, and every assertion in the case above would still pass. That is the shape of the
+    /// defect this whole change is about: the rows were both in hand and one was dropped.
+    /// </remarks>
+    [Fact]
+    public void The_players_own_row_decides_the_fight_and_not_the_run_alone()
+    {
+        var simulation = Predicting();
+        var run = OnAFightTile(runSeed: 5150);
+
+        var novice = simulation.Simulate(PlayerState.Rehydratable(Player, legendLevel: 1), run).Result;
+        var veteran = simulation.Simulate(PlayerState.Rehydratable(Player, legendLevel: 60), run).Result;
+
+        novice.ShouldNotBeNull();
+        veteran.ShouldNotBeNull();
+        veteran!.LogHash.ShouldNotBe(
+            novice!.LogHash,
+            "the same battle seed fought by a level-1 hero and a level-60 one has to be two " +
+            "different fights, or the hero this screen is animating is not the player's hero. The " +
+            "seed, the tile and the chapter are identical here — the Legend Level is the only thing " +
+            "that moved, and it moves through the row this prediction spent a milestone ignoring.");
     }
 
     [Fact]
     public void A_run_whose_counter_does_not_name_a_battle_is_refused_at_the_seed_and_says_so()
     {
-        var attempt = new LocalBattleSimulation(BootContent.Shipped)
-            .Simulate(BattleRun(runSeed: 7, battlesStarted: 0));
+        var attempt = Predicting()
+            .Simulate(AnyRehydratablePlayer(), BattleRun(runSeed: 7, battlesStarted: 0));
 
         attempt.Readiness.ShouldBe(
             BattleReadiness.SeedUnavailable,
@@ -379,7 +489,7 @@ public sealed class BattleReplayPresenterTests
     {
         var run = PlayerState.Run(Run, Player, RunPhase.BattlePending, runSeed: 7);
 
-        var attempt = new LocalBattleSimulation(BootContent.Shipped).Simulate(run);
+        var attempt = Predicting().Simulate(AnyRehydratablePlayer(), run);
 
         attempt.Readiness.ShouldBe(
             BattleReadiness.SeedUnavailable,
@@ -394,7 +504,7 @@ public sealed class BattleReplayPresenterTests
         var run = PlayerState.Run(
             Run, Player, RunPhase.InProgress, runSeed: 7, rngStreamPositions: Counters(battlesStarted: 1));
 
-        var attempt = new LocalBattleSimulation(BootContent.Shipped).Simulate(run);
+        var attempt = Predicting().Simulate(AnyRehydratablePlayer(), run);
 
         attempt.Readiness.ShouldBe(
             BattleReadiness.PhaseNotBattle,
@@ -418,7 +528,7 @@ public sealed class BattleReplayPresenterTests
     public async Task The_screen_reports_the_seed_the_prediction_derived_and_that_it_derived_one()
     {
         var attempt = new BattleSimulationAttempt(
-            BattleReadiness.HeroStatsUnavailable, BattleSeed: 0, SeedDerived: true, Result: null);
+            BattleReadiness.SimulatorFailed, BattleSeed: 0, SeedDerived: true, Result: null);
         var presenter = Build(
             RecordingGameHost.Finding(AnyPlayer(), BattleRun()),
             StubBattleSimulation.Attempting(attempt));
@@ -432,7 +542,7 @@ public sealed class BattleReplayPresenterTests
         presenter.SeedDerived.ShouldBeTrue(
             "and zero is a legal seed, so the flag beside it is the only thing separating a real " +
             "derivation of zero from an attempt that never reached the derivation at all — which is " +
-            "exactly the difference between filing this against the stat block and against the run.");
+            "exactly the difference between filing this against the simulator and against the run.");
     }
 
     // ---- what it animates ----------------------------------------------------------------------
@@ -635,10 +745,12 @@ public sealed class BattleReplayPresenterTests
             BattleReadiness.SeedUnavailable,
             "a run that no longer names its own battle is the corrupt row of the set, and a screen " +
             "that invented a hash for it would report a result for a fight nothing can identify.");
-        members.ShouldContain(
-            BattleReadiness.HeroStatsUnavailable,
-            "this is the state every real player is in today, so a sweep that stopped covering it " +
-            "would stop covering the shipped behaviour entirely.");
+        members.Select(member => member.ToString()).ShouldNotContain(
+            "HeroStatsUnavailable",
+            "this state told players their hero's power was unimplemented after it had been " +
+            "implemented, and it was the answer to EVERY fight. Reintroducing it — or reusing its " +
+            "value 5 — would put that sentence back in front of a player, so the sweep asserts its " +
+            "absence rather than merely not mentioning it.");
         members.ShouldContain(
             BattleReadiness.SimulatorFailed,
             "a simulator that threw is the state most tempting to treat as a transient nothing, " +
@@ -1563,6 +1675,49 @@ public sealed class BattleReplayPresenterTests
 
     private static PlayerSnapshot AnyPlayer() => PlayerState.Player(Player);
 
+    /// <summary>
+    /// The production prediction over the checkout's own content — what the shipped game runs.
+    /// </summary>
+    private static LocalBattleSimulation Predicting() => new(BootContent.Shipped);
+
+    /// <summary>
+    /// A profile row the domain will actually rehydrate, for the cases that reach the real simulator.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <see cref="AnyPlayer"/> is deliberately NOT this: it leaves the inventory, loadout and
+    /// presets at their null defaults, which the domain refuses. Every case that only reads the
+    /// snapshot's fields is fine with that row; a case that composes a hero from it is not, and the
+    /// difference is worth two fixtures rather than one that quietly satisfies both.
+    /// </remarks>
+    private static PlayerSnapshot AnyRehydratablePlayer() => PlayerState.Rehydratable(Player);
+
+    /// <summary>
+    /// A run parked in the battle phase <b>on an enemy tile</b> — a fight the rules can compose.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The tile is stated on the row rather than rolled onto, exactly as the application suite's
+    /// own battle fixture does and for the same reason: the board a run generates is a function of its
+    /// seed, so waiting for a fight tile would tie this to the generator's draw order and would
+    /// silently stop producing a battle the day a tile weight moved. The tile KIND is read off the
+    /// screen's own public constant, never transcribed as a number.
+    /// </remarks>
+    /// <param name="runSeed">The run's committed seed.</param>
+    /// <param name="battlesStarted">The combat counter — the battle now open is the one before it.</param>
+    /// <param name="currentHp">The health the hero enters the fight on.</param>
+    private static RunSnapshot OnAFightTile(
+        ulong runSeed = 4242, int battlesStarted = 1, int currentHp = 100) =>
+        PlayerState.Run(
+            Run,
+            Player,
+            RunPhase.BattlePending,
+            position: 3,
+            currentHp: currentHp,
+            runSeed: runSeed,
+            pendingTileKind: BattleReplayPresenter.EnemyTileKind,
+            pendingTileLinearIndex: 3,
+            pendingTileStage: 1,
+            rngStreamPositions: Counters(battlesStarted));
+
     /// <summary>The per-stream counters of a run that has started the given number of battles.</summary>
     private static IReadOnlyDictionary<string, ulong> Counters(int battlesStarted) =>
         new Dictionary<string, ulong>(StringComparer.Ordinal) { [CombatStream] = (ulong)battlesStarted };
@@ -1973,10 +2128,10 @@ public sealed class BattleReplayPresenterTests
     /// A prediction that answers whatever a case asked it to, without touching the real simulator.
     /// </summary>
     /// <remarks>
-    /// Client-local, like the interface it stands in for. The states the production prediction
-    /// cannot reach today — a simulator that threw, a log that came back empty, a fight that is
-    /// actually ready — exist only through this, and they are the states the screen's behaviour is
-    /// mostly about.
+    /// Client-local, like the interface it stands in for. Every stall the screen can be in is reached
+    /// through this rather than by arranging real rows that produce it, because what these cases are
+    /// about is what the SCREEN does with an answer — the production prediction's own answers are
+    /// pinned separately, against the shipped content, further up this file.
     /// </remarks>
     private sealed class StubBattleSimulation : IBattleSimulationSource
     {
@@ -1998,10 +2153,19 @@ public sealed class BattleReplayPresenterTests
                 ? Playing(ShortFight())
                 : new(new BattleSimulationAttempt(readiness, BattleSeed: 0, SeedDerived: false, Result: null));
 
+        /// <summary>The rows the screen handed over, so a case can check it handed over both.</summary>
+        internal PlayerSnapshot? AskedAboutPlayer { get; private set; }
+
+        internal RunSnapshot? AskedAboutRun { get; private set; }
+
         /// <inheritdoc/>
-        public BattleSimulationAttempt Simulate(RunSnapshot run)
+        public BattleSimulationAttempt Simulate(PlayerSnapshot player, RunSnapshot run)
         {
+            ArgumentNullException.ThrowIfNull(player);
             ArgumentNullException.ThrowIfNull(run);
+
+            AskedAboutPlayer = player;
+            AskedAboutRun = run;
 
             return _attempt;
         }

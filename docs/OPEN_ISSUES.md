@@ -12,48 +12,51 @@ report. Where a figure came from a report and was later re-measured, the re-meas
 
 ## 1. 🔴 Blockers — these stop the game being playable end to end
 
-### 1.1 A battle cannot be fought · `M7-06b`
+### 1.1 A battle cannot be fought · `M7-06b` — ✅ **CLOSED**, and it closed twice
 
-**The hero's `ActorStats` cannot be built by anyone, and not because pieces are `internal` — the
-code does not exist at any accessibility.**
+**Closed in the domain by `M7-06b`** (2026-08-18): the gear→stat derivation was authored, and
+`HeroBuild` plus `RunBattle` were made public for the client to compose a hero through. The four
+bullets that used to stand here — no `AffixId → StatId` mapping, no gear `IEffectSource`, everything
+behind them `internal`, two production doc comments saying so — are all false as of that task.
 
-- There is no `AffixId → StatId`/`EffectOp` mapping anywhere in code or content.
-  `drops.json#/affixPool/affixes` carries only `{id, displayName, min, max, slots}`.
-- There is no gear/talent/pet `IEffectSource`. The only implementation, `ListEffectSource`, says in
-  its own remarks that it *"carries no notion of gear, a perk or a draft"*.
-- Behind that: `StatAggregation.Aggregate`, `HeroBaseCurve.At`, `GearStatDerivation`,
-  `GearCatalogue` and `LoadoutRules` are all `internal`.
-- Two production doc comments written **after** M4 landed gear say so outright
-  (`StartBattle.cs`, `ConfirmBattleResult.cs`).
+🔴 **And it stayed shipped-broken for another day, which is the part worth keeping.** Nothing came
+back to *call* any of it. `LocalBattleSimulation` went on returning
+`BattleReadiness.HeroStatsUnavailable` unconditionally, quoting the reasoning above in a named
+constant, and the client's own suite pinned that refusal in four cases whose justification quoted it
+again. So a run reached a fight and could not leave `RunPhase.BattlePending` — which refuses every
+other command, `ABANDON_RUN` included, so the profile could not start another run either. A player
+met it as a status line saying *"the part of the game that works out your hero's power is not
+finished… there is nothing to fix"*, about a feature that had shipped.
 
-**Consequence:** a run that enters a battle never leaves `RunPhase.BattlePending`. The replay screen
-renders, times, skips and confirms correctly against a real combat log — nothing can *feed* it one.
-So *"roll → move → fight → draft → results"* stops at the third verb.
+**Closed in the client on 2026-08-19** (`fix/battle-local-simulation`): the prediction calls
+`RunBattle.Simulate` through the same door `CONFIRM_BATTLE_RESULT` recomputes the fight through, the
+presenter hands it the profile row it had been reading and dropping, and the readiness state and its
+EN/DE sentence are retired with their schema entry. Verified against the product owner's own stuck
+save rather than off the unit tier: `phase=BattlePending → readiness=Ready`, a 49-tick fight,
+`Submitted`, `phase=InProgress`.
 
-**Shape of the fix:** larger than `M7-05b` was. That one only had to *expose* something that already
-existed; this must first **author the gear→stat derivation**, then decide its surface. It is a
-domain-surface decision, not a client fix.
+⚠️ **Two lessons, both already in this repository's own record.** The overstatement is the one the
+tracker logs against M3's exit criterion and again against M7's: *"the rules can fight"* was read as
+*"a player can reach a fight."* And it is `S25` exactly — a seam whose only caller is deferred is
+untested by construction — except the caller here was not deferred, it was **already written and
+pointing at the old answer**.
 
 ⚠️ **M3-05's tracker note is imprecise** and has been corrected: not *"no `ActorStats` buildable"*
 but *"no **hero** `ActorStats` buildable"*. A client *can* build **an** `ActorStats` today —
 `ActorStats.From` is public, `CombatSimulator.Simulate` is callable, and `tools/BalanceHarness`
 proves it from a separate assembly with no `InternalsVisibleTo`.
 
-### 1.2 A battle result is never verified · `M7-06c`
+### 1.2 A battle result is never verified · `M7-06c` — ✅ **CLOSED**
 
-`ConfirmBattleResult` shape-checks the client's `LogHash` with `NumberStyles.None` and **never
-recomputes it**. Any well-formed `ulong` with `Won: true` buys a full kill payout.
+`ConfirmBattleResult` **recomputes the fight** through `RunBattle.Simulate` and the server's answer
+wins; a mismatch raises no `RejectionReason`, emits no event and reaches no screen, and is tallied
+for the review queue instead (`14` §9's three clauses, the third included). `GameRules` refuses a
+stock change while a battle is pending, which is the other half of the same mechanism: without it,
+an equip between opening and confirming would legitimately change the fight and be indistinguishable
+from a forged log.
 
-`14` §9 makes the server authoritative and the client's copy explicitly untrusted, so this
-contradicts the security model rather than merely missing a nicety.
-
-⚠️ **Scope:** the in-process host *is* the server today, so this is not exploitable by a third party
-yet. It becomes so the moment **M5-15** swaps in HTTPS — which is exactly when it stops being cheap
-to fix.
-
-*Found by M7-06 while deciding what it was **not** allowed to fabricate. This is the concrete payoff
-of the "never fill a hole with a plausible value" rule: inventing a stat block would not merely have
-been dishonest, it would have walked straight through this hole.*
+*Kept rather than deleted because of what it demonstrates: the refusal to fabricate a stat block in
+`M7-06` is what stopped an invented block walking straight through this hole while it was open.*
 
 ---
 
@@ -191,7 +194,7 @@ caught were introduced by the fix pass itself and were green.** Worth a steering
 | | State |
 |---|---|
 | **M4** | Implementation complete, 8/8 tasks merged to `milestone/M4`. **Exit criterion met in part** — two clauses were blocked by X-09/X-10, both since fixed in M7. **No `milestone-review` has run.** |
-| **M7** | In progress. Merged: `M7-00a/b/d/e/f/g`, `M5-01`, `M5-02`, `M7-09`, `M7-01`, `M7-01b`, `M7-03`, `M7-04`, `M7-05`, `M7-05b`, `M7-06`. Remaining: `M7-07`, `M7-08`, `M7-11`, `M7-10`, plus queued `M7-00h`, `M7-06b`, `M7-06c`. |
+| **M7** | In progress. Everything listed here as remaining has since merged to `main` (the M4+M7 completion run, 2026-08-18): `M7-07`, `M7-08`, `M7-11`, `M7-10`, `M7-00h`, `M7-01c`, `M7-04b`, `M7-05c`, `M7-06b/c/d/e`, plus `M7-10y` and `M7-10z1`. **Remaining: `M7-10z`** — nothing can drive the client headlessly, so the desktop-export half of the exit criterion is unproven. |
 
 **M7's exit criterion will land partially met**, in the same shape as M4's:
 
@@ -200,7 +203,12 @@ caught were introduced by the fix pass itself and were green.** Worth a steering
 - ⛔ **A human playing two chapters on a physical handset** — no agent can attach to or tap a device.
   A product-owner acceptance step.
 - ⛔ **CI building the APK on a runner** — no git remote.
-- 🔴 **And a full run cannot yet be completed at all**, because of §1.1.
+- ✅ **A run can now roll, move, fight, draft and reach its results screen** — §1.1 is closed on both
+  sides as of 2026-08-19, the client half verified against a real save rather than off the unit tier.
+- 🔴 **Two tile kinds still dead-end a Chapter-1 run in the client**: `TILE_EVENT` (weight 8) and
+  `TILE_MINIGAME` (weight 7) are accepted by `RESOLVE_TILE` and not cleared, and neither S09 nor S10
+  exists as a screen, so the board submits neither `EVENT_CHOOSE` nor `MINIGAME_SUBMIT`. Same shape as
+  the fight bug, and no tracker row owns either screen.
 
 ---
 

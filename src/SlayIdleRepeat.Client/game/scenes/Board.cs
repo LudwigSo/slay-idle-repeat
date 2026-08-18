@@ -71,10 +71,13 @@ public partial class Board : Control
     private const string TheBattleDidNotCloseWhenItsReplayEnded =
         "A battle was still open when its replay handed control back, so it is not entered a second " +
         "time. The confirmation that closes a battle is the replay's last step, and it is not made " +
-        "when the fight could not be simulated at all — the hero's stat block is not something this " +
-        "build can assemble — or when the rules layer refused the result. Either way the run stays " +
-        "parked in the battle phase, which refuses every command except that confirmation, and a " +
-        "board that re-entered the replay on every read would trap the player between two screens.";
+        "when the fight could not be simulated at all — a corrupt battle counter, a simulator that " +
+        "threw, a log with no events — or when the rules layer refused the result. Either way the run " +
+        "stays parked in the battle phase, which refuses every command except that confirmation, and " +
+        "a board that re-entered the replay on every read would trap the player between two screens. " +
+        "This message reached a player once, for a whole milestone, because the shipped prediction " +
+        "refused every fight by construction: if it is on screen now, read the replay's own status " +
+        "line for which of the reasons it was.";
 
     /// <summary>
     /// 🔴 Named so the dead end can be found, and the exact counterpart of the battle's. A decision
