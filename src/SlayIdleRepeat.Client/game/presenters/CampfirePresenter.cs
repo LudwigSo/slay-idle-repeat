@@ -178,14 +178,15 @@ public sealed class CampfirePresenter
     /// The tile kind a shrine is, as the run reports it.
     /// </summary>
     /// <remarks>
-    /// 🔒 A transcription, for the same reason <see cref="BoardTileKinds"/> is one, and stated as an
-    /// INDEX into that table so a case can ask the table what sits here and fail the day a kind is
-    /// inserted above it.
+    /// 🔒 Read off the rules layer's own enum and NOT transcribed, for the reason
+    /// <see cref="ShopPresenter.ShopTileKind"/> states: the numbering is public, so a kind inserted
+    /// above this one renumbers the constant with it rather than leaving a literal pointing at
+    /// whatever moved into its slot.
     /// </remarks>
-    public const int ShrineTileKind = 3;
+    public const int ShrineTileKind = (int)TileKind.Shrine;
 
-    /// <summary>The tile kind a campfire is, as the run reports it. Transcribed with the one above.</summary>
-    public const int CampfireTileKind = 7;
+    /// <summary>The tile kind a campfire is, as the run reports it. Read with the one above.</summary>
+    public const int CampfireTileKind = (int)TileKind.Campfire;
 
     /// <summary>The index <c>CAMPFIRE_CHOOSE</c> carries for resting — the one option that works.</summary>
     private const int RestChoiceIndex = 0;

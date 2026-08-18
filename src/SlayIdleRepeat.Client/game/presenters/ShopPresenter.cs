@@ -3,6 +3,7 @@ using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
 
@@ -105,13 +106,14 @@ public sealed class ShopPresenter
     /// The tile kind a shop is, as the run reports it.
     /// </summary>
     /// <remarks>
-    /// 🔒 A transcription, for the same reason <see cref="BoardTileKinds"/> is one: the enum that
-    /// assigns each tile kind its number is internal to the rules assembly and nothing a client can
-    /// reference names it. It is transcribed as an INDEX into that table rather than as a bare
-    /// number, so the case that pins it can ask the table what sits at this index and fail the day
-    /// a kind is inserted above it.
+    /// 🔒 Read off the rules layer's own enum and NOT transcribed. The pending tile arrives as a
+    /// bare number, but the enum that assigns each kind its number is public and this project
+    /// already names it — so a kind inserted above this one renumbers this constant with it, where a
+    /// copied literal would go on naming whatever had moved into slot six. That silent renumbering
+    /// is the one residue <see cref="BoardTileKinds"/> cannot close for the table it must transcribe,
+    /// and it is not a price worth paying where nothing forces it.
     /// </remarks>
-    public const int ShopTileKind = 6;
+    public const int ShopTileKind = (int)TileKind.Shop;
 
     /// <summary>
     /// How many buy slots this screen draws. 🔒 Zero, and it is a stated number rather than an

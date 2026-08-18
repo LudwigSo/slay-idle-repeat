@@ -31,11 +31,11 @@ public sealed class CampfirePresenterTests
     private static readonly PlayerId Player = new("PLAYER_camp_9b7d");
     private static readonly RunId Run = new("RUN_camp_04fe");
 
-    // ---- the transcriptions ---------------------------------------------------------------------
+    // ---- the two readings of one numbering --------------------------------------------------------
 
     /// <summary>
-    /// 🔒 Both tile kinds this screen opens on are transcriptions of a rules-internal enum, and this
-    /// ties them to the one table that already transcribes the whole enum.
+    /// 🔒 Both tile kinds this screen opens on are read off the rules layer's own enum, and this
+    /// holds that reading against the table the client transcribes the whole enum into.
     /// </summary>
     [Theory]
     [InlineData(CampfirePresenter.CampfireTileKind, "loc.tile.campfire.name")]
@@ -45,10 +45,11 @@ public sealed class CampfirePresenterTests
     {
         BoardTileKinds.NameKeyFor(kind).ShouldBe(
             expectedNameKey,
-            "this screen transcribes two tile kinds as bare numbers, and the only thing that can " +
-            "notice either going stale is the table that transcribes all fourteen. If this is red a " +
-            "kind was inserted or reordered, and the screen now opens one of its arms on the wrong " +
-            "tile — which for the shrine arm means projecting a draw that will never be applied.");
+            "this screen reads two tile kinds off the rules layer's enum and the shared table " +
+            "transcribes that same numbering, so this is the one place the two can be held against " +
+            "each other. If this is red a kind was inserted or reordered, and either the table is " +
+            "stale or the screen now opens one of its arms on the wrong tile — which for the shrine " +
+            "arm means projecting a draw that will never be applied.");
     }
 
     // ---- the two arms never overlap ---------------------------------------------------------------

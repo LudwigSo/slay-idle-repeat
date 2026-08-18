@@ -29,23 +29,25 @@ public sealed class ShopPresenterTests
     // ---- the transcription --------------------------------------------------------------------
 
     /// <summary>
-    /// 🔒 The tile kind this screen opens on is a transcription of a rules-internal enum, and this
-    /// is what ties it to the one table that already transcribes the whole enum.
+    /// 🔒 The tile kind this screen opens on is read off the rules layer's own enum, and this is
+    /// what ties that reading to the table the client transcribes the whole enum into.
     /// </summary>
     /// <remarks>
-    /// A bare <c>6</c> in a presenter agrees with itself forever. Asking the shared table what sits
-    /// at that index turns a kind inserted above the shop into a failing case here, rather than into
-    /// a shop screen that opens on treasure.
+    /// Two independent readings of one numbering, so the case has something to compare. A bare
+    /// <c>6</c> on both sides would agree with itself through any reordering; a constant that moves
+    /// with the enum turns an insertion — and a swap of two adjacent kinds, which a pair of
+    /// transcriptions cannot see at all — into a failing case here rather than into a shop screen
+    /// that opens on treasure.
     /// </remarks>
     [Fact]
     public void The_tile_kind_this_screen_opens_on_is_the_one_the_shared_table_calls_a_shop()
     {
         BoardTileKinds.NameKeyFor(ShopPresenter.ShopTileKind).ShouldBe(
             "loc.tile.shop.name",
-            "the shop screen transcribes its tile kind as a number, and the only thing that can " +
-            "notice the number going stale is the table that transcribes all fourteen. If this is " +
-            "red a tile kind was inserted or reordered, and this screen now opens on whatever took " +
-            "the shop's place.");
+            "the shop screen reads its tile kind off the rules layer's enum and the shared table " +
+            "transcribes that same numbering, so this is the one place the two can be held against " +
+            "each other. If this is red a tile kind was inserted or reordered, and either the table " +
+            "is stale or this screen now opens on whatever took the shop's place.");
     }
 
     // ---- the absence the screen exists to state ------------------------------------------------
