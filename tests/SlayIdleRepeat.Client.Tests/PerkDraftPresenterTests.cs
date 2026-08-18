@@ -190,6 +190,50 @@ public sealed class PerkDraftPresenterTests
             $"[{string.Join(" | ", authored)}]");
     }
 
+    /// <summary>
+    /// 🔒 The five ways this screen has of saying something is not there are five different
+    /// sentences, <b>as authored</b>.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Stated over the shipped locale, never over the fixture, for the reason the case above
+    /// gives about its own four. The claim is about what a player reads, and these five are five
+    /// completely different situations: the run has no draft; the cards could not be projected at
+    /// all; the cards are there and one of them cannot state its numbers; the run could not be
+    /// found; and the read never answered. A player told "the cards are unavailable" when the truth
+    /// is "this one perk's numbers are unauthored" is being told the screen is broken when two of
+    /// its three cards are perfectly good — and the reverse sends them looking at three cards that
+    /// are not there.
+    /// </remarks>
+    [Fact]
+    public void The_five_ways_this_screen_says_something_is_missing_are_five_different_authored_sentences()
+    {
+        string[] keys =
+        [
+            RunDecisionContent.DraftNoDraftStatusKey,
+            RunDecisionContent.DraftCardsUnavailableStatusKey,
+            RunDecisionContent.DraftEffectNumbersUnavailableStatusKey,
+            RunDecisionContent.DraftRunMissingStatusKey,
+            RunDecisionContent.DraftReadUnavailableStatusKey,
+        ];
+
+        var authored = keys.Select(key =>
+        {
+            RunDecisionContent.ShippedEnglish.TryGetValue(key, out var sentence).ShouldBeTrue(
+                $"'{key}' is not in the shipped English locale, so one of the five ways this screen " +
+                "can come to nothing has no sentence and a player meeting it is shown its key.");
+
+            return sentence!;
+        }).ToArray();
+
+        authored.ShouldAllBe(sentence => sentence.Length > 0);
+        authored.Distinct(StringComparer.Ordinal).Count().ShouldBe(
+            authored.Length,
+            "two of the five are AUTHORED the same, so two unrelated failures read as one thing. " +
+            "The absence a CARD names — its numbers are unauthored, on a card that is otherwise " +
+            "fine — is the one most easily written as a copy of its neighbour, and copied it tells " +
+            $"a player the whole draft failed: [{string.Join(" | ", authored)}]");
+    }
+
     // ---- the read ------------------------------------------------------------------------------
 
     [Fact]
@@ -214,6 +258,32 @@ public sealed class PerkDraftPresenterTests
 
         host.ReadRun.ShouldBe(Run);
         host.ReadPlayer.ShouldBe(Player);
+    }
+
+    /// <summary>
+    /// 🔒 <b>The cold start reads the run ONCE.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Pinned because nothing else here can see a second one. Every other case about the read
+    /// asks what the screen ended up showing, and a screen that read twice shows exactly the same
+    /// thing — so a duplicated read is invisible to the whole suite while costing a real round trip
+    /// on the tile a run's whole build is chosen on, and doubling the window in which the run can
+    /// move underneath the cards. The no-auto-advance rule above pins SUBMISSIONS at zero and says
+    /// nothing about reads.
+    /// </remarks>
+    [Fact]
+    public async Task A_cold_start_reads_the_run_exactly_once()
+    {
+        var host = RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen());
+        var presenter = Build(host, BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        host.ReadCallCount.ShouldBe(
+            1,
+            "opening this screen cost more than one read of the same run. Every card, every price " +
+            "and every absence on it comes out of one answer, so a second call is a second round " +
+            "trip that changes nothing a player sees.");
     }
 
     /// <summary>
@@ -404,6 +474,139 @@ public sealed class PerkDraftPresenterTests
             RunDecisionContent.EnglishValueOf(RunDecisionContent.DraftEffectNumbersUnavailableStatusKey),
             "the sentence could not be completed, so the card says so. Anything else here is either " +
             "a template with a token still visible in it or a number this build invented.");
+    }
+
+    // ---- the synergy hint -------------------------------------------------------------------------
+
+    /// <summary>
+    /// 🔒 <b>A synergy hint names the owned perk, never its id.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The projection carries <c>PK_*</c> ids, because that is what a run stores and what a log
+    /// needs. A card that drew them raw would read "Works with PK_APEX" — a database row shown to
+    /// somebody playing a game. Naming one is a catalogue lookup against the loaded content set,
+    /// which this side of the boundary holds and a scene does not, so the resolution has to happen
+    /// here or not at all.
+    /// <para>
+    /// 🔒 Stated over the SHIPPED catalogue and with the id and the name proven different, so the
+    /// case cannot pass by the two happening to be the same string.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_synergy_hint_names_the_owned_perk_rather_than_carrying_its_id()
+    {
+        var presenter = Build(RecordingGameHost.FindingNoSuchPlayer(), BootContent.Shipped);
+        var owned = PerkCatalogue.Read(BootContent.Shipped).All[0];
+
+        owned.Name.ShouldNotBe(
+            owned.Id,
+            "the shipped catalogue authors this perk's name and its id identically, so this case " +
+            "could not tell a hint that resolved the name from one that printed the id. Pick a row " +
+            "whose two differ rather than deleting the assertion.");
+
+        var hint = presenter.SynergyLine(Card(synergy: [owned.Id]));
+
+        hint.ShouldBe(
+            owned.Name,
+            "the hint is what a player reads, so it carries the perk's authored name. Anything else " +
+            "here is the run's storage key on a card.");
+        hint.ShouldNotContain(
+            owned.Id,
+            Case.Sensitive,
+            "and the id is not in it anywhere — not appended, not in brackets after the name.");
+    }
+
+    /// <summary>Several owned perks are all named, in the order the projection lists them.</summary>
+    [Fact]
+    public void A_hint_naming_several_owned_perks_names_every_one_of_them()
+    {
+        var presenter = Build(RecordingGameHost.FindingNoSuchPlayer(), BootContent.Shipped);
+        var catalogue = PerkCatalogue.Read(BootContent.Shipped);
+        var owned = catalogue.All.Take(2).ToArray();
+
+        var hint = presenter.SynergyLine(Card(synergy: [owned[0].Id, owned[1].Id]));
+
+        hint.ShouldContain(owned[0].Name, Case.Sensitive);
+        hint.ShouldContain(owned[1].Name, Case.Sensitive);
+        hint.ShouldNotContain(
+            "PK_",
+            Case.Sensitive,
+            "one of the two was left as an id, so a hint drops to raw storage keys as soon as it " +
+            $"has more than one perk in it: '{hint}'");
+    }
+
+    /// <summary>A card interacting with nothing has no hint at all, rather than an empty label.</summary>
+    [Fact]
+    public void A_card_with_no_synergy_has_no_hint()
+    {
+        var presenter = Build(RecordingGameHost.FindingNoSuchPlayer(), BootContent.Shipped);
+
+        presenter.SynergyLine(Card()).ShouldBeEmpty(
+            "the scene shows the hint row exactly when this line has something in it, so a card " +
+            "with no interaction has to answer with nothing rather than with a separator.");
+    }
+
+    // ---- how a number is written ------------------------------------------------------------------
+
+    /// <summary>
+    /// 🔒 <b>Every number this screen shows goes through the one number rule.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Stated against <c>PlayerNumber</c> rather than against a literal, so the case is about the
+    /// screen OBEYING the rule and not a second transcription of it — a screen that grew its own
+    /// slightly different shortening would still satisfy a literal.
+    /// </remarks>
+    [Theory]
+    [InlineData(9_999L)]
+    [InlineData(10_000L)]
+    [InlineData(10_001L)]
+    [InlineData(12_400L)]
+    [InlineData(3_100_000L)]
+    public async Task The_three_numbers_on_this_screen_are_written_the_way_a_player_reads_them(long gold)
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen(gold: gold)),
+            BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.GoldText.ShouldBe(PlayerNumber.Abbreviated(presenter.Gold));
+        presenter.RerollGoldCostText.ShouldBe(PlayerNumber.Abbreviated(presenter.RerollGoldCost));
+        presenter.SkipGoldRewardText.ShouldBe(PlayerNumber.Abbreviated(presenter.SkipGoldReward));
+    }
+
+    /// <summary>
+    /// 🔒 And the exact value comes back while the readout is held, which is the half of the rule a
+    /// shortening alone would lose.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The Gold here is deliberately past the boundary, so the two forms genuinely differ. Below
+    /// it they are the same string and a case stated over a small balance would pass over a screen
+    /// with no reveal in it at all.
+    /// </remarks>
+    [Fact]
+    public async Task Holding_a_number_shows_its_exact_value_and_letting_go_shortens_it_again()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(AnyPlayer(), WithADraftOpen(gold: 12_400)),
+            BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.FullValuesRevealed.ShouldBeFalse("nothing is being held yet.");
+        presenter.GoldText.ShouldBe("12.4k");
+
+        presenter.RevealFullValues();
+
+        presenter.FullValuesRevealed.ShouldBeTrue();
+        presenter.GoldText.ShouldBe(
+            "12400",
+            "a long press returns the exact value, and a screen that shortened a number with no way " +
+            "back to it has rounded a balance the player is about to spend.");
+
+        presenter.ConcealFullValues();
+
+        presenter.GoldText.ShouldBe("12.4k", "and letting go puts the shortened form back.");
     }
 
     [Fact]
@@ -728,7 +931,8 @@ public sealed class PerkDraftPresenterTests
         int tier = 1,
         bool isUpgrade = false,
         string? effectText = "Fixture effect.",
-        IReadOnlyList<string>? unresolved = null) =>
+        IReadOnlyList<string>? unresolved = null,
+        IReadOnlyList<string>? synergy = null) =>
         new(
             OptionIndex: 0,
             PerkId: "PK_FIXTURE",
@@ -740,7 +944,7 @@ public sealed class PerkDraftPresenterTests
             NewTier: tier,
             EffectText: effectText,
             UnresolvedTokens: unresolved ?? [],
-            SynergyPerkIds: []);
+            SynergyPerkIds: synergy ?? []);
 
     private static PerkDraftPresenter Build(RecordingGameHost host, ContentSnapshot? content = null)
     {

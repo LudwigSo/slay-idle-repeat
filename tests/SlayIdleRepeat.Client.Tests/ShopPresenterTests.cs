@@ -157,6 +157,29 @@ public sealed class ShopPresenterTests
         host.ReadPlayer.ShouldBe(Player);
     }
 
+    /// <summary>
+    /// 🔒 <b>The cold start reads the run ONCE.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Pinned because nothing else here can see a second one. Every other case about the read
+    /// asks what the screen ended up showing, and a screen that read twice shows exactly the same
+    /// thing — so a duplicated read is invisible to the whole suite while costing a real round trip
+    /// on a screen whose entire content is one sentence and one button.
+    /// </remarks>
+    [Fact]
+    public async Task A_cold_start_reads_the_run_exactly_once()
+    {
+        var host = RecordingGameHost.Finding(AnyPlayer(), AtAShop());
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        host.ReadCallCount.ShouldBe(
+            1,
+            "opening this screen cost more than one read of the same run. Everything it draws comes " +
+            "out of one answer, so a second call is a second round trip that changes nothing.");
+    }
+
     [Fact]
     public async Task A_run_standing_on_a_shop_puts_the_screen_on_its_ready_arm()
     {

@@ -1,4 +1,3 @@
-using System.Globalization;
 using Godot;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Content.Perks;
@@ -132,8 +131,19 @@ public partial class PerkDraft : Control
     /// <summary>Separates a price from the balance it is read against, as the board separates HP.</summary>
     private const char OverSeparator = '/';
 
-    /// <summary>Joins the owned perks one card interacts with, in the order the projection lists them.</summary>
-    private const string SynergyJoin = " · ";
+    /// <summary>Joins one card's unresolved tokens on the log line, where several may pile up.</summary>
+    private const string LogJoin = " · ";
+
+    /// <summary>
+    /// How long a number has to be held before its exact value replaces its shortened one.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ This task's choice of number and the only gesture timing on this screen. It is a press
+    /// LENGTH rather than an animation, so the design's transition ceiling does not bind it; it is
+    /// set long enough that a tap meant for the control underneath is never read as a hold, and short
+    /// enough that a player who wants the exact figure is not made to wait for it.
+    /// </remarks>
+    private const double LongPressSeconds = 0.4;
 
     /// <summary>How wide an upgrade card's border is drawn, against six for every other card.</summary>
     private const int UpgradeBorderWidth = 8;
@@ -209,6 +219,14 @@ public partial class PerkDraft : Control
     /// <summary>Whether a submission is in flight, so a second press cannot start another.</summary>
     private bool _busy;
 
+    /// <summary>Whether one of the two numbers is being held right now.</summary>
+    /// <remarks>
+    /// 🔒 Read by the hold timer when it elapses, and cleared on teardown as well as on release. A
+    /// timer created by the tree outlives the node that asked for it, so this flag is what stops a
+    /// hold started just before the screen closed from reaching a presenter nobody is looking at.
+    /// </remarks>
+    private bool _holdingANumber;
+
     /// <summary>Takes the presenter, the board to hand back to, and the app's shutdown token.</summary>
     /// <param name="presenter">Drives this screen.</param>
     /// <param name="board">The board the draft was entered from, returned to once it closes.</param>
@@ -251,6 +269,12 @@ public partial class PerkDraft : Control
         _skipButton.Pressed += OnSkipPressed;
         _ground.GuiInput += OnGroundInput;
 
+        // The two readouts that carry a number, and the only two controls here that answer a hold
+        // rather than a press. Both take input in the scene file for it; a label that ignores the
+        // pointer would leave the exact value unreachable with nothing red anywhere.
+        _rerollCostValue.GuiInput += OnNumberInput;
+        _skipRewardValue.GuiInput += OnNumberInput;
+
         // Painted once, because nothing about which colour belongs to which state changes while the
         // screen is up. It is painted at all because a Button draws its text by draw mode, and the
         // disabled mode two of these three spend their whole life in has an engine default of
@@ -289,6 +313,20 @@ public partial class PerkDraft : Control
         {
             _ground.GuiInput -= OnGroundInput;
         }
+
+        if (_rerollCostValue is not null)
+        {
+            _rerollCostValue.GuiInput -= OnNumberInput;
+        }
+
+        if (_skipRewardValue is not null)
+        {
+            _skipRewardValue.GuiInput -= OnNumberInput;
+        }
+
+        // Cleared here as well as on release: a hold timer already running belongs to the tree and
+        // fires whether this screen is still there or not.
+        _holdingANumber = false;
 
         FinishIntro();
     }
@@ -365,17 +403,18 @@ public partial class PerkDraft : Control
 
         // The price, then the balance it is read against — the board's own idiom for a pair of
         // numbers that belong together, and the only honest way to show a Gold balance on a screen
-        // whose string set authors a caption for the price and none for the purse.
+        // whose string set authors a caption for the price and none for the purse. Both come off the
+        // presenter already written the way a player reads them: shortened past ten thousand, exact
+        // while the readout is being held.
         _rerollCostValue.Text =
-            $"{presenter.RerollGoldCost.ToString(CultureInfo.InvariantCulture)}" +
-            $"{OverSeparator}{presenter.Gold.ToString(CultureInfo.InvariantCulture)}";
+            $"{presenter.RerollGoldCostText}{OverSeparator}{presenter.GoldText}";
 
         _rerollButton.Text = presenter.RerollText;
         _rerollButton.Disabled = _busy || presenter.Stage != PerkDraftStage.Ready;
         _freeRerollBlockLabel.Text = presenter.FreeRerollBlockText;
 
         _skipRewardLabel.Text = presenter.SkipRewardLabel;
-        _skipRewardValue.Text = presenter.SkipGoldReward.ToString(CultureInfo.InvariantCulture);
+        _skipRewardValue.Text = presenter.SkipGoldRewardText;
 
         _skipButton.Text = presenter.SkipText;
         _skipButton.Disabled = _busy || presenter.Stage != PerkDraftStage.Ready;
@@ -466,12 +505,15 @@ public partial class PerkDraft : Control
 
         var synergyRow = card.GetNode<Control>(CardSynergyRowPath);
 
-        // 🔴 The projection carries the owned perks' IDS and no names, so the hint reads as ids.
-        // Resolving one is a catalogue lookup against the loaded content set — which the presenter
-        // holds and a scene may not — so it is named as owed rather than done badly here.
-        synergyRow.Visible = offer.SynergyPerkIds.Count > 0;
+        // 🔒 The hint comes off the presenter already NAMED. The projection carries PK_* ids because
+        // that is what a run stores; resolving one to the perk's own name is a catalogue lookup
+        // against the loaded content set, which the presenter holds and a scene may not — so the ids
+        // never reach this side except on the log line at the bottom of this file.
+        var hint = presenter.SynergyLine(offer);
+
+        synergyRow.Visible = hint.Length > 0;
         card.GetNode<Label>(CardSynergyLabelPath).Text = presenter.SynergyLabel;
-        card.GetNode<Label>(CardSynergyValuePath).Text = string.Join(SynergyJoin, offer.SynergyPerkIds);
+        card.GetNode<Label>(CardSynergyValuePath).Text = hint;
 
         var press = card.GetNode<Button>(CardPressButtonPath);
 
@@ -624,6 +666,71 @@ public partial class PerkDraft : Control
         }
     }
 
+    /// <summary>
+    /// A number held down shows its exact value; letting go puts the shortened one back.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Only the gesture is here. Which form each number takes is the presenter's answer, so what
+    /// this file decides is the single fact an engine event carries — whether the finger is down —
+    /// and nothing about how a number is written.
+    /// </remarks>
+    /// <param name="event">The input one of the two readouts received.</param>
+    private void OnNumberInput(InputEvent @event)
+    {
+        switch (@event)
+        {
+            case InputEventMouseButton { ButtonIndex: MouseButton.Left } mouse:
+                HoldNumber(mouse.Pressed);
+                break;
+
+            case InputEventScreenTouch touch:
+                HoldNumber(touch.Pressed);
+                break;
+        }
+    }
+
+    private void HoldNumber(bool pressed)
+    {
+        _holdingANumber = pressed;
+
+        if (!pressed)
+        {
+            _presenter?.ConcealFullValues();
+            Render();
+
+            return;
+        }
+
+        // The tree's timer rather than a node of this screen's own: it is one shot, it is created on
+        // the press and it is gone after it, so a timer node would be a permanent child kept for a
+        // gesture most players never make.
+        var hold = GetTree()?.CreateTimer(LongPressSeconds);
+
+        if (hold is null)
+        {
+            GD.PushError("A perk draft number was held while the screen was outside the tree.");
+
+            return;
+        }
+
+        hold.Timeout += OnHoldElapsed;
+    }
+
+    /// <remarks>
+    /// The flag is read FIRST, and it is cleared on teardown as well as on release: this timer
+    /// belongs to the tree and fires whether or not the screen that asked for it is still there.
+    /// </remarks>
+    private void OnHoldElapsed()
+    {
+        if (!_holdingANumber || !IsInstanceValid(this) || _presenter is not { } presenter)
+        {
+            return;
+        }
+
+        presenter.RevealFullValues();
+        Render();
+    }
+
     /// <remarks>
     /// Every control is taken out of use for the whole round trip and put back once, on one path. A
     /// second press landing mid-flight would submit a command against a run the first has already
@@ -693,7 +800,7 @@ public partial class PerkDraft : Control
     private static void Report(PerkDraftPresenter presenter)
     {
         var unresolved = string.Join(
-            SynergyJoin,
+            LogJoin,
             presenter.Cards
                      .Where(card => card.UnresolvedTokens.Count > 0)
                      .Select(card => $"{card.PerkId}:{string.Join(',', card.UnresolvedTokens)}"));

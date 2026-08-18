@@ -191,6 +191,33 @@ public sealed class CampfirePresenterTests
         host.ReadPlayer.ShouldBe(Player);
     }
 
+    /// <summary>
+    /// 🔒 <b>The cold start reads the run ONCE, on either arm.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Pinned because nothing else here can see a second one. Every other case about the read
+    /// asks which arm the screen settled on, and a screen that read twice settles on exactly the
+    /// same arm — so a duplicated read is invisible to the whole suite while costing a real round
+    /// trip. Both arms are named because they are two branches of one settle and either could grow
+    /// a read of its own.
+    /// </remarks>
+    [Theory]
+    [InlineData(CampfirePresenter.CampfireTileKind)]
+    [InlineData(CampfirePresenter.ShrineTileKind)]
+    public async Task A_cold_start_reads_the_run_exactly_once(int tileKind)
+    {
+        var host = RecordingGameHost.Finding(AnyPlayer(), OnTile(tileKind));
+        var presenter = Build(host, BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        host.ReadCallCount.ShouldBe(
+            1,
+            "opening this screen cost more than one read of the same run. Which arm it is, the " +
+            "options it offers and the rows the shrine drew all come out of one answer, so a second " +
+            "call is a second round trip that changes nothing a player sees.");
+    }
+
     [Fact]
     public async Task A_read_that_finds_no_run_says_so()
     {
@@ -579,6 +606,10 @@ public sealed class CampfirePresenterTests
             pendingTileKind: CampfirePresenter.ShrineTileKind,
             pendingTileLinearIndex: 5,
             pendingTileStage: 1);
+
+    /// <summary>Either arm's run, for the cases whose claim holds on both.</summary>
+    private static RunSnapshot OnTile(int tileKind) =>
+        tileKind == CampfirePresenter.ShrineTileKind ? AtAShrine() : AtACampfire();
 
     private static CampfirePresenter Build(RecordingGameHost host, ContentSnapshot? content = null)
     {

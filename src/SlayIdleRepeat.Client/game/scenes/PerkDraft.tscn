@@ -155,9 +155,12 @@ autowrap_mode = 3
 
 [node name="RerollCostValue" type="Label" parent="SafeArea/Column/ActionColumn/RerollCostRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
+mouse_filter = 0
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 40
+vertical_alignment = 1
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
@@ -190,9 +193,12 @@ autowrap_mode = 3
 
 [node name="SkipRewardValue" type="Label" parent="SafeArea/Column/ActionColumn/SkipRewardRow"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(144, 144)
 layout_mode = 2
+mouse_filter = 0
 theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
 theme_override_font_sizes/font_size = 40
+vertical_alignment = 1
 horizontal_alignment = 2
 text_overrun_behavior = 3
 

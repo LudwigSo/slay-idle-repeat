@@ -67,7 +67,11 @@ public enum PerkDraftSubmission
 /// <param name="UnresolvedTokens">
 /// The tokens that stopped the sentence, for the log. Empty on a card that rendered.
 /// </param>
-/// <param name="SynergyPerkIds">Owned perks this option interacts with. Empty when there are none.</param>
+/// <param name="SynergyPerkIds">
+/// Owned perks this option interacts with, as the projection carries them — <c>PK_*</c> IDS, for the
+/// log. 🔒 Never drawn: <see cref="PerkDraftPresenter.SynergyLine"/> is what a card shows, and it
+/// names each of these through the catalogue.
+/// </param>
 public sealed record PerkDraftCard(
     int OptionIndex,
     string PerkId,
@@ -170,6 +174,9 @@ public sealed class PerkDraftPresenter
     /// <summary>The status line of a screen that has nothing left to say.</summary>
     private const string NothingLeftToSay = "";
 
+    /// <summary>Joins the owned perks one card interacts with, in the order the projection lists them.</summary>
+    private const string SynergyJoin = " · ";
+
     /// <summary>
     /// The tier badge's numerals, indexed from tier one.
     /// </summary>
@@ -187,6 +194,17 @@ public sealed class PerkDraftPresenter
     private readonly ContentSnapshot _content;
     private readonly PlayerId _player;
     private readonly RunId _run;
+
+    /// <summary>
+    /// The perk catalogue, read once and kept, because a synergy hint is a lookup per card per
+    /// redraw and this screen redraws twice for every press.
+    /// </summary>
+    /// <remarks>
+    /// Safe to keep for exactly as long as this screen lives: the snapshot it is read out of is the
+    /// one this presenter was built against and never changes underneath it. Null while nothing has
+    /// asked, and null again after a read that could not answer — see <see cref="SynergyLine"/>.
+    /// </remarks>
+    private PerkCatalogue? _catalogue;
 
     private bool _submissionInFlight;
 
@@ -255,6 +273,28 @@ public sealed class PerkDraftPresenter
 
     /// <summary>The run's Gold balance, which is what the reroll's price is read against.</summary>
     public long Gold { get; private set; }
+
+    /// <summary>
+    /// Whether the three numbers below are showing their exact values rather than their shortened
+    /// ones.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The state lives here rather than in the scene, because "which form is on the page" is the
+    /// half of this rule that can be proven. The gesture that sets it is the scene's — a long press
+    /// is an engine event — but what a long press MEANS to the numbers is decided where a test can
+    /// read it, and a screen that shortened a number with no way back to the exact one would be
+    /// rounding a price a player is about to pay.
+    /// </remarks>
+    public bool FullValuesRevealed { get; private set; }
+
+    /// <summary>The Gold a reroll costs, as a player reads it.</summary>
+    public string RerollGoldCostText => Readout(RerollGoldCost);
+
+    /// <summary>The Gold a skip pays, as a player reads it.</summary>
+    public string SkipGoldRewardText => Readout(SkipGoldReward);
+
+    /// <summary>The run's Gold balance, as a player reads it.</summary>
+    public string GoldText => Readout(Gold);
 
 
     /// <summary>Whether the ad reroll may be taken. 🔒 Never — see <see cref="TheAdRewardCommandIsDeferred"/>.</summary>
@@ -367,6 +407,53 @@ public sealed class PerkDraftPresenter
 
         return card.EffectText ?? _strings.Resolve(EffectNumbersUnavailableStatusKey);
     }
+
+    /// <summary>
+    /// The owned perks one card interacts with, <b>by name</b>, or empty when it interacts with none.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Named here because only here can be.</b> The projection carries <c>PK_*</c> ids — they
+    /// are what a run stores and what a log needs — and a hint reading "Works with PK_APEX" names a
+    /// database row at somebody playing a game. Turning one into the perk's own authored name is a
+    /// catalogue lookup against the loaded content set, which this side of the boundary holds and a
+    /// scene does not.
+    /// <para>
+    /// An id the catalogue cannot name is dropped rather than printed: it can only appear on a run
+    /// that outlived the content version which authored it, the projection already excludes those
+    /// from a hint, and an id shown raw is the exact thing this member exists to prevent. Empty for
+    /// a content set with no catalogue at all — a state in which no card exists to hint about, since
+    /// <see cref="CardsAvailable"/> is false for the same read failure.
+    /// </para>
+    /// </remarks>
+    /// <param name="card">The card to hint for.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="card"/> is null.</exception>
+    public string SynergyLine(PerkDraftCard card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+
+        if (card.SynergyPerkIds.Count == 0 || Catalogue() is not { } catalogue)
+        {
+            return NothingLeftToSay;
+        }
+
+        var names = new List<string>(card.SynergyPerkIds.Count);
+
+        foreach (var perkId in card.SynergyPerkIds)
+        {
+            if (catalogue.Contains(perkId))
+            {
+                names.Add(catalogue.Find(perkId).Name);
+            }
+        }
+
+        return string.Join(SynergyJoin, names);
+    }
+
+    /// <summary>Shows the exact value of every number on this screen — a long press is holding it.</summary>
+    public void RevealFullValues() => FullValuesRevealed = true;
+
+    /// <summary>And puts the shortened form back, which is what the press ending means.</summary>
+    public void ConcealFullValues() => FullValuesRevealed = false;
 
     /// <summary>Reads the run this screen is about and projects the draft it has open.</summary>
     /// <param name="ct">Cancellation.</param>
@@ -563,6 +650,34 @@ public sealed class PerkDraftPresenter
         }
 
         return Array.AsReadOnly(cards);
+    }
+
+    /// <summary>Whichever form of a number this screen is currently showing.</summary>
+    private string Readout(long value) =>
+        FullValuesRevealed ? PlayerNumber.Full(value) : PlayerNumber.Abbreviated(value);
+
+    /// <remarks>
+    /// See <see cref="CardsAvailable"/> for why only a content read's failure is caught: a set with
+    /// no catalogue is a screen that has already said so, and a hint is not the place to learn it a
+    /// second time.
+    /// </remarks>
+    private PerkCatalogue? Catalogue()
+    {
+        if (_catalogue is not null)
+        {
+            return _catalogue;
+        }
+
+        try
+        {
+            _catalogue = PerkCatalogue.Read(_content);
+        }
+        catch (ContentException)
+        {
+            return null;
+        }
+
+        return _catalogue;
     }
 
     /// <remarks>
