@@ -2,6 +2,7 @@ using SlayIdleRepeat.Adapters.Ads.AutoGrant;
 using SlayIdleRepeat.Adapters.Ambient.System;
 using SlayIdleRepeat.Adapters.Cache.LocalFile;
 using SlayIdleRepeat.Adapters.Content.LocalFile;
+using SlayIdleRepeat.Adapters.Content.Packed;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
@@ -137,14 +138,17 @@ public static class ClientComposition
     /// host was started with.
     /// </summary>
     /// <param name="cacheDirectoryPath">Absolute path of the writable directory the local profile lives in.</param>
-    /// <param name="contentDataRootPath">Absolute path of the directory holding the game-data mirror.</param>
+    /// <param name="contentSource">
+    /// Where the content set is read from — see <see cref="SelectContentSource"/>, which is what
+    /// decides between a checkout on disk and a packed artefact.
+    /// </param>
     /// <param name="entitlements">The resolved entitlement. Never inferred from a local receipt.</param>
     /// <param name="featureFlags">The resolved feature flags.</param>
     /// <exception cref="ArgumentException">A path is null, empty or whitespace.</exception>
     /// <exception cref="ArgumentNullException">An ambience value is null.</exception>
     public static ComposedClient Compose(
         string cacheDirectoryPath,
-        string contentDataRootPath,
+        IContentSourcePort contentSource,
         Entitlements entitlements,
         FeatureFlags featureFlags)
     {
@@ -152,7 +156,7 @@ public static class ClientComposition
         // construction, so a root that validated as it went would leave a directory behind for a
         // call it then refused.
         ArgumentException.ThrowIfNullOrWhiteSpace(cacheDirectoryPath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(contentDataRootPath);
+        ArgumentNullException.ThrowIfNull(contentSource);
         ArgumentNullException.ThrowIfNull(entitlements);
         ArgumentNullException.ThrowIfNull(featureFlags);
 
@@ -160,7 +164,7 @@ public static class ClientComposition
         // remains, and every DE value is one today — a shipping load here would refuse to start
         // the game rather than refuse to release it.
         var content = new ContentProvider(
-            new LocalFileContentSource(contentDataRootPath),
+            contentSource,
             ContentLoadOptions.Canonical,
             ContentReloadPolicy.Disabled);
 
@@ -200,6 +204,49 @@ public static class ClientComposition
         return entitlements.HasPlus
             ? new RewardedAdSelection(RewardedAdArm.PlusAutoGrant, new AutoGrantRewardedAd())
             : NoAdNetworkResolved();
+    }
+
+    /// <summary>
+    /// Chooses where the content set is read from: the checkout on disk when there is one, and the
+    /// packed artefact otherwise.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>M7-10y. Until this existed, an exported build had no content at all.</b>
+    /// <c>LocalFileContentSource</c> reads <c>game-data</c> with <c>System.IO</c>, which is right in a
+    /// checkout and in the editor and impossible once the tree is packed — measured against a real
+    /// desktop export, which started and then died at <c>AppRoot</c> because <c>res://data</c>
+    /// globalises to a path that is not on disk. <c>PackedContentSource</c> is the other route and
+    /// this is the one place that picks between them.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Decided by PROBING THE DISK, never by a platform symbol or a build configuration.</b>
+    /// The question is a physical one — is the mirror there — and the answer differs between two runs
+    /// of the same binary: a desktop export that ships <c>data/</c> loose and one that packs it are
+    /// both Windows release builds. An <c>#if</c> would be right for one of them and silently wrong for
+    /// the other, and being wrong here means a game with no content.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Disk wins when both are available, and that ordering is deliberate.</b> In the editor
+    /// the mirror is on disk AND reachable through the engine, and the disk route is the one whose
+    /// revision moves with an edit — so a developer changing a tuning value sees it. The packed route
+    /// cannot offer that, because a mounted archive never changes.
+    /// </para>
+    /// </remarks>
+    /// <param name="contentDataRootOnDisk">
+    /// The mirror's absolute path, or <c>null</c> when it is not on disk — exactly what
+    /// <c>GodotUserPaths.ContentDataRootOnDisk</c> answers.
+    /// </param>
+    /// <param name="packedDocuments">The reader for the packed artefact, used when the disk has none.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="packedDocuments"/> is null.</exception>
+    public static IContentSourcePort SelectContentSource(
+        string? contentDataRootOnDisk, IPackedDocumentReader packedDocuments)
+    {
+        ArgumentNullException.ThrowIfNull(packedDocuments);
+
+        return string.IsNullOrWhiteSpace(contentDataRootOnDisk)
+            ? new PackedContentSource(packedDocuments)
+            : new LocalFileContentSource(contentDataRootOnDisk);
     }
 
     /// <summary>

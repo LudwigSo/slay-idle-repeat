@@ -43,6 +43,7 @@
     <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry\SlayIdleRepeat.Adapters.Telemetry.OpenTelemetry.csproj" />
     <ProjectReference Include="..\..\src\adapters\server\SlayIdleRepeat.Adapters.Config.HttpJson\SlayIdleRepeat.Adapters.Config.HttpJson.csproj" />
     <ProjectReference Include="..\..\src\adapters\fakes\SlayIdleRepeat.Adapters.InMemory\SlayIdleRepeat.Adapters.InMemory.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Content.Packed\SlayIdleRepeat.Adapters.Content.Packed.csproj" />
   </ItemGroup>
 
 </Project>

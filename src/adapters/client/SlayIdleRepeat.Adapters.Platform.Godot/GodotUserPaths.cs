@@ -39,28 +39,72 @@ public sealed class GodotUserPaths
     public string ResolveWritableCacheRoot() => global::Godot.OS.GetUserDataDir();
 
     /// <summary>
-    /// The absolute path of the directory holding the game-data mirror.
+    /// The absolute path of the directory holding the game-data mirror, or <c>null</c> when the
+    /// content is not on disk at all — which is every packed build.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Fails by name when the directory is absent. A packed build reaches its resources
-    /// through the engine's own filesystem, not through <c>System.IO</c>, so a silent
-    /// fallback here would ship a build that starts and then has no content.
+    /// <para>
+    /// 🔒 <b>A question, not a failure.</b> Its throwing sibling below states the case this one
+    /// answers: a packed build reaches its resources through the engine's own filesystem and there is
+    /// no directory for <c>System.IO</c> to open. Since M7-10y there is a content source for exactly
+    /// that case, so "is the content on disk" became a fact the composition root chooses on rather
+    /// than an exception it recovers from — and a root that had to catch a
+    /// <c>DirectoryNotFoundException</c> to make a routine decision would be using an exception as a
+    /// return value.
+    /// </para>
+    /// <para>
+    /// ⚠️ It says <em>nothing</em> about whether the packed alternative will find anything.
+    /// <c>null</c> means only that this route is unavailable.
+    /// </para>
     /// </remarks>
-    /// <exception cref="DirectoryNotFoundException">The resolved directory does not exist.</exception>
-    public string ResolveContentDataRoot()
+    public string? ContentDataRootOnDisk()
     {
         var resolved = global::Godot.ProjectSettings.GlobalizePath(ContentDataResourcePath);
 
-        return Directory.Exists(resolved)
-            ? resolved
-            : throw new DirectoryNotFoundException(
-                $"The engine resolved '{ContentDataResourcePath}' to '{resolved}', and there is no directory " +
-                "there. Running from a checkout, that means the build-time mirror of 'game-data' into the " +
-                "project has not run. Running from an EXPORTED build, it is expected and is not fixable here: " +
-                "resources packed into a .pck or an APK are reachable only through the engine's own file " +
-                "access, never through System.IO, so the content source needs either an engine-backed " +
-                "implementation or an export that ships 'data/' loose beside the executable. Either way the " +
-                "game has no content to load, and starting anyway would only move the failure somewhere it " +
-                "no longer names its cause.");
+        return Directory.Exists(resolved) ? resolved : null;
     }
+
+    /// <summary>
+    /// The directory the game is installed in — where the executable itself sits.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>A real directory on every platform and in every build, which is the whole point.</b> It
+    /// exists for the callers that need somewhere on disk to start looking and must not fail when the
+    /// answer is "nothing there" — the placeholder atlas is the one today. Handing those callers the
+    /// content root instead was what made a packed build throw before it could draw anything, because
+    /// that root does not exist once the tree is packed.
+    /// </remarks>
+    public string ResolveInstallationRoot()
+    {
+        var executable = global::Godot.OS.GetExecutablePath();
+        var directory = Path.GetDirectoryName(executable);
+
+        // Falls back to the writable root rather than to the process working directory: a caller is
+        // about to walk this looking for optional files, and the working directory on a handset is
+        // not a place the game has any relationship with.
+        return string.IsNullOrWhiteSpace(directory) ? ResolveWritableCacheRoot() : directory;
+    }
+
+    /// <summary>
+    /// 🔴 <b>Deliberately absent since M7-10y, and named so the deletion is not mistaken for an
+    /// oversight: there is no <c>ResolveContentDataRoot</c>.</b>
+    /// </summary>
+    /// <remarks>
+    /// It threw <c>DirectoryNotFoundException</c> when the mirror was not on disk, and its own message
+    /// said the fix was "an engine-backed implementation or an export that ships data/ loose". The
+    /// first of those now exists — <c>PackedContentSource</c> over <c>GodotPackedDocuments</c> — so a
+    /// packed build is an ordinary case rather than a failure, and a resolver that could only throw for
+    /// it had no honest caller left. <see cref="ContentDataRootOnDisk"/> answers the question the
+    /// composition root actually has, and <see cref="ResolveInstallationRoot"/> serves the callers that
+    /// merely need somewhere to look.
+    /// <para>
+    /// ⚠️ It was reached from two places and only one was obvious. The second was
+    /// <c>BootComposition</c>, handing it to the placeholder atlas as a search root — which is why an
+    /// exported build still died with this method's message after the content source was wired.
+    /// </para>
+    /// </remarks>
+    private const string ThereIsNoContentDataRootResolverAnyMore =
+        "Removed in M7-10y. A packed build has no content directory on disk and that is now a route " +
+        "rather than a fault: ask ContentDataRootOnDisk, or ResolveInstallationRoot if any real " +
+        "directory will do.";
 }

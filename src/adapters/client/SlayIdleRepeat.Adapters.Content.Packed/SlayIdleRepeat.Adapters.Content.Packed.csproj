@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The IContentSourcePort adapter for content that has been PACKED into the shipped
+    artefact: a .pck beside a desktop executable, or the assets of an APK.
+
+    Its sibling, Adapters.Content.LocalFile, reads game-data with System.IO. That works in
+    a checkout and in the editor and CANNOT work in an exported build — M7-10x finding (1),
+    measured in M7-10: `res://data` globalises to a path that does not exist on disk, and a
+    resource inside a .pck is reachable only through the engine's own file access. The
+    exported game therefore started with no content at all.
+
+    🔒 WHY THIS IS A SEPARATE, PLAIN-C# PROJECT rather than a class in the engine adapter.
+    `23` §7.2a (M7-01c) rules that a class able to reach the engine API implements NO port:
+    ports are implemented by plain-C# adapters, engine classes are capabilities the
+    composition root names. A GodotContentSource : IContentSourcePort would break that rule,
+    and X-06 could not fixture it either — M7-01b measured that a GodotSharp call from the
+    unit tier is an uncatchable AccessViolationException that kills the test host.
+
+    So the engine half is reduced to IPackedDocumentReader — two members, no port, no engine
+    type in this assembly — and it is implemented in the client's own Composition/ directory,
+    which is the only place allowed to name both an adapter and an engine capability
+    (Only_composition_roots_reference_adapter_projects). What is left here is plain C# with a
+    contract fixture, which is the shape M7-01c called "the Platform.Host shape".
+
+    BCL only — no vendor package.
+  -->
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
+  </ItemGroup>
+
+</Project>

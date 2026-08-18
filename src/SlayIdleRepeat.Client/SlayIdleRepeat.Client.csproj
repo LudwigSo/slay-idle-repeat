@@ -59,9 +59,20 @@
     Plain MSBuild with no engine involved, so `dotnet build SlayIdleRepeat.sln` produces
     the mirror on a machine that has never had Godot installed.
 
-    ⚠️ Copies, and never deletes. A document removed from game-data lingers in an existing
-    mirror until data/ is deleted by hand. Content is only ever added today; if a removal
-    ever matters, delete the directory rather than teaching this target to.
+    🔴 IT USED TO COPY AND NEVER DELETE, and said "if a removal ever matters, delete the
+    directory rather than teaching this target to". THE CONDITION IT NAMED HAS BEEN MET, so
+    the target now prunes — see PruneStaleMirrorDocuments below.
+
+    What changed is what the mirror IS. It was an editor convenience, so a lingering document
+    cost nothing; since M7-10y it is the content the EXPORT SHIPS, read out of the packed
+    artefact by PackedContentSource. A stale file is therefore no longer local mess but a
+    document in the player's build that game-data does not author — and CI validates game-data,
+    never the mirror, so nothing could ever have seen it.
+
+    Found for real rather than reasoned about: a probe of the exported .pck walked 88 documents
+    where game-data holds 87, and the extra was schema/inventory_screen.schema.json, left behind
+    by M7-11 renaming that schema. That instance was harmless (schemas are excluded from the
+    content snapshot), which is exactly why it survived — the mechanism is the hazard, not the file.
   -->
   <PropertyGroup>
     <GameDataRoot>$(MSBuildThisFileDirectory)..\..\game-data\</GameDataRoot>
@@ -85,6 +96,30 @@
     <Copy SourceFiles="@(GameDataDocument)" DestinationFiles="@(GameDataDocument->'$(GameDataMirrorRoot)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
   </Target>
 
+  <!--
+    The other half of the mirror: anything under data/ that game-data no longer authors is
+    deleted, so the mirror is a copy rather than an accumulation.
+
+    Scoped to *.json, which is what the mirror owns. The engine writes its own files into the
+    project tree and they are none of this target's business.
+
+    Runs AFTER the copy, and the globs are inside the target on purpose: an ItemGroup at project
+    scope is evaluated once at load, before this build's copy has happened, so a document added
+    to game-data in this same build would be read as stale and deleted immediately after being
+    written.
+  -->
+  <Target Name="PruneStaleMirrorDocuments" AfterTargets="MirrorGameDataIntoProject">
+    <ItemGroup>
+      <MirroredDocument Include="$(GameDataMirrorRoot)**\*.json" />
+      <ExpectedMirrorDocument Include="@(GameDataDocument->'$(GameDataMirrorRoot)%(RecursiveDir)%(Filename)%(Extension)')" />
+      <StaleMirrorDocument Include="@(MirroredDocument)" Exclude="@(ExpectedMirrorDocument)" />
+    </ItemGroup>
+
+    <Message Condition="'@(StaleMirrorDocument)' != ''" Importance="high" Text="Pruning %(StaleMirrorDocument.Identity) from the game-data mirror: nothing in game-data authors it, and the export would otherwise ship it." />
+
+    <Delete Files="@(StaleMirrorDocument)" />
+  </Target>
+
   <ItemGroup>
     <ProjectReference Include="..\SlayIdleRepeat.Application\SlayIdleRepeat.Application.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Ads.AppLovin\SlayIdleRepeat.Adapters.Ads.AppLovin.csproj" />
@@ -99,6 +134,7 @@
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Telemetry.Sentry\SlayIdleRepeat.Adapters.Telemetry.Sentry.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Consent.AppLovinCmp\SlayIdleRepeat.Adapters.Consent.AppLovinCmp.csproj" />
     <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Platform.Godot\SlayIdleRepeat.Adapters.Platform.Godot.csproj" />
+    <ProjectReference Include="..\adapters\client\SlayIdleRepeat.Adapters.Content.Packed\SlayIdleRepeat.Adapters.Content.Packed.csproj" />
   </ItemGroup>
 
 </Project>

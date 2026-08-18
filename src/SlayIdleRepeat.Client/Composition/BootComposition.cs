@@ -22,7 +22,6 @@ public static class BootComposition
     /// <summary>Wires the boot presenter over an already-composed client.</summary>
     /// <param name="composed">The graph the application root built and holds.</param>
     /// <exception cref="ArgumentNullException"><paramref name="composed"/> is null.</exception>
-    /// <exception cref="DirectoryNotFoundException">The content data root the engine resolves does not exist.</exception>
     public static BootPresenter CreateBootPresenter(ComposedGodotClient composed)
     {
         ArgumentNullException.ThrowIfNull(composed);
@@ -31,7 +30,16 @@ public static class BootComposition
             composed.Client.GameHost,
             new LocaleStringCatalogue(
                 composed.Client.Content.Current, composed.Capabilities.PlatformInfo.Locale),
-            new PlaceholderAtlasCatalogue(composed.Capabilities.Paths.ResolveContentDataRoot()),
+            // 🔴 The disk content root WHEN THERE IS ONE, and the install directory otherwise.
+            // It used to be the content root unconditionally, which threw in a packed build — so an
+            // exported game died here, before drawing anything, even after it had a packed content
+            // source. The atlas catalogue's own remarks predicted exactly this: it reads through
+            // System.IO and "finds nothing once the game's resources are packed into an archive … the
+            // packed-resource path belongs to the task that owns it". Finding nothing is its ordinary
+            // answer and is handled; being handed a directory that does not exist was not.
+            new PlaceholderAtlasCatalogue(
+                composed.Capabilities.Paths.ContentDataRootOnDisk()
+                ?? composed.Capabilities.Paths.ResolveInstallationRoot()),
             new SystemClock());
     }
 }

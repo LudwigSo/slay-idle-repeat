@@ -95,6 +95,7 @@
     <ProjectReference Include="..\..\tools\AssetProvenance\SlayIdleRepeat.AssetProvenance.csproj" />
     <ProjectReference Include="..\..\tools\AssetPipeline\SlayIdleRepeat.AssetPipeline.csproj" />
     <ProjectReference Include="..\..\tools\AssetPlaceholders\SlayIdleRepeat.AssetPlaceholders.csproj" />
+    <ProjectReference Include="..\..\src\adapters\client\SlayIdleRepeat.Adapters.Content.Packed\SlayIdleRepeat.Adapters.Content.Packed.csproj" />
   </ItemGroup>
 
 </Project>
