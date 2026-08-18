@@ -85,7 +85,16 @@ public sealed record PickPerkCommand(int OptionIndex) : GameCommand
 /// <summary><c>REROLL_DRAFT</c> — redraw the perk draft.</summary>
 public sealed record RerollDraftCommand : GameCommand;
 
-/// <summary><c>SKIP_DRAFT</c> — take none of the offered perks. Allowed, and pays Gold plus a free reroll.</summary>
+/// <summary><c>SKIP_DRAFT</c> — take none of the offered perks. Allowed, and pays Gold.</summary>
+/// <remarks>
+/// ⚠️ <b>Gold and nothing else.</b> This comment used to promise <em>"Gold plus a free reroll"</em>,
+/// which was false in two directions at once: <c>SkipDraft.Handle</c> grants no charge, and the
+/// free-reroll allowance <c>06</c> §1 describes — one per stage, accumulating to three, plus one from
+/// a skip — <b>is not implemented anywhere in the game</b>. <c>RerollDraft</c> charges Gold on every
+/// call with no counter and no cap and says so in its own remarks, and no persisted field counts draft
+/// rerolls. The design-versus-code contradiction is a live product question carried to the milestone
+/// review; what is fixed here is only that this line stops asserting the side of it that is untrue.
+/// </remarks>
 public sealed record SkipDraftCommand : GameCommand;
 
 /// <summary><c>SHOP_BUY</c> — buy a slot from the in-run shop, paid in run-local Gold.</summary>

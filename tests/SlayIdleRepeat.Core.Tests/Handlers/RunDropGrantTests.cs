@@ -150,7 +150,10 @@ public sealed class RunDropGrantTests
     [Fact]
     public void A_lost_battle_banks_no_gear_and_spends_no_drops_draw()
     {
-        var world = GearGrantWorlds.OnKill(TileKind.Elite);
+        // 🔒 Bare-handed, so the hero actually loses: the server recomputes the fight now, so Won: false
+        // below is the client's claim and not the outcome. The CONTROL beside it stays geared, which is
+        // what keeps this case honest — it proves the emptiness is the loss and not the fixture.
+        var world = GearGrantWorlds.OnKill(TileKind.Elite, geared: false);
 
         Banked(Win(GearGrantWorlds.OnKill(TileKind.Elite))).ShouldNotBeEmpty(
             "the control banked nothing, so the emptiness below says nothing about the loss — an " +

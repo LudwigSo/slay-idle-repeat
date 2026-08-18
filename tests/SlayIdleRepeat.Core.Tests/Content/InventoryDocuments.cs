@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 namespace SlayIdleRepeat.Core.Tests.Content;
 
@@ -98,17 +99,58 @@ internal static class InventoryDocuments
     internal static ContentSnapshot WithoutCurrencies() =>
         new(ProgressionDocuments.Shipped.Version, [Shipped.GetDocument(ForgeDocumentPath)]);
 
+    /// <summary>
+    /// The shipped <c>tuning/forge.json</c> with its <c>inventory</c> block replaced and every other
+    /// block left exactly as authored.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Built from the real document rather than from nothing, and that is a correctness
+    /// requirement rather than a convenience.</b> This used to author <c>{ "inventory": … }</c> and
+    /// nothing else, because the capacity readers were the only thing that had ever read this document
+    /// in a fixture. Once <c>CONFIRM_BATTLE_RESULT</c> began recomputing the fight (<c>14</c> §9), a
+    /// composed hero started reading the <b>same</b> document for the enhancement multiplier M4-16 moved
+    /// into <c>ForgeTuning</c> — and <c>ForgeTuning.Read</c> wants <c>merge</c>, <c>enhance</c>, their
+    /// price maps, their stone costs and their success-rate curve. A document holding half of what its
+    /// readers need is not a smaller fixture, it is a broken one.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Hand-authoring the rest was considered and rejected.</b> <c>ForgeTuning.Read</c> reads
+    /// twelve tunables including two band-keyed price maps and a per-level curve; a hand-built copy
+    /// would be a second `08` §4 that drifts silently the first time the real one is retuned. Replacing
+    /// one block of the real document keeps every other number a single authored value.
+    /// </para>
+    /// <para>
+    /// ⚠️ The <c>inventory</c> block is still replaced <em>wholesale</em> rather than per-leaf, so the
+    /// three capacity parameters keep behaving exactly as they did — including
+    /// <see cref="ContentValue.Unauthorised"/> for a deliberate hole, which is what the missing-leaf
+    /// cases pass.
+    /// </para>
+    /// </remarks>
     private static ContentValue Forge(
-        ContentValue? baseCapacity, ContentValue? expansionStep, ContentValue? maxCapacity) =>
-        ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        ContentValue? baseCapacity, ContentValue? expansionStep, ContentValue? maxCapacity)
+    {
+        var authored = ShippedHarness.Content.GetDocument(ForgeDocumentPath).Root;
+        var members = new Dictionary<string, ContentValue>(StringComparer.Ordinal);
+
+        foreach (var name in authored.MemberNames)
         {
-            ["inventory"] = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+            if (authored.TryGetMember(name, out var value) && value is not null)
+            {
+                members[name] = value;
+            }
+        }
+
+        members["inventory"] = ContentValue.Object(
+            new Dictionary<string, ContentValue>(StringComparer.Ordinal)
             {
                 ["baseCapacity"] = baseCapacity ?? ContentValue.Number(ShippedBaseCapacity),
                 ["expansionStep"] = expansionStep ?? ContentValue.Number(ShippedExpansionStep),
                 ["maxCapacity"] = maxCapacity ?? ContentValue.Number(ShippedMaxCapacity),
-            }),
-        });
+            });
+
+        return ContentValue.Object(members);
+    }
 
     private static ContentValue Currencies(
         ContentValue? ladder,

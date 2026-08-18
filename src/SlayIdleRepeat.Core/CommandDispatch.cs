@@ -33,8 +33,20 @@ internal sealed class CommandDispatch
     /// this <c>false</c> and is refused by <see cref="GameRules.Execute"/> both on a run-less slice
     /// and on a slice whose run has ended.
     /// </param>
+    /// <param name="changesHeroBuild">
+    /// 🔒 <c>true</c> for every command that can change what the hero's <c>ActorStats</c> compose to
+    /// — today <c>EQUIP</c>, <c>UNEQUIP</c>, <c>MERGE</c>, <c>ENHANCE</c> and <c>SALVAGE</c>. It is what
+    /// <see cref="GameRules.Execute"/>'s battle gate reads to refuse them while a fight is open, and it
+    /// lives on the REGISTRATION rather than as a type list inside that gate so a sixth gear command
+    /// has to answer the question in the table it is already editing. See
+    /// <c>GameRules.BattlePendingRefusesAStockChange</c> for why the refusal exists at all.
+    /// </param>
     internal CommandDispatch Handled<TCommand>(
-        string wireName, CommandKind kind, CommandHandler<TCommand> handler, bool opensRun = false)
+        string wireName,
+        CommandKind kind,
+        CommandHandler<TCommand> handler,
+        bool opensRun = false,
+        bool changesHeroBuild = false)
         where TCommand : GameCommand
     {
         ArgumentNullException.ThrowIfNull(handler);
@@ -45,7 +57,8 @@ internal sealed class CommandDispatch
             kind,
             (command, input) => handler((TCommand)command, input),
             DeferredTo: null,
-            OpensRun: opensRun));
+            OpensRun: opensRun,
+            ChangesHeroBuild: changesHeroBuild));
     }
 
     /// <summary>
@@ -247,13 +260,21 @@ internal delegate HandlerResult CommandHandler<in TCommand>(TCommand command, Ha
 /// run-less slice, and on a slice whose run has ended, since its job is to create the run its own
 /// kind would otherwise require.
 /// </param>
+/// <param name="ChangesHeroBuild">
+/// 🔒 <c>true</c> for every command that can change what the hero's <c>ActorStats</c> compose to, so
+/// <c>GameRules.Execute</c> can refuse it while a battle is open. A fact about the command, kept
+/// beside <paramref name="OpensRun"/> rather than as a type list inside the gate that reads it: both
+/// are questions the table answers about a row, and a gear command added without answering this one
+/// would reopen the hole silently.
+/// </param>
 internal sealed record CommandRegistration(
     Type CommandType,
     string WireName,
     CommandKind Kind,
     Func<GameCommand, HandlerInput, HandlerResult>? Handler,
     string? DeferredTo,
-    bool OpensRun = false)
+    bool OpensRun = false,
+    bool ChangesHeroBuild = false)
 {
     /// <summary>Whether this command's system exists yet.</summary>
     internal bool IsHandled => Handler is not null;

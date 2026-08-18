@@ -168,7 +168,8 @@ internal static class PlayerSnapshots
         IReadOnlyList<AutoSalvageRule>? autoSalvageRules = null,
         long? talentPoints = null,
         LoadoutSnapshot? loadout = null,
-        IReadOnlyList<LoadoutPresetSnapshot>? presets = null) =>
+        IReadOnlyList<LoadoutPresetSnapshot>? presets = null,
+        int? battleHashMismatches = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -199,7 +200,8 @@ internal static class PlayerSnapshots
             AutoSalvageRules: autoSalvageRules ?? NoAutoSalvage,
             TalentPoints: talentPoints ?? 0L,
             Loadout: loadout ?? EmptyLoadout,
-            Presets: presets ?? NoPresets);
+            Presets: presets ?? NoPresets,
+            BattleHashMismatches: battleHashMismatches ?? 0);
 
     /// <summary>A hero wearing nothing — where a new player stands.</summary>
     /// <remarks>

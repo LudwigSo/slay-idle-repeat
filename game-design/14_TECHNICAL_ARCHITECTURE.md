@@ -670,6 +670,7 @@ Two tiers produce the enum. **Transport-tier** values are produced by the server
 | `INVENTORY_FULL` | domain | A grant would exceed capacity and cannot be held (`08` §5; contrast the inbox hold rule, `28` A4) |
 | `PREREQUISITE_NOT_CLEARED` | domain | The clear the chapter/tier unlock ladder demands has not happened (`10` §7) — `START_RUN` only |
 | `LEGEND_LEVEL_TOO_LOW` | domain | The Legend Level that ladder demands has not been reached (`10` §7, Mythic only) — `START_RUN` only |
+| `BATTLE_IN_PROGRESS` | domain | A battle is open and this command would change the hero the server is about to recompute it with (§9) — `EQUIP` / `UNEQUIP` / `MERGE` / `ENHANCE` / `SALVAGE` only |
 
 🔒 **Forward compatibility:** values may be appended, never renamed or reused. A client receiving an unknown value treats it as a generic rejection and resyncs.
 
