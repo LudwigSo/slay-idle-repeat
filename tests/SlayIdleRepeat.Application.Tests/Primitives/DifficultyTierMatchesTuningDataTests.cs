@@ -13,9 +13,10 @@ namespace SlayIdleRepeat.Application.Tests.Primitives;
 /// <c>progression.json</c> has no member to gate against, and a fourth enum member has no gate,
 /// par-power column, or multiplier. Three separate authored transcriptions of this vocabulary exist
 /// (<c>progression.json</c>'s <c>chapterGating</c>, <c>par_power.json</c>'s tier columns, and
-/// <c>chapter.schema.json</c>'s <c>unlockCondition.tier</c> enum) and are checked separately rather
-/// than folded into one union, since a union would go green while two of the three disagreed with
-/// each other. <c>par_power.json</c> is checked twice — once for the <c>defaultFill</c> multipliers
+/// <c>chapter.schema.json</c>'s <c>unlockCondition.tier</c> constraint) and are checked separately
+/// rather than folded into one union, since a union would go green while two of the three disagreed
+/// with each other. The third of them is no longer a list of all three tiers — see that case's own
+/// remarks. <c>par_power.json</c> is checked twice — once for the <c>defaultFill</c> multipliers
 /// and once for every <c>parPower</c> row — because each of the 24 cells is independently editable,
 /// so a row losing a tier column is a real reachable state.
 /// </remarks>
@@ -101,37 +102,58 @@ public sealed class DifficultyTierMatchesTuningDataTests
         }
     }
 
-    /// <summary>The enum is exactly <c>chapter.schema.json</c>'s <c>unlockCondition.tier</c> enum, the third authored transcription.</summary>
+    /// <summary>
+    /// <c>chapter.schema.json</c> locks <c>unlockCondition.tier</c> to a single tier, and that tier is
+    /// one <see cref="DifficultyTier"/> declares.
+    /// </summary>
     /// <remarks>
-    /// It is a schema rather than a tuning file, hence its own case. A shipped chapter file
-    /// schema-validates only the one tier an author happened to write, not that the enum still
-    /// lists all three tiers this game has — which is what this case pins directly against the
-    /// schema text. A gate authored against a tier Core cannot parse is a chapter that never
-    /// unlocks.
+    /// <para>
+    /// 🔴 This used to be the third authored transcription of the whole vocabulary — an <c>enum</c>
+    /// listing all three tiers, compared member for member against the enum. M7-04b narrowed it to a
+    /// <c>const</c>: a chapter's <c>unlockCondition</c> is the per-chapter restatement of the ladder's
+    /// Normal rung and of nothing else, so the schema now permits exactly one tier and a chapter
+    /// cannot be authored with a prerequisite the ladder is unable to express.
+    /// </para>
+    /// <para>
+    /// The vocabulary cross-check did not move with it: <c>chapterGating</c>'s keys and
+    /// <c>par_power.json</c>'s 24 columns are still checked against the full enum above, so a fourth
+    /// tier still has two authored transcriptions to disagree with. What survives here, and still has
+    /// to, is that the one permitted token is a token <c>Core</c> can parse — a gate authored against
+    /// a tier no <c>Enum.Parse</c> can read is a chapter that never unlocks.
+    /// </para>
+    /// <para>
+    /// <em>Which</em> tier it must be is deliberately not asserted here. That is the ladder's
+    /// business, and the loader rule that cross-checks this constraint against
+    /// <c>tuning/progression.json#/chapterGating</c> already owns it; restating it would be a second
+    /// answer to a question that has an owner.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void DifficultyTier_is_exactly_the_unlockCondition_tier_enum_of_chapter_schema_json()
+    public void The_unlockCondition_tier_of_chapter_schema_json_is_one_tier_DifficultyTier_declares()
     {
         using var schema = JsonDocument.Parse(RepoData.Documents[ChapterSchemaDocument]);
 
-        var tiers = schema.RootElement
+        var tier = schema.RootElement
             .GetProperty("properties").GetProperty("unlockCondition")
-            .GetProperty("properties").GetProperty("tier")
-            .GetProperty("enum")
-            .EnumerateArray()
-            .Select(value => value.GetString()!)
-            .ToArray();
+            .GetProperty("properties").GetProperty("tier");
 
-        tiers.ShouldNotBeEmpty(
-            $"{ChapterSchemaDocument} declares no unlockCondition.tier enum, so this cross-check " +
-            "would compare the enum against nothing and pass forever. The schema moved — fix the " +
-            "reader, do not delete the case.");
+        tier.TryGetProperty("const", out var permitted).ShouldBeTrue(
+            $"{ChapterSchemaDocument}'s unlockCondition.tier declares no const, so it permits more " +
+            "than the one tier the ladder's Normal rung names — or has stopped constraining the " +
+            "member at all, which is the hole this narrowing closed. Fix the schema, do not delete " +
+            "the case.");
 
-        tiers.OrderBy(id => id, StringComparer.Ordinal).ShouldBe(
-            Enum.GetNames<DifficultyTier>().OrderBy(id => id, StringComparer.Ordinal),
-            $"DifficultyTier and {ChapterSchemaDocument}'s unlockCondition.tier disagree. A chapter " +
-            "could then author an unlock gate naming a tier no run can be started on, and the " +
-            "schema would validate it.");
+        tier.EnumerateObject().Select(property => property.Name).ShouldNotContain(
+            "enum",
+            $"{ChapterSchemaDocument}'s unlockCondition.tier carries an enum beside its const. Two " +
+            "constraints on one member are two answers to which tiers a chapter may name, and the " +
+            "wider of them is the one an author will discover.");
+
+        Enum.GetNames<DifficultyTier>().ShouldContain(
+            permitted.GetString()!,
+            $"{ChapterSchemaDocument} locks unlockCondition.tier to a token DifficultyTier does not " +
+            "declare. A chapter could then author an unlock gate naming a tier no run can be started " +
+            "on, and the schema would validate it.");
     }
 
     /// <summary>The tier ids are the same text the enum members are spelled with, which is what makes the cross-checks above comparisons rather than coincidences.</summary>

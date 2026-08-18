@@ -1,9 +1,11 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
+using PlayerAggregate = SlayIdleRepeat.Core.Model.Player;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
@@ -17,6 +19,41 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// </remarks>
 public sealed class StartRunTests
 {
+    /// <summary>
+    /// A run-less slice whose player has already made the clear `10` §7's ladder demands before the
+    /// given chapter/tier may be started.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The two cases below keep their non-trivial chapter/tier pairs — chapter 3 Heroic and chapter 2
+    /// Mythic — and are given the history the ladder now asks for, rather than being dropped to
+    /// chapter 1 Normal. Dropping them would be the cheaper edit and the wrong one: the seed
+    /// derivation takes the chapter and the tier as inputs, and a seed asserted over (1, NORMAL)
+    /// cannot tell a formula that reads them from one that ignores them.
+    /// </para>
+    /// <para>
+    /// The clear key is built with <c>Player.ChapterTierKey</c> rather than spelled out, so a change
+    /// to the storage format cannot quietly turn these fixtures into empty histories.
+    /// </para>
+    /// </remarks>
+    private static WorldSlice PastTheLadder(
+        int clearedChapter, DifficultyTier clearedTier, int? legendLevel = null, long runsStarted = 0L) =>
+        new(
+            Worlds.Rehydrated(PlayerSnapshots.With(
+                legendLevel: legendLevel,
+                runsStarted: runsStarted,
+                clearedChapterTiers: PlayerSnapshots.Counters(
+                    (PlayerAggregate.ChapterTierKey(clearedChapter, clearedTier), 1L)))),
+            null);
+
+    /// <summary>The Legend Level the Mythic rung demands, read from the content the gate reads.</summary>
+    /// <remarks>
+    /// Read rather than written down: the number lives in tuning, and a C# copy of it is invisible to
+    /// every architecture rule that watches for one.
+    /// </remarks>
+    private static readonly int MythicLegendLevel = Worlds.Context.Content.ReadInt32(
+        $"{ChapterGatingTuning.GatingReference}/{DifficultyTier.MYTHIC}/requiresLegendLevel");
+
     // ------------------------------------------------------------------ acceptance, the new Run
 
     /// <summary>
@@ -26,7 +63,7 @@ public sealed class StartRunTests
     [Fact]
     public void START_RUN_succeeds_on_a_run_less_slice_and_attaches_a_Run()
     {
-        var state = Worlds.OutsideARun();
+        var state = PastTheLadder(3, DifficultyTier.NORMAL);
         var runsStartedBefore = state.Player.RunsStarted;
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
@@ -59,8 +96,8 @@ public sealed class StartRunTests
     public void The_runSeed_is_SeedDerivations_formula_over_this_calls_own_values()
     {
         var priorRuns = 5L;
-        var state = new WorldSlice(
-            Worlds.Rehydrated(PlayerSnapshots.With(runsStarted: priorRuns)), null);
+        var state = PastTheLadder(
+            2, DifficultyTier.HEROIC, legendLevel: MythicLegendLevel, runsStarted: priorRuns);
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
             state, new StartRunCommand(2, DifficultyTier.MYTHIC), Worlds.Context);

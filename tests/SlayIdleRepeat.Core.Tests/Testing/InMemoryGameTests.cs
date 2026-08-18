@@ -346,6 +346,11 @@ public sealed class InMemoryGameTests
 
         var runsStartedBefore = game.State(player).Player.RunsStarted;
 
+        // 10 §7 gates chapter 3 Normal on a chapter 2 Normal clear, and START_RUN enforces it. The
+        // chapter stays 3 rather than dropping to 1: this case asserts the Run carries the chapter it
+        // was asked for, which chapter 1 could satisfy by accident.
+        Harnesses.HasCleared(game, player, 2, DifficultyTier.NORMAL);
+
         var result = game.Send(player, new StartRunCommand(3, DifficultyTier.NORMAL));
 
         result.Accepted.ShouldBeTrue();

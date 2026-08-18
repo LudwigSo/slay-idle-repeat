@@ -96,6 +96,76 @@ internal static class ProgressionDocuments
     /// <inheritdoc cref="ShippedUnlocksDocMember"/>
     internal const string ShippedUnlocksDoc = "07 §1.1 — Legend Level unlock ladder.";
 
+    /// <summary>The member name every authored block carries its prose under.</summary>
+    internal const string ChapterGatingDocMember = "_doc";
+
+    /// <summary>Where `10` §7's chapter/tier ladder is authored.</summary>
+    internal const string ChapterGatingPointer = DocumentPath + "#/chapterGating";
+
+    /// <summary>The clear the Normal rung demands, as shipped — the chapter before this one, on Normal.</summary>
+    internal const string ShippedNormalRequiresClear = "PREVIOUS_CHAPTER_NORMAL";
+
+    /// <summary>The clear the Heroic rung demands, as shipped — this same chapter, on Normal.</summary>
+    internal const string ShippedHeroicRequiresClear = "SAME_CHAPTER_NORMAL";
+
+    /// <summary>The clear the Mythic rung demands, as shipped — this same chapter, on Heroic.</summary>
+    internal const string ShippedMythicRequiresClear = "SAME_CHAPTER_HEROIC";
+
+    /// <summary>The Legend Level the Mythic rung demands. 60 as shipped, and the only rung carrying one.</summary>
+    /// <remarks>
+    /// A fixture constant mirroring the shipped file, exactly like <see cref="ShippedBaseMax"/> —
+    /// <b>not</b> a number any rule or gate assertion may read. The gate reads the level out of the
+    /// content snapshot and <c>StartRunChapterGateTests</c> reads it back out of the same snapshot,
+    /// so nothing compares the ladder against a C# literal. Pinned against the real file by the
+    /// <c>Application.Tests</c> progression cross-check, like every other constant here.
+    /// </remarks>
+    internal const int ShippedMythicRequiresLegendLevel = 60;
+
+    /// <summary>The prose the shipped <c>chapterGating</c> block carries beside its three rungs.</summary>
+    internal const string ShippedChapterGatingDoc = "10 §7 — no level gate on Normal chapters.";
+
+    /// <summary>One authored rung: the clear it demands, and the Legend Level it demands.</summary>
+    /// <param name="requiresClear">A clear token, or <see cref="ContentValue.Unauthorised"/> for "no clear".</param>
+    /// <param name="requiresLegendLevel">A level, or <see cref="ContentValue.Unauthorised"/> for "no level".</param>
+    internal static ContentValue Rung(ContentValue requiresClear, ContentValue requiresLegendLevel) =>
+        ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["requiresClear"] = requiresClear,
+            ["requiresLegendLevel"] = requiresLegendLevel,
+        });
+
+    /// <summary>
+    /// A <c>chapterGating</c> block holding exactly the rungs given, under the <c>_doc</c> member the
+    /// shipped file carries.
+    /// </summary>
+    /// <remarks>
+    /// Takes the rungs rather than defaulting them, so a fixture that <em>omits</em> one is as easy
+    /// to write as one that replaces it — the floor case has to be expressible or it cannot be
+    /// tested at all.
+    /// </remarks>
+    internal static ContentValue ChapterGating(params (string Tier, ContentValue Rung)[] rungs) =>
+        ContentValue.Object(
+            new[]
+            {
+                new KeyValuePair<string, ContentValue>(
+                    ChapterGatingDocMember, ContentValue.Text(ShippedChapterGatingDoc)),
+            }.Concat(rungs.Select(row =>
+                new KeyValuePair<string, ContentValue>(row.Tier, row.Rung))));
+
+    /// <summary>The shipped ladder: `10` §7's three rungs, with the prose member beside them.</summary>
+    /// <remarks>
+    /// Expression-bodied rather than an initialised static, for the reason
+    /// <c>PlayerSnapshots.EmptyInventory</c> records: static initialisers run in DECLARATION order,
+    /// and <see cref="Shipped"/> is declared below this and reads it.
+    /// </remarks>
+    internal static ContentValue ShippedChapterGating =>
+        ChapterGating(
+            ("NORMAL", Rung(ContentValue.Text(ShippedNormalRequiresClear), ContentValue.Unauthorised)),
+            ("HEROIC", Rung(ContentValue.Text(ShippedHeroicRequiresClear), ContentValue.Unauthorised)),
+            ("MYTHIC", Rung(
+                ContentValue.Text(ShippedMythicRequiresClear),
+                ContentValue.Number(ShippedMythicRequiresLegendLevel))));
+
     /// <summary><c>BaseXp(c) = baseXpCoefficient * baseXpGrowth^(c-1)</c>'s coefficient, as shipped.</summary>
     internal const int ShippedBaseXpCoefficient = 25;
 
@@ -150,7 +220,12 @@ internal static class ProgressionDocuments
         ContentValue? stage2DeathMultiplier = null,
         ContentValue? stage1DeathMultiplier = null,
         ContentValue? abandonMultiplier = null,
-        ContentValue? adDoubleMultiplier = null)
+        ContentValue? adDoubleMultiplier = null,
+
+        // 🔴 APPENDED LAST, and every call site passes by name. A parameter inserted
+        // mid-signature merges textually clean and silently re-binds every positional argument
+        // after it.
+        ContentValue? chapterGating = null)
     {
         var energy = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
@@ -230,7 +305,29 @@ internal static class ProgressionDocuments
             ["runXp"] = runXp,
             ["completionMultiplier"] = completionMultiplier,
             ["adDoubleMultiplier"] = adDoubleMultiplierBlock,
+            ["chapterGating"] = chapterGating ?? ShippedChapterGating,
         }));
+    }
+
+    /// <summary>The shipped document with its <c>chapterGating</c> block removed outright.</summary>
+    /// <remarks>
+    /// <see cref="With"/> cannot express this: its optional parameters read <c>null</c> as "keep the
+    /// shipped value", which is what makes them readable. "The block is not there at all" is a
+    /// different failure from "the block holds a deliberate null" and from "the block is the wrong
+    /// kind", and a reader whose whole job is telling those three apart needs all three doors.
+    /// </remarks>
+    internal static ContentSnapshot WithoutChapterGating()
+    {
+        var root = Shipped.GetDocument(DocumentPath).Root;
+
+        return Document(ContentValue.Object(
+            root.MemberNames
+                .Where(name => !string.Equals(name, "chapterGating", StringComparison.Ordinal))
+                .Select(name =>
+                {
+                    root.TryGetMember(name, out var member);
+                    return new KeyValuePair<string, ContentValue>(name, member!);
+                })));
     }
 
     /// <summary>A snapshot whose <c>tuning/progression.json</c> has the given root value.</summary>

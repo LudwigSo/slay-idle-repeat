@@ -6,33 +6,36 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// The chapter clear gate is authored <b>twice</b>, and only one of the two is read: every chapter
-/// document carries an <c>unlockCondition</c>, and <c>tuning/progression.json#/chapterGating</c>
-/// states the same ladder generically. This case pins that the two agree.
+/// The chapter clear gate is authored <b>twice</b>: every chapter document carries an
+/// <c>unlockCondition</c>, and <c>tuning/progression.json#/chapterGating</c> states the same ladder
+/// generically. This case pins that the shipped data has the two agreeing.
 /// </summary>
 /// <remarks>
 /// <para>
-/// 🔴 Nothing in this repository reads <c>unlockCondition</c> at runtime. The one screen that gates
-/// chapters decides from <c>#/chapterGating</c> alone, so the two sources agree today only because
-/// the two shipped chapters were authored by hand to agree. <c>schema/chapter.schema.json</c>
-/// permits <c>clearChapter</c> 1–8 at <em>any</em> tier — an <c>unlockCondition</c> the generic
-/// ladder cannot express — and a chapter authored with one would be gated by the ladder and
-/// <em>opened anyway</em>, with the document it disagreed with sitting unread beside it.
+/// <b>The ladder is the single runtime authority, and it is enforced.</b> <c>StartRun.Handle</c>
+/// reads <c>#/chapterGating</c> and refuses a chapter or tier the player has not opened
+/// (<c>PREREQUISITE_NOT_CLEARED</c>) or has not levelled into (<c>LEGEND_LEVEL_TOO_LOW</c>), so a
+/// client that skips the chapter select screen is refused by the rules rather than obeyed. The
+/// chapter documents' own <c>unlockCondition</c> is not a second authority — it is the per-chapter
+/// restatement of what the ladder already says.
 /// </para>
 /// <para>
-/// 🔒 <b>This case pins agreement; it does not decide the content model.</b> Whether a chapter's
-/// own <c>unlockCondition</c> <em>replaces</em> the generic rung or merely <em>adds</em> to it is a
-/// content-model decision no task owns, and choosing one here would be inventing it. What this
-/// buys is that the divergence becomes loud instead of silent: whoever authors the first chapter
-/// the ladder cannot describe is told, at the point of authoring, that they have written a rule
-/// nobody reads.
+/// 🔒 <b>The divergence is no longer silent in either direction, and this case is one of three
+/// things saying so.</b> <c>schema/chapter.schema.json</c> pins <c>unlockCondition.tier</c> to the
+/// one tier the Normal rung names, so a chapter cannot even be authored at a tier the ladder cannot
+/// express; the loader rule <c>ChapterUnlockConditionsAreExactlyTheLaddersNormalRung</c> pins the
+/// half JSON Schema has no arithmetic for — chapter 1 authors <c>null</c>, chapter <c>c</c> names
+/// <c>c-1</c> — and pins the schema and the ladder to each other. This case is the <em>shipped
+/// data</em> statement standing beside that rule: the rule fails the build for any chapter whose
+/// document disagrees, and this says the two chapters that exist today do not.
 /// </para>
 /// <para>
 /// The expectation is derived from the <b>authored ladder</b> rather than restated as a rule in
 /// C#: the rung's <c>requiresClear</c> token is read first, and only the shape
 /// <c>PREVIOUS_CHAPTER_NORMAL</c> implies is asserted. A different token means this case is
 /// describing a ladder that no longer exists, and it says so and goes red rather than quietly
-/// asserting nothing.
+/// asserting nothing. The loader rule takes the same reading of a changed token — a finding, never
+/// a reason to descope itself.
 /// </para>
 /// </remarks>
 public sealed class ChapterUnlockConditionAgreementTests
@@ -114,8 +117,8 @@ public sealed class ChapterUnlockConditionAgreementTests
                     ContentValueKind.Unauthorised,
                     $"{document} is chapter 1, and {PreviousChapterNormal} names no chapter before it — so " +
                     "the ladder demands nothing and the document must author null. An unlockCondition here " +
-                    "is a prerequisite for the game's first chapter that the screen gating it will never " +
-                    "read, which is a chapter locked in the data and open on screen.");
+                    "is a prerequisite for the game's first chapter that neither the screen nor StartRun " +
+                    "will ever read, which is a chapter locked in the data and open everywhere else.");
                 continue;
             }
 
@@ -123,8 +126,9 @@ public sealed class ChapterUnlockConditionAgreementTests
                 ContentValueKind.Object,
                 $"{document} authors no unlockCondition, but {PreviousChapterNormal} requires clearing " +
                 $"chapter {id - 1} before it. A null here reads as 'no prerequisite' in the one file that " +
-                "states the chapter's own rule, while the ladder keeps gating it — the two sources of the " +
-                "same gate disagreeing, which is exactly what this case exists to make loud.");
+                "states the chapter's own rule, while the ladder — which StartRun actually enforces — " +
+                "keeps gating it. The two views of one gate disagreeing is what this case exists to make " +
+                "loud.");
 
             data.ReadInt32($"{document}#/unlockCondition/clearChapter").ShouldBe(
                 id - 1,
@@ -135,9 +139,10 @@ public sealed class ChapterUnlockConditionAgreementTests
             data.ReadText($"{document}#/unlockCondition/tier").ShouldBe(
                 NormalTier,
                 $"{document}'s prerequisite is a clear at a tier the ladder never mentions. " +
-                $"{PreviousChapterNormal} is the previous chapter on {NormalTier}; the chapter schema " +
-                "permits HEROIC and MYTHIC here, and either would be a harder gate than the one actually " +
-                "enforced — authored, unread, and silently ignored.");
+                $"{PreviousChapterNormal} is the previous chapter on {NormalTier}, and the chapter " +
+                "schema now permits nothing else here — so a failure at this line means the schema's " +
+                "own constraint has drifted off the ladder as well, and the two loader arms that watch " +
+                "for that have gone quiet with it.");
         }
     }
 

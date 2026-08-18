@@ -338,6 +338,10 @@ public sealed class MetaLoopTests
             0L, "a harness player starts every wallet column at zero, so anything spent below was " +
             "earned by a command.");
 
+        // 10 §7 gates chapter 2 Normal on a chapter 1 Normal clear, and START_RUN enforces it. The
+        // chapter stays 2 for the reason ForgeChapter records — this case needs the richer payout.
+        Harnesses.HasCleared(game, player, 1, DifficultyTier.NORMAL);
+
         var driver = MetaLoopDriver.Play(game, player, ForgeChapter, DifficultyTier.NORMAL);
         var afterRun = game.State(player).Player;
 
