@@ -187,7 +187,18 @@ internal static class PortCatalogue
         // the message. The two entries below are its siblings and did NOT become declarable; the
         // reason they share is now measured rather than argued.
 
-        new("IHapticsPort", "M7-01",
+        // ⚠️ M9-04, and it is the NEAREST row rather than a row that names haptics — the same
+        // weakness the IGhostRepository and IsLowEndDevice entries carry, recorded rather than
+        // smoothed over. M9-04 is "Settings S26 (audio, accessibility, …) + Profile S27" against
+        // `13` §8, and `13` §8 is the section carrying "Haptics toggle | On/off" as a REQUIRED v1
+        // accessibility feature — so it is the EARLIEST open row whose own spec reference reaches
+        // the toggle. It is not the only one: M17-03 ("All 8 accessibility features complete")
+        // cites the same `13` §8 and finishes the same feature later. M9-04 is named because it is
+        // the row that first needs the port to exist. The owner it REPLACES was M7-01, a task that
+        // had already merged: M7-01c's
+        // Every_port_catalogue_owner_is_a_task_the_tracker_still_has_open is what found that, and
+        // is what will find the next one.
+        new("IHapticsPort", "M9-04",
             "🔒 MEASURED, not argued: its only real implementation is GodotHaptics, and calling it " +
             "outside the engine does not throw — it FATALLY FAULTS THE PROCESS. Godot.Input's static " +
             "constructor marshals a StringName through GodotSharp's native shim, whose function " +
@@ -202,15 +213,31 @@ internal static class PortCatalogue
             "motor, so a non-engine sibling is a no-op, which is the hollow fake A5 refuses. M7-01b " +
             "declared IPlatformInfoPort past the same engine problem only because THAT port has a " +
             "genuine non-engine reader; haptics has none, and inventing one is worse than waiting. " +
+            "🔒 AND THE DOCUMENT NOW AGREES, which it did not when this entry was written: 23 §7.2 " +
+            "registered GodotHapticsAdapter against this port, and M7-01c amended it — the new " +
+            "§7.2a states the three rules that follow from the measurement above, and " +
+            "No_type_in_the_engine_adapter_implements_a_port holds them. So this entry is no " +
+            "longer a deferral standing against its own specification; both say the same thing. " +
+            "What still expires it is the engine, not the text: the day a Godot class can carry a " +
+            "contract fixture, that rule goes red and this entry is what the failure sends you to. " +
+            "M9-04 owns declaring the port over whatever implementation exists by then. " +
             "⚠️ THE SHAPE IS ALSO NOT SETTLED, and this half is cheap to fix when the rest is: 23 " +
             "§4.1 writes Play(HapticPattern) and nothing in this repository declares HapticPattern, " +
             "while the adapter that exists takes a duration in milliseconds. 04 §6 authorises exactly " +
             "three patterns — light on roll start, medium on land, heavy on Star/Fortune — so the " +
             "vocabulary is a transcription rather than an invention and is NOT what blocks this."),
 
-        new("IAudioPort", "M7-01",
+        // 🔒 M8-07, read off this entry's own reason rather than chosen: that row is "Audio:
+        // mus_home …, core combat SFX, dice SFX, UI SFX; BUS STRUCTURE, DUCKING (incl. mandatory
+        // full duck around ads), polyphony caps" — which is `23` §4.1's SetBusVolume and
+        // DuckForExternalAudio spelled out as a deliverable, and it is the task that first plays a
+        // sound. It is ⛔ blocked on the licence, which is still AHEAD of us; the owner it replaces,
+        // M7-01, is behind us.
+        new("IAudioPort", "M8-07",
             "Carries the haptics entry's engine problem — GodotAudioOutput faults the same way, for " +
-            "the same reason, and has no non-engine sibling either. 🔒 AND A CORRECTION THE NEXT " +
+            "the same reason, and has no non-engine sibling either; 23 §7.2a is where M7-01c wrote " +
+            "that down, and it replaced the registration of GodotAudioAdapter against this port. " +
+            "🔒 AND A CORRECTION THE NEXT " +
             "READER SHOULD NOT HAVE TO MAKE TWICE: the reason this entry USED to give was that " +
             "declaring the port means inventing SfxId/MusicId/AudioBus on M8's behalf, and that is " +
             "FALSE. The vocabularies are all transcribed and committed already — `20` §5's bus " +
@@ -918,5 +945,323 @@ internal static class PortCatalogue
                 yield return (reference.Name, $"a type in the signature of '{@event.Name}'");
             }
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+    // M7-01c — the engine exception, and the two things that make it expire.
+    // ─────────────────────────────────────────────────────────────────────────────────────────
+
+    // ⚠️ All three are read as PROJECT names (against RepoLayout.ProjectReferences) and as ASSEMBLY
+    // names (against ProductionAssemblies.Module). The two coincide throughout this repository —
+    // no .csproj here sets AssemblyName — so the differing suffixes are history, not a distinction.
+
+    /// <summary>The adapter project whose every class reaches <c>GodotSharp</c>.</summary>
+    internal const string EngineAdapterAssembly = "SlayIdleRepeat.Adapters.Platform.Godot";
+
+    /// <summary>The plain-C# platform adapter that ports are implemented by instead.</summary>
+    internal const string HostAdapterAssembly = "SlayIdleRepeat.Adapters.Platform.Host";
+
+    /// <summary>The project whose fixture demand is what makes an engine port impossible.</summary>
+    internal const string ContractSuitesProject = "SlayIdleRepeat.Contract.Tests";
+
+    /// <summary>
+    /// 🔒 Every assembly that can reach the engine API, and therefore every assembly a port
+    /// implementation is forbidden in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The client is in here because it is the route nothing else watches</b>, and the first
+    /// draft of this rule missed it. <c>SceneBoundaryRuleTests</c> and
+    /// <c>PresenterBoundaryRuleTests</c> govern the client's scenes and presenters and both
+    /// deliberately EXCLUDE <c>Composition/</c> — it is the composition root, so naming concrete
+    /// types there is its job. <c>ContractSuiteCoverageTests</c> globs
+    /// <c>SlayIdleRepeat.Adapters.*</c> and never sees the client at all. So a capability class in
+    /// <c>Composition/</c> growing <c>: IHapticsPort</c> would be seen by nothing — while
+    /// <c>DependencyRuleTests.Every_port_has_at_least_two_implementations</c>, which DOES scan the
+    /// client, would count it as one of the port's two implementations and go green over a port
+    /// whose only real implementation kills the test host.
+    /// </para>
+    /// <para>
+    /// ⚠️ Two names, not a glob over "projects using <c>Godot.NET.Sdk</c>": the engine adapter is a
+    /// plain <c>Microsoft.NET.Sdk</c> project that references <c>GodotSharp</c> as an ordinary
+    /// package, so an SDK test would miss the very project this rule was written for.
+    /// </para>
+    /// </remarks>
+    internal static readonly string[] EngineReachingAssemblies =
+    {
+        EngineAdapterAssembly, ProductionAssemblies.ClientName,
+    };
+
+    /// <summary>
+    /// 🔒 The capabilities <see cref="EngineAdapterAssembly"/> carries, named one by one. An
+    /// <b>identity</b> floor, for the reason <see cref="ObjectStoreVocabulary"/> is one.
+    /// </summary>
+    /// <remarks>
+    /// A count over the module's types is cleared by whatever replaced the class that left, and a
+    /// module that lost every type would leave <c>No_type_in_the_engine_adapter_implements_a_port</c>
+    /// reporting success over nothing — which reads identically to "the engine implements no port".
+    /// These four are the whole of the project today.
+    /// </remarks>
+    internal static readonly string[] EngineCapabilities =
+    {
+        "GodotAudioOutput", "GodotHaptics", "GodotPlatformInfo", "GodotUserPaths",
+    };
+
+    /// <summary>What an engine class implementing a port means, said once.</summary>
+    internal const string EnginePortConsequence =
+        "23 §7.2a says it may not: a class that can reach the engine API cannot carry a " +
+        "contract fixture, because every member of it reaches GodotSharp — a shim over native " +
+        "function pointers the engine populates at startup — and a headless call is an " +
+        "AccessViolationException no catch block can observe, which takes the test host process down " +
+        "rather than failing a case. M7-01b measured that from a Contract.Tests fixture. The moment " +
+        "a class here implements a port, ContractSuiteCoverageTests." +
+        "Every_implementation_of_a_port_has_a_contract_fixture demands the fixture that kills the " +
+        "run. Implement the port from " + HostAdapterAssembly + " — the plain-C# sibling that is " +
+        "already the shipped precedent — and keep the engine class a capability the composition " +
+        "root names directly. If an engine-capable test host or a fixture exemption has genuinely " +
+        "arrived, this rule is the thing to delete, and 23 §7.2 is the document to amend back.";
+
+    /// <summary>
+    /// Every concrete type in the engine adapter that implements a port. Empty means the ruling
+    /// holds.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Parameterised over both its inputs for the reason <see cref="Expired"/> is: the self-tests
+    /// drive it with a type that genuinely implements a port, proving each arm bites, without the
+    /// forbidden arrangement ever being committed.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What this does NOT close, said so the next reader does not over-trust it.</b> Its
+    /// subject is <see cref="EngineReachingAssemblies"/> — two names, listed by hand. A THIRD
+    /// project that reached the engine would be governed by nothing here. Today only one other
+    /// could: `23` §8's worked example puts <c>MaxBridge</c>, a C# wrapper over a GDScript autoload,
+    /// in the same project as <c>AppLovinRewardedAdAdapter</c>, which implements
+    /// <c>IRewardedAdPort</c> — the arrangement §7.2a rules impossible. That project holds no source
+    /// file at all today; <b>M15-01</b> is the row that writes both halves and the row that has to
+    /// split them.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>And it is an IL rule with no source arm</b>, which this repository has been bitten by:
+    /// <c>SceneBoundaryRuleTests</c> carries a second, source-text arm precisely because `23` §7.2
+    /// writes the client's composition with <c>#if ANDROID / #elif IOS</c>, and a branch compiled
+    /// out on the CI machine leaves no IL for a scan to object to. Measured on this branch: no
+    /// <c>#if</c> appears anywhere under the engine adapter or the client's <c>Composition/</c>, so
+    /// the gap is latent rather than open — but it is the spelling this rule does not close, and
+    /// the task that adds the first conditional there owes it the source arm (steering S18).
+    /// </para>
+    /// <para>
+    /// ⚠️ The <c>IsInterface</c> / <c>IsAbstract</c> / compiler-generated filters are carried
+    /// <b>unprobed</b>: no abstract, interface or generated type anywhere in the tree implements a
+    /// port, so no arm can drive them. They are here because <c>ContractSuiteCoverageTests</c>'
+    /// implementation scan applies the same three, and a rule that disagreed with it about what
+    /// counts as an implementation would be answering a different question from the one its failure
+    /// message names.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<string> EnginePortImplementations(
+        IEnumerable<TypeDefinition> engineTypes,
+        IEnumerable<TypeDefinition> ports)
+    {
+        var declared = ports.ToArray();
+
+        return (from type in engineTypes
+                where type is { IsInterface: false, IsAbstract: false }
+                where !Domain.IsCompilerGenerated(type)
+                from port in declared
+                where Il.ImplementsInterface(type, port.FullName)
+                select $"'{type.FullName}' implements the port '{port.Name}'. {EnginePortConsequence}")
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The premise the rule above rests on: <see cref="ContractSuitesProject"/> still references
+    /// <see cref="EngineAdapterAssembly"/>. Empty means the premise holds.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Without this, <c>No_type_in_the_engine_adapter_implements_a_port</c> stays green while its
+    /// whole justification evaporates. Drop that <c>ProjectReference</c> and the engine adapter is
+    /// no longer in the fixture-coverage scan at all — so an engine class could implement a port,
+    /// nothing in <c>Contract.Tests</c> would ask for a fixture, and the deferral reasons for
+    /// <c>IHapticsPort</c> and <c>IAudioPort</c> would be describing a constraint that had been
+    /// removed. That is the shape steering S4 calls an exemption outliving its reason, and this is
+    /// the half of it a rule can actually see.
+    /// </remarks>
+    internal static IReadOnlyList<string> EnginePremiseBroken(IEnumerable<string> contractSuiteReferences) =>
+        contractSuiteReferences.Contains(EngineAdapterAssembly, StringComparer.Ordinal)
+            ? Array.Empty<string>()
+            : new[]
+            {
+                $"'{ContractSuitesProject}' no longer project-references '{EngineAdapterAssembly}'. " +
+                "The IHapticsPort and IAudioPort deferrals, 23 §7.2's amendment and " +
+                "No_type_in_the_engine_adapter_implements_a_port all rest on that reference: it is " +
+                "what puts the engine adapter inside ContractSuiteCoverageTests' implementation scan, " +
+                "and therefore what makes an engine port impossible rather than merely unwise. " +
+                "Without it those three say a thing that is no longer true, and none of them goes " +
+                "red. Restore the reference, or rewrite all three in the same commit.",
+            };
+
+    /// <summary>Tracker statuses that mean the owning task has already shipped.</summary>
+    /// <remarks>
+    /// <para>
+    /// ✅ is done and 🔍 is in review — in this tracker, always "merged to `milestone/M&lt;N&gt;`" —
+    /// and both are a task nobody is going to do again. ⬜, ⏳, 🔄 and ⛔ are all still ahead,
+    /// including ⛔, which is blocked rather than finished and is precisely the state
+    /// <c>IAudioPort</c>'s owner is in.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The tracker's own legend lists five statuses and <see cref="KnownStatuses"/> accepts
+    /// six.</b> ⏳ is used by four live rows and appears in no legend. The extra alternative is
+    /// deliberate — a glyph the pattern does not know makes its rows vanish from the lookup
+    /// silently, and a vanished owner is then reported as "no row this parser could read", which is
+    /// loud but points at the wrong thing.
+    /// </para>
+    /// </remarks>
+    internal static readonly string[] ShippedStatuses = { "✅", "🔍" };
+
+    /// <summary>
+    /// 🔒 Every status glyph <see cref="TrackerTaskRow"/> accepts. The pattern is BUILT from this
+    /// list rather than repeating it, so the two cannot disagree.
+    /// </summary>
+    internal static readonly string[] KnownStatuses = { "⬜", "🔄", "🔍", "✅", "⛔", "⏳" };
+
+    /// <summary>The tracker's own status legend, transcribed.</summary>
+    /// <remarks>
+    /// 🔒 <b>The direction here is the whole point, and the first draft had it backwards.</b>
+    /// Asserting that the legend line contains each of these five is satisfied by a legend that has
+    /// grown a SIXTH — which is precisely the change that would make <see cref="TrackerTaskRow"/>
+    /// drop every row using it, silently. <c>PortCatalogueTests</c> therefore reads the glyphs OUT
+    /// of the legend line and asserts each is in <see cref="KnownStatuses"/>; this list is what
+    /// tells it which characters on that line are statuses at all.
+    /// </remarks>
+    internal static readonly string[] LegendStatuses = { "⬜", "🔄", "🔍", "✅", "⛔" };
+
+    /// <summary>
+    /// A tracker task row: its id and the status glyph its status cell opens with.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ Anchored on the <b>first</b> <c>| glyph</c> after the id, and both halves of that anchor
+    /// are load-bearing against rows that really exist — measured over all 206 task rows, not
+    /// assumed.
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><b>Not the last glyph on the line.</b> Four rows carry a second status glyph inside
+    ///   their status prose, and two of the four are read backwards by it: <c>M7-10</c> is ⏳ and
+    ///   its row goes on to mention a ⛔ CI gap; <c>M2-16a</c> is 🔍 and its row goes on to mention
+    ///   an ✅ result.</item>
+    ///   <item><b>Not the first glyph on the line.</b> <c>M18-07</c> is ⬜ and its DESCRIPTION cell
+    ///   contains "(O18 ✅)" — before the status cell. Only the <c>|</c> in the anchor separates
+    ///   the two.</item>
+    ///   <item><b>Not a split on <c>|</c>.</b> A description cell containing a pipe inside backticks
+    ///   moves every column, and several do.</item>
+    /// </list>
+    /// </remarks>
+    private static readonly Regex TrackerTaskRow = new(
+        @"^\| (?<id>M\d{1,2}-\d{2}[a-z]?) \|.*?\| ?(?<status>" + string.Join("|", KnownStatuses) + ")",
+        RegexOptions.Multiline | RegexOptions.Compiled);
+
+    /// <summary>
+    /// The status glyphs a tracker legend line documents, read out of the line itself.
+    /// </summary>
+    /// <remarks>
+    /// The legend writes each status as a code span whose first word is the glyph —
+    /// <c>`⬜ todo` · `🔄 in progress` · …</c> — so the code spans are the whole of it and no
+    /// character-class guess about "what an emoji looks like" is needed. Parameterised so the
+    /// self-tests can drive it with a legend carrying a status the parser does not know.
+    /// </remarks>
+    internal static IReadOnlyList<string> LegendGlyphs(string legendLine) =>
+        legendLine.Split('`')
+            .Where((_, index) => index % 2 == 1)
+            .Select(span => span.Split(' ')[0])
+            .Where(glyph => glyph.Length > 0)
+            .ToArray();
+
+    /// <summary>Every task id the tracker declares, with the status glyphs its rows carry.</summary>
+    /// <remarks>
+    /// A lookup rather than a dictionary so a duplicated id cannot throw out of a helper; a task
+    /// counts as still open only when <em>no</em> row of it has shipped.
+    /// </remarks>
+    internal static ILookup<string, string> TrackerStatuses(string tracker) =>
+        TrackerTaskRow.Matches(tracker)
+            .ToLookup(m => m.Groups["id"].Value, m => m.Groups["status"].Value, StringComparer.Ordinal);
+
+    /// <summary>
+    /// Every register entry whose owning task the tracker does not declare, or declares as already
+    /// shipped. Empty means every entry still has an expiry a reader can reach.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Steering <b>S4</b>'s M4 amendment, made mechanical: an expiry check must test that the
+    /// owner is still OPEN, not that the owner EXISTS. <see cref="Malformed"/> checks the SHAPE of
+    /// the id and <c>GapRegisterTests</c>' dispatch rule checks that a row with that id exists —
+    /// neither can see an owner that has already merged, which is the state both engine deferrals
+    /// were in when M7-01c found them: owned by M7-01, a task that shipped two tasks ago and could
+    /// not discharge them even then.
+    /// <para>
+    /// Parameterised over the tracker statuses for the reason <see cref="Expired"/> is parameterised
+    /// over its entries: the self-tests drive it with crafted entries against the real tracker, so
+    /// both arms are shown to bite without <c>IMPLEMENTATION_TRACKER.md</c> ever being edited to
+    /// prove it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Two other registers owe the same predicate and this does NOT close them</b>, recorded
+    /// rather than quietly duplicated (steering S4 asks for one mechanism per repo, and this is the
+    /// honest account of why there are still three).
+    /// <list type="bullet">
+    ///   <item><c>GapRegisterTests.Every_deferred_command_names_a_task_the_tracker_declares</c> is
+    ///   in this same assembly and checks EXISTENCE only. Measured on this branch, <b>four</b> of
+    ///   <c>GameRules</c>' 24 <c>Deferred</c> rows name a task that has already shipped:
+    ///   <c>REFORGE_ITEM</c>, <c>RETUNE_ITEM</c> and <c>SET_FOCUS</c> to M4-04 (✅), and
+    ///   <c>USE_CONSUMABLE</c> to M3-08 (✅). Pointing that rule at this predicate would turn the
+    ///   build red on four re-points that are milestone decisions — which task builds reforge,
+    ///   retune, focus and consumables — and inventing four owners is steering S6 with a task id
+    ///   instead of a number. M7-01c reports it instead of guessing. ⚠️ Its PARSER is separable
+    ///   from that decision and was deliberately left alone too: its id pattern lacks the
+    ///   <c>[a-z]?</c> suffix, so lettered ids (<c>M7-01b</c>, <c>M2-16a</c>) fall out of its
+    ///   declared set and are reported as owners nobody declared — loud, not silent, and no row it
+    ///   governs names one today.</item>
+    ///   <item><c>RealDataSetTests</c> in <c>SlayIdleRepeat.Application.Tests</c> already records
+    ///   this predicate as owed work, names its eight offenders and names its owner ("the next
+    ///   milestone kickoff that touches this baseline"). It cannot share code with this file — it
+    ///   is a different assembly and the architecture suite's <c>Infrastructure</c> is internal to
+    ///   it — so a shared parser would need a project neither suite has. That entry stands.</item>
+    /// </list>
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<string> OwnersNoLongerOpen(
+        IEnumerable<(string Subject, string Owner)> entries,
+        ILookup<string, string> statuses)
+    {
+        var offenders = new List<string>();
+
+        foreach (var (subject, owner) in entries)
+        {
+            if (!statuses.Contains(owner))
+            {
+                offenders.Add(
+                    $"'{subject}' names owner '{owner}', and no task row this parser could read " +
+                    "declares it in IMPLEMENTATION_TRACKER.md. A deferral whose owner does not " +
+                    "exist expires when nobody is looking: the entry keeps saying a seam is coming " +
+                    "and no milestone is on the hook for it. ⚠️ Check the OWNER first and the " +
+                    "PARSER second — TrackerTaskRow reads task rows only, so a milestone-summary " +
+                    "or review row would land here too.");
+                continue;
+            }
+
+            var shipped = statuses[owner]
+                .FirstOrDefault(status => ShippedStatuses.Contains(status, StringComparer.Ordinal));
+
+            if (shipped is not null)
+            {
+                offenders.Add(
+                    $"'{subject}' names owner '{owner}', whose tracker row reads '{shipped}' — " +
+                    "that task has already shipped. The entry can now never expire: the milestone " +
+                    "that was going to build this is behind us, so nothing will ever delete the " +
+                    "exception and no kickoff will ever be asked about it. Name the task that " +
+                    "actually builds it next, or build it.");
+            }
+        }
+
+        return offenders;
     }
 }
