@@ -106,11 +106,21 @@ public sealed class DependencyRuleTests
     /// is real.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// LIVE since M0-09, which landed `IContentSourcePort` under `Application/Ports/Shared/`
     /// with both implementations. The comment here used to say "vacuous until M1/M2 declare
     /// the first port"; leaving that in place is the exact form of documentation
     /// `SuiteIntegrityTests` exists to prevent, because the next reader takes it at its word
     /// and assumes the rule is not watching.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>This rule counts implementations; it does not ask WHERE they may live.</b> Its
+    /// companion is <c>PortCatalogueTests.No_type_in_the_engine_adapter_implements_a_port</c>
+    /// (`23` §7.2a), which forbids the two assemblies that can reach the engine API from holding
+    /// one at all — because such an implementation would satisfy the count here while being
+    /// untestable at the only tier this repository has. An engine-port author trips that rule and
+    /// needs to read this one; the pointer is here so the trip works in both directions.
+    /// </para>
     /// </remarks>
     [Fact]
     public void Every_port_has_at_least_two_implementations()

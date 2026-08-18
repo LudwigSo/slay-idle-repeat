@@ -434,7 +434,7 @@ public sealed class PortCatalogueTests
         // — renamed, unreferenced, emptied — reports success over nothing, which reads exactly like
         // "the engine implements no port". A count would be cleared by whatever replaced the class
         // that left; these four are the whole project.
-        var engine = EngineTypes().Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+        var engine = EngineAdapterTypes().Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
 
         offenders.AddRange(
             from capability in PortCatalogue.EngineCapabilities
@@ -673,8 +673,8 @@ public sealed class PortCatalogueTests
     // from being a sentence somebody remembers.
 
     /// <summary>
-    /// 🔒 `23` §7.2 / §5 A8 — no class in the engine adapter implements a port. The ruling that
-    /// amended §7.2, stated where a future change to it has to go past.
+    /// 🔒 `23` §7.2a / §5 A8 — no class in an assembly that can reach the engine API implements a
+    /// port. The ruling that amended §7.2, stated where a future change to it has to go past.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -697,7 +697,7 @@ public sealed class PortCatalogueTests
     {
         ArchRule.Empty(
             PortCatalogue.EnginePortImplementations(EngineTypes(), Domain.Ports),
-            "No class in the engine adapter implements a port (23 §7.2, 23 §5 A8).");
+            "No class that can reach the engine API implements a port (23 §7.2a, 23 §5 A8).");
     }
 
     /// <summary>
@@ -762,6 +762,29 @@ public sealed class PortCatalogueTests
             .ShouldBeEmpty(
                 "HostPlatformInfo implements IPlatformInfoPort and nothing else. A rule that "
                 + "reported it here would be flagging types for ports they do not implement.");
+
+        // 🔒 The client is in the subject set too, and it is the route no other rule watches: its
+        // Composition/ folder is deliberately EXCLUDED from the scene and presenter boundary rules,
+        // and the contract suites never scan it.
+        //
+        // 🔴 This floor is stated over NAMED TYPES, and the first version was stated over
+        // EngineReachingAssemblies itself — which the scan is built from, so it agreed by
+        // construction and stayed green when the client was deleted from the list. A floor derived
+        // from its own subject is not a floor. One name per assembly, and neither is derivable from
+        // the other side of the comparison.
+        var scanned = engine.Select(t => t.Name).ToHashSet(StringComparer.Ordinal);
+
+        scanned.ShouldContain(
+            "GodotUserPaths",
+            "the engine adapter is not in the scan at all, so the rule this floor stands under is "
+            + "reporting success over an assembly it never read.");
+
+        scanned.ShouldContain(
+            "GodotClientComposition",
+            "SlayIdleRepeat.Client is not in the scan. Its Composition/ folder is exempt from the "
+            + "scene and presenter boundary rules and invisible to the contract suites, so a "
+            + "capability there implementing a port would be seen by nothing — while "
+            + "Every_port_has_at_least_two_implementations counted it as one of the port's two.");
 
         // The negative control on the subject axis: a real engine class that implements nothing.
         PortCatalogue.EnginePortImplementations(
@@ -969,8 +992,13 @@ public sealed class PortCatalogueTests
     }
 
     /// <summary>Every type Cecil finds in the engine adapter.</summary>
-    private static IEnumerable<TypeDefinition> EngineTypes() =>
+    private static IEnumerable<TypeDefinition> EngineAdapterTypes() =>
         Il.AllTypes(ProductionAssemblies.Module(PortCatalogue.EngineAdapterAssembly));
+
+    /// <summary>Every type in every assembly that can reach the engine API.</summary>
+    private static IEnumerable<TypeDefinition> EngineTypes() =>
+        PortCatalogue.EngineReachingAssemblies.SelectMany(
+            name => Il.AllTypes(ProductionAssemblies.Module(name)));
 
     /// <summary>Every type Cecil finds in the plain-C# platform adapter beside it.</summary>
     private static IEnumerable<TypeDefinition> HostTypes() =>

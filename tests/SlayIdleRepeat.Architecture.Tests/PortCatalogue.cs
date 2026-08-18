@@ -190,11 +190,14 @@ internal static class PortCatalogue
         // ⚠️ M9-04, and it is the NEAREST row rather than a row that names haptics — the same
         // weakness the IGhostRepository and IsLowEndDevice entries carry, recorded rather than
         // smoothed over. M9-04 is "Settings S26 (audio, accessibility, …) + Profile S27" against
-        // `13` §8, and `13` §8 is the section that carries "Haptics toggle | On/off" as a REQUIRED
-        // v1 accessibility feature — so it is the only open row in the tracker whose own spec
-        // reference names haptics at all. The owner it REPLACES was M7-01, a task that had already
-        // merged: M7-01c's Every_port_catalogue_owner_is_a_task_the_tracker_still_has_open is what
-        // found that, and is what will find the next one.
+        // `13` §8, and `13` §8 is the section carrying "Haptics toggle | On/off" as a REQUIRED v1
+        // accessibility feature — so it is the EARLIEST open row whose own spec reference reaches
+        // the toggle. It is not the only one: M17-03 ("All 8 accessibility features complete")
+        // cites the same `13` §8 and finishes the same feature later. M9-04 is named because it is
+        // the row that first needs the port to exist. The owner it REPLACES was M7-01, a task that
+        // had already merged: M7-01c's
+        // Every_port_catalogue_owner_is_a_task_the_tracker_still_has_open is what found that, and
+        // is what will find the next one.
         new("IHapticsPort", "M9-04",
             "🔒 MEASURED, not argued: its only real implementation is GodotHaptics, and calling it " +
             "outside the engine does not throw — it FATALLY FAULTS THE PROCESS. Godot.Input's static " +
@@ -962,6 +965,34 @@ internal static class PortCatalogue
     internal const string ContractSuitesProject = "SlayIdleRepeat.Contract.Tests";
 
     /// <summary>
+    /// 🔒 Every assembly that can reach the engine API, and therefore every assembly a port
+    /// implementation is forbidden in.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The client is in here because it is the route nothing else watches</b>, and the first
+    /// draft of this rule missed it. <c>SceneBoundaryRuleTests</c> and
+    /// <c>PresenterBoundaryRuleTests</c> govern the client's scenes and presenters and both
+    /// deliberately EXCLUDE <c>Composition/</c> — it is the composition root, so naming concrete
+    /// types there is its job. <c>ContractSuiteCoverageTests</c> globs
+    /// <c>SlayIdleRepeat.Adapters.*</c> and never sees the client at all. So a capability class in
+    /// <c>Composition/</c> growing <c>: IHapticsPort</c> would be seen by nothing — while
+    /// <c>DependencyRuleTests.Every_port_has_at_least_two_implementations</c>, which DOES scan the
+    /// client, would count it as one of the port's two implementations and go green over a port
+    /// whose only real implementation kills the test host.
+    /// </para>
+    /// <para>
+    /// ⚠️ Two names, not a glob over "projects using <c>Godot.NET.Sdk</c>": the engine adapter is a
+    /// plain <c>Microsoft.NET.Sdk</c> project that references <c>GodotSharp</c> as an ordinary
+    /// package, so an SDK test would miss the very project this rule was written for.
+    /// </para>
+    /// </remarks>
+    internal static readonly string[] EngineReachingAssemblies =
+    {
+        EngineAdapterAssembly, ProductionAssemblies.ClientName,
+    };
+
+    /// <summary>
     /// 🔒 The capabilities <see cref="EngineAdapterAssembly"/> carries, named one by one. An
     /// <b>identity</b> floor, for the reason <see cref="ObjectStoreVocabulary"/> is one.
     /// </summary>
@@ -978,7 +1009,7 @@ internal static class PortCatalogue
 
     /// <summary>What an engine class implementing a port means, said once.</summary>
     internal const string EnginePortConsequence =
-        "23 §7.2 was amended by M7-01c so that it does not: a class in this project cannot carry a " +
+        "23 §7.2a says it may not: a class that can reach the engine API cannot carry a " +
         "contract fixture, because every member of it reaches GodotSharp — a shim over native " +
         "function pointers the engine populates at startup — and a headless call is an " +
         "AccessViolationException no catch block can observe, which takes the test host process down " +
@@ -1002,13 +1033,22 @@ internal static class PortCatalogue
     /// </para>
     /// <para>
     /// ⚠️ <b>What this does NOT close, said so the next reader does not over-trust it.</b> Its
-    /// subject is one named assembly. <c>SlayIdleRepeat.Client</c> is the other project in the tree
-    /// that can reach the engine API, and it is scanned neither here nor by
-    /// <c>ContractSuiteCoverageTests</c>, which globs <c>SlayIdleRepeat.Adapters.*</c> — so a port
-    /// implemented on a scene script would evade both. It is not added here because the client is a
-    /// composition root: the rule that keeps ports out of it is
-    /// <c>PresenterBoundaryRuleTests</c>' territory, not this register's. `23` §7.2a states the
-    /// same limit in prose, so a reader of the document meets it too.
+    /// subject is <see cref="EngineReachingAssemblies"/> — two names, listed by hand. A THIRD
+    /// project that reached the engine would be governed by nothing here. Today only one other
+    /// could: `23` §8's worked example puts <c>MaxBridge</c>, a C# wrapper over a GDScript autoload,
+    /// in the same project as <c>AppLovinRewardedAdAdapter</c>, which implements
+    /// <c>IRewardedAdPort</c> — the arrangement §7.2a rules impossible. That project holds no source
+    /// file at all today; <b>M15-01</b> is the row that writes both halves and the row that has to
+    /// split them.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>And it is an IL rule with no source arm</b>, which this repository has been bitten by:
+    /// <c>SceneBoundaryRuleTests</c> carries a second, source-text arm precisely because `23` §7.2
+    /// writes the client's composition with <c>#if ANDROID / #elif IOS</c>, and a branch compiled
+    /// out on the CI machine leaves no IL for a scan to object to. Measured on this branch: no
+    /// <c>#if</c> appears anywhere under the engine adapter or the client's <c>Composition/</c>, so
+    /// the gap is latent rather than open — but it is the spelling this rule does not close, and
+    /// the task that adds the first conditional there owes it the source arm (steering S18).
     /// </para>
     /// <para>
     /// ⚠️ The <c>IsInterface</c> / <c>IsAbstract</c> / compiler-generated filters are carried
