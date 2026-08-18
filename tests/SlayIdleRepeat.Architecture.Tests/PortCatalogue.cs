@@ -967,9 +967,28 @@ internal static class PortCatalogue
     /// holds.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Parameterised over both its inputs for the reason <see cref="Expired"/> is: the self-tests
     /// drive it with a type that genuinely implements a port, proving each arm bites, without the
     /// forbidden arrangement ever being committed.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>What this does NOT close, said so the next reader does not over-trust it.</b> Its
+    /// subject is one named assembly. <c>SlayIdleRepeat.Client</c> is the other <c>Godot.NET.Sdk</c>
+    /// project in the tree, and it is scanned neither here nor by
+    /// <c>ContractSuiteCoverageTests</c>, which globs <c>SlayIdleRepeat.Adapters.*</c> — so a port
+    /// implemented on a scene script would evade both. It is not added here because the client is a
+    /// composition root: the rule that keeps ports out of it is
+    /// <c>PresenterBoundaryRuleTests</c>' territory, not this register's.
+    /// </para>
+    /// <para>
+    /// ⚠️ The <c>IsInterface</c> / <c>IsAbstract</c> / compiler-generated filters are carried
+    /// <b>unprobed</b>: no abstract, interface or generated type anywhere in the tree implements a
+    /// port, so no arm can drive them. They are here because <c>ContractSuiteCoverageTests</c>'
+    /// implementation scan applies the same three, and a rule that disagreed with it about what
+    /// counts as an implementation would be answering a different question from the one its failure
+    /// message names.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> EnginePortImplementations(
         IEnumerable<TypeDefinition> engineTypes,
@@ -1015,22 +1034,46 @@ internal static class PortCatalogue
 
     /// <summary>Tracker statuses that mean the owning task has already shipped.</summary>
     /// <remarks>
-    /// ✅ is done and 🔍 is merged-awaiting-review; both are a task nobody is going to do again.
-    /// ⬜, ⏳, 🔄 and ⛔ are all still ahead — including ⛔, which is blocked rather than finished
-    /// and is precisely the state <c>IAudioPort</c>'s owner is in.
+    /// <para>
+    /// ✅ is done and 🔍 is in review — in this tracker, always "merged to `milestone/M&lt;N&gt;`" —
+    /// and both are a task nobody is going to do again. ⬜, ⏳, 🔄 and ⛔ are all still ahead,
+    /// including ⛔, which is blocked rather than finished and is precisely the state
+    /// <c>IAudioPort</c>'s owner is in.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The tracker's own legend lists five statuses and the alternation above accepts six.</b>
+    /// ⏳ is used by four live rows and appears in no legend. The extra alternative is deliberate —
+    /// a glyph the pattern does not know makes its rows vanish from the lookup silently, and a
+    /// vanished owner is reported as "no row this parser could read", which is loud but points at
+    /// the wrong thing. <c>PortCatalogueTests</c> pins the legend line by identity so a seventh
+    /// glyph arrives as a failure rather than as a silence.
+    /// </para>
     /// </remarks>
     internal static readonly string[] ShippedStatuses = { "✅", "🔍" };
+
+    /// <summary>The tracker's own status legend, transcribed. Pinned by identity, not by count.</summary>
+    internal static readonly string[] LegendStatuses = { "⬜", "🔄", "🔍", "✅", "⛔" };
 
     /// <summary>
     /// A tracker task row: its id and the status glyph its status cell opens with.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Anchored on the <b>first</b> <c>| glyph</c> after the id rather than on the last glyph in
-    /// the line, and the difference is measured rather than assumed: four rows carry a second status
-    /// glyph inside their status prose (<c>M7-10</c>'s ⏳ row mentions an ✅ open item, <c>M2-16a</c>'s
-    /// 🔍 row mentions a ⛔ CI gap), so "the last glyph on the line" reads two of them backwards.
-    /// Splitting on <c>|</c> is worse still — a description cell that contains a pipe inside
-    /// backticks moves every column.
+    /// <para>
+    /// ⚠️ Anchored on the <b>first</b> <c>| glyph</c> after the id, and both halves of that anchor
+    /// are load-bearing against rows that really exist — measured over all 206 task rows, not
+    /// assumed.
+    /// </para>
+    /// <list type="bullet">
+    ///   <item><b>Not the last glyph on the line.</b> Four rows carry a second status glyph inside
+    ///   their status prose, and two of the four are read backwards by it: <c>M7-10</c> is ⏳ and
+    ///   its row goes on to mention a ⛔ CI gap; <c>M2-16a</c> is 🔍 and its row goes on to mention
+    ///   an ✅ result.</item>
+    ///   <item><b>Not the first glyph on the line.</b> <c>M18-07</c> is ⬜ and its DESCRIPTION cell
+    ///   contains "(O18 ✅)" — before the status cell. Only the <c>|</c> in the anchor separates
+    ///   the two.</item>
+    ///   <item><b>Not a split on <c>|</c>.</b> A description cell containing a pipe inside backticks
+    ///   moves every column, and several do.</item>
+    /// </list>
     /// </remarks>
     private static readonly Regex TrackerTaskRow = new(
         @"^\| (?<id>M\d{1,2}-\d{2}[a-z]?) \|.*?\| ?(?<status>⬜|✅|🔍|🔄|⛔|⏳)",
@@ -1057,9 +1100,30 @@ internal static class PortCatalogue
     /// were in when M7-01c found them: owned by M7-01, a task that shipped two tasks ago and could
     /// not discharge them even then.
     /// <para>
-    /// Parameterised over the tracker text for the reason <see cref="Expired"/> is parameterised
-    /// over its entries: the self-tests drive it with a crafted tracker, so both arms are shown to
-    /// bite without <c>IMPLEMENTATION_TRACKER.md</c> ever being edited to prove it.
+    /// Parameterised over the tracker statuses for the reason <see cref="Expired"/> is parameterised
+    /// over its entries: the self-tests drive it with crafted entries against the real tracker, so
+    /// both arms are shown to bite without <c>IMPLEMENTATION_TRACKER.md</c> ever being edited to
+    /// prove it.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Two other registers owe the same predicate and this does NOT close them</b>, recorded
+    /// rather than quietly duplicated (steering S4 asks for one mechanism per repo, and this is the
+    /// honest account of why there are still three).
+    /// <list type="bullet">
+    ///   <item><c>GapRegisterTests.Every_deferred_command_names_a_task_the_tracker_declares</c> is
+    ///   in this same assembly and checks EXISTENCE only. Measured on this branch, <b>four</b> of
+    ///   <c>GameRules</c>' 24 <c>Deferred</c> rows name a task that has already shipped:
+    ///   <c>REFORGE_ITEM</c>, <c>RETUNE_ITEM</c> and <c>SET_FOCUS</c> to M4-04 (✅), and
+    ///   <c>USE_CONSUMABLE</c> to M3-08 (✅). Pointing that rule at this predicate would turn the
+    ///   build red on four re-points that are milestone decisions — which task builds reforge,
+    ///   retune, focus and consumables — and inventing four owners is steering S6 with a task id
+    ///   instead of a number. M7-01c reports it instead of guessing.</item>
+    ///   <item><c>RealDataSetTests</c> in <c>SlayIdleRepeat.Application.Tests</c> already records
+    ///   this predicate as owed work, names its eight offenders and names its owner ("the next
+    ///   milestone kickoff that touches this baseline"). It cannot share code with this file — it
+    ///   is a different assembly and the architecture suite's <c>Infrastructure</c> is internal to
+    ///   it — so a shared parser would need a project neither suite has. That entry stands.</item>
+    /// </list>
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> OwnersNoLongerOpen(
@@ -1075,10 +1139,12 @@ internal static class PortCatalogue
             if (rows.Length == 0)
             {
                 offenders.Add(
-                    $"'{subject}' names owner '{owner}', which is not a task row in " +
-                    "IMPLEMENTATION_TRACKER.md. A deferral whose owner does not exist expires when " +
-                    "nobody is looking: the entry keeps saying a seam is coming and no milestone is " +
-                    "on the hook for it.");
+                    $"'{subject}' names owner '{owner}', and no task row this parser could read " +
+                    "declares it in IMPLEMENTATION_TRACKER.md. A deferral whose owner does not " +
+                    "exist expires when nobody is looking: the entry keeps saying a seam is coming " +
+                    "and no milestone is on the hook for it. ⚠️ Check the OWNER first and the " +
+                    "PARSER second — TrackerTaskRow reads task rows only, so a milestone-summary " +
+                    "or review row would land here too.");
                 continue;
             }
 

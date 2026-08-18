@@ -773,7 +773,7 @@ public sealed class PortCatalogueTests
         // 🔒 The inheritance arm, on the shared predicate the rule is built from. CurrencyChanged
         // declares IEquatable<CurrencyChanged> and INHERITS IEquatable<DomainEvent> from its base
         // record — so a direct-only check answers false here and true on the line above it.
-        var inheritedInterface = "System.IEquatable`1<" + Domain.CoreNamespace + ".Events." + Domain.DomainEventType + ">";
+        var inheritedInterface = $"System.IEquatable`1<{Domain.EventsNamespace}.{Domain.DomainEventType}>";
         var derived = Domain.CoreTypes.Single(
             t => t.Name.Equals(Domain.CurrencyChangedEvent, StringComparison.Ordinal));
 
@@ -786,6 +786,62 @@ public sealed class PortCatalogueTests
         Il.ImplementsInterface(derived, "System.IEquatable`1<System.Uri>").ShouldBeFalse(
             "the same subject and an interface neither it nor its base declares — otherwise the arm "
             + "above would be satisfied by a walk that answers true for everything.");
+    }
+
+    /// <summary>
+    /// `23` §5 A8 — the teeth of the premise rule: it fires on a reference list the engine adapter
+    /// has left, and is silent on the real one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 The rule this project could most easily have shipped without teeth, and the one whose
+    /// silence would cost the most: it is green today and its live input can only be seen passing,
+    /// so <c>EnginePremise</c> rewritten as <c>=&gt; Array.Empty&lt;string&gt;()</c> would leave the
+    /// whole suite green while the premise under three other statements went unwatched.
+    /// </para>
+    /// <para>
+    /// Three failing shapes and two controls. <b>Reference dropped</b> is the realistic edit — the
+    /// sibling host adapter stays and the engine one goes. <b>Nothing read</b> is the reader
+    /// returning an empty list, which has to be loud rather than treated as "no evidence".
+    /// <b>Near miss</b> is the control that proves the match is whole-name and not a prefix: a
+    /// project called <c>…Platform.Godot.Something</c> is not this one.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_engine_premise_rule_fires_when_the_contract_suites_stop_referencing_the_adapter()
+    {
+        var live = ContractSuiteProjectReferences();
+
+        PortCatalogue.EnginePremise(live).ShouldBeEmpty(
+            "Contract.Tests project-references the engine adapter today, which is the arrangement "
+            + "the deferrals and 23 §7.2's amendment are written against.");
+
+        // 🔒 An identity floor on the READER, not on the rule: it must return project NAMES. A
+        // reader that returned paths would make every arm below pass for the wrong reason.
+        live.ShouldContain(
+            PortCatalogue.HostAdapterAssembly,
+            "the reader returns bare project names. If this fails it is returning paths or Include "
+            + "attributes, and the whole-name match below is comparing two different vocabularies.");
+
+        // The realistic edit: the engine reference is dropped and its sibling stays.
+        PortCatalogue.EnginePremise(live.Where(r => !r.Equals(PortCatalogue.EngineAdapterAssembly, StringComparison.Ordinal)))
+            .ShouldHaveSingleItem()
+            .ShouldContain("no longer project-references", Case.Sensitive);
+
+        // The reader coming back empty must be loud, not silently "nothing to complain about".
+        PortCatalogue.EnginePremise(Array.Empty<string>())
+            .ShouldHaveSingleItem()
+            .ShouldContain(PortCatalogue.EngineAdapterAssembly, Case.Sensitive);
+
+        // The control on the matcher: a whole-name match, not a prefix or a substring.
+        PortCatalogue.EnginePremise(new[] { PortCatalogue.EngineAdapterAssembly + ".Extra" })
+            .ShouldHaveSingleItem()
+            .ShouldContain("no longer project-references", Case.Sensitive);
+
+        // …and the other side of the same control: the exact name alone satisfies it.
+        PortCatalogue.EnginePremise(new[] { PortCatalogue.EngineAdapterAssembly }).ShouldBeEmpty(
+            "the reference is what the rule asks for, and nothing else about the list matters — "
+            + "otherwise this would be a second, unstated rule about what Contract.Tests may hold.");
     }
 
     /// <summary>
@@ -818,34 +874,62 @@ public sealed class PortCatalogueTests
     }
 
     /// <summary>
-    /// `23` §6 — the teeth of the owner rule, driven against a crafted tracker so both arms are
-    /// shown to bite without <c>IMPLEMENTATION_TRACKER.md</c> being edited to prove it.
+    /// `23` §6 — the teeth of the owner rule, driven against crafted entries so every arm is shown
+    /// to bite without <c>IMPLEMENTATION_TRACKER.md</c> being edited to prove it.
     /// </summary>
     /// <remarks>
-    /// Three arms — a shipped owner, an owner no row declares, and the silent case — plus the
-    /// parser's own floor. The parser is the part that can go quiet: a regex that stopped matching
-    /// would make every owner "not declared" (loud, and therefore safe) but one anchored on the
-    /// wrong glyph reads real rows backwards, which is silent. Four rows carry a second status glyph
-    /// inside their prose, and two of those four are read wrongly by "the last glyph on the line".
+    /// <para>
+    /// Four arms — a shipped owner, an owner no row declares, a BLOCKED owner that must stay
+    /// silent, and the ordinary open case — plus the parser's own floors. The parser is the part
+    /// that can go quiet: a regex that stopped matching would report every owner as undeclared,
+    /// which is loud and therefore safe, but one anchored on the wrong glyph reads real rows
+    /// backwards while staying green.
+    /// </para>
+    /// <para>
+    /// 🔒 Its floors are by <b>identity</b>, not by count (steering S3): the three rows pinned below
+    /// are the ones that discriminate this anchor from the two obvious wrong ones, and a count over
+    /// 206 rows is cleared by any 150 of them.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_owner_status_rule_fires_on_a_shipped_owner_and_is_silent_on_an_open_one()
+    public void The_owner_status_rule_fires_on_a_shipped_or_missing_owner_and_is_silent_on_an_open_one()
     {
         var statuses = PortCatalogue.TrackerStatuses(Tracker());
 
-        // The parser's floor. Empty, every arm below is "the owner does not exist" and the rule
-        // reports the same failure for a healthy register as for a broken one.
-        statuses.Count.ShouldBeGreaterThan(
-            150,
-            "IMPLEMENTATION_TRACKER.md declares over two hundred task rows. A parser that returns "
-            + "few or none makes Every_port_catalogue_owner_is_a_task_the_tracker_still_has_open "
-            + "fail on every entry at once, for a reason that has nothing to do with the entries.");
+        // 🔒 The anchor, pinned by IDENTITY on the three rows that discriminate it. Each of these
+        // would be read wrongly by a plausible simplification of the regex, and each is a real row.
+        statuses["M7-10"].ShouldBe(
+            new[] { "⏳" },
+            "M7-10 is queued, and its status prose goes on to mention a ⛔ CI gap. Anchor this on "
+            + "the LAST glyph on the line and the row reads as blocked.");
 
-        // 🔒 The anchor, pinned by identity on the four rows that carry a second status glyph in
-        // their prose. M7-10 is queued and mentions a closed open item; M2-16a is merged and
-        // mentions a blocked CI gap. "The last glyph on the line" reads both backwards.
-        statuses["M7-10"].ShouldBe(new[] { "⏳" }, "M7-10 is queued; the ✅ later in its row is an open item's status.");
-        statuses["M2-16a"].ShouldBe(new[] { "🔍" }, "M2-16a is merged; the ⛔ later in its row is a CI gap it names.");
+        statuses["M2-16a"].ShouldBe(
+            new[] { "🔍" },
+            "M2-16a is in review, and its status prose goes on to mention an ✅ result. Same "
+            + "simplification, same silent misreading, opposite direction.");
+
+        statuses["M18-07"].ShouldBe(
+            new[] { "⬜" },
+            "M18-07 has not started, and the ✅ in its DESCRIPTION cell — '(O18 ✅)' — sits BEFORE "
+            + "the status cell. Drop the '|' from the anchor and this row reads as done, which is "
+            + "the one arm the two rows above cannot cover.");
+
+        // 🔒 And the tracker's own legend, pinned by identity: the alternation the parser accepts is
+        // a transcription of that line plus ⏳, which four live rows use and the legend omits. A
+        // sixth documented status would otherwise arrive as rows silently missing from the lookup.
+        var legend = Tracker()
+            .Split('\n')
+            .First(line => line.Contains("**Statuses:**", StringComparison.Ordinal));
+
+        foreach (var glyph in PortCatalogue.LegendStatuses)
+        {
+            legend.ShouldContain(
+                glyph,
+                Case.Sensitive,
+                $"'{glyph}' is gone from the tracker's status legend. TrackerTaskRow transcribes "
+                + "that line; a glyph it does not know makes every row using it vanish from the "
+                + "lookup, and a vanished owner is reported as an owner nobody declared.");
+        }
 
         var open = new[] { (Subject: "IUnitOfWork", Owner: "M5-04") };
         var shipped = new[] { (Subject: "IUnitOfWork", Owner: "M7-01") };
@@ -861,7 +945,7 @@ public sealed class PortCatalogueTests
 
         PortCatalogue.OwnersNoLongerOpen(absent, statuses)
             .ShouldHaveSingleItem()
-            .ShouldContain("is not a task row in IMPLEMENTATION_TRACKER.md", Case.Sensitive);
+            .ShouldContain("no task row this parser could read declares it", Case.Sensitive);
 
         // ⚠️ The status arm's own control: ⛔ is BLOCKED, not finished, and IAudioPort's owner is in
         // exactly that state. A rule that treated "not ⬜" as shipped would fire on it.

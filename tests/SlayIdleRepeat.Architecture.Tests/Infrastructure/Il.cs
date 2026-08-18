@@ -41,19 +41,33 @@ internal static class Il
 
     /// <summary>
     /// True when <paramref name="type"/> implements the interface named by
-    /// <paramref name="interfaceFullName"/> — directly, through a base class, or through another
-    /// interface that derives from it.
+    /// <paramref name="interfaceFullName"/>, directly or through a base class.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 One definition for the repository (steering S4). <c>DependencyRuleTests</c> asks it to
     /// decide whether a port has its two implementations; <c>PortCatalogue</c> asks it to decide
     /// whether the engine adapter has quietly grown one. Two spellings of "does this type implement
     /// that port?" would eventually disagree, and the disagreement would show up as one of the two
     /// rules being silently wrong about a subclass.
+    /// </para>
     /// <para>
-    /// ⚠️ The walk is what distinguishes this from <c>type.Interfaces.Any(…)</c>, and it is not
-    /// decoration: <c>sealed class GodotHaptics : SomeBase</c> where <c>SomeBase : IHapticsPort</c>
-    /// implements the port without naming it once in its own metadata.
+    /// ⚠️ The base-class walk is what distinguishes this from <c>type.Interfaces.Any(…)</c>, and it
+    /// is not decoration: <c>sealed class GodotHaptics : SomeBase</c> where
+    /// <c>SomeBase : IHapticsPort</c> implements the port without naming it once in its own
+    /// metadata. That arm is probed in
+    /// <c>PortCatalogueTests.The_engine_port_rule_fires_on_a_type_that_implements_one</c>.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The summary says "directly or through a base class" and stops there deliberately.</b>
+    /// <see cref="InterfaceMatches"/> also recurses into a matched interface's OWN base interfaces,
+    /// so <c>IBattleLogStore : IS3ObjectStore</c> where <c>IS3ObjectStore : ISomePort</c> would be
+    /// found — but that branch is carried <b>unproven</b>, because nothing can drive it: measured
+    /// across every <c>SlayIdleRepeat.*</c> assembly in the build output, <b>zero</b> hand-written
+    /// types reach an interface only through another interface, and no port derives from one.
+    /// Steering S19 asks for a probe per arm; where an arm has no subject at all, the honest move is
+    /// to name it rather than to claim it, and to keep the branch because deleting it would be a
+    /// hole rather than a simplification.
     /// </para>
     /// </remarks>
     internal static bool ImplementsInterface(TypeDefinition type, string interfaceFullName)
