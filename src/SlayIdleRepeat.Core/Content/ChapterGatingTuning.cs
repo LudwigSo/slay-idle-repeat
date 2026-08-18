@@ -39,8 +39,16 @@ internal sealed class ChapterGatingRung
     /// </remarks>
     /// <param name="chapterId">The chapter the run is being started on.</param>
     /// <returns>The clear, or <c>null</c>.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The rung carries a token this resolver does not recognise, which
+    /// <see cref="ChapterGatingTuning.Read"/> makes impossible — so it is a defect in whatever built
+    /// the rung, never a data problem and never an illegal move.
+    /// </exception>
     internal ChapterClear? RequiredClear(int chapterId) => RequiresClear switch
     {
+        // An authored null, and nothing else, is a rung saying it demands no clear.
+        null => null,
+
         // This token names the chapter BEFORE this one, and there is none before the first — which
         // is what keeps the ladder from locking the game's own front door.
         ChapterGatingTuning.PreviousChapterNormal => chapterId > 1
@@ -49,10 +57,16 @@ internal sealed class ChapterGatingRung
         ChapterGatingTuning.SameChapterNormal => new ChapterClear(chapterId, DifficultyTier.NORMAL),
         ChapterGatingTuning.SameChapterHeroic => new ChapterClear(chapterId, DifficultyTier.HEROIC),
 
-        // Deliberately not an "unrecognised token" arm: the only value that reaches here is an
-        // authored null, because ChapterGatingTuning.Read refused every other unknown token before
-        // this rung was ever built.
-        _ => null,
+        // Unreachable through ChapterGatingTuning.Read, which refuses an unrecognised token before a
+        // rung is built — and a throw rather than a fall-through to the null above because the two
+        // answers are not interchangeable: "demands no clear" is the one answer that opens a tier to
+        // every account, and it must never be what an unknown token decays into.
+        _ => throw new InvalidOperationException(
+            "'" + RequiresClear + "' is not a clear token this resolver recognises, and a rung " +
+            "carrying one was not built by ChapterGatingTuning.Read — which refuses every " +
+            "unrecognised token at " + ChapterGatingTuning.GatingReference + ". This is a defect in " +
+            "whatever constructed the rung, not an illegal move, and it is refused rather than " +
+            "answered with 'this rung demands no clear', which would unlock the tier for everybody."),
     };
 }
 

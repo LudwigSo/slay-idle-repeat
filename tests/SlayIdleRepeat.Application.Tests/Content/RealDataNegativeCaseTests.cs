@@ -5,7 +5,7 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// Forty-nine single-edit mutations of the real game-data, each of which the validator must
+/// Fifty single-edit mutations of the real game-data, each of which the validator must
 /// reject at a named code and a named pointer — one of them at a named citation instead, because
 /// its rule shares both with the rule beside it (see the inventory ceiling cases).
 /// </summary>
@@ -476,7 +476,7 @@ public sealed class RealDataNegativeCaseTests
             ContentIssueCode.OrphanedReference, "tuning/power_model.json#/referenceOpponent/def");
     }
 
-    // ═══════════════════ the chapter/tier ladder is the only gate a chapter may state (45-49)
+    // ═══════════════════ the chapter/tier ladder is the only gate a chapter may state (45-50)
 
     /// <summary>
     /// The schema arm: <c>unlockCondition.tier</c> is locked to the one tier the ladder's Normal rung
@@ -570,6 +570,51 @@ public sealed class RealDataNegativeCaseTests
             "\"tier\": { \"enum\": [\"NORMAL\", \"HEROIC\"] }",
             ContentIssueCode.OrphanedReference,
             "schema/chapter.schema.json#/properties/unlockCondition/properties/tier");
+    }
+
+    /// <summary>
+    /// The cross-check arm again, from the shape that is not a wrong constraint but no constraint:
+    /// the schema stops describing <c>unlockCondition</c>'s members at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A widened <c>enum</c> and an absent constraint are two different drifts and the arm answers
+    /// them with two different sentences, so both need a case. This one is why the absent-constraint
+    /// branch is not decoration: deleting the <c>tier</c> node <em>alone</em> is unreachable —
+    /// <c>additionalProperties: false</c> would then refuse the shipped chapter's own <c>tier</c>
+    /// member, and <c>ContentLoader</c> runs the declared rules only when schema validation is clean.
+    /// Dropping the closing keyword together with the block is the edit that keeps every shipped
+    /// document valid while leaving the member entirely undescribed, which is exactly the "someone
+    /// simplified the schema" drift the arm exists for.
+    /// </para>
+    /// <para>
+    /// One textual edit, and it removes rather than adds: what is left is a well-formed subschema
+    /// (<c>type</c>, <c>required</c>) that permits <c>MYTHIC</c> as happily as <c>NORMAL</c>.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_chapter_schema_that_constrains_the_tier_not_at_all_is_rejected()
+    {
+        const string constrained =
+            "\"additionalProperties\": false,\n" +
+            "      \"required\": [\"clearChapter\", \"tier\"],\n" +
+            "      \"properties\": {\n" +
+            "        \"clearChapter\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 8 },\n" +
+            "        \"tier\": { \"const\": \"NORMAL\" }\n" +
+            "      }";
+
+        var issues = ContentLoader.Load(RepoData.SourceWithEdit(
+            "schema/chapter.schema.json", constrained,
+            "\"required\": [\"clearChapter\", \"tier\"]")).Issues;
+
+        issues.ShouldContain(
+            i => i.Code == ContentIssueCode.OrphanedReference &&
+                 i.Location == "schema/chapter.schema.json#/properties/unlockCondition/properties/tier" &&
+                 i.Message.Contains("does not constrain the member at all", StringComparison.Ordinal),
+            "the sentence is the assertion here, not just the pointer: the arm answers a widened " +
+            "constraint and an absent one differently, and the case beside this one already covers " +
+            "the widened wording. Matched on the code and the pointer alone, this case would stay " +
+            "green with the absent branch deleted.");
     }
 
     // ═══════════════════════════ positive controls — these nulls MUST still be accepted

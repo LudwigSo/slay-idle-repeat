@@ -63,10 +63,10 @@ internal static class DeclaredRules
     }
 
     /// <summary>
-    /// The rules that read the schema set. Listed rather than called one by one, so a third of them
-    /// is an entry here rather than another line in <see cref="Check"/>.
+    /// The rules that read the schema set — the same register <see cref="Rules"/> is, one argument
+    /// wider, so a third such rule is an entry here rather than another call in <see cref="Check"/>.
     /// </summary>
-    private static readonly SchemaAwareRule[] SchemaAwareRules =
+    private static readonly IReadOnlyList<SchemaAwareRule> SchemaAwareRules =
     [
         // Every effect embedded in an owning content file validates against the one file that
         // states the effect partition — an owning schema can neither $ref it nor restate it.
@@ -1319,6 +1319,14 @@ internal static class DeclaredRules
     private const string ClearChapterMember = "clearChapter";
     private const string TierMember = "tier";
 
+    /// <summary>The member path from <c>chapter.schema.json</c>'s root to the tier constraint.</summary>
+    /// <remarks>
+    /// Walked segment by segment rather than resolved through <see cref="Find"/>: a schema is not
+    /// part of the snapshot, and any segment being absent is itself the finding.
+    /// </remarks>
+    private static readonly string[] TierConstraintPath =
+        ["properties", UnlockConditionMember, "properties", TierMember];
+
     /// <summary>A chapter's <c>unlockCondition</c> is the ladder's Normal rung restated, and nothing else.</summary>
     /// <remarks>
     /// <para>
@@ -1461,7 +1469,7 @@ internal static class DeclaredRules
             $"{ChapterSchemaPath}#/properties/{UnlockConditionMember}/properties/{TierMember}";
 
         ContentValue? constraint = schema;
-        foreach (var segment in (string[])["properties", UnlockConditionMember, "properties", TierMember])
+        foreach (var segment in TierConstraintPath)
         {
             if (constraint.Kind != ContentValueKind.Object ||
                 !constraint.TryGetMember(segment, out var member))

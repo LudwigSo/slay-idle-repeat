@@ -39,6 +39,6 @@ public enum DifficultyTier
     /// <summary>Gated on the same chapter's Normal clear. <c>par_power.json</c> puts it at ×4.</summary>
     HEROIC = 2,
 
-    /// <summary>Gated on the same chapter's Heroic clear plus Legend Level 60. ×16.</summary>
+    /// <summary>Gated on the same chapter's Heroic clear plus the Legend Level the ladder authors. ×16.</summary>
     MYTHIC = 3,
 }
