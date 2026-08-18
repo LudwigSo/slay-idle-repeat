@@ -82,8 +82,16 @@ public sealed class UseCaseSourceRuleTests
             "way by this layer and another way by the rules, and only one of them is the game.");
     }
 
-    /// <summary>The read side's own file, whose absence would take the rule below green with it.</summary>
-    private const string ReadSideFile = "ReadOwnStateUseCase.cs";
+    /// <summary>The read side's own files, whose absence would take the rules below green with them.</summary>
+    /// <remarks>
+    /// 🔒 <b>Two files since M7-06b, and the second one is why this is a list.</b> The rule was
+    /// written when the layer had one query, and "the read side" was spelled as that file's name — so
+    /// a second query arrived governed by nothing, which is exactly the shape of drift the subject
+    /// floors in this file exist to catch. A read use case added without an entry here is a read the
+    /// two rules below do not see.
+    /// </remarks>
+    private static readonly string[] ReadSideFiles =
+        ["ReadOwnStateUseCase.cs", "SimulatePendingBattleUseCase.cs"];
 
     /// <summary>The write side's files, across which every term the rule below bans is legitimately named.</summary>
     private static readonly string[] WriteSideFiles = ["ApplyCommandUseCase.cs", "WorldSliceStore.cs"];
@@ -118,15 +126,16 @@ public sealed class UseCaseSourceRuleTests
     {
         var sources = ApplicationSourceFiles();
 
-        var readSide = sources.SingleOrDefault(f => Path.GetFileName(f) == ReadSideFile);
+        var readSide = ReadSide(sources);
 
         var controls = WriteSideFiles
             .Select(name => sources.SingleOrDefault(f => Path.GetFileName(f) == name))
             .ToArray();
 
-        readSide.ShouldNotBeNull(
-            "the scan read " + sources.Count + " file(s) and none of them was " + ReadSideFile +
-            ". A rule with no subject passes for free.");
+        readSide.ShouldNotContain(
+            (string?)null,
+            "the scan read " + sources.Count + " file(s) and one of " + string.Join(", ", ReadSideFiles) +
+            " was not among them. A rule with no subject passes for free.");
         controls.ShouldNotContain(
             (string?)null,
             "the scan never saw one of " + string.Join(", ", WriteSideFiles) + ", so the control below " +
@@ -144,14 +153,128 @@ public sealed class UseCaseSourceRuleTests
                 "legitimately named. A banned term this scan cannot find anywhere bans nothing.");
         }
 
-        var text = File.ReadAllText(readSide!);
-
-        var offenders = RuleDoors.Where(door => text.Contains(door, StringComparison.Ordinal)).ToArray();
+        var offenders = readSide
+            .SelectMany(file => Named(file!, RuleDoors))
+            .ToArray();
 
         offenders.ShouldBeEmpty(
-            ReadSideFile + " names " + string.Join(", ", offenders) + ". A read that holds an aggregate " +
+            "on the read side: " + string.Join("; ", offenders) + ".A read that holds an aggregate " +
             "is a read that can invoke a rule, and the same question would then be answered once by the " +
             "command that wrote the row and again by the query that reads it.");
+    }
+
+    /// <summary>
+    /// The domain state vocabulary a read may carry but must not branch on — the run's phase.
+    /// </summary>
+    /// <remarks>
+    /// A phase is the domain's own account of where a run stands, and every question worth asking of
+    /// it — is there a battle open, is a draft owed, is the run over — is a rule. A read that names it
+    /// is a read that has an opinion about one.
+    /// </remarks>
+    private static readonly string[] DomainStateVocabulary = ["RunPhase"];
+
+    /// <summary>The write-side file across which the term above is legitimately named.</summary>
+    /// <remarks>
+    /// <c>WorldSliceStore</c> routes an ended run to the archive, which is a storage decision keyed on
+    /// a phase rather than a query forming an opinion about one. It is named here as the control that
+    /// proves the scan can find the term at all.
+    /// </remarks>
+    private const string PhaseControlFile = "WorldSliceStore.cs";
+
+    /// <summary>
+    /// 🔒 The read side decides nothing about a run's phase: it hands rows out, and every question
+    /// whose answer is a phase is asked of <c>Core</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>The failure this is stated over is one this layer shipped.</b> The pending-battle read
+    /// chose its "no open battle" answer by testing the phase itself, while the rules assembly
+    /// decided the same question over four facts — so the two disagreed, and a run in the battle
+    /// phase carrying no pending tile was reported as having a fight and then threw out of a read.
+    /// Naming the phase is what deciding a rule looks like in source here, exactly as naming a
+    /// domain-tier reason is above.
+    /// </para>
+    /// <para>
+    /// Both floors are by identity, as above: the subject files must be present, and the banned term
+    /// must be proven findable by this same scan where it is legitimate.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_read_side_decides_nothing_about_a_runs_phase()
+    {
+        var sources = ApplicationSourceFiles();
+        var readSide = ReadSide(sources);
+
+        readSide.ShouldNotContain(
+            (string?)null,
+            "the scan read " + sources.Count + " file(s) and one of " + string.Join(", ", ReadSideFiles) +
+            " was not among them. A rule with no subject passes for free.");
+
+        var control = sources.SingleOrDefault(f => Path.GetFileName(f) == PhaseControlFile);
+
+        control.ShouldNotBeNull(
+            "the scan never saw " + PhaseControlFile + ", so it cannot prove the banned term is " +
+            "findable at all and a typo among the terms would read as compliance.");
+
+        var controlText = File.ReadAllText(control!);
+
+        foreach (var term in DomainStateVocabulary)
+        {
+            controlText.ShouldContain(
+                term,
+                Case.Sensitive,
+                "'" + term + "' is not found in " + PhaseControlFile + ", where it is legitimately " +
+                "named. A banned term this scan cannot find anywhere bans nothing.");
+        }
+
+        var offenders = readSide
+            .SelectMany(file => Named(file!, DomainStateVocabulary))
+            .ToArray();
+
+        offenders.ShouldBeEmpty(
+            "on the read side: " + string.Join("; ", offenders) + ".Deciding what a phase means is " +
+            "a game rule, and a query that holds one answers the same question the domain answers — " +
+            "differently, the first time either side grows a clause the other does not.");
+    }
+
+    /// <summary>The read side's files, in <see cref="ReadSideFiles"/> order, <c>null</c> where absent.</summary>
+    /// <remarks>
+    /// 🔒 <b>Every use case in the layer is classified first, and that is the load-bearing half.</b>
+    /// The floors in this file are stated over <see cref="ReadSideFiles"/>, so they are only as wide
+    /// as that array — and an array is shrunk by deleting a line, which no floor over the array
+    /// itself can see (steering S3). The classification is taken from the DIRECTORY instead: a use
+    /// case that is in neither list is a file the read-side rules do not govern and nobody said so,
+    /// whether it was just written or just dropped from the list.
+    /// </remarks>
+    private static IReadOnlyList<string?> ReadSide(IReadOnlyList<string> sources)
+    {
+        var classified = ReadSideFiles.Concat(WriteSideFiles).ToHashSet(StringComparer.Ordinal);
+
+        var unclassified = sources
+            .Select(Path.GetFileName)
+            .Where(name => name is not null && name.EndsWith("UseCase.cs", StringComparison.Ordinal))
+            .Where(name => !classified.Contains(name!))
+            .ToArray();
+
+        unclassified.ShouldBeEmpty(
+            "the layer holds " + string.Join(", ", unclassified) + ", which is named in neither the " +
+            "read-side nor the write-side list. Every use case is one or the other: an unclassified " +
+            "one is a query the two rules below never look at, and deleting a name from the read-side " +
+            "list is exactly how one gets there without anybody choosing to.");
+
+        return ReadSideFiles
+            .Select(name => sources.SingleOrDefault(f => Path.GetFileName(f) == name))
+            .ToArray();
+    }
+
+    /// <summary>Which of <paramref name="terms"/> the file's text names, tagged with the file.</summary>
+    private static IEnumerable<string> Named(string file, IReadOnlyList<string> terms)
+    {
+        var text = File.ReadAllText(file);
+
+        return terms
+            .Where(term => text.Contains(term, StringComparison.Ordinal))
+            .Select(term => Path.GetFileName(file) + " names " + term);
     }
 
     /// <summary>Every hand-written <c>.cs</c> file of the layer.</summary>

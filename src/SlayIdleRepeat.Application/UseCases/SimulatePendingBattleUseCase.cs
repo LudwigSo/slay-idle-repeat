@@ -43,7 +43,18 @@ public enum PendingBattleLookup
 /// number with a group separator, a sign or in hex would be refused while holding a perfectly
 /// correct fight — and would have no way to tell that from a fight the server disagreed with.
 /// </remarks>
-public sealed record PendingBattleView(ulong BattleSeed, SimulationResult Fight, string LogHash);
+public sealed record PendingBattleView(ulong BattleSeed, SimulationResult Fight, string LogHash)
+{
+    /// <summary>How stale this view may be: not at all.</summary>
+    /// <remarks>
+    /// Every read model declares one, and this one is not a judgement call: the fight is a function
+    /// of the player's own rows, which are read through the write model with no staleness tolerated
+    /// at all, and the hash it carries is checked against a fight the server recomposes from those
+    /// same rows. A view served a moment late is a hash the server disagrees with, which a caller
+    /// cannot tell apart from a fight it got wrong.
+    /// </remarks>
+    public static TimeSpan StalenessBudget => TimeSpan.Zero;
+}
 
 /// <summary>What the read answered: the lookup, and the fight when there is one.</summary>
 /// <param name="Lookup">What was found.</param>
@@ -106,7 +117,11 @@ public sealed class SimulatePendingBattleUseCase
             return new PendingBattleResult(PendingBattleLookup.NoSuchPlayer, null);
         }
 
-        if (stored.Run is not { Phase: RunPhase.BattlePending } open)
+        // 🔒 Asked, never decided. What counts as a run standing in a battle is a phase, a pending
+        // tile, that tile's kind and a drawn combat counter, and the composition below already reads
+        // all four — so a second opinion formed here would be a game rule above the domain, and a
+        // narrower one: it would answer "there is a fight" for states the composition refuses.
+        if (stored.Run is not { } open || !RunBattle.HasOpenBattle(open))
         {
             return new PendingBattleResult(PendingBattleLookup.NoOpenBattle, null);
         }

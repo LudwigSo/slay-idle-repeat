@@ -1,4 +1,5 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
@@ -592,5 +593,113 @@ public sealed class RunBattleTests
 
         Should.Throw<ArgumentNullException>(
             () => RunBattle.Simulate(RunBattleWorlds.PlayerRow(), RunBattleWorlds.RunRow(), null!));
+    }
+
+    // ═══════════════════════════════════════════════════════ "is there a battle open at all"
+
+    /// <summary>Every row shape the predicate is stated over, and whether it names an open battle.</summary>
+    /// <remarks>
+    /// A caller above this assembly has to ask before it composes, and the only answer worth having
+    /// is the composition's own. So the cases are the composition's refusals, one for one.
+    /// </remarks>
+    public static TheoryData<string, bool> OpenBattleRows => new()
+    {
+        { "enemy", true },
+        { "elite", true },
+        { "boss", true },
+        { "not in the battle phase", false },
+        { "no pending tile", false },
+        { "a tile that is not a fight", false },
+        { "an undrawn combat stream", false },
+    };
+
+    /// <summary>The row each case above names.</summary>
+    private static RunSnapshot RowFor(string shape) => shape switch
+    {
+        "enemy" => RunBattleWorlds.RunRow(),
+        "elite" => RunBattleWorlds.RunRow(TileKind.Elite),
+        "boss" => RunBattleWorlds.RunRow(TileKind.Boss, stage: BoardGraph.BossStage),
+        "not in the battle phase" => RunBattleWorlds.RunRow(phase: RunPhase.InProgress),
+        "no pending tile" => RunBattleWorlds.OnNoTileRow(),
+        "a tile that is not a fight" => RunBattleWorlds.RunRow(TileKind.Shop),
+        "an undrawn combat stream" => RunBattleWorlds.RunRow(battlesStarted: 0UL),
+        _ => throw new ArgumentOutOfRangeException(nameof(shape), shape, "no row is authored for it"),
+    };
+
+    /// <summary>The predicate answers each row shape the way the composition treats it.</summary>
+    [Theory]
+    [MemberData(nameof(OpenBattleRows))]
+    public void The_predicate_names_an_open_battle_exactly_when_there_is_one(string shape, bool open) =>
+        RunBattle.HasOpenBattle(RowFor(shape)).ShouldBe(
+            open,
+            "'" + shape + "' is " + (open ? "" : "not ") + "a run standing in a battle it can fight");
+
+    /// <summary>
+    /// 🔒 The predicate and the composition agree on every one of those rows — which is the whole
+    /// reason the predicate is here rather than in the caller.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Stated as an agreement, not as a list of expected booleans.</b> A caller that tested the
+    /// phase alone would answer <c>true</c> for a run in the battle phase carrying no pending tile,
+    /// and would then get an <c>InvalidOperationException</c> out of what it published as a read.
+    /// A predicate that is merely <em>a</em> correct-looking answer is exactly that bug written one
+    /// layer down, so what is asserted is that "the predicate says yes" and "the composition
+    /// produces a fight" are the same set of rows.
+    /// </remarks>
+    [Theory]
+    [MemberData(nameof(OpenBattleRows))]
+    public void The_predicate_agrees_with_the_composition_it_guards(string shape, bool open)
+    {
+        var row = RowFor(shape);
+
+        var composes = true;
+
+        try
+        {
+            RunBattle.Simulate(RunBattleWorlds.PlayerRow(), row, RunBattleWorlds.Content);
+            RunBattle.SeedOf(row);
+        }
+        catch (InvalidOperationException)
+        {
+            composes = false;
+        }
+
+        composes.ShouldBe(
+            open,
+            "the fixture for '" + shape + "' no longer composes the way this file says it does");
+
+        RunBattle.HasOpenBattle(row).ShouldBe(
+            composes,
+            "the predicate said " + RunBattle.HasOpenBattle(row) + " about '" + shape + "' and the " +
+            "composition said " + composes + ". A caller asking the predicate and then composing " +
+            "would be told there is a fight and then handed a fault instead of one.");
+    }
+
+    /// <summary>A row that does not rehydrate is a fault, not an absence of a battle.</summary>
+    /// <remarks>
+    /// The distinction is the reason the predicate rehydrates through the same door the fight comes
+    /// through: answering <c>false</c> for a corrupt row would report it as a run with nothing to
+    /// fight, and the corruption would never be seen by anyone.
+    /// </remarks>
+    [Fact]
+    public void A_run_row_that_does_not_rehydrate_is_a_fault_rather_than_a_closed_battle()
+    {
+        var refused = Should.Throw<ArgumentException>(
+            () => RunBattle.HasOpenBattle(RunBattleWorlds.RunRow() with { CurrentHp = -1 }));
+
+        refused.ParamName.ShouldBe("run");
+        refused.Message.ShouldContain("does not rehydrate", Case.Insensitive);
+    }
+
+    /// <summary>Both of the predicate's doors refuse a null, like the others.</summary>
+    /// <remarks>
+    /// Cast, because this assembly can see the internal aggregate overload and a bare <c>null</c>
+    /// would not say which door the case is about.
+    /// </remarks>
+    [Fact]
+    public void The_predicates_door_refuses_a_null_argument()
+    {
+        Should.Throw<ArgumentNullException>(() => RunBattle.HasOpenBattle((RunSnapshot)null!));
+        Should.Throw<ArgumentNullException>(() => RunBattle.HasOpenBattle((Core.Model.Run)null!));
     }
 }

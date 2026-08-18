@@ -30,10 +30,11 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// strong.
 /// </para>
 /// <para>
-/// ⚠️ <b>The hero enters at full health.</b> A battle's roster carries no starting-HP slot, so a run's
-/// current hit points do not reach the fight — a hero at 1 HP fights the same fight as one at full.
-/// That is a property of the roster shape rather than of this composition, and it is reported rather
-/// than papered over here.
+/// ⚠️ <b>The hero enters at full health.</b> The roster does carry a starting-HP slot, and this
+/// composition deliberately leaves it empty: a fight's remaining health is never written back to the
+/// run, so opening at the run's persisted hit points would leave a hero who was wounded once wounded
+/// for the rest of the run with no way to be hurt further. Both halves belong to whichever handler
+/// closes that loop, so a hero at 1 HP fights the same fight as one at full until it does.
 /// </para>
 /// <para>
 /// ⚠️ <b>A <c>SWARM</c> draw still puts one body on the field, not three.</b> One power is supplied
@@ -69,6 +70,40 @@ public static class RunBattle
         ArgumentNullException.ThrowIfNull(run);
 
         return SeedFrom(run.RunSeed, run.StreamPosition(RngStreams.Combat));
+    }
+
+    /// <summary>Whether this run is standing in a battle this type can compose, from its persisted row.</summary>
+    /// <param name="run">The run's row.</param>
+    /// <returns><see langword="true"/> when <see cref="Simulate(PlayerSnapshot, RunSnapshot, ContentSnapshot)"/> and <see cref="SeedOf(RunSnapshot)"/> both have a fight to answer for.</returns>
+    /// <remarks>
+    /// 🔒 <b>The question belongs here, not to the caller.</b> What counts as "standing in a battle"
+    /// is a phase, a pending tile, that tile's kind and a drawn combat counter — four facts this type
+    /// already reads to decide whether to compose at all. A caller that answered it itself would be
+    /// deciding a rule, and would decide it more narrowly than the composition does: a run in the
+    /// battle phase carrying no pending tile passes a phase check and then throws out of what was
+    /// meant to be a read.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="run"/> is null.</exception>
+    /// <exception cref="ArgumentException">The row does not rehydrate.</exception>
+    public static bool HasOpenBattle(RunSnapshot run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+
+        // A row that does not rehydrate is a corrupt row, not a run without a battle; answering
+        // false here would report the two as the same absence and lose the fault entirely.
+        return HasOpenBattle(RowDoor.Run(run, nameof(run)));
+    }
+
+    /// <summary>Whether this run is standing in a battle this type can compose.</summary>
+    /// <param name="run">The run.</param>
+    /// <returns><see langword="true"/> when there is a fight to compose and a seed to derive.</returns>
+    /// <exception cref="ArgumentNullException"><paramref name="run"/> is null.</exception>
+    internal static bool HasOpenBattle(RunAggregate run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+
+        return TryOpenFightKind(run, out _, out _) &&
+               run.StreamPosition(RngStreams.Combat) != 0UL;
     }
 
     /// <summary>Composes and runs the fight this run is standing in, from the persisted rows.</summary>
@@ -183,34 +218,58 @@ public static class RunBattle
     /// <summary>
     /// The kind of fight this run has open, refusing anything that is not one.
     /// </summary>
-    private static TileKind OpenFightKind(RunAggregate run)
+    private static TileKind OpenFightKind(RunAggregate run) =>
+        TryOpenFightKind(run, out var kind, out var refusal)
+            ? kind
+            : throw new InvalidOperationException(refusal);
+
+    /// <summary>
+    /// The kind of fight this run has open, or the reason there is none.
+    /// </summary>
+    /// <remarks>
+    /// One statement of the condition, read by the predicate and by the throwing composition alike.
+    /// Two spellings of "is this run standing in a battle" is exactly the drift the predicate exists
+    /// to stop a caller introducing, and it would be no better inside this file than above it.
+    /// </remarks>
+    private static bool TryOpenFightKind(RunAggregate run, out TileKind kind, out string? refusal)
     {
+        kind = default;
+
         if (run.Phase != RunPhase.BattlePending)
         {
-            throw new InvalidOperationException(
+            refusal =
                 "This run's phase is " + run.Phase + ", not " + RunPhase.BattlePending + ", so it is " +
                 "standing in no battle. The combat counter of a run outside a battle names the LAST " +
-                "fight, so composing one here would be a real fight for the wrong moment.");
+                "fight, so composing one here would be a real fight for the wrong moment.";
+
+            return false;
         }
 
         if (!run.HasPendingTile)
         {
-            throw new InvalidOperationException(
+            refusal =
                 "This run is in the battle phase and carries no pending tile, so nothing names the " +
-                "enemy it is fighting. Opening a battle never clears the tile the fight is over.");
+                "enemy it is fighting. Opening a battle never clears the tile the fight is over.";
+
+            return false;
         }
 
-        var kind = (TileKind)run.PendingTileKindValue;
+        var pending = (TileKind)run.PendingTileKindValue;
 
-        if (kind is not (TileKind.Enemy or TileKind.Elite or TileKind.Boss))
+        if (pending is not (TileKind.Enemy or TileKind.Elite or TileKind.Boss))
         {
-            throw new InvalidOperationException(
-                "This run's pending tile is " + kind + ", which is not a fight. Only Enemy, Elite and " +
+            refusal =
+                "This run's pending tile is " + pending + ", which is not a fight. Only Enemy, Elite and " +
                 "Boss tiles open a battle, so a run standing in one over any other kind is a state no " +
-                "command can produce.");
+                "command can produce.";
+
+            return false;
         }
 
-        return kind;
+        kind = pending;
+        refusal = null;
+
+        return true;
     }
 
     /// <summary>

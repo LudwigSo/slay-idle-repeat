@@ -390,10 +390,15 @@ Because the deciding services sit in the same assembly as the aggregates, C#'s `
 | **Command handlers** | 🔒 **`internal`** | The services that steer the domain. Nobody outside calls them directly. |
 | **Rules / calculators** | 🔒 **`internal` by default** | Exceptions below |
 
-**The only two `Rules` types that are public**, each with a documented external consumer:
+**The `Rules` types that are public are enumerated here**, each with a documented external consumer. 🔴 **The list said "the only two" through M7 while it had grown to five, and neither widening amended it** — the widenings were recorded only in the architecture suite's own comments, which is the second-list failure §11.4's erratum describes. The authority is `Domain.PublicRuleTypes` plus the surface rules stated over it (`PublicRuleTypeFloorTests`' floor **and** cap, `BoardViewSurfaceRuleTests`, `HeroBattleSurfaceRuleTests`); this list is the *decision record* for why each name is on it, and adding one without a row here is the drift:
 
 - `CombatSimulator` — the client simulates battles locally from a server-issued seed (`14` §2.4), and the balance harness calls it directly (`05` §9)
 - `PowerCalculator` — the Hero screen displays `PlayerPower` (`29` §1)
+- `BoardView` (M7-05b) — the Board screen renders the tile track (`03` §1.1). A read-only projection: it generates no board and hands out no draw stream
+- `HeroBuild` (M7-06b) — the Hero and Inventory screens show the stat block a fight is actually run on, and their side-by-side delta *is* the gear derivation (`05` §1.1, `08` §3). A `class` rather than a `record` so its aggregate stays `internal`: a positional record's parameters are public properties, and carrying `AggregatedStats` as one would export the attack pipeline's heal ceiling with it
+- `RunBattle` (M7-06b) — the Application layer's `SimulatePendingBattleUseCase` turns a run standing in `BattlePending` into the fight it is standing in, which is what lets the run leave that phase at all. It also owns the *question* — `HasOpenBattle` — so no layer above decides what "standing in a battle" means
+
+⚠️ **Each of the five publishes an entry point, never the machinery behind it.** `StatAggregation`, `HeroBaseCurve`, `GearStatDerivation`, `EncounterFight`, `BossFight`, `BattlePlan`, `ActorPlan`, `BoardGenerator` and their peers are `internal`, and the surface rules above are what hold them there. A sixth name is a kickoff decision, not a keyword.
 
 Every other calculator — board generation, drop tables, `LuckService`, the effect DSL interpreter, merge and enhance math, energy math — is `internal`. They are reachable only through `Apply`, which is the guarantee that no second code path can grant a currency or fire a pity counter.
 

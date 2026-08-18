@@ -20,6 +20,42 @@ namespace SlayIdleRepeat.Application.Tests.UseCases;
 /// </remarks>
 public sealed class SimulatePendingBattleUseCaseTests
 {
+    /// <summary>
+    /// The view declares a staleness budget, and its own rows fix that budget at zero.
+    /// </summary>
+    /// <remarks>
+    /// Not a formality on a read whose output is checked by hash: the fight is recomposed server-side
+    /// from the same rows, so a view a moment out of date carries a hash the server refuses — and a
+    /// caller cannot tell that from a fight it simulated wrongly.
+    /// </remarks>
+    [Fact]
+    public void PendingBattleView_declares_a_staleness_budget_of_zero()
+    {
+        PendingBattleView.StalenessBudget.ShouldBe(
+            TimeSpan.Zero,
+            "the fight is a function of the player's own rows, which are read through the write model " +
+            "with no staleness tolerated at all.");
+    }
+
+    /// <summary>
+    /// The budget above is a number; this is why it can be believed. The read is handed nothing it
+    /// could serve an older view from.
+    /// </summary>
+    [Fact]
+    public void The_pending_battle_read_is_handed_nothing_it_could_serve_an_older_view_from()
+    {
+        var constructors = typeof(SimulatePendingBattleUseCase).GetConstructors();
+
+        constructors.ShouldHaveSingleItem(
+            "the read is built exactly one way, which is what makes 'everything it can consult' an " +
+            "answerable question at all.");
+
+        constructors[0].GetParameters().Select(parameter => parameter.ParameterType).ShouldBe(
+            [typeof(WorldSliceStore), typeof(Core.Content.ContentSnapshot)],
+            "the store and the content set, and nothing else. A clock, a cache handle or a freshness " +
+            "budget in this list is the knob that turns a zero budget into a default.");
+    }
+
     /// <summary>An open battle simulates, and reports the fight, its seed and its hash.</summary>
     [Fact]
     public async Task An_open_battle_is_simulated_and_reported()
