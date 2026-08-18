@@ -54,7 +54,7 @@ public sealed class ChapterUnlockConditionAgreementTests
     /// <summary>The one token this case knows how to translate into an <c>unlockCondition</c>.</summary>
     private const string PreviousChapterNormal = "PREVIOUS_CHAPTER_NORMAL";
 
-    /// <summary>The tier that token names — the same spelling the chapter schema's enum permits.</summary>
+    /// <summary>The tier that token names — the same spelling the chapter schema's const permits.</summary>
     private const string NormalTier = "NORMAL";
 
     private static ContentSnapshot Data() => ContentLoader.Load(RepoData.Source()).Require();

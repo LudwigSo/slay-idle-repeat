@@ -13,8 +13,9 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// Committing these negative cases is the point: a validator whose negative cases are never
 /// committed is one nobody can trust after the first refactor. Each case is a single textual edit
 /// to one shipped file; <see cref="RepoData.SourceWithEdit"/> throws if its anchor no longer
-/// occurs, so a case can't silently stop testing anything. Four positive controls close the file,
-/// asserting that the shipped nulls are still accepted.
+/// occurs, so a case can't silently stop testing anything. Four positive controls close the file:
+/// three asserting that the shipped nulls are still accepted, and one asserting that every pointer
+/// the chapter-gate cases name is silent against an untouched checkout.
 /// </remarks>
 public sealed class RealDataNegativeCaseTests
 {

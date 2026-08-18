@@ -35,6 +35,46 @@ public sealed class ChapterGatingTuningTests
     private static string LevelPointer(DifficultyTier tier) =>
         $"{ChapterGatingTuning.GatingReference}/{tier}/requiresLegendLevel";
 
+    /// <summary>The shipped ladder's three rungs, tier by tier, as the fixture builders take them.</summary>
+    /// <remarks>
+    /// Listed rather than reused from <c>ProgressionDocuments.ShippedChapterGating</c>, which hands
+    /// the block over whole: the two cases below have to take one rung <em>out</em> of the ladder or
+    /// swap one token for another, and a finished block cannot be taken apart again. The tokens are
+    /// the <c>Core.Tests</c> transcription of the shipped file, not <see cref="ChapterGatingTuning"/>'s
+    /// own constants — a fixture authored from the reader's constants would keep agreeing with the
+    /// reader through any rename of them.
+    /// </remarks>
+    private static readonly (DifficultyTier Tier, string Clear, int? Level)[] ShippedRungs =
+    {
+        (DifficultyTier.NORMAL, ProgressionDocuments.ShippedNormalRequiresClear, null),
+        (DifficultyTier.HEROIC, ProgressionDocuments.ShippedHeroicRequiresClear, null),
+        (DifficultyTier.MYTHIC,
+            ProgressionDocuments.ShippedMythicRequiresClear,
+            ProgressionDocuments.ShippedMythicRequiresLegendLevel),
+    };
+
+    /// <summary>
+    /// A snapshot whose ladder is <see cref="ShippedRungs"/> with one tier's rung replaced, or —
+    /// when <paramref name="rung"/> is <c>null</c> — left out of the block entirely.
+    /// </summary>
+    /// <param name="tier">The tier whose rung is being edited.</param>
+    /// <param name="rung">The rung to author instead, or <c>null</c> to omit the tier.</param>
+    private static ContentSnapshot LadderWith(DifficultyTier tier, ContentValue? rung) =>
+        ProgressionDocuments.With(chapterGating: ProgressionDocuments.ChapterGating(
+            ShippedRungs
+                .Select(row => (
+                    Tier: row.Tier,
+                    Rung: row.Tier == tier
+                        ? rung
+                        : ProgressionDocuments.Rung(
+                            ContentValue.Text(row.Clear),
+                            row.Level is null
+                                ? ContentValue.Unauthorised
+                                : ContentValue.Number(row.Level.Value))))
+                .Where(row => row.Rung is not null)
+                .Select(row => (row.Tier.ToString(), row.Rung!))
+                .ToArray()));
+
     // ------------------------------------------------------- the shipped ladder, read off the document
 
     /// <summary>
@@ -102,6 +142,47 @@ public sealed class ChapterGatingTuningTests
             "the Mythic rung's Legend Level is plumbing, not a constant. A reader that answered the " +
             "shipped number regardless of the document would be indistinguishable from a correct one " +
             "on every other case in this file.");
+    }
+
+    /// <summary>
+    /// 🔒 The clear token is plumbing as much as the level is: a rung authoring a token the shipped
+    /// ladder puts on a <em>different</em> rung reads back — and resolves to — the token it was
+    /// given.
+    /// </summary>
+    /// <remarks>
+    /// The second probe the shipped-ladder case above cannot be. That one reads its expectation out
+    /// of the same snapshot the reader read it from, so a reader answering from a hard-coded
+    /// tier→token table is indistinguishable from a correct one there, and every token case below it
+    /// runs over the shipped ladder where the table would agree. Each row here moves a token onto a
+    /// rung the shipped file does not put it on, which is exactly where the table and the document
+    /// give different answers. The resolved clear is asserted too, not just the token: a reader could
+    /// read the token faithfully and still resolve it from the tier it found it on.
+    /// </remarks>
+    [Theory]
+    [InlineData(
+        DifficultyTier.NORMAL, ProgressionDocuments.ShippedMythicRequiresClear, 4, 4, DifficultyTier.HEROIC)]
+    [InlineData(
+        DifficultyTier.HEROIC, ProgressionDocuments.ShippedNormalRequiresClear, 3, 2, DifficultyTier.NORMAL)]
+    [InlineData(
+        DifficultyTier.MYTHIC, ProgressionDocuments.ShippedHeroicRequiresClear, 4, 4, DifficultyTier.NORMAL)]
+    public void A_rung_authoring_a_token_the_shipped_ladder_puts_elsewhere_reads_back_that_token(
+        DifficultyTier tier, string token, int chapterId, int expectedChapter, DifficultyTier expectedTier)
+    {
+        var moved = ChapterGatingTuning.Read(
+            LadderWith(tier, ProgressionDocuments.Rung(ContentValue.Text(token), ContentValue.Unauthorised)))
+            .Rung(tier);
+
+        moved.RequiresClear.ShouldBe(
+            token,
+            $"the {tier} rung authors {token} in this document, and the reader answers from the " +
+            "document. A tier→token table baked into C# agrees with every other case in this file " +
+            "and disagrees here.");
+
+        moved.RequiredClear(chapterId).ShouldBe(
+            new ChapterClear(expectedChapter, expectedTier),
+            $"{token} on chapter {chapterId} names chapter {expectedChapter} on {expectedTier}, " +
+            "whichever rung it happens to be authored on. Resolving from the tier rather than from " +
+            "the token would give the shipped answer for this rung and be wrong for this ladder.");
     }
 
     // ------------------------------------------------------------------ resolving a token to a clear
@@ -233,30 +314,34 @@ public sealed class ChapterGatingTuningTests
     /// missing one is refused by name.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Steering S3. Without the floor, a data edit that dropped a tier would leave the gate with
     /// nothing to compare that tier against — and the reader would report itself complete, because a
     /// reader that walks the authored members can only ever say the data agrees with itself.
+    /// </para>
+    /// <para>
+    /// Every declared tier is dropped in turn rather than only the last one: a reader that looked
+    /// for a MYTHIC key by name — the obvious way to write this floor once and stop — passes a
+    /// single-tier case and leaves the two rungs a run actually starts on ungated.
+    /// </para>
     /// </remarks>
-    [Fact]
-    public void A_ladder_missing_a_declared_tiers_rung_is_refused_by_name()
+    [Theory]
+    [InlineData(DifficultyTier.NORMAL)]
+    [InlineData(DifficultyTier.HEROIC)]
+    [InlineData(DifficultyTier.MYTHIC)]
+    public void A_ladder_missing_a_declared_tiers_rung_is_refused_by_name(DifficultyTier missing)
     {
-        var incomplete = ProgressionDocuments.With(
-            chapterGating: ProgressionDocuments.ChapterGating(
-                ("NORMAL", ProgressionDocuments.Rung(
-                    ContentValue.Text(ChapterGatingTuning.PreviousChapterNormal), ContentValue.Unauthorised)),
-                ("HEROIC", ProgressionDocuments.Rung(
-                    ContentValue.Text(ChapterGatingTuning.SameChapterNormal), ContentValue.Unauthorised))));
-
-        var thrown = Should.Throw<MissingContentException>(() => ChapterGatingTuning.Read(incomplete));
+        var thrown = Should.Throw<MissingContentException>(
+            () => ChapterGatingTuning.Read(LadderWith(missing, rung: null)));
 
         thrown.Reference.ShouldBe(
-            $"{ChapterGatingTuning.GatingReference}/{DifficultyTier.MYTHIC}",
-            "the refusal must name the tier whose rung is gone. DifficultyTier declares MYTHIC, so a " +
-            "ladder without a MYTHIC rung is a tier the gate cannot answer for — and answering it " +
-            "with 'demands nothing' opens the hardest tier in the game to a brand-new account.");
+            $"{ChapterGatingTuning.GatingReference}/{missing}",
+            $"the refusal must name the tier whose rung is gone. DifficultyTier declares {missing}, " +
+            "so a ladder without that rung is a tier the gate cannot answer for — and answering it " +
+            "with 'demands nothing' opens it to a brand-new account.");
 
         thrown.Message.ShouldContain(
-            nameof(DifficultyTier.MYTHIC),
+            missing.ToString(),
             Case.Sensitive,
             "a reader whose message does not name the missing tier sends its reader to diff two files.");
     }

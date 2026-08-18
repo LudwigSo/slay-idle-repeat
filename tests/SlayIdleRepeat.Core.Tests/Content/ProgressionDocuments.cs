@@ -116,8 +116,10 @@ internal static class ProgressionDocuments
     /// A fixture constant mirroring the shipped file, exactly like <see cref="ShippedBaseMax"/> —
     /// <b>not</b> a number any rule or gate assertion may read. The gate reads the level out of the
     /// content snapshot and <c>StartRunChapterGateTests</c> reads it back out of the same snapshot,
-    /// so nothing compares the ladder against a C# literal. Pinned against the real file by the
-    /// <c>Application.Tests</c> progression cross-check, like every other constant here.
+    /// so nothing compares the ladder against a C# literal. Pinned against the real file by
+    /// <c>Application.Tests</c>' <c>ChapterGatingMatchesTuningDataTests</c>, which transcribes all
+    /// three rungs by hand — this project cannot see <c>game-data</c>, so without that case every
+    /// gate assertion here would stay green over a ladder the game had stopped shipping.
     /// </remarks>
     internal const int ShippedMythicRequiresLegendLevel = 60;
 
