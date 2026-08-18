@@ -64,25 +64,30 @@ public sealed class SkipDraftTests
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔴 <b>This is a pin on TODAY'S behaviour, deliberately, and not a claim that today's
-    /// behaviour is right.</b> <c>REROLL_DRAFT</c> had this case and <c>SKIP_DRAFT</c> had no
-    /// equivalent, so both readings were silent here: a handler that advanced these counters and one
-    /// that left them standing were indistinguishable to the suite, and either could have been
-    /// introduced by accident.
+    /// 🔒 <b>Ruled, not incidental.</b> All three counters count drafts the run <em>picked from</em>,
+    /// and a skip picks nothing, so a skip moves none of them. That reading was settled by the
+    /// product owner on 2026-08-18 against the alternative — counting every draft a player was shown
+    /// — and the design set was amended to describe what ships rather than the code changed to
+    /// follow the documents. This case pins a decision; changing it means reopening the decision.
     /// </para>
     /// <para>
-    /// ⚠️ <b>The design set does not obviously agree with what is pinned.</b> `06` §4 states F1 and
-    /// F3 over drafts <em>offered</em>, which would have a skip advance them; `24` §1.2's anti-farming
-    /// argument — the one the reroll case cites — is about counters a player can walk towards a
-    /// guarantee cheaply, and a skip is paid for with a draft rather than with Gold, so the two rules
-    /// pull in opposite directions. <b>A follow-up task may deliberately flip this pin</b>; what it
-    /// may not do is change the behaviour without noticing, which is the only thing this case exists
-    /// to prevent.
+    /// The two exclusions on these counters hold for <em>different</em> reasons, which is why the
+    /// skip and the reroll each need their own case rather than sharing one. A skip is excluded
+    /// because there is no pick to count: it pays the player, so no can-this-be-farmed argument
+    /// applies to it at all. A reroll is excluded because it is <em>bought</em> — a counter Gold
+    /// could move would make the guarantee itself purchasable. A reader who collapses the two into
+    /// one rule will conclude that one of them is a bug and correct it.
     /// </para>
     /// <para>
-    /// The famine counter starts non-zero so "unchanged" and "reset" are different numbers, and the
-    /// run owns an upgradable perk so the famine's own gate is open rather than trivially closed; the
-    /// other two start at zero and would read one if the skip had counted this draft.
+    /// The accepted cost, recorded so it is not later mistaken for an oversight: a player who
+    /// habitually skips meets each guarantee later than one who does not.
+    /// </para>
+    /// <para>
+    /// All three counters start at distinct non-zero values, so for each one "unchanged", "reset"
+    /// and "advanced" are three different numbers and every assertion below separates all three. An
+    /// earlier form of this case started two of them at zero, where a handler that <em>reset</em>
+    /// the counters was indistinguishable from one that left them alone. The run also owns an
+    /// upgradable perk, so the famine's own gate is open rather than trivially closed.
     /// </para>
     /// </remarks>
     [Fact]
@@ -90,7 +95,9 @@ public sealed class SkipDraftTests
     {
         var state = DraftWorlds.DraftPendingOn(
             ownedPerkTiers: new Dictionary<string, int> { [PerkDocuments.Epic1] = 1 },
-            draftsWithoutOwnedUpgrade: 2);
+            draftsWithoutOwnedUpgrade: 2,
+            draftsSinceLegendaryOffered: 3,
+            draftsWithoutAboveCommon: 1);
 
         var result = Skip(state);
 
@@ -101,12 +108,11 @@ public sealed class SkipDraftTests
 
         run.DraftsWithoutOwnedUpgrade.ShouldBe(
             2,
-            "as SKIP_DRAFT stands today, a skipped draft is not a draft the run took, so the famine " +
-            "counter neither advances nor resets. See this case's remarks: 06 §4 counts drafts " +
-            "OFFERED and may well win that argument later.");
+            "a skipped draft is not a draft the run picked from, so the famine counter it was " +
+            "building towards must neither advance nor reset.");
         run.DraftsSinceLegendaryOffered.ShouldBe(
-            0, "…and likewise the Legendary pity counter.");
+            3, "…and likewise the Legendary pity counter, whose unit is also a draft picked from.");
         run.DraftsWithoutAboveCommon.ShouldBe(
-            0, "…and likewise the quality floor's.");
+            1, "…and likewise the quality floor's.");
     }
 }

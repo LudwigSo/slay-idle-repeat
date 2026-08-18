@@ -193,13 +193,22 @@ At `+15` this means a guaranteed success by the 10th attempt at worst, and a typ
 
 ### 4.7 `DRAFT` — supersedes `06` §4
 
-The existing Legendary pity (draft #15) and Sustain anti-brick stand. Three additions:
+The existing Legendary pity (forced into the **15th** draft picked from, when the 14 before it offered none) and Sustain anti-brick stand. Three additions:
 
 | # | Addition |
 |---|---|
-| **F1** | **Quality floor.** If **3 consecutive drafts** contain no option above Common, force one Rare-or-better option into the next draft. This is the draft equivalent of D3 and stops the early-stage "three grey cards again" run. |
+| **F1** | **Quality floor.** If **3 consecutive drafts the player picked from** contain no option above Common, force one Rare-or-better option into the next draft. This is the draft equivalent of D3 and stops the early-stage "three grey cards again" run. |
 | **F2** | **Codex bias.** Perks the player has **never** drafted carry a `×1.35` weight multiplier in the fresh-pool draw, capped so that at most 1 of the 3 options is bias-selected. This accelerates Codex completion (`06` §6), rewards breadth, and makes early accounts see more of the game faster. |
-| **F3** | **Upgrade famine.** The 30% owned-upgrade bias in `06` §4 is a per-option roll, so a player can go a whole stage without seeing a single upgrade. If **5 consecutive drafts** offer no owned-perk upgrade while the player owns at least one non-maxed perk, force one. |
+| **F3** | **Upgrade famine.** The 30% owned-upgrade bias in `06` §4 is a per-option roll, so a player can go a whole stage without seeing a single upgrade. If **5 consecutive drafts the player picked from** offer no owned-perk upgrade, force one. Only drafts picked while the player owns at least one non-maxed perk are counted — a draft that could not have offered an upgrade did not withhold one, and counting it would spend the famine's whole allowance before an upgrade was even possible. |
+
+🔒 **The counting unit — ruled 2026-08-18.** F1, F3 and the Legendary pity all count **drafts the player picked from**: a draft moves its counters when, and only when, one of its options is taken. Two things that end or replace a draft move none of them, and it matters that the reasons are *different* — a reader who collapses them into one will eventually "fix" the wrong half.
+
+| Action | Moves the counters? | Why |
+|---|---|---|
+| **Skip** | No | A skip takes no option, so there is no pick to count. This is not an anti-farming exclusion: a skip is *rewarded*, not bought (`06` §1). The accepted cost is that a player who habitually skips meets each guarantee later than one who does not — these three rules protect the quality of the choices a player actually makes, not the number of battles they win. |
+| **Reroll** | No | The anti-farming rule, §1.2. A reroll is bought, so a counter it moved could be walked to its guarantee with Gold and the guarantee would become purchasable: *"can the player advance this counter more cheaply than by using the thing it protects?"* answered **yes**. |
+
+Because §1.1 requires every counter to be shown with a real number, the player-facing sentence must name the unit too — *"Rare or better guaranteed in 2 more drafts you pick from"* — or the number reads as broken to a player who has been skipping.
 
 ### 4.8 `WHEEL` — supersedes `19` Part F
 
@@ -325,6 +334,7 @@ If the O10 review still wants seven wallet currencies, it can have them: these t
 | **S14 Run Results** | D3 announcement line when it fires; `DROP_RUN` mercy counters in the reward tally footer |
 | **S26 Settings** | **Odds & Guarantees** page: every rate and every `N` in this document, in plain language, in both launch languages |
 | **S23 Shop** | Every chest listing states its class and the class's current counter before purchase |
+| **S07 Perk Draft** | The three `DRAFT` counters, each naming its unit rather than a bare number: *"Rare or better guaranteed in 2 more drafts you pick from"* (§4.7). Without the unit the number reads as broken to a player who has been skipping or rerolling |
 
 📐 All counter strings are localisation keys. German runs ~30% longer (`13` §10) and these strings sit in tight widget rows — test them.
 
