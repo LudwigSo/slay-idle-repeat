@@ -132,7 +132,7 @@ internal static class TileWorlds
         RunPhase phase = RunPhase.InProgress,
         bool geared = true) =>
         new(
-            Worlds.Rehydrated(RunBattleWorlds.PlayerRow()),
+            Worlds.Rehydrated(RunBattleWorlds.FarAboveParRow()),
             Rehydrated(RunSnapshots.With(
                 runSeed: runSeed,
                 chapterId: chapterId,
@@ -146,7 +146,7 @@ internal static class TileWorlds
                 phase: phase,
                 rngStreamPositions: CombatStreamFor(phase),
                 startingLoadout: geared
-                    ? RunBattleWorlds.WornLoadout
+                    ? RunBattleWorlds.FarAboveParLoadout
                     : RunBattleWorlds.BareLoadout)));
 
     /// <summary>

@@ -138,7 +138,7 @@ internal static class GearGrantWorlds
                 legendLevel: RunBattleWorlds.LegendLevel,
                 inventory: Wearing(inventory),
                 pityCounters: pity,
-                loadout: RunBattleWorlds.WornLoadout)),
+                loadout: RunBattleWorlds.FarAboveParLoadout)),
             Rehydrated(RunSnapshots.With(
                 id: runId is null ? null : new RunId(runId),
                 runSeed: Seed,
@@ -160,7 +160,7 @@ internal static class GearGrantWorlds
                 pendingTileStage: stage,
                 phase: RunPhase.BattlePending,
                 startingLoadout: geared
-                    ? RunBattleWorlds.WornLoadout
+                    ? RunBattleWorlds.FarAboveParLoadout
                     : RunBattleWorlds.BareLoadout)));
 
     /// <summary>
@@ -264,7 +264,16 @@ internal static class GearGrantWorlds
 
     /// <summary>A stock filled to the capacity an unexpanded inventory has, so the next grant overflows.</summary>
     internal static InventorySnapshot FullStock() =>
-        new(0, Inventories.Fill(Stock.MaxCapacity).Select(Inventories.Persist).ToArray(), []);
+        new(
+            0,
+            // 🔒 Room reserved for the worn six, so the stock this hands over is full ONCE Wearing has
+            // added them — not six over capacity. The hero has to be geared for the kill to be won at
+            // all (14 §9 recomputes the fight), and equipped items are owned items, so they count
+            // against the same ceiling as everything else the stock holds.
+            Inventories.Fill(Stock.MaxCapacity - RunBattleWorlds.FarAbovePar.Count)
+                .Select(Inventories.Persist)
+                .ToArray(),
+            []);
 
     /// <summary>
     /// The first <c>drops</c> position whose draw puts an ordinary kill on the side of
@@ -349,7 +358,7 @@ internal static class GearGrantWorlds
     /// about the loadout, and the next reader could not tell which part.
     /// </remarks>
     private static readonly HashSet<GearInstanceId> WornIds =
-        RunBattleWorlds.Worn.Select(item => item.InstanceId).ToHashSet();
+        RunBattleWorlds.FarAbovePar.Select(item => item.InstanceId).ToHashSet();
 
     /// <summary>The test's own inventory, with the fixture's worn items added to it.</summary>
     /// <remarks>
@@ -367,7 +376,7 @@ internal static class GearGrantWorlds
         return inventory with
         {
             Stored = inventory.Stored
-                .Concat(RunBattleWorlds.Worn.Select(Inventories.Persist))
+                .Concat(RunBattleWorlds.FarAbovePar.Select(Inventories.Persist))
                 .ToArray(),
         };
     }

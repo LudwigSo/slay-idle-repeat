@@ -3,6 +3,7 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using Xunit;
+using SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
@@ -222,9 +223,12 @@ public sealed class ConfirmBattleResultTests
     {
         var opened = TileWorlds.OnTile(TileKind.Boss, phase: RunPhase.BattlePending);
 
-        // Rehydrate a player who has already cleared chapter 1 NORMAL.
-        var clearedPlayerSnapshot = SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.With(
-            clearedChapterTiers: SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.Counters(("1:NORMAL", 1)));
+        // Rehydrate a player who has already cleared chapter 1 NORMAL — through the geared row, not a
+        // fresh one. 🔒 A row built from scratch here would carry no loadout, and since the server now
+        // recomputes the fight (14 §9) a bare-handed hero LOSES this boss: the case would then pass or
+        // fail on whether a loss banks Soul Shards, which is not what it is about.
+        var clearedPlayerSnapshot = RunBattleWorlds.FarAboveParRow(
+            SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.Counters(("1:NORMAL", 1)));
         var clearedPlayer = SlayIdleRepeat.Core.Model.Player.Rehydrate(
             clearedPlayerSnapshot, TileWorlds.Context.Content).Value;
         var world = opened with { Player = clearedPlayer };

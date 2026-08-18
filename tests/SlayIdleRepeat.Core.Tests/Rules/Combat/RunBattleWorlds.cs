@@ -69,6 +69,61 @@ internal static class RunBattleWorlds
         affixes: family == GearFamily.BLADE ? [new GearAffixRoll("AFX_ATTACK_SPEED", 0.05)] : null))
     .ToArray();
 
+    /// <summary>
+    /// The same six slots, deliberately far ABOVE chapter-1 par: top band, top chapter of origin,
+    /// perfect quality, top enhance level.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>For fixtures that must win a whole RUN, not one fight.</b> <see cref="Worn"/> is
+    /// calibrated — this suite asserts composed figures against it — and it lands a chapter-1 hero
+    /// roughly AT par, which is fine for one measured fight and useless for a run. <c>08</c> §3 scales
+    /// item power by the item's chapter of origin, and <c>EnemyPowerFormula</c> grows 3.5% per node, so
+    /// a hero at par wins at node 7 and dies at node 11 — measured exactly that way while migrating the
+    /// M7-06c fixtures, where the in-process host's run ended <em>"END_RUN after a death"</em> on its
+    /// first battle.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Over-geared on purpose, and by a wide margin rather than a tuned one.</b> The point is
+    /// that no fixture driving a full run should be one M6 retune away from silently asserting that a
+    /// dead run banks nothing. A margin chosen to be comfortably wrong is more stable than a margin
+    /// chosen to be exactly right.
+    /// </para>
+    /// <para>
+    /// ⚠️ It is a SECOND loadout rather than a change to <see cref="Worn"/>, because this suite's own
+    /// cases state literal composed stats against that one; moving it would rewrite assertions that are
+    /// about the derivation rather than about winning.
+    /// </para>
+    /// </remarks>
+    internal static IReadOnlyList<GearInstance> FarAbovePar { get; } = new[]
+    {
+        GearFamily.BLADE,
+        GearFamily.LEATHERS,
+        GearFamily.HOOD,
+        GearFamily.TREADS,
+        GearFamily.BAND,
+        GearFamily.PENDANT,
+    }
+    .Select((family, index) => Inventories.Item(
+        "above_par_" + index.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        family,
+        Rarity.SS,
+        chapterOrigin: TopChapter,
+        quality: 1.0,
+        enhanceLevel: TopEnhanceLevel))
+    .ToArray();
+
+    /// <summary>The loadout row naming <see cref="FarAbovePar"/>, slot by slot.</summary>
+    internal static LoadoutSnapshot FarAboveParLoadout { get; } = new(
+        new System.Collections.ObjectModel.ReadOnlyDictionary<GearSlot, GearInstanceId>(
+            FarAbovePar.ToDictionary(item => item.Slot, item => item.InstanceId)));
+
+    /// <summary>The last chapter the game authors, so item power is scaled as high as `08` §3 goes.</summary>
+    private const int TopChapter = 8;
+
+    /// <summary>`08` §4.2's enhance ceiling.</summary>
+    private const int TopEnhanceLevel = 15;
+
     /// <summary>The loadout row naming <see cref="Worn"/>, slot by slot.</summary>
     internal static LoadoutSnapshot WornLoadout { get; } = new(
         new System.Collections.ObjectModel.ReadOnlyDictionary<GearSlot, GearInstanceId>(
@@ -84,6 +139,21 @@ internal static class RunBattleWorlds
         legendLevel: LegendLevel,
         inventory: new InventorySnapshot(0, Worn.Select(Inventories.Persist).ToArray(), []),
         loadout: geared ? WornLoadout : BareLoadout);
+
+    /// <summary>
+    /// The player row for <see cref="FarAbovePar"/>: holding and wearing the over-par six.
+    /// </summary>
+    /// <param name="clearedChapterTiers">
+    /// The chapter/tier clears this account already holds, for a case about a repeat clear. The
+    /// parameter exists because a case that built its own row to add them would drop the gear with it —
+    /// and a bare-handed hero loses the boss fight the case is about.
+    /// </param>
+    internal static PlayerSnapshot FarAboveParRow(
+        IReadOnlyDictionary<string, long>? clearedChapterTiers = null) => PlayerSnapshots.With(
+        legendLevel: LegendLevel,
+        inventory: new InventorySnapshot(0, FarAbovePar.Select(Inventories.Persist).ToArray(), []),
+        loadout: FarAboveParLoadout,
+        clearedChapterTiers: clearedChapterTiers);
 
     /// <summary>The run row: standing in an open battle against <paramref name="kind"/>.</summary>
     /// <param name="kind">The pending tile the fight is against.</param>

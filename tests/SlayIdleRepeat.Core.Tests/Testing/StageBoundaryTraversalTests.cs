@@ -283,9 +283,15 @@ public sealed class StageBoundaryTraversalTests
     private static MetaLoopDriver Play(int chapter, DateTimeOffset start)
     {
         var game = new InMemoryGame(ShippedHarness.Content, Seed, new VirtualClock(start));
-        var player = game.CreatePlayer();
+        var player = game.CreatePlayer(inventory: Harnesses.FarAboveParStock());
 
         game.Send(player, new Core.Commands.BeginSessionCommand("1.0.0", "content"));
+
+        // 🔒 Equipped before the run starts, because the subject here is the BOARD and a dead run has
+        // no board to traverse. CONFIRM_BATTLE_RESULT recomputes the fight (14 §9), so a bare-handed
+        // hero loses its first battle and the sweep measures runs that ended at node 11 while claiming
+        // to measure stage boundaries. The loadout is frozen at START_RUN (07 §4), so this comes first.
+        Harnesses.Equip(game, player);
 
         // The subject here is the stage boundary, not `10` §7's ladder — but START_RUN now answers
         // that ladder, and a fresh account may only start chapter 1. Without the clears below, half

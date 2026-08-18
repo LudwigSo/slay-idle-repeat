@@ -13,6 +13,7 @@ using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
 using CoreBoard = SlayIdleRepeat.Core.Rules.Board.BoardGraph;
 using RunAggregate = SlayIdleRepeat.Core.Model.Run;
+using SlayIdleRepeat.Core.Tests.Testing;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
@@ -133,8 +134,13 @@ public sealed class BoardViewTests
     public void The_view_names_the_tile_the_run_actually_resolved_at_every_landing_of_a_command_driven_run()
     {
         var game = new InMemoryGame(ShippedHarness.Content, HarnessSeed, new VirtualClock(Start));
-        var player = game.CreatePlayer();
+        var player = game.CreatePlayer(inventory: Harnesses.FarAboveParStock());
         game.Send(player, new BeginSessionCommand("1.0.0", "content"));
+
+        // 🔒 Geared before the run starts. The subject here is the BOARD, and since 14 §9 makes the
+        // server recompute the fight a bare-handed hero dies on its first battle — this case would then
+        // check four landings and claim to have walked a run. The loadout freezes at START_RUN (07 §4).
+        Harnesses.Equip(game, player);
         game.Send(player, new StartRunCommand(Chapter, DifficultyTier.NORMAL));
 
         var checkedLandings = new HashSet<int>();

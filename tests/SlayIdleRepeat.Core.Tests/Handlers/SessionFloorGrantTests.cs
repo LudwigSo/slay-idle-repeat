@@ -59,7 +59,7 @@ public sealed class SessionFloorGrantTests
             "the floor firing IS a protection firing, and a grant that reported itself as an " +
             "ordinary drop would make the protection unauditable from the event log.");
 
-        result.NewState.Player.Inventory.Stored.Count.ShouldBe(
+        GearGrantWorlds.Owned(result.NewState.Player).Count.ShouldBe(
             Floor.GrantCount, "and the item the event reports actually reached the stock.");
     }
 
@@ -85,9 +85,14 @@ public sealed class SessionFloorGrantTests
 
         kill.Accepted.ShouldBeTrue("the kill was refused " + kill.Rejection + ".");
 
-        var banked = kill.NewState.Player.Inventory.Stored;
+        // Through the fixture's own reading rather than off Inventory.Stored: the hero's equipped
+        // loadout is stored too, and it is not something this kill banked.
+        var bankedIds = GearGrantWorlds.Owned(kill.NewState.Player);
+        var banked = kill.NewState.Player.Inventory.Stored
+            .Where(item => bankedIds.Contains(item.InstanceId))
+            .ToArray();
 
-        banked.Count.ShouldBe(1, "the premise: the run produced one item.");
+        banked.Length.ShouldBe(1, "the premise: the run produced one item.");
         (banked[0].Rarity >= Floor.GrantRarity).ShouldBeTrue(
             "the premise: the forced Elite drop landed on " + banked[0].Rarity + ", which has to be " +
             "at or above the floor's " + Floor.GrantRarity + " for this case to be about a run that " +
@@ -100,7 +105,7 @@ public sealed class SessionFloorGrantTests
             "paid anyway. The floor is a floor, not a bonus — paying it on top of a run that met it " +
             "hands every successful run a free extra item.");
 
-        result.NewState.Player.Inventory.Stored.Count.ShouldBe(
+        GearGrantWorlds.Owned(result.NewState.Player).Count.ShouldBe(
             1, "and the stock still holds only what the run itself dropped.");
     }
 
