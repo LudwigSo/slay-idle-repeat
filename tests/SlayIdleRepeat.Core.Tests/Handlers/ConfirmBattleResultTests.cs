@@ -13,6 +13,61 @@ public sealed class ConfirmBattleResultTests
         SlayIdleRepeat.Core.GameRules.Apply(
             state, new ConfirmBattleResultCommand(logHash, Won: true), TileWorlds.Context);
 
+    // ------------------------------------------------------------- the fixture's own premise
+
+    /// <summary>
+    /// 🔒 <b>The fixture hero WINS every fight this suite asserts a payout for, and it is asserted
+    /// rather than assumed.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Every payout case below is conditional on this, and none of them would fail if it stopped
+    /// being true.</b> Since <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9), the server
+    /// decides whether a battle was won — so a fixture whose hero loses does not break the payout tests,
+    /// it makes them assert that a loss pays nothing. Twenty green tests, none of them testing the arm
+    /// M7-06c changed. This case turns that silence into one loud failure.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>All three tile kinds, because only one of them discriminates and it is not the one you
+    /// would guess.</b> The first draft asserted the Enemy fight alone — and PASSED with the loadout
+    /// stripped to bare, because a Legend-20 hero beats a chapter-1 ordinary enemy with no gear at all.
+    /// It was a cannot-fail pin guarding against cannot-fail pins. ⚠️ <b>Re-probed after widening, and
+    /// measured:</b> swapping <c>WornLoadout</c> for <c>BareLoadout</c> fails the <b>Elite</b> arm and
+    /// leaves Enemy and Boss green. So Elite is the arm carrying this case today. All three are kept
+    /// anyway — which arm discriminates is a fact about current tuning, and M6 will move it; a probe
+    /// narrowed to today's discriminator would go quiet the moment that changed.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The drift this exists to catch is real rather than hypothetical.</b> "Geared enough to win"
+    /// is measured against <c>ChapterPowerTarget</c>, which M6 exists to retune. This suite fought
+    /// bare-handed until M7-06c, and the sweep establishing that levelling could not fix it (Legend Level
+    /// 1 → 20 → 60 → 120 moved 39 whole-suite failures to 34) is recorded in <c>TileWorlds</c>.
+    /// </para>
+    /// <para>
+    /// Asserted through the HANDLER rather than by calling the simulation directly: what matters is not
+    /// that some fight is winnable but that the fight <em>this fixture</em> hands the handler is. Gold is
+    /// the observable rather than the phase, because the phase returns to <c>InProgress</c> on a loss too.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData(TileKind.Enemy)]
+    [InlineData(TileKind.Elite)]
+    [InlineData(TileKind.Boss)]
+    public void The_fixture_hero_wins_every_fight_this_suite_pays_out_for(TileKind kind)
+    {
+        var opened = TileWorlds.OnTile(kind, gold: 0, phase: RunPhase.BattlePending);
+
+        var result = Confirm(opened, "1");
+
+        result.Accepted.ShouldBeTrue("a well-formed confirmation is accepted whatever the outcome was");
+        result.NewState.Run!.Gold.ShouldBeGreaterThan(
+            0L,
+            $"the fixture hero LOST its {kind} fight, so every payout case in this file that uses it is " +
+            "now asserting that a loss pays nothing — they will all stay green while testing none of " +
+            "the win arm. Either TileWorlds' fixture loadout has fallen behind ChapterPowerTarget (M6 " +
+            "retunes it) or the run no longer freezes that loadout. Fix the fixture; do not relax this.");
+    }
+
     // ------------------------------------------------------------------ the gate
 
     /// <summary>No battle is open on a run standing on no tile at all.</summary>

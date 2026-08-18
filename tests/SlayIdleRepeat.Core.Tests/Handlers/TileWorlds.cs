@@ -8,6 +8,7 @@ using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Model;
 using RunAggregate = SlayIdleRepeat.Core.Model.Run;
+using SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 namespace SlayIdleRepeat.Core.Tests.Handlers;
 
@@ -17,10 +18,34 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// and a purpose-built card list.
 /// </summary>
 /// <remarks>
+/// <para>
 /// Distinct from <c>Worlds</c> rather than an extension of it: <c>Worlds.Context</c> carries the
 /// login-calendar/minigame tuning set, which holds none of the documents these handlers read. Every
 /// run here is built through <c>Run.Rehydrate</c>, the only way to obtain one, so nothing in this
 /// file invents a starting state.
+/// </para>
+/// <para>
+/// 🔒 <b>The hero is GEARED, and it has to be for any battle assertion here to mean anything.</b>
+/// Since <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9), the server decides whether
+/// a battle was won — so a fixture whose hero loses turns every payout assertion in this suite into a
+/// test that a loss pays nothing. It previously fought <b>bare-handed</b>, and <c>05</c> §2 is explicit
+/// that the curve alone is not the whole hero: <em>"Gear, talents, pets and mounts then multiply
+/// these"</em>, and <c>EnemyPowerFormula</c> scales against a geared one. ⚠️ <b>Measured, so nobody
+/// retries the cheaper fix:</b> sweeping the bare hero's Legend Level 1 → 20 → 60 → 120 moved the
+/// failures only 39 → 35 → 34 → 34. Levelling does not close a gap that gear is supposed to close.
+/// </para>
+/// <para>
+/// The loadout is <c>RunBattleWorlds</c>' rather than a second one built here, so the fight this suite
+/// composes and the fight M7-06b's own suite composes are the same fight. Its player row already holds
+/// the worn items in inventory, which <c>Player.Rehydrate</c> requires of anything equipped.
+/// </para>
+/// <para>
+/// ⚠️ <b>A drift this fixture cannot detect, named because it is real.</b> "Geared enough to win" is
+/// measured against <c>ChapterPowerTarget</c>, which M6 exists to retune. A retune that raised chapter
+/// 1's target past this loadout would turn these tests back into loss-asserting no-ops <em>silently</em>.
+/// <c>ConfirmBattleResultTests.The_fixture_hero_actually_wins_the_fight_it_is_sent_into</c> is the
+/// probe that catches it, and it is a real test rather than a comment for that reason.
+/// </para>
 /// </remarks>
 internal static class TileWorlds
 {
@@ -97,7 +122,7 @@ internal static class TileWorlds
         int stage = 1,
         RunPhase phase = RunPhase.InProgress) =>
         new(
-            Worlds.NewPlayer(),
+            Worlds.Rehydrated(RunBattleWorlds.PlayerRow()),
             Rehydrated(RunSnapshots.With(
                 runSeed: runSeed,
                 chapterId: chapterId,
@@ -109,7 +134,8 @@ internal static class TileWorlds
                 pendingTileStage: stage,
                 pendingEventCardId: eventCardId ?? RunSnapshots.NoPendingEventCard,
                 phase: phase,
-                rngStreamPositions: CombatStreamFor(phase))));
+                rngStreamPositions: CombatStreamFor(phase),
+                startingLoadout: RunBattleWorlds.WornLoadout)));
 
     /// <summary>
     /// 🔒 The <c>combat</c> stream position a run in <see cref="RunPhase.BattlePending"/> must carry.
