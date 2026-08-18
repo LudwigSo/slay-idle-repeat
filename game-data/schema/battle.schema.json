@@ -60,11 +60,11 @@
       }
     },
     "status": {
-      "description": "🔒 One sentence per state the replay can be in, and the reason this object is the largest one here: six of these eleven are reasons the screen has nothing to animate, and on screen all six look the same — a still frame. A screen with one sentence for all six would tell a player that the fight did not play and nothing they or anyone reading their report could do about it, while the six causes are as different as a run that has no battle open, a battle whose seed the run no longer carries, a hero stat block this build cannot assemble at all, and a simulator that threw. 'victory' and 'defeat' close the replay; 'refused' covers a result the rules layer would not accept.",
+      "description": "🔒 One sentence per state the replay can be in, and the reason this object is the largest one here: five of these ten are reasons the screen has nothing to animate, and on screen all five look the same — a still frame. A screen with one sentence for all five would tell a player that the fight did not play and nothing they or anyone reading their report could do about it, while the five causes are as different as a run that has no battle open, a battle whose seed the run no longer carries, a simulator that threw and a log that came back with no events at all. 'victory' and 'defeat' close the replay; 'refused' covers a result the rules layer would not accept. 🔴 There were six: 'heroStatsUnavailable' was retired on 2026-08-19 because it named a hero stat block nothing could assemble, which M7-06b made assembleable — a status line telling players a shipped feature was unbuilt, on the one state every fight in the game reached.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "loading", "noRun", "phaseNotBattle", "seedUnavailable", "heroStatsUnavailable",
+        "loading", "noRun", "phaseNotBattle", "seedUnavailable",
         "simulatorFailed", "logEmpty", "readUnavailable", "victory", "defeat", "refused"
       ],
       "properties": {
@@ -72,7 +72,6 @@
         "noRun": { "$ref": "#/$defs/locKey" },
         "phaseNotBattle": { "$ref": "#/$defs/locKey" },
         "seedUnavailable": { "$ref": "#/$defs/locKey" },
-        "heroStatsUnavailable": { "$ref": "#/$defs/locKey" },
         "simulatorFailed": { "$ref": "#/$defs/locKey" },
         "logEmpty": { "$ref": "#/$defs/locKey" },
         "readUnavailable": { "$ref": "#/$defs/locKey" },

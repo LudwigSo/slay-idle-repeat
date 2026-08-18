@@ -173,10 +173,10 @@ public sealed record ReplayActor(
 /// per-frame delta and a replay measured against wall time would be a replay a case cannot step.
 /// </para>
 /// <para>
-/// 🔴 <b>The fight is not predicted locally today, and that is the largest thing to know about this
-/// screen.</b> The seed half is real — see <see cref="LocalBattleSimulation"/> — and the stat half
-/// does not exist at any accessibility. So the screen is built to animate a real log and reports, by
-/// name, that it has none.
+/// 🔒 <b>The fight is predicted locally, from the two persisted rows and the seed the run
+/// committed</b> — see <see cref="LocalBattleSimulation"/>, which fights it through the same
+/// composition <c>CONFIRM_BATTLE_RESULT</c> recomputes it through. When there is no fight to animate
+/// the screen says which of the four reasons it is, by name, and submits nothing.
 /// </para>
 /// <para>
 /// 🔴 Speed does not persist across runs — see
@@ -280,7 +280,6 @@ public sealed class BattleReplayPresenter
     private const string NoRunStatusKey = "loc.battle.no_run.status";
     private const string PhaseNotBattleStatusKey = "loc.battle.phase_not_battle.status";
     private const string SeedUnavailableStatusKey = "loc.battle.seed_unavailable.status";
-    private const string HeroStatsUnavailableStatusKey = "loc.battle.hero_stats_unavailable.status";
     private const string SimulatorFailedStatusKey = "loc.battle.simulator_failed.status";
     private const string LogEmptyStatusKey = "loc.battle.log_empty.status";
     private const string ReadUnavailableStatusKey = "loc.battle.read_unavailable.status";
@@ -430,9 +429,10 @@ public sealed class BattleReplayPresenter
     /// Whether <see cref="BattleSeed"/> is a real derivation.
     /// </summary>
     /// <remarks>
-    /// 🔒 True even for a refusal, and that is the point: the local prediction is blocked at the
-    /// hero's stat block and not at the seed, so a reader who cannot tell the two apart would file
-    /// the wrong bug.
+    /// 🔒 True even for a refusal that got past the seed — a simulator that threw and an empty log
+    /// both report the seed they were derived at, because that is the number whoever reads the bug
+    /// report needs to reproduce the fight. Only a run that cannot name its own battle reports none,
+    /// and zero is a legal seed, so this flag is the only thing telling the two apart.
     /// </remarks>
     public bool SeedDerived { get; private set; }
 
@@ -586,7 +586,6 @@ public sealed class BattleReplayPresenter
                 BattleReadiness.NoRun => _strings.Resolve(NoRunStatusKey),
                 BattleReadiness.PhaseNotBattle => _strings.Resolve(PhaseNotBattleStatusKey),
                 BattleReadiness.SeedUnavailable => _strings.Resolve(SeedUnavailableStatusKey),
-                BattleReadiness.HeroStatsUnavailable => _strings.Resolve(HeroStatsUnavailableStatusKey),
                 BattleReadiness.SimulatorFailed => _strings.Resolve(SimulatorFailedStatusKey),
                 BattleReadiness.LogEmpty => _strings.Resolve(LogEmptyStatusKey),
                 _ => _strings.Resolve(ReadUnavailableStatusKey),
@@ -781,15 +780,22 @@ public sealed class BattleReplayPresenter
         _ => null,
     };
 
+    /// <remarks>
+    /// 🔒 <b>The player's row goes to the prediction as well as the run's, and dropping it is exactly
+    /// how the fight went missing.</b> The hero is composed from the profile's loadout, so a
+    /// prediction handed the run alone can only fight an invented hero — and for one milestone this
+    /// method held both rows in hand and passed one, while the screen reported the hero's stats as
+    /// unbuildable.
+    /// </remarks>
     private void Settle(OwnStateResult state)
     {
-        if (state.Lookup != OwnStateLookup.Found || state.View?.Run is not { } run)
+        if (state.Lookup != OwnStateLookup.Found || state.View is not { Run: { } run } view)
         {
             Readiness = BattleReadiness.NoRun;
             return;
         }
 
-        var attempt = _simulations.Simulate(run);
+        var attempt = _simulations.Simulate(view.Player, run);
 
         Readiness = attempt.Readiness;
         BattleSeed = attempt.BattleSeed;

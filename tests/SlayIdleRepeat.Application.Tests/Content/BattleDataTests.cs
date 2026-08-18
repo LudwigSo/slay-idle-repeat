@@ -102,7 +102,6 @@ public sealed class BattleDataTests
     [InlineData("loc.battle.no_run.status")]
     [InlineData("loc.battle.phase_not_battle.status")]
     [InlineData("loc.battle.seed_unavailable.status")]
-    [InlineData("loc.battle.hero_stats_unavailable.status")]
     [InlineData("loc.battle.simulator_failed.status")]
     [InlineData("loc.battle.log_empty.status")]
     [InlineData("loc.battle.read_unavailable.status")]
@@ -126,11 +125,16 @@ public sealed class BattleDataTests
     }
 
     /// <summary>
-    /// 🔒 The five stall sentences differ from one another <b>as authored</b> — the claim the client
+    /// 🔒 The four stall sentences differ from one another <b>as authored</b> — the claim the client
     /// suite makes about the screen, restated here over the content the loader actually validates.
     /// </summary>
+    /// <remarks>
+    /// 🔒 There were five: <c>heroStatsUnavailable</c> was retired on 2026-08-19 with the state it
+    /// named, because <c>M7-06b</c> had made the hero's stat block buildable and the sentence went on
+    /// telling players it was not.
+    /// </remarks>
     [Fact]
-    public void The_five_reasons_a_replay_has_nothing_to_animate_read_as_five_different_sentences()
+    public void The_four_reasons_a_replay_has_nothing_to_animate_read_as_four_different_sentences()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
@@ -138,7 +142,6 @@ public sealed class BattleDataTests
         [
             snapshot.ReadText(EnglishStrings + "loc.battle.phase_not_battle.status")!,
             snapshot.ReadText(EnglishStrings + "loc.battle.seed_unavailable.status")!,
-            snapshot.ReadText(EnglishStrings + "loc.battle.hero_stats_unavailable.status")!,
             snapshot.ReadText(EnglishStrings + "loc.battle.simulator_failed.status")!,
             snapshot.ReadText(EnglishStrings + "loc.battle.log_empty.status")!,
         ];

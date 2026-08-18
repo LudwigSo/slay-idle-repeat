@@ -60,7 +60,14 @@ internal static class PlayerState
     /// the game ever wrote. Every earlier client test read the snapshot's fields directly, so a row that
     /// could not become an aggregate was never asked to be one.
     /// </remarks>
-    private static PlayerSnapshot Rehydratable(PlayerId id) => Player(id) with
+    /// <param name="id">Whose row this is.</param>
+    /// <param name="legendLevel">
+    /// The Legend Level the hero is composed at. It reaches the battle screen's own prediction, where
+    /// it decides whether the hero can win at all — so a case about a fight names it rather than
+    /// taking a default that happens to lose.
+    /// </param>
+    internal static PlayerSnapshot Rehydratable(PlayerId id, int legendLevel = 1) =>
+        Player(id, legendLevel: legendLevel) with
     {
         // All six, because the domain refuses a partial wallet: a missing row read as zero is
         // indistinguishable from a balance a migration dropped.
