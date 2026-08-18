@@ -221,6 +221,23 @@ internal static class Domain
     /// enum does not compile.
     /// </para>
     /// <para>
+    /// 🔒 <b>M7-11 adds an EIGHTH entry point, <c>InventoryView</c>, and its two return shapes</b> —
+    /// <c>InventoryItemView</c> and <c>GearStatDeltaView</c>. Its consumer is the client's Inventory
+    /// screen (S16), and the reason is <c>08</c> §5: <em>"tapping an item always shows a side-by-side
+    /// delta vs the currently equipped item in that slot, with green/red arrows per stat"</em>. That
+    /// delta is <c>InventoryComparison</c>'s, which is <c>internal</c> — so before this widening the
+    /// screen could see a player's stock but could not say what any of it would change, which is the
+    /// one thing `08` §5 requires of it.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The machinery stays internal here too.</b> <c>InventoryComparison</c>,
+    /// <c>InventorySorting</c>, <c>GearStatDerivation</c>, <c>SetBonusResolver</c> and
+    /// <c>InventoryTuning</c> are all still <c>internal</c>: what M7-11 exports is the STOCK and its
+    /// comparison, never the derivation that answers it or the sorting M9-01 will need. The entry point
+    /// takes an already-public <c>PlayerSnapshot</c> and a <c>ContentSnapshot</c> and hands out no draw
+    /// stream, so nothing outside <c>Core</c> gains a way to mint an item or to move a band.
+    /// </para>
+    /// <para>
     /// ⚠️ <b>And their producer stays out too.</b> <c>DraftGuarantees</c>, <c>DraftCounters</c>,
     /// <c>DraftDemand</c>, <c>DraftForce</c> and <c>HardPity</c> stay <c>internal</c>: what leaves is
     /// the counters' STANDING, never the machinery that decides which guarantee fires or floors a
@@ -248,6 +265,9 @@ internal static class Domain
         "ShrineBuffRow",
         "DraftGuaranteeView",
         "DraftGuaranteeKind",
+        "InventoryView",
+        "InventoryItemView",
+        "GearStatDeltaView",
     };
 
     /// <summary>

@@ -483,6 +483,22 @@ public sealed class LuckRoutingRuleTests
         ("InventorySorting", "orders a list of owned items by slot, band, power, quality or age. Reading a band to sort by it is not deciding one — LuckTuning's reason, one layer up"),
         ("InventoryComparison", "subtracts one item's derived stats from another's. It names two GearInstances because a side-by-side delta is about exactly two of them, and GearStatDerivation — which it consumes — carries this same reason"),
 
+        // 🔒 M7-11's TWO, both kind (b), and the restructuring-before-exempting discipline was
+        // applied first rather than skipped. The projection's first draft rebuilt each item from
+        // its persisted row — a fifth `new GearInstance(...)` site, inside a VIEW — and this rule
+        // refused it. That was the rule working: the fix was to stop producing, not to exempt.
+        // InventoryView now goes through RowDoor.Player and reads the instances the aggregate
+        // already holds, built once through the one validated construction path (30 §11.3).
+        //
+        // ⚠️ What remains cannot be restructured away, and that is why these two rows exist. A
+        // side-by-side comparison is about GearInstances, so the methods that pair them name the
+        // type — GearStatDerivation's and SetBonusResolver's reason exactly — and a screen drawing
+        // 08 §5's per-stat arrows needs the band, so the row carries a Rarity. Carrying it as a
+        // string to dodge the matcher would be a rule dodged rather than kept, and would hand the
+        // client a stringly band to re-parse.
+        ("InventoryView", "projects an owned stock and the side-by-side delta each item would make. It names GearInstances because it pairs a candidate with what is worn in the same slot, and it CONSTRUCTS none — the instances come from the aggregate through RowDoor.Player. InventoryComparison, which it consumes, carries this same reason"),
+        ("InventoryItemView", "one row of that projection. It names a Rarity because 08 §5's grid draws the band, and reading a band to draw it is not deciding one — InventorySorting's reason, one layer up"),
+
         // (a) The persisted DATA ROW, beside DropsTuning's rung rows rather than beside the three
         //     consumers above.
         // 🔒 M4-04's THREE, and all three are shapes already on this list rather than new kinds.
