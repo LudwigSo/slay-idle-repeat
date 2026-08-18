@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/inventory.schema.json",
+  "title": "content/inventory/inventory.json",
+  "description": "M7-11 — the loc keys the Inventory screen (S16) renders. What is fixed here is that the screen heads the stock, captions the bag's occupancy and the overflow band, marks the item worn in a slot, offers an equip and a way back, carries one sentence for the one absence that has a reason, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object, so the absences are enforced rather than merely observed. 🔒 There is no member for sorting, filtering, locking or the Forge, because those are M9-01's and a caption offering one would be a control this screen does not have. 🔒 There is no member for buying bag space: 08 §5's errata makes capacity a flat 1000 and the ruling that set it declined to add EXPAND_INVENTORY to 14 §2.3's vocabulary, so nothing can move the ceiling and nothing may offer to. And no member carries a MAGNITUDE — the occupancy and every per-stat delta are read at render time and drawn beside these captions, because a number written into a translated string cannot be tuned.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "_doc",
+    "name",
+    "label",
+    "badge",
+    "action",
+    "block",
+    "status"
+  ],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "_doc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "description": "The screen's own heading.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "label": {
+      "description": "🔒 Captions only. `capacity` is the words the bag's occupancy is drawn BESIDE — the two numbers are the stock's size and 08 §5's authored ceiling, read at render time, because a ceiling written into a translated string could not be retuned. `held` heads the overflow band, which exists because a drop arriving at a full stock is held rather than refused.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "capacity",
+        "held"
+      ],
+      "properties": {
+        "capacity": {
+          "$ref": "#/$defs/locKey"
+        },
+        "held": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "badge": {
+      "description": "The mark on the item worn in a slot. A word rather than an icon, because the client ships no atlas and a coloured shape alone would carry the fact by appearance only.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "equipped"
+      ],
+      "properties": {
+        "equipped": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "action": {
+      "description": "Every control the screen offers, which is two. `equip` is the only command it submits; `close` is the way back. 🔒 No salvage, no merge and no lock: this screen is the equip path M7's exit criterion names, and the forge is M9-01's.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "equip",
+        "close"
+      ],
+      "properties": {
+        "equip": {
+          "$ref": "#/$defs/locKey"
+        },
+        "close": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "block": {
+      "description": "🔒 One sentence for the one absence that has a reason. An item in overflow is owned and is shown — hiding it would hide exactly what a player needs to see to make room — but it cannot be worn, and EQUIP refuses it with INVENTORY_FULL. Saying so on the card is what stops the refusal arriving as a surprise.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "heldNotEquippable"
+      ],
+      "properties": {
+        "heldNotEquippable": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "status": {
+      "description": "One line per state the read can be in, plus the two a submission can come back with. `empty` is a stock with nothing in it, which is a real state for a fresh account and reads as a rendering fault if the grid is simply blank.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading",
+        "empty",
+        "unavailable",
+        "refused",
+        "hostUnavailable"
+      ],
+      "properties": {
+        "loading": {
+          "$ref": "#/$defs/locKey"
+        },
+        "empty": {
+          "$ref": "#/$defs/locKey"
+        },
+        "unavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refused": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hostUnavailable": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    }
+  }
+}

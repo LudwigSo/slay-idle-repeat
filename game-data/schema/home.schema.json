@@ -31,10 +31,11 @@
       "description": "The primary button, in the two shapes the run decision can take. Two captions rather than one parameterised caption: 'start a new run' and 'resume the run you are in' send the player to different places, and a screen that says the same word for both is a screen a player cannot read.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["startRun", "continueRun"],
+      "required": ["startRun", "continueRun", "gear"],
       "properties": {
         "startRun": { "$ref": "#/$defs/locKey" },
-        "continueRun": { "$ref": "#/$defs/locKey" }
+        "continueRun": { "$ref": "#/$defs/locKey" },
+        "gear": { "$ref": "#/$defs/locKey" }
       }
     },
     "status": {

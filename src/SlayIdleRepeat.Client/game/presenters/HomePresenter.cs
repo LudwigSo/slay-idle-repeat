@@ -66,6 +66,7 @@ public sealed class HomePresenter
     private const string EnergyReserveLabelKey = "loc.home.energy_reserve.label";
     private const string StartRunActionKey = "loc.home.start_run.action";
     private const string ContinueRunActionKey = "loc.home.continue_run.action";
+    private const string GearActionKey = "loc.home.gear.action";
     private const string LoadingStatusKey = "loc.home.loading.status";
     private const string UnavailableStatusKey = "loc.home.unavailable.status";
 
@@ -119,6 +120,16 @@ public sealed class HomePresenter
     public string EnergyReserveLabel => _strings.Resolve(EnergyReserveLabelKey);
 
     /// <summary>The primary action's caption for the current <see cref="Decision"/>, resolved.</summary>
+    /// <summary>
+    /// The caption of the control that opens the gear stock (S16), resolved.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Always the same word, whatever the profile read said. Unlike <see cref="ActionText"/> — which
+    /// changes between starting and continuing a run — the bag is the bag: a caption that varied would be
+    /// inventing a distinction the screen behind it does not have.
+    /// </remarks>
+    public string GearText => _strings.Resolve(GearActionKey);
+
     public string ActionText => _strings.Resolve(
         Decision == HomeContinueDecision.ContinueRun ? ContinueRunActionKey : StartRunActionKey);
 

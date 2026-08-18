@@ -1,0 +1,67 @@
+using Godot;
+using SlayIdleRepeat.Client.Composition;
+
+namespace SlayIdleRepeat.Client.Game.Scenes;
+
+/// <summary>
+/// The handover onto the Inventory screen, and the way back off it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// 🔒 The screen it came from is reused and the inventory frees itself, which is the same shape
+/// <see cref="RunDecisionHandover"/> states for the three run-decision screens. The reason is the same
+/// too: the screen behind holds a presenter mid-read, and rebuilding it would re-issue that read and
+/// lose whatever the player was looking at.
+/// </para>
+/// <para>
+/// ⚠️ It takes a <c>Control</c> rather than a named screen type, because S16 is reachable from more than
+/// one place — Home between runs today, and <c>13</c> §1.1's Hero screen when M9 lands. Naming one caller
+/// would make the second one a change to this file.
+/// </para>
+/// </remarks>
+public static class InventoryHandover
+{
+    /// <summary>Puts the inventory in front of the screen that opened it.</summary>
+    /// <param name="from">The screen handing over, hidden on success and returned to later.</param>
+    /// <param name="screen">The composed inventory.</param>
+    /// <param name="lifetime">Cancelled when the application shuts down.</param>
+    /// <returns>True when the screen is in the tree and the one behind it is hidden.</returns>
+    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    public static bool Show(Control from, ComposedInventoryScreen screen, CancellationToken lifetime)
+    {
+        ArgumentNullException.ThrowIfNull(from);
+        ArgumentNullException.ThrowIfNull(screen);
+
+        if (GD.Load<PackedScene>(Inventory.ScenePath) is not { } scene ||
+            scene.Instantiate() is not Inventory inventory)
+        {
+            GD.PushError(
+                "The Inventory scene did not load, so the screen was not opened and the one behind it " +
+                "stays visible. A player cannot equip what they cannot reach, so this is a defect.");
+
+            return false;
+        }
+
+        inventory.Drive(screen.Inventory, from, lifetime);
+
+        from.GetParent().AddChild(inventory);
+        from.Visible = false;
+
+        return true;
+    }
+
+    /// <summary>Hands control back to the screen the inventory was entered from, and frees it.</summary>
+    /// <param name="screen">The inventory standing down, which is queued for freeing.</param>
+    /// <param name="to">The screen it was entered from, which is shown again.</param>
+    /// <exception cref="ArgumentNullException">Either argument is null.</exception>
+    public static void Return(Inventory screen, Control to)
+    {
+        ArgumentNullException.ThrowIfNull(screen);
+        ArgumentNullException.ThrowIfNull(to);
+
+        to.Visible = true;
+
+        screen.GetParent()?.RemoveChild(screen);
+        screen.QueueFree();
+    }
+}
