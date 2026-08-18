@@ -64,8 +64,11 @@ public sealed class DraftView
 /// <param name="Rarity">The perk's own rarity band, not the band the slot drew.</param>
 /// <param name="IconId">The icon asset id.</param>
 /// <param name="IsUpgrade">Whether taking this raises an already-owned copy rather than granting a fresh one.</param>
-/// <param name="NewTier">The tier taking this option lands on.</param>
-/// <param name="TierBadge">The badge the card draws — the tier's numeral, prefixed on an upgrade.</param>
+/// <param name="NewTier">
+/// The tier taking this option lands on. The badge a card draws is composed from this and
+/// <paramref name="IsUpgrade"/> by whatever renders it: the upgrade wording is a translated string,
+/// so the words belong to the screen's locale table and only the two facts belong here.
+/// </param>
 /// <param name="EffectText">
 /// The perk's sentence at <paramref name="NewTier"/> with its real numbers substituted, or the
 /// tokens that stopped it. Never a half-substituted string.
@@ -83,6 +86,5 @@ public sealed record DraftOptionView(
     string IconId,
     bool IsUpgrade,
     int NewTier,
-    string TierBadge,
     PerkEffectTextRender EffectText,
     IReadOnlyList<string> SynergyPerkIds);

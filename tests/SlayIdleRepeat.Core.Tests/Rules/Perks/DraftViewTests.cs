@@ -169,11 +169,15 @@ public sealed class DraftViewTests
             expected, "the card draws the numbers of the tier the player is about to own");
     }
 
-    /// <summary>The badge names the tier the option lands on, and says so louder when it is an upgrade.</summary>
+    /// <summary>
+    /// An upgrade names the tier it raises to, and names itself an upgrade. Both facts, and no
+    /// rendered badge: the upgrade wording is translated, so the numeral and the flag are what this
+    /// projection owes and the sentence is the screen's to compose.
+    /// </summary>
     [Theory]
-    [InlineData(1, "UPGRADE →II")]
-    [InlineData(2, "UPGRADE →III")]
-    public void An_upgrade_option_badges_the_tier_it_raises_to(int ownedTier, string expected)
+    [InlineData(1)]
+    [InlineData(2)]
+    public void An_upgrade_option_reports_the_tier_it_raises_to(int ownedTier)
     {
         var state = DraftWorlds.DraftPendingOn(
             battleKind: TileKind.Boss,
@@ -183,19 +187,47 @@ public sealed class DraftViewTests
 
         upgrade.ShouldNotBeNull("the boss fixture owns the one Epic row, so its upgrade is offered");
         upgrade.NewTier.ShouldBe(ownedTier + 1);
-        upgrade.TierBadge.ShouldBe(expected);
     }
 
-    /// <summary>…and a fresh grant badges its own tier with no upgrade wording at all.</summary>
+    /// <summary>…and a fresh grant lands on tier 1 and is never flagged as an upgrade.</summary>
     [Fact]
-    public void A_fresh_grant_badges_its_tier_alone()
+    public void A_fresh_grant_lands_on_the_first_tier()
     {
         foreach (var option in Projected(DraftWorlds.DraftPendingOn()).Options)
         {
             option.IsUpgrade.ShouldBeFalse("this run owns nothing, so no option can be an upgrade");
             option.NewTier.ShouldBe(1);
-            option.TierBadge.ShouldBe("I");
         }
+    }
+
+    /// <summary>
+    /// 🔒 No member of an option carries a player-facing English word this projection composed
+    /// itself. Every such word is a translated string, and one assembled here would reach a German
+    /// player in English with no key to translate it by.
+    /// </summary>
+    /// <remarks>
+    /// Stated over the record's own members by reflection rather than over a list of the ones that
+    /// exist today, so a member added later is caught by the rule rather than by whoever remembers
+    /// it. The two string members that legitimately carry authored text — the perk's name and its
+    /// substituted sentence — come out of the content set and are excluded by name.
+    /// </remarks>
+    [Fact]
+    public void No_option_member_carries_wording_this_projection_invented()
+    {
+        string[] authoredElsewhere = [nameof(DraftOptionView.Name), nameof(DraftOptionView.EffectText)];
+
+        var invented = typeof(DraftOptionView)
+            .GetProperties()
+            .Where(property => property.PropertyType == typeof(string))
+            .Select(property => property.Name)
+            .Where(name => !authoredElsewhere.Contains(name, StringComparer.Ordinal))
+            .Where(name => !name.EndsWith("Id", StringComparison.Ordinal))
+            .ToArray();
+
+        invented.ShouldBeEmpty(
+            "DraftOptionView." + string.Join(", ", invented) + " is a string this projection builds " +
+            "that is neither an id nor authored content, so it is a sentence composed in code. The " +
+            "screen composes wording from its own locale table; this type carries the facts.");
     }
 
     /// <summary>The offer reports the authored draft economy, read rather than transcribed.</summary>
@@ -376,7 +408,6 @@ public sealed class DraftViewTests
                 .Append(option.IconId).Append('|')
                 .Append(option.IsUpgrade).Append('|')
                 .Append(option.NewTier.ToString(CultureInfo.InvariantCulture)).Append('|')
-                .Append(option.TierBadge).Append('|')
                 .Append(option.EffectText.Text ?? "<unrendered>").Append('|')
                 .Append(string.Join(",", option.EffectText.Text is null ? option.EffectText.UnresolvedTokens : []))
                 .Append('|')
