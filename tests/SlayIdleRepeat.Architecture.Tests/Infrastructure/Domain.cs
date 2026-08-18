@@ -238,6 +238,21 @@ internal static class Domain
     /// stream, so nothing outside <c>Core</c> gains a way to mint an item or to move a band.
     /// </para>
     /// <para>
+    /// 🔒 <b>M7-08 adds a NINTH entry point, <c>RunEndView</c>, with <c>RunEndKind</c> and
+    /// <c>RunEndCounterView</c>.</b> Its consumer is the client's death/revive and run-results screens
+    /// (S13/S14), which <c>02</c> §6 makes one moment — <em>"if declined or already used, go to
+    /// <c>RUN_RESULTS</c> with the Death completion multiplier"</em>. Before this widening a screen could
+    /// not say what a run was about to be paid: <c>RunRewardMath</c> is <c>internal</c>, and reproducing
+    /// <c>Banked × CompletionMultiplier</c> on the client would be a second implementation that parts
+    /// company with the payout the first time a multiplier is retuned.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The machinery stays internal here too.</b> <c>RunRewardMath</c>, <c>RunPayoutTuning</c>,
+    /// <c>RunCompletionOutcome</c>, <c>DropRunTuning</c> and <c>LuckTuning</c> are all still
+    /// <c>internal</c>: what leaves is the run's own outcome and figures, never the multipliers or the
+    /// counter-key spelling. The entry point takes two already-public snapshots and grants nothing.
+    /// </para>
+    /// <para>
     /// ⚠️ <b>And their producer stays out too.</b> <c>DraftGuarantees</c>, <c>DraftCounters</c>,
     /// <c>DraftDemand</c>, <c>DraftForce</c> and <c>HardPity</c> stay <c>internal</c>: what leaves is
     /// the counters' STANDING, never the machinery that decides which guarantee fires or floors a
@@ -268,6 +283,9 @@ internal static class Domain
         "InventoryView",
         "InventoryItemView",
         "GearStatDeltaView",
+        "RunEndView",
+        "RunEndKind",
+        "RunEndCounterView",
     };
 
     /// <summary>
