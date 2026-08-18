@@ -68,13 +68,13 @@
     },
     "lootTable": { "type": "string", "pattern": "^LT_[A-Z0-9_]+$" },
     "unlockCondition": {
-      "description": "10 §7 — Chapter c Normal is unlocked by clearing Chapter c-1 Normal. Chapter 1 has no prerequisite and carries null.",
+      "description": "10 §7 — the per-chapter restatement of the ladder's Normal rung: Chapter c Normal is unlocked by clearing Chapter c-1 Normal, and Chapter 1 has no prerequisite and carries null. tuning/progression.json#/chapterGating is the single RUNTIME authority for every rung; this member is authored so a chapter document reads as a whole, and the loader cross-checks the two so the pair cannot drift. tier is a const rather than the tier list, because the Normal rung is the only rung a chapter's own document speaks to — a wider constraint would let a chapter state a prerequisite the ladder is unable to express. clearChapter is pinned by the loader instead of here: JSON Schema has no arithmetic for 'this document's own id minus one'.",
       "type": ["object", "null"],
       "additionalProperties": false,
       "required": ["clearChapter", "tier"],
       "properties": {
         "clearChapter": { "type": "integer", "minimum": 1, "maximum": 8 },
-        "tier": { "enum": ["NORMAL", "HEROIC", "MYTHIC"] }
+        "tier": { "const": "NORMAL" }
       }
     }
   }

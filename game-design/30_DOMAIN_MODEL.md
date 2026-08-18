@@ -73,7 +73,7 @@ public readonly record struct CommandResult(
     IReadOnlyList<DomainEvent> Events);
 ```
 
-`RejectionReason` is catalogued normatively in `14` §16.2 (ruled in `16` A7). Two tiers produce it: the **transport tier** — malformed envelopes, sequence and idempotency conflicts, rate limits, protocol/content version — rejects before the domain is ever invoked, so those values never appear in a `CommandResult`; `Apply` returns only the **domain-tier** values (`ILLEGAL_STATE`, `INSUFFICIENT_ENERGY`, `INSUFFICIENT_FUNDS`, `CAP_REACHED`, `COOLDOWN_ACTIVE`, `NOT_OWNED`, `NOT_ENTITLED`, `INVENTORY_FULL`, `RUN_EXPIRED`, `RUN_ALREADY_ENDED`). One enum, one wire field, two producers.
+`RejectionReason` is catalogued normatively in `14` §16.2 (ruled in `16` A7). Two tiers produce it: the **transport tier** — malformed envelopes, sequence and idempotency conflicts, rate limits, protocol/content version — rejects before the domain is ever invoked, so those values never appear in a `CommandResult`; `Apply` returns only the **domain-tier** values (`ILLEGAL_STATE`, `INSUFFICIENT_ENERGY`, `INSUFFICIENT_FUNDS`, `CAP_REACHED`, `COOLDOWN_ACTIVE`, `NOT_OWNED`, `NOT_ENTITLED`, `INVENTORY_FULL`, `RUN_EXPIRED`, `RUN_ALREADY_ENDED`, `PREREQUISITE_NOT_CLEARED`, `LEGEND_LEVEL_TOO_LOW`). One enum, one wire field, two producers.
 
 ### 2.1 The five properties that make it work 🔒
 
