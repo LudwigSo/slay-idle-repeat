@@ -204,11 +204,17 @@ public sealed partial class GearAuthoringGapRegisterTests
     {
         var rows = TrackerRows();
 
+        var declared = TrackerRowIds();
+
+        declared.Except(rows.Keys, StringComparer.Ordinal).ShouldBeEmpty(
+            "every task row must yield a status glyph. A row whose notes hold an unescaped pipe used " +
+            "to drop out of this lookup and read as permanently open. The expectation is derived " +
+            "from the same file rather than pinned to a literal, so this names the offending row at " +
+            "any tracker size instead of going red every time a row is added.");
+
         rows.Count.ShouldBe(
-            206,
-            "every task row carries a status glyph. A row whose notes hold an unescaped pipe used to " +
-            "drop out of this lookup and read as permanently open, so the count is pinned rather " +
-            "than left to the reader's shape.");
+            declared.Count,
+            "one status per declared row id, and no more");
 
         HasShipped(rows["M4-05"]).ShouldBeTrue(
             "M4-05 merged and is marked done, and it owns nothing in this register; a predicate that " +
@@ -304,6 +310,29 @@ public sealed partial class GearAuthoringGapRegisterTests
         }
 
         return rows;
+    }
+
+    /// <summary>Every task id the tracker declares, read with the same regex the lookup uses.</summary>
+    /// <remarks>
+    /// Deliberately derived rather than pinned. The literal it replaced was a proxy for "every row
+    /// yields a status", and an equality on a number that legitimately grows can only ever be
+    /// repaired by raising it -- which is how a guard stops guarding.
+    /// </remarks>
+    private static IReadOnlyCollection<string> TrackerRowIds()
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var line in File.ReadAllLines(Path.Combine(RepoData.RepositoryRoot, TrackerRelativePath)))
+        {
+            var match = TrackerRow().Match(line);
+
+            if (match.Success)
+            {
+                ids.Add(match.Groups[1].Value);
+            }
+        }
+
+        return ids;
     }
 
     [GeneratedRegex(@"^\|\s*(M\d+-\d+[a-z]?)\s*\|")]
