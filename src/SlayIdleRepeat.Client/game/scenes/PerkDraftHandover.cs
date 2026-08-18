@@ -23,7 +23,9 @@ public static class PerkDraftHandover
         ArgumentNullException.ThrowIfNull(screen);
 
         return RunDecisionHandover.Show<PerkDraft>(
-            from, PerkDraft.ScenePath, draft => draft.Drive(screen.PerkDraft, from, lifetime));
+            from,
+            PerkDraft.ScenePath,
+            draft => draft.Drive(screen.PerkDraft, screen.ReducedMotion, from, lifetime));
     }
 
     /// <summary>Hands control back to the board the draft was entered from, and frees the screen.</summary>

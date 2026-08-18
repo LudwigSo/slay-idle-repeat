@@ -145,7 +145,12 @@ public partial class Campfire : Control
     private Button? _continueButton;
 
     /// <summary>The press control of each option now drawn, paired with whether it can be taken.</summary>
-    private readonly List<(Button Press, bool Available)> _optionButtons = [];
+    /// <summary>
+    /// Each drawn option: its press, the card the press sits on, and whether the option is offered at
+    /// all. The card is held as well as the press because BOTH are driven by whether it can be
+    /// pressed — the press stops accepting input and the card's face recedes to say so.
+    /// </summary>
+    private readonly List<(Button Press, PanelContainer Card, bool Available)> _optionButtons = [];
 
     /// <summary>The option list the column was last built from, by reference.</summary>
     /// <remarks>
@@ -318,12 +323,23 @@ public partial class Campfire : Control
             _drawnOptionsFrom = presenter.Options;
         }
 
-        foreach (var (press, available) in _optionButtons)
+        foreach (var (press, card, available) in _optionButtons)
         {
-            if (IsInstanceValid(press))
+            // Validity asked of both, not one: they are two engine objects and a teardown can have
+            // freed either while this loop is running.
+            if (!IsInstanceValid(press) || !IsInstanceValid(card))
             {
-                press.Disabled = _busy || !available;
+                continue;
             }
+
+            var pressable = !_busy && available;
+
+            press.Disabled = !pressable;
+
+            // 🔒 Drawn every render rather than once at build time, which is the whole point: the
+            // in-flight case comes and goes while the card stays, so a face applied once could only
+            // ever describe the permanent case.
+            DrawFace(card, pressable);
         }
     }
 
@@ -381,24 +397,43 @@ public partial class Campfire : Control
 
         press.Pressed += () => OnOptionPressed(option);
 
-        _optionButtons.Add((press, offered.Available));
+        _optionButtons.Add((press, card, offered.Available));
 
-        if (!offered.Available)
-        {
-            DimFace(card);
-        }
+        // Drawn here as well as in RenderOptions so a card is never in the tree for a frame looking
+        // live when it is not: the build runs before the render loop that follows it.
+        DrawFace(card, !press.Disabled);
 
         return card;
     }
 
-    /// <summary>Draws an option that cannot be taken down into the ground, face and outline only.</summary>
+    /// <summary>Draws a card that cannot be pressed down into the ground, face and outline only.</summary>
     /// <remarks>
-    /// 🔒 Duplicated off the card's OWN authored face rather than built here, so an unavailable card
+    /// <para>
+    /// 🔒 Duplicated off the card's OWN authored face rather than built here, so an unpressable card
     /// differs from its sibling in exactly two properties and every other number describing a card
     /// stays written down in one place. See <see cref="UnavailableFaceColour"/>.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Reversible, and driven by every reason a card cannot be pressed rather than only the
+    /// permanent one.</b> Two of the three campfire options are unavailable for this screen's whole
+    /// life, but ALL of them are unpressable while a command is in flight — and a card that quietly
+    /// looks live while it is ignoring presses is the same defect as one that never said it was
+    /// unavailable. The override is added and removed rather than baked in at build time, which is
+    /// what lets the in-flight case use the mechanism the permanent case already had.
+    /// </para>
     /// </remarks>
-    private static void DimFace(PanelContainer card)
+    private static void DrawFace(PanelContainer card, bool pressable)
     {
+        if (pressable)
+        {
+            // Removed rather than overwritten with the authored numbers restated here: the scene is
+            // where a live card's face is written down, and a second copy of it in this file would be
+            // the one that went stale.
+            card.RemoveThemeStyleboxOverride(PanelStyleOverride);
+
+            return;
+        }
+
         if (card.GetThemeStylebox(PanelStyleOverride) is not StyleBoxFlat face ||
             face.Duplicate() is not StyleBoxFlat dimmed)
         {

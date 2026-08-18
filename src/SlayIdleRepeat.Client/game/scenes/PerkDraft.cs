@@ -39,12 +39,28 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// <c>PerkDraftCard.tscn</c> is a per-node override, because the shared theme resource does not
 /// exist yet — it is M8-03's, and these overrides are debt owed to it rather than a naming scheme of
 /// this screen's own. They have to be re-checked, not merely re-applied, when the real kit lands.
+/// <b>Phase 6 made that debt larger and more specific, and the UI review is recording it here rather
+/// than half-paying it:</b> the four-state primary-button stylebox set is now written out
+/// IDENTICALLY in three scenes — <c>PerkDraft.tscn</c>, <c>Shop.tscn</c> and <c>Campfire.tscn</c> —
+/// so M8-03 has three copies of one button to reconcile, not three unrelated buttons. Extracting a
+/// shared <c>.tres</c> now would stand up a partial theme system with its own naming that M8-03 would
+/// have to take apart first, which is why the duplication is named with an owner instead of being
+/// factored out by a screen that has no authority over the kit.
 /// </para>
 /// <para>
 /// 🔴 <b>There is no art here, placeholder or otherwise.</b> The category strip, the rarity gem and
 /// the icon slot are containers, coloured rectangles and typed characters the engine already
 /// provides; the icon slot is drawn EMPTY because no atlas exists, and an empty slot is honest where
 /// a stand-in glyph would not be — see <see cref="TheIconSlotIsEmptyBecauseThereIsNoArt"/>.
+/// </para>
+/// <para>
+/// 🔒 <b>Reduced motion is honoured by the one animation this screen has.</b> The upgrade card's
+/// entrance is shortened to the same tenth of a second <c>BattleReplay</c> shortens to, and its
+/// overshooting curve is dropped rather than merely compressed — a shortened bounce is still a bounce.
+/// The setting arrives beside the presenter through <c>ComposedPerkDraftScreen</c>, which is where the
+/// replay's arrives, so the two screens cannot disagree about whether motion is reduced. The entrance
+/// was already skippable by a tap on the ground; skippable and shortened are two different
+/// requirements and this screen now meets both.
 /// </para>
 /// <para>
 /// 🔒 <b>The three <c>DRAFT</c> luck-protection counters are drawn, always.</b> <c>24</c> §1.1's
@@ -209,6 +225,15 @@ public partial class PerkDraft : Control
     /// <summary>What an upgrade card grows from as it arrives.</summary>
     private const float IntroScale = 0.94f;
 
+    /// <summary>What this screen's one animation is shortened to under reduced motion.</summary>
+    /// <remarks>
+    /// 🔒 The same number <c>BattleReplay</c> uses, and the same clause: reduced motion shortens
+    /// animations to a tenth of a second rather than removing them, so the card still arrives rather
+    /// than appearing to have been there all along. Stated here as well as there because it is a floor
+    /// each screen honours for itself, not a shared setting one screen could read off the other.
+    /// </remarks>
+    private const double ReducedMotionSeconds = 0.1;
+
     /// <summary>
     /// And over how long — well inside the design's ceiling for a screen's own motion, and skipped
     /// outright by a tap anywhere on the ground.
@@ -225,7 +250,29 @@ public partial class PerkDraft : Control
     /// The border an owned-perk upgrade is drawn in — the authored gold of the art manifest's own
     /// rarity ladder, which is where the only gold this game has ever written down lives.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ <b>This is byte-identical to the Legendary gem's fill, and it is kept that way deliberately.</b>
+    /// Raised by the UI review against the rule the category palette states — two content-keyed colour
+    /// systems closing on one card is a legibility bug — and the rule does not reach here, because that
+    /// rule is about one CHANNEL. Rarity is a filled gem carrying a frame shape and a letter; the
+    /// upgrade mark is the card's outline, at a different width from every other card's. They are never
+    /// the same mark in the same place, and the upgrade is additionally named in words by the tier
+    /// badge, so an owned-perk upgrade is not read off colour at all. Introducing a second gold that no
+    /// document authors, to separate a signal that is already separated by shape, channel and wording,
+    /// would trade a real invented colour for an imagined collision.
+    /// </remarks>
     private static readonly Color UpgradeBorderColour = new(0.9608f, 0.651f, 0.1373f);
+
+    /// <summary>What a card that cannot be pressed has its fill and its outline drawn down to.</summary>
+    /// <remarks>
+    /// 🔒 The FACE recedes, never the text — the same two values the campfire's unavailable options
+    /// take, because the two screens draw the same state and a player moving between them should not
+    /// have to learn it twice. See <c>Campfire.UnavailableFaceColour</c>.
+    /// </remarks>
+    private static readonly Color UnavailableFaceColour = new(0.13f, 0.13f, 0.17f);
+
+    /// <summary>The outline that goes with it, which is what still reads the card as a card.</summary>
+    private static readonly Color UnavailableOutlineColour = new(0.26f, 0.27f, 0.33f);
 
     /// <summary>What a mark whose value this build was never taught is drawn as.</summary>
     /// <remarks>
@@ -242,6 +289,7 @@ public partial class PerkDraft : Control
     private static readonly Color GemInkColour = new(0.07f, 0.07f, 0.09f);
 
     private PerkDraftPresenter? _presenter;
+    private bool _reducedMotion;
     private Board? _board;
     private CancellationToken _lifetime;
 
@@ -265,8 +313,12 @@ public partial class PerkDraft : Control
     private Label? _skipRewardValue;
     private Button? _skipButton;
 
-    /// <summary>The press control of each card now drawn, in the order the presenter offers them.</summary>
-    private readonly List<Button> _cardButtons = [];
+    /// <summary>
+    /// Each drawn card: its press, the card the press sits on, and whether it upgrades an owned perk.
+    /// All three because all three matter to how it is drawn — the press stops accepting input, the
+    /// card's face recedes to say so, and an upgrade's gilded border has to be restored afterwards.
+    /// </summary>
+    private readonly List<(Button Press, PanelContainer Card, bool IsUpgrade)> _cards = [];
 
     /// <summary>The counter rows the last draw built, so they are rebuilt only when they change.</summary>
     /// <remarks>
@@ -306,12 +358,17 @@ public partial class PerkDraft : Control
     /// <param name="board">The board the draft was entered from, returned to once it closes.</param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
     /// <exception cref="ArgumentNullException">The presenter or the board is null.</exception>
-    public void Drive(PerkDraftPresenter presenter, Board board, CancellationToken lifetime)
+    public void Drive(
+        PerkDraftPresenter presenter,
+        bool reducedMotion,
+        Board board,
+        CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(presenter);
         ArgumentNullException.ThrowIfNull(board);
 
         _presenter = presenter;
+        _reducedMotion = reducedMotion;
         _board = board;
         _lifetime = lifetime;
     }
@@ -525,19 +582,30 @@ public partial class PerkDraft : Control
             _drawnFrom = presenter.Cards;
         }
 
-        foreach (var card in _cardButtons)
+        foreach (var (press, card, upgrade) in _cards)
         {
-            if (IsInstanceValid(card))
+            // Validity asked of both, not one: they are two engine objects and a teardown can have
+            // freed either while this loop is running.
+            if (!IsInstanceValid(press) || !IsInstanceValid(card))
             {
-                card.Disabled = _busy;
+                continue;
             }
+
+            press.Disabled = _busy;
+
+            // 🔒 A card that is ignoring presses says so. Phase 6 was right to drop the dark scrim the
+            // engine's disabled state drew — it sat OVER the card's own text and took every glyph on it
+            // below a readable contrast — but dropping it left the in-flight state drawing nothing at
+            // all, so a card that swallows a press looked exactly like one that would take it. The FACE
+            // recedes instead, which is the rule the campfire's unavailable options already follow.
+            DrawFace(card, pressable: !_busy, upgrade);
         }
     }
 
     private void BuildCards(VBoxContainer column, PerkDraftPresenter presenter)
     {
         FinishIntro();
-        _cardButtons.Clear();
+        _cards.Clear();
         Clear(column);
 
         if (presenter.Cards.Count == 0)
@@ -676,7 +744,7 @@ public partial class PerkDraft : Control
 
         press.Pressed += () => OnCardPressed(index);
 
-        _cardButtons.Add(press);
+        _cards.Add((press, card, offer.IsUpgrade));
 
         if (offer.IsUpgrade)
         {
@@ -708,6 +776,42 @@ public partial class PerkDraft : Control
         card.AddThemeStyleboxOverride(PanelStyleOverride, gold);
     }
 
+    /// <summary>Draws a card that cannot be pressed down into the ground, face and outline only.</summary>
+    /// <remarks>
+    /// 🔒 Duplicated off the card's OWN authored face, and reversible: the scene is where a live card's
+    /// numbers are written down, so the live state is restored by REMOVING the override rather than by
+    /// restating them here — a second copy of them in this file would be the one that went stale. An
+    /// upgrade's gilded border is another override on the same theme entry, so it is re-applied after
+    /// the clear rather than leaving an upgrade card ungilded the moment a command completes.
+    /// </remarks>
+    private static void DrawFace(PanelContainer card, bool pressable, bool upgrade)
+    {
+        if (pressable)
+        {
+            card.RemoveThemeStyleboxOverride(PanelStyleOverride);
+
+            if (upgrade)
+            {
+                GildBorder(card);
+            }
+
+            return;
+        }
+
+        if (card.GetThemeStylebox(PanelStyleOverride) is not StyleBoxFlat face ||
+            face.Duplicate() is not StyleBoxFlat dimmed)
+        {
+            GD.PushError("A perk draft card has no flat face to dim, so it is drawn as a live one.");
+
+            return;
+        }
+
+        dimmed.BgColor = UnavailableFaceColour;
+        dimmed.BorderColor = UnavailableOutlineColour;
+
+        card.AddThemeStyleboxOverride(PanelStyleOverride, dimmed);
+    }
+
     /// <summary>Grows an upgrade card into place rather than letting it simply appear.</summary>
     private void PlayEntrance(Control card)
     {
@@ -718,9 +822,16 @@ public partial class PerkDraft : Control
 
         var intro = card.CreateTween();
 
-        intro.SetTrans(Tween.TransitionType.Back);
+        // 🔒 Back/Out overshoots its target before settling, which is the springiness reduced motion
+        // exists to remove — so the eased curve goes with the duration rather than being kept at a
+        // tenth of the length. A shortened bounce is still a bounce.
+        intro.SetTrans(_reducedMotion ? Tween.TransitionType.Linear : Tween.TransitionType.Back);
         intro.SetEase(Tween.EaseType.Out);
-        intro.TweenProperty(card, ScaleProperty, Vector2.One, IntroSeconds);
+        intro.TweenProperty(
+            card,
+            ScaleProperty,
+            Vector2.One,
+            _reducedMotion ? ReducedMotionSeconds : IntroSeconds);
 
         _intro.Add((card, intro));
     }
