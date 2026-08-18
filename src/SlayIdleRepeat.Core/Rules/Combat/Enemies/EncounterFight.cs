@@ -85,7 +85,8 @@ internal static class EncounterFight
         IReadOnlyList<double> enemyPowers,
         int eliteIndex,
         ContentSnapshot content,
-        IReadOnlyList<HeldEffect>? heroEffects)
+        IReadOnlyList<HeldEffect>? heroEffects,
+        double? heroStartingHp = null)
     {
         ArgumentNullException.ThrowIfNull(hero);
         ArgumentNullException.ThrowIfNull(enemyPowers);
@@ -127,6 +128,7 @@ internal static class EncounterFight
                 BaseStats = hero,
                 Level = heroLevel,
                 Effects = heroEffects ?? Array.Empty<HeldEffect>(),
+                StartingHp = heroStartingHp,
             },
         };
 

@@ -85,7 +85,8 @@ internal static class BossFight
         int enemyLevel,
         ContentSnapshot content,
         bool firstClear,
-        IReadOnlyList<HeldEffect>? heroEffects)
+        IReadOnlyList<HeldEffect>? heroEffects,
+        double? heroStartingHp = null)
     {
         ArgumentNullException.ThrowIfNull(hero);
         ArgumentNullException.ThrowIfNull(bossId);
@@ -120,6 +121,7 @@ internal static class BossFight
             BaseStats = hero,
             Level = heroLevel,
             Effects = heroEffects ?? Array.Empty<HeldEffect>(),
+            StartingHp = heroStartingHp,
         };
 
         // Only a boss that authors a SUMMON carries the fraction; a boss that does not keeps
