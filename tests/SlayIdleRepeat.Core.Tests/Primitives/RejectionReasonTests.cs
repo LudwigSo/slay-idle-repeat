@@ -39,9 +39,11 @@ public sealed class RejectionReasonTests
         ("NOT_OWNED", 18, RejectionReasonTier.Domain),
         ("NOT_ENTITLED", 19, RejectionReasonTier.Domain),
         ("INVENTORY_FULL", 20, RejectionReasonTier.Domain),
+        ("PREREQUISITE_NOT_CLEARED", 21, RejectionReasonTier.Domain),
+        ("LEGEND_LEVEL_TOO_LOW", 22, RejectionReasonTier.Domain),
     };
 
-    /// <summary>The ten values <c>Apply</c> is allowed to return, in the spec's order rather than the enum's.</summary>
+    /// <summary>The twelve values <c>Apply</c> is allowed to return, in the spec's order rather than the enum's.</summary>
     private static readonly RejectionReason[] DomainTierPin =
     {
         RejectionReason.ILLEGAL_STATE,
@@ -54,9 +56,12 @@ public sealed class RejectionReasonTests
         RejectionReason.INVENTORY_FULL,
         RejectionReason.RUN_EXPIRED,
         RejectionReason.RUN_ALREADY_ENDED,
+        RejectionReason.PREREQUISITE_NOT_CLEARED,
+        RejectionReason.LEGEND_LEVEL_TOO_LOW,
     };
 
     /// <summary>The other ten — produced by the server host / Application layer, never reaching <c>GameRules.Apply</c>.</summary>
+    /// <remarks>Still ten: M7-04b appended two DOMAIN-tier values and nothing to this tier.</remarks>
     private static readonly RejectionReason[] TransportTierPin =
     {
         RejectionReason.MALFORMED_COMMAND,
@@ -72,7 +77,7 @@ public sealed class RejectionReasonTests
     };
 
     [Fact]
-    public void The_catalogue_is_exactly_the_twenty_values_of_14_16_2()
+    public void The_catalogue_is_exactly_the_twenty_two_values_of_14_16_2()
     {
         var declared = Enum.GetNames<RejectionReason>();
         var pinned = Catalogue.Select(row => row.Name).ToArray();
@@ -86,10 +91,10 @@ public sealed class RejectionReasonTests
             "rejection some producer has to be able to send.");
 
         declared.Length.ShouldBe(
-            20,
-            "14 §16.2's table has twenty rows — 10 transport, 10 domain. Written as the literal 20 " +
-            "rather than as Catalogue.Length: a count taken from the transcription cannot notice the " +
-            "transcription itself being trimmed, which is the one edit both set differences above " +
+            22,
+            "14 §16.2's table has twenty-two rows — 10 transport, 12 domain. Written as the literal " +
+            "22 rather than as Catalogue.Length: a count taken from the transcription cannot notice " +
+            "the transcription itself being trimmed, which is the one edit both set differences above " +
             "would survive.");
     }
 
@@ -132,7 +137,7 @@ public sealed class RejectionReasonTests
     }
 
     [Fact]
-    public void The_domain_tier_is_exactly_the_ten_values_30_2_names()
+    public void The_domain_tier_is_exactly_the_twelve_values_30_2_names()
     {
         var actual = RejectionReasons.DomainTier;
 
@@ -148,10 +153,11 @@ public sealed class RejectionReasonTests
             "well-formed ones.");
 
         actual.Count.ShouldBe(
-            10,
-            "30 §2's sentence names exactly ten domain-tier values. Written as the literal 10 rather " +
-            "than as DomainTierPin.Length: the set differences above compare the tier against the pin, " +
-            "so they both stay satisfied if the pin and the tier are trimmed together. Only a literal " +
+            12,
+            "30 §2's sentence names exactly twelve domain-tier values — ten, plus the two M7-04b " +
+            "appended for 10 §7's chapter/tier ladder. Written as the literal 12 rather than as " +
+            "DomainTierPin.Length: the set differences above compare the tier against the pin, so " +
+            "they both stay satisfied if the pin and the tier are trimmed together. Only a literal " +
             "notices that.");
     }
 
@@ -180,8 +186,8 @@ public sealed class RejectionReasonTests
         var all = RejectionReasons.All;
 
         all.Count.ShouldBe(
-            20,
-            "RejectionReasons.All is the whole of 14 §16.2's table — twenty rows. The literal is the " +
+            22,
+            "RejectionReasons.All is the whole of 14 §16.2's table — twenty-two rows. The literal is the " +
             "floor: without it the partition below holds just as happily over an empty All and two " +
             "empty tiers.");
 
@@ -212,7 +218,7 @@ public sealed class RejectionReasonTests
 
     /// <summary>
     /// <c>IsDomainTier</c> is the question M1-06 asks of a handler result, so it is asked here of
-    /// every row rather than of one value per tier — a two-sample check leaves eighteen values whose
+    /// every row rather than of one value per tier — a two-sample check leaves twenty values whose
     /// answer nothing in this suite has ever read.
     /// </summary>
     [Fact]

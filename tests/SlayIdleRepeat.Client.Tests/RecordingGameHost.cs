@@ -30,6 +30,8 @@ internal sealed class RecordingGameHost : IGameHost
     private readonly OwnStateResult? _read;
     private readonly Exception? _readFailure;
 
+    private OwnStateResult? _laterRead;
+
     private RejectionReason? _submitRejection;
     private Exception? _submitFailure;
     private RunSnapshot? _acceptedRun;
@@ -81,6 +83,23 @@ internal sealed class RecordingGameHost : IGameHost
 
     /// <summary>A host whose state read returns a faulted task — how a real async host fails.</summary>
     internal static RecordingGameHost FaultingItsRead(Exception failure) => new(read: null, failure);
+
+    /// <summary>
+    /// Makes the second and every later read answer with a different state from the first.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A moving store, which is the only fixture a re-read can be proved against: a host that
+    /// answered the same thing twice would satisfy a screen that re-read and a screen that never
+    /// did. Left unset, every read answers alike and nothing about the existing cases changes.
+    /// </remarks>
+    /// <param name="player">The row the store holds by the time it is asked again.</param>
+    /// <param name="run">Whatever run that row carries by then.</param>
+    internal RecordingGameHost ThenFinding(PlayerSnapshot player, RunSnapshot? run = null)
+    {
+        _laterRead = new OwnStateResult(OwnStateLookup.Found, new OwnStateView(player, run));
+
+        return this;
+    }
 
     /// <summary>
     /// Makes every command this host is handed come back refused, carrying the given reason.
@@ -162,9 +181,12 @@ internal sealed class RecordingGameHost : IGameHost
         ReadRun = run;
         ReadToken = ct;
 
-        return _readFailure is null
-            ? Task.FromResult(_read!)
-            : Task.FromException<OwnStateResult>(_readFailure);
+        if (_readFailure is { } failure)
+        {
+            return Task.FromException<OwnStateResult>(failure);
+        }
+
+        return Task.FromResult(ReadCallCount > 1 && _laterRead is { } later ? later : _read!);
     }
 
     /// <inheritdoc/>

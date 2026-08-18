@@ -60,6 +60,26 @@ internal static class Harnesses
         return (game, game.CreatePlayer(inventory: inventory));
     }
 
+    /// <summary>Records a chapter/tier clear straight onto the harness's player.</summary>
+    /// <param name="game">The harness.</param>
+    /// <param name="player">The player.</param>
+    /// <param name="chapter">The chapter cleared.</param>
+    /// <param name="tier">The tier it was cleared on.</param>
+    /// <remarks>
+    /// The fixture for a case whose subject is not the gate. `10` §7's ladder is enforced by
+    /// START_RUN and no command grants a clear — the only way to earn one is to play the chapter
+    /// below to victory, which a case about something else cannot afford to do first. Written onto
+    /// the aggregate directly, which is precisely what <c>InMemoryGame.State</c>'s own remarks say a
+    /// test with internals access can do.
+    /// </remarks>
+    internal static void HasCleared(
+        InMemoryGame game, PlayerId player, int chapter, DifficultyTier tier)
+    {
+        ArgumentNullException.ThrowIfNull(game);
+
+        game.State(player).Player.MarkChapterTierCleared(chapter, tier);
+    }
+
     /// <summary>The multi-day drive every long assertion shares: for each game day, send
     /// <paramref name="commandsPerDay"/> <c>BEGIN_SESSION</c>s spread evenly across it.</summary>
     internal static void Drive(InMemoryGame game, PlayerId player, int days, int commandsPerDay)

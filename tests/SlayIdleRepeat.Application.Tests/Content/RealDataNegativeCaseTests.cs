@@ -5,7 +5,7 @@ using Xunit;
 namespace SlayIdleRepeat.Application.Tests.Content;
 
 /// <summary>
-/// Forty-four single-edit mutations of the real game-data, each of which the validator must
+/// Fifty single-edit mutations of the real game-data, each of which the validator must
 /// reject at a named code and a named pointer — one of them at a named citation instead, because
 /// its rule shares both with the rule beside it (see the inventory ceiling cases).
 /// </summary>
@@ -13,8 +13,9 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// Committing these negative cases is the point: a validator whose negative cases are never
 /// committed is one nobody can trust after the first refactor. Each case is a single textual edit
 /// to one shipped file; <see cref="RepoData.SourceWithEdit"/> throws if its anchor no longer
-/// occurs, so a case can't silently stop testing anything. Four positive controls close the file,
-/// asserting that the shipped nulls are still accepted.
+/// occurs, so a case can't silently stop testing anything. Four positive controls close the file:
+/// three asserting that the shipped nulls are still accepted, and one asserting that every pointer
+/// the chapter-gate cases name is silent against an untouched checkout.
 /// </remarks>
 public sealed class RealDataNegativeCaseTests
 {
@@ -475,6 +476,147 @@ public sealed class RealDataNegativeCaseTests
             ContentIssueCode.OrphanedReference, "tuning/power_model.json#/referenceOpponent/def");
     }
 
+    // ═══════════════════ the chapter/tier ladder is the only gate a chapter may state (45-50)
+
+    /// <summary>
+    /// The schema arm: <c>unlockCondition.tier</c> is locked to the one tier the ladder's Normal rung
+    /// names, so a chapter cannot author a prerequisite the ladder is unable to express.
+    /// </summary>
+    /// <remarks>
+    /// Refused by the SCHEMA, not by the loader rule beside it: <c>ContentLoader</c> runs
+    /// <c>ContentInvariants</c> only when schema validation is clean, so this edit never reaches the
+    /// per-chapter arm at all. That is the division of labour — JSON Schema can pin the tier and
+    /// cannot pin <c>clearChapter</c>, which has no way to say "this document's own id minus one".
+    /// </remarks>
+    [Fact]
+    public void A_chapter_unlock_condition_at_a_tier_the_ladder_cannot_express_is_rejected()
+    {
+        Rejects("content/chapters/CH_02_ASHEN_MIRE.json",
+            "\"tier\": \"NORMAL\"", "\"tier\": \"MYTHIC\"",
+            ContentIssueCode.UnknownId,
+            "content/chapters/CH_02_ASHEN_MIRE.json#/unlockCondition/tier");
+    }
+
+    /// <summary>
+    /// The per-chapter arm: chapter <c>c</c> names chapter <c>c-1</c>, and nothing else.
+    /// </summary>
+    /// <remarks>
+    /// Chapter 2 asking for chapter 2 stays schema-valid — <c>clearChapter</c> is an integer 1..8 —
+    /// so only the loader rule can catch it, and it reports at the member that is wrong rather than
+    /// at the block, so this and the tier mistake are two different pointers.
+    /// </remarks>
+    [Fact]
+    public void A_chapter_whose_unlock_condition_names_the_wrong_chapter_is_rejected()
+    {
+        Rejects("content/chapters/CH_02_ASHEN_MIRE.json",
+            "\"clearChapter\": 1", "\"clearChapter\": 2",
+            ContentIssueCode.OrphanedReference,
+            "content/chapters/CH_02_ASHEN_MIRE.json#/unlockCondition/clearChapter");
+    }
+
+    /// <summary>
+    /// The same arm from the other side: chapter 1 authors <c>null</c>, because
+    /// <c>PREVIOUS_CHAPTER_NORMAL</c> names no chapter before it.
+    /// </summary>
+    /// <remarks>
+    /// The mutation is schema-valid in every respect — an object with both required members, at the
+    /// one permitted tier — which is exactly why the schema cannot be the thing that catches it.
+    /// </remarks>
+    [Fact]
+    public void The_first_chapter_authoring_an_unlock_condition_at_all_is_rejected()
+    {
+        Rejects("content/chapters/CH_01_GREENWOOD_VALE.json",
+            "\"unlockCondition\": null",
+            "\"unlockCondition\": { \"clearChapter\": 1, \"tier\": \"NORMAL\" }",
+            ContentIssueCode.OrphanedReference,
+            "content/chapters/CH_01_GREENWOOD_VALE.json#/unlockCondition");
+    }
+
+    /// <summary>
+    /// The token arm: the Normal rung still says <c>PREVIOUS_CHAPTER_NORMAL</c>, and any other token
+    /// is a finding rather than a reason for the rule to fall silent.
+    /// </summary>
+    /// <remarks>
+    /// The anchor names the rung's own member so the edit cannot touch the Heroic or Mythic rows —
+    /// this rule is about the one rung a chapter's <c>unlockCondition</c> speaks to, and a mutation
+    /// that moved three rungs at once could be caught by any of three different reasons.
+    /// </remarks>
+    [Fact]
+    public void A_Normal_rung_naming_a_clear_the_chapter_documents_cannot_state_is_rejected()
+    {
+        Rejects("tuning/progression.json",
+            "\"requiresClear\": \"PREVIOUS_CHAPTER_NORMAL\"",
+            "\"requiresClear\": \"SAME_CHAPTER_NORMAL\"",
+            ContentIssueCode.OrphanedReference,
+            "tuning/progression.json#/chapterGating/NORMAL/requiresClear");
+    }
+
+    /// <summary>
+    /// The cross-check arm: the schema's tier constraint permits exactly the tier the ladder's token
+    /// names, and no more.
+    /// </summary>
+    /// <remarks>
+    /// The mutation WIDENS the constraint rather than moving it, and that is deliberate: narrowing it
+    /// to a different tier would fail the shipped chapter against the schema, and a load whose schema
+    /// validation is dirty never runs the declared rules at all — so the case would be green while
+    /// naming a rule that never executed. Widening keeps every shipped document valid and leaves the
+    /// cross-check as the only thing that can object.
+    /// </remarks>
+    [Fact]
+    public void A_chapter_schema_permitting_a_tier_the_ladder_does_not_name_is_rejected()
+    {
+        Rejects("schema/chapter.schema.json",
+            "\"tier\": { \"const\": \"NORMAL\" }",
+            "\"tier\": { \"enum\": [\"NORMAL\", \"HEROIC\"] }",
+            ContentIssueCode.OrphanedReference,
+            "schema/chapter.schema.json#/properties/unlockCondition/properties/tier");
+    }
+
+    /// <summary>
+    /// The cross-check arm again, from the shape that is not a wrong constraint but no constraint:
+    /// the schema stops describing <c>unlockCondition</c>'s members at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A widened <c>enum</c> and an absent constraint are two different drifts and the arm answers
+    /// them with two different sentences, so both need a case. This one is why the absent-constraint
+    /// branch is not decoration: deleting the <c>tier</c> node <em>alone</em> is unreachable —
+    /// <c>additionalProperties: false</c> would then refuse the shipped chapter's own <c>tier</c>
+    /// member, and <c>ContentLoader</c> runs the declared rules only when schema validation is clean.
+    /// Dropping the closing keyword together with the block is the edit that keeps every shipped
+    /// document valid while leaving the member entirely undescribed, which is exactly the "someone
+    /// simplified the schema" drift the arm exists for.
+    /// </para>
+    /// <para>
+    /// One textual edit, and it removes rather than adds: what is left is a well-formed subschema
+    /// (<c>type</c>, <c>required</c>) that permits <c>MYTHIC</c> as happily as <c>NORMAL</c>.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_chapter_schema_that_constrains_the_tier_not_at_all_is_rejected()
+    {
+        const string constrained =
+            "\"additionalProperties\": false,\n" +
+            "      \"required\": [\"clearChapter\", \"tier\"],\n" +
+            "      \"properties\": {\n" +
+            "        \"clearChapter\": { \"type\": \"integer\", \"minimum\": 1, \"maximum\": 8 },\n" +
+            "        \"tier\": { \"const\": \"NORMAL\" }\n" +
+            "      }";
+
+        var issues = ContentLoader.Load(RepoData.SourceWithEdit(
+            "schema/chapter.schema.json", constrained,
+            "\"required\": [\"clearChapter\", \"tier\"]")).Issues;
+
+        issues.ShouldContain(
+            i => i.Code == ContentIssueCode.OrphanedReference &&
+                 i.Location == "schema/chapter.schema.json#/properties/unlockCondition/properties/tier" &&
+                 i.Message.Contains("does not constrain the member at all", StringComparison.Ordinal),
+            "the sentence is the assertion here, not just the pointer: the arm answers a widened " +
+            "constraint and an absent one differently, and the case beside this one already covers " +
+            "the widened wording. Matched on the code and the pointer alone, this case would stay " +
+            "green with the absent branch deleted.");
+    }
+
     // ═══════════════════════════ positive controls — these nulls MUST still be accepted
 
     /// <summary>Pins the population of unauthorised holes, not a sample of it.</summary>
@@ -592,6 +734,34 @@ public sealed class RealDataNegativeCaseTests
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
         Count(snapshot.GetDocument(documentPath).Root).ShouldBe(expected);
+    }
+
+    /// <summary>
+    /// Positive controls for the five chapter-gate cases: every pointer they name is silent against
+    /// the shipped data.
+    /// </summary>
+    /// <remarks>
+    /// Each of those cases asserts that an issue APPEARS after one edit, which is satisfied just as
+    /// well by a rule that reports at that pointer unconditionally — and a validator that objected to
+    /// the shipped chapters would be "fixed" by deleting the rule. This is the other half.
+    /// </remarks>
+    [Theory]
+    [InlineData("content/chapters/CH_01_GREENWOOD_VALE.json#/unlockCondition")]
+    [InlineData("content/chapters/CH_02_ASHEN_MIRE.json#/unlockCondition")]
+    [InlineData("content/chapters/CH_02_ASHEN_MIRE.json#/unlockCondition/clearChapter")]
+    [InlineData("content/chapters/CH_02_ASHEN_MIRE.json#/unlockCondition/tier")]
+    [InlineData("tuning/progression.json#/chapterGating/NORMAL/requiresClear")]
+    [InlineData("schema/chapter.schema.json#/properties/unlockCondition/properties/tier")]
+    public void The_shipped_chapter_gate_is_reported_at_none_of_the_pointers_its_negative_cases_name(
+        string location)
+    {
+        var issues = ContentLoader.Load(RepoData.Source()).Issues;
+
+        issues.ShouldNotContain(
+            issue => issue.Location == location,
+            $"the shipped data authors this gate correctly, so nothing may be reported at {location}. " +
+            "A rule that fires here unconditionally satisfies its negative case and fails the build " +
+            "on a checkout nobody has touched.");
     }
 
     private static int CountUnauthorised(Core.Content.ContentSnapshot snapshot) =>

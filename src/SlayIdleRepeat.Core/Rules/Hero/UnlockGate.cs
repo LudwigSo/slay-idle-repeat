@@ -12,12 +12,23 @@ namespace SlayIdleRepeat.Core.Rules.Hero;
 /// </para>
 /// <para>
 /// ⚠️ <b>Nothing calls it yet, and that is worth saying plainly rather than describing a mechanism
-/// that is in use.</b> Every system on the ladder belongs to a milestone that has not run: the pet
-/// slots and the Menagerie are M4-07's, the mount slot is M4-08's, the Fortune branch is M4-06's, the
-/// Forge is M4-04's, PvP is M12's, Mythic is the difficulty gate's and Codex mastery is later still.
-/// The gate lands with the curve because the curve is what makes a rung mean anything, and because
-/// the alternative — each of those tasks inventing its own comparison against its own reading of the
-/// ladder — is how one of them ends up gating on a level nobody authored.
+/// that is in use.</b> Every remaining system on the ladder belongs to a milestone that has not run:
+/// the pet slots and the Menagerie are M4-07's, the mount slot is M4-08's, the Fortune branch is
+/// M4-06's, the Forge is M4-04's, PvP is M12's and Codex mastery is later still. The gate lands with
+/// the curve because the curve is what makes a rung mean anything, and because the alternative —
+/// each of those tasks inventing its own comparison against its own reading of the ladder — is how
+/// one of them ends up gating on a level nobody authored.
+/// </para>
+/// <para>
+/// 🔒 <b><c>MYTHIC_TIER</c> is the one rung this rule does not answer, by ruling.</b> `16` D37 makes
+/// `10` §7's chapter/tier ladder — <c>tuning/progression.json#/chapterGating</c>, read by
+/// <see cref="ChapterGatingTuning"/> — the single runtime authority for the Mythic difficulty gate,
+/// so <c>START_RUN</c> compares against <c>#/chapterGating/MYTHIC/requiresLegendLevel</c> and not
+/// against this ladder's <c>MYTHIC_TIER</c> row. That row stays authored because `07` §1.1's table
+/// states it, and the two are held to one number by
+/// <c>ChapterGatingMatchesTuningDataTests.The_Mythic_rungs_Legend_Level_is_the_same_number_07_section_1_1_unlocks_the_tier_at</c>.
+/// A future caller asking this rule about <c>MYTHIC_TIER</c> would be a second reading of a decision
+/// that already has an authority — which is exactly the copy this type exists to prevent.
 /// </para>
 /// <para>
 /// It answers a <see cref="bool"/> and not a rejection: what a locked system refuses <em>with</em> is

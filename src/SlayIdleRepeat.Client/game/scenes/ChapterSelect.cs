@@ -47,6 +47,15 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// itself is the retry and comes back live.
 /// </para>
 /// <para>
+/// 🔒 <b>And the redraw that gives the control back is drawn from state re-read after the refusal,
+/// not from the state the refused ladder was drawn from.</b> The rules layer enforces the same
+/// ladder now, so a refusal on a pair this screen offered means this screen's copy of the player's
+/// progress had already moved. The presenter re-reads before it answers, so the row redraws as
+/// blocked with its requirement lines and the confirm goes dead on that pair — otherwise the live
+/// control, the unchanged rows and a line ending "Try again" would together invite a press that
+/// could not succeed, for as long as the player was willing to make it.
+/// </para>
+/// <para>
 /// ⚠️ Every type size, colour and gap in <c>ChapterSelect.tscn</c> and <c>ChapterRow.tscn</c> is a
 /// per-node override, because the shared theme resource and the display faces it will carry do not
 /// exist yet — they are M8-03's, and these overrides are debt owed to it rather than a naming
@@ -593,9 +602,10 @@ public partial class ChapterSelect : Control
 
     /// <summary>The rules layer's own reason for a refusal, or nothing when it made none.</summary>
     /// <remarks>
-    /// Named rather than summarised: a run already open, a chapter id below one and an undefined
-    /// tier are three different defects, and a line saying only that the command failed would leave
-    /// whoever reads it unable to tell a player mid-run from a build sending nonsense.
+    /// Named rather than summarised: a run already open, a chapter id below one, an undefined tier
+    /// and a ladder rung the player has not reached are four different defects, and a line saying
+    /// only that the command failed would leave whoever reads it unable to tell a player mid-run
+    /// from a build sending nonsense from a screen that had gone stale.
     /// </remarks>
     private static string DescribeRejection(ChapterSelectPresenter presenter) =>
         presenter.RulesRejection is { } rejection ? $" ({rejection})" : "";

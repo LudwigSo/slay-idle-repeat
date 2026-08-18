@@ -175,6 +175,16 @@ Made by the **product owner** at the M4 retro, after the review found several fu
 
 ---
 
+## A10. Rulings from the M4+M7 completion-run kickoff (2026-08-18)
+
+Made by the **product owner** at the kickoff of the run that completes M4 and M7, on a gap the M7-04 row had recorded rather than closed: the chapter/tier unlock ladder was drawn on one screen and checked nowhere behind it, and it was authored in two places that nothing reconciled.
+
+| ID | Decision | Rationale | Consequences |
+|---|---|---|---|
+| **D37** | 🔒 **The chapter/tier gate becomes server-authoritative, and `tuning/progression.json#/chapterGating` is the single runtime authority.** `START_RUN` reads the generic Legend-rung ladder and refuses against it. **The rejection vocabulary gains two domain-tier values, 20 → 22:** `PREREQUISITE_NOT_CLEARED` (21) and `LEGEND_LEVEL_TOO_LOW` (22). | `14` §9 makes command validation server-side — *"is the action legal now"* — and this gate was enforced on `ChapterSelectPresenter` and nowhere else, so a client that skipped the screen could start any chapter on any tier and be accepted. The gate was also **authored twice**: `chapter.schema.json`'s `unlockCondition` permitted any chapter 1–8 at any tier, shapes the ladder cannot express, and since nothing read the member such a chapter would have opened on the ladder anyway. **Two values rather than one** because `HandlerResult.Reject` carries no detail payload, so the enum value is the whole identity a rejection has; a shared value would repeat M7-04's `NOT_ENTITLED`/malformed-slot-index conflation, and the two are answered by different actions — one by playing the tier below, one by levelling. | ⚠️ **Amends `14` §16.2's catalogue** — 20 rows → 22, 10 transport / 12 domain; the section's own *"values may be appended, never renamed or reused"* is the authorisation and is unchanged. Amends **`30`**'s domain-tier prose list. Narrows `chapter.schema.json`'s `unlockCondition.tier` from the tier list to a `const`, and adds a three-armed declared loader rule that pins each chapter's `clearChapter` (JSON Schema has no arithmetic for *"this document's own `id` minus one"*) and cross-checks the schema's `const` against the ladder's token — turning M7-04's Application-tier agreement test into a structural guarantee. 🔒 A **doubly-blocked Mythic request is answered with the clear**: the clear is checked first, and the screen remains the surface that lists *every* unmet requirement. **Rejected alternatives:** making `unlockCondition` the authority and retiring the generic ladder; closing only the security hole and leaving the double-authoring to M9. **Out of scope:** refusing a chapter with no content document (`NotAuthored`) — a different question, and enforcing the ladder strictly only *reduces* what is reachable. |
+
+---
+
 # PART B — Remaining Open Items (32)
 
 Everything still genuinely unresolved, prioritised. Nothing here blocks starting implementation.

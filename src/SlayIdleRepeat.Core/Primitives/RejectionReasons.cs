@@ -53,7 +53,9 @@ public static class RejectionReasons
         RejectionReason.COOLDOWN_ACTIVE or
         RejectionReason.NOT_OWNED or
         RejectionReason.NOT_ENTITLED or
-        RejectionReason.INVENTORY_FULL => RejectionReasonTier.Domain,
+        RejectionReason.INVENTORY_FULL or
+        RejectionReason.PREREQUISITE_NOT_CLEARED or
+        RejectionReason.LEGEND_LEVEL_TOO_LOW => RejectionReasonTier.Domain,
 
         _ => throw new ArgumentOutOfRangeException(
             nameof(reason),

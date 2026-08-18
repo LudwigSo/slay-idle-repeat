@@ -98,4 +98,23 @@ public enum RejectionReason
 
     /// <summary>A grant would exceed capacity and cannot be held.</summary>
     INVENTORY_FULL = 20,
+
+    /// <summary>
+    /// The clear the chapter/tier ladder demands has not happened — a chapter or tier the player has
+    /// not opened yet.
+    /// </summary>
+    /// <remarks>
+    /// Distinct from <see cref="NOT_ENTITLED"/> on purpose: that one is a Plus paywall, and a client
+    /// that read them as one thing would offer a purchase to a player whose only problem is that they
+    /// have not finished the previous chapter.
+    /// </remarks>
+    PREREQUISITE_NOT_CLEARED = 21,
+
+    /// <summary>The Legend Level the chapter/tier ladder demands has not been reached.</summary>
+    /// <remarks>
+    /// Its own value rather than a second use of <see cref="PREREQUISITE_NOT_CLEARED"/>: the two are
+    /// answered by different actions — one by playing the tier below, one by levelling — and a
+    /// rejection carries no detail payload to tell them apart afterwards.
+    /// </remarks>
+    LEGEND_LEVEL_TOO_LOW = 22,
 }

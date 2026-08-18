@@ -32,12 +32,18 @@ internal static class DeclaredRules
 {
     private delegate void Rule(IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues);
 
+    /// <summary>A rule whose authority is a schema rather than a second data file.</summary>
+    private delegate void SchemaAwareRule(
+        IReadOnlyDictionary<string, ContentValue> documents,
+        IReadOnlyDictionary<string, ContentValue> schemas,
+        List<ContentIssue> issues);
+
     /// <summary>Runs every declared rule.</summary>
     /// <param name="documents">Data documents by snapshot-relative path. Schemas excluded.</param>
     /// <param name="schemas">
-    /// The parsed schema set, which <b>R35</b> needs and no other rule does — an embedded effect is
-    /// validated against <c>schema/effect.schema.json</c>, and that is the one rule here whose
-    /// authority is a schema rather than a second data file.
+    /// The parsed schema set, which the <see cref="SchemaAwareRules"/> need and the rest do not — an
+    /// embedded effect is validated against <c>schema/effect.schema.json</c>, and a chapter's unlock
+    /// gate is cross-checked against <c>schema/chapter.schema.json</c>.
     /// </param>
     /// <param name="issues">Findings are appended here.</param>
     internal static void Check(
@@ -50,8 +56,27 @@ internal static class DeclaredRules
             rule(documents, issues);
         }
 
-        EmbeddedEffectsValidateAgainstTheEffectSchema(documents, schemas, issues);
+        foreach (var rule in SchemaAwareRules)
+        {
+            rule(documents, schemas, issues);
+        }
     }
+
+    /// <summary>
+    /// The rules that read the schema set — the same register <see cref="Rules"/> is, one argument
+    /// wider, so a third such rule is an entry here rather than another call in <see cref="Check"/>.
+    /// </summary>
+    private static readonly IReadOnlyList<SchemaAwareRule> SchemaAwareRules =
+    [
+        // Every effect embedded in an owning content file validates against the one file that
+        // states the effect partition — an owning schema can neither $ref it nor restate it.
+        EmbeddedEffectsValidateAgainstTheEffectSchema,
+
+        // A chapter's own unlockCondition is exactly the ladder's Normal rung restated, and
+        // chapter.schema.json permits exactly the tier that rung names. The gate is authored twice
+        // on purpose; this is what keeps the second copy from saying anything the first cannot.
+        ChapterUnlockConditionsAreExactlyTheLaddersNormalRung,
+    ];
 
     /// <summary>The <c>schema/</c> path of the effect vocabulary — the embedded-effect rule's authority.</summary>
     internal const string EffectSchemaPath = "schema/effect.schema.json";
@@ -1266,6 +1291,230 @@ internal static class DeclaredRules
                 $"{path}#/enemyPool", producer)(documents, issues);
         }
     }
+
+    // ------------------------------------------------------- the chapter/tier unlock gate
+
+    /// <summary>Where the chapter documents sit.</summary>
+    private const string ChaptersDirectory = ContentLayout.ContentDirectory + "chapters/";
+
+    /// <summary>The <c>schema/</c> path of the chapter shape — the cross-check arm's authority.</summary>
+    private const string ChapterSchemaPath = ContentLayout.SchemaDirectory + "chapter.schema.json";
+
+    /// <summary>The Normal rung of the authored ladder, and the member holding the clear it demands.</summary>
+    private const string NormalRungClearReference = "tuning/progression.json#/chapterGating/NORMAL/requiresClear";
+
+    /// <summary>
+    /// The one clear token a chapter's own <c>unlockCondition</c> can restate, and the tier that
+    /// token names. Written as a pair so the translation is stated rather than assumed: the rule
+    /// reads the token first and only then knows which tier the schema may permit.
+    /// </summary>
+    private const string PreviousChapterNormalToken = "PREVIOUS_CHAPTER_NORMAL";
+
+    private const string PreviousChapterNormalTier = "NORMAL";
+
+    /// <summary>The lowest chapter number the campaign has, so nothing is authored before it.</summary>
+    private const int FirstChapterId = 1;
+
+    private const string UnlockConditionMember = "unlockCondition";
+    private const string ClearChapterMember = "clearChapter";
+    private const string TierMember = "tier";
+
+    /// <summary>The member path from <c>chapter.schema.json</c>'s root to the tier constraint.</summary>
+    /// <remarks>
+    /// Walked segment by segment rather than resolved through <see cref="Find"/>: a schema is not
+    /// part of the snapshot, and any segment being absent is itself the finding.
+    /// </remarks>
+    private static readonly string[] TierConstraintPath =
+        ["properties", UnlockConditionMember, "properties", TierMember];
+
+    /// <summary>A chapter's <c>unlockCondition</c> is the ladder's Normal rung restated, and nothing else.</summary>
+    /// <remarks>
+    /// <para>
+    /// The gate is authored twice on purpose: generically in
+    /// <c>tuning/progression.json#/chapterGating</c>, which is the single runtime authority, and
+    /// per chapter in the chapter's own document, so a chapter file reads as a whole. Three arms
+    /// keep the second copy from ever saying something the first cannot.
+    /// </para>
+    /// <para>
+    /// <b>The token.</b> The Normal rung must still name the one clear this rule knows how to
+    /// translate. Any other token is a <em>finding</em> rather than a reason to fall silent — a
+    /// rule that descoped itself here would pass over every chapter on the day the ladder moved,
+    /// and the data set would validate more cleanly than before.
+    /// </para>
+    /// <para>
+    /// <b>The chapters.</b> Chapter 1 authors <c>null</c>, because the token names no chapter before
+    /// the first one; chapter <c>c</c> authors exactly the clear of chapter <c>c-1</c> on the tier
+    /// the token names. Reported at the member that is wrong rather than at the block, because
+    /// several rules here emit the same code and the pointer is what says which one fired.
+    /// </para>
+    /// <para>
+    /// <b>The schema.</b> <c>chapter.schema.json</c> must permit exactly that one tier — an
+    /// <c>enum</c> beside or instead of the <c>const</c> is two answers to which tiers a chapter
+    /// may name, and the wider of them is the one an author will discover. This arm is what stops
+    /// the schema's <c>const</c> and the ladder from drifting apart.
+    /// </para>
+    /// <para>
+    /// The schema arm reads the schema set directly instead of through <see cref="Find"/>: a schema
+    /// is not part of the snapshot, so recording its pointer as a data reference would name
+    /// something the shipped data set can never resolve.
+    /// </para>
+    /// </remarks>
+    private static void ChapterUnlockConditionsAreExactlyTheLaddersNormalRung(
+        IReadOnlyDictionary<string, ContentValue> documents,
+        IReadOnlyDictionary<string, ContentValue> schemas,
+        List<ContentIssue> issues)
+    {
+        var token = Find(documents, NormalRungClearReference);
+        if (token is null)
+        {
+            return;
+        }
+
+        if (token.Kind != ContentValueKind.Text ||
+            !string.Equals(token.AsText(), PreviousChapterNormalToken, StringComparison.Ordinal))
+        {
+            issues.Add(new ContentIssue(
+                ContentIssueCode.OrphanedReference, NormalRungClearReference,
+                $"10 §7: the Normal rung demands {token}, and a chapter's own unlockCondition can " +
+                $"only ever restate '{PreviousChapterNormalToken}'. Reported rather than skipped: " +
+                "a rule that stopped knowing how to translate the ladder would leave every " +
+                "chapter's authored gate unchecked, silently."));
+            return;
+        }
+
+        CheckEachChapterRestatesTheNormalRung(documents, issues);
+        CheckTheChapterSchemaPermitsOnlyTheLaddersTier(schemas, issues);
+    }
+
+    private static void CheckEachChapterRestatesTheNormalRung(
+        IReadOnlyDictionary<string, ContentValue> documents, List<ContentIssue> issues)
+    {
+        foreach (var (path, root) in documents
+                     .Where(d => d.Key.StartsWith(ChaptersDirectory, StringComparison.Ordinal))
+                     .OrderBy(d => d.Key, StringComparer.Ordinal))
+        {
+            // Keyed on the document's own id rather than on its path: the file names are
+            // author-chosen, and the id is what the ladder counts in.
+            if (!root.TryGetMember("id", out var id) || id!.Kind != ContentValueKind.Number)
+            {
+                continue;
+            }
+
+            var chapter = id.AsInt32();
+            var block = $"{path}#/{UnlockConditionMember}";
+            var authored = Find(documents, block);
+
+            if (chapter <= FirstChapterId)
+            {
+                if (authored is not null && !authored.IsUnauthorised)
+                {
+                    issues.Add(new ContentIssue(
+                        ContentIssueCode.OrphanedReference, block,
+                        $"10 §7: chapter {ChapterNumber(chapter)} authors an unlock condition, and " +
+                        $"'{PreviousChapterNormalToken}' names no chapter before the first one. " +
+                        "The first chapter carries null, which is the ladder demanding nothing of " +
+                        "it — an authored pair here is a prerequisite no player can ever meet."));
+                }
+
+                continue;
+            }
+
+            if (authored is null || authored.Kind != ContentValueKind.Object)
+            {
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OrphanedReference, block,
+                    $"10 §7: chapter {ChapterNumber(chapter)} authors no unlock condition, and the ladder " +
+                    $"unlocks it by clearing chapter {ChapterNumber(chapter - 1)} on " +
+                    $"{PreviousChapterNormalTier}. Every chapter after the first restates that " +
+                    "clear, so its own document says what gates it."));
+                continue;
+            }
+
+            // Both members are required by the schema, and a load whose schema validation is dirty
+            // never reaches a declared rule — so on a well-formed object both of these resolve.
+            var clear = Find(documents, $"{block}/{ClearChapterMember}");
+            if (clear is null || clear.Kind != ContentValueKind.Number || clear.AsInt32() != chapter - 1)
+            {
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OrphanedReference, $"{block}/{ClearChapterMember}",
+                    $"10 §7: chapter {ChapterNumber(chapter)} names {clear?.ToString() ?? "no chapter"} as " +
+                    $"its prerequisite, and the ladder unlocks it by clearing chapter " +
+                    $"{ChapterNumber(chapter - 1)}. The generic rung is the runtime authority, so a chapter " +
+                    "naming any other one describes a gate nothing enforces."));
+            }
+
+            var tier = Find(documents, $"{block}/{TierMember}");
+            if (tier is null || tier.Kind != ContentValueKind.Text ||
+                !string.Equals(tier.AsText(), PreviousChapterNormalTier, StringComparison.Ordinal))
+            {
+                issues.Add(new ContentIssue(
+                    ContentIssueCode.OrphanedReference, $"{block}/{TierMember}",
+                    $"10 §7: chapter {ChapterNumber(chapter)} asks for a clear on " +
+                    $"{tier?.ToString() ?? "no tier"}, and '{PreviousChapterNormalToken}' is a " +
+                    $"clear on {PreviousChapterNormalTier}. The Normal rung is the only rung a " +
+                    "chapter's own document speaks to."));
+            }
+        }
+    }
+
+    private static void CheckTheChapterSchemaPermitsOnlyTheLaddersTier(
+        IReadOnlyDictionary<string, ContentValue> schemas, List<ContentIssue> issues)
+    {
+        // Silent rather than a finding, and it is the one early return here that is: ContentLayout
+        // pairs every content/chapters/ document with this schema, so a set that has lost it has
+        // already failed Pair once per chapter document. Reporting again would name the same absence
+        // twice, and the arm below has nothing left to compare against either way.
+        if (!schemas.TryGetValue(ChapterSchemaPath, out var schema))
+        {
+            return;
+        }
+
+        var pointer =
+            $"{ChapterSchemaPath}#/properties/{UnlockConditionMember}/properties/{TierMember}";
+
+        ContentValue? constraint = schema;
+        foreach (var segment in TierConstraintPath)
+        {
+            if (constraint.Kind != ContentValueKind.Object ||
+                !constraint.TryGetMember(segment, out var member))
+            {
+                constraint = null;
+                break;
+            }
+
+            constraint = member!;
+        }
+
+        var pinned = constraint is { Kind: ContentValueKind.Object } &&
+                     constraint.TryGetMember("const", out var value) &&
+                     value!.Kind == ContentValueKind.Text
+            ? value.AsText()
+            : null;
+
+        var enumerated = constraint is { Kind: ContentValueKind.Object } &&
+                         constraint.TryGetMember("enum", out _);
+
+        if (!enumerated && string.Equals(pinned, PreviousChapterNormalTier, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var found =
+            constraint is null ? "does not constrain the member at all"
+            : enumerated ? "enumerates a set of tiers"
+            : pinned is null ? "pins no single tier"
+            : $"is locked to '{pinned}'";
+
+        issues.Add(new ContentIssue(
+            ContentIssueCode.OrphanedReference, pointer,
+            $"10 §7: {ChapterSchemaPath}'s unlockCondition.tier {found}, and the ladder's Normal " +
+            $"rung ('{PreviousChapterNormalToken}') names exactly one — {PreviousChapterNormalTier}. " +
+            "The schema is what stops a chapter authoring a prerequisite the runtime ladder is " +
+            "unable to express, so it must permit that tier and no other."));
+    }
+
+    /// <summary>A chapter number in a message, formatted the way every other rule here formats one.</summary>
+    private static string ChapterNumber(int chapter) => chapter.ToString(CultureInfo.InvariantCulture);
 
     // ------------------------------------------------------------------------ vocabularies
 
