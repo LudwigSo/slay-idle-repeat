@@ -41,9 +41,10 @@ public sealed class RejectionReasonTests
         ("INVENTORY_FULL", 20, RejectionReasonTier.Domain),
         ("PREREQUISITE_NOT_CLEARED", 21, RejectionReasonTier.Domain),
         ("LEGEND_LEVEL_TOO_LOW", 22, RejectionReasonTier.Domain),
+        ("BATTLE_IN_PROGRESS", 23, RejectionReasonTier.Domain),
     };
 
-    /// <summary>The twelve values <c>Apply</c> is allowed to return, in the spec's order rather than the enum's.</summary>
+    /// <summary>The thirteen values <c>Apply</c> is allowed to return, in the spec's order rather than the enum's.</summary>
     private static readonly RejectionReason[] DomainTierPin =
     {
         RejectionReason.ILLEGAL_STATE,
@@ -58,6 +59,7 @@ public sealed class RejectionReasonTests
         RejectionReason.RUN_ALREADY_ENDED,
         RejectionReason.PREREQUISITE_NOT_CLEARED,
         RejectionReason.LEGEND_LEVEL_TOO_LOW,
+        RejectionReason.BATTLE_IN_PROGRESS,
     };
 
     /// <summary>The other ten — produced by the server host / Application layer, never reaching <c>GameRules.Apply</c>.</summary>
@@ -91,9 +93,9 @@ public sealed class RejectionReasonTests
             "rejection some producer has to be able to send.");
 
         declared.Length.ShouldBe(
-            22,
-            "14 §16.2's table has twenty-two rows — 10 transport, 12 domain. Written as the literal " +
-            "22 rather than as Catalogue.Length: a count taken from the transcription cannot notice " +
+            23,
+            "14 §16.2's table has twenty-three rows — 10 transport, 13 domain. Written as the literal " +
+            "23 rather than as Catalogue.Length: a count taken from the transcription cannot notice " +
             "the transcription itself being trimmed, which is the one edit both set differences above " +
             "would survive.");
     }
@@ -153,9 +155,10 @@ public sealed class RejectionReasonTests
             "well-formed ones.");
 
         actual.Count.ShouldBe(
-            12,
-            "30 §2's sentence names exactly twelve domain-tier values — ten, plus the two M7-04b " +
-            "appended for 10 §7's chapter/tier ladder. Written as the literal 12 rather than as " +
+            13,
+            "30 §2's sentence names exactly thirteen domain-tier values — ten, plus the two M7-04b " +
+            "appended for 10 §7's chapter/tier ladder, plus M7-06c's BATTLE_IN_PROGRESS for the stock " +
+            "change 14 §9's recomputation cannot survive. Written as the literal 13 rather than as " +
             "DomainTierPin.Length: the set differences above compare the tier against the pin, so " +
             "they both stay satisfied if the pin and the tier are trimmed together. Only a literal " +
             "notices that.");
@@ -186,9 +189,9 @@ public sealed class RejectionReasonTests
         var all = RejectionReasons.All;
 
         all.Count.ShouldBe(
-            22,
-            "RejectionReasons.All is the whole of 14 §16.2's table — twenty-two rows. The literal is the " +
-            "floor: without it the partition below holds just as happily over an empty All and two " +
+            23,
+            "RejectionReasons.All is the whole of 14 §16.2's table — twenty-three rows. The literal is " +
+            "the floor: without it the partition below holds just as happily over an empty All and two " +
             "empty tiers.");
 
         RejectionReasons.DomainTier.Intersect(RejectionReasons.TransportTier).ShouldBeEmpty(
