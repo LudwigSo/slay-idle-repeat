@@ -336,6 +336,26 @@ public sealed class BoardPresenter
     /// <summary>The hero's current hit points, as the run carries them.</summary>
     public int CurrentHp { get; private set; }
 
+    /// <summary>
+    /// Whether this run has reached its end and has NOT been closed yet — the moment S13/S14 owns.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Told apart from <see cref="BoardStage.RunEnded"/>, which is a run already CLOSED.</b> A
+    /// run whose hero is dead or whose Boss is dead is over, but nothing has been banked until
+    /// <c>END_RUN</c> runs — and <c>END_RUN</c> is submitted from the run-end screen this flags the way
+    /// to. A board that could not tell the two apart would either hand a player to a results screen for
+    /// a payout already taken, or leave them on the board with a dead hero and a roll button.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>It says the run is over, never WHY.</b> Which of <c>02</c> §6's outcomes this is — and what it
+    /// pays — is <c>RunEndView</c>'s, projected on the screen that draws it. A second derivation here
+    /// would be a second answer to "was this a victory", and the two would part company the first time
+    /// either moved.
+    /// </para>
+    /// </remarks>
+    public bool RunAwaitingResults { get; private set; }
+
     /// <summary>The hero's maximum hit points for this run, as the run carries them.</summary>
     public int MaxHp { get; private set; }
 
@@ -919,6 +939,12 @@ public sealed class BoardPresenter
         // the screen reports an ended run rather than blanking, and the roll is refused by the block
         // this stage produces rather than by an absent board.
         Stage = run.Phase == RunPhase.Ended ? BoardStage.RunEnded : BoardStage.Ready;
+
+        // Read off the two facts that end a run, and only while it is still open: a hero at zero hit
+        // points (02 §6) or a dead Boss. A closed run is excluded because its rewards are already
+        // banked — END_RUN has run — and a results screen opened over one would show a tally for a
+        // payout the player has had.
+        RunAwaitingResults = run.Phase != RunPhase.Ended && (run.CurrentHp == 0 || run.BossDefeated);
     }
 
     /// <remarks>See <see cref="TheForkPreviewIsNotReachableHere"/> for why these carry no preview.</remarks>

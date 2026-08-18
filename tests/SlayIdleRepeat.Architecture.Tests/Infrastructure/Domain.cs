@@ -238,13 +238,22 @@ internal static class Domain
     /// stream, so nothing outside <c>Core</c> gains a way to mint an item or to move a band.
     /// </para>
     /// <para>
-    /// 🔒 <b>M7-08 adds a NINTH entry point, <c>RunEndView</c>, with <c>RunEndKind</c> and
-    /// <c>RunEndCounterView</c>.</b> Its consumer is the client's death/revive and run-results screens
+    /// 🔒 <b>M7-08 adds a NINTH entry point, <c>RunEndView</c>, with <c>RunEndKind</c>,
+    /// <c>RunEndReviveStanding</c>, <c>RunEndCounterView</c> and <c>RunEndCounterKind</c>.</b> Its consumer is the client's death/revive and run-results screens
     /// (S13/S14), which <c>02</c> §6 makes one moment — <em>"if declined or already used, go to
     /// <c>RUN_RESULTS</c> with the Death completion multiplier"</em>. Before this widening a screen could
     /// not say what a run was about to be paid: <c>RunRewardMath</c> is <c>internal</c>, and reproducing
     /// <c>Banked × CompletionMultiplier</c> on the client would be a second implementation that parts
     /// company with the payout the first time a multiplier is retuned.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>The two enums are the client half's, and each closes a way for the screen to lie.</b>
+    /// <c>RunEndReviveStanding</c> exists because <c>Handlers.Revive</c> refuses a revive with
+    /// <c>CAP_REACHED</c> or with <c>ILLEGAL_STATE</c> and the player needs to be told which — a screen
+    /// inferring "you already used it" from a bool would say it to someone who never revived.
+    /// <c>RunEndCounterKind</c> exists because <c>24</c> §9 requires each <c>DROP_RUN</c> counter to name
+    /// its own unit, and a footer row recognised by its POSITION in a list gets the wrong caption the
+    /// day a third breaker is authored between the two.
     /// </para>
     /// <para>
     /// ⚠️ <b>The machinery stays internal here too.</b> <c>RunRewardMath</c>, <c>RunPayoutTuning</c>,
@@ -285,7 +294,9 @@ internal static class Domain
         "GearStatDeltaView",
         "RunEndView",
         "RunEndKind",
+        "RunEndReviveStanding",
         "RunEndCounterView",
+        "RunEndCounterKind",
     };
 
     /// <summary>

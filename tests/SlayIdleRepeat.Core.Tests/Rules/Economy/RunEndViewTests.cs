@@ -128,6 +128,54 @@ public sealed class RunEndViewTests
             "a run whose boss is dead has nothing to be revived for.");
     }
 
+    /// <summary>
+    /// 🔒 <b>The two ways a revive is unavailable are told APART, because they are two different
+    /// sentences to a player.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <c>Handlers.Revive</c> refuses with <c>CAP_REACHED</c> for a run that has spent its one
+    /// revive and with <c>ILLEGAL_STATE</c> for a run a revive does not apply to. Collapsed into a
+    /// single "not offered", the screen has to guess — and the guess a screen naturally makes from
+    /// <c>Kind == Death</c> is *"you already used it"*, which is said to a player who never revived at
+    /// all. This is the case that makes the distinction load-bearing rather than decorative: both rows
+    /// below report <c>ReviveOffered == false</c>, so nothing but the standing separates them.
+    /// </remarks>
+    [Fact]
+    public void The_two_ways_a_revive_is_unavailable_are_told_apart()
+    {
+        var spent = Project(
+            Dead(adUses: new Dictionary<string, long> { [ReviveTuning.PlacementId] = 1 }));
+
+        spent.ReviveStanding.ShouldBe(
+            RunEndReviveStanding.AlreadyUsed,
+            "the run spent its one revive, which is the handler's CAP_REACHED arm.");
+
+        var alive = Project(RunEndWorlds.InProgress(currentHp: 50));
+
+        alive.ReviveStanding.ShouldBe(
+            RunEndReviveStanding.NotApplicable,
+            "a hero who is not at zero hit points has not lost anything to be revived from, which is " +
+            "the handler's ILLEGAL_STATE arm — and telling this player they had already used their " +
+            "revive would be false.");
+
+        spent.ReviveOffered.ShouldBeFalse();
+        alive.ReviveOffered.ShouldBeFalse();
+    }
+
+    /// <summary>…and an offered revive reports the standing that says so.</summary>
+    /// <remarks>
+    /// 🔒 Both members asserted on one row, because they are one field and its predicate: a stored
+    /// second flag able to disagree with the standing is exactly what this pins shut.
+    /// </remarks>
+    [Fact]
+    public void An_offered_revive_reports_both_the_standing_and_the_predicate()
+    {
+        var view = Project(Dead());
+
+        view.ReviveStanding.ShouldBe(RunEndReviveStanding.Offered);
+        view.ReviveOffered.ShouldBeTrue();
+    }
+
     // ------------------------------------------- 24 §1.1 — the DROP_RUN counters in the footer
 
     /// <summary>Both authored dry-streak breakers reach the footer, whatever they stand at.</summary>
@@ -146,6 +194,28 @@ public sealed class RunEndViewTests
             .Distinct(StringComparer.Ordinal)
             .Count()
             .ShouldBe(2, "the two force different bands, so they count under different keys.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>Each footer row says WHICH breaker it is, so the screen captions it from its identity
+    /// rather than from its position.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 `24` §9 requires each counter to name its own unit, and the two units differ — D1 counts
+    /// Elite kills, D2 counts boss kills. A screen reading these by index captions them correctly only
+    /// while the list is exactly two long in exactly this order, and silently swaps the two the day a
+    /// third breaker is authored between them. Asserted in `24` §4.3's own order, which is the order
+    /// the projection is required to hand them back in.
+    /// </remarks>
+    [Fact]
+    public void Each_footer_row_names_which_breaker_it_counts()
+    {
+        var counters = Project(Dead()).DropCounters;
+
+        counters.Select(counter => counter.Kind).ShouldBe(
+            [RunEndCounterKind.EliteMercy, RunEndCounterKind.BossMercy],
+            "24 §4.3 states D1 the Elite mercy before D2 the Boss mercy, and the footer's captions are " +
+            "chosen from these kinds — so a row carrying the wrong one captions boss kills as Elite.");
     }
 
     /// <summary>…and a fresh account counts down from each authored rung.</summary>

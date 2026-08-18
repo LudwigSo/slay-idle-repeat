@@ -6,6 +6,7 @@ using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Ports.Client;
 using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.Services.Content;
+using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core;
 
 namespace SlayIdleRepeat.Client.Composition;
@@ -66,6 +67,7 @@ public sealed class ComposedClient
     public ComposedClient(
         IGameHost gameHost,
         RewardedAdSelection rewardedAds,
+        ReviveArm revive,
         ContentProvider content,
         IClockPort clock)
     {
@@ -76,6 +78,7 @@ public sealed class ComposedClient
 
         GameHost = gameHost;
         RewardedAds = rewardedAds;
+        Revive = revive;
         Content = content;
         Clock = clock;
     }
@@ -85,6 +88,17 @@ public sealed class ComposedClient
 
     /// <summary>The rewarded-ad port, with the arm that chose it.</summary>
     public RewardedAdSelection RewardedAds { get; }
+
+    /// <summary>
+    /// How a player reaches <c>02</c> §6's revive, resolved once here rather than at the screen.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Carried as a decision for the same reason <see cref="RewardedAds"/> is: the Plus promise is
+    /// an adapter swap chosen in a composition root and never a condition carried into the game
+    /// (<c>12</c> §3.2), and <c>IsolationTests.No_entitlement_branch_outside_a_composition_root</c> makes
+    /// that mechanical — a presenter cannot branch on the flag, so it is handed the outcome.
+    /// </remarks>
+    public ReviveArm Revive { get; }
 
     /// <summary>The provider the host's snapshot was loaded from, kept so the load is reachable.</summary>
     public ContentProvider Content { get; }
@@ -166,7 +180,8 @@ public static class ClientComposition
             featureFlags,
             sinks: []);
 
-        return new ComposedClient(gameHost, rewardedAds, content, clock);
+        return new ComposedClient(
+            gameHost, rewardedAds, SelectReviveArm(entitlements), content, clock);
     }
 
     /// <summary>
@@ -186,6 +201,42 @@ public static class ClientComposition
             ? new RewardedAdSelection(RewardedAdArm.PlusAutoGrant, new AutoGrantRewardedAd())
             : NoAdNetworkResolved();
     }
+
+    /// <summary>
+    /// Chooses the revive arm from the resolved entitlement, and from nothing else.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>02</c> §6 gives Plus subscribers a <c>REVIVE</c> that resolves instantly with no ad. Only
+    /// <see cref="Entitlements.HasPlus"/> may move the outcome; the expiry is the server's business, not
+    /// this branch's — the same rule <see cref="SelectRewardedAdPort"/> states about its own.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Separate from <see cref="SelectRewardedAdPort"/> although both read the same flag today,
+    /// because they are two different questions.</b> That one asks which ad adapter a player gets; this
+    /// one asks whether a revive can be produced at all. They part company the day M15-04 lands a real ad
+    /// network — a non-Plus player would then have an ad ADAPTER and still no revive, because granting
+    /// one needs <c>CLAIM_AD_REWARD</c>, which is <c>Deferred → M15-03</c>. Collapsing them into one
+    /// value would offer that player a button nothing can resolve.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="entitlements"/> is null.</exception>
+    public static ReviveArm SelectReviveArm(Entitlements entitlements)
+    {
+        ArgumentNullException.ThrowIfNull(entitlements);
+
+        return entitlements.HasPlus ? ReviveArm.PlusInstant : NoReviveRouteResolved();
+    }
+
+    /// <summary>
+    /// The free arm, spelling out that no revive route is built rather than hiding it.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ Named as its own method for the reason <see cref="NoAdNetworkResolved"/> is: the day M15-03
+    /// lands an ad-backed revive this is the single site that changes, and it is findable by name rather
+    /// than by reading a ternary.
+    /// </remarks>
+    public static ReviveArm NoReviveRouteResolved() => ReviveArm.NoReviveRouteResolved;
 
     /// <summary>
     /// The free arm, spelling out that the ad network is not built rather than hiding it.

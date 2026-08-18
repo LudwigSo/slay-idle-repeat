@@ -51,12 +51,14 @@
       }
     },
     "label": {
-      "description": "🔒 Captions only. `banked` and `payout` are drawn beside two figures rather than one, because the difference between them IS the completion multiplier and 24 §9 wants it legible. The two mercy captions are separate because 24 §9 requires each counter to name its unit rather than show a bare number, and they count different things.",
+      "description": "🔒 Captions only. `banked` and `payout` are drawn beside two figures rather than one, because the difference between them IS the completion multiplier and 24 §9 wants it legible. The two mercy captions are separate because 24 §9 requires each counter to name its unit rather than show a bare number, and they count different things. 🔒 `legendXp` and `soulShards` NAME THE TWO REWARD LINES, because the banked and paid captions are drawn over a pair of figures and a column of unlabelled numbers does not say which currency it is counting -- the same objection 24 §9 makes to a counter without its unit. ⚠️ `soulShards` points at tuning/currencies.json's OWN display name rather than authoring a second one: that key is already referenced and already translated, and a screen document claiming it again would be a string somebody pays to translate twice. Legend XP is not a CurrencyId and has no such name anywhere, so this document is where it is authored.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "banked",
         "payout",
+        "legendXp",
+        "soulShards",
         "floorItems",
         "eliteMercy",
         "bossMercy"
@@ -66,6 +68,12 @@
           "$ref": "#/$defs/locKey"
         },
         "payout": {
+          "$ref": "#/$defs/locKey"
+        },
+        "legendXp": {
+          "$ref": "#/$defs/locKey"
+        },
+        "soulShards": {
           "$ref": "#/$defs/locKey"
         },
         "floorItems": {

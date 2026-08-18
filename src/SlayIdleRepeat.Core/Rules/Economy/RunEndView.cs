@@ -19,6 +19,36 @@ public enum RunEndKind
 }
 
 /// <summary>
+/// Where the run's one revive stands, in the same three ways <c>Handlers.Revive</c> settles it.
+/// </summary>
+/// <remarks>
+/// 🔒 <b>Three members rather than a bool, because the handler refuses a revive for two
+/// different reasons and the screen has to say which.</b> <c>Handlers.Revive</c> answers
+/// <c>CAP_REACHED</c> for a run that has spent its one revive and <c>ILLEGAL_STATE</c> for a run a
+/// revive does not apply to, and those are not the same sentence to a player: one has already had
+/// their safety net and the other never lost a fight. A bool collapses them, and a screen deriving
+/// the difference from <c>Kind</c> and an offer flag would be computing a rules fact out of two
+/// others — wrong the first time either moved, with the player believing the screen.
+/// </remarks>
+public enum RunEndReviveStanding
+{
+    /// <summary>The rules would accept a <c>REVIVE</c> right now.</summary>
+    Offered = 1,
+
+    /// <summary>
+    /// The run has spent its one revive — <c>02</c> §6's limit is <em>once per run, hard</em>, and this
+    /// is the handler's <c>CAP_REACHED</c> arm.
+    /// </summary>
+    AlreadyUsed = 2,
+
+    /// <summary>
+    /// The run is not in a state a revive applies to: it is not in progress, the hero is not at zero
+    /// hit points, or no fight is pending. The handler's <c>ILLEGAL_STATE</c> arm.
+    /// </summary>
+    NotApplicable = 3,
+}
+
+/// <summary>
 /// The run-end moment as one projection: why the run is over, whether a revive is still on the table,
 /// and what the payout will be.
 /// </summary>
@@ -57,7 +87,7 @@ public sealed class RunEndView
 
     private RunEndView(
         RunEndKind kind,
-        bool reviveOffered,
+        RunEndReviveStanding reviveStanding,
         long bankedLegendXp,
         long bankedSoulShards,
         long payoutLegendXp,
@@ -66,7 +96,7 @@ public sealed class RunEndView
         IReadOnlyList<RunEndCounterView> dropCounters)
     {
         Kind = kind;
-        ReviveOffered = reviveOffered;
+        ReviveStanding = reviveStanding;
         BankedLegendXp = bankedLegendXp;
         BankedSoulShards = bankedSoulShards;
         PayoutLegendXp = payoutLegendXp;
@@ -79,7 +109,8 @@ public sealed class RunEndView
     public RunEndKind Kind { get; }
 
     /// <summary>
-    /// Whether <c>REVIVE</c> is still available — the run died and has not used its one revive.
+    /// Where the run's one revive stands, and — when it is unavailable — which of the handler's two
+    /// refusals is the reason.
     /// </summary>
     /// <remarks>
     /// 🔒 The same three facts <c>Handlers.Revive</c> checks, read rather than restated: the run is
@@ -87,12 +118,20 @@ public sealed class RunEndView
     /// zero. <c>02</c> §6's limit is <em>once per run, hard</em>, and it is counted on the run rather
     /// than on the player so a second run gets its own.
     /// <para>
-    /// ⚠️ This says the RULES will accept a revive. Whether the player can reach one is a separate
-    /// question the screen answers with its entitlement — <c>02</c> §6 gives Plus an instant no-ad
-    /// revive, and the ad path that would serve everyone else is M15-03's.
+    /// ⚠️ This says what the RULES will do. Whether the player can reach an offered revive is a
+    /// separate question the screen answers with its entitlement — <c>02</c> §6 gives Plus an instant
+    /// no-ad revive, and the ad path that would serve everyone else is M15-03's.
     /// </para>
     /// </remarks>
-    public bool ReviveOffered { get; }
+    public RunEndReviveStanding ReviveStanding { get; }
+
+    /// <summary>Whether <c>REVIVE</c> is still available.</summary>
+    /// <remarks>
+    /// 🔒 <see cref="ReviveStanding"/> read, never a second answer to the same question: the standing
+    /// is the one field, and this is the predicate callers asking only *"is there a button"* want. A
+    /// second stored flag would be able to disagree with it.
+    /// </remarks>
+    public bool ReviveOffered => ReviveStanding == RunEndReviveStanding.Offered;
 
     /// <summary>Legend XP the run banked, before the completion multiplier.</summary>
     public long BankedLegendXp { get; }
@@ -145,7 +184,7 @@ public sealed class RunEndView
 
         return new RunEndView(
             KindOf(run),
-            ReviveIsStillOnTheTable(run),
+            ReviveStandingOf(run),
             run.BankedLegendXp,
             run.BankedSoulShards,
             payout.LegendXp,
@@ -166,12 +205,24 @@ public sealed class RunEndView
         : run.CurrentHp == 0 ? RunEndKind.Death
         : RunEndKind.Abandoned;
 
-    /// <summary>Whether the rules would accept a <c>REVIVE</c> right now.</summary>
-    private static bool ReviveIsStillOnTheTable(RunSnapshot run) =>
-        run.Phase == RunPhase.InProgress &&
-        run.CurrentHp == 0 &&
-        run.PendingTileKind >= 0 &&
-        UseCount(run, ReviveTuning.PlacementId) == 0;
+    /// <summary>What the rules would do with a <c>REVIVE</c> right now, and why.</summary>
+    /// <remarks>
+    /// 🔒 <b>The two arms are checked in the handler's own order, and that order is load-bearing.</b>
+    /// <c>Handlers.Revive</c> tests the state first and the use count second, so a run that both spent
+    /// its revive and moved on is refused for the state rather than for the cap. Reading them the
+    /// other way round would tell a player who never revived that they had already used it.
+    /// </remarks>
+    private static RunEndReviveStanding ReviveStandingOf(RunSnapshot run)
+    {
+        if (run.Phase != RunPhase.InProgress || run.CurrentHp != 0 || run.PendingTileKind < 0)
+        {
+            return RunEndReviveStanding.NotApplicable;
+        }
+
+        return UseCount(run, ReviveTuning.PlacementId) == 0
+            ? RunEndReviveStanding.Offered
+            : RunEndReviveStanding.AlreadyUsed;
+    }
 
     private static long UseCount(RunSnapshot run, string placement) =>
         run.AdUses is { } uses && uses.TryGetValue(placement, out var used) ? used : 0;
@@ -190,13 +241,22 @@ public sealed class RunEndView
         var luck = LuckTuning.Read(content);
         var dropRun = DropRunTuning.Read(content);
 
-        // The two authored dry-streak breakers, in the order 24 §4.3 states them.
-        var breakers = new[] { dropRun.EliteMercy, dropRun.BossMercy };
+        // The two authored dry-streak breakers, in the order 24 §4.3 states them — D1 the Elite
+        // mercy, D2 the Boss mercy. 🔒 Each is paired with its KIND here rather than left to be
+        // recognised by position downstream: a screen that captioned these by index would caption
+        // them wrongly the day a third breaker was authored between them, and the wrong caption
+        // beside a real number is the failure 24 §1.1's Disclosure rule exists to prevent.
+        var breakers = new[]
+        {
+            (Kind: RunEndCounterKind.EliteMercy, Breaker: dropRun.EliteMercy),
+            (Kind: RunEndCounterKind.BossMercy, Breaker: dropRun.BossMercy),
+        };
+
         var counters = new RunEndCounterView[breakers.Length];
 
         for (var index = 0; index < counters.Length; index++)
         {
-            var breaker = breakers[index];
+            var (kind, breaker) = breakers[index];
 
             // 🔒 Formed through LuckTuning, which is the one place a counter key is spelled. A key
             // assembled here would be a second spelling, and the two would diverge silently — a
@@ -206,6 +266,7 @@ public sealed class RunEndView
             var stood = Counter(player, key);
 
             counters[index] = new RunEndCounterView(
+                kind,
                 key,
                 stood,
                 breaker.ForceOnNthKill,
@@ -219,9 +280,26 @@ public sealed class RunEndView
         player.PityCounters is { } counters && counters.TryGetValue(key, out var stood) ? stood : 0;
 }
 
+/// <summary>Which of <c>24</c> §4.3's two <c>DROP_RUN</c> dry-streak breakers a footer row is.</summary>
+/// <remarks>
+/// 🔒 Named rather than positional, so the screen picks a caption from the counter's identity
+/// instead of from its place in a list. The two count different things — Elite kills and boss kills —
+/// and <c>24</c> §9 requires each to name its own unit, which a row that did not know which one it was
+/// could not do.
+/// </remarks>
+public enum RunEndCounterKind
+{
+    /// <summary><i>D1</i> — consecutive Elite kills whose drop was below the authored band.</summary>
+    EliteMercy = 1,
+
+    /// <summary><i>D2</i> — consecutive boss kills whose best drop was below the authored band.</summary>
+    BossMercy = 2,
+}
+
 /// <summary>
 /// One <c>DROP_RUN</c> counter in the tally footer, as <c>24</c> §9's S14 row requires it.
 /// </summary>
+/// <param name="Kind">Which of the two breakers this is — what the caption is chosen from.</param>
 /// <param name="Key">The authored counter key, which is also its identity on the profile.</param>
 /// <param name="DropsStood">Where the counter stands right now. Never negative.</param>
 /// <param name="ForcedOnDrop">
@@ -232,4 +310,4 @@ public sealed class RunEndView
 /// the forced one; it never reads zero, for the reason the draft's countdown never does.
 /// </param>
 public sealed record RunEndCounterView(
-    string Key, int DropsStood, int ForcedOnDrop, int DropsUntilForced);
+    RunEndCounterKind Kind, string Key, int DropsStood, int ForcedOnDrop, int DropsUntilForced);

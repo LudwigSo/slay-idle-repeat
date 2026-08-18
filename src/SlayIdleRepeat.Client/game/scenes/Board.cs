@@ -207,6 +207,7 @@ public partial class Board : Control
 
     /// <summary>Builds the campfire / shrine screen for the tile the run has landed on.</summary>
     private Func<ComposedCampfireScreen>? _campfire;
+    private Func<ComposedRunEndScreen>? _runEnd;
 
     /// <summary>Whether the battle now open has already had its replay watched.</summary>
     private bool _battleShown;
@@ -283,6 +284,7 @@ public partial class Board : Control
         _perkDraft = screen.PerkDraft;
         _shop = screen.Shop;
         _campfire = screen.Campfire;
+        _runEnd = screen.RunEnd;
         _lifetime = lifetime;
     }
 
@@ -1067,18 +1069,30 @@ public partial class Board : Control
     /// own copy and pins it with a case of its own — so this asks them rather than keeping a third
     /// copy that nothing would notice going stale.
     /// </remarks>
-    private static RunDecision? DecisionFor(BoardPresenter presenter) => presenter.RollBlock switch
+    private static RunDecision? DecisionFor(BoardPresenter presenter)
     {
-        BoardRollBlock.DraftOpen => RunDecision.PerkDraft,
-        BoardRollBlock.TilePending => presenter.PendingTile?.Kind switch
+        // 🔒 Asked FIRST, and ahead of the block, because a run that is over outranks anything still
+        // pending on it. A hero at zero hit points leaves the fight's tile pending — a loss does not
+        // clear it, which is what lets 02 §6's revive restart the same fight — so a board that read the
+        // block first would send a dead run to the tile's own screen and offer it a shop.
+        if (presenter.RunAwaitingResults)
         {
-            ShopPresenter.ShopTileKind => RunDecision.Shop,
-            CampfirePresenter.CampfireTileKind or CampfirePresenter.ShrineTileKind =>
-                RunDecision.Campfire,
+            return RunDecision.RunEnd;
+        }
+
+        return presenter.RollBlock switch
+        {
+            BoardRollBlock.DraftOpen => RunDecision.PerkDraft,
+            BoardRollBlock.TilePending => presenter.PendingTile?.Kind switch
+            {
+                ShopPresenter.ShopTileKind => RunDecision.Shop,
+                CampfirePresenter.CampfireTileKind or CampfirePresenter.ShrineTileKind =>
+                    RunDecision.Campfire,
+                _ => null,
+            },
             _ => null,
-        },
-        _ => null,
-    };
+        };
+    }
 
     /// <summary>Builds the screen for one decision and puts it in front of this one.</summary>
     private bool HandOver(RunDecision decision)
@@ -1093,6 +1107,9 @@ public partial class Board : Control
 
             case RunDecision.Campfire when _campfire is { } campfire:
                 return CampfireHandover.Show(this, campfire(), _lifetime);
+
+            case RunDecision.RunEnd when _runEnd is { } runEnd:
+                return RunEndHandover.Show(this, runEnd(), _lifetime);
 
             default:
                 GD.PushError(
@@ -1123,5 +1140,11 @@ public partial class Board : Control
 
         /// <summary>S11, the campfire and the shrine — one screen with two arms.</summary>
         Campfire = 3,
+
+        /// <summary>
+        /// S13 and S14, the death offer and the reward tally — one screen, because <c>02</c> §6 makes
+        /// them one moment.
+        /// </summary>
+        RunEnd = 4,
     }
 }

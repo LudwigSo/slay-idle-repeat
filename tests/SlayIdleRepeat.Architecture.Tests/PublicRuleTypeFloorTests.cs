@@ -117,8 +117,18 @@ public sealed class PublicRuleTypeFloorTests
     /// <c>Banked × CompletionMultiplier</c> itself, which is how a screen comes to promise a payout the
     /// game does not honour.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Twenty-seven since M7-08's client half added <c>RunEndReviveStanding</c> and
+    /// <c>RunEndCounterKind</c>.</b> No new entry point — both are reached through <c>RunEndView</c>, one
+    /// on the view itself and one on <c>RunEndCounterView</c>. Raised in the same commit and by exactly
+    /// the two names it adds. The slack it closes is a sentence rather than a number: these two are the
+    /// only public readings of <em>which</em> refusal blocked a revive and of <em>which</em> breaker a
+    /// footer row counts, so a floor left at twenty-five would let either be deleted and leave the
+    /// screen inferring both — telling a player who never revived that they had used their one, and
+    /// captioning boss kills as Elite ones.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 25;
+    private const int ResolvedPublicRuleTypeFloor = 27;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -352,7 +362,12 @@ public sealed class PublicRuleTypeFloorTests
         // those three, so RunRewardMath, RunPayoutTuning, RunCompletionOutcome, DropRunTuning and
         // LuckTuning stay internal: what leaves is the run's outcome and figures, never the multipliers
         // or the counter-key spelling.
-        if (Domain.PublicRuleTypes.Count > 25)
+        // 🔒 TWENTY-SEVEN since M7-08's client half. NO new entry point: RunEndReviveStanding and
+        // RunEndCounterKind are both reached through RunEndView, and both exist so S13/S14 can name a
+        // fact rather than infer it -- which of the Revive handler's two refusals is blocking a revive,
+        // and which of 24 §4.3's two breakers a footer row is counting. Raised by exactly those two, so
+        // ReviveTuning and the counter-key spelling stay internal.
+        if (Domain.PublicRuleTypes.Count > 27)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +

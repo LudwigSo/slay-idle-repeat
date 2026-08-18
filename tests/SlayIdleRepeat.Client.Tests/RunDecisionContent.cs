@@ -98,6 +98,53 @@ internal static class RunDecisionContent
     internal const string InventoryRefusedStatusKey = "loc.inventory.refused.status";
     internal const string InventoryHostUnavailableStatusKey = "loc.inventory.host_unavailable.status";
 
+    // ---- run end: the death offer and the tally (S13 / S14) -----------------------------------
+
+    internal const string RunEndDefeatedNameKey = "loc.run_end.defeated.name";
+    internal const string RunEndVictoryNameKey = "loc.run_end.victory.name";
+    internal const string RunEndAbandonedNameKey = "loc.run_end.abandoned.name";
+    internal const string RunEndBankedLabelKey = "loc.run_end.banked.label";
+    internal const string RunEndPayoutLabelKey = "loc.run_end.payout.label";
+    internal const string RunEndLegendXpLabelKey = "loc.run_end.legend_xp.label";
+    internal const string RunEndFloorItemsLabelKey = "loc.run_end.floor_items.label";
+    internal const string RunEndEliteMercyLabelKey = "loc.run_end.elite_mercy.label";
+    internal const string RunEndBossMercyLabelKey = "loc.run_end.boss_mercy.label";
+    internal const string RunEndReviveActionKey = "loc.run_end.revive.action";
+    internal const string RunEndFinishActionKey = "loc.run_end.finish.action";
+    internal const string RunEndReviveNeedsPlusBlockKey = "loc.run_end.revive_needs_plus.block";
+    internal const string RunEndReviveSpentBlockKey = "loc.run_end.revive_spent.block";
+    internal const string RunEndDeathCostsRewardsBlockKey = "loc.run_end.death_costs_rewards.block";
+    internal const string RunEndLoadingStatusKey = "loc.run_end.loading.status";
+    internal const string RunEndRunMissingStatusKey = "loc.run_end.run_missing.status";
+    internal const string RunEndUnavailableStatusKey = "loc.run_end.unavailable.status";
+    internal const string RunEndRefusedStatusKey = "loc.run_end.refused.status";
+    internal const string RunEndHostUnavailableStatusKey = "loc.run_end.host_unavailable.status";
+
+    /// <summary>
+    /// 🔒 The Soul Shards line's name, which is <c>tuning/currencies.json</c>'s and NOT this
+    /// screen's.
+    /// </summary>
+    /// <remarks>
+    /// Listed here because the fixture has to carry it for the row to resolve at all, exactly as
+    /// <see cref="ShrineBuffNameKeys"/> is. The run-end document points at this key rather than
+    /// authoring a second one, so a fixture that invented a <c>loc.run_end.soul_shards.*</c> would be
+    /// proving the screen against a key the content set does not have.
+    /// </remarks>
+    internal const string CurrencySoulShardsNameKey = "loc.currency.soul_shards.name";
+
+    /// <summary>Every string key the run-end screen (S13 / S14) renders.</summary>
+    internal static IReadOnlyList<string> RunEndKeys { get; } =
+    [
+        RunEndDefeatedNameKey, RunEndVictoryNameKey, RunEndAbandonedNameKey,
+        RunEndBankedLabelKey, RunEndPayoutLabelKey,
+        RunEndLegendXpLabelKey, CurrencySoulShardsNameKey,
+        RunEndFloorItemsLabelKey, RunEndEliteMercyLabelKey, RunEndBossMercyLabelKey,
+        RunEndReviveActionKey, RunEndFinishActionKey,
+        RunEndReviveNeedsPlusBlockKey, RunEndReviveSpentBlockKey, RunEndDeathCostsRewardsBlockKey,
+        RunEndLoadingStatusKey, RunEndRunMissingStatusKey, RunEndUnavailableStatusKey,
+        RunEndRefusedStatusKey, RunEndHostUnavailableStatusKey,
+    ];
+
     /// <summary>Every string key the Inventory screen (S16) renders.</summary>
     internal static IReadOnlyList<string> InventoryKeys { get; } =
     [
@@ -207,6 +254,7 @@ internal static class RunDecisionContent
             .Concat(CampfireKeys)
             .Concat(ShrineBuffNameKeys)
             .Concat(InventoryKeys)
+            .Concat(RunEndKeys)
             .ToArray();
 
         return

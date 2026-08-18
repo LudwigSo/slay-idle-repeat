@@ -234,6 +234,55 @@ public sealed class PerkDraftPresenterTests
             $"a player the whole draft failed: [{string.Join(" | ", authored)}]");
     }
 
+    /// <summary>
+    /// 🔒 <b>Each of the three <c>DRAFT</c> counters NAMES THE UNIT it is counting, as authored.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 `24` §9's S07 row states it as a requirement rather than a preference — *"The three
+    /// <c>DRAFT</c> counters, each naming its unit rather than a bare number: 'Rare or better
+    /// guaranteed in 2 more drafts you pick from'"* — and gives the reason: <em>"Without the unit the
+    /// number reads as broken to a player who has been skipping or rerolling."</em> A caption reading
+    /// *"Rare or better guaranteed in"* beside <c>2/4</c> does not say two of WHAT, and the player who
+    /// most needs to know is the one whose counter has been standing still because they have been
+    /// skipping.
+    /// </para>
+    /// <para>
+    /// 🔒 Stated over the shipped locale, never over the fixture, for the reason the two cases above
+    /// give: every fixture value is derived from its own key, so a fixture-based version of this could
+    /// not fail whatever anyone wrote in <c>en.json</c>. The claim is about what a player reads.
+    /// </para>
+    /// <para>
+    /// 🔒 The unit is asserted, not the word order. `24` §9's example puts it after the number and
+    /// this build's rows put the numerals in their own right-aligned label, so requiring the sentence
+    /// shape would pin a layout the rule does not care about. What the rule cares about is that the
+    /// noun is there at all.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void Each_draft_counter_caption_names_the_unit_it_counts()
+    {
+        string[] keys =
+        [
+            RunDecisionContent.DraftLegendaryPityLabelKey,
+            RunDecisionContent.DraftQualityFloorLabelKey,
+            RunDecisionContent.DraftUpgradeFamineLabelKey,
+        ];
+
+        foreach (var key in keys)
+        {
+            RunDecisionContent.ShippedEnglish.TryGetValue(key, out var caption).ShouldBeTrue(
+                $"'{key}' is not in the shipped English locale, so one of the three DRAFT counters " +
+                "has no caption and a player is shown its key beside a number.");
+
+            caption!.Contains("draft", StringComparison.OrdinalIgnoreCase).ShouldBeTrue(
+                $"'{key}' is authored as \"{caption}\", which does not name what it counts. 24 §9's " +
+                "S07 row requires each DRAFT counter to name its unit rather than sit beside a bare " +
+                "number, because a player who has been skipping or rerolling reads an unexplained " +
+                "number as broken. The unit these three count is DRAFTS.");
+        }
+    }
+
     // ---- the read ------------------------------------------------------------------------------
 
     [Fact]

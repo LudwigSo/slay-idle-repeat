@@ -97,6 +97,23 @@ internal static class PlayerState
     /// <summary>A MONDAY 05:00 UTC game-week boundary — 27 April 2026 is a Monday.</summary>
     private static readonly DateTimeOffset GameWeekStart = GameDayStart;
 
+    /// <summary>
+    /// A profile row carrying the given luck-protection counters — what the S14 footer reads.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Keyed by the caller rather than by this fixture, because the KEY is the thing under test
+    /// on the screens that read one: <c>LuckTuning.CounterKey</c> is the only place a counter key is
+    /// spelled, and a fixture that spelled its own would prove a screen against counters the game never
+    /// writes. A case wanting a standing counter therefore takes the key off the projection first.
+    /// </remarks>
+    /// <param name="id">Whose row this is.</param>
+    /// <param name="pityCounters">The counters, keyed as the game keys them.</param>
+    internal static PlayerSnapshot WithPityCounters(
+        PlayerId id, IReadOnlyDictionary<string, int> pityCounters) => Rehydratable(id) with
+    {
+        PityCounters = pityCounters,
+    };
+
     /// <summary>A profile whose gear stock is empty — where a fresh account stands.</summary>
     /// <remarks>
     /// An <see cref="InventorySnapshot"/> holding nothing, never <c>null</c>: an absent inventory is a
@@ -219,6 +236,18 @@ internal static class PlayerState
     /// due while at least one owned perk sits below its top tier.
     /// </param>
     /// <param name="runSeed">The run's committed seed.</param>
+    /// <param name="bankedLegendXp">Legend XP the run banked, before the completion multiplier.</param>
+    /// <param name="bankedSoulShards">Soul Shards the run banked, before the same multiplier.</param>
+    /// <param name="bossDefeated">
+    /// Whether the Boss is dead — what makes a run-end a victory rather than a death or an abandonment.
+    /// </param>
+    /// <param name="itemsAtOrAboveFloorBand">
+    /// How many items at or above the session floor's band the run produced (<c>24</c> §4.3 D3).
+    /// </param>
+    /// <param name="adUses">
+    /// Per-run ad counts by placement — where the run's ONE revive is counted (<c>02</c> §6). Defaulted
+    /// to the empty map a run that has used nothing carries.
+    /// </param>
     /// <param name="rngStreamPositions">
     /// The per-stream draw counters, whose <c>combat</c> row counts battles STARTED. Defaulted to
     /// the empty map a fresh run carries, which is also the shape a replay has to report as "this
@@ -247,7 +276,12 @@ internal static class PlayerState
         int draftsWithoutOwnedUpgrade = 0,
         IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
         ulong runSeed = 1,
-        IReadOnlyDictionary<string, ulong>? rngStreamPositions = null) =>
+        IReadOnlyDictionary<string, ulong>? rngStreamPositions = null,
+        long bankedLegendXp = 0,
+        long bankedSoulShards = 0,
+        bool bossDefeated = false,
+        int itemsAtOrAboveFloorBand = 0,
+        IReadOnlyDictionary<string, long>? adUses = null) =>
         new(
             SnapshotSchema.SchemaVersion,
             id,
@@ -261,7 +295,7 @@ internal static class PlayerState
             maxHp,
             gold,
             RngStreamPositions: rngStreamPositions ?? new Dictionary<string, ulong>(),
-            AdUses: new Dictionary<string, long>(),
+            AdUses: adUses ?? new Dictionary<string, long>(),
             ResolvedMinigames: new Dictionary<int, string>(),
             pendingForkJunctionPosition,
             pendingForkRemainingSteps,
@@ -278,7 +312,11 @@ internal static class PlayerState
             DraftsSinceLegendaryOffered: draftsSinceLegendaryOffered,
             DraftsWithoutAboveCommon: draftsWithoutAboveCommon,
             DraftsWithoutOwnedUpgrade: draftsWithoutOwnedUpgrade,
-            StartingLoadout: BareHanded);
+            StartingLoadout: BareHanded,
+            BankedLegendXp: bankedLegendXp,
+            BankedSoulShards: bankedSoulShards,
+            BossDefeated: bossDefeated,
+            ItemsAtOrAboveFloorBand: itemsAtOrAboveFloorBand);
 
     /// <summary>The same slice, carrying a run rehydrated from the given row.</summary>
     /// <remarks>
