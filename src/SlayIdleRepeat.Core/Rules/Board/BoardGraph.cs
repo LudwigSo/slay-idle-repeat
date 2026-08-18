@@ -52,18 +52,27 @@ internal sealed class BoardGraph
     /// statement, so a generated board cannot separate them.
     /// </para>
     /// <para>
-    /// <see cref="FromLayout"/> now makes all three agree on <em>which node</em> they are talking
-    /// about: only this node may dangle, and only this node may carry <see cref="TileKind.Boss"/>.
-    /// So the tile-keyed reading can no longer answer "yes" at a node that is not this one, and the
-    /// <c>ReachedBoss</c> clauses in <c>Handlers.RollDice</c> and <c>Handlers.ChooseFork</c> are
-    /// redundant on every board that exists rather than merely on every generated one.
+    /// <see cref="FromLayout"/> makes the two <em>node-valued</em> readings name the same node: only
+    /// this node may dangle, and only this node may carry <see cref="TileKind.Boss"/>. The tile-keyed
+    /// reading can therefore no longer answer "yes" at a node that is not this one. The <b>stage</b>
+    /// reading stays unconstrained — nothing here reads <see cref="BoardNode.Stage"/>, so a layout
+    /// may still hand <see cref="BossStage"/> to a mid-board node and collect the boss multiplier.
     /// </para>
     /// <para>
-    /// ⚠️ What is still <b>not</b> settled is the converse: nothing requires this node to carry
-    /// <see cref="TileKind.Boss"/> at all, so a layout may still end on an ordinary tile and have
-    /// movement announce a boss standing on it. That is a content question with no decidable answer
-    /// yet — the tile set has one member for the three different things the design authors as a
-    /// board's ending — and <c>BoardTerminusTests</c> pins today's behaviour and carries the expiry.
+    /// ⚠️ Neither handler's <c>ReachedBoss</c> clause is dead code, and only one of them is a
+    /// redundancy check at all. <c>Handlers.ChooseFork</c>'s is redundant on every board whose
+    /// terminus actually dangles — every generated one, but not every one this method accepts, since
+    /// nothing stops a layout giving the terminus an outgoing edge. <c>Handlers.RollDice</c>'s is the
+    /// branch that arrives at the boss and <em>ends the chain</em>; delete it and a roll-again face
+    /// keeps chaining from the boss node until the link cap stops it, rather than the boss doing so.
+    /// </para>
+    /// <para>
+    /// ⚠️ What is still not settled is the converse: nothing requires this node to carry
+    /// <see cref="TileKind.Boss"/> at all, so a layout may end on an ordinary tile and have movement
+    /// announce a boss standing on it. The <em>rule</em> is authored — a board ends on a boss or
+    /// mini-boss node — but the vocabulary to state it is missing: the tile set has one member for
+    /// the several things the design authors as a board's ending. <c>BoardTerminusTests</c> pins
+    /// today's behaviour, names the owning tasks and carries the expiry.
     /// </para>
     /// </remarks>
     public NodeId BossNodeId => _spineByLinearIndex[^1];
@@ -192,7 +201,9 @@ internal sealed class BoardGraph
     /// The spine index is empty, a node referenced by an edge or by <paramref name="spineByLinearIndex"/>
     /// is not in <paramref name="nodes"/>, a junction id is not a node with exactly two outgoing edges,
     /// a node other than the boss node has no outgoing edge, or a node other than the boss node
-    /// carries <see cref="TileKind.Boss"/>.
+    /// carries <see cref="TileKind.Boss"/>. ⚠️ The last two both answer <c>ParamName</c>
+    /// <c>"nodes"</c>, so that name no longer identifies which of them fired — the message does, and
+    /// the tests match on it.
     /// </exception>
     public static BoardGraph FromLayout(
         IReadOnlyList<BoardNode> nodes,
@@ -270,11 +281,13 @@ internal sealed class BoardGraph
                 nameof(nodes));
         }
 
-        // Deliberately a second pass rather than folded into the one above: a node that both
-        // dead-ends and carries the boss tile gets the topology complaint, which is the more
-        // actionable of the two for a layout that simply stopped early.
+        // A separate pass, not a fused one: any dead end anywhere outranks a misplaced boss tile
+        // anywhere, so a layout that simply stopped early always hears the topology complaint first
+        // even when the boss tile sits at a lower index.
         foreach (var node in nodes)
         {
+            // Matches TileKind.Boss and nothing else. A boss-tier kind added to the tile set later —
+            // a mini-boss, a dungeon Guardian — is NOT closed here and must be added to this test.
             if (node.Tile != TileKind.Boss || node.Id.Equals(bossNodeId))
             {
                 continue;
@@ -282,9 +295,7 @@ internal sealed class BoardGraph
 
             throw new ArgumentException(
                 $"{node.Id} carries the boss tile, but this board's boss node is {bossNodeId}; " +
-                "a board holds exactly one boss tile and it sits at the end, or movement announces " +
-                "a boss encounter at a node the run has not reached and the stage gate before it " +
-                "never fires.",
+                "no node but the board's last may carry it.",
                 nameof(nodes));
         }
 

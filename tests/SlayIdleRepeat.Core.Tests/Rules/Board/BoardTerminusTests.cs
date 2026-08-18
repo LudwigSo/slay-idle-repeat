@@ -31,14 +31,24 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// carrying an ordinary tile is still accepted, and movement still reports a boss standing on it —
 /// pinned below by
 /// <see cref="A_terminus_carrying_an_ordinary_tile_is_still_accepted_and_still_reports_the_boss"/>
-/// so that tightening it is a decision somebody takes rather than a side effect. It cannot be
-/// tightened yet: the design set authors <em>three</em> different things that may end a board — a
-/// chapter boss, a mini-boss, and a Resource Dungeon's Guardian, which is explicitly not a boss —
-/// against a <see cref="TileKind"/> that has one member for them, and whose set is declared closed.
-/// Requiring <see cref="TileKind.Boss"/> would bar the other two before either is built.
-/// <see cref="The_tile_ids_the_terminus_ruling_needs_are_still_unrepresentable"/> is the expiry:
-/// it fails the day the missing ids become representable, which is the day the tightening becomes
-/// statable.
+/// so that tightening it is a decision somebody takes rather than a side effect.
+/// </para>
+/// <para>
+/// ⚠️ <b>What is missing is vocabulary, not a ruling.</b> The rule itself is authored twice over: a
+/// board ends on a boss <em>or mini-boss</em> node, and for the tutorial's board that check is
+/// specified as binding. What cannot be written is the predicate, because the tutorial's final tile
+/// is authored as a mini-boss and <see cref="TileKind"/> has no member for one — so requiring
+/// <see cref="TileKind.Boss"/> here would refuse the first authored board there will be. The fix is
+/// an enum member and the task that adds it, not a designer's decision.
+/// </para>
+/// <para>
+/// <b>Owners.</b> The mini-boss tile belongs to <b>M4-12</b>, which authors the tutorial content
+/// package; its remaining open decision is the mini-boss's identity, logged as <b>O36</b>. The
+/// dungeon tile belongs to <b>M10-01</b>, which adds it alongside the Guardian encounter — and note
+/// that a dungeon board is built by the <em>generator</em> with a dungeon profile, so a Guardian
+/// terminus never reaches this method at all. The mini-boss carries this deferral on its own.
+/// <see cref="The_tile_ids_the_terminus_ruling_needs_are_still_unrepresentable"/> is the expiry: it
+/// fails the day either tile becomes representable, which is the day the tightening becomes statable.
 /// </para>
 /// <para>
 /// <b>What these cases do not close.</b> The shapes below discriminate an identity-keyed rule from
@@ -295,16 +305,20 @@ public sealed class BoardTerminusTests
     /// <remarks>
     /// <para>
     /// The reason the terminus's tile kind cannot be required today is exactly this: the two tile
-    /// ids the design set authors for a board's ending, beyond the chapter boss, cannot be spoken.
-    /// <c>TILE_MINIBOSS</c> is authored as the final node of the tutorial's board — the first
-    /// authored board there will be, and one whose validator is specified as binding — and
-    /// <c>TILE_CACHE_DUNGEON</c> is authored for the Resource Dungeon profile, whose own terminus is
-    /// a Guardian with no authored tile id at all. Neither is in the closed tile set, so neither
-    /// parses.
+    /// ids the design set authors beyond the fourteen cannot be spoken. <c>TILE_MINIBOSS</c> is
+    /// authored as the final node of the tutorial's board — the first authored board there will be,
+    /// and one whose validator is specified as binding — and belongs to <b>M4-12</b>.
+    /// <c>TILE_CACHE_DUNGEON</c> belongs to <b>M10-01</b> and is the sharper of the two, because it
+    /// is not merely a sentence in a document: <c>game-data/tuning/dungeons.json</c> ships it today
+    /// and <c>game-data/schema/dungeons.schema.json</c> makes it <em>required</em>, while
+    /// <c>game-data/schema/board.schema.json</c> declares the same vocabulary closed at fourteen and
+    /// says in as many words that a kind added to the game is supposed to fail that document. Only
+    /// the fact that nothing yet parses a dungeon's composition through <see cref="TileKindIds"/>
+    /// keeps the two from colliding.
     /// </para>
     /// <para>
-    /// The day one of them does parse, whoever added it has decided what a board may end with, and
-    /// this assertion fails to make them say so out loud —
+    /// The day either parses, whoever added it has decided what a board may end with, and this
+    /// assertion fails to make them say so out loud —
     /// <see cref="A_terminus_carrying_an_ordinary_tile_is_still_accepted_and_still_reports_the_boss"/>
     /// is the pin they then have to revisit.
     /// </para>
@@ -325,11 +339,13 @@ public sealed class BoardTerminusTests
         TileKindIds.TryParse("TILE_CACHE_DUNGEON", out _).ShouldBeFalse(
             "the Resource Dungeon profile authors this tile, and the same dungeon's terminus is a Guardian that is explicitly not a boss.");
 
-        // The two ids above are the spellings the documents happen to use; the third ending — the
-        // Guardian's own tile — has no authored id at all, so no string can stand for it. This is
-        // the leg that catches a ruling that lands under any name.
+        // The two ids above are the spellings the documents happen to use; a member added under any
+        // other name would slip past both. This leg catches that, and it is DELIBERATELY a second
+        // reader of a closure ResolveTileTests already pins for its own reason — do not fold them
+        // together, because that file's copy expires on a resolver gaining a case, not on anyone
+        // deciding what may end a board.
         Enum.GetValues<TileKind>().Length.ShouldBe(
             14,
-            "the tile set is declared closed. A new member means somebody has decided what a board may end with, and the pin above is theirs to revisit.");
+            "the tile set is declared closed. A new member means somebody has decided what a board may end with, and the pin above is theirs to revisit — M4-12 for the mini-boss tile, M10-01 for the dungeon one.");
     }
 }
