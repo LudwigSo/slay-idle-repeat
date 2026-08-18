@@ -151,8 +151,11 @@ public sealed class StartRunTests
 
         result.NewState.Player.RunsStarted.ShouldBe(
             runsStartedBefore,
-            "the already-active-run check runs before Player.BeginRun(), so a rejected START_RUN " +
-            "must not spend the lifetime counter.");
+            "a rejected START_RUN must not spend the lifetime counter. 🔴 This line does not prove " +
+            "the check runs before Player.BeginRun(), and used to say it did: Apply hands the handler " +
+            "a CLONE and returns the caller's slice on a rejection, so a counter spent early moves on " +
+            "an object nobody reads. Moving BeginRun() above every guard reddens nothing in this " +
+            "repository — see StartRunChapterGateTests' remarks, where the mutation was run.");
     }
 
     /// <summary>

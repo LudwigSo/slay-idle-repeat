@@ -22,9 +22,20 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// </para>
 /// <para>
 /// Driven through <c>GameRules.Apply</c> over the production dispatch table, so these cases prove the
-/// real START_RUN row rather than a stand-in shaped like it. Every refusal also asserts that the
-/// lifetime run counter is untouched: the gate sits ahead of <c>Player.BeginRun()</c>, and a refused
-/// START_RUN costs the player nothing.
+/// real START_RUN row rather than a stand-in shaped like it.
+/// </para>
+/// <para>
+/// 🔴 <b>Every <c>RunsStarted</c> assertion below is a statement about <c>Apply</c>, not about this
+/// handler, and was proved so by mutation.</b> Moving <c>Player.BeginRun()</c> <em>above</em> the
+/// ladder gate — spending the lifetime counter on every refusal — leaves all thirty-eight cases in
+/// the two gate suites green, and the whole Core suite green with it. The reason is structural:
+/// <c>Apply</c> runs the handler against a <em>clone</em> and, on a rejection, returns the caller's
+/// own slice, so the only object whose counter moved is discarded unread. "A refused START_RUN costs
+/// the player nothing" is therefore bought by that discard and not by the handler's ordering, and
+/// nothing in this repository can tell the two apart. The ordering inside <c>Handle</c> is kept
+/// because it is right, not because it is pinned — the lines below restate
+/// <c>NewState.ShouldBeSameAs(state)</c> in another spelling, and would only ever redden if
+/// <c>Apply</c> stopped discarding.
 /// </para>
 /// <para>
 /// 🔒 The Legend Level the Mythic rung demands is read out of <see cref="Worlds.Context"/>'s own
@@ -153,8 +164,10 @@ public sealed class StartRunChapterGateTests
             state, "a rejected command's NewState is the caller's own slice, untouched.");
         result.NewState.Player.RunsStarted.ShouldBe(
             runsStartedBefore,
-            "the gate runs before Player.BeginRun(), so a refused START_RUN does not spend the " +
-            "lifetime run counter.");
+            "a refused START_RUN does not spend the lifetime run counter. 🔴 Read the class remarks " +
+            "before trusting this line: it restates the assertion above rather than probing the " +
+            "handler, because the counter GameRules.Apply discards on a rejection is the one the " +
+            "handler could have spent.");
     }
 
     /// <summary>

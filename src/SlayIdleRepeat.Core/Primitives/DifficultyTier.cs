@@ -7,8 +7,11 @@ namespace SlayIdleRepeat.Core.Primitives;
 /// <c>unlockCondition.tier</c>) and <c>DifficultyTierMatchesTuningDataTests</c> keeps this enum and
 /// those authored copies from drifting apart. It feeds <c>SeedDerivation.RunSeed</c> as <c>tierId</c>.
 /// <para>
-/// The tier <em>ladder</em> (which tier unlocks a chapter at which clear) is not implemented here —
-/// this enum is vocabulary only, gating is handled elsewhere once clear-history exists.
+/// The tier <em>ladder</em> (which tier unlocks a chapter at which clear) is not authored here —
+/// this enum is vocabulary only. The ladder is authored in <c>tuning/progression.json</c>'s
+/// <c>chapterGating</c> block, read by <c>ChapterGatingTuning</c> and enforced by the
+/// <c>START_RUN</c> handler against the player's clear history. The per-member summaries below
+/// restate what that ladder says today; they are a description of it, never the authority for it.
 /// </para>
 /// <para>
 /// It lives in <c>Primitives/</c> rather than <c>Model/</c> because a public enum under

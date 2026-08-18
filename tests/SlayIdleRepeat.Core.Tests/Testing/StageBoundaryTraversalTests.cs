@@ -287,6 +287,15 @@ public sealed class StageBoundaryTraversalTests
 
         game.Send(player, new Core.Commands.BeginSessionCommand("1.0.0", "content"));
 
+        // The subject here is the stage boundary, not `10` §7's ladder — but START_RUN now answers
+        // that ladder, and a fresh account may only start chapter 1. Without the clears below, half
+        // this sweep would start no run at all and the floor beneath it would be measuring eight
+        // boards while claiming sixteen.
+        for (var earlier = 1; earlier < chapter; earlier++)
+        {
+            Harnesses.HasCleared(game, player, earlier, DifficultyTier.NORMAL);
+        }
+
         return MetaLoopDriver.Play(game, player, chapter, DifficultyTier.NORMAL);
     }
 

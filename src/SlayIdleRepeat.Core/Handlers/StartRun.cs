@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
@@ -15,9 +16,24 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// <remarks>
 /// <para>
 /// In order: refuse a request that already has an active run; refuse a chapter/tier the seed
-/// derivation could not hash; spend the player's lifetime run counter and derive the seed from it;
-/// build the new <c>Run</c> via <c>Run.Rehydrate</c> — the only way to construct one — and attach it
-/// through <see cref="HandlerInput.OpenRun"/>.
+/// derivation could not hash; refuse a tier whose authored clear the player has not earned; refuse
+/// one whose authored Legend Level they have not reached; spend the player's lifetime run counter
+/// and derive the seed from it; build the new <c>Run</c> via <c>Run.Rehydrate</c> — the only way to
+/// construct one — and attach it through <see cref="HandlerInput.OpenRun"/>. All four refusals sit
+/// ahead of <c>Player.BeginRun()</c>.
+/// </para>
+/// <para>
+/// ⚠️ That ordering is defence in depth and nothing more: a refused command's working copy is
+/// discarded by <c>GameRules.Apply</c>, which returns the caller's own slice, so a counter spent
+/// before a refusal would be spent on an object nobody reads. Mutation-testing confirmed it — moving
+/// <c>BeginRun()</c> above the gate reddens no test in the repository. Do not read the order below as
+/// the thing that makes a refusal free; read it as the order that stays correct if it ever is.
+/// </para>
+/// <para>
+/// `14` §9 makes command validation the server's job — "is the action legal now" — so `10` §7's
+/// chapter/tier ladder is answered here and not only on the screen that draws it. The ladder itself
+/// is authored data, read by <see cref="ChapterGatingTuning"/>; this handler asks it a question and
+/// picks the refusal.
 /// </para>
 /// <para>
 /// <c>Position</c>, HP and <c>Gold</c> are not equally authored. <c>Position</c> is the design's own
@@ -80,9 +96,9 @@ internal static class StartRun
     /// <param name="command">The chapter and tier to start on.</param>
     /// <param name="input">The cloned, already-caught-up, run-less slice.</param>
     /// <returns>
-    /// A rejection if the player already has an active run or the command names a chapter/tier the
-    /// seed derivation could not hash; otherwise accepted, with the new <c>Run</c> attached and no
-    /// events.
+    /// A rejection if the player already has an active run, the command names a chapter/tier the
+    /// seed derivation could not hash, or the tier's authored rung demands a clear or a Legend Level
+    /// this player does not have; otherwise accepted, with the new <c>Run</c> attached and no events.
     /// </returns>
     internal static HandlerResult Handle(StartRunCommand command, HandlerInput input)
     {
@@ -96,14 +112,32 @@ internal static class StartRun
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
-        // Checked before Player.BeginRun() spends the lifetime counter, so a rejected START_RUN
-        // costs the player nothing.
+        // Checked before Player.BeginRun() spends the lifetime counter — belt to Apply's braces,
+        // not the thing that makes a refusal free. See this type's remarks.
         if (command.ChapterId < 1 || !Enum.IsDefined(command.Tier))
         {
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }
 
         var player = input.Player;
+
+        // Only now: the ladder looks the tier up as a rung key, and a tier the enum does not declare
+        // has no rung to look up. The shape check above is what keeps that question askable.
+        var rung = ChapterGatingTuning.Read(input.Context.Content).Rung(command.Tier);
+        var requiredClear = rung.RequiredClear(command.ChapterId);
+
+        // The clear is checked FIRST, so a request blocked by both requirements is answered with the
+        // clear. HandlerResult.Reject carries one enum value and no detail payload, so exactly one of
+        // the two can ever be named; the chapter select screen stays the surface that lists both.
+        if (requiredClear is { } clear && !player.HasClearedChapterTier(clear.ChapterId, clear.Tier))
+        {
+            return HandlerResult.Reject(RejectionReason.PREREQUISITE_NOT_CLEARED);
+        }
+
+        if (rung.RequiresLegendLevel is { } requiredLevel && player.LegendLevel < requiredLevel)
+        {
+            return HandlerResult.Reject(RejectionReason.LEGEND_LEVEL_TOO_LOW);
+        }
 
         var runCounter = player.BeginRun();
 
