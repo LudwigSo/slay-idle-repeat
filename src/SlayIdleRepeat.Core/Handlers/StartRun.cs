@@ -2,10 +2,12 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Handlers;
 
@@ -38,11 +40,29 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// <para>
 /// <c>Position</c>, HP and <c>Gold</c> are not equally authored. <c>Position</c> is the design's own
 /// starting value (the virtual trailhead, one step before node 0); <c>Gold</c> is 0 because nothing
-/// can have paid a fresh run any. <c>CurrentHp</c>/<c>MaxHp</c> have no authored starting value at
-/// all — Max HP is meant to be scored off the hero's build, but no build (gear/perks/pets/talents)
-/// exists yet to score — so <see cref="StartingHitPoints"/> uses <c>Run.SetHitPoints</c>'s own
-/// structural floor (1/1) rather than a fabricated balance number, and should be revisited once a
-/// real build exists to compute Max HP from.
+/// can have paid a fresh run any.
+/// </para>
+/// <para>
+/// 🔒 <b>Max HP is scored off the hero's build, which is the revisit this comment used to ask for.</b>
+/// It read <em>"no build (gear/perks/pets/talents) exists yet to score"</em> and used
+/// <c>Run.SetHitPoints</c>' structural floor of 1/1 instead. M4-16 and M7-06b built that hero, so the
+/// condition is met: <see cref="Rules.Stats.HeroBuild"/> composes <c>05</c> §2's
+/// <c>MaxHP = 250 + 45·L</c> through the equipped items, their affixes and their set bonuses, and the
+/// run is opened at that value, full.
+/// </para>
+/// <para>
+/// 🔴 <b>Leaving it at 1 was not a harmless placeholder — it made the whole HP economy inert</b>, which
+/// is what M7-06c's code review found and M7-06d fixes. Every <c>SetHitPoints</c> call in the game
+/// passes <c>run.MaxHp</c> unchanged, so the 1 never moved: <c>Revive</c> healed
+/// <c>MaxHp × HealPctMaxHp</c> clamped into <c>[1, MaxHp]</c> = <b>1</b>, the campfire's 40% rest and
+/// the Stage Gate's 15% heal were fractions of <b>1</b>, and a loss set 0 out of 1.
+/// </para>
+/// <para>
+/// 🔒 <b>The build is read with <c>run: null</c> on purpose.</b> <c>HeroBuild.Of</c> reads the run's
+/// FROZEN loadout when given a run and the player's CURRENT one otherwise — and at this line the run
+/// does not exist yet. The player's loadout is the right answer twice over: it is what <c>07</c> §4
+/// freezes on the very next argument, so the Max HP a run opens with and the gear it will fight in
+/// come from one reading rather than two.
 /// </para>
 /// <para>
 /// <see cref="MintRunId"/> derives a deterministic id from the player id and run counter rather than
@@ -56,10 +76,15 @@ internal static class StartRun
     private const int TrailheadPosition = -1;
 
     /// <summary>
-    /// Not a design value: <c>Run.SetHitPoints</c>'s own floor, used because no document authors a
-    /// starting Max HP before a hero build exists to score. See <see cref="Handle"/>'s remarks.
+    /// The floor a composed Max HP is clamped up to, so a content set that scored zero still opens a
+    /// run the domain accepts.
     /// </summary>
-    private const int StartingHitPoints = 1;
+    /// <remarks>
+    /// ⚠️ Not a starting value any more — see <see cref="Handle"/>'s remarks. It survives as a clamp
+    /// because <c>Run.SetHitPoints</c> refuses a Max HP below 1, and a hero whose build somehow scored
+    /// zero should fail on the fight it cannot win rather than on a rehydrate nobody can read.
+    /// </remarks>
+    private const int MinimumHitPoints = 1;
 
     /// <summary>Gold is scoped to the run; a run that has picked up nothing holds none.</summary>
     private const long StartingGold = 0L;
@@ -144,6 +169,15 @@ internal static class StartRun
         var runSeed = SeedDerivation.RunSeed(
             player.Id, command.ChapterId, command.Tier, input.Context.NowUtc, runCounter);
 
+        // Scored from the build, then clamped to the domain's own floor. Rounded away from zero so a
+        // hero whose composed Max HP lands on a fraction opens at the higher whole point rather than
+        // silently losing one — the same rounding Revive's heal uses.
+        var startingHitPoints = Math.Max(
+            MinimumHitPoints,
+            (int)Math.Round(
+                HeroBuild.Of(player, null, input.Context.Content).BaseStats[StatId.MAX_HP],
+                MidpointRounding.AwayFromZero));
+
         var snapshot = new RunSnapshot(
             SnapshotSchema.SchemaVersion,
             MintRunId(player.Id, runCounter),
@@ -153,8 +187,8 @@ internal static class StartRun
             command.Tier,
             input.Context.NowUtc,
             TrailheadPosition,
-            StartingHitPoints,
-            StartingHitPoints,
+            startingHitPoints,
+            startingHitPoints,
             StartingGold,
             NoStreamPositions,
             NoAdUses,

@@ -8,6 +8,7 @@ using SlayIdleRepeat.Core.Tests.Content;
 using Shouldly;
 using SlayIdleRepeat.Core.Tests.Model.Gear;
 using SlayIdleRepeat.Core.Tests.Rules.Combat;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 namespace SlayIdleRepeat.Core.Tests;
 
@@ -70,7 +71,13 @@ internal static class Harnesses
         DateTimeOffset? start = null,
         ulong? seed = null,
         ContentSnapshot? content = null) =>
-        new(content ?? TuningDocuments.Shipped, seed ?? Seed, new VirtualClock(start ?? Start));
+        new(
+            // 🔒 The shipped gaps filled in. START_RUN scores Max HP off the hero's build (M7-06d), so
+            // every harness that opens a run now reads the combat caps, the gear catalogue and the par
+            // table — documents a hand-assembled tuning set had no reason to carry.
+            content ?? ShippedHarness.WithShippedGaps(TuningDocuments.Shipped),
+            seed ?? Seed,
+            new VirtualClock(start ?? Start));
 
     /// <summary>A harness with one player already created, and that player's id.</summary>
     /// <param name="start">When the simulation starts. Defaults to <see cref="Start"/>.</param>
