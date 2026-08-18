@@ -116,7 +116,10 @@ SlayIdleRepeat.sln
 │   │   │   ├── SlayIdleRepeat.Adapters.Push.Firebase/
 │   │   │   ├── SlayIdleRepeat.Adapters.Telemetry.Sentry/
 │   │   │   ├── SlayIdleRepeat.Adapters.Consent.AppLovinCmp/
-│   │   │   └── SlayIdleRepeat.Adapters.Platform.Godot/      # audio, haptics, locale, device info
+│   │   │   ├── SlayIdleRepeat.Adapters.Platform.Godot/      # ENGINE CAPABILITIES — audio, haptics,
+│   │   │   │                                                #   engine paths. Implements NO port (§7.2a)
+│   │   │   └── SlayIdleRepeat.Adapters.Platform.Host/       # the plain-C# sibling that DOES:
+│   │   │                                                    #   IPlatformInfoPort over the BCL
 │   │   │
 │   │   ├── server/
 │   │   │   ├── SlayIdleRepeat.Adapters.Persistence.Postgres/
@@ -430,10 +433,13 @@ Selection is **platform-conditional and entitlement-conditional**, and it is the
 // SlayIdleRepeat.Client/Composition/ClientComposition.cs
 container.Register<IGameApiPort, HttpGameApiAdapter>();
 container.Register<ILocalCachePort, LocalFileCacheAdapter>();
-container.Register<IPlatformInfoPort, GodotPlatformInfoAdapter>();
-container.Register<IAudioPort, GodotAudioAdapter>();
-container.Register<IHapticsPort, GodotHapticsAdapter>();
+container.Register<IPlatformInfoPort, HostPlatformInfo>();      // plain C#, NOT a Godot class — see 7.2a
 container.Register<ITelemetryPort, SentryTelemetryAdapter>();
+
+// The engine's own capabilities are named here as CONCRETE TYPES, behind no port (7.2a)
+var audio   = new GodotAudioOutput();
+var haptics = new GodotHaptics();
+var paths   = new GodotUserPaths();
 
 #if ANDROID
     container.Register<IBillingPort, GooglePlayBillingAdapter>();
@@ -448,6 +454,24 @@ container.Register<IRewardedAdPort>(_ => session.Entitlements.HasPlus
 ```
 
 This is where the Plus subscription's "no ads, same rewards" promise is implemented — as **an adapter swap**, with no `if (isSubscriber)` anywhere in the game. It is the cleanest possible expression of `12` §1's fairness contract.
+
+### 7.2a A Godot class may not implement a port 🔒
+
+**This section used to register `GodotPlatformInfoAdapter`, `GodotAudioAdapter` and `GodotHapticsAdapter` against their ports. It cannot, and the reason is a measured physical fact rather than a preference.**
+
+Every class in `SlayIdleRepeat.Adapters.Platform.Godot` reaches `GodotSharp`, whose managed API is a shim over native function pointers **the engine populates at startup**. Called from a test process, the first of them marshals a string through a null pointer and raises an `AccessViolationException` that no `catch` block can observe: the test host does not fail, it **dies**, taking every other case in the run with it. This was measured on this repository from a real fixture, not reasoned about.
+
+That collides with §5 A8. `SlayIdleRepeat.Contract.Tests` project-references the engine adapter and demands a contract fixture for **every concrete implementation of a port it can see**, so the moment a class there implements one, the suite asks for the fixture that kills the run. There is no second tier to put such a fixture in: §3 is explicit that this repository has no integration or end-to-end tier and none is to be added. One of the two statements had to give, and **the document is the half that yields** — the engine's behaviour is not negotiable and the test tier is a locked decision.
+
+So, three rules:
+
+| | |
+|---|---|
+| **A class under `Adapters.Platform.Godot` implements no port.** It is a *capability*: a concrete type the composition root names directly, as above. | §2.1 already makes the composition roots "the only projects that reference concrete adapters". This is that permission used deliberately, rather than by omission. |
+| **A port whose only plausible implementation is an engine call is DEFERRED, not implemented.** `IAudioPort` and `IHapticsPort` are both in that state, each with its own further blocker. | A no-op stand-in would satisfy §5 A5's two-implementations rule with two fakes, which is worse than an absent port because it looks built. |
+| **Ports are implemented by plain-C# host adapters.** `SlayIdleRepeat.Adapters.Platform.Host` is the shipped precedent: it answers `IPlatformInfoPort` from the BCL, on the desktop *and* on the device, with a real contract fixture beside the in-memory fake. | An adapter that runs anywhere the BCL runs is an adapter the shared suite can actually exercise, which is the whole of §5 A8. |
+
+⚠️ **This is a limitation, not an architecture.** `A10` still holds — Godot is an adapter, not a foundation — and nothing here licenses game logic inside a `Node`. If an engine-capable test host or a sanctioned fixture exemption ever arrives, the honest change is to amend this subsection back, not to work around it: `PortCatalogueTests.No_type_in_the_engine_adapter_implements_a_port` is the rule that will be standing in the way, and it is standing there on purpose.
 
 ---
 

@@ -187,7 +187,15 @@ internal static class PortCatalogue
         // the message. The two entries below are its siblings and did NOT become declarable; the
         // reason they share is now measured rather than argued.
 
-        new("IHapticsPort", "M7-01",
+        // ⚠️ M9-04, and it is the NEAREST row rather than a row that names haptics — the same
+        // weakness the IGhostRepository and IsLowEndDevice entries carry, recorded rather than
+        // smoothed over. M9-04 is "Settings S26 (audio, accessibility, …) + Profile S27" against
+        // `13` §8, and `13` §8 is the section that carries "Haptics toggle | On/off" as a REQUIRED
+        // v1 accessibility feature — so it is the only open row in the tracker whose own spec
+        // reference names haptics at all. The owner it REPLACES was M7-01, a task that had already
+        // merged: M7-01c's Every_port_catalogue_owner_is_a_task_the_tracker_still_has_open is what
+        // found that, and is what will find the next one.
+        new("IHapticsPort", "M9-04",
             "🔒 MEASURED, not argued: its only real implementation is GodotHaptics, and calling it " +
             "outside the engine does not throw — it FATALLY FAULTS THE PROCESS. Godot.Input's static " +
             "constructor marshals a StringName through GodotSharp's native shim, whose function " +
@@ -202,15 +210,31 @@ internal static class PortCatalogue
             "motor, so a non-engine sibling is a no-op, which is the hollow fake A5 refuses. M7-01b " +
             "declared IPlatformInfoPort past the same engine problem only because THAT port has a " +
             "genuine non-engine reader; haptics has none, and inventing one is worse than waiting. " +
+            "🔒 AND THE DOCUMENT NOW AGREES, which it did not when this entry was written: 23 §7.2 " +
+            "registered GodotHapticsAdapter against this port, and M7-01c amended it — the new " +
+            "§7.2a states the three rules that follow from the measurement above, and " +
+            "No_type_in_the_engine_adapter_implements_a_port holds them. So this entry is no " +
+            "longer a deferral standing against its own specification; both say the same thing. " +
+            "What still expires it is the engine, not the text: the day a Godot class can carry a " +
+            "contract fixture, that rule goes red and this entry is what the failure sends you to. " +
+            "M9-04 owns declaring the port over whatever implementation exists by then. " +
             "⚠️ THE SHAPE IS ALSO NOT SETTLED, and this half is cheap to fix when the rest is: 23 " +
             "§4.1 writes Play(HapticPattern) and nothing in this repository declares HapticPattern, " +
             "while the adapter that exists takes a duration in milliseconds. 04 §6 authorises exactly " +
             "three patterns — light on roll start, medium on land, heavy on Star/Fortune — so the " +
             "vocabulary is a transcription rather than an invention and is NOT what blocks this."),
 
-        new("IAudioPort", "M7-01",
+        // 🔒 M8-07, read off this entry's own reason rather than chosen: that row is "Audio:
+        // mus_home …, core combat SFX, dice SFX, UI SFX; BUS STRUCTURE, DUCKING (incl. mandatory
+        // full duck around ads), polyphony caps" — which is `23` §4.1's SetBusVolume and
+        // DuckForExternalAudio spelled out as a deliverable, and it is the task that first plays a
+        // sound. It is ⛔ blocked on the licence, which is still AHEAD of us; the owner it replaces,
+        // M7-01, is behind us.
+        new("IAudioPort", "M8-07",
             "Carries the haptics entry's engine problem — GodotAudioOutput faults the same way, for " +
-            "the same reason, and has no non-engine sibling either. 🔒 AND A CORRECTION THE NEXT " +
+            "the same reason, and has no non-engine sibling either; 23 §7.2a is where M7-01c wrote " +
+            "that down, and it replaced the registration of GodotAudioAdapter against this port. " +
+            "🔒 AND A CORRECTION THE NEXT " +
             "READER SHOULD NOT HAVE TO MAKE TWICE: the reason this entry USED to give was that " +
             "declaring the port means inventing SfxId/MusicId/AudioBus on M8's behalf, and that is " +
             "FALSE. The vocabularies are all transcribed and committed already — `20` §5's bus " +
