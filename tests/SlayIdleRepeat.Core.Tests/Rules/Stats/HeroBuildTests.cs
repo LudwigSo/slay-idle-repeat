@@ -54,25 +54,34 @@ public sealed class HeroBuildTests
         Stat(build, StatId.CRIT).ShouldBe(0.05);
         Stat(build, StatId.CDMG).ShouldBe(0.5);
         Stat(build, StatId.HEAL_PCT).ShouldBe(1.0, "a multiplier on all healing received, not a zero");
+        Stat(build, StatId.DODGE).ShouldBe(0.02, "the other stat whose base is not zero");
         Stat(build, StatId.LIFESTEAL).ShouldBe(0.0);
         Stat(build, StatId.BLOCK).ShouldBe(0.0);
         Stat(build, StatId.PEN).ShouldBe(0.0);
+        Stat(build, StatId.DMG_PCT).ShouldBe(0.0);
+        Stat(build, StatId.DR_PCT).ShouldBe(0.0);
+        Stat(build, StatId.THORNS).ShouldBe(0.0);
     }
 
     // ───────────────────────────────────────────────────── the item's own two stats
 
-    /// <summary>An equipped weapon raises attack above the bare hero's.</summary>
+    /// <summary>An equipped weapon raises attack by the amount its own four inputs say.</summary>
     /// <remarks>
-    /// The whole milestone in one line, and it was false until this task: the derivation existed,
+    /// 🔒 The whole milestone in one line, and it was false until this task: the derivation existed,
     /// nothing called it, and a hero in full gear fought with the numbers of a naked one.
+    /// <para>
+    /// The literal is the point rather than a convenience. "Higher than nothing" is satisfied by a
+    /// derivation off by any factor at all — halving every item in the game would pass it — so the
+    /// figure is composed here from the four authored numbers that produce it: the chapter's power
+    /// target, the fraction of it one item carries, the band's multiplier and the slot's coefficient,
+    /// at the quality where the primary scale is exactly one.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void An_equipped_weapon_raises_attack()
+    public void An_equipped_weapon_raises_attack_by_the_amount_its_inputs_say()
     {
-        var bare = Stat(HeroBuild.Of(Level, [], Content), StatId.ATK);
-        var armed = Stat(HeroBuild.Of(Level, [Weapon("w")], Content), StatId.ATK);
-
-        (armed > bare).ShouldBeTrue($"a blade raises {bare} to {armed}");
+        Stat(HeroBuild.Of(Level, [Weapon("w")], Content), StatId.ATK).ShouldBe(
+            112.0, "36 of hero, plus 1000 x 0.1 x 3.8 x 0.2 of blade");
     }
 
     /// <summary>
@@ -92,10 +101,11 @@ public sealed class HeroBuildTests
     {
         var build = HeroBuild.Of(Level, [Amulet("a")], Content);
 
-        Stat(build, StatId.LIFESTEAL).ShouldBeGreaterThan(
-            0.0,
-            "the amulet's secondary is lifesteal and the hero's base lifesteal is 0.0, so a percent " +
-            "add would multiply zero and leave the stat exactly where it started");
+        Stat(build, StatId.LIFESTEAL).ShouldBe(
+            0.06,
+            "the amulet's secondary is lifesteal, read straight from the per-rarity table at the " +
+            "quality where the secondary scale is one — and the hero's base lifesteal is 0.0, so a " +
+            "percent add would multiply zero and leave the stat exactly where it started");
     }
 
     /// <summary>An enhanced item is worth more than the same item unenhanced, by the authored ladder.</summary>
@@ -117,10 +127,12 @@ public sealed class HeroBuildTests
 
         maxedGain.ShouldBeGreaterThan(freshGain, "a maxed item is not the same item as a fresh one");
 
-        (maxedGain / freshGain).ShouldBe(
+        (maxedGain / (freshGain / forge.StatMultiplier(forge.MinEnhanceLevel))).ShouldBe(
             forge.StatMultiplier(forge.MaxEnhanceLevel),
-            tolerance: 1e-9,
-            "the gain scales by exactly the authored ladder, not by some other slope");
+            tolerance: 1e-4,
+            "the gain scales by exactly the authored ladder, not by some other slope. The tolerance " +
+            "is the determinism grid rather than an epsilon: both sides cross a rounding step, so the " +
+            "residual is bounded by the fourth decimal place and by nothing tighter");
     }
 
     // ──────────────────────────────────────────────────────────────────── the affixes
@@ -163,7 +175,7 @@ public sealed class HeroBuildTests
 
         with.ShouldBe(
             DeterminismRounding.Round(without * 1.2),
-            tolerance: 1e-9,
+            tolerance: 1e-4,
             "a +20% Max HP affix is a fifth more of everything flat, not a fifth of a hit point");
     }
 
@@ -220,8 +232,11 @@ public sealed class HeroBuildTests
     {
         var build = HeroBuild.Of(Level, BloodmoonPieces(2), Content);
 
-        Stat(build, StatId.LIFESTEAL).ShouldBeGreaterThanOrEqualTo(
-            0.1, "Bloodmoon's two-piece bonus is +10% lifesteal");
+        Stat(build, StatId.LIFESTEAL).ShouldBe(
+            0.1,
+            "Bloodmoon's two-piece bonus is +10% lifesteal, the hero's base is 0.0, and neither a " +
+            "blade nor leathers carries any — so the authored magnitude IS the answer here, and a " +
+            "bonus authored at half or double it fails");
     }
 
     /// <summary>One piece grants nothing, and a lower band does not count towards a set.</summary>
@@ -310,29 +325,35 @@ public sealed class HeroBuildTests
         build.Effects.ShouldContain(e => e.Id.StartsWith("SET_BONUS", StringComparison.Ordinal));
     }
 
-    /// <summary>Caps are applied after aggregation, not per contribution.</summary>
+    /// <summary>A build that passes a capped stat's ceiling lands exactly on it.</summary>
     /// <remarks>
-    /// Crit chance is capped, and a ring, a weapon and a crit affix together can pass the ceiling.
-    /// The claim is that the ceiling is the authored one and that the build does not exceed it — a
-    /// pipeline that capped each contribution instead would land below it and look correct.
+    /// 🔴 <b>The fixture has to overshoot, and the first version of this case did not.</b> Two SS
+    /// items with a crit affix each reach 0.37 against a ceiling of 0.75 — so "at most the ceiling"
+    /// was true of every value the pipeline could produce, and deleting the cap step entirely would
+    /// have left it green. Five crit rings pass the ceiling, and asserting equality there kills both
+    /// mutations at once: with no cap the answer is the raw total, and with a cap applied per
+    /// contribution instead of after aggregation it is the raw total as well, since no single
+    /// contribution reaches the ceiling on its own.
     /// </remarks>
     [Fact]
-    public void A_capped_stat_is_bounded_by_the_authored_ceiling()
+    public void A_build_that_passes_a_capped_stats_ceiling_lands_exactly_on_it()
     {
-        var caps = CombatCaps.Read(Content);
+        var ceiling = CombatCaps.Read(Content).Caps.Apply(StatId.CRIT, double.MaxValue);
 
-        var stacked = new[]
-        {
-            Inventories.Item(
-                "r", GearFamily.BAND, Rarity.SS, affixes: [new GearAffixRoll("AFX_CRIT_CHANCE", 0.08)]),
-            Inventories.Item(
-                "w", GearFamily.BLADE, Rarity.SS, affixes: [new GearAffixRoll("AFX_CRIT_CHANCE", 0.08)]),
-        };
+        var stacked = Enumerable.Range(0, 5)
+            .Select(n => Inventories.Item(
+                "ring_" + n.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                GearFamily.BAND,
+                Rarity.SS,
+                affixes: [new GearAffixRoll("AFX_CRIT_CHANCE", 0.08)]))
+            .ToArray();
 
         var crit = Stat(HeroBuild.Of(Level, stacked, Content), StatId.CRIT);
 
-        crit.ShouldBeLessThanOrEqualTo(caps.Caps.Apply(StatId.CRIT, double.MaxValue));
-        crit.ShouldBeGreaterThan(0.05, "and the stacking still moved it off the base");
+        crit.ShouldBe(
+            ceiling,
+            "five rings carry 0.05 base + 5 x (0.08 slot + 0.08 affix) = 0.85, which is over the " +
+            "ceiling — so the capped answer IS the ceiling, and an uncapped pipeline answers 0.85");
     }
 
     // ──────────────────────────────────────────────────────────────────────── fixtures

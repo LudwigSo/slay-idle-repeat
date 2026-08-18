@@ -1,6 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content;
@@ -494,35 +495,62 @@ public sealed class DropsTuningTests
 
     // ------------------------------------------------- what an affix writes, and how
 
-    /// <summary>Every shipped affix either names both a stat and a bucket, or names neither.</summary>
+    /// <summary>
+    /// 🔒 The shipped document writes the stat and the bucket this suite's fixture transcribes,
+    /// affix by affix.
+    /// </summary>
     /// <remarks>
-    /// Stated over the whole pool rather than a sample, because half a pair is the shape that reads
-    /// as authored and applies nothing.
+    /// <para>
+    /// 🔴 <b>The version of this that only walked the fixture could not fail.</b> The hermetic
+    /// snapshot is <em>built from</em> the same transcription the loop then read back, so it asserted
+    /// a list against itself and never opened the real document at all — and the properties it
+    /// checked (both-or-neither, and that the convenience predicate agreed with its own two fields)
+    /// are both restatements of guards the reader already enforces on the way in. Returning a
+    /// constant stat for every affix would have left it green.
+    /// </para>
+    /// <para>
+    /// So the assertion is now the mapping itself, read out of the file the game ships, one row at a
+    /// time. This is the only place the fourteen authored pairings are pinned.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void Every_authored_affix_names_a_stat_and_a_bucket_together_or_neither()
+    public void The_shipped_document_writes_the_stat_and_the_bucket_this_suite_transcribes()
     {
-        var drops = DropsTuning.Read(GearDocuments.Shipped);
+        var real = DropsTuning.Read(ShippedHarness.Content);
 
-        var pool = Enumerable.Range(0, drops.AffixCount)
-            .Select(_ => 0)
-            .ToArray();
-
-        pool.Length.ShouldBe(
+        real.AffixCount.ShouldBe(
             GearDocuments.ShippedAffixPoolSize, "the pool is the size the design set authors");
 
         foreach (var affix in GearDocuments.ShippedAffixes)
         {
-            var row = drops.Affix(affix.AffixId);
+            var row = real.Affix(affix.AffixId);
 
-            (row.Stat is null).ShouldBe(
-                row.Op is null,
-                $"{affix.AffixId} authors one half of the pair. A stat with no bucket cannot be " +
-                "applied and a bucket with no stat cannot be aimed.");
-
-            row.WritesAStat.ShouldBe(
-                row.Stat is not null, $"{affix.AffixId} answers the same question twice differently");
+            row.Stat?.ToString().ShouldBe(affix.Stat, $"{affix.AffixId} writes a different stat");
+            row.Op?.ToString().ShouldBe(affix.Op, $"{affix.AffixId} writes through a different bucket");
+            row.WritesAStat.ShouldBe(affix.Stat is not null);
         }
+    }
+
+    /// <summary>Exactly one of the fourteen writes nothing, and it is the one nothing can express.</summary>
+    /// <remarks>
+    /// The floor under the case above (steering S3): a transcription that quietly emptied, or one
+    /// that gained a second unmapped affix, would otherwise pass over whatever was left.
+    /// </remarks>
+    [Fact]
+    public void Exactly_one_shipped_affix_writes_no_stat_at_all()
+    {
+        var real = DropsTuning.Read(ShippedHarness.Content);
+
+        var unmapped = GearDocuments.ShippedAffixes
+            .Where(affix => !real.Affix(affix.AffixId).WritesAStat)
+            .Select(affix => affix.AffixId)
+            .ToArray();
+
+        unmapped.ShouldBe(
+            ["AFX_DAMAGE_VS_ELITES"],
+            "conditional damage is the one bonus the fourteen-stat block has no slot for; every " +
+            "other affix names a stat, and a second unmapped one is a bonus that silently stopped " +
+            "contributing");
     }
 
     /// <summary>An affix naming a stat with no bucket, or a bucket with no stat, is refused.</summary>

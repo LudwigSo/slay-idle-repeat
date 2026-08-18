@@ -302,6 +302,25 @@ public sealed class InventorySortingTests
         Sorted(InventorySortKey.POWER, [low, high]).Select(id => id.Value).ShouldBe(["high", "low"]);
     }
 
+    /// <summary>The enhancement term is priced at the authored slope, not merely at something.</summary>
+    /// <remarks>
+    /// The two cases above are satisfied by any function that climbs with the level, so this one
+    /// crosses a band boundary where the real slope decides: the ladder's total is worth less than
+    /// one band step, so a maxed A stays below a fresh SS. A term that over-priced the ladder — one
+    /// that read the level itself, say — flips this and stays green on both of the others.
+    /// </remarks>
+    [Fact]
+    public void Strongest_first_prices_the_ladder_at_the_authored_slope()
+    {
+        var maxedA = Inventories.Item(
+            "a15", GearFamily.BLADE, Rarity.A, enhanceLevel: Inventories.Forge.MaxEnhanceLevel);
+        var freshSs = Inventories.Item("ss0", GearFamily.BLADE, Rarity.SS);
+
+        Sorted(InventorySortKey.POWER, [maxedA, freshSs]).Select(id => id.Value).ShouldBe(
+            ["ss0", "a15"],
+            "the whole ladder is worth less than the A-to-SS step, so the band still decides");
+    }
+
     /// <summary>An empty list sorts to an empty list rather than throwing.</summary>
     [Fact]
     public void An_empty_inventory_sorts_to_nothing()

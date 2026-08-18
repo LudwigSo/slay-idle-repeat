@@ -204,6 +204,30 @@ public sealed partial class GearAuthoringGapRegisterTests
     {
         var rows = TrackerRows();
 
+        rows.Count.ShouldBe(
+            206,
+            "every task row carries a status glyph. A row whose notes hold an unescaped pipe used to " +
+            "drop out of this lookup and read as permanently open, so the count is pinned rather " +
+            "than left to the reader's shape.");
+
+        HasShipped(rows["M4-05"]).ShouldBeTrue(
+            "M4-05 merged and is marked done, and it owns nothing in this register; a predicate that " +
+            "cannot see a shipped task is not watching anything");
+
+        HasShipped(rows["M5-06"]).ShouldBeFalse(
+            "M5-06 has not started, and it owns nothing here either — so neither half of this control " +
+            "restates the rule it is controlling");
+    }
+
+    /// <summary>🔒 The floor under both arms (steering S3): the register still holds its entries.</summary>
+    /// <remarks>
+    /// Separate from the predicate probe above because these are facts about the register's SHAPE
+    /// rather than about the predicate — a name that promised both would deliver whichever failed
+    /// first.
+    /// </remarks>
+    [Fact]
+    public void The_register_holds_the_eight_gaps_it_was_written_against()
+    {
         Gaps.Length.ShouldBe(
             8,
             "eight gear bonuses are deliberately unauthored: one affix and seven set-bonus " +
@@ -213,12 +237,6 @@ public sealed partial class GearAuthoringGapRegisterTests
 
         Gaps.Select(g => g.Pointer).Distinct(StringComparer.Ordinal).Count().ShouldBe(
             Gaps.Length, "two entries on one pointer would untrack the second when the first is filled");
-
-        HasShipped(rows["M4-05"]).ShouldBeTrue(
-            "M4-05 merged and is marked done, and it owns nothing in this register; a predicate that " +
-            "cannot see a shipped task is not watching anything");
-
-        HasShipped(rows["M4-14"]).ShouldBeFalse("M4-14 has not started");
     }
 
     /// <summary>
@@ -245,11 +263,22 @@ public sealed partial class GearAuthoringGapRegisterTests
     /// <summary>The status glyph for a task that merged and awaits its milestone review.</summary>
     private const string MergedAwaitingReview = "🔍";
 
+    /// <summary>The glyphs a status cell opens with. The first three mean shipped or not; all seven mark the cell.</summary>
+    /// <remarks>
+    /// A status cell is recognised BY ITS GLYPH, never by its position, and that is not tidiness.
+    /// 🔴 Position was the first implementation and it is wrong on real rows: two of the tracker's
+    /// task rows carry an unescaped pipe inside their notes, so the last <c>|</c>-delimited cell is a
+    /// fragment of prose. <c>HasShipped</c> then answers "still open" unconditionally for those two —
+    /// a second arm that cannot fire, inside the register written to end exactly that.
+    /// </remarks>
+    private static readonly string[] StatusGlyphs =
+        ["✅", "🔍", "⬜", "⏳", "🔄", "⛔", "🔴"];
+
     /// <summary>Every task row in the tracker, task id to status cell.</summary>
     /// <remarks>
-    /// The status is the row's LAST cell. Rows are read from the tracker rather than transcribed
-    /// here, because a hard-coded copy would go stale in exactly the silence this rule exists to end.
-    /// A duplicated id keeps the first row, which is the one the tables are ordered by.
+    /// Read from the tracker rather than transcribed here, because a hard-coded copy would go stale
+    /// in exactly the silence this register exists to end. A duplicated id keeps the first row, which
+    /// is the one the tables are ordered by.
     /// </remarks>
     private static IReadOnlyDictionary<string, string> TrackerRows()
     {
@@ -264,11 +293,13 @@ public sealed partial class GearAuthoringGapRegisterTests
                 continue;
             }
 
-            var cells = line.Trim().Trim('|').Split('|');
+            var status = line.Trim().Trim('|').Split('|')
+                .Select(cell => cell.Trim())
+                .LastOrDefault(cell => StatusGlyphs.Any(g => cell.StartsWith(g, StringComparison.Ordinal)));
 
-            if (cells.Length >= 2)
+            if (status is not null)
             {
-                rows.TryAdd(match.Groups[1].Value, cells[^1].Trim());
+                rows.TryAdd(match.Groups[1].Value, status);
             }
         }
 

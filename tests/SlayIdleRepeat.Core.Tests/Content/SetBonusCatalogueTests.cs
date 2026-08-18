@@ -131,7 +131,7 @@ public sealed class SetBonusCatalogueTests
         Should.Throw<InvalidTunableException>(
                 () => SetBonusCatalogue.Read(
                     Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
-            .Message.ShouldContain("a key this reader does not map", Case.Sensitive);
+            .Message.ShouldContain("'duration' is a key this reader does not map", Case.Sensitive);
     }
 
     /// <summary>A key the reader does not map INSIDE the trigger is refused too.</summary>
@@ -158,10 +158,16 @@ public sealed class SetBonusCatalogueTests
             }),
         });
 
-        Should.Throw<InvalidTunableException>(
+        var message = Should.Throw<InvalidTunableException>(
                 () => SetBonusCatalogue.Read(
                     Snapshot(CoveringSet("BALANCED", effect)), Breakpoints))
-            .Message.ShouldContain("a set bonus's trigger may carry", Case.Sensitive);
+            .Message;
+
+        message.ShouldContain("'once' is a key this reader does not map", Case.Sensitive);
+        message.ShouldContain(
+            "a set bonus's trigger may carry",
+            Case.Sensitive,
+            "the nested guard fired, not the one over the effect's own keys");
     }
 
     /// <summary>A set authoring fewer rows than the ladder has breakpoints is refused.</summary>
@@ -227,7 +233,7 @@ public sealed class SetBonusCatalogueTests
                         CoveringSet("BALANCED", StatEffect("SET_A")),
                         CoveringSet("BALANCED", StatEffect("SET_B"))),
                     Breakpoints))
-            .Message.ShouldContain("authored twice", Case.Sensitive);
+            .Message.ShouldContain("The BALANCED axis is authored twice", Case.Sensitive);
     }
 
     // ------------------------------------------------------------------------ fixtures
