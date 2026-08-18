@@ -103,19 +103,5 @@ internal static class GearEnhancement
         return (enhanced, succeeded, rate);
     }
 
-    /// <summary>The multiplier an item's base stats carry at a given enhancement level.</summary>
-    /// <param name="enhanceLevel">The level the item stands at.</param>
-    /// <param name="tuning">The forge numbers.</param>
-    /// <returns>The multiplier — 1 at the floor, and the authored total at the ceiling.</returns>
-    /// <exception cref="ArgumentNullException"><paramref name="tuning"/> is null.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">The level is outside the authored range.</exception>
-    internal static double StatMultiplier(int enhanceLevel, ForgeTuning tuning)
-    {
-        ArgumentNullException.ThrowIfNull(tuning);
-        ArgumentOutOfRangeException.ThrowIfLessThan(enhanceLevel, tuning.MinEnhanceLevel);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(enhanceLevel, tuning.MaxEnhanceLevel);
-
-        return DeterminismRounding.Round(
-            1.0 + (tuning.StatBonusPerLevel * (enhanceLevel - tuning.MinEnhanceLevel)));
-    }
+    // StatMultiplier moved to ForgeTuning when it gained its first callers; its reasons are there.
 }

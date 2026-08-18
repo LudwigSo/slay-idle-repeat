@@ -38,6 +38,9 @@ internal static class Inventories
     /// <summary>The par table the stat derivation reads.</summary>
     internal static ParPowerTuning Par { get; } = ParPowerTuning.Read(GearDocuments.Shipped);
 
+    /// <summary>The forge numbers the strongest-first ordering reads an item's enhancement from.</summary>
+    internal static ForgeTuning Forge { get; } = ForgeTuning.Read(ForgeDocuments.Shipped);
+
     /// <summary>An inventory holding nothing, with nothing bought.</summary>
     internal static Inventory Empty() => Rehydrated(new InventorySnapshot(0, [], []));
 

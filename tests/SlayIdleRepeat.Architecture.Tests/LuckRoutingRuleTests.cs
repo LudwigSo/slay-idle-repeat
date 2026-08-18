@@ -501,6 +501,23 @@ public sealed class LuckRoutingRuleTests
         ("GearSalvage", "answers what an item BREAKS DOWN INTO. It names a GearInstance because it reads one — the band it rolled and the level it reached — and it produces no item at all: the two numbers it answers are currency amounts. GearStatDerivation's reason, at the other end of the item's life"),
 
         ("GearInstanceSnapshot", "the persisted ROW of an item that was granted long before it was written down. It carries the band because that is what the item rolled — HardPityStep's and SessionFloor's reason, one layer over: a data row carrying a rarity is not a place a rarity is decided. ⚠️ It is scanned at all because its SIMPLE NAME is not in GrantOutcomeTypes, so MentionsItsOwnTypeByConstruction never covers its constructor and accessors the way it covers GearInstance's. Accessibility has nothing to do with it — Il.AllMethods filters on nothing of the sort, and an internal constructor would trip this identically. A snapshot of a pet or a mount will want the same row"),
+
+        // 🔒 M4-16's FIVE, and every one of them is kind (b) — a CONSUMER of items that were granted
+        // long before it ran. The whole task is the direction this rule does not watch: an item that
+        // already exists becoming a number on the hero. Nothing here takes an Rng, decides a band,
+        // or constructs a GearInstance; each names one because it reads what is worn.
+        //
+        // ⚠️ WHAT WAS RESTRUCTURED RATHER THAN EXEMPTED, on M4-03's own precedent, because five rows
+        // arriving at once reads as a rule being hollowed out: the effect ids and holdings live on
+        // GearEffectNames instead of as private helpers on each of the three sources, which would
+        // have put the same three signatures behind three more rows; and the hero build resolves the
+        // loadout through Inventory.Find rather than a helper answering a GearInstance, which is the
+        // shape M4-04's note records the forge handlers taking for exactly this reason.
+        ("GearEffectNames", "spells the effect id and the holding key one gear contribution is carried under. It takes an item to read its slot and its identity and answers strings; the only list it builds is the same items in slot order, so that the collection order is a function of the build"),
+        ("GearEffectSource", "turns the equipped items' own two derived stats into the effects the aggregation collects, at the enhancement level each item stands at. It consumes GearStatDerivation, which carries this same reason, and produces effect definitions rather than items"),
+        ("GearAffixEffectSource", "turns the affixes already rolled onto the equipped items into effects, reading the stat and the bucket each affix writes out of the authored pool. The values were decided at the mint; this reads them back"),
+        ("SetBonusEffectSource", "joins SetBonusResolver's answer — which sets a loadout wears and which breakpoints it has met — to the effects those breakpoints grant. Both halves were decided elsewhere; SetBonusResolver carries this same reason"),
+        ("HeroBuild", "composes the base curve, the equipped items, their affixes and their set bonuses into one stat block. It names GearInstance because the block is a function of what is worn, and it is the far end of an item's life from the draw that produced it"),
     };
 
     /// <summary>

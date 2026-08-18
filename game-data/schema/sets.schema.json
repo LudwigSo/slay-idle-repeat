@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/sets.schema.json",
+  "title": "content/sets/sets.json",
+  "description": "08 §3.2 — the four SS sets and the bonuses their 2/4/6-piece breakpoints grant, as effect DSL data. A set is keyed by its family axis and by nothing else: there is exactly one set per axis, tuning/drops.json authors a null setId because the design set names no setId vocabulary, and an SS item's family already resolves to an axis — so a second identifier here would be a second answer to which set a piece belongs to. The breakpoints themselves are tuning/drops.json#/sets/breakpoints and are not restated here; the reader cross-checks every pieces value against that ladder and refuses one that is not on it. 🔒 THE EFFECT OBJECTS HERE ARE VALIDATED ELSEWHERE, on bosses.schema.json's and perk.schema.json's pattern: this schema constrains an embedded effect STRUCTURALLY (an object with an id and an op, both the right shape) and states nothing about which keys go with which op, because it may neither $ref schema/effect.schema.json (the validator resolves same-document pointers only) nor restate it. The strict per-op check is DeclaredRules' R35, which walks every embedded effect under content/ and validates it against schema/effect.schema.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "_doc", "_status", "sets"],
+  "properties": {
+    "$schema": { "type": "string" },
+    "_doc": { "type": "string", "minLength": 1 },
+    "_status": { "enum": ["transcribed", "partial", "skeleton"] },
+    "sets": {
+      "description": "08 §3.2 — exactly four, one per family axis.",
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["familyAxis", "displayName", "bonuses"],
+        "properties": {
+          "familyAxis": { "enum": ["BALANCED", "HEAVY", "CASTER", "AGILE"] },
+          "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+          "bonuses": {
+            "description": "One row per authored breakpoint, ascending. Three today, because tuning/drops.json authors 2/4/6.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["pieces", "effects"],
+              "properties": {
+                "pieces": {
+                  "description": "The breakpoint this row grants at. Must be one tuning/drops.json#/sets/breakpoints authors — checked by the reader, which is the only layer that can see both documents.",
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 6
+                },
+                "effects": {
+                  "description": "The effects the breakpoint grants. null where 08 §3.2's prose names a mechanism that does not exist or a magnitude nobody wrote — an unauthorised bonus rather than an absent one, so that it stays greppable instead of being filled with a plausible number. Never an empty array: empty would say 'this breakpoint grants nothing', which no set does.",
+                  "type": ["array", "null"],
+                  "minItems": 1,
+                  "items": {
+                    "description": "18 §1 — one authored effect, embedded in the set breakpoint that owns it. Only the two keys 18 §1 makes universal are required; the closed op-to-key partition is schema/effect.schema.json's, applied here by DeclaredRules' R35.",
+                    "type": "object",
+                    "required": ["id", "op"],
+                    "properties": {
+                      "id": { "type": "string", "minLength": 1, "pattern": "^[A-Z][A-Z0-9_]*$" },
+                      "op": {
+                        "description": "18 §2 — which operation the effect performs. Shape only, deliberately: the token set is enumerated in schema/effect.schema.json and nowhere else.",
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[A-Z][A-Z0-9_]*$"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Gear;
@@ -149,7 +150,13 @@ public sealed class GearAffixRollerTests
         var draws = Rng();
 
         var rolled = GearAffixRoller.Roll(
-            [new GearAffixDefinition("AFX_REROLL_CHARGE", 1.0, 1.0, [GearSlot.RING])], 1, draws);
+            [new GearAffixDefinition(
+                "AFX_REROLL_CHARGE",
+                StatId.REROLL_CHARGES,
+                EffectOp.STAT_ADD_FLAT,
+                1.0,
+                1.0,
+                [GearSlot.RING])], 1, draws);
 
         rolled[0].Value.ShouldBe(1.0);
         draws.Position.ShouldBe(

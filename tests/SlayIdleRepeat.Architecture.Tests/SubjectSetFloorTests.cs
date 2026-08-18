@@ -450,19 +450,26 @@ public sealed class SubjectSetFloorTests
         // affix), GearAffixDefinition (the pool row) and ActiveSet. If the milestone that wires
         // these picks other names, rename the entries rather than deleting them: what is tracked is
         // "this source now has something to collect from", not the string.
-        new("GearItem", SubjectKind.CoreType, "M4-03",
-            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 1 of 10, " +
-            "'gear'. M4-03 landed the instance; what is missing is an equipped loadout to collect one " +
-            "from and an authored effect for it to contribute"),
-        new("GearAffix", SubjectKind.CoreType, "M4-03",
-            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 2 of 10, " +
-            "'affixes'. M4-03 landed all 14 with their ranges, slot restrictions and ids; what is " +
-            "missing is the EffectDefinition each one contributes, which no document authors"),
-        new("SetBonus", SubjectKind.CoreType, "M4-03",
-            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 3 of 10, " +
-            "'set bonuses'. M4-03 landed the four engines as far as the data goes — which set a " +
-            "loadout is wearing and which authored breakpoints it has met; the 2/4/6 bonuses " +
-            "themselves are described in prose and have no effect id, op or magnitude anywhere"),
+        // 🔒 M4-16 DISCHARGED THE GearItem, GearAffix AND SetBonus ENTRIES THAT USED TO SIT HERE, and
+        // it is a discharge rather than an expiry: the three sources are WIRED, not merely unblocked.
+        // Rules.Effects.GearEffectSource reads the equipped items' own two stats at the enhancement
+        // level they stand at; Rules.Effects.GearAffixEffectSource reads the rolled affixes through
+        // the stat/op mapping now authored on every row of tuning/drops.json#/affixPool/affixes; and
+        // Rules.Effects.SetBonusEffectSource joins Rules.Gear.SetBonusResolver's answer to the effects
+        // authored in content/sets/sets.json. Rules.Stats.HeroBuild composes all three through
+        // EffectSourceSet and StatAggregation.
+        //
+        // 🔒 THE REMOVAL IS FORCED, which is what makes it a discharge rather than a tidy-up. The
+        // three EffectSourceCatalogue rows carry a null PendingSubject as of the same commit, so
+        // EffectSourceDeferralRuleTests' floor drops from ten to seven there — and an entry left
+        // standing here would key an expiry on a name nothing will ever author.
+        //
+        // ⚠️ WHAT IS NOT DISCHARGED, and it is a different shape rather than a smaller version of the
+        // same one: one of the fourteen affixes and seven of the twelve set-bonus effects are still
+        // unauthored. Those are not source deferrals — the sources collect them the moment they are
+        // authored — so they are not entries here. They are holes in the DATA, carried as nulls the
+        // content-hole pin counts, with their owners in GearAuthoringGapRegister, which checks the
+        // owning task is still OPEN rather than merely present in the tracker.
         new("TalentNode", SubjectKind.CoreType, "M4-06",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 4 of 10, " +
             "'talents'. 09's 60-node tree is M4-06's"),

@@ -133,10 +133,19 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["id", "displayName", "min", "max", "slots"],
+            "required": ["id", "displayName", "stat", "op", "min", "max", "slots"],
             "properties": {
               "id": { "type": "string", "pattern": "^AFX_[A-Z0-9_]+$" },
               "displayName": { "type": "string", "pattern": "^loc(\\.[a-z0-9_]+)+$" },
+              "stat": {
+                "description": "The stat this affix writes, spelled as one StatId name. null where the design authors an affix the 14-stat block has no slot for, which is AFX_DAMAGE_VS_ELITES alone: conditional damage has no stat, and a target-conditional standing effect cannot be re-aggregated outside an attack. Required rather than optional, so an affix cannot lose its stat and quietly stop contributing.",
+                "type": ["string", "null"],
+                "pattern": "^[A-Z][A-Z0-9_]*$"
+              },
+              "op": {
+                "description": "How the affix writes it. Two ops rather than the whole effect vocabulary, deliberately: an affix is a standing stat modifier and nothing else, so an authoring slip cannot turn one into a summon. STAT_ADD_FLAT adds X percentage points and is what a stat that is itself a fraction or an accumulator takes; STAT_ADD_PCT multiplies and is only correct for a stat whose base is a magnitude the percentage is taken of, because aggregation multiplies the running value and a percent of a zero base is zero. null exactly where stat is null.",
+                "enum": ["STAT_ADD_FLAT", "STAT_ADD_PCT", null]
+              },
               "min": { "type": "number", "minimum": 0 },
               "max": { "type": "number", "minimum": 0 },
               "slots": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/slot" } },
