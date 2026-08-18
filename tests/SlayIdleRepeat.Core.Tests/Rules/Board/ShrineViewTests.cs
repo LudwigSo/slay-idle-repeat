@@ -160,6 +160,14 @@ public sealed class ShrineViewTests
     /// 🔒 …and both arms of that assertion really occur across the swept seeds, so it is not a
     /// statement about the eight pool rows that heal nothing.
     /// </summary>
+    /// <remarks>
+    /// ⚠️ Coupled to the authored pool's ORDER and to how many of its rows heal — the draw is an
+    /// index into the array as the document lists it, and exactly two of the ten rows carry an
+    /// immediate heal. Re-ordering the pool, or authoring a heal onto another row, moves which buff
+    /// each swept seed lands on and can leave the sweep one-armed. That is a loud failure rather
+    /// than a quiet one, and it is meant to be: re-read the pool and re-pick the seeds, never widen
+    /// this to "at least one arm".
+    /// </remarks>
     [Fact]
     public void Both_heal_arms_occur_across_the_swept_seeds()
     {

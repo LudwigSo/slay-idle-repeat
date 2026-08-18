@@ -92,8 +92,22 @@ public sealed class PerkDraftPresenterTests
     [Fact]
     public void No_member_of_this_screen_reports_a_free_reroll_count()
     {
+        var members = typeof(PerkDraftPresenter)
+            .GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+        // 🔒 The subject set, floored by the NAMED member the rule exempts rather than by a count
+        // (steering S3). A screen carrying no free-reroll member at all satisfies the rule below
+        // perfectly — and is also the screen that has stopped naming the absence, which is the one
+        // thing this whole apparatus exists to keep on the page.
+        members.ShouldContain(
+            property => property.Name == nameof(PerkDraftPresenter.FreeRerollBlockText) &&
+                        property.PropertyType == typeof(string),
+            "the one member allowed to mention the free reroll is the sentence naming its absence, " +
+            "and it is gone. Without it the rule below passes by having nothing to report, and the " +
+            "screen quietly stops saying the allowance was never built.");
+
         var offenders =
-            from property in typeof(PerkDraftPresenter).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            from property in members
             where WordsOfAnEconomyThatDoesNotExist.Any(word =>
                 property.Name.Contains(word, StringComparison.Ordinal))
             where property.PropertyType != typeof(string)
@@ -335,14 +349,14 @@ public sealed class PerkDraftPresenterTests
     /// the numeral is the same mark in every language and the word in front of it is not.
     /// </remarks>
     [Theory]
-    [InlineData(1, false, "I")]
-    [InlineData(2, false, "II")]
-    [InlineData(3, false, "III")]
-    public void A_fresh_cards_badge_is_the_tier_numeral_alone(int tier, bool isUpgrade, string expected)
+    [InlineData(1, "I")]
+    [InlineData(2, "II")]
+    [InlineData(3, "III")]
+    public void A_fresh_cards_badge_is_the_tier_numeral_alone(int tier, string expected)
     {
         var presenter = Build(RecordingGameHost.FindingNoSuchPlayer());
 
-        presenter.TierBadge(Card(tier: tier, isUpgrade: isUpgrade)).ShouldBe(expected);
+        presenter.TierBadge(Card(tier: tier, isUpgrade: false)).ShouldBe(expected);
     }
 
     [Theory]
@@ -546,6 +560,75 @@ public sealed class PerkDraftPresenterTests
             "one would be inventing an answer the game never gave.");
         presenter.RejectionText.ShouldBe(
             RunDecisionContent.EnglishValueOf(RunDecisionContent.DraftHostUnavailableStatusKey));
+    }
+
+    /// <summary>
+    /// 🔒 <b>The shortfall sentence is paired with the reroll, not printed under whatever refusal
+    /// happens to carry the same reason.</b>
+    /// </summary>
+    /// <remarks>
+    /// 🔴 Today the reroll is the only thing this screen submits that spends anything, so an unpaired
+    /// mapping is correct — and would stop being correct silently, the day a second spender lands
+    /// here, with no case going red. This is that case. A pick costs nothing, so a shortfall reported
+    /// under one did not come from the reroll's price, and telling the player to go and earn Gold
+    /// answers a question they never asked.
+    /// </remarks>
+    [Fact]
+    public async Task A_shortfall_reported_under_a_pick_does_not_read_as_the_rerolls_price()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), WithADraftOpen())
+            .RefusingCommands(RejectionReason.INSUFFICIENT_FUNDS);
+
+        var presenter = Build(host, BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        var submission = await presenter.PickAsync(0, CancellationToken.None);
+
+        submission.ShouldBe(PerkDraftSubmission.RefusedByRules);
+        presenter.RejectionText.ShouldBe(
+            RunDecisionContent.EnglishValueOf(RunDecisionContent.DraftRefusedStatusKey),
+            "PICK_PERK spends nothing, so the sentence about a reroll the player cannot afford is " +
+            "an answer about a control they did not touch. The mapping is paired with the command " +
+            "that could have caused it, not with the reason alone.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>A fault does not outlive the submission that faulted.</b> The next command that actually
+    /// answers is what the player is told about.
+    /// </summary>
+    /// <remarks>
+    /// The board's funnel clears its latched sentence BEFORE the command rather than after it, for
+    /// exactly this reason: cleared afterwards it survives every path that returns early — which is
+    /// every refusal — and the old line is printed under the new answer. Here that tells a player the
+    /// game never answered, about a reroll it answered by refusing.
+    /// </remarks>
+    [Fact]
+    public async Task A_fault_does_not_survive_into_the_next_answer()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), WithADraftOpen())
+            .FaultingItsCommands(new TimeoutException("the submission never completed"), times: 1)
+            .RefusingCommands(RejectionReason.ILLEGAL_STATE);
+
+        var presenter = Build(host, BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.RerollAsync(CancellationToken.None))
+            .ShouldBe(PerkDraftSubmission.HostUnavailable);
+        (await presenter.RerollAsync(CancellationToken.None))
+            .ShouldBe(
+                PerkDraftSubmission.RefusedByRules,
+                "the reroll is a control a player presses repeatedly, so a screen that stops " +
+                "submitting after one faulted attempt has stranded them on the draft.");
+
+        presenter.HostFaulted.ShouldBeFalse("the second submission completed, so nothing faulted.");
+        presenter.RejectionText.ShouldBe(
+            RunDecisionContent.EnglishValueOf(RunDecisionContent.DraftRefusedStatusKey),
+            "the fault's sentence was printed under a refusal that did answer. The flag is settled " +
+            "before the command goes out, not only when one fails.");
     }
 
     /// <summary>

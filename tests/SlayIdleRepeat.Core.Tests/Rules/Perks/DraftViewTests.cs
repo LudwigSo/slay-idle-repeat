@@ -216,19 +216,37 @@ public sealed class DraftViewTests
     {
         string[] authoredElsewhere = [nameof(DraftOptionView.Name), nameof(DraftOptionView.EffectText)];
 
-        var invented = typeof(DraftOptionView)
-            .GetProperties()
-            .Where(property => property.PropertyType == typeof(string))
+        var members = typeof(DraftOptionView).GetProperties();
+        var names = members.Select(property => property.Name).ToArray();
+
+        // 🔒 The subject set, floored by NAME rather than by a count (steering S3). Reflection over a
+        // record that lost its members answers an empty list, and an empty list satisfies the rule
+        // below perfectly — a rule quantifying over nothing is the one failure it cannot report.
+        names.ShouldContain(nameof(DraftOptionView.PerkId));
+        names.ShouldContain(nameof(DraftOptionView.Name));
+
+        var invented = members
+            .Where(property => CouldCarryWording(property.PropertyType))
             .Select(property => property.Name)
             .Where(name => !authoredElsewhere.Contains(name, StringComparer.Ordinal))
             .Where(name => !name.EndsWith("Id", StringComparison.Ordinal))
+            .Where(name => !name.EndsWith("Ids", StringComparison.Ordinal))
             .ToArray();
 
         invented.ShouldBeEmpty(
-            "DraftOptionView." + string.Join(", ", invented) + " is a string this projection builds " +
+            "DraftOptionView." + string.Join(", ", invented) + " is text this projection builds " +
             "that is neither an id nor authored content, so it is a sentence composed in code. The " +
             "screen composes wording from its own locale table; this type carries the facts.");
     }
+
+    /// <summary>Whether a member could carry wording — a string, or a collection of them.</summary>
+    /// <remarks>
+    /// The collection arm is not hypothetical. A badge drawn as several lines, or a list of hint
+    /// sentences, is composed wording exactly as much as one string is, and a rule stated over
+    /// <c>string</c> alone would let the whole shape through unseen.
+    /// </remarks>
+    private static bool CouldCarryWording(Type type) =>
+        type == typeof(string) || typeof(IEnumerable<string>).IsAssignableFrom(type);
 
     /// <summary>The offer reports the authored draft economy, read rather than transcribed.</summary>
     [Fact]

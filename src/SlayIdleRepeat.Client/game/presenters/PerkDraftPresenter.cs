@@ -233,6 +233,12 @@ public sealed class PerkDraftPresenter
     /// out of the content set, and a content set missing either is a real failure mode — one this
     /// screen reports in words instead of taking the client down on the tile a run's whole build is
     /// chosen on.
+    /// <para>
+    /// 🔒 <b>What is caught is the content set failing to answer, and only that</b> — the exceptions
+    /// a <c>ContentSnapshot</c> read raises. A blanket catch would turn a programming error inside
+    /// the projection into the same quiet sentence, and the screen would report a missing document
+    /// while the real fault was a defect in the derivation the player is about to commit a run to.
+    /// </para>
     /// </remarks>
     public bool CardsAvailable { get; private set; }
 
@@ -307,9 +313,10 @@ public sealed class PerkDraftPresenter
     /// simply illegal would send them away from a control that works. Every other refusal shares the
     /// generic sentence and carries its identity to the log on <see cref="RulesRejection"/>.
     /// <para>
-    /// The shortfall needs no pairing with the command that caused it, unlike the board's exhausted
-    /// reroll: nothing else this screen submits spends anything, so <c>INSUFFICIENT_FUNDS</c> can
-    /// only have come from the reroll.
+    /// 🔒 The shortfall is PAIRED with the reroll, on the board's own precedent for its exhausted
+    /// reroll. Unpaired it would be correct today — nothing else this screen submits spends anything
+    /// — and would stop being correct the day a second spender lands here, printing the reroll's
+    /// price under another command's refusal with nothing going red.
     /// </para>
     /// </remarks>
     public string RejectionText => HostFaulted
@@ -317,9 +324,19 @@ public sealed class PerkDraftPresenter
         : RulesRejection switch
         {
             null => NothingLeftToSay,
-            RejectionReason.INSUFFICIENT_FUNDS => _strings.Resolve(RerollUnaffordableStatusKey),
+            RejectionReason.INSUFFICIENT_FUNDS when RerollWasTheLastSubmission =>
+                _strings.Resolve(RerollUnaffordableStatusKey),
             _ => _strings.Resolve(RefusedStatusKey),
         };
+
+    /// <summary>Whether the last command that reached the host was the reroll.</summary>
+    /// <remarks>
+    /// Set by the submission funnel before the command goes out, and cleared there for every other
+    /// command — the same shape and the same reason as the board's exhausted-reroll latch. It is the
+    /// pairing <see cref="RejectionText"/> reads; it reports nothing on its own and is deliberately
+    /// not public.
+    /// </remarks>
+    private bool RerollWasTheLastSubmission { get; set; }
 
     /// <summary>The badge one card carries — the numeral, or the upgrade wording and the numeral.</summary>
     /// <param name="card">The card to badge.</param>
@@ -374,6 +391,12 @@ public sealed class PerkDraftPresenter
     /// arriving while the first is in flight finds it unset and submits again — which is how a
     /// double-tap takes two perks, and how it shipped once already on another screen in this
     /// milestone.
+    /// <para>
+    /// 🔒 <see cref="HostFaulted"/> and <see cref="RerollWasTheLastSubmission"/> are settled here
+    /// before the command goes out, for the reason the board's funnel gives about its own latch:
+    /// settled afterwards they survive every path that returns early — which is every refusal — and
+    /// one command's sentence is printed under the next command's answer.
+    /// </para>
     /// </remarks>
     private Task<PerkDraftSubmission> SubmitAsync(GameCommand command, CancellationToken ct) =>
         throw new NotImplementedException(

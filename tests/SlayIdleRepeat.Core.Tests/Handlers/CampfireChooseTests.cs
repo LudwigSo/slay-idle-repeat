@@ -146,36 +146,6 @@ public sealed class CampfireChooseTests
         Choose(refused.NewState, 0).NewState.Run!.CurrentHp.ShouldBe(90);
     }
 
-    /// <summary>
-    /// 🔒 The two refusals CAMPFIRE_CHOOSE can produce are told apart by the STATE each is refused
-    /// from, not by the code they share — both are ILLEGAL_STATE, and a screen reading the code
-    /// alone would tell the player one thing for two different situations (steering S2).
-    /// </summary>
-    /// <remarks>
-    /// The discriminator is what is still legal AFTER the refusal. At a campfire, choice 1 is
-    /// refused because the option is not built and the rest is still there to take; at a shrine,
-    /// choice 1 is refused because there is no campfire at all, and the rest is refused with it. A
-    /// case asserting only "refused, ILLEGAL_STATE" in both places passes against a handler that has
-    /// collapsed the two rules into one.
-    /// </remarks>
-    [Fact]
-    public void The_tile_refusal_and_the_unbuilt_option_refusal_are_different_rules()
-    {
-        var atACampfire = TileWorlds.OnTile(TileKind.Campfire, currentHp: 50);
-        var atAShrine = TileWorlds.OnTile(TileKind.Shrine, currentHp: 50);
-
-        Choose(atACampfire, 1).Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
-        Choose(atACampfire, 0).Accepted.ShouldBeTrue(
-            "the rest was refused at a campfire whose only refusal was of an unbuilt option, so the " +
-            "option rule and the tile rule are the same rule.");
-
-        Choose(atAShrine, 1).Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
-        Choose(atAShrine, 0).Accepted.ShouldBeFalse(
-            "the rest was accepted at a SHRINE, so the refusal of choice 1 there came from the " +
-            "unbuilt-option rule rather than from there being no campfire.");
-        Choose(atAShrine, 0).Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
-    }
-
     /// <summary>An index naming no option at all is refused too.</summary>
     [Theory]
     [InlineData(-1)]

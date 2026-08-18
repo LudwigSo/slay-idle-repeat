@@ -100,6 +100,13 @@ public sealed class CampfirePresenterTests
     /// 🔒 The shrine's rows are named through the keys the buff pool itself authors, so the screen
     /// carries no second copy of the ten names.
     /// </summary>
+    /// <remarks>
+    /// 🔒 The claim is about <c>Name</c>, so <c>Name</c> is what is asserted. Checking only that the
+    /// row's ID maps to a known key leaves a screen that set the name to the id — <c>SHR_ATK</c> on
+    /// the card, translated in no locale — passing a case whose title says the opposite. The row
+    /// count is asserted first for the same reason: a claim made about every member of an empty list
+    /// holds.
+    /// </remarks>
     [Fact]
     public async Task A_shrine_row_is_named_through_the_key_the_buff_pool_authors()
     {
@@ -108,10 +115,21 @@ public sealed class CampfirePresenterTests
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.ShrineRows.ShouldAllBe(
-            row => RunDecisionContent.ShrineBuffNameKeys.Contains(
-                "loc.shrine." + row.BuffId.Replace("SHR_", "", StringComparison.Ordinal)
-                                          .ToLowerInvariant() + ".name"));
+        presenter.ShrineRows.Count.ShouldBe(2, "with no rows there is nothing below to be about.");
+
+        foreach (var row in presenter.ShrineRows)
+        {
+            var key = "loc.shrine." +
+                      row.BuffId.Replace("SHR_", "", StringComparison.Ordinal).ToLowerInvariant() +
+                      ".name";
+
+            RunDecisionContent.ShrineBuffNameKeys.ShouldContain(
+                key, "'" + row.BuffId + "' is not one of the pool's ten authored rows.");
+            row.Name.ShouldBe(
+                RunDecisionContent.EnglishValueOf(key),
+                "'" + row.BuffId + "' was drawn but not resolved through the key the pool authors " +
+                "for it, so the card shows something the locale table never answered.");
+        }
     }
 
     [Fact]
@@ -436,6 +454,42 @@ public sealed class CampfirePresenterTests
         presenter.RulesRejection.ShouldBeNull();
         presenter.RejectionText.ShouldBe(
             RunDecisionContent.EnglishValueOf(RunDecisionContent.CampfireHostUnavailableStatusKey));
+    }
+
+    /// <summary>
+    /// 🔒 <b>A fault does not outlive the submission that faulted.</b> The next attempt that actually
+    /// answers is what the player is told about.
+    /// </summary>
+    /// <remarks>
+    /// A faulted rest healed nothing and left the campfire pending, so the player presses it again. A
+    /// screen that latched "the host did not answer" and never cleared it would answer that second
+    /// press — refused, and refused for a reason worth reading — with the first press's sentence.
+    /// </remarks>
+    [Fact]
+    public async Task A_fault_does_not_survive_into_the_next_answer()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), AtACampfire())
+            .FaultingItsCommands(new TimeoutException("the submission never completed"), times: 1)
+            .RefusingCommands(RejectionReason.ILLEGAL_STATE);
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.ChooseAsync(CampfireOption.Rest, CancellationToken.None))
+            .ShouldBe(CampfireSubmission.HostUnavailable);
+        (await presenter.ChooseAsync(CampfireOption.Rest, CancellationToken.None))
+            .ShouldBe(
+                CampfireSubmission.RefusedByRules,
+                "a rest that never completed healed nothing and left the tile pending, so the retry " +
+                "has to reach the host.");
+
+        presenter.HostFaulted.ShouldBeFalse("the second submission completed, so nothing faulted.");
+        presenter.RejectionText.ShouldBe(
+            RunDecisionContent.EnglishValueOf(RunDecisionContent.CampfireRefusedStatusKey),
+            "the fault's sentence was printed under a refusal that did answer. The flag is settled " +
+            "before the command goes out, not only when one fails.");
     }
 
     /// <summary>

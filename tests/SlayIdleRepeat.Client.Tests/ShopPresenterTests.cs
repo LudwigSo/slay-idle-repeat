@@ -338,6 +338,43 @@ public sealed class ShopPresenterTests
     }
 
     /// <summary>
+    /// 🔒 <b>A fault does not outlive the submission that faulted.</b> The next attempt that actually
+    /// answers is what the player is told about.
+    /// </summary>
+    /// <remarks>
+    /// Leaving is the only control this screen has, so it is also the only one a player retries. A
+    /// screen that latched "the host did not answer" and never cleared it would answer the retry with
+    /// the previous attempt's sentence, and every later refusal on the way out would read as a
+    /// dropped connection for the rest of the tile.
+    /// </remarks>
+    [Fact]
+    public async Task A_fault_does_not_survive_into_the_next_answer()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), AtAShop())
+            .FaultingItsCommands(new TimeoutException("the submission never completed"), times: 1)
+            .RefusingCommands(RejectionReason.ILLEGAL_STATE);
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.LeaveAsync(CancellationToken.None)).ShouldBe(ShopSubmission.HostUnavailable);
+        (await presenter.LeaveAsync(CancellationToken.None))
+            .ShouldBe(
+                ShopSubmission.RefusedByRules,
+                "a departure that never completed left the run standing on the tile, so the retry " +
+                "has to reach the host. A screen latched shut after one fault is a run that cannot " +
+                "leave.");
+
+        presenter.HostFaulted.ShouldBeFalse("the second submission completed, so nothing faulted.");
+        presenter.RejectionText.ShouldBe(
+            RunDecisionContent.EnglishValueOf(RunDecisionContent.ShopRefusedStatusKey),
+            "the fault's sentence was printed under a refusal that did answer. The flag is settled " +
+            "before the command goes out, not only when one fails.");
+    }
+
+    /// <summary>
     /// 🔒 <b>No double submit.</b> The latch is taken before the await, not after it: taken
     /// afterwards, a second press arriving while the first is in flight finds it unset and submits
     /// again. That exact shape shipped once already in this milestone.

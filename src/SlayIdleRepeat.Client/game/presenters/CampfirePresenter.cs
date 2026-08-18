@@ -235,6 +235,12 @@ public sealed class CampfirePresenter
     /// False rather than a crash, for the same reason the draft's cards have such a flag: the
     /// projection reads the buff pool out of the content set, and a set without one is a failure to
     /// report in words rather than to take the client down with.
+    /// <para>
+    /// 🔒 <b>What is caught is the content set failing to answer, and only that</b> — the exceptions
+    /// a <c>ContentSnapshot</c> read raises. A blanket catch would turn a programming error inside
+    /// the projection into the same quiet sentence, and this screen would report a missing buff pool
+    /// while the rows it drew disagreed with the ones the tile is about to apply.
+    /// </para>
     /// </remarks>
     public bool ShrineRowsAvailable { get; private set; }
 

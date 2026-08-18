@@ -281,6 +281,33 @@ public sealed class PerkEffectTextTests
         render.UnresolvedTokens.ShouldBe(["duration"]);
     }
 
+    /// <summary>
+    /// 🔒 …and a source only a LATER effect carries is unresolved too, rather than borrowed from it.
+    /// </summary>
+    /// <remarks>
+    /// The decoy in <see cref="Every_token_reads_the_first_effect_carrying_a_value"/> sits BEFORE the
+    /// anchor, so a renderer that falls back to scanning siblings whenever the anchor comes up empty
+    /// passes that case — and passes the single-effect case above too, which has no sibling to fall
+    /// back to. This is the arrangement that separates the two, and the one that says a sentence
+    /// never mixes a second effect's numbers into a single claim.
+    /// </remarks>
+    [Fact]
+    public void A_source_only_a_later_effect_carries_is_unresolved_rather_than_borrowed()
+    {
+        var render = Render(
+            "+{value}% ATK for {duration}s.",
+            Effect(("id", Text("FX_ANCHOR")), ("value", Number(0.5m))),
+            Effect(
+                ("id", Text("FX_SIBLING")),
+                ("op", Text("SHIELD")),
+                ("duration", Obj(("scope", Text("BATTLE")), ("seconds", Number(4m))))));
+
+        render.Text.ShouldBeNull(
+            "the anchor authors no duration. The four seconds belong to a different effect and would " +
+            "have been read as this one's.");
+        render.UnresolvedTokens.ShouldBe(["duration"]);
+    }
+
     /// <summary>…and a token naming no member of the schema at all is unresolved the same way.</summary>
     [Fact]
     public void A_token_naming_no_field_of_the_schema_is_unresolved()
@@ -398,7 +425,16 @@ public sealed class PerkEffectTextTests
     {
         var catalogue = PerkCatalogue.Read(ShippedHarness.Content);
         var renderable = catalogue.All.Where(p => !Unrenderable.ContainsKey(p.Id)).ToArray();
-        var rendered = 0;
+
+        // 🔒 The subject set, floored by NAME rather than by a count (steering S3). A count derived
+        // from the same list the loop walks agrees with itself over an EMPTY catalogue, so it says
+        // nothing about whether anything was walked at all. These three are the perks the spelled-out
+        // cases below name, one per substitution rule.
+        var walked = renderable.Select(perk => perk.Id).ToArray();
+
+        walked.ShouldContain("PK_SHARP_EDGE");
+        walked.ShouldContain("PK_BERSERK");
+        walked.ShouldContain("PK_FLURRY");
 
         foreach (var perk in renderable)
         {
@@ -409,12 +445,8 @@ public sealed class PerkEffectTextTests
                 text.ShouldNotBeNull(perk.Id + " tier " + tier + " rendered nothing.");
                 text.Contains('{', StringComparison.Ordinal).ShouldBeFalse(
                     perk.Id + " tier " + tier + " left a token standing: " + text);
-                rendered++;
             }
         }
-
-        rendered.ShouldBe(
-            renderable.Sum(p => p.TierCount), "every tier of every renderable perk is walked");
     }
 
     /// <summary>
