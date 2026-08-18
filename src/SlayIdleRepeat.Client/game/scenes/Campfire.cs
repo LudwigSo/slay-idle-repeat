@@ -42,6 +42,26 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// <c>CampfireOptionCard.tscn</c> and <c>ShrineBuffRow.tscn</c> is a per-node override, because the
 /// shared theme resource does not exist yet — M8-03's, to be re-checked rather than re-applied.
 /// </para>
+/// <para>
+/// 🔴 <b>The way this screen draws a host that did not answer is <c>M7-02</c>'s to replace, and it
+/// is named here so the interim is not mistaken for the design.</b> <c>13</c> §11 is a 🔒 and authors
+/// five connection states: connected shows nothing; reconnecting slides a non-blocking pill in after
+/// 2 s and leaves the screen interactive; offline dims server-backed buttons to 40% with a
+/// cloud-slash glyph and answers a tap with an inline toast, never a modal; a resync flashes green;
+/// a resumed run shows a card. None of that exists anywhere in this client — <c>M7-02</c> owns all
+/// five, together with <c>ReconnectManager</c> — so this screen does the most honest thing available
+/// to it without inventing the mechanism: it disables what it cannot submit and prints one status
+/// line. 🔒 The one rule §11 states as a hard prohibition <b>is</b> kept: no full-screen blocking
+/// connection error, during a run or otherwise.
+/// </para>
+/// <para>
+/// 🔴 <b>And the dead end above is the same gap seen from the other side.</b> A read that failed
+/// leaves this screen with nothing to draw and nowhere to send the player, because under §11 that
+/// state is not terminal at all — it is <em>offline, read-only</em>, which waits and reconnects. So
+/// the dead end is not a missing back button; it is the absence of <c>M7-02</c>'s reconnect. That is
+/// also why no back caption is invented for it: the control §11 calls for is a pill and a toast, not
+/// a way out.
+/// </para>
 /// </remarks>
 public partial class Campfire : Control
 {
