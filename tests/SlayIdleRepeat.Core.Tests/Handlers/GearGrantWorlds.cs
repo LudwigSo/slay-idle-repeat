@@ -131,11 +131,45 @@ internal static class GearGrantWorlds
                 runSeed: Seed,
                 chapterId: chapterId,
                 lastAppliedAtUtc: NowUtc,
-                rngStreamPositions: RunSnapshots.Streams((RngStreams.Drops, dropsPosition)),
+                rngStreamPositions: RunSnapshots.Streams(
+                    (RngStreams.Drops, dropsPosition),
+
+                    // 🔒 The combat stream must stand at the position one START_BATTLE leaves, because
+                    // this slice claims a battle is open. CONFIRM_BATTLE_RESULT recomputes the fight
+                    // (14 §9) and derives its seed from SeedFrom(RunSeed, StreamPosition(combat)), so a
+                    // BattlePending run whose combat stream stands at zero is a phase nothing committed
+                    // a seed for — a state the game cannot reach, since START_BATTLE draws the stream
+                    // BEFORE setting the phase. It read as harmless only while the handler trusted the
+                    // client's reported result.
+                    (RngStreams.Combat, FirstBattle)),
                 pendingTileKind: (int)kind,
                 pendingTileLinearIndex: KillNode,
                 pendingTileStage: stage,
                 phase: RunPhase.BattlePending)));
+
+    /// <summary>
+    /// The combat-stream position exactly one <c>START_BATTLE</c> leaves behind — the first battle's.
+    /// </summary>
+    private const ulong FirstBattle = 1UL;
+
+    /// <summary>That run's stream map with the combat counter moved on by one battle.</summary>
+    private static IReadOnlyDictionary<string, ulong> NextBattle(RunSnapshot closed)
+    {
+        var streams = new Dictionary<string, ulong>(StringComparer.Ordinal);
+
+        if (closed.RngStreamPositions is { } committed)
+        {
+            foreach (var (stream, position) in committed)
+            {
+                streams[stream] = position;
+            }
+        }
+
+        streams[RngStreams.Combat] =
+            streams.TryGetValue(RngStreams.Combat, out var standing) ? standing + 1UL : FirstBattle;
+
+        return streams;
+    }
 
     /// <summary>The same slice with a fresh battle open over another kill tile of the same kind.</summary>
     /// <remarks>
@@ -147,7 +181,9 @@ internal static class GearGrantWorlds
     {
         ArgumentNullException.ThrowIfNull(state);
 
-        return new WorldSlice(state.Player, Rehydrated(state.Run!.ToSnapshot() with
+        var closed = state.Run!.ToSnapshot();
+
+        return new WorldSlice(state.Player, Rehydrated(closed with
         {
             Phase = RunPhase.BattlePending,
             PendingTileKind = (int)kind,
@@ -156,6 +192,12 @@ internal static class GearGrantWorlds
             DraftPending = false,
             DraftBattleKind = RunSnapshots.NoDraftBattleKind,
             DraftBattleStage = 0,
+
+            // 🔒 ADVANCED, not merely carried. Each battle draws the combat stream once, so its seed is
+            // SeedFrom(RunSeed, position) at a position no earlier battle stood at. Re-arming at the
+            // same position would give this fight the previous fight's seed — every kill in a sequence
+            // would replay one battle, and a test walking three kills would be asserting about one.
+            RngStreamPositions = NextBattle(closed),
         }));
     }
 
