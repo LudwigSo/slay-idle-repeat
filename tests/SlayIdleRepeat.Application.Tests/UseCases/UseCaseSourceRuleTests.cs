@@ -39,6 +39,7 @@ public sealed class UseCaseSourceRuleTests
     [
         "ApplyCommandUseCase.cs",
         "ReadOwnStateUseCase.cs",
+        "SimulatePendingBattleUseCase.cs",
         "WorldSliceStore.cs",
         "SliceKeys.cs",
         "SnapshotCodec.cs",

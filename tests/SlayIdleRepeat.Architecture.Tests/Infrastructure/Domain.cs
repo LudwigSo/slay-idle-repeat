@@ -172,6 +172,27 @@ internal static class Domain
     /// and hands out no draw stream, so nothing outside <c>Core</c> gains a way to generate a board
     /// or to move a run along one.
     /// </para>
+    /// <para>
+    /// 🔒 <b>M7-06b adds a FOURTH and FIFTH entry point, <c>HeroBuild</c> and <c>RunBattle</c>, and
+    /// neither adds a signature type.</b> <c>HeroBuild</c>'s named consumer is the client's Hero and
+    /// Inventory screens, whose side-by-side stat delta IS the gear derivation; <c>RunBattle</c>'s is
+    /// the Application layer's <c>SimulatePendingBattleUseCase</c>, which is what lets a run leave
+    /// <c>BattlePending</c> at all — before it, the hero's stat block could not be built at any
+    /// accessibility, so a run entering a battle could never produce the fight it was standing in.
+    /// Their public members name only types that were already public: <c>ActorStats</c>,
+    /// <c>SimulationResult</c>, <c>EffectDefinition</c>, <c>GearInstance</c>, <c>PlayerSnapshot</c>,
+    /// <c>RunSnapshot</c> and <c>ContentSnapshot</c>.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The machinery stays internal here too.</b> <c>StatAggregation</c>,
+    /// <c>AggregatedStats</c>, <c>HeroBaseCurve</c>, <c>GearStatDerivation</c>, <c>GearCatalogue</c>,
+    /// <c>LoadoutRules</c>, <c>EncounterFight</c>, <c>BossFight</c>, <c>BattlePlan</c> and
+    /// <c>ActorPlan</c> are all still <c>internal</c>, and <c>HeroBattleSurfaceRuleTests</c> is what
+    /// keeps them there. <c>HeroBuild</c> is a <c>class</c> rather than a <c>record</c> precisely so
+    /// its aggregate can stay internal: a positional record's parameters are public properties, and
+    /// exporting <c>AggregatedStats</c> would have exported the battle pipeline's heal ceiling with
+    /// it.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
     {
@@ -186,6 +207,8 @@ internal static class Domain
         "BoardFork",
         "TileKind",
         "ForkLabel",
+        "HeroBuild",
+        "RunBattle",
     };
 
     /// <summary>
