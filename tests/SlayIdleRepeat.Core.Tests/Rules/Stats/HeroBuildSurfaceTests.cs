@@ -1,5 +1,11 @@
 using Shouldly;
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Model.Gear;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
+using SlayIdleRepeat.Core.Tests.Model.Gear;
 using SlayIdleRepeat.Core.Tests.Rules.Combat;
 using Xunit;
 
@@ -40,6 +46,54 @@ public sealed class HeroBuildSurfaceTests
         var build = Geared();
 
         build.MaxHp.ShouldBe(build.Aggregated.PostMultiplierMaxHp);
+
+        // ⚠️ Stated so the limit is visible rather than assumed: MAX_HP carries no cap and no
+        // authored gear, affix or set bonus writes a STAT_SET to it, so for every build this seam can
+        // produce the two readings coincide and THIS case cannot separate them. The case below is
+        // where the separation is actually pinned.
+        build.MaxHp.ShouldBe(
+            build.Stats[Core.Content.Effects.StatId.MAX_HP],
+            "no gear-only build diverges the two readings; if this ever fails, the case below is the " +
+            "one that describes what the divergence means");
+    }
+
+    /// <summary>
+    /// 🔒 The post-multiplier reading and the capped stat are genuinely different numbers the moment
+    /// a <c>STAT_SET</c> lands on Max HP.
+    /// </summary>
+    /// <remarks>
+    /// The discriminator the build's own fixture cannot supply. <c>PostMultiplierMaxHp</c> is frozen
+    /// after step 7 and before step 8, so a <c>STAT_SET</c> moves the published stat and not the
+    /// health pool the fight runs on — which is the whole reason the build publishes the one rather
+    /// than the other. Without this case, "the published Max HP is the post-multiplier figure" is a
+    /// sentence nothing in the suite could contradict.
+    /// </remarks>
+    [Fact]
+    public void The_post_multiplier_reading_is_not_the_capped_stat_once_a_stat_set_lands()
+    {
+        var baseStats = CombatCaps.Read(RunBattleWorlds.Content).HeroBase.At(RunBattleWorlds.LegendLevel);
+
+        var aggregated = StatAggregation.Aggregate(
+            baseStats,
+            [
+                new EffectDefinition
+                {
+                    Id = "TEST_MAX_HP_SET",
+                    Op = EffectOp.STAT_SET,
+                    Stat = StatSelector.Of(Core.Content.Effects.StatId.MAX_HP),
+                    Trigger = EffectDefaults.Always,
+                    Value = 1.0,
+                },
+            ],
+            CombatCaps.Read(RunBattleWorlds.Content).Caps,
+            StatAggregationSeams.Strict);
+
+        aggregated.PostMultiplierMaxHp.ShouldBe(
+            baseStats[Core.Content.Effects.StatId.MAX_HP],
+            "the reading is frozen before step 8, so a STAT_SET cannot reach it");
+
+        aggregated.Final[Core.Content.Effects.StatId.MAX_HP].ShouldBe(
+            1.0, "while the published stat is the set value");
     }
 
     /// <summary>The published unapplied list is the aggregation's skipped list.</summary>
@@ -55,6 +109,39 @@ public sealed class HeroBuildSurfaceTests
         var build = Geared();
 
         build.UnappliedEffects.ShouldBeSameAs(build.Aggregated.SkippedNonCombatStatEffects);
+    }
+
+    /// <summary>A gold-gain affix is NAMED in that list, not silently dropped.</summary>
+    /// <remarks>
+    /// 🔴 The case above compares two references to the same EMPTY list, because the fixture set
+    /// rolls nothing outside the fourteen combat stats — so it holds whatever the property returns
+    /// and says nothing about the behaviour it documents. This one wears a ring rolled with
+    /// <c>AFX_GOLD_GAIN</c>, whose <c>GOLD_PCT</c> is one of the three accumulators the block has no
+    /// slot for, and asks for the id by name.
+    /// </remarks>
+    [Fact]
+    public void An_affix_outside_the_fourteen_combat_stats_is_named_rather_than_lost()
+    {
+        var worn = RunBattleWorlds.Worn
+            .Where(item => item.Slot != GearSlot.RING)
+            .Append(Inventories.Item(
+                "worn_gold_ring",
+                GearFamily.BAND,
+                Rarity.SS,
+                enhanceLevel: 5,
+                affixes: [new GearAffixRoll("AFX_GOLD_GAIN", 0.2)]))
+            .ToArray();
+
+        var build = HeroBuild.Of(RunBattleWorlds.LegendLevel, worn, RunBattleWorlds.Content);
+
+        build.UnappliedEffects.ShouldContain(
+            id => id.Contains("AFX_GOLD_GAIN", StringComparison.Ordinal),
+            "a valued-but-unapplied affix has to be reportable by id, or a caller cannot tell it from " +
+            "one the pipeline silently lost");
+
+        Geared().UnappliedEffects.ShouldBeEmpty(
+            "the control: the fixture set rolls nothing outside the fourteen, so the assertion above " +
+            "is about the gold ring and not about every build reporting something");
     }
 
     /// <summary>The snapshot door builds the same hero as the aggregate door.</summary>
@@ -80,29 +167,61 @@ public sealed class HeroBuildSurfaceTests
             fromAggregates.Equipped.Select(i => i.InstanceId));
     }
 
-    /// <summary>Outside a run, the snapshot door reads the player's current loadout.</summary>
+    /// <summary>
+    /// 🔒 Inside a run the door reads the loadout the RUN froze; outside one it reads the player's
+    /// own.
+    /// </summary>
     /// <remarks>
-    /// The control that keeps the case above from being satisfied by a door that ignores its run
-    /// argument: passing no run has to reach a different loadout, and the fixture's player wears the
-    /// same set the run froze — so this is stated over the argument that actually differs, the
-    /// absence of a run, and asserts the build still resolves the six worn items.
+    /// 🔴 <b>Stated over a player and a run that disagree, which is the only way to state it.</b>
+    /// Every other fixture here dresses the player and the run identically, so a door that took its
+    /// run argument and ignored it — reading <c>player.Loadout</c> in both branches — satisfies all of
+    /// them. Both crossings are asked for, so neither branch can be the one that happens to be right.
     /// </remarks>
-    [Fact]
-    public void The_snapshot_door_outside_a_run_reads_the_players_own_loadout()
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public void Inside_a_run_the_door_reads_the_loadout_the_run_froze(bool playerGeared, bool runGeared)
     {
-        var build = HeroBuild.Of(RunBattleWorlds.PlayerRow(), run: null, RunBattleWorlds.Content);
+        var build = HeroBuild.Of(
+            RunBattleWorlds.PlayerRow(playerGeared),
+            RunBattleWorlds.RunRow(geared: runGeared),
+            RunBattleWorlds.Content);
 
-        build.Equipped.Count.ShouldBe(RunBattleWorlds.Worn.Count);
+        build.Equipped.Count.ShouldBe(
+            runGeared ? RunBattleWorlds.Worn.Count : 0,
+            "a run fights the loadout it was started with, whatever the player is wearing now");
+    }
+
+    /// <summary>Outside a run, the same door reads the player's current loadout instead.</summary>
+    /// <remarks>
+    /// The other half of the pair above: with no run to freeze one, the player's own loadout is the
+    /// only answer — and asked for in both dressings, so it cannot be satisfied by a constant.
+    /// </remarks>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void The_snapshot_door_outside_a_run_reads_the_players_own_loadout(bool geared)
+    {
+        var build = HeroBuild.Of(RunBattleWorlds.PlayerRow(geared), run: null, RunBattleWorlds.Content);
+
+        build.Equipped.Count.ShouldBe(geared ? RunBattleWorlds.Worn.Count : 0);
     }
 
     /// <summary>A player row that does not rehydrate is refused at the door.</summary>
+    /// <remarks>
+    /// The parameter name is asserted too: the run door throws the same exception type, so a bare
+    /// type check would be satisfied by a fault about the other argument.
+    /// </remarks>
     [Fact]
     public void A_player_row_that_does_not_rehydrate_is_refused_at_the_public_door()
     {
         var broken = RunBattleWorlds.PlayerRow() with { LegendLevel = -1 };
 
-        Should.Throw<ArgumentException>(
+        var refused = Should.Throw<ArgumentException>(
             () => HeroBuild.Of(broken, run: null, RunBattleWorlds.Content));
+
+        refused.ParamName.ShouldBe("player");
+        refused.Message.ShouldContain("does not rehydrate", Case.Insensitive);
     }
 
     private static HeroBuild Geared() => HeroBuild.Of(

@@ -154,5 +154,4 @@ internal static class BossFight
 
         return CombatSimulator.Simulate(plan);
     }
-
 }

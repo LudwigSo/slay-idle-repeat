@@ -76,8 +76,10 @@ public sealed class RunBattleTests
         var refused = Should.Throw<InvalidOperationException>(
             () => RunBattle.SeedOf(RunBattleWorlds.RunRow(battlesStarted: 0UL)));
 
+        // "combat" alone would not do: the phase refusal names the combat counter too, so the
+        // assertion has to be a phrase only the never-drawn rule uses.
         refused.Message.ShouldContain(
-            "combat",
+            "never been drawn from",
             Case.Insensitive,
             "the refusal has to name the counter that is missing, not the phase or the tile");
     }
@@ -143,22 +145,77 @@ public sealed class RunBattleTests
     /// difference rather than as "won faster", because a fight the gear did not reach is not merely
     /// slower — it is byte-identical, and the hash is the one assertion that cannot be satisfied by
     /// noise.
+    /// <para>
+    /// 🔴 The two arms cross the player's CURRENT loadout against the run's FROZEN one, so the case
+    /// also pins which of the two the fight follows. Stated the obvious way — both flipped
+    /// together — the direction below is satisfied by a composition that reads the player's own
+    /// loadout and never looks at the run at all.
+    /// </para>
     /// </remarks>
     [Fact]
     public void The_frozen_loadout_reaches_the_fight()
     {
         var geared = RunBattle.Simulate(
-            RunBattleWorlds.PlayerRow(), RunBattleWorlds.RunRow(), RunBattleWorlds.Content);
+            RunBattleWorlds.PlayerRow(geared: false),
+            RunBattleWorlds.RunRow(),
+            RunBattleWorlds.Content);
 
         var bare = RunBattle.Simulate(
-            RunBattleWorlds.PlayerRow(geared: false),
+            RunBattleWorlds.PlayerRow(),
             RunBattleWorlds.RunRow(geared: false),
             RunBattleWorlds.Content);
 
         geared.LogHash.ShouldNotBe(bare.LogHash, "a full SS set that changes no byte of the fight is inert gear");
         geared.HeroHpRemaining.ShouldBeGreaterThan(
             bare.HeroHpRemaining,
-            "and the direction is the point: the geared hero is the one who takes less of a beating");
+            "and the direction is the point: the hero whose RUN froze the set is the one who takes " +
+            "less of a beating, however the player is dressed now");
+    }
+
+    /// <summary>
+    /// 🔒 The loadout's STANDING modifiers reach the fight, not only its triggered ones.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>The defect this branch fixed, and the one the case above cannot see.</b> An actor
+    /// collected its standing modifiers by asking whether the trigger was <em>absent</em>, while the
+    /// DSL's default says an absent trigger IS <c>ALWAYS</c> — and every gear stat, affix and set
+    /// bonus is synthesised with an explicit <c>ALWAYS</c>. With the whole stat half of a loadout
+    /// inert, a geared hero still fought a different fight from a bare one, because the shipped set's
+    /// four-piece bonus is an <c>ON_KILL</c> effect and triggered effects were never affected. So the
+    /// comparison here is not geared against bare: it is the composed fight against the same fight
+    /// with only the standing half struck out.
+    /// </remarks>
+    [Fact]
+    public void The_loadouts_standing_modifiers_reach_the_fight_and_not_only_its_triggered_ones()
+    {
+        var runRow = RunBattleWorlds.RunRow();
+        var build = HeroBuild.Of(RunBattleWorlds.Player(), RunBattleWorlds.Run(runRow), RunBattleWorlds.Content);
+        var standing = RunBattleTestArithmetic.StandingEffects(build);
+
+        standing.ShouldNotBeEmpty(
+            "the floor: with no standing modifier in the loadout at all, striking them out changes " +
+            "nothing and the assertion below would hold for free");
+
+        standing.Select(e => e.Trigger?.Kind).ShouldContain(
+            Core.Content.Effects.TriggerKind.ALWAYS,
+            "and at least one has to carry an EXPLICIT ALWAYS, which is the spelling every gear, " +
+            "affix and set effect uses and the one a reader of the absent form alone would drop");
+
+        var withoutTheStandingHalf = EncounterFight.Run(
+            RunBattle.SeedOf(runRow),
+            build.BaseStats,
+            RunBattleWorlds.LegendLevel,
+            runRow.ChapterId,
+            RunBattleTestArithmetic.TierOrdinal(runRow.Tier),
+            new[] { RunBattleTestArithmetic.EnemyPower(runRow, RunBattleWorlds.Content) },
+            eliteIndex: -1,
+            RunBattleWorlds.Content,
+            RunBattleTestArithmetic.HoldingsWithoutStandingModifiers(build));
+
+        RunBattle.Simulate(RunBattleWorlds.PlayerRow(), runRow, RunBattleWorlds.Content).LogHash.ShouldNotBe(
+            withoutTheStandingHalf.LogHash,
+            "a fight that is byte-identical with the loadout's standing modifiers removed is a fight " +
+            "none of them reached — which is gear that aggregates on a screen and does nothing at all");
     }
 
     /// <summary>
@@ -218,15 +275,65 @@ public sealed class RunBattleTests
             "throws nothing and the fight still completes, so a hash difference is the only symptom");
     }
 
-    /// <summary>The double-applied hero is measurably the stronger one, so the arms above are not noise.</summary>
+    /// <summary>
+    /// 🔒 A BOSS tile is composed from the base curve and the effects too, and never from the
+    /// aggregated block.
+    /// </summary>
     /// <remarks>
-    /// The negative control for the pair above: two different hashes could in principle be two
-    /// equally-valid fights. This pins the direction — applying a loadout twice makes the hero
-    /// stronger, never weaker — so the case above is discriminating between a correct fight and a
-    /// specific wrong one rather than between two arbitrary ones.
+    /// 🔴 <b>The boss branch is a second composition, and the case above cannot see it.</b> It builds
+    /// its own roster through <c>BossFight</c>, so handing that branch the pre-aggregated block is
+    /// the same silent double application one layer across — and the milestone's exit criterion runs
+    /// through a boss. Stated over the boss tile with the same two arms, so neither branch can be
+    /// wrong on its own.
     /// </remarks>
     [Fact]
-    public void Applying_the_loadout_twice_makes_the_hero_stronger_not_merely_different()
+    public void The_boss_fight_is_composed_from_the_base_curve_and_the_effects_not_the_aggregated_block()
+    {
+        var runRow = RunBattleWorlds.RunRow(TileKind.Boss, stage: BoardGraph.BossStage, linearIndex: 42);
+        var build = HeroBuild.Of(RunBattleWorlds.Player(), RunBattleWorlds.Run(runRow), RunBattleWorlds.Content);
+
+        var composed = RunBattle.Simulate(RunBattleWorlds.PlayerRow(), runRow, RunBattleWorlds.Content);
+
+        composed.LogHash.ShouldBe(
+            Boss(build, runRow, build.BaseStats).LogHash,
+            "the boss branch has to hand the fight the base curve and the effect list, exactly as the " +
+            "encounter branch does");
+
+        composed.LogHash.ShouldNotBe(
+            Boss(build, runRow, build.Stats).LogHash,
+            "handing the boss roster the ALREADY-aggregated block applies the whole loadout twice — " +
+            "it throws nothing and the boss still dies, so a hash difference is the only symptom");
+    }
+
+    /// <summary>One boss fight composed directly, at the row's own seed and power.</summary>
+    private static SimulationResult Boss(
+        HeroBuild build, Core.Model.Snapshots.RunSnapshot row, ActorStats hero)
+    {
+        var player = RunBattleWorlds.Player();
+
+        return Core.Rules.Combat.Bosses.BossFight.Run(
+            RunBattle.SeedOf(row),
+            hero,
+            RunBattleWorlds.LegendLevel,
+            ChapterBoardTuning.Read(RunBattleWorlds.Content, row.ChapterId).BossId,
+            RunBattleTestArithmetic.EnemyPower(row, RunBattleWorlds.Content),
+            EnemyCatalogue.Read(RunBattleWorlds.Content)
+                .Levels.Of(row.ChapterId, RunBattleTestArithmetic.TierOrdinal(row.Tier)),
+            RunBattleWorlds.Content,
+            !player.HasClearedChapterTier(row.ChapterId, row.Tier),
+            RunBattleTestArithmetic.Holdings(build));
+    }
+
+    /// <summary>The aggregated block is the bigger block, so re-applying it can only inflate the hero.</summary>
+    /// <remarks>
+    /// The negative control for the pairs above: two different hashes could in principle be two
+    /// equally-valid fights. This pins the direction — a block that already carries the loadout,
+    /// handed back as a base curve, is strictly more hero than the curve it was built from — so those
+    /// cases discriminate between a correct fight and a specific wrong one rather than between two
+    /// arbitrary ones.
+    /// </remarks>
+    [Fact]
+    public void The_aggregated_block_is_a_bigger_block_than_the_base_curve_it_was_built_from()
     {
         var runRow = RunBattleWorlds.RunRow();
         var build = HeroBuild.Of(RunBattleWorlds.Player(), RunBattleWorlds.Run(runRow), RunBattleWorlds.Content);
@@ -422,10 +529,13 @@ public sealed class RunBattleTests
             () => RunBattle.Simulate(
                 RunBattleWorlds.PlayerRow(), RunBattleWorlds.OnNoTileRow(), RunBattleWorlds.Content));
 
+        // Not "pending tile": the KIND refusal opens with "This run's pending tile is …", so the
+        // shorter phrase would be satisfied by either of the two rules.
         refused.Message.ShouldContain(
-            "pending tile",
+            "carries no pending tile",
             Case.Insensitive,
-            "a different rule from the phase gate, so it has to be a different sentence");
+            "a different rule from the phase gate and from the kind gate, so it has to be a " +
+            "different sentence from both");
     }
 
     /// <summary>A pending tile of a non-fight kind cannot compose a fight.</summary>
@@ -448,13 +558,21 @@ public sealed class RunBattleTests
     }
 
     /// <summary>A row that does not rehydrate is refused at the door, not composed from halves.</summary>
+    /// <remarks>
+    /// The parameter name is asserted, not just the exception type: <c>ArgumentNullException</c> is
+    /// an <c>ArgumentException</c> and so is the player door's own refusal, so a bare type check
+    /// would be satisfied by a fault about the wrong argument entirely.
+    /// </remarks>
     [Fact]
     public void A_run_row_that_does_not_rehydrate_is_refused_at_the_public_door()
     {
         var broken = RunBattleWorlds.RunRow() with { CurrentHp = -1 };
 
-        Should.Throw<ArgumentException>(
+        var refused = Should.Throw<ArgumentException>(
             () => RunBattle.Simulate(RunBattleWorlds.PlayerRow(), broken, RunBattleWorlds.Content));
+
+        refused.ParamName.ShouldBe("run");
+        refused.Message.ShouldContain("does not rehydrate", Case.Insensitive);
     }
 
     /// <summary>Neither door accepts a null.</summary>

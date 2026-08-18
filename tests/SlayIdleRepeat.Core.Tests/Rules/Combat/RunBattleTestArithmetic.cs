@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
@@ -80,6 +81,34 @@ internal static class RunBattleTestArithmetic
 
         return held;
     }
+
+    /// <summary>The same holdings with every STANDING modifier struck out.</summary>
+    /// <remarks>
+    /// 🔒 <b>The standing test is transcribed here, not borrowed.</b> An effect stands when its
+    /// trigger is absent OR authored <c>ALWAYS</c> — the DSL's own default — and asking the
+    /// production helper for that reading would make the comparison agree with the seam about the
+    /// one thing the case is asking about: reading only the absent half is exactly how a whole
+    /// loadout of explicitly-<c>ALWAYS</c> gear effects reached the aggregation and never reached a
+    /// fight.
+    /// </remarks>
+    internal static IReadOnlyList<HeldEffect> HoldingsWithoutStandingModifiers(HeroBuild build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+
+        return Holdings(build).Where(held => !Stands(held.Effect)).ToArray();
+    }
+
+    /// <summary>The effects of a build that stand — the half a fight has to re-aggregate every pass.</summary>
+    internal static IReadOnlyList<EffectDefinition> StandingEffects(HeroBuild build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+
+        return build.Effects.Where(Stands).ToArray();
+    }
+
+    /// <inheritdoc cref="HoldingsWithoutStandingModifiers"/>
+    private static bool Stands(EffectDefinition effect) =>
+        effect.Trigger is null || effect.Trigger.Kind == TriggerKind.ALWAYS;
 
     /// <summary>Every stat of a block, added up — a single number two builds can be ordered by.</summary>
     /// <remarks>

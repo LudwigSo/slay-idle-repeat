@@ -58,10 +58,12 @@ public sealed class SimulatePendingBattleUseCaseTests
         parsed.ShouldBe(view.Fight.LogHash);
     }
 
-    /// <summary>The reported seed is the fight's, not zero and not the run's own seed.</summary>
+    /// <summary>The reported seed is the seed the run's own row derives, not merely a plausible one.</summary>
     /// <remarks>
-    /// Both halves matter: reporting the run seed instead of the battle seed would be a real number
-    /// that names the wrong thing, and it is the one substitution a reader could not spot.
+    /// 🔴 Stated as an equality against the derivation. "Not zero and not the run seed" is true of
+    /// almost every number a broken derivation could produce — an off-by-one on the battle index is a
+    /// real seed for the wrong fight, passes both halves, and is exactly the substitution a reader
+    /// could not spot. The two negatives are kept as controls beneath it.
     /// </remarks>
     [Fact]
     public async Task The_reported_seed_is_the_battles_and_not_the_runs()
@@ -71,7 +73,12 @@ public sealed class SimulatePendingBattleUseCaseTests
         var view = (await Use(store).ExecuteAsync(new SimulatePendingBattleRequest(player), Worlds.Cancel)).View;
 
         view.ShouldNotBeNull();
-        view!.BattleSeed.ShouldNotBe(0UL);
+        view!.BattleSeed.ShouldBe(
+            SlayIdleRepeat.Core.Rules.Combat.RunBattle.SeedOf(run),
+            "the reported seed is the one the run's committed row derives, and a server recomputing " +
+            "the fight will derive that one");
+
+        view.BattleSeed.ShouldNotBe(0UL);
         view.BattleSeed.ShouldNotBe(run.RunSeed, "the battle seed is derived FROM the run seed, not equal to it");
     }
 
@@ -135,7 +142,7 @@ public sealed class SimulatePendingBattleUseCaseTests
         Worlds.Hash(after!).ShouldBe(beforeHash);
     }
 
-    /// <summary>Neither argument may be null.</summary>
+    /// <summary>The request may not be null.</summary>
     [Fact]
     public async Task The_use_case_refuses_a_null_request()
     {
