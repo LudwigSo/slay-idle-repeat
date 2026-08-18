@@ -6,7 +6,8 @@
     "gold": "loc.board.gold.label",
     "stage": "loc.board.stage.label",
     "rolled": "loc.board.rolled.label",
-    "standingOn": "loc.board.standing_on.label"
+    "standingOn": "loc.board.standing_on.label",
+    "rerollChangesNextRoll": "loc.board.reroll_changes_next_roll.label"
   },
   "action": {
     "roll": "loc.board.roll.action",

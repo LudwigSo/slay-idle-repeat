@@ -66,8 +66,23 @@ The full die, with all sources applied, is recomputed at run start and displayed
 
 A reroll re-rolls the die completely — it is not a "+1 nudge". A separate talent grants **Nudge** (±1 to a Pip result, 1/stage), which is a different, cheaper tool.
 
+### 3.1 What a reroll actually changes 🔒 (ruled at the M7 kickoff, D6, 2026-08-18)
+
+🔒 **A reroll changes the NEXT roll. It does not undo the roll it is offered beside, and it never could.**
+
+`ROLL_DICE` answers three questions in one command — the face, the movement it buys and the tile the run lands on — so by the moment a face is on screen the run has **already moved**. There is nothing left to undo. `USE_REROLL` instead burns one draw of the dice stream, advancing the Fair-Dice bag exactly as a real roll would but without moving the run, so the very next `ROLL_DICE` draws a different index against updated weights.
+
+⚠️ **This section previously implied the other reading, and the document is what yielded.** The alternative was splitting `ROLL_DICE` into a roll and a commit, which would cost a 53rd and 54th command against `14` §2.3's frozen vocabulary (another logged `16` decision), change RNG consumption on the dice stream, and diverge **every saved command log** — the same replay blast radius that kept M4-17 out of the M4 review. The shipped command is correct; the sentence describing it was not.
+
+Consequences that follow, and are **not** changed by this amendment:
+- The charge is spent when the reroll is taken, and it buys an effect on the next roll rather than a redo of this one.
+- The counts, sources and caps in the table above are untouched, tunable markers included — this amendment is about what a reroll *does*, not about any number.
+- The 4-second ring and its lapse behaviour are untouched, and are already shipped correctly: **on lapse the roll is accepted and no charge is spent.**
+
 ### Reroll prompt UX
 After the die settles, a 4-second ring timer runs around a `REROLL (2)` button. Tapping anywhere else or letting the timer lapse accepts the roll. The timer must be skippable and its duration must respect an accessibility setting that removes it entirely (see `13_UI_UX_SCREENS.md` §8).
+
+🔒 **The button's wording must not promise an undo** (§3.1). It offers to change the next roll, and the caption beside it says so — a bare *"Reroll"* on a screen where the run has already moved is read as a redo, which is the one thing the command cannot do.
 
 ---
 

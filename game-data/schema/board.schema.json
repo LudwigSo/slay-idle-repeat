@@ -20,13 +20,14 @@
       "description": "The captions beside the values the run row literally carries. HP and Gold are on the run; the stage is derived from the run's pending tile against the chapter's own stage list; 'rolled' captions the face the last accepted roll reported, and 'standing on' the tile that has not been resolved yet.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["hp", "gold", "stage", "rolled", "standingOn"],
+      "required": ["hp", "gold", "stage", "rolled", "standingOn", "rerollChangesNextRoll"],
       "properties": {
         "hp": { "$ref": "#/$defs/locKey" },
         "gold": { "$ref": "#/$defs/locKey" },
         "stage": { "$ref": "#/$defs/locKey" },
         "rolled": { "$ref": "#/$defs/locKey" },
-        "standingOn": { "$ref": "#/$defs/locKey" }
+        "standingOn": { "$ref": "#/$defs/locKey" },
+        "rerollChangesNextRoll": { "$ref": "#/$defs/locKey" }
       }
     },
     "action": {

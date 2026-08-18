@@ -28,6 +28,7 @@ internal static class BoardContent
     internal const string StandingOnLabelKey = "loc.board.standing_on.label";
     internal const string RollActionKey = "loc.board.roll.action";
     internal const string RerollActionKey = "loc.board.reroll.action";
+    internal const string RerollChangesNextRollLabelKey = "loc.board.reroll_changes_next_roll.label";
     internal const string ResolveActionKey = "loc.board.resolve.action";
     internal const string DiePanelActionKey = "loc.board.die_panel.action";
     internal const string ForkNameKey = "loc.board.fork.name";
@@ -60,6 +61,7 @@ internal static class BoardContent
     internal static IReadOnlyList<string> BoardKeys { get; } =
     [
         HpLabelKey, GoldLabelKey, StageLabelKey, RolledLabelKey, StandingOnLabelKey,
+        RerollChangesNextRollLabelKey,
         RollActionKey, RerollActionKey, ResolveActionKey, DiePanelActionKey,
         ForkNameKey, ForkContinueActionKey, ForkBranchActionKey,
         LoadingStatusKey, RunMissingStatusKey, RunEndedStatusKey, UnavailableStatusKey,

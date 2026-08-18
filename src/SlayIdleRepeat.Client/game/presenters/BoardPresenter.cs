@@ -158,21 +158,27 @@ public sealed record DieFaceReading(int Sequence, string Kind, int Value);
 public sealed class BoardPresenter
 {
     /// <summary>
-    /// ⚠️ Deliberately not papered over, and named so it can be found. The design's reroll prompt
-    /// offers to replace the face just shown; the command the rules layer actually ships cannot,
-    /// because the roll, the movement and the landing are one command and are already committed by
-    /// the time any face is known. What <c>USE_REROLL</c> does instead is spend a charge to advance
-    /// the die so the NEXT roll differs. Reconciling the two is a dice-system decision no task owns,
-    /// so the divergence is stated here rather than hidden behind a caption that would promise an
-    /// undo and deliver a different mechanic.
+    /// 🔒 <b>SETTLED, and kept because the reasoning is still load-bearing.</b> The divergence this
+    /// used to state as unowned was ruled at the M7 kickoff (D6) and the document yielded: <c>04</c>
+    /// §3.1 now says a reroll changes the NEXT roll and cannot undo the one it is offered beside.
     /// </summary>
-    private const string TheRerollCannotReplaceTheFaceItIsShownBeside =
-        "04's reroll prompt offers to replace the face the die just settled on. USE_REROLL cannot: " +
-        "ROLL_DICE answers with the face, the movement and the landing in one command, so the run " +
-        "has already moved before a face is known, and the handler's own remarks say it instead " +
-        "burns a dice-stream draw so the next ROLL_DICE differs. The prompt below is therefore the " +
-        "authored acceptance window, and the control inside it is offered for what the command " +
-        "does rather than for what the design describes.";
+    /// <remarks>
+    /// ⚠️ The constant stays rather than being deleted with the divergence. It is the argument for why
+    /// the amendment went the way it did, and the next person to read <c>04</c> §3's prompt UX and
+    /// think a bare <em>"Reroll"</em> would do is the person who needs it: <c>ROLL_DICE</c> answers the
+    /// face, the movement and the landing in one command, so the run has already moved before any face
+    /// is known. The alternative was splitting that command in two, at the cost of a 53rd and 54th
+    /// entry in <c>14</c> §2.3's frozen vocabulary, a change to RNG consumption on the dice stream, and
+    /// divergence in every saved command log.
+    /// </remarks>
+    private const string TheRerollChangesTheNextRollAndTheDocumentSaysSoNow =
+        "04 §3.1 (kickoff decision D6): a reroll changes the NEXT roll. USE_REROLL cannot replace the " +
+        "face the die just settled on, because ROLL_DICE answers with the face, the movement and the " +
+        "landing in one command, so the run has already moved before a face is known — the handler's " +
+        "own remarks say it burns a dice-stream draw so the next ROLL_DICE differs. The prompt is the " +
+        "authored acceptance window and the control inside it is offered for what the command does. " +
+        "RerollChangesNextRollText is the caption that says so on screen, because a bare 'Reroll' " +
+        "beside a settled face is read as a redo.";
 
     /// <summary>
     /// ⚠️ Deliberately unread, and named so it can be found. Nothing reachable from a client
@@ -221,6 +227,7 @@ public sealed class BoardPresenter
     private const string StandingOnLabelKey = "loc.board.standing_on.label";
     private const string RollActionKey = "loc.board.roll.action";
     private const string RerollActionKey = "loc.board.reroll.action";
+    private const string RerollChangesNextRollLabelKey = "loc.board.reroll_changes_next_roll.label";
     private const string ResolveActionKey = "loc.board.resolve.action";
     private const string DiePanelActionKey = "loc.board.die_panel.action";
     private const string ForkNameKey = "loc.board.fork.name";
@@ -479,6 +486,19 @@ public sealed class BoardPresenter
 
     /// <summary>The reroll control's caption, resolved.</summary>
     public string RerollText => _strings.Resolve(RerollActionKey);
+
+    /// <summary>
+    /// The sentence beside the reroll saying what it changes, resolved.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Not optional decoration — see
+    /// <see cref="TheRerollChangesTheNextRollAndTheDocumentSaysSoNow"/>. <c>04</c> §3.1 requires the
+    /// wording not to promise an undo, and a button label alone cannot carry the distinction between
+    /// "re-roll this" and "change the next one". Always resolved rather than shown only on the first
+    /// prompt: a player who learns the rule once and then sees a bare control on every later roll has
+    /// been taught the wrong thing by repetition.
+    /// </remarks>
+    public string RerollChangesNextRollText => _strings.Resolve(RerollChangesNextRollLabelKey);
 
     /// <summary>The tile acknowledgement's caption, resolved.</summary>
     public string ResolveText => _strings.Resolve(ResolveActionKey);
