@@ -4,6 +4,7 @@ using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Model;
 using RunAggregate = SlayIdleRepeat.Core.Model.Run;
+using SlayIdleRepeat.Core.Tests.BalanceHarness;
 
 namespace SlayIdleRepeat.Core.Tests;
 
@@ -36,7 +37,10 @@ internal static class Worlds
     internal static GameContext Context { get; } = new(
         NowUtc,
         CommandSeed: null,
-        TuningDocuments.Shipped,
+        // 🔒 The shipped gaps filled in. START_RUN scores Max HP off the hero's build (M7-06d), so this
+        // suite now reads the combat caps, the gear catalogue and the par table — none of which a
+        // hand-assembled tuning set had any reason to carry before.
+        ShippedHarness.WithShippedGaps(TuningDocuments.Shipped),
         TestSupport.GameContexts.WithoutPlus,
         TestSupport.GameContexts.NoKillSwitchThrown);
 

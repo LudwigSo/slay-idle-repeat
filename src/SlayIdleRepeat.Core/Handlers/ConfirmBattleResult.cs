@@ -122,13 +122,17 @@ internal static class ConfirmBattleResult
             input.Player.CountBattleHashMismatch();
         }
 
+        // 🔒 The fight's own ending HP, on either arm. Discarding it left a hero immortal across won
+        // battles — the recomputation produced the number and nothing applied it — which is the other
+        // half of the inert HP economy M7-06d closes. Clamped into the run's range rather than trusted
+        // raw: the simulation works in doubles over the COMPOSED Max HP, and a run stores whole points
+        // against its own ceiling, so a fight that ended a hair above full or below zero is arithmetic
+        // rather than a state the run may hold.
+        run.SetHitPoints(SurvivingHitPoints(truth, run.MaxHp), run.MaxHp);
+
         if (truth.HeroWon)
         {
             ApplyWin(input, kind, events);
-        }
-        else
-        {
-            run.SetHitPoints(0, run.MaxHp);
         }
 
         run.ExitBattle();
@@ -288,6 +292,35 @@ internal static class ConfirmBattleResult
     /// Whether <paramref name="logHash"/> could legitimately be a <c>LogHash</c>: non-blank and
     /// parseable as the invariant-culture <see cref="ulong"/> the server produces.
     /// </summary>
+    /// <summary>The hit points the fight left the hero on, as a run can store them.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>A lost fight is zero by rule, not by arithmetic.</b> <c>05</c>'s simulation ends a losing
+    /// fight at or below zero, but "at or below" is not a number a run may hold, and <c>02</c> §5.2's
+    /// death is a state rather than a remainder. So a loss is written as exactly 0 and only a win reads
+    /// the simulation's figure.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>And that arm is NOT pinned by a test, which is stated here rather than left to look like
+    /// coverage.</b> Mutating the loss arm to read the simulation's figure through the same clamp was
+    /// measured against the whole suite and <b>nothing failed</b> — correctly, because a loss ends at or
+    /// below zero and the clamp's floor is zero, so the two are equivalent today. The explicit <c>0</c>
+    /// survives as stated intent, not as behaviour under test: a later rule that ended a fight in
+    /// defeat with hit points left — a timeout loss, a concede — would make them differ, and this is
+    /// the arm that would still write death.
+    /// </para>
+    /// <para>
+    /// ⚠️ Clamped at both ends. The floor stops a rounding artefact from writing a negative on a won
+    /// fight; the ceiling stops a heal-over-max inside the fight from opening the next battle above the
+    /// run's own Max HP, which <c>Run.SetHitPoints</c> refuses outright.
+    /// </para>
+    /// </remarks>
+    private static int SurvivingHitPoints(SimulationResult truth, int maxHp) =>
+        truth.HeroWon
+            ? Math.Clamp(
+                (int)Math.Round(truth.HeroHpRemaining, MidpointRounding.AwayFromZero), 0, maxHp)
+            : 0;
+
     /// <summary>Whether the client's report differs from the fight the server just ran.</summary>
     /// <remarks>
     /// <para>

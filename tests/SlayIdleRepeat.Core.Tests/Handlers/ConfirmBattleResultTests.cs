@@ -171,7 +171,15 @@ public sealed class ConfirmBattleResultTests
         var result = Confirm(opened, "1");
 
         result.NewState.Run!.Gold.ShouldBe(290);
-        result.NewState.Run!.CurrentHp.ShouldBe(60);
+        // 🔒 A won fight now COSTS HP, where it used to cost nothing: M7-06d applies the
+        // recomputation's own HeroHpRemaining instead of discarding it. ⚠️ It lands at the ceiling here
+        // rather than somewhere interesting, and the reason is worth knowing: this fixture's run
+        // carries a Max HP of 100 while the over-par hero composes one in the thousands, so the fight
+        // ends far above the run's ceiling and the clamp takes it to full. A wounded-survivor case
+        // needs a hero near par, which is `05` §9's harness rather than this suite's fixture.
+        result.NewState.Run!.CurrentHp.ShouldBe(
+            result.NewState.Run!.MaxHp,
+            "a won fight writes its own ending HP, clamped into the run's range.");
         result.NewState.Run!.BankedLegendXp.ShouldBe(25);
         result.NewState.Run!.BankedSoulShards.ShouldBe(0);
         result.Events.ShouldNotBeEmpty();

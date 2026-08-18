@@ -78,30 +78,7 @@ internal static class TileWorlds
     /// laid OVER the full shipped set rather than the set being added to them, so every override this
     /// suite depends on still wins and nothing it pins changes value.
     /// </remarks>
-    internal static GameContext Context { get; } = ContextOver(FightCapable(InRunIncomeDocuments.Shipped));
-
-    /// <summary>The shipped content set with an overlay's documents replacing their namesakes.</summary>
-    /// <remarks>
-    /// ⚠️ The overlay's own <c>Version</c> is kept, not the shipped set's: the stamp identifies the
-    /// documents a fixture actually reads, and taking the real set's would claim this snapshot is the
-    /// shipped content when the whole point is that it is not.
-    /// </remarks>
-    private static ContentSnapshot FightCapable(ContentSnapshot overlay)
-    {
-        var merged = new Dictionary<string, ContentDocument>(StringComparer.Ordinal);
-
-        foreach (var path in ShippedHarness.Content.DocumentPaths)
-        {
-            merged[path] = ShippedHarness.Content.GetDocument(path);
-        }
-
-        foreach (var path in overlay.DocumentPaths)
-        {
-            merged[path] = overlay.GetDocument(path);
-        }
-
-        return new ContentSnapshot(overlay.Version, merged.Values);
-    }
+    internal static GameContext Context { get; } = ContextOver(ShippedHarness.WithShippedGaps(InRunIncomeDocuments.Shipped));
 
     /// <summary>A context over a content set with individual leaves replaced.</summary>
     internal static GameContext ContextOver(ContentSnapshot content) => new(
