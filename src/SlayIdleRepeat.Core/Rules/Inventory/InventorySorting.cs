@@ -45,6 +45,7 @@ internal static class InventorySorting
     /// <param name="key">Which ordering.</param>
     /// <param name="par">The par table, for the chapter half of an item's power.</param>
     /// <param name="drops">The gear tables, for the band half of it.</param>
+    /// <param name="forge">The forge numbers, for the enhancement half of it.</param>
     /// <param name="catalogue">The base-item grid, which declares the order the slots group in.</param>
     /// <returns>
     /// A new read-only list in the chosen order. Every input item appears exactly once.
@@ -56,11 +57,13 @@ internal static class InventorySorting
         InventorySortKey key,
         ParPowerTuning par,
         DropsTuning drops,
+        ForgeTuning forge,
         GearCatalogue catalogue)
     {
         ArgumentNullException.ThrowIfNull(items);
         ArgumentNullException.ThrowIfNull(par);
         ArgumentNullException.ThrowIfNull(drops);
+        ArgumentNullException.ThrowIfNull(forge);
         ArgumentNullException.ThrowIfNull(catalogue);
 
         // The arrival index is captured before anything moves, so "grant order" survives as the last
@@ -76,7 +79,7 @@ internal static class InventorySorting
                 arrivals.OrderByDescending(row => row.Item.Rarity),
 
             InventorySortKey.POWER =>
-                arrivals.OrderByDescending(row => PowerOf(par, drops, row.Item))
+                arrivals.OrderByDescending(row => PowerOf(par, drops, forge, row.Item))
                         .ThenByDescending(row => row.Item.Quality),
 
             InventorySortKey.QUALITY =>
@@ -103,19 +106,30 @@ internal static class InventorySorting
 
     /// <summary>
     /// The power scalar an item carries: its band's multiplier against the par power of the chapter
-    /// it dropped in.
+    /// it dropped in, at the enhancement level it stands at.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Quality is deliberately not folded in here — it is the next tie-break instead, so the band
     /// dominates. At one chapter of origin the band's multiplier spans more than the quality range
     /// ever can, and a comparer that ranked quality first would put a perfect low-band roll above an
     /// unlucky high-band one.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Enhancement is folded in, and it is the whole point of this key.</b> Without it the
+    /// strongest-first ordering ranks a maxed item below a lucky fresh roll of the same band —
+    /// several hundred stones of investment sorted underneath the drop that replaced nothing. It is
+    /// the same composition the hero build makes, so the list and the stat block agree about which
+    /// item is stronger.
+    /// </para>
     /// </remarks>
-    private static double PowerOf(ParPowerTuning par, DropsTuning drops, GearInstance item) =>
+    private static double PowerOf(
+        ParPowerTuning par, DropsTuning drops, ForgeTuning forge, GearInstance item) =>
         ItemPower.For(
             par.ChapterPowerTarget(item.ChapterOrigin),
             drops.ItemPowerCoefficient,
-            drops.Band(item.Rarity).StatMultiplier);
+            drops.Band(item.Rarity).StatMultiplier) *
+        forge.StatMultiplier(item.EnhanceLevel);
 
     /// <summary>Where a slot sits in the catalogue's declared grid.</summary>
     /// <remarks>

@@ -197,20 +197,27 @@ internal static class GearDocuments
     /// <summary>The fourteen affixes: id, authored range, the slots they may roll on, and any floor.</summary>
     internal static IReadOnlyList<AuthoredAffix> ShippedAffixes { get; } =
     [
-        new("AFX_CRIT_CHANCE", 0.02m, 0.08m, ["WEAPON", "RING", "HELMET"], null),
-        new("AFX_CRIT_DAMAGE", 0.1m, 0.35m, ["WEAPON", "RING"], null),
-        new("AFX_ATTACK_SPEED", 0.03m, 0.12m, ["WEAPON", "BOOTS"], null),
-        new("AFX_PEN", 0.04m, 0.15m, ["WEAPON", "RING"], null),
-        new("AFX_MAX_HP", 0.05m, 0.2m, ["ARMOR", "HELMET", "AMULET"], null),
-        new("AFX_DEF", 0.05m, 0.22m, ["ARMOR", "HELMET", "BOOTS"], null),
-        new("AFX_DODGE", 0.02m, 0.08m, ["BOOTS", "AMULET"], null),
-        new("AFX_BLOCK", 0.03m, 0.12m, ["ARMOR", "HELMET"], null),
-        new("AFX_LIFESTEAL", 0.02m, 0.09m, ["AMULET", "WEAPON"], null),
-        new("AFX_DAMAGE_REDUCTION", 0.02m, 0.08m, ["ARMOR", "AMULET"], null),
-        new("AFX_GOLD_GAIN", 0.08m, 0.3m, ["RING", "AMULET"], null),
-        new("AFX_PET_AURA_POWER", 0.05m, 0.2m, ["AMULET", "RING"], null),
-        new(ShippedFlooredAffixId, 1m, 1m, ["RING", "AMULET"], ShippedFlooredAffixMinimumRarity),
-        new("AFX_DAMAGE_VS_ELITES", 0.08m, 0.25m, ["WEAPON", "RING"], null),
+        new("AFX_CRIT_CHANCE", "CRIT", "STAT_ADD_FLAT", 0.02m, 0.08m, ["WEAPON", "RING", "HELMET"], null),
+        new("AFX_CRIT_DAMAGE", "CDMG", "STAT_ADD_FLAT", 0.1m, 0.35m, ["WEAPON", "RING"], null),
+        new("AFX_ATTACK_SPEED", "ASPD", "STAT_ADD_PCT", 0.03m, 0.12m, ["WEAPON", "BOOTS"], null),
+        new("AFX_PEN", "PEN", "STAT_ADD_FLAT", 0.04m, 0.15m, ["WEAPON", "RING"], null),
+        new("AFX_MAX_HP", "MAX_HP", "STAT_ADD_PCT", 0.05m, 0.2m, ["ARMOR", "HELMET", "AMULET"], null),
+        new("AFX_DEF", "DEF", "STAT_ADD_PCT", 0.05m, 0.22m, ["ARMOR", "HELMET", "BOOTS"], null),
+        new("AFX_DODGE", "DODGE", "STAT_ADD_FLAT", 0.02m, 0.08m, ["BOOTS", "AMULET"], null),
+        new("AFX_BLOCK", "BLOCK", "STAT_ADD_FLAT", 0.03m, 0.12m, ["ARMOR", "HELMET"], null),
+        new("AFX_LIFESTEAL", "LIFESTEAL", "STAT_ADD_FLAT", 0.02m, 0.09m, ["AMULET", "WEAPON"], null),
+        new("AFX_DAMAGE_REDUCTION", "DR_PCT", "STAT_ADD_FLAT", 0.02m, 0.08m, ["ARMOR", "AMULET"], null),
+        new("AFX_GOLD_GAIN", "GOLD_PCT", "STAT_ADD_FLAT", 0.08m, 0.3m, ["RING", "AMULET"], null),
+        new("AFX_PET_AURA_POWER", "PET_AURA_PCT", "STAT_ADD_FLAT", 0.05m, 0.2m, ["AMULET", "RING"], null),
+        new(
+            ShippedFlooredAffixId,
+            "REROLL_CHARGES",
+            "STAT_ADD_FLAT",
+            1m,
+            1m,
+            ["RING", "AMULET"],
+            ShippedFlooredAffixMinimumRarity),
+        new("AFX_DAMAGE_VS_ELITES", null, null, 0.08m, 0.25m, ["WEAPON", "RING"], null),
     ];
 
     /// <summary>All three shipped documents, together.</summary>
@@ -355,6 +362,8 @@ internal static class GearDocuments
         var members = new List<(string Name, ContentValue Value)>
         {
             ("id", ContentValue.Text(affix.AffixId)),
+            ("stat", affix.Stat is null ? ContentValue.Unauthorised : ContentValue.Text(affix.Stat)),
+            ("op", affix.Op is null ? ContentValue.Unauthorised : ContentValue.Text(affix.Op)),
             ("min", ContentValue.Number(affix.Minimum)),
             ("max", ContentValue.Number(affix.Maximum)),
             ("slots", ContentValue.Array(affix.Slots.Select(ContentValue.Text))),
@@ -503,12 +512,16 @@ internal readonly record struct AuthoredPercentStat(
 
 /// <summary>One affix of the pool, as authored.</summary>
 /// <param name="AffixId">The authored id.</param>
+/// <param name="Stat">The stat it writes, or null where it writes none.</param>
+/// <param name="Op">The bucket it writes through, or null where it writes none.</param>
 /// <param name="Minimum">The bottom of its range, inclusive.</param>
 /// <param name="Maximum">The top of its range, inclusive.</param>
 /// <param name="Slots">The slots it may roll on.</param>
 /// <param name="MinimumRarity">Its rarity floor, or null where it authors none.</param>
 internal readonly record struct AuthoredAffix(
     string AffixId,
+    string? Stat,
+    string? Op,
     decimal Minimum,
     decimal Maximum,
     IReadOnlyList<string> Slots,

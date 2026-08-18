@@ -1,3 +1,4 @@
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Content;
@@ -36,18 +37,50 @@ internal readonly record struct SlotCoefficients(
     string SecondaryStat,
     double? SecondaryCoefficient);
 
-/// <summary>One affix in the pool: its id, its authored range, and the slots it may appear on.</summary>
+/// <summary>One affix in the pool: its id, what it writes, its authored range, and the slots it may appear on.</summary>
 /// <param name="AffixId">The authored id, e.g. <c>AFX_CRIT_CHANCE</c>.</param>
+/// <param name="Stat">
+/// The stat a roll of this affix writes, or <see langword="null"/> where the pool authors an affix the
+/// stat block has no slot for.
+/// </param>
+/// <param name="Op">
+/// How it writes it — the additive-flat or additive-percent bucket. <see langword="null"/> exactly
+/// where <paramref name="Stat"/> is.
+/// </param>
 /// <param name="Minimum">The bottom of its authored range, inclusive.</param>
 /// <param name="Maximum">The top of its authored range, inclusive.</param>
 /// <param name="Slots">The slots it may be rolled on. Never empty.</param>
 /// <remarks>
+/// <para>
 /// The rarity floor two of the fourteen carry is deliberately <em>not</em> a member. It is an
 /// eligibility rule rather than a property of the affix, and the tuning reader applies it when it
 /// answers which affixes a given item may draw — so the roller never has to remember to.
+/// </para>
+/// <para>
+/// 🔒 <b>The op is authored per affix and is not uniform</b>, because aggregation multiplies the
+/// running value by <c>1 + Σ percent</c>: on a stat whose base is zero — lifesteal, block,
+/// penetration, damage reduction — a percent add is arithmetically inert. So a <c>+X%</c> affix on a
+/// stat that <em>is</em> a fraction contributes X percentage points, and only a stat whose base is a
+/// magnitude the percentage is taken of takes the percent bucket. Authored rather than derived here:
+/// a table in code would be a second, frozen answer no architecture rule could see.
+/// </para>
 /// </remarks>
 internal readonly record struct GearAffixDefinition(
-    string AffixId, double Minimum, double Maximum, IReadOnlyList<GearSlot> Slots);
+    string AffixId,
+    StatId? Stat,
+    EffectOp? Op,
+    double Minimum,
+    double Maximum,
+    IReadOnlyList<GearSlot> Slots)
+{
+    /// <summary>Whether a roll of this affix contributes anything a stat block can hold.</summary>
+    /// <remarks>
+    /// Both halves or neither: an affix naming a stat with no op could not be applied, and one naming
+    /// an op with no stat could not be aimed. The reader refuses either half alone, so this is a
+    /// question about the authored pool rather than a guard against a half-read row.
+    /// </remarks>
+    internal bool WritesAStat => Stat is not null && Op is not null;
+}
 
 /// <summary>
 /// The gear generation tables, read out of <c>tuning/drops.json</c>: the rarity ladder, the
@@ -613,9 +646,13 @@ internal sealed class DropsTuning
                     $"{AuthoredToken.Render(maximum)}, which is not a range a roll can land inside.");
             }
 
+            var (stat, op) = ReadContribution(content, pointer);
+
             affixes[i] = (
                 new GearAffixDefinition(
                     content.ReadText(pointer + "/id"),
+                    stat,
+                    op,
                     minimum,
                     maximum,
                     ReadSlots(content, pointer + "/slots")),
@@ -623,6 +660,55 @@ internal sealed class DropsTuning
         }
 
         return Array.AsReadOnly(affixes);
+    }
+
+    /// <summary>
+    /// What one affix row writes: the stat and the bucket, or a matched pair of nulls where the pool
+    /// authors an affix nothing can apply yet.
+    /// </summary>
+    /// <remarks>
+    /// Half a pair is refused rather than tolerated. A stat with no op cannot be applied and an op
+    /// with no stat cannot be aimed, so either alone is a row that reads as authored and contributes
+    /// nothing — the shape a null exists to keep visible, wearing the clothes of a complete one.
+    /// The op set is narrowed to the two additive buckets here as well as in the schema, because this
+    /// is the layer that would otherwise hand the aggregation an op an affix has no business carrying.
+    /// </remarks>
+    private static (StatId? Stat, EffectOp? Op) ReadContribution(ContentSnapshot content, string pointer)
+    {
+        var statReference = pointer + "/stat";
+        var opReference = pointer + "/op";
+
+        var statAuthored = !content.Read(statReference).IsUnauthorised;
+        var opAuthored = !content.Read(opReference).IsUnauthorised;
+
+        if (statAuthored != opAuthored)
+        {
+            throw new InvalidTunableException(
+                statAuthored ? opReference : statReference,
+                "An affix names a stat and the bucket it writes it into, or neither. This row authors " +
+                (statAuthored ? "a stat with no op" : "an op with no stat") +
+                ", which reads as an authored contribution and applies nothing — the exact shape the " +
+                "null is there to keep visible.");
+        }
+
+        if (!statAuthored)
+        {
+            return (null, null);
+        }
+
+        var op = AuthoredToken.Parse<EffectOp>(
+            content, opReference, "the flat or the percent additive bucket");
+
+        if (op is not (EffectOp.STAT_ADD_FLAT or EffectOp.STAT_ADD_PCT))
+        {
+            throw new InvalidTunableException(
+                opReference,
+                $"An affix is a standing stat modifier, so it writes through {EffectOp.STAT_ADD_FLAT} " +
+                $"or {EffectOp.STAT_ADD_PCT} and nothing else. This document authors {op}, which would " +
+                "let a rolled affix do something no affix is described as doing.");
+        }
+
+        return (AuthoredToken.Parse<StatId>(content, statReference, "one of the stats"), op);
     }
 
     private static IReadOnlyList<GearSlot> ReadSlots(ContentSnapshot content, string reference)

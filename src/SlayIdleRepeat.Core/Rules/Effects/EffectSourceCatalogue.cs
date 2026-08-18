@@ -26,10 +26,12 @@ internal sealed record EffectSourceRow(
 /// <summary>The ten sources step 1 collects effects from, as a declared, floored inventory.</summary>
 /// <remarks>
 /// <para>
-/// None of the ten has a data model yet, and none is stubbed — a plausible shape here would be ten
-/// invented types that later milestones would each have to find and delete. What fills a slot today
-/// is <c>ListEffectSource</c>, the synthetic-build implementation the balance harness and tests use,
-/// which is why the pipeline is testable end to end without stubbing gear, perks or a draft.
+/// Three of the ten are wired — gear, affixes and set bonuses, which the hero build reads off the
+/// equipped loadout. The other seven have no data model yet, and none is stubbed: a plausible shape
+/// here would be seven invented types that later milestones would each have to find and delete. What
+/// fills one of those slots today is <c>ListEffectSource</c>, the synthetic-build implementation the
+/// balance harness and tests use, which is why the pipeline was testable end to end before any real
+/// source existed.
 /// </para>
 /// <para>
 /// A source hands over <see cref="IEffectSource"/> — a bare list of
@@ -60,9 +62,13 @@ internal static class EffectSourceCatalogue
     /// </remarks>
     internal static IReadOnlyList<EffectSourceRow> Rows { get; } = new EffectSourceRow[]
     {
-        new(EffectSourceKind.GEAR, "gear", "M4-03", "GearItem"),
-        new(EffectSourceKind.AFFIXES, "affixes", "M4-03", "GearAffix"),
-        new(EffectSourceKind.SET_BONUSES, "set bonuses", "M4-03", "SetBonus"),
+        // The three gear sources are WIRED. GearEffectSource, GearAffixEffectSource and
+        // SetBonusEffectSource read the equipped loadout, so these rows carry neither an owning
+        // milestone nor an expiry subject — and clearing them is what lowers the floor the deferral
+        // rule quantifies over, in the same commit as the register entries they were keyed on.
+        new(EffectSourceKind.GEAR, "gear", null, null),
+        new(EffectSourceKind.AFFIXES, "affixes", null, null),
+        new(EffectSourceKind.SET_BONUSES, "set bonuses", null, null),
         new(EffectSourceKind.TALENTS, "talents", "M4-06", "TalentNode"),
         new(EffectSourceKind.PET_AURAS, "pet auras", "M4-07", "PetDefinition"),
         new(EffectSourceKind.MOUNT, "mount", "M4-08", "MountDefinition"),

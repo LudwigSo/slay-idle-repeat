@@ -227,9 +227,9 @@ public sealed class InventorySortingTests
         foreach (var key in Enum.GetValues<InventorySortKey>())
         {
             var once = InventorySorting.Sort(
-                Mixed(), key, Inventories.Par, Inventories.Drops, Inventories.Catalogue);
+                Mixed(), key, Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue);
             var twice = InventorySorting.Sort(
-                once, key, Inventories.Par, Inventories.Drops, Inventories.Catalogue);
+                once, key, Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue);
 
             twice.Select(item => item.InstanceId).ShouldBe(
                 once.Select(item => item.InstanceId),
@@ -271,7 +271,7 @@ public sealed class InventorySortingTests
     public void An_empty_inventory_sorts_to_nothing()
     {
         InventorySorting.Sort(
-                [], InventorySortKey.RARITY, Inventories.Par, Inventories.Drops, Inventories.Catalogue)
+                [], InventorySortKey.RARITY, Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue)
             .ShouldBeEmpty();
     }
 
@@ -282,7 +282,7 @@ public sealed class InventorySortingTests
         Should.Throw<ArgumentOutOfRangeException>(
                 () => InventorySorting.Sort(
                     Mixed(), (InventorySortKey)99,
-                    Inventories.Par, Inventories.Drops, Inventories.Catalogue))
+                    Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue))
             .ParamName.ShouldBe("key");
     }
 
@@ -293,25 +293,31 @@ public sealed class InventorySortingTests
         Should.Throw<ArgumentNullException>(
                 () => InventorySorting.Sort(
                     null!, InventorySortKey.RARITY,
-                    Inventories.Par, Inventories.Drops, Inventories.Catalogue))
+                    Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue))
             .ParamName.ShouldBe("items");
 
         Should.Throw<ArgumentNullException>(
                 () => InventorySorting.Sort(
                     Mixed(), InventorySortKey.POWER,
-                    null!, Inventories.Drops, Inventories.Catalogue))
+                    null!, Inventories.Drops, Inventories.Forge, Inventories.Catalogue))
             .ParamName.ShouldBe("par");
 
         Should.Throw<ArgumentNullException>(
                 () => InventorySorting.Sort(
                     Mixed(), InventorySortKey.RARITY,
-                    Inventories.Par, null!, Inventories.Catalogue))
+                    Inventories.Par, null!, Inventories.Forge, Inventories.Catalogue))
             .ParamName.ShouldBe("drops");
 
         Should.Throw<ArgumentNullException>(
                 () => InventorySorting.Sort(
+                    Mixed(), InventorySortKey.POWER,
+                    Inventories.Par, Inventories.Drops, null!, Inventories.Catalogue))
+            .ParamName.ShouldBe("forge");
+
+        Should.Throw<ArgumentNullException>(
+                () => InventorySorting.Sort(
                     Mixed(), InventorySortKey.RARITY,
-                    Inventories.Par, Inventories.Drops, null!))
+                    Inventories.Par, Inventories.Drops, Inventories.Forge, null!))
             .ParamName.ShouldBe("catalogue");
     }
 
@@ -377,6 +383,6 @@ public sealed class InventorySortingTests
 
     private static IEnumerable<GearInstanceId> Sorted(
         InventorySortKey key, IReadOnlyList<GearInstance> items) =>
-        InventorySorting.Sort(items, key, Inventories.Par, Inventories.Drops, Inventories.Catalogue)
+        InventorySorting.Sort(items, key, Inventories.Par, Inventories.Drops, Inventories.Forge, Inventories.Catalogue)
             .Select(item => item.InstanceId);
 }

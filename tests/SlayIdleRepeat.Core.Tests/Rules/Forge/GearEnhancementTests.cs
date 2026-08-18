@@ -42,7 +42,7 @@ public sealed class GearEnhancementTests
     public void The_stat_multiplier_climbs_seven_percent_a_level_to_the_published_total(
         int level, double multiplier)
     {
-        GearEnhancement.StatMultiplier(level, Forges.Tuning).ShouldBe(multiplier);
+        Forges.Tuning.StatMultiplier(level).ShouldBe(multiplier);
     }
 
     /// <summary>A level outside the authored range has no multiplier to answer with.</summary>
@@ -53,7 +53,7 @@ public sealed class GearEnhancementTests
     public void A_level_outside_the_authored_range_has_no_multiplier(int level)
     {
         Should.Throw<ArgumentOutOfRangeException>(
-            () => _ = GearEnhancement.StatMultiplier(level, Forges.Tuning));
+            () => _ = Forges.Tuning.StatMultiplier(level));
     }
 
     /// <summary>

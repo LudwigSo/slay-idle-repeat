@@ -484,7 +484,7 @@ public sealed class DropsTuningTests
         var affixes = ContentValue.Array(
         [
             GearDocuments.AffixRow(new AuthoredAffix(
-                "AFX_BROKEN", (decimal)minimum, (decimal)maximum, ["WEAPON"], null)),
+                "AFX_BROKEN", "ATK", "STAT_ADD_FLAT", (decimal)minimum, (decimal)maximum, ["WEAPON"], null)),
         ]);
 
         Should.Throw<InvalidTunableException>(

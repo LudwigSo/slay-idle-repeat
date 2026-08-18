@@ -71,6 +71,10 @@ public static class ContentLayout
             // forget, because the gap only becomes visible the day a second file arrives.
             [ContentDirectory + "gear/"] = SchemaDirectory + "gear" + SchemaSuffix,
 
+            // The set-bonus effects. A directory of its own rather than a second file under gear/,
+            // because that row already binds every file under gear/ to the base-item grid's schema.
+            [ContentDirectory + "sets/"] = SchemaDirectory + "sets" + SchemaSuffix,
+
             // Named explicitly (schema/perk.schema.json, singular) because the stem of
             // content/perks/perks.json is "perks" (plural) and the bare stem rule cannot bridge
             // a one-letter difference.
