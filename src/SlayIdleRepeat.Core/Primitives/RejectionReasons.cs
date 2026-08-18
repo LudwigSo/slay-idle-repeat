@@ -55,7 +55,8 @@ public static class RejectionReasons
         RejectionReason.NOT_ENTITLED or
         RejectionReason.INVENTORY_FULL or
         RejectionReason.PREREQUISITE_NOT_CLEARED or
-        RejectionReason.LEGEND_LEVEL_TOO_LOW => RejectionReasonTier.Domain,
+        RejectionReason.LEGEND_LEVEL_TOO_LOW or
+        RejectionReason.BATTLE_IN_PROGRESS => RejectionReasonTier.Domain,
 
         _ => throw new ArgumentOutOfRangeException(
             nameof(reason),
