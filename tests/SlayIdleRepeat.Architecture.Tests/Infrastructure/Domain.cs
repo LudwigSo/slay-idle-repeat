@@ -172,6 +172,21 @@ internal static class Domain
     /// and hands out no draw stream, so nothing outside <c>Core</c> gains a way to generate a board
     /// or to move a run along one.
     /// </para>
+    /// <para>
+    /// 🔒 <b>M7-07 adds a FOURTH and a FIFTH entry point, <c>DraftView</c> and <c>ShrineView</c>,
+    /// on exactly <c>BoardView</c>'s precedent and for its reason.</b> Neither a draft's three
+    /// options nor a shrine's two rows is persisted — both regenerate from the run's committed
+    /// stream positions — so before this widening the Perk Draft screen could not see what the
+    /// player was being offered and the Shrine screen could not see what the tile was about to
+    /// apply. <c>DraftOptionView</c> and <c>ShrineBuffRow</c> are the two return shapes, public by
+    /// the same CONSEQUENCE R15 records.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>Their producers are deliberately not here either.</b> <c>PerkDraftEngine</c>,
+    /// <c>DraftOption</c>, <c>DraftRequest</c> and <c>ShrineResolver</c> stay <c>internal</c>: what
+    /// M7-07 exports is the VIEW of an offer, not the draw that decides one, and both entry points
+    /// take the same two already-public snapshots and hand out no draw stream.
+    /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
     {
@@ -186,6 +201,10 @@ internal static class Domain
         "BoardFork",
         "TileKind",
         "ForkLabel",
+        "DraftView",
+        "DraftOptionView",
+        "ShrineView",
+        "ShrineBuffRow",
     };
 
     /// <summary>

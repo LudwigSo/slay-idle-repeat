@@ -75,8 +75,16 @@ public sealed class PublicRuleTypeFloorTests
     /// slack, and `03` §1.1's whole board projection could be deleted — taking the Board screen's
     /// only way to see a tile track with it — with every rule in this file still green.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Fifteen since M7-07 widened the list to <c>DraftView</c> and <c>ShrineView</c></b> —
+    /// with <c>DraftOptionView</c> and <c>ShrineBuffRow</c>, their two return shapes. Raised in the
+    /// same commit and by exactly the number of names it adds, for the reason the two paragraphs
+    /// above give: the perk draft's and the shrine's projections are the only way the run-decision
+    /// screens can see an offer that is never persisted, and a floor left at eleven would let both
+    /// be deleted with every rule in this file still green.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 11;
+    private const int ResolvedPublicRuleTypeFloor = 15;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -279,7 +287,13 @@ public sealed class PublicRuleTypeFloorTests
         // person who wants a sixth board type has to say so in a diff; that is the whole mechanism,
         // and it is what keeps BoardGenerator and BoardGraph out of the list by cost rather than by
         // good intentions.
-        if (Domain.PublicRuleTypes.Count > 11)
+        //
+        // 🔒 FIFTEEN since M7-07. It added TWO entry points — DraftView, whose consumer is the
+        // client's Perk Draft screen, and ShrineView, whose consumer is the Shrine arm of the
+        // campfire/shrine screen — plus the two types their public members name, DraftOptionView and
+        // ShrineBuffRow. Raised by exactly those four and no further, so PerkDraftEngine and
+        // ShrineResolver stay out of the list by cost rather than by good intentions.
+        if (Domain.PublicRuleTypes.Count > 15)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +
