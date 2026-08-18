@@ -82,11 +82,15 @@ internal sealed class BattleActor : IEffectActorView
         var standing = new List<EffectDefinition>(plan.Effects.Count);
         foreach (var held in plan.Effects)
         {
-            if (held.Effect.Trigger is null)
+            // 🔴 An ABSENT trigger and an authored ALWAYS one are the same thing — the DSL's own
+            // default says so — and reading only the absent half is not a narrower rule but a silent
+            // one: every gear stat, affix and set bonus is synthesised with an explicit ALWAYS, so
+            // that half of the loadout reached the aggregation pass and none of it reached a fight.
+            if (EffectDefaults.IsAlwaysActive(held.Effect))
             {
                 standing.Add(held.Effect);
             }
-            else if (held.Effect.Trigger.Kind == TriggerKind.PERIODIC)
+            else if (held.Effect.Trigger!.Kind == TriggerKind.PERIODIC)
             {
                 HoldsAPeriodic = true;
             }

@@ -75,8 +75,16 @@ public sealed class PublicRuleTypeFloorTests
     /// slack, and `03` §1.1's whole board projection could be deleted — taking the Board screen's
     /// only way to see a tile track with it — with every rule in this file still green.
     /// </para>
+    /// <para>
+    /// 🔒 <b>Thirteen since M7-06b widened the list to <c>HeroBuild</c> and <c>RunBattle</c></b> —
+    /// two entry points that add no signature type of their own, so the floor rises by exactly two.
+    /// Raised in the same commit as the widening, for the reason above: a floor left at eleven over a
+    /// thirteen-name list would let the hero's stat block and the run-to-fight composition both be
+    /// deleted — and with them the only thing that lets a run leave <c>BattlePending</c> — with every
+    /// rule in this file still green.
+    /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 11;
+    private const int ResolvedPublicRuleTypeFloor = 13;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -279,7 +287,14 @@ public sealed class PublicRuleTypeFloorTests
         // person who wants a sixth board type has to say so in a diff; that is the whole mechanism,
         // and it is what keeps BoardGenerator and BoardGraph out of the list by cost rather than by
         // good intentions.
-        if (Domain.PublicRuleTypes.Count > 11)
+        //
+        // 🔒 THIRTEEN since M7-06b. It added TWO entry points — HeroBuild, whose consumer is the
+        // client's Hero and Inventory screens, and RunBattle, whose consumer is the Application
+        // layer's SimulatePendingBattleUseCase — and NO signature types, because every type their
+        // public members name was already public. The cap rises by exactly two: the derivation's own
+        // machinery (StatAggregation, HeroBaseCurve, GearStatDerivation, EncounterFight, BossFight)
+        // stays internal, and HeroBattleSurfaceRuleTests is what holds it there.
+        if (Domain.PublicRuleTypes.Count > 13)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +

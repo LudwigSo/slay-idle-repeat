@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 using SlayIdleRepeat.Core.Rules.Combat.Status;
 using SlayIdleRepeat.Core.Rules.Effects;
@@ -63,6 +64,18 @@ internal static class BossFight
     /// <param name="enemyLevel">The enemy level — shared by the boss and its adds.</param>
     /// <param name="content">The loaded, schema-validated content snapshot.</param>
     /// <param name="firstClear">The first-clear flag: phase 1 lasts 20% longer.</param>
+    /// <param name="heroEffects">
+    /// Extra effects the hero holds for this fight — gear, affixes, talents already resolved by the
+    /// caller, each carrying the holding it came from. <c>null</c>/empty for none. A holding with no
+    /// instance id is minted a battle-local one, so an <c>ON_KILL</c> effect must arrive with the id
+    /// the run layer holds for it (see <see cref="BattlePlan.Validated"/>).
+    /// <para>
+    /// 🔴 This parameter did not exist, and its absence was not visible from here: the hero's plan
+    /// simply carried no effects, so the same player fought every ordinary enemy with their loadout
+    /// and every boss without it. Nothing threw; the boss was a different fight from the one the
+    /// player's build described.
+    /// </para>
+    /// </param>
     internal static SimulationResult Run(
         ulong battleSeed,
         ActorStats hero,
@@ -71,7 +84,8 @@ internal static class BossFight
         double bossPower,
         int enemyLevel,
         ContentSnapshot content,
-        bool firstClear)
+        bool firstClear,
+        IReadOnlyList<HeldEffect>? heroEffects)
     {
         ArgumentNullException.ThrowIfNull(hero);
         ArgumentNullException.ThrowIfNull(bossId);
@@ -105,6 +119,7 @@ internal static class BossFight
             Kind = EffectActorKind.HERO,
             BaseStats = hero,
             Level = heroLevel,
+            Effects = heroEffects ?? Array.Empty<HeldEffect>(),
         };
 
         // Only a boss that authors a SUMMON carries the fraction; a boss that does not keeps

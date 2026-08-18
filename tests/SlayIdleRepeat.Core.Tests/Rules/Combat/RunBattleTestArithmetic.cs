@@ -1,0 +1,149 @@
+using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
+using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Combat;
+using SlayIdleRepeat.Core.Rules.Stats;
+
+namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
+
+/// <summary>
+/// The tile's enemy power and the tier's ordinal, transcribed here from the authored curve rather
+/// than taken from the production seam.
+/// </summary>
+/// <remarks>
+/// 🔒 <b>Deliberately a second transcription, not a call into <c>EnemyPowerFormula</c>.</b> The
+/// hazard case compares the seam's fight against one composed here, and a helper that asked the
+/// production formula for the number would agree with the seam by construction — it would still
+/// agree if the seam read the Heroic column and applied <c>TierMult</c> on top of it, which is the
+/// exact double-application shape the case exists to catch, one layer down from the hero.
+/// <para>
+/// The four stage multipliers, the per-node growth term and the three tier multipliers are
+/// transcribed from the enemy-power curve; the chapter target is read out of the par table's Normal
+/// column, because that column is the only one the curve's <c>ChapterPowerTarget(c)</c> term names.
+/// </para>
+/// </remarks>
+internal static class RunBattleTestArithmetic
+{
+    /// <summary>The per-node linear growth coefficient.</summary>
+    private const double PerNodeGrowth = 0.035;
+
+    /// <summary>The stage multipliers, in stage order, with the boss's held apart.</summary>
+    private const double Stage1 = 1.00;
+
+    /// <inheritdoc cref="Stage1"/>
+    private const double Stage2 = 1.15;
+
+    /// <inheritdoc cref="Stage1"/>
+    private const double Stage3 = 1.35;
+
+    /// <summary>The boss's stage multiplier. The boss belongs to no stage.</summary>
+    private const double Boss = 2.20;
+
+    /// <summary>The enemy power one tile of one run is fought at.</summary>
+    internal static double EnemyPower(RunSnapshot run, ContentSnapshot content)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(content);
+
+        return ParPowerTuning.Read(content).ChapterPowerTarget(run.ChapterId)
+               * TierMultiplier(run.Tier)
+               * (1.0 + (PerNodeGrowth * run.PendingTileLinearIndex))
+               * StageMultiplier(run.PendingTileStage);
+    }
+
+    /// <summary>The tier's ordinal in the enemy level table's authored order.</summary>
+    internal static int TierOrdinal(DifficultyTier tier) => tier switch
+    {
+        DifficultyTier.NORMAL => 0,
+        DifficultyTier.HEROIC => 1,
+        DifficultyTier.MYTHIC => 2,
+        _ => throw new ArgumentOutOfRangeException(nameof(tier), tier, "Not one of the three tiers."),
+    };
+
+    /// <summary>A build's effects as roster holdings, each keeping its collected instance id.</summary>
+    /// <remarks>
+    /// Restated here rather than reached for on the production seam: the hazard case composes a
+    /// second fight to compare against, and borrowing the seam's own holdings would make the two
+    /// agree about the one thing the case is not asking about while still varying the one it is.
+    /// </remarks>
+    internal static IReadOnlyList<HeldEffect> Holdings(HeroBuild build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+
+        var held = new HeldEffect[build.Collected.Count];
+
+        for (var i = 0; i < held.Length; i++)
+        {
+            held[i] = new HeldEffect(build.Collected[i].Effect, build.Collected[i].Instance);
+        }
+
+        return held;
+    }
+
+    /// <summary>The same holdings with every STANDING modifier struck out.</summary>
+    /// <remarks>
+    /// 🔒 <b>The standing test is transcribed here, not borrowed.</b> An effect stands when its
+    /// trigger is absent OR authored <c>ALWAYS</c> — the DSL's own default — and asking the
+    /// production helper for that reading would make the comparison agree with the seam about the
+    /// one thing the case is asking about: reading only the absent half is exactly how a whole
+    /// loadout of explicitly-<c>ALWAYS</c> gear effects reached the aggregation and never reached a
+    /// fight.
+    /// </remarks>
+    internal static IReadOnlyList<HeldEffect> HoldingsWithoutStandingModifiers(HeroBuild build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+
+        return Holdings(build).Where(held => !Stands(held.Effect)).ToArray();
+    }
+
+    /// <summary>The effects of a build that stand — the half a fight has to re-aggregate every pass.</summary>
+    internal static IReadOnlyList<EffectDefinition> StandingEffects(HeroBuild build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+
+        return build.Effects.Where(Stands).ToArray();
+    }
+
+    /// <inheritdoc cref="HoldingsWithoutStandingModifiers"/>
+    private static bool Stands(EffectDefinition effect) =>
+        effect.Trigger is null || effect.Trigger.Kind == TriggerKind.ALWAYS;
+
+    /// <summary>Every stat of a block, added up — a single number two builds can be ordered by.</summary>
+    /// <remarks>
+    /// Crude on purpose. It is used only to pin a DIRECTION (a doubled loadout is the bigger block),
+    /// never a value, so a weighting scheme here would be inventing a power model beside the real
+    /// one.
+    /// </remarks>
+    internal static double Sum(ActorStats stats)
+    {
+        ArgumentNullException.ThrowIfNull(stats);
+
+        var total = 0.0;
+
+        foreach (var (_, value) in stats.Values)
+        {
+            total += value;
+        }
+
+        return total;
+    }
+
+    private static double TierMultiplier(DifficultyTier tier) => tier switch
+    {
+        DifficultyTier.NORMAL => 1.0,
+        DifficultyTier.HEROIC => 4.0,
+        DifficultyTier.MYTHIC => 16.0,
+        _ => throw new ArgumentOutOfRangeException(nameof(tier), tier, "Not one of the three tiers."),
+    };
+
+    private static double StageMultiplier(int stage) => stage switch
+    {
+        1 => Stage1,
+        2 => Stage2,
+        3 => Stage3,
+        BoardGraph.BossStage => Boss,
+        _ => throw new ArgumentOutOfRangeException(nameof(stage), stage, "Not one of the four stages."),
+    };
+}

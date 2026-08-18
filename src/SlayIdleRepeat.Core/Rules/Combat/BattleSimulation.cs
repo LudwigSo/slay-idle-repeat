@@ -291,6 +291,14 @@ internal sealed class BattleSimulation
         foreach (var actor in _actors)
         {
             RefreshStats(actor);
+
+            // 🔴 Opened AFTER the first aggregation, never before it. An actor is constructed on its
+            // base block, so opening on that block means a hero whose loadout raises Max HP starts
+            // every fight partly dead — and the timeout is decided on HP fraction, so it loses fights
+            // its own build wins. A summon takes no part in this: it is admitted mid-fight, carries no
+            // standing effects, and its aggregated block is its base block.
+            actor.SetCurrentHp(actor.Plan.StartingHp ?? actor.MaxHp);
+
             actor.AttackCooldown = 0.0;
         }
 

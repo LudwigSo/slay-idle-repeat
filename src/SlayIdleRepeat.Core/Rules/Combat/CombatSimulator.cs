@@ -164,6 +164,12 @@ public static class CombatSimulator
     /// <param name="enemyLevel">The shared enemy level for the (chapter, tier), adds included.</param>
     /// <param name="content">The loaded, schema-validated content snapshot.</param>
     /// <param name="firstClear">The first time a player fights a boss, phase 1 lasts 20% longer.</param>
+    /// <param name="heroEffects">
+    /// Extra effects the hero holds for this fight — e.g. an already-resolved gear affix.
+    /// <c>null</c>/empty for none. A boss fought without the player's loadout is a silently different
+    /// fight from the one their build describes, which is what this parameter's absence used to make
+    /// unavoidable.
+    /// </param>
     /// <exception cref="KeyNotFoundException"><paramref name="bossId"/> is not in the document.</exception>
     /// <exception cref="MissingContentException">A document or pointer the fight needs is absent.</exception>
     /// <exception cref="UnauthorisedTunableException">A constant the fight needs is <c>null</c> in the data.</exception>
@@ -184,8 +190,11 @@ public static class CombatSimulator
         double bossPower,
         int enemyLevel,
         ContentSnapshot content,
-        bool firstClear = false) =>
-        BossFight.Run(battleSeed, hero, heroLevel, bossId, bossPower, enemyLevel, content, firstClear);
+        bool firstClear = false,
+        IReadOnlyList<EffectDefinition>? heroEffects = null) =>
+        BossFight.Run(
+            battleSeed, hero, heroLevel, bossId, bossPower, enemyLevel, content, firstClear,
+            BattleLocalHoldings(heroEffects));
 
     /// <summary>A real, content-driven non-boss encounter, with an optional Elite.</summary>
     /// <param name="battleSeed">The battle seed. The run seed never enters this layer.</param>
@@ -233,7 +242,8 @@ public static class CombatSimulator
         int eliteIndex = -1,
         IReadOnlyList<EffectDefinition>? heroEffects = null) =>
         EncounterFight.Run(
-            battleSeed, hero, heroLevel, chapter, tierOrdinal, enemyPowers, eliteIndex, content, heroEffects);
+            battleSeed, hero, heroLevel, chapter, tierOrdinal, enemyPowers, eliteIndex, content,
+            BattleLocalHoldings(heroEffects));
 
     /// <summary>A Ghost Duel: two hero builds, one fight.</summary>
     /// <param name="battleSeed">The battle seed. The run seed never enters this layer.</param>
@@ -267,6 +277,35 @@ public static class CombatSimulator
         DuelFight.Run(
             battleSeed, attacker, attackerLevel, defender, defenderLevel, durationSeconds,
             attackerIsUnderdog, content, attackerEffects, defenderEffects);
+
+    /// <summary>
+    /// Wraps caller-supplied effect definitions as battle-local holdings — no instance id, minted by
+    /// the simulator.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Battle-local is the only honest answer at this door. A caller reaching a fight through the
+    /// public surface has no run, so it holds no run-stable id for an effect; the roster's refusal of
+    /// an <c>ON_KILL</c> effect with no id is therefore correct here rather than an inconvenience.
+    /// A caller that <em>does</em> have a run — <see cref="RunBattle"/> — composes its own holdings
+    /// from the build and never comes through here.
+    /// </remarks>
+    private static IReadOnlyList<HeldEffect>? BattleLocalHoldings(
+        IReadOnlyList<EffectDefinition>? effects)
+    {
+        if (effects is null || effects.Count == 0)
+        {
+            return null;
+        }
+
+        var held = new HeldEffect[effects.Count];
+
+        for (var i = 0; i < held.Length; i++)
+        {
+            held[i] = new HeldEffect(effects[i]);
+        }
+
+        return held;
+    }
 
     /// <summary>The full entry point — the one a boss fight, a Ghost Duel or the balance harness uses.</summary>
     /// <param name="plan">The roster, the seed, the fight's bounds and the engine seams.</param>
