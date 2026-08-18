@@ -3,6 +3,7 @@ using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Combat;
+using SlayIdleRepeat.Core.Rules.Combat.Enemies;
 using SlayIdleRepeat.Core.Rules.Stats;
 using Xunit;
 
@@ -181,27 +182,30 @@ public sealed class RunBattleTests
         var seed = RunBattle.SeedOf(runRow);
         var powers = new[] { RunBattleTestArithmetic.EnemyPower(runRow, RunBattleWorlds.Content) };
 
+        var holdings = RunBattleTestArithmetic.Holdings(build);
         var composed = RunBattle.Simulate(RunBattleWorlds.PlayerRow(), runRow, RunBattleWorlds.Content);
 
-        var fromTheCurve = CombatSimulator.SimulateEncounter(
+        var fromTheCurve = EncounterFight.Run(
             seed,
             build.BaseStats,
             RunBattleWorlds.LegendLevel,
             runRow.ChapterId,
             RunBattleTestArithmetic.TierOrdinal(runRow.Tier),
             powers,
+            eliteIndex: -1,
             RunBattleWorlds.Content,
-            heroEffects: build.Effects);
+            holdings);
 
-        var fromTheAggregate = CombatSimulator.SimulateEncounter(
+        var fromTheAggregate = EncounterFight.Run(
             seed,
             build.Stats,
             RunBattleWorlds.LegendLevel,
             runRow.ChapterId,
             RunBattleTestArithmetic.TierOrdinal(runRow.Tier),
             powers,
+            eliteIndex: -1,
             RunBattleWorlds.Content,
-            heroEffects: build.Effects);
+            holdings);
 
         composed.LogHash.ShouldBe(
             fromTheCurve.LogHash,
@@ -231,6 +235,53 @@ public sealed class RunBattleTests
             RunBattleTestArithmetic.Sum(build.BaseStats),
             "an aggregated block is the base curve plus a whole SS set, so passing it as the base " +
             "and re-applying the set on top of it can only inflate the hero");
+    }
+
+    /// <summary>
+    /// 🔒 The loadout's effects reach the fight carrying the holdings they were collected under, not
+    /// as bare definitions.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>A hero in a full authored set cannot be put in a fight without them.</b> A roster refuses
+    /// an <c>ON_KILL</c> effect that arrives with no instance id — the counter is run-scoped and a
+    /// battle-local id would reset it every fight — and the four-piece bonus of the shipped BALANCED
+    /// set is exactly such an effect. So the two arms below are the same fight differing only in
+    /// whether the ids survived: with them it runs, without them the roster refuses by name. Nothing
+    /// else in the suite would notice, because a build with fewer than four set pieces composes
+    /// perfectly well either way.
+    /// </remarks>
+    [Fact]
+    public void The_loadouts_effects_reach_the_fight_with_the_holdings_they_were_collected_under()
+    {
+        var runRow = RunBattleWorlds.RunRow();
+        var build = HeroBuild.Of(RunBattleWorlds.Player(), RunBattleWorlds.Run(runRow), RunBattleWorlds.Content);
+
+        build.Effects.Select(e => e.Trigger?.Kind).ShouldContain(
+            Core.Content.Effects.TriggerKind.ON_KILL,
+            "the fixture wears the full BALANCED set, whose four-piece bonus is the ON_KILL effect " +
+            "this case is about — without it both arms would pass for the wrong reason");
+
+        Should.NotThrow(
+            () => RunBattle.Simulate(RunBattleWorlds.PlayerRow(), runRow, RunBattleWorlds.Content),
+            "the seam carries the collected instance ids, so the roster accepts the set bonus");
+
+        var refused = Should.Throw<ArgumentException>(
+            () => CombatSimulator.SimulateEncounter(
+                RunBattle.SeedOf(runRow),
+                build.BaseStats,
+                RunBattleWorlds.LegendLevel,
+                runRow.ChapterId,
+                RunBattleTestArithmetic.TierOrdinal(runRow.Tier),
+                new[] { RunBattleTestArithmetic.EnemyPower(runRow, RunBattleWorlds.Content) },
+                RunBattleWorlds.Content,
+                heroEffects: build.Effects),
+            "the public door mints battle-local ids, which is the right answer for a caller with no " +
+            "run — and the proof that the ids are what makes the seam's fight composable");
+
+        refused.Message.ShouldContain(
+            "SET_BONUS_BALANCED_4",
+            Case.Sensitive,
+            "the refusal names the effect whose counter would have been reset");
     }
 
     // ══════════════════════════════════════════════════════════════ the tile's own scaling
@@ -278,29 +329,52 @@ public sealed class RunBattleTests
             "TierMult is x4 at Heroic, so the same node is a four-times-stronger enemy");
     }
 
-    /// <summary>An Elite tile is a harder fight than an Enemy tile at the same node.</summary>
+    /// <summary>An Elite tile is composed as an Elite, and an Enemy tile is not.</summary>
     /// <remarks>
-    /// The one observable difference an Elite makes today: the ×2.2 power multiplier and
-    /// <c>ActorPlan.IsElite</c>. If the seam composed an Elite tile as an ordinary encounter, this is
-    /// the assertion that notices.
+    /// 🔴 <b>Stated as identity, not as difficulty, and the first draft of this case had it wrong.</b>
+    /// "An Elite hits harder than an ordinary enemy at the same node" is not true and cannot be made
+    /// true: the two draw from different pools, so the Elite's base archetype is a different shape,
+    /// and an Elite at 2.2x power measurably left the hero <em>healthier</em> than an ordinary draw
+    /// did. What IS exactly true is which slot the encounter elevates — so each arm is compared
+    /// against a directly composed encounter, and the two arms are proven distinguishable first, so
+    /// the pair cannot both be satisfied by one fight.
     /// </remarks>
     [Fact]
-    public void An_elite_tile_is_a_harder_fight_than_an_enemy_tile_at_the_same_node()
+    public void An_elite_tile_is_composed_as_an_elite_and_an_enemy_tile_is_not()
     {
-        var enemy = RunBattle.Simulate(
-            RunBattleWorlds.PlayerRow(),
-            RunBattleWorlds.RunRow(TileKind.Enemy),
-            RunBattleWorlds.Content);
+        var eliteRow = RunBattleWorlds.RunRow(TileKind.Elite);
+        var enemyRow = RunBattleWorlds.RunRow(TileKind.Enemy);
+        var build = HeroBuild.Of(
+            RunBattleWorlds.Player(), RunBattleWorlds.Run(eliteRow), RunBattleWorlds.Content);
 
-        var elite = RunBattle.Simulate(
-            RunBattleWorlds.PlayerRow(),
-            RunBattleWorlds.RunRow(TileKind.Elite),
-            RunBattleWorlds.Content);
+        var asElite = Encounter(build, eliteRow, eliteIndex: 0);
+        var asOrdinary = Encounter(build, enemyRow, eliteIndex: -1);
 
-        elite.HeroHpRemaining.ShouldBeLessThan(
-            enemy.HeroHpRemaining,
-            "05 6.2's Elite is the same node at 2.2x power");
+        asElite.LogHash.ShouldNotBe(
+            asOrdinary.LogHash,
+            "the control: elevating the slot has to change the fight, or the two assertions below are " +
+            "one assertion written twice");
+
+        RunBattle.Simulate(RunBattleWorlds.PlayerRow(), eliteRow, RunBattleWorlds.Content)
+            .LogHash.ShouldBe(asElite.LogHash, "an Elite tile elevates its one slot");
+
+        RunBattle.Simulate(RunBattleWorlds.PlayerRow(), enemyRow, RunBattleWorlds.Content)
+            .LogHash.ShouldBe(asOrdinary.LogHash, "an Enemy tile elevates none");
     }
+
+    /// <summary>One encounter composed directly, at the row's own seed and power.</summary>
+    private static SimulationResult Encounter(
+        HeroBuild build, Core.Model.Snapshots.RunSnapshot row, int eliteIndex) =>
+        EncounterFight.Run(
+            RunBattle.SeedOf(row),
+            build.BaseStats,
+            RunBattleWorlds.LegendLevel,
+            row.ChapterId,
+            RunBattleTestArithmetic.TierOrdinal(row.Tier),
+            new[] { RunBattleTestArithmetic.EnemyPower(row, RunBattleWorlds.Content) },
+            eliteIndex,
+            RunBattleWorlds.Content,
+            RunBattleTestArithmetic.Holdings(build));
 
     /// <summary>A Boss tile fights the chapter's authored boss, not a nameless enemy.</summary>
     /// <remarks>

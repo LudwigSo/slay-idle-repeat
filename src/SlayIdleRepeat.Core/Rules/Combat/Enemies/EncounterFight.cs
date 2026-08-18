@@ -67,9 +67,9 @@ internal static class EncounterFight
     /// <param name="content">The loaded, schema-validated content snapshot.</param>
     /// <param name="heroEffects">
     /// Extra effects the hero holds for this fight — gear, affixes, talents already resolved by the
-    /// caller. <c>null</c>/empty for none. Each is minted a battle-local instance id
-    /// (<see cref="HeldEffect"/>), so an <c>ON_KILL</c> effect must not be passed here (see
-    /// <see cref="BattlePlan.Validated"/>).
+    /// caller, each carrying the holding it came from. <c>null</c>/empty for none. A holding with no
+    /// instance id is minted a battle-local one, so an <c>ON_KILL</c> effect must arrive with the id
+    /// the run layer holds for it (see <see cref="BattlePlan.Validated"/>).
     /// </param>
     /// <exception cref="ArgumentException"><paramref name="enemyPowers"/> is empty, or the roster breaks a rule.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="eliteIndex"/> is out of range for <paramref name="enemyPowers"/>.</exception>
@@ -85,7 +85,7 @@ internal static class EncounterFight
         IReadOnlyList<double> enemyPowers,
         int eliteIndex,
         ContentSnapshot content,
-        IReadOnlyList<EffectDefinition>? heroEffects)
+        IReadOnlyList<HeldEffect>? heroEffects)
     {
         ArgumentNullException.ThrowIfNull(hero);
         ArgumentNullException.ThrowIfNull(enemyPowers);
@@ -126,7 +126,7 @@ internal static class EncounterFight
                 Kind = EffectActorKind.HERO,
                 BaseStats = hero,
                 Level = heroLevel,
-                Effects = ToHeld(heroEffects),
+                Effects = heroEffects ?? Array.Empty<HeldEffect>(),
             },
         };
 
@@ -209,20 +209,4 @@ internal static class EncounterFight
         });
     }
 
-    /// <summary>Wraps caller-supplied effects as battle-local holdings — <c>null</c> id, minted by the simulator.</summary>
-    private static IReadOnlyList<HeldEffect> ToHeld(IReadOnlyList<EffectDefinition>? effects)
-    {
-        if (effects is null || effects.Count == 0)
-        {
-            return Array.Empty<HeldEffect>();
-        }
-
-        var held = new List<HeldEffect>(effects.Count);
-        foreach (var effect in effects)
-        {
-            held.Add(new HeldEffect(effect));
-        }
-
-        return held;
-    }
 }

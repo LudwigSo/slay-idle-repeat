@@ -2,6 +2,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
@@ -59,6 +60,26 @@ internal static class RunBattleTestArithmetic
         DifficultyTier.MYTHIC => 2,
         _ => throw new ArgumentOutOfRangeException(nameof(tier), tier, "Not one of the three tiers."),
     };
+
+    /// <summary>A build's effects as roster holdings, each keeping its collected instance id.</summary>
+    /// <remarks>
+    /// Restated here rather than reached for on the production seam: the hazard case composes a
+    /// second fight to compare against, and borrowing the seam's own holdings would make the two
+    /// agree about the one thing the case is not asking about while still varying the one it is.
+    /// </remarks>
+    internal static IReadOnlyList<HeldEffect> Holdings(HeroBuild build)
+    {
+        ArgumentNullException.ThrowIfNull(build);
+
+        var held = new HeldEffect[build.Collected.Count];
+
+        for (var i = 0; i < held.Length; i++)
+        {
+            held[i] = new HeldEffect(build.Collected[i].Effect, build.Collected[i].Instance);
+        }
+
+        return held;
+    }
 
     /// <summary>Every stat of a block, added up — a single number two builds can be ordered by.</summary>
     /// <remarks>

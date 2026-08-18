@@ -7,6 +7,7 @@ using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Combat;
 using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Hosting;
@@ -90,18 +91,17 @@ public sealed class PendingBattlePathTests
     [Fact]
     public async Task Winning_the_fight_leaves_the_run_with_a_draft_to_take()
     {
-        var world = await OnAFightTileAsync();
+        var world = await OnAFightTileAsync(LevelThatWins);
 
         await world.Host.SubmitAsync(world.Player, world.Run, new StartBattleCommand(), Worlds.Cancel);
 
         var fight = await world.Battles.ExecuteAsync(
             new SimulatePendingBattleRequest(world.Player), Worlds.Cancel);
 
-        // The fixture's hero is a fresh, ungeared level-1 build against a chapter-1 node, so the win
-        // is asserted rather than assumed: a lost fight takes the other branch and this case would be
-        // measuring the death path under the victory path's name.
+        // Asserted rather than assumed: a lost fight takes the other branch entirely, and this case
+        // would then be measuring the death path under the victory path's name.
         fight.View!.Fight.HeroWon.ShouldBeTrue(
-            "the fixture is built to be winnable; a loss here means the fixture moved, not the rule");
+            "the fixture is levelled so the fight is genuinely won; a loss here means the curve moved");
 
         await world.Host.SubmitAsync(
             world.Player,
@@ -148,6 +148,21 @@ public sealed class PendingBattlePathTests
         second.View!.BattleSeed.ShouldNotBe(first.View.BattleSeed);
     }
 
+    /// <summary>The Legend Level a fresh profile starts at.</summary>
+    private const int StartingLevel = 1;
+
+    /// <summary>
+    /// A Legend Level whose base curve wins a chapter-1 node fight without any gear at all.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 A starting hero <em>loses</em> that fight — measured, not assumed — which is a fact about
+    /// this game's own numbers and not about this seam: an ungeared Legend Level 1 build is 295 Max
+    /// HP and 36 ATK against a node scaled to a chapter par of 1000. So the victory branch is asked
+    /// for at a level that genuinely reaches it, rather than by telling the command a fight was won
+    /// that the fight says was lost.
+    /// </remarks>
+    private const int LevelThatWins = 60;
+
     private static async Task<RunPhase> PhaseAsync(BattleWorld world) =>
         (await world.Store.ReadSnapshotsAsync(world.Player, Worlds.Cancel))!.Run!.Phase;
 
@@ -168,7 +183,7 @@ public sealed class PendingBattlePathTests
     /// Everything after the tile — opening the battle, the combat counter, the phase — is the real
     /// domain, driven through the host.
     /// </remarks>
-    private static Task<BattleWorld> OnAFightTileAsync()
+    private static Task<BattleWorld> OnAFightTileAsync(int legendLevel = StartingLevel)
     {
         var (game, player) = Worlds.InAPlayedRun();
         var played = game.State(player);
@@ -180,9 +195,20 @@ public sealed class PendingBattlePathTests
             PendingTileStage = 1,
         });
 
-        run.IsSuccess.ShouldBeTrue("the fixture run row must rehydrate: " + run.Error);
+        if (run.IsFailure)
+        {
+            throw new InvalidOperationException("The fixture run row does not rehydrate: " + run.Error);
+        }
 
-        var cache = Worlds.CacheHolding(new WorldSlice(played.Player, run.Value));
+        var hero = Core.Model.Player.Rehydrate(
+            played.Player.ToSnapshot() with { LegendLevel = legendLevel }, Worlds.Content);
+
+        if (hero.IsFailure)
+        {
+            throw new InvalidOperationException("The fixture player row does not rehydrate: " + hero.Error);
+        }
+
+        var cache = Worlds.CacheHolding(new WorldSlice(hero.Value, run.Value));
         var store = new WorldSliceStore(cache.Reopen());
 
         return Task.FromResult(new BattleWorld(
@@ -209,11 +235,18 @@ public sealed class PendingBattlePathTests
             DraftBattleStage = 0,
         });
 
-        run.IsSuccess.ShouldBeTrue("the second-battle row must rehydrate: " + run.Error);
+        if (run.IsFailure)
+        {
+            throw new InvalidOperationException("The second-battle run row does not rehydrate: " + run.Error);
+        }
 
         var player = Core.Model.Player.Rehydrate(rows.Player, Worlds.Content);
 
-        player.IsSuccess.ShouldBeTrue("the second-battle player row must rehydrate: " + player.Error);
+        if (player.IsFailure)
+        {
+            throw new InvalidOperationException(
+                "The second-battle player row does not rehydrate: " + player.Error);
+        }
 
         await world.Store.SaveAsync(new WorldSlice(player.Value, run.Value), Worlds.Cancel);
     }

@@ -107,7 +107,8 @@ public sealed class SimulatePendingBattleUseCaseTests
     [Fact]
     public async Task An_unknown_player_is_reported_apart_from_a_player_with_no_battle()
     {
-        var store = Store(Worlds.CacheHolding(Worlds.Game().State(Worlds.Game().CreatePlayer())));
+        var game = Worlds.Game();
+        var store = Store(Worlds.CacheHolding(game.State(game.CreatePlayer())));
 
         (await Use(store).ExecuteAsync(new SimulatePendingBattleRequest(new PlayerId("PLAYER_NOBODY")), Worlds.Cancel))
             .Lookup.ShouldBe(PendingBattleLookup.NoSuchPlayer);
@@ -158,7 +159,7 @@ public sealed class SimulatePendingBattleUseCaseTests
     /// fresh run rolls onto is not guaranteed to be a fight tile, and a fixture that re-rolled until
     /// it was would make every case here depend on the board generator's draw order.
     /// </remarks>
-    private static async Task<(WorldSliceStore Store, PlayerId Player, RunSnapshot Run)> InAnOpenBattleAsync()
+    private static Task<(WorldSliceStore Store, PlayerId Player, RunSnapshot Run)> InAnOpenBattleAsync()
     {
         var (game, player) = Worlds.InAPlayedRun();
         var played = game.State(player);
@@ -172,7 +173,10 @@ public sealed class SimulatePendingBattleUseCaseTests
 
         var run = Core.Model.Run.Rehydrate(standingOnAnEnemy);
 
-        run.IsSuccess.ShouldBeTrue("the fixture run row must rehydrate: " + run.Error);
+        if (run.IsFailure)
+        {
+            throw new InvalidOperationException("The fixture run row does not rehydrate: " + run.Error);
+        }
 
         var opened = GameRules.Apply(
             new WorldSlice(played.Player, run.Value), new Core.Commands.StartBattleCommand(), Worlds.Context(game));
@@ -181,6 +185,6 @@ public sealed class SimulatePendingBattleUseCaseTests
 
         var store = Store(Worlds.CacheHolding(opened.NewState));
 
-        return (store, player, opened.NewState.Run!.ToSnapshot());
+        return Task.FromResult((store, player, opened.NewState.Run!.ToSnapshot()));
     }
 }
