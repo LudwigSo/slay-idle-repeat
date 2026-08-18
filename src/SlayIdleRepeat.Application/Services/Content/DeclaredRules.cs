@@ -1460,6 +1460,10 @@ internal static class DeclaredRules
     private static void CheckTheChapterSchemaPermitsOnlyTheLaddersTier(
         IReadOnlyDictionary<string, ContentValue> schemas, List<ContentIssue> issues)
     {
+        // Silent rather than a finding, and it is the one early return here that is: ContentLayout
+        // pairs every content/chapters/ document with this schema, so a set that has lost it has
+        // already failed Pair once per chapter document. Reporting again would name the same absence
+        // twice, and the arm below has nothing left to compare against either way.
         if (!schemas.TryGetValue(ChapterSchemaPath, out var schema))
         {
             return;
