@@ -1,6 +1,7 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Rng;
 
 namespace SlayIdleRepeat.Core.Rules.Perks;
 
@@ -30,6 +31,14 @@ namespace SlayIdleRepeat.Core.Rules.Perks;
 /// </remarks>
 public sealed class DraftView
 {
+    /// <summary>The effect member two perks sharing one names is read as interacting through.</summary>
+    /// <remarks>
+    /// The one link the authored effect data supports. <c>excludes</c>, <c>requires</c> and
+    /// <c>poolTags</c> are uniform across every shipped row and would make every hint empty; a shared
+    /// <c>stat</c> would make almost every pair of Offense perks a synergy and mean nothing.
+    /// </remarks>
+    private const string StatusMember = "statusId";
+
     private DraftView(IReadOnlyList<DraftOptionView> options, long rerollGoldCost, long skipGoldReward)
     {
         Options = options;
@@ -51,10 +60,148 @@ public sealed class DraftView
     /// <param name="content">The loaded content set — the perk catalogue, the pity registry and the draft economy.</param>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
     /// <exception cref="MissingContentException"><paramref name="content"/> is missing a document the draft draws against.</exception>
-    public static DraftView? Project(RunSnapshot run, ContentSnapshot content) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: the projection is written against the failing cases in " +
-            "DraftViewTests and filled in by the implementation phase.");
+    public static DraftView? Project(RunSnapshot run, ContentSnapshot content)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (!run.DraftPending)
+        {
+            return null;
+        }
+
+        var standing = DraftStanding.Of(run, content);
+
+        // Reopened at the position the run COMMITTED the stream at, and never folded back: the draws
+        // this consumes belong to the offer the next command will re-derive from the same index.
+        var options = CurrentDraft.Draw(
+            standing,
+            DeterministicRng.OpenAt(run.RunSeed, RngStreams.Draft, CommittedDraftPosition(run)),
+            out _);
+
+        var catalogue = PerkCatalogue.Read(content);
+        var economy = DraftEconomyTuning.Read(content);
+        var cards = new DraftOptionView[options.Count];
+
+        for (var slot = 0; slot < cards.Length; slot++)
+        {
+            var perk = catalogue.Find(options[slot].PerkId);
+            var newTier = options[slot].NewTier;
+
+            cards[slot] = new DraftOptionView(
+                perk.Id,
+                perk.Name,
+                perk.Category,
+                perk.Rarity,
+                perk.IconId,
+                options[slot].IsUpgrade,
+                newTier,
+                PerkEffectText.Render(content, perk.Id, newTier),
+                SynergiesWith(content, catalogue, perk.Id, newTier, standing.Owned.Tiers));
+        }
+
+        return new DraftView(Array.AsReadOnly(cards), economy.RerollGoldCost, economy.SkipGoldReward);
+    }
+
+    /// <summary>The <c>draft</c> stream index the run stands at. An unrecorded stream stands at zero.</summary>
+    private static ulong CommittedDraftPosition(RunSnapshot run) =>
+        run.RngStreamPositions is { } committed &&
+        committed.TryGetValue(RngStreams.Draft, out var position)
+            ? position
+            : 0UL;
+
+    /// <summary>
+    /// The owned perks an option interacts with: those whose own owned tier names a status this
+    /// option's tier also names, the option itself excluded.
+    /// </summary>
+    private static IReadOnlyList<string> SynergiesWith(
+        ContentSnapshot content,
+        PerkCatalogue catalogue,
+        string perkId,
+        int newTier,
+        IReadOnlyDictionary<string, int> owned)
+    {
+        var offered = StatusesNamedBy(content, perkId, newTier);
+
+        if (offered.Count == 0 || owned.Count == 0)
+        {
+            return [];
+        }
+
+        var sharers = new List<string>(owned.Count);
+
+        foreach (var ownedId in owned.Keys.OrderBy(id => id, StringComparer.Ordinal))
+        {
+            // A card never names itself, and a run can outlive a content version that dropped a perk
+            // or shortened it — neither is a synergy, and neither is a reason to throw.
+            if (string.Equals(ownedId, perkId, StringComparison.Ordinal) ||
+                !catalogue.Contains(ownedId) ||
+                owned[ownedId] > catalogue.Find(ownedId).TierCount)
+            {
+                continue;
+            }
+
+            if (StatusesNamedBy(content, ownedId, owned[ownedId]).Overlaps(offered))
+            {
+                sharers.Add(ownedId);
+            }
+        }
+
+        return Array.AsReadOnly(sharers.ToArray());
+    }
+
+    /// <summary>Every status id one tier of a perk names, anywhere in its effect tree.</summary>
+    /// <remarks>
+    /// The whole tree rather than the effects' top level: a status a condition tests for is as much a
+    /// statement that this perk cares about it as one an op applies.
+    /// </remarks>
+    private static HashSet<string> StatusesNamedBy(ContentSnapshot content, string perkId, int tier)
+    {
+        var statuses = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var effect in PerkTierEffects.Of(PerkTierEffects.Row(content, perkId), perkId, tier))
+        {
+            CollectStatuses(effect, statuses);
+        }
+
+        return statuses;
+    }
+
+    private static void CollectStatuses(ContentValue value, HashSet<string> into)
+    {
+        if (value.Kind == ContentValueKind.Array)
+        {
+            foreach (var item in value.Items)
+            {
+                CollectStatuses(item, into);
+            }
+
+            return;
+        }
+
+        if (value.Kind != ContentValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var name in value.MemberNames)
+        {
+            if (!value.TryGetMember(name, out var member) || member is null)
+            {
+                continue;
+            }
+
+            if (string.Equals(name, StatusMember, StringComparison.Ordinal) &&
+                member.Kind == ContentValueKind.Text)
+            {
+                into.Add(member.AsText());
+            }
+            else
+            {
+                CollectStatuses(member, into);
+            }
+        }
+    }
 }
 
 /// <summary>One card of an open draft.</summary>

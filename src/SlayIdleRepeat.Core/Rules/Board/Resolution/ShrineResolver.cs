@@ -57,21 +57,8 @@ internal static class ShrineResolver
         ArgumentNullException.ThrowIfNull(input);
 
         var tuning = ShrineTuning.Read(input.Context.Content);
-        var stream = input.Rng.Stream(RngStreams.Shrine);
-        var count = tuning.Buffs.Count;
-
-        var first = stream.Range(0, count);
-
-        // The cleanse branch takes NO second draw, rather than drawing and discarding. A client
-        // replaying this tile takes the same branch off the same state, so a discarded draw here
-        // would leave the two streams one index apart for the rest of the run. Slot 2 is decided,
-        // not drawn.
-        int? second = null;
-
-        if (!hasCleansableCurse)
-        {
-            second = DistinctSecond(stream, first, count);
-        }
+        var drawn = Draw(tuning, input.Rng.Stream(RngStreams.Shrine), hasCleansableCurse);
+        var first = drawn.FirstIndex;
 
         // ONE option is applied — slot 1 — and NOT both. The shrine offers two distinct options and
         // the player takes one of them; applying both drawn rows' heals paid up to 58% of Max HP
@@ -86,8 +73,38 @@ internal static class ShrineResolver
 
         return new ShrineOffer(
             tuning.Buffs[first].Id,
-            second is { } secondIndex ? tuning.Buffs[secondIndex].Id : null,
+            drawn.SecondIndex is { } secondIndex ? tuning.Buffs[secondIndex].Id : null,
             IsCleanse: hasCleansableCurse);
+    }
+
+    /// <summary>
+    /// The two pool indices a shrine draws off <paramref name="stream"/> at its current position —
+    /// the whole of the shrine's randomness, in one place.
+    /// </summary>
+    /// <remarks>
+    /// Shared with <see cref="ShrineView"/> rather than restated there. The offer is never persisted,
+    /// so the screen showing it and the command applying it both re-derive it from the same committed
+    /// position; a second copy of this draw would be a shrine naming two buffs and handing over a
+    /// third. Everything that consumes a draw index lives here, so the two cannot fall out of step.
+    /// </remarks>
+    /// <param name="tuning">The authored pool, read for how many rows there are to draw from.</param>
+    /// <param name="stream">The <c>shrine</c> stream. Advanced by one draw, or two.</param>
+    /// <param name="hasCleansableCurse">Whether slot 2 is the Cleanse rather than a drawn row.</param>
+    /// <exception cref="ArgumentNullException">Either reference argument is null.</exception>
+    internal static ShrineDraw Draw(ShrineTuning tuning, DeterministicRng stream, bool hasCleansableCurse)
+    {
+        ArgumentNullException.ThrowIfNull(tuning);
+        ArgumentNullException.ThrowIfNull(stream);
+
+        var count = tuning.Buffs.Count;
+        var first = stream.Range(0, count);
+
+        // The cleanse branch takes NO second draw, rather than drawing and discarding. A client
+        // replaying this tile takes the same branch off the same state, so a discarded draw here
+        // would leave the two streams one index apart for the rest of the run. Slot 2 is decided,
+        // not drawn.
+        return new ShrineDraw(
+            first, hasCleansableCurse ? null : DistinctSecond(stream, first, count));
     }
 
     /// <summary>
@@ -149,3 +166,16 @@ internal static class ShrineResolver
 /// later draw depends on.
 /// </param>
 internal readonly record struct ShrineOffer(string FirstBuffId, string? SecondBuffId, bool IsCleanse);
+
+/// <summary>Which rows of the authored pool one shrine drew, by index.</summary>
+/// <remarks>
+/// Indices rather than rows, because the draw is an index into the pool as the document lists it and
+/// that is the fact both the resolver and the view need: one looks the row up to apply its heal, the
+/// other to name it on screen.
+/// </remarks>
+/// <param name="FirstIndex">The row drawn into slot 1 — the one the resolver applies.</param>
+/// <param name="SecondIndex">
+/// The row drawn into slot 2, or <c>null</c> when a Cleanse took the slot and no second draw was
+/// spent at all.
+/// </param>
+internal readonly record struct ShrineDraw(int FirstIndex, int? SecondIndex);

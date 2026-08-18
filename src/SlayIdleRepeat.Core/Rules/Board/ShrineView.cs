@@ -1,5 +1,7 @@
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
+using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Board.Resolution;
 
 namespace SlayIdleRepeat.Core.Rules.Board;
 
@@ -28,6 +30,16 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// </remarks>
 public sealed class ShrineView
 {
+    /// <summary>The slot the resolver applies, and therefore the row this view reports as taken.</summary>
+    private const int TakenSlot = 0;
+
+    /// <summary>
+    /// What a projection passes for the cleanse branch. A run holds no curse list, so nothing can
+    /// answer this any other way until one exists — and the branch changes how many draws the shrine
+    /// spends, so guessing it would desynchronise the stream rather than mislabel a row.
+    /// </summary>
+    private const bool NoCleansableCurse = false;
+
     private ShrineView(IReadOnlyList<ShrineBuffRow> rows, int takenRowIndex, bool isCleanse)
     {
         Rows = rows;
@@ -49,10 +61,50 @@ public sealed class ShrineView
     /// <param name="content">The loaded content set, read for the shrine buff pool.</param>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
     /// <exception cref="MissingContentException"><paramref name="content"/> authors no shrine buff pool.</exception>
-    public static ShrineView? Project(RunSnapshot run, ContentSnapshot content) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: the projection is written against the failing cases in " +
-            "ShrineViewTests and filled in by the implementation phase.");
+    public static ShrineView? Project(RunSnapshot run, ContentSnapshot content)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (run.PendingTileKind != (int)TileKind.Shrine)
+        {
+            return null;
+        }
+
+        var tuning = ShrineTuning.Read(content);
+
+        // Reopened at the position the run COMMITTED the stream at, and never folded back: these are
+        // the draws RESOLVE_TILE will spend, re-derived rather than consumed.
+        var drawn = ShrineResolver.Draw(
+            tuning,
+            DeterministicRng.OpenAt(run.RunSeed, RngStreams.Shrine, CommittedShrinePosition(run)),
+            NoCleansableCurse);
+
+        var rows = new List<ShrineBuffRow>(2) { RowOf(tuning, drawn.FirstIndex) };
+
+        if (drawn.SecondIndex is { } second)
+        {
+            rows.Add(RowOf(tuning, second));
+        }
+
+        return new ShrineView(
+            Array.AsReadOnly(rows.ToArray()), TakenSlot, NoCleansableCurse);
+    }
+
+    /// <summary>The <c>shrine</c> stream index the run stands at. An unrecorded stream stands at zero.</summary>
+    private static ulong CommittedShrinePosition(RunSnapshot run) =>
+        run.RngStreamPositions is { } committed &&
+        committed.TryGetValue(RngStreams.Shrine, out var position)
+            ? position
+            : 0UL;
+
+    /// <summary>One drawn pool index, as the row a screen draws.</summary>
+    private static ShrineBuffRow RowOf(ShrineTuning tuning, int index)
+    {
+        var buff = tuning.Buffs[index];
+
+        return new ShrineBuffRow(buff.Id, buff.DisplayName, buff.ImmediateHealPctMaxHp);
+    }
 }
 
 /// <summary>One row of a shrine's offer.</summary>

@@ -70,24 +70,61 @@ public sealed class ShrineViewTests
 
     /// <summary>A pending shrine offers two rows, and they are two different buffs.</summary>
     /// <remarks>
-    /// Distinctness is not decoration: the draw is sampling without replacement in exactly one draw
-    /// precisely so the same buff is never offered twice, and a remap off by one would return the
-    /// first index again.
+    /// 🔒 Distinctness is not decoration: the second row is drawn out of the nine indices that are
+    /// not the first and mapped back by stepping <em>at or above</em> the first, so a mapping that
+    /// stepped only above it would hand the first index back and offer one buff twice.
+    /// <para>
+    /// The sweep is floored rather than sampled, and that floor was earned. Five hand-picked seeds
+    /// asserted distinctness and caught none of that break: it only shows on a seed whose two rows
+    /// come back adjacent, and none of the five did. So the floor demands the sweep actually reach
+    /// an adjacent pair — the one shape the broken mapping collapses — and this case now fails as
+    /// loudly when it has stopped exercising the mapping as when the mapping is wrong.
+    /// </para>
     /// </remarks>
-    [Theory]
-    [InlineData(1UL)]
-    [InlineData(2UL)]
-    [InlineData(3UL)]
-    [InlineData(5UL)]
-    [InlineData(8UL)]
-    public void A_pending_shrine_projects_two_distinct_rows(ulong runSeed)
+    [Fact]
+    public void A_pending_shrine_projects_two_distinct_rows()
     {
-        var view = Projected(runSeed);
+        var pool = ShrineTuning.Read(Content);
+        var adjacentPairs = 0;
 
-        view.Rows.Count.ShouldBe(2, "the shrine pool authors two options offered");
-        view.Rows[0].BuffId.ShouldNotBe(view.Rows[1].BuffId);
-        view.IsCleanse.ShouldBeFalse("a run holds no curse list, so the cleanse arm cannot fire");
-        view.TakenRowIndex.ShouldBe(0, "slot 1 is the one the resolver applies");
+        for (var runSeed = 1UL; runSeed <= 60UL; runSeed++)
+        {
+            var view = Projected(runSeed);
+
+            view.Rows.Count.ShouldBe(2, "the shrine pool authors two options offered, seed " + runSeed);
+            view.Rows[0].BuffId.ShouldNotBe(
+                view.Rows[1].BuffId,
+                "seed " + runSeed + " offered the same buff twice, so the second row's index was " +
+                "mapped back past the first rather than at it.");
+            view.IsCleanse.ShouldBeFalse("a run holds no curse list, so the cleanse arm cannot fire");
+            view.TakenRowIndex.ShouldBe(0, "slot 1 is the one the resolver applies");
+
+            if (PoolIndexOf(pool, view.Rows[1].BuffId) == PoolIndexOf(pool, view.Rows[0].BuffId) + 1)
+            {
+                adjacentPairs++;
+            }
+        }
+
+        adjacentPairs.ShouldBeGreaterThan(
+            0,
+            "no seed in the sweep drew the row immediately after the first one, which is the only " +
+            "shape a mapping that stepped past the first index instead of at it would break. Every " +
+            "assertion above would hold against that broken mapping, so this sweep is no longer " +
+            "testing what its own name claims. Widen the sweep rather than deleting this line.");
+    }
+
+    /// <summary>Where a buff sits in the authored pool — the index the draw actually works in.</summary>
+    private static int PoolIndexOf(ShrineTuning pool, string buffId)
+    {
+        for (var index = 0; index < pool.Buffs.Count; index++)
+        {
+            if (string.Equals(pool.Buffs[index].Id, buffId, StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+
+        throw new InvalidOperationException("'" + buffId + "' is not a row of the authored pool.");
     }
 
     /// <summary>Every row is a row of the authored pool, named by its own loc key.</summary>

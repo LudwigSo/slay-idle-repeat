@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Text;
+
 namespace SlayIdleRepeat.Core.Content.Perks;
 
 /// <summary>
@@ -33,6 +36,25 @@ namespace SlayIdleRepeat.Core.Content.Perks;
 /// </remarks>
 public static class PerkEffectText
 {
+    /// <summary>The member the anchor is chosen by, and the left half of the <c>{cap}</c> product.</summary>
+    private const string ValueMember = "value";
+
+    /// <summary>How a number is written: trailing zeros trimmed, four decimal places at most.</summary>
+    /// <remarks>
+    /// The four places are the format's, not a rounding step: a rendered sentence is text a player
+    /// reads and never an accumulation point, so nothing here restates the determinism rule that
+    /// governs those. The authored value is carried to the formatter exactly as the document holds
+    /// it, in <c>decimal</c>, and only the printed digits are limited.
+    /// </remarks>
+    private const string NumberFormat = "0.####";
+
+    /// <summary>What a percent-suffixed token multiplies its authored fraction by.</summary>
+    private const decimal PercentScale = 100m;
+
+    private const char TokenOpen = '{';
+    private const char TokenClose = '}';
+    private const char PercentSuffix = '%';
+
     /// <summary>
     /// Renders <paramref name="perkId"/>'s description at <paramref name="tier"/>, or names the
     /// tokens the tier's data cannot answer.
@@ -43,10 +65,127 @@ public static class PerkEffectText
     /// <exception cref="ArgumentNullException">Either reference argument is null.</exception>
     /// <exception cref="ArgumentException">The catalogue carries no such perk.</exception>
     /// <exception cref="ArgumentOutOfRangeException">The perk authors no such tier.</exception>
-    public static PerkEffectTextRender Render(ContentSnapshot content, string perkId, int tier) =>
-        throw new NotImplementedException(
-            "M7-07 phase 1 skeleton: the token renderer is written against the failing cases in " +
-            "PerkEffectTextTests and filled in by the implementation phase.");
+    public static PerkEffectTextRender Render(ContentSnapshot content, string perkId, int tier)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        ArgumentNullException.ThrowIfNull(perkId);
+
+        var perk = PerkTierEffects.Row(content, perkId);
+
+        return Substitute(
+            PerkTierEffects.Description(perk, perkId),
+            AnchorOf(PerkTierEffects.Of(perk, perkId, tier)));
+    }
+
+    /// <summary>
+    /// The one effect every token in this tier's sentence is read off: the first carrying a
+    /// <c>value</c>, or the tier's first effect when none does. <c>null</c> for a tier authoring no
+    /// effects at all, which can answer no token.
+    /// </summary>
+    private static ContentValue? AnchorOf(IReadOnlyList<ContentValue> effects)
+    {
+        foreach (var effect in effects)
+        {
+            if (Number(effect, ValueMember) is not null)
+            {
+                return effect;
+            }
+        }
+
+        return effects.Count > 0 ? effects[0] : null;
+    }
+
+    /// <summary>
+    /// Walks the template once, substituting what the anchor answers and collecting what it cannot.
+    /// </summary>
+    /// <remarks>
+    /// The walk finishes even after a token goes unanswered, and the text it built is then thrown
+    /// away: the whole token list is what a caller needs in order to say which numbers are missing,
+    /// and stopping at the first would name one of two.
+    /// </remarks>
+    private static PerkEffectTextRender Substitute(string template, ContentValue? anchor)
+    {
+        var text = new StringBuilder(template.Length);
+        var unresolved = new List<string>();
+        var read = 0;
+
+        while (read < template.Length)
+        {
+            var open = template.IndexOf(TokenOpen, read);
+            var close = open < 0 ? -1 : template.IndexOf(TokenClose, open + 1);
+
+            if (close < 0)
+            {
+                text.Append(template, read, template.Length - read);
+                break;
+            }
+
+            text.Append(template, read, open - read);
+
+            var token = template[(open + 1)..close];
+            var percentSuffixed = close + 1 < template.Length && template[close + 1] == PercentSuffix;
+            var source = anchor is null ? null : Source(anchor, token);
+
+            if (source is { } number)
+            {
+                text.Append(Format(percentSuffixed ? number * PercentScale : number));
+            }
+            else if (!unresolved.Contains(token, StringComparer.Ordinal))
+            {
+                unresolved.Add(token);
+            }
+
+            read = close + 1;
+        }
+
+        return unresolved.Count > 0
+            ? PerkEffectTextRender.Unresolvable(unresolved)
+            : PerkEffectTextRender.Rendered(text.ToString());
+    }
+
+    /// <summary>
+    /// What one token names on the anchor effect, or <c>null</c> when the data does not carry it.
+    /// </summary>
+    /// <remarks>
+    /// Keyed on the token, which is the name of an effect MEMBER — never on a perk or an effect id.
+    /// <c>{cap}</c> is a product rather than a lookup because the schema's own scaling is
+    /// <c>value × steps</c> with the steps capped, so the effective value at the top of the scale is
+    /// the authored value multiplied by the cap and not the cap on its own.
+    /// </remarks>
+    private static decimal? Source(ContentValue anchor, string token) => token switch
+    {
+        ValueMember => Number(anchor, ValueMember),
+        "duration" => Number(anchor, "duration", "seconds"),
+        "everyNth" => Number(anchor, "trigger", "everyNth"),
+        "interval" => Number(anchor, "trigger", "interval"),
+        "sourceCapPct" => Number(anchor, "sourceCapPct"),
+        "cap" => Number(anchor, ValueMember) * Number(anchor, "valueScale", "cap"),
+        _ => null,
+    };
+
+    /// <summary>
+    /// The number at <paramref name="path"/> under <paramref name="root"/>, or <c>null</c> where any
+    /// step of the path is absent, authored as a deliberate null, or holds something else.
+    /// </summary>
+    private static decimal? Number(ContentValue root, params string[] path)
+    {
+        var value = root;
+
+        foreach (var member in path)
+        {
+            if (!value.TryGetMember(member, out var next) || next is null || next.IsUnauthorised)
+            {
+                return null;
+            }
+
+            value = next;
+        }
+
+        return value.Kind == ContentValueKind.Number ? value.AsNumber() : null;
+    }
+
+    private static string Format(decimal value) =>
+        value.ToString(NumberFormat, CultureInfo.InvariantCulture);
 }
 
 /// <summary>What one render answered: the finished sentence, or the tokens that stopped it.</summary>
@@ -97,5 +236,96 @@ public readonly record struct PerkEffectTextRender
                 "whose token list is empty — the one shape this type exists to make unreachable.",
                 nameof(tokens))
             : new PerkEffectTextRender(text: null, tokens);
+    }
+}
+
+/// <summary>
+/// The authored rows a perk's effect data is read out of: the perk itself, its description template,
+/// and the effects of one of its tiers.
+/// </summary>
+/// <remarks>
+/// Shared rather than restated. <see cref="PerkEffectText"/> reads a tier's effects to substitute its
+/// numbers and the draft projection reads the same effects to find the statuses an offered option and
+/// an owned perk both name; two walks of the same pointers would be two chances to disagree about
+/// which tier's data a card is describing. <c>PerkCatalogue</c> deliberately stops at
+/// <see cref="PerkCatalogueEntry.TierCount"/>, so the effect tree has no other reader.
+/// </remarks>
+internal static class PerkTierEffects
+{
+    private const string IdMember = "id";
+    private const string DescriptionMember = "description";
+    private const string TiersMember = "tiers";
+    private const string TierMember = "tier";
+    private const string EffectsMember = "effects";
+
+    /// <summary>The authored row for <paramref name="perkId"/>.</summary>
+    /// <exception cref="ArgumentException">The catalogue carries no such perk.</exception>
+    internal static ContentValue Row(ContentSnapshot content, string perkId) =>
+        TryRow(content, perkId, out var perk)
+            ? perk
+            : throw new ArgumentException(
+                "06 §3 authors no perk '" + perkId + "'. A perk id reaching here that the catalogue " +
+                "does not carry means a Run persisted an owned-perk id this content version no " +
+                "longer has — a content rollback across a live run, not a player input.",
+                nameof(perkId));
+
+    /// <summary>The authored row for <paramref name="perkId"/>, or false when this version has none.</summary>
+    internal static bool TryRow(ContentSnapshot content, string perkId, out ContentValue row)
+    {
+        foreach (var perk in content.Read(PerkCatalogue.PerksReference).Items)
+        {
+            if (perk.TryGetMember(IdMember, out var id) &&
+                id is { Kind: ContentValueKind.Text } &&
+                string.Equals(id.AsText(), perkId, StringComparison.Ordinal))
+            {
+                row = perk;
+
+                return true;
+            }
+        }
+
+        row = ContentValue.Unauthorised;
+
+        return false;
+    }
+
+    /// <summary>The perk's description template — the sentence its numbers are substituted into.</summary>
+    /// <exception cref="ArgumentException">The row authors no description.</exception>
+    internal static string Description(ContentValue perk, string perkId) =>
+        perk.TryGetMember(DescriptionMember, out var description) &&
+        description is { Kind: ContentValueKind.Text }
+            ? description.AsText()
+            : throw new ArgumentException(
+                "'" + perkId + "' authors no description, so there is no sentence to render at all.",
+                nameof(perkId));
+
+    /// <summary>The effects one tier of a perk authors, in the document's order.</summary>
+    /// <remarks>
+    /// Matched on the authored <c>tier</c> number rather than on the array index, so a tier list
+    /// written out of order still answers the tier the caller asked for.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The perk authors no such tier.</exception>
+    internal static IReadOnlyList<ContentValue> Of(ContentValue perk, string perkId, int tier)
+    {
+        if (perk.TryGetMember(TiersMember, out var tiers) && tiers is not null)
+        {
+            foreach (var row in tiers.Items)
+            {
+                if (row.TryGetMember(TierMember, out var number) &&
+                    number is { Kind: ContentValueKind.Number } &&
+                    number.AsNumber() == tier)
+                {
+                    return row.TryGetMember(EffectsMember, out var effects) && effects is not null
+                        ? effects.Items
+                        : [];
+                }
+            }
+        }
+
+        throw new ArgumentOutOfRangeException(
+            nameof(tier),
+            tier,
+            "'" + perkId + "' authors no tier " + tier.ToString(CultureInfo.InvariantCulture) +
+            ". 06 §1.1 numbers a perk's internal tiers from 1.");
     }
 }

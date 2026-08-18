@@ -232,7 +232,12 @@ public sealed class LuckRoutingRuleTests
         // 🔒 The four that are live. Each row's Caller is the production type whose IL calls the entry.
         ("DROP_RUN", "ResolveRunDrop", "GearGeneration", "M4-03"),
         ("ENHANCE", "EnhanceSuccessRate", "GearEnhancement", "M4-04"),
-        ("DRAFT", "ResolveDraft", "PickPerk", "M4-01b"),
+        // 🔒 M7-07 moved this caller, and the row moves with it in the same commit — which is what
+        // this arm's own failure message asks for. The draft's derivation left PickPerk for
+        // Rules.Perks.CurrentDraft, because the Perk Draft screen has to draw the SAME three options
+        // PICK_PERK acts on and a read-only projection cannot reach a handler at all. PickPerk still
+        // calls DraftCountersAfter; ResolveDraft is the half that moved.
+        ("DRAFT", "ResolveDraft", "CurrentDraft", "M4-01b"),
         ("MINIGAME", "ResolveChestPick", "MinigameSubmit", "M4-01b"),
 
         // 🔒 The five the ladder entry point serves, none of them opened by anything yet.

@@ -1,6 +1,8 @@
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Perks;
 
 namespace SlayIdleRepeat.Core.Handlers;
 
@@ -14,7 +16,7 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// </para>
 /// <para>
 /// Rerolling means advancing the <c>draft</c> stream past the current options, not storing a new
-/// set. The three options a player sees are always whatever <c>PickPerk.GenerateCurrentOptions</c>
+/// set. The three options a player sees are always whatever <c>Rules.Perks.CurrentDraft</c>
 /// derives from the run's committed draft-stream position right now, so a reroll's whole job is to
 /// move that position forward — drawing a (discarded) set of options already does that. The draft
 /// stays pending.
@@ -56,7 +58,10 @@ internal static class RerollDraft
         var cost = run.MoveCurrency(CurrencyId.GOLD, -economy.RerollGoldCost, CostReason);
 
         // Discarded on purpose — see this type's remarks. Consuming the draws is the reroll.
-        _ = PickPerk.GenerateCurrentOptions(input, run, out _);
+        _ = CurrentDraft.Draw(
+            DraftStanding.Of(run, input.Context.Content),
+            input.Rng.Stream(RngStreams.Draft),
+            out _);
 
         return HandlerResult.Accept(cost);
     }
