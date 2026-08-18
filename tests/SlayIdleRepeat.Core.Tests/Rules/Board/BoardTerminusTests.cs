@@ -40,6 +40,16 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// it fails the day the missing ids become representable, which is the day the tightening becomes
 /// statable.
 /// </para>
+/// <para>
+/// <b>What these cases do not close.</b> The shapes below discriminate an identity-keyed rule from
+/// the three near-misses worth worrying about — one that merely counts boss tiles, one that keys on
+/// the stage instead of the node, and one that walks only the linear index and so never sees a
+/// branch. They do <em>not</em> discriminate it from a rule keyed on
+/// <see cref="BoardNode.LinearIndex"/> ordering, because every fixture here gives the terminus the
+/// highest index. Building one that does would mean authoring a layout whose branch indices
+/// contradict the forward-distance mapping — a second malformation, which would make whichever rule
+/// fired ambiguous.
+/// </para>
 /// </remarks>
 public sealed class BoardTerminusTests
 {
@@ -117,8 +127,7 @@ public sealed class BoardTerminusTests
     /// <summary>
     /// Probe shape 3: a boss tile on a fork branch. A branch node is never in the linear index at
     /// all, so a rule that walked <c>spineByLinearIndex</c> instead of every supplied node would
-    /// miss it — and a branch tail rejoins onto a node whose stage may differ, which is the boundary
-    /// shape again by another route.
+    /// miss it entirely.
     /// </summary>
     [Fact]
     public void A_boss_tile_on_a_fork_branch_is_refused()
@@ -146,6 +155,44 @@ public sealed class BoardTerminusTests
 
         ex.Message.ShouldContain(BossTileRefusal, Case.Sensitive);
         ex.Message.ShouldContain(branch.Id.ToString(), Case.Sensitive);
+        ex.ParamName.ShouldBe("nodes");
+    }
+
+    /// <summary>
+    /// Probe shape 4, and the one that separates this rule from the cheapest thing that looks like
+    /// it: the board holds exactly <b>one</b> boss tile and is still refused, because that tile is
+    /// not the terminus. A rule reading "at most one boss tile" would accept this layout — and it is
+    /// precisely the layout that leaves the harm live, since movement would then report a boss at
+    /// node 1 and stop three steps short of the board's real end.
+    /// </summary>
+    /// <remarks>
+    /// The impostor is also given the stage the terminus holds, which closes the second near-miss:
+    /// a rule keyed on the stage rather than on the node would let it through, and a stage is not
+    /// what <c>Advance</c>'s identity arms compare against.
+    /// </remarks>
+    [Fact]
+    public void A_boss_tile_that_is_the_only_one_on_the_board_is_still_refused_when_it_is_not_the_terminus()
+    {
+        var a = new BoardNode(new NodeId(0), TileKind.Enemy, 0, 1);
+        var impostor = new BoardNode(new NodeId(1), TileKind.Boss, 1, CoreBoard.BossStage);
+        var c = new BoardNode(new NodeId(2), TileKind.Enemy, 2, 3);
+        var terminus = new BoardNode(new NodeId(3), TileKind.Enemy, 3, CoreBoard.BossStage);
+
+        var ex = Should.Throw<ArgumentException>(() => CoreBoard.FromLayout(
+            new[] { a, impostor, c, terminus },
+            new[]
+            {
+                new BoardEdge(a.Id, impostor.Id, EdgeKind.Continue),
+                new BoardEdge(impostor.Id, c.Id, EdgeKind.Continue),
+                new BoardEdge(c.Id, terminus.Id, EdgeKind.Continue),
+            },
+            new[] { a.Id, impostor.Id, c.Id, terminus.Id },
+            Array.Empty<NodeId>()));
+
+        ex.Message.ShouldContain(BossTileRefusal, Case.Sensitive);
+        ex.Message.ShouldContain(impostor.Id.ToString(), Case.Sensitive);
+        ex.Message.ShouldNotContain(DeadEndRefusal, Case.Sensitive);
+        ex.ParamName.ShouldBe("nodes");
     }
 
     /// <summary>
@@ -192,11 +239,8 @@ public sealed class BoardTerminusTests
     /// authored.
     /// </para>
     /// <para>
-    /// ⚠️ <b>What is not decided.</b> Whether an ordinary tile may end a board is a product question
-    /// with no answer in the documents as they stand, because the three things authored as boards'
-    /// endings do not fit the one member the tile set has for them. Tightening this to
-    /// <see cref="TileKind.Boss"/> would bar a mini-boss terminus and a Resource Dungeon's Guardian
-    /// before either exists. Whoever rules on it changes this test, and that is the intended cost.
+    /// ⚠️ Whether an ordinary tile may end a board is the open product question this class's remarks
+    /// set out. Whoever rules on it changes this test, and that is the intended cost.
     /// </para>
     /// </remarks>
     [Fact]
@@ -280,5 +324,12 @@ public sealed class BoardTerminusTests
 
         TileKindIds.TryParse("TILE_CACHE_DUNGEON", out _).ShouldBeFalse(
             "the Resource Dungeon profile authors this tile, and the same dungeon's terminus is a Guardian that is explicitly not a boss.");
+
+        // The two ids above are the spellings the documents happen to use; the third ending — the
+        // Guardian's own tile — has no authored id at all, so no string can stand for it. This is
+        // the leg that catches a ruling that lands under any name.
+        Enum.GetValues<TileKind>().Length.ShouldBe(
+            14,
+            "the tile set is declared closed. A new member means somebody has decided what a board may end with, and the pin above is theirs to revisit.");
     }
 }
