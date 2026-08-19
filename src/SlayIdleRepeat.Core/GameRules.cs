@@ -60,7 +60,12 @@ public static class GameRules
     /// </remarks>
     private static readonly CommandDispatch Dispatch = new CommandDispatch()
 
-        // ------------------------------------------------ the 19 RUN commands
+        // ------------------------------------------------ the 22 RUN commands
+        //
+        // 🔒 22, not 19: SHOP_LEAVE, SHRINE_CHOOSE and DICE_FORGE_CHOOSE were added to `14` §2.3's
+        // registry (52 -> 55; decision recorded in `16`). Each carries a player choice a tile makes
+        // and no existing command could express, and without them the Shop, Shrine and Dice Forge
+        // tiles were a roll, a roll and nothing at all.
         .Handled<StartRunCommand>("START_RUN", CommandKind.Run, StartRun.Handle, opensRun: true)
         .Handled<RollDiceCommand>("ROLL_DICE", CommandKind.Run, RollDice.Handle)
         .Handled<UseRerollCommand>("USE_REROLL", CommandKind.Run, UseReroll.Handle)
@@ -71,13 +76,16 @@ public static class GameRules
         .Handled<SkipDraftCommand>("SKIP_DRAFT", CommandKind.Run, SkipDraft.Handle)
         .Handled<ShopBuyCommand>("SHOP_BUY", CommandKind.Run, ShopBuy.Handle)
         .Handled<ShopRefreshCommand>("SHOP_REFRESH", CommandKind.Run, ShopRefresh.Handle)
+        .Handled<ShopLeaveCommand>("SHOP_LEAVE", CommandKind.Run, ShopLeave.Handle)
+        .Handled<ShrineChooseCommand>("SHRINE_CHOOSE", CommandKind.Run, ShrineChoose.Handle)
+        .Handled<DiceForgeChooseCommand>("DICE_FORGE_CHOOSE", CommandKind.Run, DiceForgeChoose.Handle)
         .Handled<EventChooseCommand>("EVENT_CHOOSE", CommandKind.Run, EventChoose.Handle)
         .Handled<MinigameSubmitCommand>("MINIGAME_SUBMIT", CommandKind.Run, MinigameSubmit.Handle)
         .Handled<CampfireChooseCommand>("CAMPFIRE_CHOOSE", CommandKind.Run, CampfireChoose.Handle)
         .Handled<StartBattleCommand>("START_BATTLE", CommandKind.Run, StartBattle.Handle)
         .Handled<ConfirmBattleResultCommand>("CONFIRM_BATTLE_RESULT", CommandKind.Run, ConfirmBattleResult.Handle)
         .Handled<ReviveCommand>("REVIVE", CommandKind.Run, Revive.Handle)
-        .Deferred<UseConsumableCommand>("USE_CONSUMABLE", CommandKind.Run, "M3-08")
+        .Handled<UseConsumableCommand>("USE_CONSUMABLE", CommandKind.Run, UseConsumable.Handle)
         .Handled<EndRunCommand>("END_RUN", CommandKind.Run, EndRun.Handle)
         .Handled<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, AbandonRun.Handle, leavesRun: true)
 

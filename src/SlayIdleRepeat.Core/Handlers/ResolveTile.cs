@@ -88,17 +88,15 @@ internal static class ResolveTile
             }
 
             case TileKind.Shrine:
-                // hasCleansableCurse is always false today: Run holds no curse list yet, so there is
-                // nothing to ask. ShrineResolver's cleanse rule is written and tested; it just has no
-                // true input yet.
-                ShrineResolver.Resolve(input, hasCleansableCurse: false);
-                run.ClearPendingTile();
+                // Acknowledgement only, exactly like a Campfire: SHRINE_CHOOSE draws the two options
+                // and applies the one the player picks. Leaving the shrine stream untouched until
+                // then is what lets the screen and the command read the same offer off the same
+                // committed position, with no persisted copy of it.
                 return HandlerResult.Accept();
 
             case TileKind.Curse:
             {
-                // Pays the curse tile's reward and does NOT apply the curse itself — see
-                // CurseTileResolver's remarks.
+                // Applies the curse AND pays its paired reward — see CurseTileResolver.
                 var events = CurseTileResolver.Resolve(input);
                 run.ClearPendingTile();
                 return HandlerResult.Accept(events);
@@ -118,12 +116,15 @@ internal static class ResolveTile
                 return HandlerResult.Accept();
 
             case TileKind.Shop:
+                // Stocks the offer and leaves the tile pending. SHOP_BUY and SHOP_REFRESH act on it;
+                // SHOP_LEAVE is the clearing step, because a shop is the one tile the player stands
+                // at for several commands and only they know when they are finished with it.
+                // Re-stocking on a resend is refused rather than allowed: a second RESOLVE_TILE would
+                // otherwise be a free refresh with no counter on it.
+                return StockShop(input, run);
+
             case TileKind.DiceForge:
-                // Deliberately nothing: neither a stocked offer nor a die-face choice exists on Run,
-                // and no command in the frozen vocabulary can carry either. Clearing is what lets the
-                // run walk away — whichever commit lands either concept owes it its own clearing
-                // step and revisits this branch.
-                run.ClearPendingTile();
+                // Acknowledgement only. DICE_FORGE_CHOOSE installs the upgrade and clears the tile.
                 return HandlerResult.Accept();
 
             case TileKind.Minigame:
@@ -145,6 +146,25 @@ internal static class ResolveTile
                     "because 30 §11.4 forbids Model from naming this vocabulary. Either way it throws, " +
                     "so the gap is loud rather than silently accepted as a tile that does nothing.");
         }
+    }
+
+    /// <summary>The first half of a shop tile: draw the offer and open the visit.</summary>
+    /// <remarks>
+    /// Refuses a resend for <see cref="DrawEventCard"/>'s reason and a sharper one: re-stocking would
+    /// spend another block of the shop stream and hand back a fresh offer, which is a refresh — and
+    /// the refresh economy (`03` §7: one free per visit, then two ad-gated) lives on
+    /// <c>SHOP_REFRESH</c>, where it is counted.
+    /// </remarks>
+    private static HandlerResult StockShop(HandlerInput input, Model.Run run)
+    {
+        if (run.HasOpenShop)
+        {
+            return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
+        }
+
+        run.StockShop(Rules.Economy.ShopStocking.Draw(input), countsAsRefresh: false);
+
+        return HandlerResult.Accept();
     }
 
     /// <summary>The first half of an event tile: draw the card and hold it on the run.</summary>

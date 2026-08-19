@@ -24,10 +24,23 @@ internal static class UseReroll
 
         var run = input.Run;
 
-        // Every bonus source besides the base allotment (talents, Campfire, perks, Reroll Tokens) is
-        // still unbuilt, so this reads the base allotment alone until each lands.
+        // 🔒 The run's own granted charges are read here, and that is what makes the Campfire's "+2
+        // Reroll Charges" and the Reroll Token consumable mean anything: both write into the same
+        // counter, and before this line read it, both were grants nothing spent.
+        //
+        // They arrive as rerollTokensUsed rather than campfireVisited because the run stores ONE
+        // total rather than a source breakdown — and of RerollEconomy's two count-shaped parameters,
+        // that is the one whose contract is "grants already applied", which is exactly what the
+        // counter holds. campfireVisited stays false because it is a BOOLEAN worth a fixed 2: passing
+        // it as well would pay the campfire's bonus twice for a run that took it.
+        //
+        // ⚠️ Talent and perk bonuses are still zero — neither system exists — so the ceiling a run
+        // can reach today is the base allotment plus what it has been granted, capped at 5.
         var totalCharges = RerollEconomy.TotalCharges(
-            talentBonus: 0, campfireVisited: false, perkBonus: 0, rerollTokensUsed: 0);
+            talentBonus: 0,
+            campfireVisited: false,
+            perkBonus: 0,
+            rerollTokensUsed: run.RerollChargesGrantedThisStage);
 
         if (!RerollEconomy.CanAffordReroll(run.RerollChargesSpentThisStage, totalCharges))
         {

@@ -82,11 +82,15 @@ public sealed record CampfireOptionRow(
 /// <summary>One row of the shrine's offer as the screen draws it.</summary>
 /// <param name="BuffId">The buff id, for the log.</param>
 /// <param name="Name">The buff's name, already resolved through the key the buff pool authors.</param>
-/// <param name="IsTaken">
-/// Whether this is the row the resolver will actually apply. Exactly one row is, and the player did
-/// not choose it — see <see cref="CampfirePresenter.ShrineChoiceBlockText"/>.
+/// <param name="ChoiceIndex">
+/// The slot this row occupies, and therefore the index <c>SHRINE_CHOOSE</c> names to take it.
 /// </param>
-public sealed record CampfireShrineRow(string BuffId, string Name, bool IsTaken);
+/// <remarks>
+/// 🔒 There is no longer a "taken" row, and that is the change rather than a simplification: a
+/// shrine's two options are the player's to choose between now, so a screen that pre-marked one
+/// would be describing a decision the rules layer no longer makes.
+/// </remarks>
+public sealed record CampfireShrineRow(string BuffId, string Name, int ChoiceIndex);
 
 /// <summary>
 /// Drives the Campfire / Shrine screen — one screen with two arms, because a campfire and a shrine
@@ -503,7 +507,7 @@ public sealed class CampfirePresenter
             rows[slot] = new CampfireShrineRow(
                 shrine.Rows[slot].BuffId,
                 _strings.Resolve(shrine.Rows[slot].DisplayNameKey),
-                slot == shrine.TakenRowIndex);
+                slot);
         }
 
         return Array.AsReadOnly(rows);

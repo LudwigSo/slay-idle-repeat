@@ -76,7 +76,43 @@ internal static class CurrenciesDocuments
             ["HEAL"] = healBasePrice ?? ContentValue.Number(ShippedHealBasePrice),
         });
 
-        var shopTile = ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        var shopTile = ShopTile(
+            slots, freeRefreshesPerVisit, stagePriceStep, chapterPriceScalar, basePrice,
+            healPctMaxHp, runBuffs, leftoverGoldAlarmShare);
+
+        return Document(ContentValue.Object(
+            new Dictionary<string, ContentValue>(StringComparer.Ordinal) { ["shopTile"] = shopTile }));
+    }
+
+    /// <summary>
+    /// The <c>shopTile</c> block alone, so a fixture that builds the WHOLE of
+    /// <c>tuning/currencies.json</c> can include it beside its own blocks.
+    /// </summary>
+    /// <remarks>
+    /// Exposed rather than transcribed a second time in <c>InRunIncomeDocuments</c>: that fixture
+    /// replaces the whole document, so a shop tile missing from it made every handler reading a
+    /// price throw — and two fixtures spelling the same block would be free to disagree about a
+    /// price the pricing tests then prove correct against the wrong one.
+    /// </remarks>
+    internal static ContentValue ShopTile(
+        ContentValue? slots = null,
+        ContentValue? freeRefreshesPerVisit = null,
+        ContentValue? stagePriceStep = null,
+        ContentValue? chapterPriceScalar = null,
+        ContentValue? basePrice = null,
+        ContentValue? healPctMaxHp = null,
+        ContentValue? runBuffs = null,
+        ContentValue? leftoverGoldAlarmShare = null)
+    {
+        basePrice ??= ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
+        {
+            ["PERK"] = Table(ShippedPerkBasePrice),
+            ["CONSUMABLE"] = Table(ShippedConsumableBasePrice),
+            ["RUN_BUFF"] = Table(ShippedRunBuffBasePrice),
+            ["HEAL"] = ContentValue.Number(ShippedHealBasePrice),
+        });
+
+        return ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
             ["slots"] = slots ?? ContentValue.Number(ShippedSlots),
             ["freeRefreshesPerVisit"] = freeRefreshesPerVisit ?? ContentValue.Number(ShippedFreeRefreshesPerVisit),
@@ -96,9 +132,6 @@ internal static class CurrenciesDocuments
                 }))),
             ["leftoverGoldAlarmShare"] = leftoverGoldAlarmShare ?? ContentValue.Number(ShippedLeftoverGoldAlarmShare),
         });
-
-        return Document(ContentValue.Object(
-            new Dictionary<string, ContentValue>(StringComparer.Ordinal) { ["shopTile"] = shopTile }));
     }
 
     /// <summary>A snapshot whose <c>tuning/currencies.json</c> has the given root value.</summary>

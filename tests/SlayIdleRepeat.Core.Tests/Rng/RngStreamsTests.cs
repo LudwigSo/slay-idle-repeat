@@ -13,11 +13,12 @@ namespace SlayIdleRepeat.Core.Tests.Rng;
 public sealed class RngStreamsTests
 {
     [Fact]
-    public void The_registry_holds_exactly_the_nine_fixed_streams_of_the_specification()
+    public void The_registry_holds_exactly_the_ten_fixed_streams_of_the_specification()
     {
         RngStreams.FixedNames.ShouldBe(new[]
         {
             "board", "dice", "draft", "drops", "treasure", "shrine", "combat", "events", "forge",
+            "shop",
         });
     }
 
@@ -34,9 +35,10 @@ public sealed class RngStreamsTests
         RngStreams.Combat.ShouldBe("combat");
         RngStreams.Events.ShouldBe("events");
         RngStreams.Forge.ShouldBe("forge");
+        RngStreams.Shop.ShouldBe("shop");
     }
 
-    /// <summary>The tenth row is parameterised: <c>minigame:{index}</c>.</summary>
+    /// <summary>The eleventh row is parameterised: <c>minigame:{index}</c>.</summary>
     [Theory]
     [InlineData(0, "minigame:0")]
     [InlineData(3, "minigame:3")]

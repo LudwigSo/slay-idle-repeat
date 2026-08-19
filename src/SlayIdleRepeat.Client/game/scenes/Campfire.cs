@@ -506,14 +506,11 @@ public partial class Campfire : Control
             var row = rowScene.Instantiate<HBoxContainer>();
             var name = row.GetNode<Label>(RowNameLabelPath);
 
-            row.GetNode<ColorRect>(RowTakenMarkPath).Color =
-                drew.IsTaken ? TakenMarkColour : UntakenMarkColour;
-
-            // Marked twice over, because a mark that is only a colour is a mark some players cannot
-            // read: the taken row keeps the live text colour and the rest drop to the quiet one, so
-            // the difference survives with the mark itself unseen.
-            name.AddThemeColorOverride(
-                FontColourOverride, drew.IsTaken ? LiveColour : UnavailableColour);
+            // Every drawn row is choosable now, so every one carries the live mark and the live
+            // text colour. The mark is kept rather than dropped because the row it sits on is still
+            // an option the player can take, and a row with no mark at all reads as disabled.
+            row.GetNode<ColorRect>(RowTakenMarkPath).Color = TakenMarkColour;
+            name.AddThemeColorOverride(FontColourOverride, LiveColour);
 
             name.Text = drew.Name;
 
@@ -602,7 +599,7 @@ public partial class Campfire : Control
         GD.Print(
             $"{CampfireMarker} stage={presenter.Stage} options={presenter.Options.Count} " +
             $"shrine_rows={presenter.ShrineRows.Count} available={presenter.ShrineRowsAvailable} " +
-            $"taken={presenter.ShrineRows.FirstOrDefault(row => row.IsTaken)?.BuffId ?? "none"} " +
+            $"offers={string.Join(",", presenter.ShrineRows.Select(row => row.BuffId))} " +
             $"host_faulted={presenter.HostFaulted} " +
             $"rejection={presenter.RulesRejection?.ToString() ?? "none"}");
 }

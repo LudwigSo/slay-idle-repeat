@@ -88,10 +88,11 @@ public sealed class CampfirePresenterTests
             "the buff pool is authored to offer exactly two distinct options, and both are shown: " +
             "the player did not choose between them, so hiding the one that will not be taken would " +
             "hide half of what the shrine actually did.");
-        presenter.ShrineRows.Count(row => row.IsTaken).ShouldBe(
-            1,
-            "and exactly one is the row the resolver will apply. Marking none leaves the screen " +
-            "implying a choice; marking both claims two buffs are granted when only one is.");
+        presenter.ShrineRows.Select(row => row.ChoiceIndex).ShouldBe(
+            new[] { 0, 1 },
+            "each row carries the slot index SHRINE_CHOOSE names to take it, in slot order. The " +
+            "player chooses between the two now, so a screen that pre-marked one as taken would be " +
+            "describing a decision the rules layer no longer makes.");
         presenter.Options.ShouldBeEmpty(
             "a shrine offers no campfire options. A rest card here would submit a command the rules " +
             "layer refuses because the pending tile is not a campfire.");

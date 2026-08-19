@@ -79,7 +79,14 @@ internal static class TileWorlds
         int linearIndex = 7,
         int stage = 1,
         RunPhase phase = RunPhase.InProgress,
-        bool geared = true) =>
+        bool geared = true,
+        IReadOnlyList<string>? curses = null,
+        IReadOnlyList<string>? shrineBuffs = null,
+        IReadOnlyList<string>? runBuffs = null,
+        IReadOnlyDictionary<string, int>? consumables = null,
+        IReadOnlyDictionary<int, int>? dieFaceUpgrades = null,
+        bool escapeRopeArmed = false,
+        ulong? shopOfferDraw = null) =>
         new(
             Worlds.Rehydrated(RunBattleWorlds.FarAboveParRow()),
             Rehydrated(RunSnapshots.With(
@@ -96,7 +103,14 @@ internal static class TileWorlds
                 rngStreamPositions: CombatStreamFor(phase),
                 startingLoadout: geared
                     ? RunBattleWorlds.FarAboveParLoadout
-                    : RunBattleWorlds.BareLoadout)));
+                    : RunBattleWorlds.BareLoadout,
+                curses: curses,
+                shrineBuffs: shrineBuffs,
+                runBuffs: runBuffs,
+                consumables: consumables,
+                dieFaceUpgrades: dieFaceUpgrades,
+                escapeRopeArmed: escapeRopeArmed,
+                shopOfferDraw: shopOfferDraw)));
 
     /// <summary>
     /// The <c>combat</c> stream position a run in <see cref="RunPhase.BattlePending"/> must carry —

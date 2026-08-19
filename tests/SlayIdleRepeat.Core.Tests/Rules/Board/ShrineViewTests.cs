@@ -78,8 +78,8 @@ public sealed class ShrineViewTests
                 view.Rows[1].BuffId,
                 "seed " + runSeed + " offered the same buff twice, so the second row's index was " +
                 "mapped back past the first rather than at it.");
-            view.IsCleanse.ShouldBeFalse("a run holds no curse list, so the cleanse arm cannot fire");
-            view.TakenRowIndex.ShouldBe(0, "slot 1 is the one the resolver applies");
+            view.IsCleanse.ShouldBeFalse("this run carries no curse, so the cleanse arm cannot fire");
+            view.CleansableCurseId.ShouldBeNull();
 
             if (PoolIndexOf(pool, view.Rows[1].BuffId) == PoolIndexOf(pool, view.Rows[0].BuffId) + 1)
             {
@@ -172,21 +172,29 @@ public sealed class ShrineViewTests
     [InlineData(89UL)]
     [InlineData(144UL)]
     [InlineData(233UL)]
-    public void The_taken_row_is_the_heal_RESOLVE_TILE_actually_applies(ulong runSeed)
+    public void The_chosen_row_is_the_heal_SHRINE_CHOOSE_actually_applies(ulong runSeed)
     {
-        var state = TileWorlds.OnTile(TileKind.Shrine, currentHp: 40, runSeed: runSeed);
-        var before = state.Run!.ToSnapshot();
-        var view = ShrineView.Project(before, Content)!;
-        var taken = view.Rows[view.TakenRowIndex];
+        // Both slots, because the player chooses now: a view that named the rows in the wrong ORDER
+        // would still satisfy a check against slot 0 alone, since either row is a row it drew.
+        for (var slot = 0; slot < 2; slot++)
+        {
+            var state = TileWorlds.OnTile(TileKind.Shrine, currentHp: 40, runSeed: runSeed);
+            var before = state.Run!.ToSnapshot();
+            var view = ShrineView.Project(before, Content)!;
+            var chosen = view.Rows[slot];
 
-        var resolved = SlayIdleRepeat.Core.GameRules.Apply(
-            state, new ResolveTileCommand(), TileWorlds.Context);
+            var resolved = SlayIdleRepeat.Core.GameRules.Apply(
+                state, new ShrineChooseCommand(slot), TileWorlds.Context);
 
-        resolved.Accepted.ShouldBeTrue();
-        resolved.NewState.Run!.CurrentHp.ShouldBe(
-            Healed(before, taken.ImmediateHealPctMaxHp),
-            "the shrine applied a different row than the one the view named as taken: the view drew " +
-            taken.BuffId + " into the taken slot and " + view.Rows[1].BuffId + " into the other.");
+            resolved.Accepted.ShouldBeTrue();
+            resolved.NewState.Run!.CurrentHp.ShouldBe(
+                Healed(before, chosen.ImmediateHealPctMaxHp),
+                "the shrine applied a different row than the one the view drew into slot " + slot +
+                ": the view drew " + chosen.BuffId + " there.");
+            resolved.NewState.Run!.ShrineBuffs.ShouldBe(
+                new[] { chosen.BuffId },
+                "…and it is the buff the view named that the run now carries, not the other one.");
+        }
     }
 
     /// <summary>
@@ -201,10 +209,10 @@ public sealed class ShrineViewTests
     public void Both_heal_arms_occur_across_the_swept_seeds()
     {
         var healing = Seeds.Select(s => Projected(s))
-            .Select(v => v.Rows[v.TakenRowIndex].ImmediateHealPctMaxHp is not null)
+            .Select(v => v.Rows[0].ImmediateHealPctMaxHp is not null)
             .ToArray();
 
-        healing.ShouldContain(true, "no swept seed drew a healing row into the taken slot, so the " +
+        healing.ShouldContain(true, "no swept seed drew a healing row into the first slot, so the " +
             "case above never once asserted that a heal lands");
         healing.ShouldContain(false, "every swept seed drew a healing row, so the case above never " +
             "once asserted that a non-healing row moves nothing");
@@ -296,7 +304,7 @@ public sealed class ShrineViewTests
     {
         var text = new StringBuilder();
 
-        text.Append(view.TakenRowIndex.ToString(CultureInfo.InvariantCulture)).Append('|')
+        text.Append(view.CleansableCurseId ?? "<none>").Append('|')
             .Append(view.IsCleanse).Append('\n');
 
         foreach (var row in view.Rows)
