@@ -497,10 +497,11 @@
     },
 
     "statusId": {
-      "description": "The twelve statuses the combat document fixes, which 18 §2.3 refers to rather than restating.",
+      "description": "The statuses the combat document fixes, which 18 §2.3 refers to rather than restating. Thirteen since the ailment rework added CHILL, which cold's perks read as their own gate rather than sharing WEAKEN's.",
       "enum": [
         "BURN", "POISON", "BLEED", "FREEZE", "STUN", "WEAKEN",
-        "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN"
+        "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN",
+      "CHILL"
       ]
     },
 

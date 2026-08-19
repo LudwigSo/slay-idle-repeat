@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.Services.Events;
@@ -226,6 +226,12 @@ public sealed class InProcessGameHostCommandTests
 
         var first = opened.State.Run!.Id;
 
+        // The opening draft is answered first: a run opens with one pending and the draft gate
+        // admits only the three draft commands until it resolves.
+        var skipped = await host.SubmitAsync(player, first, new SkipDraftCommand(), Worlds.Cancel);
+
+        skipped.Accepted.ShouldBeTrue("skipping the opening draft was refused " + skipped.Rejection + ".");
+
         var ended = await host.SubmitAsync(player, first, new AbandonRunCommand(), Worlds.Cancel);
 
         ended.Accepted.ShouldBeTrue("abandoning the run was refused " + ended.Rejection + ".");
@@ -309,6 +315,11 @@ public sealed class InProcessGameHostCommandTests
         opened.Accepted.ShouldBeTrue("starting a run was refused " + opened.Rejection + ".");
 
         var first = opened.State.Run!.Id;
+
+        var skipped = await host.SubmitAsync(player, first, new SkipDraftCommand(), Worlds.Cancel);
+
+        skipped.Accepted.ShouldBeTrue("skipping the opening draft was refused " + skipped.Rejection + ".");
+
         var ended = await host.SubmitAsync(player, first, new AbandonRunCommand(), Worlds.Cancel);
 
         ended.Accepted.ShouldBeTrue("abandoning the run was refused " + ended.Rejection + ".");

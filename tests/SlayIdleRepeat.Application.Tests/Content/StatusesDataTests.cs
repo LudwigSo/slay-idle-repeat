@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core.Content;
@@ -18,11 +18,15 @@ public sealed class StatusesDataTests
 {
     private const string Document = "content/statuses.json";
 
-    /// <summary>The twelve statuses, in the order the design doc's table prints them.</summary>
+    /// <summary>The statuses, in the order the design doc's table prints them.</summary>
+    /// <remarks>
+    /// <c>CHILL</c> is last and not filed beside <c>FREEZE</c> for the reason the order is asserted
+    /// at all: a row position is the wire ordinal, so the thirteenth row had to be appended.
+    /// </remarks>
     private static readonly string[] StatusOrder =
     {
         "BURN", "POISON", "BLEED", "FREEZE", "STUN", "WEAKEN",
-        "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN",
+        "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN", "CHILL",
     };
 
     private static ContentSnapshot Data() => ContentLoader.Load(RepoData.Source()).Require();
@@ -38,19 +42,19 @@ public sealed class StatusesDataTests
         snapshot.DocumentPaths.ShouldNotContain("tuning/statuses.json");
     }
 
-    /// <summary>Fixes twelve statuses, by these ids, in this order.</summary>
+    /// <summary>Fixes the statuses, by these ids, in this order.</summary>
     /// <remarks>
     /// The order is part of the assertion: a status's <c>dataId</c> is its row position in this
     /// table, and that ordinal is inside <c>LogHash</c> — reordering would silently renumber every
     /// status event in every committed reference log.
     /// </remarks>
     [Fact]
-    public void The_file_carries_05_section_5s_twelve_statuses_in_the_sections_order()
+    public void The_file_carries_05_section_5s_statuses_in_the_sections_order()
     {
         var statuses = Data().GetDocument(Document).Root;
 
         statuses.TryGetMember("statuses", out var rows).ShouldBeTrue();
-        rows!.Items.Count.ShouldBe(12);
+        rows!.Items.Count.ShouldBe(StatusOrder.Length);
 
         rows.Items.Select(r =>
         {
@@ -94,7 +98,7 @@ public sealed class StatusesDataTests
         enclosed.OrderBy(s => s, StringComparer.Ordinal)
             .ShouldBe(shipped.OrderBy(s => s, StringComparer.Ordinal));
 
-        shipped.Length.ShouldBe(12, "05 §5 fixes twelve");
+        shipped.Length.ShouldBe(StatusOrder.Length, "05 §5's twelve, plus the ailment rework's CHILL");
     }
 
     /// <summary>BLEED's missing-HP scaling term.</summary>
@@ -115,14 +119,26 @@ public sealed class StatusesDataTests
         data.ReadDouble(Document + "#/stun/immunityWindowSeconds").ShouldBe(3.0);
     }
 
-    /// <summary>Stack ceilings, stated for five of the twelve statuses and for no others.</summary>
-    /// <remarks>The absences are asserted as well as the numbers: the other seven have no stacking rule here, so a per-effect block governs them instead, and a ceiling appearing here would be this file overriding that.</remarks>
+    /// <summary>Stack ceilings, stated for the statuses that have one and for no others.</summary>
+    /// <remarks>
+    /// The absences are asserted as well as the numbers: a status with no stacking rule here is
+    /// governed by the applying effect's own block instead, and a ceiling appearing here would be
+    /// this file overriding that.
+    /// <para>
+    /// 🔒 <c>POISON</c> is the one row that carries a stacking rule with NO ceiling, and the two
+    /// facts are asserted separately below for that reason. An absent <c>stacking</c> block and an
+    /// uncapped one are different statements — the first defers to the effect, the second says
+    /// "this status stacks without limit" — and a ceiling test that could not tell them apart would
+    /// pass just as happily if poison's rule vanished.
+    /// </para>
+    /// </remarks>
     [Theory]
     [InlineData("BURN", 5)]
-    [InlineData("POISON", 3)]
+    [InlineData("BLEED", 5)]
+    [InlineData("CHILL", 5)]
     [InlineData("SUNDER", 5)]
     [InlineData("SPORE", 4)]
-    [InlineData("BLEED", null)]
+    [InlineData("POISON", null)]
     [InlineData("FREEZE", null)]
     [InlineData("STUN", null)]
     [InlineData("WEAKEN", null)]
@@ -149,21 +165,85 @@ public sealed class StatusesDataTests
         ceiling.ShouldBeNull("05 §5 states no stack ceiling for " + id);
     }
 
-    /// <summary>BLEED does not stack; reapplication refreshes — the NONE mode plus refreshOnReapply.</summary>
+    /// <summary>BLEED stacks to a ceiling AND refreshes, and it is the one row that scales on missing HP.</summary>
+    /// <remarks>
+    /// The pair is the assertion. Bleed is the ailment a perk can consume for an instant payout, and
+    /// a status that did not stack would leave a consumer nothing to spend; the refresh is kept
+    /// alongside, so reapplying renews the timer as well as adding a stack.
+    /// </remarks>
     [Fact]
-    public void BLEED_is_the_authored_user_of_NONE_plus_refreshOnReapply()
+    public void BLEED_stacks_to_a_ceiling_refreshes_and_scales_on_missing_hp()
     {
         var row = Row("BLEED");
 
         row.TryGetMember("stacking", out var stacking).ShouldBeTrue();
         stacking!.TryGetMember("mode", out var mode).ShouldBeTrue();
-        mode!.AsText().ShouldBe("NONE");
+        mode!.AsText().ShouldBe("ADDITIVE");
 
         stacking.TryGetMember("refreshOnReapply", out var refresh).ShouldBeTrue();
         refresh!.AsBoolean().ShouldBeTrue();
 
         row.TryGetMember("scalesWithTargetMissingHp", out var scales).ShouldBeTrue();
         scales!.AsBoolean().ShouldBeTrue();
+    }
+
+    /// <summary>POISON authors a stacking rule with no ceiling — the file's one uncapped stacker.</summary>
+    /// <remarks>
+    /// 🔒 An authored rule that omits <c>maxStacks</c> is a different statement from no rule at all:
+    /// 18 §6 reads the absent ceiling as uncapped, so this row says "stacks without limit" while a
+    /// row with no <c>stacking</c> block says "the applying effect decides". Poison is the element
+    /// whose whole character is the unbounded stack, so the distinction is the design.
+    /// </remarks>
+    [Fact]
+    public void POISON_is_the_one_status_that_stacks_without_a_ceiling()
+    {
+        var row = Row("POISON");
+
+        row.TryGetMember("stacking", out var stacking).ShouldBeTrue(
+            "an absent block would defer poison's ceiling to whatever applied it");
+        stacking!.TryGetMember("mode", out var mode).ShouldBeTrue();
+        mode!.AsText().ShouldBe("ADDITIVE");
+        stacking.TryGetMember("maxStacks", out _).ShouldBeFalse(
+            "18 §6 reads an absent ceiling as uncapped, and that is poison's identity");
+    }
+
+    /// <summary>Every DoT's potency is a percentage of the applier's ATK.</summary>
+    /// <remarks>
+    /// The rework's one cross-cutting rule: an ailment whose damage does not read the attacker's ATK
+    /// cannot be built into, so a poison or bleed build gains from the same items an attack build
+    /// does. POISON is the row this moved — it was stated against the target's Max HP.
+    /// </remarks>
+    [Theory]
+    [InlineData("BURN")]
+    [InlineData("POISON")]
+    [InlineData("BLEED")]
+    public void Every_damage_over_time_scales_off_the_appliers_attack(string id)
+    {
+        var row = Row(id);
+
+        row.TryGetMember("potencyBasis", out var basis).ShouldBeTrue();
+        basis!.AsText().ShouldBe("APPLIER_ATK_PCT_PER_SECOND");
+    }
+
+    /// <summary>CHILL is its own row rather than a second name for WEAKEN.</summary>
+    /// <remarks>
+    /// Both write ATK, and that is exactly why the separation is asserted: cold's perks are gated on
+    /// "is this enemy chilled", and keying that on WEAKEN would fire them on any enemy an unrelated
+    /// source had weakened.
+    /// </remarks>
+    [Fact]
+    public void CHILL_is_its_own_status_and_not_a_second_spelling_of_WEAKEN()
+    {
+        var chill = Row("CHILL");
+
+        chill.TryGetMember("type", out var type).ShouldBeTrue();
+        type!.AsText().ShouldBe("DEBUFF");
+
+        chill.TryGetMember("stat", out var stat).ShouldBeTrue();
+        stat!.AsText().ShouldBe("ATK");
+
+        StatusOrder[^1].ShouldBe(
+            "CHILL", "a row position is the wire ordinal, so a new status goes on the end");
     }
 
     /// <summary>FREEZE's potency is a literal −50% ASPD, and it is the only row that carries one.</summary>

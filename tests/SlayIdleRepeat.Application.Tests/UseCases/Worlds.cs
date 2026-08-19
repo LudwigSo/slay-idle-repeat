@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Adapters.InMemory;
+﻿using SlayIdleRepeat.Adapters.InMemory;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Application.Services.Persistence;
 using SlayIdleRepeat.Application.Tests.Content;
@@ -53,8 +53,31 @@ internal static class Worlds
     /// <summary>A harness over the shipped content, at <see cref="Start"/>, with <see cref="Seed"/>.</summary>
     internal static InMemoryGame Game() => new(Content, Seed, new VirtualClock(Start));
 
-    /// <summary>A player standing at the trailhead of a fresh run.</summary>
+    /// <summary>A player standing at the trailhead of a fresh run, its opening draft answered.</summary>
+    /// <remarks>
+    /// The skip is part of the fixture, not incidental: a run opens with a perk draft pending and
+    /// the command gate admits only the three draft commands until it is resolved, so a fixture that
+    /// stopped at <c>START_RUN</c> would refuse every command a case built on it sends. Skipping
+    /// rather than picking keeps the run's perks empty, which is what every case here assumed when
+    /// the opening draft did not exist.
+    /// </remarks>
     internal static (InMemoryGame Game, PlayerId Player) InARun()
+    {
+        var game = Game();
+        var player = game.CreatePlayer();
+
+        Accepted(game.Send(player, new StartRunCommand(Chapter, DifficultyTier.NORMAL)), "START_RUN");
+        Accepted(game.Send(player, new SkipDraftCommand()), "SKIP_DRAFT");
+
+        return (game, player);
+    }
+
+    /// <summary>A player whose fresh run still has its opening draft open.</summary>
+    /// <remarks>
+    /// The state <see cref="InARun"/> passes through. Named separately for the cases whose subject is
+    /// the draft itself, so neither fixture has to be read as the other with a step added or removed.
+    /// </remarks>
+    internal static (InMemoryGame Game, PlayerId Player) InARunWithItsOpeningDraftOpen()
     {
         var game = Game();
         var player = game.CreatePlayer();
@@ -97,6 +120,11 @@ internal static class Worlds
         var other = game.CreatePlayer();
 
         Accepted(game.Send(other, new StartRunCommand(Chapter, DifficultyTier.NORMAL)), "START_RUN (other player)");
+
+        // ⚠️ The opening draft has to be answered before the run can be abandoned: the draft gate
+        // admits only the three draft commands, and ABANDON_RUN is not one of them. Pre-existing
+        // behaviour for every draft — the opening draft is simply the first place a fixture meets it.
+        Accepted(game.Send(other, new SkipDraftCommand()), "SKIP_DRAFT (other player)");
         Accepted(game.Send(other, new AbandonRunCommand()), "ABANDON_RUN (other player)");
 
         return (game, asking, other);

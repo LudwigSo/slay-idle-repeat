@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Core.Content;
+﻿using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Combat.Status;
@@ -32,7 +32,7 @@ internal static class StatusFixtures
             new("statuses", ContentValue.Array(
             [
                 Dot("BURN", "APPLIER_ATK_PCT_PER_SECOND", maxStacks: 5),
-                Dot("POISON", "TARGET_MAX_HP_PCT_PER_SECOND", maxStacks: 3),
+                Dot("POISON", "APPLIER_ATK_PCT_PER_SECOND", maxStacks: null),
                 Bleed(),
                 StatRow("FREEZE", "ASPD", fixedPotency: -0.5m),
                 Stun(),
@@ -43,6 +43,7 @@ internal static class StatusFixtures
                 Ward(),
                 StatRow("HASTE", "ASPD", kind: "BUFF"),
                 Regen(),
+                StatRow("CHILL", "ATK", maxStacks: 5),
             ])),
         ]);
 
@@ -100,14 +101,25 @@ internal static class StatusFixtures
                 : null,
         };
 
-    private static ContentValue Dot(string id, string basis, int maxStacks) =>
-        ContentValue.Object(
+    /// <summary>
+    /// A damage-over-time row. <paramref name="maxStacks"/> is nullable because POISON's whole
+    /// character is an ADDITIVE rule with no ceiling, which is a different authored statement from
+    /// carrying no stacking block at all.
+    /// </summary>
+    private static ContentValue Dot(string id, string basis, int? maxStacks)
+    {
+        var stacking = maxStacks is { } max
+            ? Additive(max)
+            : ContentValue.Object([new("mode", ContentValue.Text("ADDITIVE"))]);
+
+        return ContentValue.Object(
         [
             new("id", ContentValue.Text(id)),
             new("type", ContentValue.Text("DOT")),
             new("potencyBasis", ContentValue.Text(basis)),
-            new("stacking", Additive(maxStacks)),
+            new("stacking", stacking),
         ]);
+    }
 
     private static ContentValue Bleed() =>
         ContentValue.Object(
@@ -118,7 +130,8 @@ internal static class StatusFixtures
             new("scalesWithTargetMissingHp", ContentValue.Boolean(true)),
             new("stacking", ContentValue.Object(
             [
-                new("mode", ContentValue.Text("NONE")),
+                new("mode", ContentValue.Text("ADDITIVE")),
+                new("maxStacks", ContentValue.Number(5)),
                 new("refreshOnReapply", ContentValue.Boolean(true)),
             ])),
         ]);

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Shouldly;
@@ -21,6 +21,9 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Perks;
 public sealed class PerkDraftEngineTests
 {
     private static PerkCatalogue Catalogue => PerkCatalogue.Read(PerkDocuments.Shipped);
+
+    /// <summary>The fixture whose one category sits behind a base perk.</summary>
+    private static PerkCatalogue GatedCatalogue => PerkCatalogue.Read(PerkDocuments.WithAGatedCategory);
 
     private static DraftedPerks NoneOwned() =>
         Owning(new Dictionary<string, int>());
@@ -60,6 +63,72 @@ public sealed class PerkDraftEngineTests
                 forces ?? Unforced,
                 everDrafted ?? NothingEverDrafted),
             rng);
+
+    // ------------------------------------------------------------------ the category gate
+
+    /// <summary>A run owning nothing is only ever offered the categories' base perks.</summary>
+    /// <remarks>
+    /// 🔒 The gate, seen from the player's side on the draft that matters most — the first one. A
+    /// gated perk offered here is a perk the run cannot use the mechanics of, and taking it would
+    /// spend the whole draft on an effect keyed to an ailment nothing applies.
+    /// <para>
+    /// Swept over seeds rather than asserted on one, because the pool is drawn: a single seed that
+    /// happened to land on three bases would pass over a gate that does nothing at all.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_run_owning_nothing_is_only_offered_perks_that_require_nothing()
+    {
+        var catalogue = GatedCatalogue;
+
+        for (ulong seed = 1; seed <= 64; seed++)
+        {
+            foreach (var option in Generate(catalogue, NoneOwned(), Draft(seed), stage: 1, isElite: false, isBoss: false))
+            {
+                catalogue.Find(option.PerkId).Requires.ShouldBeEmpty(
+                    $"seed {seed} offered '{option.PerkId}', whose prerequisites a run owning nothing cannot hold");
+            }
+        }
+    }
+
+    /// <summary>Owning a base opens its category, and nothing else's.</summary>
+    /// <remarks>
+    /// The other half, and the one that catches a gate wired as "offer nothing gated, ever". Every
+    /// offer must still be reachable — its prerequisites owned — and across a sweep at least one
+    /// perk gated behind the owned base has to actually appear, or the base bought nothing.
+    /// </remarks>
+    [Fact]
+    public void Owning_a_base_perk_opens_exactly_the_perks_that_require_it()
+    {
+        var catalogue = GatedCatalogue;
+        var owned = Owning(new Dictionary<string, int> { [PerkDocuments.GateBase] = 1 });
+        var opened = 0;
+
+        for (ulong seed = 1; seed <= 64; seed++)
+        {
+            foreach (var option in Generate(catalogue, owned, Draft(seed), stage: 1, isElite: false, isBoss: false))
+            {
+                var requires = catalogue.Find(option.PerkId).Requires;
+
+                foreach (var prerequisite in requires)
+                {
+                    prerequisite.ShouldBe(
+                        PerkDocuments.GateBase,
+                        $"'{option.PerkId}' was offered to a run holding only {PerkDocuments.GateBase}");
+                }
+
+                if (requires.Count > 0)
+                {
+                    opened++;
+                }
+            }
+        }
+
+        opened.ShouldBeGreaterThan(
+            0,
+            $"across 64 seeds not one perk gated behind {PerkDocuments.GateBase} was offered — " +
+            "the base bought nothing");
+    }
 
     // ------------------------------------------------------------------ fresh grant vs upgrade
     //
@@ -188,7 +257,7 @@ public sealed class PerkDraftEngineTests
         // written as "draw again" rather than as "widen the pool".
         Budget(
             offenders, "Sustain forced, unsatisfiable", NoneOwned(),
-            new[] { Force(0, DraftGuarantee.SustainAntiBrick, null, PerkCategory.DiceAndBoard, false) },
+            new[] { Force(0, DraftGuarantee.SustainAntiBrick, null, PerkCategory.Lightning, false) },
             stage: 1, isBoss: false);
 
         // 5 · a force per slot, all three at once.

@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Core.Content;
+﻿using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Application.Services.Content;
 
@@ -33,14 +33,11 @@ public static partial class ContentInvariants
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <c>calibration_builds.json</c>'s five archetype rows were written with the full-catalogue
-    /// <c>draftPriority</c> lists while <c>content/perks/</c> was still empty. <c>CheckIdSpaces</c>
-    /// only turns a schema <c>pattern</c> into a checked id space once <em>some</em> document
-    /// declares an <c>id</c> under it, so with no perk ever authored, the pattern was not yet an id
-    /// space and every <c>draftPriority</c> string validated by shape alone. The commit that
-    /// authors the first real perk is also the commit that turns the pattern into a checked id
-    /// space and starts validating every reference — a consequence of authoring the rows honestly
-    /// ahead of the content, not a defect in either file.
+    /// <c>calibration_builds.json</c>'s five archetype rows were written with full
+    /// <c>draftPriority</c> lists while <c>content/perks/</c> was still empty, so every string in
+    /// them validated by shape alone until the first perk was authored. The perk rework rewrote
+    /// four of the five rows against the catalogue that now exists; what is left is the pet
+    /// archetype, whose perks belong to a system nobody has built.
     /// </para>
     /// <para>
     /// Self-expiring, entry by entry: <c>CheckIdSpaces</c> only consults this set for a value that
@@ -66,19 +63,12 @@ public static partial class ContentInvariants
     public static IReadOnlyCollection<string> KnownForwardPerkReferences { get; } = new HashSet<string>(
         StringComparer.Ordinal)
     {
-        // Offense — unauthored by the current coverage-driven selection.
-        "PK_QUICK_HANDS", "PK_KEEN_EYE", "PK_HEAVY_SWING", "PK_PIERCING", "PK_CRIT_CASCADE",
-        "PK_IGNITE", "PK_TWIN_STRIKE", "PK_ANNIHILATE",
-
-        // Defense.
-        "PK_TOUGH_HIDE", "PK_IRON_SKIN", "PK_BULWARK", "PK_STOIC", "PK_SECOND_SKIN", "PK_ANCHOR",
-        "PK_REACTIVE", "PK_AEGIS",
-
-        // Sustain.
-        "PK_LEECH", "PK_BLOODLETTER", "PK_FEAST", "PK_HEALERS_TOUCH",
-
-        // Trigger/Synergy.
-        "PK_SYMBIOSIS", "PK_ECHO",
+        // The pet archetype's three pet-specific perks, and nothing else. Every other archetype row
+        // now names perks the reworked catalogue actually authors; these three cannot, because no
+        // pet perk is authored anywhere and the pet system itself is a later milestone's. Naming a
+        // real perk in their place would quietly turn ARCH_PET into a second generic archetype,
+        // which is a worse answer than a forward reference that says what it is waiting for.
+        "PK_PACK_LEADER", "PK_SYMBIOSIS", "PK_ECHO",
     };
 
     /// <summary>Every <c>path#/pointer</c> the declared cross-file rules have looked up so far.</summary>

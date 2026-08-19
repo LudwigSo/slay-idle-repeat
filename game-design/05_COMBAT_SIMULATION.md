@@ -291,8 +291,8 @@ Heal(target, amount):
 | ID | Type | Effect |
 |---|---|---|
 | `BURN` | DoT | `X%` of attacker ATK per second for `D` s. Stacks to 5. |
-| `POISON` | DoT | `X%` of target Max HP per second, `D` s. Stacks to 3. Ignores DEF. |
-| `BLEED` | DoT | Flat damage per second, set at application as `X%` of the applier's ATK; each tick deals that amount × (1 + target's missing-HP fraction) 📐. Does not stack; reapplication refreshes. |
+| `POISON` | DoT | `X%` of the applier's ATK per second, `D` s. Stacks without limit. Ignores DEF. |
+| `BLEED` | DoT | Flat damage per second, set at application as `X%` of the applier's ATK; each tick deals that amount × (1 + target's missing-HP fraction) 📐. Stacks to 5; reapplication also refreshes. |
 | `FREEZE` | Debuff | −50% ASPD for `D` s |
 | `STUN` | Debuff | Cannot act for `D` s. Max 1.5 s per application, with a 3 s immunity window after. |
 | `WEAKEN` | Debuff | −X% ATK |
@@ -302,6 +302,13 @@ Heal(target, amount):
 | `WARD` | Buff | Absorb shield, flat HP amount. Full semantics — stacking, bypass, ordering, `WardBroken` — in §4.1. |
 | `HASTE` | Buff | +X% ASPD |
 | `REGEN` | HoT | Heal X% Max HP per second |
+| `CHILL` | Debuff | −X% ATK, stacks to 5 |
+
+**Ailment damage scales off ATK.** Every DoT's per-second potency is a percentage of the *applier's* ATK, fixed at application. `POISON` was originally stated against the target's Max HP; it is not, because an ailment whose damage does not read the attacker's ATK cannot be built into, and a poison build that gains nothing from an ATK item is a build the player cannot invest in. The "ignores DEF" property is unchanged and now follows from the cadence rule rather than from the basis: potency is fixed at application, so no DoT meets DEF.
+
+**The five ailment identities are the stacking rules**, and they are what keep the elements apart: `BURN` stacks to a cap and expires; `POISON` stacks without a cap and never expires; `BLEED` stacks to a cap, expires, and is the one a perk can *consume* for an instant payout. `CHILL` and `FREEZE` are cold's pair — chill degrades what an enemy deals, freeze stops it acting, and chill stacking to its cap is what a perk turns into a freeze.
+
+**`CHILL` is not `WEAKEN`**, although the two write the same stat. Cold's perks are gated on "is this enemy chilled", and keying that on `WEAKEN` would fire them on any enemy an unrelated source had weakened. It is the thirteenth row and it is **last**: a row position here is the wire ordinal `LogHash` pins, so inserting it beside `FREEZE` would renumber every status event in every committed reference log.
 
 **Stun immunity** is mandatory. Without it, stun-locking becomes the only viable build.
 
@@ -378,7 +385,7 @@ All enemies, Elites, Guardians (`25` §3) and bosses in a `(chapter, tier)` shar
 | Ch | Biome | Status | Flavour name | Potency | Duration | Proc |
 |---|---|---|---|---|---|---|
 | 1 | Greenwood Vale | `BLEED` | Thorn Gash | 20% caster ATK/s | 3 s | 0.30 |
-| 2 | Ashen Mire | `POISON` | Bog Rot | 1.5% target Max HP/s | 4 s, stacks 3 | 0.30 |
+| 2 | Ashen Mire | `POISON` | Bog Rot | 20% caster ATK/s | 4 s, stacks 3 | 0.30 |
 | 3 | Sunken Crypt | `BLEED` | Bone Splinter | 30% caster ATK/s | 4 s | 0.35 |
 | 4 | Emberpeak | `BURN` | Magma Splash | 30% caster ATK/s | 3 s, stacks 5 | 0.35 |
 | 5 | Frostbound Reach | `FREEZE` | Deep Chill | −50% ASPD (§5) | 2 s | 0.25 |

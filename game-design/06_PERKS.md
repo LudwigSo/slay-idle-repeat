@@ -10,13 +10,21 @@ The perk draft is the game's primary decision. Everything else — dice, gear, t
 
 | Property | Value |
 |---|---|
-| Trigger | After winning any `TILE_ENEMY`, `TILE_ELITE` or `TILE_BOSS` battle |
+| Trigger | **The run opening**, and after winning any `TILE_ENEMY`, `TILE_ELITE` or `TILE_BOSS` battle |
 | Options shown | 3 |
 | Free rerolls | 1 per stage, plus the Draft Token consumable (+1 immediately on purchase, greyed out at the cap — `03` §7.1, ruled in `16` A7). Accumulates up to 3 |
 | Ad reroll | `AD_REROLL_PERK`, 2 per run |
 | Ad 4th option | `AD_EXTRA_PERK_CHOICE`, 1 per run — shows a 4th option drawn from a rarity-upgraded pool |
 | Skip | Allowed. Skipping grants 60 Gold and +1 free reroll. |
 | Max perks per run | Unlimited (a full run yields ~18–22) |
+
+🔒 **The run opens on a draft.** Before the first roll, the player is offered three options on exactly the draft above — same pool, same guarantees, same skip and reroll economy — and no other command is legal until they answer. It is the same draft and not a second mechanic, because a second kind of perk choice would be a second set of rules to learn.
+
+It draws against **stage 1** and names no battle tile: `Rules.Perks.CurrentDraft` asks the tile kind only whether it is Elite or Boss, and the opening draft is neither, so it draws the ordinary stage-1 band. A run at the trailhead has fought nothing, and reading the draft as anything above stage 1 would hand out the strongest offer first.
+
+⚠️ What it offers follows from §2's category gate rather than from any rule of its own: a run owning nothing satisfies no perk's prerequisites, so the draftable pool is exactly the nine bases. **The opening draft is the choice of which element the run is about.**
+
+⚠️ The draft blocks `ABANDON_RUN` as it blocks everything else — a player who opens a run must answer its draft (skipping is one of the three answers) before they can leave it. That is the pre-existing behaviour of every draft, not a rule the opening one adds.
 
 ### 1.1 Perk tiers within a run
 
@@ -34,144 +42,152 @@ Once a perk is at Tier III it is removed from that run's draft pool.
 
 ---
 
-## 2. Perk categories (6)
+## 2. Perk categories (9)
 
-| Category | Colour | Count in v1 | Role |
+| Category | Colour | Count | Role |
 |---|---|---|---|
-| **Offense** | red | 22 | Raw damage, crit, attack speed |
-| **Defense** | blue | 18 | HP, armor, dodge, block, shields |
-| **Sustain** | green | 12 | Lifesteal, regen, heals, revive-adjacent |
-| **Dice & Board** | gold | 12 | Die faces, rerolls, movement, tile outcomes |
-| **Economy** | purple | 10 | Gold, drops, shop discounts, treasure |
-| **Trigger / Synergy** | orange | 16 | Conditional effects that reward specific builds |
+| **Lightning** | violet | 7 | Chains and repeat strikes. The one element with no ailment of its own — its damage is hit COUNT. |
+| **Cold** | ice cyan | 7 | `CHILL` degrades what an enemy deals; `FREEZE` stops it acting. |
+| **Fire** | ember red | 9 | `BURN` — damage over time on a capped stack that expires. |
+| **Poison** | toxic green | 8 | `POISON` — damage over time that stacks without a cap and never expires. |
+| **Bleed** | crimson | 9 | `BLEED` — a capped, expiring stack that scales on missing health and that a perk can SPEND. |
+| **Defense** | steel teal | 7 | Damage reduction, dodge, health, counters and shields. |
+| **Offense** | magenta | 6 | Raw damage, attack speed and extra swings. |
+| **Crit** | gold-green | 6 | Crit chance, crit damage, and what a crit sets off. |
+| **Sustain** | rose | 8 | Healing, lifesteal and staying up. |
 
-**Total: 90 standard.** 📐 TUNABLE
+**Total: 67 standard.** 📐 TUNABLE
 
-Plus a **7th hidden category: Cursed Perks (bonus, not counted in 90).** These offer an oversized benefit with a real drawback and only appear from `TILE_CURSE` and certain events, never in the standard draft.
+🔒 **Every category is entered through exactly one base perk.** Each category authors one perk with no prerequisites — its base — and every other perk in that category requires it; a hybrid requires the base of every category it draws on. A run that has not taken `PK_IGNITE` is never offered a Burn upgrade, because an offer a player can take and feel nothing from is worse than no offer at all. The draft enforces it by narrowing the draftable pool, the same way every §4 composition rule is enforced, so an unsatisfiable narrowing falls through instead of emptying a draft. The bases draw in the **Common** band: §4's `RarityWeights` are keyed on four bands, and a fifth would be a weight table nobody wrote.
+
+🔒 **The five elements are five stacking rules, not five flavours.** That is what keeps them apart and what a build commits to. Ailment damage is a percentage of the applier's ATK across all three damage-over-time statuses (`05` §5), so a poison build gains from the same items an attack build does.
+
+The five elements carry 40 of the 67 rows and the four generic categories 27, deliberately: defence, offence, crit and sustain are what every build wants, so a generic pool as wide as an elemental one would crowd out the identity the draft exists to build towards.
+
+Plus a **hidden category: Cursed Perks (bonus, not counted above).** These offer an oversized benefit with a real drawback and only appear from `TILE_CURSE` and certain events, never in the standard draft.
 
 ---
 
-## 3. Perk pool — v1 catalogue
+## 3. Perk pool — the shipped catalogue
 
-Format: `ID | Name | Rarity | Tier I effect`
+Format: `ID | Name | Rarity | Requires | Tier I effect`. This table is a reading of `game-data/content/perks/perks.json`, which is the catalogue itself — every row there authors three tiers of Effect DSL and there is no per-perk code. **Requires** is the gate: `—` marks the category's base.
 
-### 3.1 Offense (22)
+### 3.1 Lightning (7)
 
-| ID | Name | Rarity | Effect (Tier I) |
-|---|---|---|---|
-| `PK_SHARP_EDGE` | Sharp Edge | Common | +12% ATK |
-| `PK_QUICK_HANDS` | Quick Hands | Common | +10% Attack Speed |
-| `PK_KEEN_EYE` | Keen Eye | Common | +6% Crit Chance |
-| `PK_HEAVY_SWING` | Heavy Swing | Common | +20% Crit Damage |
-| `PK_PIERCING` | Piercing Strikes | Common | +10% Armor Penetration |
-| `PK_BRUTALITY` | Brutality | Common | +8% damage vs enemies above 70% HP |
-| `PK_EXECUTIONER` | Executioner | Rare | +25% damage vs enemies below 30% HP |
-| `PK_FLURRY` | Flurry | Rare | Every 5th attack hits twice |
-| `PK_OVERPOWER` | Overpower | Rare | +18% ATK, −8% Attack Speed |
-| `PK_CRIT_CASCADE` | Crit Cascade | Rare | Crits grant +8% Crit Chance for 4 s, stacks 3× |
-| `PK_RUPTURE` | Rupture | Rare | Attacks apply `BLEED` (4% ATK/s, 4 s) |
-| `PK_IGNITE` | Ignite | Rare | Crits apply `BURN` (8% ATK/s, 3 s) |
-| `PK_GIANT_SLAYER` | Giant Slayer | Rare | +30% damage vs Elites and Bosses |
-| `PK_MOMENTUM_ATK` | Warpath | Rare | +4% ATK per enemy killed this battle (resets each battle) |
-| `PK_CLEAVE` | Cleave | Epic | Attacks hit all enemies for 40% damage |
-| `PK_DEATHMARK` | Deathmark | Epic | Every 8 s, mark an enemy: it takes +30% damage |
-| `PK_BERSERK` | Berserker's Pact | Epic | +1% ATK per 1% missing HP, up to +45% |
-| `PK_TWIN_STRIKE` | Twin Strike | Epic | 25% chance to attack twice |
-| `PK_SUNDERING` | Sundering Blows | Epic | Attacks apply `SUNDER` (−6% DEF, stacks 5) |
-| `PK_APEX` | Apex Predator | Legendary | Crits reduce all cooldowns by 0.5 s and refresh `RAGE` |
-| `PK_ANNIHILATE` | Annihilation | Legendary | ×1.35 multiplicative damage. Cannot be upgraded past Tier II. |
-| `PK_CHAIN_DEATH` | Chain of Ruin | Legendary | Killing an enemy deals 20% of its Max HP to all others |
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_STATIC_CHARGE` | Static Charge | Common | — | Attacks arc to another enemy for {value}% of ATK. |
+| `PK_FORKED_BOLT` | Forked Bolt | Rare | `PK_STATIC_CHARGE` | The arc forks: every enemy but your target takes {value}% of ATK. |
+| `PK_CONDUCTION` | Conduction | Rare | `PK_STATIC_CHARGE` | The bolt loops back: your target is struck a second time for {value}% of ATK. |
+| `PK_RECOIL_ARC` | Recoil Arc | Epic | `PK_STATIC_CHARGE` | Every {everyNth}th attack detonates the charge for {value}% of ATK to every enemy. |
+| `PK_THUNDERCLAP` | Thunderclap | Epic | `PK_STATIC_CHARGE` | +{value}% damage while three or more enemies stand. |
+| `PK_STORM_HERALD` | Storm Herald | Legendary | `PK_STATIC_CHARGE` | Every attack arcs to every enemy for {value}% of ATK, and each enemy present feeds the storm. |
+| `PK_ARC_OVERLOAD` | Arc Overload | Epic | `PK_STATIC_CHARGE`, `PK_KEEN_EYE` | A crit overloads the arc: {value}% of ATK to every enemy. |
 
-### 3.2 Defense (18)
+### 3.2 Cold (7)
 
-| ID | Name | Rarity | Effect (Tier I) |
-|---|---|---|---|
-| `PK_TOUGH_HIDE` | Tough Hide | Common | +15% Max HP |
-| `PK_IRON_SKIN` | Iron Skin | Common | +18% DEF |
-| `PK_NIMBLE` | Nimble | Common | +5% Dodge |
-| `PK_BULWARK` | Bulwark | Common | +8% Block |
-| `PK_STOIC` | Stoic | Common | +6% Damage Reduction |
-| `PK_THORNS` | Thornmail | Common | Reflect 10% of damage taken |
-| `PK_SECOND_SKIN` | Second Skin | Rare | +22% Max HP, +10% DEF |
-| `PK_WARDED` | Warded | Rare | Start each battle with a shield = 12% Max HP |
-| `PK_EVASIVE` | Evasive Step | Rare | Dodging grants +25% ASPD for 2 s |
-| `PK_STALWART` | Stalwart | Rare | −20% damage taken from Elites and Bosses |
-| `PK_ANCHOR` | Anchor | Rare | +30% DEF, −10% Attack Speed |
-| `PK_REACTIVE` | Reactive Plating | Rare | Being hit grants +4% DEF for 5 s, stacks 6× |
-| `PK_IMMOVABLE` | Immovable | Epic | Immune to `STUN` and `FREEZE` |
-| `PK_AEGIS` | Aegis | Epic | Every 12 s gain a shield = 18% Max HP |
-| `PK_LAST_STAND` | Last Stand | Epic | Below 25% HP: +40% DEF and +25% Damage Reduction |
-| `PK_MIRROR` | Mirror Ward | Epic | Reflect 30% of damage taken; +10% Max HP |
-| `PK_UNBREAKABLE` | Unbreakable | Legendary | Once per battle, survive a lethal hit at 1 HP and gain a shield = 25% Max HP |
-| `PK_FORTRESS` | Living Fortress | Legendary | ×1.30 multiplicative Max HP and DEF; −15% Attack Speed |
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_FROSTBITE` | Frostbite | Common | — | Attacks Chill: −{value}% enemy ATK for {duration}s. |
+| `PK_DEEP_CHILL` | Deep Chill | Rare | `PK_FROSTBITE` | A second, deeper Chill: −{value}% enemy ATK for {duration}s. |
+| `PK_BRITTLE` | Brittle | Rare | `PK_FROSTBITE` | Cold makes them fragile: enemies you strike take +{value}% damage for {duration}s. |
+| `PK_FLASH_FREEZE` | Flash Freeze | Epic | `PK_FROSTBITE` | Every {everyNth}th attack Freezes the target for {duration}s. |
+| `PK_SHATTER` | Shatter | Epic | `PK_FROSTBITE` | A frozen corpse bursts: killing an enemy deals {value}% of its Max HP to every other. |
+| `PK_ABSOLUTE_ZERO` | Absolute Zero | Legendary | `PK_FROSTBITE` | The whole field freezes over: −{value}% ATK to every enemy for {duration}s, and cold cannot touch you. |
+| `PK_STORM_FROST` | Storm Frost | Epic | `PK_STATIC_CHARGE`, `PK_FROSTBITE` | The arc carries the cold: every enemy is Chilled for −{value}% ATK over {duration}s. |
 
-### 3.3 Sustain (12)
+### 3.3 Fire (9)
 
-| ID | Name | Rarity | Effect (Tier I) |
-|---|---|---|---|
-| `PK_LEECH` | Leeching Strikes | Common | +6% Lifesteal |
-| `PK_REGEN` | Slow Regeneration | Common | Heal 1% Max HP/s in battle |
-| `PK_VITAL_SURGE` | Vital Surge | Common | Heal 8% Max HP after each battle |
-| `PK_BLOODLETTER` | Bloodletter | Rare | +10% Lifesteal, +8% ATK |
-| `PK_FEAST` | Feast | Rare | Killing an enemy heals 6% Max HP |
-| `PK_HEALERS_TOUCH` | Healer's Touch | Rare | +35% Healing Received |
-| `PK_SANGUINE` | Sanguine Pact | Rare | Crits heal for 12% of damage dealt |
-| `PK_RESTORATION` | Restoration | Rare | Shrines and Campfires heal +50% more |
-| `PK_UNDYING` | Undying Will | Epic | At 0 HP, revive once per battle at 30% HP (stacks with the ad revive) |
-| `PK_TRANSFUSION` | Transfusion | Epic | Overheal converts into a shield, up to 20% Max HP |
-| `PK_PHOENIX` | Phoenix Heart | Legendary | Reviving (any source) also grants 8 s of `RAGE` +50% ATK |
-| `PK_ETERNAL` | Eternal Spring | Legendary | Heal 3% Max HP/s; healing also damages the lowest-HP enemy for the same amount |
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_IGNITE` | Ignite | Common | — | Attacks Burn for {value}% ATK per second over {duration}s. |
+| `PK_KINDLING` | Kindling | Rare | `PK_IGNITE` | The fire takes deeper hold: Burn stacks to {value} instead of 5. |
+| `PK_FAN_THE_FLAMES` | Fan the Flames | Rare | `PK_IGNITE` | +{value}% potency on every ailment you inflict. |
+| `PK_COMBUSTION` | Combustion | Epic | `PK_IGNITE` | Every {everyNth}th attack detonates the fire for {value}x ATK and relights it. |
+| `PK_WILDFIRE` | Wildfire | Epic | `PK_IGNITE` | Fire spreads: every enemy Burns for {value}% ATK per second over {duration}s. |
+| `PK_INFERNAL_CORE` | Infernal Core | Legendary | `PK_IGNITE` | The fire never goes out: Burn for {value}% ATK per second, stacking to {cap}, and it lasts the battle. |
+| `PK_THERMAL_SHOCK` | Thermal Shock | Epic | `PK_IGNITE`, `PK_FROSTBITE` | Fire into frost cracks them open: {value}x ATK, ignoring armour, every {everyNth}th attack. |
+| `PK_FLAME_TEMPO` | Flame Tempo | Epic | `PK_IGNITE`, `PK_MIGHT` | The fire keeps your rhythm: +{value}% Attack Speed and Burn on every swing. |
+| `PK_ELEMENTALIST` | Elementalist | Legendary | `PK_STATIC_CHARGE`, `PK_FROSTBITE`, `PK_IGNITE` | Three elements answer at once: +{value}% ailment potency, and every enemy Burns, Chills and rots. |
 
-### 3.4 Dice & Board (12)
+### 3.4 Poison (8)
 
-See `04_DICE_SYSTEM.md` §5 for the 8 core dice perks. Additional 4:
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_VENOM` | Venom | Common | — | Attacks Poison for {value}% ATK per second. It stacks without limit and never wears off. |
+| `PK_VIRULENCE` | Virulence | Rare | `PK_VENOM` | A second dose on every swing: {value}% ATK per second more Poison. |
+| `PK_TOXIC_BUILDUP` | Toxic Buildup | Rare | `PK_VENOM` | Every {everyNth}th attack floods them: {value}% ATK per second of extra Poison. |
+| `PK_CORROSION` | Corrosion | Rare | `PK_VENOM` | The toxin eats armour: −{value}% enemy DEF for {duration}s, stacking. |
+| `PK_PLAGUE` | Plague | Epic | `PK_VENOM` | A death spreads the blight: every other enemy takes {value}% ATK per second of Poison. |
+| `PK_LINGERING_MIASMA` | Lingering Miasma | Epic | `PK_VENOM` | The air itself is poison: every {interval}s all enemies take {value}% ATK per second more. |
+| `PK_ENDLESS_BLIGHT` | Endless Blight | Legendary | `PK_VENOM` | The blight compounds: {value}% ATK per second of Poison per battle already won this run. |
+| `PK_NAPALM_BLOOM` | Napalm Bloom | Epic | `PK_IGNITE`, `PK_VENOM` | What the fire leaves behind festers: {value}% ATK per second of Poison on every burning enemy. |
 
-| ID | Name | Rarity | Effect (Tier I) |
-|---|---|---|---|
-| `PK_PATHFINDER` | Pathfinder | Common | See the contents of the next 10 tiles instead of 6 |
-| `PK_SCOUT` | Scout's Instinct | Rare | Fork previews reveal exact tile contents |
-| `PK_LEAPFROG` | Leapfrog | Rare | Landing on `TILE_EMPTY` grants a free extra roll |
-| `PK_CARTOGRAPHER` | Cartographer | Epic | Once per stage, choose any tile in the next 6 and move there |
+### 3.5 Bleed (9)
 
-### 3.5 Economy (10)
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_LACERATE` | Lacerate | Common | — | Attacks Bleed for {value}% ATK per second over {duration}s, worse the more hurt they are. |
+| `PK_GASH` | Gash | Rare | `PK_LACERATE` | The wounds pile up: Bleed stacks to {value} instead of 5. |
+| `PK_HEMORRHAGE` | Hemorrhage | Rare | `PK_LACERATE` | Blood loss compounds: {value}% ATK per second more Bleed on every strike. |
+| `PK_REND` | Rend | Rare | `PK_LACERATE` | Every {everyNth}th attack tears the wound open for {value}x ATK and spends the Bleed. |
+| `PK_BLOOD_FRENZY` | Blood Frenzy | Epic | `PK_LACERATE` | The smell of blood quickens you: +{value}% Attack Speed for {duration}s, stacking. |
+| `PK_CRIMSON_HARVEST` | Crimson Harvest | Epic | `PK_LACERATE` | A kill throws the wound onto the next: {value}% ATK per second of Bleed on every other enemy. |
+| `PK_BLOOD_DEBT` | Blood Debt | Legendary | `PK_LACERATE` | The wound deepens as they weaken: {value}% ATK per second of Bleed for every 10% health they have lost. |
+| `PK_ENVENOMED_WOUNDS` | Envenomed Wounds | Epic | `PK_VENOM`, `PK_LACERATE` | The blade is dirty: every strike also Poisons for {value}% ATK per second. |
+| `PK_BUTCHER` | Butcher | Epic | `PK_LACERATE`, `PK_KEEN_EYE` | A crit opens them up: {value}% ATK per second of Bleed over {duration}s. |
 
-| ID | Name | Rarity | Effect (Tier I) |
-|---|---|---|---|
-| `PK_GREED` | Greed | Common | +25% Gold from all sources |
-| `PK_HAGGLER` | Haggler | Common | −15% shop prices |
-| `PK_SCAVENGER` | Scavenger | Common | +20% Crowns from Treasure tiles |
-| `PK_LUCKY_FIND` | Lucky Find | Rare | +15% gear drop chance |
-| `PK_PROSPECTOR` | Prospector | Rare | Treasure tiles also grant 2 Enhance Stones |
-| `PK_MERCHANT_FRIEND` | Merchant's Friend | Rare | Shops show 5 slots instead of 4 |
-| `PK_BOUNTY` | Bounty Hunter | Rare | Elites drop +1 gear item |
-| `PK_ALCHEMY` | Alchemy | Epic | Convert Gold to Crowns at run end (10:1, max 500 Crowns) |
-| `PK_MIDAS` | Midas Touch | Epic | Every 6th enemy killed drops a Treasure |
-| `PK_HOARD` | Dragon's Hoard | Legendary | +1% ATK per 100 Gold currently held |
+### 3.6 Defense (7)
 
-### 3.6 Trigger / Synergy (16)
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_IRONHIDE` | Ironhide | Common | — | −{value}% damage taken. |
+| `PK_EVASION` | Evasion | Rare | `PK_IRONHIDE` | +{value}% dodge chance. |
+| `PK_VITALITY` | Vitality | Rare | `PK_IRONHIDE` | +{value}% Max HP. |
+| `PK_RIPOSTE` | Riposte | Epic | `PK_IRONHIDE` | Being hit answers back: {value}% of the blow returned, and the attacker is stunned. |
+| `PK_AEGIS` | Aegis | Epic | `PK_IRONHIDE` | A shield of {value}% Max HP every {interval}s. |
+| `PK_BULWARK` | Bulwark | Legendary | `PK_IRONHIDE` | Braced behind the shield: −{value}% damage taken, and a dodge renews the guard. |
+| `PK_FROZEN_ARMOUR` | Frozen Armour | Epic | `PK_FROSTBITE`, `PK_IRONHIDE` | Striking you costs them: −{value}% attacker ATK for {duration}s. |
 
-These are the build-definers. They are deliberately conditional so they feel like discoveries.
+### 3.7 Offense (6)
 
-| ID | Name | Rarity | Effect (Tier I) |
-|---|---|---|---|
-| `PK_GLASS` | Glass Cannon | Rare | +40% ATK, −25% Max HP |
-| `PK_TURTLE` | Turtle Doctrine | Rare | Convert 20% of DEF into ATK |
-| `PK_JUGGERNAUT` | Juggernaut | Rare | Convert 8% of Max HP into ATK |
-| `PK_DUELIST` | Duelist | Rare | +35% damage when exactly one enemy remains |
-| `PK_SWARMBANE` | Swarmbane | Rare | +30% damage when 3+ enemies are present |
-| `PK_OPENER` | Opening Gambit | Rare | First attack of each battle deals ×3 damage |
-| `PK_CLOSER` | Closing Argument | Rare | +50% ATK in the last 15 s of a battle |
-| `PK_PACK_LEADER` | Pack Leader | Rare | +25% pet damage; pets gain your crit chance |
-| `PK_SYMBIOSIS` | Symbiosis | Epic | Each equipped pet grants +7% to all your stats |
-| `PK_ECHO` | Echo Strike | Epic | Every ability and pet ability triggers a second time at 40% power |
-| `PK_MOMENTUM_CH` | Snowball | Epic | +2% permanent ATK per battle won this run (no cap) |
-| `PK_GAMBLER` | Gambler's Ruin | Epic | 50% chance each attack deals ×2, 50% chance ×0.6 |
-| `PK_ARSENAL` | Arsenal | Epic | +3% all stats per distinct perk category you own |
-| `PK_PERFECTIONIST` | Perfectionist | Legendary | +60% all stats while at 100% HP |
-| `PK_AVATAR` | Avatar of the Die | Legendary | Your current die face count of `Star`/`Surge`/`Fortune` × +12% all stats |
-| `PK_SINGULARITY` | Singularity | Legendary | Halve your perk count (round up, you choose which to drop); triple the effect of all remaining perks |
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_MIGHT` | Might | Common | — | +{value}% ATK. |
+| `PK_SWIFTNESS` | Swiftness | Rare | `PK_MIGHT` | +{value}% Attack Speed. |
+| `PK_MOMENTUM` | Momentum | Rare | `PK_MIGHT` | The swing builds: +{value}% ATK for {duration}s on every landed hit, stacking. |
+| `PK_DOUBLE_STRIKE` | Double Strike | Epic | `PK_MIGHT` | Every {everyNth}th attack strikes twice. |
+| `PK_ONSLAUGHT` | Onslaught | Legendary | `PK_MIGHT` | Speed becomes force: {value}% of your Attack Speed is converted into ATK. |
+| `PK_TURTLE_DOCTRINE` | Turtle Doctrine | Epic | `PK_IRONHIDE`, `PK_MIGHT` | The wall swings back: {value}% of your DEF is converted into ATK. |
 
-### 3.7 Cursed Perks (8, non-draft)
+### 3.8 Crit (6)
+
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_KEEN_EYE` | Keen Eye | Common | — | +{value}% crit chance. |
+| `PK_DEADLY_PRECISION` | Deadly Precision | Rare | `PK_KEEN_EYE` | +{value}% crit damage. |
+| `PK_KILLER_INSTINCT` | Killer Instinct | Rare | `PK_KEEN_EYE` | A crit quickens you: +{value}% Attack Speed for {duration}s, stacking. |
+| `PK_OVERWHELM` | Overwhelm | Epic | `PK_KEEN_EYE` | +{value}% armour penetration — crits land on bare skin. |
+| `PK_CASCADE` | Cascade | Epic | `PK_KEEN_EYE` | A crit guarantees the next {value} attacks crit as well. |
+| `PK_PERFECT_STRIKE` | Perfect Strike | Legendary | `PK_KEEN_EYE` | Precision beyond the cap becomes force: {value}% of your crit chance is converted into crit damage. |
+
+### 3.9 Sustain (8)
+
+| ID | Name | Rarity | Requires | Effect (Tier I) |
+|---|---|---|---|---|
+| `PK_REGENERATION` | Regeneration | Common | — | Heal {value}% Max HP every {interval}s. |
+| `PK_LIFESTEAL` | Lifesteal | Rare | `PK_REGENERATION` | Heal {value}% of the damage you deal. |
+| `PK_SECOND_WIND` | Second Wind | Rare | `PK_REGENERATION` | The first time you fall below half health, heal {value}% Max HP. |
+| `PK_OVERFLOW` | Overflow | Epic | `PK_REGENERATION` | Healing past full becomes a shield, up to {sourceCapPct}% Max HP. |
+| `PK_UNDYING` | Undying | Legendary | `PK_REGENERATION` | Once a battle, survive a killing blow and come back with {value}% Max HP. |
+| `PK_PARASITIC_TOXIN` | Parasitic Toxin | Epic | `PK_VENOM`, `PK_REGENERATION` | The toxin feeds you: heal {value}% Max HP every {interval}s while anything is poisoned. |
+| `PK_SANGUINE_EDGE` | Sanguine Edge | Epic | `PK_KEEN_EYE`, `PK_REGENERATION` | Crits drink deep: heal {value}% of the damage a crit deals. |
+| `PK_GALVANIC_WARD` | Galvanic Ward | Epic | `PK_STATIC_CHARGE`, `PK_REGENERATION` | Each arc leaves a charge behind: a shield of {value}% Max HP on every attack. |
+
+### 3.10 Hybrids
+
+A hybrid is any row whose **Requires** names more than one base; they are listed above under one of their categories rather than in a section of their own. The category key is single-valued because §4's diversity rule counts categories per draft, and a perk counted under two would satisfy a diversity narrowing by itself.
+### 3.11 Cursed Perks (8, non-draft)
 
 | ID | Name | Benefit | Cost |
 |---|---|---|---|

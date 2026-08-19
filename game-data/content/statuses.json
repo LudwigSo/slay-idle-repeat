@@ -1,6 +1,6 @@
 {
   "$schema": "../schema/statuses.schema.json",
-  "_doc": "05 §5 — the twelve status effects, transcribed. Every number here is one 05 §5 states and nothing else is: the stack ceilings it fixes for five of the twelve, the two constants it writes as literals rather than as X (FREEZE's −50% ASPD and STUN's 1.5 s / 3 s window), and BLEED's missing-HP scaling term, which is the one 📐 TUNABLE the section carries. The per-application X and D of every status are the authoring effect's value and duration (18 §1, §6) and are deliberately NOT here — they belong to the perk, boss mechanic or on-hit row that applies the status, not to the status. 🔒 It sits under content/ rather than tuning/: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are combat balance constants rather than economy dials the economy simulator sweeps — the same ruling combat_caps.json and enemies.json already record. ⚠️ The DoT/HoT cadence itself (20 ticks) is NOT authored here: 05 §3.1 states it in ticks of 05 §3's 20 Hz clock, which already exists in code as CombatLog.TicksPerSecond, and a second copy in data would be two numbers that must agree with nothing making them.",
+  "_doc": "05 §5 — the status effects, transcribed, as the ailment rework leaves them. Thirteen rows: 05 §5's original twelve plus CHILL. Every number here is one 05 §5 states and nothing else is: the stack ceilings, the two constants it writes as literals rather than as X (FREEZE's -50% ASPD and STUN's 1.5 s / 3 s window), and BLEED's missing-HP scaling term, which is the one TUNABLE the section carries. THREE ROWS CHANGED with the ailment rework, each because the element it belongs to now has a character to keep apart from its neighbours. POISON: basis TARGET_MAX_HP_PCT_PER_SECOND -> APPLIER_ATK_PCT_PER_SECOND, and its ceiling of 3 removed. Ailment damage scales off the applier's ATK across the board now, so a build that stacks ATK feels it everywhere rather than only on BURN and BLEED; and poison is the unbounded stacker of the five elements, so an authored ceiling is exactly the thing it must not have. 18 §6 already reads an absent maxStacks as uncapped, so the absence is the statement. BLEED: NONE/refreshOnReapply -> ADDITIVE with a ceiling of 5. Bleed is the capped stacker whose stacks a perk can consume, and a status that does not stack has no stack for a consumer to spend. The refresh is kept: reapplying still renews the timer, it now also adds a stack. CHILL: new, appended last. The row position is the wire ordinal StatusLogId pins, so a thirteenth status goes on the END and every committed reference log keeps its numbering. It is a signed ATK debuff like WEAKEN and deliberately NOT WEAKEN: cold's perks read 'is this enemy chilled', and keying that on WEAKEN would fire them on any enemy an unrelated source had weakened. The per-application X and D of every status are the authoring effect's value and duration (18 §1, §6) and are deliberately NOT here. It sits under content/ rather than tuning/: these are combat balance constants rather than economy dials the economy simulator sweeps. The DoT/HoT cadence itself is NOT authored here: 05 §3.1 states it in ticks of 05 §3's 20 Hz clock, which already exists in code as CombatLog.TicksPerSecond.",
   "_status": "transcribed",
 
   "bleedMissingHpScaling": 1.0,
@@ -21,15 +21,15 @@
     {
       "id": "POISON",
       "type": "DOT",
-      "potencyBasis": "TARGET_MAX_HP_PCT_PER_SECOND",
-      "stacking": { "mode": "ADDITIVE", "maxStacks": 3 }
+      "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
+      "stacking": { "mode": "ADDITIVE" }
     },
     {
       "id": "BLEED",
       "type": "DOT",
       "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
       "scalesWithTargetMissingHp": true,
-      "stacking": { "mode": "NONE", "refreshOnReapply": true }
+      "stacking": { "mode": "ADDITIVE", "maxStacks": 5, "refreshOnReapply": true }
     },
     {
       "id": "FREEZE",
@@ -85,6 +85,13 @@
       "id": "REGEN",
       "type": "HOT",
       "potencyBasis": "TARGET_MAX_HP_PCT_PER_SECOND"
+    },
+    {
+      "id": "CHILL",
+      "type": "DEBUFF",
+      "potencyBasis": "TARGET_STAT_PCT",
+      "stat": "ATK",
+      "stacking": { "mode": "ADDITIVE", "maxStacks": 5 }
     }
   ]
 }

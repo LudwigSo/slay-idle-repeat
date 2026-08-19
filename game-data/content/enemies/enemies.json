@@ -89,7 +89,7 @@
         "durationSeconds": 3.0, "maxStacks": 1, "procChancePerLandedHit": 0.3 },
       { "chapter": 2, "biome": "Ashen Mire", "statusId": "POISON",
         "flavourName": "loc.enemy_status.bog_rot.name",
-        "potency": 0.015, "potencyBasis": "TARGET_MAX_HP_PCT_PER_SECOND",
+        "potency": 0.2, "potencyBasis": "APPLIER_ATK_PCT_PER_SECOND",
         "durationSeconds": 4.0, "maxStacks": 3, "procChancePerLandedHit": 0.3 },
       { "chapter": 3, "biome": "Sunken Crypt", "statusId": "BLEED",
         "flavourName": "loc.enemy_status.bone_splinter.name",

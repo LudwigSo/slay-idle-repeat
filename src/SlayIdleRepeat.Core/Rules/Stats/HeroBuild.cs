@@ -1,6 +1,7 @@
-using SlayIdleRepeat.Core.Content;
+﻿using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Content.Gear;
+using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Gear;
 using SlayIdleRepeat.Core.Model.Snapshots;
@@ -139,7 +140,8 @@ public sealed class HeroBuild
         return Of(
             player.LegendLevel,
             Equip(run is null ? player.Loadout : run.StartingLoadout, player.Inventory),
-            content);
+            content,
+            run?.DraftedPerks);
     }
 
     /// <summary>
@@ -188,7 +190,10 @@ public sealed class HeroBuild
     /// widening a keyword.
     /// </remarks>
     internal static HeroBuild Of(
-        int legendLevel, IReadOnlyList<GearInstance> equipped, ContentSnapshot content)
+        int legendLevel,
+        IReadOnlyList<GearInstance> equipped,
+        ContentSnapshot content,
+        DraftedPerks? perks = null)
     {
         ArgumentNullException.ThrowIfNull(equipped);
         ArgumentNullException.ThrowIfNull(content);
@@ -205,7 +210,8 @@ public sealed class HeroBuild
         var sources = EffectSourceSet.Of(
             new GearEffectSource(par, drops, forge, inSlotOrder),
             new GearAffixEffectSource(drops, inSlotOrder),
-            new SetBonusEffectSource(catalogue, drops, sets, inSlotOrder));
+            new SetBonusEffectSource(catalogue, drops, sets, inSlotOrder),
+            new PerkEffectSource(content, perks ?? NoPerks));
 
         var collected = EffectResolutionOrder.Sort(sources.Collect());
         var effects = new EffectDefinition[collected.Count];
@@ -224,6 +230,17 @@ public sealed class HeroBuild
             StatAggregation.Aggregate(baseStats, effects, caps.Caps, StatAggregationSeams.Strict),
             inSlotOrder);
     }
+
+    /// <summary>
+    /// The drafted-perk reading of a build outside a run — a hero screen, a preview, a comparison.
+    /// </summary>
+    /// <remarks>
+    /// An empty holding rather than an absent source: the perk source is composed unconditionally so
+    /// that "this build has no perks" and "nobody wired perks in" cannot look alike from the fight's
+    /// side, which is the shape the whole source list was in before M3-07's row was cleared.
+    /// </remarks>
+    private static DraftedPerks NoPerks { get; } =
+        new(new Dictionary<string, int>(StringComparer.Ordinal));
 
     /// <summary>The instances a loadout's slots name, as the stock currently holds them.</summary>
     /// <remarks>

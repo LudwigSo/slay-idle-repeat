@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Combat.Enemies;
@@ -7,10 +7,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat.Status;
 
-/// <summary>The twelve statuses, as the catalogue reads them.</summary>
+/// <summary>The statuses, as the catalogue reads them.</summary>
 public sealed class StatusCatalogueTests
 {
-    /// <summary>Exactly twelve statuses, by these exact ids, in this order.</summary>
+    /// <summary>Exactly thirteen statuses, by these exact ids, in this order.</summary>
     /// <remarks>
     /// The floor for every rule in this file and every <c>MemberData</c> that walks the catalogue:
     /// a reader that returned an empty or shortened list would make each of them report success over
@@ -18,15 +18,15 @@ public sealed class StatusCatalogueTests
     /// table positions and they are inside <c>LogHash</c>.
     /// </remarks>
     [Fact]
-    public void The_catalogue_holds_05_section_5s_twelve_statuses_in_the_sections_order()
+    public void The_catalogue_holds_05_section_5s_statuses_in_the_sections_order()
     {
         var catalogue = StatusFixtures.Catalogue();
 
-        catalogue.Statuses.Count.ShouldBe(12);
+        catalogue.Statuses.Count.ShouldBe(13);
         catalogue.Statuses.Select(s => s.Id).ShouldBe(new[]
         {
             "BURN", "POISON", "BLEED", "FREEZE", "STUN", "WEAKEN",
-            "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN",
+            "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN", "CHILL",
         });
     }
 
@@ -49,6 +49,7 @@ public sealed class StatusCatalogueTests
     [InlineData("WARD", nameof(StatusKind.Buff))]
     [InlineData("HASTE", nameof(StatusKind.Buff))]
     [InlineData("REGEN", nameof(StatusKind.HoT))]
+    [InlineData("CHILL", nameof(StatusKind.Debuff))]
     public void Each_status_carries_the_type_05_section_5_gives_it(string id, string kind)
     {
         StatusFixtures.Catalogue().Of(id).Kind.ShouldBe(Enum.Parse<StatusKind>(kind));
@@ -63,27 +64,38 @@ public sealed class StatusCatalogueTests
         ticking.ShouldBe(new[] { "BURN", "POISON", "BLEED", "REGEN" });
     }
 
-    /// <summary>A stack ceiling is authored for exactly five of the twelve, and none for the other seven.</summary>
+    /// <summary>A stacking rule is authored for exactly six statuses, and none for the other seven.</summary>
     /// <remarks>
-    /// The seven <c>null</c>s are a statement, not seven holes: stacking is fixed for <c>BURN</c>,
-    /// <c>POISON</c>, <c>BLEED</c>, <c>SUNDER</c> and <c>SPORE</c> and stated for nothing else, so
-    /// for the rest the per-effect block governs and this catalogue must not pre-empt it.
+    /// The seven <c>null</c>s are a statement, not seven holes: for a status with no rule here the
+    /// per-effect block governs, and this catalogue must not pre-empt it.
+    /// <para>
+    /// 🔒 <c>POISON</c> carries a rule whose ceiling is <c>null</c>, which is a THIRD state and the
+    /// one the ailment design turns on: no rule defers to the effect, a rule with a ceiling caps it,
+    /// a rule without one says the status stacks without limit. Asserting the mode alone would let
+    /// poison's rule vanish unnoticed, and asserting only the ceiling would not tell the missing
+    /// rule from the uncapped one.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void Only_the_five_statuses_05_section_5_states_a_stacking_rule_for_carry_one()
+    public void Only_the_statuses_with_an_authored_stacking_rule_carry_one()
     {
         var catalogue = StatusFixtures.Catalogue();
 
         catalogue.Statuses.Where(s => s.Stacking is not null).Select(s => s.Id)
-            .ShouldBe(new[] { "BURN", "POISON", "BLEED", "SUNDER", "SPORE" });
+            .ShouldBe(new[] { "BURN", "POISON", "BLEED", "SUNDER", "SPORE", "CHILL" });
 
         catalogue.Of("BURN").Stacking!.MaxStacks.ShouldBe(5);
-        catalogue.Of("POISON").Stacking!.MaxStacks.ShouldBe(3);
         catalogue.Of("SUNDER").Stacking!.MaxStacks.ShouldBe(5);
         catalogue.Of("SPORE").Stacking!.MaxStacks.ShouldBe(4);
+        catalogue.Of("CHILL").Stacking!.MaxStacks.ShouldBe(5);
 
-        // BLEED is "does not stack; reapplication refreshes" — NONE plus refreshOnReapply.
-        catalogue.Of("BLEED").Stacking!.Mode.ShouldBe(StackingMode.NONE);
+        // POISON stacks additively and without limit — an authored rule carrying no ceiling.
+        catalogue.Of("POISON").Stacking!.Mode.ShouldBe(StackingMode.ADDITIVE);
+        catalogue.Of("POISON").Stacking!.MaxStacks.ShouldBeNull();
+
+        // BLEED stacks to a ceiling AND refreshes on reapplication.
+        catalogue.Of("BLEED").Stacking!.Mode.ShouldBe(StackingMode.ADDITIVE);
+        catalogue.Of("BLEED").Stacking!.MaxStacks.ShouldBe(5);
         catalogue.Of("BLEED").Stacking!.RefreshOnReapply.ShouldBe(true);
     }
 
@@ -150,7 +162,7 @@ public sealed class StatusCatalogueTests
         var catalogue = StatusFixtures.Catalogue();
 
         catalogue.Statuses.ShouldAllBe(s => s.DecayCurve == null);
-        catalogue.Statuses.Count.ShouldBe(12, "ShouldAllBe passes over an empty collection");
+        catalogue.Statuses.Count.ShouldBe(13, "ShouldAllBe passes over an empty collection");
 
         var thrown = Should.Throw<InvalidOperationException>(
             () => catalogue.Of("RAGE").RequireDecayCurve());
@@ -159,19 +171,19 @@ public sealed class StatusCatalogueTests
         thrown.Message.ShouldContain("RAGE", Case.Sensitive);
     }
 
-    /// <summary>A status id outside the twelve is refused rather than silently doing nothing.</summary>
+    /// <summary>A status id outside the catalogue is refused rather than silently doing nothing.</summary>
     /// <remarks>
     /// <c>StatusOps</c> deliberately does not validate the id — the effect schema encloses the set —
     /// so an effect built in code rather than loaded from JSON arrives here unchecked, and this is
     /// where it stops.
     /// </remarks>
     [Fact]
-    public void A_thirteenth_status_id_is_refused()
+    public void A_status_id_outside_the_catalogue_is_refused()
     {
         var thrown = Should.Throw<Core.Rules.Effects.EffectContextException>(
             () => StatusFixtures.Catalogue().Of("PETRIFY"));
 
-        thrown.Message.ShouldContain("twelve statuses", Case.Sensitive);
+        thrown.Message.ShouldContain("not one of the authored statuses", Case.Sensitive);
     }
 
     /// <summary>Exactly five potency units are authored — the floor under the per-row mapping below.</summary>
@@ -201,7 +213,7 @@ public sealed class StatusCatalogueTests
     /// </remarks>
     [Theory]
     [InlineData("BLEED", nameof(StatusPotencyBasis.ApplierAtkPctPerSecond))]
-    [InlineData("POISON", nameof(StatusPotencyBasis.TargetMaxHpPctPerSecond))]
+    [InlineData("POISON", nameof(StatusPotencyBasis.ApplierAtkPctPerSecond))]
     [InlineData("BURN", nameof(StatusPotencyBasis.ApplierAtkPctPerSecond))]
     [InlineData("FREEZE", nameof(StatusPotencyBasis.TargetStatPct))]
     [InlineData("SUNDER", nameof(StatusPotencyBasis.TargetStatPct))]
@@ -212,7 +224,7 @@ public sealed class StatusCatalogueTests
         StatusFixtures.Catalogue().Of(statusId).Basis.ShouldBe(Enum.Parse<StatusPotencyBasis>(basis));
     }
 
-    /// <summary>The <c>dataId</c>s are the twelve table positions, one-based, and cover the catalogue exactly.</summary>
+    /// <summary>The <c>dataId</c>s are the table positions, one-based, and cover the catalogue exactly.</summary>
     /// <remarks>
     /// One-based because <c>CombatLog.NoDataId</c> is <c>0</c> and means "names no content": a
     /// zero-based <c>BURN</c> would be indistinguishable from an event naming nothing. The set
@@ -229,14 +241,14 @@ public sealed class StatusCatalogueTests
 
         var ordinals = ids.Select(StatusLogId.Of).ToArray();
 
-        ordinals.ShouldBe(new ushort[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 });
-        ordinals.Distinct().Count().ShouldBe(12);
+        ordinals.ShouldBe(new ushort[] { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13 });
+        ordinals.Distinct().Count().ShouldBe(13);
         ordinals.ShouldAllBe(o => o != CombatLog.NoDataId);
     }
 
     /// <summary>A status with no <c>dataId</c> is refused rather than logged as naming nothing.</summary>
     [Fact]
-    public void A_status_outside_the_twelve_has_no_dataId()
+    public void A_status_outside_the_catalogue_has_no_dataId()
     {
         var thrown = Should.Throw<Core.Rules.Effects.EffectContextException>(
             () => StatusLogId.Of("PETRIFY"));

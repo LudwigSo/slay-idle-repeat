@@ -1,4 +1,4 @@
-using Mono.Cecil;
+﻿using Mono.Cecil;
 using Mono.Cecil.Cil;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
 using Xunit;
@@ -94,12 +94,13 @@ public sealed class EffectSourceDeferralRuleTests
     /// <c>PendingSubject</c>, which lowers this count on purpose — at which point lowering the floor
     /// in the same commit is the deliberate act steering S4 asks for.
     /// <para>
-    /// 🔒 <b>It is now seven, and that is the first time this mechanism has been exercised.</b> M4-16
-    /// wired <c>GEAR</c>, <c>AFFIXES</c> and <c>SET_BONUSES</c> — the hero build collects from all
-    /// three off the equipped loadout — so those rows carry a null <c>PendingSubject</c> and their
-    /// three <c>SubjectSetFloorTests.Pending</c> entries were deleted in the same change. Anything
-    /// that reintroduced a pending subject for one of them without a register entry is still an
-    /// offender above; what this number now says is that <b>seven</b> sources remain deferred.
+    /// 🔒 <b>It is now six.</b> M4-16 wired <c>GEAR</c>, <c>AFFIXES</c> and <c>SET_BONUSES</c> — the
+    /// hero build collects from all three off the equipped loadout — and the perk rework wired
+    /// <c>PERKS</c>, whose <c>PerkEffectSource</c> reads the run's drafted perks and contributes each
+    /// owned tier's authored effects. Those four rows carry a null <c>PendingSubject</c> and their
+    /// <c>SubjectSetFloorTests.Pending</c> entries were deleted in the same changes. Anything that
+    /// reintroduced a pending subject for one of them without a register entry is still an offender
+    /// above; what this number now says is that <b>six</b> sources remain deferred.
     /// </para>
     /// </remarks>
     [Fact]
@@ -138,7 +139,7 @@ public sealed class EffectSourceDeferralRuleTests
     }
 
     /// <summary>Seven sources still pending: the ten, less the three gear sources M4-16 wired.</summary>
-    private const int ExpirySubjectFloor = 7;
+    private const int ExpirySubjectFloor = 6;
 
     /// <summary>
     /// The register holds a <c>Pending</c> <b>entry keyed on</b> <paramref name="subject"/> — not

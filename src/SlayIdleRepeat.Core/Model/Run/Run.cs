@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model.Snapshots;
@@ -1237,9 +1237,17 @@ public sealed class Run
         _phase = RunPhase.InProgress;
     }
 
-    /// <summary>Records that a won battle has a perk draft waiting. A later command clears it once the draft resolves.</summary>
-    /// <param name="battleKind">The tile kind of the battle just closed (Enemy, Elite or Boss). Never negative.</param>
-    /// <param name="battleStage">The stage the battle belonged to — 1, 2, 3, or <see cref="BossStage"/>.</param>
+    /// <summary>Records that a perk draft is waiting. A later command clears it once the draft resolves.</summary>
+    /// <remarks>
+    /// Two callers, and they are different events: <c>Handlers.ConfirmBattleResult</c> opens the
+    /// draft `06` §1 states, after a won battle; <c>Handlers.StartRun</c> opens the run's first one,
+    /// before anything has happened. The pair is why the parameters are documented as what the draft
+    /// DRAWS AGAINST rather than as a record of a battle — the opening draft passes a tile kind that
+    /// is not a battle at all, and the only question anything asks of the kind is whether it is Elite
+    /// or Boss.
+    /// </remarks>
+    /// <param name="battleKind">The tile kind the draft draws its band against. Never negative.</param>
+    /// <param name="battleStage">The stage the draft belongs to — 1, 2, 3, or <see cref="BossStage"/>.</param>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="battleKind"/> is negative, or <paramref name="battleStage"/> is not one of the four.
     /// </exception>
@@ -1250,10 +1258,10 @@ public sealed class Run
         {
             throw new ArgumentOutOfRangeException(
                 nameof(battleKind), battleKind,
-                "A battle's tile kind is Enemy, Elite or Boss, all non-negative 03 §2 values. The " +
-                "caller reads this off PendingTileKindValue before ClearPendingTile wipes it — see " +
-                "PendingTileKindValue's remarks for why this aggregate cannot check it is one of " +
-                "those three specifically.");
+                "A tile kind is a non-negative 03 §2 value. The post-battle caller reads this off " +
+                "PendingTileKindValue before ClearPendingTile wipes it — see PendingTileKindValue's " +
+                "remarks for why this aggregate cannot check which kind it is — and the opening " +
+                "draft passes Empty, which is a real kind and not a battle.");
         }
 
         if (battleStage is not (1 or 2 or 3 or BossStage))
@@ -1267,10 +1275,10 @@ public sealed class Run
         if (_draftPending)
         {
             throw new InvalidOperationException(
-                "This run already has a draft pending. Two wins without an intervening draft " +
-                "resolution is not a state Handlers.ConfirmBattleResult should ever reach — a run " +
-                "cannot open a second battle while DraftPending is still set once M3-06 gates on it, " +
-                "so calling this twice is a miswired caller.");
+                "This run already has a draft pending. Neither caller can reach this: a run cannot " +
+                "open a second battle while DraftPending is set, because GameRules.Apply refuses " +
+                "every command but the three draft ones, and StartRun opens the draft on a run it " +
+                "has just built. So calling this twice is a miswired caller.");
         }
 
         _draftPending = true;

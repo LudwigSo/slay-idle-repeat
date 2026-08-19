@@ -192,7 +192,7 @@ public sealed class EnemiesDataTests
     /// <summary>`05` §6.1a — one <c>CASTER</c> row per chapter, every column.</summary>
     [Theory]
     [InlineData(1, "BLEED", "loc.enemy_status.thorn_gash.name", 0.20, "APPLIER_ATK_PCT_PER_SECOND", 3.0, 0.30)]
-    [InlineData(2, "POISON", "loc.enemy_status.bog_rot.name", 0.015, "TARGET_MAX_HP_PCT_PER_SECOND", 4.0, 0.30)]
+    [InlineData(2, "POISON", "loc.enemy_status.bog_rot.name", 0.20, "APPLIER_ATK_PCT_PER_SECOND", 4.0, 0.30)]
     [InlineData(3, "BLEED", "loc.enemy_status.bone_splinter.name", 0.30, "APPLIER_ATK_PCT_PER_SECOND", 4.0, 0.35)]
     [InlineData(4, "BURN", "loc.enemy_status.magma_splash.name", 0.30, "APPLIER_ATK_PCT_PER_SECOND", 3.0, 0.35)]
     [InlineData(5, "FREEZE", "loc.enemy_status.deep_chill.name", -0.50, "TARGET_ASPD_PCT", 2.0, 0.25)]

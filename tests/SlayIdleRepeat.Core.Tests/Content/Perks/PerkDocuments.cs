@@ -1,11 +1,11 @@
-using SlayIdleRepeat.Core.Content;
+﻿using SlayIdleRepeat.Core.Content;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Perks;
 
 /// <summary>
 /// Hermetic <c>content/perks/perks.json</c> fixtures — a small catalogue spanning every rarity band
 /// and more than one category, enough to exercise <c>PerkCatalogue</c> and the draft engine without
-/// depending on the shipped 46-row set.
+/// depending on the shipped catalogue.
 /// </summary>
 internal static class PerkDocuments
 {
@@ -58,8 +58,42 @@ internal static class PerkDocuments
                         Perk(OffenseCommon3, "OFFENSE", "COMMON"),
                         Perk(Common2, "DEFENSE", "COMMON"),
                         Perk(Rare1, "SUSTAIN", "RARE"),
-                        Perk(Epic1, "ECONOMY", "EPIC"),
-                        Perk(Legendary1, "TRIGGER_SYNERGY", "LEGENDARY"),
+                        Perk(Epic1, "POISON", "EPIC"),
+                        Perk(Legendary1, "FIRE", "LEGENDARY"),
+                    })))),
+            ]);
+
+    /// <summary>The base perk of the gated fixture's one gated category.</summary>
+    internal const string GateBase = "PK_TEST_GATE_BASE";
+
+    /// <summary>A perk behind <see cref="GateBase"/>. Undraftable until the base is owned.</summary>
+    internal const string BehindTheGate = "PK_TEST_BEHIND_GATE";
+
+    /// <summary>A second perk behind the same base, so an opened gate has more than one row to offer.</summary>
+    internal const string AlsoBehindTheGate = "PK_TEST_ALSO_BEHIND_GATE";
+
+    /// <summary>
+    /// A catalogue with one gated category: an un-gated base and two perks that require it, beside
+    /// the un-gated rows of the five-row set.
+    /// </summary>
+    /// <remarks>
+    /// Separate from <see cref="Shipped"/> rather than folded into it, because that fixture's rows
+    /// are the subject of the band and diversity cases and adding gated rows to it would change what
+    /// every one of them draws from. Here the gate is the only thing that varies.
+    /// </remarks>
+    internal static ContentSnapshot WithAGatedCategory { get; } =
+        new(
+            ContentVersion.FromHex(new string('e', ContentVersion.HexLength)),
+            [
+                new ContentDocument(DocumentPath, Obj(
+                    ("perks", ContentValue.Array(new[]
+                    {
+                        Perk(Common1, "OFFENSE", "COMMON"),
+                        Perk(Common2, "DEFENSE", "COMMON"),
+                        Perk(GateBase, "FIRE", "COMMON"),
+                        Perk(BehindTheGate, "FIRE", "RARE", requires: GateBase),
+                        Perk(AlsoBehindTheGate, "FIRE", "EPIC", requires: GateBase),
+                        Perk(Legendary1, "SUSTAIN", "LEGENDARY"),
                     })))),
             ]);
 
@@ -76,11 +110,12 @@ internal static class PerkDocuments
             Perk(Common1, "OFFENSE", "COMMON"),
             Perk(Common2, "DEFENSE", "COMMON"),
             Perk(Rare1, "SUSTAIN", "RARE"),
-            Perk(Epic1, "ECONOMY", "EPIC"),
-            Perk(Legendary1, "TRIGGER_SYNERGY", "LEGENDARY"),
+            Perk(Epic1, "POISON", "EPIC"),
+            Perk(Legendary1, "FIRE", "LEGENDARY"),
         })));
 
-    private static ContentValue Perk(string id, string category, string rarity) => Obj(
+    private static ContentValue Perk(
+        string id, string category, string rarity, string? requires = null) => Obj(
         ("id", ContentValue.Text(id)),
         ("name", ContentValue.Text(id)),
         ("category", ContentValue.Text(category)),
@@ -94,7 +129,8 @@ internal static class PerkDocuments
             Tier(3, id, 0.28m),
         })),
         ("excludes", ContentValue.Array(Array.Empty<ContentValue>())),
-        ("requires", ContentValue.Array(Array.Empty<ContentValue>())),
+        ("requires", ContentValue.Array(
+            requires is null ? Array.Empty<ContentValue>() : new[] { ContentValue.Text(requires) })),
         ("poolTags", ContentValue.Array(new[] { ContentValue.Text("standard") })));
 
     private static ContentValue Tier(int tier, string id, decimal value) => Obj(

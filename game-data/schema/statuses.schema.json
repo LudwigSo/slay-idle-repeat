@@ -2,17 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/statuses.schema.json",
   "title": "content/statuses.json",
-  "description": "05 §5 — the twelve status effects the combat document fixes, and the constants it states for them. The section names twelve statuses, types each one, and gives five of them a stack ceiling; it writes two numbers as literals rather than as X (FREEZE's ASPD reduction and STUN's per-application cap and immunity window), and it carries one 📐 TUNABLE, which is BLEED's missing-HP scaling term. All of those live here. 🔒 What does NOT live here is the per-application X and D of any status: 05 §5 writes them as X and D precisely because they belong to the effect that applies the status, which authors them as value and duration under 18 §1 and 18 §6. A copy here would be a second, disagreeing statement of every perk's numbers. 🔒 The file sits under content/ rather than tuning/ for the reason combat_caps.json and enemies.json already record: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are combat balance constants rather than economy dials. ⚠️ Two neighbouring sections are deliberately NOT cited anywhere in this file. The section that catalogues the sixteen tuning files is itself a recorded out-of-scope 📐 baseline entry, and the section holding the per-chapter enemy-pool weights has a 📐 baseline entry owned by a later milestone; citing either — including by writing a bare document number, or a section range that spans it — would close an entry this change did not close. DocSection.Overlaps is hierarchical in both directions, so a parent section swallows its children.",
+  "description": "05 §5 — the status effects the combat document fixes, as the ailment rework leaves them (its own twelve, plus CHILL), and the constants it states for them. The section names twelve statuses, types each one, and gives five of them a stack ceiling; it writes two numbers as literals rather than as X (FREEZE's ASPD reduction and STUN's per-application cap and immunity window), and it carries one 📐 TUNABLE, which is BLEED's missing-HP scaling term. All of those live here. 🔒 What does NOT live here is the per-application X and D of any status: 05 §5 writes them as X and D precisely because they belong to the effect that applies the status, which authors them as value and duration under 18 §1 and 18 §6. A copy here would be a second, disagreeing statement of every perk's numbers. 🔒 The file sits under content/ rather than tuning/ for the reason combat_caps.json and enemies.json already record: doc 21's catalogue names exactly sixteen tuning files and a seventeenth is a bug, and these are combat balance constants rather than economy dials. ⚠️ Two neighbouring sections are deliberately NOT cited anywhere in this file. The section that catalogues the sixteen tuning files is itself a recorded out-of-scope 📐 baseline entry, and the section holding the per-chapter enemy-pool weights has a 📐 baseline entry owned by a later milestone; citing either — including by writing a bare document number, or a section range that spans it — would close an entry this change did not close. DocSection.Overlaps is hierarchical in both directions, so a parent section swallows its children.",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "_doc", "_status", "bleedMissingHpScaling", "stun", "statuses"],
 
   "$defs": {
     "statusId": {
-      "description": "05 §5 — the twelve statuses, as that section's table names them. The same closed set the effect vocabulary schema encloses for the op that applies one; it is restated here because this file is the catalogue those ids are drawn from, and the two are pinned equal by a test rather than by hope.",
+      "description": "05 §5 — the twelve statuses, as that section's table names them. The same closed set the effect vocabulary schema encloses for the op that applies one; it is restated here because this file is the catalogue those ids are drawn from, and the two are pinned equal by a test rather than by hope. CHILL is appended LAST rather than filed beside FREEZE: a row position here is the wire ordinal a committed reference log already carries, so a thirteenth id inserted mid-table would silently renumber every status event ever logged.",
       "enum": [
         "BURN", "POISON", "BLEED", "FREEZE", "STUN", "WEAKEN",
-        "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN"
+        "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN", "CHILL"
       ]
     },
     "statusType": {
@@ -76,10 +76,10 @@
     },
 
     "statuses": {
-      "description": "05 §5's table, one row per status, in the order the section prints them. 🔒 Exactly twelve, and the count is asserted from both ends: minItems and maxItems here, and a test that the ids are exactly the twelve the effect vocabulary encloses. 05 §5 is the only place the set is fixed, and a thirteenth status or a lost one must be a build failure rather than a silently different game.",
+      "description": "05 §5's table, one row per status, in the order the section prints them. 🔒 Exactly thirteen, and the count is asserted from both ends: minItems and maxItems here, and a test that the ids are exactly the twelve the effect vocabulary encloses. 05 §5 is the only place the set is fixed, and a fourteenth status or a lost one must be a build failure rather than a silently different game.",
       "type": "array",
-      "minItems": 12,
-      "maxItems": 12,
+      "minItems": 13,
+      "maxItems": 13,
       "uniqueItems": true,
       "items": {
         "type": "object",

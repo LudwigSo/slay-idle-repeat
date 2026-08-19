@@ -15,8 +15,11 @@
     },
 
     "category": {
-      "description": "06 §2 — the 6 standard drafted categories. Cursed Perks are the 7th, non-drafted category and carry no row in this closed set.",
-      "enum": ["OFFENSE", "DEFENSE", "SUSTAIN", "DICE_AND_BOARD", "ECONOMY", "TRIGGER_SYNERGY"]
+      "description": "06 §2 — the nine drafted categories the perk rework fixes: five ELEMENTS (LIGHTNING, COLD, FIRE, POISON, BLEED), told apart by their stacking rules rather than by flavour, and four GENERIC ones (DEFENSE, OFFENSE, CRIT, SUSTAIN). 🔒 Single-valued, and a hybrid perk is filed under ONE of the categories it draws on: 06 §4's diversity rule counts categories per draft, so a perk counted under two would satisfy a diversity narrowing by itself. The several-elements demand of a hybrid lives in `requires`, which is where a gate belongs. Cursed Perks remain the non-drafted category and carry no row here.",
+      "enum": [
+        "LIGHTNING", "COLD", "FIRE", "POISON", "BLEED",
+        "DEFENSE", "OFFENSE", "CRIT", "SUSTAIN"
+      ]
     },
 
     "rarity": {
@@ -65,7 +68,7 @@
     "_status": { "enum": ["transcribed", "partial", "skeleton"] },
 
     "perks": {
-      "description": "06 §3.1-3.6 — the standard drafted catalogue (90 rows total; 8 of the 12 Dice & Board rows live in 04 §5 and are out of THIS document's scope, so 06 §3's own catalogue is 82 rows). M3-07 authors a starter subset; the remainder is registered as unauthored input for M3-07b, per the M3-07 task's own register (checkable against this array in both directions).",
+      "description": "The drafted catalogue: nine categories, each with one base perk gating the rest, and hybrid perks requiring several bases. Every row authors three tiers of DSL effects, which Content.Perks.PerkEffects reads and the shared interpreter applies — there is no per-perk code.",
       "type": "array",
       "uniqueItems": true,
       "items": {
@@ -93,14 +96,14 @@
           },
 
           "excludes": {
-            "description": "06 does not name any mutually-exclusive perk pair in the v1 catalogue; the key is authored empty on every row rather than omitted, so a future exclusion is a data edit and not a schema change.",
+            "description": "No mutually-exclusive perk pair is authored in this catalogue; the key is authored empty on every row rather than omitted, so an exclusion is a data edit and not a schema change. The draft enforces it by narrowing the pool — see Rules.Perks.PerkDraftEngine.",
             "type": "array",
             "uniqueItems": true,
             "items": { "$ref": "#/$defs/perkId" }
           },
 
           "requires": {
-            "description": "06 does not name any prerequisite perk in the v1 catalogue; authored empty on every row for the same reason as excludes.",
+            "description": "🔒 THE CATEGORY GATE, and the load-bearing key of the reworked catalogue. Every category authors exactly one perk with an empty list — its base — and every other perk in that category names it here; a hybrid names the base of each category it draws on. The draft will not offer a perk whose prerequisites are not all owned, so a run reaches a category's mechanics only after committing to its entry. Empty means \"this IS a base\", which is a statement rather than an absence: a second empty row in one category would be a second, un-gated entry to it.",
             "type": "array",
             "uniqueItems": true,
             "items": { "$ref": "#/$defs/perkId" }

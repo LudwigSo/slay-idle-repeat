@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using Xunit;
 
@@ -627,16 +627,15 @@ public sealed class RealDataNegativeCaseTests
     /// filling one is a design decision that must change this number in the same commit. The
     /// perks.json holes are different: they are canonical DSL tokens the effect vocabulary defines
     /// as null on purpose (<c>condition: null</c> for "ungated", <c>valueScale.cap: null</c> for
-    /// "uncapped", <c>trigger: null</c> for an outcome-table sibling effect with no trigger of its
-    /// own), so nothing can ever legitimately ask what their "undecided value" was. See the
+    /// "uncapped"), so nothing can ever legitimately ask what their "undecided value" was. See the
     /// per-file breakdown in the theory below.
     /// </remarks>
     [Fact]
-    public void The_shipped_data_set_still_carries_exactly_its_278_unauthorised_holes()
+    public void The_shipped_data_set_still_carries_exactly_its_291_unauthorised_holes()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
-        CountUnauthorised(snapshot).ShouldBe(278,
+        CountUnauthorised(snapshot).ShouldBe(291,
             "game-data/README.md: null means the design docs do not authorise a value " +
             "here. Sampling four pointers would leave 92 holes free to be filled with plausible " +
             "zeroes — the outcome this pipeline exists to prevent. Filling one is a design " +
@@ -724,10 +723,12 @@ public sealed class RealDataNegativeCaseTests
     // in the affected scripts' own _doc instead.
     [InlineData("content/bosses/bosses.json", 0)]
 
-    // perks.json: 176 holes, all canonical DSL tokens the effect vocabulary defines as null on
-    // purpose (condition: null for ungated, valueScale.cap: null for uncapped, trigger: null on
-    // RANDOM_OUTCOME's sibling effects).
-    [InlineData("content/perks/perks.json", 176)]
+    // perks.json: 189 holes, all canonical DSL tokens the effect vocabulary defines as null on
+    // purpose — `condition: null` for "ungated", one per ungated effect, and `valueScale.cap: null`
+    // for "uncapped" on the two perks that scale without a ceiling. The count moved with the perk
+    // rework, which replaced a 46-row catalogue with a 67-row one; it is a function of how many
+    // effects are authored, not of any design decision left open.
+    [InlineData("content/perks/perks.json", 189)]
     public void Each_shipped_file_carries_exactly_the_unauthorised_holes_it_is_recorded_as_carrying(
         string documentPath, int expected)
     {

@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Core.Primitives;
+﻿using SlayIdleRepeat.Core.Primitives;
 
 namespace SlayIdleRepeat.Core.Model.Snapshots;
 
@@ -24,10 +24,10 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="PendingTileStage">The stage the pending tile belongs to — 1, 2, 3, or the boss stage value, which is also this field's value when no tile is pending.</param>
 /// <param name="PendingEventCardId">The event card a pending <c>TILE_EVENT</c> has already drawn, or <c>""</c> when none has — never <c>null</c>. Exists so the card cannot be re-drawn across the two commands an event resolves over.</param>
 /// <param name="Phase">The genuine server-side subset of the run's state machine. See <see cref="Primitives.RunPhase"/>.</param>
-/// <param name="DraftPending">True once a won battle has closed and no draft command has resolved it yet.</param>
+/// <param name="DraftPending">True while a perk draft is waiting and no draft command has resolved it yet — set by a won battle, and by the run opening.</param>
 /// <param name="RerollChargesSpentThisStage">Reroll charges spent since the run's current stage began. Reset at every Stage Gate.</param>
 /// <param name="StageGateDiceAnchor">The <c>dice</c> stream draw index the run's current stage began at.</param>
-/// <param name="DraftBattleKind">The tile kind of the battle that set <paramref name="DraftPending"/>, captured before it clears. <b>-1</b> when no draft is pending.</param>
+/// <param name="DraftBattleKind">The tile kind the pending draft draws its rarity band against — the battle's own kind for a post-battle draft, and <c>Empty</c> for the run's opening draft, which no battle caused. <b>-1</b> when no draft is pending.</param>
 /// <param name="DraftBattleStage">The stage the battle named by <paramref name="DraftBattleKind"/> belonged to. <c>0</c> when no draft is pending.</param>
 /// <param name="OwnedPerkTiers">The perks this run has drafted: perk id → owned internal tier (1-3). Sparse.</param>
 /// <param name="BankedLegendXp">Legend XP banked so far this run, pending the run-end payout. Never negative.</param>

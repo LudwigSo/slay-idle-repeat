@@ -21,7 +21,9 @@
       "healPct": 1.0,
       "thorns": 0.0
     },
-    "pets": ["PET_SPARKLING"],
+    "pets": [
+      "PET_SPARKLING"
+    ],
     "mount": null,
     "targetPower": 1000
   },
@@ -41,7 +43,9 @@
     "drPct": 0,
     "healPct": 1.0,
     "thorns": 0,
-    "flags": ["INVULNERABLE"]
+    "flags": [
+      "INVULNERABLE"
+    ]
   },
   "measurementProtocol": {
     "seeds": 20,
@@ -60,7 +64,11 @@
     }
   },
   "scalingRule": {
-    "scaledStats": ["maxHp", "atk", "def"],
+    "scaledStats": [
+      "maxHp",
+      "atk",
+      "def"
+    ],
     "bisectionTolerance": 0.001,
     "scalarDecimalPlaces": 4,
     "defaultLevel": 40,
@@ -70,101 +78,276 @@
     {
       "id": "ARCH_CRIT",
       "stats": {
-        "maxHp": 900, "atk": 150, "def": 60, "aspd": 1.1,
-        "crit": 0.35, "critDamage": 1.2, "lifesteal": 0, "dodge": 0.03,
-        "block": 0, "pen": 0.1, "dmgPct": 0.05, "drPct": 0,
-        "healPct": 1.0, "thorns": 0
+        "maxHp": 900,
+        "atk": 150,
+        "def": 60,
+        "aspd": 1.1,
+        "crit": 0.35,
+        "critDamage": 1.2,
+        "lifesteal": 0,
+        "dodge": 0.03,
+        "block": 0,
+        "pen": 0.1,
+        "dmgPct": 0.05,
+        "drPct": 0,
+        "healPct": 1.0,
+        "thorns": 0
       },
-      "pets": ["PET_NIPPER", "PET_VOIDKITTEN", "PET_WISP"],
+      "pets": [
+        "PET_NIPPER",
+        "PET_VOIDKITTEN",
+        "PET_WISP"
+      ],
       "frozenPerks": [
-        "PK_KEEN_EYE III", "PK_HEAVY_SWING II", "PK_CRIT_CASCADE II", "PK_TWIN_STRIKE II",
-        "PK_SHARP_EDGE II", "PK_QUICK_HANDS II", "PK_SANGUINE II", "PK_EXECUTIONER II",
-        "PK_OPENER I", "PK_APEX I", "PK_TOUGH_HIDE I", "PK_DUELIST I"
+        "PK_KEEN_EYE III",
+        "PK_DEADLY_PRECISION III",
+        "PK_CASCADE II",
+        "PK_KILLER_INSTINCT II",
+        "PK_OVERWHELM II",
+        "PK_MIGHT II",
+        "PK_SWIFTNESS II",
+        "PK_DOUBLE_STRIKE II",
+        "PK_PERFECT_STRIKE I",
+        "PK_MOMENTUM I",
+        "PK_IRONHIDE I",
+        "PK_REGENERATION I"
       ],
       "draftPriority": [
-        "PK_KEEN_EYE", "PK_HEAVY_SWING", "PK_CRIT_CASCADE", "PK_TWIN_STRIKE", "PK_SANGUINE",
-        "PK_SHARP_EDGE", "PK_QUICK_HANDS", "PK_EXECUTIONER", "PK_APEX", "PK_OPENER",
-        "PK_DUELIST", "PK_TOUGH_HIDE", "PK_PERFECTIONIST", "PK_ANNIHILATE", "PK_GIANT_SLAYER"
+        "PK_KEEN_EYE",
+        "PK_MIGHT",
+        "PK_DEADLY_PRECISION",
+        "PK_CASCADE",
+        "PK_KILLER_INSTINCT",
+        "PK_OVERWHELM",
+        "PK_SWIFTNESS",
+        "PK_DOUBLE_STRIKE",
+        "PK_PERFECT_STRIKE",
+        "PK_MOMENTUM",
+        "PK_ONSLAUGHT",
+        "PK_IRONHIDE",
+        "PK_VITALITY",
+        "PK_REGENERATION",
+        "PK_SANGUINE_EDGE"
       ]
     },
     {
       "id": "ARCH_TANK_THORNS",
       "stats": {
-        "maxHp": 1600, "atk": 95, "def": 120, "aspd": 0.95,
-        "crit": 0.05, "critDamage": 0.5, "lifesteal": 0, "dodge": 0.02,
-        "block": 0.2, "pen": 0, "dmgPct": 0, "drPct": 0.15,
-        "healPct": 1.0, "thorns": 0.3
+        "maxHp": 1600,
+        "atk": 95,
+        "def": 120,
+        "aspd": 0.95,
+        "crit": 0.05,
+        "critDamage": 0.5,
+        "lifesteal": 0,
+        "dodge": 0.02,
+        "block": 0.2,
+        "pen": 0,
+        "dmgPct": 0,
+        "drPct": 0.15,
+        "healPct": 1.0,
+        "thorns": 0.3
       },
-      "pets": ["PET_SNAILGUARD", "PET_THORNBUD", "PET_AEGISOWL"],
+      "pets": [
+        "PET_SNAILGUARD",
+        "PET_THORNBUD",
+        "PET_AEGISOWL"
+      ],
       "frozenPerks": [
-        "PK_THORNS II", "PK_MIRROR II", "PK_IRON_SKIN II", "PK_TOUGH_HIDE II",
-        "PK_BULWARK II", "PK_STOIC II", "PK_SECOND_SKIN II", "PK_REACTIVE II",
-        "PK_WARDED II", "PK_LAST_STAND I", "PK_AEGIS I", "PK_ANCHOR I"
+        "PK_IRONHIDE III",
+        "PK_VITALITY III",
+        "PK_EVASION II",
+        "PK_RIPOSTE II",
+        "PK_AEGIS II",
+        "PK_BULWARK II",
+        "PK_FROSTBITE I",
+        "PK_FROZEN_ARMOUR I",
+        "PK_REGENERATION I",
+        "PK_SECOND_WIND I",
+        "PK_MIGHT I",
+        "PK_TURTLE_DOCTRINE I"
       ],
       "draftPriority": [
-        "PK_THORNS", "PK_MIRROR", "PK_IRON_SKIN", "PK_TOUGH_HIDE", "PK_WARDED",
-        "PK_SECOND_SKIN", "PK_STOIC", "PK_BULWARK", "PK_REACTIVE", "PK_AEGIS",
-        "PK_LAST_STAND", "PK_ANCHOR", "PK_FORTRESS", "PK_IMMOVABLE", "PK_REGEN"
+        "PK_IRONHIDE",
+        "PK_VITALITY",
+        "PK_EVASION",
+        "PK_RIPOSTE",
+        "PK_AEGIS",
+        "PK_BULWARK",
+        "PK_FROSTBITE",
+        "PK_FROZEN_ARMOUR",
+        "PK_BRITTLE",
+        "PK_REGENERATION",
+        "PK_SECOND_WIND",
+        "PK_OVERFLOW",
+        "PK_UNDYING",
+        "PK_MIGHT",
+        "PK_TURTLE_DOCTRINE"
       ]
     },
     {
       "id": "ARCH_DOT",
       "stats": {
-        "maxHp": 1050, "atk": 130, "def": 70, "aspd": 1.25,
-        "crit": 0.1, "critDamage": 0.6, "lifesteal": 0, "dodge": 0.03,
-        "block": 0, "pen": 0.15, "dmgPct": 0.1, "drPct": 0.03,
-        "healPct": 1.0, "thorns": 0
+        "maxHp": 1050,
+        "atk": 130,
+        "def": 70,
+        "aspd": 1.25,
+        "crit": 0.1,
+        "critDamage": 0.6,
+        "lifesteal": 0,
+        "dodge": 0.03,
+        "block": 0,
+        "pen": 0.15,
+        "dmgPct": 0.1,
+        "drPct": 0.03,
+        "healPct": 1.0,
+        "thorns": 0
       },
-      "pets": ["PET_EMBERCUB", "PET_SPOREMOTHER", "PET_WISP"],
+      "pets": [
+        "PET_EMBERCUB",
+        "PET_SPOREMOTHER",
+        "PET_WISP"
+      ],
       "frozenPerks": [
-        "PK_RUPTURE II", "PK_IGNITE II", "PK_SUNDERING II", "PK_QUICK_HANDS II",
-        "PK_PIERCING II", "PK_BRUTALITY II", "PK_KEEN_EYE II", "PK_SHARP_EDGE II",
-        "PK_DEATHMARK I", "PK_GIANT_SLAYER I", "PK_TOUGH_HIDE I", "PK_REGEN I"
+        "PK_LACERATE III",
+        "PK_IGNITE III",
+        "PK_VENOM III",
+        "PK_HEMORRHAGE II",
+        "PK_GASH II",
+        "PK_KINDLING II",
+        "PK_FAN_THE_FLAMES II",
+        "PK_VIRULENCE II",
+        "PK_TOXIC_BUILDUP I",
+        "PK_CORROSION I",
+        "PK_ENVENOMED_WOUNDS I",
+        "PK_MIGHT I"
       ],
       "draftPriority": [
-        "PK_RUPTURE", "PK_IGNITE", "PK_SUNDERING", "PK_QUICK_HANDS", "PK_KEEN_EYE",
-        "PK_PIERCING", "PK_BRUTALITY", "PK_DEATHMARK", "PK_SHARP_EDGE", "PK_GIANT_SLAYER",
-        "PK_TOUGH_HIDE", "PK_REGEN", "PK_CLEAVE", "PK_TWIN_STRIKE", "PK_ANNIHILATE"
+        "PK_LACERATE",
+        "PK_IGNITE",
+        "PK_VENOM",
+        "PK_HEMORRHAGE",
+        "PK_GASH",
+        "PK_KINDLING",
+        "PK_FAN_THE_FLAMES",
+        "PK_VIRULENCE",
+        "PK_TOXIC_BUILDUP",
+        "PK_CORROSION",
+        "PK_ENVENOMED_WOUNDS",
+        "PK_REND",
+        "PK_BLOOD_FRENZY",
+        "PK_MIGHT",
+        "PK_SWIFTNESS"
       ]
     },
     {
       "id": "ARCH_LIFESTEAL",
       "stats": {
-        "maxHp": 1150, "atk": 135, "def": 70, "aspd": 1.1,
-        "crit": 0.08, "critDamage": 0.55, "lifesteal": 0.25, "dodge": 0.03,
-        "block": 0, "pen": 0.05, "dmgPct": 0.05, "drPct": 0.05,
-        "healPct": 1.2, "thorns": 0
+        "maxHp": 1150,
+        "atk": 135,
+        "def": 70,
+        "aspd": 1.1,
+        "crit": 0.08,
+        "critDamage": 0.55,
+        "lifesteal": 0.25,
+        "dodge": 0.03,
+        "block": 0,
+        "pen": 0.05,
+        "dmgPct": 0.05,
+        "drPct": 0.05,
+        "healPct": 1.2,
+        "thorns": 0
       },
-      "pets": ["PET_LEECHLING", "PET_TOADKING", "PET_MOSSLING"],
+      "pets": [
+        "PET_LEECHLING",
+        "PET_TOADKING",
+        "PET_MOSSLING"
+      ],
       "frozenPerks": [
-        "PK_LEECH II", "PK_BLOODLETTER II", "PK_FEAST II", "PK_SANGUINE II",
-        "PK_HEALERS_TOUCH II", "PK_SHARP_EDGE II", "PK_QUICK_HANDS II", "PK_TOUGH_HIDE II",
-        "PK_VITAL_SURGE I", "PK_TRANSFUSION I", "PK_UNDYING I", "PK_ETERNAL I"
+        "PK_REGENERATION III",
+        "PK_LIFESTEAL III",
+        "PK_SANGUINE_EDGE II",
+        "PK_SECOND_WIND II",
+        "PK_OVERFLOW II",
+        "PK_UNDYING I",
+        "PK_KEEN_EYE II",
+        "PK_MIGHT II",
+        "PK_SWIFTNESS I",
+        "PK_IRONHIDE I",
+        "PK_VENOM I",
+        "PK_PARASITIC_TOXIN I"
       ],
       "draftPriority": [
-        "PK_LEECH", "PK_BLOODLETTER", "PK_FEAST", "PK_SANGUINE", "PK_HEALERS_TOUCH",
-        "PK_SHARP_EDGE", "PK_QUICK_HANDS", "PK_TOUGH_HIDE", "PK_VITAL_SURGE", "PK_TRANSFUSION",
-        "PK_UNDYING", "PK_ETERNAL", "PK_PHOENIX", "PK_SECOND_SKIN", "PK_KEEN_EYE"
+        "PK_REGENERATION",
+        "PK_LIFESTEAL",
+        "PK_KEEN_EYE",
+        "PK_SANGUINE_EDGE",
+        "PK_SECOND_WIND",
+        "PK_OVERFLOW",
+        "PK_UNDYING",
+        "PK_MIGHT",
+        "PK_SWIFTNESS",
+        "PK_IRONHIDE",
+        "PK_VITALITY",
+        "PK_VENOM",
+        "PK_PARASITIC_TOXIN",
+        "PK_MOMENTUM",
+        "PK_DEADLY_PRECISION"
       ]
     },
     {
       "id": "ARCH_PET",
       "stats": {
-        "maxHp": 1100, "atk": 125, "def": 75, "aspd": 1.05,
-        "crit": 0.1, "critDamage": 0.6, "lifesteal": 0.02, "dodge": 0.03,
-        "block": 0, "pen": 0.05, "dmgPct": 0.05, "drPct": 0.05,
-        "healPct": 1.0, "thorns": 0
+        "maxHp": 1100,
+        "atk": 125,
+        "def": 75,
+        "aspd": 1.05,
+        "crit": 0.1,
+        "critDamage": 0.6,
+        "lifesteal": 0.02,
+        "dodge": 0.03,
+        "block": 0,
+        "pen": 0.05,
+        "dmgPct": 0.05,
+        "drPct": 0.05,
+        "healPct": 1.0,
+        "thorns": 0
       },
-      "pets": ["PET_STORMFANG", "PET_VOIDKITTEN", "PET_CLOCKHOUND"],
+      "pets": [
+        "PET_STORMFANG",
+        "PET_VOIDKITTEN",
+        "PET_CLOCKHOUND"
+      ],
       "frozenPerks": [
-        "PK_PACK_LEADER II", "PK_SYMBIOSIS II", "PK_SHARP_EDGE II", "PK_TOUGH_HIDE II",
-        "PK_KEEN_EYE II", "PK_QUICK_HANDS II", "PK_SECOND_SKIN II", "PK_ECHO I",
-        "PK_ARSENAL I", "PK_REGEN I", "PK_STOIC I", "PK_HEAVY_SWING I"
+        "PK_PACK_LEADER II",
+        "PK_SYMBIOSIS II",
+        "PK_ECHO I",
+        "PK_MIGHT II",
+        "PK_KEEN_EYE II",
+        "PK_SWIFTNESS II",
+        "PK_IRONHIDE I",
+        "PK_VITALITY I",
+        "PK_REGENERATION I",
+        "PK_DEADLY_PRECISION I",
+        "PK_MOMENTUM I",
+        "PK_EVASION I"
       ],
       "draftPriority": [
-        "PK_PACK_LEADER", "PK_SYMBIOSIS", "PK_ECHO", "PK_ARSENAL", "PK_SHARP_EDGE",
-        "PK_KEEN_EYE", "PK_TOUGH_HIDE", "PK_QUICK_HANDS", "PK_SECOND_SKIN", "PK_REGEN",
-        "PK_STOIC", "PK_HEAVY_SWING", "PK_APEX", "PK_PERFECTIONIST", "PK_FLURRY"
+        "PK_PACK_LEADER",
+        "PK_SYMBIOSIS",
+        "PK_ECHO",
+        "PK_MIGHT",
+        "PK_KEEN_EYE",
+        "PK_SWIFTNESS",
+        "PK_IRONHIDE",
+        "PK_VITALITY",
+        "PK_REGENERATION",
+        "PK_DEADLY_PRECISION",
+        "PK_MOMENTUM",
+        "PK_DOUBLE_STRIKE",
+        "PK_KILLER_INSTINCT",
+        "PK_EVASION",
+        "PK_LIFESTEAL"
       ]
     }
   ]

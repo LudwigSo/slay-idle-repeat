@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Combat;
 using SlayIdleRepeat.Core.Rules.Combat.Status;
@@ -122,19 +122,23 @@ public sealed class StatusTimelineTests
         bench.Pipeline.Dots.ShouldBeEmpty("a HoT is not a damage event");
     }
 
-    /// <summary><c>POISON</c> is X% of target Max HP, <c>BURN</c> X% of attacker ATK.</summary>
+    /// <summary>Both <c>BURN</c> and <c>POISON</c> are X% of the applier's ATK per second.</summary>
     /// <remarks>
-    /// Same authored X, same applier, same target, different numbers — so this tests the basis rather
-    /// than the arithmetic. One basis for both agrees with one row and fails the other.
+    /// The target's Max HP is set an order of magnitude away from the applier's ATK, so a row that
+    /// went back to reading it would land on a visibly different number rather than a near miss.
     /// </remarks>
     [Fact]
-    public void BURN_reads_the_appliers_ATK_and_POISON_reads_the_targets_Max_HP()
+    public void Every_damage_over_time_reads_the_appliers_ATK_and_not_the_targets_health()
     {
         var burn = Fight(new[] { A(7, "E_BURN", "BURN", 0.5, 40.0) }, targetMaxHp: 500.0);
         var poison = Fight(new[] { A(7, "E_POISON", "POISON", 0.5, 40.0) }, targetMaxHp: 500.0);
 
         burn.Pipeline.Dots[0].Amount.ShouldBe(20.0, "0.5 x the applier's 40 ATK");
-        poison.Pipeline.Dots[0].Amount.ShouldBe(250.0, "0.5 x the target's 500 Max HP");
+        poison.Pipeline.Dots[0].Amount.ShouldBe(
+            20.0,
+            "poison reads the applier's 40 ATK too — a tenth of what the target's 500 Max HP would " +
+            "have given it, which is the whole point: an ailment that does not read ATK is one a " +
+            "player cannot build into");
     }
 
     /// <summary><c>BLEED</c>'s tick is the flat amount times (1 + target's missing-HP fraction).</summary>
