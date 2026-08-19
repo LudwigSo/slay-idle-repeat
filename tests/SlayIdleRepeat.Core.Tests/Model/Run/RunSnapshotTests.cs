@@ -206,6 +206,10 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.ShopRefreshesUsedThisVisit),
                 RunSnapshots.With(shopOfferDraw: 3UL),
                 RunSnapshots.With(shopOfferDraw: 3UL, shopRefreshesUsedThisVisit: 1)),
+
+            // A roll sequence mid-chain. Persisted because a Chain hop resolves its landing tile in
+            // full before the next chained roll, so the sequence spans several commands.
+            (nameof(RunSnapshot.ChainLinksTaken), v, RunSnapshots.With(chainLinksTaken: 1)),
         };
 
         var invisible = probes

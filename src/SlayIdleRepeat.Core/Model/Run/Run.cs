@@ -259,6 +259,9 @@ public sealed class Run
     /// <summary>Refreshes spent at the currently open shop. Per visit, not per run.</summary>
     private int _shopRefreshesUsedThisVisit;
 
+    /// <summary>Chain hops the current roll sequence has already taken. Zero when no chain is running.</summary>
+    private int _chainLinksTaken;
+
     /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
     private Run(
         RunId id,
@@ -304,7 +307,8 @@ public sealed class Run
         int freeDraftRerolls,
         ulong? shopOfferDraw,
         int shopSlotsPurchased,
-        int shopRefreshesUsedThisVisit)
+        int shopRefreshesUsedThisVisit,
+        int chainLinksTaken)
     {
         StartingLoadout = startingLoadout;
         _itemsAtOrAboveFloorBand = itemsAtOrAboveFloorBand;
@@ -358,6 +362,7 @@ public sealed class Run
         _shopOfferDraw = shopOfferDraw;
         _shopSlotsPurchased = shopSlotsPurchased;
         _shopRefreshesUsedThisVisit = shopRefreshesUsedThisVisit;
+        _chainLinksTaken = chainLinksTaken;
     }
 
     /// <summary>
@@ -665,7 +670,8 @@ public sealed class Run
         _freeDraftRerolls,
         _shopOfferDraw,
         _shopSlotsPurchased,
-        _shopRefreshesUsedThisVisit);
+        _shopRefreshesUsedThisVisit,
+        _chainLinksTaken);
 
     /// <summary>
     /// A defensive copy of a die-face upgrade map, run-buff list or consumable pouch — this
@@ -758,6 +764,7 @@ public sealed class Run
         var consumables = ReadConsumables(snapshot, faults);
         RequireGrantCounters(snapshot, faults);
         RequireShopVisit(snapshot, faults);
+        RequireChainLinks(snapshot, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns
         // null also adds a fault — but they are written as a pattern rather than as `!`
@@ -823,7 +830,8 @@ public sealed class Run
             snapshot.FreeDraftRerolls,
             snapshot.ShopOfferDraw,
             snapshot.ShopSlotsPurchased,
-            snapshot.ShopRefreshesUsedThisVisit));
+            snapshot.ShopRefreshesUsedThisVisit,
+            snapshot.ChainLinksTaken));
     }
 
     // ------------------------------------------------------ the tile-state readers
@@ -1034,6 +1042,23 @@ public sealed class Run
                 Text(snapshot.ShopRefreshesUsedThisVisit) + ". Both belong to the visit and are " +
                 "cleared with it; carried forward they would grey out slots of the NEXT shop this " +
                 "run walks into.");
+        }
+    }
+
+    /// <summary>The chain-link count counts hops, so it is never negative.</summary>
+    /// <remarks>
+    /// No upper bound here: the cap is <c>Rules.Dice.FaceEffectResolver.ChainMaxLinks</c>, a number
+    /// perks are specified to be able to RAISE, so an aggregate-side ceiling would be a second
+    /// statement of a tunable rule and the two would disagree the day a perk moved it.
+    /// </remarks>
+    private static void RequireChainLinks(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.ChainLinksTaken < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.ChainLinksTaken) + " is " + Text(snapshot.ChainLinksTaken) +
+                ". It counts the Chain hops the current roll sequence has taken, and a negative " +
+                "count would push the chain cap further away the longer the sequence ran.");
         }
     }
 
@@ -1834,6 +1859,31 @@ public sealed class Run
 
     /// <summary>Refreshes spent at the currently open shop.</summary>
     internal int ShopRefreshesUsedThisVisit => _shopRefreshesUsedThisVisit;
+
+    /// <summary>Chain hops the current roll sequence has already taken. Zero when no chain is running.</summary>
+    internal int ChainLinksTaken => _chainLinksTaken;
+
+    /// <summary>
+    /// Records where the roll sequence stands after one roll: one more link, or back to none.
+    /// </summary>
+    /// <param name="links">The new count. Never negative.</param>
+    /// <remarks>
+    /// Set rather than incremented, because every <c>ROLL_DICE</c> ends by answering this question
+    /// one way or the other — a chain continues, or it is over — and an increment-only seam would
+    /// leave the caller to remember a separate reset. Forgetting that reset is a run whose chain cap
+    /// is already spent on its first roll of every later turn.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="links"/> is negative.</exception>
+    internal void SetChainLinksTaken(int links)
+    {
+        if (links < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(links), links, "A chain-link count counts hops and is never negative.");
+        }
+
+        _chainLinksTaken = links;
+    }
 
     /// <summary>How many of the given consumable this run holds. Zero for one it holds none of.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="consumableId"/> is null.</exception>

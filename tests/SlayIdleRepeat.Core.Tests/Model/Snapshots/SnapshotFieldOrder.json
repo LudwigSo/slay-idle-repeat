@@ -1540,7 +1540,7 @@
     {
       "schemaVersion": 16,
       "_why": [
-        "THE RUN-TILE STATE. Eleven fields appended to RunSnapshot, nothing added to PlayerSnapshot.",
+        "THE RUN-TILE STATE. Twelve fields appended to RunSnapshot, nothing added to PlayerSnapshot.",
         "They are what the fourteen board tiles of 03 section 2 leave behind on a run, and every one of",
         "them was previously a hole a tile resolver documented and then declined to fill:",
         "",
@@ -1561,6 +1561,11 @@
         "                              the Stage Gate WITH RerollChargesSpentThisStage; resetting only the",
         "                              spend would hand the next stage every bonus charge, refreshed.",
         "  FreeDraftRerolls            Draft Tokens. NOT per stage -- bought and held until spent.",
+        "  ChainLinksTaken             how far the current roll sequence has chained. Persisted because",
+        "                              03 section 1.1 makes a Chain hop resolve its landing tile IN FULL",
+        "                              before the next chained roll, and resolving a tile takes its own",
+        "                              command -- so the sequence spans several ROLL_DICE calls and the",
+        "                              count cannot live inside one of them.",
         "  ShopOfferDraw / ShopSlotsPurchased / ShopRefreshesUsedThisVisit",
         "                              the open shop VISIT. The offer itself is not persisted: it is",
         "                              re-derived from the run seed and the recorded stream position, on",
@@ -1706,7 +1711,8 @@
           "FreeDraftRerolls:System.Int32",
           "ShopOfferDraw:System.Nullable<System.UInt64>",
           "ShopSlotsPurchased:System.Int32",
-          "ShopRefreshesUsedThisVisit:System.Int32"
+          "ShopRefreshesUsedThisVisit:System.Int32",
+          "ChainLinksTaken:System.Int32"
         ]
       }
     }

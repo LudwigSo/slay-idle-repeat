@@ -205,8 +205,9 @@ internal static class ResolveTile
             StageGateResolver.Apply(input, run.CurrentHp);
         }
 
-        var landed = board.Node(result.Node);
-        run.ArriveAtTile((int)landed.Tile, landed.LinearIndex, landed.Stage);
+        // Through TileArrival for the reason Handlers.ChooseFork uses it: a Portal jump comes to
+        // rest like any other movement, and an armed Escape Rope skips what it lands on.
+        TileArrival.Land(run, board.Node(result.Node));
 
         return HandlerResult.Accept();
     }

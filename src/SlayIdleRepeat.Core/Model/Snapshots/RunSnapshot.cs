@@ -104,6 +104,16 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// Refreshes spent at the shop currently open. Never negative. Per VISIT, not per run, which is what
 /// `03` §7's "1 free refresh per shop visit" is counted against.
 /// </param>
+/// <param name="ChainLinksTaken">
+/// How many <c>Chain</c> hops the run's current roll sequence has already taken (`04` §1). Never
+/// negative. Zero for a run whose last roll was not a Chain, which is every run that has never
+/// forged one.
+/// <para>
+/// Persisted because a Chain hop RESOLVES ITS LANDING TILE IN FULL before the next chained roll
+/// (`03` §1.1), and resolving a tile takes its own command — so the sequence genuinely spans several
+/// <c>ROLL_DICE</c> calls and the link count cannot live inside one of them.
+/// </para>
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.RunId"/> and
 /// <see cref="Primitives.PlayerId"/>, plus the two dictionaries — a positional record with no members
@@ -161,4 +171,5 @@ public sealed record RunSnapshot(
     int FreeDraftRerolls = 0,
     ulong? ShopOfferDraw = null,
     int ShopSlotsPurchased = 0,
-    int ShopRefreshesUsedThisVisit = 0);
+    int ShopRefreshesUsedThisVisit = 0,
+    int ChainLinksTaken = 0);

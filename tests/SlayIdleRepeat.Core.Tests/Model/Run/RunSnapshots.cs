@@ -145,7 +145,8 @@ internal static class RunSnapshots
         int? freeDraftRerolls = null,
         ulong? shopOfferDraw = null,
         int? shopSlotsPurchased = null,
-        int? shopRefreshesUsedThisVisit = null) =>
+        int? shopRefreshesUsedThisVisit = null,
+        int? chainLinksTaken = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -192,7 +193,8 @@ internal static class RunSnapshots
             freeDraftRerolls ?? 0,
             shopOfferDraw,
             shopSlotsPurchased ?? 0,
-            shopRefreshesUsedThisVisit ?? 0);
+            shopRefreshesUsedThisVisit ?? 0,
+            chainLinksTaken ?? 0);
 
     /// <summary>
     /// An id list, empty by default — the shape <c>Run.ToSnapshot</c> writes for a run that has taken

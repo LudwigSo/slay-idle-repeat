@@ -141,7 +141,8 @@ public sealed class HeroBuild
             player.LegendLevel,
             Equip(run is null ? player.Loadout : run.StartingLoadout, player.Inventory),
             content,
-            run?.DraftedPerks);
+            run?.DraftedPerks,
+            RunModifiers.Of(run));
     }
 
     /// <summary>
@@ -193,7 +194,8 @@ public sealed class HeroBuild
         int legendLevel,
         IReadOnlyList<GearInstance> equipped,
         ContentSnapshot content,
-        DraftedPerks? perks = null)
+        DraftedPerks? perks = null,
+        RunModifiers? runModifiers = null)
     {
         ArgumentNullException.ThrowIfNull(equipped);
         ArgumentNullException.ThrowIfNull(content);
@@ -207,10 +209,15 @@ public sealed class HeroBuild
 
         var inSlotOrder = GearEffectNames.InSlotOrder(equipped);
 
+        var modifiers = runModifiers ?? RunModifiers.None;
+
         var sources = EffectSourceSet.Of(
             new GearEffectSource(par, drops, forge, inSlotOrder),
             new GearAffixEffectSource(drops, inSlotOrder),
             new SetBonusEffectSource(catalogue, drops, sets, inSlotOrder),
+            new RunBuffEffectSource(content, modifiers.RunBuffs, modifiers.ChapterId),
+            new ShrineBuffEffectSource(content, modifiers.ShrineBuffs),
+            new CurseEffectSource(modifiers.Curses),
             new PerkEffectSource(content, perks ?? NoPerks));
 
         var collected = EffectResolutionOrder.Sort(sources.Collect());
