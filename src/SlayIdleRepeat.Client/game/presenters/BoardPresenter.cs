@@ -59,7 +59,11 @@ public enum BoardRollBlock
     /// <summary>A won battle's perk draft is open. Escaped on a screen this task does not own.</summary>
     DraftOpen = 6,
 
-    /// <summary>The run has finished. Escaped by leaving, which no screen here can do yet.</summary>
+    /// <summary>
+    /// The run has finished. Escaped by leaving, which the run-end screen now does: an accepted
+    /// <c>END_RUN</c> frees the board and brings the starting menu back, so this state is what a board
+    /// would draw on the way out rather than a state a player is left sitting in.
+    /// </summary>
     RunEnded = 7,
 }
 

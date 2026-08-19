@@ -213,12 +213,22 @@ public partial class ChapterSelect : Control
 
     private Func<RunId, ComposedBoardScreen>? _board;
 
+    /// <summary>The starting menu the run this screen starts leads back to when it ends.</summary>
+    /// <remarks>
+    /// 🔒 Carried through rather than reached for. This screen is not where a finished run belongs — a
+    /// player whose run is over is owed the starting menu, not the list they last picked a chapter from —
+    /// and it is not this screen's decision either, so it passes on what Home handed it. See
+    /// <see cref="BoardHandover"/> for why the destination travels with the handover.
+    /// </remarks>
+    private Home? _home;
+
     /// <summary>
     /// True once a run has been started, so this screen's one action cannot be taken twice.
     /// </summary>
     /// <remarks>
-    /// It was latched because there was nowhere to go; it stays latched now that there is, because
-    /// the handover is one-way and this screen remains in the tree behind the board.
+    /// It was latched because there was nowhere to go, and it stays latched for the rest of the frame in
+    /// which this screen frees itself: the free is queued, so the button is still live until the frame
+    /// ends and a second press inside that window would start a second run.
     /// </remarks>
     private bool _submitted;
 
@@ -231,18 +241,24 @@ public partial class ChapterSelect : Control
     /// Builds the board for the run a confirm starts. A factory rather than a presenter, because
     /// the run does not exist until <c>START_RUN</c> has been accepted.
     /// </param>
+    /// <param name="home">
+    /// The starting menu the started run leads back to when it ends, passed on to the board unchanged.
+    /// </param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
     /// <exception cref="ArgumentNullException">Either argument is null.</exception>
     public void Drive(
         ChapterSelectPresenter presenter,
         Func<RunId, ComposedBoardScreen> board,
+        Home home,
         CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(presenter);
         ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(home);
 
         _presenter = presenter;
         _board = board;
+        _home = home;
         _lifetime = lifetime;
     }
 
@@ -540,17 +556,50 @@ public partial class ChapterSelect : Control
             return;
         }
 
-        if (_board is not { } board)
+        if (_board is not { } board || _home is not { } home)
         {
             GD.PushError(
                 $"Run {run} was started and this screen has no way to build its board, so the " +
                 "confirm is spent and the run is unreachable. Only a screen that was handed the " +
-                "board factory may instantiate the picker.");
+                "board factory and the starting menu may instantiate the picker.");
 
             return;
         }
 
-        BoardHandover.Show(this, board(run), _lifetime);
+        if (!BoardHandover.Show(this, home, board(run), _lifetime))
+        {
+            // The board was not shown, so this screen is still the player's only one and must stay.
+            // The handover has already said what went wrong; the confirm stays spent, because the run
+            // it started is real whether or not there is a screen for it.
+            return;
+        }
+
+        StandDown();
+    }
+
+    /// <summary>Frees this screen, now that the run it was for is being played.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Freed rather than hidden, because a pick that has become a run is spent.</b> The picker's
+    /// one action is latched the moment it is taken and there is nothing else on it; its presenter
+    /// belongs to Home and outlives it, so nothing a later pick would want is lost. What freeing buys is
+    /// that a run which ENDS — and there is now a way for one to end and come back here — does not find
+    /// this screen still in the tree, ready to be joined by a second picker on the next START and a
+    /// third on the run after that. <see cref="BoardHandover"/> holds that decision for both screens a
+    /// run is entered from.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Detached before it is queued, and the free is queued rather than taken.</b> This runs inside
+    /// this screen's own confirm handler, so freeing outright would destroy the object the call is
+    /// running on; detaching first is what stops a spent picker being laid out over the board behind it
+    /// for the rest of the frame — and it is what makes the redraw that follows the caller's
+    /// <c>IsInsideTree</c> check fall through instead of writing to a screen that is on its way out.
+    /// </para>
+    /// </remarks>
+    private void StandDown()
+    {
+        GetParent()?.RemoveChild(this);
+        QueueFree();
     }
 
     /// <remarks>
@@ -567,10 +616,10 @@ public partial class ChapterSelect : Control
 
                 if (submission == ChapterSelectSubmission.Submitted)
                 {
-                    // Latched rather than re-enabled, and only here: the handover is one-way and
-                    // leaves this screen in the tree, so a second press would start a second run.
-                    // Every other verdict leaves the flag alone and the redraw below gives the
-                    // control back.
+                    // Latched rather than re-enabled, and only here: this screen frees itself on the
+                    // way out but the free is queued, so it is still live for the rest of the frame
+                    // and a second press inside that window would start a second run. Every other
+                    // verdict leaves the flag alone and the redraw below gives the control back.
                     _submitted = true;
 
                     EnterStartedRun(presenter, chapterId, tier);

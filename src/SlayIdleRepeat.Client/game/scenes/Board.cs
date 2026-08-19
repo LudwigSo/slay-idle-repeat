@@ -218,6 +218,16 @@ public partial class Board : Control
     /// <summary>Which decision the run's present state has already been handed over for, if any.</summary>
     private RunDecision? _decisionShown;
 
+    /// <summary>The starting menu this run's ending leads back to.</summary>
+    /// <remarks>
+    /// 🔒 Held rather than looked up, because there is nothing to look it up by: it is a hidden sibling
+    /// among the screens the application has opened, and a search of the parent for one would be a
+    /// screen deciding its own navigation from the shape of the tree. It arrives with the handover for
+    /// the reason <see cref="BoardHandover"/> states — only the caller knows where a run was entered
+    /// from, and only Home is where a finished one leads.
+    /// </remarks>
+    private Home? _home;
+
     private CancellationToken _lifetime;
 
     private ColorRect? _ground;
@@ -275,11 +285,15 @@ public partial class Board : Control
     /// already did for the battle — it calls them, it assembles nothing.
     /// </remarks>
     /// <param name="screen">Everything the composition root built for this board's run.</param>
+    /// <param name="home">
+    /// The starting menu a finished run leads back to, kept for <see cref="LeaveToHome"/>.
+    /// </param>
     /// <param name="lifetime">Cancelled when the application shuts down.</param>
-    /// <exception cref="ArgumentNullException"><paramref name="screen"/> is null.</exception>
-    public void Drive(ComposedBoardScreen screen, CancellationToken lifetime)
+    /// <exception cref="ArgumentNullException"><paramref name="screen"/> or <paramref name="home"/> is null.</exception>
+    public void Drive(ComposedBoardScreen screen, Home home, CancellationToken lifetime)
     {
         ArgumentNullException.ThrowIfNull(screen);
+        ArgumentNullException.ThrowIfNull(home);
 
         _presenter = screen.Board;
         _diePanel = screen.DiePanel;
@@ -288,6 +302,7 @@ public partial class Board : Control
         _shop = screen.Shop;
         _campfire = screen.Campfire;
         _runEnd = screen.RunEnd;
+        _home = home;
         _lifetime = lifetime;
     }
 
@@ -308,6 +323,66 @@ public partial class Board : Control
         Visible = true;
 
         _ = StartAsync();
+    }
+
+    /// <summary>
+    /// Stands this board down for good and hands the player back to the starting menu, for a run that
+    /// has ended.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>FREED, not hidden, which is the opposite of what <see cref="Resume"/> does and for the
+    /// opposite reason.</b> A run is entered once and ends once — by a death or by a chapter cleared,
+    /// and <c>02</c> §6 makes those one moment — so there is nothing on this screen a later run could
+    /// use. <c>BoardComposition</c> builds the next run a board of its own with its own presenters and
+    /// its own read, so keeping this one would leave a dead board and a finished projection in memory
+    /// per run for the life of the application, and re-showing it would be the second run played on the
+    /// first run's screen.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Home is RE-READ rather than merely un-hidden</b>, for the reason <see cref="Resume"/> gives
+    /// about this screen: the run behind it has closed and its payout is banked, so the profile Home
+    /// drew is a different row from the one it holds. Un-hiding alone would leave a CONTINUE offering to
+    /// resume the run that has just ended, onto the board this call is freeing.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Detached before it is queued.</b> <c>QueueFree</c> alone defers removal to the end of the
+    /// frame, and this board is hidden but still processing — it counts a held roll button every frame —
+    /// so a board merely queued would keep running over the Home it just revealed. The free stays
+    /// queued rather than taken because this is reached from the run-end screen's handler.
+    /// </para>
+    /// </remarks>
+    /// <returns>
+    /// True when the starting menu is back and this board has stood down. False says it is still here
+    /// and still the player's only screen, which is <see cref="RunEndHandover.Leave"/>'s cue to hand
+    /// back to it rather than free the screen in front of it over nothing.
+    /// </returns>
+    internal bool LeaveToHome()
+    {
+        if (_home is not { } home)
+        {
+            GD.PushError(
+                "A run ended and this board has no starting menu to return to. Only a screen that can " +
+                "be returned to may instantiate the board, and it must pass Home to Drive.");
+
+            return false;
+        }
+
+        if (!IsInstanceValid(home))
+        {
+            // The starting menu freed underneath a run is a shutdown, which is the ordinary way it
+            // happens on a handset. Named rather than navigated to, and the board stays.
+            GD.PushError("A run ended and the starting menu it was entered from is gone.");
+
+            return false;
+        }
+
+        home.Resume();
+
+        GetParent()?.RemoveChild(this);
+        QueueFree();
+
+        return true;
     }
 
     /// <inheritdoc/>
