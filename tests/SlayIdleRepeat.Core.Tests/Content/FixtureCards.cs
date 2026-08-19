@@ -4,14 +4,9 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>Purpose-built event-card-shaped fixtures, one per thing the event resolver has to do.</summary>
 /// <remarks>
-/// These are NOT the thirty authored cards, and their ids say so: every id here is
-/// <c>EVT_FIXTURE_*</c>, which no shipped card uses — a fixture borrowing a real card's id would read
-/// as a claim about that card, and a later content edit to it would break tests that were never about it.
-/// <para>
-/// The shipped thirty are covered separately, against the real file, by
-/// <c>EventCatalogueRealDataTests</c> — this fixture is for pinning the resolver, where a card has to
-/// be shaped to isolate one op or one weight boundary.
-/// </para>
+/// Every id here is <c>EVT_FIXTURE_*</c>, which no shipped card uses — a fixture borrowing a real
+/// card's id would read as a claim about that card, and a content edit to it would break tests that
+/// were never about it.
 /// </remarks>
 internal static class FixtureCards
 {
@@ -90,9 +85,6 @@ internal static class FixtureCards
                 Outcome(30, HpPct(-0.10m), Currency("MERGE_DUST", 5, true)))),
         Card(LateOnly, 5, 5, Option("Nothing happens", null, Outcome(1, None()))),
     ];
-
-    /// <summary>How many fixture cards a chapter-1 run can draw from — every card but <see cref="LateOnly"/>.</summary>
-    internal const int EligibleInChapterOne = 8;
 
     internal static ContentValue Card(string id, int minChapter, int maxChapter, params ContentValue[] options) =>
         InRunIncomeDocuments.Obj(

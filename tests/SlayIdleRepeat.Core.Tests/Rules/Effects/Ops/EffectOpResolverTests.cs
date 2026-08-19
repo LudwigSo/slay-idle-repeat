@@ -8,10 +8,9 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
 /// <summary>Every op reaches a route, and each family's disposition matches what it should be.</summary>
 /// <remarks>
-/// The resolver's <c>switch</c> has a <c>default</c> arm only because C# requires one on an enum
-/// switch — it must not be what silently catches an unrouted op. These tests enumerate
-/// <see cref="EffectOps.All"/> so a new op can't fall through unnoticed. The loops hand in a combat
-/// draw stream because <c>RANDOM_OUTCOME</c> draws once and refuses an evaluation carrying none.
+/// Internal seam: no public fight can enumerate all 44 ops, and an op falling to the <c>switch</c>'s
+/// <c>default</c> arm is exactly what a fight cannot distinguish from "did nothing". The loops hand
+/// in a combat draw stream because <c>RANDOM_OUTCOME</c> refuses an evaluation carrying none.
 /// </remarks>
 public sealed class EffectOpResolverTests
 {

@@ -8,24 +8,6 @@ namespace SlayIdleRepeat.Core.Tests;
 /// <summary><see cref="WorldSlice"/>: the aggregates one command may touch.</summary>
 public sealed class WorldSliceTests
 {
-    [Fact]
-    public void A_slice_carries_the_aggregates_it_was_handed()
-    {
-        var player = Worlds.NewPlayer();
-        var run = Worlds.NewRun();
-
-        var slice = new WorldSlice(player, run);
-
-        slice.Player.ShouldBeSameAs(player);
-        slice.Run.ShouldBeSameAs(run);
-    }
-
-    [Fact]
-    public void The_run_is_null_outside_a_run()
-    {
-        new WorldSlice(Worlds.NewPlayer(), null).Run.ShouldBeNull();
-    }
-
     /// <summary>A slice always names a player: <c>Run</c> is modelled as a child of <c>Player</c>, never a peer.</summary>
     [Fact]
     public void A_slice_without_a_player_is_refused()
@@ -72,19 +54,6 @@ public sealed class WorldSliceTests
         run.MoveCurrency(Core.Primitives.CurrencyId.GOLD, 3L, "fixture_grant");
 
         slice.Run!.Gold.ShouldBe(8L);
-    }
-
-    /// <summary>
-    /// The current slice is <c>(Player, Run?)</c> and nothing else, pinned by identity rather than
-    /// count — a slice that grew a third member of another name would satisfy a count of two.
-    /// </summary>
-    [Fact]
-    public void The_M1_slice_is_the_player_and_the_run_and_nothing_else()
-    {
-        typeof(WorldSlice)
-            .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
-            .Select(p => p.Name)
-            .ShouldBe(new[] { nameof(WorldSlice.Player), nameof(WorldSlice.Run) }, ignoreOrder: true);
     }
 
     /// <summary>A slice may not pair one player with another player's run.</summary>

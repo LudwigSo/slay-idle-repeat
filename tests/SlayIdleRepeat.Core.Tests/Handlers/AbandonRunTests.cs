@@ -25,7 +25,6 @@ public sealed class AbandonRunTests
         result.NewState.Run!.Phase.ShouldBe(RunPhase.Ended);
     }
 
-    /// <summary>Abandoning pays the same 0.10 whether or not the Boss is already dead — no Victory bonus is banked.</summary>
     [Fact]
     public void Abandoning_a_victorious_run_still_pays_only_ten_percent()
     {

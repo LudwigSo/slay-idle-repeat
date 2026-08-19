@@ -59,36 +59,14 @@ public sealed class SkipDraftTests
     }
 
     /// <summary>
-    /// 🔒 A skipped draft leaves all three run-scoped draft counters exactly where they stood — the
-    /// mirror of <c>RerollDraftTests.A_reroll_leaves_all_three_draft_counters_standing</c>.
+    /// 🔒 Ruled: the counters count drafts the run <em>picked from</em>, and a skip picks nothing.
+    /// Mirror of <c>RerollDraftTests.A_reroll_leaves_all_three_draft_counters_standing</c>, excluded
+    /// for a different reason — a skip is rewarded rather than bought, so no farming argument
+    /// applies. Accepted cost: a habitual skipper meets each guarantee later.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Ruled, not incidental.</b> All three counters count drafts the run <em>picked from</em>,
-    /// and a skip picks nothing, so a skip moves none of them. That reading was settled by the
-    /// product owner on 2026-08-18 against the alternative — counting every draft a player was shown
-    /// — and the design set was amended to describe what ships rather than the code changed to
-    /// follow the documents. This case pins a decision; changing it means reopening the decision.
-    /// </para>
-    /// <para>
-    /// The two exclusions on these counters hold for <em>different</em> reasons, which is why the
-    /// skip and the reroll each need their own case rather than sharing one. A skip is excluded
-    /// because there is no pick to count: it pays the player, so no can-this-be-farmed argument
-    /// applies to it at all. A reroll is excluded because it is <em>bought</em> — a counter Gold
-    /// could move would make the guarantee itself purchasable. A reader who collapses the two into
-    /// one rule will conclude that one of them is a bug and correct it.
-    /// </para>
-    /// <para>
-    /// The accepted cost, recorded so it is not later mistaken for an oversight: a player who
-    /// habitually skips meets each guarantee later than one who does not.
-    /// </para>
-    /// <para>
-    /// All three counters start at distinct non-zero values, so for each one "unchanged", "reset"
-    /// and "advanced" are three different numbers and every assertion below separates all three. An
-    /// earlier form of this case started two of them at zero, where a handler that <em>reset</em>
-    /// the counters was indistinguishable from one that left them alone. The run also owns an
-    /// upgradable perk, so the famine's own gate is open rather than trivially closed.
-    /// </para>
+    /// All three counters start at distinct non-zero values so "unchanged", "reset" and "advanced"
+    /// are three different numbers; the run owns an upgradable perk so the famine's gate is open.
     /// </remarks>
     [Fact]
     public void A_skip_leaves_all_three_draft_counters_standing()

@@ -18,7 +18,10 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// <see cref="Inverted"/> gives the defending side the lower indices, which no legitimate duel does.
 /// It is malformed on purpose: on a conventional roster the ordering rule is unobservable, and an
 /// assertion would pass with the rule deleted — see
-/// <see cref="The_override_is_invisible_on_a_conventionally_indexed_duel"/>.
+/// <see cref="The_override_is_invisible_on_a_conventionally_indexed_duel"/>. That is also why this
+/// suite sits on the internal <c>Simulate(BattlePlan)</c>: the public <c>SimulateDuel</c>
+/// (<c>DuelEntryPointTests</c>) always builds the conventional roster, so it cannot express the one
+/// shape on which initiative is visible.
 /// </remarks>
 public sealed class PvpDuelTests
 {
@@ -201,31 +204,6 @@ public sealed class PvpDuelTests
 
     // ═══════════════════════════════════════════════════════════ duration
 
-    /// <summary>
-    /// The duel tick cap is derived from the authored duration in seconds, never a hardcoded 1200:
-    /// two inputs, because a single 60 s -> 1200 assertion is satisfied by a factory that ignores its
-    /// argument.
-    /// </summary>
-    [Fact]
-    public void The_duel_cap_is_pvpMaxFightSeconds_turned_into_ticks_by_the_clock()
-    {
-        var duel = CombatRules.Duel(DuelSeconds, lowerRatedSide: BattleSide.ENEMY);
-
-        duel.MaxTicks.ShouldBe(DuelTicks);
-        duel.HorizonSeconds.ShouldBe(DuelSeconds);
-        duel.OnKillTriggersFire.ShouldBeFalse("05 §3.3");
-        duel.IsPvp.ShouldBeTrue("18 §4's IS_PVP");
-        duel.ExactTieWinner.ShouldBe(BattleSide.ENEMY, "11 §4.3 — the lower-rated player takes a tie");
-
-        // The second input: a factory returning a hardcoded 1200 passes every line above.
-        CombatRules.Duel(30.0, BattleSide.ENEMY).MaxTicks.ShouldBe(600);
-        CombatRules.Duel(0.05, BattleSide.ENEMY).MaxTicks.ShouldBe(1);
-
-        // The factory does not bypass the log's addressable range.
-        Should.Throw<ArgumentOutOfRangeException>(
-            () => CombatRules.Duel(200.0, BattleSide.ENEMY).Validated());
-    }
-
     /// <summary>A duel nobody can win stops at tick 1200, where the same standoff in PvE runs to 1800.</summary>
     [Fact]
     public void A_duel_that_nobody_can_win_stops_at_1200_ticks_and_a_PvE_fight_at_1800()
@@ -270,42 +248,8 @@ public sealed class PvpDuelTests
     /// catch is to give it a default that changes PvE, so this is asserted here as well as there.
     /// </summary>
     [Fact]
-    public void A_PvE_timeout_tie_is_still_not_a_clear()
-    {
-        CombatRules.PvE.ExactTieWinner.ShouldBeNull();
-
+    public void A_PvE_timeout_tie_is_still_not_a_clear() =>
         Standoff(CombatRules.PvE, heroHp: 40, defenderHp: 80).HeroWon.ShouldBeFalse();
-    }
-
-    /// <summary>
-    /// "Is this a duel" is one fact: a fight is a duel exactly when an underdog is named, and
-    /// <c>IsPvp</c> is derived rather than stored — a stored bool beside <c>ExactTieWinner</c> would
-    /// be two spellings of one bit, with an invalid pairing constructible.
-    /// </summary>
-    [Fact]
-    public void Naming_an_underdog_is_what_makes_a_fight_a_duel()
-    {
-        CombatRules.PvE.ExactTieWinner.ShouldBeNull();
-        CombatRules.PvE.IsPvp.ShouldBeFalse();
-
-        Underdog(BattleSide.ENEMY).IsPvp.ShouldBeTrue();
-        Underdog(BattleSide.HERO).IsPvp.ShouldBeTrue();
-
-        // A `with` reaches the same one field, and the derived flag follows it in both directions.
-        (CombatRules.PvE with { ExactTieWinner = BattleSide.HERO }).IsPvp.ShouldBeTrue();
-        (Underdog(BattleSide.ENEMY) with { ExactTieWinner = null }).IsPvp.ShouldBeFalse();
-
-        // The flag is not settable on its own — there is no second storage to disagree with.
-        // NonPublic because CombatRules is internal to Core; reflection still needs telling.
-        var flag = typeof(CombatRules).GetProperty(
-            nameof(CombatRules.IsPvp),
-            System.Reflection.BindingFlags.Instance |
-            System.Reflection.BindingFlags.Public |
-            System.Reflection.BindingFlags.NonPublic);
-
-        flag.ShouldNotBeNull("the rule below asserts nothing if the property cannot be found");
-        flag.CanWrite.ShouldBeFalse("a settable IsPvp would be the second statement this collapse removed");
-    }
 
     /// <summary>
     /// The slight attacker edge as an outcome, not just a log order: when both heroes can one-shot

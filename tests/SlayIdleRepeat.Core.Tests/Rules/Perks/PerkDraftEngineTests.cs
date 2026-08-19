@@ -61,42 +61,10 @@ public sealed class PerkDraftEngineTests
                 everDrafted ?? NothingEverDrafted),
             rng);
 
-    // ------------------------------------------------------------------ shape
-
-    [Fact]
-    public void Generates_exactly_three_options()
-    {
-        var options = Generate(
-            Catalogue, NoneOwned(), Draft(1), stage: 1, isElite: false, isBoss: false);
-
-        options.Count.ShouldBe(PerkDraftEngine.OptionCount);
-        options.Count.ShouldBe(3);
-    }
-
-    [Fact]
-    public void Is_deterministic_for_the_same_seed_position_and_owned_set()
-    {
-        var first = Generate(
-            Catalogue, NoneOwned(), Draft(42), stage: 2, isElite: false, isBoss: false);
-        var second = Generate(
-            Catalogue, NoneOwned(), Draft(42), stage: 2, isElite: false, isBoss: false);
-
-        first.ShouldBe(second);
-    }
-
-    [Fact]
-    public void Every_offered_id_is_authored_in_the_catalogue()
-    {
-        var options = Generate(
-            Catalogue, NoneOwned(), Draft(7), stage: 3, isElite: true, isBoss: false);
-
-        foreach (var option in options)
-        {
-            Catalogue.Contains(option.PerkId).ShouldBeTrue(option.PerkId);
-        }
-    }
-
     // ------------------------------------------------------------------ fresh grant vs upgrade
+    //
+    // Option count, catalogue provenance and same-seed determinism are pinned at the public seam in
+    // DraftViewTests; what stays here is what no projection or command can select or observe.
 
     [Fact]
     public void An_unowned_perk_is_offered_as_a_fresh_grant_at_Tier_I()
@@ -149,14 +117,6 @@ public sealed class PerkDraftEngineTests
         options.ShouldAllBe(o => o.PerkId != PerkDocuments.Legendary1,
             "06 §1.1: once a perk is at Tier III it is removed from that run's draft pool");
 
-        // 🔴 This used to read `ShouldAllBe(o => o.PerkId == Epic1)`, and it was true only because
-        // this seed happened to draw the Epic band three times: the fallback's first stop is the
-        // Common band, not the one surviving Epic row. M4-01b's no-duplicate rule makes three copies
-        // of one perk unreachable by construction, so the claim is restated as what the fallback now
-        // actually does — the one drawable row in the Boss bands is offered once, and the slots that
-        // cannot have it leave those bands entirely rather than repeating it or reaching the maxed
-        // Legendary. Neither half is weaker: the first still forbids the maxed perk, the second still
-        // forbids every option outside the one legal Boss-band row.
         options.Count(o => o.PerkId == PerkDocuments.Epic1).ShouldBe(1,
             "the Boss table draws Epic/Legendary only and the sole Legendary is maxed, so the one Epic row is the only option those bands can pay — offered, and offered once");
         options.ShouldAllBe(o => o.PerkId == PerkDocuments.Epic1 || o.Rarity < PerkRarity.Epic,
@@ -198,26 +158,12 @@ public sealed class PerkDraftEngineTests
     private static IEnumerable<ulong> BudgetStarts => new[] { 0UL, Resumed };
 
     /// <summary>
-    /// 🔒 <b>A draft consumes exactly nine draw indices — three per slot — on every branch.</b> Bias
-    /// hit or missed, forced or unforced, pool floored or fallen back on.
+    /// 🔒 A draft consumes exactly nine draw indices — three per slot — on every branch: bias hit or
+    /// missed, forced or unforced, pool floored or fallen back on. A branch that took a fourth draw
+    /// desyncs client and server for the rest of the run, and only the stream position can see it.
+    /// Each branch also runs from a resumed position: a budget asserted only from zero cannot tell
+    /// "nine draws" from "seek to nine".
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The invariant the whole draft path is built around, and the one nothing asserted. The three
-    /// options a client shows are never persisted: they are re-derived from the run's committed
-    /// draft-stream position, on the client and on the server independently. A branch that took a
-    /// fourth draw — an owned pool consulted only when it is non-empty, a re-roll after an
-    /// unsatisfiable force — leaves the two at different positions from the next draft onwards, and
-    /// the two then disagree about every perk the run is ever offered. That is a desync no test in
-    /// this suite would otherwise notice, because every case here draws from its own fresh stream.
-    /// </para>
-    /// <para>
-    /// Every branch in one case, collecting the offenders, so a failure names <em>which</em> branch
-    /// went off-budget rather than which of nine near-identical facts failed first. Each branch runs
-    /// from a resumed position too: a budget asserted only from zero cannot tell "nine draws" from
-    /// "seek to nine".
-    /// </para>
-    /// </remarks>
     [Fact]
     public void Every_draft_consumes_exactly_three_draw_indices_per_slot()
     {
@@ -300,22 +246,10 @@ public sealed class PerkDraftEngineTests
 
     /// <summary>
     /// 🔒 The floor under the budget sweep (steering S3): it reaches drafts where the owned-upgrade
-    /// bias roll <b>hit</b> and drafts where it <b>missed</b>.
+    /// bias roll hit and drafts where it missed — the two branches the budget case cannot select by
+    /// argument. The rolls are recomputed positionally (slot <i>k</i>'s bias roll is the draw at
+    /// <c>start + 3k</c>), which also states the budget case's layout claim from the outside.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Those two are the branches the budget case cannot select by argument — they are chosen by the
-    /// first of each slot's three draws — and a sweep that only ever rolled one of them would report
-    /// the budget holding on a branch it never entered. Found by mutation, not by reading: adding a
-    /// fourth draw guarded on a bias hit left the budget case <b>green</b> when it ran on a single
-    /// seed.
-    /// </para>
-    /// <para>
-    /// The rolls are recomputed rather than observed. The draw stream is positional, so slot
-    /// <i>k</i>'s bias roll is the draw at <c>start + 3k</c> — which is also the layout claim the
-    /// budget case rests on, stated here from the outside instead of taken on trust.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_budget_sweep_reaches_both_sides_of_the_bias_roll()
     {
@@ -371,9 +305,8 @@ public sealed class PerkDraftEngineTests
                 new DraftRequest(Catalogue, NoneOwned(), Tuning, Weights, Unforced, null!),
                 Draft(1)));
 
-        // 🔒 The whole request left at its default, which a record STRUCT reaches without running a
-        // constructor at all — the shape a guard inside DraftRequest could not have covered, and the
-        // reason GenerateOptions null-guards the members rather than trusting the type.
+        // A record struct reaches its default without running a constructor, so GenerateOptions
+        // null-guards the members rather than trusting the type.
         Should.Throw<ArgumentNullException>(() =>
             PerkDraftEngine.GenerateOptions(default, Draft(1)));
     }

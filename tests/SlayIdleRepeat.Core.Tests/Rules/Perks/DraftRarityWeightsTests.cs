@@ -7,7 +7,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Perks;
 
-/// <summary><c>DraftRarityWeights.For</c>, the <c>RarityWeights(stage, isElite, isBoss)</c> table.</summary>
+/// <summary>
+/// <c>DraftRarityWeights.For</c>, the <c>RarityWeights(stage, isElite, isBoss)</c> table. Internal
+/// seam by necessity: a draft exposes a weight only as a rate across many seeds, so no public entry
+/// point can pin the 06 §4 numbers exactly.
+/// </summary>
 public sealed class DraftRarityWeightsTests
 {
     private static double WeightOf(PerkRarity rarity, IReadOnlyList<(PerkRarity Rarity, double Weight)> table) =>

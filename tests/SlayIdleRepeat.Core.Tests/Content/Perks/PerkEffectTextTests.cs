@@ -12,20 +12,10 @@ namespace SlayIdleRepeat.Core.Tests.Content.Perks;
 /// sentence a draft card draws, with the tier's own authored numbers in it.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Every substitution case is driven by a SYNTHETIC catalogue</b> and not by the shipped one.
-/// A case stated over today's data agrees with today's data by construction: it cannot tell a
-/// renderer that reads the authored member from one that happens to answer the same number, and it
-/// goes red for the wrong reason the day a balance pass moves a value. The shipped catalogue is
-/// asserted separately, and about a different thing — which perks it cannot render at all.
-/// </para>
-/// <para>
-/// 🔒 <b>The load-bearing claim is that a hole is never filled.</b> A renderer that answered
-/// <c>0</c>, or the token's own name, or the template unchanged, for a member the data does not
-/// carry would pass every positive case in this file.
-/// <see cref="A_source_the_anchor_effect_does_not_carry_is_unresolved_rather_than_defaulted"/> and
-/// the catalogue pin below are what say otherwise.
-/// </para>
+/// 🔒 Every substitution case is driven by a SYNTHETIC catalogue: a case stated over today's data
+/// cannot tell a renderer that reads the authored member from one that happens to answer the same
+/// number. The shipped catalogue is asserted separately, about a different thing — which perks it
+/// cannot render at all.
 /// </remarks>
 public sealed class PerkEffectTextTests
 {
@@ -34,18 +24,8 @@ public sealed class PerkEffectTextTests
 
     /// <summary>The perks the shipped catalogue cannot fully render, and the tokens that stop each one.</summary>
     /// <remarks>
-    /// 🔒 A self-expiring pin (steering S4). It is stated as an EQUALITY in both directions, so it
-    /// goes red the day one of these is authored so it renders and red the day a fifth arrives —
-    /// neither of which is a change anybody would otherwise notice, because the screen's response to
-    /// an unrenderable perk is a card that quietly says its numbers are unavailable.
-    /// <para>
-    /// None of the four is reachable by a renderer. <c>{value2}</c>, <c>{high}</c> and <c>{low}</c>
-    /// name no member of the effect schema at all; <c>{high}</c>/<c>{low}</c> echo the two effect
-    /// IDS the perk's random-outcome roll picks between, and keying a renderer on an effect id is
-    /// the per-perk special case this type exists without. PK_FORTRESS carries a second defect on
-    /// top of its <c>{value2}</c>: its <c>x1.{value}</c> wants the digits <c>3</c> where the effect
-    /// authors <c>0.3</c>, so even a renderer answering <c>{value2}</c> would draw <c>x1.0.3</c>.
-    /// </para>
+    /// <c>{value2}</c>, <c>{high}</c> and <c>{low}</c> name no member of the effect schema, so none
+    /// of the four is reachable by a renderer that stays free of per-perk special cases.
     /// </remarks>
     private static readonly IReadOnlyDictionary<string, string[]> Unrenderable =
         new Dictionary<string, string[]>(StringComparer.Ordinal)
@@ -285,11 +265,8 @@ public sealed class PerkEffectTextTests
     /// 🔒 …and a source only a LATER effect carries is unresolved too, rather than borrowed from it.
     /// </summary>
     /// <remarks>
-    /// The decoy in <see cref="Every_token_reads_the_first_effect_carrying_a_value"/> sits BEFORE the
-    /// anchor, so a renderer that falls back to scanning siblings whenever the anchor comes up empty
-    /// passes that case — and passes the single-effect case above too, which has no sibling to fall
-    /// back to. This is the arrangement that separates the two, and the one that says a sentence
-    /// never mixes a second effect's numbers into a single claim.
+    /// A renderer that falls back to scanning siblings passes both the decoy case (decoy sits before
+    /// the anchor) and the single-effect case (no sibling); only this arrangement separates it.
     /// </remarks>
     [Fact]
     public void A_source_only_a_later_effect_carries_is_unresolved_rather_than_borrowed()
@@ -380,9 +357,8 @@ public sealed class PerkEffectTextTests
 
     /// <summary>🔒 Exactly four shipped perks cannot have their numbers rendered, and they are these four.</summary>
     /// <remarks>
-    /// Red the day one of them is authored so it renders, and red the day a fifth arrives. Both are
-    /// the point: the screen's response to an unrenderable perk is a card that says its numbers are
-    /// unavailable, which nobody reviewing a content diff would ever notice.
+    /// A self-expiring pin: red the day one of them is authored so it renders, and red the day a
+    /// fifth arrives — neither is a change a content diff review would notice.
     /// </remarks>
     [Fact]
     public void The_shipped_catalogue_cannot_render_exactly_four_perks()
@@ -391,34 +367,41 @@ public sealed class PerkEffectTextTests
 
         offenders.Keys.OrderBy(id => id, StringComparer.Ordinal).ShouldBe(
             Unrenderable.Keys.OrderBy(id => id, StringComparer.Ordinal),
-            "the shipped catalogue's unrenderable set moved. It was PK_FORTRESS, PK_GAMBLER, " +
-            "PK_LAST_STAND and PK_MIRROR — three of them for {value2} and PK_GAMBLER for " +
-            "{high}/{low}, none of which names a member of the effect schema. A perk LEAVING this " +
-            "set means its description was fixed and this pin has expired for it; a perk JOINING it " +
-            "means a description was authored against data that cannot answer it, and its draft " +
-            "card will silently say its numbers are unavailable.");
+            "a perk LEAVING this set means its description was fixed and this pin has expired for " +
+            "it; a perk JOINING it means a description was authored against data that cannot answer " +
+            "it, and its draft card will silently say its numbers are unavailable.");
     }
 
     /// <summary>…and each of the four is stopped by exactly the tokens named above.</summary>
-    [Fact]
-    public void Each_unrenderable_shipped_perk_is_stopped_by_exactly_the_tokens_named()
+    [Theory]
+    [MemberData(nameof(UnrenderablePerks))]
+    public void Each_unrenderable_shipped_perk_is_stopped_by_exactly_the_tokens_named(
+        string perkId, string[] expected)
     {
         var offenders = ShippedFailures();
 
-        foreach (var (perkId, expected) in Unrenderable)
+        offenders.Keys.ShouldContain(perkId);
+        offenders[perkId].OrderBy(t => t, StringComparer.Ordinal).ShouldBe(
+            expected.OrderBy(t => t, StringComparer.Ordinal),
+            perkId + " is stopped by a different set of tokens than this pin records.");
+    }
+
+    public static TheoryData<string, string[]> UnrenderablePerks()
+    {
+        var data = new TheoryData<string, string[]>();
+
+        foreach (var (perkId, tokens) in Unrenderable)
         {
-            offenders.Keys.ShouldContain(perkId);
-            offenders[perkId].OrderBy(t => t, StringComparer.Ordinal).ShouldBe(
-                expected.OrderBy(t => t, StringComparer.Ordinal),
-                perkId + " is stopped by a different set of tokens than this pin records.");
+            data.Add(perkId, tokens);
         }
+
+        return data;
     }
 
     /// <summary>🔒 …and every OTHER shipped perk renders a sentence with no token left standing in it.</summary>
     /// <remarks>
-    /// The negative control on the pin above. A renderer answering the template unchanged, or the
-    /// token's own name, would satisfy the unrenderable-set equality perfectly — the set would be
-    /// empty rather than four — and would draw <c>+{value}% ATK.</c> on every card.
+    /// The negative control on the pin above: a renderer answering the template unchanged would make
+    /// the unrenderable set empty, not four, and would draw <c>+{value}% ATK.</c> on every card.
     /// </remarks>
     [Fact]
     public void Every_other_shipped_perk_renders_a_sentence_carrying_no_token()
@@ -426,10 +409,8 @@ public sealed class PerkEffectTextTests
         var catalogue = PerkCatalogue.Read(ShippedHarness.Content);
         var renderable = catalogue.All.Where(p => !Unrenderable.ContainsKey(p.Id)).ToArray();
 
-        // 🔒 The subject set, floored by NAME rather than by a count (steering S3). A count derived
-        // from the same list the loop walks agrees with itself over an EMPTY catalogue, so it says
-        // nothing about whether anything was walked at all. These three are the perks the spelled-out
-        // cases below name, one per substitution rule.
+        // The subject set is floored by name — a count derived from the walked list itself would
+        // agree with itself over an empty catalogue.
         var walked = renderable.Select(perk => perk.Id).ToArray();
 
         walked.ShouldContain("PK_SHARP_EDGE");
@@ -450,16 +431,10 @@ public sealed class PerkEffectTextTests
     }
 
     /// <summary>
-    /// …and three shipped sentences, spelled out, so the apparatus is anchored in the real data and
-    /// not only in its own fixtures.
+    /// …and three shipped sentences, spelled out, one per substitution rule: the percent suffix,
+    /// the <c>value × cap</c> product (PK_BERSERK's +126% is 0.028 × 45, not 45), and the value-less
+    /// anchor fallback. These move when balance moves — re-state the row rather than loosening.
     /// </summary>
-    /// <remarks>
-    /// One perk per rule the synthetic cases state separately: the percent suffix (PK_SHARP_EDGE),
-    /// the <c>value × cap</c> product (PK_BERSERK, whose <c>+126%</c> is <c>0.028 × 45</c> and not
-    /// <c>45</c>), and the value-less anchor fallback (PK_FLURRY, whose tier authors no <c>value</c>
-    /// at all). ⚠️ These move when balance moves — that is what they are for; re-read the row and
-    /// re-state it rather than loosening the assertion.
-    /// </remarks>
     [Theory]
     [InlineData("PK_SHARP_EDGE", 1, "+12% ATK.")]
     [InlineData("PK_BERSERK", 3, "+2.8% ATK per 1% missing HP, up to +126%.")]

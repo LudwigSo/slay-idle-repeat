@@ -12,19 +12,10 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 // test written here could not name the very class it is testing (CS0118).
 
 /// <summary>
-/// Hermetic <see cref="PlayerSnapshot"/> fixtures — one valid row, and a <c>With(...)</c> that replaces
-/// exactly one field so a test names the single thing it is about.
+/// Hermetic <see cref="PlayerSnapshot"/> fixtures — one valid row, and a <c>With(...)</c> that
+/// replaces exactly one field so a test names the single thing it is about. Every instant is UTC
+/// and every period boundary is 05:00 UTC, because <c>Player.Rehydrate</c> refuses anything else.
 /// </summary>
-/// <remarks>
-/// A test that built a whole snapshot inline would restate fourteen fields to change one, and the
-/// reader could not tell which it was asserting about.
-/// <para>
-/// Every instant is UTC with a zero offset and every period boundary is 05:00 UTC, because
-/// <c>Player.Rehydrate</c> refuses anything else. <see cref="Monday"/> and <see cref="Wednesday"/> are
-/// real weekdays checked against the calendar, since a fixture quietly naming the wrong one would make
-/// the Monday-boundary assertions pass for the wrong reason.
-/// </para>
-/// </remarks>
 internal static class PlayerSnapshots
 {
     /// <summary>2026-08-10 05:00 UTC — a Monday, so a legal game-<b>week</b> boundary.</summary>
@@ -39,17 +30,11 @@ internal static class PlayerSnapshots
     /// <summary>The identity every fixture uses unless a test is about identity.</summary>
     internal static readonly PlayerId Id = new("PLAYER_TEST");
 
-    /// <summary>A wallet with every player-scoped currency present at zero.</summary>
-    internal static IReadOnlyDictionary<CurrencyId, long> EmptyWallet => Wallet();
-
     /// <summary>
-    /// A wallet holding every player-scoped currency, with the named ones overridden.
+    /// A wallet holding every player-scoped currency, with the named ones overridden. Built from
+    /// <c>Player.WalletCurrencies</c> so a currency added to the aggregate cannot leave the
+    /// fixtures silently short of a row.
     /// </summary>
-    /// <remarks>
-    /// Built from <c>Player.WalletCurrencies</c> rather than from a second list of six, so a
-    /// currency added to the aggregate cannot leave the fixtures silently short of a row — which
-    /// would make every rehydration test fail for a reason unrelated to what it asserts.
-    /// </remarks>
     internal static IReadOnlyDictionary<CurrencyId, long> Wallet(
         params (CurrencyId Currency, long Balance)[] overrides)
     {
@@ -82,25 +67,14 @@ internal static class PlayerSnapshots
     internal static PlayerSnapshot Valid { get; } = With();
 
     /// <summary>
-    /// The valid row with one of its three reference-typed maps replaced by <c>null</c>.
+    /// The valid row with one reference-typed field replaced by <c>null</c> — <see cref="With"/>'s
+    /// optional parameters read <c>null</c> as "keep the shipped value", so the null cases get
+    /// their own door.
     /// </summary>
     /// <remarks>
-    /// <see cref="With"/> cannot express this: its optional parameters read <c>null</c> as "keep
-    /// the shipped value", which is what makes it readable — so the null cases get their own door
-    /// rather than a sentinel that every other call site would have to understand.
-    /// </remarks>
-    /// <remarks>
-    /// <paramref name="cleared"/> and <paramref name="feats"/> are the two appended maps, and they
-    /// are deliberately asymmetric: a null <c>ClearedChapterTiers</c> is READ as "nothing cleared
-    /// yet", while a null <c>FeatCounters</c> is a FAULT. Both stay expressible here so that
-    /// asymmetry is testable rather than assumed. <paramref name="inventory"/>,
-    /// <paramref name="autoSalvage"/>, <paramref name="loadout"/> and <paramref name="presets"/> all
-    /// join the FAULT side.
-    /// <para>
-    /// 🔴 Every parameter here is optional and every call site passes them BY NAME. A new one is
-    /// appended LAST and nowhere else: a parameter inserted mid-signature merges textually clean and
-    /// silently re-binds every positional argument after it.
-    /// </para>
+    /// 🔴 Every parameter is optional and passed BY NAME; a new one is appended LAST — a parameter
+    /// inserted mid-signature merges textually clean and silently re-binds later positional
+    /// arguments.
     /// </remarks>
     internal static PlayerSnapshot WithNull(
         bool wallet = false,
@@ -187,10 +161,6 @@ internal static class PlayerSnapshots
             dailyCounters ?? Counters(),
             weeklyPeriodStartUtc ?? Monday,
             weeklyCounters ?? Counters(),
-
-            // The starting calendar: day 1 open and UNCLAIMED, which is where a brand-new player
-            // stands. A fixture that defaulted to `claimed` would make the paused arm the
-            // exception rather than the rule.
             loginCalendarDay ?? LoginCalendarTuning.FirstDay,
             loginCalendarDayClaimed ?? false,
             clearedChapterTiers ?? Counters(),
@@ -203,15 +173,10 @@ internal static class PlayerSnapshots
             Presets: presets ?? NoPresets,
             BattleHashMismatches: battleHashMismatches ?? 0);
 
-    /// <summary>A hero wearing nothing — where a new player stands.</summary>
-    /// <remarks>
-    /// Empty, never <c>null</c>: an absent loadout is a fault on <see cref="EmptyInventory"/>'s
-    /// precedent. Expression-bodied for the reason that member records.
-    /// </remarks>
+    /// <summary>Empty, never <c>null</c> — an absent loadout is a fault. Expression-bodied for <see cref="EmptyInventory"/>'s reason.</summary>
     internal static LoadoutSnapshot EmptyLoadout => new(Gear());
 
-    /// <summary>A player who has saved no presets.</summary>
-    /// <remarks>Empty, never <c>null</c>, for the reason <see cref="EmptyLoadout"/> records.</remarks>
+    /// <summary>Empty, never <c>null</c>, for the reason <see cref="EmptyLoadout"/> records.</summary>
     internal static IReadOnlyList<LoadoutPresetSnapshot> NoPresets => [];
 
     /// <summary>A slot → instance map of the shape a loadout carries.</summary>
@@ -220,25 +185,13 @@ internal static class PlayerSnapshots
         new ReadOnlyDictionary<GearSlot, GearInstanceId>(
             entries.ToDictionary(e => e.Slot, e => new GearInstanceId(e.InstanceId)));
 
-    /// <summary>An inventory holding nothing, with no expansion bought — where a new player stands.</summary>
-    /// <remarks>
-    /// Empty, never <c>null</c>: an absent inventory is a fault on <c>FeatCounters</c>' precedent, so
-    /// a fixture defaulting to one would make every rehydration case in this suite fail for a reason
-    /// unrelated to what it asserts.
-    /// </remarks>
-    /// <remarks>
-    /// Expression-bodied rather than an initialised static, and that is load-bearing: a static
-    /// initialiser runs in DECLARATION order, and <see cref="Valid"/> is declared above this — so an
-    /// initialised property here would still be <c>null</c> when <see cref="Valid"/> was built, and
-    /// every fixture in the suite would carry the very absent inventory this member exists to avoid.
-    /// </remarks>
+    /// <summary>
+    /// Empty, never <c>null</c> — an absent inventory is a fault. Expression-bodied and that is
+    /// load-bearing: static initialisers run in declaration order, so an initialised property below
+    /// <see cref="Valid"/> would still be <c>null</c> when <see cref="Valid"/> was built.
+    /// </summary>
     internal static InventorySnapshot EmptyInventory => new(0, [], []);
 
-    /// <summary>An auto-salvage filter with no rows — where every player stands until they set one.</summary>
-    /// <remarks>
-    /// Empty, never <c>null</c>, and expression-bodied, for the two reasons
-    /// <see cref="EmptyInventory"/> records: an absent filter is a fault, and a static initialiser
-    /// declared below <see cref="Valid"/> would still be null when <see cref="Valid"/> was built.
-    /// </remarks>
+    /// <summary>Empty, never <c>null</c>, and expression-bodied, for <see cref="EmptyInventory"/>'s two reasons.</summary>
     internal static IReadOnlyList<AutoSalvageRule> NoAutoSalvage => [];
 }

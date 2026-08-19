@@ -37,9 +37,8 @@ internal static class InventoryDocuments
     internal const int ShippedExpansionStep = 20;
 
     /// <summary>
-    /// The ceiling, equal to <see cref="ShippedBaseCapacity"/> by rule as of the M4 retro's ruling of
-    /// 2026-08-17. It used to be <c>120 + 10 × 20 = 320</c> — the ladder's reach — and is now an
-    /// authored flat number the ladder must stay strictly above.
+    /// The ceiling, equal to <see cref="ShippedBaseCapacity"/> by the 2026-08-17 ruling: an authored
+    /// flat number the ladder must stay strictly above.
     /// </summary>
     internal const int ShippedMaxCapacity = 1000;
 
@@ -104,28 +103,10 @@ internal static class InventoryDocuments
     /// block left exactly as authored.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Built from the real document rather than from nothing, and that is a correctness
-    /// requirement rather than a convenience.</b> This used to author <c>{ "inventory": … }</c> and
-    /// nothing else, because the capacity readers were the only thing that had ever read this document
-    /// in a fixture. Once <c>CONFIRM_BATTLE_RESULT</c> began recomputing the fight (<c>14</c> §9), a
-    /// composed hero started reading the <b>same</b> document for the enhancement multiplier M4-16 moved
-    /// into <c>ForgeTuning</c> — and <c>ForgeTuning.Read</c> wants <c>merge</c>, <c>enhance</c>, their
-    /// price maps, their stone costs and their success-rate curve. A document holding half of what its
-    /// readers need is not a smaller fixture, it is a broken one.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>Hand-authoring the rest was considered and rejected.</b> <c>ForgeTuning.Read</c> reads
-    /// twelve tunables including two band-keyed price maps and a per-level curve; a hand-built copy
-    /// would be a second `08` §4 that drifts silently the first time the real one is retuned. Replacing
-    /// one block of the real document keeps every other number a single authored value.
-    /// </para>
-    /// <para>
-    /// ⚠️ The <c>inventory</c> block is still replaced <em>wholesale</em> rather than per-leaf, so the
-    /// three capacity parameters keep behaving exactly as they did — including
-    /// <see cref="ContentValue.Unauthorised"/> for a deliberate hole, which is what the missing-leaf
-    /// cases pass.
-    /// </para>
+    /// Built from the real document rather than from nothing: <c>ForgeTuning.Read</c> reads twelve
+    /// tunables from this same document, and a hand-built copy would drift silently on the first
+    /// retune. Only the <c>inventory</c> block is replaced, wholesale, so
+    /// <see cref="ContentValue.Unauthorised"/> still expresses a deliberate hole.
     /// </remarks>
     private static ContentValue Forge(
         ContentValue? baseCapacity, ContentValue? expansionStep, ContentValue? maxCapacity)

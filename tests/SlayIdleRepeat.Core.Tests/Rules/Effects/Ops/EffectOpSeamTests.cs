@@ -6,10 +6,10 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
-/// <summary>Every unwired seam throws naming the task that owns it, rather than quietly doing nothing.</summary>
+/// <summary>The strict-default seams refuse every op family by name rather than quietly doing nothing.</summary>
 /// <remarks>
-/// A no-op default would turn "the seam hasn't landed" into "this perk does nothing", which nothing
-/// else would catch — so each case asserts the owner named in the message, not merely that it threw.
+/// Sanctioned internal: these refusals throw before any fight exists. A no-op default would turn "no
+/// seam was supplied" into "this perk does nothing", which nothing else would catch.
 /// </remarks>
 public sealed class EffectOpSeamTests
 {
@@ -118,22 +118,6 @@ public sealed class EffectOpSeamTests
         // Confirms the heal landed on the HOLDER specifically: a CURRENT_TARGET default would have
         // thrown here (no target in context), and any enemy default would name someone else.
         bench.Only("Heal").Actor.ShouldBe("HERO");
-    }
-
-    /// <summary>An absent target resolves to <c>SELF</c>, matching the resolver's own default.</summary>
-    [Fact]
-    public void An_absent_target_is_SELF_per_18_2_4s_CLEAR_SUMMONS_row()
-    {
-        var surviveLethal = new EffectDefinition
-        {
-            Id = "PK_UNBREAKABLE", Op = EffectOp.SURVIVE_LETHAL, Value = 1, ValueMode = ValueMode.FLAT,
-        };
-
-        EffectDefaults.TargetOf(surviveLethal).ShouldBe(EffectTarget.SELF);
-
-        // An authored target is never overridden.
-        EffectDefaults.TargetOf(surviveLethal with { Target = EffectTarget.ALL_ENEMIES })
-                      .ShouldBe(EffectTarget.ALL_ENEMIES);
     }
 
     /// <summary>

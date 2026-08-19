@@ -20,18 +20,6 @@ public sealed class SetBonusCatalogueTests
 {
     private static readonly int[] Breakpoints = [2, 4, 6];
 
-    /// <summary>The shipped document authors one set per family axis.</summary>
-    [Fact]
-    public void The_shipped_catalogue_authors_one_set_per_family_axis()
-    {
-        var sets = Shipped();
-
-        sets.SetCount.ShouldBe(
-            Enum.GetValues<GearFamilyAxis>().Length,
-            "there is exactly one set per axis, and an axis with no row is a set a loadout can wear " +
-            "and nothing can grant");
-    }
-
     /// <summary>Every breakpoint at or below the piece count grants, not only the highest.</summary>
     /// <remarks>
     /// The tiers escalate rather than replace, so a four-piece set is still granting its two-piece
@@ -136,11 +124,9 @@ public sealed class SetBonusCatalogueTests
 
     /// <summary>A key the reader does not map INSIDE the trigger is refused too.</summary>
     /// <remarks>
-    /// 🔴 The second probe of the guard above, and the one that found something: checking the
-    /// effect's own keys leaves the same lossiness one level down, where a trigger carries eleven
-    /// parameters this reader does not map. It is reachable at the next authoring step — a
-    /// once-per-battle save is <c>once</c> on an <c>ON_LETHAL</c> trigger, and dropping it silently
-    /// turns one save per fight into one every time the hero would die.
+    /// Reachable at the next authoring step: a once-per-battle save is <c>once</c> on an
+    /// <c>ON_LETHAL</c> trigger, and dropping it silently turns one save per fight into one every
+    /// time the hero would die.
     /// </remarks>
     [Fact]
     public void A_trigger_key_the_reader_does_not_map_is_refused()

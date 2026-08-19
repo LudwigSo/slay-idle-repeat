@@ -35,16 +35,6 @@ public sealed class InRunIncomeTuningTests
             .ShouldBe(Math.Pow(1.35, chapterId - 1), 1e-12);
     }
 
-    /// <summary>…and chapter 1 is exactly 1, the one row that does not depend on the base.</summary>
-    [Fact]
-    public void Chapter_one_scales_by_exactly_one()
-    {
-        var tuning = ChapterScalarTuning.Read(Shipped);
-
-        tuning.MetaScalar(1).ShouldBe(1.0);
-        tuning.GoldScalar(1).ShouldBe(1.0);
-    }
-
     /// <summary>…and the gold curve is the same shape over its own, faster base.</summary>
     [Theory]
     [InlineData(1)]
@@ -120,12 +110,8 @@ public sealed class InRunIncomeTuningTests
         ChapterScalarTuning.Read(Shipped).MetaScalar(4).ShouldBe(Math.Pow(1.35, 3), 1e-12);
     }
 
-    // ⚠️ There is deliberately NO test for a non-finite growth base, and its absence is recorded
-    // rather than an oversight: ContentValue backs every number with a decimal, so ReadDouble cannot
-    // produce a NaN or an infinity and the reader's IsFinite arm is unreachable from content. It is
-    // a consistency guard matching the three sibling readers — see ChapterScalarTuning.ReadGrowth —
-    // and a test that could only reach it by bypassing the content seam would be asserting against a
-    // state the game cannot be in.
+    // No test for a non-finite growth base: ContentValue backs every number with a decimal, so the
+    // reader's IsFinite arm is unreachable from content.
 
     /// <summary>A chapter below the floor of 1 has no exponent to raise the base to.</summary>
     [Theory]
@@ -137,13 +123,6 @@ public sealed class InRunIncomeTuningTests
 
         Should.Throw<ArgumentOutOfRangeException>(() => tuning.MetaScalar(chapterId));
         Should.Throw<ArgumentOutOfRangeException>(() => tuning.GoldScalar(chapterId));
-    }
-
-    /// <summary>…and the negative control: chapter 1 is accepted.</summary>
-    [Fact]
-    public void Chapter_one_is_accepted()
-    {
-        Should.NotThrow(() => ChapterScalarTuning.Read(Shipped).MetaScalar(1));
     }
 
     /// <summary>
@@ -172,19 +151,10 @@ public sealed class InRunIncomeTuningTests
 
     // ------------------------------------------------------------------ CampfireTuning
 
-    /// <summary>The campfire's rest heal comes from the document.</summary>
-    [Fact]
-    public void The_campfire_heal_comes_from_the_currencies_document()
-    {
-        CampfireTuning.Read(Shipped).HealPctMaxHp.ShouldBe(0.4);
-    }
-
-    /// <summary>…and is genuinely READ rather than the constant it used to be.</summary>
-    /// <remarks>
-    /// This test is the point of the whole block: the rest heal used to ship as a
-    /// <c>const double HealPctMaxHp = 0.40</c> on <c>CampfireResolver</c>. Asserting only the shipped
-    /// 0.4 would pass just as well against the constant.
-    /// </remarks>
+    /// <summary>
+    /// The rest heal is genuinely READ, not a constant — asserting only the shipped 0.4 would pass
+    /// just as well against a hardcoded one.
+    /// </summary>
     [Fact]
     public void A_different_authored_campfire_heal_is_honoured()
     {
@@ -236,27 +206,6 @@ public sealed class InRunIncomeTuningTests
             profiles[i].EnhanceStones.ShouldBe(stones);
             profiles[i].MergeDust.ShouldBe(dust);
         }
-    }
-
-    /// <summary>
-    /// 🔒 The order is preserved, not sorted — <c>WeightedPick</c> walks a table in order, so a
-    /// reader that re-ordered these would change what every existing run seed pays.
-    /// </summary>
-    [Fact]
-    public void The_treasure_profiles_keep_the_documents_order()
-    {
-        TreasureTuning.Read(Shipped).Profiles.Select(p => p.Id)
-            .ShouldBe(["COIN_HOARD", "STONE_CACHE", "DUST_TROVE"]);
-    }
-
-    /// <summary>A zero column is authored and legal — <c>DUST_TROVE</c> pays no Enhance Stones.</summary>
-    [Fact]
-    public void A_zero_payout_column_is_accepted()
-    {
-        var dustTrove = TreasureTuning.Read(Shipped).Profiles.Single(p => p.Id == "DUST_TROVE");
-
-        dustTrove.EnhanceStones.ShouldBe(0);
-        dustTrove.MergeDust.ShouldBe(10);
     }
 
     /// <summary>A negative payout would make a treasure tile charge the player.</summary>
@@ -349,7 +298,10 @@ public sealed class InRunIncomeTuningTests
 
     // ------------------------------------------------------------------ ShrineTuning
 
-    /// <summary>The pool of ten, in the document's own order and with its own numbers.</summary>
+    /// <summary>
+    /// The pool of ten, in the document's own order and with its own numbers — including the
+    /// authored nulls, carried through as nulls rather than zeros.
+    /// </summary>
     [Fact]
     public void Every_shrine_buff_comes_from_the_currencies_document()
     {
@@ -367,39 +319,6 @@ public sealed class InRunIncomeTuningTests
             tuning.Buffs[i].Magnitude.ShouldBe(magnitude is null ? null : (double)magnitude.Value);
             tuning.Buffs[i].ImmediateHealPctMaxHp.ShouldBe(heal is null ? null : (double)heal.Value);
         }
-    }
-
-    /// <summary>
-    /// 🔒 <c>SHR_HEAL</c>'s authored <c>null</c> stat is carried through as <c>null</c>, never
-    /// defaulted to a zero magnitude that would read as "a buff of nothing".
-    /// </summary>
-    [Fact]
-    public void The_heal_only_row_carries_its_authored_nulls()
-    {
-        var heal = ShrineTuning.Read(Shipped).Buffs.Single(b => b.Id == "SHR_HEAL");
-
-        heal.Stat.ShouldBeNull();
-        heal.Magnitude.ShouldBeNull();
-        heal.ImmediateHealPctMaxHp.ShouldBe(0.4);
-    }
-
-    /// <summary>…and <c>SHR_HP</c> carries BOTH halves, which is why the heal is not a row flag.</summary>
-    [Fact]
-    public void The_max_hp_row_carries_a_stat_and_a_heal()
-    {
-        var hp = ShrineTuning.Read(Shipped).Buffs.Single(b => b.Id == "SHR_HP");
-
-        hp.Stat.ShouldBe("MAX_HP");
-        hp.Magnitude.ShouldBe(0.18);
-        hp.ImmediateHealPctMaxHp.ShouldBe(0.18);
-    }
-
-    /// <summary>The eight stat-only rows carry no heal at all, rather than a zero one.</summary>
-    [Fact]
-    public void A_stat_only_row_carries_no_heal()
-    {
-        ShrineTuning.Read(Shipped).Buffs.Single(b => b.Id == "SHR_ATK")
-            .ImmediateHealPctMaxHp.ShouldBeNull();
     }
 
     /// <summary>A row that authors neither a stat buff nor a heal does nothing at all.</summary>

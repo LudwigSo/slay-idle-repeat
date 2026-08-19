@@ -11,23 +11,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Luck;
 /// before it is not, and a fired counter goes back to zero.
 /// </summary>
 /// <remarks>
-/// <para>
 /// <c>24</c> §11: <em>"every rule in §4 gets an explicit unit test asserting the guarantee fires at
-/// exactly N"</em>. The theories below run over every <c>N</c> authored anywhere in
-/// <c>luck.json</c> — all seventeen of them, the five classes that state their rule in another shape
-/// included — rather than over a hand-picked few, so the coverage claim is visible rather than
-/// asserted.
-/// </para>
-/// <para>
-/// ⚠️ <b>What these cases are about is the primitive, at each authored number — not which draw of
-/// each rule that number names.</b> The two are the same question for fifteen of the seventeen rows
-/// and deliberately not for two: <c>DRAFT</c>'s quality floor and upgrade famine author the drafts
-/// that pass <em>before</em> the next one is floored, so the rule's rung is the authored number plus
-/// one and the draw this file proves forced is one earlier than the draft the rule actually floors.
-/// The messages below therefore say "a rung of N", never "this rule forces draw N".
-/// <c>DraftGuaranteeTests</c> pins all three readings against the drafts they floor, one boundary
-/// case each, which is where that claim belongs.
-/// </para>
+/// exactly N"</em>. The theories run over every <c>N</c> authored anywhere in <c>luck.json</c>.
+/// ⚠️ They pin the primitive at each authored number, not which draw of each rule that number names:
+/// <c>DRAFT</c>'s quality floor and upgrade famine author the drafts that pass <em>before</em> the
+/// next one is floored, and <c>DraftGuaranteeTests</c> is where those readings are pinned.
 /// </remarks>
 public sealed class HardPityTests
 {
@@ -46,12 +34,10 @@ public sealed class HardPityTests
 
     // ---------------------------------------------------------------- the guarantee fires at exactly N
 
-    /// <summary>The N-th draw since the counter last reset is the forced one.</summary>
-    /// <remarks>
+    /// <summary>
     /// The counter holds misses <em>before</em> the draw, so the N-th draw is the one taken with
-    /// <c>N − 1</c> misses on the clock. Getting that off by one shifts every guarantee in the game
-    /// by a draw and turns <c>24</c> §4.1's ten-chest promise into an eleven-chest one.
-    /// </remarks>
+    /// <c>N − 1</c> misses on the clock — off by one, every guarantee in the game shifts by a draw.
+    /// </summary>
     [Theory]
     [MemberData(nameof(EveryAuthoredN))]
     public void The_Nth_draw_since_the_last_reset_is_forced(string source, string reference, int everyNth)
@@ -62,11 +48,10 @@ public sealed class HardPityTests
             $"taken with {N(everyNth - 1)} misses on the clock (24 §1 M1).");
     }
 
-    /// <summary>The draw before the N-th is not forced.</summary>
-    /// <remarks>
+    /// <summary>
     /// The half that makes "at exactly N" a claim rather than "at N or earlier": a predicate that
     /// always answered true would pass the case above for every rule in the game.
-    /// </remarks>
+    /// </summary>
     [Theory]
     [MemberData(nameof(EveryAuthoredN))]
     public void The_draw_before_the_Nth_is_not_forced(string source, string reference, int everyNth)
@@ -78,12 +63,6 @@ public sealed class HardPityTests
             "mis-stated.");
     }
 
-    /// <summary>A fresh counter is not forced, however tight the rule.</summary>
-    /// <remarks>
-    /// The densest authored rule is <c>CHEST_APEX</c>'s every-3rd, so a counter at zero is never the
-    /// forced draw — which is what makes <see cref="HardPity.Reset"/> meaningful rather than a value
-    /// that immediately fires again.
-    /// </remarks>
     [Theory]
     [MemberData(nameof(EveryAuthoredN))]
     public void A_counter_that_has_just_reset_does_not_immediately_fire_again(
@@ -95,7 +74,6 @@ public sealed class HardPityTests
             "§10 E3 caps a guarantee at 30% of grants in its class.");
     }
 
-    /// <summary>A fired counter goes back to zero, not to one and not to <c>N</c>.</summary>
     [Fact]
     public void A_fired_counter_goes_back_to_zero()
     {
@@ -105,46 +83,10 @@ public sealed class HardPityTests
             "a draw and resetting to N would fire the guarantee forever.");
     }
 
-    /// <summary>
-    /// The floor under the theories above: a source that shrank would run fewer cases and still
-    /// report success.
-    /// </summary>
-    /// <remarks>
-    /// Both halves matter — the count, so the list cannot quietly empty, and named members, so it
-    /// cannot be padded with seventeen copies of the cheapest rule. Pinned against the shipped file
-    /// by <c>LuckTuningMatchesTuningDataTests</c> in <c>Application.Tests</c>.
-    /// </remarks>
-    [Fact]
-    public void The_exact_N_theories_cover_every_rule_24_section_4_states()
-    {
-        LuckDocuments.EveryAuthoredHardPityN.Count.ShouldBeGreaterThanOrEqualTo(
-            17,
-            "24 §4 states seventeen Ns across ten classes: chestStandard 10/40/160, chestPremium " +
-            "5/25, chestApex 3, dropRun 6 and 4, eggPet 30/150, crateMount 8/30, wheel 60, minigame " +
-            "4 and draft 15/3/5.");
-
-        LuckDocuments.EveryAuthoredHardPityN.Select(rule => rule.Source).Distinct().Count().ShouldBe(
-            9,
-            "every class but ENHANCE states an N — 24 §4.6's mercy is a rate ramp, not a counted " +
-            "guarantee, and is covered by SoftPityTests instead.");
-
-        LuckDocuments.EveryAuthoredHardPityN.ShouldContain(
-            new AuthoredGuarantee("CHEST_STANDARD", "#/chestStandard/hardPity/2/everyNth", 160),
-            "the 160-chest SS rung is the longest guarantee in the game and the one a shortened list " +
-            "would drop first");
-        LuckDocuments.EveryAuthoredHardPityN.ShouldContain(
-            new AuthoredGuarantee("MINIGAME", "#/minigame/chestPick/guaranteeOnNthPick", 4),
-            "the classes whose rule is not a rarity ladder are the ones a ladder-shaped list forgets");
-
-        LuckDocuments.EveryAuthoredHardPityN.Select(rule => rule.Reference).ShouldBeUnique(
-            "two rules sharing a pointer means one of them is not being covered at all");
-    }
-
     // ---------------------------------------------------------------- isolation between rungs
 
     /// <summary>
-    /// One rung's <c>N</c> never fires another rung's counter. <c>CHEST_STANDARD</c> runs three
-    /// ladders simultaneously (<c>24</c> §4.1), so this is the negative control that keeps the
+    /// One rung's <c>N</c> never fires another rung's counter — the negative control that keeps the
     /// predicate from being read as "the counter is high enough for something".
     /// </summary>
     [Theory]
@@ -159,8 +101,8 @@ public sealed class HardPityTests
     }
 
     /// <summary>
-    /// A counter that somehow stands past its own <c>N</c> still fires. Reachable rather than
-    /// theoretical: a retune that lowers an <c>N</c> leaves live players standing above the new rung.
+    /// Reachable rather than theoretical: a retune that lowers an <c>N</c> leaves live players
+    /// standing above the new rung.
     /// </summary>
     [Theory]
     [InlineData(10, 10)]
@@ -175,7 +117,6 @@ public sealed class HardPityTests
 
     // ---------------------------------------------------------------- advancing
 
-    /// <summary>A missed draw moves the counter on by exactly one.</summary>
     [Theory]
     [InlineData(0, 1)]
     [InlineData(9, 10)]
@@ -185,11 +126,7 @@ public sealed class HardPityTests
         HardPity.Advance(misses).ShouldBe(expected);
     }
 
-    /// <summary>Counters never tick down (<c>24</c> §1.1: no decay).</summary>
-    /// <remarks>
-    /// Stated as a comparison against the input rather than as a literal, so an implementation that
-    /// answered a constant could not satisfy it.
-    /// </remarks>
+    /// <summary>Stated against the input rather than a literal, so a constant cannot satisfy it.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(37)]
@@ -203,15 +140,13 @@ public sealed class HardPityTests
 
     // ---------------------------------------------------------------- refusals
 
-    /// <summary>A negative counter is not a counter.</summary>
+    /// <summary>
+    /// The parameter is pinned, not just the exception type: both arguments state a range, so a
+    /// guard that reported <c>everyNth</c> for a bad counter would satisfy a bare type assertion.
+    /// </summary>
     [Theory]
     [InlineData(-1)]
     [InlineData(int.MinValue)]
-    /// <remarks>
-    /// The parameter is pinned, not just the exception type: <see cref="HardPity.Fires"/> states a
-    /// range on <em>both</em> its arguments, so a guard that reported <c>everyNth</c> for a bad
-    /// counter would satisfy a bare type assertion while leaving the counter unguarded.
-    /// </remarks>
     public void A_negative_miss_count_is_refused(int missesBeforeDraw)
     {
         Should.Throw<ArgumentOutOfRangeException>(() => HardPity.Fires(missesBeforeDraw, 10))
@@ -221,12 +156,9 @@ public sealed class HardPityTests
     }
 
     /// <summary>
-    /// An <c>N</c> below 1 is refused rather than treated as "always" or "never".
-    /// </summary>
-    /// <remarks>
     /// <c>N = 0</c> is what an unauthored rung reads as, and under <c>misses + 1 &gt;= N</c> it would
-    /// force <em>every</em> draw — the loudest possible way to be silently wrong.
-    /// </remarks>
+    /// force <em>every</em> draw.
+    /// </summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]

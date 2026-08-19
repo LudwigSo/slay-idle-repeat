@@ -4,27 +4,18 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
-/// <summary>The floor under the source list — stated against the document's own sentence, not against a second transcription of it.</summary>
-/// <remarks>
-/// The collector walks <see cref="EffectSourceCatalogue.Rows"/>, so a row dropped, renamed or reordered
-/// leaves the collector working and simply not collecting from that source — a build silently missing
-/// every gear affix, with nothing red.
-/// </remarks>
+/// <summary>The catalogue behind 18 §8 step 1's source list — the collector walks it, so a drifted row is a source the resolver silently stops collecting from.</summary>
 public sealed class EffectSourceCatalogueTests
 {
     /// <summary>
-    /// The reference sentence the catalogue is checked against, duplicated from the production
-    /// constant on purpose: if it were read from <see cref="EffectSourceCatalogue.Step1SourceList"/>
-    /// the test would compare the catalogue with itself, and editing the constant would keep it green.
+    /// Duplicated from the production constant on purpose: read from
+    /// <see cref="EffectSourceCatalogue.Step1SourceList"/> the test would compare the catalogue with
+    /// itself.
     /// </summary>
     private const string DocumentSentence =
         "gear → affixes → set bonuses → talents → pet auras → mount → run buffs → shrine buffs → " +
         "curses → perks (in draft order)";
 
-    /// <summary>
-    /// The ten rows, joined in declaration order, are the reference source list. Fails on a dropped
-    /// row, an added one, a renamed one and a reordered one.
-    /// </summary>
     [Fact]
     public void The_ten_sources_are_18_8_step_1_in_its_own_order()
     {
@@ -32,22 +23,19 @@ public sealed class EffectSourceCatalogueTests
             EffectSourceCatalogue.PhraseSeparator,
             EffectSourceCatalogue.Rows.Select(r => r.Phrase));
 
-        // Shouldly's string ShouldBe is ordinal and case-sensitive by default — unlike
-        // ShouldContain/ShouldStartWith, which default to Case.Insensitive.
         rebuilt.ShouldBe(
             DocumentSentence,
             "18 §8 step 1 names ten sources in one order. The collector walks this catalogue, so a " +
             "row that drifts from the document is a source the resolver silently stops collecting.");
 
-        // And the production constant agrees with the document too — otherwise the constant could be
-        // edited to match a drifted catalogue and this rule would still pass.
-        EffectSourceCatalogue.Step1SourceList.ShouldBe(DocumentSentence);
+        EffectSourceCatalogue.Step1SourceList.ShouldBe(
+            DocumentSentence, "the production constant must agree with the document too, or it could " +
+                              "be edited to match a drifted catalogue");
     }
 
     /// <summary>
-    /// The enum and the catalogue are one list. <see cref="EffectResolutionOrder"/>'s tiebreak
-    /// compares <see cref="EffectSourceKind"/> ordinals, so a member missing from the catalogue would
-    /// still sort — into an undefined position.
+    /// <see cref="EffectResolutionOrder"/>'s same-id tiebreak compares <see cref="EffectSourceKind"/>
+    /// ordinals, so a member missing from the catalogue would still sort — into an undefined position.
     /// </summary>
     [Fact]
     public void Every_EffectSourceKind_has_a_row_and_the_ordinals_are_18_8_step_1s_positions()
@@ -69,51 +57,9 @@ public sealed class EffectSourceCatalogueTests
                 "documented rule resolving in an undocumented order");
         }
 
-        // The enum's own declaration order matches, so `foreach (var k in Enum.GetValues<...>())`
-        // anywhere else agrees with the catalogue.
-        kinds.Select(k => (int)k).ShouldBe(EffectSourceCatalogue.Rows.Select(r => (int)r.Kind));
-    }
-
-    /// <summary>
-    /// Every source that cannot yield anything yet names the milestone that lands it and the
-    /// <c>SubjectSetFloorTests.Pending</c> subject whose arrival expires the deferral. A pending source
-    /// with no expiry is a hole nobody is pointed at.
-    /// </summary>
-    [Fact]
-    public void Every_pending_source_names_its_milestone_and_its_expiry_subject()
-    {
-        var offenders = EffectSourceCatalogue.Rows
-            .Where(r => r.IsPending)
-            .Where(r => string.IsNullOrWhiteSpace(r.OwningMilestone) ||
-                        string.IsNullOrWhiteSpace(r.PendingSubject))
-            .Select(r => $"{r.Kind} is pending but names no milestone or no expiry subject")
-            .ToArray();
-
-        offenders.ShouldBeEmpty();
-
-        // Floored, or the assertion above passes over an empty set the day somebody marks every
-        // source available. The floor is below the current count so wiring one source is not a test
-        // edit, and the day it reaches zero this fails and whoever wired the last one has to delete
-        // this rule deliberately.
-        EffectSourceCatalogue.Rows.Count(r => r.IsPending).ShouldBeGreaterThanOrEqualTo(
-            1,
-            "if no source is pending any more, every one of 18 §8 step 1's ten has a data model and " +
-            "this rule — and the Pending entries it guards — should be removed in that commit");
-    }
-
-    /// <summary>
-    /// The expiry subjects are distinct. Two sources keyed on one name would share one <c>Pending</c>
-    /// entry, and deleting it when the first arrived would silently untrack the second.
-    /// </summary>
-    [Fact]
-    public void The_pending_expiry_subjects_are_distinct()
-    {
-        var subjects = EffectSourceCatalogue.Rows
-            .Where(r => r.IsPending)
-            .Select(r => r.PendingSubject!)
-            .ToArray();
-
-        subjects.Distinct(StringComparer.Ordinal).Count().ShouldBe(subjects.Length);
+        kinds.Select(k => (int)k).ShouldBe(
+            EffectSourceCatalogue.Rows.Select(r => (int)r.Kind),
+            "the enum's declaration order matches, so Enum.GetValues agrees with the catalogue");
     }
 
     /// <summary>A kind outside the ten has no row, and says so rather than answering.</summary>

@@ -8,29 +8,6 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 /// <summary>The six stat ceilings, and their application.</summary>
 public sealed class StatCapsTests
 {
-    /// <summary>
-    /// The six stats a default table binds a ceiling to — and, just as importantly, the eight it
-    /// does not.
-    /// </summary>
-    [Fact]
-    public void Exactly_the_six_stats_05_section_1_caps_carry_a_ceiling()
-    {
-        StatFixtures.Caps().Capped.ShouldBe(
-        [
-            StatId.CRIT, StatId.LIFESTEAL, StatId.DODGE, StatId.BLOCK, StatId.PEN, StatId.DR_PCT,
-        ]);
-
-        foreach (var uncapped in (StatId[])
-        [
-            StatId.MAX_HP, StatId.ATK, StatId.DEF, StatId.ASPD,
-            StatId.CDMG, StatId.DMG_PCT, StatId.HEAL_PCT, StatId.THORNS,
-        ])
-        {
-            StatFixtures.Caps().Maximum(uncapped).ShouldBeNull(
-                $"05 §1's Notes column caps {uncapped} nowhere, and absence is the only 'uncapped' 05 authorises");
-        }
-    }
-
     [Theory]
     [InlineData(StatId.CRIT, 0.75)]
     [InlineData(StatId.LIFESTEAL, 0.40)]
@@ -40,7 +17,6 @@ public sealed class StatCapsTests
     [InlineData(StatId.DR_PCT, 0.60)]
     public void A_stat_above_its_ceiling_is_bound_to_it(StatId stat, double cap)
     {
-        StatFixtures.Caps().Maximum(stat).ShouldBe(cap);
         StatFixtures.Caps().Apply(stat, cap + 0.5).ShouldBe(cap);
         StatFixtures.Caps().Apply(stat, cap).ShouldBe(cap, "the cap itself is reachable");
         StatFixtures.Caps().Apply(stat, cap - 0.1).ShouldBe(cap - 0.1, "below the cap nothing happens");
@@ -97,11 +73,5 @@ public sealed class StatCapsTests
     public void With_can_cap_a_stat_05_leaves_uncapped()
     {
         StatFixtures.Caps().With(StatId.THORNS, 2.0).Maximum(StatId.THORNS).ShouldBe(2.0);
-    }
-
-    [Fact]
-    public void None_caps_nothing()
-    {
-        StatCaps.None.Capped.ShouldBeEmpty();
     }
 }

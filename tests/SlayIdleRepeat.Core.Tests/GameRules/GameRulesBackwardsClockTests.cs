@@ -30,11 +30,7 @@ public sealed class GameRulesBackwardsClockTests
             "out of Apply as an ArgumentOutOfRangeException from Player.MarkApplied until M1-12.");
     }
 
-    /// <summary>
-    /// The clamp leaves the TTL anchor where it was, the half that makes the clamp safe rather than
-    /// merely quiet: the anchor measures the sliding run TTL, so letting skew walk it backwards
-    /// would hand a client a way to hold a run open.
-    /// </summary>
+    /// <summary>The half that makes the clamp safe rather than merely quiet.</summary>
     [Fact]
     public void A_backwards_clock_leaves_the_stored_anchor_where_it_was()
     {
@@ -54,9 +50,8 @@ public sealed class GameRulesBackwardsClockTests
     }
 
     /// <summary>
-    /// The run's anchor is floored too, on a <c>CommandKind.Run</c> command. Without this the run
-    /// half of the clamp is untested: every other test here drives a <c>Meta</c> command against a
-    /// run-less slice, so <c>MarkApplied</c>'s run branch is never entered.
+    /// Every other test here drives a <c>Meta</c> command against a run-less slice, so
+    /// <c>MarkApplied</c>'s run branch is never entered without this one.
     /// </summary>
     [Fact]
     public void A_clock_behind_the_runs_anchor_is_floored_too()
@@ -82,9 +77,8 @@ public sealed class GameRulesBackwardsClockTests
     }
 
     /// <summary>
-    /// The ordinary forwards case still advances, so the clamp is a floor and not a freeze — the
-    /// contrast half, without which both assertions above pass just as happily over an <c>Apply</c>
-    /// that had stopped writing the anchor at all.
+    /// The contrast half: without it, the assertions above pass just as happily over an
+    /// <c>Apply</c> that stopped writing the anchor at all.
     /// </summary>
     [Fact]
     public void A_clock_ahead_of_the_anchor_still_advances_it()

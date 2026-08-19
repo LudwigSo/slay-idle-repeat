@@ -7,9 +7,9 @@ using RunAggregate = SlayIdleRepeat.Core.Model.Run;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// <c>Run</c>'s phase/battle/draft/reroll/stage-gate seams, exercised directly on the aggregate
-/// (the handler-level legality checks that guard each seam are
-/// <c>StartBattleTests</c>/<c>ConfirmBattleResultTests</c>'s).
+/// <c>Run</c>'s phase/battle/draft/reroll/stage-gate defect guards and rehydrate faults. The
+/// legal transitions are covered at the <c>Apply</c> seam by <c>StartBattleTests</c>/
+/// <c>ConfirmBattleResultTests</c>/<c>UseRerollTests</c>/<c>StageGateTriggerTests</c>.
 /// </summary>
 public sealed class RunPhaseTests
 {
@@ -19,26 +19,6 @@ public sealed class RunPhaseTests
             pendingTileKind: pendingTileKind,
             pendingTileLinearIndex: pendingTileKind is null ? null : 5,
             pendingTileStage: pendingTileKind is null ? null : 1)).Value;
-
-    // ------------------------------------------------------------------ default phase
-
-    [Fact]
-    public void A_rehydrated_run_defaults_to_InProgress()
-    {
-        NewRun().Phase.ShouldBe(RunPhase.InProgress);
-    }
-
-    // ------------------------------------------------------------------ EnterBattle / ExitBattle
-
-    [Fact]
-    public void EnterBattle_moves_the_phase_to_BattlePending()
-    {
-        var run = NewRun(pendingTileKind: (int)TileKind.Enemy);
-
-        run.EnterBattle();
-
-        run.Phase.ShouldBe(RunPhase.BattlePending);
-    }
 
     [Fact]
     public void EnterBattle_on_an_already_pending_battle_is_a_defect()
@@ -57,33 +37,11 @@ public sealed class RunPhaseTests
     }
 
     [Fact]
-    public void ExitBattle_moves_the_phase_back_to_InProgress()
-    {
-        var run = NewRun(phase: RunPhase.BattlePending, pendingTileKind: (int)TileKind.Enemy);
-
-        run.ExitBattle();
-
-        run.Phase.ShouldBe(RunPhase.InProgress);
-    }
-
-    [Fact]
     public void ExitBattle_with_no_battle_open_is_a_defect()
     {
         var run = NewRun();
 
         Should.Throw<InvalidOperationException>(() => run.ExitBattle());
-    }
-
-    // ------------------------------------------------------------------ MarkDraftPending / ClearDraftPending
-
-    [Fact]
-    public void MarkDraftPending_sets_the_flag()
-    {
-        var run = NewRun();
-
-        run.MarkDraftPending((int)TileKind.Enemy, 1);
-
-        run.DraftPending.ShouldBeTrue();
     }
 
     [Fact]
@@ -110,35 +68,6 @@ public sealed class RunPhaseTests
         Should.NotThrow(run.ClearDraftPending);
     }
 
-    // ------------------------------------------------------------------ SpendReroll
-
-    [Fact]
-    public void SpendReroll_advances_the_spent_count()
-    {
-        var run = NewRun();
-
-        run.SpendReroll();
-        run.SpendReroll();
-
-        run.RerollChargesSpentThisStage.ShouldBe(2);
-    }
-
-    // ------------------------------------------------------------------ ApplyStageGate
-
-    [Fact]
-    public void ApplyStageGate_writes_the_healed_hp_the_reset_charges_and_the_dice_anchor()
-    {
-        var run = RunAggregate.Rehydrate(RunSnapshots.With(currentHp: 40, maxHp: 100)).Value;
-        run.SpendReroll();
-        run.SpendReroll();
-
-        run.ApplyStageGate(healedCurrentHp: 55, diceStreamPositionAtGate: 12UL);
-
-        run.CurrentHp.ShouldBe(55);
-        run.RerollChargesSpentThisStage.ShouldBe(0, "a Stage Gate refreshes reroll charges to the stage's base allotment");
-        run.StageGateDiceAnchor.ShouldBe(12UL);
-    }
-
     [Fact]
     public void ApplyStageGate_refuses_a_healed_hp_above_max()
     {
@@ -146,8 +75,6 @@ public sealed class RunPhaseTests
 
         Should.Throw<ArgumentOutOfRangeException>(() => run.ApplyStageGate(101, 0UL));
     }
-
-    // ------------------------------------------------------------------ Rehydrate validation
 
     [Fact]
     public void Rehydrate_refuses_an_out_of_vocabulary_phase()
@@ -171,9 +98,7 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.RerollChargesSpentThisStage));
     }
 
-    // ------------------------------------------------------------------ RequirePendingFork faults
-
-    /// <summary>One half of the pair present without the other is not a row `Run.BeginPendingFork` could write.</summary>
+    /// <summary>One half of the pair present without the other is not a row <c>Run.BeginPendingFork</c> could write.</summary>
     [Fact]
     public void Rehydrate_refuses_a_pending_fork_with_only_one_half_present()
     {
@@ -185,7 +110,6 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.PendingForkRemainingSteps), Case.Sensitive);
     }
 
-    /// <summary>A junction is a real node of the board — never negative.</summary>
     [Fact]
     public void Rehydrate_refuses_a_negative_pending_fork_junction()
     {
@@ -207,7 +131,6 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.PendingForkRemainingSteps), Case.Sensitive);
     }
 
-    /// <summary>…and the negative control: a well-formed pending fork rehydrates.</summary>
     [Fact]
     public void Rehydrate_accepts_a_well_formed_pending_fork()
     {
@@ -215,9 +138,7 @@ public sealed class RunPhaseTests
             .IsSuccess.ShouldBeTrue();
     }
 
-    // ------------------------------------------------------------------ RequireDraftBattle faults
-
-    /// <summary>ClearDraftPending resets both fields to their sentinels; a stale value with no draft pending is a fault.</summary>
+    /// <summary><c>ClearDraftPending</c> resets both fields to their sentinels; a stale value with no draft pending is a fault.</summary>
     [Fact]
     public void Rehydrate_refuses_a_stale_draft_battle_kind_with_no_draft_pending()
     {
@@ -228,7 +149,6 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.DraftBattleKind), Case.Sensitive);
     }
 
-    /// <summary>A battle's tile kind is Enemy, Elite or Boss — all non-negative values.</summary>
     [Fact]
     public void Rehydrate_refuses_a_negative_draft_battle_kind_while_pending()
     {
@@ -239,7 +159,6 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.DraftBattleKind), Case.Sensitive);
     }
 
-    /// <summary>The three stages plus the boss node are the only legal values while a draft is pending.</summary>
     [Fact]
     public void Rehydrate_refuses_a_draft_battle_stage_outside_the_four_while_pending()
     {
@@ -250,7 +169,6 @@ public sealed class RunPhaseTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.DraftBattleStage), Case.Sensitive);
     }
 
-    /// <summary>…and the negative control: a well-formed pending draft battle rehydrates.</summary>
     [Fact]
     public void Rehydrate_accepts_a_well_formed_pending_draft_battle()
     {

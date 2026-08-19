@@ -150,21 +150,6 @@ public sealed class EffectOpValidationTests
                           .ShouldContain(p => p.Contains("names neither", StringComparison.Ordinal));
     }
 
-    /// <summary>
-    /// Every exemplar the three op suites share is well-formed — so the seam, resolver and
-    /// validation suites cannot disagree about what an authorable effect looks like.
-    /// </summary>
-    [Fact]
-    public void Every_exemplar_the_op_suites_share_is_well_formed()
-    {
-        EffectOps.All.Count.ShouldBe(44, "the floor under the loop");
-
-        EffectOps.All
-                 .SelectMany(op => EffectOpValidation.Problems(OpFixtures.Exemplar(op))
-                                                     .Select(p => $"{op}: {p}"))
-                 .ShouldBeEmpty();
-    }
-
     /// <summary>A set of representative worked examples all validate, as authored.</summary>
     [Fact]
     public void The_worked_examples_of_18_7_are_well_formed()

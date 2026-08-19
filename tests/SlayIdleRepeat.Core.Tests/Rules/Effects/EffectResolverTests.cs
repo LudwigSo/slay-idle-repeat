@@ -9,10 +9,9 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>Effect collection and condition gating, and their composition into stat aggregation.</summary>
 /// <remarks>
-/// The composing tests run <c>StatAggregation.Aggregate</c> for real: production code forbids
-/// <c>Rules.Effects</c> naming <c>Rules.Stats</c>, so this test assembly (which sees both) is where the
-/// composition claim belongs — the seam is a list of effects in a defined order, and the only way to
-/// show that is enough is to hand it over.
+/// Internal seam: the public fight takes one flat effect list, so the per-source collection and the
+/// same-id (source, index) tiebreak are not expressible through it. The composing tests run the real
+/// <c>StatAggregation.Aggregate</c>.
 /// </remarks>
 public sealed class EffectResolverTests
 {
@@ -30,9 +29,8 @@ public sealed class EffectResolverTests
         ListEffectSource.Synthetic(kind, effects);
 
     /// <summary>
-    /// One collected entry, for the tests that assert the comparer directly. The instance id is
-    /// deliberately the SAME for every entry: it is an identity key and plays no part in the
-    /// ordering, so a test that varied it could pass on the wrong component.
+    /// One collected entry for the comparer tests. The instance id is deliberately the SAME for every
+    /// entry — it plays no part in the ordering, so a test that varied it could pass on the wrong component.
     /// </summary>
     private static CollectedEffect Collected(EffectDefinition effect, EffectSourceKind source, int index) =>
         new(effect, EffectInstanceId.Of("holding"), source, index);
@@ -95,11 +93,8 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// The holding survives the whole pass. Trigger counters live on the effect instance and
-    /// registration refuses a duplicate, so a consumer must be able to tell two copies of one authored
-    /// effect apart without inventing an identity: <c>(Source, IndexInSource)</c> is per-pass and
-    /// renumbers when the build changes, where an <c>EffectInstanceId</c> must survive battle
-    /// boundaries.
+    /// The holding survives the whole pass — trigger counters live on the effect instance, so two
+    /// copies of one authored effect must stay tellable apart across battle boundaries.
     /// </summary>
     [Fact]
     public void The_holding_each_effect_came_from_survives_into_the_resolved_set()
@@ -221,16 +216,9 @@ public sealed class EffectResolverTests
     // ══════════════════════════════════════════════════════ the duplicate-id ruling
 
     /// <summary>
-    /// Two effects sharing one id — the same affix from two gear slots — resolve in a documented order
-    /// rather than arrival order ("last writer wins"), proved through the real
-    /// <c>StatAggregation.Aggregate</c> so the ruling is shown to survive that handoff.
-    /// </summary>
-    /// <remarks>
-    /// This test alone does not prove the tiebreak works: with two elements, below
-    /// <c>Array.Sort</c>'s insertion-sort threshold, removing the tiebreak entirely still leaves it
-    /// green. What it pins is which source wins; the tiebreak itself is held by
+    /// Pins WHICH source wins for a shared id; the tiebreak itself is held by
     /// <see cref="The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements"/>.
-    /// </remarks>
+    /// </summary>
     [Fact]
     public void The_later_18_8_step_1_source_is_the_last_writer_for_a_shared_id()
     {
@@ -262,11 +250,9 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// The test that actually holds the duplicate-id ruling: twenty effects sharing one id, above
-    /// <c>Array.Sort</c>'s insertion-sort threshold (16), so the sort genuinely permutes equal elements
-    /// and only a total comparer restores collection order. Below that threshold a broken tiebreak is
-    /// invisible because arrival order survives by accident — removing the tiebreak left the
-    /// two-element tests green.
+    /// Twenty effects sharing one id — above <c>Array.Sort</c>'s insertion-sort threshold (16), so the
+    /// sort genuinely permutes equal elements; below it a broken tiebreak is invisible because arrival
+    /// order survives by accident.
     /// </summary>
     [Fact]
     public void The_documented_tiebreak_survives_a_sort_large_enough_to_scramble_equal_elements()
@@ -291,8 +277,8 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// The comparer is total. Stated directly, over the two pairs the tiebreak exists to separate, and
-    /// this one depends on no sort at all so it holds even if <c>Array.Sort</c>'s internals change.
+    /// The comparer is total, stated over the two pairs the tiebreak exists to separate — depends on
+    /// no sort, so it holds even if <c>Array.Sort</c>'s internals change.
     /// </summary>
     [Fact]
     public void The_resolution_order_never_calls_two_distinct_collected_effects_equal()
@@ -413,11 +399,7 @@ public sealed class EffectResolverTests
 
     // ══════════════════════════════════════════════════════ ruling 1 — the absent trigger
 
-    /// <summary>
-    /// An absent trigger is <c>ALWAYS</c>: effects are evaluated at every resolution pass for
-    /// <c>ALWAYS</c> effects, at fire time for triggered ones, and an effect authored with neither a
-    /// trigger nor a target relies on that default to be seen at all.
-    /// </summary>
+    /// <summary>18 ruling 1: an absent trigger is <c>ALWAYS</c> — an effect authored with neither a trigger nor a target relies on that default to be seen at all.</summary>
     [Fact]
     public void An_effect_with_no_trigger_is_an_ALWAYS_passive()
     {
@@ -478,10 +460,8 @@ public sealed class EffectResolverTests
     }
 
     /// <summary>
-    /// One gate, both filter passes. <c>StatAggregation</c> re-applies the condition filter and
-    /// requires the second evaluation to agree with the first; handing it the resolver's own gate makes
-    /// that structural — a conditional effect the resolver admitted is admitted again, and the strict
-    /// default's refusal is never reached.
+    /// One gate serves both filter passes: a conditional effect the resolver admitted is admitted
+    /// again by <c>StatAggregation</c>, and the strict default's refusal is never reached.
     /// </summary>
     [Fact]
     public void The_same_gate_serves_both_step_2s()

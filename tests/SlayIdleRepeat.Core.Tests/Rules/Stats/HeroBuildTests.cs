@@ -13,14 +13,10 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
 /// What the hero actually is: the base curve, plus everything the equipped loadout contributes,
-/// through the stat aggregation order.
-/// </summary>
-/// <remarks>
-/// The claim under test is the one the milestone was missing — that wearing an item changes a
-/// number. Every case here is stated so that it fails if any single link of the chain is dropped:
+/// through the stat aggregation order. Every case fails if a single link of the chain is dropped —
 /// the derivation, the enhancement multiplier, the affix mapping, the set breakpoint, or the
 /// aggregation bucket each contribution lands in.
-/// </remarks>
+/// </summary>
 public sealed class HeroBuildTests
 {
     private const int Level = 1;
@@ -65,18 +61,12 @@ public sealed class HeroBuildTests
 
     // ───────────────────────────────────────────────────── the item's own two stats
 
-    /// <summary>An equipped weapon raises attack by the amount its own four inputs say.</summary>
-    /// <remarks>
-    /// 🔒 The whole milestone in one line, and it was false until this task: the derivation existed,
-    /// nothing called it, and a hero in full gear fought with the numbers of a naked one.
-    /// <para>
-    /// The literal is the point rather than a convenience. "Higher than nothing" is satisfied by a
-    /// derivation off by any factor at all — halving every item in the game would pass it — so the
-    /// figure is composed here from the four authored numbers that produce it: the chapter's power
-    /// target, the fraction of it one item carries, the band's multiplier and the slot's coefficient,
-    /// at the quality where the primary scale is exactly one.
-    /// </para>
-    /// </remarks>
+    /// <summary>
+    /// An equipped weapon raises attack by the amount its own four inputs say. The literal is the
+    /// point: "higher than nothing" is satisfied by a derivation off by any factor, so the figure is
+    /// composed from the four authored numbers — power target, item fraction, band multiplier, slot
+    /// coefficient — at the quality where the primary scale is exactly one.
+    /// </summary>
     [Fact]
     public void An_equipped_weapon_raises_attack_by_the_amount_its_inputs_say()
     {
@@ -325,16 +315,12 @@ public sealed class HeroBuildTests
         build.Effects.ShouldContain(e => e.Id.StartsWith("SET_BONUS", StringComparison.Ordinal));
     }
 
-    /// <summary>A build that passes a capped stat's ceiling lands exactly on it.</summary>
-    /// <remarks>
-    /// 🔴 <b>The fixture has to overshoot, and the first version of this case did not.</b> Two SS
-    /// items with a crit affix each reach 0.37 against a ceiling of 0.75 — so "at most the ceiling"
-    /// was true of every value the pipeline could produce, and deleting the cap step entirely would
-    /// have left it green. Five crit rings pass the ceiling, and asserting equality there kills both
-    /// mutations at once: with no cap the answer is the raw total, and with a cap applied per
-    /// contribution instead of after aggregation it is the raw total as well, since no single
-    /// contribution reaches the ceiling on its own.
-    /// </remarks>
+    /// <summary>
+    /// A build that passes a capped stat's ceiling lands exactly on it. The fixture has to overshoot
+    /// — five crit rings — and equality there kills two mutations at once: no cap answers the raw
+    /// total, and a cap applied per contribution answers it too, since no single contribution
+    /// reaches the ceiling on its own.
+    /// </summary>
     [Fact]
     public void A_build_that_passes_a_capped_stats_ceiling_lands_exactly_on_it()
     {

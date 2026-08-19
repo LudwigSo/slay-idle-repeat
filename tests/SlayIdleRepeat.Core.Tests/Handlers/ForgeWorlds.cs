@@ -51,22 +51,12 @@ internal static class ForgeWorlds
     internal static WorldSlice Holding(params GearInstance[] items) => Holding(Funded, items);
 
     /// <summary>
-    /// 🔴 A slice whose player holds these items <b>and is wearing one of them</b> — the state a
+    /// A slice whose player holds these items <b>and is wearing one of them</b> — the state a
     /// destructive forge command has to survive.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// This is the state <see cref="Holding(GearInstance[])"/> cannot produce, and its absence is why
-    /// merge and salvage shipped destroying an item without taking it off the hero. A slot names an
-    /// item rather than copying one, so a stock that loses an item a slot still names leaves the
-    /// aggregate in a state <c>Player.RequireLoadoutResolves</c> throws on — <b>after</b> the command
-    /// was accepted.
-    /// </para>
-    /// <para>
-    /// Built through <c>Player.Rehydrate</c> like every other world here, so the pairing is one the
-    /// aggregate itself accepts on the way in: the fixture cannot manufacture a state that was
-    /// already broken, which is what makes a failure here the command's doing.
-    /// </para>
+    /// Built through <c>Player.Rehydrate</c>, so the pairing is one the aggregate itself accepts on
+    /// the way in — a failure here is the command's doing, not a pre-broken fixture.
     /// </remarks>
     /// <param name="worn">Which slot the hero has filled, and with which of <paramref name="items"/>.</param>
     /// <param name="items">The stored stock, in grant order. Must contain the worn instance.</param>
@@ -140,14 +130,9 @@ internal static class ForgeWorlds
     }
 
     /// <summary>
-    /// A stock compared by its canonical bytes rather than by record equality.
+    /// A stock compared by its canonical bytes rather than by record equality: a synthesized record
+    /// <c>Equals</c> compares an <c>IReadOnlyList&lt;T&gt;</c> component by REFERENCE.
     /// </summary>
-    /// <remarks>
-    /// 🔒 A fusion consumes three items and produces one, so every claim about what the stock now
-    /// holds is a collection comparison — and a synthesized record <c>Equals</c> compares an
-    /// <c>IReadOnlyList&lt;T&gt;</c> component by REFERENCE, so two stocks holding different items
-    /// would compare equal or unequal for reasons that have nothing to do with their contents.
-    /// </remarks>
     /// <param name="slice">The slice whose stock is being described.</param>
     /// <returns>The canonical encoding of the stock.</returns>
     internal static byte[] StockBytes(WorldSlice slice)

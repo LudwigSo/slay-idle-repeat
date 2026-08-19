@@ -9,20 +9,13 @@ using SlayIdleRepeat.Core.Rules.Stats;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// The tile's enemy power and the tier's ordinal, transcribed here from the authored curve rather
-/// than taken from the production seam.
+/// The tile's enemy power and the tier's ordinal, transcribed from the authored curve rather than
+/// taken from the production seam.
 /// </summary>
 /// <remarks>
-/// 🔒 <b>Deliberately a second transcription, not a call into <c>EnemyPowerFormula</c>.</b> The
-/// hazard case compares the seam's fight against one composed here, and a helper that asked the
-/// production formula for the number would agree with the seam by construction — it would still
-/// agree if the seam read the Heroic column and applied <c>TierMult</c> on top of it, which is the
-/// exact double-application shape the case exists to catch, one layer down from the hero.
-/// <para>
-/// The four stage multipliers, the per-node growth term and the three tier multipliers are
-/// transcribed from the enemy-power curve; the chapter target is read out of the par table's Normal
-/// column, because that column is the only one the curve's <c>ChapterPowerTarget(c)</c> term names.
-/// </para>
+/// Deliberately a second transcription, not a call into <c>EnemyPowerFormula</c>: a helper that
+/// asked the production formula would agree with the seam by construction, even when the seam
+/// double-applies a multiplier — the exact shape the comparison cases exist to catch.
 /// </remarks>
 internal static class RunBattleTestArithmetic
 {
@@ -63,11 +56,6 @@ internal static class RunBattleTestArithmetic
     };
 
     /// <summary>A build's effects as roster holdings, each keeping its collected instance id.</summary>
-    /// <remarks>
-    /// Restated here rather than reached for on the production seam: the hazard case composes a
-    /// second fight to compare against, and borrowing the seam's own holdings would make the two
-    /// agree about the one thing the case is not asking about while still varying the one it is.
-    /// </remarks>
     internal static IReadOnlyList<HeldEffect> Holdings(HeroBuild build)
     {
         ArgumentNullException.ThrowIfNull(build);
@@ -84,12 +72,9 @@ internal static class RunBattleTestArithmetic
 
     /// <summary>The same holdings with every STANDING modifier struck out.</summary>
     /// <remarks>
-    /// 🔒 <b>The standing test is transcribed here, not borrowed.</b> An effect stands when its
-    /// trigger is absent OR authored <c>ALWAYS</c> — the DSL's own default — and asking the
-    /// production helper for that reading would make the comparison agree with the seam about the
-    /// one thing the case is asking about: reading only the absent half is exactly how a whole
-    /// loadout of explicitly-<c>ALWAYS</c> gear effects reached the aggregation and never reached a
-    /// fight.
+    /// The standing test is transcribed here, not borrowed: an effect stands when its trigger is
+    /// absent OR authored <c>ALWAYS</c>, and asking the production helper for that reading would
+    /// make the comparison agree with the seam about the one thing the case is asking about.
     /// </remarks>
     internal static IReadOnlyList<HeldEffect> HoldingsWithoutStandingModifiers(HeroBuild build)
     {
@@ -110,12 +95,9 @@ internal static class RunBattleTestArithmetic
     private static bool Stands(EffectDefinition effect) =>
         effect.Trigger is null || effect.Trigger.Kind == TriggerKind.ALWAYS;
 
-    /// <summary>Every stat of a block, added up — a single number two builds can be ordered by.</summary>
-    /// <remarks>
-    /// Crude on purpose. It is used only to pin a DIRECTION (a doubled loadout is the bigger block),
-    /// never a value, so a weighting scheme here would be inventing a power model beside the real
-    /// one.
-    /// </remarks>
+    /// <summary>
+    /// Every stat of a block, added up — pins only a DIRECTION between two builds, never a value.
+    /// </summary>
     internal static double Sum(ActorStats stats)
     {
         ArgumentNullException.ThrowIfNull(stats);

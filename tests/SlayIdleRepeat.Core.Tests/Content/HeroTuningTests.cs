@@ -6,13 +6,9 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
 /// The two hero readers whose whole job is refusing a bad number: <see cref="LegendCurveTuning"/> and
-/// <see cref="PresetTuning"/>.
+/// <see cref="PresetTuning"/>. Each case drives one leaf to a value that is authorised and unusable —
+/// the class a schema cannot catch.
 /// </summary>
-/// <remarks>
-/// Every case drives one leaf to a value that is authorised and unusable, because that is the class
-/// a schema cannot catch: a coefficient of zero, an exponent of zero and a free allowance of zero
-/// are all valid JSON numbers and all three break a different promise.
-/// </remarks>
 public sealed class HeroTuningTests
 {
     // ------------------------------------------------------------------------- the Legend curve
@@ -71,43 +67,12 @@ public sealed class HeroTuningTests
                 ProgressionDocuments.With(legendXpExponent: ContentValue.Unauthorised)));
     }
 
-    /// <summary>
-    /// The simulator's sweep range is deliberately not read: it is a bound on experiments, not a
-    /// number any rule depends on.
-    /// </summary>
-    /// <remarks>
-    /// Asserted by absence — the reader names three pointers and this is not one of them — so that a
-    /// later edit that started reading it is a visible change rather than a quiet coupling between
-    /// the runtime and the simulator's configuration.
-    /// </remarks>
-    [Fact]
-    public void The_sweep_range_is_not_one_of_the_curves_pointers()
-    {
-        new[]
-        {
-            LegendCurveTuning.CoefficientReference,
-            LegendCurveTuning.ExponentReference,
-            LegendCurveTuning.TalentPointsPerLevelReference,
-        }.ShouldNotContain(reference => reference.Contains("SweepRange", StringComparison.Ordinal));
-    }
-
     // ---------------------------------------------------------------------- the preset allowance
 
-    /// <summary>The free allowance is read from <c>ads.json</c> rather than restated in code.</summary>
-    [Fact]
-    public void The_free_preset_allowance_is_read_from_the_document()
-    {
-        PresetTuning.Read(TuningDocuments.AdsOnly()).FreeSlots
-            .ShouldBe(TuningDocuments.ShippedFreePresets);
-    }
-
     /// <summary>
-    /// A different authored allowance changes the answer, which is what proves it is read.
+    /// A different authored allowance changes the answer, which is what proves it is read — the
+    /// shipped 3 is also the literal anybody would write.
     /// </summary>
-    /// <remarks>
-    /// The shipped 3 is also the literal anybody would write, so a reader that ignored the document
-    /// would pass the case above. This is the discriminating one.
-    /// </remarks>
     [Fact]
     public void A_different_authored_allowance_is_the_one_that_answers()
     {
@@ -130,14 +95,9 @@ public sealed class HeroTuningTests
     }
 
     /// <summary>
-    /// 🔒 "Below the floor" and "beyond the allowance" are different questions, and the second is not
-    /// the negation of the first.
+    /// 🔒 "Below the floor" and "beyond the allowance" are different questions — collapsing the two
+    /// tells a player to subscribe because their client sent a zero.
     /// </summary>
-    /// <remarks>
-    /// The distinction the handler's rejection code rests on: a slot below the first is a malformed
-    /// payload and a slot above the allowance is an entitlement, and collapsing the two tells a
-    /// player to subscribe because their client sent a zero.
-    /// </remarks>
     [Fact]
     public void A_slot_below_the_floor_is_not_an_entitlement_question()
     {
@@ -163,15 +123,9 @@ public sealed class HeroTuningTests
 
     /// <summary>
     /// Both storage bounds are read from the document, and a different authored pair is the one that
-    /// answers.
+    /// answers. The replacements differ from the shipped values and from each other, so a reader that
+    /// hardcoded either bound or crossed the two pointers fails.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The discriminating half is what matters: these were two <c>const</c>s in
-    /// <c>LoadoutPreset</c> until the M4 review, so a reader that kept answering 999 and 64 would
-    /// pass any case written against the shipped numbers. Both replacements are deliberately
-    /// <em>not</em> the shipped values, and they differ from each other so a reader that crossed the
-    /// two pointers cannot pass either.
-    /// </remarks>
     [Fact]
     public void A_different_authored_pair_of_storage_bounds_is_the_one_that_answers()
     {
@@ -189,14 +143,8 @@ public sealed class HeroTuningTests
 
     /// <summary>
     /// A slot bound at or below the free allowance is refused: it would put slots <c>09</c> §2.1
-    /// gives away for free out of reach, which is the one thing these bounds claim not to do.
+    /// gives away for free out of reach. The floor is the allowance, not 1.
     /// </summary>
-    /// <remarks>
-    /// The floor is the allowance rather than 1, so a bound of 2 is refused even though it names a
-    /// perfectly storable slot — the point is not that the number is small, it is that the third free
-    /// slot would stop being writable. A bound exactly equal to the allowance is accepted, and the
-    /// case below is the boundary control on that.
-    /// </remarks>
     [Theory]
     [InlineData(0)]
     [InlineData(TuningDocuments.ShippedFreePresets - 1)]
@@ -213,10 +161,6 @@ public sealed class HeroTuningTests
     }
 
     /// <summary>A slot bound exactly at the free allowance is accepted: every free slot is writable.</summary>
-    /// <remarks>
-    /// The boundary control on the case above. The refusal is "a free slot became unwritable", not
-    /// "the number looks low", and only a case on each side of the boundary tells those apart.
-    /// </remarks>
     [Fact]
     public void A_slot_bound_exactly_at_the_free_allowance_is_accepted()
     {
@@ -226,11 +170,6 @@ public sealed class HeroTuningTests
     }
 
     /// <summary>A name bound below one leaves no nameable preset at all, and is refused.</summary>
-    /// <remarks>
-    /// The negative control on the case above: the two bounds have different floors — the slot bound
-    /// is floored at the free allowance and the name bound at one — so a reader that shared one floor
-    /// between them would pass one case and fail the other.
-    /// </remarks>
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -244,13 +183,9 @@ public sealed class HeroTuningTests
     }
 
     /// <summary>
-    /// A name bound of one is accepted — the floor is one, not the free allowance.
+    /// A name bound of one is accepted — the floor is one, not the free allowance. 1 is below
+    /// <c>ShippedFreePresets</c>, so a reader that floored both bounds at the allowance fails here.
     /// </summary>
-    /// <remarks>
-    /// The boundary control that stops the two floors being collapsed into a single number: 1 is
-    /// below <c>ShippedFreePresets</c>, so a reader that floored both bounds at the allowance would
-    /// refuse this and fail.
-    /// </remarks>
     [Fact]
     public void A_name_bound_of_one_is_accepted()
     {

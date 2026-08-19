@@ -7,6 +7,11 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
+/// <summary>The three selection rules: hero basic attack, pet ability, enemy attack.</summary>
+/// <remarks>
+/// Internal seam: a public fight derives its roster from content, so per-actor priority/HP shapes
+/// (ties, a dead queen, a deprioritised swarm) cannot be staged through any public entry point.
+/// </remarks>
 public sealed class TargetSelectionTests
 {
     /// <summary>

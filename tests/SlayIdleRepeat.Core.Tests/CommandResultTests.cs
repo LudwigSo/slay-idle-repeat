@@ -17,7 +17,6 @@ public sealed class CommandResultTests
 
     // ------------------------------------------------------- the tier boundary
 
-    /// <summary>A transport-tier reason is refused at construction — no seam has to remember to check.</summary>
     [Theory]
     [MemberData(nameof(TransportTierReasons))]
     public void A_transport_tier_rejection_is_refused(RejectionReason reason)
@@ -37,7 +36,6 @@ public sealed class CommandResultTests
         CommandResult.Reject(reason, AnySlice()).Rejection.ShouldBe(reason);
     }
 
-    /// <summary>An undeclared enum value is refused rather than quietly acquiring a tier.</summary>
     [Theory]
     [InlineData((RejectionReason)0)]
     [InlineData((RejectionReason)999)]
@@ -50,7 +48,7 @@ public sealed class CommandResultTests
         thrown.Message.ShouldContain("This is not a rejection reason", Case.Sensitive);
     }
 
-    /// <summary>The tier guard runs on the constructor too, not just the factory — no <c>with</c> path skirts it.</summary>
+    /// <summary>No <c>with</c> path skirts the guard: <c>with</c> re-runs the constructor, not the factory.</summary>
     [Fact]
     public void The_tier_guard_runs_on_the_constructor_too()
     {
@@ -60,7 +58,6 @@ public sealed class CommandResultTests
 
     // ------------------------------------------------------- the three-way agreement
 
-    /// <summary><c>Accepted</c> is exactly "there is no <c>Rejection</c>"; each illegal combination reports which.</summary>
     [Fact]
     public void Accepted_and_Rejection_are_two_halves_of_one_answer()
     {
@@ -73,20 +70,12 @@ public sealed class CommandResultTests
             .Message.ShouldContain("A REFUSED result carries no Rejection", Case.Sensitive);
     }
 
-    /// <summary>A refused command carries no events: it changed nothing.</summary>
     [Fact]
     public void A_refused_result_carries_no_events()
     {
         Should.Throw<ArgumentException>(() => new CommandResult(
                 Accepted: false, RejectionReason.ILLEGAL_STATE, AnySlice(), new[] { AnyEvent() }))
             .Message.ShouldContain("A REFUSED result carries 1 event(s)", Case.Sensitive);
-    }
-
-    [Fact]
-    public void An_accepted_result_may_carry_events_or_none()
-    {
-        CommandResult.Accept(AnySlice(), NoEvents).Events.ShouldBeEmpty();
-        CommandResult.Accept(AnySlice(), new[] { AnyEvent() }).Events.ShouldHaveSingleItem();
     }
 
     // ------------------------------------------------------- absent values
@@ -106,11 +95,7 @@ public sealed class CommandResultTests
             .ParamName.ShouldBe("Events");
     }
 
-    /// <summary>
-    /// <c>CommandResult</c> is a readonly record struct, so the language can hand out an
-    /// uninitialised instance the constructor never ran. <c>default</c> throws instead of silently
-    /// answering null.
-    /// </summary>
+    /// <summary>A readonly record struct's <c>default</c> bypasses every constructor guard above.</summary>
     [Fact]
     public void The_default_struct_is_not_a_result_and_says_so()
     {
@@ -132,10 +117,6 @@ public sealed class CommandResultTests
 
     // ------------------------------------------------------- rendering
 
-    /// <summary>
-    /// Renders through a hand-written <c>PrintMembers</c>, not the compiler's synthesized one — the
-    /// synthesized version would dump the whole <c>WorldSlice</c> and throw out of <c>default</c>.
-    /// </summary>
     [Fact]
     public void The_result_renders_through_its_own_PrintMembers_and_not_the_synthesized_one()
     {

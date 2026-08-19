@@ -36,7 +36,6 @@ public sealed class MergeTests
         Inventories.Item("c", rarity: rarity, enhanceLevel: enhanceLevel, locked: lockedPosition == 2),
     ];
 
-    /// <summary>Three matching items become one of the next band, and the other two are gone.</summary>
     [Fact]
     public void A_legal_fusion_leaves_one_item_of_the_next_band_where_three_stood()
     {
@@ -51,23 +50,10 @@ public sealed class MergeTests
         stock[0].Rarity.ShouldBe(Rarity.B);
     }
 
-    /// <summary>
-    /// 🔴 Merging away an item the hero is <b>wearing</b> takes it off the hero in the same command.
-    /// </summary>
     /// <remarks>
-    /// <para>
-    /// <b>The consumed inputs are the ones at risk, not the surviving one.</b> A fusion keeps the
-    /// first input's identity — <c>Inventory.Replace</c> writes the output over <c>a</c>'s slot — so
-    /// a hero wearing <c>a</c> is unharmed and a hero wearing <c>b</c> or <c>c</c> is left naming an
-    /// item that no longer exists. This case wears <c>b</c> for that reason: wearing <c>a</c> would
-    /// pass against the defect.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>What a failure looks like is a throw, not a bad answer.</b>
-    /// <c>Player.RequireLoadoutResolves</c> runs after the handler and throws
-    /// <see cref="InvalidOperationException"/> out of <c>Apply</c>, because a slot naming a destroyed
-    /// item is a handler defect rather than an illegal player action.
-    /// </para>
+    /// The case wears <c>b</c>, not <c>a</c>: a fusion keeps the first input's identity, so a hero
+    /// wearing <c>a</c> would pass against the defect. A failure looks like a throw out of Apply —
+    /// <c>Player.RequireLoadoutResolves</c> treats a slot naming a destroyed item as a handler defect.
     /// </remarks>
     [Fact]
     public void Merging_away_a_worn_input_takes_it_off_the_hero()
@@ -86,18 +72,13 @@ public sealed class MergeTests
     }
 
     /// <summary>
-    /// 🔒 The whole stock is compared by canonical bytes, not by record equality: a fusion changes
-    /// a collection, and a synthesized <c>Equals</c> compares one by reference (steering S17).
+    /// The whole stock is compared by canonical bytes, not by record equality: a synthesized
+    /// <c>Equals</c> compares a collection component by reference.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The expected affixes are spelled out rather than read off the answer.</b> They used to
-    /// be taken from <c>after.NewState…Stored[0].Affixes</c> — and the affixes are the ONLY thing
-    /// <c>GearMerge.Fuse</c> actually draws, everything else being carried forward from the inputs —
-    /// so the comparison restated the handler's own answer to itself. A <c>Fuse</c> rolling from the
-    /// wrong slot's pool, at the wrong band's affix count, or off a different stream produced a
-    /// different item and this still passed. <see cref="ExpectedFusionAffixes"/> is what the fixed
-    /// <see cref="ForgeWorlds.Seed"/> buys, transcribed once; if the draw derivation legitimately
-    /// moves, the answer is to re-transcribe it, never to read it back off the handler.
+    /// The expected affixes are spelled out rather than read off the answer — the affixes are the
+    /// only thing <c>GearMerge.Fuse</c> draws, so an expectation read back off the handler restates
+    /// its own answer to itself.
     /// </remarks>
     [Fact]
     public void The_stock_after_a_fusion_is_exactly_the_output_beside_what_was_untouched()
@@ -114,16 +95,9 @@ public sealed class MergeTests
         ForgeWorlds.StockBytes(after.NewState).ShouldBe(ForgeWorlds.StockBytes(expected));
     }
 
-    /// <summary>
-    /// 🔒 The affixes a fusion draws, stated rather than observed — the discriminating half of the
-    /// byte comparison above.
-    /// </summary>
     /// <remarks>
-    /// Asserted here in a readable shape as well as inside the encoding, so a change to the draw
-    /// reports <em>which</em> affix moved and by how much, instead of a byte diff nobody can read.
-    /// The count comes with it: the gear tables author one affix at <c>B</c>, and a fusion that took
-    /// the affix count from the <em>input</em> band, or that drew off the wrong slot's pool, lands
-    /// somewhere this pair can see.
+    /// The same draw as the byte comparison above, in a readable shape: a change to the draw reports
+    /// which affix moved and by how much, instead of a byte diff nobody can read.
     /// </remarks>
     [Fact]
     public void A_fusion_draws_the_output_bands_affixes_from_the_output_slots_pool()
@@ -146,21 +120,14 @@ public sealed class MergeTests
 
     /// <summary>
     /// What <c>GearMerge.Fuse</c> rolls for a C-band <c>BLADE</c> trio fusing onto <c>B</c>, on
-    /// <see cref="ForgeWorlds.Seed"/> at the position the handler opens the forge stream at.
+    /// <see cref="ForgeWorlds.Seed"/>. Transcribed once; if the draw derivation legitimately moves,
+    /// re-transcribe it — never read it back off <c>Apply</c>.
     /// </summary>
-    /// <remarks>
-    /// Transcribed from a run of this suite, once. It is a statement about the seed, not about the
-    /// handler: if the draw derivation legitimately moves, re-transcribe it — reading it back off
-    /// <c>Apply</c> is what made the byte comparison above vacuous in the first place.
-    /// </remarks>
     private static readonly GearAffixRoll[] ExpectedFusionAffixes =
     [
         new("AFX_CRIT_CHANCE", 0.0491),
     ];
 
-    /// <summary>The fusion charges the Crown price of the band it lands on.</summary>
-    /// <param name="rarity">The band the inputs share.</param>
-    /// <param name="crowns">The price of the band it lands on.</param>
     [Theory]
     [InlineData(Rarity.C, 120)]
     [InlineData(Rarity.B, 600)]
@@ -174,7 +141,6 @@ public sealed class MergeTests
         ForgeWorlds.Moved(result.Events, CurrencyId.CROWNS).ShouldBe(-crowns);
     }
 
-    /// <summary>A fusion without dust moves no dust at all.</summary>
     [Fact]
     public void A_fusion_without_dust_moves_no_dust()
     {
@@ -184,7 +150,7 @@ public sealed class MergeTests
         ForgeWorlds.Moved(result.Events, CurrencyId.MERGE_DUST).ShouldBe(0);
     }
 
-    /// <summary>A dust-filled slot charges the dust price of the INPUT band, on top of the Crowns.</summary>
+    /// <summary>The dust price is the INPUT band's, on top of the Crowns.</summary>
     [Fact]
     public void A_dust_filled_slot_charges_the_dust_price_of_the_input_band()
     {
@@ -203,7 +169,6 @@ public sealed class MergeTests
         result.NewState.Player.Inventory.Stored.Count.ShouldBe(1);
     }
 
-    /// <summary>An identity the player does not own is a rejection about the request, not the selection.</summary>
     [Fact]
     public void An_identity_the_player_does_not_own_is_refused_as_not_owned()
     {
@@ -213,16 +178,11 @@ public sealed class MergeTests
         result.Rejection.ShouldBe(RejectionReason.NOT_OWNED);
     }
 
-    /// <summary>🔒 A locked item is excluded from merge selection, which is what the lock is for.</summary>
     /// <remarks>
-    /// 🔴 <b>Every position, because the first one alone proves nothing.</b> This locked only
-    /// <c>"a"</c>, which the command names FIRST — so a handler inspecting <c>InputItemIds[0]</c> and
-    /// nothing else passed it, while a player fused away two locked items in the same command. The
-    /// consumed inputs are exactly the ones a lock is protecting: a fusion writes its output over the
-    /// first input's slot and destroys the other two, so positions 1 and 2 are where the loss is
-    /// permanent.
+    /// Every position, because the first alone proves nothing: a handler inspecting
+    /// <c>InputItemIds[0]</c> and stopping passes a lock on <c>"a"</c> while fusing away two locked
+    /// items — and positions 1 and 2 are the consumed ones, where the loss is permanent.
     /// </remarks>
-    /// <param name="lockedPosition">Which of the three named inputs carries the lock.</param>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -241,8 +201,7 @@ public sealed class MergeTests
     }
 
     /// <summary>
-    /// 🔒 The first production emitter of <c>INVENTORY_FULL</c>. An item waiting in overflow is not
-    /// acted on: it is neither unknown nor locked, and collapsing it onto either would show the
+    /// An overflow item is neither unknown nor locked; collapsing it onto either code would show the
     /// player the wrong thing to do about it.
     /// </summary>
     [Fact]
@@ -255,8 +214,6 @@ public sealed class MergeTests
         result.Rejection.ShouldBe(RejectionReason.INVENTORY_FULL);
     }
 
-    /// <summary>Every way the selection itself is illegal reaches the player as one domain reason.</summary>
-    /// <param name="ids">The identities the client named.</param>
     [Theory]
     [InlineData("a,b")]
     [InlineData("a,b,b")]
@@ -269,7 +226,6 @@ public sealed class MergeTests
             .Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>A wallet that does not cover the price is a shortfall, not an illegal selection.</summary>
     [Fact]
     public void A_wallet_that_does_not_cover_the_price_is_refused_as_a_shortfall()
     {
@@ -280,7 +236,6 @@ public sealed class MergeTests
             .Rejection.ShouldBe(RejectionReason.INSUFFICIENT_FUNDS);
     }
 
-    /// <summary>Dust the player does not hold is the same shortfall, on the other column.</summary>
     [Fact]
     public void Dust_the_player_does_not_hold_is_refused_as_a_shortfall()
     {
@@ -295,11 +250,9 @@ public sealed class MergeTests
         GameRules.Apply(world, command, Context).Rejection.ShouldBe(RejectionReason.INSUFFICIENT_FUNDS);
     }
 
-    /// <summary>🔒 A refused fusion charges nothing and consumes nothing.</summary>
     /// <remarks>
-    /// 🔴 The expected bytes are taken BEFORE <c>Apply</c>. Reading them off <c>world</c> afterwards
-    /// would compare the slice against itself — <c>Apply</c> hands the caller's own slice back on a
-    /// rejection — so the assertion would hold however badly the handler had written it.
+    /// The expected bytes are taken BEFORE Apply: it hands the caller's own slice back on a
+    /// rejection, so bytes read afterwards would compare the slice against itself.
     /// </remarks>
     [Fact]
     public void A_refused_fusion_leaves_the_stock_and_the_wallet_exactly_where_they_stood()
@@ -317,7 +270,6 @@ public sealed class MergeTests
         world.Player.BalanceOf(CurrencyId.CROWNS).ShouldBe(119);
     }
 
-    /// <summary>Nothing fuses out of the top band, however well funded the player is.</summary>
     [Fact]
     public void A_fusion_at_the_top_band_is_refused()
     {
@@ -327,10 +279,9 @@ public sealed class MergeTests
     }
 
     /// <summary>
-    /// 🔒 The fused item stays IN THE STOCK even when the stock is full and overflow is waiting.
-    /// Removing all three inputs and filing the output afterwards is not the same edit: the three
-    /// opened slots reclaim from overflow first, and the item the player just paid for would land in
-    /// overflow itself. The fixture holds three waiting items precisely so the two spellings part.
+    /// Removing all three inputs and filing the output afterwards is not the same edit: the opened
+    /// slots reclaim from overflow first and the paid-for item would land in overflow itself. The
+    /// fixture holds three waiting items precisely so the two spellings part.
     /// </summary>
     [Fact]
     public void A_fusion_out_of_a_full_stock_leaves_its_output_stored_rather_than_in_overflow()
@@ -349,7 +300,6 @@ public sealed class MergeTests
         stock.Held.Count.ShouldBe(1, "two slots opened and two of the three waiting items took them");
     }
 
-    /// <summary>The same command over the same seed produces byte-identical state.</summary>
     [Fact]
     public void The_same_fusion_over_the_same_seed_produces_the_same_stock()
     {

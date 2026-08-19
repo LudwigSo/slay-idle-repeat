@@ -10,17 +10,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// An absent trigger and an authored <c>ALWAYS</c> one are the same thing to a fight.
 /// </summary>
 /// <remarks>
-/// 🔴 <b>They were not, and the gap was invisible from both sides.</b> An actor collected its
-/// standing modifiers by asking whether the trigger was <em>absent</em>, while the DSL's own default
-/// says an absent trigger IS <c>ALWAYS</c>. Every effect in this suite was written with no trigger at
-/// all, so every aggregation test passed; and every gear stat, affix and set bonus the hero build
-/// synthesises is written with an explicit <c>ALWAYS</c>, so none of them reached a fight. Gear
-/// aggregated correctly on a hero screen and did nothing whatsoever in combat.
-/// <para>
-/// Three arms, because two would not separate the readings: the explicit form must match the absent
-/// form (the rule), and both must differ from no effect at all (the control that stops "matches"
-/// being satisfied by two effects that are equally ignored).
-/// </para>
+/// Every gear stat, affix and set bonus is synthesised with an explicit <c>ALWAYS</c>, so a
+/// collector reading only the absent spelling leaves gear aggregating correctly on a hero screen
+/// while doing nothing whatsoever in combat. Three arms, because two would not separate the
+/// readings: the explicit form must match the absent form, and both must differ from no effect at
+/// all — the control that stops "matches" being satisfied by two equally ignored effects.
 /// </remarks>
 public sealed class StandingEffectTriggerTests
 {
@@ -64,15 +58,10 @@ public sealed class StandingEffectTriggerTests
 
     /// <summary>An actor opens the fight on its AGGREGATED Max HP, not on its base block's.</summary>
     /// <remarks>
-    /// 🔴 <b>The consequence of the rule above, and it does not show up until that rule is true.</b>
-    /// An actor is constructed on its base block and the aggregation runs afterwards, so while
-    /// nothing standing could modify Max HP the two numbers were always equal and opening on the base
-    /// one was invisible. The moment a loadout's Max HP reaches the aggregation, a hero in full gear
-    /// begins every fight on the fraction of a bar their naked curve describes — and the 1800-tick
-    /// timeout is decided on HP fraction, so they lose fights their own build wins.
-    /// <para>
-    /// The defender deals no damage, so the health left at the end IS the health the hero opened on.
-    /// </para>
+    /// An actor opening on its base bar while its aggregated Max HP is larger starts every fight
+    /// part-dead, and the timeout is decided on HP fraction — a hero in full gear loses fights their
+    /// own build wins. The defender deals no damage, so the health left at the end IS the health the
+    /// hero opened on.
     /// </remarks>
     [Fact]
     public void An_actor_opens_the_fight_on_its_aggregated_max_hp_and_not_on_its_base_block()

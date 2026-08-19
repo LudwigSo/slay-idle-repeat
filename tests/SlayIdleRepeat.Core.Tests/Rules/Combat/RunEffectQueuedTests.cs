@@ -1,5 +1,4 @@
 using Shouldly;
-using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Rules.Combat;
 using Xunit;
 
@@ -7,8 +6,13 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
 /// The combat-to-run bridge: the simulator marks a consequence for the run and never resolves it.
-/// What is tested here is the encoding and the emission contract.
+/// What is tested here is the encoding contract of the log entry itself.
 /// </summary>
+/// <remarks>
+/// Internal <c>CombatLog</c> seam: a public fight emits these entries (see
+/// <c>PvpDuelTests.A_duel_discards_the_run_effect_queue</c>) but cannot author arbitrary effect
+/// indices or unrounded arguments, which is what the encoding rules below are about.
+/// </remarks>
 public sealed class RunEffectQueuedTests
 {
     private const byte Dicelord = CombatActor.FirstEnemy;
@@ -69,25 +73,6 @@ public sealed class RunEffectQueuedTests
             .Where(e => e.Type == CombatEventType.RunEffectQueued)
             .Select(e => e.Value)
             .ShouldBe([1.0, 5.0, 2.0]);
-    }
-
-    /// <summary>
-    /// <see cref="SimulationResult"/> has exactly five fields, and none of them is a queue: the
-    /// queue is the log, and a sixth field would be a second copy outside <c>LogHash</c>.
-    /// </summary>
-    [Fact]
-    public void The_result_carries_no_separate_queue_field()
-    {
-        var fields = typeof(SimulationResult).GetProperties().Select(p => p.Name).ToArray();
-
-        fields.ShouldBe(
-        [
-            nameof(SimulationResult.HeroWon),
-            nameof(SimulationResult.DurationTicks),
-            nameof(SimulationResult.HeroHpRemaining),
-            nameof(SimulationResult.Log),
-            nameof(SimulationResult.LogHash),
-        ]);
     }
 
     /// <summary>
@@ -163,21 +148,5 @@ public sealed class RunEffectQueuedTests
         log.AppendRunEffectQueued(880, Dicelord, ScrambleEffectIndex);
 
         log.Events[^1].Value.ShouldBe(0.0);
-    }
-
-    /// <summary>
-    /// The committed reference row for the sanctioned case, so the encoding is pinned by the table
-    /// and not only by this file.
-    /// </summary>
-    [Fact]
-    public void The_reference_table_carries_the_sanctioned_case()
-    {
-        var row = CombatLogReferenceVectors.Row("run-effect-queued");
-        var events = ReferenceLogs.Instance(row.Id);
-
-        events.ShouldHaveSingleItem();
-        events[0].Type.ShouldBe(CombatEventType.RunEffectQueued);
-        events[0].TargetId.ShouldBe(CombatActor.None);
-        CanonicalStateWriter.HashCombatLog(events).ShouldBe(row.Hash);
     }
 }

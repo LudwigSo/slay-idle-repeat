@@ -12,12 +12,6 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 /// <see cref="IEffectValueReader"/>'s strict default refuses a <c>valueScale</c>; this is the
 /// wiring that fills that seam where aggregation actually reads values from.
 /// </summary>
-/// <remarks>
-/// The implementation lives in <c>Rules/Stats/</c> on purpose: <c>Rules.Effects</c> sits at the
-/// bottom of the intra-<c>Rules</c> layering, so the evaluator lives in
-/// <c>Rules/Effects/Values/</c> and the adapter binding it to the interface sits beside the
-/// interface it implements, naming downward.
-/// </remarks>
 public sealed class ScaledEffectValueTests
 {
     /// <summary>

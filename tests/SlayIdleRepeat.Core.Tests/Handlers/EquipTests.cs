@@ -14,19 +14,9 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// not.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔴 <b>Three of the five refusals answer <c>ILLEGAL_STATE</c>, so a case that asserted only the
-/// code would pass with two of the three rules deleted.</b> Each of those three is therefore built as
-/// a PAIR of worlds identical in every respect but the one fact the rule reads: the control has to be
-/// accepted and the variant refused, and nothing else in the setup can account for the difference.
-/// The undeclared-slot rule needs a third world on top of its pair, because the wrong-slot rule
-/// refuses its payload too — see that case.
-/// </para>
-/// <para>
-/// The two refusals with codes of their own — an unowned item and one parked in overflow — are still
-/// built so that only their own rule can fire: no run is in the slice, the slot named is a declared
-/// one, and it is the slot the item itself occupies.
-/// </para>
+/// Three of the five refusals answer <c>ILLEGAL_STATE</c>, so a case asserting only the code would
+/// pass with two of the three rules deleted. Each of those three is therefore built as a PAIR of
+/// worlds identical but for the one fact the rule reads: control accepted, variant refused.
 /// </remarks>
 public sealed class EquipTests
 {
@@ -45,17 +35,6 @@ public sealed class EquipTests
     /// </summary>
     private const GearSlot Undeclared = (GearSlot)0;
 
-    // ═══════════════════════════════════════════════════════ 1 · a run is in progress
-
-    /// <summary>
-    /// 🔒 Equipping is refused while a run is in progress, and the identical command outside one is
-    /// accepted.
-    /// </summary>
-    /// <remarks>
-    /// The pair is the assertion. Both slices carry the same player row, the same owned and available
-    /// blade and the same declared slot; the only difference is a live run, so no other rule can
-    /// account for the refusal.
-    /// </remarks>
     [Fact]
     public void Equipping_is_refused_while_a_run_is_in_progress_and_accepted_outside_one()
     {
@@ -84,26 +63,11 @@ public sealed class EquipTests
             0, "a refused EQUIP changes nothing.");
     }
 
-    // ═══════════════════════════════════════════════════════ 2 · the slot is undeclared
-
-    /// <summary>
-    /// 🔒 An undeclared slot value is refused before ownership is even looked at, where the
-    /// identical command into a declared slot is accepted.
-    /// </summary>
     /// <remarks>
-    /// <para>
-    /// The pair again, and the reason this rule has to exist at all: the loadout throws on an
-    /// undeclared slot, so a handler that did not check would answer a wire payload with an
-    /// exception instead of a rejection.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>The owned blade alone cannot tell this rule from the wrong-slot rule.</b> No item
-    /// occupies an undeclared slot, so "the item's slot is not the commanded one" refuses that
-    /// payload too, with the same code — and the case would stay green with this rule deleted. The
-    /// item nobody owns is what separates them: the wrong-slot rule has no item to read, and the
-    /// ownership rule answers a code of its own, so <c>ILLEGAL_STATE</c> there can only be this rule
-    /// firing, and firing first.
-    /// </para>
+    /// The rule exists because the loadout throws on an undeclared slot: an unchecked handler would
+    /// answer a wire payload with an exception instead of a rejection. The third world (undeclared
+    /// AND unowned) separates this rule from the wrong-slot rule, which refuses the owned-blade
+    /// payload too and with the same code.
     /// </remarks>
     [Fact]
     public void Equipping_into_an_undeclared_slot_is_refused_before_ownership_is_read()
@@ -136,12 +100,9 @@ public sealed class EquipTests
             "everything else in this case still passes.");
     }
 
-    // ═══════════════════════════════════════════════════════ 3 · the item is not owned
-
-    /// <summary>An item the player does not own is <c>NOT_OWNED</c>, and only that rule can fire.</summary>
     /// <remarks>
-    /// No run is in the slice, the slot is a declared one, and the stock is empty — so neither the
-    /// run rule, the slot rule, the overflow rule nor the wrong-slot rule has anything to read.
+    /// No run is in the slice, the slot is a declared one, and the stock is empty — so no other rule
+    /// has anything to read.
     /// </remarks>
     [Fact]
     public void Equipping_an_item_the_player_does_not_own_is_NOT_OWNED()
@@ -162,17 +123,10 @@ public sealed class EquipTests
         result.NewState.Player.Loadout.EquippedCount.ShouldBe(0, "a refused EQUIP changes nothing.");
     }
 
-    // ═══════════════════════════════════════════════════════ 4 · the item is in overflow
-
-    /// <summary>
-    /// 🔒 An item parked in overflow is <c>INVENTORY_FULL</c>, driven through a real overflowing drop.
-    /// </summary>
     /// <remarks>
     /// The overflow is produced by a kill arriving at a full stock rather than hand-written, because
-    /// that is the only way an item gets there in the real game — and it is what makes
-    /// <c>INVENTORY_FULL</c> reachable at all. The run is ended before the EQUIP, so the run rule
-    /// cannot be what refuses; the slot named is the item's own declared slot, so neither the slot
-    /// rule nor the wrong-slot rule can be; and the item IS owned, so it is not <c>NOT_OWNED</c>.
+    /// that is the only way an item gets there in the real game. The run is ended before the EQUIP
+    /// and the slot named is the item's own, so only the overflow rule can fire.
     /// </remarks>
     [Fact]
     public void Equipping_an_item_held_in_overflow_is_INVENTORY_FULL()
@@ -205,26 +159,16 @@ public sealed class EquipTests
             "nothing else's — and the player needs to be told their bag is full, not that they do " +
             "not own the item.");
 
-        // 🔒 Unchanged, not zero. The fixture hero arrives already wearing six slots — it has to, since
-        // 14 §9 makes the server recompute the fight and a bare-handed hero loses the kill this case
-        // needs in order to have an overflow item at all. "A refused EQUIP changes nothing" is a claim
-        // about the DELTA, and stating it as a delta is what keeps it true of a dressed hero as well as
-        // a naked one.
+        // Unchanged, not zero: the fixture hero arrives already wearing six slots, since a bare-handed
+        // hero loses the recomputed kill this case needs for an overflow item to exist at all.
         result.NewState.Player.Loadout.EquippedCount.ShouldBe(
             kill.NewState.Player.Loadout.EquippedCount,
             "a refused EQUIP changes nothing — the equipped count moved.");
     }
 
-    // ═══════════════════════════════════════════════════════ 5 · the slot is not the item's
-
-    /// <summary>
-    /// 🔒 An item put in a slot it does not occupy is refused, where the same item in its own slot is
-    /// accepted.
-    /// </summary>
     /// <remarks>
-    /// The pair once more: the same owned, available blade and no run in either slice, so the slot
-    /// the item itself declares is the only thing that can account for the difference. A helmet slot
-    /// is a DECLARED one, which is what tells this rule apart from the undeclared-slot rule above.
+    /// A helmet slot is a DECLARED one, which is what tells this rule apart from the undeclared-slot
+    /// rule above.
     /// </remarks>
     [Fact]
     public void Equipping_an_item_into_a_slot_it_does_not_occupy_is_refused_where_its_own_slot_is_accepted()
@@ -252,15 +196,9 @@ public sealed class EquipTests
             "case pins.");
     }
 
-    // ═══════════════════════════════════════════════════════ the negative control
-
-    /// <summary>
-    /// 🔒 A LOCKED item is equippable, and that is the ruling rather than an oversight.
-    /// </summary>
     /// <remarks>
-    /// The lock protects an item from a destructive operation, which is the opposite of taking it out
-    /// of use. This is the control that keeps the five refusals above honest: without it, a handler
-    /// that refused everything would satisfy every one of them.
+    /// The control that keeps the five refusals above honest: without it, a handler that refused
+    /// everything would satisfy every one of them.
     /// </remarks>
     [Fact]
     public void A_LOCKED_item_is_equippable()
@@ -285,8 +223,6 @@ public sealed class EquipTests
         result.Events.ShouldBeEmpty(
             "equipping grants nothing and moves no currency, so it has nothing to report.");
     }
-
-    // ═══════════════════════════════════════════════════════ the worlds
 
     private static CommandResult Equip(WorldSlice world, string itemId, GearSlot slot) =>
         SlayIdleRepeat.Core.GameRules.Apply(

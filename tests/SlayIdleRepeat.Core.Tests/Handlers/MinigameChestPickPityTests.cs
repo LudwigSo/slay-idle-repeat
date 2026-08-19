@@ -140,28 +140,16 @@ public sealed class MinigameChestPickPityTests
 
         var rehydrated = Core.Model.Player.Rehydrate(after.Player.ToSnapshot(), Worlds.Context.Content);
 
-        // 🔴 The failure message used to be `rehydrated.Error`, which Shouldly evaluates EAGERLY —
-        // and Result.Error throws on a successful result by design, so this assertion could not pass
-        // however correct the handler was. Corrected rather than worked around: the claim is that the
-        // snapshot round-trips, and the diagnostic that made it unsatisfiable was never part of it.
+        // No `rehydrated.Error` in the message: Shouldly evaluates it eagerly and Result.Error throws
+        // on a successful result.
         rehydrated.IsSuccess.ShouldBeTrue();
         rehydrated.Value.PityCounters.Get(CounterKey).ShouldBe(advanced);
     }
 
-    /// <summary>Two chest picks in different runs accumulate on the same counter.</summary>
     /// <remarks>
-    /// <para>
-    /// The run is rebuilt between them — a new <c>RunSnapshot</c> at a different position, which is
-    /// what a second run is to this handler — while the player carries over.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>The premise both picks rest on — see <see cref="MissingSeed"/> — is that neither draws
-    /// the gold tier.</b> A gold pick resets the counter to zero, and a lifetime counter sitting at
-    /// zero is indistinguishable from a run-scoped one wiped at the run boundary: there is no
-    /// formulation of this claim that survives a gold roll. The intermediate assertion below is
-    /// where that premise is checked rather than assumed, so a seed that stopped missing reads as
-    /// the premise failing instead of as the scope claim failing.
-    /// </para>
+    /// Both picks must miss gold (see <see cref="MissingSeed"/>): a gold pick resets the counter to
+    /// zero, and a lifetime counter at zero is indistinguishable from a run-scoped one wiped at the
+    /// run boundary. The intermediate assertion checks that premise rather than assuming it.
     /// </remarks>
     [Fact]
     public void Two_chest_picks_across_two_runs_accumulate_on_one_counter()
@@ -192,20 +180,10 @@ public sealed class MinigameChestPickPityTests
     /// identical pick with a cold counter is not.
     /// </summary>
     /// <remarks>
-    /// <para>
     /// Driven end to end rather than against the resolver, because the claim is about what the
-    /// handler stores between picks: a resolver that decides correctly against a counter nothing
-    /// persists guarantees nothing at all.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>The "this seed does not roll gold naturally" premise is now established IN the case,
-    /// and the name no longer overstates the body.</b> This asserted only the gold outcome and the
-    /// counter reset — both of which a <em>natural</em> gold satisfies — so nothing said the
-    /// guarantee had fired rather than the draw (steering S2), and it was called "four consecutive
-    /// picks" while making one. The cold-counter submission below is the same seed at the same
-    /// position drawing the same index, so the counter is the <em>only</em> difference between the
-    /// two halves and the gold in the second is attributable to nothing else.
-    /// </para>
+    /// handler stores between picks. The cold-counter submission is the same seed, position and draw
+    /// index, so the counter is the only difference between the two halves and the gold in the
+    /// second is attributable to nothing else.
     /// </remarks>
     [Fact]
     public void The_pick_that_completes_the_streak_is_forced_onto_the_gold_tier()
@@ -237,16 +215,9 @@ public sealed class MinigameChestPickPityTests
             "the forced pick satisfies the guarantee, and satisfying a guarantee resets its counter.");
     }
 
-    // ------------------------------------------------------------------ S24 regression guard
-
-    /// <summary>
-    /// The pending tile is still cleared as the last step of a submission.
-    /// </summary>
     /// <remarks>
-    /// A regression guard rather than a new claim: recording the resolution touches only the
-    /// per-tile legality proxy, so a submission that stopped clearing the pending tile would leave
-    /// <c>ROLL_DICE</c> unable to fire again for the rest of the run — and wiring a counter through
-    /// this handler is exactly the kind of edit that drops a trailing statement.
+    /// A submission that stopped clearing the pending tile would leave <c>ROLL_DICE</c> unable to
+    /// fire again for the rest of the run.
     /// </remarks>
     [Theory]
     [InlineData(MinigameCatalogue.ChestPick)]

@@ -8,15 +8,9 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
 /// <summary>The bench every op test runs on: a battle, the six seams as recorders, and the literal calls each op made.</summary>
 /// <remarks>
-/// Recorders, not stubs that swallow: these capture the number and the recipient of every seam call
-/// in order, so a test that asserts only "the resolver did not throw" can't pass over an op that
-/// multiplied by the wrong basis, hit the wrong actor, or silently did nothing.
-/// <para>
-/// Every argument is captured, including ones no assertion reads yet — a recorder that dropped
-/// <c>duration</c>, <c>stacking</c> or <c>sourceEffectId</c> would let an op pass <c>null, null, ""</c>
-/// with the whole suite green.
-/// </para>
-/// <para>The stat reader is frozen by construction, so mutual <c>STAT_COPY</c> copies cannot recurse.</para>
+/// Recorders, not stubs that swallow — every argument is captured, including ones no assertion reads
+/// yet, so an op that passed <c>null, null, ""</c> cannot leave the suite green. The stat reader is
+/// frozen by construction, so mutual <c>STAT_COPY</c> copies cannot recurse.
 /// </remarks>
 internal sealed class OpTestBench
 {
@@ -55,12 +49,7 @@ internal sealed class OpTestBench
         TriggeredStatFirings
     { get; } = [];
 
-    /// <summary>Every <c>RANDOM_OUTCOME</c> hand-off, as <c>(holder, chosenEffectId, sourceEffectId)</c>.</summary>
-    /// <remarks>
-    /// A list rather than a single slot precisely so <em>mutual exclusivity</em> is assertable:
-    /// "exactly one row per roll" is the claim, and a recorder that overwrote would make one call
-    /// and three indistinguishable.
-    /// </remarks>
+    /// <summary>Every <c>RANDOM_OUTCOME</c> hand-off — a list rather than a slot, so "exactly one row per roll" is assertable.</summary>
     internal List<(string Holder, string ChosenEffectId, string SourceEffectId)> RandomOutcomes { get; } = [];
 
     /// <summary>What <see cref="IAttackPipeline.ResolveAttack"/> answers.</summary>
@@ -90,20 +79,6 @@ internal sealed class OpTestBench
     internal OpTestBench WithAttackOutcome(double basis, double hpLost)
     {
         AttackAnswer = new AttackResolution(Missed: false, Crit: false, Blocked: false, basis, hpLost);
-
-        return this;
-    }
-
-    /// <summary>
-    /// The status ids <c>IStatusEngine.HasFixedPotency</c> answers <c>true</c> for on this bench,
-    /// standing in for <c>StatusCatalogue.Of(id).FixedPotency is not null</c>.
-    /// </summary>
-    private readonly HashSet<string> _fixedPotencyStatuses = new(StringComparer.Ordinal);
-
-    /// <summary>Marks a status id as carrying its own literal potency, as FREEZE does.</summary>
-    internal OpTestBench WithFixedPotency(string statusId)
-    {
-        _fixedPotencyStatuses.Add(statusId);
 
         return this;
     }
@@ -215,7 +190,8 @@ internal sealed class OpTestBench
             EffectDuration? duration, EffectStacking? stacking, string sourceEffectId) =>
             bench.Record($"{nameof(Apply)}:{statusId}", target.Id, potency, sourceEffectId, duration, stacking);
 
-        public bool HasFixedPotency(string statusId) => bench._fixedPotencyStatuses.Contains(statusId);
+        // No status on this bench carries its own literal potency — a value-less APPLY_STATUS throws.
+        public bool HasFixedPotency(string statusId) => false;
 
         public void Remove(IEffectActorView target, string statusId, string sourceEffectId) =>
             bench.Record($"{nameof(Remove)}:{statusId}", target.Id, 0.0, sourceEffectId);

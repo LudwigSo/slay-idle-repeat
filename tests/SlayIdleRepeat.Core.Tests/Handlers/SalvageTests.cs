@@ -80,16 +80,13 @@ public sealed class SalvageTests
     }
 
     /// <summary>
-    /// 🔒 A batch naming one locked item destroys none of the others. Salvage is the one forge
-    /// operation that cannot be undone, which is what makes a partial application worse than a
-    /// refusal.
+    /// 🔒 A batch naming one locked item destroys none of the others — salvage cannot be undone, so
+    /// a partial application is worse than a refusal.
     /// </summary>
     /// <remarks>
-    /// ⚠️ <b>What this pins is <c>Apply</c>'s discard, not the handler's ordering</b>, and the
-    /// distinction was found by mutation rather than by reading: moving the removals inside the
-    /// validation pass left this case GREEN, because a handler mutates a clone that a refusal throws
-    /// away. Recorded rather than quietly relied on — the property is real and worth a case, but no
-    /// case here can hold the handler to it.
+    /// What this pins is <c>Apply</c>'s discard, not the handler's ordering: mutation showed that
+    /// moving the removals inside the validation pass stays green, because the handler mutates a
+    /// clone that a refusal throws away.
     /// </remarks>
     [Fact]
     public void A_batch_naming_one_locked_item_destroys_none_of_the_others()
@@ -99,9 +96,8 @@ public sealed class SalvageTests
             Inventories.Item("locked", locked: true),
             Inventories.Item("also_loose"));
 
-        // 🔴 Taken BEFORE Apply. Reading the expected bytes off `world` afterwards would compare
-        // the slice against itself — Apply hands the caller's own slice back on a rejection — so
-        // the assertion would hold even if the working clone had leaked into the caller's stock.
+        // Taken BEFORE Apply: a rejection hands the caller's own slice back, so bytes read off
+        // `world` afterwards would compare the slice against itself.
         var before = ForgeWorlds.StockBytes(world);
 
         var result = GameRules.Apply(world, Command("loose", "locked", "also_loose"), Context);
@@ -117,7 +113,7 @@ public sealed class SalvageTests
     {
         var world = ForgeWorlds.Holding(Inventories.Item("a"), Inventories.Item("b"));
 
-        // 🔴 Taken BEFORE Apply, for the reason recorded on the locked-item case above.
+        // Taken BEFORE Apply, for the reason recorded on the locked-item case above.
         var before = ForgeWorlds.StockBytes(world);
 
         var result = GameRules.Apply(world, Command("a", "nobody"), Context);
@@ -128,24 +124,10 @@ public sealed class SalvageTests
 
     /// <summary>
     /// 🔴 Salvaging an item the hero is <b>wearing</b> takes it off the hero in the same command.
+    /// The failure this pins is Apply throwing: destroying a worn item without clearing its slot
+    /// leaves a state <c>Player.RequireLoadoutResolves</c> refuses by exception, on a command that
+    /// was entirely legal.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>The failure this pins is not a wrong payout — it is <c>Apply</c> throwing.</b> A slot names
-    /// an item rather than copying one, so destroying a worn item without clearing its slot leaves
-    /// the aggregate in a state <c>Player.RequireLoadoutResolves</c> refuses, and it refuses by
-    /// throwing <see cref="InvalidOperationException"/> because reaching it is a handler defect and
-    /// never a player asking for something they cannot have. The player's action here is entirely
-    /// legal, so the throw is the defect surfacing on a legitimate command.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>Asserted through the seam's effect, not through the seam (steering S2).</b> The
-    /// assertion is that the slot is empty and the stock no longer holds the item — not that
-    /// <c>Player.DiscardItem</c> was called — so the case still discriminates if a later task moves
-    /// the pairing somewhere else. What it must never do is pass while the loadout still names a
-    /// destroyed item.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void Salvaging_a_worn_item_takes_it_off_the_hero()
     {

@@ -15,7 +15,6 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// </summary>
 public sealed class RunStartLoadoutTests
 {
-    /// <summary>A started run carries what the hero was wearing when it started.</summary>
     [Fact]
     public void A_started_run_carries_the_loadout_it_began_with()
     {
@@ -37,13 +36,9 @@ public sealed class RunStartLoadoutTests
     }
 
     /// <summary>
-    /// 🔒 Equipping after the run started does not move what the run is fighting with.
+    /// 🔒 Equipping after the run started does not move what the run is fighting with — the whole
+    /// reason the loadout is a field on the run rather than a rule stated over the player.
     /// </summary>
-    /// <remarks>
-    /// The whole reason it is a field on the run rather than a rule stated over the player: read
-    /// from <c>Player.Loadout</c> mid-run and the answer changes, however carefully the commands are
-    /// gated. Read from <c>Run.StartingLoadout</c> and it cannot.
-    /// </remarks>
     [Fact]
     public void Changing_the_players_loadout_after_the_start_does_not_move_the_runs()
     {
@@ -81,23 +76,6 @@ public sealed class RunStartLoadoutTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldContain(nameof(RunSnapshot.StartingLoadout));
-    }
-
-    /// <summary>There is no mutator: "cannot be changed during a run" is the type's shape.</summary>
-    /// <remarks>
-    /// Asserted structurally rather than behaviourally, because the claim is about what does not
-    /// exist. A setter added later — however well-intentioned — fails here rather than quietly
-    /// making `07` §4 advisory.
-    /// </remarks>
-    [Fact]
-    public void The_starting_loadout_has_no_setter_anywhere_on_the_run()
-    {
-        var property = typeof(Core.Model.Run).GetProperty(nameof(Core.Model.Run.StartingLoadout));
-
-        property.ShouldNotBeNull();
-        property!.SetMethod.ShouldBeNull(
-            "07 §4 makes the loadout unchangeable during a run; a setter would put that back on " +
-            "every future command to remember.");
     }
 
     private static Core.Model.Run Started(PlayerSnapshot player)

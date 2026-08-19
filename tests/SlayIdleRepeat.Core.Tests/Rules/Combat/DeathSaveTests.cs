@@ -9,19 +9,21 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>
-/// <c>SURVIVE_LETHAL</c> and <c>REVIVE</c>, and the anti-loop rule over them, observed in a fight
-/// rather than over the two halves that meet there: every survive-a-lethal-hit perk was inert and
-/// <c>ON_REVIVE</c> unreachable by construction until <c>ON_LETHAL</c> was wired to actually fire,
-/// between ward absorption and the HP write.
+/// <c>SURVIVE_LETHAL</c>, <c>REVIVE</c>, the <c>ON_LETHAL</c>/<c>ON_REVIVE</c> triggers, and the
+/// anti-loop rules over them.
 /// </summary>
+/// <remarks>
+/// Internal bench seam: each case needs an exactly-sized, ward-bypassing lethal blow at a chosen
+/// instant — twice, for the once-bound — plus HP readings between blows; <c>SimulateDuel</c> can
+/// deliver damage only on the swing schedule, through the full damage formula.
+/// </remarks>
 public sealed class DeathSaveTests
 {
     private const double MaxHp = 1000.0;
 
     /// <summary>
-    /// A <c>SURVIVE_LETHAL</c> leaves the actor at its authored HP instead of at 0. Two shapes,
-    /// because <c>FLAT</c> and the default percentage reading disagree about the same number —
-    /// running both stops the fix passing on a hard-wired 1.
+    /// Two shapes, because <c>FLAT</c> and the default percentage reading disagree about the same
+    /// number — running both stops the fix passing on a hard-wired 1.
     /// </summary>
     [Theory]
     [InlineData(1.0, ValueMode.FLAT, 1.0)]
@@ -48,8 +50,8 @@ public sealed class DeathSaveTests
     }
 
     /// <summary>
-    /// The negative control — with no <c>SURVIVE_LETHAL</c> armed, the same blow kills. Without this,
-    /// a pipeline that simply refused to take an actor below 1 HP would pass the theory above.
+    /// Without this, a pipeline that simply refused to take an actor below 1 HP would pass the
+    /// theory above.
     /// </summary>
     [Fact]
     public void Without_a_save_the_same_blow_kills()
@@ -66,10 +68,9 @@ public sealed class DeathSaveTests
     }
 
     /// <summary>
-    /// A <c>REVIVE</c> returns the actor from 0 HP and fires <c>ON_REVIVE</c>; <c>SURVIVE_LETHAL</c>
-    /// does neither. Consumed in <c>ResolveDeaths</c>, not the pipeline: a <c>REVIVE</c> requires the
-    /// actor to have reached 0, so it is read after <c>ON_DEATH</c>, and the actor is never logged as
-    /// an <c>ActorDeath</c>, having come back before the body was removed.
+    /// A <c>REVIVE</c> is consumed in <c>ResolveDeaths</c>, not the pipeline: it requires the actor
+    /// to have reached 0, so it is read after <c>ON_DEATH</c>, and the actor is never logged as an
+    /// <c>ActorDeath</c>, having come back before the body was removed.
     /// </summary>
     [Fact]
     public void A_REVIVE_returns_the_actor_from_0_HP_and_fires_ON_REVIVE()
@@ -93,10 +94,7 @@ public sealed class DeathSaveTests
             1, "`18` §3 fires ON_REVIVE, which is what the second holding is listening for");
     }
 
-    /// <summary>
-    /// The negative control: a <c>SURVIVE_LETHAL</c> fires no <c>ON_REVIVE</c>, because the actor
-    /// never died. Same probe holding and blow as the case above — only the arming op differs.
-    /// </summary>
+    /// <summary>Same probe holding and blow as the case above — only the arming op differs.</summary>
     [Fact]
     public void A_SURVIVE_LETHAL_fires_no_ON_REVIVE()
     {
@@ -111,8 +109,6 @@ public sealed class DeathSaveTests
 
         probe.EventsOf(CombatEventType.Shield).ShouldBeEmpty();
     }
-
-    // ══════════════════════════════════════════ M2-R2: ON_LETHAL itself
 
     /// <summary>
     /// <c>PK_UNBREAKABLE</c> armed <c>ON_LETHAL</c>, through the real attack pipeline rather than the
@@ -138,10 +134,6 @@ public sealed class DeathSaveTests
         probe.EventsOf(CombatEventType.Hit).Single().Value.ShouldBe(MaxHp - expectedHp);
     }
 
-    /// <summary>
-    /// <c>once</c> bounds an <c>ON_LETHAL</c>-armed save to a single firing per battle: the actor's
-    /// first lethal hit is saved, its second identical lethal hit actually kills.
-    /// </summary>
     [Fact]
     public void Once_bounds_an_ON_LETHAL_save_to_one_hit_and_the_next_lethal_hit_kills()
     {
@@ -214,10 +206,6 @@ public sealed class DeathSaveTests
         probe.EventsOf(CombatEventType.Hit).Count.ShouldBe(4);
     }
 
-    /// <summary>
-    /// <c>ON_LETHAL</c> fires exactly once per lethal hit: not zero for a survivable hit, and not
-    /// twice for the same lethal hit.
-    /// </summary>
     [Fact]
     public void ON_LETHAL_fires_exactly_once_per_lethal_hit_and_not_at_all_for_a_survivable_one()
     {
@@ -242,8 +230,6 @@ public sealed class DeathSaveTests
         probe.EventsOf(CombatEventType.Shield).Count.ShouldBe(
             1, "one occurrence total across the whole probe body — the survivable hit fired none");
     }
-
-    // ══════════════════════════════════════════════════════ helpers
 
     /// <summary>A <c>SURVIVE_LETHAL</c> armed once in the pre-tick by <c>ON_BATTLE_START</c>.</summary>
     private static HeldEffect SurviveLethal(string id, double value, ValueMode? mode) =>

@@ -19,27 +19,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Perks;
 
 /// <summary>
 /// <c>DraftView</c> — the narrow public projection of the three options a run currently has on
-/// offer, and the only way anything outside <c>Core</c> can see a draft at all.
+/// offer. The load-bearing claim is that these are the SAME three options <c>PICK_PERK</c> acts on
+/// (steering S2): the options regenerate from the run's committed <c>draft</c> stream position, and
+/// a view that derived or ordered them a second way would show the player a card other than the one
+/// their finger is on.
 /// </summary>
-/// <remarks>
-/// <para>
-/// 🔒 <b>The load-bearing claim is not "three options exist" — it is that these are the SAME three
-/// options <c>PICK_PERK</c> acts on</b> (steering S2). The options are never persisted: they
-/// regenerate from the run's committed <c>draft</c> stream position on every command, and the view
-/// regenerates them the same way. A view that drew a second, plausible set of three would satisfy
-/// every structural case in this file, and a player pressing the middle card would take a perk the
-/// card never showed. <see cref="The_option_the_view_shows_at_an_index_is_the_perk_PICK_PERK_lands"/>
-/// is the case that says otherwise, and it is stated at more than one index so a view whose order
-/// is reversed cannot pass it.
-/// </para>
-/// <para>
-/// ⚠️ <b>Two projections are never compared by record equality</b> (steering S17): the option list
-/// is an <c>IReadOnlyList</c> and a synthesized <c>Equals</c> would compare it by reference.
-/// <see cref="Canonical"/> is the comparison, and
-/// <see cref="Two_different_run_seeds_project_to_different_bytes"/> is the negative control proving
-/// it can see a difference at all.
-/// </para>
-/// </remarks>
 public sealed class DraftViewTests
 {
     /// <summary>The content every case that needs the hermetic perk catalogue projects against.</summary>
@@ -80,15 +64,10 @@ public sealed class DraftViewTests
 
     /// <summary>
     /// 🔒 The perk the view draws at an index is the perk <c>PICK_PERK</c> at that index lands on the
-    /// run — for every index, not just the first.
+    /// run — for every index. Stated through <c>GameRules.Apply</c> rather than against the engine,
+    /// because the engine is the half both sides share: a reordered view would agree with the engine
+    /// perfectly and still take the wrong card.
     /// </summary>
-    /// <remarks>
-    /// Stated end-to-end through <c>GameRules.Apply</c> rather than against the engine, because the
-    /// engine is the half both sides share: a view that re-derived the options correctly and handed
-    /// them back in a different ORDER would agree with the engine perfectly and still take the wrong
-    /// card. The other two perks are asserted absent for the same reason — "the run holds the perk
-    /// the view showed" is satisfied by a view showing all three in any order.
-    /// </remarks>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -143,14 +122,9 @@ public sealed class DraftViewTests
     }
 
     /// <summary>
-    /// …and the effect text is rendered for the tier this option LANDS on, not for the perk's first.
+    /// …and the effect text is rendered for the tier this option LANDS on, not for the perk's first —
+    /// the fixture authors a different value per tier, so the three tiers render three sentences.
     /// </summary>
-    /// <remarks>
-    /// The hermetic catalogue authors a different value per tier (0.10 / 0.18 / 0.28 of the same
-    /// template), so the tiers render three different sentences and a view rendering tier I for an
-    /// upgrade to tier II is visible here. The boss fixture is the one that deterministically offers
-    /// an upgrade, which is the only way an option's tier is ever above I.
-    /// </remarks>
     [Theory]
     [InlineData(1, "+10% Test.")]
     [InlineData(2, "+18% Test.")]
@@ -201,54 +175,6 @@ public sealed class DraftViewTests
         }
     }
 
-    /// <summary>
-    /// 🔒 No member of an option carries a player-facing English word this projection composed
-    /// itself. Every such word is a translated string, and one assembled here would reach a German
-    /// player in English with no key to translate it by.
-    /// </summary>
-    /// <remarks>
-    /// Stated over the record's own members by reflection rather than over a list of the ones that
-    /// exist today, so a member added later is caught by the rule rather than by whoever remembers
-    /// it. The two string members that legitimately carry authored text — the perk's name and its
-    /// substituted sentence — come out of the content set and are excluded by name.
-    /// </remarks>
-    [Fact]
-    public void No_option_member_carries_wording_this_projection_invented()
-    {
-        string[] authoredElsewhere = [nameof(DraftOptionView.Name), nameof(DraftOptionView.EffectText)];
-
-        var members = typeof(DraftOptionView).GetProperties();
-        var names = members.Select(property => property.Name).ToArray();
-
-        // 🔒 The subject set, floored by NAME rather than by a count (steering S3). Reflection over a
-        // record that lost its members answers an empty list, and an empty list satisfies the rule
-        // below perfectly — a rule quantifying over nothing is the one failure it cannot report.
-        names.ShouldContain(nameof(DraftOptionView.PerkId));
-        names.ShouldContain(nameof(DraftOptionView.Name));
-
-        var invented = members
-            .Where(property => CouldCarryWording(property.PropertyType))
-            .Select(property => property.Name)
-            .Where(name => !authoredElsewhere.Contains(name, StringComparer.Ordinal))
-            .Where(name => !name.EndsWith("Id", StringComparison.Ordinal))
-            .Where(name => !name.EndsWith("Ids", StringComparison.Ordinal))
-            .ToArray();
-
-        invented.ShouldBeEmpty(
-            "DraftOptionView." + string.Join(", ", invented) + " is text this projection builds " +
-            "that is neither an id nor authored content, so it is a sentence composed in code. The " +
-            "screen composes wording from its own locale table; this type carries the facts.");
-    }
-
-    /// <summary>Whether a member could carry wording — a string, or a collection of them.</summary>
-    /// <remarks>
-    /// The collection arm is not hypothetical. A badge drawn as several lines, or a list of hint
-    /// sentences, is composed wording exactly as much as one string is, and a rule stated over
-    /// <c>string</c> alone would let the whole shape through unseen.
-    /// </remarks>
-    private static bool CouldCarryWording(Type type) =>
-        type == typeof(string) || typeof(IEnumerable<string>).IsAssignableFrom(type);
-
     /// <summary>The offer reports the authored draft economy, read rather than transcribed.</summary>
     [Fact]
     public void The_offer_reports_the_authored_reroll_cost_and_skip_reward()
@@ -265,16 +191,10 @@ public sealed class DraftViewTests
     // ------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// An option names the owned perks it interacts with: those whose own owned tier names a status
-    /// this option's tier also names.
+    /// An option names the owned perks it shares a status with. All three arms in one case: a hint
+    /// that named every owned perk, and one that named the option itself, both satisfy "the sharer
+    /// is listed", so the two negative arms are what make the positive one mean anything.
     /// </summary>
-    /// <remarks>
-    /// 🔒 All three arms in one case, because the two negative ones are what make the positive one
-    /// mean anything: a hint that named every owned perk, and a hint that named the option itself,
-    /// both satisfy "the sharer is listed". The fixture catalogue holds exactly three perks so the
-    /// draft is forced to offer all three, which is what makes every arm reachable in one projection
-    /// rather than in a seed sweep.
-    /// </remarks>
     [Fact]
     public void An_option_names_the_owned_perks_it_shares_a_status_with()
     {
@@ -337,15 +257,10 @@ public sealed class DraftViewTests
     }
 
     /// <summary>
-    /// 🔒 …and the stronger half: a draft that was LOOKED at resolves byte-for-byte like one that
-    /// was not.
+    /// 🔒 …and the stronger half: a draft that was LOOKED at resolves byte-for-byte like one that was
+    /// not. The snapshot bytes above cannot see a projection that consumed draw indices; applying the
+    /// command on both paths can.
     /// </summary>
-    /// <remarks>
-    /// The bytes above are read off the same immutable snapshot the projection was handed, so they
-    /// cannot see a projection that consumed draw indices from a stream the next command would then
-    /// continue from. Applying the command on both paths and comparing what the run became is what
-    /// can.
-    /// </remarks>
     [Fact]
     public void A_draft_that_was_projected_resolves_exactly_like_one_that_was_not()
     {

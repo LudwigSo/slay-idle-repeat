@@ -7,27 +7,11 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model.Gear;
 
 /// <summary>
-/// The inventory's persisted shape: what a round trip has to preserve, and what has to move the
-/// bytes.
+/// The inventory's persisted shape, compared over canonical bytes throughout — never record
+/// equality, which compares the snapshot's list components by reference.
 /// </summary>
-/// <remarks>
-/// <para>
-/// 🔒 <b>Every comparison here is over canonical bytes, never over record equality.</b> An
-/// <c>InventorySnapshot</c> carries two <c>IReadOnlyList</c>s and each element carries a third, and a
-/// synthesized record <c>Equals</c> compares an <c>IReadOnlyList&lt;T&gt;</c> component <em>by
-/// reference</em>. Two snapshots describing the same inventory would therefore be "unequal", and —
-/// far worse — a test written on record equality would report a round trip as broken while the bytes
-/// agreed, or pass a difference it never actually looked at.
-/// </para>
-/// <para>
-/// The negative half is the load-bearing one: a round trip that dropped the lock flags, flattened the
-/// held list into the stored one, or wrote the affixes as a count would still round-trip
-/// <em>something</em>. Each case below moves exactly one thing and requires the bytes to move with it.
-/// </para>
-/// </remarks>
 public sealed class InventoryPersistenceTests
 {
-    /// <summary>A non-empty inventory — stored and held both populated — survives a round trip byte for byte.</summary>
     [Fact]
     public void A_stocked_inventory_round_trips_through_its_own_snapshot()
     {
@@ -47,11 +31,9 @@ public sealed class InventoryPersistenceTests
         snapshot.Stored.ShouldContain(item => item.Affixes.Count > 0);
     }
 
-    /// <summary>The round trip preserves which list an item was in, not merely that it is owned.</summary>
     /// <remarks>
-    /// Stated separately from the byte comparison above because it is the failure a reader would most
-    /// want named: a rehydration that stocked everything it could would quietly hand a player items
-    /// they had been waiting on, and the byte comparison alone reports only "different".
+    /// Named separately from the byte comparison: a rehydration that stocked everything it could
+    /// would quietly hand a player items they had been waiting on.
     /// </remarks>
     [Fact]
     public void A_round_trip_keeps_held_items_held()
@@ -66,10 +48,9 @@ public sealed class InventoryPersistenceTests
             snapshot.Stored.Select(item => item.InstanceId));
     }
 
-    /// <summary>One affix value apart is two different inventories, and the bytes say so.</summary>
     /// <remarks>
     /// The affixes are the deepest thing the encoding descends into — a snapshot that wrote a count
-    /// instead of the rolls, or wrote the ids and not the values, would agree here.
+    /// instead of the rolls, or the ids and not the values, would agree here.
     /// </remarks>
     [Fact]
     public void Two_inventories_differing_in_one_affix_value_hash_differently()
@@ -83,10 +64,9 @@ public sealed class InventoryPersistenceTests
             "difference persisted state can carry at all.");
     }
 
-    /// <summary>One lock flag apart is two different inventories.</summary>
     /// <remarks>
-    /// A boolean is one byte in the encoding and the easiest field to leave out of a snapshot record
-    /// entirely; if it were dropped, every other case in this file would still pass.
+    /// A boolean is the easiest field to leave out of a snapshot record entirely; if it were
+    /// dropped, every other case in this file would still pass.
     /// </remarks>
     [Fact]
     public void Two_inventories_differing_in_one_lock_flag_hash_differently()
@@ -99,14 +79,9 @@ public sealed class InventoryPersistenceTests
         Bytes(locked.ToSnapshot()).ShouldNotBe(Bytes(unlocked.ToSnapshot()));
     }
 
-    /// <summary>
-    /// The same items, one of them stored in the first inventory and held in the second, are two
-    /// different states.
-    /// </summary>
     /// <remarks>
     /// The case a snapshot that concatenated the two lists — or wrote a single list plus a count —
-    /// would pass. Both inventories own exactly the same identities, so nothing but the placement can
-    /// be moving the bytes.
+    /// would pass.
     /// </remarks>
     [Fact]
     public void The_same_items_stored_and_held_are_two_different_states()
@@ -132,14 +107,10 @@ public sealed class InventoryPersistenceTests
         Bytes(oneHeld).ShouldNotBe(Bytes(allStored));
     }
 
-    /// <summary>The purchase count is persisted, and moving it moves the bytes.</summary>
     /// <remarks>
-    /// Without this the field would be state nothing reads back. ⚠️ It no longer buys anything —
-    /// capacity is flat as of the 2026-08-17 ruling and nothing writes this column — but it is still
-    /// carried, because the ladder is deferred rather than deleted and this is the counter it moves
-    /// the day the owner deals with the limit. That it buys nothing is
-    /// <c>InventoryTests.A_recorded_purchase_count_buys_nothing</c>'s claim; this one is only that
-    /// the column survives.
+    /// The count buys nothing since the 2026-08-17 flat-capacity ruling —
+    /// <c>InventoryTests.A_recorded_purchase_count_buys_nothing</c> — but the column must survive,
+    /// because the ladder is deferred rather than deleted.
     /// </remarks>
     [Fact]
     public void The_purchase_count_survives_the_round_trip()
@@ -153,11 +124,10 @@ public sealed class InventoryPersistenceTests
         Bytes(bought.ToSnapshot()).ShouldNotBe(Bytes(Inventories.Empty().ToSnapshot()));
     }
 
-    /// <summary>A row whose stored list is longer than the flat ceiling is refused.</summary>
     /// <remarks>
-    /// The stock cannot exceed the ceiling — a row that does is a save written by a build with
-    /// different tuning, and reading it would hand a player slots the game says do not exist. One
-    /// item over, so the bound is the ceiling itself rather than "roughly that many".
+    /// A row over the ceiling is a save written by a build with different tuning, and reading it
+    /// would hand a player slots the game says do not exist. One item over, so the bound is the
+    /// ceiling itself.
     /// </remarks>
     [Fact]
     public void A_row_holding_more_than_the_ceiling_is_refused()
@@ -173,23 +143,11 @@ public sealed class InventoryPersistenceTests
         result.Error.ShouldContain(nameof(InventorySnapshot.Stored), Case.Sensitive);
     }
 
-    /// <summary>
-    /// 🔒 A row claiming more purchases than the ladder currently prices still loads, and the
-    /// inventory still works afterwards.
-    /// </summary>
     /// <remarks>
-    /// <para>
-    /// The Energy ceiling's rule, on the other tunable this aggregate carries: the count is a
-    /// tunable's worth of history, a balance patch that shortened the ladder leaves real rows above
-    /// the new cap, and refusing to load them would turn a data edit into an account outage.
-    /// </para>
-    /// <para>
-    /// "Still loads" is only half of it, and the weaker half. A capacity read that derived anything
-    /// from this count could still <em>throw</em> on the first grant — which is exactly what happened
-    /// before the 2026-08-17 ruling, when every read went through a <c>CapacityAt</c> that refused an
-    /// argument outside <c>0..MaxPurchases</c> — and a load-only assertion would report that outage
-    /// as fixed. Hence the grant, the lock and the removal below.
-    /// </para>
+    /// The purchase count is a tunable's worth of history: a balance patch that shortened the
+    /// ladder leaves real rows above the new cap, and refusing them would turn a data edit into an
+    /// account outage. "Still loads" is the weaker half — before the 2026-08-17 ruling a capacity
+    /// read derived from this count threw on the first grant — hence the grant, lock and removal.
     /// </remarks>
     [Fact]
     public void A_row_past_the_purchase_cap_still_loads_and_still_grants()
@@ -214,11 +172,7 @@ public sealed class InventoryPersistenceTests
         loaded.Value.Remove(new GearInstanceId("gi_0001"), Inventories.Tuning).ShouldBeTrue();
     }
 
-    /// <summary>A row naming one item twice is refused, whichever list the repeat is in.</summary>
-    /// <remarks>
-    /// Two lists means two places a duplicate can hide, and an inventory holding one identity twice
-    /// makes every operation that names an id ambiguous.
-    /// </remarks>
+    /// <remarks>An inventory holding one identity twice makes every operation that names an id ambiguous.</remarks>
     [Fact]
     public void A_row_naming_one_item_twice_is_refused()
     {
@@ -231,7 +185,6 @@ public sealed class InventoryPersistenceTests
             .IsFailure.ShouldBeTrue("the same identity is both stored and held");
     }
 
-    /// <summary>A null list is a fault, not an empty inventory.</summary>
     [Fact]
     public void A_null_list_is_a_fault_rather_than_an_empty_one()
     {
@@ -243,11 +196,6 @@ public sealed class InventoryPersistenceTests
     }
 
     /// <summary>An inventory holding a stored item, a locked item, an affixed item and two held items.</summary>
-    /// <remarks>
-    /// The purchase count is written into the row rather than bought, because nothing buys an
-    /// expansion since the 2026-08-17 ruling. It is still on the row on purpose: the byte comparison
-    /// above is only about a column that carries a value.
-    /// </remarks>
     private static Inventory Stocked()
     {
         var inventory = Inventories.Rehydrated(new InventorySnapshot(1, [], []));
@@ -272,10 +220,8 @@ public sealed class InventoryPersistenceTests
         rarity: Rarity.B,
         affixes: [new GearAffixRoll("AFX_CRIT_CHANCE", value)]);
 
-    /// <summary>The persisted form of one item, so a case can build a row without an inventory.</summary>
     private static GearInstanceSnapshot Snapshot(GearInstance item) => Inventories.Persist(item);
 
-    /// <summary>The canonical bytes of a row — the one comparison this file makes.</summary>
     private static byte[] Bytes(InventorySnapshot snapshot) =>
         CanonicalStateWriter.CanonicalBytes(snapshot);
 }

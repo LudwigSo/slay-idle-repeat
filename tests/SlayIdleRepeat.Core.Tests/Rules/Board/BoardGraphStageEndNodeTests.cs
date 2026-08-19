@@ -5,24 +5,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
 /// <summary>
-/// 🔒 <b><see cref="BoardGraph.IsStageEndNode"/>'s own contract</b>, asked of every node shape a
-/// board can hold, over small hand-authored <see cref="BoardGraph.FromLayout"/> graphs.
+/// <see cref="BoardGraph.IsStageEndNode"/>'s own contract, over small hand-authored
+/// <see cref="BoardGraph.FromLayout"/> graphs.
 /// </summary>
 /// <remarks>
-/// <para>
-/// ⚠️ <b>Why the predicate needs cases of its own rather than only the handler cases that drive it.</b>
-/// Two of its three clauses are unreachable through <c>ROLL_DICE</c>, <c>CHOOSE_FORK</c> and
-/// <c>RESOLVE_TILE</c> as they stand: <c>MovementEngine</c> never comes to rest on a node with no
-/// outgoing edge without also reporting the boss, and <c>BoardGenerator</c> never places a junction
-/// late enough to be a stage's last node. Deleting either clause therefore leaves every
-/// handler-driven case green while the predicate's documented answer is wrong — which is exactly
-/// what happened when they were probed. These cases make both clauses load-bearing.
-/// </para>
-/// <para>
-/// The boss clause matters most: it is the difference between a run crossing two gates and three,
-/// and the only thing holding it up on the handler side is <c>Handlers.ChooseFork</c>'s
-/// <c>ReachedBoss</c> test, which is itself redundant today.
-/// </para>
+/// Internal seam by necessity: two of the predicate's three clauses are unreachable through
+/// <c>ROLL_DICE</c>/<c>CHOOSE_FORK</c>/<c>RESOLVE_TILE</c> — <c>MovementEngine</c> never rests on
+/// an edgeless node without also reporting the boss, and <c>BoardGenerator</c> never places a
+/// junction late enough to end a stage — so deleting either clause leaves every handler-driven
+/// case green (verified by probing).
 /// </remarks>
 public sealed class BoardGraphStageEndNodeTests
 {
@@ -153,14 +144,9 @@ public sealed class BoardGraphStageEndNodeTests
     }
 
     /// <summary>
-    /// 🔒 The clause that quantifies over <em>every</em> outgoing edge rather than the first one.
+    /// The clause that quantifies over <em>every</em> outgoing edge rather than the first one —
+    /// not constructible from a generated board, but an authored <c>FromLayout</c> could put a fork here.
     /// </summary>
-    /// <remarks>
-    /// Not constructible from a generated board — <c>BoardGenerator</c> caps junction placement well
-    /// before a stage's last node — so this is the only thing standing between that clause and being
-    /// silently deletable. <c>BoardGraph.FromLayout</c> is a public seam and an authored layout could
-    /// put the fork here.
-    /// </remarks>
     [Fact]
     public void A_junction_with_one_edge_leaving_the_stage_and_one_staying_is_not_a_stage_end()
     {

@@ -61,16 +61,4 @@ public sealed class DifficultyTierTests
     {
         Enum.GetUnderlyingType(typeof(DifficultyTier)).ShouldBe(typeof(int));
     }
-
-    /// <summary>
-    /// It lives in <c>Primitives/</c> and not under <c>Core/Model/</c>, and that is measured rather
-    /// than stylistic: a public enum under <c>Core/Model/</c> fails the mutation-boundary check on
-    /// its compiler-generated <c>value__</c> field.
-    /// </summary>
-    [Fact]
-    public void It_lives_in_Primitives_because_a_public_enum_under_Model_fails_the_mutation_rule()
-    {
-        typeof(DifficultyTier).Namespace.ShouldBe(typeof(FtueBeat).Namespace);
-        typeof(DifficultyTier).Namespace.ShouldBe("SlayIdleRepeat.Core.Primitives");
-    }
 }

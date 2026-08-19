@@ -13,34 +13,13 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// with <c>ContinueNodeId</c> and <c>BranchNodeId</c> the wrong way round.
 /// </summary>
 /// <remarks>
-/// <para>
-/// ⚠️ <b>Why this file exists, and why it does not go through <c>BoardView.Project</c>.</b>
-/// <c>Project</c> takes a <c>RunSnapshot</c> and replays the board out of its seed, so the only
-/// board it can ever see is a <c>BoardGenerator</c> one — and the generator emits every junction in
-/// the required order, in a single statement. The guard is therefore unreachable from the public
-/// door: every case in <see cref="BoardViewTests"/> stays green with it deleted. The producer that
-/// CAN lay a junction out any other way is <c>BoardGraph.FromLayout</c>, and the seam that lets a
-/// hand-built layout reach the projection is <c>BoardView.ForksOf</c>, internal on
-/// <c>GameRules.Execute</c>'s precedent and reachable here under `30` §11.3's one
-/// <c>InternalsVisibleTo</c> grant.
-/// </para>
-/// <para>
-/// The stakes are `03` §1.1's fork contract as <c>CHOOSE_FORK</c> answers it: the command names the
-/// branch by INDEX, so a view that swapped the two ids would draw one node's preview over the other
-/// node's tiles and move the run somewhere the player did not pick — silently, on a board that is
-/// otherwise well-formed.
-/// </para>
-/// <para>
-/// One arm of the guard has no case below: <c>edges.Count != 2</c>. <c>ForksOf</c> asks it only of
-/// nodes <c>BoardGraph.IsJunction</c> answers true for, and a node is a junction only by being
-/// declared one to <c>FromLayout</c>, which already refuses a declared junction that does not have
-/// exactly two outgoing edges. Neither producer can reach that arm, so nothing here pretends to.
-/// </para>
-/// <para>
-/// ⚠️ Forks are compared field by field, never by record <c>Equals</c> (steering S17): a
-/// synthesized <c>BoardFork.Equals</c> compares <c>BranchIcons</c> by REFERENCE, so it would report
-/// two identical projections as different.
-/// </para>
+/// Internal seam by necessity: <c>BoardView.Project</c> replays the board from the run seed, so it
+/// only ever sees generator boards, whose junctions are always emitted in the required order — the
+/// guard is unreachable from the public door. The producer that CAN lay a junction out otherwise is
+/// <c>BoardGraph.FromLayout</c>, reaching the projection through the internal <c>BoardView.ForksOf</c>.
+/// The stakes: <c>CHOOSE_FORK</c> names the branch by index, so swapped ids would move the run
+/// somewhere the player did not pick. The <c>edges.Count != 2</c> arm has no case here because
+/// <c>FromLayout</c> already refuses a junction without exactly two edges.
 /// </remarks>
 public sealed class BoardViewForkGuardTests
 {
@@ -63,14 +42,9 @@ public sealed class BoardViewForkGuardTests
         new(ForkLabel.Perilous, new[] { TileKind.Elite });
 
     /// <summary>
-    /// 🔒 `03` §1.1 — <b>the negative control.</b> A hand-built <c>FromLayout</c> board whose
-    /// junction IS laid out Continue-then-Branch-with-a-preview projects without complaint, and the
-    /// fork it yields names the continuation and the branch entry the right way round.
+    /// `03` §1.1 — the negative control: without it, the three refusals below would all pass
+    /// against a projection that threw on every hand-built board.
     /// </summary>
-    /// <remarks>
-    /// Without this case the three refusals below would all pass against a projection that threw on
-    /// every hand-built board — which would pin nothing about the ORDER at all.
-    /// </remarks>
     [Fact]
     public void A_well_formed_junction_projects_to_a_fork_naming_the_continuation_and_the_branch()
     {
@@ -92,21 +66,12 @@ public sealed class BoardViewForkGuardTests
     }
 
     /// <summary>
-    /// 🔒 `03` §1.1 — a junction whose two edges are ordered <c>Branch</c> then <c>Continue</c> is
-    /// refused BY NAME, rather than projected with the two node ids swapped.
+    /// `03` §1.1 — a junction whose two edges are ordered <c>Branch</c> then <c>Continue</c> is
+    /// refused by name, rather than projected with the two node ids swapped.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// This is the shape the guard exists for: both edges are present, both carry a preview — only
-    /// the ORDER is wrong, and the order is the whole of what <c>CHOOSE_FORK</c>'s branch index
-    /// means.
-    /// </para>
-    /// <para>
-    /// ⚠️ The <c>Continue</c> edge is given a preview too, which no real layout would do. That is
-    /// deliberate: with it null, the missing-preview arm below refuses this board as well, and the
-    /// case would stay green with the order check deleted — it would pin nothing about the order at
-    /// all. Every arm but the one under test is left satisfiable.
-    /// </para>
+    /// The <c>Continue</c> edge deliberately carries a preview too: with it null the missing-preview
+    /// arm refuses this board as well, and the case would stay green with the order check deleted.
     /// </remarks>
     [Fact]
     public void A_junction_whose_edges_are_ordered_Branch_then_Continue_is_refused_by_name()
@@ -133,15 +98,9 @@ public sealed class BoardViewForkGuardTests
     }
 
     /// <summary>
-    /// 🔒 `03` §1.1 — a junction whose second edge is not a <c>Branch</c> edge at all is refused by
-    /// name, rather than projected as if the second way out were a fork branch.
+    /// `03` §1.1 — a junction whose second edge is not a <c>Branch</c> edge at all is refused by
+    /// name. The edge carries a preview so its KIND is the only thing this case can be refused for.
     /// </summary>
-    /// <remarks>
-    /// Distinct from the swapped-order case: the first edge is right, so nothing about the ORDER is
-    /// wrong — the second way out simply is not marked as a branch, so there is no branch index for
-    /// <c>CHOOSE_FORK</c> to answer. It carries a preview for the same reason the case above does:
-    /// so that the edge KIND is the only thing this case can be refused for.
-    /// </remarks>
     [Fact]
     public void A_junction_whose_second_edge_is_not_a_branch_is_refused_by_name()
     {
@@ -161,14 +120,9 @@ public sealed class BoardViewForkGuardTests
     }
 
     /// <summary>
-    /// 🔒 `03` §1.1 — a correctly-ordered junction whose <c>Branch</c> edge carries NO preview is
-    /// refused by name. A preview is never derived from the label to fill the gap.
+    /// `03` §1.1 — a correctly-ordered junction whose <c>Branch</c> edge carries NO preview is
+    /// refused by name: a preview derived from the label would promise tiles the branch does not hold.
     /// </summary>
-    /// <remarks>
-    /// The alternative the guard forecloses is the tempting one: the label alone is enough to render
-    /// a plausible-looking fork card, and it would promise tiles the branch does not hold. The icons
-    /// are the branch's own tiles or the fork cannot be drawn at all.
-    /// </remarks>
     [Fact]
     public void A_branch_edge_carrying_no_preview_is_refused_by_name()
     {
@@ -193,13 +147,10 @@ public sealed class BoardViewForkGuardTests
     }
 
     /// <summary>
-    /// 🔒 `03` §1.1 — the seam is the same code the public door runs: over the real generated board,
-    /// <c>ForksOf</c> yields exactly the forks <c>BoardView.Project</c> publishes.
+    /// The seam is the same code the public door runs: over a real generated board, <c>ForksOf</c>
+    /// yields exactly the forks <c>BoardView.Project</c> publishes — otherwise the cases above
+    /// would pin a helper <c>Project</c> could have stopped calling.
     /// </summary>
-    /// <remarks>
-    /// Without this, the four cases above would pin a helper that <c>Project</c> could have stopped
-    /// calling — a guard proved live on a path nothing walks.
-    /// </remarks>
     [Fact]
     public void The_internal_seam_yields_the_same_forks_the_public_projection_publishes()
     {

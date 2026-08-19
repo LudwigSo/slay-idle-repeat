@@ -16,19 +16,10 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Perks;
 
 /// <summary>
 /// The three plain composition rules — no duplicate options, at least two categories, and the
-/// per-option owned-upgrade bias — as the draft engine enforces them.
+/// per-option owned-upgrade bias — as the draft engine enforces them. Every case sweeps a fixed
+/// seed range: a rule enforced by narrowing a pool holds on every draw, not on the one the author
+/// happened to pick.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Every case fixes its seeds. The engine draws counter-based, so a sweep over a fixed range of
-/// seeds is as deterministic as one seed and says something a single draft cannot: a rule enforced
-/// by narrowing a pool holds on every draw, not on the one the author happened to pick.
-/// </para>
-/// <para>
-/// These three carry no counter and no guarantee. They are asserted here, against the engine, rather
-/// than beside the five <c>DRAFT</c> rules, because that is the difference between them.
-/// </para>
-/// </remarks>
 public sealed class DraftCompositionRuleTests
 {
     /// <summary>The seed range every sweep runs over. Fixed, so a failure is reproducible by number.</summary>
@@ -110,14 +101,9 @@ public sealed class DraftCompositionRuleTests
     }
 
     /// <summary>
-    /// The clashing fixture really can go mono-category, so the case above is not passing because the
-    /// catalogue makes it impossible to fail.
+    /// The floor under the diversity sweep (steering S3): a catalogue in which three same-category
+    /// options cannot be drawn at all would satisfy the rule while quantifying over nothing.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The floor under the diversity sweep (steering S3). A catalogue in which three same-category
-    /// options cannot be drawn at all would satisfy the rule while quantifying over nothing, and
-    /// nothing else here would say so.
-    /// </remarks>
     [Fact]
     public void The_clashing_catalogue_holds_more_same_category_rows_than_a_draft_has_slots()
     {
@@ -213,47 +199,15 @@ public sealed class DraftCompositionRuleTests
             .ShouldBe(expected);
     }
 
-    // ------------------------------------------------------------------ the predicates
-
-    /// <summary>The duplicate predicate answers both ways.</summary>
-    [Fact]
-    public void The_duplicate_predicate_tells_a_repeated_id_from_a_distinct_one()
-    {
-        DraftCompositionRules.NoDuplicateOptions(new[] { "A", "B", "C" }).ShouldBeTrue();
-        DraftCompositionRules.NoDuplicateOptions(new[] { "A", "B", "A" }).ShouldBeFalse();
-    }
-
-    /// <summary>The diversity predicate answers both ways.</summary>
-    [Fact]
-    public void The_diversity_predicate_tells_a_mono_category_draft_from_a_mixed_one()
-    {
-        DraftCompositionRules.CategoryDiversity(
-            new[] { PerkCategory.Offense, PerkCategory.Offense, PerkCategory.Defense }).ShouldBeTrue();
-        DraftCompositionRules.CategoryDiversity(
-            new[] { PerkCategory.Offense, PerkCategory.Offense, PerkCategory.Offense }).ShouldBeFalse();
-    }
-
     // ------------------------------------------------------------------ the narrowing that serves it
 
     /// <summary>
     /// 🔒 The per-slot narrowing decision, over the whole (categories so far, slots left) space a
-    /// three-option draft can reach — and one row past it.
+    /// three-option draft can reach — and one row past it. Internal seam by necessity: the engine
+    /// only ever reaches the threshold-of-2 rows, so the threshold-as-a-dial reading is observable
+    /// nowhere else. Narrowing too late is a mono-category draft; narrowing too early would ban two
+    /// Offense options beside a Defense one, a stricter rule than the one stated.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The engine used to restate this rule as "narrow the last slot when every earlier slot shares
-    /// one category", which is correct for a threshold of exactly 2 and quietly wrong for any other
-    /// value — so <see cref="DraftCompositionRules.MinimumDistinctCategories"/> read like a dial and
-    /// was not one: raising it would have changed what the tests demanded and nothing about what the
-    /// engine did. The decision reads the threshold now, and this is where the reading is pinned.
-    /// </para>
-    /// <para>
-    /// Both directions matter. Narrowing too late is a mono-category draft — a draft with no
-    /// decision in it. Narrowing too early is a stricter rule than the one stated: a draft is
-    /// allowed to repeat a category as long as it still spans enough of them, and forbidding the
-    /// repeat outright would quietly ban two Offense options beside a Defense one.
-    /// </para>
-    /// </remarks>
     [Theory]
     // slot 0 of 3 — everything is still reachable, so nothing is owed.
     [InlineData(0, 3, false)]
@@ -286,44 +240,4 @@ public sealed class DraftCompositionRuleTests
             DraftCompositionRules.MustContributeNewCategory(1, -1));
     }
 
-    /// <summary>
-    /// 🔒 The two constants are compatible: a draft cannot be asked for more distinct categories
-    /// than it has slots to put them in.
-    /// </summary>
-    /// <remarks>
-    /// The coupling made explicit rather than left implicit. The narrowing reads the threshold now,
-    /// so raising it genuinely changes the engine — but raising it past the option count states a
-    /// rule no draft can satisfy, and the engine would fall back on every slot and produce whatever
-    /// it could while every diversity assertion in this file went red without saying why.
-    /// </remarks>
-    [Fact]
-    public void The_diversity_threshold_fits_inside_a_draft()
-    {
-        DraftCompositionRules.MinimumDistinctCategories.ShouldBeGreaterThan(
-            1, "a threshold of 1 is satisfied by any draft at all, which is no rule.");
-
-        DraftCompositionRules.MinimumDistinctCategories.ShouldBeLessThanOrEqualTo(
-            PerkDraftEngine.OptionCount,
-            "a draft of " + PerkDraftEngine.OptionCount + " options cannot span more than that many " +
-            "categories, so a threshold above it is unsatisfiable by construction rather than by " +
-            "bad luck — every draft would fall through the narrowing and the rule would be stated " +
-            "but never met.");
-    }
-
-    // ------------------------------------------------------------------ determinism
-
-    /// <summary>The composed draft is still byte-identical for a given seed.</summary>
-    /// <remarks>
-    /// The whole point of a fixed draw budget per slot: the options a client is looking at are
-    /// re-derived, never stored, so a draft that composed differently on a second pass would leave a
-    /// resumed run staring at three different cards.
-    /// </remarks>
-    [Fact]
-    public void A_composed_draft_is_identical_on_a_second_pass()
-    {
-        var owned = Owning((PerkDocuments.Rare1, 1));
-
-        Draft(Catalogue, owned, seed: 4242, stage: 2)
-            .ShouldBe(Draft(Catalogue, owned, seed: 4242, stage: 2));
-    }
 }

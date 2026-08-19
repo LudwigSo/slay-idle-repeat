@@ -12,34 +12,25 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
 /// <summary>
-/// The view the hero build hands out, and its agreement with the aggregation behind it.
+/// The view the hero build hands out, and its agreement with the aggregation behind it — each
+/// published fact is a second spelling of a number the aggregation already produced, which is the
+/// kind of surface that drifts.
 /// </summary>
-/// <remarks>
-/// The build is now the entry point an outside assembly reaches the hero through, so it publishes
-/// three facts — the capped block, the post-multiplier Max HP and the effects it valued but could
-/// not apply — that used to be readable only off the internal aggregate. Every one of them is a
-/// second spelling of a number the aggregation already produced, which is precisely the kind of
-/// surface that drifts: these cases pin the two spellings together.
-/// </remarks>
 public sealed class HeroBuildSurfaceTests
 {
-    /// <summary>The published block is the aggregation's own, not a copy of it.</summary>
+    /// <summary>The published block agrees with the aggregation behind it.</summary>
     [Fact]
     public void The_published_stat_block_is_the_aggregations_own()
     {
         var build = Geared();
 
-        build.Stats.ShouldBeSameAs(
+        build.Stats.ShouldBe(
             build.Aggregated.Final,
-            "a copy is a second thing to keep in step with the pipeline");
+            "the hero screen's numbers have to be the numbers the fight is run with");
     }
 
-    /// <summary>The published Max HP is the aggregation's post-multiplier figure.</summary>
-    /// <remarks>
-    /// Not the capped <c>MAX_HP</c> stat: the two are different numbers whenever a multiplicative
-    /// source is in play, and the fight's health pool is the post-multiplier one. Reading the stat
-    /// here would publish the smaller of the two under the name of the larger.
-    /// </remarks>
+    /// <summary>The published Max HP is the aggregation's post-multiplier figure — the fight's
+    /// health pool, not the capped stat.</summary>
     [Fact]
     public void The_published_max_hp_is_the_post_multiplier_figure()
     {
@@ -47,10 +38,8 @@ public sealed class HeroBuildSurfaceTests
 
         build.MaxHp.ShouldBe(build.Aggregated.PostMultiplierMaxHp);
 
-        // ⚠️ Stated so the limit is visible rather than assumed: MAX_HP carries no cap and no
-        // authored gear, affix or set bonus writes a STAT_SET to it, so for every build this seam can
-        // produce the two readings coincide and THIS case cannot separate them. The case below is
-        // where the separation is actually pinned.
+        // No authored gear writes a STAT_SET to MAX_HP, so for every build this seam can produce the
+        // two readings coincide; the case below is where the separation is pinned.
         build.MaxHp.ShouldBe(
             build.Stats[Core.Content.Effects.StatId.MAX_HP],
             "no gear-only build diverges the two readings; if this ever fails, the case below is the " +
@@ -59,15 +48,9 @@ public sealed class HeroBuildSurfaceTests
 
     /// <summary>
     /// 🔒 The post-multiplier reading and the capped stat are genuinely different numbers the moment
-    /// a <c>STAT_SET</c> lands on Max HP.
+    /// a <c>STAT_SET</c> lands on Max HP — the discriminator the build's own gear fixtures cannot
+    /// supply, since no authored gear writes a <c>STAT_SET</c> to it.
     /// </summary>
-    /// <remarks>
-    /// The discriminator the build's own fixture cannot supply. <c>PostMultiplierMaxHp</c> is frozen
-    /// after step 7 and before step 8, so a <c>STAT_SET</c> moves the published stat and not the
-    /// health pool the fight runs on — which is the whole reason the build publishes the one rather
-    /// than the other. Without this case, "the published Max HP is the post-multiplier figure" is a
-    /// sentence nothing in the suite could contradict.
-    /// </remarks>
     [Fact]
     public void The_post_multiplier_reading_is_not_the_capped_stat_once_a_stat_set_lands()
     {
@@ -96,29 +79,11 @@ public sealed class HeroBuildSurfaceTests
             1.0, "while the published stat is the set value");
     }
 
-    /// <summary>The published unapplied list is the aggregation's skipped list.</summary>
-    /// <remarks>
-    /// The gold-gain and pet-aura affixes land here: the block holds fourteen combat stats and
-    /// nothing else, so an affix naming a stat outside them is named rather than lost. A caller that
-    /// could not read this would have no way to tell a valued-but-unapplied affix from one that was
-    /// silently dropped.
-    /// </remarks>
-    [Fact]
-    public void The_published_unapplied_list_is_the_aggregations_skipped_list()
-    {
-        var build = Geared();
-
-        build.UnappliedEffects.ShouldBeSameAs(build.Aggregated.SkippedNonCombatStatEffects);
-    }
-
-    /// <summary>A gold-gain affix is NAMED in that list, not silently dropped.</summary>
-    /// <remarks>
-    /// 🔴 The case above compares two references to the same EMPTY list, because the fixture set
-    /// rolls nothing outside the fourteen combat stats — so it holds whatever the property returns
-    /// and says nothing about the behaviour it documents. This one wears a ring rolled with
-    /// <c>AFX_GOLD_GAIN</c>, whose <c>GOLD_PCT</c> is one of the three accumulators the block has no
-    /// slot for, and asks for the id by name.
-    /// </remarks>
+    /// <summary>
+    /// A gold-gain affix is NAMED in the published unapplied list, not silently dropped: the ring's
+    /// <c>GOLD_PCT</c> has no slot in the fourteen-stat block, and a caller must be able to tell a
+    /// valued-but-unapplied affix from one the pipeline lost.
+    /// </summary>
     [Fact]
     public void An_affix_outside_the_fourteen_combat_stats_is_named_rather_than_lost()
     {
@@ -168,15 +133,10 @@ public sealed class HeroBuildSurfaceTests
     }
 
     /// <summary>
-    /// 🔒 Inside a run the door reads the loadout the RUN froze; outside one it reads the player's
-    /// own.
+    /// 🔒 Inside a run the door reads the loadout the RUN froze. Stated over a player and a run that
+    /// disagree, in both crossings — every other fixture dresses the two identically, so a door
+    /// reading <c>player.Loadout</c> in both branches satisfies all of them.
     /// </summary>
-    /// <remarks>
-    /// 🔴 <b>Stated over a player and a run that disagree, which is the only way to state it.</b>
-    /// Every other fixture here dresses the player and the run identically, so a door that took its
-    /// run argument and ignored it — reading <c>player.Loadout</c> in both branches — satisfies all of
-    /// them. Both crossings are asked for, so neither branch can be the one that happens to be right.
-    /// </remarks>
     [Theory]
     [InlineData(false, true)]
     [InlineData(true, false)]

@@ -22,30 +22,12 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// <c>Core</c> that can see a tile track or a fork preview at all.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The load-bearing claim is not "a board exists" — it is that this is the SAME board the run
-/// is played on</b> (steering S2). The board is never persisted: it regenerates from
-/// <c>RunSeed</c> on every command, and the view replays it the same way. A view that generated a
-/// second, plausible board would satisfy every structural case in this file and would draw a track
-/// the run is not standing on, so
-/// <see cref="The_view_names_the_tile_the_run_actually_resolved_at_every_landing_of_a_command_driven_run"/>
-/// pins the view against what the run's own pending-tile state reports, landing by landing.
-/// </para>
-/// <para>
-/// ⚠️ <b>Collections are never compared by record equality</b> (steering S17). A synthesized record
-/// <c>Equals</c> compares <c>IReadOnlyList&lt;TileKind&gt;</c> by REFERENCE, so two entirely
-/// unrelated views would compare unequal on their icons and equal on nothing — and a projection that
-/// returned the same cached instance twice would compare equal for a reason that says nothing about
-/// its contents. <see cref="Canonical"/> is the comparison, and
-/// <see cref="Two_different_run_seeds_project_to_different_bytes"/> is the negative control proving
-/// it can see a difference at all.
-/// </para>
-/// <para>
-/// ⚠️ Internals are reachable here under `30` §11.3's one <c>InternalsVisibleTo</c> grant, so
-/// <see cref="Oracle"/> generates the real <see cref="CoreBoard"/> and is used as the oracle. That
-/// is the point: the view must agree with the producer, and the producer is what the handlers move
-/// the run across.
-/// </para>
+/// The load-bearing claim is that this is the SAME board the run is played on — never persisted,
+/// regenerated from <c>RunSeed</c> on every command — so the command-driven walk pins the view
+/// against the run's own pending-tile state, and the structural cases are stated against
+/// <see cref="Oracle"/>, the internal producer the handlers move the run across. Views are compared
+/// via <see cref="Canonical"/>, never record <c>Equals</c>: a synthesized equality compares the
+/// icon lists by reference.
 /// </remarks>
 public sealed class BoardViewTests
 {
@@ -75,42 +57,22 @@ public sealed class BoardViewTests
     private const int CommandBudget = 600;
 
     /// <summary>
-    /// How many distinct landings the walk must check before it counts as evidence (steering S3).
+    /// How many distinct landings the walk must check before it counts as evidence. Measured: the
+    /// walk checks 13; floored well under so a hero's death or a board changing shape is no failure.
     /// </summary>
-    /// <remarks>
-    /// Measured on this checkout: the walk travels from the trailhead to the boss node and checks
-    /// <b>13</b> landings. Floored well under that, on
-    /// <c>StageBoundaryTraversalTests.MustCross</c>'s precedent — a hero can still die and one board
-    /// changing shape is not a failure — and far enough over zero that a run which stopped on its
-    /// first tile cannot satisfy it.
-    /// </remarks>
     private const int MustCheckLandings = 10;
 
     /// <summary>
-    /// How many distinct stages the checked landings must span, so the agreement is not a claim
-    /// about one corner of one stage (steering S3).
+    /// How many distinct stages the checked landings must span (measured: four), so "the walk
+    /// crossed a Stage Gate" is part of the claim without a stage-3 death failing it.
     /// </summary>
-    /// <remarks>
-    /// Measured: the walk spans stages 1, 2, 3 and the boss stage — four. Floored at two, which is
-    /// what makes "the walk crossed a Stage Gate" part of the claim without turning a hero's death
-    /// in stage 3 into a failure of this case.
-    /// </remarks>
     private const int MustSpanStages = 2;
 
     /// <summary>
-    /// How many of the checked landings must be OFF the spine, inside a fork branch (steering S2).
+    /// How many checked landings must be OFF the spine, where node id and linear index differ —
+    /// the one place a projection reading <c>Position</c> as a track offset disagrees with the run.
+    /// Measured: five, across three branches; floored at two so a board whose forks move is no failure.
     /// </summary>
-    /// <remarks>
-    /// 🔒 <b>Without this floor the walk proves the projection only where it cannot be wrong.</b> On
-    /// a spine node the node id and the linear index are interchangeable, so a projection that
-    /// resolved <c>Position</c> as a track offset agrees with the run at every spine landing and
-    /// disagrees at every branch one — which is precisely the mistake
-    /// <see cref="A_run_standing_inside_a_branch_resolves_to_the_branch_node_not_the_spine_node"/>
-    /// describes and the reason <see cref="NextCommand"/> takes the BRANCH at each fork. Measured on
-    /// this checkout: the walk lands on <b>five</b> off-spine nodes, across three different branches.
-    /// Floored at two rather than five, so a board whose forks move — or a hero who dies inside the
-    /// last branch — is not a failure, while a walk that never left the spine at all still is.
-    /// </remarks>
     private const int MustLandOffSpine = 2;
 
     // ------------------------------------------------------------------------------------------
@@ -118,17 +80,13 @@ public sealed class BoardViewTests
     // ------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// 🔒 <b>The identity, not a symptom.</b> A run is driven entirely through <c>GameRules.Apply</c>,
-    /// and at every landing the tile kind, linear index and stage the RUN reports for the node it
-    /// stands on are the ones <c>BoardView.Project</c> reports for that same node id.
+    /// A run is driven entirely through <c>GameRules.Apply</c>, and at every landing the tile kind,
+    /// linear index and stage the RUN reports for the node it stands on are the ones
+    /// <c>BoardView.Project</c> reports for that same node id.
     /// </summary>
     /// <remarks>
-    /// The run's <c>PendingTileKind</c>/<c>PendingTileLinearIndex</c>/<c>PendingTileStage</c> are
-    /// written by the movement handlers off the board <c>BoardResolution</c> resolved — so agreeing
-    /// with them is agreeing with the board the run is on, which is the one thing a second plausible
-    /// board could not do. Asserted across consecutive landings rather than at one, because a
-    /// projection that drifted after the first Portal jump or the first fork would pass a single-shot
-    /// check.
+    /// Consecutive landings rather than one, because a projection that drifted after the first
+    /// Portal jump or fork would pass a single-shot check.
     /// </remarks>
     [Fact]
     public void The_view_names_the_tile_the_run_actually_resolved_at_every_landing_of_a_command_driven_run()
@@ -137,9 +95,8 @@ public sealed class BoardViewTests
         var player = game.CreatePlayer(inventory: Harnesses.FarAboveParStock());
         game.Send(player, new BeginSessionCommand("1.0.0", "content"));
 
-        // 🔒 Geared before the run starts. The subject here is the BOARD, and since 14 §9 makes the
-        // server recompute the fight a bare-handed hero dies on its first battle — this case would then
-        // check four landings and claim to have walked a run. The loadout freezes at START_RUN (07 §4).
+        // Geared, or the recomputed fight (14 §9) kills a bare-handed hero on its first battle and
+        // the walk checks four landings while claiming a run. The loadout freezes at START_RUN.
         Harnesses.Equip(game, player);
         game.Send(player, new StartRunCommand(Chapter, DifficultyTier.NORMAL));
 
@@ -279,14 +236,13 @@ public sealed class BoardViewTests
     }
 
     /// <summary>
-    /// 🔒 <b>A paused <c>CHOOSE_FORK</c>, by identity.</b> The view names the junction the run waits
-    /// at, its two edges, and the branch preview `03` §1.1's board actually carries there — and the
-    /// real <c>CHOOSE_FORK</c> command lands the run on the very node the view called the branch.
+    /// A paused <c>CHOOSE_FORK</c>: the view names the junction the run waits at, its two edges and
+    /// the preview the board carries there — and the real <c>CHOOSE_FORK</c> command lands the run
+    /// on the very node the view called the branch.
     /// </summary>
     /// <remarks>
-    /// The preview is compared against the internal <see cref="CoreBoard"/>'s own Branch edge, which
-    /// is the producer the handlers read. Comparing it against the bias table instead would assert
-    /// what the label is supposed to encourage rather than what the branch actually holds.
+    /// Compared against the board's own Branch edge, not the bias table — the table says what a
+    /// label encourages, not what the branch holds.
     /// </remarks>
     [Fact]
     public void A_paused_fork_names_the_junction_the_run_waits_at_and_the_preview_the_board_carries()
@@ -338,13 +294,9 @@ public sealed class BoardViewTests
     }
 
     /// <summary>
-    /// 🔴 `03` §1 — the negative control for the case above: two different run seeds project to
-    /// different bytes, so the comparison can actually see a difference.
+    /// `03` §1 — the negative control for the case above: two different run seeds project to
+    /// different bytes, so a constant <see cref="Canonical"/> cannot satisfy the identity case.
     /// </summary>
-    /// <remarks>
-    /// Without this, a <see cref="Canonical"/> that returned a constant would satisfy the identity
-    /// case forever — the shape steering S1 exists for.
-    /// </remarks>
     [Fact]
     public void Two_different_run_seeds_project_to_different_bytes()
     {
@@ -387,14 +339,10 @@ public sealed class BoardViewTests
     }
 
     /// <summary>
-    /// 🔒 `03` §1.1 — a branch node is off the spine and carries its junction's forward index: the
-    /// k-th node of a branch has the linear index the spine node the same distance ahead has.
+    /// `03` §1.1 — a branch node is off the spine and carries its junction's forward index: the
+    /// k-th node of a branch has the linear index the spine node the same distance ahead has,
+    /// which is why the client cannot address a node by linear index alone.
     /// </summary>
-    /// <remarks>
-    /// That shared index is what makes a fork a RISK choice rather than a length discount — the
-    /// branch costs the same steps as the spine it shadows — and it is also why the client cannot
-    /// address a node by linear index alone.
-    /// </remarks>
     [Fact]
     public void Every_branch_node_is_off_the_spine_and_carries_its_junctions_forward_index()
     {
@@ -533,16 +481,13 @@ public sealed class BoardViewTests
     }
 
     /// <summary>
-    /// 🔒 `03` §3.1 — every declared fork label is reachable across the twenty fixed seeds. A floor
-    /// over the label SET, so the label plumbing cannot silently collapse to one value.
+    /// `03` §3.1 — every declared fork label is reachable across the twenty fixed seeds, so the
+    /// label plumbing cannot silently collapse to one value.
     /// </summary>
     /// <remarks>
-    /// Twenty seeds rather than one: a label is drawn uniformly per fork, so any single board says
-    /// nothing about the others. Stated over every declared member rather than over a count, so a
-    /// fifth label added later is covered without editing a number (steering S3) — and the NAME says
-    /// "every declared" rather than "all four" for the same reason, so it cannot promise a quantity
-    /// the assertion has stopped delivering. Measured on this checkout: the twenty seeds produce 86
-    /// forks carrying Perilous 24, Sheltered 19, Arcane 22, Feral 21.
+    /// Stated over every declared member rather than a count, so a fifth label added later is
+    /// covered without editing a number. Measured: the twenty seeds produce 86 forks carrying all
+    /// four labels.
     /// </remarks>
     [Fact]
     public void Every_declared_fork_label_is_reachable_across_the_fixed_seeds()
@@ -589,15 +534,10 @@ public sealed class BoardViewTests
     }
 
     /// <summary>
-    /// 🔒 `03` §1.1 — <b>the case the client provably cannot do today.</b> A run standing inside a
-    /// fork branch resolves to that BRANCH node, because <c>Position</c> is a node id and the linear
-    /// index alone is shared with the spine node the same distance ahead.
+    /// `03` §1.1 — a run standing inside a fork branch resolves to that BRANCH node, because
+    /// <c>Position</c> is a node id and the linear index alone is shared with the spine node the
+    /// same distance ahead.
     /// </summary>
-    /// <remarks>
-    /// The discriminating assertion is that the resolved node's linear index is NOT its node id: a
-    /// consumer that read <c>Position</c> as a linear index would draw the spine tile instead, which
-    /// is exactly the mistake this projection exists to make impossible.
-    /// </remarks>
     [Fact]
     public void A_run_standing_inside_a_branch_resolves_to_the_branch_node_not_the_spine_node()
     {
@@ -675,22 +615,6 @@ public sealed class BoardViewTests
             ShippedHarness.Content);
 
         view.PendingFork.ShouldBeNull();
-    }
-
-    // ------------------------------------------------------------------------------------------
-    // F — argument guards.
-    // ------------------------------------------------------------------------------------------
-
-    /// <summary>
-    /// 🔒 `03` §1.1 — a null run or a null content set is refused rather than projected into an empty
-    /// board that a caller would draw as a legal one.
-    /// </summary>
-    [Fact]
-    public void Projecting_a_null_run_or_a_null_content_set_is_refused()
-    {
-        Should.Throw<ArgumentNullException>(() => BoardView.Project(null!, ShippedHarness.Content));
-        Should.Throw<ArgumentNullException>(
-            () => BoardView.Project(RunSnapshots.With(chapterId: Chapter, runSeed: FixedSeed), null!));
     }
 
     // ------------------------------------------------------------------------------------------
@@ -796,15 +720,9 @@ public sealed class BoardViewTests
     }
 
     /// <summary>
-    /// 🔒 The comparison every determinism case uses — an explicit member-by-member walk, never
-    /// record <c>Equals</c> (steering S17).
+    /// The comparison every determinism case uses — every field of every node and fork appended in
+    /// order, so a difference anywhere is a difference in the string.
     /// </summary>
-    /// <remarks>
-    /// A synthesized record equality compares <c>BranchIcons</c> by reference, so it would report two
-    /// unrelated boards as different for a reason that has nothing to do with their contents and
-    /// could never report two identical ones as equal. Every field of every node and every fork is
-    /// appended in order, so a difference anywhere is a difference in the string.
-    /// </remarks>
     private static string Canonical(BoardView view)
     {
         var text = new StringBuilder();
@@ -863,11 +781,8 @@ public sealed class BoardViewTests
 
         if (run.PendingFork is not null)
         {
-            // 🔒 The BRANCH first (edge 1), the spine continuation only if the branch is refused.
-            // Continuing every time would keep the whole walk on the spine, where a node's id and its
-            // linear index are interchangeable — and the case this projection exists for is the one
-            // where they are not. Measured: branch-first lands on five off-spine nodes across three
-            // branches and still reaches the boss; continue-first lands on none.
+            // The BRANCH first, the spine continuation only if the branch is refused — continuing
+            // every time would keep the walk where node id and linear index are interchangeable.
             return new ChooseForkCommand(choice == 0 ? 1 : 0);
         }
 

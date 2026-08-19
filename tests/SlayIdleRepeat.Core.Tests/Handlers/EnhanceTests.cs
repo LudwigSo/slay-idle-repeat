@@ -15,7 +15,6 @@ public sealed class EnhanceTests
 
     private static EnhanceCommand Command(string id = "blade") => new(new GearInstanceId(id));
 
-    /// <summary>An attempt inside the certain band raises the level and charges its stones.</summary>
     [Fact]
     public void An_attempt_inside_the_certain_band_raises_the_level_and_charges_its_stones()
     {
@@ -28,9 +27,6 @@ public sealed class EnhanceTests
         ForgeWorlds.Moved(result.Events, CurrencyId.ENHANCE_STONES).ShouldBe(-2);
     }
 
-    /// <summary>Each level costs what the ladder authors for it, not a flat price.</summary>
-    /// <param name="level">The level the item stands at.</param>
-    /// <param name="stones">The stones the attempt costs.</param>
     [Theory]
     [InlineData(0, 2)]
     [InlineData(4, 8)]
@@ -46,9 +42,8 @@ public sealed class EnhanceTests
     }
 
     /// <summary>
-    /// 🔒 A LOCKED item can be enhanced. The lock excludes an item from auto-salvage and from merge
-    /// selection — the two operations that consume it — and enhancement consumes nothing but stones
-    /// and can neither destroy nor downgrade it.
+    /// The lock excludes an item from the operations that consume it; enhancement consumes nothing
+    /// but stones and can neither destroy nor downgrade the item.
     /// </summary>
     [Fact]
     public void A_locked_item_can_still_be_enhanced()
@@ -62,7 +57,6 @@ public sealed class EnhanceTests
         result.NewState.Player.Inventory.Stored[0].Locked.ShouldBeTrue();
     }
 
-    /// <summary>An item the player does not own is refused as such.</summary>
     [Fact]
     public void An_item_the_player_does_not_own_is_refused_as_not_owned()
     {
@@ -70,7 +64,6 @@ public sealed class EnhanceTests
             .Rejection.ShouldBe(RejectionReason.NOT_OWNED);
     }
 
-    /// <summary>An item waiting in overflow is not acted on.</summary>
     [Fact]
     public void An_item_waiting_in_overflow_is_refused_as_inventory_full()
     {
@@ -79,10 +72,7 @@ public sealed class EnhanceTests
             .Rejection.ShouldBe(RejectionReason.INVENTORY_FULL);
     }
 
-    /// <summary>
-    /// An item at the ceiling is refused as a cap, distinct from the shortfall below and from the
-    /// illegal-state catch-all — three different things for a player to do about it.
-    /// </summary>
+    /// <summary>CAP_REACHED, distinct from the shortfall and the illegal-state catch-all — three different things for a player to do about it.</summary>
     [Fact]
     public void An_item_at_the_ceiling_is_refused_as_a_cap()
     {
@@ -91,7 +81,6 @@ public sealed class EnhanceTests
             .Rejection.ShouldBe(RejectionReason.CAP_REACHED);
     }
 
-    /// <summary>A wallet that does not cover the stones is a shortfall.</summary>
     [Fact]
     public void A_wallet_that_does_not_cover_the_stones_is_refused_as_a_shortfall()
     {
@@ -102,11 +91,9 @@ public sealed class EnhanceTests
         GameRules.Apply(world, Command(), Context).Rejection.ShouldBe(RejectionReason.INSUFFICIENT_FUNDS);
     }
 
-    /// <summary>🔒 A refused attempt charges nothing and moves no item.</summary>
     /// <remarks>
-    /// 🔴 The expected bytes are taken BEFORE <c>Apply</c>. Reading them off <c>world</c> afterwards
-    /// would compare the slice against itself — <c>Apply</c> hands the caller's own slice back on a
-    /// rejection — so the assertion would hold however badly the handler had written it.
+    /// The expected bytes are taken BEFORE Apply: it hands the caller's own slice back on a
+    /// rejection, so bytes read afterwards would compare the slice against itself.
     /// </remarks>
     [Fact]
     public void A_refused_attempt_leaves_the_stock_and_the_wallet_exactly_where_they_stood()
@@ -124,11 +111,7 @@ public sealed class EnhanceTests
         world.Player.BalanceOf(CurrencyId.ENHANCE_STONES).ShouldBe(1);
     }
 
-    /// <summary>
-    /// 🔒 The stones are charged whether or not the attempt lands, and a failure leaves the level
-    /// standing. Found by walking seeds rather than assumed, so the case fails loudly if the
-    /// hardest level never fails.
-    /// </summary>
+    /// <summary>The failing seed is found by walking, not assumed, so the case fails loudly if the hardest level never fails.</summary>
     [Fact]
     public void A_failed_attempt_charges_its_stones_and_leaves_the_level_standing()
     {
@@ -158,7 +141,6 @@ public sealed class EnhanceTests
             "reaching the handler or the ladder has moved.");
     }
 
-    /// <summary>The item keeps its identity across an attempt, so the stock does not grow.</summary>
     [Fact]
     public void An_attempt_keeps_the_items_identity_and_leaves_the_stock_the_same_size()
     {

@@ -5,6 +5,11 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>The ward pool's rules, stated over <see cref="WardPool"/> itself without a battle.</summary>
+/// <remarks>
+/// Internal seam: segment-level absorption order, per-source caps and the break report need
+/// segments with staged expiries and repeat grants from one source, which a fight only produces
+/// through whole effects; the pool's fight-visible behaviour is covered in <c>WardCapTests</c>.
+/// </remarks>
 public sealed class WardPoolTests
 {
     /// <summary>

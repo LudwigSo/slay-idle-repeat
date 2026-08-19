@@ -16,26 +16,7 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// </remarks>
 public sealed class BeginSessionRefillTests
 {
-    /// <summary>An empty player is refilled to their Max Energy on the first call of the day.</summary>
-    [Fact]
-    public void The_first_BEGIN_SESSION_of_the_day_refills_the_bar_to_full()
-    {
-        var result = BeginSessions.Send(BeginSessions.Slice(energy: new EnergyBanks(0, 0)));
-
-        result.NewState.Player.Energy.ShouldBe(
-            new EnergyBanks(BeginSessions.Tuning.MaxEnergyAt(1), 0),
-            "the daily free refill fills the bar to full.");
-    }
-
-    /// <summary>
-    /// The refill fills the bar to this level's Max Energy and leaves the Reserve exactly where it
-    /// was, on both sides of the cap.
-    /// </summary>
-    /// <remarks>
-    /// The expectation is computed independently of the rule under test, so a bug inside
-    /// EnergyMath.RefillToFull itself can still be caught. Legend Levels 40/41/200 straddle the point
-    /// Max Energy stops growing (first reached at 41, not 40).
-    /// </remarks>
+    /// <remarks>Legend Levels 40/41/200 straddle the point Max Energy stops growing (first reached at 41, not 40).</remarks>
     [Theory]
     [InlineData(1)]
     [InlineData(40)]
@@ -52,10 +33,9 @@ public sealed class BeginSessionRefillTests
             $"'to full' at Legend Level {legendLevel} fills the bar and leaves the Reserve at 3.");
     }
 
-    /// <summary>A player already at maximum receives nothing, and nothing overflows into the Reserve.</summary>
     /// <remarks>
     /// The Reserve assertion is load-bearing: under a rival "fill both banks" reading a refill here
-    /// would silently bank a second tank instead of granting zero. See EnergyMath.RefillToFull.
+    /// would silently bank a second tank instead of granting zero.
     /// </remarks>
     [Fact]
     public void A_player_at_maximum_receives_nothing_and_overflows_nothing()
@@ -75,9 +55,6 @@ public sealed class BeginSessionRefillTests
         row.Delta.ShouldBe(0, "nothing moved — and the row says so, rather than being absent.");
     }
 
-    // ---------------------------------------------------------------- the attribution row
-
-    /// <summary>The refill's CurrencyChanged reaches CommandResult.Events, stamped and attributed.</summary>
     [Fact]
     public void The_refills_CurrencyChanged_reaches_the_result_event_list()
     {
@@ -92,10 +69,6 @@ public sealed class BeginSessionRefillTests
         refill.Sequence.ShouldBe(1, "Apply stamps the ordinal from 1; a handler stamping its own is refused.");
     }
 
-    /// <summary>
-    /// The refill's reason is distinct from regeneration's, and both rows survive when a command does
-    /// both at once — ordered, accrual first.
-    /// </summary>
     [Fact]
     public void A_command_that_accrues_and_refills_publishes_both_rows_in_order()
     {

@@ -10,17 +10,9 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 // here could not name the very class it is testing (CS0118).
 
 /// <summary>
-/// Hermetic <see cref="RunSnapshot"/> fixtures — one valid row, and a <c>With(...)</c> that replaces
-/// exactly one field so a test names the single thing it is about.
+/// Hermetic <see cref="RunSnapshot"/> fixtures — one valid row, and a <c>With(...)</c> that
+/// replaces exactly one field. The baseline numbers are test values and carry no design claim.
 /// </summary>
-/// <remarks>
-/// A test that built a whole snapshot inline would restate every field to change one, and the
-/// reader could not tell which one it was asserting about.
-/// <para>
-/// The baseline numbers are test values and carry <b>no design claim</b>: legal and
-/// unremarkable, not a starting state.
-/// </para>
-/// </remarks>
 internal static class RunSnapshots
 {
     /// <summary>2026-08-12 09:41:07 UTC — an ordinary instant, on no boundary at all.</summary>
@@ -68,17 +60,14 @@ internal static class RunSnapshots
     internal static RunSnapshot Valid { get; } = With();
 
     /// <summary>
-    /// The valid row with one of its two reference-typed maps replaced by <c>null</c>.
+    /// The valid row with one reference-typed field replaced by <c>null</c> — <see cref="With"/>'s
+    /// optional parameters read <c>null</c> as "keep the shipped value", so the null cases get
+    /// their own door.
     /// </summary>
     /// <remarks>
-    /// <see cref="With"/> cannot express this: its optional parameters read <c>null</c> as "keep the
-    /// shipped value", which is what makes it readable — so the null cases get their own door rather
-    /// than a sentinel every other call site would have to understand.
-    /// </remarks>
-    /// <remarks>
-    /// 🔴 Every parameter here is optional and every call site passes them BY NAME. A new one is
-    /// appended LAST and nowhere else: a parameter inserted mid-signature merges textually clean and
-    /// silently re-binds every positional argument after it.
+    /// 🔴 Every parameter is optional and passed BY NAME; a new one is appended LAST — a parameter
+    /// inserted mid-signature merges textually clean and silently re-binds later positional
+    /// arguments.
     /// </remarks>
     internal static RunSnapshot WithNull(
         bool streams = false,
@@ -182,13 +171,10 @@ internal static class RunSnapshots
             startingLoadout ?? EmptyLoadout,
             itemsAtOrAboveFloorBand ?? 0);
 
-    /// <summary>A hero wearing nothing — where a run started by a player with no gear begins.</summary>
-    /// <remarks>
-    /// Empty, never <c>null</c>: an absent starting loadout is a fault on the player inventory's
-    /// precedent, so a fixture defaulting to one would make every rehydration case in this suite fail
-    /// for a reason unrelated to what it asserts. Expression-bodied rather than an initialised static,
-    /// which is load-bearing for <see cref="Valid"/>'s sake — see <c>PlayerSnapshots.EmptyInventory</c>.
-    /// </remarks>
+    /// <summary>
+    /// Empty, never <c>null</c> — an absent starting loadout is a fault. Expression-bodied, which
+    /// is load-bearing for <see cref="Valid"/>'s sake — see <c>PlayerSnapshots.EmptyInventory</c>.
+    /// </summary>
     internal static LoadoutSnapshot EmptyLoadout =>
         new(new System.Collections.ObjectModel.ReadOnlyDictionary<GearSlot, GearInstanceId>(
             new Dictionary<GearSlot, GearInstanceId>(0)));
@@ -203,14 +189,10 @@ internal static class RunSnapshots
     internal const string NoPendingEventCard = "";
 
     /// <summary>
-    /// The valid row standing on an unresolved tile of <paramref name="tileKind"/>.
+    /// The valid row standing on an unresolved tile. The kind is an <c>int</c> because
+    /// <c>Rules.Board.TileKind</c> is internal — the snapshot stores an <c>int</c> for the same
+    /// accessibility reason.
     /// </summary>
-    /// <remarks>
-    /// Takes the tile kind as an <c>int</c> rather than a <c>TileKind</c>, because
-    /// <c>Rules.Board.TileKind</c> is <c>internal</c> to <c>Core</c> and reachable from the test
-    /// assembly only through <c>InternalsVisibleTo</c> — the snapshot itself stores an <c>int</c>
-    /// for the same accessibility reason, so the fixture mirrors the row.
-    /// </remarks>
     internal static RunSnapshot OnPendingTile(
         int tileKind, int linearIndex = 7, int stage = 1, string? eventCardId = null) =>
         With(

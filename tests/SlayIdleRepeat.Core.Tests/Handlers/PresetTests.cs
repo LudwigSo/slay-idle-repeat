@@ -21,7 +21,6 @@ public sealed class PresetTests
 
     // ------------------------------------------------------------------------------ SAVE_PRESET
 
-    /// <summary>Saving writes the hero's current loadout into the named slot.</summary>
     [Fact]
     public void Saving_records_what_the_hero_is_wearing()
     {
@@ -35,22 +34,10 @@ public sealed class PresetTests
         item.Value.ShouldBe("GI_1");
     }
 
-    /// <summary>
-    /// Every slot inside the authored free allowance is writable without Plus, and the first slot
-    /// past it is not.
-    /// </summary>
     /// <remarks>
-    /// <para>
-    /// Both sides of the boundary, driven off the tunable rather than off the literal 3: a handler
-    /// that compared against a hard-coded number would pass this while ignoring the document.
-    /// `14` §16.2's own example of <c>NOT_ENTITLED</c> is "preset slot 4+".
-    /// </para>
-    /// <para>
-    /// 🔴 <b><c>PresetTuning.FirstSlot</c> is pinned, and the loop is floored on its length.</b>
-    /// Nothing pinned the first slot at all: moving it to 4 makes the loop below iterate <em>zero
-    /// times</em>, so the whole "every free slot is writable" half evaporates while the case stays
-    /// green and `07` §4's slot 1 stops being savable for every free player.
-    /// </para>
+    /// Driven off the tunable rather than the literal 3 (`14` §16.2's own NOT_ENTITLED example is
+    /// "preset slot 4+"). FirstSlot is pinned and the loop is floored on its length: a moved
+    /// FirstSlot would otherwise empty the loop and leave the case green.
     /// </remarks>
     [Fact]
     public void The_free_allowance_is_the_authored_one_and_the_slot_past_it_is_NOT_ENTITLED()
@@ -87,13 +74,9 @@ public sealed class PresetTests
         result.NewState.Player.TryGetPreset(FreeSlots + 1, out _).ShouldBeTrue();
     }
 
-    /// <summary>
-    /// A slot below the first and a blank name are refused as illegal moves, not as entitlement.
-    /// </summary>
     /// <remarks>
-    /// Told apart from <c>NOT_ENTITLED</c> deliberately: a player being told they need a
-    /// subscription because they sent a malformed payload is the worst possible message, and a
-    /// suite asserting only "refused" could not see the difference.
+    /// Told apart from <c>NOT_ENTITLED</c> deliberately: a player must never be told they need a
+    /// subscription because they sent a malformed payload.
     /// </remarks>
     [Theory]
     [InlineData(0, "Build")]
@@ -106,11 +89,10 @@ public sealed class PresetTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>Saving mid-run is allowed: it records the build, it does not change it.</summary>
-    /// <remarks>
-    /// `07` §4 forbids CHANGING the loadout during a run, which is <c>APPLY_PRESET</c>'s problem.
-    /// Refusing here would block the moment a player is most likely to want a preset saved.
-    /// </remarks>
+    /// <summary>
+    /// `07` §4 forbids CHANGING the loadout during a run, which is <c>APPLY_PRESET</c>'s problem —
+    /// saving records the build without changing it.
+    /// </summary>
     [Fact]
     public void Saving_is_allowed_during_a_run()
     {
@@ -126,7 +108,6 @@ public sealed class PresetTests
 
     // ----------------------------------------------------------------------------- APPLY_PRESET
 
-    /// <summary>Applying wears what the preset stored.</summary>
     [Fact]
     public void Applying_wears_what_the_preset_stored()
     {
@@ -166,12 +147,8 @@ public sealed class PresetTests
 
     /// <summary>
     /// 🔒 Applying is never entitlement-gated: `12` §2.2 keeps a preset past the allowance READ-ONLY.
+    /// Saved with Plus, applied without it — a handler that copied SAVE_PRESET's check fails only here.
     /// </summary>
-    /// <remarks>
-    /// Saved with Plus, applied without it. A handler that copied <c>SAVE_PRESET</c>'s check would
-    /// pass every other case in this suite and delete the one promise `12` §2.2 makes to a lapsed
-    /// subscriber.
-    /// </remarks>
     [Fact]
     public void A_preset_past_the_free_allowance_is_still_applicable_without_Plus()
     {
@@ -186,12 +163,9 @@ public sealed class PresetTests
     }
 
     /// <summary>
-    /// 🔒 Applying restores what the player still owns and silently leaves the rest.
+    /// 🔒 The best-effort ruling, both halves: the surviving item comes back, the missing one does
+    /// not, and the preset is unchanged so the item can come back with it later.
     /// </summary>
-    /// <remarks>
-    /// The best-effort ruling, and both halves of it: the surviving item comes back, the missing one
-    /// does not, and the preset itself is unchanged so the item can come back with it later.
-    /// </remarks>
     [Fact]
     public void Applying_restores_what_is_still_owned_and_leaves_the_preset_alone()
     {
@@ -217,11 +191,7 @@ public sealed class PresetTests
             2, "the preset is a record of a build; applying it does not rewrite it.");
     }
 
-    /// <summary>Applying replaces the whole loadout rather than merging into it.</summary>
-    /// <remarks>
-    /// A merge would leave the player wearing pieces of two builds with no way to tell which — the
-    /// case that makes "one tap fully reconfigures the character" false.
-    /// </remarks>
+    /// <remarks>A merge would leave the player wearing pieces of two builds with no way to tell which.</remarks>
     [Fact]
     public void Applying_replaces_the_loadout_rather_than_merging_into_it()
     {

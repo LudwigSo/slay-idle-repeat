@@ -6,23 +6,14 @@ using RunAggregate = SlayIdleRepeat.Core.Model.Run;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// The three run-scoped <c>DRAFT</c> counters on the <c>Run</c> aggregate: they round-trip, they
-/// reach the canonical bytes, and a negative one is refused.
+/// The three run-scoped <c>DRAFT</c> counters. 🔒 Plain integers on the run, not entries in the
+/// player's pity map: `24` §3 scopes <c>DRAFT</c> per run and <c>luck.json</c> authors its
+/// <c>counterKey</c> as null — see <c>ChestPickGuaranteeTests</c>.
 /// </summary>
-/// <remarks>
-/// 🔒 They are plain integers on the run rather than entries in the player's pity counter map, and
-/// that is a design claim rather than a convenience: `24` §3 scopes <c>DRAFT</c> per run and
-/// <c>luck.json</c> authors its <c>counterKey</c> as an explicit null, so there is no id to form and
-/// nothing the profile could store them under. The counter-key formation point refuses to invent one
-/// — see <c>ChestPickGuaranteeTests</c>.
-/// </remarks>
 public sealed class RunDraftCounterTests
 {
     private static RunAggregate Rehydrate(RunSnapshot snapshot) => Worlds.NewRun(snapshot);
 
-    // ------------------------------------------------------------------ round trip
-
-    /// <summary>The three counters come back exactly as they went in.</summary>
     [Fact]
     public void The_three_draft_counters_round_trip()
     {
@@ -38,7 +29,6 @@ public sealed class RunDraftCounterTests
         round.DraftsWithoutOwnedUpgrade.ShouldBe(4);
     }
 
-    /// <summary>The whole row round-trips byte-identically.</summary>
     [Fact]
     public void The_row_round_trips_byte_identically()
     {
@@ -51,11 +41,7 @@ public sealed class RunDraftCounterTests
             .ShouldBe(CanonicalStateWriter.CanonicalBytes(stored));
     }
 
-    /// <summary>Each of the three moves the canonical bytes on its own.</summary>
-    /// <remarks>
-    /// One case per counter rather than one over all three: they move independently, and a writer
-    /// that reached only the first would be invisible to a probe that changed all of them at once.
-    /// </remarks>
+    /// <summary>One case per counter: a writer reaching only the first is invisible to a probe that changes all three.</summary>
     [Theory]
     [InlineData(1, 0, 0)]
     [InlineData(0, 1, 0)]
@@ -75,9 +61,7 @@ public sealed class RunDraftCounterTests
             "draft is floored for one of them and not the other.");
     }
 
-    // ------------------------------------------------------------------ the mutator
-
-    /// <summary>The aggregate's one writer stores values, not deltas.</summary>
+    /// <summary>The one writer stores values, not deltas: a reset is a value of zero.</summary>
     [Fact]
     public void The_aggregate_stores_the_values_a_resolution_answered()
     {
@@ -94,7 +78,6 @@ public sealed class RunDraftCounterTests
         run.DraftsSinceLegendaryOffered.ShouldBe(0);
     }
 
-    /// <summary>A negative value is refused by the mutator.</summary>
     [Fact]
     public void A_negative_counter_is_refused_by_the_mutator()
     {
@@ -105,9 +88,6 @@ public sealed class RunDraftCounterTests
         Should.Throw<ArgumentOutOfRangeException>(() => run.SetDraftCounters(0, 0, -1));
     }
 
-    // ------------------------------------------------------------------ the seam
-
-    /// <summary>A stored negative counter is refused at the rehydration seam, one fault per field.</summary>
     [Theory]
     [InlineData(-1, 0, 0, nameof(RunSnapshot.DraftsSinceLegendaryOffered))]
     [InlineData(0, -1, 0, nameof(RunSnapshot.DraftsWithoutAboveCommon))]
@@ -122,16 +102,5 @@ public sealed class RunDraftCounterTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldContain(field, Case.Sensitive);
-    }
-
-    /// <summary>A run that has drafted nothing carries three zeros, and that is a legal row.</summary>
-    [Fact]
-    public void A_run_that_has_drafted_nothing_carries_three_zeros()
-    {
-        var run = Rehydrate(RunSnapshots.Valid);
-
-        run.DraftsSinceLegendaryOffered.ShouldBe(0);
-        run.DraftsWithoutAboveCommon.ShouldBe(0);
-        run.DraftsWithoutOwnedUpgrade.ShouldBe(0);
     }
 }

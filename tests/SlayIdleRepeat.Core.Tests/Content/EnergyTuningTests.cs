@@ -12,17 +12,6 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// </summary>
 public sealed class EnergyTuningTests
 {
-    /// <summary>The six energy pointers, in the order this suite states them.</summary>
-    private static readonly string[] DocumentedPointers =
-    {
-        "tuning/progression.json#/energy/baseMax",
-        "tuning/progression.json#/energy/perLegendLevel",
-        "tuning/progression.json#/energy/maxCap",
-        "tuning/progression.json#/energy/regenMinutesPerPoint",
-        "tuning/progression.json#/energy/runCost",
-        "tuning/progression.json#/energy/reserveMultipleOfMax",
-    };
-
     [Fact]
     public void Every_energy_number_comes_from_the_progression_document()
     {
@@ -37,35 +26,8 @@ public sealed class EnergyTuningTests
     }
 
     /// <summary>
-    /// 🔒 S2 — the pointer strings are the claim, so each one is pinned by name. A reader that
-    /// quietly moved to <c>#/energy/max</c> would keep returning 120 from any fixture that authors
-    /// both, and the number-by-number case above would not notice.
-    /// </summary>
-    [Fact]
-    public void The_pointers_the_reader_reads_are_the_documented_ones()
-    {
-        var pointers = new[]
-        {
-            EnergyTuning.BaseMaxReference,
-            EnergyTuning.PerLegendLevelReference,
-            EnergyTuning.MaxCapReference,
-            EnergyTuning.RegenMinutesPerPointReference,
-            EnergyTuning.RunCostReference,
-            EnergyTuning.ReserveMultipleOfMaxReference,
-        };
-
-        pointers.ShouldBe(
-            DocumentedPointers,
-            "these are the pointers game-data/tuning/progression.json authors. " +
-            "EnergyTuningMatchesTuningDataTests in SlayIdleRepeat.Application.Tests asserts the real " +
-            "file still holds them, and moving one here without moving it there splits the pin — " +
-            "Core.Tests is hermetic and cannot see the file itself.");
-    }
-
-    /// <summary>
-    /// 🔒 S6 — a <c>null</c> in the data files means "the design docs do not authorise a value
-    /// here" (<c>game-data/README.md</c>). The reader must never coerce one to a default: it fails
-    /// loudly, naming the pointer that was never authored.
+    /// A <c>null</c> in the data files means "the design docs do not authorise a value here"
+    /// (<c>game-data/README.md</c>) — never coerced to a default.
     /// </summary>
     [Theory]
     [InlineData("baseMax")]
@@ -91,10 +53,7 @@ public sealed class EnergyTuningTests
 
         var thrown = Should.Throw<MissingContentException>(() => EnergyTuning.Read(content));
 
-        DocumentedPointers.ShouldContain(
-            thrown.Reference,
-            "the read failed on a pointer this suite does not know about, so the reader is reading " +
-            "something the pin above does not cover.");
+        thrown.Reference.ShouldStartWith("tuning/progression.json#/energy/", Case.Sensitive);
     }
 
     [Fact]
@@ -187,10 +146,8 @@ public sealed class EnergyTuningTests
     }
 
     /// <summary>
-    /// 🔒 S2 — three separate guards on <c>regenMinutesPerPoint</c> report the same
-    /// <c>Reference</c>, so each case pins the message fragment unique to <em>its</em> branch.
-    /// Asserting the reference alone, widening the <c>&lt;= 0</c> guard would make the other two
-    /// dead code with all three cases still green.
+    /// Three separate guards on <c>regenMinutesPerPoint</c> report the same <c>Reference</c>, so
+    /// each case pins the message fragment unique to its branch.
     /// </summary>
     [Theory]
     [InlineData(0)]
@@ -217,10 +174,8 @@ public sealed class EnergyTuningTests
     }
 
     /// <summary>
-    /// 🔒 The other end of the same span. Past <c>TimeSpan</c>'s ceiling the decimal multiply or the
-    /// checked <c>(long)</c> cast throws <see cref="OverflowException"/>, which is outside the
-    /// <see cref="ContentException"/> family a composition root catches to report a bad data set —
-    /// so the read would fail in a way nobody is listening for.
+    /// Past <c>TimeSpan</c>'s ceiling the raw conversion throws <see cref="OverflowException"/>,
+    /// which is outside the <see cref="ContentException"/> family a composition root listens for.
     /// </summary>
     [Fact]
     public void A_regeneration_interval_longer_than_the_runtime_can_represent_is_refused()

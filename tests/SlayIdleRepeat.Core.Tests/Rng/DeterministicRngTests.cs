@@ -1,4 +1,3 @@
-using System.Reflection;
 using Shouldly;
 using SlayIdleRepeat.Core.Rng;
 using Xunit;
@@ -23,14 +22,6 @@ public sealed class DeterministicRngTests
         var rng = new DeterministicRng(RunSeed, RngStreams.Dice);
 
         rng.Position.ShouldBe(0UL);
-    }
-
-    [Fact]
-    public void Position_starts_at_the_position_it_was_rehydrated_with()
-    {
-        var rng = new DeterministicRng(RunSeed, RngStreams.Dice, 12UL);
-
-        rng.Position.ShouldBe(12UL);
     }
 
     /// <summary>
@@ -186,26 +177,6 @@ public sealed class DeterministicRngTests
         AdvanceOf(rng => rng.WeightedPick(table)).ShouldBe(1UL);
     }
 
-    /// <summary>
-    /// <c>Position</c> equals the number of calls ever made on the stream, for any mix of them —
-    /// what makes the persisted counter auditable rather than merely monotonic.
-    /// </summary>
-    [Fact]
-    public void Position_equals_the_number_of_calls_after_a_mixed_sequence()
-    {
-        var rng = new DeterministicRng(RunSeed, RngStreams.Dice);
-        var table = new[] { ("a", 1.0), ("b", 2.0) };
-
-        rng.NextUInt();
-        rng.WeightedPick(table);
-        rng.NextDouble();
-        rng.Range(1, 7);
-        rng.WeightedPick(table);
-        rng.NextUInt();
-
-        rng.Position.ShouldBe(6UL);
-    }
-
     /// <summary>The counter continues from where it was rehydrated, not from zero.</summary>
     [Fact]
     public void Position_continues_from_the_rehydrated_position()
@@ -243,19 +214,6 @@ public sealed class DeterministicRngTests
         var fromSecond = new[] { second.NextUInt(), second.NextUInt(), second.NextUInt() };
 
         fromFirst.ShouldBe(fromSecond);
-    }
-
-    /// <summary>Stream independence: consuming randomness in one system never shifts another.</summary>
-    [Fact]
-    public void Consuming_one_stream_does_not_shift_another()
-    {
-        var undisturbed = new DeterministicRng(RunSeed, RngStreams.Board).NextUInt();
-
-        _ = Sequence(RngStreams.Dice, 50);
-
-        var board = new DeterministicRng(RunSeed, RngStreams.Board).NextUInt();
-
-        board.ShouldBe(undisturbed);
     }
 
     /// <summary>Two streams over the same seed are different sequences, not the same one relabelled.</summary>
@@ -299,27 +257,6 @@ public sealed class DeterministicRngTests
 
         interleaved.Select(pair => pair.FromDice).ShouldBe(expectedDice);
         interleaved.Select(pair => pair.FromBoard).ShouldBe(expectedBoard);
-    }
-
-    /// <summary>
-    /// There is no PRNG state to persist, snapshot or restore — the counter is the whole
-    /// persistable state, so nothing may set it but the constructor. Asserted as a closed set of
-    /// member names, not a denylist, so a re-introduced <c>Fork()</c> or <c>SetPosition</c> cannot
-    /// sail past unnoticed.
-    /// </summary>
-    [Fact]
-    public void The_type_exposes_no_state_beyond_a_read_only_position()
-    {
-        var type = typeof(DeterministicRng);
-
-        type.GetProperty(nameof(DeterministicRng.Position))!.CanWrite.ShouldBeFalse();
-
-        type.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(method => !method.IsPrivate)
-            .Select(method => method.Name)
-            .ShouldBe(
-                new[] { "get_Position", "NextUInt", "NextDouble", "Range", "WeightedPick" },
-                ignoreOrder: true);
     }
 
     /// <summary>

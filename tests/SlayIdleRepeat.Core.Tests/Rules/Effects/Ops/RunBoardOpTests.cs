@@ -8,10 +8,9 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
 /// <summary>The thirteen run and board ops, tested at the boundary: declared, well-formed, and queued rather than resolved.</summary>
 /// <remarks>
-/// These are resolved by the run controller, never the simulator, so there is nothing to assert about
-/// what <c>GRANT_CURRENCY</c> does — only that reaching one from a combat trigger produces exactly one
-/// queue entry and touches nothing else.
-/// <para>The sweep enumerates the family rather than listing the ops, so a new one is covered the day it is declared.</para>
+/// These are resolved by the run controller, never the simulator (18 §2.5), so the whole claim is
+/// that reaching one from a combat trigger produces exactly one queue entry and touches nothing else.
+/// The sweep enumerates the family rather than listing the ops.
 /// </remarks>
 public sealed class RunBoardOpTests
 {

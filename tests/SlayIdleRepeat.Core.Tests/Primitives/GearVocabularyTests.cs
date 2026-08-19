@@ -162,16 +162,6 @@ public sealed class GearVocabularyTests
 
     // ---------------------------------------------------------------- GearAffixRoll
 
-    /// <summary>An affix roll carries the affix it rolled and the magnitude it rolled at.</summary>
-    [Fact]
-    public void An_affix_roll_carries_its_affix_and_its_magnitude()
-    {
-        var roll = new GearAffixRoll("AFX_CRIT_CHANCE", 0.0642);
-
-        roll.AffixId.ShouldBe("AFX_CRIT_CHANCE");
-        roll.Value.ShouldBe(0.0642);
-    }
-
     /// <summary>A blank affix id is refused: an affix nothing can price, re-roll or display.</summary>
     [Theory]
     [InlineData(null)]
@@ -250,17 +240,6 @@ public sealed class GearVocabularyTests
     public void The_default_affix_roll_renders_as_a_default_rather_than_throwing()
     {
         default(GearAffixRoll).ToString().ShouldBe("default(GearAffixRoll)");
-    }
-
-    /// <summary>Two rolls are equal only when both the affix and the magnitude match.</summary>
-    [Fact]
-    public void Two_affix_rolls_are_equal_only_when_both_components_match()
-    {
-        var roll = new GearAffixRoll("AFX_PEN", 0.0812);
-
-        roll.ShouldBe(new GearAffixRoll("AFX_PEN", 0.0812));
-        roll.ShouldNotBe(new GearAffixRoll("AFX_PEN", 0.0813));
-        roll.ShouldNotBe(new GearAffixRoll("AFX_DODGE", 0.0812));
     }
 
     private static string Render(Func<string> render, CultureInfo culture)

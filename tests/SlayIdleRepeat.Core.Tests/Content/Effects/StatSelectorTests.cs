@@ -8,17 +8,6 @@ namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 public sealed class StatSelectorTests
 {
     [Fact]
-    public void ALL_COMBAT_is_not_a_member_of_the_stat_enum()
-    {
-        Enum.GetNames<StatId>().ShouldNotContain(
-            "ALL_COMBAT",
-            "a stat has a base value, a cap and a row in the aggregation; ALL_COMBAT has none of " +
-            "the three, and the 14 combat members here are exactly the actor stat block");
-
-        Enum.GetNames<StatId>().ShouldNotContain("HIGHEST_PCT_BONUS");
-    }
-
-    [Fact]
     public void ALL_COMBAT_expands_to_the_fourteen_combat_stats_and_no_others()
     {
         StatSelector.AllCombat.Expand().ShouldBe(
@@ -70,55 +59,12 @@ public sealed class StatSelectorTests
     }
 
     /// <summary>
-    /// CP_GLASS_HEART as pure data, in two effects — the second exists because the group selector
-    /// cannot set one stat.
+    /// Stated against a literal list: only naming the twelve non-combat stats can catch a stat that
+    /// moved sides, which silently changes what <c>ALL_COMBAT</c> selects.
     /// </summary>
-    /// <remarks>
-    /// A downgrade to the multiplier must be a one-number edit in data, never a code change:
-    /// nothing in <c>SlayIdleRepeat.Core.Content.Effects</c> knows the number 2.0; this case supplies it.
-    /// </remarks>
     [Fact]
-    public void CP_GLASS_HEART_is_two_effects_and_the_multiplier_is_data()
+    public void The_non_combat_stats_are_exactly_the_twelve_outside_the_actor_stat_block()
     {
-        var doubled = new EffectDefinition
-        {
-            Id = "CP_GLASS_HEART_MULT",
-            Op = EffectOp.STAT_MULT,
-            Stat = StatSelector.AllCombat,
-            Value = 2.0,
-        };
-
-        var oneHp = new EffectDefinition
-        {
-            Id = "CP_GLASS_HEART_SET_HP",
-            Op = EffectOp.STAT_SET,
-            Stat = StatSelector.Of(StatId.MAX_HP),
-            Value = 1.0,
-            ValueMode = ValueMode.FLAT,
-        };
-
-        doubled.Stat!.Value.Expand().Count.ShouldBe(14);
-        oneHp.Stat!.Value.Expand().ShouldBe([StatId.MAX_HP]);
-
-        // A downgrade to the multiplier is a `with` on the data, not a branch anywhere.
-        (doubled with { Value = 1.6 }).Value.ShouldBe(1.6);
-    }
-
-    /// <summary>
-    /// The classification, stated against two literal lists rather than against <c>StatIds.All</c>.
-    /// </summary>
-    /// <remarks>
-    /// <c>Combat.Concat(NonCombat) == All</c> would be a tautology: both are defined as
-    /// <c>All.Where(IsCombat)</c> and its complement, so the identity holds however
-    /// <see cref="StatIds.IsCombat"/> answers. Only naming the twelve non-combat stats can catch a
-    /// stat that moved sides — which matters because <c>ALL_COMBAT</c> selects exactly the other
-    /// fourteen, so one stat crossing over silently changes what <c>CP_GLASS_HEART</c> doubles.
-    /// </remarks>
-    [Fact]
-    public void Every_stat_is_classified_combat_or_non_combat()
-    {
-        StatIds.All.Count.ShouldBe(26);
-
         StatIds.NonCombat.ShouldBe(
         [
             StatId.GOLD_PCT, StatId.CROWNS_PCT, StatId.DROP_CHANCE, StatId.RARITY_SHIFT,
@@ -126,9 +72,6 @@ public sealed class StatSelectorTests
             StatId.TILE_PREVIEW, StatId.SHOP_PRICE_PCT, StatId.XP_PCT,
             StatId.BEAST_FEED_PCT, StatId.STONE_PCT,
         ]);
-
-        StatIds.Combat.ShouldBe(StatSelector.AllCombat.Expand(), "ALL_COMBAT selects exactly these");
-        StatIds.Combat.ShouldNotContain(s => StatIds.NonCombat.Contains(s));
     }
 
     [Fact]

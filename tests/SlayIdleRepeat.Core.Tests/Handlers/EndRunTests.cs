@@ -15,8 +15,6 @@ public sealed class EndRunTests
     private static CommandResult End(WorldSlice state) =>
         SlayIdleRepeat.Core.GameRules.Apply(state, new EndRunCommand(), TileWorlds.Context);
 
-    // ------------------------------------------------------------------ the gate
-
     [Fact]
     public void An_unhurt_run_with_the_boss_alive_is_rejected()
     {
@@ -37,8 +35,6 @@ public sealed class EndRunTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    // ------------------------------------------------------------------ Victory: CompletionMultiplier = 1.0
-
     /// <summary>
     /// Chapter 1, NORMAL: Victory bonus = 25 * 1.55^0 * 1.0 * 10 = 250. Banked 100 + 250 = 350,
     /// times CompletionMultiplier.VICTORY (1.0) = 350, exactly.
@@ -57,9 +53,6 @@ public sealed class EndRunTests
         result.NewState.Run!.Phase.ShouldBe(RunPhase.Ended);
     }
 
-    // ------------------------------------------------------------------ Death: CompletionMultiplier by stage
-
-    /// <summary>Stage 3 death (or a death fighting the Boss itself) pays 60%.</summary>
     [Fact]
     public void A_stage_3_death_pays_sixty_percent()
     {
@@ -72,7 +65,7 @@ public sealed class EndRunTests
         (result.NewState.Player.LegendXp - before).ShouldBe(60);
     }
 
-    /// <summary>Stage 1 death pays 25% — the floor: death still pays, never zero.</summary>
+    /// <summary>Stage 1 is the floor: death still pays, never zero.</summary>
     [Fact]
     public void A_stage_1_death_pays_twentyfive_percent_never_zero()
     {
@@ -83,10 +76,9 @@ public sealed class EndRunTests
         var result = End(world);
 
         (result.NewState.Player.LegendXp - before).ShouldBe(25);
-        (result.NewState.Player.LegendXp - before).ShouldBeGreaterThan(0);
     }
 
-    /// <summary>A death fighting the Boss (no stage of its own) is treated as a Stage 3 death.</summary>
+    /// <summary>A death fighting the Boss has no stage of its own.</summary>
     [Fact]
     public void A_death_to_the_boss_pays_the_stage_3_rate()
     {
@@ -99,7 +91,6 @@ public sealed class EndRunTests
         (result.NewState.Player.LegendXp - before).ShouldBe(60);
     }
 
-    /// <summary>A run that has already ended cannot END_RUN a second time.</summary>
     [Fact]
     public void Ending_an_already_ended_run_is_rejected()
     {

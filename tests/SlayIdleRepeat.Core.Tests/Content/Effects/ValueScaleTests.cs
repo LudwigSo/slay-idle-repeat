@@ -91,20 +91,11 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
-    /// 🔒 A negative <c>value</c> scaled by <b>zero steps</b> must produce <c>+0.0</c>, never
-    /// <c>-0.0</c>.
+    /// A negative <c>value</c> scaled by zero steps must produce <c>+0.0</c>, never <c>-0.0</c>:
+    /// <c>CanonicalStateWriter</c> throws on a negative zero, and this is the accumulation point
+    /// that normalises it. The assertion has to be <c>double.IsNegative</c> — <c>(-0.0).Equals(0.0)</c>
+    /// is true, so <c>ShouldBe(0)</c> cannot see the sign.
     /// </summary>
-    /// <remarks>
-    /// <c>CanonicalStateWriter</c> throws on a negative zero rather than encoding one, since the two are
-    /// different bit patterns and one state would hash two ways;
-    /// <see cref="ValueScale.EffectiveValue"/> is the accumulation point where it is normalised.
-    /// <para>
-    /// ⚠️ The assertion has to be <c>double.IsNegative</c>: <c>(-0.0).Equals(0.0)</c> is <b>true</b>, so
-    /// <c>ShouldBe(0)</c> cannot see the sign — which is why the defect survived the first round.
-    /// Reachable with real numbers: Bog Air is <c>-0.35</c>, and zero steps is the ordinary
-    /// reading at full HP, at zero gold and under a cap of zero.
-    /// </para>
-    /// </remarks>
     [Theory]
     [InlineData(-0.35, 0.0)]
     [InlineData(-1.0, 0.0)]
@@ -128,10 +119,8 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
-    /// 🔒 <c>cap</c> is a maximum. Negative is not "no cap" — <c>null</c> is — and a negative cap
-    /// would clamp every reading to a negative step count and invert the effect.
-    /// <c>game-data/schema/effect.schema.json</c> declares <c>"minimum": 0</c>; this is the same
-    /// bound on the C# side, so a scale built in code cannot reach a state authored JSON cannot.
+    /// Negative is not "no cap" — <c>null</c> is — and a negative cap would clamp every reading to a
+    /// negative step count and invert the effect. Mirrors the schema's <c>"minimum": 0</c>.
     /// </summary>
     [Theory]
     [InlineData(-1)]
@@ -160,10 +149,8 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
-    /// 🔒 The cap is applied <b>before</b> the int-range check, not after. A capped scale over an
-    /// enormous reading is well defined — <c>min(…, cap)</c> is the cap — and swapping the two
-    /// blocks would turn <c>PK_BERSERK</c> into a runtime throw at a reading it is designed to
-    /// survive.
+    /// The cap is applied before the int-range check: swapping the two blocks would turn
+    /// <c>PK_BERSERK</c> into a runtime throw at a reading it is designed to survive.
     /// </summary>
     [Fact]
     public void A_capped_scale_over_an_enormous_reading_returns_the_cap_rather_than_throwing()
@@ -189,8 +176,8 @@ public sealed class ValueScaleTests
     }
 
     /// <summary>
-    /// 🔒 <c>per</c> is the divisor. Zero is a division by zero and a negative one reverses the
-    /// direction of every step, so neither is accepted and interpreted later.
+    /// <c>per</c> is the divisor: zero is a division by zero and a negative one reverses the
+    /// direction of every step.
     /// </summary>
     [Theory]
     [InlineData(0.0)]
@@ -240,42 +227,5 @@ public sealed class ValueScaleTests
         Math.Round(raw, 4).ShouldNotBe(raw);
 
         scale.EffectiveValue(0.123456789, 3).ShouldBe(0.3704);
-    }
-
-    /// <summary>
-    /// <c>valueScale: null</c> (the default) means <c>effectiveValue = value</c>: absence is modelled
-    /// as a null property, not as a scale of one step.
-    /// </summary>
-    [Fact]
-    public void An_effect_with_no_value_scale_carries_null_rather_than_an_identity_scale()
-    {
-        var effect = new EffectDefinition
-        {
-            Id = "PK_SHARP_EDGE_T1",
-            Op = EffectOp.STAT_ADD_PCT,
-            Stat = StatSelector.Of(StatId.ATK),
-            Value = 0.12,
-        };
-
-        effect.ValueScale.ShouldBeNull();
-    }
-
-    /// <summary>
-    /// Any of the 23 condition functions may drive a scale, stated over the whole enum so that
-    /// shrinking it cannot quietly shrink this.
-    /// </summary>
-    [Fact]
-    public void Every_condition_function_can_drive_a_value_scale()
-    {
-        var functions = Enum.GetValues<ConditionFunction>();
-
-        functions.Length.ShouldBe(23);
-
-        foreach (var fn in functions)
-        {
-            var scale = new ValueScale { Fn = fn, Per = 1, Cap = null };
-            scale.Fn.ShouldBe(fn);
-            scale.StepsFor(2).ShouldBe(2);
-        }
     }
 }

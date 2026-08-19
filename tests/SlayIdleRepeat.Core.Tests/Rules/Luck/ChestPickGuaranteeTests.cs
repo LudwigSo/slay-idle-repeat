@@ -167,14 +167,9 @@ public sealed class ChestPickGuaranteeTests
     // ------------------------------------------------------------------ the counter key
 
     /// <summary>
-    /// The counter id is formed by the tuning reader from the authored key and the guarantee token.
+    /// The counter id is formed by the tuning reader from the authored key and the guarantee token —
+    /// a caller spelling its own key would silently point a re-authored counter somewhere nobody writes.
     /// </summary>
-    /// <remarks>
-    /// The chest-pick guarantee is an outcome <em>tier</em>, not a band on the gear rarity ladder, so
-    /// the rarity overload cannot express it. The formation point widened rather than the caller
-    /// spelling its own key — which is what keeps a re-authored key from silently pointing the
-    /// counter somewhere nobody writes.
-    /// </remarks>
     [Fact]
     public void The_counter_key_is_the_authored_key_paired_with_the_guarantee_token()
     {
@@ -194,16 +189,10 @@ public sealed class ChestPickGuaranteeTests
     }
 
     /// <summary>
-    /// A guarantee token carrying the separator is refused rather than forming an ambiguous key.
+    /// A guarantee token carrying the separator is refused: <c>"GO:LD"</c> and an authored key of
+    /// <c>minigame.chestpick.go</c> would otherwise form the same id, and two guarantees sharing one
+    /// counter reads to the player as a counter that reset itself.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The invariant the rarity overload got for free and this one does not. A key is one authored
-    /// key paired with one guarantee, and both halves used to be closed vocabularies the separator
-    /// could not appear in. The right half is now an authored token, constrained by a schema in a
-    /// different document — so the formation point checks it rather than inheriting it. Without this,
-    /// <c>"GO:LD"</c> and an authored key of <c>minigame.chestpick.go</c> would form the same id, and
-    /// two guarantees sharing one counter reads to the player as a counter that reset itself.
-    /// </remarks>
     [Theory]
     [InlineData("GO:LD")]
     [InlineData(":GOLD")]
@@ -231,12 +220,10 @@ public sealed class ChestPickGuaranteeTests
         Should.Throw<InvalidTunableException>(() => Tuning.CounterKey(SourceClass.DRAFT, "GOLD"));
     }
 
-    /// <summary>The authored top-tier outcome token is read out of the reward table, not transcribed.</summary>
-    /// <remarks>
-    /// 🔒 The identity under the key above. A test that formed the key from its own literal would
-    /// agree with itself; the guarantee token is authored in <c>currencies.json</c> beside the reward
-    /// columns, and this is where the two are pinned together.
-    /// </remarks>
+    /// <summary>
+    /// The guarantee token is authored in <c>currencies.json</c> beside the reward columns; this is
+    /// where the two documents are pinned together.
+    /// </summary>
     [Fact]
     public void The_guarantee_token_is_the_authored_top_tier_outcome_name()
     {
@@ -244,14 +231,6 @@ public sealed class ChestPickGuaranteeTests
 
         rewards.OutcomeName(MinigameCatalogue.ChestPick, ChestPickGuarantee.TopTier(TierCount))
             .ShouldBe(LuckDocuments.ShippedChestPickGuaranteeToken);
-    }
-
-    /// <summary>The top tier of a three-row table is the last one, and a table of none is a defect.</summary>
-    [Fact]
-    public void The_top_tier_is_the_last_authored_row()
-    {
-        ChestPickGuarantee.TopTier(TierCount).ShouldBe(GoldTier);
-        Should.Throw<ArgumentOutOfRangeException>(() => ChestPickGuarantee.TopTier(0));
     }
 
     // ------------------------------------------------------------------ the two authored counts

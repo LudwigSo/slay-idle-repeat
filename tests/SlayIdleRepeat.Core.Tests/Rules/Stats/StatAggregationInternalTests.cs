@@ -23,14 +23,9 @@ public sealed class StatAggregationInternalTests
         StatAggregation.Aggregate(baseStats, effects, StatCaps.None, StatAggregationSeams.Strict);
 
     /// <summary>
-    /// 🔒 Step 6 rounds <b>before</b> step 7 multiplies, so a conversion delta with a fifth decimal
-    /// place cannot be magnified by a later multiplier.
+    /// 🔒 Step 6 rounds <b>before</b> step 7 multiplies. Not a fight, because a real
+    /// <c>STAT_CONVERT</c> cannot emit a fifth decimal place on demand — the seam can.
     /// </summary>
-    /// <remarks>
-    /// The seam supplies the deltas, so this is the one step whose input is not already 4-dp — and
-    /// the reason it cannot be a fight: a real <c>STAT_CONVERT</c> cannot emit a fifth decimal place
-    /// on demand.
-    /// </remarks>
     [Fact]
     public void Step_6_rounds_the_conversion_deltas_before_step_7_multiplies()
     {
@@ -88,13 +83,11 @@ public sealed class StatAggregationInternalTests
         result.SkippedNonCombatStatEffects.ShouldBe(["GEAR_GOLD_AFFIX"]);
     }
 
-    /// <summary>🔒 A <c>null</c> <em>in</em> the effect list is refused by name rather than skipped.</summary>
-    /// <remarks>
-    /// ⚠️ <b>Known gap.</b> <c>SimulateDuel</c> with a <c>null</c> element throws a bare
-    /// <see cref="NullReferenceException"/> from <c>DuelFight</c>'s wrapping, before this guard runs,
-    /// so a caller outside <c>Core</c> never sees the named refusal. Pinned here rather than at the
-    /// public seam, which would encode the gap as intended behaviour.
-    /// </remarks>
+    /// <summary>
+    /// 🔒 A <c>null</c> <em>in</em> the effect list is refused by name. Pinned here because
+    /// <c>SimulateDuel</c> currently NREs in <c>DuelFight</c>'s wrapping before this guard runs —
+    /// asserting that at the public seam would encode the gap as intended behaviour.
+    /// </summary>
     [Fact]
     public void A_null_effect_in_the_list_is_refused() =>
         Should.Throw<ArgumentNullException>(() => StatAggregation.Aggregate(

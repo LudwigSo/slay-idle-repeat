@@ -10,28 +10,17 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Luck;
 
 /// <summary>
 /// The five <c>DRAFT</c> rules, through the luck façade: which one fires, at exactly which draft, and
-/// what each one forces.
+/// what each one forces. Every case names the rule and the band or category its force carries —
+/// never the bare presence of a force, which four broken rules out of five could still produce.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>Every case here names the rule.</b> Five rules can each force an option into the next draft,
-/// so "an option was forced" is an assertion four of the five could be broken under. Each case
-/// asserts the <see cref="DraftGuarantee"/> the resolution reports, and the band or category that
-/// force carries — never the bare presence of a force.
-/// </para>
-/// <para>
-/// 🔒 <b>The three thresholds are read differently and each is pinned separately.</b> The Legendary
-/// pity's authored number names the forced draft itself, so it fires at a counter of N−1. The quality
-/// floor and the upgrade famine both authorable count the drafts that pass <em>before</em> the next
-/// one is floored, so they fire at a counter of N. Getting any of the three off by one shifts a
-/// guarantee by a whole draft, and nothing else in the suite would notice.
-/// </para>
+/// The Legendary pity's authored number names the forced draft itself (fires at a counter of N−1);
+/// the quality floor and upgrade famine count the drafts that pass <em>before</em> the next one is
+/// floored (fire at N). All three readings are pinned separately.
 /// </remarks>
 public sealed class DraftGuaranteeTests
 {
     private static LuckTuning Tuning => LuckTuning.Read(LuckDocuments.LuckOnly());
-
-    private static DraftRule Rule => Tuning.Draft;
 
     /// <summary>A run at stage 1 holding a Sustain perk and something upgradable — nothing due.</summary>
     private static DraftDemand Quiet =>
@@ -68,14 +57,9 @@ public sealed class DraftGuaranteeTests
     // ------------------------------------------------------------------ 1 · Legendary pity
 
     /// <summary>
-    /// The Legendary pity fires on draft <b>15</b> — a counter of 14 — and forces a Legendary, not
-    /// merely "something".
+    /// The Legendary pity fires on draft <b>15</b> — a counter of 14, because the authored number
+    /// names the forced draft's own ordinal — and forces a Legendary, not merely "something".
     /// </summary>
-    /// <remarks>
-    /// The authored <c>legendaryPityDraftNumber</c> names the forced draft's own ordinal, so it is
-    /// the rung's <c>N</c> and takes no correction. That is the opposite reading from the quality
-    /// floor's and the famine's, which is why all three are pinned rather than one standing for all.
-    /// </remarks>
     [Fact]
     public void The_Legendary_pity_fires_on_the_fifteenth_draft_and_forces_a_Legendary()
     {
@@ -160,17 +144,10 @@ public sealed class DraftGuaranteeTests
     }
 
     /// <summary>
-    /// 🔒 An anti-brick the document switches <b>off</b> never fires, however loudly the run asks
-    /// for it.
+    /// 🔒 An anti-brick the document switches <b>off</b> never fires. The demand is exactly the one
+    /// <see cref="The_anti_brick_fires_past_Stage_2_and_forces_the_Sustain_category"/> drives, so
+    /// the authored flag is the ONLY difference between firing and not.
     /// </summary>
-    /// <remarks>
-    /// 🔴 <b><c>DraftGuarantees.AntiBrickDue</c> opens with <c>rule.Enabled &amp;&amp;</c> and nothing
-    /// exercised that conjunct false.</b> The fixture hard-coded <c>enabled: true</c> with no
-    /// override, so the whole term could be deleted and every case in this file stayed green — and
-    /// the switch a designer reaches for to turn a guarantee off would have done nothing. The demand
-    /// here is exactly the one <see cref="The_anti_brick_fires_past_Stage_2_and_forces_the_Sustain_category"/>
-    /// drives, so the ONLY difference between firing and not is the authored flag.
-    /// </remarks>
     [Fact]
     public void An_anti_brick_the_document_disables_never_fires()
     {
@@ -182,45 +159,20 @@ public sealed class DraftGuaranteeTests
         var demand = new DraftDemand(
             Stage: 3, IsBoss: false, OwnsSustainPerk: false, OwnsNonMaxedPerk: true);
 
-        DraftGuarantees.AntiBrickDue(disabled.Draft.SustainAntiBrick, demand).ShouldBeFalse(
-            "the block is switched off, so the anti-brick is not due — the predicate's first " +
-            "conjunct is the whole claim.");
-
         LuckService.ResolveDraft(disabled, DraftCounters.Unstarted, demand, optionCount: 3)
             .Select(force => force.Guarantee)
             .ShouldNotContain(
                 DraftGuarantee.SustainAntiBrick,
-                "…and the façade forces nothing either. This demand is the one the firing case above " +
-                "drives, so the authored flag is the only difference between the two.");
-    }
-
-    /// <summary>The state predicate on its own, so the anti-brick's two inputs are separately pinned.</summary>
-    [Theory]
-    [InlineData(1, false, false, false)]
-    [InlineData(2, false, false, false)]
-    [InlineData(3, false, false, true)]
-    [InlineData(1, true, false, true)]
-    [InlineData(3, false, true, false)]
-    public void The_anti_brick_is_due_only_past_Stage_2_with_no_Sustain_perk(
-        int stage, bool isBoss, bool ownsSustain, bool expected)
-    {
-        DraftGuarantees.AntiBrickDue(
-            Rule.SustainAntiBrick,
-            new DraftDemand(stage, isBoss, ownsSustain, OwnsNonMaxedPerk: true))
-            .ShouldBe(expected);
+                "the block is switched off — this demand is the one the firing case above drives, " +
+                "so the authored flag is the only difference between the two.");
     }
 
     // ------------------------------------------------------------------ 3 · F1 quality floor
 
     /// <summary>
-    /// The quality floor fires on the <b>4th</b> draft — three consecutive all-Common drafts, then
-    /// the next one — and forces the authored band.
+    /// The quality floor fires on the <b>4th</b> draft — the authored number counts the drafts that
+    /// pass BEFORE the floor applies, the opposite reading from the Legendary pity's.
     /// </summary>
-    /// <remarks>
-    /// The authored number counts the drafts that pass BEFORE the floor applies, so the forced draft
-    /// is the (N+1)-th and the counter it fires at is N. The Legendary pity above reads its own
-    /// number the other way; both are pinned so neither reading can be copied onto the other.
-    /// </remarks>
     [Fact]
     public void The_quality_floor_fires_on_the_fourth_draft_and_forces_Rare_or_better()
     {
@@ -390,11 +342,8 @@ public sealed class DraftGuaranteeTests
             "four guarantees and three slots: the lowest-priority one goes unpaid this draft and its " +
             "counter stays standing, but no two forces may ever share a slot.");
 
-        // 🔒 WHICH rule went unpaid, not merely how many did. A resolution that dropped the quality
-        // floor and paid the famine third satisfies a prefix check over three, and a fourth force
-        // squeezed onto an already-forced slot satisfies one that never counts the list. Both are
-        // the same defect this file exists to catch: the draft owes four things and pays three, so
-        // the identity of the one it does not pay is the whole content of the priority order.
+        // WHICH rule went unpaid: dropping the quality floor and paying the famine third would
+        // satisfy the prefix check above.
         forces.Select(force => force.Guarantee).ShouldNotContain(
             DraftGuarantee.UpgradeFamine,
             "the famine is the lowest priority of the four, so it is the one this draft leaves owed.");
@@ -413,23 +362,11 @@ public sealed class DraftGuaranteeTests
     }
 
     /// <summary>
-    /// 🔒 A draft that could not have offered an owned upgrade leaves the famine counter <b>where it
-    /// stood</b>, while an otherwise identical draft that withheld an available one advances it.
+    /// 🔒 A draft that could not have offered an owned upgrade leaves the famine counter where it
+    /// stood, while an otherwise identical draft that withheld an available one advances it — an
+    /// unconditional counter would spend the famine's allowance during the opening drafts, when the
+    /// run owns nothing, and arrive early on every run.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The rule counts drafts picked from that offered no owned-perk upgrade <em>while the player
-    /// owns at least one non-maxed perk</em>, and the second half is not decoration: a run's
-    /// opening drafts own nothing at all, so an unconditional counter spends the famine's whole
-    /// allowance before an upgrade is even a thing the draft could contain, and the guarantee
-    /// arrives several drafts early — for every run, every time.
-    /// </para>
-    /// <para>
-    /// Driven as a pair over the same counters and the same offering, so the only difference between
-    /// the two arms is the fact the rule is conditioned on. A counter that advances unconditionally
-    /// passes the second arm; one that never advances passes the first.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_famine_counter_only_counts_drafts_an_upgrade_could_have_reached()
     {
@@ -452,15 +389,9 @@ public sealed class DraftGuaranteeTests
 
     /// <summary>
     /// The Legendary and quality-floor counters are <b>not</b> conditioned the same way — they move
-    /// on every draft, whatever the run owns.
+    /// on every draft, whatever the run owns: conditioning them on the famine's predicate would stop
+    /// the Legendary pity dead for a run that owns nothing, which is every run's first draft.
     /// </summary>
-    /// <remarks>
-    /// 🔒 The negative control on the case above, and the reason the fix is one counter's and not
-    /// all three. Those two rules read what the draft <em>offered</em>: every rarity table in the
-    /// game carries a Legendary row and an above-Common row, so "this draft could not have offered
-    /// one" has no instance to be true of. Conditioning them on the same predicate would stop the
-    /// Legendary pity dead for a run that owns nothing — which is every run's first draft.
-    /// </remarks>
     [Fact]
     public void The_Legendary_and_quality_floor_counters_advance_whatever_the_run_owns()
     {
@@ -520,9 +451,6 @@ public sealed class DraftGuaranteeTests
         Should.Throw<ArgumentNullException>(() =>
             LuckService.DraftFreshPoolWeight(null!, everDrafted: false));
         Should.Throw<ArgumentNullException>(() => LuckService.MaxCodexBiasedOptions(null!));
-
-        // Every façade member the two new grant paths add, not a sample of them: a guard is worth
-        // exactly the doors it is on, and a door added without one is the one a caller finds.
         Should.Throw<ArgumentNullException>(() => LuckService.OwnedUpgradeBias(null!));
         Should.Throw<ArgumentNullException>(() => LuckService.ResolveChestPick(
             null!,

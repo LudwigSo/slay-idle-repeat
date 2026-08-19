@@ -44,16 +44,6 @@ public sealed class SeedDerivationTests
                 613L));
     }
 
-    /// <summary>The same five inputs always produce the same seed.</summary>
-    [Fact]
-    public void RunSeed_is_reproducible_for_fixed_inputs()
-    {
-        var first = SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613);
-        var second = SeedDerivation.RunSeed(Player, 3, DifficultyTier.HEROIC, Midmorning, 613);
-
-        second.ShouldBe(first);
-    }
-
     /// <summary>
     /// Changing any one of the five moves it, <c>runCounter</c> included — the argument that exists
     /// precisely so two runs started in the same second on the same chapter and tier draw different

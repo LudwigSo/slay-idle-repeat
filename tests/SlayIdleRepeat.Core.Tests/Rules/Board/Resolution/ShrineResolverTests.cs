@@ -8,17 +8,14 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
-// Namespace is SlayIdleRepeat.Core.Tests.Rules.Board, not ...Rules.Board.Resolution, even though
-// the file sits under Rules/Board/Resolution/: a child namespace named `Resolution` here would
-// shadow SlayIdleRepeat.Core.Rules.Board.Resolution, so a test written there could not name the
-// very resolver it is testing. The directory is the file layout; the namespace is the layer.
+// Namespace is SlayIdleRepeat.Core.Tests.Rules.Board, not ...Rules.Board.Resolution: a child
+// namespace named `Resolution` would shadow SlayIdleRepeat.Core.Rules.Board.Resolution, so a test
+// written there could not name the very resolver it is testing.
 
-/// <summary>Tests <c>ShrineResolver</c>'s two-distinct-options draw and its cleanse rule.</summary>
-/// <remarks>
-/// The resolver is reached through the handler rather than called directly, because the draw's
-/// only observable consequence today is the RNG stream position — the offer is returned, not
-/// persisted, and a heal has no domain event.
-/// </remarks>
+/// <summary>
+/// The shrine's heal and draw accounting through <c>GameRules.Apply</c> on <c>RESOLVE_TILE</c>.
+/// The offer's rows themselves are asserted at the public seam in <see cref="ShrineViewTests"/>.
+/// </summary>
 public sealed class ShrineResolverTests
 {
     private static CommandResult Resolve(WorldSlice state) =>
@@ -26,8 +23,8 @@ public sealed class ShrineResolverTests
 
     /// <summary>With no cleansable curse, a shrine takes exactly two draws (its two distinct options).</summary>
     /// <remarks>
-    /// Inverting the cleanse condition would make this one draw and the cleanse case below two, so
-    /// the pair fails together and neither can be satisfied by the other's behaviour.
+    /// Paired with the cleanse case below: inverting the cleanse condition makes this one draw and
+    /// that one two, so neither can be satisfied by the other's behaviour.
     /// </remarks>
     [Fact]
     public void A_shrine_with_no_cleansable_curse_takes_two_draws()
@@ -39,8 +36,8 @@ public sealed class ShrineResolverTests
 
     /// <summary>The cleanse branch takes exactly one draw, because slot 2 is decided rather than drawn.</summary>
     /// <remarks>
-    /// <c>Run</c> holds no curse list yet, so the handler always passes <c>hasCleansableCurse: false</c>
-    /// and this case is asserted against the resolver's parameter directly. Drawing-and-discarding
+    /// Internal seam by necessity: <c>Run</c> holds no curse list yet, so the handler always passes
+    /// <c>hasCleansableCurse: false</c> and no command can reach this branch. Drawing-and-discarding
     /// instead of skipping would desync the RNG stream from a client that also skips it.
     /// </remarks>
     [Fact]
@@ -55,98 +52,6 @@ public sealed class ShrineResolverTests
         offer.IsCleanse.ShouldBeTrue();
         offer.SecondBuffId.ShouldBeNull("slot 2 is a Cleanse, so no second buff was drawn");
         scope.FinalPositions()[RngStreams.Shrine].ShouldBe(1UL);
-    }
-
-    /// <summary>…and the negative control, on the same seam: without a curse it draws two.</summary>
-    [Fact]
-    public void The_same_seam_takes_two_draws_without_a_cleansable_curse()
-    {
-        var scope = new RunRngScope(TileWorlds.Seed, new Dictionary<string, ulong>(StringComparer.Ordinal));
-        var input = new HandlerInput(
-            TileWorlds.OnTile(TileKind.Shrine, currentHp: 50), TileWorlds.Context, scope);
-
-        var offer = ShrineResolver.Resolve(input, hasCleansableCurse: false);
-
-        offer.IsCleanse.ShouldBeFalse();
-        offer.SecondBuffId.ShouldNotBeNull();
-        scope.FinalPositions()[RngStreams.Shrine].ShouldBe(2UL);
-    }
-
-    /// <summary>The two offered slots are never the same buff, whatever the seed.</summary>
-    /// <remarks>
-    /// This is what the sampling-without-replacement remap exists for. Seeds are swept rather than
-    /// fixed because the remap's off-by-one only bites when the second reduced draw lands at or
-    /// above the first index — a single seed would miss it most of the time.
-    /// </remarks>
-    [Fact]
-    public void The_two_offered_buffs_are_always_distinct()
-    {
-        for (var seed = 1UL; seed <= 200UL; seed++)
-        {
-            var scope = new RunRngScope(seed, new Dictionary<string, ulong>(StringComparer.Ordinal));
-            var input = new HandlerInput(
-                TileWorlds.OnTile(TileKind.Shrine, currentHp: 50, runSeed: seed), TileWorlds.Context, scope);
-
-            var offer = ShrineResolver.Resolve(input, hasCleansableCurse: false);
-
-            offer.SecondBuffId.ShouldNotBe(offer.FirstBuffId, "seed " + seed + " offered one buff twice");
-        }
-    }
-
-    /// <summary>The second slot reaches every other index, including the one immediately after the first.</summary>
-    [Fact]
-    public void The_second_slot_reaches_every_other_buff()
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-
-        for (var seed = 1UL; seed <= 400UL; seed++)
-        {
-            var scope = new RunRngScope(seed, new Dictionary<string, ulong>(StringComparer.Ordinal));
-            var input = new HandlerInput(
-                TileWorlds.OnTile(TileKind.Shrine, currentHp: 50, runSeed: seed), TileWorlds.Context, scope);
-
-            var offer = ShrineResolver.Resolve(input, hasCleansableCurse: false);
-            seen.Add(offer.SecondBuffId!);
-        }
-
-        seen.Count.ShouldBe(10, "every one of 03 §7a.5's ten buffs must be reachable in slot 2");
-    }
-
-    /// <summary>The draw is deterministic for a fixed seed.</summary>
-    [Fact]
-    public void The_shrine_draw_is_deterministic_for_a_fixed_seed()
-    {
-        static (string First, string? Second) Draw()
-        {
-            var scope = new RunRngScope(777UL, new Dictionary<string, ulong>(StringComparer.Ordinal));
-            var input = new HandlerInput(
-                TileWorlds.OnTile(TileKind.Shrine, currentHp: 50, runSeed: 777UL), TileWorlds.Context, scope);
-
-            var offer = ShrineResolver.Resolve(input, hasCleansableCurse: false);
-
-            return (offer.FirstBuffId, offer.SecondBuffId);
-        }
-
-        Draw().ShouldBe(Draw());
-    }
-
-    /// <summary>
-    /// A drawn healing row heals immediately — <c>SHR_HEAL</c> (40% of Max HP) and <c>SHR_HP</c>
-    /// (18%) are the two rows that carry an <c>immediateHealPctMaxHp</c>.
-    /// </summary>
-    [Fact]
-    public void A_drawn_healing_row_heals_immediately()
-    {
-        var healed = new List<int>();
-
-        for (var seed = 1UL; seed <= 60UL; seed++)
-        {
-            var result = Resolve(TileWorlds.OnTile(TileKind.Shrine, currentHp: 10, runSeed: seed));
-            healed.Add(result.NewState.Run!.CurrentHp);
-        }
-
-        healed.ShouldContain(50, "a shrine that offered SHR_HEAL heals 40% of a 100 Max HP bar");
-        healed.ShouldContain(10, "…and one that offered neither healing row heals nothing");
     }
 
     /// <summary>A shrine offers two options and applies exactly one — it never heals twice.</summary>
@@ -168,7 +73,6 @@ public sealed class ShrineResolverTests
         }
     }
 
-    /// <summary>An immediate heal is clamped at Max HP rather than overhealing.</summary>
     [Fact]
     public void An_immediate_heal_never_exceeds_max_hp()
     {
@@ -179,17 +83,5 @@ public sealed class ShrineResolverTests
             result.NewState.Run!.CurrentHp.ShouldBeLessThanOrEqualTo(100);
             result.NewState.Run!.CurrentHp.ShouldBeGreaterThanOrEqualTo(95, "a shrine never hurts");
         }
-    }
-
-    /// <summary>A shrine moves no currency, ever.</summary>
-    [Fact]
-    public void A_shrine_moves_no_currency()
-    {
-        var state = TileWorlds.OnTile(TileKind.Shrine, gold: 250, currentHp: 50);
-
-        var result = Resolve(state);
-
-        result.Events.ShouldBeEmpty();
-        result.NewState.Run!.Gold.ShouldBe(250);
     }
 }

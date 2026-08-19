@@ -74,26 +74,11 @@ internal static class RunBattleWorlds
     /// perfect quality, top enhance level.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>For fixtures that must win a whole RUN, not one fight.</b> <see cref="Worn"/> is
-    /// calibrated — this suite asserts composed figures against it — and it lands a chapter-1 hero
-    /// roughly AT par, which is fine for one measured fight and useless for a run. <c>08</c> §3 scales
-    /// item power by the item's chapter of origin, and <c>EnemyPowerFormula</c> grows 3.5% per node, so
-    /// a hero at par wins at node 7 and dies at node 11 — measured exactly that way while migrating the
-    /// M7-06c fixtures, where the in-process host's run ended <em>"END_RUN after a death"</em> on its
-    /// first battle.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Over-geared on purpose, and by a wide margin rather than a tuned one.</b> The point is
-    /// that no fixture driving a full run should be one M6 retune away from silently asserting that a
-    /// dead run banks nothing. A margin chosen to be comfortably wrong is more stable than a margin
-    /// chosen to be exactly right.
-    /// </para>
-    /// <para>
-    /// ⚠️ It is a SECOND loadout rather than a change to <see cref="Worn"/>, because this suite's own
-    /// cases state literal composed stats against that one; moving it would rewrite assertions that are
-    /// about the derivation rather than about winning.
-    /// </para>
+    /// For fixtures that must win a whole RUN, not one fight: <see cref="Worn"/> lands a chapter-1
+    /// hero roughly AT par, and enemy power grows 3.5% per node, so an at-par hero dies mid-run.
+    /// Over-geared by a wide margin rather than a tuned one, so no retune leaves a run fixture
+    /// silently asserting that a dead run banks nothing. A SECOND loadout rather than a change to
+    /// <see cref="Worn"/>, whose composed figures other cases pin literally.
     /// </remarks>
     internal static IReadOnlyList<GearInstance> FarAbovePar { get; } = new[]
     {

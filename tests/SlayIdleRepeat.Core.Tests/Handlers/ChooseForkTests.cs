@@ -149,8 +149,10 @@ public sealed class ChooseForkTests
         result.NewState.Run.PendingFork.HasValue.ShouldBe(expected.PausedAtJunction);
     }
 
-    [Fact]
-    public void An_out_of_range_BranchIndex_is_refused()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(-1)]
+    public void A_BranchIndex_naming_no_edge_is_refused(int branchIndex)
     {
         var board = ActualBoard();
         var junction = FirstJunction(board);
@@ -163,27 +165,7 @@ public sealed class ChooseForkTests
             pendingForkRemainingSteps: 1);
 
         var result = SlayIdleRepeat.Core.GameRules.Apply(
-            Worlds.InARun(snapshot), new ChooseForkCommand(BranchIndex: 2), TinyContext());
-
-        result.Accepted.ShouldBeFalse();
-        result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
-    }
-
-    [Fact]
-    public void A_negative_BranchIndex_is_refused()
-    {
-        var board = ActualBoard();
-        var junction = FirstJunction(board);
-
-        var snapshot = RunSnapshots.With(
-            chapterId: ChapterId,
-            runSeed: Seed,
-            position: junction.Value,
-            pendingForkJunctionPosition: junction.Value,
-            pendingForkRemainingSteps: 1);
-
-        var result = SlayIdleRepeat.Core.GameRules.Apply(
-            Worlds.InARun(snapshot), new ChooseForkCommand(BranchIndex: -1), TinyContext());
+            Worlds.InARun(snapshot), new ChooseForkCommand(branchIndex), TinyContext());
 
         result.Accepted.ShouldBeFalse();
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
@@ -262,8 +244,6 @@ public sealed class ChooseForkTests
     [Fact]
     public void A_second_roll_replays_the_same_board_rather_than_drawing_it_again()
     {
-        var board = ActualBoard();
-
         var afterFirstRoll = SlayIdleRepeat.Core.GameRules.Apply(
             Worlds.InARun(RunSnapshots.With(chapterId: ChapterId, runSeed: Seed, position: -1)),
             new RollDiceCommand(),
@@ -292,9 +272,5 @@ public sealed class ChooseForkTests
             boardDrawsAfterFirstRoll,
             "the board is generated once and replayed on every later command; a second roll that " +
             "moved this stream would mean the board was drawn again — from a different, wrong point.");
-
-        // And the board itself really is stable: the trailhead's first landing agrees with the
-        // independently-generated one both times.
-        board.FirstNodeId.Value.ShouldBeGreaterThanOrEqualTo(0);
     }
 }

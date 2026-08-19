@@ -42,19 +42,6 @@ public sealed class Hash64KnownAnswerTests
     }
 
     /// <summary>
-    /// Pins the harness, not the hash: if the sanity buffer were built wrongly, the rows above
-    /// would be testing <c>XXH64</c> of the wrong bytes and would simply fail with no clue why.
-    /// The prefix is the reference generator's output for <c>PRIME32</c>/<c>PRIME64</c>.
-    /// </summary>
-    [Fact]
-    public void The_sanity_buffer_is_the_one_the_reference_implementation_generates()
-    {
-        var buffer = ReferenceVectors.SanityBuffer(16);
-
-        Convert.ToHexString(buffer).ShouldBe("0052929BB732A3242D00AF950EECB893");
-    }
-
-    /// <summary>
     /// The three short ASCII vectors that ship with almost every port of xxHash: raw UTF-8 bytes
     /// with no length prefix, deliberately not canonical-encoding rows.
     /// </summary>

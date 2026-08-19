@@ -10,8 +10,9 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
 /// <summary><c>STAT_CONVERT</c> and all three <c>STAT_CAP_OVERRIDE</c> kinds, through the real aggregation.</summary>
 /// <remarks>
-/// These run through <see cref="StatAggregation.Aggregate"/> rather than against the seam directly,
-/// so each step's position in the aggregation order is part of the assertion.
+/// These run through <see cref="StatAggregation.Aggregate"/> — the outermost seam that exposes the
+/// intermediate the claims are about (a fight's log shows only the post-cap final) — so each step's
+/// position in the aggregation order is part of the assertion.
 /// </remarks>
 public sealed class StatOpBehaviourTests
 {
@@ -259,7 +260,7 @@ public sealed class StatOpBehaviourTests
         result.Final[StatId.MAX_HP].ShouldBe(2400.0, "the hero's Max HP is untouched");
 
         StatOpBehaviour.Instance.HealCeilingFraction([avatarOfWar], AuthoredEffectValue.Instance)
-                       .ShouldBe(0.80, "05 §4.3's bound, for M2-09 to read through the seam");
+                       .ShouldBe(0.80, "05 §4.3's bound, read separately by the healer");
     }
 
     /// <summary>Two heal ceilings: the lowest binds, because a restriction cannot loosen another.</summary>

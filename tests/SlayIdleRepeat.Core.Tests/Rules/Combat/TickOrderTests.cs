@@ -8,6 +8,10 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>The battle-start pre-tick and the strict eight-step tick order.</summary>
+/// <remarks>
+/// Internal seam: the slot order within a tick is not in the log — the public entry points show
+/// only its consequences — so the cases observe it through recording seams on the plan.
+/// </remarks>
 public sealed class TickOrderTests
 {
     /// <summary>

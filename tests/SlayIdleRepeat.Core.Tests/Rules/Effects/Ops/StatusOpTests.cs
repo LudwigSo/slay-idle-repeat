@@ -203,44 +203,17 @@ public sealed class StatusOpTests
             ["ScaleOutgoingPower(HERO, 0.2, TAL_KINDLING)", "ScaleIncomingDuration(HERO, -0.35, PK_TENACITY)"], Case.Sensitive);
     }
 
-    // ───────────────────────────────────────────── value-less APPLY_STATUS
-
     /// <summary>
-    /// A status whose definition carries <c>FixedPotency</c> may author no <c>value</c> at all — this
-    /// narrows the usual "no value is a hole" guard to exactly that case.
-    /// </summary>
-    /// <remarks>
-    /// The <c>0</c> potency asserted here is a sentinel, not the applied number — this is the op
-    /// layer's own claim (it does not throw); the real number reaching ASPD is asserted elsewhere.
-    /// </remarks>
-    [Fact]
-    public void APPLY_STATUS_with_no_value_and_a_FixedPotency_status_does_not_throw()
-    {
-        var hero = EffectTestBattle.Hero();
-        var bench = new OpTestBench().WithFixedPotency("FREEZE");
-
-        var freeze = OpFixtures.Effect("BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE", EffectOp.APPLY_STATUS, target: EffectTarget.SELF) with
-        {
-            StatusId = "FREEZE",
-            Duration = new EffectDuration { Seconds = 1.5, Scope = DurationScope.BATTLE },
-        };
-
-        StatusOps.Apply(freeze, bench.Context(EffectTestBattle.Context(hero, hero)));
-
-        bench.Calls.ShouldBe(
-            ["Apply:FREEZE(HERO, 0, BOSS_RIMEHOLD_P2_SHATTERBACK_FREEZE)"], Case.Sensitive);
-    }
-
-    /// <summary>
-    /// The narrowing is for a <c>FixedPotency</c> status specifically, not wider. A value-less
-    /// <c>APPLY_STATUS</c> naming a status with no <c>FixedPotency</c> (BURN, whose X is authored
-    /// per effect) is exactly the authoring hole the guard exists to catch, and must still throw.
+    /// The <c>FixedPotency</c> narrowing of the "no value" guard is for exactly that case: a
+    /// value-less <c>APPLY_STATUS</c> naming a status with no <c>FixedPotency</c> (BURN, whose X is
+    /// authored per effect) is the authoring hole the guard exists to catch, and must still throw.
+    /// The happy path is pinned end-to-end in <c>Rules/Combat/Status</c>.
     /// </summary>
     [Fact]
     public void APPLY_STATUS_with_no_value_and_no_FixedPotency_status_still_throws()
     {
         var hero = EffectTestBattle.Hero();
-        var bench = new OpTestBench(); // BURN is not marked WithFixedPotency
+        var bench = new OpTestBench(); // the bench answers HasFixedPotency false for every status
 
         var noValueBurn = OpFixtures.Effect("PK_X", EffectOp.APPLY_STATUS, target: EffectTarget.SELF) with
         {

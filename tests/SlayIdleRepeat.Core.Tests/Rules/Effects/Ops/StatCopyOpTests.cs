@@ -9,7 +9,8 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 /// <summary><c>STAT_COPY</c> — the op whose <c>target</c> names the copy source, not the recipient.</summary>
 /// <remarks>
 /// Inverted from every other op in the DSL; the test names carry this on purpose so a later reader
-/// "correcting" it goes red.
+/// "correcting" it goes red. Internal seam: which actor was read, and that the read hit the frozen
+/// start-of-tick snapshot, is visible in no <c>CombatEvent</c>.
 /// </remarks>
 public sealed class StatCopyOpTests
 {

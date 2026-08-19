@@ -13,9 +13,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// as an anti-loop rule, never triggers the receiver's thorns in turn.
 /// </summary>
 /// <remarks>
-/// Every case drives it the way a fight does, off a real attack, rather than calling the internal
-/// method directly. The one thing that cannot be reached that way is a reflect of a reflect, which
-/// is the anti-loop rule and is asserted by its absence.
+/// Internal bench seam: the cases stage exact ward totals and multipliers and read the RNG stream
+/// position, none of which <c>SimulateDuel</c> can set or its log show. Every case still drives the
+/// reflect the way a fight does, off a real attack, rather than calling the internal method
+/// directly; the one thing unreachable that way is a reflect of a reflect — the anti-loop rule,
+/// asserted by its absence.
 /// </remarks>
 public sealed class ReflectDamageTests
 {

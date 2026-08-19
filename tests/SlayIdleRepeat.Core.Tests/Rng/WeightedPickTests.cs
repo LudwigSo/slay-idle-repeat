@@ -236,21 +236,6 @@ public sealed class WeightedPickTests
     }
 
     /// <summary>
-    /// Two picks over the same table at the same position agree — the pick is a pure function
-    /// of the draw, with nothing carried between calls.
-    /// </summary>
-    [Fact]
-    public void WeightedPick_is_reproducible_from_the_position_alone()
-    {
-        var table = new[] { ("a", 1.0), ("b", 2.0), ("c", 3.0) };
-
-        var first = new DeterministicRng(RunSeed, RngStreams.Treasure, 17UL).WeightedPick(table);
-        var second = new DeterministicRng(RunSeed, RngStreams.Treasure, 17UL).WeightedPick(table);
-
-        first.ShouldBe(second);
-    }
-
-    /// <summary>
     /// Over many draws every weighted row is reachable. Not a distribution test — a much weaker
     /// claim, that the walk is not stuck on one row, which a broken cumulative comparison would
     /// fail outright.

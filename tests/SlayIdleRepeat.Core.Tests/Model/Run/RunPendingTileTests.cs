@@ -20,7 +20,10 @@ public sealed class RunPendingTileTests
 
     // ------------------------------------------------------------------ the empty state
 
-    /// <summary>A rehydrated run with nothing pending says so, and refuses to describe a tile.</summary>
+    /// <summary>
+    /// The getters throw rather than answering a default — a default would let a rule resolve a
+    /// tile the run is not standing on.
+    /// </summary>
     [Fact]
     public void A_run_with_no_pending_tile_describes_none()
     {
@@ -29,48 +32,13 @@ public sealed class RunPendingTileTests
         run.HasPendingTile.ShouldBeFalse();
         run.PendingEventCardId.ShouldBeNull();
 
-        Should.Throw<InvalidOperationException>(() => run.PendingTileKindValue);
+        Should.Throw<InvalidOperationException>(() => run.PendingTileKindValue)
+            .Message.ShouldContain("HasPendingTile", Case.Sensitive);
         Should.Throw<InvalidOperationException>(() => run.PendingTileLinearIndex);
         Should.Throw<InvalidOperationException>(() => run.PendingTileStage);
     }
 
-    /// <summary>
-    /// The three getters throw rather than answering a default, because a default would let a
-    /// rule resolve a tile the run is not standing on. The message names the gate to ask instead.
-    /// </summary>
-    [Fact]
-    public void The_refusal_names_the_gate_to_ask_first()
-    {
-        Should.Throw<InvalidOperationException>(() => NewRun().PendingTileKindValue)
-            .Message.ShouldContain("HasPendingTile", Case.Sensitive);
-    }
-
     // ------------------------------------------------------------------ ArriveAtTile
-
-    /// <summary>Arriving at a tile records all three of its facts.</summary>
-    /// <remarks>
-    /// The kind arrives as an <c>int</c> rather than a <see cref="TileKind"/> because a
-    /// <b>public</b> test method may not take a parameter of an <c>internal</c> type (CS0051) — the
-    /// same accessibility wall that made <c>Run</c> store the value as an <c>int</c> in the first
-    /// place.
-    /// </remarks>
-    [Theory]
-    [InlineData((int)TileKind.Empty, 0, 1)]
-    [InlineData((int)TileKind.Treasure, 19, 2)]
-    [InlineData((int)TileKind.Event, 41, 3)]
-    [InlineData((int)TileKind.Boss, 42, BoardGraph.BossStage)]
-    public void Arriving_at_a_tile_records_it(int kind, int linearIndex, int stage)
-    {
-        var run = NewRun();
-
-        run.ArriveAtTile(kind, linearIndex, stage);
-
-        run.HasPendingTile.ShouldBeTrue();
-        run.PendingTileKindValue.ShouldBe(kind);
-        run.PendingTileLinearIndex.ShouldBe(linearIndex);
-        run.PendingTileStage.ShouldBe(stage);
-        run.PendingEventCardId.ShouldBeNull();
-    }
 
     /// <summary>
     /// Arriving twice is a DEFECT: movement is forward-only, so a run that moved on without

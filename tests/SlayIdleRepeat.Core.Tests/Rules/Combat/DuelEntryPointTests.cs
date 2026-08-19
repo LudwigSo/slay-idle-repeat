@@ -44,8 +44,6 @@ public sealed class DuelEntryPointTests
             [StatId.THORNS] = 0.0,
         });
 
-    // ═══════════════════════════════════════════════════════════ acceptance 2: a real duel
-
     /// <summary>Two hero builds can fight through a real entry point outside <c>Core.Rules</c>.</summary>
     [Fact]
     public void Two_hero_builds_can_fight_a_real_duel()
@@ -79,7 +77,19 @@ public sealed class DuelEntryPointTests
         result.DurationTicks.ShouldBe(100, "5.0 s at the 20 Hz clock is exactly 100 ticks");
     }
 
-    // ═══════════════════════════════════════════════════════════ acceptance 3: attaching an effect
+    /// <summary>
+    /// A duration whose tick count exceeds the log's addressable range is refused at the door
+    /// rather than truncated to a fight the caller did not ask for.
+    /// </summary>
+    [Fact]
+    public void A_duration_beyond_the_logs_tick_range_is_refused()
+    {
+        var tank = Build(atk: 0.0, def: 100.0, maxHp: 1_000_000.0);
+
+        Should.Throw<ArgumentOutOfRangeException>(() => CombatSimulator.SimulateDuel(
+            BattleSeed, tank, attackerLevel: 1, tank, defenderLevel: 1,
+            durationSeconds: 200.0, Content));
+    }
 
     /// <summary>An attacker-held <c>APPLY_STATUS</c> effect resolves onto the Ghost mid-duel.</summary>
     [Fact]

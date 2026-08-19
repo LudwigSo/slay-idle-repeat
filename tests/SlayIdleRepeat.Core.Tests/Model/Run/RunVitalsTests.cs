@@ -1,52 +1,21 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Model;
-using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.TestSupport;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// The run's three plain pieces of state and the mutators that write them: the hero's hit points,
-/// the board position, and the instant the run last accepted a command.
+/// The guards on the run's hit points, board position and TTL anchor. The legal movements are
+/// covered at the <c>Apply</c> seam (<c>RollDiceTests</c>, <c>ConfirmBattleResultTests</c>); these
+/// inputs are ones no handler produces, so <c>Apply</c> cannot express them.
 /// </summary>
 public sealed class RunVitalsTests
 {
     private static Run Fresh(int position = 0, int currentHp = 100, int maxHp = 100) =>
         Run.Rehydrate(RunSnapshots.With(position: position, currentHp: currentHp, maxHp: maxHp)).Value;
 
-    // ------------------------------------------------------------------ hit points
-
-    /// <summary>
-    /// <c>SetHitPoints</c> writes <b>both</b> halves in one call, which is the invariant rather
-    /// than an ergonomic choice: a caller that raised the maximum and forgot the current — or the
-    /// reverse — would leave the pair in a state neither individual write is illegal in, so no
-    /// aggregate-level invariant could catch it afterwards.
-    /// </summary>
-    [Fact]
-    public void SetHitPoints_writes_the_current_and_the_maximum_together()
-    {
-        var run = Fresh(currentHp: 61, maxHp: 100);
-
-        run.SetHitPoints(140, 140);
-
-        run.CurrentHp.ShouldBe(140);
-        run.MaxHp.ShouldBe(140);
-    }
-
-    /// <summary>Damage is the same seam with a lower current and an unchanged maximum.</summary>
-    [Fact]
-    public void SetHitPoints_records_damage_without_touching_the_maximum()
-    {
-        var run = Fresh(currentHp: 100, maxHp: 100);
-
-        run.SetHitPoints(37, 100);
-
-        run.CurrentHp.ShouldBe(37);
-        run.MaxHp.ShouldBe(100);
-    }
-
-    /// <summary>A maximum below 1 is refused: a hero with no hit points at all is not a run state.</summary>
+    /// <summary>A hero with no hit points at all is not a run state.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-1)]
@@ -63,7 +32,6 @@ public sealed class RunVitalsTests
         run.CurrentHp.ShouldBe(100);
     }
 
-    /// <summary>A negative current is refused; zero is not — a downed hero awaiting a revive is at 0.</summary>
     [Fact]
     public void SetHitPoints_refuses_a_negative_current_and_accepts_zero()
     {
@@ -80,10 +48,7 @@ public sealed class RunVitalsTests
         run.CurrentHp.ShouldBe(0, "02 §6's revive acts on a hero at zero, so zero is a state the run has");
     }
 
-    /// <summary>
-    /// Overheal is refused, not clamped: a silent clamp here would make a healing rule that
-    /// over-delivered look correct.
-    /// </summary>
+    /// <summary>Refused, not clamped: a silent clamp would make a healing rule that over-delivered look correct.</summary>
     [Fact]
     public void SetHitPoints_refuses_a_current_above_the_maximum_rather_than_clamping()
     {
@@ -98,7 +63,6 @@ public sealed class RunVitalsTests
         run.MaxHp.ShouldBe(100);
     }
 
-    /// <summary>Full health is legal: the boundary is not off by one.</summary>
     [Fact]
     public void SetHitPoints_accepts_a_current_equal_to_the_maximum()
     {
@@ -109,27 +73,10 @@ public sealed class RunVitalsTests
         run.CurrentHp.ShouldBe(100);
     }
 
-    // -------------------------------------------------------------------- position
-
-    [Fact]
-    public void MoveTo_records_the_new_position()
-    {
-        var run = Fresh(position: 12);
-
-        run.MoveTo(19);
-
-        run.Position.ShouldBe(19);
-    }
-
     /// <summary>
-    /// A move to a <b>lower</b> index is accepted: this pins the <em>absence</em> of a monotonicity
-    /// guard, not a claim that the board goes backwards.
+    /// Pins the ABSENCE of a monotonicity guard: which index may follow which is the board
+    /// graph's question, and the aggregate holds no graph.
     /// </summary>
-    /// <remarks>
-    /// Which index may follow which is a property of the board graph, and the aggregate holds no
-    /// graph — a direction rule here would be a partial invariant wearing the real one's name.
-    /// Movement legality belongs elsewhere.
-    /// </remarks>
     [Fact]
     public void MoveTo_accepts_a_lower_index_because_movement_legality_is_M3_01s_not_the_aggregates()
     {
@@ -140,14 +87,7 @@ public sealed class RunVitalsTests
         run.Position.ShouldBe(4);
     }
 
-    /// <summary>
-    /// The <b>trailhead</b> at −1 is accepted: where every run stands before its first roll, not
-    /// an invalid position.
-    /// </summary>
-    /// <remarks>
-    /// The case a floor of 0 would have got wrong. A run created and abandoned before its first
-    /// roll persists at −1, so refusing it would make the commonest resumable run unstorable.
-    /// </remarks>
+    /// <summary>The case a floor of 0 would get wrong: a run abandoned before its first roll persists at −1.</summary>
     [Fact]
     public void MoveTo_accepts_the_trailhead_because_that_is_where_every_run_starts()
     {
@@ -158,7 +98,6 @@ public sealed class RunVitalsTests
         run.Position.ShouldBe(-1);
     }
 
-    /// <summary>A position below the trailhead is refused — and that is the whole check.</summary>
     [Fact]
     public void MoveTo_refuses_a_position_below_the_trailhead()
     {
@@ -169,20 +108,13 @@ public sealed class RunVitalsTests
         Should.Throw<ArgumentOutOfRangeException>(act)
               .ParamName.ShouldBe(
                   "position",
-                  "naming the parameter is what says WHICH refusal this is (steering S2) — the " +
-                  "exception type alone is the same one SetHitPoints and MarkApplied raise.");
+                  "naming the parameter is what says WHICH refusal this is — the exception type " +
+                  "alone is the same one SetHitPoints and MarkApplied raise.");
 
         run.Position.ShouldBe(7, "a refused write changes nothing");
     }
 
-    /// <summary>
-    /// A position no board could contain is <b>accepted</b>: "a run's position is a valid node" is
-    /// <b>deferred</b>, not approximated.
-    /// </summary>
-    /// <remarks>
-    /// There is no board and no node identity yet, so a range check invented here would be a
-    /// partial invariant wearing the real one's name and trusted as such downstream.
-    /// </remarks>
+    /// <summary>"A run's position is a valid node" is deferred to the board rules, not approximated here.</summary>
     [Fact]
     public void MoveTo_accepts_a_position_no_board_could_contain_because_node_identity_is_M3_01s()
     {
@@ -193,9 +125,6 @@ public sealed class RunVitalsTests
         run.Position.ShouldBe(int.MaxValue);
     }
 
-    // ------------------------------------------------------------------- MarkApplied
-
-    /// <summary>The sliding TTL's anchor advances to the instant the command was applied.</summary>
     [Fact]
     public void MarkApplied_advances_the_run_TTL_anchor()
     {
@@ -207,10 +136,7 @@ public sealed class RunVitalsTests
         run.LastAppliedAtUtc.ShouldBe(later);
     }
 
-    /// <summary>
-    /// Equal is allowed: the server stamps <c>NowUtc</c> once per command and a client can send
-    /// two inside the same millisecond.
-    /// </summary>
+    /// <summary>Equal is allowed: a client can send two commands inside the same millisecond.</summary>
     [Fact]
     public void MarkApplied_allows_the_same_instant_twice()
     {
@@ -221,10 +147,7 @@ public sealed class RunVitalsTests
         run.LastAppliedAtUtc.ShouldBe(RunSnapshots.Midmorning);
     }
 
-    /// <summary>
-    /// Strictly-earlier is refused: the run TTL is measured <b>from</b> this instant, so moving it
-    /// backwards would extend a run past the point it expires.
-    /// </summary>
+    /// <summary>The run TTL is measured FROM this instant, so moving it backwards would extend a run past its expiry.</summary>
     [Fact]
     public void MarkApplied_refuses_an_instant_that_goes_backwards()
     {
@@ -238,11 +161,7 @@ public sealed class RunVitalsTests
         run.LastAppliedAtUtc.ShouldBe(RunSnapshots.Midmorning);
     }
 
-    /// <summary>
-    /// A non-zero offset is refused: <c>CanonicalStateWriter</c> encodes a <see cref="DateTimeOffset"/>
-    /// as Unix milliseconds, so two offsets naming one instant hash identically while record equality
-    /// calls them different.
-    /// </summary>
+    /// <summary><c>CanonicalStateWriter</c> encodes an instant as Unix milliseconds, so two offsets naming one instant would hash identically.</summary>
     [Fact]
     public void MarkApplied_refuses_an_instant_carrying_a_non_zero_offset()
     {
@@ -253,28 +172,5 @@ public sealed class RunVitalsTests
               .Message.ShouldMatchWildcard("*offset*");
 
         run.LastAppliedAtUtc.ShouldBe(RunSnapshots.Midmorning);
-    }
-
-    /// <summary>
-    /// The run's TTL anchor is its <b>own</b>, not <c>Player.LastAppliedAtUtc</c> under another name.
-    /// </summary>
-    /// <remarks>
-    /// The player's anchor advances on meta commands too, so a run whose expiry were slid off it
-    /// would stay alive because its owner opened the shop.
-    /// </remarks>
-    [Fact]
-    public void The_runs_TTL_anchor_is_the_runs_own_and_not_the_players()
-    {
-        var run = Fresh();
-        var player = Core.Model.Player
-            .Rehydrate(PlayerSnapshots.Valid, ProgressionDocuments.Shipped).Value;
-
-        run.MarkApplied(RunSnapshots.Midmorning.AddHours(2));
-
-        player.LastAppliedAtUtc.ShouldBe(
-            PlayerSnapshots.Midmorning,
-            "advancing a run's anchor must not touch the player's — they are two fields answering " +
-            "two different expiry questions (14 §16.3).");
-        run.LastAppliedAtUtc.ShouldBe(RunSnapshots.Midmorning.AddHours(2));
     }
 }

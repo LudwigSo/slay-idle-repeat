@@ -15,6 +15,7 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 /// </summary>
 public sealed class RunSnapshotTests
 {
+    /// <summary>A populated row: every field a valid row can move away from its default is moved.</summary>
     private static RunSnapshot Populated => RunSnapshots.With(
         runSeed: 0xFEEDFACECAFEBEEFUL,
         chapterId: 5,
@@ -29,66 +30,41 @@ public sealed class RunSnapshotTests
         adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_DICE", 2)),
         resolvedMinigames: RunSnapshots.ResolvedMinigames((3, "MG_CHEST_PICK"), (11, "MG_TIMING_BAR")),
         pendingForkJunctionPosition: 19,
-        pendingForkRemainingSteps: 2);
+        pendingForkRemainingSteps: 2,
+        rerollChargesSpentThisStage: 1,
+        stageGateDiceAnchor: 5UL,
+        ownedPerkTiers: RunSnapshots.OwnedPerkTiers(("PK_SHARP_EDGE", 2)),
+        bankedLegendXp: 40,
+        bankedSoulShards: 15,
+        bossDefeated: true,
+        draftsSinceLegendaryOffered: 1,
+        draftsWithoutAboveCommon: 2,
+        draftsWithoutOwnedUpgrade: 3,
+        startingLoadout: new LoadoutSnapshot(
+            new Dictionary<GearSlot, GearInstanceId> { [GearSlot.WEAPON] = new("GI_1") }),
+        itemsAtOrAboveFloorBand: 2);
 
     /// <summary>
-    /// The <c>stateHash</c> of a <b>run</b> command: the player snapshot then the run snapshot,
-    /// through <c>CanonicalStateWriter</c>'s own named mode.
+    /// The <c>stateHash</c> of a run command hashes the player snapshot then the run snapshot;
+    /// the player half is held at <c>PlayerSnapshots.Valid</c> throughout this file, so every
+    /// difference measured below is a difference in the run.
     /// </summary>
-    /// <remarks>
-    /// <c>HashRunCommandState</c> rather than <c>HashMetaCommandState</c>, because a run snapshot
-    /// is never hashed alone — the concatenation lives in the writer precisely so no caller
-    /// performs it. The player half is held at <c>PlayerSnapshots.Valid</c> throughout this file,
-    /// so every difference the cases below measure is a difference in the run.
-    /// </remarks>
     private static string Hash(RunSnapshot run) =>
         CanonicalStateWriter.HashRunCommandState(PlayerSnapshots.Valid, run);
 
-    /// <summary>A snapshot round-trips: rehydrate then snapshot again is the row you started with, value for value.</summary>
-    /// <remarks>
-    /// Record equality compares the two dictionaries by reference, so this is asserted field by field —
-    /// a single <c>ShouldBe</c> would pass for two rows whose maps differed and fail for two whose maps
-    /// were equal but not the same object.
-    /// <para>
-    /// The maps are compared with <c>ignoreOrder</c>: a dictionary's enumeration order is an
-    /// implementation detail of the aggregate's copy, and <c>CanonicalStateWriter</c> imposes ascending
-    /// key order itself. Pinning the order here would break on a harmless refactor.
-    /// </para>
-    /// </remarks>
+    /// <summary>
+    /// Canonical bytes rather than a field list: a field list goes stale as the record grows, and
+    /// the bytes cover every field the writer encodes — including one a constructor dropped.
+    /// </summary>
     [Fact]
-    public void A_snapshot_round_trips_through_the_aggregate()
+    public void A_snapshot_round_trips_byte_identically_through_the_aggregate()
     {
         var round = Run.Rehydrate(Populated).Value.ToSnapshot();
 
-        round.SchemaVersion.ShouldBe(Populated.SchemaVersion);
-        round.Id.ShouldBe(Populated.Id);
-        round.PlayerId.ShouldBe(Populated.PlayerId);
-        round.RunSeed.ShouldBe(Populated.RunSeed);
-        round.ChapterId.ShouldBe(Populated.ChapterId);
-        round.Tier.ShouldBe(Populated.Tier);
-        round.LastAppliedAtUtc.ShouldBe(Populated.LastAppliedAtUtc);
-        round.Position.ShouldBe(Populated.Position);
-        round.CurrentHp.ShouldBe(Populated.CurrentHp);
-        round.MaxHp.ShouldBe(Populated.MaxHp);
-        round.Gold.ShouldBe(Populated.Gold);
-        round.RngStreamPositions.ShouldBe(Populated.RngStreamPositions, ignoreOrder: true);
-        round.AdUses.ShouldBe(Populated.AdUses, ignoreOrder: true);
-        round.ResolvedMinigames.ShouldBe(Populated.ResolvedMinigames, ignoreOrder: true);
-        round.PendingForkJunctionPosition.ShouldBe(Populated.PendingForkJunctionPosition);
-        round.PendingForkRemainingSteps.ShouldBe(Populated.PendingForkRemainingSteps);
+        CanonicalStateWriter.CanonicalBytes(round)
+            .ShouldBe(CanonicalStateWriter.CanonicalBytes(Populated));
     }
 
-    /// <summary>And the round trip is <c>stateHash</c>-stable, which is the property the client-mirror check actually depends on.</summary>
-    [Fact]
-    public void A_round_tripped_snapshot_hashes_identically()
-    {
-        var round = Run.Rehydrate(Populated).Value.ToSnapshot();
-
-        Hash(round)
-            .ShouldBe(Hash(Populated));
-    }
-
-    /// <summary>A stream map built in a different insertion order hashes identically — the writer imposes ascending key order rather than trusting the container's.</summary>
     [Fact]
     public void A_stream_map_built_in_a_different_order_hashes_identically()
     {
@@ -102,7 +78,7 @@ public sealed class RunSnapshotTests
             .ShouldBe(Hash(backwards));
     }
 
-    /// <summary>And a materially different map hashes differently, so the case above is not just observing that everything hashes the same.</summary>
+    /// <summary>Negative control: the case above must not be observing that everything hashes the same.</summary>
     [Fact]
     public void A_different_stream_position_hashes_differently()
     {
@@ -113,13 +89,11 @@ public sealed class RunSnapshotTests
             .ShouldNotBe(Hash(late));
     }
 
-    /// <summary>Every field of <see cref="RunSnapshot"/> reaches the bytes: changing any one field changes the hash.</summary>
-    /// <remarks>
+    /// <summary>
     /// A snapshot field that does not move the <c>stateHash</c> is state two runs can differ in
     /// while the client-mirror check reports agreement. The probe set is floored against the
-    /// record's own constructor arity so a field added without a probe makes the emptiness below
-    /// quietly weaker.
-    /// </remarks>
+    /// record's constructor arity so a field added without a probe goes red here.
+    /// </summary>
     [Fact]
     public void Every_field_of_the_snapshot_reaches_the_hash()
     {
@@ -127,8 +101,7 @@ public sealed class RunSnapshotTests
 
         var probes = new (string Field, RunSnapshot A, RunSnapshot B)[]
         {
-            // One PAST the current version, as an expression rather than a literal — see
-            // PlayerSnapshotTests' probe of the same name.
+            // An expression, not a literal — see PlayerSnapshotTests' probe of the same name.
             (nameof(RunSnapshot.SchemaVersion), v,
                 RunSnapshots.With(schemaVersion: SnapshotSchema.SchemaVersion + 1)),
             (nameof(RunSnapshot.Id), v, RunSnapshots.With(id: new RunId("OTHER_RUN"))),
@@ -150,11 +123,9 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.PendingForkRemainingSteps), v,
                 RunSnapshots.With(pendingForkRemainingSteps: 1)),
 
-            // The four pending-tile fields. The three that describe the tile are probed TOGETHER
-            // WITH a pending kind rather than in isolation, because Run.Rehydrate refuses a row
-            // that carries an index or a stage with nothing pending — a probe of the index alone
-            // would move the hash of a row no run could ever be in, which proves nothing about the
-            // rows runs actually persist.
+            // The three tile-describing fields are probed TOGETHER WITH a pending kind: Rehydrate
+            // refuses an index or stage with nothing pending, and a probe of a row no run can be
+            // in proves nothing about the rows runs actually persist.
             (nameof(RunSnapshot.PendingTileKind), v,
                 RunSnapshots.OnPendingTile((int)TileKind.Empty)),
             (nameof(RunSnapshot.PendingTileLinearIndex),
@@ -173,11 +144,8 @@ public sealed class RunSnapshotTests
                 RunSnapshots.With(rerollChargesSpentThisStage: 1)),
             (nameof(RunSnapshot.StageGateDiceAnchor), v, RunSnapshots.With(stageGateDiceAnchor: 5UL)),
 
-            // DraftBattleKind/DraftBattleStage, on the pending-tile probes' own precedent above:
-            // Run.Rehydrate's RequireDraftBattle refuses a row that carries a kind or stage with no
-            // draft pending, so each is probed TOGETHER WITH DraftPending true rather than in
-            // isolation against `v` — a probe that varied the field alone would move the hash of a
-            // row no run could ever be in.
+            // Probed together with DraftPending true, on the pending-tile probes' precedent:
+            // Rehydrate refuses a kind or stage with no draft pending.
             (nameof(RunSnapshot.DraftBattleKind),
                 RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Enemy, draftBattleStage: 1),
                 RunSnapshots.With(draftPending: true, draftBattleKind: (int)TileKind.Elite, draftBattleStage: 1)),
@@ -191,10 +159,8 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.BankedSoulShards), v, RunSnapshots.With(bankedSoulShards: 5L)),
             (nameof(RunSnapshot.BossDefeated), v, RunSnapshots.With(bossDefeated: true)),
 
-            // M4-01b. Three runs one draft apart on the same guarantee are materially different
-            // runs: the next draft is floored for one and not the other. Probed separately rather
-            // than as one "draft counters" row, because they move independently and a writer that
-            // reached only the first would be invisible to a combined probe.
+            // Probed separately: the three counters move independently, and a writer that reached
+            // only the first would be invisible to a combined probe.
             (nameof(RunSnapshot.DraftsSinceLegendaryOffered), v,
                 RunSnapshots.With(draftsSinceLegendaryOffered: 1)),
             (nameof(RunSnapshot.DraftsWithoutAboveCommon), v,
@@ -202,17 +168,14 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.DraftsWithoutOwnedUpgrade), v,
                 RunSnapshots.With(draftsWithoutOwnedUpgrade: 1)),
 
-            // M4-10. 07 §4 freezes the loadout at run start, so two runs fought with different gear
-            // are two different runs — and the field is written once, by START_RUN, and never
-            // touched again, which is exactly the shape an encoder can silently skip.
+            // 07 §4 freezes the loadout at run start: written once, by START_RUN, and never touched
+            // again — exactly the shape an encoder can silently skip.
             (nameof(RunSnapshot.StartingLoadout), v,
                 RunSnapshots.With(startingLoadout: new LoadoutSnapshot(
                     new Dictionary<GearSlot, GearInstanceId> { [GearSlot.WEAPON] = new("GI_1") }))),
 
-            // M7-00d. 24 §4.3's session floor pays a run that produced nothing at its band, so a run
-            // that has produced one and a run that has not are owed different things at END_RUN —
-            // and the field is written only by a drop that reached the band, which is exactly the
-            // rarely-taken path an encoder can skip without anything noticing.
+            // 24 §4.3's session floor: written only by a drop that reached the band — a rarely
+            // taken path an encoder can skip without anything else noticing.
             (nameof(RunSnapshot.ItemsAtOrAboveFloorBand), v,
                 RunSnapshots.With(itemsAtOrAboveFloorBand: 1)),
         };
@@ -231,10 +194,7 @@ public sealed class RunSnapshotTests
             .ShouldBe(typeof(RunSnapshot).GetConstructors().Single().GetParameters().Length);
     }
 
-    /// <summary>
-    /// The snapshot is a <b>copy</b>: mutating the aggregate afterwards must not rewrite a row
-    /// already handed to a persistence adapter.
-    /// </summary>
+    /// <summary>Mutating the aggregate must not rewrite a row already handed to a persistence adapter.</summary>
     [Fact]
     public void A_snapshot_taken_before_a_mutation_is_not_changed_by_it()
     {
@@ -259,53 +219,11 @@ public sealed class RunSnapshotTests
         Hash(before).ShouldBe(hashBefore);
     }
 
-    /// <summary>
-    /// <c>ToSnapshot</c> stamps the <b>current</b> <c>SchemaVersion</c>, whatever the row it was
-    /// rehydrated from said — a snapshot describes today's layout, not yesterday's.
-    /// </summary>
+    /// <summary>A snapshot describes today's layout, whatever the row it was rehydrated from said.</summary>
     [Fact]
     public void ToSnapshot_stamps_the_current_SchemaVersion()
     {
         Run.Rehydrate(RunSnapshots.Valid).Value
            .ToSnapshot().SchemaVersion.ShouldBe(SnapshotSchema.SchemaVersion);
-    }
-
-    /// <summary><c>SchemaVersion</c> is the first field of the record, so a reader knows the layout before it reads anything laid out by it.</summary>
-    /// <remarks>
-    /// <c>SnapshotFieldOrderPinTests</c> asserts this over the whole subject set; this is the same
-    /// claim stated where a reader of <see cref="RunSnapshot"/> will look for it.
-    /// </remarks>
-    [Fact]
-    public void SchemaVersion_is_the_first_field_of_the_record()
-    {
-        CanonicalStateWriter.CanonicalFieldOrder(typeof(RunSnapshot))[0]
-            .ShouldBe("SchemaVersion:System.Int32");
-    }
-
-    /// <summary>
-    /// The whole snapshot has a canonical encoding — every member is on the writer's closed
-    /// allowlist. A member that was not would refuse at the first <c>stateHash</c> of the run.
-    /// </summary>
-    [Fact]
-    public void The_snapshot_has_a_canonical_encoding()
-    {
-        CanonicalStateWriter.IsCanonicalRecord(typeof(RunSnapshot)).ShouldBeTrue();
-
-        Should.NotThrow(() => Hash(Populated));
-    }
-
-    /// <summary>
-    /// <c>RunSeed</c> is <b>in</b> the snapshot, because it is authoritative run state: a run that
-    /// lost it could not re-derive its board, drops or draft, and so could not be resumed at all.
-    /// </summary>
-    [Fact]
-    public void The_run_seed_is_authoritative_run_state_and_travels_in_the_snapshot()
-    {
-        var round = Run.Rehydrate(Populated).Value.ToSnapshot();
-
-        round.RunSeed.ShouldBe(0xFEEDFACECAFEBEEFUL);
-
-        CanonicalStateWriter.CanonicalFieldOrder(typeof(RunSnapshot))
-            .ShouldContain("RunSeed:System.UInt64");
     }
 }

@@ -9,6 +9,11 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>The tick loop against the trigger registry's wiring contract: which slot asks the registry what.</summary>
+/// <remarks>
+/// Internal seam: anchor ticks, re-registration and per-slot check calls are not in the log, so the
+/// cases observe them through recording seams; the outcomes the wiring produces are asserted at the
+/// public entry points elsewhere.
+/// </remarks>
 public sealed class TriggerWiringTests
 {
     /// <summary>

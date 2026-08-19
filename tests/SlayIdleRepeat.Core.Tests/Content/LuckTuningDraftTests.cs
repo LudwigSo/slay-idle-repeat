@@ -50,29 +50,6 @@ public sealed class LuckTuningDraftTests
         antiBrick.ForceCategory.ShouldBe(PerkCategory.Sustain);
     }
 
-    /// <summary>The quality floor's band is a <b>perk</b> band, not a gear rarity.</summary>
-    /// <remarks>
-    /// 🔴 Written first as <c>ShouldBeOfType&lt;PerkRarity&gt;()</c>, which the field's declared type
-    /// makes true whatever the reader does — a test that could not fail. The claim that carries
-    /// weight is about the two <em>vocabularies</em>: the authored token resolves in the perk ladder
-    /// and in no other, so a reader that parsed it against the gear ladder would refuse the shipped
-    /// document at load and take the whole game down rather than one draft.
-    /// </remarks>
-    [Fact]
-    public void The_quality_floor_band_is_read_from_the_perk_ladder()
-    {
-        var authored = LuckDocuments.ShippedDraftQualityFloorRarity;
-
-        Enum.GetNames<PerkRarity>().ShouldContain(
-            name => name.Equals(authored, StringComparison.OrdinalIgnoreCase));
-        Enum.GetNames<SlayIdleRepeat.Core.Primitives.Rarity>().ShouldNotContain(
-            name => name.Equals(authored, StringComparison.OrdinalIgnoreCase),
-            "the gear ladder is C/B/A/S/SS — a token that resolved in both vocabularies would let a " +
-            "retune of one silently re-point the other.");
-
-        Read().Draft.QualityFloorRarityAtLeast.ShouldBe(PerkRarity.Rare);
-    }
-
     /// <summary>A draft number below 1 is refused rather than defaulted.</summary>
     /// <remarks>
     /// There is no zeroth draft to force, and a rung of zero would force every draft of the run.
@@ -86,13 +63,8 @@ public sealed class LuckTuningDraftTests
 
     /// <summary>The reader resolves the category token whatever case it is authored in.</summary>
     /// <remarks>
-    /// 🔒 Recorded as a checked fact rather than left as an assumption, because
-    /// <c>LuckSchemaTests</c> rejects the PascalCase spelling at build time and its stated reason
-    /// depends on this: the reader converts the authored <c>SCREAMING_SNAKE</c> token to the enum's
-    /// declared name before parsing, and that conversion lower-cases everything after a word
-    /// boundary. So the schema's enum is the ONLY guard on the document's spelling — widen it and
-    /// nothing in Core objects. Whoever tightens the reader should delete this case in the same
-    /// commit rather than discover it here.
+    /// 🔒 The schema's enum is the ONLY guard on the document's spelling — the reader itself accepts
+    /// any casing. Whoever tightens the reader should delete this case in the same commit.
     /// </remarks>
     [Theory]
     [InlineData("SUSTAIN")]

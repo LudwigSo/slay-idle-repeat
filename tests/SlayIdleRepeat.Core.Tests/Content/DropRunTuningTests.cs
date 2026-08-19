@@ -9,23 +9,12 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// The in-run drop protections read out of <c>tuning/luck.json#/dropRun</c>: the two dry-streak
 /// breakers and the session floor.
 /// </summary>
-/// <remarks>
-/// A reader of its own rather than a member of the pity registry, because the shape is genuinely
-/// different — the registry refuses to synthesise a ladder for this class by name, and this is the
-/// reader that shape actually has. It reads the same document and takes nothing from it: the counter
-/// <em>keys</em> stay the registry's to form.
-/// </remarks>
 public sealed class DropRunTuningTests
 {
     /// <summary>
-    /// 🔒 The elite breaker's ordinal is the ordinal of the <em>forced</em> kill, not a count of
-    /// misses tolerated before it — the sixth elite kill of a streak is the forced one.
+    /// The elite breaker's ordinal is the ordinal of the <em>forced</em> kill, not a count of
+    /// misses tolerated before it — the two readings differ by exactly one drop.
     /// </summary>
-    /// <remarks>
-    /// The two readings differ by exactly one drop. The authored key and the property are both named
-    /// for what the value is — <c>forceOnNthKill</c>; this case is what stops the name and the
-    /// reading drifting apart.
-    /// </remarks>
     [Fact]
     public void The_elite_breaker_is_the_authored_ordinal_miss_band_and_forced_band()
     {
@@ -56,12 +45,10 @@ public sealed class DropRunTuningTests
             LuckDocuments.ShippedSessionFloorRequiresVictoryOrStage3Death));
     }
 
-    /// <summary>Each block is read from its own pointer — retuning one leaves the others alone.</summary>
-    /// <remarks>
-    /// The negative control on the three transcriptions above. A reader that answered the elite block
-    /// for both breakers would pass all three, because the shipped ordinals differ but the shape does
-    /// not: both author a band and a force.
-    /// </remarks>
+    /// <summary>
+    /// Each block is read from its own pointer — a reader that answered the elite block for both
+    /// breakers would pass the three transcription cases above.
+    /// </summary>
     [Fact]
     public void Retuning_one_block_leaves_the_other_two_where_the_document_put_them()
     {
@@ -74,11 +61,10 @@ public sealed class DropRunTuningTests
         tuning.SessionFloor.GrantCount.ShouldBe(LuckDocuments.ShippedSessionFloorGrantCount);
     }
 
-    /// <summary>An ordinal below one is refused: there is no zeroth kill to force.</summary>
-    /// <remarks>
-    /// Refused at the read, where the data set is still nameable, rather than at the drop — and
-    /// <c>N = 0</c> would force every drop of its kind from then on.
-    /// </remarks>
+    /// <summary>
+    /// An ordinal below one is refused: there is no zeroth kill to force, and <c>N = 0</c> would
+    /// force every drop of its kind from then on.
+    /// </summary>
     [Theory]
     [InlineData(0)]
     [InlineData(-6)]
@@ -99,12 +85,10 @@ public sealed class DropRunTuningTests
         thrown.Message.ShouldContain("no zeroth kill", Case.Sensitive);
     }
 
-    /// <summary>A breaker whose forced band is below its miss band is refused.</summary>
-    /// <remarks>
-    /// The forced drop would itself count as a miss, so the counter would never reset and the
-    /// guarantee would fire on every drop from then on. Not visible in either leaf alone, which is
-    /// why the reader checks the pairing.
-    /// </remarks>
+    /// <summary>
+    /// A breaker whose forced band is below its miss band is refused: the forced drop would itself
+    /// count as a miss, so the counter would never reset.
+    /// </summary>
     [Theory]
     [InlineData("A", "C")]
     [InlineData("SS", "S")]

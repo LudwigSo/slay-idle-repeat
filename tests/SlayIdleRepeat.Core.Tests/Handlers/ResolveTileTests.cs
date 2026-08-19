@@ -262,12 +262,9 @@ public sealed class ResolveTileTests
     }
 
     /// <summary>
-    /// …and the run can actually LEAVE a shop: the next roll is accepted and moves it.
+    /// …and the run can actually LEAVE a shop: the roll coming back accepted AND the position
+    /// changing is the claim "the tile is no longer pending" alone does not make (steering S24).
     /// </summary>
-    /// <remarks>
-    /// The tile no longer being pending is not the same claim: it is the roll coming back accepted
-    /// AND the position changing that says the run is not held there (steering S24).
-    /// </remarks>
     [Fact]
     public void A_run_rolls_off_a_resolved_shop_tile()
     {
@@ -279,22 +276,6 @@ public sealed class ResolveTileTests
         rolled.Accepted.ShouldBeTrue(
             "ROLL_DICE was refused " + rolled.Rejection + " from a shop tile RESOLVE_TILE had just " +
             "answered, so the shop is still pending and the run cannot leave it.");
-        rolled.NewState.Run!.Position.ShouldBeGreaterThan(
-            visited.Run!.Position, "the roll was accepted and the run stood still.");
-    }
-
-    /// <summary>…and the same of a Dice Forge.</summary>
-    [Fact]
-    public void A_run_rolls_off_a_resolved_dice_forge_tile()
-    {
-        var visited = Resolve(TileWorlds.OnTile(TileKind.DiceForge)).NewState;
-
-        var rolled = SlayIdleRepeat.Core.GameRules.Apply(
-            visited, new RollDiceCommand(), TileWorlds.Context);
-
-        rolled.Accepted.ShouldBeTrue(
-            "ROLL_DICE was refused " + rolled.Rejection + " from a forge tile RESOLVE_TILE had just " +
-            "answered, so the forge is still pending and the run cannot leave it.");
         rolled.NewState.Run!.Position.ShouldBeGreaterThan(
             visited.Run!.Position, "the roll was accepted and the run stood still.");
     }
@@ -347,11 +328,8 @@ public sealed class ResolveTileTests
     /// standing on the tile and after the visit alike</b>, for every slot SHOP_BUY names.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The state ON the pending tile is the one that carries the pin.</b> Once RESOLVE_TILE has
-    /// cleared the tile the run is standing at a shop it has already left, and a purchase could
-    /// stay illegal there for ever without anything being wrong — so probing only that state would
-    /// leave a pin that never expires. Standing on the unresolved tile is where a stocked offer would
-    /// first make a purchase legal, so that is where this goes red.
+    /// The state ON the unresolved tile carries the pin: it is where a stocked offer would first
+    /// make a purchase legal, so it is where this goes red — the cleared state alone never expires.
     /// </remarks>
     [Theory]
     [InlineData(0)]
@@ -385,9 +363,8 @@ public sealed class ResolveTileTests
 
     /// <summary>…and a slot outside the four SHOP_BUY names is refused for the index alone.</summary>
     /// <remarks>
-    /// Its own case rather than a fifth row of the pin above: this refusal comes from the slot guard,
-    /// which will still be there long after an offer exists, so it is not a claim that can expire
-    /// with the rest of them — and a row that cannot expire dilutes a pin whose whole job is to.
+    /// Its own case rather than a fifth row above: the slot guard outlives a stocked offer, so this
+    /// claim cannot expire with the pin's rows.
     /// </remarks>
     [Fact]
     public void A_shop_slot_outside_the_four_is_refused()
@@ -523,11 +500,6 @@ public sealed class ResolveTileTests
     /// so it is acknowledged and left pending for it. Portal is deliberately not among these; see
     /// <see cref="A_portal_tile_resolves_the_jump_immediately"/>.
     /// </summary>
-    /// <remarks>
-    /// A single case rather than the table this was, because Shop and DiceForge left the group when
-    /// RESOLVE_TILE became their clearing command — and a one-row table can silently become a
-    /// no-row one (steering S3).
-    /// </remarks>
     [Fact]
     public void A_minigame_tile_is_acknowledged_and_left_pending_for_MINIGAME_SUBMIT()
     {

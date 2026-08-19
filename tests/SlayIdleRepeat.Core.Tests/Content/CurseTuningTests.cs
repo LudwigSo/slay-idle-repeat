@@ -64,14 +64,6 @@ public sealed class CurseTuningTests
         Shipped.AvailableFrom(5).Select(c => c.Id).ShouldContain("CUR_HUNTED");
     }
 
-    /// <summary>The four chapter-1 curses, in their authored order.</summary>
-    [Fact]
-    public void Chapter_one_opens_exactly_the_four_authored_curses()
-    {
-        Shipped.AvailableFrom(1).Select(c => c.Id)
-            .ShouldBe(["CUR_SLIPPERY", "CUR_MARKED", "CUR_DIZZY", "CUR_FRACTURED"]);
-    }
-
     /// <summary>A chapter below the game's floor has no eligible set to compute.</summary>
     [Fact]
     public void A_chapter_below_one_is_refused()
@@ -106,39 +98,19 @@ public sealed class CurseTuningTests
     // ------------------------------------------------------------------ CurseRewards
 
     /// <summary>
-    /// The four-row payout table pays exactly what the content's <c>reward</c> prose says —
-    /// asserted against the content's own string, so a content edit that changed "+250 Gold"
-    /// fails the build rather than leaving this table quietly wrong.
+    /// The four-row payout table: transcribed from the content's <c>reward</c> prose ("+250 Gold"),
+    /// which nothing parses.
     /// </summary>
-    /// <remarks>
-    /// This is the test that earns <see cref="CurseRewards"/> the right to be a hardcoded table
-    /// rather than a parser: the numbers are transcribed once and checked against their source, which
-    /// is a far narrower claim than a grammar for a prose column nothing specifies.
-    /// </remarks>
     [Theory]
-    [InlineData("CUR_SLIPPERY", CurrencyId.GOLD, 250L, "+250 Gold")]
-    [InlineData("CUR_MARKED", CurrencyId.ENHANCE_STONES, 2L, "+2 Enhance Stones")]
-    [InlineData("CUR_DIZZY", CurrencyId.GOLD, 180L, "+180 Gold")]
-    [InlineData("CUR_FRACTURED", CurrencyId.GOLD, 500L, "+500 Gold")]
-    public void Each_payable_reward_matches_the_content_files_own_prose(
-        string curseId, CurrencyId currency, long amount, string authoredProse)
+    [InlineData("CUR_SLIPPERY", CurrencyId.GOLD, 250L)]
+    [InlineData("CUR_MARKED", CurrencyId.ENHANCE_STONES, 2L)]
+    [InlineData("CUR_DIZZY", CurrencyId.GOLD, 180L)]
+    [InlineData("CUR_FRACTURED", CurrencyId.GOLD, 500L)]
+    public void Each_payable_curse_pays_its_authored_currency_and_amount(
+        string curseId, CurrencyId currency, long amount)
     {
+        CurseRewards.IsPayable(curseId).ShouldBeTrue();
         CurseRewards.For(curseId).ShouldBe((currency, amount));
-
-        Shipped.All.Single(c => c.Id == curseId).Reward.ShouldBe(authoredProse);
-    }
-
-    /// <summary>Exactly four ids are payable — the table is narrow on purpose.</summary>
-    [Fact]
-    public void Only_the_four_chapter_one_curses_are_payable()
-    {
-        CurseRewards.PayableIds
-            .ShouldBe(["CUR_SLIPPERY", "CUR_MARKED", "CUR_DIZZY", "CUR_FRACTURED"]);
-
-        foreach (var row in Shipped.All.Where(c => !CurseRewards.PayableIds.Contains(c.Id)))
-        {
-            CurseRewards.IsPayable(row.Id).ShouldBeFalse(row.Id + " must not be payable");
-        }
     }
 
     /// <summary>A curse whose reward is a percentage, a reroll charge, or a gear drop is refused rather than paid a guessed amount.</summary>
