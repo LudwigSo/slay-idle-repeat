@@ -1,4 +1,5 @@
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Rules.Economy;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -31,7 +32,13 @@ internal static class SkipDraft
         }
 
         var economy = DraftEconomyTuning.Read(input.Context.Content);
-        var reward = run.MoveCurrency(CurrencyId.GOLD, economy.SkipGoldReward, RewardReason);
+        // Scaled by the run's Gold modifiers at the income site, like every other Gold gain: a
+        // Gilded Tongue that paid on kills and minigames but not on a skip would be a buff whose
+        // reach a player could only discover by arithmetic.
+        var reward = run.MoveCurrency(
+            CurrencyId.GOLD,
+            RunModifierTotals.ScaleGoldIncome(run, input.Context.Content, economy.SkipGoldReward),
+            RewardReason);
 
         run.ClearDraftPending();
 
