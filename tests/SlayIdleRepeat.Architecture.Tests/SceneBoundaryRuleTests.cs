@@ -109,6 +109,14 @@ public sealed class SceneBoundaryRuleTests
     /// holds the load, the guard and the free that the three delegate to, so a rule that governed
     /// only the facades would govern only the part with nothing in it.
     /// </para>
+    /// <para>
+    /// 🔴 M7-08 wrote the ninth and tenth and did not list them, which is exactly the silence this
+    /// rule's "by named member" clause is about: the run-end and inventory handovers were governed
+    /// only for as long as nobody moved them. They are listed now, by the task that gave the run-end
+    /// one the client's FIRST teardown of a screen a player was playing on — it frees the board as
+    /// well as itself, so a copy filed outside these rules would be the one transition that ends a
+    /// run, in a place two screens are destroyed, governed by nothing.
+    /// </para>
     /// </remarks>
     private static readonly string[] SceneHelperNames =
     [
@@ -120,6 +128,8 @@ public sealed class SceneBoundaryRuleTests
         "PerkDraftHandover",
         "ShopHandover",
         "CampfireHandover",
+        "RunEndHandover",
+        "InventoryHandover",
     ];
 
     /// <summary>An engine node reached only through intermediate engine types — the walk's control.</summary>

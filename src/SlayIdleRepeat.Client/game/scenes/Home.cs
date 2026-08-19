@@ -151,6 +151,42 @@ public partial class Home : Control
         _lifetime = lifetime;
     }
 
+    /// <summary>Shows this screen again and reads the profile afresh, for a run that has ended.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>The read is the point, not the showing</b> — the same thing <c>Board.Resume</c> says about
+    /// its own return, and here it is what keeps the primary action honest. A run that has ended banked
+    /// its payout and closed itself, so the profile behind this screen is a different row from the one it
+    /// drew: the Legend Level and both Energy amounts have moved, and the decision has moved with them
+    /// from CONTINUE to START. Un-hiding without reading again would offer to resume the run that has
+    /// just ended, onto a board that has been freed.
+    /// </para>
+    /// <para>
+    /// 🔒 The picker's read is repeated with it, because <see cref="StartAsync"/> starts both: the run
+    /// that ended may have cleared the chapter that opens the next rung of the ladder, and it spent the
+    /// Energy that gates entering one at all.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>This screen is never freed, which is what makes it the thing to come back to.</b> It is
+    /// hidden for the life of the application while a run is in front of it — see
+    /// <see cref="BoardHandover"/>, where reusing Home and freeing everything in front of it is one
+    /// decision — so its subscriptions are still connected and there is no second read to pay for.
+    /// </para>
+    /// </remarks>
+    public void Resume()
+    {
+        // Validity before tree membership: asking a freed node whether it is inside the tree is itself
+        // the crash, and a run that ends as the application shuts down is the ordinary case here.
+        if (!IsInstanceValid(this) || !IsInsideTree())
+        {
+            return;
+        }
+
+        Visible = true;
+
+        _ = StartAsync();
+    }
+
     /// <inheritdoc/>
     public override void _Ready()
     {
@@ -360,9 +396,11 @@ public partial class Home : Control
 
     /// <summary>Puts the board for one run beside this screen and stands down.</summary>
     /// <remarks>
-    /// The same one-way handover <see cref="ShowChapterSelect"/> makes, and it inherits the same
-    /// caveat: this instantiates unconditionally, so the first back path that returns a player here
-    /// and lets them press CONTINUE again adds a second board beside the first.
+    /// 🔒 This instantiates unconditionally, and that is now the point rather than a caveat: a run
+    /// that ends frees its board, so the next CONTINUE builds a board for a different run with its own
+    /// presenters and its own read. This screen is passed twice — once as the screen standing down and
+    /// once as the starting menu the run's ending leads back to — and here they are the same node, which
+    /// <see cref="BoardHandover"/> says is true of this caller and not of the picker.
     /// </remarks>
     private void ShowBoard(RunId run)
     {
@@ -380,7 +418,7 @@ public partial class Home : Control
             return;
         }
 
-        BoardHandover.Show(this, board(run), _lifetime);
+        BoardHandover.Show(this, this, board(run), _lifetime);
     }
 
     /// <summary>Puts the chapter picker beside this screen and stands down.</summary>
@@ -392,16 +430,13 @@ public partial class Home : Control
     /// inside its own handler is a node destroying the object the call is running on.
     /// </para>
     /// <para>
-    /// 🔴 <b>The handover is ONE-WAY, and hiding instead of freeing is only safe because of it.</b>
-    /// Every screen this build opens stays in the tree for the life of the application: three of
-    /// them by the time the picker is up, two hidden. That is bounded at three and inert — a hidden
-    /// <c>Control</c> takes no input, so the button above cannot be reached again, and neither
-    /// screen draws or processes. What it is NOT is reusable. This method instantiates
-    /// unconditionally, so the first back path that returns a player here and lets them press START
-    /// again adds a second picker beside the first, with its own presenter and its own read, and
-    /// one more on every traversal after that. The navigation stack that introduces a back path
-    /// therefore owes this pair a free-or-reuse decision; it does not inherit one, and no comment
-    /// here substitutes for making it.
+    /// 🔒 <b>This method instantiates unconditionally, and the picker is what makes that safe: it
+    /// FREES ITSELF once it has handed a board over.</b> A back path exists now — a run that ends comes
+    /// back here — so a picker that stayed in the tree would be joined by a second one on the next
+    /// START, with its own presenter and its own read, and one more on every run after that. Freeing it
+    /// costs nothing, because a spent picker holds nothing: its presenter is this screen's and outlives
+    /// it, and the pick it was about has become a run. <see cref="BoardHandover"/> states that
+    /// free-or-reuse decision in one place for both screens a run is entered from.
     /// </para>
     /// </remarks>
     private void ShowChapterSelect()
@@ -433,7 +468,7 @@ public partial class Home : Control
 
         var picked = scene.Instantiate<ChapterSelect>();
 
-        picked.Drive(picker, _board!, _lifetime);
+        picked.Drive(picker, _board!, this, _lifetime);
 
         Visible = false;
 

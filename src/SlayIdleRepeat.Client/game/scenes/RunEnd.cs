@@ -299,21 +299,33 @@ public partial class RunEnd : Control
         }
     }
 
-    private void OnRevivePressed() => _ = SubmitAsync(presenter => presenter.ReviveAsync(_lifetime));
+    private void OnRevivePressed() =>
+        _ = SubmitAsync(presenter => presenter.ReviveAsync(_lifetime), RunEndExit.BackIntoTheRun);
 
-    private void OnFinishPressed() => _ = SubmitAsync(presenter => presenter.FinishAsync(_lifetime));
+    private void OnFinishPressed() =>
+        _ = SubmitAsync(presenter => presenter.FinishAsync(_lifetime), RunEndExit.OffTheRunForGood);
 
     /// <summary>
     /// Submits one command and stands the screen down once it is accepted.
     /// </summary>
     /// <remarks>
-    /// 🔒 <b>Both accepted commands leave this screen, and the board is what decides where to.</b> A
-    /// revive puts the run back into the fight it lost and <c>END_RUN</c> closes the run, so in both cases
-    /// the board is re-read and sends the player on from the state it finds — which is also what stops
-    /// this screen re-opening itself. A refusal keeps the screen, because a refusal is something the
-    /// player has to be able to read.
+    /// <para>
+    /// 🔒 <b>Both accepted commands leave this screen, and they leave it for opposite places.</b> A revive
+    /// puts the run back into the fight it lost, so the board is shown and read again and the run carries
+    /// on. <c>END_RUN</c> closes the run for good, so the board is freed and the starting menu comes
+    /// back — a finished run has no screen left to be played on. A refusal keeps the screen, because a
+    /// refusal is something the player has to be able to read.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Which of the two it was is carried by the CALLER, not inferred from a further read.</b> The
+    /// two presses already know which command they submitted, and a second read of the run to recover it
+    /// would be a projection derived twice — and derived at exactly the moment the run has just moved,
+    /// where the two states it could be found in are the two this decision is between.
+    /// </para>
     /// </remarks>
-    private async Task SubmitAsync(Func<RunEndPresenter, Task<RunEndSubmission>> submit)
+    private async Task SubmitAsync(
+        Func<RunEndPresenter, Task<RunEndSubmission>> submit,
+        RunEndExit exit)
     {
         if (_busy || _presenter is not { } presenter)
         {
@@ -344,7 +356,14 @@ public partial class RunEnd : Control
 
         if (_board is { } board && IsInstanceValid(this) && IsInsideTree())
         {
-            RunEndHandover.Return(this, board);
+            if (exit == RunEndExit.OffTheRunForGood)
+            {
+                RunEndHandover.Leave(this, board);
+            }
+            else
+            {
+                RunEndHandover.Return(this, board);
+            }
 
             return;
         }
@@ -353,6 +372,28 @@ public partial class RunEnd : Control
         // happens. The command was accepted, so there is nothing to retry and nothing to report — the
         // screen simply has nowhere to hand back to.
         Render();
+    }
+
+    /// <summary>Where an accepted command from this screen leaves it for.</summary>
+    /// <remarks>
+    /// 🔒 Named rather than passed as a bare flag, because the two are not degrees of the same thing:
+    /// one hands a live run back to the screen it is played on, and the other tears that screen down.
+    /// A <c>bool</c> at the call site would read as a preference either way round.
+    /// </remarks>
+    private enum RunEndExit
+    {
+        /// <summary>
+        /// The revive's, and the only one that leaves a run to keep playing: <c>02</c> §6 puts the hero
+        /// back into the fight that killed them, on the board that fight is on.
+        /// </summary>
+        BackIntoTheRun = 1,
+
+        /// <summary>
+        /// <c>END_RUN</c>'s, whichever way the run ended. The run is closed, its rewards are banked, and
+        /// neither it nor its board is ever entered again — so the starting menu comes back and both
+        /// screens stand down.
+        /// </summary>
+        OffTheRunForGood = 2,
     }
 
     /// <summary>
