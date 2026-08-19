@@ -79,7 +79,7 @@ public static class GameRules
         .Handled<ReviveCommand>("REVIVE", CommandKind.Run, Revive.Handle)
         .Deferred<UseConsumableCommand>("USE_CONSUMABLE", CommandKind.Run, "M3-08")
         .Handled<EndRunCommand>("END_RUN", CommandKind.Run, EndRun.Handle)
-        .Handled<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, AbandonRun.Handle)
+        .Handled<AbandonRunCommand>("ABANDON_RUN", CommandKind.Run, AbandonRun.Handle, leavesRun: true)
 
         // ----------------------------------------------- the 33 META commands
         //
@@ -253,9 +253,14 @@ public static class GameRules
                 }
             }
             else if (state.Run.Phase == RunPhase.BattlePending &&
-                     command is not ConfirmBattleResultCommand)
+                     command is not ConfirmBattleResultCommand &&
+                     !registration.LeavesRun)
             {
-                // A battle is open; CONFIRM_BATTLE_RESULT is the only legal next move.
+                // A battle is open; CONFIRM_BATTLE_RESULT is the only legal next move — and
+                // ABANDON_RUN, which is legal from every state a live run can stand in. Quitting a
+                // fight is not a stock change: it neither recomposes the hero nor lets the client
+                // re-report the battle, it throws the whole run away, so 14 §9's server-result-wins
+                // machinery has nothing left to be fooled about.
                 return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
             }
 
@@ -264,7 +269,8 @@ public static class GameRules
             // while a draft is open. Not asked of an ended run: a draft left open on a run that has
             // finished would otherwise refuse the exempted row for a second, unrelated reason.
             else if (state.Run.DraftPending &&
-                     command is not (PickPerkCommand or RerollDraftCommand or SkipDraftCommand))
+                     command is not (PickPerkCommand or RerollDraftCommand or SkipDraftCommand) &&
+                     !registration.LeavesRun)
             {
                 return CommandResult.Reject(RejectionReason.ILLEGAL_STATE, state);
             }

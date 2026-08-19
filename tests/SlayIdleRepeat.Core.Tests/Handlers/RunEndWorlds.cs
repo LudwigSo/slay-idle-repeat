@@ -45,6 +45,20 @@ internal static class RunEndWorlds
                 bankedSoulShards: bankedSoulShards,
                 bossDefeated: bossDefeated)));
 
+    /// <summary>
+    /// A run paused mid-movement at a junction: <c>CHOOSE_FORK</c> is the only ordinary move left,
+    /// which is what makes it worth asserting ABANDON_RUN is legal here too.
+    /// </summary>
+    internal static WorldSlice PausedAtFork(int junctionPosition = 4, int remainingSteps = 2) =>
+        new(
+            Worlds.NewPlayer(),
+            Rehydrated(RunSnapshots.With(
+                position: junctionPosition,
+                lastAppliedAtUtc: TileWorlds.NowUtc,
+                pendingForkJunctionPosition: junctionPosition,
+                pendingForkRemainingSteps: remainingSteps,
+                phase: RunPhase.InProgress)));
+
     private static RunAggregate Rehydrated(RunSnapshot snapshot)
     {
         var run = RunAggregate.Rehydrate(snapshot);
