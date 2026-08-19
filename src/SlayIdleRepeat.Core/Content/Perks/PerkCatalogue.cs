@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace SlayIdleRepeat.Core.Content.Perks;
 
@@ -159,16 +159,19 @@ public sealed class PerkCatalogue
 
     private static PerkCategory ParseCategory(string token, string pointer) => token switch
     {
-        "OFFENSE" => PerkCategory.Offense,
+        "LIGHTNING" => PerkCategory.Lightning,
+        "COLD" => PerkCategory.Cold,
+        "FIRE" => PerkCategory.Fire,
+        "POISON" => PerkCategory.Poison,
+        "BLEED" => PerkCategory.Bleed,
         "DEFENSE" => PerkCategory.Defense,
+        "OFFENSE" => PerkCategory.Offense,
+        "CRIT" => PerkCategory.Crit,
         "SUSTAIN" => PerkCategory.Sustain,
-        "DICE_AND_BOARD" => PerkCategory.DiceAndBoard,
-        "ECONOMY" => PerkCategory.Economy,
-        "TRIGGER_SYNERGY" => PerkCategory.TriggerSynergy,
         _ => throw new InvalidTunableException(
             pointer,
-            "'" + token + "' is not one of 06 §2's six standard categories (OFFENSE, DEFENSE, " +
-            "SUSTAIN, DICE_AND_BOARD, ECONOMY, TRIGGER_SYNERGY)."),
+            "'" + token + "' is not one of the nine drafted categories (LIGHTNING, COLD, FIRE, " +
+            "POISON, BLEED, DEFENSE, OFFENSE, CRIT, SUSTAIN)."),
     };
 
     private static PerkRarity ParseRarity(string token, string pointer) => token switch

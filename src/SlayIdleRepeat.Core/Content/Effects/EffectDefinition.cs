@@ -1,4 +1,4 @@
-namespace SlayIdleRepeat.Core.Content.Effects;
+﻿namespace SlayIdleRepeat.Core.Content.Effects;
 
 /// <summary>One authored effect — the whole vocabulary of the effect DSL, in one shape.</summary>
 /// <remarks>
@@ -118,11 +118,11 @@ public sealed record EffectDefinition
     /// </summary>
     public double? SourceCapPct { get; init; }
 
-    /// <summary>The status a status op names — one of twelve.</summary>
+    /// <summary>The status a status op names — one of the authored set.</summary>
     /// <remarks>
-    /// A string, not an enum: the closed set of twelve is a different milestone's vocabulary to
+    /// A string, not an enum: the closed set is a different milestone's vocabulary to
     /// declare, and restating it here would be two enums that must agree with nothing making them.
-    /// The schema still closes the set, enumerating all twelve.
+    /// The schema still closes the set, enumerating every member.
     /// </remarks>
     public string? StatusId { get; init; }
 

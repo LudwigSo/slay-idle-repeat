@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.Globalization;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
@@ -7,6 +7,7 @@ using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Handlers;
@@ -30,6 +31,28 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// before a refusal would be spent on an object nobody reads. Mutation-testing confirmed it — moving
 /// <c>BeginRun()</c> above the gate reddens no test in the repository. Do not read the order below as
 /// the thing that makes a refusal free; read it as the order that stays correct if it ever is.
+/// </para>
+/// <para>
+/// 🔒 <b>The run opens with a perk draft pending, and that is this handler's doing.</b> `06` §1's
+/// trigger is a won battle; the opening draft is a second trigger and it is deliberately the SAME
+/// draft — three options, the same pool, the same guarantees, the same skip and reroll economy —
+/// because a second kind of perk choice would be a second set of rules for the player to learn. It
+/// is opened here rather than by a command of its own for the reason the loadout snapshot is taken
+/// here: this is the only moment at which the run exists and nothing has happened in it yet.
+/// <para>
+/// The draft is spelled with <c>TileKind.Empty</c>, which is not one of the three battle tiles, and
+/// that is the honest reading — no battle caused it. <c>Rules.Perks.CurrentDraft</c> asks the kind
+/// only whether it is Elite or Boss, so a kind that is neither answers both with "no" and the draft
+/// draws stage 1's ordinary band. Writing <c>Enemy</c> there would key the same band off a battle
+/// the run never fought.
+/// </para>
+/// <para>
+/// ⚠️ What follows from the category gate is the point of doing this at all: a run owning nothing can
+/// only be offered the nine categories' base perks, so the opening draft is the choice of which
+/// element the run is going to be about. <c>GameRules.Apply</c> already refuses every command but
+/// the three draft ones while a draft is pending, so the choice is made before the first roll
+/// without this handler saying anything about ordering.
+/// </para>
 /// </para>
 /// <para>
 /// `14` §9 makes command validation the server's job — "is the action legal now" — so `10` §7's
@@ -218,10 +241,26 @@ internal static class StartRun
                 "a defect in StartRun.Handle, not an illegal move.");
         }
 
+        // 🔒 The opening draft. A run begins by choosing a perk, on the same three-option draft the
+        // rest of the run uses — see this type's remarks for why it is opened here and why it is
+        // spelled with a tile kind that is not a battle.
+        run.Value.MarkDraftPending((int)TileKind.Empty, OpeningDraftStage);
+
         input.OpenRun(run.Value);
 
         return HandlerResult.Accept();
     }
+
+    /// <summary>
+    /// The stage the opening draft draws its rarity band against — the first, which is where the run
+    /// is standing.
+    /// </summary>
+    /// <remarks>
+    /// Not a free choice: the run opens at the trailhead, one step before node 0 of stage 1, so the
+    /// band the draft draws under is stage 1's. Reading it as anything else would hand a run its
+    /// strongest offer before it had fought anything.
+    /// </remarks>
+    private const int OpeningDraftStage = 1;
 
     /// <summary>A deterministic <see cref="RunId"/> stand-in — see <see cref="Handle"/>'s remarks.</summary>
     private static RunId MintRunId(PlayerId playerId, long runCounter) =>

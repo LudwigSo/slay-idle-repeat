@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Core.Content.Effects;
+﻿using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
 
@@ -220,7 +220,7 @@ internal sealed class ActorStatuses
 }
 
 /// <summary>
-/// The <c>dataId</c> for a status event — which of the twelve statuses the event names.
+/// The <c>dataId</c> for a status event — which of the thirteen statuses the event names.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -250,21 +250,26 @@ internal static class StatusLogId
             ["WARD"] = 10,
             ["HASTE"] = 11,
             ["REGEN"] = 12,
+
+            // Appended, never inserted: this ordinal is the wire format inside LogHash, so a
+            // thirteenth status filed beside FREEZE would renumber every status event in every
+            // committed reference log.
+            ["CHILL"] = 13,
         };
 
     /// <summary>Every status id this mapping covers.</summary>
     internal static IReadOnlyCollection<string> All { get; } = Ordinals.Keys.ToList();
 
     /// <summary>The <c>dataId</c> a status event carries.</summary>
-    /// <exception cref="EffectContextException">The id is outside the twelve.</exception>
+    /// <exception cref="EffectContextException">The id is outside the thirteen.</exception>
     internal static ushort Of(string statusId) =>
         Ordinals.TryGetValue(statusId, out var ordinal)
             ? ordinal
             : throw new EffectContextException(
                 statusId,
-                "it has no 05 §7 dataId because it is not one of 05 §5's twelve statuses",
+                "it has no 05 §7 dataId because it is not one of the authored statuses",
                 "The log is the replay (05 §8), so an event naming a status the replayer cannot " +
                 "resolve is an event it must draw as nothing. A thirteenth status needs a position " +
                 "here — APPENDED, never inserted, because the ordinal is inside LogHash and every " +
-                "committed reference log already carries the twelve.");
+                "committed reference log already carries the twelve, and CHILL as a thirteenth after it.");
 }

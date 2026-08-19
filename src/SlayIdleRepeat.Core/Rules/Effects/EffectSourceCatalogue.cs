@@ -1,4 +1,4 @@
-namespace SlayIdleRepeat.Core.Rules.Effects;
+﻿namespace SlayIdleRepeat.Core.Rules.Effects;
 
 /// <summary>
 /// One row of the source list step 1 collects effects from.
@@ -81,7 +81,16 @@ internal static class EffectSourceCatalogue
         new(EffectSourceKind.RUN_BUFFS, "run buffs", "M3-08", "RunBuff"),
         new(EffectSourceKind.SHRINE_BUFFS, "shrine buffs", "M3-11", "ShrineBuff"),
         new(EffectSourceKind.CURSES, "curses", "M3-11", "Curse"),
-        new(EffectSourceKind.PERKS, "perks (in draft order)", "M3-07", "PerkDefinition"),
+        // WIRED: PerkEffectSource reads the run's drafted perks and contributes each owned tier's
+        // authored effects, and Rules.Stats.HeroBuild composes it alongside the three gear sources —
+        // so this row carries neither an owning milestone nor an expiry subject either.
+        //
+        // ⚠️ The phrase stays 18 §8 step 1's own words, which this catalogue transcribes and a test
+        // reassembles into the document's sentence. It says "in draft order" and the source orders
+        // by CATALOGUE position, because a run persists {perkId: tier} and not a sequence — the
+        // divergence is recorded on PerkEffectSource, where the ordering decision actually lives,
+        // rather than by editing a transcription to describe the implementation.
+        new(EffectSourceKind.PERKS, "perks (in draft order)", null, null),
     };
 
     /// <summary>The row for one source.</summary>

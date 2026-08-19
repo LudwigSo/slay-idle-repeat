@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Content.Perks;
 
@@ -127,18 +127,23 @@ public partial class PerkDraft : Control
     /// <summary>
     /// ⚠️ This task's choice, and the only colours on this screen that no document authors. The art
     /// manifest authors a rarity ladder and biome palettes; nothing anywhere authors a perk-category
-    /// palette, and the design asks the card for a category colour bar. These six are chosen here,
+    /// palette, and the design asks the card for a category colour bar. These nine are chosen here,
     /// against the card's own fill, and are M8-03's to re-check with the rest of the kit.
     /// </summary>
     private const string TheCategoryPaletteIsChosenHere =
-        "No document in this repository authors a colour per perk category. The six below are this " +
-        "screen's own, picked for mutual separation and for contrast against the card fill, and " +
-        "kept clear of the authored rarity ladder so a category strip is never mistaken for a " +
-        "rarity. They are theme debt like every other override here, not a content decision. Two of " +
-        "them were moved after measurement: the economy gold sat 9 degrees of hue from the " +
-        "legendary gem and the trigger green 18 from the rare one, and two content-keyed colour " +
-        "systems that close on the same card are a legibility bug however different their meanings " +
-        "are. Every category now sits at least 30 degrees from every rarity in the ladder.";
+        "No document in this repository authors a colour per perk category. The nine below are this " +
+        "screen's own, picked for contrast against the card fill and kept clear of the authored " +
+        "rarity ladder so a category strip is never mistaken for a rarity. They are theme debt like " +
+        "every other override here, not a content decision. Every category sits at least 32 degrees " +
+        "of hue from every rarity in the ladder, which is the separation that matters: two " +
+        "content-keyed colour systems closing on one card is a legibility bug however different " +
+        "their meanings are. ⚠️ Mutual separation BETWEEN categories fell to 20 degrees when the " +
+        "catalogue went from six categories to nine, and it cannot be better: the ladder's three " +
+        "exclusion zones leave 180 degrees of hue for nine strips. The category is therefore no " +
+        "longer readable from the strip alone, and is not asked to be — the card carries the perk's " +
+        "name and icon, and the strip is a grouping cue across three cards rather than an " +
+        "identification. Making it one again means a second channel on the strip, which is M8-03's " +
+        "to decide with the rest of the kit.";
 
     /// <summary>
     /// 🔴 Named because it is an accessibility requirement rather than a style choice. Rarity is
@@ -953,12 +958,15 @@ public partial class PerkDraft : Control
     /// <remarks>See <see cref="TheCategoryPaletteIsChosenHere"/>.</remarks>
     private static Color CategoryColour(PerkCategory category) => category switch
     {
-        PerkCategory.Offense => new Color(0.9412f, 0.3412f, 0.3608f),
-        PerkCategory.Defense => new Color(0.1686f, 0.702f, 0.7529f),
-        PerkCategory.Sustain => new Color(0.8784f, 0.3922f, 0.6902f),
-        PerkCategory.DiceAndBoard => new Color(0.5569f, 0.502f, 0.9686f),
-        PerkCategory.Economy => new Color(0.6471f, 0.8392f, 0.1922f),
-        PerkCategory.TriggerSynergy => new Color(0.8039f, 0.3608f, 0.949f),
+        PerkCategory.Lightning => new Color(0.4640f, 0.3648f, 0.9600f),
+        PerkCategory.Cold => new Color(0.2604f, 0.8742f, 0.9300f),
+        PerkCategory.Fire => new Color(0.9500f, 0.2090f, 0.2337f),
+        PerkCategory.Poison => new Color(0.4602f, 0.7800f, 0.1404f),
+        PerkCategory.Bleed => new Color(0.9000f, 0.2880f, 0.5838f),
+        PerkCategory.Defense => new Color(0.2280f, 0.7600f, 0.5383f),
+        PerkCategory.Offense => new Color(0.7315f, 0.3800f, 0.9500f),
+        PerkCategory.Crit => new Color(0.7800f, 0.9000f, 0.1800f),
+        PerkCategory.Sustain => new Color(0.9400f, 0.4512f, 0.9074f),
         _ => UnknownMarkColour,
     };
 

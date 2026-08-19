@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
@@ -70,7 +70,7 @@ internal enum StatusPotencyBasis
 /// The per-application value and duration are deliberately absent: they belong to the applying
 /// effect, and a copy here would be a second, disagreeing statement of every perk's numbers.
 /// </remarks>
-/// <param name="Id">The status id, one of the twelve.</param>
+/// <param name="Id">The status id, one of the thirteen.</param>
 /// <param name="Kind">The Type column.</param>
 /// <param name="Basis">What the magnitude is a fraction of.</param>
 /// <param name="Stat">
@@ -163,10 +163,13 @@ internal sealed record StatusCatalogue(
     /// <summary>The snapshot-relative path of the document.</summary>
     internal const string Document = "content/statuses.json";
 
-    /// <summary>Exactly twelve statuses are fixed. Asserted at load — see <see cref="Read"/>.</summary>
-    internal const int ExpectedStatusCount = 12;
+    /// <summary>
+    /// Exactly thirteen statuses are fixed — 05 §5's twelve, plus the CHILL the ailment rework
+    /// added. Asserted at load — see <see cref="Read"/>.
+    /// </summary>
+    internal const int ExpectedStatusCount = 13;
 
-    /// <summary>The twelve-row table itself, the pointer every row fault is stated against.</summary>
+    /// <summary>The status table itself, the pointer every row fault is stated against.</summary>
     internal const string StatusesPointer = Document + "#/statuses";
 
     /// <summary><c>BLEED</c>'s missing-HP scaling term.</summary>
@@ -228,14 +231,14 @@ internal sealed record StatusCatalogue(
         new() { Mode = StackingMode.ADDITIVE, MaxStacks = 1 };
 
     /// <summary>
-    /// The twelve, indexed by id.
+    /// The thirteen, indexed by id.
     /// </summary>
     internal IReadOnlyDictionary<string, StatusDefinition> ById { get; } =
         Statuses.ToDictionary(s => s.Id, StringComparer.Ordinal);
 
     /// <summary>One status by id.</summary>
     /// <exception cref="EffectContextException">
-    /// The id is outside the twelve. <c>StatusOps</c> deliberately does not validate the id, so an
+    /// The id is outside the thirteen. <c>StatusOps</c> deliberately does not validate the id, so an
     /// effect built in code rather than loaded from JSON arrives here unchecked.
     /// </exception>
     internal StatusDefinition Of(string statusId) =>
@@ -243,10 +246,10 @@ internal sealed record StatusCatalogue(
             ? found
             : throw new EffectContextException(
                 statusId,
-                "it is not one of 05 §5's twelve statuses",
+                "it is not one of the authored statuses",
                 "05 §5 fixes BURN, POISON, BLEED, FREEZE, STUN, WEAKEN, SUNDER, SPORE, RAGE, WARD, " +
-                "HASTE and REGEN, and game-data/schema/effect.schema.json encloses the same set. A " +
-                "thirteenth reaching here came from an effect built in code rather than loaded from " +
+                "HASTE and REGEN, the ailment rework adds CHILL, and game-data/schema/effect.schema.json " +
+                "encloses the same set. A fourteenth reaching here came from an effect built in code rather than loaded from " +
                 "JSON, which is outside that enforcement.");
 
     /// <summary>
@@ -267,7 +270,7 @@ internal sealed record StatusCatalogue(
     /// <exception cref="UnauthorisedTunableException">A value is <c>null</c> where one is required.</exception>
     /// <exception cref="ContentTypeMismatchException">
     /// A row is malformed, duplicated, or outside one of the closed vocabularies, or the table is
-    /// not twelve rows.
+    /// not the expected number of rows.
     /// </exception>
     internal static StatusCatalogue Read(ContentSnapshot content)
     {
@@ -280,7 +283,7 @@ internal sealed record StatusCatalogue(
                 StatusesPointer,
                 list?.Kind ?? ContentValueKind.Unauthorised,
                 "the 'statuses' array. 05 §5's table is the whole point of the " +
-                "file, and its schema requires exactly twelve rows");
+                "file, and its schema requires exactly thirteen rows");
         }
 
         var statuses = new List<StatusDefinition>(list.Items.Count);
@@ -315,9 +318,9 @@ internal sealed record StatusCatalogue(
             throw new ContentTypeMismatchException(
                 StatusesPointer,
                 ContentValueKind.Array,
-                "exactly twelve statuses — it carries " +
+                "exactly thirteen statuses — it carries " +
                 $"{statuses.Count.ToString(CultureInfo.InvariantCulture)}. " +
-                "05 §5 fixes exactly twelve, and its schema declares minItems and maxItems 12; a " +
+                "05 §5 fixes twelve and the ailment rework adds CHILL, and the schema declares minItems and maxItems 13; a " +
                 "catalogue that is short fails later, mid-battle, as an unknown-status error");
         }
 

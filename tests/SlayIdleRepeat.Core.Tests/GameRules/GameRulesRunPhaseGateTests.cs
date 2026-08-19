@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
@@ -309,9 +309,19 @@ public sealed class GameRulesRunPhaseGateTests
             "reason after the ended arm had already let it through — the arms are chained so that " +
             "cannot happen.");
 
-        result.NewState.Run!.DraftPending.ShouldBeFalse(
-            "the run that came back still has the ENDED run's draft open, so the ended run was " +
-            "re-phased rather than replaced.");
+        // ⚠️ NOT "the new run carries no draft": a fresh run opens with its own draft pending, so
+        // that flag can no longer tell a replacement from a re-phasing. What can is the run itself —
+        // a new id, at the trailhead, holding no perks. The ended run's draft followed a battle in
+        // stage 1 or later; this one is the opening draft and names no battle tile at all.
+        result.NewState.Run!.Id.ShouldNotBe(
+            state.Run.Id,
+            "the run that came back is the ENDED run, so it was re-phased rather than replaced.");
+
+        result.NewState.Run.DraftPending.ShouldBeTrue(
+            "a fresh run opens with its own draft — see Handlers.StartRun.");
+
+        result.NewState.Run.DraftedPerks.Tiers.ShouldBeEmpty(
+            "and it is a FRESH draft: the ended run's drafted perks did not come with it.");
     }
 
     /// <summary>

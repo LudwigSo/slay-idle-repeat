@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Core.Content.Effects;
+﻿using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Duration;
 using SlayIdleRepeat.Core.Rules.Effects.Ops;
@@ -8,7 +8,7 @@ using SlayIdleRepeat.Core.Rules.Stats;
 namespace SlayIdleRepeat.Core.Rules.Combat.Status;
 
 /// <summary>
-/// The twelve statuses and the DoT/HoT cadence, for one fight.
+/// The statuses and the DoT/HoT cadence, for one fight.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -332,7 +332,7 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
     {
         var receiver = Actor(target, sourceEffectId);
 
-        // The catalogue call is not decoration: it refuses an id outside the twelve, so a
+        // The catalogue call is not decoration: it refuses an id the catalogue does not carry, so a
         // REMOVE_STATUS naming a status that does not exist fails rather than silently removing
         // nothing, which is indistinguishable from succeeding.
         var definition = _catalogue.Of(statusId);
@@ -377,7 +377,7 @@ internal sealed class StatusTimeline : IStatusTimeline, IStatusEngine
             sourceEffectId,
             $"it clears the status tag group '{tag.Value}' and no status carries a tag",
             "18 §2.3's REMOVE_STATUS takes a statusId OR a statusTag, and the tag form needs a " +
-            "vocabulary. 05 §5 tags none of its twelve statuses, content/statuses.json authors no " +
+            "vocabulary. 05 §5 tags none of its statuses, content/statuses.json authors no " +
             "tags key, and StatusTag's own remarks assign that vocabulary to the status catalogue — " +
             "M2-10 declined to invent one (16 R6). Removing nothing and reporting success would be " +
             "indistinguishable from removing the right thing. Author the tags, or clear by statusId.");

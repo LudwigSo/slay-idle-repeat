@@ -1,8 +1,11 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Perks;
+using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
 using PlayerAggregate = SlayIdleRepeat.Core.Model.Player;
@@ -262,19 +265,132 @@ public sealed class StartRunTests
         result.Accepted.ShouldBeTrue();
     }
 
+    // ------------------------------------------------------------------ the opening draft
+
+    /// <summary>A fresh run opens with a perk draft already waiting.</summary>
+    /// <remarks>
+    /// 🔒 The run's first decision is which perk to take, on the same three-option draft the rest
+    /// of the run uses. It is opened here rather than by a command of its own because this is the
+    /// only moment at which the run exists and nothing has happened in it — see the handler's
+    /// remarks.
+    /// </remarks>
+    [Fact]
+    public void A_fresh_run_opens_with_a_perk_draft_already_waiting()
+    {
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
+
+        result.Accepted.ShouldBeTrue("START_RUN was refused " + result.Rejection + ".");
+
+        result.NewState.Run!.DraftPending.ShouldBeTrue(
+            "a run that opens with no draft pending gives the player their first perk only after " +
+            "their first won battle, which is the behaviour this replaced");
+    }
+
+    /// <summary>…and it draws against stage 1, naming no battle tile, because no battle caused it.</summary>
+    /// <remarks>
+    /// Both halves matter and they fail differently. The stage is what the rarity table is keyed on,
+    /// so a run that opened its draft against the boss stage would hand out its strongest offer
+    /// before the player had fought anything. The tile kind is read only for "is this Elite or
+    /// Boss", and <c>Empty</c> answers both with no — writing <c>Enemy</c> there would key the same
+    /// band off a battle the run never fought.
+    /// </remarks>
+    [Fact]
+    public void The_opening_draft_draws_against_stage_1_and_names_no_battle_tile()
+    {
+        var result = SlayIdleRepeat.Core.GameRules.Apply(
+            Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
+
+        var run = result.NewState.Run!;
+
+        run.DraftBattleStage.ShouldBe(1, "the run opens at the trailhead, one step before stage 1's node 0");
+        run.DraftBattleKindValue.ShouldBe(
+            (int)TileKind.Empty,
+            "Empty is neither Elite nor Boss, which is the only question the draft asks of the kind");
+    }
+
+    /// <summary>🔒 …and what it offers is three of the categories' base perks — the choice of element.</summary>
+    /// <remarks>
+    /// The payoff of opening the draft here at all, and it falls out of the category gate rather
+    /// than out of anything this handler says: a run owning nothing satisfies no perk's
+    /// prerequisites, so the draftable pool is exactly the nine bases. The player's first decision
+    /// is therefore which element the run is going to be about.
+    /// <para>
+    /// Swept over several openings rather than asserted on one, because the three options are drawn:
+    /// a single run that happened to be offered three bases would pass over a gate doing nothing.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_opening_draft_offers_three_of_the_categories_base_perks()
+    {
+        // The projection reads the draft economy for the reroll price and skip reward it draws
+        // beside the cards, which this suite's currencies fixture does not carry.
+        var content = ContextThatCanPayASkip.Content;
+        var catalogue = PerkCatalogue.Read(content);
+
+        for (var runsStarted = 0L; runsStarted < 16L; runsStarted++)
+        {
+            var opened = SlayIdleRepeat.Core.GameRules.Apply(
+                PastTheLadder(1, DifficultyTier.NORMAL, runsStarted: runsStarted),
+                new StartRunCommand(1, DifficultyTier.NORMAL),
+                ContextThatCanPayASkip);
+
+            opened.Accepted.ShouldBeTrue("START_RUN was refused " + opened.Rejection + ".");
+
+            var draft = DraftView.Project(opened.NewState.Run!.ToSnapshot(), content);
+
+            draft.ShouldNotBeNull("the run opened with a draft pending, so the screen has one to draw");
+            draft.Options.Count.ShouldBe(3, "06 §1 shows three options");
+
+            foreach (var option in draft.Options)
+            {
+                catalogue.Find(option.PerkId).Requires.ShouldBeEmpty(
+                    $"run {runsStarted} was offered '{option.PerkId}', which is gated behind a perk " +
+                    "a run that has drafted nothing cannot hold");
+            }
+        }
+    }
+
+    /// <summary>🔒 …and nothing but a draft command may be applied until it is answered.</summary>
+    /// <remarks>
+    /// This is what makes the opening draft the run's FIRST decision rather than one the player can
+    /// walk past. The gate is <c>GameRules.Apply</c>'s and predates this handler; what is asserted
+    /// here is that opening the run trips it.
+    /// </remarks>
+    [Fact]
+    public void The_first_roll_is_refused_until_the_opening_draft_is_answered()
+    {
+        var opened = SlayIdleRepeat.Core.GameRules.Apply(
+            Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
+
+        var rolled = SlayIdleRepeat.Core.GameRules.Apply(
+            opened.NewState, new RollDiceCommand(), Worlds.Drawing(commandSeed: 1UL));
+
+        rolled.Accepted.ShouldBeFalse("the player rolled past their opening perk choice");
+        rolled.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
+    }
+
     // ------------------------------------------------------------------ composition with the next run command
 
     /// <summary>
     /// The RNG write-back machinery composes correctly with a handler that creates the Run rather
-    /// than mutating an existing one: the very next run command opens a real RunRngScope over the
-    /// seed START_RUN just committed and folds its draws back.
+    /// than mutating an existing one: the next run command opens a real RunRngScope over the seed
+    /// START_RUN just committed and folds its draws back.
     /// </summary>
+    /// <remarks>
+    /// The opening draft is resolved in between, because it has to be: a fresh run opens with a
+    /// draft pending and <c>GameRules.Apply</c> admits only the three draft commands until it is
+    /// answered. Skipping is the shortest of the three and draws nothing, so the seed the fixture
+    /// command is rooted at is still the one START_RUN committed.
+    /// </remarks>
     [Fact]
     public void The_next_run_commands_RngScope_is_rooted_at_the_seed_START_RUN_just_committed()
     {
         var table = new CommandDispatch()
             .Handled<StartRunCommand>(
                 "START_RUN", CommandKind.Run, SlayIdleRepeat.Core.Handlers.StartRun.Handle, opensRun: true)
+            .Handled<SkipDraftCommand>(
+                "SKIP_DRAFT", CommandKind.Run, SlayIdleRepeat.Core.Handlers.SkipDraft.Handle)
             .Handled(Worlds.RunWireName, CommandKind.Run, (Worlds.RunFixtureCommand _, HandlerInput input) =>
             {
                 input.Rng.Stream(RngStreams.Dice).Range(1, 7);
@@ -282,13 +398,20 @@ public sealed class StartRunTests
             });
 
         var opened = SlayIdleRepeat.Core.GameRules.Execute(
-            table, Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
+            table, Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), ContextThatCanPayASkip);
 
         opened.Accepted.ShouldBeTrue();
         var committedSeed = opened.NewState.Run!.RunSeed;
 
+        var skipped = SlayIdleRepeat.Core.GameRules.Execute(
+            table, opened.NewState, new SkipDraftCommand(), ContextThatCanPayASkip);
+
+        skipped.Accepted.ShouldBeTrue(
+            "the opening draft was refused (" + skipped.Rejection + "), so the fixture command below " +
+            "would be measuring the draft gate rather than the RNG scope");
+
         var drawn = SlayIdleRepeat.Core.GameRules.Execute(
-            table, opened.NewState, new Worlds.RunFixtureCommand(), Worlds.Context);
+            table, skipped.NewState, new Worlds.RunFixtureCommand(), ContextThatCanPayASkip);
 
         drawn.Accepted.ShouldBeTrue();
         drawn.NewState.Run!.StreamPosition(RngStreams.Dice).ShouldBe(1UL);
@@ -297,4 +420,26 @@ public sealed class StartRunTests
         // to the Run, never recomputed.
         drawn.NewState.Run.RunSeed.ShouldBe(committedSeed);
     }
+
+    /// <summary>
+    /// <see cref="Worlds.Context"/> with the SHIPPED <c>currencies.json</c> rather than the suite's
+    /// calendar-only fixture of it.
+    /// </summary>
+    /// <remarks>
+    /// Needed only because resolving the opening draft costs a read this suite's own currencies
+    /// fixture does not carry: <c>SKIP_DRAFT</c> pays the skip reward out of <c>draftEconomy</c>,
+    /// and that block lives in the real document. Swapping the one document rather than the whole
+    /// context keeps every other reading START_RUN makes on the fixture the rest of the file uses.
+    /// </remarks>
+    private static GameContext ContextThatCanPayASkip { get; } = Worlds.Context with
+    {
+        Content = new Core.Content.ContentSnapshot(
+            Worlds.Context.Content.Version,
+            Worlds.Context.Content.DocumentPaths
+                .Where(path => !string.Equals(path, CurrenciesPath, StringComparison.Ordinal))
+                .Select(Worlds.Context.Content.GetDocument)
+                .Append(BalanceHarness.ShippedHarness.Content.GetDocument(CurrenciesPath))),
+    };
+
+    private const string CurrenciesPath = "tuning/currencies.json";
 }

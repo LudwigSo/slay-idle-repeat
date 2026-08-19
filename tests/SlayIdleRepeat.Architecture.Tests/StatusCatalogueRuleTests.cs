@@ -1,4 +1,4 @@
-using Mono.Cecil;
+﻿using Mono.Cecil;
 using Mono.Cecil.Cil;
 using Shouldly;
 using SlayIdleRepeat.Architecture.Tests.Infrastructure;
@@ -135,6 +135,15 @@ public sealed class StatusCatalogueRuleTests
         StatusNamespace + ".StatusTimeline",
         Domain.CombatRulesNamespace + ".Enemies.EnemyCatalogue",
         Domain.CombatRulesNamespace + ".Bosses.BossBuiltIns",
+
+        // ⚠️ Admitted for a COLLISION, not for a status. The perk catalogue's category tokens
+        // include BLEED and POISON, which are spelled exactly like two status ids and are not them:
+        // the parser is mapping a perk's category, and the elements are named after the ailments
+        // they build around. The scan compares string literals and cannot tell the two vocabularies
+        // apart, so the exemption is narrowed to those two ids below — a THIRD status id appearing
+        // in this type is still an offender, which is the only part of the rule that could catch a
+        // real per-status branch creeping into a content reader.
+        Domain.ContentNamespace + ".Perks.PerkCatalogue",
     };
 
     /// <summary>
@@ -203,6 +212,7 @@ public sealed class StatusCatalogueRuleTests
             (StatusNamespace + ".StatusTimeline", new List<string> { "STUN" }),
             (Domain.CombatRulesNamespace + ".Enemies.EnemyCatalogue", new List<string> { "SUNDER" }),
             (Domain.CombatRulesNamespace + ".Bosses.BossBuiltIns", new List<string> { "FREEZE", "STUN" }),
+            (Domain.ContentNamespace + ".Perks.PerkCatalogue", new List<string> { "BLEED", "POISON" }),
         };
 
         var offenders = new List<string>();
@@ -240,8 +250,9 @@ public sealed class StatusCatalogueRuleTests
                 $"{owner} is exempted for {string.Join(" and ", permitted.Select(p => $"'{p}'"))} " +
                 $"and also names: {string.Join(", ", beyond)}. 05 §5 gives STUN a rule of its own " +
                 "(the 1.5 s cap and the mandatory immunity window), 05 §6.1a fixes WARDEN's on-hit " +
-                "token as SUNDER, and 17 §1 makes bosses immune to STUN and FREEZE in phase 3. " +
-                "Every other status is a row in the catalogue.");
+                "token as SUNDER, 17 §1 makes bosses immune to STUN and FREEZE in phase 3, and " +
+                "PerkCatalogue's two are perk-CATEGORY tokens that collide with status ids rather " +
+                "than being them. Every other status is a row in the catalogue.");
         }
 
         ArchRule.Empty(

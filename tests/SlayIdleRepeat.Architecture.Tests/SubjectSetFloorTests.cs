@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.RegularExpressions;
 using Mono.Cecil;
 using Mono.Cecil.Cil;
@@ -490,10 +490,6 @@ public sealed class SubjectSetFloorTests
         new("Curse", SubjectKind.CoreType, "M3-11",
             "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 9 of 10, " +
             "'curses'. 19 E's 12-curse catalogue is M3-11's"),
-        new("PerkDefinition", SubjectKind.CoreType, "M3-07",
-            "SlayIdleRepeat.Core.Rules.Effects.EffectSourceCatalogue — 18 §8 step 1's source 10 of 10, " +
-            "'perks (in draft order)'. 06's 98 perks are M3-07's. ⚠️ '(in draft order)' is R5's " +
-            "COLLECTION order; the application order is EffectResolutionOrder's, and is total"),
 
         // ── M2-14 ───────────────────────────────────────────────────────────────────────────
         //

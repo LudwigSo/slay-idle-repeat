@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Effects.Conditions;
@@ -303,7 +303,7 @@ public sealed class ConditionFunctionTests
             {
                 ["OFFENSE"] = 4,
                 ["DEFENSE"] = 2,
-                ["ECONOMY"] = 1,
+                ["POISON"] = 1,
             },
             DieFacesByKind = new Dictionary<string, int>(StringComparer.Ordinal)
             {
@@ -326,7 +326,7 @@ public sealed class ConditionFunctionTests
 
         Read(ConditionFunction.PERK_COUNT, battle).ShouldBe(7, "no category means every perk held");
         Read(ConditionFunction.PERK_COUNT, battle, new ConditionArguments(null, "OFFENSE", null)).ShouldBe(4);
-        Read(ConditionFunction.PERK_COUNT, battle, new ConditionArguments(null, "DICE_AND_BOARD", null))
+        Read(ConditionFunction.PERK_COUNT, battle, new ConditionArguments(null, "LIGHTNING", null))
             .ShouldBe(0, "a category the run holds none of is a reading, not an error");
         Read(ConditionFunction.DISTINCT_PERK_CATEGORIES, battle).ShouldBe(3);
         Read(ConditionFunction.PET_COUNT, battle).ShouldBe(3);

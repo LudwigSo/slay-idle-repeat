@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
@@ -21,20 +21,6 @@ public sealed class PerkEffectTextTests
 {
     /// <summary>The id every synthetic fixture authors. One perk is all a token case needs.</summary>
     private const string FixturePerk = "PK_FIXTURE";
-
-    /// <summary>The perks the shipped catalogue cannot fully render, and the tokens that stop each one.</summary>
-    /// <remarks>
-    /// <c>{value2}</c>, <c>{high}</c> and <c>{low}</c> name no member of the effect schema, so none
-    /// of the four is reachable by a renderer that stays free of per-perk special cases.
-    /// </remarks>
-    private static readonly IReadOnlyDictionary<string, string[]> Unrenderable =
-        new Dictionary<string, string[]>(StringComparer.Ordinal)
-        {
-            ["PK_FORTRESS"] = ["value2"],
-            ["PK_GAMBLER"] = ["high", "low"],
-            ["PK_LAST_STAND"] = ["value2"],
-            ["PK_MIRROR"] = ["value2"],
-        };
 
     // ------------------------------------------------------------------------------------------
     // One case per token kind, over synthetic data.
@@ -355,69 +341,54 @@ public sealed class PerkEffectTextTests
     // 🔒 The shipped catalogue (steering S4).
     // ------------------------------------------------------------------------------------------
 
-    /// <summary>🔒 Exactly four shipped perks cannot have their numbers rendered, and they are these four.</summary>
+    /// <summary>🔒 Every shipped perk renders its numbers, at every tier it authors.</summary>
     /// <remarks>
-    /// A self-expiring pin: red the day one of them is authored so it renders, and red the day a
-    /// fifth arrives — neither is a change a content diff review would notice.
+    /// <para>
+    /// A perk that cannot render says "numbers unavailable" on its draft card — the player is asked
+    /// to choose between three cards, one of which will not tell them what it does. The catalogue
+    /// authors none, and this is the pin that keeps it that way: a description written against a
+    /// token its own effect data cannot answer fails here rather than on a card.
+    /// </para>
+    /// <para>
+    /// A template may only reach for what the anchor effect actually carries — <c>{value}</c>,
+    /// <c>{duration}</c>, <c>{everyNth}</c>, <c>{interval}</c>, <c>{sourceCapPct}</c> and the
+    /// <c>{cap}</c> product. The two-magnitude sentence ("+X% DEF and +Y% DR") is the shape that
+    /// cannot be written, because the anchor is ONE effect and the second clause is a second one.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_shipped_catalogue_cannot_render_exactly_four_perks()
+    public void Every_shipped_perk_renders_its_numbers_at_every_tier()
     {
         var offenders = ShippedFailures();
 
-        offenders.Keys.OrderBy(id => id, StringComparer.Ordinal).ShouldBe(
-            Unrenderable.Keys.OrderBy(id => id, StringComparer.Ordinal),
-            "a perk LEAVING this set means its description was fixed and this pin has expired for " +
-            "it; a perk JOINING it means a description was authored against data that cannot answer " +
-            "it, and its draft card will silently say its numbers are unavailable.");
+        offenders.Keys.OrderBy(id => id, StringComparer.Ordinal).ShouldBeEmpty(
+            "a perk joining this set is a description authored against data that cannot answer it, " +
+            "and its draft card will silently say its numbers are unavailable: " +
+            string.Join(
+                ", ",
+                offenders.Select(o => o.Key + " (" + string.Join("/", o.Value) + ")")));
     }
 
-    /// <summary>…and each of the four is stopped by exactly the tokens named above.</summary>
-    [Theory]
-    [MemberData(nameof(UnrenderablePerks))]
-    public void Each_unrenderable_shipped_perk_is_stopped_by_exactly_the_tokens_named(
-        string perkId, string[] expected)
-    {
-        var offenders = ShippedFailures();
-
-        offenders.Keys.ShouldContain(perkId);
-        offenders[perkId].OrderBy(t => t, StringComparer.Ordinal).ShouldBe(
-            expected.OrderBy(t => t, StringComparer.Ordinal),
-            perkId + " is stopped by a different set of tokens than this pin records.");
-    }
-
-    public static TheoryData<string, string[]> UnrenderablePerks()
-    {
-        var data = new TheoryData<string, string[]>();
-
-        foreach (var (perkId, tokens) in Unrenderable)
-        {
-            data.Add(perkId, tokens);
-        }
-
-        return data;
-    }
-
-    /// <summary>🔒 …and every OTHER shipped perk renders a sentence with no token left standing in it.</summary>
+    /// <summary>🔒 …and the rendered sentence never leaves a token standing.</summary>
     /// <remarks>
-    /// The negative control on the pin above: a renderer answering the template unchanged would make
-    /// the unrenderable set empty, not four, and would draw <c>+{value}% ATK.</c> on every card.
+    /// The negative control on the pin above. A renderer that answered every template unchanged
+    /// would report no failures at all and draw <c>+{value}% ATK.</c> on every card, which is
+    /// exactly the shape the emptiness above cannot tell apart on its own.
     /// </remarks>
     [Fact]
-    public void Every_other_shipped_perk_renders_a_sentence_carrying_no_token()
+    public void Every_shipped_perk_renders_a_sentence_carrying_no_token()
     {
         var catalogue = PerkCatalogue.Read(ShippedHarness.Content);
-        var renderable = catalogue.All.Where(p => !Unrenderable.ContainsKey(p.Id)).ToArray();
 
-        // The subject set is floored by name — a count derived from the walked list itself would
-        // agree with itself over an empty catalogue.
-        var walked = renderable.Select(perk => perk.Id).ToArray();
+        // The subject set is floored by name — a walk derived from the catalogue itself would agree
+        // with itself over an empty one.
+        var walked = catalogue.All.Select(perk => perk.Id).ToArray();
 
-        walked.ShouldContain("PK_SHARP_EDGE");
-        walked.ShouldContain("PK_BERSERK");
-        walked.ShouldContain("PK_FLURRY");
+        walked.ShouldContain("PK_MIGHT");
+        walked.ShouldContain("PK_STATIC_CHARGE");
+        walked.ShouldContain("PK_OVERFLOW");
 
-        foreach (var perk in renderable)
+        foreach (var perk in catalogue.All)
         {
             for (var tier = 1; tier <= perk.TierCount; tier++)
             {
@@ -431,14 +402,16 @@ public sealed class PerkEffectTextTests
     }
 
     /// <summary>
-    /// …and three shipped sentences, spelled out, one per substitution rule: the percent suffix,
-    /// the <c>value × cap</c> product (PK_BERSERK's +126% is 0.028 × 45, not 45), and the value-less
-    /// anchor fallback. These move when balance moves — re-state the row rather than loosening.
+    /// …and four shipped sentences, spelled out, one per substitution rule: the percent suffix, the
+    /// tier scaling behind it, <c>{everyNth}</c> read off the trigger, and <c>{sourceCapPct}</c>
+    /// read off an op-specific key. These move when balance moves — re-state the row rather than
+    /// loosening it.
     /// </summary>
     [Theory]
-    [InlineData("PK_SHARP_EDGE", 1, "+12% ATK.")]
-    [InlineData("PK_BERSERK", 3, "+2.8% ATK per 1% missing HP, up to +126%.")]
-    [InlineData("PK_FLURRY", 1, "Every 5th attack hits twice.")]
+    [InlineData("PK_MIGHT", 1, "+12% ATK.")]
+    [InlineData("PK_MIGHT", 3, "+33.6% ATK.")]
+    [InlineData("PK_RECOIL_ARC", 1, "Every 5th attack detonates the charge for 80% of ATK to every enemy.")]
+    [InlineData("PK_OVERFLOW", 1, "Healing past full becomes a shield, up to 20% Max HP.")]
     public void A_shipped_perk_renders_the_sentence_its_data_authors(string perkId, int tier, string expected)
     {
         PerkEffectText.Render(ShippedHarness.Content, perkId, tier).Text.ShouldBe(expected);

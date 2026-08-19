@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Core.Rules.Effects;
 using Xunit;
 
@@ -29,7 +29,7 @@ public sealed class RunStateReadingTests
         {
             ["OFFENSE"] = 4,
             ["DEFENSE"] = 2,
-            ["ECONOMY"] = 1,
+            ["POISON"] = 1,
         });
 
         view.PerkCount("OFFENSE").ShouldBe(4);
@@ -43,7 +43,7 @@ public sealed class RunStateReadingTests
     {
         var view = Reading(perks: new Dictionary<string, int>(StringComparer.Ordinal) { ["OFFENSE"] = 4 });
 
-        view.PerkCount("DICE_AND_BOARD").ShouldBe(0);
+        view.PerkCount("LIGHTNING").ShouldBe(0);
         view.PerkCount("").ShouldBe(0);
     }
 

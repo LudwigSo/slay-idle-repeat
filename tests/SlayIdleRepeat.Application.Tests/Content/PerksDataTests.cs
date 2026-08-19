@@ -1,4 +1,4 @@
-using Shouldly;
+﻿using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core.Content;
 using Xunit;
@@ -31,14 +31,76 @@ public sealed class PerksDataTests
             "schema/effect.schema.json", "a schema is never a document of the snapshot");
     }
 
-    /// <summary>46 of the 82 standard-catalogue rows, a coverage-driven selection.</summary>
+    /// <summary>Every category authors exactly one base perk, and every other row is gated behind one.</summary>
+    /// <remarks>
+    /// 🔒 The load-bearing shape of the reworked catalogue, and the one a row can break in
+    /// silence. A second un-gated row in a category is a second entry to it, so the category stops
+    /// being a commitment; a base that requires something is a category nothing can enter. Neither
+    /// fails anywhere else — the draft would simply offer a different pool, and no test would notice.
+    /// </remarks>
     [Fact]
-    public void The_starter_catalogue_carries_46_rows()
+    public void Every_category_is_entered_through_exactly_one_ungated_base_perk()
     {
-        var perks = Data().GetDocument(Document).Root;
+        var ungatedByCategory = Rows()
+            .Where(r => Array(r, "requires").Count == 0)
+            .GroupBy(r => Text(r, "category"), StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Select(r => Text(r, "id")).ToArray(), StringComparer.Ordinal);
 
-        perks.TryGetMember("perks", out var rows).ShouldBeTrue();
-        rows!.Items.Count.ShouldBe(46, "M3-07's coverage-driven selection off 06 §3's 82-row catalogue");
+        foreach (var (category, bases) in ungatedByCategory)
+        {
+            bases.Length.ShouldBe(
+                1, $"{category} authors {bases.Length} un-gated perks: {string.Join(", ", bases)}");
+        }
+
+        ungatedByCategory.Keys.ShouldBe(Categories, ignoreOrder: true);
+    }
+
+    /// <summary>Every prerequisite names a perk this file authors, and no perk requires itself.</summary>
+    /// <remarks>
+    /// A prerequisite pointing at a perk that does not exist is a perk that can never be offered:
+    /// the draft narrows its pool by "are all of these owned", and an id nothing authors is never
+    /// owned. It is invisible in play — the perk simply never appears.
+    /// </remarks>
+    [Fact]
+    public void Every_prerequisite_is_an_authored_perk_and_no_perk_requires_itself()
+    {
+        var authored = Rows().Select(r => Text(r, "id")).ToHashSet(StringComparer.Ordinal);
+
+        foreach (var row in Rows())
+        {
+            var id = Text(row, "id");
+
+            foreach (var required in Array(row, "requires").Select(v => v.AsText("requires")))
+            {
+                authored.ShouldContain(required, $"'{id}' requires '{required}'");
+                required.ShouldNotBe(id, $"'{id}' requires itself and could never be offered");
+            }
+        }
+    }
+
+    /// <summary>A gated perk's prerequisites are themselves un-gated, so no chain runs deeper than one step.</summary>
+    /// <remarks>
+    /// Depth is a design decision, not an accident: one step means a category costs a player exactly
+    /// one commitment. A two-step chain would need three specific offers before the third perk could
+    /// appear at all, which at three options a battle is a perk most runs never see.
+    /// </remarks>
+    [Fact]
+    public void No_perk_is_gated_more_than_one_step_deep()
+    {
+        var ungated = Rows()
+            .Where(r => Array(r, "requires").Count == 0)
+            .Select(r => Text(r, "id"))
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (var row in Rows())
+        {
+            foreach (var required in Array(row, "requires").Select(v => v.AsText("requires")))
+            {
+                ungated.ShouldContain(
+                    required,
+                    $"'{Text(row, "id")}' requires '{required}', which is itself gated");
+            }
+        }
     }
 
     /// <summary>Every row carries exactly 3 tiers, numbered 1, 2, 3 in order.</summary>
@@ -61,20 +123,41 @@ public sealed class PerksDataTests
         }
     }
 
-    /// <summary>Every one of the 6 standard categories is represented.</summary>
+    /// <summary>Every one of the 9 categories is represented.</summary>
     [Fact]
-    public void All_6_standard_categories_are_represented()
+    public void All_9_categories_are_represented()
     {
-        var perks = Data().GetDocument(Document).Root;
-        perks.TryGetMember("perks", out var rows).ShouldBeTrue();
+        Rows().Select(r => Text(r, "category")).ToHashSet(StringComparer.Ordinal)
+            .ShouldBe(Categories, ignoreOrder: true);
+    }
 
-        var categories = rows!.Items
-            .Select(r => { r.TryGetMember("category", out var c); return c!.AsText("category"); })
-            .ToHashSet(StringComparer.Ordinal);
+    /// <summary>The elements carry the weight of the catalogue, and no category is too thin or too fat to draft.</summary>
+    /// <remarks>
+    /// The catalogue's own weighting, and a design statement rather than a tally: defence, offence,
+    /// crit and sustain are what every build wants, so a generic half as wide as the elemental one
+    /// would crowd out the identity the draft exists to build towards. Stated as totals rather than
+    /// per-category, because the hybrids are filed under one of their several categories and a
+    /// per-category floor would really be an assertion about where each hybrid was filed.
+    /// <para>
+    /// The 4–10 band is the other half: under four rows a category cannot fill a draft that offers
+    /// three options and removes maxed perks, and over ten it drowns the eight others in the pool.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void The_elements_carry_more_of_the_catalogue_than_the_generic_categories()
+    {
+        var rowsPerCategory = Rows()
+            .GroupBy(r => Text(r, "category"), StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
 
-        categories.ShouldBe(
-            new[] { "OFFENSE", "DEFENSE", "SUSTAIN", "DICE_AND_BOARD", "ECONOMY", "TRIGGER_SYNERGY" },
-            ignoreOrder: true);
+        foreach (var (category, count) in rowsPerCategory)
+        {
+            count.ShouldBeInRange(4, 10, category);
+        }
+
+        Elements.Sum(c => rowsPerCategory[c]).ShouldBeGreaterThan(
+            Generics.Sum(c => rowsPerCategory[c]),
+            "the elements are what a run commits to; the generic categories are the filler around them");
     }
 
     /// <summary>Every one of the 4 rarities is represented.</summary>
@@ -116,7 +199,7 @@ public sealed class PerksDataTests
             });
         });
 
-        embedded.ShouldBe(196, "the shipped catalogue's own effect census — 46 rows x 3 tiers plus bonus clauses");
+        embedded.ShouldBe(237, "the shipped catalogue's own effect census — 67 rows x 3 tiers, plus multi-clause tiers");
         validated.Length.ShouldBe(embedded, "R35 reaches every embedded effect in the file, not a prefix of them");
     }
 
@@ -129,12 +212,12 @@ public sealed class PerksDataTests
     /// </remarks>
     [Theory]
     [InlineData(
-        "\"id\": \"PK_SHARP_EDGE_T1\", \"op\": \"STAT_ADD_PCT\", \"stat\": \"ATK\",",
-        "\"id\": \"PK_SHARP_EDGE_T1\", \"op\": \"STAT_ADD_PCT\", \"stat\": \"ATK\", \"charges\": 2,",
+        "\"id\": \"PK_MIGHT_T1\",",
+        "\"id\": \"PK_MIGHT_T1\", \"charges\": 2,",
         "an op-specific key (charges) on an op that does not admit it")]
     [InlineData(
-        "\"id\": \"PK_FLURRY_T3_BONUS\", \"op\": \"FORCE_CRIT_NEXT\", \"charges\": 1,",
-        "\"id\": \"PK_FLURRY_T3_BONUS\", \"op\": \"FORCE_CRIT_NEXT\", \"charges\": 1, \"value\": 3.0,",
+        "\"id\": \"PK_CASCADE_T1A\",",
+        "\"id\": \"PK_CASCADE_T1A\", \"value\": 3.0,",
         "a value on the one combat-flow op that carries none")]
     public void R35_refuses_a_malformed_embedded_effect(string find, string replaceWith, string why)
     {
@@ -157,12 +240,53 @@ public sealed class PerksDataTests
     [Fact]
     public void An_intentionally_malformed_condition_comparator_is_refused()
     {
+        // Every tier of the perk that carries this gate is mutated, and the count says so: the
+        // three rungs author the same condition, so an anchor narrow enough to hit one would have to
+        // reach for a magnitude and would move with the next re-tune.
         var result = ContentLoader.Load(RepoData.SourceWithEdit(
             Document,
-            "\"id\": \"PK_EXECUTIONER_T1\", \"op\": \"STAT_ADD_PCT\", \"stat\": \"DMG_PCT\", \"trigger\": { \"kind\": \"ALWAYS\" }, \"condition\": { \"fn\": \"TARGET_HP_PCT\", \"op\": \"lt\", \"value\": 0.30 }",
-            "\"id\": \"PK_EXECUTIONER_T1\", \"op\": \"STAT_ADD_PCT\", \"stat\": \"DMG_PCT\", \"trigger\": { \"kind\": \"ALWAYS\" }, \"condition\": { \"fn\": \"TARGET_HP_PCT\", \"op\": \"BOGUS_COMPARATOR\", \"value\": 0.30 }"));
+            "\"op\": \"gte\"",
+            "\"op\": \"BOGUS_COMPARATOR\"",
+            occurrences: 3));
 
         result.Snapshot.ShouldBeNull("BOGUS_COMPARATOR is not one of the 7 comparators 18 §4 fixes");
         result.Issues.ShouldNotBeEmpty();
+    }
+
+    // ───────────────────────────────────────────────────── reading the rows
+
+    /// <summary>The nine categories, spelled once.</summary>
+    private static readonly string[] Categories =
+    {
+        "LIGHTNING", "COLD", "FIRE", "POISON", "BLEED", "DEFENSE", "OFFENSE", "CRIT", "SUSTAIN",
+    };
+
+    /// <summary>The five element categories — the ones told apart by their stacking rules.</summary>
+    private static readonly string[] Elements = { "LIGHTNING", "COLD", "FIRE", "POISON", "BLEED" };
+
+    /// <summary>The four generic categories.</summary>
+    private static readonly string[] Generics = { "DEFENSE", "OFFENSE", "CRIT", "SUSTAIN" };
+
+    private static IReadOnlyList<ContentValue> Rows()
+    {
+        var perks = Data().GetDocument(Document).Root;
+
+        perks.TryGetMember("perks", out var rows).ShouldBeTrue();
+
+        return rows!.Items;
+    }
+
+    private static string Text(ContentValue row, string member)
+    {
+        row.TryGetMember(member, out var value).ShouldBeTrue(member);
+
+        return value!.AsText(member);
+    }
+
+    private static IReadOnlyList<ContentValue> Array(ContentValue row, string member)
+    {
+        row.TryGetMember(member, out var value).ShouldBeTrue(member);
+
+        return value!.Items;
     }
 }

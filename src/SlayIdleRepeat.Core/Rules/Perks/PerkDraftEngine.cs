@@ -1,4 +1,4 @@
-using SlayIdleRepeat.Core.Content;
+﻿using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Rng;
@@ -360,10 +360,56 @@ internal static class PerkDraftEngine
         return false;
     }
 
-    /// <summary>Every perk not already owned at its max tier, in the catalogue's own order.</summary>
+    /// <summary>
+    /// Every perk this run may still be offered, in the catalogue's own order: not already at its
+    /// max tier, every prerequisite owned, and nothing it is exclusive with owned.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b><c>requires</c> is what makes a category's base perk a gate rather than a label.</b>
+    /// The catalogue opens each element behind one entry perk, so a run that has not taken Ignite is
+    /// never offered a Burn upgrade — an offer it could take and feel nothing from. Enforced by
+    /// narrowing the pool, like every other draft rule, so an unsatisfiable narrowing falls through
+    /// to the wider pool instead of emptying the draft.
+    /// <para>
+    /// The prerequisite is "owned at all", not "owned at some tier": 06 §1.1 numbers tiers from 1 and
+    /// the gate is about having the mechanic, not about how far it has been upgraded.
+    /// </para>
+    /// </remarks>
     private static IReadOnlyList<PerkCatalogueEntry> Draftable(
         PerkCatalogue catalogue, DraftedPerks owned) =>
-        Matching(catalogue.All, perk => owned.TierOf(perk.Id) < perk.TierCount);
+        Matching(
+            catalogue.All,
+            perk => owned.TierOf(perk.Id) < perk.TierCount &&
+                AllOwned(perk.Requires, owned) &&
+                NoneOwned(perk.Excludes, owned));
+
+    /// <summary>Whether the run owns every perk in a prerequisite list. Vacuously true when empty.</summary>
+    private static bool AllOwned(IReadOnlyList<string> required, DraftedPerks owned)
+    {
+        foreach (var perkId in required)
+        {
+            if (owned.TierOf(perkId) < 1)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>Whether the run owns none of an exclusion list. Vacuously true when empty.</summary>
+    private static bool NoneOwned(IReadOnlyList<string> excluded, DraftedPerks owned)
+    {
+        foreach (var perkId in excluded)
+        {
+            if (owned.TierOf(perkId) >= 1)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     /// <summary>The rows of a pool a narrowing keeps, in the pool's order.</summary>
     private static IReadOnlyList<PerkCatalogueEntry> Matching(
