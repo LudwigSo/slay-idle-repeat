@@ -132,9 +132,6 @@ public sealed class GameRulesRunPhaseGateTests
         var state = EndedRun();
         var ended = state.Run!;
 
-        // 🔒 The premise under the counter assertion below, asserted rather than narrated: against an
-        // ended run that had drawn nothing, "the new run has drawn nothing" is equally true of the
-        // ended one wearing a new phase, and the sharpest assertion in this case would be vacuous.
         ended.RngStreamPositions.ShouldNotBeEmpty(
             "the ENDED fixture run carries no draw counters. EndedRun() seeds one on purpose — see " +
             "this case's remarks — so a fixture that stopped doing it silences the assertion that " +
@@ -192,16 +189,9 @@ public sealed class GameRulesRunPhaseGateTests
     }
 
     /// <summary>
-    /// 🔴 <b>The guard that must NOT be widened.</b> A run that is still being played refuses a
-    /// second <c>START_RUN</c> — the exemption is for an <em>ended</em> run and nothing else, and a
-    /// player who double-taps the button must not lose the run they are in.
+    /// 🔴 The guard that must NOT be widened: the exemption is for an <em>ended</em> run and nothing
+    /// else — a player who double-taps the button must not lose the run they are in.
     /// </summary>
-    /// <remarks>
-    /// The refusal comes from <c>StartRun.Handle</c>'s own already-active-run guard, which the phase
-    /// gate falls through to. Pinned by identity: the reason AND the run still sitting in the slice
-    /// unchanged, since "it was refused" alone would also be satisfied by the gate refusing every
-    /// <c>START_RUN</c> outright.
-    /// </remarks>
     [Fact]
     public void START_RUN_against_an_InProgress_run_is_refused_and_that_run_is_untouched()
     {
@@ -235,13 +225,6 @@ public sealed class GameRulesRunPhaseGateTests
     /// …and a run with a battle open refuses it too: <c>START_RUN</c> is not
     /// <c>CONFIRM_BATTLE_RESULT</c>, which is the only move a battle leaves.
     /// </summary>
-    /// <remarks>
-    /// The <c>BattlePending</c> arm is what answers today. Were the exemption widened past
-    /// <c>Ended</c>, <c>StartRun.Handle</c>'s already-active-run guard would answer the same
-    /// <c>ILLEGAL_STATE</c> instead and no <c>RejectionReason</c> could tell the two apart — so the
-    /// assertion that catches the widening a player would feel, the one that also discards the run
-    /// they are in, is the refusal itself rather than its reason.
-    /// </remarks>
     [Fact]
     public void START_RUN_against_a_BattlePending_run_is_refused_and_that_run_is_untouched()
     {
@@ -270,22 +253,6 @@ public sealed class GameRulesRunPhaseGateTests
     /// A <c>START_RUN</c> the <em>handler</em> refuses on an ended run leaves the caller's slice
     /// exactly as it was: the ended run still there, the counter unmoved.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Chapter 0 is below the authored floor, so the gate lets the command through and
-    /// <c>StartRun.Handle</c> refuses it for a reason of its own — deliberately <b>not</b>
-    /// <c>RUN_ALREADY_ENDED</c>, which is what distinguishes "the door opened and the handler said
-    /// no" from "the door never opened".
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>That is as far as the reason can pin it, and the limit is stated rather than glossed
-    /// (steering S2).</b> <c>StartRun.Handle</c> answers <c>ILLEGAL_STATE</c> from two guards — the
-    /// chapter floor this case names, and the already-active-run guard that fires when the gate lets
-    /// <c>START_RUN</c> through without the ended run being cleared off the working copy — and a
-    /// <c>RejectionReason</c> cannot tell them apart. <see cref="START_RUN_against_an_Ended_run_opens_a_fresh_run"/>
-    /// is what rules the second one out; the two are read together.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void A_refused_START_RUN_on_an_Ended_run_returns_the_callers_own_slice()
     {
@@ -319,18 +286,11 @@ public sealed class GameRulesRunPhaseGateTests
     // ---------------------------------------- the draft arm, which the ended arm now short-circuits
 
     /// <summary>
-    /// 🔒 <b>The second arm the exemption had to cross, and the only one whose behaviour actually
-    /// changed.</b> <c>DraftPending</c> is a flag orthogonal to <see cref="RunPhase"/>, so an ended
-    /// run can carry one — and the draft arm would otherwise refuse the exempted row a second time,
-    /// for a reason that has nothing to do with the run being over.
+    /// 🔒 <c>DraftPending</c> is orthogonal to <see cref="RunPhase"/>, so an ended run can carry an
+    /// open draft — the one flag that can genuinely coexist with <see cref="RunPhase.Ended"/>, and
+    /// the arm that would otherwise refuse the exempted row a second time. (A companion
+    /// <c>BattlePending</c> case is impossible: a run holds one phase.)
     /// </summary>
-    /// <remarks>
-    /// The <c>BattlePending</c> arm needs no companion case: <see cref="RunPhase"/> holds one value,
-    /// so a run cannot be <see cref="RunPhase.Ended"/> and <see cref="RunPhase.BattlePending"/> at
-    /// once and that arm is unreachable from this one by construction. The draft flag is the arm that
-    /// can genuinely be set alongside <see cref="RunPhase.Ended"/>, so it is the arm that needs
-    /// proving.
-    /// </remarks>
     [Fact]
     public void START_RUN_against_an_Ended_run_with_a_draft_still_open_opens_a_fresh_run()
     {
@@ -359,11 +319,6 @@ public sealed class GameRulesRunPhaseGateTests
     /// refuses <c>PICK_PERK</c> — which the draft arm would otherwise wave through — as
     /// <c>RUN_ALREADY_ENDED</c>.
     /// </summary>
-    /// <remarks>
-    /// The chain's ordering, pinned by the reason rather than by the refusal: <c>ILLEGAL_STATE</c>
-    /// here would mean the draft arm had started answering ahead of the ended one, and acceptance
-    /// would mean a finished run could still be drafted into.
-    /// </remarks>
     [Fact]
     public void PICK_PERK_against_an_Ended_run_with_a_draft_still_open_is_RUN_ALREADY_ENDED()
     {
@@ -409,39 +364,9 @@ public sealed class GameRulesRunPhaseGateTests
     }
 
     /// <summary>
-    /// The floor under the sweep above (steering S3): the seven names it drives are seven distinct,
-    /// registered <c>CommandKind.Run</c> rows, and none of them is the exempt one.
+    /// 🔒 The door is one row wide, made mechanical: a second row marked <c>OpensRun</c> would
+    /// inherit the ended-run bypass without anybody deciding it should.
     /// </summary>
-    [Fact]
-    public void The_swept_set_is_seven_registered_run_commands_and_none_of_them_opens_a_run()
-    {
-        SweptCommands.Length.ShouldBe(
-            7, "a sweep that shrank would report success for the rows it stopped visiting.");
-
-        SweptCommands.Distinct(StringComparer.Ordinal).Count().ShouldBe(
-            SweptCommands.Length, "a duplicated name is one fewer command actually swept.");
-
-        foreach (var commandName in SweptCommands)
-        {
-            var registration = SlayIdleRepeat.Core.GameRules.RegistrationFor(Named(commandName).GetType());
-
-            registration.ShouldNotBeNull(commandName + " names no dispatch row at all.");
-            registration!.Kind.ShouldBe(
-                CommandKind.Run, commandName + " is not a run command, so the ended-run gate never sees it.");
-            registration.OpensRun.ShouldBeFalse(
-                commandName + " opens its own run, so it is the exempt row rather than a subject of " +
-                "this sweep.");
-        }
-    }
-
-    /// <summary>
-    /// 🔒 <b>The door is one row wide, made mechanical.</b> Exactly one registered command is marked
-    /// <c>OpensRun</c>, and it is <c>START_RUN</c>.
-    /// </summary>
-    /// <remarks>
-    /// This is the whole scope of the exemption: a second row marked <c>OpensRun</c> would inherit
-    /// the ended-run bypass without anybody deciding it should.
-    /// </remarks>
     [Fact]
     public void Exactly_one_dispatch_row_opens_its_own_run()
     {

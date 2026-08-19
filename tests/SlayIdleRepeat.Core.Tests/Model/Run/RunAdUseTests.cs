@@ -1,4 +1,3 @@
-using System.Reflection;
 using Shouldly;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.TestSupport;
@@ -7,90 +6,20 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// The per-run ad-use counters: <c>placement id → uses</c>, for the in-run placements whose
-/// <c>capWindow</c> is <c>RUN</c>.
+/// The per-run ad-use counters' guards. Counting behaviour is covered at the <c>Apply</c> seam
+/// (<c>ReviveTests</c>, <c>BeginSessionDrawSeamTests</c>); the caps themselves belong to the
+/// handler that reads the content tuning, not to the aggregate.
 /// </summary>
-/// <remarks>
-/// The mechanism is <c>Player</c>'s <c>key → long</c> counter, reused rather than reinvented.
-/// <para>
-/// The one deviation is the absence of a period anchor and a reset mutator: the run <b>is</b> the
-/// period, so there is nothing to reset and a reset mutator would be a way to hand a player their
-/// impressions twice.
-/// </para>
-/// <para>
-/// The caps themselves are not enforced here — that belongs to the handler that reads the content
-/// tuning, which keeps that computation out of the aggregate; the aggregate holds the count and
-/// refuses a count that is not a count.
-/// </para>
-/// </remarks>
 public sealed class RunAdUseTests
 {
     private static Run WithAdUses(params (string Placement, long Uses)[] uses) =>
         Run.Rehydrate(RunSnapshots.With(adUses: RunSnapshots.AdUses(uses))).Value;
 
-    /// <summary>A placement comes into existence on its first use; nothing declares it in advance.</summary>
-    [Fact]
-    public void A_placement_is_registered_by_its_first_use()
-    {
-        var run = WithAdUses();
-
-        run.AdUseCount("AD_REROLL_DICE").ShouldBe(0);
-
-        run.CountAdUse("AD_REROLL_DICE", 1);
-
-        run.AdUseCount("AD_REROLL_DICE").ShouldBe(1);
-        run.AdUses["AD_REROLL_DICE"].ShouldBe(1);
-    }
-
-    /// <summary>A second use adds to the first rather than replacing it.</summary>
-    [Fact]
-    public void A_further_use_adds_to_the_count()
-    {
-        var run = WithAdUses(("AD_DOUBLE_CHEST", 1));
-
-        run.CountAdUse("AD_DOUBLE_CHEST", 1);
-
-        run.AdUseCount("AD_DOUBLE_CHEST").ShouldBe(2);
-    }
-
     /// <summary>
-    /// <c>AD_REVIVE</c> is what carries the once-per-run revive: it is one of the in-run placements,
-    /// so there is no separate <c>RevivesUsed</c> field to disagree with it.
+    /// The parameter is asserted, not just the type: <see cref="ArgumentOutOfRangeException"/>
+    /// derives from <see cref="ArgumentException"/>, so the type alone is also satisfied by the
+    /// amount guard.
     /// </summary>
-    /// <remarks>The cap is <b>not</b> asserted here — see the class remarks. What is asserted is the absence of a second source of truth.</remarks>
-    [Fact]
-    public void The_once_per_run_revive_is_counted_as_an_ad_placement_and_not_as_a_second_field()
-    {
-        var run = WithAdUses();
-
-        run.CountAdUse("AD_REVIVE", 1);
-
-        run.AdUseCount("AD_REVIVE").ShouldBe(1);
-
-        var members = typeof(Run)
-            .GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
-                        BindingFlags.DeclaredOnly)
-            .Select(member => member.Name)
-            .ToArray();
-
-        members.ShouldContain(
-            nameof(Run.CountAdUse),
-            "the floor (steering S3): without it this reflection could be looking at the wrong " +
-            "type — or at nothing — and the emptiness below would report success forever.");
-
-        members.Where(name => name.Contains("Reviv", StringComparison.OrdinalIgnoreCase))
-               .ShouldBeEmpty(
-                   "02 §6's revive is one of 12 §4.3's thirteen in-run placements (AD_REVIVE, cap 1). A " +
-                   "RevivesUsed field beside the counter would be a second source of truth for one count.");
-    }
-
-    /// <summary>A blank placement key is refused: a key names the placement it counts.</summary>
-    /// <remarks>
-    /// The <b>parameter</b> is asserted, not just the exception type.
-    /// <see cref="ArgumentOutOfRangeException"/> derives from <see cref="ArgumentException"/>, so
-    /// <c>Should.Throw&lt;ArgumentException&gt;</c> is also satisfied by the amount guard — and by
-    /// any other guard either method grows. The parameter name says which one fired.
-    /// </remarks>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -106,7 +35,6 @@ public sealed class RunAdUseTests
               .ParamName.ShouldBe("placementId");
     }
 
-    /// <summary>A negative amount is refused: a use counter counts, it does not settle back down.</summary>
     [Fact]
     public void A_negative_amount_is_refused()
     {
@@ -117,14 +45,12 @@ public sealed class RunAdUseTests
         Should.Throw<ArgumentOutOfRangeException>(act)
               .ParamName.ShouldBe(
                   "amount",
-                  "the other guard on this method throws an ArgumentException over the key, and " +
-                  "ArgumentOutOfRangeException is one of those — so the type alone does not say " +
-                  "which refusal this is (steering S2).");
+                  "the other guard on this method throws over the key, and the exception type " +
+                  "alone does not say which refusal this is.");
 
         run.AdUseCount("AD_SHOP_REFRESH").ShouldBe(2, "a refused advance changes nothing");
     }
 
-    /// <summary>An overflowing advance is refused rather than wrapping to a negative count.</summary>
     [Fact]
     public void An_overflowing_advance_is_refused()
     {
@@ -138,11 +64,6 @@ public sealed class RunAdUseTests
         run.AdUseCount("AD_DOUBLE_CHEST").ShouldBe(long.MaxValue);
     }
 
-    /// <summary>
-    /// The exposed map is a <b>live view</b>, unlike <c>RngStreamPositions</c>: the counts are
-    /// mutated in place, so a caller holding the reference across a <c>CountAdUse</c> sees the new
-    /// value. Read it, do not hold it.
-    /// </summary>
     [Fact]
     public void The_exposed_map_is_a_live_view_and_cannot_be_mutated_through_its_reference()
     {
@@ -158,35 +79,5 @@ public sealed class RunAdUseTests
             2,
             "the ad counters are mutated in place, so the view a caller took earlier reflects the " +
             "increment — the opposite of RngStreamPositions, which is replaced wholesale.");
-    }
-
-    /// <summary>There is <b>no reset mutator</b>, and there is not going to be one.</summary>
-    /// <remarks>
-    /// The in-run caps are per run, so the run <em>is</em> the period: there is no boundary to
-    /// cross and nothing to clear. A <c>ResetAdUses</c> would be a way to hand a player their
-    /// in-run impressions twice inside one run.
-    /// </remarks>
-    [Fact]
-    public void There_is_no_reset_mutator_because_the_run_is_the_period()
-    {
-        var members = typeof(Run)
-            .GetMembers(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic |
-                        BindingFlags.DeclaredOnly)
-            .Select(member => member.Name)
-            .ToArray();
-
-        members.ShouldContain(
-            nameof(Run.CountAdUse),
-            "if this is absent the reflection is looking at the wrong type and the assertion below " +
-            "is quantifying over nothing.");
-
-        members.Where(name => name.StartsWith("Reset", StringComparison.Ordinal))
-               .ShouldBeEmpty(
-                   "Player has ResetDailyCounters/ResetWeeklyCounters because 30 §2.3 gives its " +
-                   "counters a period boundary. 12 §4.3's in-run caps have none — the run is the " +
-                   "period — so a reset here would only ever be a second helping of the cap.");
-
-        members.Where(name => name.Contains("PeriodStart", StringComparison.Ordinal))
-               .ShouldBeEmpty("and there is no period anchor either, for the same reason.");
     }
 }

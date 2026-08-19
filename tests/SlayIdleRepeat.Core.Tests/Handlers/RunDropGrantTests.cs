@@ -86,12 +86,10 @@ public sealed class RunDropGrantTests
         Granted(result).Count.ShouldBe(1, "and the drop that happened is reported.");
     }
 
-    /// <summary>…and banks nothing when the same draw falls at or above it.</summary>
-    /// <remarks>
-    /// The control is what makes this an assertion about the chance rather than about a handler that
-    /// grants nothing at all: the two worlds differ only in where the drop stream was committed, so
-    /// a kill that drops on one and not on the other is the authored chance being read.
-    /// </remarks>
+    /// <summary>
+    /// …and banks nothing when the same draw falls at or above it. The two worlds differ only in
+    /// where the drop stream was committed, so the difference can only be the chance being read.
+    /// </summary>
     [Fact]
     public void A_normal_enemy_kill_banks_nothing_when_its_draw_falls_at_or_above_the_authored_chance()
     {
@@ -140,19 +138,11 @@ public sealed class RunDropGrantTests
     }
 
     /// <summary>A lost battle banks nothing, and spends no draw doing it.</summary>
-    /// <remarks>
-    /// The won control is what makes this a claim about the loss: the same Elite tile, the same
-    /// stream position, the same empty stock, and the only difference is which way the fight went.
-    /// The stream position matters as much as the empty stock — a loss that consumed a draw index
-    /// would shift every drop the run makes afterwards, and a resumed run would replay differently
-    /// for the rest of its life.
-    /// </remarks>
     [Fact]
     public void A_lost_battle_banks_no_gear_and_spends_no_drops_draw()
     {
-        // 🔒 Bare-handed, so the hero actually loses: the server recomputes the fight now, so Won: false
-        // below is the client's claim and not the outcome. The CONTROL beside it stays geared, which is
-        // what keeps this case honest — it proves the emptiness is the loss and not the fixture.
+        // Bare-handed, so the hero actually loses: the server recomputes the fight, so Won: false
+        // below is the client's claim, not the outcome. The geared control keeps the case honest.
         var world = GearGrantWorlds.OnKill(TileKind.Elite, geared: false);
 
         Banked(Win(GearGrantWorlds.OnKill(TileKind.Elite))).ShouldNotBeEmpty(
@@ -177,10 +167,6 @@ public sealed class RunDropGrantTests
     }
 
     /// <summary>A drop arriving at a full stock is held, never refused and never destroyed.</summary>
-    /// <remarks>
-    /// The hold-not-lose rule seen from the grant side: the command still succeeds, the item still
-    /// exists, and the event still reports it — the player simply cannot reach it until space opens.
-    /// </remarks>
     [Fact]
     public void A_drop_arriving_at_a_full_stock_is_held_rather_than_refused_or_destroyed()
     {
@@ -259,12 +245,10 @@ public sealed class RunDropGrantTests
             "invisible until a player has killed " + breaker.ForceOnNthKill + " Elites for nothing.");
     }
 
-    /// <summary>An Elite drop at or above the breaker's band resets it.</summary>
-    /// <remarks>
-    /// The other half, and the one that keeps the case above from passing over a counter that only
-    /// ever grows: a natural drop that reaches the guaranteed band satisfies it exactly as a forced
-    /// one does, so the player is never punished for good luck by keeping a spent streak.
-    /// </remarks>
+    /// <summary>
+    /// An Elite drop at or above the breaker's band resets it — the half that keeps the case above
+    /// from passing over a counter that only ever grows.
+    /// </summary>
     [Fact]
     public void An_Elite_drop_at_or_above_the_breakers_band_resets_the_elite_dry_streak_counter()
     {
@@ -346,10 +330,6 @@ public sealed class RunDropGrantTests
     }
 
     /// <summary>A Boss kill leaves the Elite dry streak exactly where it stood.</summary>
-    /// <remarks>
-    /// The two breakers count different kills, and a shared counter would silently pay the Elite
-    /// guarantee out of Boss kills the player made for another reason entirely.
-    /// </remarks>
     [Fact]
     public void A_Boss_kill_leaves_the_elite_dry_streak_where_it_stood()
     {

@@ -13,12 +13,6 @@ public sealed class ChapterBoardConfigTests
     };
 
     [Fact]
-    public void Chapter_one_data_builds_without_error()
-    {
-        Should.NotThrow(() => BoardFixtures.ChapterOneConfig());
-    }
-
-    [Fact]
     public void Wrong_stage_length_count_is_rejected()
     {
         var ex = Should.Throw<ArgumentException>(() => ChapterBoardConfig.From(

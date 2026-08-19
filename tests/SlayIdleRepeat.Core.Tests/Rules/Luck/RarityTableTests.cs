@@ -348,14 +348,10 @@ public sealed class RarityTableTests
     /// </summary>
     private const string Rows = "rows";
 
-    /// <summary>One row's weight, through the project's own 4-decimal rule.</summary>
-    /// <remarks>
-    /// Renormalisation divides, and <c>45 × (1 / 80)</c> and <c>45 / 80</c> are not the same double
-    /// even though they are the same number. Comparing the raw value would pin which of the two the
-    /// implementation happens to write; <c>DeterminismRounding</c> is the repository's own answer to
-    /// that, and the three readings this file discriminates between are 0.5625 / 0.5167 / 0.65 —
-    /// nowhere near each other at four decimal places.
-    /// </remarks>
+    /// <summary>
+    /// One row's weight, through the project's own 4-decimal rule — comparing the raw double would
+    /// pin whether the implementation wrote <c>45 × (1 / 80)</c> or <c>45 / 80</c>.
+    /// </summary>
     private static double Weight(RarityTable table, Rarity rarity) =>
         DeterminismRounding.Round(table.Rows.Single(row => row.Rarity == rarity).Weight);
 }

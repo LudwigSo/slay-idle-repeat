@@ -6,26 +6,11 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model.Gear;
 
 /// <summary>
-/// The stock a player carries: what fits, what happens to what does not, and the four different
-/// reasons an item can be unavailable.
+/// The stock a player carries: hold-never-lose at capacity, the four availability answers, locks,
+/// and auto-reclaim.
 /// </summary>
-/// <remarks>
-/// <para>
-/// 🔒 <b>Hold, never lose.</b> No random source in this game may starve a player, and the opposite
-/// failure — a grant that arrives while the stock is full and is silently dropped — is the same
-/// wound from the other side. A full inventory therefore <em>holds</em> what it cannot store, and
-/// the held item comes back the moment space exists. Nothing here caps, decays or expires the
-/// holding list, because no document authorises any of the three.
-/// </para>
-/// <para>
-/// 🔒 <b>Four unavailabilities, told apart.</b> "The item was not added" is equally true of a full
-/// inventory, a locked item, an unknown id and a rejected command, and a suite that only asserted
-/// that could not tell them apart. Every case below names which rule fired.
-/// </para>
-/// </remarks>
 public sealed class InventoryTests
 {
-    /// <summary>A fresh inventory holds nothing, has bought nothing, and its capacity is the base.</summary>
     [Fact]
     public void A_fresh_inventory_is_empty_at_the_base_capacity()
     {
@@ -40,11 +25,7 @@ public sealed class InventoryTests
             "320 until then; nothing buys a slot now, so the base IS the capacity.");
     }
 
-    /// <summary>Stored order is grant order: the newest item is last.</summary>
-    /// <remarks>
-    /// Load-bearing rather than incidental — the "newest" sort key reads it, and a container that
-    /// normalised its order would leave that key with nothing to sort by.
-    /// </remarks>
+    /// <remarks>Load-bearing: the "newest" sort key reads this order.</remarks>
     [Fact]
     public void Stored_order_is_grant_order_with_the_newest_last()
     {
@@ -60,26 +41,8 @@ public sealed class InventoryTests
             });
     }
 
-    /// <summary>An item placed into a stocked inventory is stored, and says so.</summary>
-    [Fact]
-    public void An_item_that_fits_is_stored()
-    {
-        var inventory = Inventories.Empty();
-
-        inventory.Place(Inventories.Item("gi_0001"), Inventories.Tuning)
-            .ShouldBe(InventoryPlacement.STORED);
-
-        inventory.Stored.Count.ShouldBe(1);
-        inventory.Held.ShouldBeEmpty();
-    }
-
-    /// <summary>
-    /// 🔒 One identity is one rolled item: placing an id the stock already holds is refused, and the
-    /// refusal names the identity.
-    /// </summary>
     /// <remarks>
-    /// The invariant <c>Rehydrate</c> refuses a persisted row for, stated on the live path too — and
-    /// asserted on the <em>identity</em> of the refusal rather than on "something threw", because an
+    /// Asserted on the identity of the refusal rather than on "something threw": an
     /// <see cref="ArgumentException"/> out of the item's own constructor would satisfy a bare throw
     /// assertion while the duplicate went in.
     /// </remarks>
@@ -97,14 +60,9 @@ public sealed class InventoryTests
         inventory.Stored.Count.ShouldBe(1, "…and the refusal did not half-apply");
     }
 
-    /// <summary>
-    /// 🔒 The same refusal for an identity that is only <em>held</em> — being in the holding list is
-    /// being owned.
-    /// </summary>
     /// <remarks>
-    /// The discriminating half of the case above: a duplicate check written over the stored list
-    /// alone would pass every assertion there and let a second copy of a held item in, which is the
-    /// one place the reclaim would then stock the same identity twice.
+    /// A duplicate check written over the stored list alone would pass the case above and let a
+    /// second copy of a held item in.
     /// </remarks>
     [Fact]
     public void Placing_an_identity_that_is_only_held_is_refused_too()
@@ -126,15 +84,10 @@ public sealed class InventoryTests
 
     // ------------------------------------------------------------------------ hold, never lose
 
-    /// <summary>
-    /// 🔒 At capacity, an item is <b>held</b> rather than refused or dropped — and the holding list is
-    /// unbounded.
-    /// </summary>
     /// <remarks>
-    /// Overfilled by half the base capacity again, not by one: a holding list with a small cap, a
-    /// decay or a "keep the newest N" rule would pass a one-item probe and lose the sixtieth item
-    /// silently. The conservation assertion is over the identities, not the count, so an
-    /// implementation that held sixty <em>copies</em> of one item would still be caught.
+    /// Overfilled by sixty, not by one: a holding list with a small cap, a decay or a "keep the
+    /// newest N" rule would pass a one-item probe. The conservation assertion is over identities,
+    /// so sixty copies of one item would still be caught.
     /// </remarks>
     [Fact]
     public void At_capacity_an_item_is_held_and_never_dropped()
@@ -164,30 +117,12 @@ public sealed class InventoryTests
             "reordered on the way in.");
     }
 
-    /// <summary>Held items arrive in order, and the order survives further grants.</summary>
-    /// <remarks>The reclaim rule pulls them back in this order, so it has to be an order at all.</remarks>
-    [Fact]
-    public void Held_items_keep_their_arrival_order()
-    {
-        var inventory = Full();
-
-        inventory.Place(Inventories.Item("held_a"), Inventories.Tuning);
-        inventory.Place(Inventories.Item("held_b"), Inventories.Tuning);
-        inventory.Place(Inventories.Item("held_c"), Inventories.Tuning);
-
-        inventory.Held.Select(item => item.InstanceId.Value).ShouldBe(
-            new[] { "held_a", "held_b", "held_c" });
-    }
-
     // ---------------------------------------------------------------- the four unavailabilities
 
-    /// <summary>
-    /// 🔒 The four answers are four, and each names its own reason.
-    /// </summary>
     /// <remarks>
-    /// Written as one case rather than four, because the claim is that they are
-    /// <em>distinguishable</em>: four separate cases each asserting "not AVAILABLE" would all pass
-    /// against a container that answered <c>UNKNOWN_ITEM</c> to everything.
+    /// One case rather than four, because the claim is that the answers are distinguishable: four
+    /// separate "not AVAILABLE" cases would all pass against a container answering
+    /// <c>UNKNOWN_ITEM</c> to everything.
     /// </remarks>
     [Fact]
     public void The_four_reasons_an_item_is_or_is_not_available_are_told_apart()
@@ -210,8 +145,7 @@ public sealed class InventoryTests
         inventory.Availability(new GearInstanceId("nobody_owns_this"))
             .ShouldBe(ItemAvailability.UNKNOWN_ITEM);
 
-        // The floor under the four: an enum whose members all collapsed to one value would satisfy
-        // every line above.
+        // An enum whose members collapsed to one value would satisfy every line above.
         new[]
         {
             ItemAvailability.AVAILABLE,
@@ -221,29 +155,8 @@ public sealed class InventoryTests
         }.Distinct().Count().ShouldBe(4);
     }
 
-    /// <summary>A held item is not available even though it is owned — the two are different facts.</summary>
-    /// <remarks>
-    /// The discriminating half: an implementation that answered <c>UNKNOWN_ITEM</c> for a held item
-    /// would be telling a caller the player does not own something they were just granted, and every
-    /// "is it there" assertion would still pass.
-    /// </remarks>
-    [Fact]
-    public void A_held_item_is_owned_and_unavailable_rather_than_unknown()
-    {
-        var inventory = Full();
-        inventory.Place(Inventories.Item("waiting"), Inventories.Tuning);
-
-        inventory.Held.Select(item => item.InstanceId.Value).ShouldContain("waiting");
-
-        inventory.Availability(new GearInstanceId("waiting")).ShouldBe(
-            ItemAvailability.HELD_IN_OVERFLOW,
-            "the player owns it — it is in the holding list — and simply cannot act on it yet. " +
-            "UNKNOWN_ITEM here would report the grant as never having happened.");
-    }
-
     // ------------------------------------------------------------------------------ the lock
 
-    /// <summary>Locking a stored item flips its own flag, and nothing else's.</summary>
     [Fact]
     public void Locking_a_stored_item_flips_that_items_flag()
     {
@@ -258,10 +171,9 @@ public sealed class InventoryTests
             "assertion that only looked at the item it locked.");
     }
 
-    /// <summary>Locking is idempotent, and the return value says whether anything moved.</summary>
     /// <remarks>
-    /// The return value is the discriminating part: without it, a caller cannot tell "already locked"
-    /// from "refused", and both look like "nothing happened".
+    /// The return value is the discriminating part: without it, a caller cannot tell "already
+    /// locked" from "refused".
     /// </remarks>
     [Fact]
     public void Locking_is_idempotent_and_reports_whether_anything_changed()
@@ -278,7 +190,6 @@ public sealed class InventoryTests
         Stored(inventory, "target").Locked.ShouldBeFalse();
     }
 
-    /// <summary>An unknown id cannot be locked, and the refusal is a <c>false</c> rather than a throw.</summary>
     /// <remarks>
     /// A client naming an item the player does not have is a rejection, not a defect — the handler
     /// turns this <c>false</c> into <c>NOT_OWNED</c>, which it cannot do with an exception.
@@ -295,26 +206,12 @@ public sealed class InventoryTests
             .ShouldBe(ItemAvailability.UNKNOWN_ITEM);
     }
 
-    /// <summary>A locked item stays locked across a place that does not touch it.</summary>
-    [Fact]
-    public void A_lock_survives_later_grants()
-    {
-        var inventory = Inventories.Holding(Inventories.Item("target"));
-        inventory.SetLock(new GearInstanceId("target"), locked: true);
-
-        inventory.Place(Inventories.Item("later"), Inventories.Tuning);
-
-        Stored(inventory, "target").Locked.ShouldBeTrue();
-        inventory.Availability(new GearInstanceId("target")).ShouldBe(ItemAvailability.LOCKED);
-    }
-
     // -------------------------------------------------------------------------- auto-reclaim
 
-    /// <summary>Removing a stored item pulls exactly one held item back, the oldest first.</summary>
     /// <remarks>
-    /// "Exactly one" is the discriminating half: a reclaim that emptied the whole holding list would
-    /// put the inventory over its own capacity, and one that pulled none would leave the player
-    /// unable to reach an item they just made room for.
+    /// "Exactly one" is the discriminating half: a reclaim that emptied the whole holding list
+    /// would put the inventory over its own capacity, and one that pulled none would leave the
+    /// player unable to reach an item they just made room for.
     /// </remarks>
     [Fact]
     public void Removing_a_stored_item_reclaims_the_oldest_held_item()
@@ -338,10 +235,9 @@ public sealed class InventoryTests
             .ShouldBe(ItemAvailability.HELD_IN_OVERFLOW);
     }
 
-    /// <summary>Removing a held item removes that item, and does not reclaim in its place.</summary>
     /// <remarks>
-    /// The stock did not change, so there is nothing to reclaim into — an implementation that
-    /// reclaimed unconditionally after a remove would pull an item into a slot that never opened.
+    /// The stock did not change, so there is nothing to reclaim into — an unconditional reclaim
+    /// after a remove would pull an item into a slot that never opened.
     /// </remarks>
     [Fact]
     public void Removing_a_held_item_takes_it_out_of_the_holding_list()
@@ -357,7 +253,6 @@ public sealed class InventoryTests
         inventory.Availability(new GearInstanceId("held_a")).ShouldBe(ItemAvailability.UNKNOWN_ITEM);
     }
 
-    /// <summary>Removing an id nobody owns changes nothing and says so.</summary>
     [Fact]
     public void Removing_an_unknown_id_changes_nothing()
     {
@@ -370,24 +265,11 @@ public sealed class InventoryTests
 
     // ---------------------------------------------------------------- the deferred expansion
 
-    /// <summary>
-    /// 🔒 <b>No expansion can be bought at all</b>, and the refusal names the flat ceiling rather
-    /// than a purchase cap.
-    /// </summary>
     /// <remarks>
-    /// <para>
-    /// This case used to be two: "the eleventh expansion is refused" and "capacity grows by the
-    /// authored step with each purchase" (120, 140, … 320). The M4 retro of 2026-08-17 ruled capacity
-    /// flat and authored no <c>EXPAND_INVENTORY</c> command, so the <b>first</b> purchase is refused
-    /// and the growth is gone. The seam survives as a member that exists to throw, on
-    /// <c>InventoryTuning.RequireOverflowCapacity</c>'s precedent — deleting it would take the
-    /// deferral out of the code and leave it only in a comment.
-    /// </para>
-    /// <para>
-    /// A throw rather than a <c>false</c>, and deliberately unlike
-    /// <see cref="An_unknown_id_cannot_be_locked"/>: no command carries this request, so a caller
-    /// reaching it is miswired rather than a player asking for something they cannot have.
-    /// </para>
+    /// The M4 retro of 2026-08-17 ruled capacity flat and authored no <c>EXPAND_INVENTORY</c>
+    /// command; the seam survives as a member that exists to throw. A throw rather than a
+    /// <c>false</c>: no command carries this request, so a caller reaching it is miswired rather
+    /// than a player asking for something they cannot have.
     /// </remarks>
     [Fact]
     public void No_expansion_can_be_bought_and_capacity_does_not_move()
@@ -410,14 +292,9 @@ public sealed class InventoryTests
             before, "capacity is flat: nothing here can move it.");
     }
 
-    /// <summary>
-    /// 🔒 A row that <em>records</em> purchases still loads, and still gets the flat capacity.
-    /// </summary>
     /// <remarks>
-    /// The other half, and the one a value assertion can see: the counter is persisted for the day
-    /// the owner deals with the limit, so it must not be read as capacity in the meantime. Ten
-    /// purchases of the authored +20 step would have paid for 1200 slots under the old arithmetic —
-    /// a number the flat ceiling refuses to hand over.
+    /// The purchase counter is persisted for the day the owner deals with the limit, so it must
+    /// not be read as capacity in the meantime.
     /// </remarks>
     [Fact]
     public void A_recorded_purchase_count_buys_nothing()

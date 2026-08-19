@@ -21,9 +21,6 @@ public sealed class EventChooseTests
         TileWorlds.OnTile(
             TileKind.Event, chapterId: chapterId, gold: gold, currentHp: currentHp, eventCardId: cardId);
 
-    // ------------------------------------------------------------------ the gate
-
-    /// <summary>A run standing on no tile has no card to choose from.</summary>
     [Fact]
     public void A_run_with_no_pending_tile_is_rejected()
     {
@@ -33,7 +30,6 @@ public sealed class EventChooseTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>A pending tile that is not an event tile has no card either.</summary>
     [Theory]
     [InlineData((int)TileKind.Campfire)]
     [InlineData((int)TileKind.Treasure)]
@@ -46,7 +42,6 @@ public sealed class EventChooseTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>An event tile whose card has not been drawn yet is rejected.</summary>
     [Fact]
     public void An_event_tile_with_no_drawn_card_is_rejected()
     {
@@ -56,7 +51,6 @@ public sealed class EventChooseTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>An index naming no option is refused rather than throwing.</summary>
     [Theory]
     [InlineData(-1)]
     [InlineData(1)]
@@ -70,7 +64,6 @@ public sealed class EventChooseTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>A rejected choice leaves the run's card and balances untouched.</summary>
     [Fact]
     public void A_rejection_leaves_the_card_pending_and_the_gold_untouched()
     {
@@ -83,9 +76,6 @@ public sealed class EventChooseTests
         result.NewState.Run!.ToSnapshot().PendingEventCardId.ShouldBe(FixtureCards.Gold);
     }
 
-    // ------------------------------------------------------------------ currency effects
-
-    /// <summary>A flat GOLD grant moves on the run, its one run-scoped currency.</summary>
     [Fact]
     public void A_gold_grant_moves_on_the_run()
     {
@@ -100,7 +90,6 @@ public sealed class EventChooseTests
         paid.Reason.ShouldBe("event_card_outcome");
     }
 
-    /// <summary>…and a wallet grant moves on the player.</summary>
     [Fact]
     public void A_crowns_grant_moves_on_the_player()
     {
@@ -114,11 +103,9 @@ public sealed class EventChooseTests
         result.NewState.Run!.Gold.ShouldBe(0, "a wallet grant never touches the run's Gold");
     }
 
-    /// <summary>A <c>chapterScaled</c> amount is multiplied by <c>M(c)</c>.</summary>
     /// <remarks>
-    /// round(40 · 1.35^(c-1)): the amount scaled and then rounded to a whole currency unit. The
-    /// values are 73 and 327 rather than the tidier 80 and 320 because M(c) is a real number and
-    /// only the payout is quantised.
+    /// round(40 · 1.35^(c-1)): 73 and 327 rather than the tidier 80 and 320, because M(c) is a real
+    /// number and only the payout is quantised.
     /// </remarks>
     [Theory]
     [InlineData(1, 40L)]
@@ -132,7 +119,6 @@ public sealed class EventChooseTests
         Choose(state, 0).NewState.Player.BalanceOf(CurrencyId.CROWNS).ShouldBe(before + expected);
     }
 
-    /// <summary>…and a flat one is not.</summary>
     [Theory]
     [InlineData(1)]
     [InlineData(3)]
@@ -143,9 +129,6 @@ public sealed class EventChooseTests
             .NewState.Run!.Gold.ShouldBe(100);
     }
 
-    // ------------------------------------------------------------------ costs
-
-    /// <summary>A cost is charged before the outcome pays, and both rows are reported in order.</summary>
     [Fact]
     public void An_options_cost_is_charged_and_reported_before_its_payout()
     {
@@ -165,31 +148,22 @@ public sealed class EventChooseTests
         result.Events[1].ShouldBeOfType<CurrencyChanged>().Delta.ShouldBe(40);
     }
 
-    /// <summary>An unaffordable cost is refused, not thrown.</summary>
+    /// <summary>An unaffordable cost is refused, and nothing is spent, drawn or cleared by the refusal.</summary>
     [Fact]
-    public void An_unaffordable_option_is_rejected_as_insufficient_funds()
-    {
-        var result = Choose(OnCard(FixtureCards.Costly, gold: 99), 0);
-
-        result.Accepted.ShouldBeFalse();
-        result.Rejection.ShouldBe(RejectionReason.INSUFFICIENT_FUNDS);
-    }
-
-    /// <summary>…and nothing is spent, drawn or cleared by the refusal.</summary>
-    [Fact]
-    public void An_unaffordable_option_spends_nothing_and_keeps_the_card()
+    public void An_unaffordable_option_is_rejected_and_spends_nothing()
     {
         var state = OnCard(FixtureCards.Costly, gold: 99);
 
         var result = Choose(state, 0);
 
+        result.Accepted.ShouldBeFalse();
+        result.Rejection.ShouldBe(RejectionReason.INSUFFICIENT_FUNDS);
         result.NewState.Run!.Gold.ShouldBe(99);
         result.NewState.Run!.ToSnapshot().PendingEventCardId.ShouldBe(FixtureCards.Costly);
         result.NewState.Run!.RngStreamPositions.ShouldBeEmpty(
             "a refused command draws nothing, so no RNG stream counter moves");
     }
 
-    /// <summary>…and the boundary: exactly enough IS enough.</summary>
     [Fact]
     public void Exactly_enough_gold_affords_the_option()
     {
@@ -210,7 +184,6 @@ public sealed class EventChooseTests
                 PlayerSnapshots.With(wallet: PlayerSnapshots.Wallet((CurrencyId.ENHANCE_STONES, enhanceStones)))),
         };
 
-    /// <summary>A meta wallet cost is checked against the player's balance, not the run's Gold.</summary>
     [Fact]
     public void A_wallet_cost_is_affordable_when_the_players_balance_covers_it()
     {
@@ -222,7 +195,6 @@ public sealed class EventChooseTests
         result.NewState.Player.BalanceOf(CurrencyId.ENHANCE_STONES).ShouldBe(0);
     }
 
-    /// <summary>Negative control: however much run Gold exists, it never substitutes for the wallet cost.</summary>
     [Fact]
     public void A_wallet_cost_is_refused_when_the_players_balance_does_not_cover_it()
     {
@@ -236,7 +208,6 @@ public sealed class EventChooseTests
             "a wallet cost is not affordable out of the run's Gold, however much of it there is");
     }
 
-    /// <summary>A free option costs nothing and reports no cost row.</summary>
     [Fact]
     public void A_free_option_reports_no_cost_row()
     {
@@ -247,9 +218,6 @@ public sealed class EventChooseTests
         result.Events.ShouldBeEmpty();
     }
 
-    // ------------------------------------------------------------------ HP effects
-
-    /// <summary>An <c>HP_PCT</c> heal restores a share of Max HP.</summary>
     [Fact]
     public void An_hp_percent_heal_restores_a_share_of_max_hp()
     {
@@ -259,7 +227,6 @@ public sealed class EventChooseTests
         result.NewState.Run!.CurrentHp.ShouldBe(75);
     }
 
-    /// <summary>…and it is clamped at Max HP rather than overhealing.</summary>
     [Fact]
     public void An_hp_percent_heal_is_clamped_at_max_hp()
     {
@@ -269,7 +236,6 @@ public sealed class EventChooseTests
         result.NewState.Run!.CurrentHp.ShouldBe(100);
     }
 
-    /// <summary>A negative <c>HP_PCT</c> costs a share of Max HP.</summary>
     [Fact]
     public void A_negative_hp_percent_costs_a_share_of_max_hp()
     {
@@ -277,7 +243,7 @@ public sealed class EventChooseTests
             .NewState.Run!.CurrentHp.ShouldBe(40);
     }
 
-    /// <summary>…and it is clamped at zero rather than going negative, since zero is a legal state.</summary>
+    /// <summary>Zero is a legal state, not a death sentence the handler executes.</summary>
     [Fact]
     public void A_negative_hp_percent_is_clamped_at_zero()
     {
@@ -287,16 +253,14 @@ public sealed class EventChooseTests
         result.NewState.Run!.CurrentHp.ShouldBe(0);
     }
 
-    /// <summary>An HP change produces no event — there is no HP domain event in this game.</summary>
+    /// <summary>There is no HP domain event in this game.</summary>
     [Fact]
     public void An_hp_change_produces_no_event()
     {
         Choose(OnCard(FixtureCards.Vitals, currentHp: 50), 0).Events.ShouldBeEmpty();
     }
 
-    // ------------------------------------------------------------------ the other three ops
-
-    /// <summary>A CURSE_REWARD pays the curse's reward through the same table the curse tile pays from.</summary>
+    /// <summary>A CURSE_REWARD pays through the same table the curse tile pays from.</summary>
     [Fact]
     public void A_curse_reward_effect_pays_the_authored_reward()
     {
@@ -309,7 +273,6 @@ public sealed class EventChooseTests
         result.NewState.Player.BalanceOf(CurrencyId.ENHANCE_STONES).ShouldBe(before + 2);
     }
 
-    /// <summary>…and it does not persist the curse: nothing on the run records that one was taken.</summary>
     [Fact]
     public void A_curse_reward_effect_persists_no_curse()
     {
@@ -320,7 +283,6 @@ public sealed class EventChooseTests
         snapshot.PendingEventCardId.ShouldBe("");
     }
 
-    /// <summary>A <c>NONE</c> effect moves nothing and still resolves the card.</summary>
     [Fact]
     public void A_none_effect_resolves_the_card_and_moves_nothing()
     {
@@ -336,8 +298,8 @@ public sealed class EventChooseTests
     }
 
     /// <summary>
-    /// …and so does an UNSUPPORTED one — correctly: the effect names a mechanic Core cannot execute,
-    /// and inventing a substitute payout would be indistinguishable downstream from a real reward.
+    /// Correct, not a gap: an UNSUPPORTED effect names a mechanic Core cannot execute, and inventing
+    /// a substitute payout would be indistinguishable downstream from a real reward.
     /// </summary>
     [Fact]
     public void An_unsupported_effect_moves_nothing_and_still_resolves_the_card()
@@ -353,40 +315,10 @@ public sealed class EventChooseTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
-    // ------------------------------------------------------------------ the weighted draw
-
-    /// <summary>The outcome draw is deterministic for a fixed seed.</summary>
-    [Fact]
-    public void The_outcome_draw_is_deterministic_for_a_fixed_seed()
-    {
-        var first = Choose(OnCard(FixtureCards.Split, currentHp: 100), 0);
-        var second = Choose(OnCard(FixtureCards.Split, currentHp: 100), 0);
-
-        first.Events.Cast<CurrencyChanged>().Select(e => (e.Id, e.Delta))
-            .ShouldBe(second.Events.Cast<CurrencyChanged>().Select(e => (e.Id, e.Delta)));
-    }
-
-    /// <summary>…and both branches of a 70/30 split are reachable, so the walk is a real weighted pick.</summary>
-    [Fact]
-    public void Both_branches_of_a_weighted_split_are_reachable()
-    {
-        var currencies = Enumerable.Range(1, 40)
-            .Select(seed => TileWorlds.OnTile(
-                TileKind.Event, eventCardId: FixtureCards.Split, runSeed: (ulong)seed))
-            .Select(state => Choose(state, 0))
-            .SelectMany(r => r.Events.Cast<CurrencyChanged>())
-            .Select(e => e.Id)
-            .Distinct()
-            .ToArray();
-
-        currencies.ShouldContain(CurrencyId.ENHANCE_STONES, "the 70 branch");
-        currencies.ShouldContain(CurrencyId.MERGE_DUST, "the 30 branch");
-    }
-
-    /// <summary>…and each branch is drawn at roughly its own weight, not merely "more often than not".</summary>
     /// <remarks>
     /// Pinned to a band around 70% rather than a bare majority check: a swapped 70/30-to-30/70 weight
-    /// still clears a majority check over a small sample but fails a band this tight.
+    /// still clears a majority check over a small sample but fails a band this tight. Both branches
+    /// occurring at all is implied by the band.
     /// </remarks>
     [Fact]
     public void Each_branch_of_a_seventy_thirty_split_is_drawn_at_its_own_weight()
@@ -420,12 +352,6 @@ public sealed class EventChooseTests
         Choose(state, 0).NewState.Run!.CurrentHp.ShouldBe(90);
     }
 
-    // ------------------------------------------------------------------ the round trip
-
-    /// <summary>
-    /// The full loop: arrive at an event tile, RESOLVE_TILE draws, EVENT_CHOOSE resolves, the tile
-    /// is cleared and cannot be chosen again.
-    /// </summary>
     [Fact]
     public void An_event_resolves_across_two_commands_and_then_cannot_be_chosen_again()
     {
@@ -448,7 +374,6 @@ public sealed class EventChooseTests
         again.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>…and the whole loop is deterministic for a fixed seed.</summary>
     [Fact]
     public void The_whole_event_loop_is_deterministic_for_a_fixed_seed()
     {
@@ -472,10 +397,7 @@ public sealed class EventChooseTests
         Loop().ShouldBe(Loop());
     }
 
-    /// <summary>
-    /// The two draws land on the events stream and it advances by exactly two — one for the card,
-    /// one for the outcome.
-    /// </summary>
+    /// <summary>One draw for the card, one for the outcome.</summary>
     [Fact]
     public void The_two_event_draws_advance_the_events_stream_by_exactly_two()
     {

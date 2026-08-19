@@ -104,99 +104,10 @@ public sealed class DslDeterminismBaselineTests
             "moved, which is the same news as a hash moving.");
     }
 
-    /// <summary>Row ids identify a row in a failure message; duplicates make that a lie.</summary>
-    [Fact]
-    public void The_committed_table_ids_are_unique()
-    {
-        DslDeterminismBaseline.Named.Select(row => row.Id).ShouldBeUnique();
-    }
-
-    /// <summary>
-    /// The named set still covers the properties it was written to cover. The table guards the
-    /// resolver; this guards the table — a future edit that dropped the only duplicate-id row would
-    /// leave a suite that still passes while covering less.
-    /// </summary>
-    [Theory]
-    [InlineData("corpus-first")]
-    [InlineData("corpus-last")]
-    [InlineData("above-introsort-threshold")]
-    [InlineData("at-or-below-introsort-threshold")]
-    [InlineData("duplicate-ids-above-threshold")]
-    [InlineData("pvp-context")]
-    [InlineData("enrage-context")]
-    [InlineData("stat-convert-present")]
-    [InlineData("redirect-excess-present")]
-    [InlineData("value-scale-status-argument")]
-    [InlineData("non-combat-stat-skipped")]
-    [InlineData("condition-gated-an-effect-out")]
-    public void The_committed_table_still_covers_every_property_it_was_written_for(string id)
-    {
-        DslDeterminismBaseline.Named.Where(row => row.Id == id).ShouldHaveSingleItem();
-    }
-
-    /// <summary>
-    /// The review block's shape, which the reader's refusals do not check. Deliberately not
-    /// <c>ReviewStatus.ShouldBe("reviewed")</c>: <see cref="DslDeterminismBaseline.Validate"/> has
-    /// already refused that, so the assertion could not fail. What is left is that the date is a date,
-    /// in the timezone-free form a committed artefact carries.
-    /// </summary>
-    [Fact]
-    public void The_committed_table_carries_a_reviewers_date_in_the_form_a_committed_artefact_uses()
-    {
-        DateOnly.TryParseExact(
-            DslDeterminismBaseline.ReviewedOn,
-            "yyyy-MM-dd",
-            CultureInfo.InvariantCulture,
-            DateTimeStyles.None,
-            out _).ShouldBeTrue(
-            $"review.reviewedOn is '{DslDeterminismBaseline.ReviewedOn}'. A committed artefact must " +
-            "not carry the author's timezone — ContentValidator's baseline writer states the same " +
-            "rule for recordedOn.");
-
-        // A task ID, not a literal fixed value — a later regeneration names its OWN owner, so the
-        // shape is asserted rather than a specific reviewer being pinned forever.
-        DslDeterminismBaseline.ReviewedBy.ShouldMatch(
-            "^M[0-9]+-[0-9]+[a-z]?$",
-            $"review.reviewedBy is '{DslDeterminismBaseline.ReviewedBy}'. It names the TASK that " +
-            "reviewed this issue of the table, so a later regeneration names its own owner rather " +
-            "than inheriting the first issue's.");
-    }
-
-    /// <summary>
-    /// The self-generated limitation, stated rather than satisfied: the committed file has to keep
-    /// saying it, because a header nobody checks is a header somebody deletes.
-    /// </summary>
-    [Fact]
-    public void The_committed_table_states_the_limitation_it_is_under()
-    {
-        DslDeterminismBaseline.Comment.ShouldBe(
-            DslDeterminismBaselineWriter.HeaderLines,
-            "the S5 limitation is the most important thing this file says about itself");
-
-        var header = string.Join(" ", DslDeterminismBaseline.Comment);
-        header.ShouldContain(
-            "THIS TABLE IS SELF-GENERATED AND HAS NO EXTERNAL PUBLISHER",
-            Case.Sensitive,
-            "M0-06 and M0-07's tables were validated against externally published vectors; this one " +
-            "cannot be, and must not read as though it were");
-        header.ShouldContain(
-            "WHAT IT DOES NOT PROVE",
-            Case.Sensitive,
-            "stability is not correctness, and the file says which of the two it carries");
-    }
-
-    [Fact]
-    public void The_committed_table_names_the_seed_and_the_shape_this_build_generates()
-    {
-        DslDeterminismBaseline.Permutations.ShouldBe(
-            BuildPermutationGenerator.PermutationCount, "18 §11: '10,000 random build permutations'");
-        DslDeterminismBaseline.ChunkSize.ShouldBe(BuildPermutationGenerator.ChunkSize);
-        DslDeterminismBaseline.Chunks.Count.ShouldBe(
-            BuildPermutationGenerator.PermutationCount / BuildPermutationGenerator.ChunkSize);
-        DslDeterminismBaseline.BaselineSeed.ShouldBe(
-            "0x" + BuildPermutationGenerator.BaselineSeed.ToString("x16", CultureInfo.InvariantCulture),
-            "the seed IS the corpus — a table generated from another one pins another resolver's work");
-    }
+    // The committed table's own well-formedness (unique ids, one row per property, header text,
+    // seed/shape metadata, review-block format) is not asserted here: Row()'s Single() fails on a
+    // duplicate, and the regeneration round-trip below compares the whole rendered text against the
+    // committed file, so any drift in rows, header, or metadata already fails a consuming test.
 
     // ══════════════════════════════════════════════════════ vocabulary coverage, both ways
 

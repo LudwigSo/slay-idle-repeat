@@ -5,77 +5,118 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>
-/// <see cref="RunStateReading"/> run through the shared <see cref="IRunStateView"/> contract, plus
-/// the two rules that are its own rather than the interface's.
+/// <see cref="RunStateReading"/> — the one <see cref="IRunStateView"/>. Internal seam: 18 §4's
+/// run-state condition functions read it, and no public entry point constructs one directly.
 /// </summary>
-public sealed class RunStateReadingTests : RunStateViewContract
+public sealed class RunStateReadingTests
 {
-    private protected override IRunStateView Create(RunStateFacts facts) =>
-        new RunStateReading
+    private static RunStateReading Reading(
+        IReadOnlyDictionary<string, int>? perks = null,
+        IReadOnlyDictionary<string, int>? faces = null) =>
+        new()
         {
-            PerksByCategory = facts.PerksByCategory,
-            DieFacesByKind = facts.DieFacesByKind,
-            PetCount = facts.PetCount,
-            GoldHeld = facts.GoldHeld,
-            BattlesWonThisRun = facts.BattlesWonThisRun,
-            StageIndex = facts.StageIndex,
-            Chapter = facts.Chapter,
-            Tier = facts.Tier,
+            StageIndex = 1,
+            Chapter = 1,
+            PerksByCategory = perks ?? new Dictionary<string, int>(StringComparer.Ordinal),
+            DieFacesByKind = faces ?? new Dictionary<string, int>(StringComparer.Ordinal),
         };
 
-    /// <summary>
-    /// The two positional readings have no default: <c>STAGE_INDEX</c> and <c>CHAPTER</c> are
-    /// <c>required</c>, so a caller cannot omit them and get a plausible stage 1. The counters do
-    /// default to zero — no perks and no gold are real readings of a fresh run, whereas no stage is
-    /// not a position.
-    /// </summary>
+    /// <summary><c>PERK_COUNT</c> answers per category, and a null category is every perk held.</summary>
     [Fact]
-    public void The_positional_readings_are_required_and_the_counters_default_to_zero()
+    public void PerkCount_answers_per_category_and_in_total()
     {
-        var required = typeof(RunStateReading)
-            .GetProperties()
-            .Where(p => p.GetCustomAttributes(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), false).Length > 0)
-            .Select(p => p.Name)
-            .OrderBy(name => name, StringComparer.Ordinal)
-            .ToArray();
+        var view = Reading(perks: new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["OFFENSE"] = 4,
+            ["DEFENSE"] = 2,
+            ["ECONOMY"] = 1,
+        });
 
-        required.ShouldBe([nameof(RunStateReading.Chapter), nameof(RunStateReading.StageIndex)]);
+        view.PerkCount("OFFENSE").ShouldBe(4);
+        view.PerkCount("DEFENSE").ShouldBe(2);
+        view.PerkCount(null).ShouldBe(7, "a null category is every perk held");
+    }
 
-        var counters = EffectTestBattle.Run();
+    /// <summary>A category the run holds no perk from is <c>0</c>, not a failure.</summary>
+    [Fact]
+    public void An_unheld_category_reads_zero()
+    {
+        var view = Reading(perks: new Dictionary<string, int>(StringComparer.Ordinal) { ["OFFENSE"] = 4 });
 
-        counters.PetCount.ShouldBe(0);
-        counters.GoldHeld.ShouldBe(0);
-        counters.BattlesWonThisRun.ShouldBe(0);
-        counters.PerkCount(null).ShouldBe(0);
-        counters.DistinctPerkCategories.ShouldBe(0);
+        view.PerkCount("DICE_AND_BOARD").ShouldBe(0);
+        view.PerkCount("").ShouldBe(0);
+    }
+
+    [Fact]
+    public void Category_and_face_kind_lookups_are_ordinal()
+    {
+        var view = Reading(
+            perks: new Dictionary<string, int>(StringComparer.Ordinal) { ["OFFENSE"] = 4 },
+            faces: new Dictionary<string, int>(StringComparer.Ordinal) { ["Star"] = 2 });
+
+        view.PerkCount("offense").ShouldBe(0, "a differently-cased category is a different key");
+        view.DieFaceCount("STAR").ShouldBe(0);
+        view.DieFaceCount("Star").ShouldBe(2);
     }
 
     /// <summary>
-    /// <c>DISTINCT_PERK_CATEGORIES</c> is derived from the perk table, so no instance of this record
-    /// can report a category count that disagrees with its own perks. Asserted on the type — a record
-    /// with an independently-settable count could report perks and categories that disagree and still
-    /// pass a per-instance test.
+    /// <c>DISTINCT_PERK_CATEGORIES</c> is derived from the perk table — it counts categories holding
+    /// at least one perk, a zero-count category is not one of them, and re-deriving after a
+    /// <c>with</c> keeps it agreeing with the table it summarises.
     /// </summary>
     [Fact]
-    public void The_category_count_cannot_disagree_with_the_perk_table()
+    public void DistinctPerkCategories_counts_only_categories_that_hold_a_perk()
     {
-        var settable = typeof(RunStateReading)
-            .GetProperty(nameof(RunStateReading.DistinctPerkCategories))!;
-
-        settable.CanWrite.ShouldBeFalse(
-            "a settable category count is a second source of truth for what the perk table already says");
-
-        var reading = EffectTestBattle.Run() with
+        var view = Reading(perks: new Dictionary<string, int>(StringComparer.Ordinal)
         {
-            PerksByCategory = new Dictionary<string, int>(StringComparer.Ordinal)
-            {
-                ["OFFENSE"] = 2,
-                ["DEFENSE"] = 1,
-            },
-        };
+            ["OFFENSE"] = 4,
+            ["DEFENSE"] = 2,
+            ["UTILITY"] = 0,
+        });
 
-        reading.DistinctPerkCategories.ShouldBe(2);
-        (reading with { PerksByCategory = new Dictionary<string, int>(StringComparer.Ordinal) })
+        view.DistinctPerkCategories.ShouldBe(2);
+        view.PerkCount(null).ShouldBe(6);
+
+        (view with { PerksByCategory = new Dictionary<string, int>(StringComparer.Ordinal) })
             .DistinctPerkCategories.ShouldBe(0);
+    }
+
+    [Fact]
+    public void DieFaceCount_answers_per_face_kind()
+    {
+        var view = Reading(faces: new Dictionary<string, int>(StringComparer.Ordinal)
+        {
+            ["Pip"] = 16,
+            ["Star"] = 2,
+        });
+
+        view.DieFaceCount("Pip").ShouldBe(16);
+        view.DieFaceCount("Star").ShouldBe(2);
+        view.DieFaceCount("Void").ShouldBe(0);
+    }
+
+    /// <summary>
+    /// <c>PERK_COUNT</c>'s null category means "every perk"; <c>DIE_FACE_COUNT</c>'s face kind is not
+    /// optional, so the two must not answer alike.
+    /// </summary>
+    [Fact]
+    public void DieFaceCount_of_a_null_face_kind_throws_ArgumentNullException()
+    {
+        Should.Throw<ArgumentNullException>(() => Reading().DieFaceCount(null!));
+    }
+
+    /// <summary>A fresh run's counters default to zero readings, and nowhere throws.</summary>
+    [Fact]
+    public void An_empty_run_reads_zero_rather_than_failing()
+    {
+        var view = EffectTestBattle.Run();
+
+        view.PerkCount(null).ShouldBe(0);
+        view.PerkCount("OFFENSE").ShouldBe(0);
+        view.DistinctPerkCategories.ShouldBe(0);
+        view.DieFaceCount("Star").ShouldBe(0);
+        view.PetCount.ShouldBe(0);
+        view.GoldHeld.ShouldBe(0);
+        view.BattlesWonThisRun.ShouldBe(0);
     }
 }

@@ -15,49 +15,35 @@ namespace SlayIdleRepeat.Core.Tests;
 
 /// <summary>
 /// Hermetic <see cref="WorldSlice"/> and command fixtures for the <c>GameRules.Apply</c> suite.
+/// Aggregates are built only through <c>Rehydrate</c> over the snapshot fixtures. The command
+/// fixtures are deliberately not named after any real wire command.
 /// </summary>
-/// <remarks>
-/// Aggregates are built only through <c>Rehydrate</c> over the snapshot fixtures, so nothing here
-/// invents a starting state. <see cref="Context"/> carries no <c>CommandSeed</c>; a command that
-/// draws takes <see cref="Drawing"/> instead — sharing one fixture would let a test pass on the
-/// wrong one of two opposite defects. The command fixtures are deliberately not named after any
-/// real wire command, so a fixture never reads as a claim about one.
-/// </remarks>
 internal static class Worlds
 {
-    /// <summary>The instant every fixture applies at, one second after the snapshots' anchors.</summary>
-    /// <remarks>
-    /// Later than the anchors on purpose: a fixture instant equal to one would make "the timestamp
-    /// advanced" untestable. An <em>earlier</em> instant is now accepted — <c>GameRules.MarkApplied</c>
-    /// floors it and leaves the anchor where it was; see <c>GameRulesBackwardsClockTests</c>.
-    /// </remarks>
+    /// <summary>
+    /// The instant every fixture applies at — one second <em>after</em> the snapshots' anchors, or
+    /// "the timestamp advanced" would be untestable.
+    /// </summary>
     internal static readonly DateTimeOffset NowUtc = new(2026, 8, 12, 9, 41, 8, TimeSpan.Zero);
 
     /// <summary>A context at <see cref="NowUtc"/> with the shipped tuning and no command seed.</summary>
     internal static GameContext Context { get; } = new(
         NowUtc,
         CommandSeed: null,
-        // 🔒 The shipped gaps filled in. START_RUN scores Max HP off the hero's build (M7-06d), so this
-        // suite now reads the combat caps, the gear catalogue and the par table — none of which a
-        // hand-assembled tuning set had any reason to carry before.
+        // START_RUN scores Max HP off the hero's build, so the suite needs the combat caps, the
+        // gear catalogue and the par table filled in.
         ShippedHarness.WithShippedGaps(TuningDocuments.Shipped),
         TestSupport.GameContexts.WithoutPlus,
         TestSupport.GameContexts.NoKillSwitchThrown);
 
-    /// <summary>The context a drawing command gets: <see cref="Context"/> plus a server-issued <c>CommandSeed</c>.</summary>
-    /// <param name="commandSeed">
-    /// Required rather than defaulted — a default would make "which seed did this test use"
-    /// invisible at the call site.
-    /// </param>
-    /// <param name="nowUtc">When the command is applied. Defaults to <see cref="NowUtc"/>.</param>
+    /// <summary>
+    /// The context a drawing command gets: <see cref="Context"/> plus a server-issued
+    /// <c>CommandSeed</c>. The seed is required rather than defaulted, so the call site shows it.
+    /// </summary>
     internal static GameContext Drawing(ulong commandSeed, DateTimeOffset? nowUtc = null) =>
         Context with { CommandSeed = commandSeed, NowUtc = nowUtc ?? NowUtc };
 
-    /// <summary>The same instant, on the next game day.</summary>
-    /// <remarks>
-    /// Written as a day's addition to <see cref="NowUtc"/> rather than as a second literal, so the
-    /// two stay one game day apart.
-    /// </remarks>
+    /// <summary>The same instant, one game day later.</summary>
     internal static DateTimeOffset NextDay(DateTimeOffset from) => from.AddDays(1);
 
     /// <summary>A player rehydrated from <c>PlayerSnapshots.Valid</c>.</summary>

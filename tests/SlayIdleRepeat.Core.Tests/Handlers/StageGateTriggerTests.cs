@@ -16,16 +16,10 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// node: ROLL_DICE, CHOOSE_FORK and RESOLVE_TILE's Portal jump.
 /// </summary>
 /// <remarks>
-/// <para>
-/// The gate is a property of the node the run comes to rest on, not of the step count that got it
-/// there — so every case names the landing node it built and asserts the landing before it asserts
-/// the gate. All three of the gate's movements are asserted together: the heal alone is also what a
-/// campfire, a shrine and a Surge face do, and the dice anchor is the one nothing else moves.
-/// </para>
-/// <para>
-/// Every case is built over the board <c>BoardGenerator</c> actually produces for a fixed seed,
-/// recomputed here the way the handler recomputes it, rather than a hand-picked magic position.
-/// </para>
+/// The gate is a property of the landing node, so every case asserts the landing before the gate.
+/// All three of the gate's movements are asserted together — the heal alone is also what a campfire
+/// does; the dice anchor is the one nothing else moves. Every case is built over the board
+/// <c>BoardGenerator</c> actually produces for a fixed seed, not a hand-picked magic position.
 /// </remarks>
 public sealed class StageGateTriggerTests
 {
@@ -376,14 +370,9 @@ public sealed class StageGateTriggerTests
     {
         var baseContent = TileWorlds.Context.Content;
 
-        // 🔒 Every OTHER chapter document is dropped, and the tiny one is the only one left that
-        // answers to this chapter id. ChapterBoardTuning.FindChapterDocument scans content/chapters/
-        // for the document whose `id` matches, so two documents claiming chapter 2 make the board an
-        // ordering accident — and the board decides every node number this suite asserts. It became
-        // reachable when TileWorlds.Context grew the whole shipped set (a fight needs it), which
-        // brought the real chapter 2 in beside this tiny one; before that the fixture set carried
-        // chapter 1 alone and appending was safe. Filtering rather than appending is what makes the
-        // tiny chapter authoritative regardless of what else the base set happens to hold.
+        // Every OTHER chapter document is dropped rather than the tiny one appended: the chapter
+        // scan matches on `id`, so two documents claiming chapter 2 would make the board — and every
+        // node number this suite asserts — an ordering accident.
         var documents = baseContent.DocumentPaths
             .Where(path => !path.StartsWith(ChapterDirectory, StringComparison.Ordinal))
             .Select(baseContent.GetDocument)

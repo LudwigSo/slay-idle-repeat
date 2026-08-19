@@ -38,14 +38,9 @@ public sealed class EnhanceMercyTests
     }
 
     /// <summary>
-    /// 🔒 Each consecutive failure adds the authored slope, from the hardest level's own chance.
+    /// Each consecutive failure adds the authored slope. The rows stop short of the ceiling on
+    /// purpose: where the ramp reaches certainty is its own case below.
     /// </summary>
-    /// <remarks>
-    /// The rows stop short of the ceiling on purpose: where the ramp actually reaches certainty is
-    /// its own case below, with the attempt before it as the negative control.
-    /// </remarks>
-    /// <param name="failures">Failures on this item since its last success.</param>
-    /// <param name="rate">The chance the next attempt has.</param>
     [Theory]
     [InlineData(0, 0.25)]
     [InlineData(1, 0.33)]
@@ -66,16 +61,10 @@ public sealed class EnhanceMercyTests
     }
 
     /// <summary>
-    /// 🔒 Where the hardest level's ramp actually becomes certain, with the attempt before it as the
-    /// negative control.
+    /// The counter holds the failures BEFORE the attempt, so ten failures make the ELEVENTH attempt
+    /// certain (<c>0.25 + 0.08 × 10 = 1.05</c>, clamped) while the tenth stands at 0.97 — a slope
+    /// applied to the attempt's ordinal would answer 1.0 one attempt early.
     /// </summary>
-    /// <remarks>
-    /// The counter holds the failures BEFORE the attempt, so the run of ten failures is the
-    /// ELEVENTH attempt — <c>0.25 + 0.08 × 10 = 1.05</c>, clamped to certainty — and the tenth still
-    /// stands at 0.97. Stating it as "certain by the tenth" is the off-by-one this pair exists to
-    /// catch: a slope applied to the attempt's ordinal rather than to the failures behind it would
-    /// answer 1.0 one attempt early and no other case here would notice.
-    /// </remarks>
     [Fact]
     public void The_hardest_levels_ramp_is_certain_on_the_eleventh_attempt_and_not_the_tenth()
     {
@@ -147,17 +136,10 @@ public sealed class EnhanceMercyTests
     }
 
     /// <summary>
-    /// 🔒 …and a document that authors <c>adEnhanceLuckAdvancesCounter = true</c> advances it, so the
-    /// standing case above is a claim about the <b>data</b> rather than about the code.
+    /// …and a document that authors <c>adEnhanceLuckAdvancesCounter = true</c> advances it, so the
+    /// standing case above is a claim about the <b>data</b>: the shipped value is false, and with
+    /// only that value driven the flag's negation could be deleted with the whole file staying green.
     /// </summary>
-    /// <remarks>
-    /// 🔴 <b><c>EnhanceMercy</c> negates the flag, and only one of its two values was ever driven.</b>
-    /// The shipped value is <c>false</c> and every case here read the shipped block, so the negation
-    /// — the whole reason the flag is a flag — was dead to the suite: deleting the <c>!</c> left this
-    /// file entirely green while an ad-boosted failure silently started spending the mercy the player
-    /// had already earned. The two cases are the same call over the same numbers; only the authored
-    /// flag differs.
-    /// </remarks>
     [Fact]
     public void A_document_that_advances_on_a_lucky_bonus_advances_the_counter()
     {

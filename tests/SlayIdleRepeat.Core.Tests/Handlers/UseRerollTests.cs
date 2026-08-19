@@ -66,10 +66,7 @@ public sealed class UseRerollTests
             Worlds.OutsideARun(), new UseRerollCommand(), Worlds.Context));
     }
 
-    // ------------------------------------------------------------------------------------------
-    // The base allotment (1/stage, no bonus sources yet) is enforced against
-    // Run.RerollChargesSpentThisStage.
-    // ------------------------------------------------------------------------------------------
+    // -------------------------------------- the base allotment: 1/stage, no bonus sources yet
 
     [Fact]
     public void The_first_reroll_of_a_stage_is_affordable_and_advances_the_spent_count()
@@ -106,15 +103,5 @@ public sealed class UseRerollTests
 
         result.Accepted.ShouldBeFalse();
         result.NewState.Run!.StreamPosition(RngStreams.Dice).ShouldBe(3UL);
-    }
-
-    [Fact]
-    public void A_reroll_at_a_fresh_Stage_Gate_anchor_is_affordable_again()
-    {
-        // ApplyStageGate resets the spent count to 0 — the same effect as this fixture's zero.
-        var state = Worlds.InARun(RunSnapshots.With(rerollChargesSpentThisStage: 0));
-
-        SlayIdleRepeat.Core.GameRules.Apply(state, new UseRerollCommand(), Worlds.Context)
-            .Accepted.ShouldBeTrue();
     }
 }

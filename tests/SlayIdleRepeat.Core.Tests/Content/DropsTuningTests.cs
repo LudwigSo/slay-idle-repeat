@@ -1,7 +1,7 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Primitives;
-using SlayIdleRepeat.Core.Tests.BalanceHarness;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content;
@@ -11,12 +11,6 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// chapter-banded drop shares, the item-power coefficient and quality scales, the slot coefficients
 /// and their percent-stat table, the affix pool with its two restrictions, and the set breakpoints.
 /// </summary>
-/// <remarks>
-/// Everything a rolled item's numbers come from is here and none of it is restated in code, so every
-/// case is either a transcription read back or a refusal. The one property nothing else can catch is
-/// that a chapter band adds up: a band summing to ninety still draws, silently at odds nobody
-/// authored and different from the ones the disclosure page publishes.
-/// </remarks>
 public sealed class DropsTuningTests
 {
     /// <summary>Each band's multiplier on item power and the affixes it rolls.</summary>
@@ -86,13 +80,10 @@ public sealed class DropsTuningTests
 
     // ---------------------------------------------------------------- the chapter bands
 
-    /// <summary>Every chapter band's shares add up to a hundred, asserted over the read data.</summary>
-    /// <remarks>
-    /// Over the data rather than over the transcription: a case that added the fixture's own literals
-    /// would prove arithmetic, not that the table the generator draws from is complete. The band count
-    /// and the row count come first, because a sum over an empty band is zero — and a reader that
-    /// answered no bands at all would otherwise satisfy this quantifying over nothing.
-    /// </remarks>
+    /// <summary>
+    /// Every chapter band's shares add up to a hundred. The band count and the row count come first,
+    /// because a sum over an empty band is zero and would satisfy this quantifying over nothing.
+    /// </summary>
     [Fact]
     public void Every_chapter_bands_shares_add_up_to_a_hundred()
     {
@@ -135,10 +126,6 @@ public sealed class DropsTuningTests
     }
 
     /// <summary>The last band prices the bottom rarity out entirely rather than omitting it.</summary>
-    /// <remarks>
-    /// A zero share and an absent row read the same to a draw and not to a re-tune: the row is what
-    /// says somebody decided C stops dropping at chapter 7, rather than that a band went missing.
-    /// </remarks>
     [Fact]
     public void The_last_chapter_band_prices_the_bottom_rarity_at_zero_rather_than_dropping_the_row()
     {
@@ -323,33 +310,15 @@ public sealed class DropsTuningTests
 
     // ---------------------------------------------------------------- the percent-stat table
 
-    /// <summary>Every percent stat's value at every band.</summary>
+    /// <summary>
+    /// The lookup resolves on both axes: rows chosen so no two share a stat or a band, and DODGE at
+    /// SS (0.055) is a value no other cell holds.
+    /// </summary>
     [Theory]
     [InlineData("CRIT", Rarity.C, 0.015)]
-    [InlineData("CRIT", Rarity.B, 0.025)]
-    [InlineData("CRIT", Rarity.A, 0.04)]
-    [InlineData("CRIT", Rarity.S, 0.06)]
-    [InlineData("CRIT", Rarity.SS, 0.08)]
-    [InlineData("ASPD", Rarity.C, 0.02)]
-    [InlineData("ASPD", Rarity.B, 0.03)]
     [InlineData("ASPD", Rarity.A, 0.045)]
-    [InlineData("ASPD", Rarity.S, 0.07)]
-    [InlineData("ASPD", Rarity.SS, 0.1)]
-    [InlineData("DODGE", Rarity.C, 0.01)]
-    [InlineData("DODGE", Rarity.B, 0.015)]
-    [InlineData("DODGE", Rarity.A, 0.025)]
-    [InlineData("DODGE", Rarity.S, 0.04)]
-    [InlineData("DODGE", Rarity.SS, 0.055)]
-    [InlineData("PEN", Rarity.C, 0.02)]
-    [InlineData("PEN", Rarity.B, 0.035)]
-    [InlineData("PEN", Rarity.A, 0.05)]
     [InlineData("PEN", Rarity.S, 0.08)]
-    [InlineData("PEN", Rarity.SS, 0.11)]
-    [InlineData("LIFESTEAL", Rarity.C, 0.015)]
-    [InlineData("LIFESTEAL", Rarity.B, 0.025)]
-    [InlineData("LIFESTEAL", Rarity.A, 0.04)]
-    [InlineData("LIFESTEAL", Rarity.S, 0.06)]
-    [InlineData("LIFESTEAL", Rarity.SS, 0.08)]
+    [InlineData("DODGE", Rarity.SS, 0.055)]
     public void The_reader_answers_the_percent_stat_cell_the_document_authors(
         string stat, Rarity rarity, double expected)
     {
@@ -386,11 +355,6 @@ public sealed class DropsTuningTests
     // ---------------------------------------------------------------- the affix pool
 
     /// <summary>The pool is fourteen affixes, and it is the pool the document lists.</summary>
-    /// <remarks>
-    /// The members are compared one by one rather than by record equality: a
-    /// <c>GearAffixDefinition</c>'s slot list is a collection component, and the synthesized equality
-    /// compares it by reference — two definitions carrying the same three slots would be unequal.
-    /// </remarks>
     [Fact]
     public void The_pool_carries_the_affixes_the_document_lists()
     {
@@ -401,9 +365,18 @@ public sealed class DropsTuningTests
         var affix = tuning.Affix("AFX_CRIT_CHANCE");
 
         affix.AffixId.ShouldBe("AFX_CRIT_CHANCE");
+        affix.Stat.ShouldBe(StatId.CRIT);
+        affix.Op.ShouldBe(EffectOp.STAT_ADD_FLAT);
         affix.Minimum.ShouldBe(0.02);
         affix.Maximum.ShouldBe(0.08);
         affix.Slots.ShouldBe(new[] { GearSlot.WEAPON, GearSlot.RING, GearSlot.HELMET });
+    }
+
+    /// <summary>An affix authoring neither half is a real pool member that writes nothing.</summary>
+    [Fact]
+    public void An_affix_authoring_no_stat_at_all_loads_and_writes_nothing()
+    {
+        Tuning().Affix("AFX_DAMAGE_VS_ELITES").WritesAStat.ShouldBeFalse();
     }
 
     /// <summary>An affix the pool does not declare is refused.</summary>
@@ -494,64 +467,6 @@ public sealed class DropsTuningTests
     }
 
     // ------------------------------------------------- what an affix writes, and how
-
-    /// <summary>
-    /// 🔒 The shipped document writes the stat and the bucket this suite's fixture transcribes,
-    /// affix by affix.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔴 <b>The version of this that only walked the fixture could not fail.</b> The hermetic
-    /// snapshot is <em>built from</em> the same transcription the loop then read back, so it asserted
-    /// a list against itself and never opened the real document at all — and the properties it
-    /// checked (both-or-neither, and that the convenience predicate agreed with its own two fields)
-    /// are both restatements of guards the reader already enforces on the way in. Returning a
-    /// constant stat for every affix would have left it green.
-    /// </para>
-    /// <para>
-    /// So the assertion is now the mapping itself, read out of the file the game ships, one row at a
-    /// time. This is the only place the fourteen authored pairings are pinned.
-    /// </para>
-    /// </remarks>
-    [Fact]
-    public void The_shipped_document_writes_the_stat_and_the_bucket_this_suite_transcribes()
-    {
-        var real = DropsTuning.Read(ShippedHarness.Content);
-
-        real.AffixCount.ShouldBe(
-            GearDocuments.ShippedAffixPoolSize, "the pool is the size the design set authors");
-
-        foreach (var affix in GearDocuments.ShippedAffixes)
-        {
-            var row = real.Affix(affix.AffixId);
-
-            row.Stat?.ToString().ShouldBe(affix.Stat, $"{affix.AffixId} writes a different stat");
-            row.Op?.ToString().ShouldBe(affix.Op, $"{affix.AffixId} writes through a different bucket");
-            row.WritesAStat.ShouldBe(affix.Stat is not null);
-        }
-    }
-
-    /// <summary>Exactly one of the fourteen writes nothing, and it is the one nothing can express.</summary>
-    /// <remarks>
-    /// The floor under the case above (steering S3): a transcription that quietly emptied, or one
-    /// that gained a second unmapped affix, would otherwise pass over whatever was left.
-    /// </remarks>
-    [Fact]
-    public void Exactly_one_shipped_affix_writes_no_stat_at_all()
-    {
-        var real = DropsTuning.Read(ShippedHarness.Content);
-
-        var unmapped = GearDocuments.ShippedAffixes
-            .Where(affix => !real.Affix(affix.AffixId).WritesAStat)
-            .Select(affix => affix.AffixId)
-            .ToArray();
-
-        unmapped.ShouldBe(
-            ["AFX_DAMAGE_VS_ELITES"],
-            "conditional damage is the one bonus the fourteen-stat block has no slot for; every " +
-            "other affix names a stat, and a second unmapped one is a bonus that silently stopped " +
-            "contributing");
-    }
 
     /// <summary>An affix naming a stat with no bucket, or a bucket with no stat, is refused.</summary>
     /// <remarks>

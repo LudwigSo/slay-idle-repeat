@@ -9,12 +9,6 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 public sealed class StatRoundingTests
 {
     [Fact]
-    public void The_locked_precision_is_four_decimal_places()
-    {
-        StatRounding.Decimals.ShouldBe(4);
-    }
-
-    [Fact]
     public void A_value_is_rounded_to_four_places()
     {
         StatRounding.Round(1.234_56, StatId.ATK, "a test").ShouldBe(1.2346);

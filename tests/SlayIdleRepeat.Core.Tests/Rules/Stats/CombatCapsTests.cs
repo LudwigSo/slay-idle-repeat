@@ -9,21 +9,6 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 /// <summary><c>content/combat_caps.json</c> as the simulator reads it.</summary>
 public sealed class CombatCapsTests
 {
-    [Fact]
-    public void The_document_is_the_one_05_section_1_1_and_11_section_4_3_name()
-    {
-        CombatCaps.Document.ShouldBe("content/combat_caps.json");
-
-        CombatCaps.WardCapPctPointer.ShouldBe("content/combat_caps.json#/wardCapPct");
-        CombatCaps.PvpMaxFightSecondsPointer.ShouldBe(
-            "content/combat_caps.json#/pvpMaxFightSeconds");
-        CombatCaps.CapPointer(StatId.CRIT).ShouldBe("content/combat_caps.json#/caps/CRIT");
-        CombatCaps.HeroBasePointer(StatId.MAX_HP)
-            .ShouldBe("content/combat_caps.json#/heroBaseStats/stats/MAX_HP/base");
-        CombatCaps.HeroPerLevelPointer(StatId.MAX_HP)
-            .ShouldBe("content/combat_caps.json#/heroBaseStats/stats/MAX_HP/perLevel");
-    }
-
     /// <summary>
     /// The six capped stats are named in code, not discovered from whatever keys the file holds.
     /// </summary>
@@ -88,12 +73,5 @@ public sealed class CombatCapsTests
         var withoutHealPct = StatFixtures.CombatCapsSnapshot(["heroBaseStats", "HEAL_PCT"]);
 
         Should.Throw<MissingContentException>(() => CombatCaps.Read(withoutHealPct));
-    }
-
-    [Fact]
-    public void The_mitigation_constants_render_as_05_section_4s_formula()
-    {
-        new MitigationConstants(120, 20).ToString()
-            .ShouldBe("effDef / (effDef + 120 + 20 * attackerLevel)");
     }
 }

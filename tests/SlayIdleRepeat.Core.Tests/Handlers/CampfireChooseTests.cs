@@ -13,9 +13,6 @@ public sealed class CampfireChooseTests
         SlayIdleRepeat.Core.GameRules.Apply(
             state, new CampfireChooseCommand(choiceIndex), TileWorlds.Context);
 
-    // ------------------------------------------------------------------ the gate
-
-    /// <summary>A run standing on no tile has no campfire to rest at.</summary>
     [Fact]
     public void A_run_with_no_pending_tile_is_rejected()
     {
@@ -25,7 +22,6 @@ public sealed class CampfireChooseTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>A pending tile of another kind is not a campfire either.</summary>
     [Theory]
     [InlineData((int)TileKind.Event)]
     [InlineData((int)TileKind.Shrine)]
@@ -38,9 +34,6 @@ public sealed class CampfireChooseTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    // ------------------------------------------------------------------ the rest
-
-    /// <summary>Resting heals 40% of Max HP and clears the tile.</summary>
     [Fact]
     public void Resting_heals_forty_percent_of_max_hp_and_clears()
     {
@@ -51,7 +44,6 @@ public sealed class CampfireChooseTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
-    /// <summary>…and the heal is clamped at Max HP rather than overhealing.</summary>
     [Fact]
     public void Resting_is_clamped_at_max_hp()
     {
@@ -61,7 +53,6 @@ public sealed class CampfireChooseTests
         result.NewState.Run!.CurrentHp.ShouldBe(100);
     }
 
-    /// <summary>A rest at full health is legal and changes nothing.</summary>
     [Fact]
     public void Resting_at_full_health_is_accepted_and_changes_nothing()
     {
@@ -71,7 +62,7 @@ public sealed class CampfireChooseTests
         result.NewState.Run!.CurrentHp.ShouldBe(100);
     }
 
-    /// <summary>A rest at zero HP still heals — zero is a legal state, not a dead run.</summary>
+    /// <summary>Zero HP is a legal state, not a dead run.</summary>
     [Fact]
     public void Resting_at_zero_hit_points_still_heals()
     {
@@ -79,7 +70,6 @@ public sealed class CampfireChooseTests
             .NewState.Run!.CurrentHp.ShouldBe(40);
     }
 
-    /// <summary>A rest moves no currency and produces no event.</summary>
     [Fact]
     public void Resting_produces_no_events()
     {
@@ -89,7 +79,6 @@ public sealed class CampfireChooseTests
         result.NewState.Run!.Gold.ShouldBe(250);
     }
 
-    /// <summary>The campfire draws nothing, so no RNG stream counter moves.</summary>
     [Fact]
     public void Resting_consumes_no_rng_draw()
     {
@@ -97,7 +86,6 @@ public sealed class CampfireChooseTests
             .NewState.Run!.RngStreamPositions.ShouldBeEmpty();
     }
 
-    /// <summary>…and resting twice is refused, because the first rest cleared the tile.</summary>
     [Fact]
     public void Resting_twice_is_rejected()
     {
@@ -106,26 +94,16 @@ public sealed class CampfireChooseTests
         Choose(rested, 0).Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    // ------------------------------------------------------------------ the two unbuilt options
-
     /// <summary>
-    /// The perk-tier upgrade is refused, not silently accepted: Run holds no drafted perks yet, so
-    /// there is nothing to upgrade, and an accept would tell the player they had spent their rest on it.
+    /// The unbuilt options (perk upgrade, reroll charge) are refused, not silently accepted: an
+    /// accept would tell the player they had spent their rest on nothing.
     /// </summary>
-    [Fact]
-    public void The_perk_upgrade_option_is_rejected_until_M3_06()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void An_unbuilt_option_is_rejected(int choiceIndex)
     {
-        var result = Choose(TileWorlds.OnTile(TileKind.Campfire, currentHp: 50), 1);
-
-        result.Accepted.ShouldBeFalse();
-        result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
-    }
-
-    /// <summary>…and so is the reroll-charge option: no reroll-charge count is tracked anywhere yet.</summary>
-    [Fact]
-    public void The_reroll_charge_option_is_rejected()
-    {
-        var result = Choose(TileWorlds.OnTile(TileKind.Campfire, currentHp: 50), 2);
+        var result = Choose(TileWorlds.OnTile(TileKind.Campfire, currentHp: 50), choiceIndex);
 
         result.Accepted.ShouldBeFalse();
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
@@ -146,7 +124,6 @@ public sealed class CampfireChooseTests
         Choose(refused.NewState, 0).NewState.Run!.CurrentHp.ShouldBe(90);
     }
 
-    /// <summary>An index naming no option at all is refused too.</summary>
     [Theory]
     [InlineData(-1)]
     [InlineData(3)]
@@ -157,12 +134,6 @@ public sealed class CampfireChooseTests
             .Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    // ------------------------------------------------------------------ the round trip
-
-    /// <summary>
-    /// The full loop: arrive at a campfire, RESOLVE_TILE acknowledges and leaves it pending,
-    /// CAMPFIRE_CHOOSE rests and clears it.
-    /// </summary>
     [Fact]
     public void A_campfire_resolves_across_two_commands()
     {

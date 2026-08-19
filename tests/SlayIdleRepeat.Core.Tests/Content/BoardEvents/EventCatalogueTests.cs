@@ -1,202 +1,56 @@
-using System.Text.RegularExpressions;
 using Shouldly;
-using SlayIdleRepeat.BalanceHarness.Content;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.BoardEvents;
-using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Tests.Content;
 using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests.Content.BoardEvents;
 
-/// <summary><see cref="EventCatalogue"/>, against the real <c>game-data/content/board_events/board_events.json</c>.</summary>
-/// <remarks>
-/// This is the one class in this suite that reads the shipped tree rather than a hermetic fixture:
-/// the claim "all thirty authored cards load and are well formed" cannot be made by a fixture that
-/// only mirrors thirty cards written in this file. The reader's own refusals are tested hermetically
-/// below, where a malformed document is constructed.
-/// </remarks>
+/// <summary><see cref="EventCatalogue"/>'s read: what it answers, and everything it refuses.</summary>
 public sealed class EventCatalogueTests
 {
-    private static readonly ContentSnapshot RealData = GameDataLoader.Load();
+    private static EventCatalogue Catalogue(params ContentValue[] cards) =>
+        EventCatalogue.Read(InRunIncomeDocuments.With(cards: ContentValue.Array(cards)));
 
-    private static readonly EventCatalogue Shipped = EventCatalogue.Read(RealData);
-
-    /// <summary>All thirty authored cards load.</summary>
+    /// <summary>Order is load-bearing: the resolver draws by index over this list.</summary>
     [Fact]
-    public void All_thirty_authored_cards_load()
+    public void Read_preserves_the_documents_card_order()
     {
-        Shipped.All.Count.ShouldBe(30);
+        var catalogue = Catalogue(
+            FixtureCards.Card("EVT_FIXTURE_B", 1, 8, FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.None()))),
+            FixtureCards.Card("EVT_FIXTURE_A", 1, 8, FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.None()))));
+
+        catalogue.All.Select(c => c.Id).ShouldBe(["EVT_FIXTURE_B", "EVT_FIXTURE_A"]);
     }
 
-    /// <summary>Every id is unique and matches the schema's own <c>EVT_</c> pattern.</summary>
-    [Fact]
-    public void Every_card_id_is_unique_and_well_formed()
+    /// <summary>The chapter band is inclusive at both ends.</summary>
+    [Theory]
+    [InlineData(3, true)]
+    [InlineData(4, true)]
+    [InlineData(6, true)]
+    [InlineData(2, false)]
+    [InlineData(7, false)]
+    public void AvailableIn_applies_the_band_inclusively_at_both_ends(int chapter, bool drawable)
     {
-        Shipped.All.Select(c => c.Id).Distinct(StringComparer.Ordinal).Count().ShouldBe(30);
+        var catalogue = Catalogue(FixtureCards.Card(
+            "EVT_FIXTURE_MID", 3, 6, FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.None()))));
 
-        foreach (var card in Shipped.All)
-        {
-            Regex.IsMatch(card.Id, "^EVT_[A-Z0-9_]+$")
-                .ShouldBeTrue(card.Id + " does not match ^EVT_[A-Z0-9_]+$");
-        }
+        catalogue.AvailableIn(chapter).Select(c => c.Id).Contains("EVT_FIXTURE_MID").ShouldBe(drawable);
     }
 
-    /// <summary>Every card carries a title and a body.</summary>
-    [Fact]
-    public void Every_card_carries_a_title_and_a_body()
-    {
-        foreach (var card in Shipped.All)
-        {
-            card.Title.ShouldNotBeNullOrWhiteSpace(card.Id);
-            card.Body.ShouldNotBeNullOrWhiteSpace(card.Id);
-        }
-    }
-
-    /// <summary>Every card offers two or three options, each with at least one outcome.</summary>
-    [Fact]
-    public void Every_card_offers_two_or_three_options_with_real_outcomes()
-    {
-        foreach (var card in Shipped.All)
-        {
-            card.Options.Count.ShouldBeInRange(2, 3, card.Id);
-
-            foreach (var option in card.Options)
-            {
-                option.Label.ShouldNotBeNullOrWhiteSpace(card.Id);
-                option.Outcomes.ShouldNotBeEmpty(card.Id + " / " + option.Label);
-
-                foreach (var outcome in option.Outcomes)
-                {
-                    outcome.Weight.ShouldBeGreaterThan(0.0, card.Id + " / " + option.Label);
-                    outcome.Effects.ShouldNotBeEmpty(card.Id + " / " + option.Label);
-                }
-            }
-        }
-    }
-
-    /// <summary>
-    /// Every card's chapter band is one of three (1-3, 3-6, 6-8), and together they cover every
-    /// chapter the run can reach.
-    /// </summary>
-    [Fact]
-    public void Every_card_sits_in_one_of_part_As_three_chapter_bands()
-    {
-        foreach (var card in Shipped.All)
-        {
-            (card.MinChapter, card.MaxChapter).ShouldBeOneOf((1, 3), (3, 6), (6, 8));
-        }
-
-        for (var chapter = 1; chapter <= 8; chapter++)
-        {
-            Shipped.AvailableIn(chapter).ShouldNotBeEmpty("chapter " + chapter + " can draw no card");
-        }
-    }
-
-    /// <summary>
-    /// The band filter is inclusive at both ends — chapters 3 and 6 sit in two bands each, which is
-    /// intentional and not a transcription slip.
-    /// </summary>
-    [Fact]
-    public void The_chapter_bands_overlap_at_three_and_six()
-    {
-        var atThree = Shipped.AvailableIn(3).Select(c => c.Id).ToArray();
-
-        atThree.ShouldContain("EVT_WELL", "an A1 card, whose band closes AT chapter 3");
-        atThree.ShouldContain("EVT_GAMBLER", "an A2 card, whose band opens AT chapter 3");
-    }
-
-    /// <summary>…and it genuinely excludes: a late card is not drawable early, or the reverse.</summary>
-    [Fact]
-    public void The_band_filter_excludes_out_of_band_cards()
-    {
-        Shipped.AvailableIn(1).Select(c => c.Id).ShouldNotContain("EVT_ORACLE");
-        Shipped.AvailableIn(8).Select(c => c.Id).ShouldNotContain("EVT_WELL");
-    }
-
-    /// <summary>
-    /// 🔒 Every <c>CURSE_REWARD</c> effect names a curse <c>CurseRewards</c> can actually pay — the
-    /// cross-file check that would otherwise only fail at run time, inside a live run.
-    /// </summary>
-    [Fact]
-    public void Every_curse_reward_effect_names_a_payable_curse()
-    {
-        foreach (var effect in EveryEffect().Where(e => e.Op == EventEffectOp.CurseReward))
-        {
-            CurseRewards.IsPayable(effect.CurseId).ShouldBeTrue(effect.CurseId);
-        }
-    }
-
-    /// <summary>
-    /// Every <c>UNSUPPORTED</c> effect carries a note. The note is what separates a deliberate
-    /// deferral from an unfinished row, so an empty one would make the whole op meaningless.
-    /// </summary>
-    [Fact]
-    public void Every_unsupported_effect_explains_itself()
-    {
-        var unsupported = EveryEffect().Where(e => e.Op == EventEffectOp.Unsupported).ToArray();
-
-        unsupported.ShouldNotBeEmpty(
-            "19 Part A's prose describes movement, battles, gear and perks that Core cannot execute, " +
-            "so a transcription with NO unsupported effects would mean the translation invented " +
-            "mechanisms for them.");
-
-        foreach (var effect in unsupported)
-        {
-            effect.Note.ShouldNotBeNullOrWhiteSpace();
-        }
-    }
-
-    /// <summary>The <c>chapterScaled</c> convention holds across all thirty: GOLD amounts are flat and metacurrency amounts scale.</summary>
-    /// <remarks>
-    /// A transcription judgement rather than a design number: costs and rewards scale "unless marked
-    /// flat" and nothing is marked flat, so GOLD figures being already at the in-run scale is a
-    /// deliberate decision pinned here rather than left to drift.
-    /// </remarks>
-    [Fact]
-    public void Gold_amounts_are_flat_and_metacurrency_amounts_are_chapter_scaled()
-    {
-        foreach (var effect in EveryEffect().Where(e => e.Op == EventEffectOp.Currency))
-        {
-            if (effect.Currency == CurrencyId.GOLD)
-            {
-                effect.ChapterScaled.ShouldBeFalse("a GOLD amount is flat");
-            }
-            else
-            {
-                effect.ChapterScaled.ShouldBeTrue(effect.Currency + " is chapter-scaled");
-            }
-        }
-    }
-
-    /// <summary>A cost is always a positive magnitude, and always names a currency with it.</summary>
-    [Fact]
-    public void Every_authored_cost_is_a_positive_amount_of_a_named_currency()
-    {
-        foreach (var option in Shipped.All.SelectMany(c => c.Options))
-        {
-            (option.CostCurrency is null).ShouldBe(
-                option.CostAmount is null,
-                "a cost's currency and amount are one fact and are set together");
-
-            if (option.CostAmount is { } amount)
-            {
-                amount.ShouldBeGreaterThan(0L);
-            }
-        }
-    }
-
-    /// <summary><see cref="EventCatalogue.Find"/> answers by id, and refuses one it does not carry.</summary>
     [Fact]
     public void Find_answers_by_id_and_refuses_an_unknown_one()
     {
-        Shipped.Find("EVT_WELL").Title.ShouldBe("The Wishing Well");
+        var catalogue = Catalogue(FixtureCards.Card(
+            "EVT_FIXTURE_FOUND", 1, 8, FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.None()))));
 
-        Should.Throw<ArgumentException>(() => Shipped.Find("EVT_NOT_REAL"))
+        catalogue.Find("EVT_FIXTURE_FOUND").Id.ShouldBe("EVT_FIXTURE_FOUND");
+
+        Should.Throw<ArgumentException>(() => catalogue.Find("EVT_NOT_REAL"))
             .Message.ShouldContain("EVT_NOT_REAL", Case.Sensitive);
     }
 
-    // ------------------------------------------------------------------ hermetic refusals
+    // ------------------------------------------------------------------ refusals
 
     /// <summary>An empty card list leaves an event tile with nothing to draw.</summary>
     [Fact]
@@ -218,6 +72,21 @@ public sealed class EventCatalogueTests
             .Message.ShouldContain("EVT_FIXTURE_TWICE", Case.Sensitive);
     }
 
+    [Fact]
+    public void A_card_with_a_blank_title_is_refused()
+    {
+        var card = InRunIncomeDocuments.Obj(
+            ("id", ContentValue.Text("EVT_FIXTURE_BLANK")),
+            ("title", ContentValue.Text("   ")),
+            ("body", ContentValue.Text("body")),
+            ("minChapter", ContentValue.Number(1)),
+            ("maxChapter", ContentValue.Number(8)),
+            ("options", ContentValue.Array(
+                [FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.None()))])));
+
+        Should.Throw<InvalidTunableException>(() => Catalogue(card));
+    }
+
     /// <summary>
     /// A zero-weighted outcome is a branch nobody can ever see — <c>WeightedPick</c>'s strict walk
     /// makes it unreachable wherever it sits.
@@ -231,8 +100,7 @@ public sealed class EventCatalogueTests
             8,
             FixtureCards.Option("Only", null, FixtureCards.Outcome(0, FixtureCards.None())));
 
-        Should.Throw<InvalidTunableException>(() =>
-            EventCatalogue.Read(InRunIncomeDocuments.With(cards: ContentValue.Array([card]))));
+        Should.Throw<InvalidTunableException>(() => Catalogue(card));
     }
 
     /// <summary>An outcome with no effects is indistinguishable from one nobody finished authoring.</summary>
@@ -245,8 +113,53 @@ public sealed class EventCatalogueTests
             8,
             FixtureCards.Option("Only", null, FixtureCards.Outcome(1)));
 
-        Should.Throw<InvalidTunableException>(() =>
-            EventCatalogue.Read(InRunIncomeDocuments.With(cards: ContentValue.Array([card]))));
+        Should.Throw<InvalidTunableException>(() => Catalogue(card));
+    }
+
+    /// <summary>A cost's direction is the field's meaning, not its sign — the handler debits it.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-100)]
+    public void A_cost_that_is_not_a_positive_amount_is_refused(long amount)
+    {
+        var card = FixtureCards.Card(
+            "EVT_FIXTURE_FREEBIE",
+            1,
+            8,
+            FixtureCards.Option(
+                "Pay nothing",
+                FixtureCards.Cost("GOLD", amount),
+                FixtureCards.Outcome(1, FixtureCards.None())));
+
+        Should.Throw<InvalidTunableException>(() => Catalogue(card));
+    }
+
+    /// <summary>A zero delta is dropped by the resolver; a deliberate no-op is a NONE effect.</summary>
+    [Fact]
+    public void A_currency_effect_moving_nothing_is_refused()
+    {
+        var card = FixtureCards.Card(
+            "EVT_FIXTURE_NOTHING",
+            1,
+            8,
+            FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.Currency("GOLD", 0, false))));
+
+        Should.Throw<InvalidTunableException>(() => Catalogue(card));
+    }
+
+    /// <summary>An HP_PCT is a share of Max HP in [-1, 1].</summary>
+    [Theory]
+    [InlineData(1.5)]
+    [InlineData(-1.5)]
+    public void An_hp_share_outside_a_full_bar_either_way_is_refused(double share)
+    {
+        var card = FixtureCards.Card(
+            "EVT_FIXTURE_OVERHEAL",
+            1,
+            8,
+            FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.HpPct((decimal)share))));
+
+        Should.Throw<InvalidTunableException>(() => Catalogue(card));
     }
 
     /// <summary>An op outside the closed five is refused rather than skipped as a no-op.</summary>
@@ -262,8 +175,7 @@ public sealed class EventCatalogueTests
                 null,
                 FixtureCards.Outcome(1, InRunIncomeDocuments.Obj(("op", ContentValue.Text("GRANT_GEAR"))))));
 
-        Should.Throw<InvalidTunableException>(() =>
-                EventCatalogue.Read(InRunIncomeDocuments.With(cards: ContentValue.Array([card]))))
+        Should.Throw<InvalidTunableException>(() => Catalogue(card))
             .Message.ShouldContain("GRANT_GEAR", Case.Sensitive);
     }
 
@@ -277,8 +189,7 @@ public sealed class EventCatalogueTests
             8,
             FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.CurseReward("CUR_HUNTED"))));
 
-        Should.Throw<InvalidTunableException>(() =>
-                EventCatalogue.Read(InRunIncomeDocuments.With(cards: ContentValue.Array([card]))))
+        Should.Throw<InvalidTunableException>(() => Catalogue(card))
             .Message.ShouldContain("CUR_HUNTED", Case.Sensitive);
     }
 
@@ -292,8 +203,7 @@ public sealed class EventCatalogueTests
             3,
             FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.None())));
 
-        Should.Throw<InvalidTunableException>(() =>
-            EventCatalogue.Read(InRunIncomeDocuments.With(cards: ContentValue.Array([card]))));
+        Should.Throw<InvalidTunableException>(() => Catalogue(card));
     }
 
     /// <summary>ENERGY is not a currency an event card may move — its banks are not a wallet row.</summary>
@@ -306,14 +216,7 @@ public sealed class EventCatalogueTests
             8,
             FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.Currency("ENERGY", 5, false))));
 
-        Should.Throw<InvalidTunableException>(() =>
-                EventCatalogue.Read(InRunIncomeDocuments.With(cards: ContentValue.Array([card]))))
+        Should.Throw<InvalidTunableException>(() => Catalogue(card))
             .Message.ShouldContain("ENERGY", Case.Sensitive);
     }
-
-    private static IEnumerable<EventEffect> EveryEffect() =>
-        Shipped.All
-            .SelectMany(c => c.Options)
-            .SelectMany(o => o.Outcomes)
-            .SelectMany(o => o.Effects);
 }

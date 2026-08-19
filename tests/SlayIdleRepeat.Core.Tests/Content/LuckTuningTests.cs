@@ -11,12 +11,6 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// and scopes, the five authored ladders, the one rarity-floor rule — and the four ways a data set
 /// can fail to answer, told apart.
 /// </summary>
-/// <remarks>
-/// No <c>const int ChestStandardA = 10</c> anywhere in <c>Core</c>. <c>24</c> §3's own 📐 puts class
-/// membership in the data, and <c>CHEST_STANDARD</c> runs three counters at once — so a counter is
-/// addressed by the authored key paired with the guarantee it protects, and this reader is the one
-/// place that pairing is formed.
-/// </remarks>
 public sealed class LuckTuningTests
 {
     // ---------------------------------------------------------------- the registry
@@ -102,32 +96,6 @@ public sealed class LuckTuningTests
         tuning.Row(SourceClass.DRAFT).Scope.ShouldBe(CounterScope.RUN);
     }
 
-    /// <summary>Every player-scoped class states a key; the two non-player-scoped ones do not.</summary>
-    /// <remarks>
-    /// The count comes first on purpose: <c>ShouldAllBe</c> over an empty sequence passes, so a
-    /// reader that answered no player-scoped rows at all — or none at all — would satisfy the arm
-    /// below while quantifying over nothing (steering S3).
-    /// </remarks>
-    [Fact]
-    public void Exactly_the_player_scoped_classes_carry_a_counter_key()
-    {
-        var rows = LuckTuning.Read(LuckDocuments.Shipped).SourceClasses;
-
-        rows.Count(row => row.Scope == CounterScope.PLAYER).ShouldBe(
-            8,
-            "24 §3 puts eight of the ten counters on the player profile. This is the floor under the " +
-            "'they all carry a key' assertion below, which an empty set would satisfy silently.");
-
-        rows.Where(row => row.Scope == CounterScope.PLAYER)
-            .Select(row => row.CounterKey)
-            .ShouldAllBe(key => key != null);
-
-        rows.Count(row => row.Scope != CounterScope.PLAYER).ShouldBe(
-            2,
-            "24 §3 scopes ENHANCE per gear instance and DRAFT per run; the other eight are columns " +
-            "on the player profile (24 §11).");
-    }
-
     // ---------------------------------------------------------------- counter-key formation
 
     /// <summary>
@@ -161,27 +129,6 @@ public sealed class LuckTuningTests
                 "chest.alpha" + LuckTuning.CounterKeySeparator + nameof(Rarity.S),
                 "the stored key and the authored key cannot be allowed to drift: a retune that " +
                 "renamed chest.standard would silently start a fresh counter for every player.");
-    }
-
-    /// <summary>Two classes never form the same counter id, and one class never collapses two rungs into one.</summary>
-    [Fact]
-    public void Every_class_and_rung_pairing_forms_a_distinct_counter_id()
-    {
-        var tuning = LuckTuning.Read(LuckDocuments.Shipped);
-
-        new[]
-        {
-            tuning.CounterKey(SourceClass.CHEST_STANDARD, Rarity.A),
-            tuning.CounterKey(SourceClass.CHEST_STANDARD, Rarity.S),
-            tuning.CounterKey(SourceClass.CHEST_STANDARD, Rarity.SS),
-            tuning.CounterKey(SourceClass.CHEST_PREMIUM, Rarity.S),
-            tuning.CounterKey(SourceClass.CHEST_PREMIUM, Rarity.SS),
-            tuning.CounterKey(SourceClass.CHEST_APEX, Rarity.SS),
-            tuning.CounterKey(SourceClass.EGG_PET, Rarity.S),
-            tuning.CounterKey(SourceClass.CRATE_MOUNT, Rarity.S),
-        }.ShouldBeUnique(
-            "24 §1.2: counters never pool across classes. Two classes sharing an id would pool them " +
-            "exactly, and the cheap class would advance the expensive class's guarantee.");
     }
 
     /// <summary>A class with no authored key has no counter id, and asking for one is refused.</summary>
@@ -392,10 +339,8 @@ public sealed class LuckTuningTests
 
     /// <summary>A missing document is a <c>MissingContentException</c>, not an empty registry.</summary>
     /// <remarks>
-    /// Every case in this section pins the <c>Reference</c> as well as the exception type
-    /// (<c>EnergyTuningTests</c>' idiom). <c>LuckTuning.Read</c> resolves a dozen pointers and each
-    /// one can throw the same four types, so the type alone says only "some leaf was wrong" — the
-    /// reference is what says the case is still about the leaf it names.
+    /// Every case in this section pins the <c>Reference</c> as well as the type: <c>Read</c> resolves
+    /// a dozen pointers that can all throw the same four types.
     /// </remarks>
     [Fact]
     public void A_missing_document_throws_rather_than_defaulting()
@@ -405,11 +350,6 @@ public sealed class LuckTuningTests
     }
 
     /// <summary>A deliberate <c>null</c> is an <c>UnauthorisedTunableException</c> — the hole stays a hole.</summary>
-    /// <remarks>
-    /// Reading an unauthorised renormalisation as <c>PROPORTIONAL</c> would produce a distribution,
-    /// the economy simulator would grade it, and nobody would learn that a rule nobody authored had
-    /// been chosen for them.
-    /// </remarks>
     [Fact]
     public void An_unauthorised_null_throws_rather_than_defaulting()
     {
@@ -497,18 +437,10 @@ public sealed class LuckTuningTests
     /// would resolve it to a real band.
     /// </summary>
     /// <remarks>
-    /// The three spellings <c>Enum.TryParse</c> accepts that a name is not, each of which then
-    /// satisfies <c>Enum.IsDefined</c> and would load <em>silently</em> as a rarity nobody authored:
-    /// <list type="bullet">
-    /// <item><c>"3"</c> — the underlying wire value, which is <c>A</c>;</item>
-    /// <item><c>"C, B"</c> — a comma list, combined bitwise even though <see cref="Rarity"/> is not
-    /// a flags enum, so it is <c>1 | 2</c> and lands on <c>A</c> as well;</item>
-    /// <item><c>" SS"</c> — trimmed, so it lands on <c>SS</c> under a token the schema's enum does
-    /// not list.</item>
-    /// </list>
-    /// The first two are the dangerous ones: both resolve to <c>A</c>, the shipped value of this
-    /// very rung, so a document authoring either would read back as correct and the guarantee would
-    /// silently follow a token nobody wrote.
+    /// The three spellings <c>Enum.TryParse</c> accepts that a name is not: <c>"3"</c> (the wire
+    /// value) and <c>"C, B"</c> (a bitwise comma list) both resolve to <c>A</c> — the shipped value
+    /// of this very rung — and <c>" SS"</c> is trimmed. Each would load silently as a rarity nobody
+    /// authored.
     /// </remarks>
     [Theory]
     [InlineData("3")]

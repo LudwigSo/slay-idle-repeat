@@ -61,10 +61,6 @@ public sealed class PickPerkTests
             "taking one option grants or upgrades exactly one perk");
     }
 
-    /// <summary>
-    /// Determinism: picking against the same committed draft-stream position offers the same three
-    /// options every time, so the same index always resolves to the same perk.
-    /// </summary>
     [Fact]
     public void The_same_option_index_resolves_the_same_perk_every_time()
     {
@@ -77,10 +73,8 @@ public sealed class PickPerkTests
     }
 
     /// <summary>
-    /// GameRules.Execute's DraftPending gate: nothing else is legal while a draft is open. Uses
-    /// ROLL_DICE rather than START_BATTLE deliberately — START_BATTLE would refuse for its own reason
-    /// (no pending tile) even with the gate deleted, while ROLL_DICE has no other reason to refuse
-    /// here, so ILLEGAL_STATE can only be the gate.
+    /// ROLL_DICE rather than START_BATTLE deliberately: START_BATTLE would refuse for its own reason
+    /// (no pending tile) even with the gate deleted, so here ILLEGAL_STATE can only be the gate.
     /// </summary>
     [Fact]
     public void DraftPending_refuses_every_other_run_command()
@@ -94,7 +88,6 @@ public sealed class PickPerkTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>The negative control for the case above: PICK_PERK itself stays legal while pending.</summary>
     [Fact]
     public void DraftPending_does_not_refuse_PICK_PERK_itself()
     {
@@ -103,19 +96,7 @@ public sealed class PickPerkTests
         result.Accepted.ShouldBeTrue();
     }
 
-    // ------------------------------------------------------------------ the upgrade-famine counter
-
-    /// <summary>
-    /// 🔒 A run that owns nothing leaves the upgrade-famine counter exactly where it stood: no perk
-    /// is owned, so no upgrade could have been offered, and a draft that could not have offered one
-    /// is not a draft that withheld one.
-    /// </summary>
-    /// <remarks>
-    /// End-to-end rather than only over the rule, because the handler is where the run's own facts
-    /// are read: the rule can be conditioned correctly and still be handed a hard-coded "an upgrade
-    /// was available", which is exactly what a caller passing a constant would look like. The
-    /// counter starts non-zero so "unchanged" and "reset" are different numbers.
-    /// </remarks>
+    /// <remarks>The counter starts non-zero so "unchanged" and "reset" are different numbers.</remarks>
     [Fact]
     public void A_draft_no_upgrade_could_have_reached_leaves_the_famine_counter_standing()
     {
@@ -133,15 +114,10 @@ public sealed class PickPerkTests
     }
 
     /// <summary>
-    /// The other side of it: a run holding an upgradable perk moves the counter, so the case above
-    /// is not passing because the handler never touches it.
+    /// The control keeping the case above honest against a handler that never touches the counter.
+    /// A Boss draft over the fixture draws Epic/Legendary only and exactly one Epic row is authored,
+    /// which this run owns at Tier I — so the offered upgrade (and the reset) is deterministic.
     /// </summary>
-    /// <remarks>
-    /// A Boss draft over the hermetic fixture draws Epic/Legendary only and the fixture authors
-    /// exactly one Epic row, which this run owns at Tier I — so the draft offers that upgrade and
-    /// the famine is satisfied rather than advanced. Either movement discriminates against a handler
-    /// that holds the counter unconditionally; the reset is the one this fixture makes deterministic.
-    /// </remarks>
     [Fact]
     public void A_draft_that_offered_an_owned_upgrade_resets_the_famine_counter()
     {

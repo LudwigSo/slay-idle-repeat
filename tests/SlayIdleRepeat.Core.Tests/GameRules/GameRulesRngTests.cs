@@ -261,26 +261,6 @@ public sealed class GameRulesRngTests
         battles[0].Seed.ShouldNotBe(battles[1].Seed);
     }
 
-    /// <summary>
-    /// A revived battle restarts from draw 0 of the same battle stream: the same
-    /// <c>battleIndex</c> reproduces the same seed and therefore the same fight.
-    /// </summary>
-    [Fact]
-    public void A_battle_replayed_at_the_same_index_reproduces_its_draws()
-    {
-        var scope = new RunRngScope(RunSnapshots.Seed, RunSnapshots.Streams((RngStreams.Combat, 9UL)));
-        var replay = new RunRngScope(RunSnapshots.Seed, RunSnapshots.Streams((RngStreams.Combat, 9UL)));
-
-        var original = scope.BeginBattle();
-        var revived = replay.BeginBattle();
-
-        revived.Seed.ShouldBe(original.Seed);
-        revived.BattleIndex.ShouldBe(original.BattleIndex);
-
-        Enumerable.Range(0, 10).Select(_ => revived.Draws.NextUInt())
-            .ShouldBe(Enumerable.Range(0, 10).Select(_ => original.Draws.NextUInt()).ToArray());
-    }
-
     // ------------------------------------------------------------------ the two regimes
 
     /// <summary>

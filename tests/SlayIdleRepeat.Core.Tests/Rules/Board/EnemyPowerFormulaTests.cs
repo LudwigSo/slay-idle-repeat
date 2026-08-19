@@ -10,10 +10,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// <c>ChapterPowerTarget(c) · TierMult(t) · (1 + 0.035·i) · StageMult(s)</c>.
 /// </summary>
 /// <remarks>
-/// Every case below fixes three of the four inputs and moves one, so a failure names which term
-/// broke rather than "the formula changed". The chapter power target is 1000 throughout — an
-/// arbitrary round test value carrying no design claim, since <c>ChapterPowerTarget(c)</c> is
-/// authored nowhere and is a parameter for exactly that reason.
+/// Internal seam by necessity: the formula's product reaches a caller only folded into a fight's
+/// enemy stats, so no command or simulator output can isolate one term. Every case below fixes
+/// three of the four inputs and moves one, so a failure names which term broke. The chapter power
+/// target is 1000 throughout — an arbitrary round test value, since <c>ChapterPowerTarget(c)</c>
+/// is authored nowhere and is a parameter for exactly that reason.
 /// </remarks>
 public sealed class EnemyPowerFormulaTests
 {

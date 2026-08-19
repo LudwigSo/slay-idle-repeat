@@ -19,12 +19,7 @@ internal static class GameContexts
     /// <summary>A player without Plus.</summary>
     internal static Entitlements WithoutPlus { get; } = new(hasPlus: false, expiresAtUtc: null);
 
-    /// <summary>A player with Plus, and no lapse date known.</summary>
-    /// <remarks>
-    /// The counterpart to <see cref="WithoutPlus"/>, and the only fixture in this suite that turns
-    /// the flag on: 12 §3.2 lets exactly two sites read it, so a test that needs a subscriber is
-    /// testing one of those two and should be visible as doing so.
-    /// </remarks>
+    /// <summary>A player with Plus, and no lapse date known — a test using this is testing one of 12 §3.2's two reader sites.</summary>
     internal static Entitlements WithPlus { get; } = new(hasPlus: true, expiresAtUtc: null);
 
     /// <summary>An arbitrary but fixed instant — a 05:00 UTC game-day boundary.</summary>

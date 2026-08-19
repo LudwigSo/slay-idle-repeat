@@ -86,12 +86,7 @@ public sealed class EffectTaggingTests
     }
 }
 
-/// <summary>Rounding is one rule, stated once in <c>Core.Primitives.DeterminismRounding</c>, beneath every layer that rounds.</summary>
-/// <remarks>
-/// <c>OpRounding</c> and <c>StatRounding</c> both delegate to the shared primitive, so this comparison
-/// is close to a tautology — but the two types still carry deliberately different failure messages,
-/// and nothing else asserts their arithmetic must stay identical if either stops delegating.
-/// </remarks>
+/// <summary>Rounding is one rule, stated once in <c>Core.Primitives.DeterminismRounding</c> — nothing else holds the arithmetic identical if either layer stops delegating.</summary>
 public sealed class OpRoundingTests
 {
     [Theory]
@@ -108,9 +103,7 @@ public sealed class OpRoundingTests
 
         op.ShouldBe(StatRounding.Round(value, StatId.ATK, "a step"));
 
-        // Both are also compared against the shared primitive directly, not merely each other:
-        // comparing the two constants alone would be `4.ShouldBe(4)` after Roslyn folds them — a
-        // comparison that cannot fail under any edit.
+        // Against the shared primitive directly too, not merely each other.
         op.ShouldBe(DeterminismRounding.Round(value));
         OpRounding.Decimals.ShouldBe(DeterminismRounding.Decimals);
         StatRounding.Decimals.ShouldBe(DeterminismRounding.Decimals);

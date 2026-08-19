@@ -51,10 +51,6 @@ public sealed class GameRulesCatchUpTests
 
     // ------------------------------------------------------------------ the events reach the log
 
-    /// <summary>
-    /// The <c>CurrencyChanged</c> the catch-up's accrual produces reaches
-    /// <c>CommandResult.Events</c>, attributed and stamped, rather than being constructed and dropped.
-    /// </summary>
     [Fact]
     public void Catch_up_energy_reaches_the_result_event_list()
     {
@@ -347,10 +343,6 @@ public sealed class GameRulesCatchUpTests
         result.NewState.Player.WeeklyPeriodStartUtc.ShouldBe(PlayerSnapshots.Monday);
     }
 
-    /// <summary>
-    /// A game day crossed clears the daily counters, records the new 05:00 UTC boundary, and
-    /// leaves the weekly half alone.
-    /// </summary>
     [Fact]
     public void A_crossed_game_day_clears_the_daily_counters_and_records_the_boundary()
     {

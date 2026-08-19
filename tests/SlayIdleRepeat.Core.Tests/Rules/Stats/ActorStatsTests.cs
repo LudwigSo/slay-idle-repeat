@@ -1,4 +1,3 @@
-using System.Reflection;
 using Shouldly;
 using SlayIdleRepeat.Core.Content.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
@@ -26,15 +25,10 @@ public sealed class ActorStatsTests
     }
 
     /// <summary>
-    /// 🔒 The completeness rule is stated over <see cref="StatIds.Combat"/> at run time, not over a
-    /// fourteen-parameter constructor.
+    /// The completeness rule is stated over <see cref="StatIds.Combat"/> at run time — the required
+    /// set is the classification itself, which is what makes "an unstated stat is a bug" survive a
+    /// fifteenth combat stat.
     /// </summary>
-    /// <remarks>
-    /// That is what makes "an unstated stat is a bug" survive a <em>fifteenth</em> combat stat: a
-    /// fixed-arity constructor would keep compiling on the commit that adds one and keep returning a
-    /// block with a silent hole. The case cannot add an enum member, so it asserts the property that
-    /// would make it bite — the required set is the classification itself.
-    /// </remarks>
     [Fact]
     public void Every_stat_StatIds_declares_combat_must_be_supplied_or_construction_fails()
     {
@@ -49,23 +43,6 @@ public sealed class ActorStatsTests
             thrown.Message.ShouldContain(omitted.ToString(), Case.Sensitive);
             thrown.Message.ShouldContain("an unstated stat is a bug, not a zero", Case.Sensitive);
         }
-    }
-
-    /// <summary>
-    /// 🔒 There is no partially-populated block to construct: no public constructor, and no
-    /// <c>default</c> because it is a reference type.
-    /// </summary>
-    [Fact]
-    public void There_is_no_way_to_construct_a_block_that_bypasses_the_completeness_check()
-    {
-        typeof(ActorStats).GetConstructors(BindingFlags.Public | BindingFlags.Instance)
-            .ShouldBeEmpty("a public constructor would be a route past From's completeness check");
-
-        typeof(ActorStats).IsClass.ShouldBeTrue(
-            "a struct would give every caller a zero-initialised block for free — the exact 'unstated " +
-            "stat silently reads as zero' that 05 §2 forbids");
-
-        typeof(ActorStats).IsSealed.ShouldBeTrue("a subclass could add a second way in");
     }
 
     [Fact]

@@ -116,9 +116,8 @@ internal static class LuckDocuments
 
     /// <summary><c>24</c> §4.6 — the per-consecutive-failure addition to the enhancement rate.</summary>
     /// <remarks>
-    /// Authored in <c>luck.json</c>'s <c>enhance</c> block, which <c>LuckTuning</c> reads since
-    /// M4-04 wired the enhancement command. Declared here so the rate-mercy cases state the shipped
-    /// slope rather than a literal, and pinned against the file in <c>Application.Tests</c>.
+    /// Declared here so the rate-mercy cases state the shipped slope rather than a literal, and
+    /// pinned against the file in <c>Application.Tests</c>.
     /// </remarks>
     internal const double ShippedEnhanceMercySlope = 0.08;
 

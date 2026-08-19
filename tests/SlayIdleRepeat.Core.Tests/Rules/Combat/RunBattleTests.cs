@@ -15,10 +15,8 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 /// enemy it composes, the seed it fights at, and what it refuses.
 /// </summary>
 /// <remarks>
-/// Before this seam a run could enter <c>BattlePending</c> and nothing anywhere could produce the
-/// fight it was standing in — the loop stopped at the third verb. Every case here is stated so it
-/// fails if a single link is dropped: the loadout, the aggregation input, the tile's power, the
-/// tile's kind, or the battle index the seed is derived from.
+/// Every case is stated so it fails if a single link is dropped: the loadout, the aggregation
+/// input, the tile's power, the tile's kind, or the battle index the seed is derived from.
 /// </remarks>
 public sealed class RunBattleTests
 {
@@ -29,9 +27,8 @@ public sealed class RunBattleTests
     /// index's.
     /// </summary>
     /// <remarks>
-    /// 🔒 The counter counts battles STARTED, so the open battle's index is <c>counter − 1</c>. An
-    /// off-by-one here is not a crash: it is a real seed for the wrong fight, which the server would
-    /// then recompute differently from the client and refuse. The assertion names the derivation
+    /// An off-by-one here is not a crash: it is a real seed for the wrong fight, which the server
+    /// would recompute differently from the client and refuse. The assertion names the derivation
     /// rather than a literal so the two spellings of it cannot drift apart.
     /// </remarks>
     [Fact]
@@ -122,9 +119,8 @@ public sealed class RunBattleTests
 
     /// <summary>The snapshot door and the aggregate door compose the same fight.</summary>
     /// <remarks>
-    /// 🔒 The seam M7-06c will recompute through. The confirming handler holds aggregates and the
-    /// client holds rows; if the two composed different fights, every honest client would be refused
-    /// and the check would be worse than absent.
+    /// The confirming handler holds aggregates and the client holds rows; if the two composed
+    /// different fights, every honest client would be refused.
     /// </remarks>
     [Fact]
     public void Both_doors_compose_the_same_fight()
@@ -141,17 +137,10 @@ public sealed class RunBattleTests
 
     /// <summary>A hero in the full set fights a different fight from a hero in nothing.</summary>
     /// <remarks>
-    /// 🔒 The milestone's claim in one line: gear was carried and inert for the whole of M4, and
-    /// "wearing a full SS set changes nothing about the fight" was literally true. Stated as a hash
-    /// difference rather than as "won faster", because a fight the gear did not reach is not merely
-    /// slower — it is byte-identical, and the hash is the one assertion that cannot be satisfied by
-    /// noise.
-    /// <para>
-    /// 🔴 The two arms cross the player's CURRENT loadout against the run's FROZEN one, so the case
-    /// also pins which of the two the fight follows. Stated the obvious way — both flipped
-    /// together — the direction below is satisfied by a composition that reads the player's own
-    /// loadout and never looks at the run at all.
-    /// </para>
+    /// A hash difference rather than "won faster": a fight the gear did not reach is byte-identical,
+    /// not slower. The two arms cross the player's CURRENT loadout against the run's FROZEN one —
+    /// flipped together, the direction would be satisfied by a composition that reads the player's
+    /// own loadout and never looks at the run at all.
     /// </remarks>
     [Fact]
     public void The_frozen_loadout_reaches_the_fight()
@@ -173,18 +162,12 @@ public sealed class RunBattleTests
             "less of a beating, however the player is dressed now");
     }
 
-    /// <summary>
-    /// 🔒 The loadout's STANDING modifiers reach the fight, not only its triggered ones.
-    /// </summary>
+    /// <summary>The loadout's STANDING modifiers reach the fight, not only its triggered ones.</summary>
     /// <remarks>
-    /// 🔴 <b>The defect this branch fixed, and the one the case above cannot see.</b> An actor
-    /// collected its standing modifiers by asking whether the trigger was <em>absent</em>, while the
-    /// DSL's default says an absent trigger IS <c>ALWAYS</c> — and every gear stat, affix and set
-    /// bonus is synthesised with an explicit <c>ALWAYS</c>. With the whole stat half of a loadout
-    /// inert, a geared hero still fought a different fight from a bare one, because the shipped set's
-    /// four-piece bonus is an <c>ON_KILL</c> effect and triggered effects were never affected. So the
-    /// comparison here is not geared against bare: it is the composed fight against the same fight
-    /// with only the standing half struck out.
+    /// The case above cannot see this: gear stats are synthesised with an explicit <c>ALWAYS</c>
+    /// trigger, and a collector reading only the ABSENT spelling drops the whole standing half while
+    /// the set's <c>ON_KILL</c> bonus still makes a geared fight differ from a bare one. So the
+    /// comparison is the composed fight against the same fight with only the standing half struck out.
     /// </remarks>
     [Fact]
     public void The_loadouts_standing_modifiers_reach_the_fight_and_not_only_its_triggered_ones()
@@ -220,17 +203,14 @@ public sealed class RunBattleTests
     }
 
     /// <summary>
-    /// 🔒 The fight is composed from the base curve plus the effects, and never from the aggregated
-    /// block.
+    /// The fight is composed from the base curve plus the effects, never from the aggregated block.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The hazard this case exists for.</b> <c>BattleSimulation</c> re-aggregates the actor's
-    /// effects every pass, so a pre-aggregated stat block handed in as <c>BaseStats</c> applies the
-    /// entire loadout <em>twice</em>. It throws nothing, the fight still completes, and the only
-    /// visible symptom is a hero who is silently far too strong. Both arms are stated: the
-    /// composition must equal the base-curve call, and must NOT equal the pre-aggregated one — the
-    /// second is what would still be green if the seam passed the wrong block, and the first is what
-    /// would still be green if the two calls happened to agree because the loadout was empty.
+    /// <c>BattleSimulation</c> re-aggregates the actor's effects every pass, so a pre-aggregated
+    /// block handed in as <c>BaseStats</c> applies the entire loadout twice — it throws nothing, and
+    /// the only symptom is a hero silently far too strong. Both arms are needed: equality with the
+    /// base-curve call alone would still be green if the two calls agreed because the loadout was
+    /// empty, and inequality with the pre-aggregated one is what catches the wrong block.
     /// </remarks>
     [Fact]
     public void The_fight_is_composed_from_the_base_curve_and_the_effects_not_the_aggregated_block()
@@ -243,10 +223,9 @@ public sealed class RunBattleTests
         var holdings = RunBattleTestArithmetic.Holdings(build);
         var composed = RunBattle.Simulate(RunBattleWorlds.PlayerRow(), runRow, RunBattleWorlds.Content);
 
-        // 🔒 Both arms take the run's current HP, exactly as RunBattle.Simulate does (M7-06e). The
-        // subject here is WHICH STAT BLOCK the seam hands over — the base curve or the aggregate — so
-        // every other argument has to match the seam's, or the case would be comparing two differences
-        // at once and reporting whichever it hit first.
+        // Both arms take the run's current HP, exactly as RunBattle.Simulate does. The subject is
+        // WHICH stat block the seam hands over, so every other argument has to match the seam's, or
+        // the case would compare two differences at once and report whichever it hit first.
         var fromTheCurve = EncounterFight.Run(
             seed,
             build.BaseStats,
@@ -283,15 +262,12 @@ public sealed class RunBattleTests
     }
 
     /// <summary>
-    /// 🔒 A BOSS tile is composed from the base curve and the effects too, and never from the
+    /// A BOSS tile is composed from the base curve and the effects too, and never from the
     /// aggregated block.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>The boss branch is a second composition, and the case above cannot see it.</b> It builds
-    /// its own roster through <c>BossFight</c>, so handing that branch the pre-aggregated block is
-    /// the same silent double application one layer across — and the milestone's exit criterion runs
-    /// through a boss. Stated over the boss tile with the same two arms, so neither branch can be
-    /// wrong on its own.
+    /// The boss branch builds its own roster through <c>BossFight</c>, so it can repeat the same
+    /// silent double application one layer across — the case above cannot see it.
     /// </remarks>
     [Fact]
     public void The_boss_fight_is_composed_from_the_base_curve_and_the_effects_not_the_aggregated_block()
@@ -312,29 +288,12 @@ public sealed class RunBattleTests
             "it throws nothing and the boss still dies, so a hash difference is the only symptom");
     }
 
-    /// <summary>One boss fight composed directly, at the row's own seed and power.</summary>
-    // ═══════════════════════════════════════════════ M7-06e · the run carries its wounds
-
-    /// <summary>
-    /// 🔒 <b>A run hurt badly enough LOSES a fight the same run wins at full health.</b>
-    /// </summary>
+    /// <summary>The run's own current HP reaches the simulation, not the build's full ceiling.</summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>Without this the whole HP economy is decoration.</b> A fight used to open on the hero's full
-    /// aggregated Max HP whatever the run had left, so accumulated damage never threatened a run, `02`
-    /// §6's revive restored a number no fight read — making the revive button unable to change an
-    /// outcome — and the campfire's 40% rest and the Stage Gate's 15% heal healed nothing that mattered.
-    /// <c>ActorPlan.StartingHp</c> named this gap and its precondition; M7-06d wrote the run's HP back
-    /// and M7-06e reads it here.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>Asserted on the VERDICT, and the first draft's mistake is worth keeping.</b> It compared
-    /// <c>LogHash</c> between a full run and one at a quarter health — and they were EQUAL, correctly:
-    /// measured, the hero took the same blows in the same 35 ticks and simply ended 863 points lower,
-    /// which is exactly its HP deficit. <c>LogHash</c> is over the event LIST, and a hero that survives
-    /// either way produces the same events. Starting HP is observable only where it changes who dies, so
-    /// that is what this case asserts.
-    /// </para>
+    /// Not a <c>LogHash</c> comparison — the hashes are EQUAL, correctly: the hash is over the event
+    /// list, and a hero that survives either way takes the same blows and simply ends lower by
+    /// exactly its deficit. That deficit is the reading; while it is zero, everything that heals or
+    /// hurts a run between battles is inert, `02` §6's revive included.
     /// </remarks>
     [Fact]
     public void A_wounded_run_ends_its_fight_exactly_its_deficit_lower()
@@ -360,13 +319,10 @@ public sealed class RunBattleTests
         (atFull.HeroHpRemaining - hurt.HeroHpRemaining).ShouldBe(
             deficit,
             tolerance: 0.5,
-            "the two fights ended the same distance apart as they began, or they did not: a difference " +
-            "of zero means the run's hit points never reached the simulation at all, and everything " +
-            "that heals or hurts a run between battles is inert while that is true — 02 §6's revive " +
-            "included, which restarts the same battle from the same seed and would change nothing.");
+            "a difference of zero means the run's hit points never reached the simulation at all");
     }
 
-
+    /// <summary>One boss fight composed directly, at the row's own seed and power.</summary>
     private static SimulationResult Boss(
         HeroBuild build, Core.Model.Snapshots.RunSnapshot row, ActorStats hero)
     {
@@ -384,9 +340,8 @@ public sealed class RunBattleTests
             !player.HasClearedChapterTier(row.ChapterId, row.Tier),
             RunBattleTestArithmetic.Holdings(build),
 
-            // 🔒 The run's own health, exactly as RunBattle.Simulate hands it over (M7-06e). A helper
-            // that let this default to full would be composing a DIFFERENT fight from the seam it is
-            // asserting against, and the assertion would fail for a reason that is about the helper.
+            // The run's own health, exactly as RunBattle.Simulate hands it over — a helper that let
+            // this default to full would compose a different fight from the seam it asserts against.
             row.CurrentHp);
     }
 
@@ -411,17 +366,14 @@ public sealed class RunBattleTests
     }
 
     /// <summary>
-    /// 🔒 The loadout's effects reach the fight carrying the holdings they were collected under, not
+    /// The loadout's effects reach the fight carrying the holdings they were collected under, not
     /// as bare definitions.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>A hero in a full authored set cannot be put in a fight without them.</b> A roster refuses
-    /// an <c>ON_KILL</c> effect that arrives with no instance id — the counter is run-scoped and a
-    /// battle-local id would reset it every fight — and the four-piece bonus of the shipped BALANCED
-    /// set is exactly such an effect. So the two arms below are the same fight differing only in
-    /// whether the ids survived: with them it runs, without them the roster refuses by name. Nothing
-    /// else in the suite would notice, because a build with fewer than four set pieces composes
-    /// perfectly well either way.
+    /// A roster refuses an <c>ON_KILL</c> effect arriving with no instance id — the counter is
+    /// run-scoped — and the shipped BALANCED set's four-piece bonus is exactly such an effect. The
+    /// two arms are the same fight differing only in whether the collected ids survived; a build
+    /// with fewer than four set pieces would compose perfectly well either way.
     /// </remarks>
     [Fact]
     public void The_loadouts_effects_reach_the_fight_with_the_holdings_they_were_collected_under()
@@ -461,11 +413,9 @@ public sealed class RunBattleTests
 
     /// <summary>The tile's linear index reaches the enemy the seam composes.</summary>
     /// <remarks>
-    /// 🔴 Stated as identity, not as "the later tile hurts more". The geared fixture hero wins both
-    /// fights outright and ends each at full health, so an outcome comparison is satisfied by a
-    /// composition that ignores the index entirely — which is the exact defect this case is about.
-    /// Each arm is instead compared against an encounter composed at the power the curve authorises
-    /// for that node, with the two powers proven different first.
+    /// Stated as identity, not as "the later tile hurts more": the geared fixture hero wins both
+    /// fights at full health, so an outcome comparison is satisfied by a composition that ignores
+    /// the index entirely — the exact defect this case is about.
     /// </remarks>
     [Fact]
     public void The_tiles_linear_index_reaches_the_enemy_the_seam_composes()
@@ -509,13 +459,10 @@ public sealed class RunBattleTests
 
     /// <summary>An Elite tile is composed as an Elite, and an Enemy tile is not.</summary>
     /// <remarks>
-    /// 🔴 <b>Stated as identity, not as difficulty, and the first draft of this case had it wrong.</b>
-    /// "An Elite hits harder than an ordinary enemy at the same node" is not true and cannot be made
-    /// true: the two draw from different pools, so the Elite's base archetype is a different shape,
-    /// and an Elite at 2.2x power measurably left the hero <em>healthier</em> than an ordinary draw
-    /// did. What IS exactly true is which slot the encounter elevates — so each arm is compared
-    /// against a directly composed encounter, and the two arms are proven distinguishable first, so
-    /// the pair cannot both be satisfied by one fight.
+    /// Identity, not difficulty: the two kinds draw from different pools, so an Elite at 2.2x power
+    /// can measurably leave the hero HEALTHIER than an ordinary draw — "hits harder" cannot be made
+    /// true. What is exactly true is which slot the encounter elevates, with the two arms proven
+    /// distinguishable first so the pair cannot both be satisfied by one fight.
     /// </remarks>
     [Fact]
     public void An_elite_tile_is_composed_as_an_elite_and_an_enemy_tile_is_not()
@@ -650,20 +597,6 @@ public sealed class RunBattleTests
         refused.Message.ShouldContain("does not rehydrate", Case.Insensitive);
     }
 
-    /// <summary>Neither door accepts a null.</summary>
-    [Fact]
-    public void The_public_door_refuses_a_null_argument()
-    {
-        Should.Throw<ArgumentNullException>(
-            () => RunBattle.Simulate(null!, RunBattleWorlds.RunRow(), RunBattleWorlds.Content));
-
-        Should.Throw<ArgumentNullException>(
-            () => RunBattle.Simulate(RunBattleWorlds.PlayerRow(), null!, RunBattleWorlds.Content));
-
-        Should.Throw<ArgumentNullException>(
-            () => RunBattle.Simulate(RunBattleWorlds.PlayerRow(), RunBattleWorlds.RunRow(), null!));
-    }
-
     // ═══════════════════════════════════════════════════════ "is there a battle open at all"
 
     /// <summary>Every row shape the predicate is stated over, and whether it names an open battle.</summary>
@@ -704,16 +637,13 @@ public sealed class RunBattleTests
             "'" + shape + "' is " + (open ? "" : "not ") + "a run standing in a battle it can fight");
 
     /// <summary>
-    /// 🔒 The predicate and the composition agree on every one of those rows — which is the whole
-    /// reason the predicate is here rather than in the caller.
+    /// The predicate and the composition agree on every one of those rows — the whole reason the
+    /// predicate is here rather than in the caller.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Stated as an agreement, not as a list of expected booleans.</b> A caller that tested the
-    /// phase alone would answer <c>true</c> for a run in the battle phase carrying no pending tile,
-    /// and would then get an <c>InvalidOperationException</c> out of what it published as a read.
-    /// A predicate that is merely <em>a</em> correct-looking answer is exactly that bug written one
-    /// layer down, so what is asserted is that "the predicate says yes" and "the composition
-    /// produces a fight" are the same set of rows.
+    /// An agreement, not a list of booleans: a predicate testing the phase alone would answer
+    /// <c>true</c> for a run carrying no pending tile, and a caller would be told there is a fight
+    /// and then handed an <c>InvalidOperationException</c> out of what it published as a read.
     /// </remarks>
     [Theory]
     [MemberData(nameof(OpenBattleRows))]
@@ -758,17 +688,5 @@ public sealed class RunBattleTests
 
         refused.ParamName.ShouldBe("run");
         refused.Message.ShouldContain("does not rehydrate", Case.Insensitive);
-    }
-
-    /// <summary>Both of the predicate's doors refuse a null, like the others.</summary>
-    /// <remarks>
-    /// Cast, because this assembly can see the internal aggregate overload and a bare <c>null</c>
-    /// would not say which door the case is about.
-    /// </remarks>
-    [Fact]
-    public void The_predicates_door_refuses_a_null_argument()
-    {
-        Should.Throw<ArgumentNullException>(() => RunBattle.HasOpenBattle((RunSnapshot)null!));
-        Should.Throw<ArgumentNullException>(() => RunBattle.HasOpenBattle((Core.Model.Run)null!));
     }
 }

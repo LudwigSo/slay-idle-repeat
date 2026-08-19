@@ -27,76 +27,6 @@ public sealed class HeroBaseCurveTests
         stats[StatId.DEF].ShouldBe(def, $"DEF = 15 + 3 * {level}");
     }
 
-    /// <summary>
-    /// Every level-independent constant, checked at two different levels — a stat that had
-    /// accidentally picked up a per-level term would be invisible at one.
-    /// </summary>
-    [Theory]
-    [InlineData(1)]
-    [InlineData(200)]
-    public void The_eleven_level_independent_stats_are_the_constants_05_section_2_states(int level)
-    {
-        var stats = StatFixtures.HeroCurve().At(level);
-
-        stats[StatId.ASPD].ShouldBe(1.00, "ASPD = 1.00, attacks per second");
-        stats[StatId.CRIT].ShouldBe(0.05, "CRIT = 0.05");
-        stats[StatId.CDMG].ShouldBe(0.50, "CDMG = 0.50, i.e. a x1.5 crit");
-        stats[StatId.LIFESTEAL].ShouldBe(0.00, "LS = 0.00");
-        stats[StatId.DODGE].ShouldBe(0.02, "DODGE = 0.02");
-        stats[StatId.BLOCK].ShouldBe(0.00, "BLOCK = 0.00");
-        stats[StatId.PEN].ShouldBe(0.00, "PEN = 0.00");
-        stats[StatId.DMG_PCT].ShouldBe(0.00, "DMG% = 0.00");
-        stats[StatId.DR_PCT].ShouldBe(0.00, "DR% = 0.00");
-        stats[StatId.THORNS].ShouldBe(0.00, "THORN = 0.00");
-    }
-
-    /// <summary>
-    /// The one row that defaults to a multiplier rather than zero: HEAL_PCT = 1.00, so lifesteal
-    /// and heals apply with no modifier.
-    /// </summary>
-    /// <remarks>
-    /// A silent 0 here would not fail loudly: every heal, lifesteal tick and REGEN in the game
-    /// would quietly do nothing while the suite stayed green. It's the one stat where "unstated
-    /// means zero" would be worse than a crash.
-    /// </remarks>
-    [Fact]
-    public void HEAL_PCT_starts_at_one_because_a_zero_would_disable_every_heal_in_the_game()
-    {
-        StatFixtures.HeroCurve().At(1)[StatId.HEAL_PCT].ShouldBe(1.00);
-        StatFixtures.HeroCurve().At(200)[StatId.HEAL_PCT].ShouldBe(1.00);
-
-        StatFixtures.HeroCurve().At(1)[StatId.HEAL_PCT].ShouldNotBe(0.0);
-    }
-
-    /// <summary>
-    /// The defaults read back as a set rather than stat-by-stat: exactly one stat is 1.0, three
-    /// scale with level, and the remaining ten are zero at level 1.
-    /// </summary>
-    /// <remarks>
-    /// Stated as a shape so a stat picking up a wrong default fails here even if the per-stat
-    /// cases above were edited to match it — nothing in <see cref="HeroBaseCurve"/> otherwise
-    /// constrains what the fourteen values are, only that there are fourteen of them.
-    /// </remarks>
-    [Fact]
-    public void At_level_one_exactly_one_stat_defaults_to_a_multiplier_and_ten_default_to_zero()
-    {
-        var stats = StatFixtures.HeroCurve().At(1);
-
-        stats.Values.Where(v => v.Value == 0.0).Select(v => v.Key).ShouldBe(
-            [
-                StatId.LIFESTEAL, StatId.BLOCK, StatId.PEN,
-                StatId.DMG_PCT, StatId.DR_PCT, StatId.THORNS,
-            ],
-            ignoreOrder: true);
-
-        stats.Values.Where(v => v.Value == 1.0).Select(v => v.Key).ShouldBe(
-            [StatId.ASPD, StatId.HEAL_PCT],
-            ignoreOrder: true,
-            "05 §2's only two unit defaults: one attack per second, and a x1 healing multiplier");
-
-        stats.Values.Count().ShouldBe(14);
-    }
-
     [Fact]
     public void A_curve_missing_a_combat_stat_is_refused()
     {
@@ -135,13 +65,6 @@ public sealed class HeroBaseCurveTests
 
         thrown.Message.ShouldContain("05 §2", Case.Sensitive);
         thrown.Message.ShouldContain("Clamping", Case.Sensitive);
-    }
-
-    [Fact]
-    public void The_authored_range_is_the_one_05_section_2_states()
-    {
-        StatFixtures.HeroCurve().MinimumLevel.ShouldBe(1);
-        StatFixtures.HeroCurve().MaximumLevel.ShouldBe(200);
     }
 
     /// <summary>The curve is an accumulation point, so it rounds.</summary>

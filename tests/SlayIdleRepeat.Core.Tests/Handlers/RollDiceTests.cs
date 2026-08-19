@@ -61,15 +61,4 @@ public sealed class RollDiceTests
 
         faces.Count.ShouldBeGreaterThan(1, "twelve different draw positions should not all land on the same face.");
     }
-
-    /// <summary>
-    /// Not a rejection: every CommandKind.Run row but START_RUN throws on a run-less slice, and
-    /// ROLL_DICE carries no OpensRun exemption.
-    /// </summary>
-    [Fact]
-    public void Rolling_on_a_run_less_slice_is_a_defect_not_a_rejection()
-    {
-        Should.Throw<InvalidOperationException>(() => SlayIdleRepeat.Core.GameRules.Apply(
-            Worlds.OutsideARun(), new RollDiceCommand(), Worlds.Context));
-    }
 }

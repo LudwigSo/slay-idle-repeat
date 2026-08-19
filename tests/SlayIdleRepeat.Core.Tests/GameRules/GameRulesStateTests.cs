@@ -9,12 +9,6 @@ namespace SlayIdleRepeat.Core.Tests;
 /// <summary>Immutable and pure: what <c>Apply</c> does to the slice it is handed, and what it must never do to it.</summary>
 public sealed class GameRulesStateTests
 {
-    // ------------------------------------------------------------------ immutability
-
-    /// <summary>
-    /// An accepted command leaves the caller's slice untouched. The aggregates in <c>NewState</c>
-    /// are different objects, and the ones the caller passed in still hold their original values.
-    /// </summary>
     [Fact]
     public void The_input_slice_is_unchanged_by_an_accepted_command()
     {
@@ -35,10 +29,7 @@ public sealed class GameRulesStateTests
         result.NewState.Player.ShouldNotBeSameAs(state.Player);
     }
 
-    /// <summary>
-    /// A rejected command returns the caller's own slice, unchanged, even when the handler mutated
-    /// state before the rule refused. The handler below gets a long way.
-    /// </summary>
+    /// <summary>The handler below gets a long way before refusing — that is the point.</summary>
     [Fact]
     public void The_input_slice_is_unchanged_by_a_rejected_command()
     {
@@ -68,10 +59,8 @@ public sealed class GameRulesStateTests
     }
 
     /// <summary>
-    /// Pure: the same slice, command and context produce the same answer. Compared through the
-    /// canonical state hash rather than the snapshot records, because a snapshot carries
-    /// <c>IReadOnlyDictionary</c> components which a record compares by reference, so two
-    /// separately rehydrated aggregates holding identical state would otherwise compare unequal.
+    /// Compared through the canonical state hash rather than the snapshot records: a snapshot
+    /// carries <c>IReadOnlyDictionary</c> components, which a record compares by reference.
     /// </summary>
     [Fact]
     public void Apply_is_deterministic_over_identical_inputs()
@@ -114,8 +103,6 @@ public sealed class GameRulesStateTests
         state.Player.BalanceOf(CurrencyId.CROWNS).ShouldBe(0L);
         result.NewState.Run.ShouldBeNull();
     }
-
-    // ------------------------------------------------------------------ the TTL anchors
 
     /// <summary>An accepted run command advances both anchors: the player's and the run's.</summary>
     [Fact]
@@ -172,13 +159,9 @@ public sealed class GameRulesStateTests
         result.NewState.Run!.LastAppliedAtUtc.ShouldBe(RunSnapshots.Midmorning);
     }
 
-    // ------------------------------------------------------------------ round-trip defects
-
     /// <summary>
-    /// An aggregate that cannot rebuild itself from its own snapshot is a defect, raised where it
-    /// happened rather than one command later inside a persistence adapter. Driven through the
-    /// content snapshot: a tuning context whose Legend Level range excludes the fixture player
-    /// makes the round trip fail for a real, described reason.
+    /// Driven through the content snapshot: a tuning context whose Legend Level range excludes the
+    /// fixture player makes the round trip fail for a real, described reason.
     /// </summary>
     [Fact]
     public void An_aggregate_that_does_not_round_trip_is_a_defect()

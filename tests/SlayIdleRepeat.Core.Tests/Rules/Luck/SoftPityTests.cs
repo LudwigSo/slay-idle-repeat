@@ -189,46 +189,16 @@ public sealed class SoftPityTests
     }
 
     // ---------------------------------------------------------------- the additive rate mercy
+    //
+    // The ramp, the ceiling and the ad boost run through the LuckService façade in
+    // EnhanceMercyTests. What stays here is what the shipped block cannot express: a cap below 1,
+    // and the primitive's own argument ranges.
 
     /// <summary>
-    /// <c>24</c> §4.6's own formula: <c>effectiveRate = min(1.00, baseRate + 0.08 ×
-    /// consecutiveFailuresOnThisItem)</c>, over the <c>+15</c> success rate <c>08</c> §4.2 authors.
+    /// The cap is read from the argument, not assumed to be 1: a hard-coded <c>Math.Min(1.0, …)</c>
+    /// passes every case using the shipped cap of <c>1.00</c> and silently ignores a block that
+    /// authors a lower one.
     /// </summary>
-    [Theory]
-    [InlineData(0, 0.25)]
-    [InlineData(1, 0.33)]
-    [InlineData(2, 0.41)]
-    [InlineData(3, 0.49)]
-    [InlineData(9, 0.97)]
-    public void The_mercy_rate_adds_one_slope_per_consecutive_failure(int failures, double expected)
-    {
-        Rounded(SoftPity.RateWithMercy(EnhanceBaseRate, failures, EnhanceSlope, EnhanceCap)).ShouldBe(
-            expected,
-            "24 §4.6 is additive on a probability, not multiplicative on a weight. A multiplicative " +
-            "reading of the same slope would answer 0.25 × 1.24 = 0.31 at three failures.");
-    }
-
-    /// <summary>The cap is a ceiling, and the ramp stops there rather than running past 1.</summary>
-    [Theory]
-    [InlineData(10)]
-    [InlineData(11)]
-    [InlineData(1000)]
-    public void The_mercy_rate_stops_at_the_authored_cap(int failures)
-    {
-        Rounded(SoftPity.RateWithMercy(EnhanceBaseRate, failures, EnhanceSlope, EnhanceCap)).ShouldBe(
-            EnhanceCap,
-            "0.25 + 0.08 × 10 is 1.05, and a success probability above 1 is not a probability. 24 " +
-            "§4.6: 'a guaranteed success by the 10th attempt at worst'.");
-    }
-
-    /// <summary>
-    /// The cap is read from the argument, not assumed to be 1 — a block may stop the ramp short of
-    /// certainty.
-    /// </summary>
-    /// <remarks>
-    /// The negative control on the case above: a hard-coded <c>Math.Min(1.0, …)</c> passes every case
-    /// that uses the shipped cap of <c>1.00</c> and silently ignores any block that authors a lower one.
-    /// </remarks>
     [Theory]
     [InlineData(9, 0.6)]
     [InlineData(2, 0.41)]
@@ -236,32 +206,6 @@ public sealed class SoftPityTests
         int failures, double expected)
     {
         Rounded(SoftPity.RateWithMercy(EnhanceBaseRate, failures, EnhanceSlope, 0.6)).ShouldBe(expected);
-    }
-
-    /// <summary>
-    /// <c>AD_ENHANCE_LUCK</c>'s <c>+15</c> percentage points stack additively on top and leave the
-    /// failure count alone.
-    /// </summary>
-    /// <remarks>
-    /// <c>24</c> §4.6: the ad boost 'stacks additively on top and does not advance or consume the
-    /// mercy counter'. Expressible here because the counter is the caller's argument: the same
-    /// failure count in, the ad's points simply added to the base. The other half — that the
-    /// placement never writes the counter back — is a wiring claim owned by the enhancement command
-    /// (<b>M4-04</b>, the Forge task the tracker gives enhancement to; M4-04b is Reforge/Retune/Focus
-    /// and does not touch the mercy counter), and <c>luck.json</c>'s
-    /// <c>adEnhanceLuckAdvancesCounter: false</c> is pinned in <c>Application.Tests</c>.
-    /// </remarks>
-    [Fact]
-    public void The_ad_boost_stacks_additively_and_does_not_move_the_mercy_ramp()
-    {
-        var adPoints = 0.15;
-        var boosted = SoftPity.RateWithMercy(EnhanceBaseRate + adPoints, 3, EnhanceSlope, EnhanceCap);
-
-        Rounded(boosted).ShouldBe(
-            Rounded(SoftPity.RateWithMercy(EnhanceBaseRate, 3, EnhanceSlope, EnhanceCap) + adPoints),
-            "12 §4 and 24 §2: 'no placement may grant pity progress'. The boost moves the base rate " +
-            "the ramp is applied to, and nothing else.");
-        Rounded(boosted).ShouldBe(0.64);
     }
 
     /// <summary>Probabilities are in 0..1, counts are never negative, and a slope is positive and finite.</summary>
@@ -288,9 +232,6 @@ public sealed class SoftPityTests
 
     /// <summary><c>24</c> §4.6's mercy slope, as <c>luck.json</c> authors it.</summary>
     private const double EnhanceSlope = LuckDocuments.ShippedEnhanceMercySlope;
-
-    /// <summary><c>24</c> §4.6's effective-rate cap, as <c>luck.json</c> authors it.</summary>
-    private const double EnhanceCap = LuckDocuments.ShippedEnhanceRateCap;
 
     private static double Rounded(double value) => DeterminismRounding.Round(value);
 

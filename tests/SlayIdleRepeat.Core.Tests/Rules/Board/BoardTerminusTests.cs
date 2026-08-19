@@ -6,77 +6,28 @@ using CoreBoard = SlayIdleRepeat.Core.Rules.Board.BoardGraph;
 namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 
 /// <summary>
-/// 🔒 <b>What may sit at the end of a board, and what may not sit anywhere else.</b> The content
-/// half of the terminus question, over hand-authored <see cref="CoreBoard.FromLayout"/> layouts —
-/// the topology half (only the terminus may dead-end) lives in <see cref="BoardTests"/>.
+/// A boss tile may sit only on the terminus — the content half of the terminus question, over
+/// hand-authored <see cref="CoreBoard.FromLayout"/> layouts; the topology half (only the terminus
+/// may dead-end) lives in <see cref="BoardTests"/>.
 /// </summary>
 /// <remarks>
-/// <para>
-/// ⚠️ <b><see cref="MovementEngine.Advance"/> answers "is this the boss?" three different ways, and
-/// only two of them are positional.</b> The dead-end arm (a node with no outgoing edge) and the
-/// loop-exit arm (the node equals <see cref="CoreBoard.BossNodeId"/>) both ask about identity. The
-/// third — the boss-exact rule that fires when a move crosses a stage boundary — asks whether the
-/// next node's tile is <see cref="TileKind.Boss"/>, and asks nothing about which node that is. The
-/// rule this file pins is what makes the third arm agree with the other two: <b>a boss tile may sit
-/// only on the terminus</b>, so the tile-keyed question can no longer be answered "yes" at a node
-/// the run has not actually reached.
-/// </para>
-/// <para>
-/// The consequence is not cosmetic. <c>Handlers.RollDice</c> treats a boss report as "arrive, stop
-/// the chain, do not gate" — so a boss tile parked on the far side of a stage boundary would swallow
-/// that boundary's Stage Gate entirely and resolve a boss encounter in the middle of the board.
-/// </para>
-/// <para>
-/// 🔴 <b>The other half of the question is open, and is deliberately left open here.</b> A terminus
-/// carrying an ordinary tile is still accepted, and movement still reports a boss standing on it —
-/// pinned below by
-/// <see cref="A_terminus_carrying_an_ordinary_tile_is_still_accepted_and_still_reports_the_boss"/>
-/// so that tightening it is a decision somebody takes rather than a side effect.
-/// </para>
-/// <para>
-/// ⚠️ <b>What is missing is vocabulary, not a ruling.</b> The rule itself is authored twice over: a
-/// board ends on a boss <em>or mini-boss</em> node, and for the tutorial's board that check is
-/// specified as binding. What cannot be written is the predicate, because the tutorial's final tile
-/// is authored as a mini-boss and <see cref="TileKind"/> has no member for one — so requiring
-/// <see cref="TileKind.Boss"/> here would refuse the first authored board there will be. The fix is
-/// an enum member and the task that adds it, not a designer's decision.
-/// </para>
-/// <para>
-/// <b>Owners.</b> The mini-boss tile belongs to <b>M4-12</b>, which authors the tutorial content
-/// package; its remaining open decision is the mini-boss's identity, logged as <b>O36</b>. The
-/// dungeon tile belongs to <b>M10-01</b>, which adds it alongside the Guardian encounter — and note
-/// that a dungeon board is built by the <em>generator</em> with a dungeon profile, so a Guardian
-/// terminus never reaches this method at all. The mini-boss carries this deferral on its own.
-/// <see cref="The_tile_ids_the_terminus_ruling_needs_are_still_unrepresentable"/> is the expiry: it
-/// fails the day either tile becomes representable, which is the day the tightening becomes statable.
-/// </para>
-/// <para>
-/// <b>What these cases do not close.</b> The shapes below discriminate an identity-keyed rule from
-/// the three near-misses worth worrying about — one that merely counts boss tiles, one that keys on
-/// the stage instead of the node, and one that walks only the linear index and so never sees a
-/// branch. They do <em>not</em> discriminate it from a rule keyed on
-/// <see cref="BoardNode.LinearIndex"/> ordering, because every fixture here gives the terminus the
-/// highest index. Building one that does would mean authoring a layout whose branch indices
-/// contradict the forward-distance mapping — a second malformation, which would make whichever rule
-/// fired ambiguous.
-/// </para>
+/// The rule makes <see cref="MovementEngine.Advance"/>'s tile-keyed boss-exact arm agree with its
+/// two identity-keyed arms: without it, a boss tile parked on the far side of a stage boundary
+/// would swallow that boundary's Stage Gate and resolve a boss encounter mid-board. Internal seam
+/// by necessity: <c>BoardGenerator</c> never produces these shapes, so no command can reach them —
+/// <c>FromLayout</c> is the seam an authored-layout loader would call.
 /// </remarks>
 public sealed class BoardTerminusTests
 {
-    /// <summary>
-    /// The fragment that identifies this refusal rather than one of <see cref="CoreBoard.FromLayout"/>'s
-    /// four others. All five answer <c>ParamName</c> <c>"nodes"</c> or a sibling, so steering S2's
-    /// "pin which rule fired" has to be carried by the message.
-    /// </summary>
+    /// <summary>The fragment that identifies this refusal among <see cref="CoreBoard.FromLayout"/>'s others.</summary>
     private const string BossTileRefusal = "carries the boss tile";
 
     /// <summary>The dead-end rule's own fragment, asserted absent so the two refusals are shown to be distinguishable.</summary>
     private const string DeadEndRefusal = "has no outgoing edge";
 
     /// <summary>
-    /// Probe shape 1: the boss tile sits on the far side of a stage boundary. This is the shape the
-    /// boss-exact rule fires on — <c>Advance</c> would report a boss encounter at node 1 and
-    /// <c>RollDice</c> would skip stage 1's gate.
+    /// The boss tile on the far side of a stage boundary — the shape the boss-exact rule fires on,
+    /// where <c>RollDice</c> would skip stage 1's gate.
     /// </summary>
     [Fact]
     public void A_boss_tile_at_a_stage_boundary_that_is_not_the_boss_node_is_refused()
@@ -105,10 +56,8 @@ public sealed class BoardTerminusTests
     }
 
     /// <summary>
-    /// Probe shape 2, and the one that makes the rule's <em>scope</em> measurable rather than just
-    /// its existence: the boss tile sits inside a stage, where the boss-exact rule never looks. A
-    /// guard written only against the boundary shape would accept this and let movement walk
-    /// straight over a boss.
+    /// The boss tile inside a stage, where the boss-exact rule never looks — a guard written only
+    /// against the boundary shape would accept this and let movement walk straight over a boss.
     /// </summary>
     [Fact]
     public void A_boss_tile_inside_a_stage_is_refused_even_though_movement_would_walk_over_it()
@@ -135,9 +84,8 @@ public sealed class BoardTerminusTests
     }
 
     /// <summary>
-    /// Probe shape 3: a boss tile on a fork branch. A branch node is never in the linear index at
-    /// all, so a rule that walked <c>spineByLinearIndex</c> instead of every supplied node would
-    /// miss it entirely.
+    /// A boss tile on a fork branch: a branch node is never in the linear index, so a rule that
+    /// walked <c>spineByLinearIndex</c> instead of every supplied node would miss it.
     /// </summary>
     [Fact]
     public void A_boss_tile_on_a_fork_branch_is_refused()
@@ -169,17 +117,10 @@ public sealed class BoardTerminusTests
     }
 
     /// <summary>
-    /// Probe shape 4, and the one that separates this rule from the cheapest thing that looks like
-    /// it: the board holds exactly <b>one</b> boss tile and is still refused, because that tile is
-    /// not the terminus. A rule reading "at most one boss tile" would accept this layout — and it is
-    /// precisely the layout that leaves the harm live, since movement would then report a boss at
-    /// node 1 and stop three steps short of the board's real end.
+    /// Exactly one boss tile, still refused because it is not the terminus — a rule reading "at
+    /// most one boss tile" would accept this layout. The impostor also carries the terminus's
+    /// stage, so a rule keyed on the stage rather than the node would let it through too.
     /// </summary>
-    /// <remarks>
-    /// The impostor is also given the stage the terminus holds, which closes the second near-miss:
-    /// a rule keyed on the stage rather than on the node would let it through, and a stage is not
-    /// what <c>Advance</c>'s identity arms compare against.
-    /// </remarks>
     [Fact]
     public void A_boss_tile_that_is_the_only_one_on_the_board_is_still_refused_when_it_is_not_the_terminus()
     {
@@ -206,9 +147,8 @@ public sealed class BoardTerminusTests
     }
 
     /// <summary>
-    /// 🔴 S1 negative control: the ordinary, correct board. A rule that simply refused
-    /// <see cref="TileKind.Boss"/> anywhere would reject every real board, and the sweep in
-    /// <see cref="BoardTests"/> would be the only thing to notice.
+    /// Negative control: a rule that simply refused <see cref="TileKind.Boss"/> anywhere would
+    /// reject every real board.
     /// </summary>
     [Fact]
     public void A_layout_whose_only_boss_tile_is_the_terminus_is_accepted()
@@ -238,21 +178,10 @@ public sealed class BoardTerminusTests
     }
 
     /// <summary>
-    /// 🔴 <b>Today's behaviour, pinned so that changing it is deliberate rather than silent</b> — the
-    /// residual arm, on the precedent of <c>SkipDraftTests.A_skip_leaves_all_three_draft_counters_standing</c>.
+    /// Today's behaviour, pinned so changing it is deliberate: the rule is "a boss tile may only be
+    /// the terminus", NOT the converse "the terminus must be a boss tile" — the converse cannot be
+    /// authored until a mini-boss tile id exists (M4-12).
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// This is <em>also</em> the second negative control, and the sharper of the two: it proves the
-    /// rule above is scoped to "a boss tile may only be the terminus" and is <b>not</b> the converse,
-    /// "the terminus must be a boss tile". The two are easy to conflate and only one of them is
-    /// authored.
-    /// </para>
-    /// <para>
-    /// ⚠️ Whether an ordinary tile may end a board is the open product question this class's remarks
-    /// set out. Whoever rules on it changes this test, and that is the intended cost.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void A_terminus_carrying_an_ordinary_tile_is_still_accepted_and_still_reports_the_boss()
     {
@@ -296,56 +225,5 @@ public sealed class BoardTerminusTests
 
         ex.Message.ShouldContain(DeadEndRefusal, Case.Sensitive);
         ex.Message.ShouldNotContain(BossTileRefusal, Case.Sensitive);
-    }
-
-    /// <summary>
-    /// 🔒 <b>The expiry for the open half above</b> (steering S4: a declared exception must fail when
-    /// it stops being true, including when it has been satisfied).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The reason the terminus's tile kind cannot be required today is exactly this: the two tile
-    /// ids the design set authors beyond the fourteen cannot be spoken. <c>TILE_MINIBOSS</c> is
-    /// authored as the final node of the tutorial's board — the first authored board there will be,
-    /// and one whose validator is specified as binding — and belongs to <b>M4-12</b>.
-    /// <c>TILE_CACHE_DUNGEON</c> belongs to <b>M10-01</b> and is the sharper of the two, because it
-    /// is not merely a sentence in a document: <c>game-data/tuning/dungeons.json</c> ships it today
-    /// and <c>game-data/schema/dungeons.schema.json</c> makes it <em>required</em>, while
-    /// <c>game-data/schema/board.schema.json</c> declares the same vocabulary closed at fourteen and
-    /// says in as many words that a kind added to the game is supposed to fail that document. Only
-    /// the fact that nothing yet parses a dungeon's composition through <see cref="TileKindIds"/>
-    /// keeps the two from colliding.
-    /// </para>
-    /// <para>
-    /// The day either parses, whoever added it has decided what a board may end with, and this
-    /// assertion fails to make them say so out loud —
-    /// <see cref="A_terminus_carrying_an_ordinary_tile_is_still_accepted_and_still_reports_the_boss"/>
-    /// is the pin they then have to revisit.
-    /// </para>
-    /// <para>
-    /// The <c>TILE_BOSS</c> leg is the discriminator, not decoration: without it the whole assertion
-    /// would also pass against a parser that recognised nothing.
-    /// </para>
-    /// </remarks>
-    [Fact]
-    public void The_tile_ids_the_terminus_ruling_needs_are_still_unrepresentable()
-    {
-        TileKindIds.TryParse("TILE_BOSS", out var boss).ShouldBeTrue("the negative control — a parser that answers false to everything must not pass this test.");
-        boss.ShouldBe(TileKind.Boss);
-
-        TileKindIds.TryParse("TILE_MINIBOSS", out _).ShouldBeFalse(
-            "the tutorial board's final node is authored as a mini-boss tile. When this id becomes real, the terminus rule above can and must be tightened.");
-
-        TileKindIds.TryParse("TILE_CACHE_DUNGEON", out _).ShouldBeFalse(
-            "the Resource Dungeon profile authors this tile, and the same dungeon's terminus is a Guardian that is explicitly not a boss.");
-
-        // The two ids above are the spellings the documents happen to use; a member added under any
-        // other name would slip past both. This leg catches that, and it is DELIBERATELY a second
-        // reader of a closure ResolveTileTests already pins for its own reason — do not fold them
-        // together, because that file's copy expires on a resolver gaining a case, not on anyone
-        // deciding what may end a board.
-        Enum.GetValues<TileKind>().Length.ShouldBe(
-            14,
-            "the tile set is declared closed. A new member means somebody has decided what a board may end with, and the pin above is theirs to revisit — M4-12 for the mini-boss tile, M10-01 for the dungeon one.");
     }
 }

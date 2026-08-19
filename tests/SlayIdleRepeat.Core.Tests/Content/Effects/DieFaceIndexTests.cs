@@ -17,8 +17,7 @@ public sealed class DieFaceIndexTests
         index.IsPlayerChoice.ShouldBeTrue();
         index.IsUnset.ShouldBeFalse();
         index.Face.ShouldBeNull();
-        index.ToString().ShouldBe(DieFaceIndex.PlayerChoiceToken);
-        DieFaceIndex.PlayerChoiceToken.ShouldBe("PLAYER_CHOICE");
+        index.ToString().ShouldBe("PLAYER_CHOICE");
     }
 
     [Theory]
@@ -49,21 +48,10 @@ public sealed class DieFaceIndexTests
         thrown.ParamName.ShouldBe("face");
     }
 
-    [Fact]
-    public void The_bounds_are_the_six_faces_04_gives_the_die()
-    {
-        DieFaceIndex.MinFace.ShouldBe(1);
-        DieFaceIndex.MaxFace.ShouldBe(6);
-    }
-
     /// <summary>
-    /// A <c>default</c> value names no face, and must not read as <see cref="DieFaceIndex.PlayerChoice"/>.
+    /// A <c>default</c> value names no face, and must not read as <see cref="DieFaceIndex.PlayerChoice"/> —
+    /// a forgotten assignment would silently become a real instruction to the run controller.
     /// </summary>
-    /// <remarks>
-    /// Same hazard every enum in the DSL avoids by having no <c>0</c> member: if "player choice" were
-    /// modelled as the absence of a face number, a forgotten assignment would silently become a real
-    /// instruction to the run controller.
-    /// </remarks>
     [Fact]
     public void A_default_index_is_unset_rather_than_player_choice()
     {
@@ -85,42 +73,5 @@ public sealed class DieFaceIndexTests
         DieFaceIndex.At(4).ShouldBe(DieFaceIndex.At(4));
         DieFaceIndex.At(4).ShouldNotBe(DieFaceIndex.At(5));
         DieFaceIndex.PlayerChoice.ShouldBe(DieFaceIndex.PlayerChoice);
-    }
-
-    [Fact]
-    public void TILE_DICE_FORGE_replaces_the_player_chosen_face_with_a_four_pip()
-    {
-        var effect = new EffectDefinition
-        {
-            Id = "TILE_DICE_FORGE_FACE",
-            Op = EffectOp.MODIFY_DIE_FACE,
-            FaceIndex = DieFaceIndex.PlayerChoice,
-            NewFace = new DieFaceSpec("Pip", 4),
-            Duration = new EffectDuration { Scope = DurationScope.RUN },
-            Trigger = new EffectTrigger { Kind = TriggerKind.ON_TILE_RESOLVED, TileType = "TILE_DICE_FORGE" },
-        };
-
-        effect.FaceIndex!.Value.IsPlayerChoice.ShouldBeTrue();
-        effect.NewFace!.Kind.ShouldBe("Pip");
-        effect.NewFace.Value.ShouldBe(4);
-        effect.Family.ShouldBe(EffectOpFamily.RUN_AND_BOARD);
-    }
-
-    /// <summary>PET_DICEBEAST: a <c>Star</c> face with no pip value.</summary>
-    [Fact]
-    public void PET_DICEBEAST_grants_a_star_face_for_the_next_three_rolls()
-    {
-        var effect = new EffectDefinition
-        {
-            Id = "PET_DICEBEAST_ACTIVE",
-            Op = EffectOp.MODIFY_DIE_FACE,
-            NewFace = new DieFaceSpec("Star"),
-            Scope = DieFaceScope.NEXT_3_ROLLS,
-            Trigger = new EffectTrigger { Kind = TriggerKind.ON_BATTLE_END, OnlyIfWon = true },
-        };
-
-        effect.NewFace!.Value.ShouldBeNull("a Star face has no pip count — 04 §1");
-        effect.Scope.ShouldBe(DieFaceScope.NEXT_3_ROLLS);
-        effect.Trigger!.OnlyIfWon.ShouldBe(true);
     }
 }

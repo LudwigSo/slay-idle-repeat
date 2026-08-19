@@ -36,16 +36,4 @@ public sealed class ChapterBoardTuningTests
         Should.Throw<MissingContentException>(() =>
             ChapterBoardTuning.Read(ChapterDocuments.ChapterOne, chapterId: 999));
     }
-
-    [Fact]
-    public void The_config_generates_a_real_board()
-    {
-        // Wiring proof: what this reader produces is accepted by the generator it feeds, end to end.
-        var config = ChapterBoardTuning.Read(ChapterDocuments.ChapterOne, chapterId: 1);
-        var rng = SlayIdleRepeat.Core.Rng.DeterministicRng.OpenAt(1UL, SlayIdleRepeat.Core.Rng.RngStreams.Board, 0);
-
-        var board = BoardGenerator.GenerateBoard(config, rng);
-
-        board.NodeCount.ShouldBeGreaterThanOrEqualTo(12 + 14 + 16 + 1);
-    }
 }

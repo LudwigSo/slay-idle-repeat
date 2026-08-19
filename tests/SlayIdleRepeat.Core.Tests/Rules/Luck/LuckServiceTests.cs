@@ -38,13 +38,9 @@ public sealed class LuckServiceTests
 
     /// <summary>
     /// A guarantee that fires floors the table, reports itself, and resets its own counter while
-    /// advancing the one it did not satisfy.
+    /// advancing the one it did not satisfy — <c>24</c> §4.0a rule 3: a floored draw
+    /// <em>"advances and resets counters normally"</em>.
     /// </summary>
-    /// <remarks>
-    /// <c>24</c> §4.0a rule 3: a floored draw <em>"advances and resets counters normally"</em>. That
-    /// is what makes forcing expressible as flooring, and it is why a forced resolution still costs
-    /// exactly one draw index.
-    /// </remarks>
     [Fact]
     public void A_guarantee_that_fires_resets_its_own_counter_and_advances_the_one_it_missed()
     {
@@ -59,12 +55,10 @@ public sealed class LuckServiceTests
             "back to 0, and the 25-counter — which an S does not satisfy — moves on to 11.");
     }
 
-    /// <summary>A caller-imposed floor moves counters exactly as a fired guarantee does.</summary>
-    /// <remarks>
-    /// <c>24</c> §4.0a rule 3's own example is the Lucky Wheel's "A-rarity or better" segment: a
-    /// stated floor is not a guarantee firing, and the counters must not be able to tell the
-    /// difference — <em>"a floored A still resets the A-counter, per §4.1's overshoot rule"</em>.
-    /// </remarks>
+    /// <summary>
+    /// A caller-imposed floor — the Lucky Wheel's "A-rarity or better" segment — moves counters
+    /// exactly as a fired guarantee does (<c>24</c> §4.0a rule 3).
+    /// </summary>
     [Fact]
     public void A_caller_imposed_floor_advances_and_resets_counters_exactly_as_a_guarantee_does()
     {
@@ -94,15 +88,10 @@ public sealed class LuckServiceTests
     // ---------------------------------------------------------------- overshoot
 
     /// <summary>
-    /// A natural draw that meets or exceeds a guarantee resets that counter, and reports that pity
-    /// did not fire.
+    /// <c>24</c> §4.1's overshoot rule: a natural draw that meets or exceeds a guarantee resets that
+    /// counter — and <c>FromPity</c> stays false, because a natural draw and a forced one are
+    /// different events to the player, analytics and duplicate protection.
     /// </summary>
-    /// <remarks>
-    /// <c>24</c> §4.1's overshoot rule: <em>"the player is never punished for good luck by having a
-    /// guarantee taken away later."</em> <c>FromPity</c> stays false because a natural draw and a
-    /// forced one are different events to the player, to analytics and to duplicate protection, even
-    /// when they land on the same rarity.
-    /// </remarks>
     [Fact]
     public void A_natural_draw_that_overshoots_a_guarantee_resets_it_without_claiming_pity()
     {
@@ -150,11 +139,6 @@ public sealed class LuckServiceTests
     }
 
     /// <summary>Chest #40 satisfies both the 10-counter and the 40-counter and resets both.</summary>
-    /// <remarks>
-    /// The standard chest's own per-item table is <c>DropShare(max(1, highestChapterCleared))</c>
-    /// (<c>24</c> §4.0a rule 1) rather than a fixed row, so there is no such table to transcribe; the
-    /// claim here is about the counter ledger, which does not depend on which table the draw came from.
-    /// </remarks>
     [Fact]
     public void The_fortieth_standard_chest_resets_the_ten_and_forty_counters()
     {
@@ -401,19 +385,10 @@ public sealed class LuckServiceTests
     }
 
     /// <summary>
-    /// A table the caller has already closed is refused before the draw, even though no floor and no
-    /// guarantee are involved.
+    /// A table the caller has already closed is refused before the draw. Scaling the last positive
+    /// row to zero is the one way a weightless table reaches <c>Resolve</c> at all — construction
+    /// and <c>FloorAt</c> both refuse to produce one.
     /// </summary>
-    /// <remarks>
-    /// The <em>other</em> weightless path, and the one nothing else in this file reaches.
-    /// <c>RarityTable.Of</c> refuses a weightless table, <c>FloorAt</c> refuses to produce one and a
-    /// soft-pity multiplier is never below 1 — so the only way a resolution can arrive at a table
-    /// with nothing to draw is a caller handing one in, which
-    /// <c>RarityTableTests.Scaling_to_zero_closes_the_band_without_removing_the_row</c> makes legal.
-    /// Without this case <see cref="LuckService.Resolve"/>'s own emptiness check is untested, and
-    /// deleting it would leave the refusal to <c>DeterministicRng</c> — after the argument that
-    /// names which class went wrong has been thrown away.
-    /// </remarks>
     [Fact]
     public void A_table_the_caller_has_already_closed_is_refused_before_the_draw()
     {
@@ -463,18 +438,9 @@ public sealed class LuckServiceTests
 
     /// <summary>
     /// The next draw is forced from the moment the counter reaches one below the rung — and stays
-    /// forced above it.
+    /// forced above it: a retune that lowers a rung leaves live counters standing past the new
+    /// <c>N</c>, so 23 and 24 answer true.
     /// </summary>
-    /// <remarks>
-    /// 🔴 The last two rows expected <c>false</c> when this file was written, on the assumption that
-    /// a counter can never stand past its own <c>N</c>. It can:
-    /// <c>HardPityTests.A_counter_standing_past_its_own_N_still_fires</c> pins
-    /// <see cref="HardPity.Fires"/> as <c>misses >= N - 1</c> precisely so that a retune which
-    /// <em>lowers</em> a rung does not strand the live players it left above the new one. Under the
-    /// premium chest's <c>N = 5</c> a counter of 23 or 24 is such a player, so the answer is
-    /// <see langword="true"/>; expecting <c>false</c> asked this façade to disagree with the
-    /// resolution it predicts, which is the exact drift the reason string below forbids.
-    /// </remarks>
     [Theory]
     [InlineData(3, false)]
     [InlineData(4, true)]
@@ -576,35 +542,6 @@ public sealed class LuckServiceTests
                 Case.Sensitive,
                 "the same identity the Resolve refusal carries — a class with no ladder is told apart " +
                 "from an empty floored table by the message naming which class, not by the type.");
-    }
-
-    // ---------------------------------------------------------------- the mercy façade
-
-    /// <summary>The façade answers <c>24</c> §4.6's formula, so no caller has to name the primitive.</summary>
-    [Theory]
-    [InlineData(3, 0.49)]
-    [InlineData(10, 1.0)]
-    public void MercyRate_answers_the_additive_ramp(int failures, double expected)
-    {
-        DeterminismRounding.Round(LuckService.MercyRate(
-                0.25,
-                failures,
-                LuckDocuments.ShippedEnhanceMercySlope,
-                LuckDocuments.ShippedEnhanceRateCap))
-            .ShouldBe(
-                expected,
-                "the slope and the cap are the shipped ones (pinned against luck.json in " +
-                "Application.Tests), not literals that could drift away from what SoftPityTests " +
-                "is written against.");
-    }
-
-    /// <summary>The mercy bank is reachable through the façade, accrual and redemption alike.</summary>
-    [Fact]
-    public void The_mercy_bank_is_reachable_through_the_facade()
-    {
-        LuckService.AccrueMercy(59, 1).ShouldBe(60);
-        LuckService.RedeemMercy(60, 60).ShouldBe(0);
-        Should.Throw<InvalidOperationException>(() => LuckService.RedeemMercy(59, 60));
     }
 
     // ---------------------------------------------------------------- refusals

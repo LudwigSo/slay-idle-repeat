@@ -4,6 +4,7 @@ using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Tests.Content;
+using SlayIdleRepeat.Core.Tests.Model.Gear;
 using SlayIdleRepeat.TestSupport;
 using Xunit;
 
@@ -17,6 +18,7 @@ public sealed class PlayerSnapshotTests
 {
     private static ContentSnapshot Content => ProgressionDocuments.Shipped;
 
+    /// <summary>A populated row: every field a valid row can move away from its default is moved.</summary>
     private static PlayerSnapshot Populated => PlayerSnapshots.With(
         displayName: "Ludwig",
         legendLevel: 41,
@@ -32,50 +34,30 @@ public sealed class PlayerSnapshotTests
         ftueBeatId: FtueBeat.B10,
         ftueCompletedAtUtc: PlayerSnapshots.Midmorning.AddSeconds(-30),
         dailyCounters: PlayerSnapshots.Counters(("ad_caps", 3), ("dungeon_entries", 1)),
-        weeklyCounters: PlayerSnapshots.Counters(("guild_quest_contributions", 12)));
+        weeklyCounters: PlayerSnapshots.Counters(("guild_quest_contributions", 12)),
+        loginCalendarDay: 17,
+        loginCalendarDayClaimed: true,
+        clearedChapterTiers: PlayerSnapshots.Counters(("1:NORMAL", 2)),
+        featCounters: PlayerSnapshots.Counters(("dice_rolled", 3)),
+        pityCounters: PlayerSnapshots.Pity(("chest.standard:A", 4)),
+        inventory: new InventorySnapshot(1, [Inventories.Persist(Inventories.Item("GI_1"))], []),
+        autoSalvageRules: [new AutoSalvageRule(Rarity.C, 3)],
+        talentPoints: 5L,
+        loadout: new LoadoutSnapshot(PlayerSnapshots.Gear((GearSlot.WEAPON, "GI_1"))),
+        presets: [new LoadoutPresetSnapshot(1, "Boss push", new LoadoutSnapshot(PlayerSnapshots.Gear()))],
+        battleHashMismatches: 1);
 
-    /// <summary>A snapshot round-trips: rehydrate then snapshot again is the row you started with, value for value.</summary>
-    /// <remarks>
-    /// Record equality compares the two dictionaries by reference, so this is asserted field by
-    /// field rather than with a single <c>ShouldBe</c> — which would pass for two rows whose
-    /// counters differed and fail for two whose counters were equal but not the same object.
-    /// </remarks>
+    /// <summary>
+    /// Canonical bytes rather than a field list: a field list goes stale as the record grows, and
+    /// the bytes cover every field the writer encodes — including one a constructor dropped.
+    /// </summary>
     [Fact]
-    public void A_snapshot_round_trips_through_the_aggregate()
+    public void A_snapshot_round_trips_byte_identically_through_the_aggregate()
     {
         var round = Core.Model.Player.Rehydrate(Populated, Content).Value.ToSnapshot();
 
-        round.SchemaVersion.ShouldBe(Populated.SchemaVersion);
-        round.Id.ShouldBe(Populated.Id);
-        round.DisplayName.ShouldBe(Populated.DisplayName);
-        round.LegendLevel.ShouldBe(Populated.LegendLevel);
-        round.LegendXp.ShouldBe(Populated.LegendXp);
-        round.RunsStarted.ShouldBe(Populated.RunsStarted);
-        round.Wallet.ShouldBe(Populated.Wallet);
-        round.Energy.ShouldBe(Populated.Energy);
-        round.EnergyAnchorUtc.ShouldBe(Populated.EnergyAnchorUtc);
-        round.LastAppliedAtUtc.ShouldBe(Populated.LastAppliedAtUtc);
-        round.FtueBeatId.ShouldBe(Populated.FtueBeatId);
-        round.FtueCompletedAtUtc.ShouldBe(Populated.FtueCompletedAtUtc);
-        round.DailyPeriodStartUtc.ShouldBe(Populated.DailyPeriodStartUtc);
-        round.DailyCounters.ShouldBe(Populated.DailyCounters);
-        round.WeeklyPeriodStartUtc.ShouldBe(Populated.WeeklyPeriodStartUtc);
-        round.WeeklyCounters.ShouldBe(Populated.WeeklyCounters);
-    }
-
-    /// <summary>And the round trip is <c>stateHash</c>-stable, which is the property the client-mirror check actually depends on.</summary>
-    /// <remarks>
-    /// Field-by-field equality is not the same claim: two rows can be equal field by field and
-    /// still hash differently if a dictionary's iteration order leaked into the bytes, which is
-    /// exactly the failure the writer's imposed key order exists to prevent.
-    /// </remarks>
-    [Fact]
-    public void A_round_tripped_snapshot_hashes_identically()
-    {
-        var round = Core.Model.Player.Rehydrate(Populated, Content).Value.ToSnapshot();
-
-        CanonicalStateWriter.HashMetaCommandState(round)
-            .ShouldBe(CanonicalStateWriter.HashMetaCommandState(Populated));
+        CanonicalStateWriter.CanonicalBytes(round)
+            .ShouldBe(CanonicalStateWriter.CanonicalBytes(Populated));
     }
 
     /// <summary>A wallet built in a different insertion order hashes identically — the writer imposes ascending key order rather than trusting the container's.</summary>
@@ -103,11 +85,7 @@ public sealed class PlayerSnapshotTests
             .ShouldNotBe(CanonicalStateWriter.HashMetaCommandState(rich));
     }
 
-    /// <summary>Every field of <c>PlayerSnapshot</c> reaches the bytes: changing any one of them changes the hash.</summary>
-    /// <remarks>
-    /// A field the writer silently skipped would show up here as two materially different players
-    /// sharing a <c>stateHash</c>, and nothing else in the suite is looking.
-    /// </remarks>
+    /// <summary>A field the writer silently skipped is state two players can differ in while the mirror check reports agreement.</summary>
     [Fact]
     public void Every_field_of_the_snapshot_reaches_the_hash()
     {
@@ -120,10 +98,8 @@ public sealed class PlayerSnapshotTests
         // FtueCompletedAtUtc contributed nothing at all.
         var probes = new (string Field, PlayerSnapshot A, PlayerSnapshot B)[]
         {
-            // One PAST the current version, as an expression rather than a literal: a hard-coded
-            // literal would silently become "the valid row against the valid row" at the next
-            // schema bump, reporting the field as invisible to the writer when nothing had
-            // actually been perturbed.
+            // An expression, not a literal: a literal would become "valid row against valid row"
+            // at the next schema bump and report the field as invisible when nothing was perturbed.
             (nameof(PlayerSnapshot.SchemaVersion), v,
                 PlayerSnapshots.With(schemaVersion: SnapshotSchema.SchemaVersion + 1)),
             (nameof(PlayerSnapshot.Id), v, PlayerSnapshots.With(id: new PlayerId("OTHER"))),
@@ -153,54 +129,29 @@ public sealed class PlayerSnapshotTests
 
             (nameof(PlayerSnapshot.ClearedChapterTiers), v,
                 PlayerSnapshots.With(clearedChapterTiers: PlayerSnapshots.Counters(("1:NORMAL", 1)))),
-
-            // M4-13. The lifetime feat counters are the substrate 28 D2's retroactivity guarantee
-            // rests on, so two players with different histories must never share a stateHash.
             (nameof(PlayerSnapshot.FeatCounters), v,
                 PlayerSnapshots.With(featCounters: PlayerSnapshots.Counters(("dice_rolled", 1)))),
-
-            // M4-01b. Two players one chest apart on the same ladder are materially different
-            // players — the next open is forced for one and not the other — so a pity counter that
-            // did not reach the bytes would let the client mirror report agreement across it.
             (nameof(PlayerSnapshot.PityCounters), v,
                 PlayerSnapshots.With(pityCounters: PlayerSnapshots.Pity(("chest.standard:A", 1)))),
-            // M4-05. Moved by the purchase count alone, which is the half of the field the item
-            // lists cannot stand in for: the two lists are pinned byte-for-byte — stored against
-            // held, one lock flag, one affix value — by InventoryPersistenceTests, and none of those
-            // cases would notice a bought expansion that reached no byte.
+
+            // Moved by the purchase count alone — the half the item lists cannot stand in for:
+            // InventoryPersistenceTests pins the lists byte-for-byte but not a bought expansion.
             (nameof(PlayerSnapshot.Inventory), v,
                 PlayerSnapshots.With(inventory: new InventorySnapshot(1, [], []))),
-
-            // M4-04. Two players whose auto-salvage filters differ will be holding different stock
-            // by the end of their next run, so a filter that reached no byte would let the mirror
-            // report agreement right up until one of them lost an item the other kept.
             (nameof(PlayerSnapshot.AutoSalvageRules), v,
                 PlayerSnapshots.With(autoSalvageRules: [new AutoSalvageRule(Rarity.C, 3)])),
-
-            // M4-10. Two players one Talent Point apart are materially different the moment M4-06
-            // gives them somewhere to spend it, and the point is granted by levelling rather than
-            // written by a command — so nothing else in the suite would notice it missing a byte.
             (nameof(PlayerSnapshot.TalentPoints), v, PlayerSnapshots.With(talentPoints: 1L)),
 
-            // M7-06c. 14 §9's battle-verification tally. It is deliberately never shown to a player,
-            // which is exactly why it needs a probe here: no screen, event or rejection reads it, so
-            // this is the ONLY place that would notice it failing to reach the writer. Two accounts
-            // with different mismatch histories are materially different to §9's review queue, and a
-            // stateHash that agreed across them would report a mirror as in sync while the one fact
-            // the anti-cheat ladder acts on had diverged.
+            // 14 §9's tally is deliberately never shown to a player — no screen, event or rejection
+            // reads it — so this probe is the only place that notices it failing to reach the writer.
             (nameof(PlayerSnapshot.BattleHashMismatches), v,
                 PlayerSnapshots.With(battleHashMismatches: 1)),
-
-            // M4-10. The equipped slot is what the whole hero screen and every future power
-            // computation read; two players wearing different weapons must never share a stateHash.
             (nameof(PlayerSnapshot.Loadout), v,
                 PlayerSnapshots.With(loadout: new LoadoutSnapshot(
                     PlayerSnapshots.Gear((GearSlot.WEAPON, "GI_1"))))),
 
-            // M4-10. Probed by the preset's NAME rather than by its loadout, deliberately: the
-            // loadout inside a preset descends into the very same LoadoutSnapshot the probe above
-            // already moves, so a probe that changed it would pass on that record's encoding alone
-            // and say nothing about whether Presets[].Name reaches the bytes.
+            // Probed by the preset's NAME: its loadout descends into the LoadoutSnapshot the probe
+            // above already moves, and would say nothing about whether Presets[].Name reaches the bytes.
             (nameof(PlayerSnapshot.Presets), v,
                 PlayerSnapshots.With(presets: [new LoadoutPresetSnapshot(
                     1, "Boss push", new LoadoutSnapshot(PlayerSnapshots.Gear()))])),
@@ -273,54 +224,4 @@ public sealed class PlayerSnapshotTests
             .ToSnapshot().SchemaVersion.ShouldBe(SnapshotSchema.SchemaVersion);
     }
 
-    /// <summary><c>SchemaVersion</c> is the first field of the record, so a reader knows the layout before it reads anything laid out by it.</summary>
-    /// <remarks>
-    /// <c>SnapshotFieldOrderPinTests</c> asserts this over the whole subject set; this is the same
-    /// claim stated where a reader of <c>PlayerSnapshot</c> will look for it.
-    /// </remarks>
-    [Fact]
-    public void SchemaVersion_is_the_first_field_of_the_record()
-    {
-        CanonicalStateWriter.CanonicalFieldOrder(typeof(PlayerSnapshot))[0]
-            .ShouldBe("SchemaVersion:System.Int32");
-    }
-
-    /// <summary>
-    /// The whole snapshot has a canonical encoding — every member is on the writer's closed
-    /// allowlist. A member that was not would refuse at the first <c>stateHash</c> of the game.
-    /// </summary>
-    [Fact]
-    public void The_snapshot_has_a_canonical_encoding()
-    {
-        CanonicalStateWriter.IsCanonicalRecord(typeof(PlayerSnapshot)).ShouldBeTrue();
-
-        Should.NotThrow(() => CanonicalStateWriter.HashMetaCommandState(Populated));
-    }
-
-    /// <summary>
-    /// The counter key is a bare <c>string</c> rather than a wrapper id, and that is mechanical
-    /// rather than stylistic: <c>KeyOrderFor</c> defines an ascending order for strings and numeric
-    /// ids <b>only</b>.
-    /// </summary>
-    /// <remarks>
-    /// Demonstrated against <see cref="PlayerId"/>, which is the exact shape a <c>CounterKey</c>
-    /// would have taken — a positional <c>readonly record struct</c> over one validated string.
-    /// A map keyed by one has no canonical encoding at all, so it could never have travelled in a
-    /// snapshot.
-    /// </remarks>
-    [Fact]
-    public void A_map_keyed_by_a_string_wrapper_would_have_had_no_canonical_encoding()
-    {
-        var act = () => CanonicalStateWriter.CanonicalFieldOrder(typeof(WrapperKeyedSnapshot));
-
-        Should.Throw<NotSupportedException>(act)
-              .Message.ShouldMatchWildcard("*has no ascending key order*");
-
-        // …while the string-keyed shape the snapshot actually uses is fine.
-        CanonicalStateWriter.CanonicalFieldOrder(typeof(PlayerSnapshot))
-            .ShouldContain("DailyCounters{key}:System.String");
-    }
-
-    /// <summary>The shape the counter map would have had if its key were a wrapper id.</summary>
-    private sealed record WrapperKeyedSnapshot(int SchemaVersion, IReadOnlyDictionary<PlayerId, long> Counters);
 }

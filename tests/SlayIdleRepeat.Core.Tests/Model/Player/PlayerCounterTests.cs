@@ -8,13 +8,9 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// The daily/weekly counter mechanism: a period boundary, a key→count map, and the invariants
-/// that keep both meaningful.
+/// The daily/weekly counter mechanism. Tested on the aggregate because no shipped command consumes
+/// a counter key yet — the keys below are illustrative, not a catalogue.
 /// </summary>
-/// <remarks>
-/// There is no catalogue of counter keys here, and there is not supposed to be — the systems that
-/// will register into this mechanism don't exist yet, so the keys used below are illustrative.
-/// </remarks>
 public sealed class PlayerCounterTests
 {
     private static ContentSnapshot Content => ProgressionDocuments.Shipped;
@@ -59,11 +55,7 @@ public sealed class PlayerCounterTests
         player.WeeklyCount("shared_key").ShouldBe(9);
     }
 
-    /// <summary>
-    /// Keys are compared ordinally: a case-insensitive map would round-trip to a different
-    /// <c>stateHash</c> than the one it was stored under, since the writer sorts string keys
-    /// ordinally and would see one entry where the aggregate saw two.
-    /// </summary>
+    /// <summary>Ordinal keys: a case-insensitive map would round-trip to a different <c>stateHash</c>.</summary>
     [Fact]
     public void Counter_keys_are_ordinal()
     {
@@ -77,7 +69,6 @@ public sealed class PlayerCounterTests
         player.DailyCounters.Count.ShouldBe(2);
     }
 
-    /// <summary>A blank key is refused: a counter key names the system that owns the counter.</summary>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -92,10 +83,6 @@ public sealed class PlayerCounterTests
               .Message.ShouldMatchWildcard("*names the system that owns the counter*");
     }
 
-    /// <summary>
-    /// A counter counts upwards. A negative advance is a refund, and a refund belongs to the
-    /// rule that granted the thing — not to the counter that recorded the use.
-    /// </summary>
     [Fact]
     public void A_negative_advance_is_refused()
     {
@@ -108,7 +95,6 @@ public sealed class PlayerCounterTests
         player.DailyCount("ad_caps").ShouldBe(4);
     }
 
-    /// <summary>A count that would overflow is refused rather than wrapping to a negative.</summary>
     [Fact]
     public void An_overflowing_count_is_refused()
     {
@@ -121,7 +107,6 @@ public sealed class PlayerCounterTests
         player.WeeklyCount("guild_boss_damage").ShouldBe(long.MaxValue);
     }
 
-    /// <summary>A reset clears the daily counters and records the boundary they were cleared at.</summary>
     [Fact]
     public void A_daily_reset_clears_the_counters_and_records_the_boundary()
     {
@@ -136,7 +121,6 @@ public sealed class PlayerCounterTests
         player.DailyPeriodStartUtc.ShouldBe(nextDay);
     }
 
-    /// <summary>A day boundary is not a week boundary: a daily reset leaves the weekly counters alone.</summary>
     [Fact]
     public void A_daily_reset_leaves_the_weekly_counters_alone()
     {
@@ -164,7 +148,7 @@ public sealed class PlayerCounterTests
         player.DailyCount("ad_caps").ShouldBe(2);
     }
 
-    /// <summary>A period boundary is 05:00 UTC; any other time of day is a period the rest of the game does not agree exists.</summary>
+    /// <summary>A period boundary is 05:00 UTC (27 §4).</summary>
     [Theory]
     [InlineData(0, 0)]
     [InlineData(4, 59)]
@@ -179,7 +163,6 @@ public sealed class PlayerCounterTests
               .Message.ShouldMatchWildcard("*not a game-day boundary*05:00 UTC*");
     }
 
-    /// <summary>…including one that is 05:00 on a clock two hours ahead, which is 03:00 UTC.</summary>
     [Fact]
     public void A_boundary_at_0500_in_another_offset_is_refused_as_an_offset()
     {
@@ -191,20 +174,16 @@ public sealed class PlayerCounterTests
     }
 
     /// <summary>
-    /// The game <b>week</b> starts on a <b>Monday</b>; every other 05:00 UTC boundary is a legal
-    /// day and an illegal week.
+    /// The game week starts Monday (rule A2, 27 §4). Days are all AFTER the fixture's current daily
+    /// boundary — a day before it would be refused by the monotonic clause instead.
     /// </summary>
-    /// <remarks>
-    /// The days are all <b>after</b> the fixture's current daily boundary. A day before it would
-    /// be refused by the monotonic clause instead, and the test would pass for the wrong reason.
-    /// </remarks>
     [Theory]
-    [InlineData(18)] // Tuesday
-    [InlineData(19)] // Wednesday
-    [InlineData(20)] // Thursday
-    [InlineData(21)] // Friday
-    [InlineData(22)] // Saturday
-    [InlineData(23)] // Sunday
+    [InlineData(18)]
+    [InlineData(19)]
+    [InlineData(20)]
+    [InlineData(21)]
+    [InlineData(22)]
+    [InlineData(23)]
     public void A_weekly_boundary_that_is_not_a_Monday_is_refused(int dayOfMonth)
     {
         var player = Player();
@@ -218,7 +197,6 @@ public sealed class PlayerCounterTests
         Should.NotThrow(() => player.ResetDailyCounters(notMonday));
     }
 
-    /// <summary>A Monday at 05:00 UTC is accepted, so the rule above is not "refuse every week".</summary>
     [Fact]
     public void A_Monday_at_0500_UTC_is_accepted_as_a_week_boundary()
     {
@@ -231,10 +209,6 @@ public sealed class PlayerCounterTests
         player.WeeklyPeriodStartUtc.ShouldBe(monday);
     }
 
-    /// <summary>
-    /// A reset to an earlier boundary is refused: it would clear a period already counted against,
-    /// handing back every cap the player has already spent.
-    /// </summary>
     [Fact]
     public void A_reset_to_an_earlier_boundary_is_refused()
     {
@@ -250,9 +224,8 @@ public sealed class PlayerCounterTests
     }
 
     /// <summary>
-    /// Resetting to the boundary <b>already in force</b> is a no-op, not a clear. Lazy catch-up
-    /// runs on every command a player sends, so clearing on equality would wipe the day's counters
-    /// several times an hour — handing back every cap the player had already spent.
+    /// Lazy catch-up runs on every command, so clearing on an equal boundary would wipe the day's
+    /// counters several times an hour.
     /// </summary>
     [Fact]
     public void Resetting_to_the_boundary_already_in_force_keeps_the_counts()
@@ -281,7 +254,6 @@ public sealed class PlayerCounterTests
         player.DailyCount("ad_caps").ShouldBe(0);
     }
 
-    /// <summary>The exposed counter maps are read-only views, not the aggregate's own dictionaries.</summary>
     [Fact]
     public void The_exposed_counter_maps_cannot_be_mutated_through_their_reference()
     {
@@ -308,7 +280,6 @@ public sealed class PlayerCounterTests
         negative.Error.ShouldContain("WeeklyCounters['ad_caps'] is -1", Case.Sensitive);
     }
 
-    /// <summary>A null counter map is refused; an absent map is not an empty one.</summary>
     [Fact]
     public void A_null_counter_map_is_refused()
     {
@@ -319,10 +290,6 @@ public sealed class PlayerCounterTests
             .Error.ShouldContain("WeeklyCounters is null", Case.Sensitive);
     }
 
-    /// <summary>
-    /// A persisted daily boundary that is not at 05:00 UTC, or a weekly one that is not a Monday,
-    /// is refused at the seam as well as at the mutator.
-    /// </summary>
     [Fact]
     public void A_persisted_period_boundary_is_validated_at_the_seam_too()
     {
@@ -338,10 +305,9 @@ public sealed class PlayerCounterTests
     }
 
     /// <summary>
-    /// Every persisted instant must carry a zero offset: <c>CanonicalStateWriter</c> encodes a
-    /// <see cref="DateTimeOffset"/> as Unix milliseconds, so <c>12:00+02:00</c> and <c>10:00Z</c>
-    /// would hash identically while record equality calls them different. Each field is asserted
-    /// by name so a check that covered three of five would fail here rather than pass.
+    /// <c>CanonicalStateWriter</c> encodes an instant as Unix milliseconds, so <c>12:00+02:00</c>
+    /// and <c>10:00Z</c> would hash identically while record equality calls them different. Each
+    /// field is asserted by name so a check covering three of five fails here rather than passes.
     /// </summary>
     [Fact]
     public void Every_persisted_instant_must_be_UTC()
@@ -372,10 +338,7 @@ public sealed class PlayerCounterTests
         }
     }
 
-    /// <summary>
-    /// <c>LastAppliedAtUtc</c> moves forwards, and equal is allowed: two commands can legitimately
-    /// share an instant, while an earlier one means a clock moved backwards.
-    /// </summary>
+    /// <summary>Equal is allowed: two commands can share an instant; an earlier one is a clock moving backwards.</summary>
     [Fact]
     public void The_last_applied_instant_moves_forwards_and_may_repeat()
     {
@@ -390,7 +353,6 @@ public sealed class PlayerCounterTests
               .Message.ShouldMatchWildcard("*30 §2.3 rolls state forward FROM this instant*");
     }
 
-    /// <summary><c>MarkApplied</c> refuses a non-UTC instant for the same reason the seam does.</summary>
     [Fact]
     public void The_last_applied_instant_must_be_UTC()
     {

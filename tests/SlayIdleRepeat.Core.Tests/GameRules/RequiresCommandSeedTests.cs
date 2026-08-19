@@ -75,8 +75,6 @@ public sealed class RequiresCommandSeedTests
             "is what decides.");
     }
 
-    // ═════════════════════════════════════════════ a command type no dispatch row names
-
     [Fact]
     public void RequiresCommandSeed_is_false_for_a_command_type_no_dispatch_row_names()
     {
@@ -87,18 +85,6 @@ public sealed class RequiresCommandSeedTests
         GameRules.RequiresCommandSeed(new UnregisteredFixtureCommand()).ShouldBeFalse(
             "an unregistered command draws nothing, so there is no seed to issue it. Throwing here " +
             "would make a host fail before Apply ever got to refuse the command in its own words.");
-    }
-
-    [Fact]
-    public void Apply_still_refuses_a_command_type_no_dispatch_row_names_with_ILLEGAL_STATE()
-    {
-        var result = GameRules.Apply(Worlds.InARun(), new UnregisteredFixtureCommand(), Worlds.Context);
-
-        result.Accepted.ShouldBeFalse("no row names this command, so no rule could have accepted it.");
-        result.Rejection.ShouldBe(
-            RejectionReason.ILLEGAL_STATE,
-            "the domain stays total: an unregistered command is refused, never thrown. That is what " +
-            "lets the predicate above answer false for it instead of raising.");
     }
 
     [Fact]

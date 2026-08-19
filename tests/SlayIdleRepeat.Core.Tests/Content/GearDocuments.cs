@@ -9,30 +9,19 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <c>Core.Tests</c> is hermetic, so this mirrors the shipped files rather than reading them, on
-/// <see cref="LuckDocuments"/>' precedent. The other half of the claim — that these <em>are</em> the
-/// numbers we ship — belongs to <c>Application.Tests</c>, which resolves the same pointers in the real
-/// files. Neither half is sufficient alone: this proves the rules are right about the numbers, that
-/// one proves those are the numbers.
+/// <c>Core.Tests</c> is hermetic, so this mirrors the shipped files rather than reading them.
+/// <c>GearDocumentsMatchesTuningDataTests</c> in <c>Application.Tests</c> resolves the same pointers
+/// in the real files — when a value is added below, add it there in the same commit.
 /// </para>
 /// <para>
-/// 🔴 <b>That counterpart is <c>GearDocumentsMatchesTuningDataTests</c>, and until M4-15 it did not
-/// exist</b> — the paragraph above described it in the present tense for three tasks while every
-/// number below rested on a transcription nothing tied to <c>game-data/</c>. It is named here rather
-/// than merely alluded to, because "a counterpart belongs to Application.Tests" is a sentence that
-/// reads exactly the same whether or not anybody wrote one. When a value is added below, add it
-/// there in the same commit.
+/// Only what a reader actually reads is transcribed: nothing under <c>Rules/Gear/</c> reads
+/// <c>par_power.json</c>'s Heroic and Mythic columns or <c>drops.json</c>'s container tables and
+/// acquisition rates, and authoring them here would imply something does.
 /// </para>
 /// <para>
-/// Only what a reader actually reads is transcribed. <c>par_power.json</c>'s Heroic and Mythic
-/// columns, <c>drops.json</c>'s container tables and its acquisition rates are all absent for that
-/// reason: nothing under <c>Rules/Gear/</c> reads them, and authoring them here would imply something
-/// does.
-/// </para>
-/// <para>
-/// The three documents are always present together, which is deliberate. A reader that resolved the
-/// wrong document path would be indistinguishable from one that resolved the right one in a snapshot
-/// of size one; <see cref="Without"/> is how a case asks for a document to be missing.
+/// The three documents are always present together: a reader that resolved the wrong document path
+/// would be indistinguishable from the right one in a snapshot of size one. <see cref="Without"/> is
+/// how a case asks for a document to be missing.
 /// </para>
 /// </remarks>
 internal static class GearDocuments

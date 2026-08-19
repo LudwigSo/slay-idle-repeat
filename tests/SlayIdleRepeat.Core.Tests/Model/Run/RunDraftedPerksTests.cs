@@ -40,8 +40,6 @@ public sealed class RunDraftedPerksTests
         run.DraftedPerks.TierOf("PK_NEVER_DRAFTED").ShouldBe(0);
     }
 
-    // ------------------------------------------------------------------ the guard, mutated on purpose (S1)
-
     [Fact]
     public void Skipping_a_tier_is_refused()
     {
@@ -77,8 +75,6 @@ public sealed class RunDraftedPerksTests
 
         Should.Throw<ArgumentException>(() => run.UpsertPerkTier("  ", 1));
     }
-
-    // ------------------------------------------------------------------ MarkDraftPending's widened signature
 
     [Fact]
     public void DraftBattleKindValue_and_DraftBattleStage_are_readable_only_while_pending()
@@ -125,12 +121,9 @@ public sealed class RunDraftedPerksTests
         Should.Throw<ArgumentOutOfRangeException>(() => run.MarkDraftPending(-1, 1));
     }
 
-    // ------------------------------------------------------------------ ReadOwnedPerkTiers via Rehydrate (M3-06)
-
     /// <summary>
-    /// Pins the deliberate asymmetry with <c>AdUses</c>/<c>ResolvedMinigames</c>: those two refuse
-    /// a null map, but <c>OwnedPerkTiers</c> is a trailing-defaulted field, so an older row's null
-    /// is accepted as "no perks drafted yet", not refused.
+    /// The deliberate asymmetry with <c>AdUses</c>/<c>ResolvedMinigames</c>: <c>OwnedPerkTiers</c>
+    /// is a trailing-defaulted field, so an older row's null reads as "no perks drafted yet".
     /// </summary>
     [Fact]
     public void A_null_OwnedPerkTiers_row_is_accepted_as_empty_not_refused()
@@ -163,7 +156,7 @@ public sealed class RunDraftedPerksTests
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.OwnedPerkTiers), Case.Sensitive);
     }
 
-    /// <summary>…and the negative control: a well-formed map rehydrates and reads back correctly.</summary>
+    /// <summary>Negative control: a well-formed map rehydrates and reads back.</summary>
     [Fact]
     public void A_well_formed_OwnedPerkTiers_row_rehydrates_and_reads_back()
     {

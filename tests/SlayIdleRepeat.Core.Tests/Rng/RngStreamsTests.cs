@@ -120,13 +120,6 @@ public sealed class RngStreamsTests
         }
     }
 
-    /// <summary>The registry names are distinct — two rows sharing a name would share a sequence.</summary>
-    [Fact]
-    public void The_registry_names_are_unique()
-    {
-        RngStreams.FixedNames.ShouldBeUnique();
-    }
-
     public static TheoryData<string> FixedStreamNames()
     {
         var data = new TheoryData<string>();

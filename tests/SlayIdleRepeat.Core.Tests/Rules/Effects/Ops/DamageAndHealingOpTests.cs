@@ -8,10 +8,10 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 
 /// <summary>The seven damage and healing ops, each asserted on the number it hands the engine.</summary>
 /// <remarks>
-/// The recurring failure these are written to catch is the one nothing else would: an op that
-/// routes correctly but multiplies by the wrong basis. A <c>DAMAGE</c> that multiplied its value by
-/// ATK before handing it to <c>ResolveAttack</c> would pass a "did it route" test and square the
-/// attacker's attack power in every fight.
+/// Internal seam: the pre-pipeline number is what no <c>CombatEvent</c> carries — an op that routes
+/// correctly but multiplies by the wrong basis (a <c>DAMAGE</c> multiplying by ATK before
+/// <c>ResolveAttack</c>) squares ATK in every fight while passing any "did it route" test. The
+/// pipeline itself is pinned publicly in <c>Rules/Combat</c>.
 /// </remarks>
 public sealed class DamageAndHealingOpTests
 {

@@ -66,47 +66,12 @@ public sealed class RunDropResolutionTests
     // ---------------------------------------------------------------- the off-by-one
 
     /// <summary>
-    /// 🔒 The <b>sixth</b> Elite kill of a streak is the forced one, so five prior misses fire the
-    /// guarantee and four do not.
+    /// The sixth Elite kill's off-by-one, stated so that only one reading can even complete: at five
+    /// prior misses the table is floored at A, so a table with no weight at A or above has nothing
+    /// to draw. (The exact-N behaviour itself is pinned at the Apply seam in
+    /// <c>RunDropGrantTests</c>; <c>FromPity</c> is a flag a wrong implementation could still report
+    /// correctly while flooring on the wrong draw — refusing to draw at all is not.)
     /// </summary>
-    /// <remarks>
-    /// The authored key <em>was</em> spelled <c>consecutiveMissesBeforeForce</c>, which reads as
-    /// "misses tolerated before the force" and would put the guarantee on the seventh kill; the M4
-    /// review renamed it to <c>forceOnNthKill</c>. The design text was always unambiguous — count
-    /// consecutive Elite kills whose drop was below A, and on the sixth force A or better — so five
-    /// misses precede the forced draw. This case is what pins the reading whatever the key is called:
-    /// one that only checked "forced eventually" would pass under either.
-    /// </remarks>
-    [Theory]
-    [InlineData(4, false)]
-    [InlineData(5, true)]
-    [InlineData(6, true)]
-    public void The_sixth_elite_kill_is_the_forced_one_so_five_prior_misses_fire_it(
-        int priorMisses, bool forced)
-    {
-        var resolution = Resolve(RunDropTrigger.ELITE, Counters(Rarity.A, priorMisses));
-
-        resolution.FromPity.ShouldBe(
-            forced,
-            $"{priorMisses} consecutive Elite kills below A have happened, so this is Elite kill " +
-            $"number {priorMisses + 1} of the streak. The sixth is the forced one.");
-
-        if (forced)
-        {
-            (resolution.Outcome >= Rarity.A).ShouldBeTrue(
-                $"a forced Elite drop must reach A or better, and this one was {resolution.Outcome}");
-        }
-    }
-
-    /// <summary>
-    /// …and the same off-by-one stated so that only one reading can even complete: at five prior
-    /// misses the table is floored at A, so a table with no weight at A or above has nothing to draw.
-    /// </summary>
-    /// <remarks>
-    /// The discriminating case behind the theory above. <c>FromPity</c> is a flag a wrong
-    /// implementation could still report correctly while flooring on the wrong draw; refusing to draw
-    /// at all is not. The refusal happens before the draw, so the stream is left where it stood.
-    /// </remarks>
     [Fact]
     public void At_five_prior_misses_a_table_with_no_A_weight_is_refused_and_at_four_it_is_drawn()
     {
@@ -130,28 +95,8 @@ public sealed class RunDropResolutionTests
             0UL, "a refusal is decided before the draw, so it consumes no index");
     }
 
-    /// <summary>The boss breaker forces the <b>fourth</b> boss kill, so three prior misses fire it.</summary>
-    /// <remarks>Its own ordinal and its own band — the two breakers are read separately.</remarks>
-    [Theory]
-    [InlineData(2, false)]
-    [InlineData(3, true)]
-    [InlineData(4, true)]
-    public void The_fourth_boss_kill_is_the_forced_one_so_three_prior_misses_fire_it(
-        int priorMisses, bool forced)
-    {
-        var resolution = Resolve(RunDropTrigger.BOSS, Counters(Rarity.S, priorMisses));
-
-        resolution.FromPity.ShouldBe(forced);
-
-        if (forced)
-        {
-            (resolution.Outcome >= Rarity.S).ShouldBeTrue(
-                "the boss breaker forces S or better, not A or better, and this one was " +
-                resolution.Outcome.ToString());
-        }
-    }
-
-    /// <summary>…stated so that only one reading can complete, exactly as the elite case is.</summary>
+    /// <summary>The boss breaker's off-by-one, stated so that only one reading can complete, exactly
+    /// as the elite case is — its own ordinal and its own band.</summary>
     [Fact]
     public void At_three_prior_misses_a_table_with_no_S_weight_is_refused_and_at_two_it_is_drawn()
     {
@@ -210,73 +155,11 @@ public sealed class RunDropResolutionTests
         boss.Changes[0].Key.ShouldNotBe(elite.Changes[0].Key);
     }
 
-    /// <summary>A drop below the miss band advances the counter by exactly one.</summary>
-    [Theory]
-    [InlineData(0, 1)]
-    [InlineData(3, 4)]
-    public void A_drop_below_the_miss_band_advances_the_counter_by_one(int before, int after)
-    {
-        var resolution = LuckService.ResolveRunDrop(
-            Tuning(),
-            DropRun(),
-            EveryDropIs(Rarity.C),
-            1,
-            RunDropTrigger.ELITE,
-            Counters(Rarity.A, before),
-            Rng());
-
-        resolution.Outcome.ShouldBe(Rarity.C);
-        resolution.Changes[0].Value.ShouldBe(
-            after,
-            "a counter counts misses since its own last reset, so a miss adds exactly one — a " +
-            "resolution that added the streak length back would reach the guarantee early.");
-    }
-
-    /// <summary>A drop that reaches the miss band resets the counter without claiming pity.</summary>
-    /// <remarks>
-    /// The overshoot rule: a natural draw that meets the guarantee resets it exactly as a forced one
-    /// does, and <c>FromPity</c> stays false because the two are different events to the player.
-    /// </remarks>
-    [Theory]
-    [InlineData(Rarity.A)]
-    [InlineData(Rarity.S)]
-    [InlineData(Rarity.SS)]
-    public void A_natural_drop_at_or_above_the_miss_band_resets_the_counter_without_claiming_pity(
-        Rarity outcome)
-    {
-        var resolution = LuckService.ResolveRunDrop(
-            Tuning(),
-            DropRun(),
-            EveryDropIs(outcome),
-            1,
-            RunDropTrigger.ELITE,
-            Counters(Rarity.A, 4),
-            Rng());
-
-        resolution.Outcome.ShouldBe(outcome);
-        resolution.FromPity.ShouldBeFalse();
-        resolution.Changes[0].Value.ShouldBe(
-            0,
-            "the player is never punished for good luck by having a guarantee taken away later. A " +
-            "counter that kept climbing through an overshoot would fire a redundant guarantee a few " +
-            "kills later.");
-    }
-
-    /// <summary>A drop the breaker forced resets the counter too.</summary>
-    [Fact]
-    public void A_forced_drop_resets_the_counter_it_satisfied()
-    {
-        var resolution = Resolve(RunDropTrigger.ELITE, Counters(Rarity.A, 5));
-
-        resolution.FromPity.ShouldBeTrue();
-        resolution.Changes[0].Value.ShouldBe(0);
-    }
-
-    /// <summary>A drop still below the miss band after a forced draw would keep advancing.</summary>
-    /// <remarks>
-    /// The negative control on the reset: the counter follows the <em>outcome</em>, not the pity flag.
-    /// A boss drop of A is a miss against the boss breaker's S band even though it is a fine drop.
-    /// </remarks>
+    /// <summary>
+    /// The counter follows the <em>outcome</em>, not the pity flag: a boss drop of A is a miss
+    /// against the boss breaker's S band even though it is a fine drop. (Advance-on-miss and
+    /// reset-on-hit are pinned at the Apply seam in <c>RunDropGrantTests</c>.)
+    /// </summary>
     [Fact]
     public void The_counter_follows_the_outcome_rather_than_the_pity_flag()
     {
@@ -295,27 +178,11 @@ public sealed class RunDropResolutionTests
     }
 
     /// <summary>
-    /// 🔒 The miss band and the forced band are read from their <b>own</b> fields, over a breaker
-    /// whose two bands differ.
+    /// 🔒 The miss band and the forced band are read from their <b>own</b> fields. The shipped
+    /// breakers pair the two identically (A/A, S/S), so a swapped reading passes every shipped-data
+    /// case; the fixture pulls them apart upward (A-miss/SS-force — the only direction
+    /// <c>DropRunTuning</c> permits) and both halves discriminate.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// 🔴 <b>Every other case in this file uses the shipped pairing, where the two bands are the
-    /// same</b> — the elite breaker is A/A and the boss breaker is S/S — so a resolution that read
-    /// <c>belowRarity</c> where it meant <c>forceRarityAtLeast</c>, or the reverse, produces exactly
-    /// the same answers and the whole file stays green. On a data edit that split the two the game
-    /// would silently count the wrong drops as misses and floor the forced draw on the wrong band.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>The asymmetry runs upward, and it has to.</b> <c>DropRunTuning</c> refuses a forced band
-    /// <em>below</em> the miss band by name — such a breaker would force a draw that is itself a miss,
-    /// so the counter would never reset — which makes A-miss/SS-force the only direction a fixture can
-    /// legally take the two apart. It discriminates in both halves all the same: an <c>A</c> drop is
-    /// not below <c>A</c>, so it <em>resets</em>, where a swapped reading would call it a miss below
-    /// <c>SS</c> and advance; and the forced draw floors at <c>SS</c>, which a table of nothing but
-    /// <c>A</c> cannot reach, where a swapped reading would floor at <c>A</c> and draw happily.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_miss_band_and_the_forced_band_are_read_from_their_own_fields()
     {
@@ -523,33 +390,16 @@ public sealed class RunDropResolutionTests
     }
 
     // ---------------------------------------------------------------- the session floor
+    //
+    // The floor's payable cases run at the Apply seam in Handlers/SessionFloorGrantTests. What stays
+    // here is what shipped content cannot express: the data-driven qualifier, the two return units,
+    // and the argument refusals.
 
-    /// <summary>A qualifying run that produced nothing worth keeping is owed the authored count.</summary>
-    [Fact]
-    public void A_qualifying_run_that_produced_nothing_worth_keeping_is_owed_the_authored_count()
-    {
-        ItemsFromSessionFloor(
-                DropRun(), qualified: true, itemsAtOrAboveFloor: 0, grantsAlreadyToday: 0)
-            .ShouldBe(LuckDocuments.ShippedSessionFloorGrantCount);
-    }
-
-    /// <summary>A run that did not end the required way is owed nothing.</summary>
-    [Fact]
-    public void A_run_that_did_not_end_the_required_way_is_owed_nothing()
-    {
-        ItemsFromSessionFloor(
-                DropRun(), qualified: false, itemsAtOrAboveFloor: 0, grantsAlreadyToday: 0)
-            .ShouldBe(
-                0,
-                "the floor is paid on a Victory or a stage-3 death. Paying it on an abandon would " +
-                "make quitting at stage 1 the cheapest way to farm the guarantee.");
-    }
-
-    /// <summary>The qualifier is read from the document rather than assumed.</summary>
-    /// <remarks>
-    /// The negative control: with the requirement authored off, an unqualified run is owed the floor.
-    /// A rule that hard-coded the requirement would pass the case above and ignore the data edit.
-    /// </remarks>
+    /// <summary>
+    /// The qualifier is read from the document rather than assumed: with the requirement authored
+    /// off, an unqualified run is owed the floor. A rule that hard-coded the requirement would
+    /// ignore the data edit.
+    /// </summary>
     [Fact]
     public void A_floor_that_requires_no_qualifying_end_pays_an_unqualified_run()
     {
@@ -563,33 +413,6 @@ public sealed class RunDropResolutionTests
         ItemsFromSessionFloor(
                 unconditional, qualified: false, itemsAtOrAboveFloor: 0, grantsAlreadyToday: 0)
             .ShouldBe(LuckDocuments.ShippedSessionFloorGrantCount);
-    }
-
-    /// <summary>A run that already produced an item at or above the band is owed nothing.</summary>
-    [Theory]
-    [InlineData(1)]
-    [InlineData(7)]
-    public void A_run_that_already_produced_an_item_at_the_band_is_owed_nothing(int produced)
-    {
-        ItemsFromSessionFloor(
-                DropRun(), qualified: true, itemsAtOrAboveFloor: produced, grantsAlreadyToday: 0)
-            .ShouldBe(0, "the floor adds an item to a run that produced none, not one to every run");
-    }
-
-    /// <summary>The day's allowance is spent at exactly the authored maximum, not one grant later.</summary>
-    [Theory]
-    [InlineData(0, LuckDocuments.ShippedSessionFloorGrantCount)]
-    [InlineData(1, LuckDocuments.ShippedSessionFloorGrantCount)]
-    [InlineData(2, 0)]
-    [InlineData(3, 0)]
-    public void The_days_allowance_is_spent_at_exactly_the_authored_maximum(int alreadyToday, int owed)
-    {
-        ItemsFromSessionFloor(
-                DropRun(), qualified: true, itemsAtOrAboveFloor: 0, grantsAlreadyToday: alreadyToday)
-            .ShouldBe(
-                owed,
-                $"the floor fires at most {LuckDocuments.ShippedSessionFloorMaxPerDay} times per day. " +
-                "The boundary is the whole rule: paying a third grant is a daily cap that does not cap.");
     }
 
     /// <summary>A negative count is refused rather than read as none.</summary>

@@ -137,13 +137,10 @@ public sealed class SessionFloorGrantTests
             "unbounded stream of guaranteed " + Floor.GrantRarity + " items.");
     }
 
-    /// <summary>A death short of the qualifying stage is paid nothing.</summary>
-    /// <remarks>
-    /// The same world as the paying case in every respect but the stage the hero died on, so the
-    /// qualification rule is the only thing that can account for the difference — and the paying
-    /// half is driven here rather than left to a sibling case, because "nothing was granted" is
-    /// satisfied just as well by a floor that is not wired at all.
-    /// </remarks>
+    /// <summary>
+    /// A death short of the qualifying stage is paid nothing. Same world as the paying control but
+    /// for the stage, so the qualification rule alone accounts for the difference.
+    /// </summary>
     [Fact]
     public void A_death_short_of_the_qualifying_stage_is_paid_nothing()
     {

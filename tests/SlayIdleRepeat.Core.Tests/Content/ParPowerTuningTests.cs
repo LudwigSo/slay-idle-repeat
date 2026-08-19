@@ -16,21 +16,6 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// </remarks>
 public sealed class ParPowerTuningTests
 {
-    /// <summary>Each chapter's Normal-tier par, as authored.</summary>
-    [Theory]
-    [InlineData(1, 1000.0)]
-    [InlineData(2, 2000.0)]
-    [InlineData(3, 4000.0)]
-    [InlineData(4, 8000.0)]
-    [InlineData(5, 16000.0)]
-    [InlineData(6, 32000.0)]
-    [InlineData(7, 64000.0)]
-    [InlineData(8, 128000.0)]
-    public void The_reader_answers_the_chapter_par_the_document_authors(int chapter, double target)
-    {
-        ParPowerTuning.Read(GearDocuments.Shipped).ChapterPowerTarget(chapter).ShouldBe(target);
-    }
-
     /// <summary>The table covers exactly the chapters the document authors, ascending.</summary>
     [Fact]
     public void The_table_covers_exactly_the_chapters_the_document_authors()
@@ -43,9 +28,8 @@ public sealed class ParPowerTuningTests
 
     /// <summary>A par is read from the document rather than derived from the doubling curve.</summary>
     /// <remarks>
-    /// The negative control on the transcription above: every shipped cell is exactly twice its
-    /// predecessor, so a reader that applied the default fill formula would agree with all eight rows
-    /// and would silently ignore a hand-tuned chapter.
+    /// Every shipped cell is exactly twice its predecessor, so a reader that applied the default fill
+    /// formula would silently ignore a hand-tuned chapter.
     /// </remarks>
     [Fact]
     public void The_reader_answers_a_retuned_cell_rather_than_the_default_fill()

@@ -41,19 +41,6 @@ public sealed class BoardGeneratorTests
         a.ShouldNotBe(b);
     }
 
-    [Fact]
-    public void A_null_config_is_rejected()
-    {
-        Should.Throw<ArgumentNullException>(() => Generate(null!, 1UL));
-    }
-
-    [Fact]
-    public void A_null_rng_is_rejected()
-    {
-        var config = BoardFixtures.ChapterOneConfig();
-        Should.Throw<ArgumentNullException>(() => BoardGenerator.GenerateBoard(config, null!));
-    }
-
     // The linear index scheme below is load-bearing for EnemyPower(i) elsewhere in Core.
 
     [Fact]

@@ -45,7 +45,6 @@ public sealed class GameRulesLegendLevelTests
         result.NewState.Player.LegendLevel.ShouldBe(4);
     }
 
-    /// <summary>The level-ups grant a Talent Point each.</summary>
     [Fact]
     public void The_level_ups_grant_a_Talent_Point_each()
     {

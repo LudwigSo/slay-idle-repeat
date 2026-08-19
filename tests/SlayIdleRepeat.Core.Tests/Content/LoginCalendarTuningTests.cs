@@ -20,10 +20,6 @@ public sealed class LoginCalendarTuningTests
     /// The reader reads the pointer where the cycle length is authored — proved by moving the
     /// value, not by agreeing with the fixture's own constant.
     /// </summary>
-    /// <remarks>
-    /// What is decidable here is that the reader is wired to the right pointer; that the shipped
-    /// value matches the reward rows is <c>Application.Tests</c>' concern, to stay hermetic.
-    /// </remarks>
     [Theory]
     [InlineData(1)]
     [InlineData(7)]
@@ -94,11 +90,6 @@ public sealed class LoginCalendarTuningTests
     }
 
     /// <summary>A deliberate <c>null</c> is an <c>UnauthorisedTunableException</c> — the hole must stay a hole.</summary>
-    /// <remarks>
-    /// A <c>null</c> means "the design docs do not authorise a value here". Reading it as a number
-    /// would produce a calendar, the simulator would grade it, and nobody would learn that a cycle
-    /// nobody authored had been invented.
-    /// </remarks>
     [Fact]
     public void An_unauthorised_null_throws_rather_than_defaulting()
     {

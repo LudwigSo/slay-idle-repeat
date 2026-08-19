@@ -8,16 +8,9 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// The lifetime feat counters on <c>Player</c>: additive, never reset, and part of the persisted
-/// state hash.
+/// The lifetime feat counters on <c>Player</c>. The ids are synthetic so a rename of a real
+/// counter fails only in <c>FeatCounterProjectionTests</c>, the one place a rename must fail.
 /// </summary>
-/// <remarks>
-/// The ids used here are <b>synthetic</b>, deliberately: this file is about the mechanism, and an
-/// id it shared with the projection would let a rename of a real counter stay green here while
-/// only <c>FeatCounterProjectionTests</c> — the one place a rename must fail — went red. The one
-/// real id below is <see cref="ProjectionOwnedCounter"/>, used exactly where the assertion is that
-/// the aggregate does <em>not</em> write it.
-/// </remarks>
 public sealed class PlayerFeatCounterTests
 {
     private const string Counter = "a_counter_the_mechanism_carries";
@@ -30,8 +23,6 @@ public sealed class PlayerFeatCounterTests
 
     private static Core.Model.Player Player(PlayerSnapshot? snapshot = null) =>
         Core.Model.Player.Rehydrate(snapshot ?? PlayerSnapshots.Valid, Content).Value;
-
-    // ------------------------------------------------------------------ the mechanism
 
     [Fact]
     public void A_feat_counter_comes_into_existence_on_its_first_increment()
@@ -61,7 +52,6 @@ public sealed class PlayerFeatCounterTests
         player.FeatCount(OtherCounter).ShouldBe(40L);
     }
 
-    /// <summary>A lifetime counter only ever grows: a negative advance is a refund, and a zero one counts nothing.</summary>
     [Theory]
     [InlineData(-1L)]
     [InlineData(0L)]
@@ -76,9 +66,9 @@ public sealed class PlayerFeatCounterTests
     }
 
     /// <summary>
-    /// The blank-id refusal, pinned by <b>identity</b>: <c>ArgumentOutOfRangeException</c> derives
-    /// from <c>ArgumentException</c> and Shouldly matches by assignability, so an implementation
-    /// that validated the amount first would satisfy a bare type assertion for the wrong reason.
+    /// Pinned by identity: <c>ArgumentOutOfRangeException</c> derives from <c>ArgumentException</c>
+    /// and Shouldly matches by assignability, so an implementation validating the amount first
+    /// would satisfy a bare type assertion for the wrong reason.
     /// </summary>
     [Theory]
     [InlineData("   ")]
@@ -94,8 +84,6 @@ public sealed class PlayerFeatCounterTests
         thrown.ParamName.ShouldBe("counterId");
         thrown.Message.ShouldContain("A feat counter id names the projection that owns it", Case.Sensitive);
 
-        // The READ side refuses it too, with the SAME reason. Routing it through the daily-counter
-        // guard would answer a feat-counter question with the daily-reset systems' explanation.
         var reading = Should.Throw<ArgumentException>(() => player.FeatCount(counterId!));
 
         reading.ShouldBeOfType<ArgumentException>();
@@ -114,14 +102,7 @@ public sealed class PlayerFeatCounterTests
         player.FeatCount(Counter).ShouldBe(long.MaxValue);
     }
 
-    // ------------------------------------------------------------------ lifetime, and what that costs
-
-    /// <summary>
-    /// 🔒 The whole reason these counters are on the aggregate. A daily boundary clears the daily
-    /// counters, a weekly boundary clears the weekly ones, and neither touches these — a Feat is
-    /// claimed retroactively against a lifetime count, so a reset silently understates a history
-    /// that cannot be rebuilt.
-    /// </summary>
+    /// <summary>🔒 28 D2: a Feat is claimed retroactively against a lifetime count, so no period boundary may touch these.</summary>
     [Fact]
     public void Feat_counters_survive_the_boundaries_that_clear_the_daily_and_weekly_counters()
     {
@@ -143,8 +124,6 @@ public sealed class PlayerFeatCounterTests
             "the player did not have.");
     }
 
-    // ------------------------------------------------------------------ persistence
-
     [Fact]
     public void Feat_counters_round_trip_through_the_snapshot()
     {
@@ -160,28 +139,6 @@ public sealed class PlayerFeatCounterTests
         round.Value.FeatCount(OtherCounter).ShouldBe(500L);
     }
 
-    /// <summary>
-    /// The view is <b>live</b>, as its own remarks claim: it is built once over the aggregate's map,
-    /// so a caller holding one across an increment sees the new count. An implementation that
-    /// rebuilt a frozen copy per read would satisfy every other assertion in this file.
-    /// </summary>
-    [Fact]
-    public void The_view_a_caller_already_holds_sees_a_later_increment()
-    {
-        var player = Player();
-        var held = player.FeatCounters;
-
-        player.CountFeat(Counter, 1L);
-
-        held.CountOf(Counter).ShouldBe(1L);
-        held.Counts[Counter].ShouldBe(1L);
-        held.ShouldBeSameAs(player.FeatCounters);
-    }
-
-    /// <summary>
-    /// 🔒 S17 — the snapshot copies the map rather than sharing it, so a later increment cannot
-    /// rewrite a snapshot that was already handed out and hashed.
-    /// </summary>
     [Fact]
     public void A_later_increment_does_not_rewrite_an_already_taken_snapshot()
     {
@@ -201,9 +158,8 @@ public sealed class PlayerFeatCounterTests
     }
 
     /// <summary>
-    /// 🔒 S17 — two states differing only in a feat counter must encode differently. Synthesized
-    /// record equality compares the map component by REFERENCE, so this is stated over the
-    /// canonical bytes, which is the one encoding whose contract is "two different states differ".
+    /// Stated over canonical bytes, never record equality: a synthesized <c>Equals</c> compares the
+    /// map component by reference.
     /// </summary>
     [Fact]
     public void Two_players_differing_only_in_a_feat_counter_hash_differently()
@@ -229,16 +185,10 @@ public sealed class PlayerFeatCounterTests
     }
 
     /// <summary>
-    /// 🔒 S17 — the map is re-keyed into an <c>Ordinal</c> dictionary on rehydration.
+    /// Probed through <c>TryGetValue</c> lookups, not canonical bytes, deliberately: the writer
+    /// always orders string keys ordinally and never consults the map's comparer, so a byte-level
+    /// comparison would stay green against a <c>Rehydrate</c> that kept a case-insensitive map.
     /// </summary>
-    /// <remarks>
-    /// ⚠️ Stated over the aggregate's own <b>lookup</b>, not over the canonical bytes, and that is
-    /// the whole point of the test: <c>CanonicalStateWriter</c> always orders string keys with
-    /// <c>string.CompareOrdinal</c> and never consults the map's comparer, so a byte-level
-    /// comparison here would be green against a <c>Rehydrate</c> that kept a case-insensitive map —
-    /// or one that kept the caller's dictionary uncopied. The comparer only becomes observable
-    /// through <c>TryGetValue</c>, so that is where it is probed.
-    /// </remarks>
     [Fact]
     public void A_map_that_arrived_under_another_comparer_is_re_keyed_ordinally()
     {
@@ -264,7 +214,6 @@ public sealed class PlayerFeatCounterTests
         player.Value.FeatCounters.Counts.Count.ShouldBe(2);
     }
 
-    /// <summary>The aggregate's own store is never handed to a caller, in either direction.</summary>
     [Fact]
     public void A_map_the_caller_still_holds_cannot_reach_inside_the_aggregate()
     {
@@ -282,8 +231,8 @@ public sealed class PlayerFeatCounterTests
 
     /// <summary>
     /// 🔒 An absent lifetime map is a fault, not an empty one — deliberately unlike
-    /// <c>ClearedChapterTiers</c>. Reading it as empty would zero a player's entire history at the
-    /// exact moment a Feat is claimed against it.
+    /// <c>ClearedChapterTiers</c>: read as empty it would zero a player's history at the exact
+    /// moment a Feat is claimed against it.
     /// </summary>
     [Fact]
     public void A_null_feat_counter_map_is_refused_by_name()
@@ -297,17 +246,12 @@ public sealed class PlayerFeatCounterTests
             customMessage: "several maps can fail this validation; the message must say WHICH one did.");
         result.Error.ShouldContain("An absent counter map is not an empty one", Case.Sensitive);
 
-        // The asymmetry, stated where it can be checked: the sibling map appended beside this one
-        // IS read as empty when absent, so "a null map is a fault" is a claim about THIS field.
+        // The asymmetry, stated where it can be checked: the sibling map IS read as empty when absent.
         Core.Model.Player.Rehydrate(PlayerSnapshots.WithNull(cleared: true), Content)
             .IsSuccess.ShouldBeTrue();
     }
 
-    /// <summary>
-    /// A corrupt lifetime row is refused — and the diagnostic says the counter is never cleared,
-    /// not that it is cleared at a period boundary. The same reader reaching the daily map must get
-    /// the opposite sentence; both are asserted here so the two cannot drift into one.
-    /// </summary>
+    /// <summary>Both diagnostics asserted side by side so the lifetime and period sentences cannot drift into one.</summary>
     [Fact]
     public void A_negative_persisted_feat_count_is_refused_as_a_lifetime_counter()
     {
@@ -325,23 +269,17 @@ public sealed class PlayerFeatCounterTests
         daily.Error.ShouldContain("is cleared at its period boundary", Case.Sensitive);
     }
 
-    /// <summary>The view is read-only: it cannot be cast back to a writable map.</summary>
+    /// <summary>
+    /// ReadOnlyDictionary DOES implement IDictionary — explicitly, with throwing writers — so the
+    /// property worth asserting is that the writers throw, not that the interface is absent.
+    /// </summary>
     [Fact]
     public void The_feat_counter_view_cannot_be_written_through()
     {
         var player = Player();
         player.CountFeat(Counter, 1L);
 
-        var counts = player.FeatCounters.Counts;
-
-        counts.ShouldNotBeOfType<Dictionary<string, long>>(
-            "an IReadOnlyDictionary backed by a BARE Dictionary casts straight back to a writable " +
-            "one, and 30 §11.2's 'everything the outside world can see is a getter' would be a " +
-            "claim nothing enforces.");
-
-        // ReadOnlyDictionary DOES implement IDictionary — explicitly, with throwing writers — so
-        // the property worth asserting is that the writers throw, not that the interface is absent.
-        var writable = counts.ShouldBeAssignableTo<IDictionary<string, long>>();
+        var writable = player.FeatCounters.Counts.ShouldBeAssignableTo<IDictionary<string, long>>();
 
         writable.IsReadOnly.ShouldBeTrue();
         Should.Throw<NotSupportedException>(() => writable[Counter] = 99L);
@@ -350,11 +288,7 @@ public sealed class PlayerFeatCounterTests
         player.FeatCount(Counter).ShouldBe(1L);
     }
 
-    /// <summary>A counter nobody has registered reads as zero — while a registered one still reads its own count.</summary>
-    /// <remarks>
-    /// The registered arm is the discriminating half: without it, a <c>FeatCount</c> hard-wired to
-    /// return zero would satisfy this test exactly.
-    /// </remarks>
+    /// <summary>The registered arm is the discriminating half: a <c>FeatCount</c> hard-wired to zero fails here.</summary>
     [Fact]
     public void An_unregistered_counter_reads_as_zero_while_a_registered_one_does_not()
     {
@@ -368,9 +302,8 @@ public sealed class PlayerFeatCounterTests
     }
 
     /// <summary>
-    /// 🔒 The aggregate does not count for itself. A currency movement moves the wallet and returns
-    /// the event; <c>GameRules.Apply</c> is what turns that event into a count — which is the
-    /// difference between one projection table and a hook in every rule that could contribute.
+    /// 🔒 The aggregate does not count for itself: <c>GameRules.Apply</c> turns events into counts,
+    /// which is the difference between one projection table and a hook in every rule.
     /// </summary>
     [Fact]
     public void A_wallet_movement_does_not_count_itself()

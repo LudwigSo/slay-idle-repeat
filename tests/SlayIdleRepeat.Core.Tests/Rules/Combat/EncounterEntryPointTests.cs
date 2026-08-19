@@ -45,8 +45,6 @@ public sealed class EncounterEntryPointTests
         [StatId.THORNS] = 0.0,
     });
 
-    // ═══════════════════════════════════════════════════════════ acceptance 1: a real encounter
-
     /// <summary>A real fight against real <c>EnemyCatalogue</c> content, callable from outside <c>Core.Rules</c>.</summary>
     [Fact]
     public void Runs_a_real_fight_against_the_shipped_enemy_catalogue()
@@ -88,8 +86,6 @@ public sealed class EncounterEntryPointTests
         Should.Throw<ArgumentOutOfRangeException>(() => CombatSimulator.SimulateEncounter(
             BattleSeed, StrongHero(), 10, Chapter, NormalTier, new[] { 400.0 }, Content, eliteIndex: 1));
     }
-
-    // ═══════════════════════════════════════════════════════════ acceptance 5: elite wiring
 
     /// <summary>
     /// A fight with an Elite drawn measurably differs from the same fight without one: the ×2.2 power
@@ -142,8 +138,6 @@ public sealed class EncounterEntryPointTests
             $"deal strictly more cumulative damage than any non-elite draw. Without: HpRemaining=" +
             $"{withoutElite.HeroHpRemaining}. With: HpRemaining={withElite.HeroHpRemaining}.");
     }
-
-    // ═══════════════════════════════════════════════════════════ acceptance 3: attaching an effect
 
     /// <summary>
     /// The public surface can attach an <c>APPLY_STATUS</c> effect to the hero and it actually

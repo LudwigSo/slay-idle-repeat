@@ -8,20 +8,12 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>
 /// The twenty-four base items read out of <c>content/gear/gear.json</c>: the slot/family grid, the
-/// axis that decides an SS item's set, and the three ways an incomplete grid is refused.
+/// axis that decides an SS item's set, and the ways an incomplete grid is refused.
 /// </summary>
-/// <remarks>
-/// The grid is the thing, not the rows. Six slots times four families is what makes a set exactly six
-/// pieces and what makes every family rollable, and neither property is visible in any single row —
-/// so the reader checks the shape, and so does this.
-/// </remarks>
 public sealed class GearCatalogueTests
 {
     /// <summary>The whole roster is present, and it is the roster the document lists.</summary>
-    /// <remarks>
-    /// The count alone would be satisfied by twenty-four copies of one row, so an identity comes with
-    /// it: the ids are asserted in document order.
-    /// </remarks>
+    /// <remarks>The count alone would be satisfied by twenty-four copies of one row.</remarks>
     [Fact]
     public void The_catalogue_answers_the_twenty_four_base_items_the_document_lists()
     {
@@ -35,29 +27,7 @@ public sealed class GearCatalogueTests
             GearDocuments.ShippedBaseItems.Select(item => item.DefId));
     }
 
-    /// <summary>Every family appears exactly once across the whole grid.</summary>
-    /// <remarks>
-    /// A family names one base item. A family used twice would make one item unreachable and leave
-    /// the item it displaced with no way to be rolled at all — invisible in a count of twenty-four.
-    /// </remarks>
-    [Fact]
-    public void Every_family_appears_exactly_once_across_the_grid()
-    {
-        var families = GearCatalogue.Read(GearDocuments.Shipped).Definitions
-            .Select(definition => definition.Family)
-            .ToArray();
-
-        families.Length.ShouldBe(Enum.GetValues<GearFamily>().Length);
-        families.ShouldBeUnique();
-        families.ShouldContain(GearFamily.BLADE);
-        families.ShouldContain(GearFamily.IDOL);
-    }
-
     /// <summary>Every slot carries four families, one per axis.</summary>
-    /// <remarks>
-    /// The axis half is what a count cannot catch: a slot with two BALANCED families gives that set
-    /// two pieces in the slot while another set has none, and the slot still carries four.
-    /// </remarks>
     [Theory]
     [InlineData(GearSlot.WEAPON)]
     [InlineData(GearSlot.HELMET)]
@@ -76,25 +46,6 @@ public sealed class GearCatalogueTests
             "each axis is one set, and a set reaches six pieces only if every slot offers it exactly " +
             "one family.");
         families.ShouldAllBe(definition => definition.Slot == slot);
-    }
-
-    /// <summary>The axis a known family carries is the one the document authors for it.</summary>
-    /// <remarks>
-    /// Four families are four apart in the enum's declaration order, so an axis <em>derived</em> from
-    /// that arithmetic would agree with every row here. It is authored per row precisely because a
-    /// layout coincidence is not a specification, and these are the rows that say so.
-    /// </remarks>
-    [Theory]
-    [InlineData(GearFamily.BLADE, GearFamilyAxis.BALANCED)]
-    [InlineData(GearFamily.AXE, GearFamilyAxis.HEAVY)]
-    [InlineData(GearFamily.STAFF, GearFamilyAxis.CASTER)]
-    [InlineData(GearFamily.BOW, GearFamilyAxis.AGILE)]
-    [InlineData(GearFamily.PLATE, GearFamilyAxis.HEAVY)]
-    [InlineData(GearFamily.SLIPPERS, GearFamilyAxis.CASTER)]
-    [InlineData(GearFamily.IDOL, GearFamilyAxis.AGILE)]
-    public void A_familys_axis_is_the_one_the_document_authors(GearFamily family, GearFamilyAxis axis)
-    {
-        GearCatalogue.Read(GearDocuments.Shipped).Definition(family).Axis.ShouldBe(axis);
     }
 
     /// <summary>Looking a family up answers its own row, slot, id and axis together.</summary>

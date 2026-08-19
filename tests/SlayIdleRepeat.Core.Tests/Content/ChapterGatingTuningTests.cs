@@ -9,19 +9,6 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// <see cref="ChapterGatingTuning"/> — `10` §7's chapter/tier ladder, read out of
 /// <c>tuning/progression.json#/chapterGating</c>, and every way the read refuses rather than defaults.
 /// </summary>
-/// <remarks>
-/// <para>
-/// The happy path runs over <c>TuningDocuments.Shipped</c> and derives its expectations from the
-/// document, never from a literal: the Legend Level the Mythic rung demands is read back out of the
-/// same snapshot the reader read it from. Steering S18 — that number lives in tuning, and a C# copy
-/// of it is invisible to every architecture rule that watches for one.
-/// </para>
-/// <para>
-/// The refusals run over miniature fixtures, and each one asserts the exception <b>type</b> plus the
-/// <b>reference</b> it carries. Three of the arms below throw the same type, so the type alone would
-/// let any one of them stand in for any other (S2).
-/// </para>
-/// </remarks>
 public sealed class ChapterGatingTuningTests
 {
     /// <summary>The shipped ladder, read once — the subject of every case in the first section.</summary>
@@ -35,15 +22,11 @@ public sealed class ChapterGatingTuningTests
     private static string LevelPointer(DifficultyTier tier) =>
         $"{ChapterGatingTuning.GatingReference}/{tier}/requiresLegendLevel";
 
-    /// <summary>The shipped ladder's three rungs, tier by tier, as the fixture builders take them.</summary>
-    /// <remarks>
-    /// Listed rather than reused from <c>ProgressionDocuments.ShippedChapterGating</c>, which hands
-    /// the block over whole: the two cases below have to take one rung <em>out</em> of the ladder or
-    /// swap one token for another, and a finished block cannot be taken apart again. The tokens are
-    /// the <c>Core.Tests</c> transcription of the shipped file, not <see cref="ChapterGatingTuning"/>'s
-    /// own constants — a fixture authored from the reader's constants would keep agreeing with the
-    /// reader through any rename of them.
-    /// </remarks>
+    /// <summary>
+    /// The shipped rungs, listed rather than reused from <c>ProgressionDocuments.ShippedChapterGating</c>:
+    /// the cases below take one rung out of the ladder or swap one token, and a finished block cannot
+    /// be taken apart again.
+    /// </summary>
     private static readonly (DifficultyTier Tier, string Clear, int? Level)[] ShippedRungs =
     {
         (DifficultyTier.NORMAL, ProgressionDocuments.ShippedNormalRequiresClear, null),
@@ -79,14 +62,9 @@ public sealed class ChapterGatingTuningTests
 
     /// <summary>
     /// Every declared tier's rung reads back exactly the clear token and the Legend Level the
-    /// document authors for it.
+    /// document authors for it. The expectation is read out of the snapshot rather than transcribed;
+    /// what the numbers ought to be is checked against the shipped file in <c>Application.Tests</c>.
     /// </summary>
-    /// <remarks>
-    /// The expectation is read out of the snapshot at the same pointer rather than transcribed, so
-    /// this case says "the reader plumbs the document" and nothing about which numbers the document
-    /// ought to hold. What the numbers ought to be is the ladder's own business and is checked
-    /// against the shipped file in <c>Application.Tests</c>.
-    /// </remarks>
     [Theory]
     [InlineData(DifficultyTier.NORMAL)]
     [InlineData(DifficultyTier.HEROIC)]
@@ -114,14 +92,9 @@ public sealed class ChapterGatingTuningTests
     }
 
     /// <summary>
-    /// 🔒 The reader plumbs the data rather than answering from a constant: a fixture authoring a
-    /// Legend Level the shipped file does not carry reads back that level.
+    /// A fixture authoring a Legend Level the shipped file does not carry reads back that level —
+    /// a reader hard-coding the shipped number passes every other case and fails this one.
     /// </summary>
-    /// <remarks>
-    /// 7 is deliberately nothing the game authors anywhere — not the shipped 60, not a bound of the
-    /// Legend Level range, not a rung of `07` §1.1's unlock ladder. A reader hard-coding the shipped
-    /// number passes every case above and fails this one, which is the whole point of it.
-    /// </remarks>
     [Fact]
     public void A_ladder_authoring_a_different_Legend_Level_reads_back_that_level()
     {
@@ -145,19 +118,10 @@ public sealed class ChapterGatingTuningTests
     }
 
     /// <summary>
-    /// 🔒 The clear token is plumbing as much as the level is: a rung authoring a token the shipped
-    /// ladder puts on a <em>different</em> rung reads back — and resolves to — the token it was
-    /// given.
+    /// A rung authoring a token the shipped ladder puts on a <em>different</em> rung reads back —
+    /// and resolves to — the token it was given. Each row moves a token onto a rung the shipped file
+    /// does not put it on, which is where a hard-coded tier→token table and the document disagree.
     /// </summary>
-    /// <remarks>
-    /// The second probe the shipped-ladder case above cannot be. That one reads its expectation out
-    /// of the same snapshot the reader read it from, so a reader answering from a hard-coded
-    /// tier→token table is indistinguishable from a correct one there, and every token case below it
-    /// runs over the shipped ladder where the table would agree. Each row here moves a token onto a
-    /// rung the shipped file does not put it on, which is exactly where the table and the document
-    /// give different answers. The resolved clear is asserted too, not just the token: a reader could
-    /// read the token faithfully and still resolve it from the tier it found it on.
-    /// </remarks>
     [Theory]
     [InlineData(
         DifficultyTier.NORMAL, ProgressionDocuments.ShippedMythicRequiresClear, 4, 4, DifficultyTier.HEROIC)]
@@ -188,14 +152,9 @@ public sealed class ChapterGatingTuningTests
     // ------------------------------------------------------------------ resolving a token to a clear
 
     /// <summary>
-    /// 🔒 <c>PREVIOUS_CHAPTER_NORMAL</c> names no chapter before chapter 1, so the Normal rung
+    /// <c>PREVIOUS_CHAPTER_NORMAL</c> names no chapter before chapter 1, so the Normal rung
     /// demands nothing there.
     /// </summary>
-    /// <remarks>
-    /// This is the one case that keeps the whole gate from being a locked front door: chapter 1
-    /// Normal is where every account starts, and a token resolved arithmetically without this arm
-    /// would demand a clear of "chapter 0" that no player can ever have.
-    /// </remarks>
     [Fact]
     public void PREVIOUS_CHAPTER_NORMAL_demands_nothing_of_the_first_chapter()
     {
@@ -246,11 +205,6 @@ public sealed class ChapterGatingTuningTests
     }
 
     /// <summary>A rung authoring no clear token demands no clear, at any chapter.</summary>
-    /// <remarks>
-    /// The negative control for the three cases above: the resolver answers <c>null</c> for an
-    /// authored <c>null</c> rather than for every token it does not happen to recognise — which is
-    /// the difference this reader exists to make, and which the arm below pins from the other side.
-    /// </remarks>
     [Fact]
     public void A_rung_authoring_no_clear_token_demands_no_clear()
     {
@@ -285,12 +239,9 @@ public sealed class ChapterGatingTuningTests
                 "demands anything', every tier of every chapter would be open to everybody.");
     }
 
-    /// <summary>The block is authored as a deliberate <c>null</c>.</summary>
-    /// <remarks>
-    /// A different failure from the one above and told apart by its own type: an absent block is data
-    /// that was never written, an authored <c>null</c> is somebody writing down that no value is
-    /// authorised. Neither may be read as "the gate is open".
-    /// </remarks>
+    /// <summary>
+    /// An authored <c>null</c> block is a different failure from an absent one, told apart by type.
+    /// </summary>
     [Fact]
     public void A_chapterGating_block_authored_as_null_is_refused()
     {
@@ -310,21 +261,10 @@ public sealed class ChapterGatingTuningTests
     }
 
     /// <summary>
-    /// 🔒 The floor: a rung is required for every declared <see cref="DifficultyTier"/>, and a ladder
-    /// missing one is refused by name.
+    /// A rung is required for every declared <see cref="DifficultyTier"/>, and a ladder missing one
+    /// is refused by name. Every tier is dropped in turn: a reader that looked for a MYTHIC key by
+    /// name would pass a single-tier case and leave the two rungs a run actually starts on ungated.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Steering S3. Without the floor, a data edit that dropped a tier would leave the gate with
-    /// nothing to compare that tier against — and the reader would report itself complete, because a
-    /// reader that walks the authored members can only ever say the data agrees with itself.
-    /// </para>
-    /// <para>
-    /// Every declared tier is dropped in turn rather than only the last one: a reader that looked
-    /// for a MYTHIC key by name — the obvious way to write this floor once and stop — passes a
-    /// single-tier case and leaves the two rungs a run actually starts on ungated.
-    /// </para>
-    /// </remarks>
     [Theory]
     [InlineData(DifficultyTier.NORMAL)]
     [InlineData(DifficultyTier.HEROIC)]
@@ -347,14 +287,9 @@ public sealed class ChapterGatingTuningTests
     }
 
     /// <summary>
-    /// 🔒 An unrecognised clear token is refused — the deliberate difference from the chapter select
-    /// screen, whose fallback treats an unknown token as demanding nothing and therefore OPENS the rung.
+    /// An unrecognised clear token is refused — deliberately opposite to the chapter select screen,
+    /// whose fallback treats an unknown token as demanding nothing and therefore OPENS the rung.
     /// </summary>
-    /// <remarks>
-    /// A screen that opens a rung it cannot translate shows a chapter the server will refuse, which
-    /// is a bad afternoon. An authority that did the same would ship Mythic unlocked to everybody on
-    /// a spelling mistake, which is the game. The two answers are opposite on purpose.
-    /// </remarks>
     [Fact]
     public void An_unrecognised_requiresClear_token_is_refused_rather_than_read_as_demanding_nothing()
     {
@@ -384,14 +319,9 @@ public sealed class ChapterGatingTuningTests
     }
 
     /// <summary>
-    /// A Legend Level outside the range a player can hold is refused, at both ends.
+    /// A Legend Level outside the range a player can hold is refused — both ends, because a
+    /// comparison written against one bound only passes the other half by accident.
     /// </summary>
-    /// <remarks>
-    /// Mirrors <c>UnlockTuning.Read</c>'s range refusal, and for the same reason: a rung above the
-    /// cap is a tier no account can ever reach, and one below the starting level is a gate that was
-    /// never closed. Both ends, because a comparison written against one bound only passes the other
-    /// half by accident.
-    /// </remarks>
     [Theory]
     [InlineData(ProgressionDocuments.ShippedLegendLevelMax + 1)]
     [InlineData(ProgressionDocuments.ShippedLegendLevelMin - 1)]
@@ -415,10 +345,6 @@ public sealed class ChapterGatingTuningTests
     }
 
     /// <summary>Negative control for the range refusal: the two bounds themselves are accepted.</summary>
-    /// <remarks>
-    /// Without this, a reader that refused every level whatsoever would pass both halves of the
-    /// theory above and lock the Mythic tier for good.
-    /// </remarks>
     [Theory]
     [InlineData(ProgressionDocuments.ShippedLegendLevelMin)]
     [InlineData(ProgressionDocuments.ShippedLegendLevelMax)]

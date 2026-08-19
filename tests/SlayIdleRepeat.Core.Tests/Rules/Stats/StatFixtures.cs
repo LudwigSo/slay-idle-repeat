@@ -4,14 +4,11 @@ using SlayIdleRepeat.Core.Rules.Stats;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Stats;
 
-/// <summary>Shared fixtures for the stat aggregation suite.</summary>
-/// <remarks>
-/// Every stat block these helpers build goes through <see cref="ActorStats.From"/> over
-/// <see cref="StatIds.Combat"/> — none of them has a shortcut past the completeness rule. That is
-/// deliberate: a fixture that could build a partial block would be the one place "an unstated
-/// stat is a bug, not a zero" did not hold, and it is exactly where a fifteenth stat would first
-/// fail to be noticed.
-/// </remarks>
+/// <summary>
+/// Shared fixtures for the stat aggregation suite. Every block goes through
+/// <see cref="ActorStats.From"/> over <see cref="StatIds.Combat"/> — no fixture has a shortcut past
+/// the completeness rule.
+/// </summary>
 internal static class StatFixtures
 {
     /// <summary>A complete block with every combat stat at zero.</summary>

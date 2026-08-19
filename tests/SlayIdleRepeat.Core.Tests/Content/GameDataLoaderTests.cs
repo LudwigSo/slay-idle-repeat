@@ -6,11 +6,6 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Content;
 
 /// <summary>The harness's <c>game-data</c> → <see cref="ContentSnapshot"/> loader, over the real tree.</summary>
-/// <remarks>
-/// Ships in the harness because that tool is pinned to <c>Core</c> with no packages and cannot reach
-/// the <c>Application</c> pipeline or any adapter. Every negative case below carries a negative
-/// control that must stay green, since a loader that threw on everything would satisfy the refusals too.
-/// </remarks>
 public sealed class GameDataLoaderTests
 {
     /// <summary>The document every replacement below stands in for. Any real path would do.</summary>
@@ -54,11 +49,6 @@ public sealed class GameDataLoaderTests
     /// A JSON <c>null</c> means "the design docs do not authorise a value here", and loads as
     /// <see cref="ContentValueKind.Unauthorised"/>, never as a zero.
     /// </summary>
-    /// <remarks>
-    /// Two shipped holes and two negative controls: <c>IsAuthorised</c> returning <c>false</c> is
-    /// equally consistent with a loader that resolved nothing, so each hole is paired with an
-    /// authored value at a sibling pointer that must read back authorised with its value.
-    /// </remarks>
     [Theory]
     [InlineData(AuthoredNull, "content/statuses.json#/statuses/8/stat", "ATK")]
     [InlineData(SecondAuthoredNull,
@@ -86,13 +76,9 @@ public sealed class GameDataLoaderTests
 
     /// <summary>
     /// A duplicate key <b>throws</b>. <c>JsonDocument</c> keeps one of the two and discards the
-    /// other in silence, which would otherwise be a failure with nothing to see.
+    /// other in silence, which would otherwise be a failure with nothing to see. The nested shape is
+    /// a different code path from the root one — the one a top-level-only check would wave through.
     /// </summary>
-    /// <remarks>
-    /// Two shapes: a duplicate at the document root and one nested inside an array element are
-    /// different code paths — the second is the one a rule that only checked the top level would
-    /// wave through, and it is the shape real authored data would produce.
-    /// </remarks>
     [Theory]
     [InlineData("{ \"crit\": 0.05, \"crit\": 0.99 }", "crit", "at the document root")]
     [InlineData("{ \"scripts\": [ { \"id\": \"A\", \"id\": \"B\" } ] }", "id", "inside an array element")]
@@ -107,9 +93,8 @@ public sealed class GameDataLoaderTests
     }
 
     /// <summary>
-    /// The negative control for the case above: the same two shapes with the duplicate removed
-    /// load, and their values are readable. Without it, a loader that threw on every replacement
-    /// would pass the refusals.
+    /// The negative control: the same two shapes with the duplicate removed load — a loader that
+    /// threw on every replacement would pass the refusals.
     /// </summary>
     [Theory]
     [InlineData("{ \"crit\": 0.05, \"critDamage\": 0.99 }", "#/critDamage", 0.99)]
@@ -139,11 +124,10 @@ public sealed class GameDataLoaderTests
             .ShouldBe(0.05, "an override that wrote to game-data/ would leave this at 0.99 forever");
     }
 
-    /// <summary>An override naming a document the tree does not hold fails rather than doing nothing.</summary>
-    /// <remarks>
-    /// A silently ignored override is the worst outcome available: the run reports a result for an
-    /// experiment it never performed.
-    /// </remarks>
+    /// <summary>
+    /// An override naming a document the tree does not hold fails rather than doing nothing — a
+    /// silently ignored override reports a result for an experiment that never ran.
+    /// </summary>
     [Theory]
     [InlineData("content/bosses/boses.json", "a typo in a real path")]
     [InlineData("tuning/adds_power.json", "a document nobody authored")]
@@ -159,15 +143,9 @@ public sealed class GameDataLoaderTests
     }
 
     /// <summary>
-    /// The stamp is a real hash of the loaded documents — <see cref="ContentVersion"/> exists so
-    /// that a replayed command reproduces its outcome across a balance patch, which a constant
-    /// cannot do.
+    /// The stamp is a real hash of the loaded documents. Both directions are needed: "two trees
+    /// differ" alone passes on a random stamp, "the same tree agrees" alone on a constant of zeros.
     /// </summary>
-    /// <remarks>
-    /// Both directions: "two trees differ" alone passes on a random stamp, and "the same tree
-    /// agrees" alone passes on a constant of zeros. Together they say it is a function of the
-    /// content and nothing else.
-    /// </remarks>
     [Fact]
     public void The_version_stamp_is_a_real_hash_of_the_documents_loaded()
     {

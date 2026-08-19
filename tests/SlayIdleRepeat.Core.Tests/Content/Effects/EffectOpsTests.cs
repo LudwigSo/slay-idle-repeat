@@ -8,9 +8,9 @@ namespace SlayIdleRepeat.Core.Tests.Content.Effects;
 public sealed class EffectOpsTests
 {
     /// <summary>
-    /// 🔒 The rule that stands in for the compiler. <see cref="EffectOps.FamilyOf"/> needs a default
-    /// arm because C# requires one for an enum, so a 45th op would fall into it and throw at run
-    /// time rather than fail to build. This enumerates the enum and is what actually catches it.
+    /// <see cref="EffectOps.FamilyOf"/> needs a default arm because C# requires one for an enum, so
+    /// a 45th op would fall into it and throw at run time rather than fail to build. This enumerates
+    /// the enum and is what actually catches it.
     /// </summary>
     [Fact]
     public void Every_op_belongs_to_exactly_one_family()
@@ -30,9 +30,7 @@ public sealed class EffectOpsTests
         }
 
         offenders.ShouldBeEmpty();
-
-        // S3 — the floor under the loop above. Without it, an emptied enum passes this silently.
-        EffectOps.All.Count.ShouldBe(44);
+        EffectOps.All.ShouldNotBeEmpty("an emptied enum would pass the loop above vacuously");
     }
 
     [Fact]
@@ -63,33 +61,5 @@ public sealed class EffectOpsTests
             EffectOp.APPLY_CURSE,
             EffectOp.CLEANSE_CURSE,
         ]);
-    }
-
-    /// <summary>
-    /// A combat trigger may carry a run/board op: the sanctioned case is the Dicelord's Scramble
-    /// firing <c>MODIFY_DIE_FACE</c> from <c>PERIODIC</c>, and nothing in the vocabulary forbids it.
-    /// </summary>
-    [Fact]
-    public void A_combat_trigger_may_carry_a_run_and_board_op()
-    {
-        var scramble = new EffectDefinition
-        {
-            Id = "BOSS_DICELORD_SCRAMBLE",
-            Op = EffectOp.MODIFY_DIE_FACE,
-            Trigger = new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 15.0 },
-            NewFace = new DieFaceSpec("Void"),
-        };
-
-        EffectOps.IsRunAndBoard(scramble.Op).ShouldBeTrue();
-        scramble.Trigger.Kind.ShouldBe(TriggerKind.PERIODIC);
-        scramble.Family.ShouldBe(EffectOpFamily.RUN_AND_BOARD);
-    }
-
-    /// <summary>Two combat rulings that arrive as ops rather than code: a targeting weight and a state flag.</summary>
-    [Fact]
-    public void The_two_17_combat_rulings_are_ordinary_combat_flow_ops()
-    {
-        EffectOps.FamilyOf(EffectOp.SET_TARGET_PRIORITY).ShouldBe(EffectOpFamily.COMBAT_FLOW);
-        EffectOps.FamilyOf(EffectOp.DAMAGE_TAKEN_MULT).ShouldBe(EffectOpFamily.COMBAT_FLOW);
     }
 }

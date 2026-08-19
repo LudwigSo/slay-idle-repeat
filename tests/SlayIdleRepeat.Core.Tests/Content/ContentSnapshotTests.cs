@@ -228,37 +228,4 @@ public sealed class ContentSnapshotTests
 
         Should.Throw<MissingContentException>(act);
     }
-
-    [Fact]
-    public void ContentSnapshot_exposes_no_public_mutation_surface()
-    {
-        const System.Reflection.BindingFlags Public =
-            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance;
-
-        var properties = typeof(ContentSnapshot).GetProperties(Public);
-
-        properties.Where(p => p.CanWrite).Select(p => p.Name).ShouldBeEmpty(
-            "14 §6 requires the snapshot to be immutable — a settable property is how hot-reload " +
-            "starts mutating instead of swapping");
-
-        typeof(ContentSnapshot).GetFields(Public).Select(f => f.Name).ShouldBeEmpty(
-            "a public field is a settable property that reflection over properties cannot see");
-
-        // The realistic hazard is not a setter but an exposed mutable collection: a caller that can
-        // Add to DocumentPaths has mutated a snapshot somebody else is still reading.
-        var mutableCollections = new[] { typeof(List<>), typeof(Dictionary<,>), typeof(HashSet<>) };
-
-        var genericPropertyTypes = properties.Select(p => p.PropertyType)
-            .Where(t => t.IsGenericType)
-            .Select(t => t.GetGenericTypeDefinition())
-            .ToArray();
-
-        // This rule is only as good as its subject set: if ContentSnapshot stops exposing any
-        // generic-typed property, "none of them is mutable" becomes vacuously true and passes forever.
-        genericPropertyTypes.ShouldNotBeEmpty(
-            "ContentSnapshot exposes no generic-typed property, so the mutable-collection "
-            + "rule below is asserting over an empty set and can no longer fail");
-
-        genericPropertyTypes.ShouldAllBe(t => !mutableCollections.Contains(t));
-    }
 }

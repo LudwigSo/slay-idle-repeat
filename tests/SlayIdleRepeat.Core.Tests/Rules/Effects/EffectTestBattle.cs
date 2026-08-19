@@ -4,11 +4,6 @@ using SlayIdleRepeat.Core.Rules.Effects;
 namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 
 /// <summary>A battle stated literally: the actors, the clock and the run reading an evaluation reads.</summary>
-/// <remarks>
-/// The rosters are the ones the design documents actually describe rather than abstract fixtures, so a
-/// failure says which clause broke. Deliberately not in <c>SlayIdleRepeat.Core</c>: <c>Core/Testing/</c>
-/// is reserved for <c>InMemoryGame</c>, and a test fixture is not a shipped harness.
-/// </remarks>
 internal static class EffectTestBattle
 {
     /// <summary>The 90 s timeout — the horizon of an ordinary fight.</summary>

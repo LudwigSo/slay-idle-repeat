@@ -20,27 +20,12 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// a run standing in an open battle over a kill tile, and the run-end shapes the session floor reads.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The content is the whole shipped set, not <c>TileWorlds</c>'.</b> A gear grant reads the
-/// catalogue, the drop tables, the par curve, the pity registry and the inventory capacity, and the
-/// tile suite's content set carries none of the five — a fixture short of one of them would fail
-/// inside the reader rather than in the rule under test.
-/// </para>
-/// <para>
-/// 🔴 <b>The stream positions are searched for, not guessed.</b> Whether an ordinary kill drops
-/// anything, and which band an Elite drop lands on, are both decisions of a single draw at the run's
-/// committed <c>drops</c> position — so a case that wants one side of that decision asks
-/// <see cref="NormalEnemyDrawPosition"/> or <see cref="EliteDrawPosition"/> for a position that
-/// produces it.
-/// </para>
-/// <para>
-/// ⚠️ <b>The two searches are not equally trustworthy, and the difference is worth knowing.</b>
-/// <see cref="EliteDrawPosition"/> resolves through <c>LuckService</c> itself, so it cannot disagree
-/// with the engine. <see cref="NormalEnemyDrawPosition"/> re-derives the count draw here, because
-/// there is no production entry point for it short of the handler — so it also pins the SHAPE of
-/// that draw (one <c>NextDouble</c> against the authored chance) and goes red if the handler spends
-/// a different number of draws.
-/// </para>
+/// The content is the whole shipped set, not <c>TileWorlds</c>' — a gear grant reads five documents
+/// the tile suite's set does not carry. Stream positions are searched for, not guessed: a case that
+/// wants one side of a drop decision asks <see cref="NormalEnemyDrawPosition"/> or
+/// <see cref="EliteDrawPosition"/>. The Elite search resolves through <c>LuckService</c> itself; the
+/// Normal search re-derives the count draw (no production entry point exists short of the handler),
+/// so it also pins that draw's shape and goes red if the handler spends a different number of draws.
 /// </remarks>
 internal static class GearGrantWorlds
 {
@@ -350,12 +335,8 @@ internal static class GearGrantWorlds
 
     /// <summary>The worn items' ids, which are furniture rather than anything a kill banked.</summary>
     /// <remarks>
-    /// 🔒 <b>Excluded from <see cref="Owned"/> rather than added to every expectation.</b> This suite's
-    /// question is "what did this kill bank", and the fixture hero's equipped gear is not an answer to
-    /// it — it is there because <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9) and a
-    /// bare-handed hero loses, which would make every drop assertion here read zero. Adding six to
-    /// thirteen expected counts instead would have left each of them stating a number that is partly
-    /// about the loadout, and the next reader could not tell which part.
+    /// Excluded from <see cref="Owned"/> rather than added to every expectation, so each expected
+    /// count states a number about the kill and not partly about the loadout.
     /// </remarks>
     private static readonly HashSet<GearInstanceId> WornIds =
         RunBattleWorlds.FarAbovePar.Select(item => item.InstanceId).ToHashSet();

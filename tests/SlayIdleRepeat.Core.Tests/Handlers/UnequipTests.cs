@@ -13,18 +13,8 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// <c>UNEQUIP</c> — the three rules that refuse it, and what an accepted one leaves behind.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔴 <b>All three refusals answer <c>ILLEGAL_STATE</c>, so a case that asserted only the code would
-/// pass with two of the three rules deleted.</b> Each is therefore built as a PAIR of worlds
-/// identical in every respect but the one fact its rule reads: the control has to be accepted and
-/// the variant refused, and nothing else in the setup can account for the difference. The
-/// undeclared-slot rule needs a third world on top of its pair, because the empty-slot rule refuses
-/// its payload too — see that case.
-/// </para>
-/// <para>
-/// Added by the M4 retro's product-owner ruling of 2026-08-17. Before it, <c>EQUIP</c> could
-/// overwrite a slot and nothing could clear one.
-/// </para>
+/// All three refusals answer <c>ILLEGAL_STATE</c>, so each rule is built as a PAIR of worlds
+/// identical but for the one fact it reads: control accepted, variant refused.
 /// </remarks>
 public sealed class UnequipTests
 {
@@ -44,15 +34,9 @@ public sealed class UnequipTests
 
     /// <summary>
     /// 🔒 Unequipping is refused while a run is in progress, and the identical command outside one is
-    /// accepted.
+    /// accepted — refused for <c>EQUIP</c>'s reason: the run's frozen <c>StartingLoadout</c> means
+    /// the change could not reach the run it was aimed at.
     /// </summary>
-    /// <remarks>
-    /// The pair is the assertion. Both slices carry the same player row wearing the same blade; the
-    /// only difference is a live run, so no other rule can account for the refusal. Taking gear
-    /// <em>off</em> mid-run had to be refused for <c>EQUIP</c>'s reason — the run's frozen
-    /// <c>StartingLoadout</c> means the change could not reach the run it was aimed at, and would
-    /// only leave the player's screen disagreeing with the run they are in.
-    /// </remarks>
     [Fact]
     public void Unequipping_is_refused_while_a_run_is_in_progress_and_accepted_outside_one()
     {
@@ -87,22 +71,10 @@ public sealed class UnequipTests
     /// slot is accepted.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>There is no separate slot rule, and this case exists to say so rather than to pin
-    /// one.</b> The handler is written with the empty-slot read FIRST, and an undeclared slot is one
-    /// nothing can be equipped in — so <c>Loadout.TryGet</c> answers false, the empty-slot rule
-    /// refuses, and <c>Loadout.Without</c> (which <em>does</em> throw on an undeclared slot) is never
-    /// reached. MEASURED: with an <c>Enum.IsDefined</c> guard added to the handler ahead of that
-    /// read, neutering the guard left this whole file green, including the naked-hero world below
-    /// that was written to discriminate. So the guard was removed rather than kept as a rule that
-    /// could not fire (steering S1).
-    /// </para>
-    /// <para>
-    /// What this case pins is therefore the CONTRACT — a malformed wire value is a rejection and
-    /// never an exception — plus the ORDERING that delivers it. It fails the day somebody writes the
-    /// loadout before reading it, or accepts an empty slot as a no-op, which are exactly the two
-    /// edits that would put <c>Loadout.Without</c> back in reach of an uninitialised column.
-    /// </para>
+    /// There is no separate slot rule: nothing can be equipped in an undeclared slot, so the
+    /// empty-slot read refuses it before <c>Loadout.Without</c> (which throws on one) is reached.
+    /// What this pins is the CONTRACT — a malformed wire value is a rejection, never an exception —
+    /// plus the read-before-write ordering that delivers it.
     /// </remarks>
     [Fact]
     public void Unequipping_an_undeclared_slot_is_refused_rather_than_thrown()
@@ -148,14 +120,9 @@ public sealed class UnequipTests
 
     /// <summary>
     /// 🔒 An already-empty slot is refused, where the same command on a filled slot is accepted.
+    /// Refusing rather than answering "done" is the ruling: a genuine retry is the replay cache's
+    /// business (`14` §16.3), so what arrives here is a client that disagrees with the server.
     /// </summary>
-    /// <remarks>
-    /// The pair once more: the same player row, the same declared slot, no run in either slice — the
-    /// only difference is whether anything is in the slot. Refusing rather than answering "done" is
-    /// the ruling: a genuine retry is `14` §16.3's replay cache's business and never reaches this
-    /// handler, so what arrives here with an empty slot is a client whose view of the hero disagrees
-    /// with the server's.
-    /// </remarks>
     [Fact]
     public void Unequipping_an_already_empty_slot_is_refused_where_a_filled_one_is_accepted()
     {
@@ -184,13 +151,9 @@ public sealed class UnequipTests
 
     /// <summary>
     /// 🔒 An accepted <c>UNEQUIP</c> empties the named slot, leaves every other slot alone, and takes
-    /// nothing out of the stock.
+    /// nothing out of the stock. Two slots are filled, because "the named slot is empty afterwards"
+    /// is also true of a handler that emptied the whole loadout.
     /// </summary>
-    /// <remarks>
-    /// The positive control that keeps the three refusals honest — without it a handler that refused
-    /// everything would satisfy all of them. Two slots are filled, because "the named slot is empty
-    /// afterwards" is also true of a handler that emptied the whole loadout.
-    /// </remarks>
     [Fact]
     public void An_accepted_unequip_empties_only_the_named_slot_and_keeps_the_item()
     {
@@ -224,8 +187,6 @@ public sealed class UnequipTests
 
         stillWorn.Value.ShouldBe(Helm);
 
-        // 🔴 Unequipping is not discarding. Player.DiscardItem clears a slot AND removes the item;
-        // this must do only the first, or a player would lose the gear they took off.
         result.NewState.Player.Inventory.Stored.Count.ShouldBe(
             2, "the blade is off the hero and still in the stock. UNEQUIP takes gear off; it does " +
             "not destroy it.");

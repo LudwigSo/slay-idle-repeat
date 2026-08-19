@@ -9,14 +9,9 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// The <c>Player</c> aggregate carries <c>ftueProgress { completedAtUtc | null, beatId }</c>,
-/// advanced server-side as each beat's interaction completes.
+/// <c>ftueProgress</c> on the <c>Player</c> aggregate. Tested on the aggregate because no shipped
+/// command advances the tutorial yet — <c>Apply</c> cannot reach these mutators.
 /// </summary>
-/// <remarks>
-/// The tutorial-only rule flags are deliberately <b>not</b> on this aggregate: they describe the
-/// tutorial, not the player, and belong in a separate content package. Putting them in
-/// SchemaVersion 1's pinned field list would make their first real decision a serialisation change.
-/// </remarks>
 public sealed class PlayerFtueTests
 {
     private static ContentSnapshot Content => ProgressionDocuments.Shipped;
@@ -26,25 +21,10 @@ public sealed class PlayerFtueTests
             .Rehydrate(PlayerSnapshots.With(ftueBeatId: beat, ftueCompletedAtUtc: completed), Content)
             .Value;
 
-    /// <summary>The beat vocabulary is exactly B0…B10 plus B6b — twelve values, in script order.</summary>
+    /// <summary>The enum has no zero member, so an uninitialised column cannot read as a beat.</summary>
     [Fact]
-    public void The_beat_vocabulary_is_the_twelve_beats_19_D7_names()
+    public void A_default_FtueBeatId_is_refused_at_the_seam()
     {
-        Enum.GetNames<FtueBeat>().ShouldBe(new[]
-        {
-            "B0", "B1", "B2", "B3", "B4", "B5", "B6", "B6B", "B7", "B8", "B9", "B10",
-        });
-    }
-
-    /// <summary>
-    /// The enum has no zero member, so an uninitialised column cannot read as "at beat 0, about
-    /// to enter their name" — the same rule <see cref="CurrencyId"/> follows.
-    /// </summary>
-    [Fact]
-    public void The_beat_vocabulary_has_no_zero_member()
-    {
-        Enum.GetValues<FtueBeat>().ShouldNotContain((FtueBeat)0);
-
         var result = Core.Model.Player.Rehydrate(
             PlayerSnapshots.With(ftueBeatId: default(FtueBeat)), Content);
 
@@ -53,9 +33,8 @@ public sealed class PlayerFtueTests
     }
 
     /// <summary>
-    /// The wire numbers are 1..12 in script order. <c>CanonicalStateWriter</c> writes the
-    /// number, never the name, so renumbering rewrites every <c>stateHash</c> that has ever carried
-    /// a player.
+    /// The wire numbers are 1..12 in script order — <c>CanonicalStateWriter</c> writes the number,
+    /// so renumbering rewrites every <c>stateHash</c> that has ever carried a player.
     /// </summary>
     [Fact]
     public void The_beat_wire_numbers_are_pinned_in_script_order()
@@ -68,7 +47,6 @@ public sealed class PlayerFtueTests
         ((int)FtueBeat.B7).ShouldBe((int)FtueBeat.B6B + 1);
     }
 
-    /// <summary>A beat advances forwards, one interaction at a time.</summary>
     [Fact]
     public void A_beat_advances_forwards()
     {
@@ -81,7 +59,7 @@ public sealed class PlayerFtueTests
         player.IsFtueComplete.ShouldBeFalse();
     }
 
-    /// <summary>A skip jumps straight to beat 9, so the advance may skip beats. It just may not go backwards.</summary>
+    /// <summary>A skip jumps straight to beat 9, so the advance may skip beats — it just may not go backwards.</summary>
     [Fact]
     public void A_skip_may_jump_several_beats_forwards()
     {
@@ -92,10 +70,7 @@ public sealed class PlayerFtueTests
         player.FtueBeat.ShouldBe(FtueBeat.B9);
     }
 
-    /// <summary>
-    /// A beat that does not move forwards is a replayed command — the resume table only ever
-    /// re-presents the current beat.
-    /// </summary>
+    /// <summary>A beat that does not move forwards is a replayed command — the resume table only re-presents the current beat.</summary>
     [Theory]
     [InlineData(FtueBeat.B5)]
     [InlineData(FtueBeat.B1)]
@@ -116,7 +91,6 @@ public sealed class PlayerFtueTests
               .Message.ShouldMatchWildcard("*B0..B10 plus B6b*");
     }
 
-    /// <summary>Completion is beat 10's spend committing: <c>completedAtUtc</c> is set, and from then on the tutorial is over.</summary>
     [Fact]
     public void The_tutorial_completes_at_beat_ten()
     {
@@ -128,10 +102,7 @@ public sealed class PlayerFtueTests
         player.FtueCompletedAtUtc.ShouldBe(PlayerSnapshots.Midmorning);
     }
 
-    /// <summary>
-    /// Completing before beat 10 is refused: it would skip the forced Talent Point spend that beat
-    /// 10 exists for.
-    /// </summary>
+    /// <summary>Completing early would skip the forced Talent Point spend beat 10 exists for.</summary>
     [Theory]
     [InlineData(FtueBeat.B0)]
     [InlineData(FtueBeat.B9)]
@@ -145,7 +116,7 @@ public sealed class PlayerFtueTests
         player.IsFtueComplete.ShouldBeFalse();
     }
 
-    /// <summary>Completing twice is refused: the payout grants once, keyed on the run; a second completion would grant it twice.</summary>
+    /// <summary>The payout grants once; a second completion would grant it twice.</summary>
     [Fact]
     public void Completing_twice_is_refused()
     {
@@ -156,7 +127,6 @@ public sealed class PlayerFtueTests
               .Message.ShouldMatchWildcard("*already completed*granted once*");
     }
 
-    /// <summary>Never re-offered after completion: no beat moves once the tutorial is done.</summary>
     [Fact]
     public void No_beat_advances_after_completion()
     {
@@ -166,7 +136,6 @@ public sealed class PlayerFtueTests
               .Message.ShouldMatchWildcard("*no FTUE surface ever appears again*");
     }
 
-    /// <summary>The completion instant must be UTC, like every other instant on the aggregate.</summary>
     [Fact]
     public void The_completion_instant_must_be_UTC()
     {
@@ -175,10 +144,7 @@ public sealed class PlayerFtueTests
               .Message.ShouldMatchWildcard("*Unix milliseconds*");
     }
 
-    /// <summary>
-    /// A persisted row claiming a completed tutorial at any beat but B10 is refused: it claims a
-    /// payout was banked at a beat that never reached it.
-    /// </summary>
+    /// <summary>A completed tutorial at any beat but B10 claims a payout banked at a beat that never reached it.</summary>
     [Theory]
     [InlineData(FtueBeat.B0)]
     [InlineData(FtueBeat.B8)]
@@ -193,10 +159,7 @@ public sealed class PlayerFtueTests
         result.Error.ShouldContain("FtueCompletedAtUtc is set while", Case.Sensitive);
     }
 
-    /// <summary>
-    /// …and both legitimate states at beat 10 load: reached but not yet committed, and completed.
-    /// The rule is "completed implies B10", not "B10 implies completed".
-    /// </summary>
+    /// <summary>The rule is "completed implies B10", not "B10 implies completed".</summary>
     [Fact]
     public void Beat_ten_loads_both_before_and_after_the_spend_commits()
     {

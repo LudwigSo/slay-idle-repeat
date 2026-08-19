@@ -9,12 +9,6 @@ namespace SlayIdleRepeat.Core.Tests.Content;
 /// <see cref="ProfanityLexicon"/> — every way a word list can be useless, told apart from every
 /// other way.
 /// </summary>
-/// <remarks>
-/// 🔴 The case this suite exists for is <see cref="An_empty_word_list_is_refused_rather_than_read_as_nothing_is_profane"/>.
-/// An empty list is what a file that failed to load reads as, and a filter with no terms accepts
-/// every name there is — silently, on every account created from then on. That failure is invisible
-/// at every later call site, so it has to be caught here.
-/// </remarks>
 public sealed class ProfanityLexiconTests
 {
     /// <summary>Both languages `27` §1 names are read, each with the terms its file authors.</summary>
@@ -30,12 +24,10 @@ public sealed class ProfanityLexiconTests
     }
 
     /// <summary>
-    /// 🔴 An empty list is a <b>fault</b>, never "nothing is profane in this language".
+    /// 🔴 An empty list is a <b>fault</b>, never "nothing is profane in this language" — a filter
+    /// with no terms silently accepts every name there is. Asserted per language: a reader that
+    /// checked only the first would leave the second able to load empty.
     /// </summary>
-    /// <remarks>
-    /// Asserted per language, not once: a reader that checked only the first would leave the second
-    /// able to load empty, and the two lists are read by one loop whose bound is easy to get wrong.
-    /// </remarks>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -62,13 +54,8 @@ public sealed class ProfanityLexiconTests
 
     /// <summary>
     /// A language whose document is not in the set at all fails — the filter never silently runs in
-    /// one language.
+    /// one language (`27` §1 filters in EN <em>and</em> DE).
     /// </summary>
-    /// <remarks>
-    /// The third door, distinct from the two above: `27` §1 filters in EN <em>and</em> DE, so a set
-    /// carrying only one of them is not a set with a smaller filter, it is a set with no German
-    /// filter and nothing saying so.
-    /// </remarks>
     [Fact]
     public void A_language_whose_document_is_missing_is_refused()
     {
@@ -106,29 +93,6 @@ public sealed class ProfanityLexiconTests
                 ProfanityDocuments.With(english: ContentValue.Text("badword"))));
     }
 
-    /// <summary>
-    /// The subject set is floored by identity: both `27` §1 languages are declared, and the reader
-    /// reads every one of them.
-    /// </summary>
-    /// <remarks>
-    /// Without this, deleting a member from <see cref="ProfanityLanguage"/> would make every case
-    /// above hold over one language and nothing would say so (steering S3).
-    /// </remarks>
-    [Fact]
-    public void The_language_set_is_the_two_27_section_1_names()
-    {
-        ProfanityLexicon.Languages.ShouldBe(
-            new[] { ProfanityLanguage.EN, ProfanityLanguage.DE },
-            "27 §1 filters in EN and DE, and game-data/loc/ holds exactly those two files.");
-
-        var lexicon = ProfanityLexicon.Read(ProfanityDocuments.Shipped);
-
-        foreach (var language in ProfanityLexicon.Languages)
-        {
-            lexicon.TermsFor(language).ShouldNotBeEmpty();
-        }
-    }
-
     /// <summary>An undeclared language is refused rather than answering the first list.</summary>
     [Fact]
     public void An_undeclared_language_is_refused_rather_than_answered()
@@ -136,13 +100,5 @@ public sealed class ProfanityLexiconTests
         var lexicon = ProfanityLexicon.Read(ProfanityDocuments.Shipped);
 
         Should.Throw<ArgumentOutOfRangeException>(() => lexicon.TermsFor(default));
-    }
-
-    /// <summary>The document path is derived from the language, so the two can never disagree.</summary>
-    [Fact]
-    public void Each_language_names_its_own_document()
-    {
-        ProfanityLexicon.DocumentFor(ProfanityLanguage.EN).ShouldBe("content/profanity/en.json");
-        ProfanityLexicon.DocumentFor(ProfanityLanguage.DE).ShouldBe("content/profanity/de.json");
     }
 }

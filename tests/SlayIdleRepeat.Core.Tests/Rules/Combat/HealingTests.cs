@@ -9,9 +9,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary><c>Heal()</c>, its <c>HEAL%</c>, its overheal, and the <c>ON_HEAL</c> it fires.</summary>
 /// <remarks>
-/// The two readings are observed through a <c>SHIELD</c> with <c>valueMode: OVERHEAL_AMOUNT</c>, so
-/// each reading becomes a ward whose <c>Shield</c> event carries it — a stronger channel than a
-/// recording double, since <c>OpValue</c> throws when the context carries no heal.
+/// Internal bench seam: each case sets the recipient's exact HP before an exactly-sized heal, which
+/// no public entry point can stage mid-fight. The two readings are observed through a <c>SHIELD</c>
+/// with <c>valueMode: OVERHEAL_AMOUNT</c>, so each reading becomes a ward whose <c>Shield</c> event
+/// carries it — a stronger channel than a recording double, since <c>OpValue</c> throws when the
+/// context carries no heal.
 /// </remarks>
 public sealed class HealingTests
 {

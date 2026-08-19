@@ -83,16 +83,9 @@ public sealed class BoardTests
         Should.Throw<KeyNotFoundException>(() => board.OutgoingEdges(new NodeId(999)));
     }
 
-    // ------------------------------------------------------------------------------------------
-    // Only the boss node may dead-end.
-    //
-    // MovementEngine.Advance ends movement and reports ReachedBoss the moment a node has no
-    // outgoing edge, while the same method's fall-through return asks whether it is standing on
-    // BossNodeId. The two readings agree only because this constructor guarantees they describe
-    // the same node — so a board with any other dead end would report a boss encounter at a node
-    // that is not the boss. Every fork branch rejoins the spine, so the boss is the run's single
-    // terminus.
-    // ------------------------------------------------------------------------------------------
+    // Only the boss node may dead-end: MovementEngine.Advance reports ReachedBoss on any edgeless
+    // node, so a board with another dead end would report a boss encounter at a node that is not
+    // the boss.
 
     /// <summary>Probe shape 1: a break in the spine itself — a node stops the walk before the boss.</summary>
     [Fact]
@@ -108,9 +101,8 @@ public sealed class BoardTests
             new[] { a.Id, b.Id, boss.Id },
             Array.Empty<NodeId>()));
 
-        // Which rule fired, not merely that the board was refused (steering S2): "nodes" is this
-        // refusal's own parameter — the phantom-edge rule answers "edges", the junction-arity rule
-        // "junctionIds", the linear-index rule "spineByLinearIndex".
+        // "nodes" is this refusal's own parameter — the phantom-edge rule answers "edges", the
+        // junction-arity rule "junctionIds", the linear-index rule "spineByLinearIndex".
         ex.ParamName.ShouldBe("nodes");
         ex.Message.ShouldContain(b.Id.ToString(), Case.Sensitive, "the refusal must name the offending node.");
     }
@@ -181,16 +173,11 @@ public sealed class BoardTests
     }
 
     /// <summary>
-    /// 🔒 <see cref="BoardGenerator"/> must keep producing boards this guard accepts. Swept over
-    /// real generated boards rather than reasoned about: six chapter configurations — the two
-    /// shipped chapters, a tiny even-weighted one, two degenerate weight tables that force the
-    /// redraw-exhaustion and C7-injection fallbacks, and one stressing stage geometry — times
-    /// twenty seeds.
+    /// <see cref="BoardGenerator"/> must keep producing boards this guard accepts: six chapter
+    /// configurations (shipped, tiny, two degenerate weight tables forcing the fallback paths, one
+    /// stressing stage geometry) times twenty seeds. The dead-end set is re-derived by walking the
+    /// graph, not read off the constructor that just enforced it.
     /// </summary>
-    /// <remarks>
-    /// The dead-end set is re-derived by walking the graph through the public API, not read back
-    /// off the constructor that just enforced it, so the sweep is evidence rather than a tautology.
-    /// </remarks>
     [Fact]
     public void Every_generated_board_across_chapters_and_seeds_dead_ends_only_at_the_boss()
     {
@@ -208,8 +195,7 @@ public sealed class BoardTests
                     board.NodeCount,
                     $"chapter {config.ChapterId} seed {seed}: every node must be reachable from the first node.");
 
-                // Steering S3, on the subject set that matters rather than on the board count: a
-                // branch's last node is the only interior node that could dead-end, and it exists
+                // A branch's last node is the only interior node that could dead-end, and it exists
                 // only where a junction does — a fork-free board satisfies the rule for free.
                 reachable.Count(board.IsJunction).ShouldBeGreaterThan(
                     0,
@@ -221,10 +207,8 @@ public sealed class BoardTests
 
                 board.Node(board.BossNodeId).Tile.ShouldBe(TileKind.Boss, $"chapter {config.ChapterId} seed {seed}");
 
-                // The content half of the same guarantee, and the one that could actually be broken
-                // by a draw: the boss tile is placed once, structurally, so no weighted fill, redraw
-                // fallback, constraint injection or fork bias may ever put a second one on the board.
-                // Re-derived by walking every reachable node, not read off the boss slot.
+                // The content half: no weighted fill, redraw fallback, constraint injection or fork
+                // bias may ever put a second boss tile on the board.
                 BossTiled(board).ShouldBe(
                     new[] { board.BossNodeId },
                     $"chapter {config.ChapterId} seed {seed}: the terminus is the board's only boss tile.");
@@ -233,7 +217,7 @@ public sealed class BoardTests
             }
         }
 
-        // Steering S3: a sweep whose subject set silently empties passes forever.
+        // A sweep whose subject set silently empties passes forever.
         swept.ShouldBe(configs.Count * SweepSeeds.Length);
         swept.ShouldBeGreaterThanOrEqualTo(100, "the sweep is only evidence if it actually generated boards.");
     }

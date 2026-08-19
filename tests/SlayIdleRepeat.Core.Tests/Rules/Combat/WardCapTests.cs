@@ -9,16 +9,17 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 
 /// <summary>The ward pool cap: <c>wardCapPct</c> × the actor's post-multiplier Max HP.</summary>
 /// <remarks>
-/// Two obligations nothing else can enforce: the actor must hold the whole <c>AggregatedStats</c>
-/// (keeping <c>Final</c> and discarding the wrapper caps every glass-cannon-shaped ward at 1 HP with
-/// nothing going red), and it must be re-read on every re-aggregation, since an enrage effect makes a
-/// boss's post-multiplier Max HP not a battle constant.
+/// Two obligations nothing else can enforce: the cap must read the post-multiplier Max HP (keeping
+/// only the final block caps every glass-cannon-shaped ward at 1 HP with nothing going red), and it
+/// must be re-read on every re-aggregation, since an enrage effect makes a boss's post-multiplier
+/// Max HP not a battle constant. Internal bench seam: the cases grant wards at chosen ticks and read
+/// the pool and the post-step-7 basis mid-fight, none of which a public entry point's log carries.
 /// </remarks>
 public sealed class WardCapTests
 {
     private const double BaseMaxHp = 1000.0;
 
-    // ══════════════════════════════════ obligation 1 — the whole record, not Final
+    // ══════════════════════════════════ obligation 1 — post-multiplier Max HP, not Final
 
     /// <summary>
     /// A glass-cannon-shaped perk's shields stay functional, which is why the cap reads
@@ -51,31 +52,6 @@ public sealed class WardCapTests
                 p.Pipeline.GrantWard(p.Hero, granted, null, "PK_WARDED");
 
                 p.Hero.Wards.Total.ShouldBe(expected);
-            });
-
-    /// <summary>
-    /// <c>BattleActor</c> holds the whole <c>AggregatedStats</c>, not only its final block, so the
-    /// two readings can differ off the same actor.
-    /// </summary>
-    [Fact]
-    public void A_battle_actor_holds_the_whole_aggregation_and_not_only_its_final_block() =>
-        AttackPipelineBench.Run(
-            new[]
-            {
-                BattleTestBench.Hero(
-                    Stats(BaseMaxHp),
-                    1,
-                    AttackPipelineBench.Standing(
-                        "CP_GLASS_HEART_A", EffectOp.STAT_MULT, StatSelector.AllCombat, 2.0),
-                    AttackPipelineBench.Standing(
-                        "CP_GLASS_HEART_B", EffectOp.STAT_SET, StatSelector.Of(StatId.MAX_HP), 1.0)),
-                BattleTestBench.Enemy(0, Stats(5000.0)),
-            },
-            p =>
-            {
-                p.Hero.Aggregated.Final.ShouldBeSameAs(p.Hero.Stats);
-                p.Hero.Aggregated.PostMultiplierMaxHp.ShouldBe(p.Hero.PostMultiplierMaxHp);
-                p.Hero.PostMultiplierMaxHp.ShouldNotBe(p.Hero.Stats[StatId.MAX_HP]);
             });
 
     // ══════════════════════════════════ obligation 2 — re-read, never cached

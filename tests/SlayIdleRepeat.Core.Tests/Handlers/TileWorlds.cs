@@ -19,41 +19,18 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Distinct from <c>Worlds</c> rather than an extension of it: <c>Worlds.Context</c> carries the
-/// login-calendar/minigame tuning set, which holds none of the documents these handlers read. Every
-/// run here is built through <c>Run.Rehydrate</c>, the only way to obtain one, so nothing in this
-/// file invents a starting state.
+/// Distinct from <c>Worlds</c>: <c>Worlds.Context</c> carries the login-calendar/minigame tuning
+/// set, which holds none of the documents these handlers read.
 /// </para>
 /// <para>
-/// 🔒 <b>The hero is GEARED, and it has to be for any battle assertion here to mean anything.</b>
-/// Since <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9), the server decides whether
-/// a battle was won — so a fixture whose hero loses turns every payout assertion in this suite into a
-/// test that a loss pays nothing. It previously fought <b>bare-handed</b>, and <c>05</c> §2 is explicit
-/// that the curve alone is not the whole hero: <em>"Gear, talents, pets and mounts then multiply
-/// these"</em>, and <c>EnemyPowerFormula</c> scales against a geared one. ⚠️ <b>Measured, so nobody
-/// retries the cheaper fix:</b> sweeping the bare hero's Legend Level 1 → 20 → 60 → 120 moved the
-/// failures only 39 → 35 → 34 → 34. Levelling does not close a gap that gear is supposed to close.
-/// </para>
-/// <para>
-/// The loadout is <c>RunBattleWorlds</c>' rather than a second one built here, so the fight this suite
-/// composes and the fight M7-06b's own suite composes are the same fight. Its player row already holds
-/// the worn items in inventory, which <c>Player.Rehydrate</c> requires of anything equipped.
-/// </para>
-/// <para>
-/// 🔒 <b>And <c>geared: false</c> is how a case asks for a LOSS.</b> Since the server decides the
-/// outcome, a test about losing cannot get one by sending <c>Won: false</c> — that field is the
-/// client's claim and the recomputation overrules it. It has to hand the handler a fight the hero
-/// actually loses, which is the bare loadout. ⚠️ <b>The tile kind matters and Enemy is not enough:</b>
-/// a Legend-20 hero beats a chapter-1 ordinary enemy bare-handed, so a losing case needs an
-/// <c>Elite</c> or a <c>Boss</c>. That asymmetry is measured, not assumed — it is the same measurement
-/// that showed which arm of the win probe discriminates.
-/// </para>
-/// <para>
-/// ⚠️ <b>A drift this fixture cannot detect, named because it is real.</b> "Geared enough to win" is
-/// measured against <c>ChapterPowerTarget</c>, which M6 exists to retune. A retune that raised chapter
-/// 1's target past this loadout would turn these tests back into loss-asserting no-ops <em>silently</em>.
+/// The hero is GEARED (with <c>RunBattleWorlds</c>' own loadout, so this suite and M7-06b's compose
+/// the same fight): <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight, so a bare hero would turn
+/// every payout assertion into a test that a loss pays nothing. <c>geared: false</c> is how a case
+/// asks for a LOSS — <c>Won: false</c> is only the client's claim — and a losing case needs an
+/// <c>Elite</c> or <c>Boss</c>, since the hero beats a chapter-1 ordinary enemy bare-handed.
+/// "Geared enough to win" can drift silently under an M6 retune;
 /// <c>ConfirmBattleResultTests.The_fixture_hero_actually_wins_the_fight_it_is_sent_into</c> is the
-/// probe that catches it, and it is a real test rather than a comment for that reason.
+/// probe that catches it.
 /// </para>
 /// </remarks>
 internal static class TileWorlds
@@ -70,13 +47,8 @@ internal static class TileWorlds
 
     /// <summary>A context at <see cref="NowUtc"/> over the shipped in-run income content.</summary>
     /// <remarks>
-    /// 🔒 <b>Fight-capable, which the hand-assembled income set alone is not.</b> Since
-    /// <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9), every handler in this suite
-    /// that closes a battle now reads the combat caps, the enemy ladder, the boss catalogue and the
-    /// power model — none of which <see cref="InRunIncomeDocuments"/> assembles, because until the
-    /// server recomputed anything no fixture here had ever composed a fight. The income documents are
-    /// laid OVER the full shipped set rather than the set being added to them, so every override this
-    /// suite depends on still wins and nothing it pins changes value.
+    /// The income documents are laid OVER the full shipped set — which closing a battle needs, for
+    /// the combat caps and enemy ladder — so every override this suite depends on still wins.
     /// </remarks>
     internal static GameContext Context { get; } = ContextOver(ShippedHarness.WithShippedGaps(InRunIncomeDocuments.Shipped));
 
@@ -127,22 +99,11 @@ internal static class TileWorlds
                     : RunBattleWorlds.BareLoadout)));
 
     /// <summary>
-    /// 🔒 The <c>combat</c> stream position a run in <see cref="RunPhase.BattlePending"/> must carry.
+    /// The <c>combat</c> stream position a run in <see cref="RunPhase.BattlePending"/> must carry —
+    /// BattlePending with the stream at zero is a state the game cannot reach, and a run with no
+    /// committed seed has no fight to recompute. Position one exactly, the position one
+    /// <c>BeginBattle</c> leaves behind, so the derived seed is the first battle's.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Without this the fixture builds a state the game cannot reach: <c>START_BATTLE</c> draws the
-    /// combat stream (<c>RunRngScope.BeginBattle</c>) and only THEN sets the phase, so a run that is
-    /// BattlePending with the stream at zero has a phase nothing committed a battle seed for. It read as
-    /// harmless for as long as <c>CONFIRM_BATTLE_RESULT</c> trusted the client's reported result; the
-    /// moment the server recomputes the fight, a run with no committed seed has no fight to recompute.
-    /// </para>
-    /// <para>
-    /// ⚠️ Position <b>one</b>, not an arbitrary non-zero: it is the position exactly one
-    /// <c>BeginBattle</c> leaves behind, so the seed derived from it is the first battle's — the same
-    /// one a run that submitted a single <c>START_BATTLE</c> would fight.
-    /// </para>
-    /// </remarks>
     private static IReadOnlyDictionary<string, ulong>? CombatStreamFor(RunPhase phase) =>
         phase == RunPhase.BattlePending
             ? new Dictionary<string, ulong>(StringComparer.Ordinal) { [RngStreams.Combat] = 1UL }

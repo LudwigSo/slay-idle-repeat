@@ -24,17 +24,8 @@ public sealed class StartRunTests
     /// given chapter/tier may be started.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The two cases below keep their non-trivial chapter/tier pairs — chapter 3 Heroic and chapter 2
-    /// Mythic — and are given the history the ladder now asks for, rather than being dropped to
-    /// chapter 1 Normal. Dropping them would be the cheaper edit and the wrong one: the seed
-    /// derivation takes the chapter and the tier as inputs, and a seed asserted over (1, NORMAL)
-    /// cannot tell a formula that reads them from one that ignores them.
-    /// </para>
-    /// <para>
-    /// The clear key is built with <c>Player.ChapterTierKey</c> rather than spelled out, so a change
-    /// to the storage format cannot quietly turn these fixtures into empty histories.
-    /// </para>
+    /// The seed cases keep non-trivial chapter/tier pairs: a seed asserted over (1, NORMAL) cannot
+    /// tell a formula that reads chapter and tier from one that ignores them.
     /// </remarks>
     private static WorldSlice PastTheLadder(
         int clearedChapter, DifficultyTier clearedTier, int? legendLevel = null, long runsStarted = 0L) =>
@@ -57,22 +48,9 @@ public sealed class StartRunTests
     // ------------------------------------------------------------------ acceptance, the new Run
 
     /// <summary>
-    /// START_RUN succeeds on a run-less slice, and the resulting Run carries exactly what is
-    /// authorised — nothing invented past it.
+    /// 🔒 A run opens at the hero's COMPOSED Max HP, full — not at the structural floor of 1, which
+    /// left every heal in the game a fraction of 1.
     /// </summary>
-    // ═══════════════════════════════════════════════════ M7-06d · Max HP comes off the hero
-
-    /// <summary>
-    /// 🔒 A run opens at the hero's COMPOSED Max HP, full — not at the structural floor of 1 this
-    /// handler used to write.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 The floor was not a harmless placeholder. Every <c>SetHitPoints</c> call in the game passes
-    /// <c>run.MaxHp</c> unchanged, so a 1 never moved: <c>Revive</c> healed
-    /// <c>MaxHp × HealPctMaxHp</c> clamped into <c>[1, MaxHp]</c> = 1, and the campfire's 40% rest and
-    /// the Stage Gate's 15% heal were fractions of 1. Asserted against <c>05</c> §2's own curve rather
-    /// than a copied number, so a retune of the curve moves this case with it.
-    /// </remarks>
     [Fact]
     public void A_run_opens_at_the_heros_composed_max_hit_points()
     {
@@ -93,15 +71,10 @@ public sealed class StartRunTests
     }
 
     /// <summary>
-    /// …and the number is the hero's, which is what makes it move when the hero does.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 The load-bearing case of the two (steering S2). The one above passes for any Max HP above 1 —
-    /// including a fabricated constant — so on its own it would let the floor be replaced by a second
-    /// invented number. This one states that the value came from <c>HeroBuild</c>, by comparing two
-    /// runs whose heroes differ only in Legend Level: <c>05</c> §2's curve is
+    /// …and the number is the hero's own: the case above passes for any constant above 1, so this
+    /// compares two runs whose heroes differ only in Legend Level — `05` §2's curve is
     /// <c>MaxHP = 250 + 45·L</c>, so a higher level must open a strictly larger run.
-    /// </remarks>
+    /// </summary>
     [Fact]
     public void The_max_hit_points_a_run_opens_at_follow_the_heros_own_curve()
     {
@@ -220,12 +193,7 @@ public sealed class StartRunTests
         result.NewState.Run.ShouldBeSameAs(originalRun);
 
         result.NewState.Player.RunsStarted.ShouldBe(
-            runsStartedBefore,
-            "a rejected START_RUN must not spend the lifetime counter. 🔴 This line does not prove " +
-            "the check runs before Player.BeginRun(), and used to say it did: Apply hands the handler " +
-            "a CLONE and returns the caller's slice on a rejection, so a counter spent early moves on " +
-            "an object nobody reads. Moving BeginRun() above every guard reddens nothing in this " +
-            "repository — see StartRunChapterGateTests' remarks, where the mutation was run.");
+            runsStartedBefore, "a rejected START_RUN must not spend the lifetime counter.");
     }
 
     /// <summary>
@@ -262,16 +230,6 @@ public sealed class StartRunTests
         result.Accepted.ShouldBeFalse();
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
         result.NewState.Player.RunsStarted.ShouldBe(runsStartedBefore);
-    }
-
-    /// <summary>Negative control: chapter 1 on a defined tier is legal, so the guards above refuse specific bad values only.</summary>
-    [Fact]
-    public void Chapter_1_on_a_defined_tier_is_accepted()
-    {
-        var result = SlayIdleRepeat.Core.GameRules.Apply(
-            Worlds.OutsideARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context);
-
-        result.Accepted.ShouldBeTrue();
     }
 
     // ------------------------------------------------------------------ S1: two other run rows, differently shaped

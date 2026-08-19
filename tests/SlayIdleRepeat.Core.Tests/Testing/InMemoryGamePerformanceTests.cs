@@ -8,51 +8,27 @@ using Xunit;
 
 namespace SlayIdleRepeat.Core.Tests;
 
-/// <summary>The speed target — a full 180-day simulated player in under 200 ms — plus the structural
-/// invariants that still hold on somebody else's machine.</summary>
-/// <remarks>
-/// The budget is split three ways, because a wall-clock assertion on a shared runner fails randomly
-/// and then gets disabled, while one loose enough to pass anywhere asserts nothing:
-/// <list type="bullet">
-///   <item><b>Recorded, not asserted at 200 ms.</b> The measurement goes into the failure message; the
-///   assertion is at ten times the budget — an order-of-magnitude regression detector, tolerant of the
-///   3-5x spread between a laptop and a contended container.</item>
-///   <item><b>A ratio on the same machine.</b>
-///   <see cref="The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap"/> compares a one-day gap
-///   against a ten-year one; both absorb the machine's speed identically, and a per-boundary catch-up
-///   would make it ~3,650.</item>
-///   <item><b>A structural invariant with no clock in it.</b>
-///   <see cref="A_gap_of_any_size_is_one_command_and_one_boundary_step"/> asserts that crossing 180
-///   days takes one <c>Apply</c> — true on every machine, forever.</item>
-/// </list>
-/// </remarks>
+/// <summary>30 §6's speed target, split three ways: a wall-clock bound at ten times the budget (an
+/// order-of-magnitude regression detector that survives a contended runner), a same-machine ratio
+/// (the machine's speed cancels), and structural invariants with no clock in them.</summary>
 public sealed class InMemoryGamePerformanceTests
 {
     private const int Days = 180;
     private const int CommandsPerDay = 4;
 
-    /// <summary>Every slot the flat ceiling admits, filled.</summary>
-    /// <remarks>
-    /// The largest inventory the game admits, so the comparison is over the worst case a player can
-    /// actually put the domain in rather than a number chosen for the test. It was 320 — the reach of
-    /// an expansion ladder — until the M4 retro's ruling of 2026-08-17 capped capacity flat at 1000
-    /// and removed the purchase, which is a <b>3.1×</b> increase in the per-command clone this test
-    /// exists to bound. Read off the tuning rather than restated, so the fixture cannot drift from
-    /// the ceiling it claims to be measuring.
-    /// </remarks>
+    /// <summary>Read off the tuning rather than restated, so the fixture cannot drift from the
+    /// flat capacity ceiling it claims to be measuring.</summary>
     private static readonly int FullStock = Inventories.Tuning.MaxCapacity;
 
-    /// <summary>The budget, in milliseconds.</summary>
+    /// <summary>30 §6's budget, in milliseconds.</summary>
     private const double BudgetMs = 200;
 
     /// <summary>The multiple of the budget the wall-clock assertion actually uses — a regression
     /// detector, not a budget check.</summary>
     private const double RegressionMultiple = 10;
 
-    /// <summary>A full 180-day simulated player, measured warm and asserted at ten times the budget.
-    /// Warm because the first run of anything in a fresh process measures the JIT rather than the
-    /// domain. Best-of-three, since the fastest run is least contaminated by whatever else the
-    /// machine was doing.</summary>
+    /// <summary>Warm because a cold first run measures the JIT; best-of-three because the fastest
+    /// run is least contaminated by whatever else the machine was doing.</summary>
     [Fact]
     public void A_180_day_player_runs_well_inside_the_budget()
     {
@@ -71,19 +47,15 @@ public sealed class InMemoryGamePerformanceTests
 
         best.ShouldBeLessThan(
             BudgetMs * RegressionMultiple,
-            $"a 180-day player took {best:F1} ms. 30 §6 budgets 200 ms and this asserts 2,000 — " +
-            "TEN TIMES, deliberately. The measured figure on the M1-11 branch was 15.4 ms, so this " +
-            "bound is not a budget check, it is an order-of-magnitude regression detector that " +
-            "survives a contended CI container: what it catches is a per-boundary loop, an " +
-            "accidental O(n²) or a content read moved into an inner loop. If this ever fires, do " +
-            "not raise it — read the ratio and structural tests beside it, which say WHICH of those " +
-            "happened.");
+            $"a 180-day player took {best:F1} ms against 30 §6's 200 ms budget, asserted at ten " +
+            "times deliberately: this catches a per-boundary loop, an accidental O(n²) or a content " +
+            "read moved into an inner loop. If it fires, do not raise it — the ratio and structural " +
+            "tests beside it say which of those happened.");
     }
 
-    /// <summary>180 days offline is one subtraction, not 180 iterations — asserted as a ratio, so
-    /// the machine's speed cancels. A catch-up that walked boundaries would make the ten-year half
-    /// ~3,650x the one-day half; the tolerance here is a factor of four, loose on purpose, and still
-    /// leaves three orders of magnitude between "passes" and "a loop crept in".</summary>
+    /// <summary>A catch-up that walked boundaries would make the ten-year half ~3,650x the one-day
+    /// half; the bound of ten is loose on purpose and still leaves orders of magnitude between
+    /// "passes" and "a loop crept in".</summary>
     [Fact]
     public void The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap()
     {
@@ -106,68 +78,17 @@ public sealed class InMemoryGamePerformanceTests
         (tenYears / oneDay).ShouldBeLessThan(
             10.0,
             $"{Commands} commands each crossing a ONE-DAY gap took {oneDay:F1} ms; the same commands " +
-            $"each crossing a TEN-YEAR gap took {tenYears:F1} ms. GameRules.AdvanceTime crosses every " +
-            "boundary in one subtraction, so the two are the same work and the ratio is ~1 " +
-            "(measured: 0.95). A per-boundary loop would make this ~3,650, so a bound of ten still " +
-            "leaves two and a half orders of magnitude between 'passes' and 'a loop crept in' — and " +
-            "a test that fails randomly gets disabled by whoever hits it at 3am, which would cost " +
-            "this suite the one clock-based assertion worth having.");
+            $"each crossing a TEN-YEAR gap took {tenYears:F1} ms. GameRules.AdvanceTime crosses " +
+            "every boundary in one subtraction, so the ratio is ~1; a per-boundary loop would make " +
+            "it ~3,650.");
     }
 
-    /// <summary>A full inventory costs a command more, LINEARLY, and a full player still lands inside
-    /// the budget. Both halves are asserted, because only together do they say the useful thing.</summary>
-    /// <remarks>
-    /// <para>
-    /// 🔒 <b>Linear is the design, not a defect — do not "fix" it into flatness.</b> Every command
-    /// works on a copy, and the copy is a full snapshot round trip of the player; that is what makes a
-    /// rejected command leave the caller's state untouched. The stock rides along in that round trip,
-    /// so a command that never looks at an item still pays to copy it. The cost is therefore
-    /// <em>O(items)</em> by construction, and an assertion that the ratio is ~1 would be asserting the
-    /// clone contract away.
-    /// </para>
-    /// <para>
-    /// What is worth catching is <b>super</b>-linear: an item compared against every other item, a
-    /// derivation re-run per item per item, a set rebuilt inside the copy loop. At a thousand items
-    /// those show up as a ratio in the thousands, not in the low teens.
-    /// </para>
-    /// <para>
-    /// 🔴 <b>RE-MEASURED AT THE FLAT 1000-SLOT CAP (M4 review, 2026-08-17). Release, 720 commands,
-    /// four runs, each half best-of-three:</b>
-    /// </para>
-    /// <list type="table">
-    ///   <item><term>run 1</term><description>empty 21.1 ms · full 153.5 ms · ratio 7.27</description></item>
-    ///   <item><term>run 2</term><description>empty 14.3 ms · full 117.6 ms · ratio 8.22</description></item>
-    ///   <item><term>run 3</term><description>empty 15.4 ms · full 140.0 ms · ratio 9.09</description></item>
-    ///   <item><term>run 4</term><description>empty 13.9 ms · full 167.4 ms · ratio 12.04</description></item>
-    /// </list>
-    /// <para>
-    /// <b>It fits, and the headroom is the finding.</b> A full player costs <b>118–167 ms</b> against
-    /// `30` §6's 200 ms budget — <b>59 %–84 %</b> of it, where M4-05 measured 101.8 ms (about 51 %) at
-    /// the old 320 cap against a 19.7 ms empty baseline. The absolute assertion is untouched at ten
-    /// times the budget and passes with two thirds of that bound unused. What has gone is the slack:
-    /// at 1000 slots the per-command clone of the player is most of the 180-day budget on a quiet
-    /// machine, so the next cap increase is a `30` §4.1 slice-narrowing or copy-on-write conversation
-    /// rather than a data edit.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>The ratio bound moved from 8.0 to 20.0, and that is arithmetic rather than
-    /// accommodation.</b> The ratio is <c>1 + k × items</c> by construction, so tripling the fixture
-    /// triples the part above 1: M4-05's 5.17 at 320 items predicts <c>1 + 4.17 × 3.125 ≈ 14</c> at
-    /// 1000. Every run above came in <em>under</em> that, between 7.3 and 12.0 — but three of the four
-    /// exceed 8.0, so leaving the old bound would have made the linear design fail the test that
-    /// exists to permit it, and a wall-clock ratio that fails randomly is one somebody disables at
-    /// 3am. 20.0 sits above the linear prediction and two orders of magnitude below the thousands an
-    /// <em>O(n²)</em> clone would read at this size. Do not raise it again without re-deriving it
-    /// from a measured per-item cost.
-    /// </para>
-    /// <para>
-    /// The same interleaved best-of-three shape as
-    /// <see cref="The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap"/>, and for the same
-    /// reason: two separate blocks let a GC pause land on one half only. The inventory is built from
-    /// a persisted row rather than by sending a thousand grant commands, which would measure the
-    /// grants instead of what this is about.
-    /// </para>
-    /// </remarks>
+    /// <summary>Linear is the design, not a defect — every command works on a full snapshot copy of
+    /// the player, which is what lets a rejected command leave the caller's state untouched, and the
+    /// stock rides along in that copy. What is worth catching is SUPER-linear: an item compared
+    /// against every other item shows up as a ratio in the thousands at a full stock, not the low
+    /// teens. The bound of 20 sits above the linear prediction (ratio is 1 + k × items) and two
+    /// orders of magnitude below an O(n²) clone.</summary>
     [Fact]
     public void A_full_inventory_costs_a_command_only_linearly_and_stays_inside_the_budget()
     {
@@ -192,34 +113,18 @@ public sealed class InMemoryGamePerformanceTests
             BudgetMs * RegressionMultiple,
             $"a 180-day player carrying a FULL {FullStock}-item inventory took {full:F1} ms. This is " +
             "the half of the budget question a ratio cannot answer: the ratio stays honest even if " +
-            "both halves get ten times slower. 30 §6 budgets 200 ms and this asserts 2,000, the same " +
-            "order-of-magnitude framing the empty-player test above uses. Measured at the flat " +
-            "1000-slot cap (M4 review, 2026-08-17, Release, four runs): 117.6-167.4 ms full against " +
-            "13.9-21.1 ms empty, i.e. 59-84 % of the 200 ms budget. M4-05 measured 101.8 ms against " +
-            "19.7 ms at the old 320 cap, about half the budget. It still fits; what is gone is the " +
-            "slack, so a further cap increase is a 30 §4.1 narrower-slice or copy-on-write decision " +
-            "and not a data edit.");
+            "both halves get ten times slower.");
 
         (full / empty).ShouldBeLessThan(
             20.0,
             $"{Commands} commands against an EMPTY inventory took {empty:F1} ms; the same commands " +
-            $"against a FULL {FullStock}-item inventory took {full:F1} ms. Linear is EXPECTED — every " +
-            "command copies the whole player, stock included, and that copy is what makes a rejected " +
-            "command leave the caller's state untouched. Measured at 5.2 when the inventory landed at " +
-            "the 320 cap, 5.04 when the forge gave the stock its first production writer, and " +
-            "7.3-12.0 across four Release runs at the flat 1000-slot cap the M4 review of 2026-08-17 " +
-            "ruled. The ratio is 1 + k x items, so tripling the stock triples the part above 1: 5.17 " +
-            "at 320 predicts about 14 here, and every measured run came in under it. The bound is " +
-            "20, above that prediction and two orders of magnitude below the THOUSANDS an O(n^2) " +
-            "clone would read at a thousand items — which is what this catches: an item compared " +
-            "against every other item, a derivation re-run per item per item. If it fires, find the " +
-            "nested loop. Do not raise it without re-deriving it from a measured per-item cost, and " +
+            $"against a FULL {FullStock}-item inventory took {full:F1} ms. Linear is EXPECTED — " +
+            "every command copies the whole player, stock included. If this fires, find the nested " +
+            "loop; do not raise the bound without re-deriving it from a measured per-item cost, and " +
             "do not try to make the ratio 1 by removing the clone.");
     }
 
-    /// <summary>The same claim with no clock in it: a gap of any size is one command, and it lands
-    /// the period boundaries on <c>GameCalendar</c>'s own answer rather than an accumulation of
-    /// steps.</summary>
+    /// <summary>The same claim with no clock in it.</summary>
     [Fact]
     public void A_gap_of_any_size_is_one_command_and_one_boundary_step()
     {
@@ -228,10 +133,7 @@ public sealed class InMemoryGamePerformanceTests
         game.Clock.Advance(TimeSpan.FromDays(Days));
         var result = game.Send(player, Harnesses.BeginSession);
 
-        game.CommandsIssued.ShouldBe(
-            1L,
-            "one hundred and eighty days were crossed by ONE Apply. If a future reader makes this a " +
-            "loop, this is the number that moves.");
+        game.CommandsIssued.ShouldBe(1L, "one hundred and eighty days were crossed by ONE Apply.");
 
         var state = game.State(player).Player;
 
@@ -241,17 +143,17 @@ public sealed class InMemoryGamePerformanceTests
 
         state.EnergyAnchorUtc.ShouldBe(
             game.Clock.NowUtc,
-            "180 days is a whole number of 4-minute intervals, so A1's anchor lands exactly on now — " +
-            "and it got there by adding wholeUnits x interval once, not by 64,800 additions.");
+            "180 days is a whole number of regen intervals, so A1's anchor lands exactly on now — " +
+            "by adding wholeUnits × interval once, not by tens of thousands of additions.");
 
         result.Events.Count.ShouldBe(
             2,
-            "one accrual and one refill. A catch-up that emitted per boundary would produce hundreds, " +
-            "and 14 §7.1's economy log would carry a row for every day the player was away.");
+            "one accrual and one refill. A catch-up that emitted per boundary would put a row in " +
+            "14 §7.1's economy log for every day the player was away.");
     }
 
-    /// <summary>The event list does not grow with the size of the gap either — a memory claim as well
-    /// as a speed one, asserted by comparing the two lists directly rather than by a bound.</summary>
+    /// <summary>A memory claim as well as a speed one, asserted by comparing the two lists directly
+    /// rather than by a bound.</summary>
     [Fact]
     public void The_event_list_does_not_grow_with_the_size_of_the_gap()
     {
@@ -271,12 +173,9 @@ public sealed class InMemoryGamePerformanceTests
         farRows.OfType<CurrencyChanged>().First().Delta.ShouldBe(
             nearRows.OfType<CurrencyChanged>().First().Delta,
             "both accruals are capped by the tank, so a decade away and a day away deposit the same " +
-            "amount — the deltas differ only while the banks have room.");
+            "amount.");
     }
 
-    /// <summary>One 180-day drive, returning the harness so the caller can floor the workload it
-    /// measured — if <c>BEGIN_SESSION</c> regressed to a rejection, every timing test here would get
-    /// faster and stay green over pure refusals, so each test also asserts what the drive did.</summary>
     private static InMemoryGame Drive()
     {
         var (game, player) = Harnesses.WithPlayer();
@@ -286,10 +185,6 @@ public sealed class InMemoryGamePerformanceTests
         return game;
     }
 
-    /// <summary>
-    /// Sends <paramref name="commands"/> commands, each one <paramref name="gapDays"/> after the
-    /// last. Returns the harness, for the reason <see cref="Drive"/> does.
-    /// </summary>
     private static InMemoryGame GapDrive(int gapDays, int commands)
     {
         var (game, player) = Harnesses.WithPlayer();
@@ -303,11 +198,8 @@ public sealed class InMemoryGamePerformanceTests
         return game;
     }
 
-    /// <summary>
-    /// Sends <paramref name="commands"/> commands a day apart to a player who starts with
-    /// <paramref name="items"/> items in stock. The cadence is <see cref="GapDrive"/>'s one-day arm
-    /// exactly, so the two halves differ in the inventory and in nothing else.
-    /// </summary>
+    /// <summary><see cref="GapDrive"/>'s one-day arm exactly, so the two halves of the inventory
+    /// comparison differ in the stock and in nothing else.</summary>
     private static InMemoryGame InventoryDrive(int items, int commands)
     {
         var (game, player) = Harnesses.WithPlayer(inventory: Inventories.Stock(items));
@@ -321,48 +213,22 @@ public sealed class InMemoryGamePerformanceTests
         return game;
     }
 
-    /// <summary>
-    /// Asserts that a measured drive actually carried the stock it was measured carrying — the
-    /// inventory half of <see cref="ShouldHaveDoneTheWork"/>'s argument. A seam that silently dropped
-    /// the pre-populated row would make the "full" half identical to the empty one, and the ratio
-    /// would be a perfect 1.0 over nothing.
-    /// </summary>
+    /// <summary>A seam that silently dropped the pre-populated stock would make the "full" half
+    /// identical to the empty one, and the ratio a perfect 1.0 over nothing.</summary>
     private static void ShouldHaveCarried(InMemoryGame game, int items) =>
-        game.State(game.Players[0]).Player.Inventory.Stored.Count.ShouldBe(
-            items,
-            "the comparison is only about the size of the inventory if the inventory is that size.");
+        game.State(game.Players[0]).Player.Inventory.Stored.Count.ShouldBe(items);
 
-    /// <summary>
-    /// Asserts that a timed drive actually did the work it was measured doing — see
-    /// <see cref="Drive"/>'s remarks.
-    /// </summary>
+    /// <summary>A regression that turned <c>BEGIN_SESSION</c> into a rejection would make every
+    /// timing here FASTER and stay green over pure refusals.</summary>
     private static void ShouldHaveDoneTheWork(InMemoryGame game, int commands, int acceptedDays)
     {
-        game.CommandsIssued.ShouldBe(
-            commands,
-            "the measurement above is only about the domain if the domain actually ran. A regression " +
-            "that turned BEGIN_SESSION into a rejection would make every timing here FASTER (S3).");
+        game.CommandsIssued.ShouldBe(commands);
 
         Harnesses.CurrencyRows(game, Harnesses.DailyRefillReason).Count.ShouldBe(
-            acceptedDays,
-            "…and the commands were ACCEPTED: one daily free refill per game day the drive touched.");
+            acceptedDays, "one daily free refill per game day the drive touched proves the commands " +
+            "were accepted.");
     }
 
-    private static double Fastest(Func<InMemoryGame> action)
-    {
-        var best = double.MaxValue;
-
-        for (var attempt = 0; attempt < 3; attempt++)
-        {
-            best = Math.Min(best, Elapsed(action));
-        }
-
-        return best;
-    }
-
-    /// <summary>One timed run. Split out of <see cref="Fastest"/> so a caller comparing two
-    /// workloads can <b>interleave</b> their attempts rather than measure them in separate
-    /// blocks — see <c>The_cost_of_a_command_does_not_grow_with_the_size_of_the_gap</c>.</summary>
     private static double Elapsed(Func<InMemoryGame> action)
     {
         var watch = Stopwatch.StartNew();

@@ -15,19 +15,9 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// stores, and the rule it finally makes reachable.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔴 <b>All four refusals answer <c>ILLEGAL_STATE</c>, because `14` §16.2 authors no finer
-/// domain-tier value for a malformed configuration.</b> So a case that asserted only the code would
-/// pass with three of the four rules deleted. Each is built as a PAIR of worlds whose payloads are
-/// identical but for the one fact its rule reads: the control has to be accepted and the variant
-/// refused, and nothing else in the payload can account for the difference.
-/// </para>
-/// <para>
-/// 🔒 <b>Every bound asserted here is read off the design set, never restated.</b> The row count
-/// comes from <c>Enum.GetValues&lt;Rarity&gt;().Length</c> and the level range from
-/// <c>ForgeTuning</c>'s authored <c>minLevel</c>/<c>maxLevel</c> — a literal 5 or 15 in this file
-/// would pass just as well against a handler that had invented its own limit and happened to agree.
-/// </para>
+/// All four refusals answer <c>ILLEGAL_STATE</c> (`14` §16.2 authors no finer value), so each rule
+/// is built as a PAIR of worlds identical but for the one fact it reads: control accepted, variant
+/// refused. Every bound is read off the design set, never restated as a literal.
 /// </remarks>
 public sealed class SetAutoSalvageRulesTests
 {
@@ -43,13 +33,10 @@ public sealed class SetAutoSalvageRulesTests
     // ═══════════════════════════════════════════════════════ what an accepted one stores
 
     /// <summary>
-    /// 🔒 An accepted command stores the rows, in order, and replaces whatever was there.
+    /// 🔒 An accepted command stores the rows, in order, and replaces whatever was there — a second
+    /// filter over the same player, because "the rows are stored" is also true of a handler that
+    /// appended.
     /// </summary>
-    /// <remarks>
-    /// The design set's own example read literally — <em>"salvage all C and B below +3"</em>, which
-    /// is where <c>AutoSalvageRule</c>'s shape comes from — and then a second, different filter over
-    /// the same player, because "the rows are stored" is also true of a handler that appended.
-    /// </remarks>
     [Fact]
     public void An_accepted_filter_replaces_whatever_the_player_had()
     {
@@ -74,12 +61,10 @@ public sealed class SetAutoSalvageRulesTests
             "a filter is configuration: it grants nothing and moves no currency.");
     }
 
-    /// <summary>🔒 The empty list is a legal filter, and it is how a player switches the feature off.</summary>
-    /// <remarks>
-    /// `08` §4.3 makes an empty filter mean "sweep nothing", so refusing it would leave a player who
-    /// had ever configured a row unable to stop. Driven from a NON-empty filter, so the case is about
-    /// clearing rather than about a player who never set one.
-    /// </remarks>
+    /// <summary>
+    /// 🔒 The empty list is a legal filter (`08` §4.3: sweep nothing), driven from a NON-empty one so
+    /// the case is about clearing rather than about a player who never set one.
+    /// </summary>
     [Fact]
     public void An_empty_filter_is_accepted_and_clears_the_rows()
     {
@@ -98,13 +83,9 @@ public sealed class SetAutoSalvageRulesTests
 
     /// <summary>
     /// 🔒 A row over a band the rarity ladder does not declare is refused, where the same row over a
-    /// declared band is accepted.
+    /// declared band is accepted. <c>Rarity</c> has no zero member on purpose, so <c>(Rarity)0</c> is
+    /// what an uninitialised wire column arrives as.
     /// </summary>
-    /// <remarks>
-    /// <c>Rarity</c> has no zero member on purpose, so this is what an uninitialised wire column
-    /// arrives as. The pair is the assertion: the ceiling, the row count and the player are identical
-    /// on both sides, so only the band can account for the refusal.
-    /// </remarks>
     [Fact]
     public void A_row_over_a_band_the_ladder_does_not_declare_is_refused()
     {
@@ -132,17 +113,9 @@ public sealed class SetAutoSalvageRulesTests
     /// 🔒 Two rows for one band are refused, where two rows for two bands are accepted.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// The pair differs in one token — the second row's band — so neither the row count nor the
-    /// ceilings can account for the refusal.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>This is stricter than <c>AutoSalvageFilter</c>, deliberately.</b> The filter reads a
-    /// PERSISTED row and tolerates a repeat, sweeping on either so that neither row is silently
-    /// ignored — it has to do something defensible with whatever it finds. The command is the WRITER,
-    /// and a filter carrying two ceilings for one band is a screen the player cannot read back: which
-    /// of the two they set is decided by array order and nothing tells them.
-    /// </para>
+    /// Deliberately stricter than <c>AutoSalvageFilter</c>, which reads a PERSISTED row and must
+    /// tolerate a repeat; the command is the WRITER, and two ceilings for one band is a screen the
+    /// player cannot read back.
     /// </remarks>
     [Fact]
     public void Two_rows_for_one_band_are_refused_where_two_bands_are_accepted()
@@ -169,21 +142,10 @@ public sealed class SetAutoSalvageRulesTests
     /// is accepted.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>The CONTROL is the whole discriminating half of this case, and that is measured rather
-    /// than argued.</b> The accepted side carries one legal row per band — the largest filter that
-    /// can exist once repeats are refused — so a handler with a cap smaller than the ladder fails
-    /// it: tightening the bound by one turned this red. The refused side does <em>not</em>
-    /// discriminate, and cannot: by pigeonhole a list longer than the ladder must repeat a band, so
-    /// the repeat rule catches it too. MEASURED: deleting the row-count check outright left this
-    /// whole file green.
-    /// </para>
-    /// <para>
-    /// The check is kept anyway, and the handler's own comment says why — the bound is stated where
-    /// a reader looks for it and derived from the ladder rather than guessed, and it caps the work a
-    /// hostile payload can cause before the tuning read. What must not happen is this case being
-    /// read as proof that it bites on its own.
-    /// </para>
+    /// The CONTROL is the discriminating half: one legal row per band is the largest filter that can
+    /// exist once repeats are refused, so it fails a handler whose cap is smaller than the ladder.
+    /// The refused side cannot discriminate — by pigeonhole an over-long list repeats a band, so the
+    /// repeat rule catches it too (measured: deleting the row-count check left this file green).
     /// </remarks>
     [Fact]
     public void A_list_longer_than_the_rarity_ladder_is_refused()
@@ -218,18 +180,9 @@ public sealed class SetAutoSalvageRulesTests
     /// both ends of the range itself are accepted.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// Four worlds, differing only in one integer. The accepted pair is the <em>edges</em> of the
-    /// legal range rather than a comfortable middle: <c>minLevel</c> is how a player keeps a row in
-    /// place with it switched off, and <c>maxLevel + 1</c> is how they say "sweep this band whatever
-    /// it is enhanced to" — an off-by-one at either end takes one of those away, and a probe at +3
-    /// would not notice.
-    /// </para>
-    /// <para>
-    /// The bounds are read from the tuning, so a handler that hard-coded 0 and 16 would still pass —
-    /// and would then be wrong the day the range moves, which is what <c>ForgeTuning</c> exists to
-    /// prevent. What this case pins is that the handler agrees with the document today.
-    /// </para>
+    /// The accepted pair is the edges of the legal range, not a comfortable middle: an off-by-one at
+    /// either end takes away "row switched off" (minLevel) or "sweep whatever it is enhanced to"
+    /// (maxLevel + 1), and a probe at +3 would not notice.
     /// </remarks>
     [Fact]
     public void A_ceiling_outside_the_authored_enhancement_range_is_refused_at_both_ends()
@@ -261,23 +214,9 @@ public sealed class SetAutoSalvageRulesTests
     // ═══════════════════════════ what the command is FOR: the rule it makes reachable
 
     /// <summary>
-    /// 🔴 <b>The rows a command stored are the rows <c>AutoSalvageFilter</c> selects on</b> — the
-    /// first time the rule has been driven from anything but a hand-written fixture.
+    /// The rows a command stored are the rows <c>AutoSalvageFilter</c> selects on. Not an end-to-end
+    /// claim: nothing applies the filter at run end yet — this shows the two halves fit.
     /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <c>Player.AutoSalvageRules</c> had no writer until this command, so
-    /// <c>Rules.Forge.AutoSalvageFilter</c> — 75 lines of production code with its own suite — could
-    /// only ever be reached by a test constructing the rows itself. This case closes the loop the
-    /// other way: send the command, then hand the STORED rows to the filter and watch it pick the
-    /// item the player asked it to.
-    /// </para>
-    /// <para>
-    /// ⚠️ It is not an end-to-end claim, and must not be read as one. Nothing applies the filter at
-    /// run end — that is out of scope for this ruling, and the screen that edits the rows is M9-01's.
-    /// What this shows is that the two halves now fit.
-    /// </para>
-    /// </remarks>
     [Fact]
     public void The_stored_rows_are_the_rows_the_filter_selects_on()
     {

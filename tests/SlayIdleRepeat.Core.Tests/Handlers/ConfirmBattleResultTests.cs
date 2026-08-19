@@ -14,41 +14,12 @@ public sealed class ConfirmBattleResultTests
         SlayIdleRepeat.Core.GameRules.Apply(
             state, new ConfirmBattleResultCommand(logHash, Won: true), TileWorlds.Context);
 
-    // ------------------------------------------------------------- the fixture's own premise
-
-    /// <summary>
-    /// 🔒 <b>The fixture hero WINS every fight this suite asserts a payout for, and it is asserted
-    /// rather than assumed.</b>
-    /// </summary>
+    /// <summary>The fixture hero wins every fight this suite asserts a payout for.</summary>
     /// <remarks>
-    /// <para>
-    /// 🔴 <b>Every payout case below is conditional on this, and none of them would fail if it stopped
-    /// being true.</b> Since <c>CONFIRM_BATTLE_RESULT</c> recomputes the fight (<c>14</c> §9), the server
-    /// decides whether a battle was won — so a fixture whose hero loses does not break the payout tests,
-    /// it makes them assert that a loss pays nothing. Twenty green tests, none of them testing the arm
-    /// M7-06c changed. This case turns that silence into one loud failure.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>All three tile kinds, because only one of them discriminates and it is not the one you
-    /// would guess.</b> The first draft asserted the Enemy fight alone — and PASSED with the loadout
-    /// stripped to bare, because a Legend-20 hero beats a chapter-1 ordinary enemy with no gear at all.
-    /// It was a cannot-fail pin guarding against cannot-fail pins. ⚠️ <b>Re-probed after widening, and
-    /// measured:</b> swapping <c>WornLoadout</c> for <c>BareLoadout</c> fails the <b>Elite</b> arm and
-    /// leaves Enemy and Boss green. So Elite is the arm carrying this case today. All three are kept
-    /// anyway — which arm discriminates is a fact about current tuning, and M6 will move it; a probe
-    /// narrowed to today's discriminator would go quiet the moment that changed.
-    /// </para>
-    /// <para>
-    /// ⚠️ <b>The drift this exists to catch is real rather than hypothetical.</b> "Geared enough to win"
-    /// is measured against <c>ChapterPowerTarget</c>, which M6 exists to retune. This suite fought
-    /// bare-handed until M7-06c, and the sweep establishing that levelling could not fix it (Legend Level
-    /// 1 → 20 → 60 → 120 moved 39 whole-suite failures to 34) is recorded in <c>TileWorlds</c>.
-    /// </para>
-    /// <para>
-    /// Asserted through the HANDLER rather than by calling the simulation directly: what matters is not
-    /// that some fight is winnable but that the fight <em>this fixture</em> hands the handler is. Gold is
-    /// the observable rather than the phase, because the phase returns to <c>InProgress</c> on a loss too.
-    /// </para>
+    /// The server recomputes the fight (14 §9), so a fixture loadout falling below ChapterPowerTarget
+    /// silently turns the payout cases into loss cases. All three kinds are probed because which arm
+    /// discriminates is a fact about current tuning (today: Elite). Gold is the observable rather than
+    /// the phase, because the phase returns to InProgress on a loss too.
     /// </remarks>
     [Theory]
     [InlineData(TileKind.Enemy)]
@@ -69,9 +40,6 @@ public sealed class ConfirmBattleResultTests
             "retunes it) or the run no longer freezes that loadout. Fix the fixture; do not relax this.");
     }
 
-    // ------------------------------------------------------------------ the gate
-
-    /// <summary>No battle is open on a run standing on no tile at all.</summary>
     [Fact]
     public void A_run_with_no_battle_open_is_rejected()
     {
@@ -81,7 +49,6 @@ public sealed class ConfirmBattleResultTests
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>A run standing on a pending fight tile that never opened a battle is still not open.</summary>
     [Fact]
     public void A_pending_fight_tile_with_no_open_battle_is_rejected()
     {
@@ -90,8 +57,6 @@ public sealed class ConfirmBattleResultTests
         result.Accepted.ShouldBeFalse();
         result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
-
-    // ------------------------------------------------------------------ LogHash format
 
     [Theory]
     [InlineData("")]
@@ -123,9 +88,6 @@ public sealed class ConfirmBattleResultTests
         result.Accepted.ShouldBeTrue();
     }
 
-    // ------------------------------------------------------------------ closing the fight
-
-    /// <summary>Closing a battle moves the phase back to InProgress.</summary>
     [Fact]
     public void Closing_a_battle_returns_the_phase_to_InProgress()
     {
@@ -136,7 +98,6 @@ public sealed class ConfirmBattleResultTests
         result.NewState.Run!.Phase.ShouldBe(RunPhase.InProgress);
     }
 
-    /// <summary>…and clears the pending fight tile.</summary>
     [Fact]
     public void Closing_a_battle_clears_the_pending_tile()
     {
@@ -147,7 +108,6 @@ public sealed class ConfirmBattleResultTests
         result.NewState.Run!.HasPendingTile.ShouldBeFalse();
     }
 
-    /// <summary>Closing a battle marks a draft as pending.</summary>
     [Fact]
     public void Closing_a_battle_marks_a_draft_pending()
     {
@@ -159,7 +119,6 @@ public sealed class ConfirmBattleResultTests
     }
 
     /// <summary>
-    /// A WON battle pays Gold immediately and banks Legend XP; HP is untouched.
     /// Chapter 1, NORMAL tier, a normal Enemy kill: Gold = 40 * G(1) = 40; Legend XP =
     /// 25 * 1.55^0 * 1.0 (NORMAL tier) * 1 (NORMAL_ENEMY_KILL) = 25.
     /// </summary>
@@ -171,12 +130,8 @@ public sealed class ConfirmBattleResultTests
         var result = Confirm(opened, "1");
 
         result.NewState.Run!.Gold.ShouldBe(290);
-        // 🔒 A won fight now COSTS HP, where it used to cost nothing: M7-06d applies the
-        // recomputation's own HeroHpRemaining instead of discarding it. ⚠️ It lands at the ceiling here
-        // rather than somewhere interesting, and the reason is worth knowing: this fixture's run
-        // carries a Max HP of 100 while the over-par hero composes one in the thousands, so the fight
-        // ends far above the run's ceiling and the clamp takes it to full. A wounded-survivor case
-        // needs a hero near par, which is `05` §9's harness rather than this suite's fixture.
+        // At the ceiling rather than somewhere interesting because the over-par fixture hero ends the
+        // fight far above the run's Max HP of 100; a wounded-survivor case needs `05` §9's near-par harness.
         result.NewState.Run!.CurrentHp.ShouldBe(
             result.NewState.Run!.MaxHp,
             "a won fight writes its own ending HP, clamped into the run's range.");
@@ -185,14 +140,12 @@ public sealed class ConfirmBattleResultTests
         result.Events.ShouldNotBeEmpty();
     }
 
-    /// <summary>A LOST battle sets HP to zero, pays nothing, and leaves the tile pending for a revive.</summary>
     [Fact]
     public void Losing_a_battle_sets_HP_to_zero_and_pays_nothing()
     {
-        // 🔒 An Elite fought bare-handed, because the server decides the outcome now: Won: false is the
-        // client's claim and the recomputation overrules it, so a losing case has to hand over a fight
-        // the hero genuinely loses. Enemy would not do — a Legend-20 hero beats a chapter-1 ordinary
-        // enemy with no gear at all.
+        // An Elite fought bare-handed: Won: false is only the client's claim and the recomputation
+        // overrules it, so a losing case must hand over a fight the hero genuinely loses — and a
+        // Legend-20 hero beats a chapter-1 ordinary Enemy with no gear at all.
         var opened = TileWorlds.OnTile(
             TileKind.Elite, gold: 250, currentHp: 60, phase: RunPhase.BattlePending, geared: false);
 
@@ -222,19 +175,13 @@ public sealed class ConfirmBattleResultTests
         result.NewState.Run!.BankedSoulShards.ShouldBe(15 + 450);
     }
 
-    /// <summary>
-    /// The first-clear grant is one-time: a player who has already cleared this (Chapter, Tier) pair
-    /// banks only the per-kill Boss Soul Shards, not the 450 again.
-    /// </summary>
     [Fact]
     public void First_clear_bonus_does_not_repeat_for_an_already_cleared_chapter_tier()
     {
         var opened = TileWorlds.OnTile(TileKind.Boss, phase: RunPhase.BattlePending);
 
-        // Rehydrate a player who has already cleared chapter 1 NORMAL — through the geared row, not a
-        // fresh one. 🔒 A row built from scratch here would carry no loadout, and since the server now
-        // recomputes the fight (14 §9) a bare-handed hero LOSES this boss: the case would then pass or
-        // fail on whether a loss banks Soul Shards, which is not what it is about.
+        // The already-cleared player is built on the geared row: a bare row would lose the recomputed
+        // boss fight, making this pass or fail on whether a loss banks Soul Shards instead.
         var clearedPlayerSnapshot = RunBattleWorlds.FarAboveParRow(
             SlayIdleRepeat.Core.Tests.Model.PlayerSnapshots.Counters(("1:NORMAL", 1)));
         var clearedPlayer = SlayIdleRepeat.Core.Model.Player.Rehydrate(
@@ -246,7 +193,6 @@ public sealed class ConfirmBattleResultTests
         result.NewState.Run!.BankedSoulShards.ShouldBe(15);
     }
 
-    /// <summary>A second CONFIRM_BATTLE_RESULT after the first closed it is refused — nothing is open.</summary>
     [Fact]
     public void Confirming_twice_is_rejected()
     {
@@ -257,9 +203,6 @@ public sealed class ConfirmBattleResultTests
         Confirm(closed, "2").Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    // ------------------------------------------------------------------ the round trip
-
-    /// <summary>The full loop: RESOLVE_TILE acknowledges a fight tile, START_BATTLE opens it, CONFIRM_BATTLE_RESULT closes it.</summary>
     [Fact]
     public void A_fight_resolves_across_three_commands()
     {

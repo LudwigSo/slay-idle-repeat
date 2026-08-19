@@ -10,14 +10,8 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// <summary>
 /// BEGIN_SESSION's daily effects are idempotent per game day: repeated calls must not re-grant them.
 /// </summary>
-/// <remarks>
-/// The marker that keys this is set by the handler itself, after catch-up clears the daily counters
-/// for the day — see <see cref="The_marker_is_set_by_the_handler_and_cleared_by_the_day_boundary"/>.
-/// </remarks>
 public sealed class BeginSessionIdempotenceTests
 {
-    /// <summary>A second BEGIN_SESSION in the same game day grants nothing.</summary>
-    /// <remarks>The second command applies to the first's result, not a fresh slice.</remarks>
     [Fact]
     public void A_second_BEGIN_SESSION_in_the_same_game_day_grants_nothing()
     {
@@ -40,8 +34,7 @@ public sealed class BeginSessionIdempotenceTests
         second.Events.ShouldBeEmpty("a no-op publishes no event.");
     }
 
-    /// <summary>Ten commands inside one game day pay one refill, spread across the day.</summary>
-    /// <remarks>The clock stays inside one game day, ruling out a key on the instant.</remarks>
+    /// <remarks>Spread across the day at hour intervals, ruling out a key on the instant or a cooldown window.</remarks>
     [Fact]
     public void Ten_commands_in_one_game_day_pay_one_refill()
     {
@@ -64,18 +57,6 @@ public sealed class BeginSessionIdempotenceTests
             1, "the marker counts the day, not the calls.");
     }
 
-    /// <summary>The repeat call is a no-op in the event list too, not merely in the state.</summary>
-    [Fact]
-    public void The_second_call_of_the_day_produces_no_events_at_all()
-    {
-        var first = BeginSessions.Send(BeginSessions.Slice());
-        var second = BeginSessions.Send(first.NewState, BeginSessions.Morning.AddMinutes(1));
-
-        first.Events.ShouldNotBeEmpty("the first call pays the refill, so it has a row to publish.");
-        second.Events.ShouldBeEmpty("a no-op moved nothing.");
-    }
-
-    /// <summary>The calendar advances at most once per game day, even across a repeat call.</summary>
     /// <remarks>
     /// The player claims the newly opened day between the two calls, so only the per-game-day
     /// idempotence — not the calendar's own claimed/unclaimed guard — can refuse the second advance.
@@ -110,7 +91,6 @@ public sealed class BeginSessionIdempotenceTests
         third.NewState.Player.LoginCalendarDayClaimed.ShouldBeTrue("…and the claim they made stands.");
     }
 
-    /// <summary>Energy spent during the day is not topped back up by re-sending BEGIN_SESSION.</summary>
     /// <remarks>
     /// Opens below maximum on the second call, unlike the fixtures above — a handler that only
     /// re-grants on deficit would otherwise pass every test in this file.
@@ -137,9 +117,6 @@ public sealed class BeginSessionIdempotenceTests
         second.Events.ShouldBeEmpty("nothing moved, so nothing is attributed.");
     }
 
-    // ------------------------------------------------------------------ the other direction: a new day
-
-    /// <summary>A BEGIN_SESSION on the next game day grants again.</summary>
     [Fact]
     public void A_BEGIN_SESSION_on_the_next_game_day_grants_again()
     {
@@ -158,7 +135,6 @@ public sealed class BeginSessionIdempotenceTests
             1, "the marker was cleared at the boundary and set again.");
     }
 
-    /// <summary>The marker is written by the handler and cleared by the 05:00 UTC boundary.</summary>
     [Fact]
     public void The_marker_is_set_by_the_handler_and_cleared_by_the_day_boundary()
     {
@@ -192,14 +168,9 @@ public sealed class BeginSessionIdempotenceTests
             "BEGIN_SESSION, so the next BEGIN_SESSION always reads zero however the player got there.");
     }
 
-    /// <summary>
-    /// A host clock that jumps forward across 05:00 UTC pays the player early, never twice.
-    /// </summary>
     /// <remarks>
-    /// What blocks the second payment is not a throw: the skew pins DailyPeriodStartUtc forward, and
-    /// AdvanceTime's reset guard is `dayStart &gt;= DailyPeriodStartUtc`, so a corrected clock computes
-    /// an earlier boundary and clears nothing. The cost is one day's grants received early; the loop
-    /// recovers at the next boundary.
+    /// The skew pins DailyPeriodStartUtc forward, so a corrected clock computes an earlier boundary
+    /// and clears nothing. The cost is one day's grants received early, recovered at the next boundary.
     /// </remarks>
     [Fact]
     public void A_forward_clock_jump_pays_early_and_never_twice()

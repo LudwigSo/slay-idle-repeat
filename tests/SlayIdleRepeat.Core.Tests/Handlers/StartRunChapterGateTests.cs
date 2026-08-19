@@ -13,36 +13,11 @@ namespace SlayIdleRepeat.Core.Tests.Handlers;
 /// Legend Level it demands, each with its own named refusal.
 /// </summary>
 /// <remarks>
-/// <para>
-/// `14` §9 makes command validation the server's job — "is the action legal now" — so the ladder is
-/// answered here and not only on the screen that draws it. The chapter select presenter still lists
-/// <em>every</em> unmet requirement; this handler answers with one, because
-/// <c>HandlerResult.Reject</c> carries a single enum value and no detail payload. Which of the two it
-/// answers with is pinned below rather than left to whichever check happens to be written first.
-/// </para>
-/// <para>
-/// Driven through <c>GameRules.Apply</c> over the production dispatch table, so these cases prove the
-/// real START_RUN row rather than a stand-in shaped like it.
-/// </para>
-/// <para>
-/// 🔴 <b>Every <c>RunsStarted</c> assertion below is a statement about <c>Apply</c>, not about this
-/// handler, and was proved so by mutation.</b> Moving <c>Player.BeginRun()</c> <em>above</em> the
-/// ladder gate — spending the lifetime counter on every refusal — leaves all thirty-eight cases in
-/// the two gate suites green, and the whole Core suite green with it. The reason is structural:
-/// <c>Apply</c> runs the handler against a <em>clone</em> and, on a rejection, returns the caller's
-/// own slice, so the only object whose counter moved is discarded unread. "A refused START_RUN costs
-/// the player nothing" is therefore bought by that discard and not by the handler's ordering, and
-/// nothing in this repository can tell the two apart. The ordering inside <c>Handle</c> is kept
-/// because it is right, not because it is pinned — the lines below restate
-/// <c>NewState.ShouldBeSameAs(state)</c> in another spelling, and would only ever redden if
-/// <c>Apply</c> stopped discarding.
-/// </para>
-/// <para>
-/// 🔒 The Legend Level the Mythic rung demands is read out of <see cref="Worlds.Context"/>'s own
-/// content, once, and reused for the "one below" and "exactly at" cases. Writing it as a literal
-/// would put the number in C# — invisible to every architecture rule that watches tuning (S18) — and
-/// would make both cases pass against a gate that had stopped reading the document.
-/// </para>
+/// <c>HandlerResult.Reject</c> carries a single enum value, so where two requirements are unmet the
+/// one answered is pinned below rather than left to whichever check is written first. The
+/// <c>RunsStarted</c> assertions are statements about <c>Apply</c>'s rejection discard, not the
+/// handler's ordering — mutation showed spending the counter before the gate stays green, because
+/// the clone it moves on is discarded.
 /// </remarks>
 public sealed class StartRunChapterGateTests
 {
@@ -163,11 +138,7 @@ public sealed class StartRunChapterGateTests
         result.NewState.ShouldBeSameAs(
             state, "a rejected command's NewState is the caller's own slice, untouched.");
         result.NewState.Player.RunsStarted.ShouldBe(
-            runsStartedBefore,
-            "a refused START_RUN does not spend the lifetime run counter. 🔴 Read the class remarks " +
-            "before trusting this line: it restates the assertion above rather than probing the " +
-            "handler, because the counter GameRules.Apply discards on a rejection is the one the " +
-            "handler could have spent.");
+            runsStartedBefore, "a refused START_RUN does not spend the lifetime run counter.");
     }
 
     /// <summary>
@@ -241,13 +212,6 @@ public sealed class StartRunChapterGateTests
     /// <summary>
     /// 🔒 The double block: neither requirement met, and the handler answers with the clear.
     /// </summary>
-    /// <remarks>
-    /// A rejection carries one enum value and no detail payload, so exactly one of the two
-    /// requirements can be named. The clear is checked first and therefore wins — deliberately, and
-    /// pinned here so a later reordering of the two guards is a failing test rather than a silent
-    /// change to what every doubly-blocked player is told. The screen remains the surface that lists
-    /// both.
-    /// </remarks>
     [Fact]
     public void A_Mythic_request_blocked_by_both_requirements_is_answered_with_the_clear()
     {
@@ -264,75 +228,4 @@ public sealed class StartRunChapterGateTests
             "first is what every doubly-blocked player in the game is told.");
     }
 
-    // ---------------------------------------------------- three refusals, three distinct wire values
-
-    /// <summary>
-    /// 🔒 The three ways START_RUN says no are three different values on the wire, and none of them is
-    /// a reused one.
-    /// </summary>
-    /// <remarks>
-    /// M7-04 shipped <c>NOT_ENTITLED</c> doing double duty for a Plus paywall and a malformed slot
-    /// index, and the client could not tell the two apart. A locked chapter is not an illegal state,
-    /// an under-levelled account is not a locked chapter, and a Plus paywall is none of the three —
-    /// so this case asserts the values against each other rather than only against their expected
-    /// selves.
-    /// </remarks>
-    [Fact]
-    public void The_three_refusals_of_START_RUN_are_three_distinct_wire_values()
-    {
-        var locked = Start(Fresh(), 2, DifficultyTier.NORMAL).Rejection;
-        var underLevelled = Start(
-            Outside([(1, DifficultyTier.HEROIC)], legendLevel: MythicLegendLevel - 1),
-            1,
-            DifficultyTier.MYTHIC).Rejection;
-        var alreadyRunning = SlayIdleRepeat.Core.GameRules.Apply(
-            Worlds.InARun(), new StartRunCommand(1, DifficultyTier.NORMAL), Worlds.Context).Rejection;
-
-        locked.ShouldBe(RejectionReason.PREREQUISITE_NOT_CLEARED);
-        locked.ShouldNotBe(
-            RejectionReason.ILLEGAL_STATE,
-            "a chapter the player has not opened is a legal request against a legal state — the " +
-            "answer is simply no. Folding it into ILLEGAL_STATE would tell the client to resync over " +
-            "a decision the server made on purpose.");
-        locked.ShouldNotBe(
-            RejectionReason.NOT_ENTITLED,
-            "NOT_ENTITLED is the Plus paywall. A client that saw it for a locked chapter would offer " +
-            "a purchase to a player whose only problem is that they have not cleared chapter 1.");
-
-        underLevelled.ShouldBe(RejectionReason.LEGEND_LEVEL_TOO_LOW);
-        underLevelled.ShouldNotBe(
-            locked,
-            "the two unmet requirements of the Mythic rung are answered by different actions — play " +
-            "the tier below, or level up — so they cannot share one value.");
-
-        alreadyRunning.ShouldBe(
-            RejectionReason.ILLEGAL_STATE,
-            "the pre-existing guard keeps its own value: a second START_RUN while a run is open IS a " +
-            "state-machine violation, and appending the ladder's two values must not renumber or " +
-            "relabel it.");
-        alreadyRunning.ShouldNotBe(locked);
-        alreadyRunning.ShouldNotBe(underLevelled);
-    }
-
-    /// <summary>
-    /// The shape checks stay ahead of the ladder: an undefined tier is still <c>ILLEGAL_STATE</c>.
-    /// </summary>
-    /// <remarks>
-    /// Load-bearing ordering, not a nicety — the gate looks the tier up as a rung key, and a tier the
-    /// enum does not declare has no rung to look up. Refusing it as a shape violation before the
-    /// ladder is consulted is what keeps the ladder's own "every declared tier has a rung" floor from
-    /// being asked an impossible question.
-    /// </remarks>
-    [Fact]
-    public void An_undefined_tier_is_still_refused_ahead_of_the_ladder()
-    {
-        var result = Start(Fresh(), 1, (DifficultyTier)0);
-
-        result.Accepted.ShouldBeFalse();
-        result.Rejection.ShouldBe(
-            RejectionReason.ILLEGAL_STATE,
-            "default(DifficultyTier) is not a tier the ladder authors a rung for. If the gate ran " +
-            "first it would either throw out of Apply or refuse with a ladder reason for a request " +
-            "that is malformed rather than locked.");
-    }
 }

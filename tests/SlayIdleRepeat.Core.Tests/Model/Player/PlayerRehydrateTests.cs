@@ -10,26 +10,15 @@ using Xunit;
 namespace SlayIdleRepeat.Core.Tests.Model;
 
 /// <summary>
-/// <c>Player.Rehydrate</c> is one validated entry point for every persisted state: a corrupt row
-/// fails loudly at the seam rather than silently three rules later. One assertion per way a row
-/// can be wrong.
+/// <c>Player.Rehydrate</c>, one validated entry point for every persisted state. Every failure
+/// assertion pins WHICH validation fired: faults accumulate, so <c>IsFailure</c> alone would pass
+/// for a row invalid in an entirely different way.
 /// </summary>
-/// <remarks>
-/// Every failure assertion pins <b>which</b> validation fired. <c>Rehydrate</c> reports every
-/// fault it finds rather than the first, so a test that only checked <c>IsFailure</c> would pass
-/// for a row invalid in some entirely different way.
-/// </remarks>
 public sealed class PlayerRehydrateTests
 {
     private static ContentSnapshot Content => ProgressionDocuments.Shipped;
 
-    /// <summary>A valid row rehydrates, and every field arrives where it was persisted.</summary>
-    /// <remarks>
-    /// The positive half, and it is not a formality: it is what stops a validation being tightened
-    /// into refusing states the game is legitimately in. Every field is asserted, because a
-    /// constructor that dropped one — or crossed two of the four <see cref="DateTimeOffset"/>s —
-    /// would pass a test that only checked <c>IsSuccess</c>.
-    /// </remarks>
+    /// <summary>Every field is asserted: a constructor that dropped or crossed two would pass a bare <c>IsSuccess</c>.</summary>
     [Fact]
     public void A_valid_row_rehydrates_with_every_field_where_it_was_persisted()
     {
@@ -67,23 +56,12 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// An unknown <c>SchemaVersion</c> hard-fails, and the message says there is no migration
-    /// rather than reading the row anyway.
+    /// Both directions: a downgraded client's future row and a past row are equally unreadable.
+    /// The boundary rows are expressions, not literals — a literal would silently stop being a
+    /// wrong version at the next schema bump.
     /// </summary>
-    /// <remarks>
-    /// Both directions — a row from the future (a client that downgraded) and one from the past.
-    /// Reading either against the current layout shifts every field after the first change by one.
-    /// <para>
-    /// The "one past the current" row is an expression, not a literal: a hard-coded literal would
-    /// silently stop being a wrong version the next time the schema bumped, and would keep passing
-    /// while asserting nothing about the boundary it names.
-    /// </para>
-    /// </remarks>
     [Theory]
     [InlineData(0)]
-
-    // The version this build orphans: a row stamped with the previous schema version is real
-    // on-disk data this build cannot read without a migration.
     [InlineData(SnapshotSchema.SchemaVersion - 1)]
     [InlineData(SnapshotSchema.SchemaVersion + 1)]
     [InlineData(int.MaxValue)]
@@ -99,14 +77,9 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// The version check runs <b>first and alone</b>: a row from another schema is refused for
-    /// being from another schema, not for whatever its fields happen to look like under this
-    /// layout.
+    /// The version check runs first and alone: reporting field faults beside it would let a reader
+    /// "fix" the row instead of the version.
     /// </summary>
-    /// <remarks>
-    /// Without this, a wrong-version row that also had, say, a blank display name could report the
-    /// blank name and let a reader "fix" the row instead of the version.
-    /// </remarks>
     [Fact]
     public void A_wrong_SchemaVersion_is_reported_alone_and_not_alongside_field_faults()
     {
@@ -140,11 +113,7 @@ public sealed class PlayerRehydrateTests
         result.Error.ShouldContain("Id is blank or default(PlayerId)", Case.Sensitive);
     }
 
-    /// <summary>
-    /// A blank display name is refused — and nothing else about the name is. The name lifecycle
-    /// and profanity filter are open questions owned elsewhere, so a rule here would be inventing
-    /// one.
-    /// </summary>
+    /// <summary>A blank display name is refused — and nothing else about the name is; the filter is owned elsewhere.</summary>
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
@@ -158,11 +127,7 @@ public sealed class PlayerRehydrateTests
         result.Error.ShouldContain("DisplayName is blank", Case.Sensitive);
     }
 
-    /// <summary>
-    /// The converse, and it is the assertion that keeps the name rule honest: a name outside this
-    /// aggregate's authority is <b>accepted</b>. Duplicates, punctuation, mixed scripts and 400
-    /// characters all load.
-    /// </summary>
+    /// <summary>The converse that keeps the name rule honest: a name outside this aggregate's authority loads.</summary>
     [Theory]
     [InlineData("x")]
     [InlineData("Ludwig")]
@@ -209,15 +174,7 @@ public sealed class PlayerRehydrateTests
             .IsSuccess.ShouldBeTrue();
     }
 
-    /// <summary>
-    /// The range is read from the content set, not hard-coded: a data set that authors a
-    /// different maximum moves what this seam accepts.
-    /// </summary>
-    /// <remarks>
-    /// The half that proves <c>LegendTuning</c> is actually consulted. Without it, a
-    /// <c>const int MaxLegendLevel = 200</c> in the aggregate would satisfy every other assertion
-    /// in this file.
-    /// </remarks>
+    /// <summary>Without this, a <c>const int MaxLegendLevel = 200</c> would satisfy every other assertion in this file.</summary>
     [Fact]
     public void The_Legend_Level_range_comes_from_the_content_set_and_not_from_a_constant()
     {
@@ -245,14 +202,7 @@ public sealed class PlayerRehydrateTests
         result.Error.ShouldContain("LegendXp is -1", Case.Sensitive);
     }
 
-    /// <summary>
-    /// The lifetime runs-started counter is never negative, and <c>BeginRun</c> advances it and
-    /// answers the value the run is seeded with.
-    /// </summary>
-    /// <remarks>
-    /// It is on <c>Player</c> and nowhere else: <c>runSeed</c> needs it before the <c>Run</c>
-    /// exists and after it ends, and a period-cleared counter map would reset it.
-    /// </remarks>
+    /// <summary>On <c>Player</c> and nowhere else: <c>runSeed</c> needs it before the <c>Run</c> exists and after it ends.</summary>
     [Fact]
     public void The_lifetime_runs_started_counter_advances_and_is_never_negative()
     {
@@ -298,14 +248,9 @@ public sealed class PlayerRehydrateTests
     }
 
     /// <summary>
-    /// 🔒 An absent auto-salvage filter is a fault, not an empty one — the inventory's precedent.
+    /// 🔒 An absent filter read as empty sweeps nothing — indistinguishable from a player who has
+    /// not configured one, so a dropped column would silently turn the feature off.
     /// </summary>
-    /// <remarks>
-    /// Read as empty it sweeps nothing, which looks exactly like a player who has not configured
-    /// one, so a row that failed to write its filter would silently turn the feature off. The
-    /// sibling optional field that IS read as "nothing yet" is asserted beside it, so "a null is a
-    /// fault" stays a claim about THIS field rather than about the reader in general.
-    /// </remarks>
     [Fact]
     public void A_null_auto_salvage_filter_is_refused_by_name()
     {
@@ -321,12 +266,7 @@ public sealed class PlayerRehydrateTests
             .IsSuccess.ShouldBeTrue();
     }
 
-    /// <summary>
-    /// A filter row over a band nothing can be, or below a level no item sits at, is a row nobody
-    /// could have set — and the fault names the ROW, since a filter usually has several.
-    /// </summary>
-    /// <param name="rule">The row the persisted filter carries.</param>
-    /// <param name="fragment">What the fault must say about it.</param>
+    /// <summary>The fault names the ROW, since a filter usually has several.</summary>
     [Theory]
     [InlineData((Rarity)99, 3, "names band '99'")]
     [InlineData(Rarity.C, -1, "sweeps below level -1")]
@@ -346,10 +286,7 @@ public sealed class PlayerRehydrateTests
         result.Error.ShouldContain(fragment, Case.Sensitive);
     }
 
-    /// <summary>
-    /// The negative control for the pair above: a filter whose rows are all legal loads, and the
-    /// rows arrive in the order they were persisted.
-    /// </summary>
+    /// <summary>Negative control: a filter of legal rows loads, in persisted order.</summary>
     [Fact]
     public void A_filter_of_legal_rows_rehydrates_in_the_order_it_was_persisted()
     {
@@ -373,10 +310,7 @@ public sealed class PlayerRehydrateTests
             () => Core.Model.Player.Rehydrate(PlayerSnapshots.Valid, null!));
     }
 
-    /// <summary>
-    /// Every fault the row has is reported, not just the first. A row is usually corrupt in more
-    /// than one way, and one round trip per defect is one too many once it is in production.
-    /// </summary>
+    /// <summary>One round trip per defect is one too many once the row is in production.</summary>
     [Fact]
     public void Every_fault_is_reported_rather_than_only_the_first()
     {

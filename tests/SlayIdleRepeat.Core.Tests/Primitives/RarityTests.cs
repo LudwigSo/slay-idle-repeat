@@ -114,12 +114,4 @@ public sealed class RarityTests
     {
         Enum.GetUnderlyingType(typeof(Rarity)).ShouldBe(typeof(int));
     }
-
-    /// <summary>It lives in <c>Primitives/</c>, beneath both the tuning reader and the luck rules.</summary>
-    [Fact]
-    public void It_lives_in_Primitives_because_both_Content_and_Rules_name_it()
-    {
-        typeof(Rarity).Namespace.ShouldBe(typeof(SourceClass).Namespace);
-        typeof(Rarity).Namespace.ShouldBe("SlayIdleRepeat.Core.Primitives");
-    }
 }

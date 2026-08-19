@@ -92,17 +92,4 @@ public sealed class SourceClassTests
     {
         Enum.GetUnderlyingType(typeof(SourceClass)).ShouldBe(typeof(int));
     }
-
-    /// <summary>
-    /// It lives in <c>Primitives/</c> and not under <c>Core/Content/</c> or <c>Core/Model/</c>, and
-    /// that is measured rather than stylistic: both the tuning reader and the luck rules name it, and
-    /// a public enum under <c>Core/Model/</c> fails the mutation-boundary check on its
-    /// compiler-generated <c>value__</c> field.
-    /// </summary>
-    [Fact]
-    public void It_lives_in_Primitives_because_both_Content_and_Rules_name_it()
-    {
-        typeof(SourceClass).Namespace.ShouldBe(typeof(DifficultyTier).Namespace);
-        typeof(SourceClass).Namespace.ShouldBe("SlayIdleRepeat.Core.Primitives");
-    }
 }

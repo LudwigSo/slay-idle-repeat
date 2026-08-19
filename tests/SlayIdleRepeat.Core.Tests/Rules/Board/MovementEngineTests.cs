@@ -237,14 +237,12 @@ public sealed class MovementEngineTests
     }
 
     /// <summary>
-    /// 🔒 X-10. The clamp is a ONE-TIME stop, not a wall: the move it stops is the one that would
-    /// have carried <em>past</em> the stage's last node, and the run standing on that node afterwards
-    /// leaves it on its next move like any other node.
+    /// X-10. The clamp is a ONE-TIME stop, not a wall: a run standing on a stage's last node leaves
+    /// it on its next move like any other node.
     /// </summary>
     /// <remarks>
-    /// Two step counts rather than one (steering S1): a clamp that re-fired would answer
-    /// <c>(n1, 2 unspent)</c> and <c>(n1, 3 unspent)</c> here, and both landings below discriminate
-    /// against that — a single case could have been satisfied by an off-by-one in the step loop.
+    /// Two step counts rather than one: a single case could be satisfied by an off-by-one in the
+    /// step loop.
     /// </remarks>
     [Theory]
     [InlineData(1, 2)]
@@ -294,24 +292,15 @@ public sealed class MovementEngineTests
     }
 
     /// <summary>
-    /// 🔴 The <em>resumed</em> move — <c>Handlers.ChooseFork</c>'s shape — pinned, because the guard
-    /// that repaired X-10 asks "has THIS call spent a step", and a resumed move is a fresh call
-    /// continuing one roll.
+    /// The <em>resumed</em> move — <c>Handlers.ChooseFork</c>'s shape — where "this call began here"
+    /// and "this move began here" disagree: the engine walks off the boundary instead of clamping,
+    /// so that node is passed without resolving.
     /// </summary>
     /// <remarks>
-    /// <para>
-    /// A fork's chosen edge landing exactly on a stage's last node with movement still owed is the
-    /// one shape where "this call began here" and "this move began here" disagree: the engine walks
-    /// off the boundary instead of clamping on it, so that node is passed without resolving.
-    /// </para>
-    /// <para>
-    /// 🔒 <b>Unreachable on a generated board, and the reason is not in this file.</b>
-    /// <c>BoardGenerator</c> places every junction at a local index no later than
-    /// <c>spineLength − 4</c> and every branch rejoins at <c>junction + branchLen</c>, so neither
-    /// outgoing edge of a junction can land on the stage's last node. This case exists so the
-    /// dependency is written down and a future widening of fork geometry turns up here rather than
-    /// as a skipped tile in play.
-    /// </para>
+    /// Unreachable on a generated board: junctions sit no later than <c>spineLength − 4</c> and
+    /// branches rejoin at <c>junction + branchLen</c>, so no fork edge can land on a stage's last
+    /// node. Pinned so a future widening of fork geometry turns up here rather than as a skipped
+    /// tile in play.
     /// </remarks>
     [Fact]
     public void A_move_resumed_exactly_on_a_stages_last_node_walks_off_the_boundary()
@@ -382,18 +371,12 @@ public sealed class MovementEngineTests
     }
 
     /// <summary>
-    /// 🔒 The boss-exact rule is the stage-end clamp's <em>one named exception</em>, and this is the
-    /// case that shows it: a move that reaches stage 3's last node <em>mid-move</em> carries on onto
-    /// the boss instead of being clamped there.
+    /// The boss-exact rule is the stage-end clamp's one named exception: a move that reaches stage
+    /// 3's last node <em>mid-move</em> carries on onto the boss instead of being clamped there.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>Written because a mutation proved the rule was untested (steering S1).</b> Deleting the
-    /// boss branch outright left all 5 878 Core tests green.
-    /// <see cref="Any_roll_from_stage_3s_last_node_moves_exactly_one_step_onto_the_boss"/> does not
-    /// discriminate it: a move that starts on stage 3's last node reaches the boss either way, since
-    /// the boss node has no outgoing edge and the loop's "out of edges" branch reports it. Only a
-    /// move that has already spent a step — where the stage-end clamp would otherwise bite — tells
-    /// the two implementations apart.
+    /// The only case that discriminates the boss branch (deleting it left the whole suite green): a
+    /// move STARTING on stage 3's last node reaches the boss either way via the out-of-edges arm.
     /// </remarks>
     [Fact]
     public void A_move_that_reaches_stage_3s_last_node_mid_move_carries_on_onto_the_boss()

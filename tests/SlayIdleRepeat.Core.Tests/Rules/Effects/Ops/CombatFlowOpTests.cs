@@ -10,6 +10,12 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Ops;
 /// Combat-flow ops other than <c>STAT_COPY</c> (see <c>StatCopyOpTests</c>) and <c>RANDOM_OUTCOME</c>
 /// (see <c>RandomOutcomeOpTests</c>).
 /// </summary>
+/// <remarks>
+/// Internal seam: what each op hands the engine (the pre-pipeline number and its value-mode reading)
+/// appears in no <c>CombatEvent</c> — a public fight shows only downstream HP. The end-to-end
+/// consequences live in <c>Rules/Combat</c> (<c>DeathSaveTests</c>, <c>CombatFlowStateTests</c>);
+/// the refusals here throw before any fight exists.
+/// </remarks>
 public sealed class CombatFlowOpTests
 {
     /// <summary><c>PK_FLURRY</c>: one extra attack on the current target.</summary>

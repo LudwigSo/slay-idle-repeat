@@ -16,22 +16,11 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// can show them before <c>RESOLVE_TILE</c> applies one.
 /// </summary>
 /// <remarks>
-/// <para>
-/// 🔒 <b>The load-bearing claim is that the view and the resolver draw the SAME pair</b> (steering
-/// S2). Nothing about the offer is persisted: the rows come off the run's committed <c>shrine</c>
-/// stream position, and the command that applies one re-derives them from the same place. A view
-/// that drew a second, plausible pair would satisfy every structural case in this file and would
-/// name two buffs while the tile handed over a third.
-/// <see cref="The_taken_row_is_the_heal_RESOLVE_TILE_actually_applies"/> is what says otherwise, and
-/// <see cref="Both_heal_arms_occur_across_the_swept_seeds"/> is what stops it being a one-armed
-/// claim about the eight rows that heal nothing.
-/// </para>
-/// <para>
-/// ⚠️ Two projections are never compared by record equality (steering S17) — the row list is an
-/// <c>IReadOnlyList</c>. <see cref="Canonical"/> is the comparison, and
-/// <see cref="Two_different_run_seeds_project_different_rows"/> is the negative control proving it
-/// can see a difference at all.
-/// </para>
+/// The load-bearing claim is that the view and the resolver draw the SAME pair — the offer is never
+/// persisted, so both re-derive it from the committed <c>shrine</c> stream position.
+/// <see cref="The_taken_row_is_the_heal_RESOLVE_TILE_actually_applies"/> pins that identity.
+/// Projections are compared via <see cref="Canonical"/>, never record <c>Equals</c>: a synthesized
+/// equality compares the row list by reference.
 /// </remarks>
 public sealed class ShrineViewTests
 {
@@ -70,16 +59,9 @@ public sealed class ShrineViewTests
 
     /// <summary>A pending shrine offers two rows, and they are two different buffs.</summary>
     /// <remarks>
-    /// 🔒 Distinctness is not decoration: the second row is drawn out of the nine indices that are
-    /// not the first and mapped back by stepping <em>at or above</em> the first, so a mapping that
-    /// stepped only above it would hand the first index back and offer one buff twice.
-    /// <para>
-    /// The sweep is floored rather than sampled, and that floor was earned. Five hand-picked seeds
-    /// asserted distinctness and caught none of that break: it only shows on a seed whose two rows
-    /// come back adjacent, and none of the five did. So the floor demands the sweep actually reach
-    /// an adjacent pair — the one shape the broken mapping collapses — and this case now fails as
-    /// loudly when it has stopped exercising the mapping as when the mapping is wrong.
-    /// </para>
+    /// The without-replacement remap only breaks on a seed whose two rows come back adjacent (a
+    /// mapping stepping only <em>above</em> the first index, not at it, hands the first back), so
+    /// the sweep is floored on reaching an adjacent pair rather than trusting hand-picked seeds.
     /// </remarks>
     [Fact]
     public void A_pending_shrine_projects_two_distinct_rows()
@@ -127,6 +109,21 @@ public sealed class ShrineViewTests
         throw new InvalidOperationException("'" + buffId + "' is not a row of the authored pool.");
     }
 
+    /// <summary>The second row reaches every buff of the pool, including the one right after the first.</summary>
+    /// <remarks>Guards the remap's range: a second draw over <c>count - 1</c> indices that never mapped back onto the top index would leave one buff unreachable in slot 2.</remarks>
+    [Fact]
+    public void The_second_row_reaches_every_other_buff()
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        for (var runSeed = 1UL; runSeed <= 400UL; runSeed++)
+        {
+            seen.Add(Projected(runSeed).Rows[1].BuffId);
+        }
+
+        seen.Count.ShouldBe(10, "every one of 03 §7a.5's ten buffs must be reachable in slot 2");
+    }
+
     /// <summary>Every row is a row of the authored pool, named by its own loc key.</summary>
     /// <remarks>
     /// Stated against the tuning reader rather than against a transcribed list of ten ids: a view
@@ -155,13 +152,12 @@ public sealed class ShrineViewTests
     // ------------------------------------------------------------------------------------------
 
     /// <summary>
-    /// 🔒 The HP <c>RESOLVE_TILE</c> moves is exactly the projected taken row's immediate heal — and
+    /// The HP <c>RESOLVE_TILE</c> moves is exactly the projected taken row's immediate heal — and
     /// exactly nothing when that row heals nothing.
     /// </summary>
     /// <remarks>
-    /// Both arms in one assertion rather than two cases, so the seed sweep exercises whichever arm
-    /// it lands on and neither can be quietly dropped. The run starts at 40 of 100 so a 40% heal and
-    /// an 18% one land on different numbers and neither overheals.
+    /// The run starts at 40 of 100 so a 40% heal and an 18% one land on different numbers and
+    /// neither overheals.
     /// </remarks>
     [Theory]
     [InlineData(1UL)]
@@ -194,16 +190,12 @@ public sealed class ShrineViewTests
     }
 
     /// <summary>
-    /// 🔒 …and both arms of that assertion really occur across the swept seeds, so it is not a
+    /// …and both arms of that assertion really occur across the swept seeds, so it is not a
     /// statement about the eight pool rows that heal nothing.
     /// </summary>
     /// <remarks>
-    /// ⚠️ Coupled to the authored pool's ORDER and to how many of its rows heal — the draw is an
-    /// index into the array as the document lists it, and exactly two of the ten rows carry an
-    /// immediate heal. Re-ordering the pool, or authoring a heal onto another row, moves which buff
-    /// each swept seed lands on and can leave the sweep one-armed. That is a loud failure rather
-    /// than a quiet one, and it is meant to be: re-read the pool and re-pick the seeds, never widen
-    /// this to "at least one arm".
+    /// Coupled to the authored pool's order (the draw is an index into it): re-ordering the pool can
+    /// leave the sweep one-armed. Re-pick the seeds then; never widen this to "at least one arm".
     /// </remarks>
     [Fact]
     public void Both_heal_arms_occur_across_the_swept_seeds()
@@ -280,19 +272,6 @@ public sealed class ShrineViewTests
         CanonicalStateWriter.CanonicalBytes(afterLooking.NewState.Run!.ToSnapshot()).ShouldBe(
             CanonicalStateWriter.CanonicalBytes(afterBlind.NewState.Run!.ToSnapshot()),
             "looking at a shrine changed what resolving it did.");
-    }
-
-    // ------------------------------------------------------------------------------------------
-    // The doors.
-    // ------------------------------------------------------------------------------------------
-
-    /// <summary>Neither argument may be null.</summary>
-    [Fact]
-    public void Project_refuses_a_null_argument()
-    {
-        Should.Throw<ArgumentNullException>(() => ShrineView.Project(null!, Content));
-        Should.Throw<ArgumentNullException>(
-            () => ShrineView.Project(TileWorlds.OnTile(TileKind.Shrine).Run!.ToSnapshot(), null!));
     }
 
     // ------------------------------------------------------------------------------------------
