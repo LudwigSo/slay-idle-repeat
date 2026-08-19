@@ -82,6 +82,14 @@ Design-doc authority: `game-design/30_DOMAIN_MODEL.md` governs `Core`'s shape (t
 **No test logic.**
 - No `if`, `for`, `switch` inside a test body. Use the suite's data-driven mechanism instead.
 
+**Write few, discriminating tests — every test must catch a defect no other test catches.**
+- Before writing a test, name the specific wrong implementation that only it would go red on. If an existing test (or another one you are writing) already fails on that implementation, don't write it. Happy-path variants of a theory row, weaker asserts beside exact ones, and aggregate-mutator tests whose behaviour a command already pins through `Apply` are duplicates at birth — the 2026-08 suite review deleted ~200 tests and this was the biggest class.
+- Never test the test's own fixture (table well-formedness, "the theories cover every spec rule"), a type's shape (member lists, enum counts, sealed, record equality — architecture-rule territory), a null guard on an internal type no caller can reach, or a shipped `game-data` value against a literal. See [unit-testing](unit-testing.md) for the full delete-on-sight list — write nothing that list would delete.
+
+**Comments: none, unless the comment carries what the name, the code, and the `because` string cannot.**
+- The default test has **zero comments** — the name states the case, the assertions state the contract, the `because` string states why the number is that number. The same review cut ~3,000 comment lines, almost all: `<summary>` tags restating the test name, remarks duplicating the `because` string, project/milestone history ("added by M4-07 after review found…" — that's `git log`'s job), banner dividers, and essays defending a test's existence.
+- The only comments worth writing: a one-line spec citation, the arithmetic behind a literal, the counterfactual a wrong implementation would produce, or a one-sentence justification of an odd fixture shape. If it needs more than ~3 lines, split the test instead of explaining it. Full rules in [unit-testing](unit-testing.md).
+
 **Prefer fakes over mocks.**
 - Every port already has an in-memory fake in `SlayIdleRepeat.Adapters.InMemory` — use it. There is no case in this project where introducing a mocking library is the right call for code you'd otherwise fake.
 
