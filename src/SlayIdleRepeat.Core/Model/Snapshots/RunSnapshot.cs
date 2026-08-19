@@ -49,13 +49,67 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// player's and holds items from every run they have ever made, so a tally taken from it could not
 /// tell what THIS session earned.
 /// </param>
+/// <param name="ShrineBuffs">
+/// The shrine buffs taken this run, in the order they were taken (`03` §7a.5). A LIST, not a set:
+/// the document says the same buff may appear again at a later shrine and <em>stacks additively</em>,
+/// so a duplicate id is a second stack rather than a no-op, and the order is what makes the
+/// canonical bytes reproducible.
+/// </param>
+/// <param name="RunBuffs">
+/// The run buffs bought from a shop's slot 3 (`03` §7), same list semantics and same reason as
+/// <paramref name="ShrineBuffs"/> — the magnitudes are flat and additive.
+/// </param>
+/// <param name="Curses">
+/// The curses active on this run (`19` Part E). A list for canonical ordering, but with SET
+/// semantics: `19` Part E gives curses no stacking, so <c>Run.ApplyCurse</c> refuses a duplicate
+/// rather than adding a second copy.
+/// </param>
+/// <param name="DieFaceUpgrades">
+/// The run-scoped die-face replacements a Dice Forge tile installed: 1-based face index → the
+/// opaque face code <c>Rules.Dice.DieFaceCodec</c> owns the meaning of. Sparse — an unlisted face is
+/// the starting die's. An <c>int</c> code rather than the face type for `30` §11.4's reason: the die
+/// vocabulary is <c>Rules</c>', and <c>Model</c> may not name it, exactly as
+/// <paramref name="PendingTileKind"/> carries a tile kind.
+/// </param>
+/// <param name="Consumables">
+/// Held consumables (`03` §7.1): consumable id → how many are held. Sparse, and a zero count is
+/// removed rather than stored. Only the two HELD consumables ever appear — the two token
+/// consumables convert to their charge at the till and are never held.
+/// </param>
+/// <param name="EscapeRopeArmed">
+/// Whether an Escape Rope is armed (`03` §7.1). Only one may be armed at a time, which is why this
+/// is a flag and not a count, and it persists across rolls until it fires.
+/// </param>
+/// <param name="RerollChargesGrantedThisStage">
+/// Reroll charges granted on top of the stage's base allotment — Campfire's +2, Reroll Tokens, the
+/// dice-duel minigame's charge (`04` §3). Never negative. Reset at every Stage Gate with
+/// <paramref name="RerollChargesSpentThisStage"/>, because Campfire's grant is for the current
+/// stage only.
+/// </param>
+/// <param name="FreeDraftRerolls">
+/// Free perk-draft rerolls held, from Draft Tokens (`03` §7.1). Never negative. Not per stage: the
+/// token is bought and held until spent.
+/// </param>
+/// <param name="ShopOfferDraw">
+/// The <c>shop</c> stream position the shop offer currently on screen was drawn at, or <c>null</c>
+/// when no shop is open. The offer itself is NOT persisted — it is re-derived from the run seed and
+/// this position, the same way the board and a shrine's two options are, so a resumed run sees the
+/// shop it left.
+/// </param>
+/// <param name="ShopSlotsPurchased">
+/// A bitmask of which slots of the current offer have already been bought — bit <c>i</c> for slot
+/// <c>i</c>. Never negative. Cleared with the offer on a refresh and on leaving the shop.
+/// </param>
+/// <param name="ShopRefreshesUsedThisVisit">
+/// Refreshes spent at the shop currently open. Never negative. Per VISIT, not per run, which is what
+/// `03` §7's "1 free refresh per shop visit" is counted against.
+/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.RunId"/> and
 /// <see cref="Primitives.PlayerId"/>, plus the two dictionaries — a positional record with no members
 /// outside the primary constructor, which is what makes the field-order pin able to describe it at
 /// all. Every timestamp is refused unless its offset is zero, checked by <c>Run.Rehydrate</c>. The
-/// drafted perks, held consumables/Escape Rope flag and curses are still deferred, each guarded by a
-/// <c>GapRegister</c> entry; the board is never stored — it regenerates deterministically from
+/// board is never stored — it regenerates deterministically from
 /// <see cref="RunSeed"/> and <see cref="RngStreamPositions"/>'s <c>board</c> entry on every command.
 /// Adding, removing or reordering any field here bumps <see cref="SnapshotSchema.SchemaVersion"/> and
 /// is a versioned migration, never silent; the field list is pinned in
@@ -96,4 +150,15 @@ public sealed record RunSnapshot(
     int DraftsWithoutAboveCommon = 0,
     int DraftsWithoutOwnedUpgrade = 0,
     LoadoutSnapshot? StartingLoadout = null,
-    int ItemsAtOrAboveFloorBand = 0);
+    int ItemsAtOrAboveFloorBand = 0,
+    IReadOnlyList<string>? ShrineBuffs = null,
+    IReadOnlyList<string>? RunBuffs = null,
+    IReadOnlyList<string>? Curses = null,
+    IReadOnlyDictionary<int, int>? DieFaceUpgrades = null,
+    IReadOnlyDictionary<string, int>? Consumables = null,
+    bool EscapeRopeArmed = false,
+    int RerollChargesGrantedThisStage = 0,
+    int FreeDraftRerolls = 0,
+    ulong? ShopOfferDraw = null,
+    int ShopSlotsPurchased = 0,
+    int ShopRefreshesUsedThisVisit = 0);

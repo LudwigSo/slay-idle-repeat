@@ -191,6 +191,74 @@ public sealed class Run
     /// </remarks>
     private int _itemsAtOrAboveFloorBand;
 
+    /// <summary>The shrine buffs taken this run, in the order taken. Duplicates are stacks, not no-ops.</summary>
+    /// <remarks>
+    /// A list rather than a count map because `03` §7a.5 stacks them additively and the aggregate
+    /// stores what happened rather than the arithmetic — how a stack is valued belongs to the effect
+    /// source, which is a <c>Rules</c> type this layer may not name.
+    /// </remarks>
+    private readonly List<string> _shrineBuffs;
+
+    /// <inheritdoc cref="_shrineBuffs"/>
+    private readonly ReadOnlyCollection<string> _shrineBuffsView;
+
+    /// <summary>The run buffs bought from a shop's slot 3. Same list semantics as <see cref="_shrineBuffs"/>.</summary>
+    private readonly List<string> _runBuffs;
+
+    /// <inheritdoc cref="_runBuffs"/>
+    private readonly ReadOnlyCollection<string> _runBuffsView;
+
+    /// <summary>The curses active on this run. A list for ordering, with set semantics.</summary>
+    /// <remarks>
+    /// `19` Part E gives curses NO stacking, so <see cref="ApplyCurse"/> refuses a duplicate rather
+    /// than appending one. Kept as a list anyway because the canonical encoding needs a stable order
+    /// and a set has none.
+    /// </remarks>
+    private readonly List<string> _curses;
+
+    /// <inheritdoc cref="_curses"/>
+    private readonly ReadOnlyCollection<string> _cursesView;
+
+    /// <summary>Run-scoped die-face replacements: 1-based face index → an opaque face code.</summary>
+    /// <remarks>
+    /// The code is an <c>int</c> for <see cref="_pendingTileKind"/>'s reason — the die vocabulary
+    /// belongs to <c>Rules.Dice</c> and `30` §11.4 forbids <c>Model</c> from naming it. This
+    /// aggregate enforces only what it can see: a face index inside 1..6 and a non-negative code.
+    /// </remarks>
+    private readonly Dictionary<int, int> _dieFaceUpgrades;
+
+    /// <inheritdoc cref="_dieFaceUpgrades"/>
+    private readonly ReadOnlyDictionary<int, int> _dieFaceUpgradesView;
+
+    /// <summary>Held consumables: id → count. A zero count is removed, never stored.</summary>
+    private readonly Dictionary<string, int> _consumables;
+
+    /// <inheritdoc cref="_consumables"/>
+    private readonly ReadOnlyDictionary<string, int> _consumablesView;
+
+    /// <summary>Whether an Escape Rope is armed. A flag, not a count: only one may be armed at a time.</summary>
+    private bool _escapeRopeArmed;
+
+    /// <summary>Reroll charges granted on top of the stage's base allotment. Reset at every Stage Gate.</summary>
+    private int _rerollChargesGrantedThisStage;
+
+    /// <summary>Free perk-draft rerolls held, from Draft Tokens. Not per stage — held until spent.</summary>
+    private int _freeDraftRerolls;
+
+    /// <summary>The <c>shop</c> stream position the open shop's offer was drawn at, or null when no shop is open.</summary>
+    /// <remarks>
+    /// The offer is re-derived from this rather than persisted, on the board's and the shrine's
+    /// precedent: a persisted offer would be a second copy of something the seed already determines,
+    /// and the two could disagree after a content edit.
+    /// </remarks>
+    private ulong? _shopOfferDraw;
+
+    /// <summary>Bit <c>i</c> set once slot <c>i</c> of the open offer has been bought.</summary>
+    private int _shopSlotsPurchased;
+
+    /// <summary>Refreshes spent at the currently open shop. Per visit, not per run.</summary>
+    private int _shopRefreshesUsedThisVisit;
+
     /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
     private Run(
         RunId id,
@@ -225,7 +293,18 @@ public sealed class Run
         int draftsWithoutAboveCommon,
         int draftsWithoutOwnedUpgrade,
         Loadout startingLoadout,
-        int itemsAtOrAboveFloorBand)
+        int itemsAtOrAboveFloorBand,
+        List<string> shrineBuffs,
+        List<string> runBuffs,
+        List<string> curses,
+        Dictionary<int, int> dieFaceUpgrades,
+        Dictionary<string, int> consumables,
+        bool escapeRopeArmed,
+        int rerollChargesGrantedThisStage,
+        int freeDraftRerolls,
+        ulong? shopOfferDraw,
+        int shopSlotsPurchased,
+        int shopRefreshesUsedThisVisit)
     {
         StartingLoadout = startingLoadout;
         _itemsAtOrAboveFloorBand = itemsAtOrAboveFloorBand;
@@ -263,6 +342,22 @@ public sealed class Run
         _bankedLegendXp = bankedLegendXp;
         _bankedSoulShards = bankedSoulShards;
         _bossDefeated = bossDefeated;
+        _shrineBuffs = shrineBuffs;
+        _shrineBuffsView = new ReadOnlyCollection<string>(shrineBuffs);
+        _runBuffs = runBuffs;
+        _runBuffsView = new ReadOnlyCollection<string>(runBuffs);
+        _curses = curses;
+        _cursesView = new ReadOnlyCollection<string>(curses);
+        _dieFaceUpgrades = dieFaceUpgrades;
+        _dieFaceUpgradesView = new ReadOnlyDictionary<int, int>(dieFaceUpgrades);
+        _consumables = consumables;
+        _consumablesView = new ReadOnlyDictionary<string, int>(consumables);
+        _escapeRopeArmed = escapeRopeArmed;
+        _rerollChargesGrantedThisStage = rerollChargesGrantedThisStage;
+        _freeDraftRerolls = freeDraftRerolls;
+        _shopOfferDraw = shopOfferDraw;
+        _shopSlotsPurchased = shopSlotsPurchased;
+        _shopRefreshesUsedThisVisit = shopRefreshesUsedThisVisit;
     }
 
     /// <summary>
@@ -559,7 +654,53 @@ public sealed class Run
         _draftsWithoutAboveCommon,
         _draftsWithoutOwnedUpgrade,
         StartingLoadout.ToSnapshot(),
-        _itemsAtOrAboveFloorBand);
+        _itemsAtOrAboveFloorBand,
+        CopyIds(_shrineBuffs),
+        CopyIds(_runBuffs),
+        CopyIds(_curses),
+        CopyDieFaceUpgrades(_dieFaceUpgrades),
+        CopyConsumables(_consumables),
+        _escapeRopeArmed,
+        _rerollChargesGrantedThisStage,
+        _freeDraftRerolls,
+        _shopOfferDraw,
+        _shopSlotsPurchased,
+        _shopRefreshesUsedThisVisit);
+
+    /// <summary>
+    /// A defensive copy of a die-face upgrade map, run-buff list or consumable pouch — this
+    /// aggregate mutates its own in place, so a snapshot handed out uncopied would keep changing
+    /// after it was taken.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Each short-circuits to a shared empty instance, on <see cref="CopyAdUses"/>'s precedent and
+    /// for its reason: <see cref="RunSnapshot"/>'s synthesized <c>Equals</c> compares a collection
+    /// member BY REFERENCE, so two snapshots of the same empty state would otherwise be unequal as
+    /// records while encoding to identical canonical bytes. Safe to share because each is read-only
+    /// and empty, so nothing can tell a shared instance from a private one.
+    /// </remarks>
+    private static IReadOnlyList<string> CopyIds(List<string> ids) =>
+        ids.Count == 0 ? NoIds : ids.ToArray();
+
+    /// <inheritdoc cref="CopyIds"/>
+    private static IReadOnlyDictionary<int, int> CopyDieFaceUpgrades(Dictionary<int, int> upgrades) =>
+        upgrades.Count == 0 ? NoDieFaceUpgrades : new Dictionary<int, int>(upgrades);
+
+    /// <inheritdoc cref="CopyIds"/>
+    private static IReadOnlyDictionary<string, int> CopyConsumables(Dictionary<string, int> consumables) =>
+        consumables.Count == 0
+            ? NoConsumables
+            : new Dictionary<string, int>(consumables, StringComparer.Ordinal);
+
+    /// <inheritdoc cref="CopyIds"/>
+    private static readonly IReadOnlyList<string> NoIds = Array.Empty<string>();
+
+    /// <inheritdoc cref="CopyIds"/>
+    private static readonly IReadOnlyDictionary<int, int> NoDieFaceUpgrades = new Dictionary<int, int>(0);
+
+    /// <inheritdoc cref="CopyIds"/>
+    private static readonly IReadOnlyDictionary<string, int> NoConsumables =
+        new Dictionary<string, int>(0, StringComparer.Ordinal);
 
     /// <summary>The one validated entry point for a persisted run: a corrupt row fails loudly at the seam.</summary>
     /// <param name="snapshot">The persisted row.</param>
@@ -610,12 +751,20 @@ public sealed class Run
         RequireDraftCounters(snapshot, faults);
         RequireFloorBandTally(snapshot, faults);
         var startingLoadout = ReadStartingLoadout(snapshot, faults);
+        var shrineBuffs = ReadIdList(snapshot.ShrineBuffs, nameof(RunSnapshot.ShrineBuffs), allowDuplicates: true, faults);
+        var runBuffs = ReadIdList(snapshot.RunBuffs, nameof(RunSnapshot.RunBuffs), allowDuplicates: true, faults);
+        var curses = ReadIdList(snapshot.Curses, nameof(RunSnapshot.Curses), allowDuplicates: false, faults);
+        var dieFaceUpgrades = ReadDieFaceUpgrades(snapshot, faults);
+        var consumables = ReadConsumables(snapshot, faults);
+        RequireGrantCounters(snapshot, faults);
+        RequireShopVisit(snapshot, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns
         // null also adds a fault — but they are written as a pattern rather than as `!`
         // operators so the correlation is checked rather than asserted at the compiler.
         if (faults.Count > 0 || streams is null || adUses is null || resolvedMinigames is null ||
-            ownedPerkTiers is null || startingLoadout is null)
+            ownedPerkTiers is null || startingLoadout is null || shrineBuffs is null ||
+            runBuffs is null || curses is null || dieFaceUpgrades is null || consumables is null)
         {
             return Result<Run>.Failure(
                 "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -663,8 +812,236 @@ public sealed class Run
             snapshot.DraftsWithoutAboveCommon,
             snapshot.DraftsWithoutOwnedUpgrade,
             startingLoadout,
-            snapshot.ItemsAtOrAboveFloorBand));
+            snapshot.ItemsAtOrAboveFloorBand,
+            shrineBuffs,
+            runBuffs,
+            curses,
+            dieFaceUpgrades,
+            consumables,
+            snapshot.EscapeRopeArmed,
+            snapshot.RerollChargesGrantedThisStage,
+            snapshot.FreeDraftRerolls,
+            snapshot.ShopOfferDraw,
+            snapshot.ShopSlotsPurchased,
+            snapshot.ShopRefreshesUsedThisVisit));
     }
+
+    // ------------------------------------------------------ the tile-state readers
+
+    /// <summary>
+    /// Reads a list of content ids off the row: never null-holed, never blank, and — where the
+    /// caller says so — never repeated.
+    /// </summary>
+    /// <param name="ids">The persisted list, or <c>null</c> for "none", which is not a fault.</param>
+    /// <param name="field">The snapshot field, for the fault text.</param>
+    /// <param name="allowDuplicates">
+    /// <c>true</c> for the two buff lists, where `03` §7a.5 makes a repeat a second additive stack;
+    /// <c>false</c> for the curse list, where `19` Part E gives curses no stacking at all, so a
+    /// repeated id is a row that could only have been written by a broken rule.
+    /// </param>
+    /// <param name="faults">The accumulating fault list.</param>
+    private static List<string>? ReadIdList(
+        IReadOnlyList<string>? ids, string field, bool allowDuplicates, List<string> faults)
+    {
+        if (ids is null)
+        {
+            return new List<string>();
+        }
+
+        var read = new List<string>(ids.Count);
+        var seen = allowDuplicates ? null : new HashSet<string>(StringComparer.Ordinal);
+        var failed = false;
+
+        for (var i = 0; i < ids.Count; i++)
+        {
+            var id = ids[i];
+
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                faults.Add(
+                    field + "[" + Text(i) + "] is blank. Every entry is a content id the effect " +
+                    "source looks a row up by, and a blank one names no row — silently contributing " +
+                    "nothing while the count says the player has it.");
+                failed = true;
+                continue;
+            }
+
+            if (seen is not null && !seen.Add(id))
+            {
+                faults.Add(
+                    field + " lists '" + id + "' twice. 19 Part E gives curses NO stacking, so a " +
+                    "second copy is not a second stack — it is a row a rule could not have written.");
+                failed = true;
+                continue;
+            }
+
+            read.Add(id);
+        }
+
+        return failed ? null : read;
+    }
+
+    /// <summary>
+    /// Reads the run-scoped die-face replacements: face index inside 1..6, code non-negative.
+    /// </summary>
+    /// <remarks>
+    /// What a code MEANS is <c>Rules.Dice.DieFaceCodec</c>'s, not this aggregate's — `30` §11.4
+    /// forbids <c>Model</c> from naming the die vocabulary, exactly as it forbids it naming the tile
+    /// one. So the bound checked here is the face index, which is a number this layer can reason
+    /// about, plus the one thing true of every code: it is not negative.
+    /// </remarks>
+    private static Dictionary<int, int>? ReadDieFaceUpgrades(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.DieFaceUpgrades is null)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        var read = new Dictionary<int, int>(snapshot.DieFaceUpgrades.Count);
+        var failed = false;
+
+        foreach (var (faceIndex, code) in snapshot.DieFaceUpgrades)
+        {
+            if (faceIndex is < MinFaceIndex or > MaxFaceIndex)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.DieFaceUpgrades) + " names face " + Text(faceIndex) +
+                    ". 04 §1 numbers the die's faces " + Text(MinFaceIndex) + ".." + Text(MaxFaceIndex) +
+                    "; an upgrade to a face that does not exist would be installed on nothing and " +
+                    "read back as a die the player cannot roll.");
+                failed = true;
+                continue;
+            }
+
+            if (code < 0)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.DieFaceUpgrades) + "[" + Text(faceIndex) + "] is " + Text(code) +
+                    ". A face code is a non-negative encoding of (kind, pips, tier); a negative one " +
+                    "decodes to no face at all.");
+                failed = true;
+                continue;
+            }
+
+            read[faceIndex] = code;
+        }
+
+        return failed ? null : read;
+    }
+
+    /// <summary>Reads the held consumables: ids non-blank, counts strictly positive.</summary>
+    /// <remarks>
+    /// A zero count is a FAULT rather than a silently-dropped entry: the aggregate removes an
+    /// exhausted stack instead of storing a zero, so a persisted zero means something wrote the map
+    /// another way — and two rows that both mean "none held" hashing differently is exactly what the
+    /// canonical encoding must not permit.
+    /// </remarks>
+    private static Dictionary<string, int>? ReadConsumables(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.Consumables is null)
+        {
+            return new Dictionary<string, int>(StringComparer.Ordinal);
+        }
+
+        var read = new Dictionary<string, int>(snapshot.Consumables.Count, StringComparer.Ordinal);
+        var failed = false;
+
+        foreach (var (id, count) in snapshot.Consumables)
+        {
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                faults.Add(
+                    nameof(RunSnapshot.Consumables) + " holds a blank id. A consumable is used by " +
+                    "id, and a blank one can never be used — a stack the player owns and cannot spend.");
+                failed = true;
+                continue;
+            }
+
+            if (count <= 0)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.Consumables) + "['" + id + "'] is " + Text(count) +
+                    ". A held stack is at least one: this aggregate REMOVES an exhausted stack " +
+                    "rather than storing a zero, so two rows meaning 'none held' would otherwise " +
+                    "encode to different bytes.");
+                failed = true;
+                continue;
+            }
+
+            read[id] = count;
+        }
+
+        return failed ? null : read;
+    }
+
+    /// <summary>The two grant counters count grants, so neither is negative.</summary>
+    private static void RequireGrantCounters(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.RerollChargesGrantedThisStage < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.RerollChargesGrantedThisStage) + " is " +
+                Text(snapshot.RerollChargesGrantedThisStage) +
+                ". It counts charges GRANTED on top of the stage allotment; a negative grant would " +
+                "take away charges the base allotment already paid for.");
+        }
+
+        if (snapshot.FreeDraftRerolls < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.FreeDraftRerolls) + " is " + Text(snapshot.FreeDraftRerolls) +
+                ". It counts free draft rerolls held, and a negative holding is not a state a " +
+                "purchase or a spend can produce.");
+        }
+    }
+
+    /// <summary>
+    /// The shop-visit trio is coherent: no purchases and no refreshes recorded against a shop that
+    /// is not open, and neither counter negative.
+    /// </summary>
+    /// <remarks>
+    /// The cross-field check is the one that matters. A purchase mask surviving the close of a shop
+    /// would grey out slots of the NEXT shop the run visits — a tile that silently sells less the
+    /// second time — and it is invisible to any per-field bound.
+    /// </remarks>
+    private static void RequireShopVisit(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.ShopSlotsPurchased < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.ShopSlotsPurchased) + " is " + Text(snapshot.ShopSlotsPurchased) +
+                ". It is a bitmask of bought slots, and no bit pattern this game writes is negative.");
+        }
+
+        if (snapshot.ShopRefreshesUsedThisVisit < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.ShopRefreshesUsedThisVisit) + " is " +
+                Text(snapshot.ShopRefreshesUsedThisVisit) + ". A use count is never negative.");
+        }
+
+        if (snapshot.ShopOfferDraw is not null)
+        {
+            return;
+        }
+
+        if (snapshot.ShopSlotsPurchased != 0 || snapshot.ShopRefreshesUsedThisVisit != 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.ShopOfferDraw) + " is null — no shop is open — but " +
+                nameof(RunSnapshot.ShopSlotsPurchased) + " is " + Text(snapshot.ShopSlotsPurchased) +
+                " and " + nameof(RunSnapshot.ShopRefreshesUsedThisVisit) + " is " +
+                Text(snapshot.ShopRefreshesUsedThisVisit) + ". Both belong to the visit and are " +
+                "cleared with it; carried forward they would grey out slots of the NEXT shop this " +
+                "run walks into.");
+        }
+    }
+
+    /// <summary>04 §1 numbers the die's faces 1..6. Named here because <c>Model</c> may not reach the die vocabulary that declares them.</summary>
+    private const int MinFaceIndex = 1;
+
+    /// <inheritdoc cref="MinFaceIndex"/>
+    private const int MaxFaceIndex = 6;
 
     /// <summary>
     /// Reads the loadout the run started with. <c>null</c> is a <b>fault</b>, on the player
@@ -1416,6 +1793,360 @@ public sealed class Run
         _phase = RunPhase.Ended;
     }
 
+
+    // ---------------------------------------------------------- the tile-state members
+    //
+    // Everything a board tile leaves behind on the run: the two additive buff lists, the curse set,
+    // the run-scoped die, the consumable pouch, the two grant counters and the open shop's visit.
+    // Readers are public because a client mirrors them onto a screen; every mutator is internal, so
+    // GameRules.Apply stays the only public way any of it changes.
+
+    /// <summary>The shrine buffs taken this run, in the order taken. A repeat is a second additive stack.</summary>
+    public IReadOnlyList<string> ShrineBuffs => _shrineBuffsView;
+
+    /// <summary>The run buffs bought this run, in the order bought. Additive, like <see cref="ShrineBuffs"/>.</summary>
+    public IReadOnlyList<string> RunBuffs => _runBuffsView;
+
+    /// <summary>The curses active on this run. Never holds one id twice — `19` Part E gives curses no stacking.</summary>
+    public IReadOnlyList<string> Curses => _cursesView;
+
+    /// <summary>The run-scoped die-face replacements: 1-based face index → an opaque face code.</summary>
+    /// <remarks>Sparse: a face with no entry is still the starting die's.</remarks>
+    public IReadOnlyDictionary<int, int> DieFaceUpgrades => _dieFaceUpgradesView;
+
+    /// <summary>Held consumables: id → count. Never holds a zero.</summary>
+    public IReadOnlyDictionary<string, int> Consumables => _consumablesView;
+
+    /// <summary>Whether an Escape Rope is armed and waiting to fire on the next landing.</summary>
+    public bool EscapeRopeArmed => _escapeRopeArmed;
+
+    /// <summary>Reroll charges granted on top of the stage's base allotment. Reset at every Stage Gate.</summary>
+    internal int RerollChargesGrantedThisStage => _rerollChargesGrantedThisStage;
+
+    /// <summary>Free perk-draft rerolls held.</summary>
+    internal int FreeDraftRerolls => _freeDraftRerolls;
+
+    /// <summary>The <c>shop</c> stream position the open shop's offer was drawn at, or <c>null</c> when none is open.</summary>
+    internal ulong? ShopOfferDraw => _shopOfferDraw;
+
+    /// <summary>Whether a shop is open on this run — i.e. an offer has been drawn and not yet left.</summary>
+    internal bool HasOpenShop => _shopOfferDraw is not null;
+
+    /// <summary>Refreshes spent at the currently open shop.</summary>
+    internal int ShopRefreshesUsedThisVisit => _shopRefreshesUsedThisVisit;
+
+    /// <summary>How many of the given consumable this run holds. Zero for one it holds none of.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="consumableId"/> is null.</exception>
+    public int ConsumableCount(string consumableId)
+    {
+        ArgumentNullException.ThrowIfNull(consumableId);
+
+        return _consumables.GetValueOrDefault(consumableId);
+    }
+
+    /// <summary>How many consumables this run holds in total — what `03` §7.1's held cap is counted against.</summary>
+    internal int HeldConsumableCount
+    {
+        get
+        {
+            var held = 0;
+
+            foreach (var count in _consumables.Values)
+            {
+                held += count;
+            }
+
+            return held;
+        }
+    }
+
+    /// <summary>Whether the given curse is active on this run.</summary>
+    /// <exception cref="ArgumentNullException"><paramref name="curseId"/> is null.</exception>
+    public bool HasCurse(string curseId)
+    {
+        ArgumentNullException.ThrowIfNull(curseId);
+
+        return _curses.Contains(curseId, StringComparer.Ordinal);
+    }
+
+    /// <summary>Whether slot <paramref name="slotIndex"/> of the open shop's offer has already been bought.</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="slotIndex"/> is negative or above 30.</exception>
+    internal bool IsShopSlotPurchased(int slotIndex) =>
+        (_shopSlotsPurchased & ShopSlotBit(slotIndex)) != 0;
+
+    /// <summary>Records a shrine buff taken. Appends: a repeat is a second additive stack, not a no-op.</summary>
+    /// <exception cref="ArgumentException"><paramref name="buffId"/> is blank.</exception>
+    internal void AddShrineBuff(string buffId)
+    {
+        RequireId(buffId, nameof(buffId), "a shrine buff");
+
+        _shrineBuffs.Add(buffId);
+    }
+
+    /// <summary>Records a run buff bought. Appends, for <see cref="AddShrineBuff"/>'s reason.</summary>
+    /// <exception cref="ArgumentException"><paramref name="buffId"/> is blank.</exception>
+    internal void AddRunBuff(string buffId)
+    {
+        RequireId(buffId, nameof(buffId), "a run buff");
+
+        _runBuffs.Add(buffId);
+    }
+
+    /// <summary>
+    /// Applies a curse, unless the run already carries it.
+    /// </summary>
+    /// <returns>
+    /// <c>true</c> when the curse was added, <c>false</c> when the run already had it — an answer
+    /// rather than a throw, because a second draw of a curse the player already carries is an
+    /// ordinary outcome of the tile's own random pool, not a defect.
+    /// </returns>
+    /// <exception cref="ArgumentException"><paramref name="curseId"/> is blank.</exception>
+    internal bool ApplyCurse(string curseId)
+    {
+        RequireId(curseId, nameof(curseId), "a curse");
+
+        if (HasCurse(curseId))
+        {
+            return false;
+        }
+
+        _curses.Add(curseId);
+
+        return true;
+    }
+
+    /// <summary>Removes a curse — the Shrine's Cleanse (`03` §7a.5) and `AD_SKIP_CURSE`.</summary>
+    /// <returns><c>true</c> when one was removed, <c>false</c> when the run did not carry it.</returns>
+    /// <exception cref="ArgumentException"><paramref name="curseId"/> is blank.</exception>
+    internal bool CleanseCurse(string curseId)
+    {
+        RequireId(curseId, nameof(curseId), "a curse");
+
+        return _curses.Remove(curseId);
+    }
+
+    /// <summary>Installs a run-scoped die-face replacement, overwriting whatever stood at that index.</summary>
+    /// <param name="faceIndex">1-based, 1..6.</param>
+    /// <param name="faceCode">The opaque encoding of the replacement face. Never negative.</param>
+    /// <remarks>
+    /// Last write wins, which is <c>Rules.Dice.DieComposer</c>'s own rule for layered upgrade
+    /// sources: a second Dice Forge targeting a face the first already upgraded replaces it rather
+    /// than stacking, because a face IS one thing.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException">The index is outside 1..6, or the code is negative.</exception>
+    internal void UpgradeDieFace(int faceIndex, int faceCode)
+    {
+        if (faceIndex is < MinFaceIndex or > MaxFaceIndex)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(faceIndex), faceIndex,
+                "04 §1 numbers the die's faces " + Text(MinFaceIndex) + ".." + Text(MaxFaceIndex) + ".");
+        }
+
+        if (faceCode < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(faceCode), faceCode,
+                "A face code is a non-negative encoding of (kind, pips, tier). What it MEANS is " +
+                "Rules.Dice.DieFaceCodec's; 30 §11.4 keeps that vocabulary out of Model, so this is " +
+                "the only bound this aggregate can state.");
+        }
+
+        _dieFaceUpgrades[faceIndex] = faceCode;
+    }
+
+    /// <summary>Adds held consumables to the pouch.</summary>
+    /// <param name="consumableId">The consumable id. Never blank.</param>
+    /// <param name="count">How many to add. Strictly positive.</param>
+    /// <remarks>
+    /// The `03` §7.1 held cap of 4 is NOT enforced here, deliberately: the cap is a tunable read from
+    /// content, and this aggregate holds no content. The rule that greys out a purchase which would
+    /// exceed it lives with the handler that reads the number — this seam enforces only what it can
+    /// see, exactly as <see cref="SetHitPoints"/> does with overheal.
+    /// </remarks>
+    /// <exception cref="ArgumentException"><paramref name="consumableId"/> is blank.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is not positive.</exception>
+    internal void AddConsumable(string consumableId, int count)
+    {
+        RequireId(consumableId, nameof(consumableId), "a consumable");
+
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count), count, "Adding zero or fewer consumables is not an addition.");
+        }
+
+        _consumables[consumableId] = _consumables.GetValueOrDefault(consumableId) + count;
+    }
+
+    /// <summary>Spends one held consumable.</summary>
+    /// <returns>
+    /// <c>true</c> when one was spent, <c>false</c> when the run holds none — an answer rather than a
+    /// throw, since "you do not have one" is a player request the handler refuses, not a defect.
+    /// </returns>
+    /// <remarks>The last one removes the entry rather than leaving a zero — see <c>ReadConsumables</c> for why.</remarks>
+    /// <exception cref="ArgumentException"><paramref name="consumableId"/> is blank.</exception>
+    internal bool ConsumeOne(string consumableId)
+    {
+        RequireId(consumableId, nameof(consumableId), "a consumable");
+
+        if (!_consumables.TryGetValue(consumableId, out var held) || held <= 0)
+        {
+            return false;
+        }
+
+        if (held == 1)
+        {
+            _consumables.Remove(consumableId);
+        }
+        else
+        {
+            _consumables[consumableId] = held - 1;
+        }
+
+        return true;
+    }
+
+    /// <summary>Arms the Escape Rope. Idempotent: only one may ever be armed.</summary>
+    internal void ArmEscapeRope() => _escapeRopeArmed = true;
+
+    /// <summary>Clears the armed Escape Rope — it has fired, or the run has left the state it was armed for.</summary>
+    internal void DisarmEscapeRope() => _escapeRopeArmed = false;
+
+    /// <summary>Grants reroll charges on top of the stage's base allotment.</summary>
+    /// <param name="charges">How many. Strictly positive.</param>
+    /// <remarks>
+    /// The stored cap of 5 (`04` §3) is not enforced here for <see cref="AddConsumable"/>'s reason —
+    /// it is <c>Rules.Dice.RerollEconomy</c>'s number, and this aggregate cannot reach it.
+    /// </remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="charges"/> is not positive.</exception>
+    internal void GrantRerollCharges(int charges)
+    {
+        if (charges <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(charges), charges, "Granting zero or fewer charges is not a grant.");
+        }
+
+        _rerollChargesGrantedThisStage += charges;
+    }
+
+    /// <summary>Grants free perk-draft rerolls — the Draft Token consumable's instant effect.</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="rerolls"/> is not positive.</exception>
+    internal void GrantFreeDraftRerolls(int rerolls)
+    {
+        if (rerolls <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(rerolls), rerolls, "Granting zero or fewer rerolls is not a grant.");
+        }
+
+        _freeDraftRerolls += rerolls;
+    }
+
+    /// <summary>Spends one free perk-draft reroll.</summary>
+    /// <returns><c>true</c> when one was spent, <c>false</c> when none was held.</returns>
+    internal bool SpendFreeDraftReroll()
+    {
+        if (_freeDraftRerolls <= 0)
+        {
+            return false;
+        }
+
+        _freeDraftRerolls--;
+
+        return true;
+    }
+
+    /// <summary>
+    /// Opens a shop visit at the given <c>shop</c> stream position, or restocks the open one.
+    /// </summary>
+    /// <param name="offerDraw">The stream position the offer is drawn at.</param>
+    /// <param name="countsAsRefresh">
+    /// <c>true</c> when this is a restock of the shop already open, <c>false</c> when the run has
+    /// just walked in. The two are one method because they differ in exactly one thing — whether the
+    /// visit's refresh counter moves — and splitting them produced two callers that both had to
+    /// remember to clear the purchase mask.
+    /// </param>
+    /// <remarks>
+    /// The purchase mask is cleared either way: the offer behind it is gone, so a surviving bit
+    /// would grey out an unrelated slot of the new one.
+    /// </remarks>
+    internal void StockShop(ulong offerDraw, bool countsAsRefresh)
+    {
+        _shopOfferDraw = offerDraw;
+        _shopSlotsPurchased = 0;
+
+        if (countsAsRefresh)
+        {
+            _shopRefreshesUsedThisVisit++;
+        }
+        else
+        {
+            _shopRefreshesUsedThisVisit = 0;
+        }
+    }
+
+    /// <summary>Records that slot <paramref name="slotIndex"/> of the open offer has been bought.</summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="slotIndex"/> is negative or above 30.</exception>
+    /// <exception cref="InvalidOperationException">No shop is open.</exception>
+    internal void MarkShopSlotPurchased(int slotIndex)
+    {
+        if (_shopOfferDraw is null)
+        {
+            throw new InvalidOperationException(
+                "This run has no open shop to buy a slot of. Handlers.ShopBuy's own legality check " +
+                "is what refuses SHOP_BUY away from a shop, as a RejectionReason, before this seam " +
+                "is reached.");
+        }
+
+        _shopSlotsPurchased |= ShopSlotBit(slotIndex);
+    }
+
+    /// <summary>Closes the shop visit: the offer, the purchase mask and the refresh count go together.</summary>
+    /// <remarks>Idempotent, on <see cref="ClearPendingTile"/>'s argument — it promises a postcondition, not a transition.</remarks>
+    internal void CloseShop()
+    {
+        _shopOfferDraw = null;
+        _shopSlotsPurchased = 0;
+        _shopRefreshesUsedThisVisit = 0;
+    }
+
+    /// <summary>The purchase-mask bit for one slot index.</summary>
+    /// <remarks>
+    /// Bounded at 30 rather than at the shop's authored 4: the slot count is a tunable this
+    /// aggregate cannot read, and what it must refuse is only an index that would shift the sign bit
+    /// off the end of an <c>int</c> and set an unrelated slot — or none at all.
+    /// </remarks>
+    private static int ShopSlotBit(int slotIndex)
+    {
+        if (slotIndex is < 0 or > MaxShopSlotIndex)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(slotIndex), slotIndex,
+                "A shop slot index is 0.." + Text(MaxShopSlotIndex) + " here. 03 §7 authors four " +
+                "slots; this bound is only what the purchase bitmask can physically hold, since the " +
+                "authored count is a tunable Model cannot read.");
+        }
+
+        return 1 << slotIndex;
+    }
+
+    /// <summary>The highest slot index the purchase bitmask can hold without touching an int's sign bit.</summary>
+    private const int MaxShopSlotIndex = 30;
+
+    /// <summary>The shared blank-id refusal for every content id this aggregate stores.</summary>
+    private static void RequireId(string id, string parameterName, string what)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            throw new ArgumentException(
+                "A blank id names " + what + " nothing can look up. Storing it would give the player " +
+                "a holding that contributes nothing and cannot be removed by name.",
+                parameterName);
+        }
+    }
+
     /// <summary>Records that one reroll charge was spent this stage. Called only after the caller has itself confirmed the reroll is affordable.</summary>
     internal void SpendReroll() => _rerollChargesSpentThisStage++;
 
@@ -1431,6 +2162,12 @@ public sealed class Run
         // Reuses SetHitPoints rather than writing _currentHp directly: one seam validates the pair.
         SetHitPoints(healedCurrentHp, _maxHp);
         _rerollChargesSpentThisStage = 0;
+
+        // Campfire's +2 is "for the current stage only" (03 section 2), and a Reroll Token bought in
+        // stage 1 buys a charge for stage 1 -- so the GRANT resets here alongside the SPEND. Reset
+        // together or the two drift: clearing only the spend would hand the next stage every bonus
+        // charge the last one had, refreshed.
+        _rerollChargesGrantedThisStage = 0;
         _stageGateDiceAnchor = diceStreamPositionAtGate;
     }
 

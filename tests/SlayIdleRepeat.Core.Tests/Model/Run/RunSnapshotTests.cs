@@ -178,6 +178,34 @@ public sealed class RunSnapshotTests
             // taken path an encoder can skip without anything else noticing.
             (nameof(RunSnapshot.ItemsAtOrAboveFloorBand), v,
                 RunSnapshots.With(itemsAtOrAboveFloorBand: 1)),
+
+            // ------------------------------------------------ the run-tile state
+            //
+            // Every field a board tile writes. Probed one at a time rather than as a block: they are
+            // written by six different tiles, and a combined probe would go green on any one of them
+            // reaching the encoder.
+            (nameof(RunSnapshot.ShrineBuffs), v, RunSnapshots.With(shrineBuffs: RunSnapshots.Ids("SHR_ATK"))),
+            (nameof(RunSnapshot.RunBuffs), v, RunSnapshots.With(runBuffs: RunSnapshots.Ids("WHETSTONE"))),
+            (nameof(RunSnapshot.Curses), v, RunSnapshots.With(curses: RunSnapshots.Ids("CUR_FRACTURED"))),
+            (nameof(RunSnapshot.DieFaceUpgrades), v,
+                RunSnapshots.With(dieFaceUpgrades: RunSnapshots.DieFaceUpgrades((1, 42)))),
+            (nameof(RunSnapshot.Consumables), v,
+                RunSnapshots.With(consumables: RunSnapshots.Consumables(("CON_HEALTH_DRAUGHT", 1)))),
+            (nameof(RunSnapshot.EscapeRopeArmed), v, RunSnapshots.With(escapeRopeArmed: true)),
+            (nameof(RunSnapshot.RerollChargesGrantedThisStage), v,
+                RunSnapshots.With(rerollChargesGrantedThisStage: 2)),
+            (nameof(RunSnapshot.FreeDraftRerolls), v, RunSnapshots.With(freeDraftRerolls: 1)),
+
+            // The shop trio is probed against an OPEN shop for the pending-tile probes' reason:
+            // Rehydrate refuses purchases or refreshes recorded while no offer is open, so a probe
+            // of a closed shop carrying either would be a row no run can persist.
+            (nameof(RunSnapshot.ShopOfferDraw), v, RunSnapshots.With(shopOfferDraw: 3UL)),
+            (nameof(RunSnapshot.ShopSlotsPurchased),
+                RunSnapshots.With(shopOfferDraw: 3UL),
+                RunSnapshots.With(shopOfferDraw: 3UL, shopSlotsPurchased: 1)),
+            (nameof(RunSnapshot.ShopRefreshesUsedThisVisit),
+                RunSnapshots.With(shopOfferDraw: 3UL),
+                RunSnapshots.With(shopOfferDraw: 3UL, shopRefreshesUsedThisVisit: 1)),
         };
 
         var invisible = probes

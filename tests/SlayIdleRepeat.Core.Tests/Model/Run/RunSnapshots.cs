@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Linq;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 
@@ -133,7 +134,18 @@ internal static class RunSnapshots
         int? draftsWithoutAboveCommon = null,
         int? draftsWithoutOwnedUpgrade = null,
         LoadoutSnapshot? startingLoadout = null,
-        int? itemsAtOrAboveFloorBand = null) =>
+        int? itemsAtOrAboveFloorBand = null,
+        IReadOnlyList<string>? shrineBuffs = null,
+        IReadOnlyList<string>? runBuffs = null,
+        IReadOnlyList<string>? curses = null,
+        IReadOnlyDictionary<int, int>? dieFaceUpgrades = null,
+        IReadOnlyDictionary<string, int>? consumables = null,
+        bool? escapeRopeArmed = null,
+        int? rerollChargesGrantedThisStage = null,
+        int? freeDraftRerolls = null,
+        ulong? shopOfferDraw = null,
+        int? shopSlotsPurchased = null,
+        int? shopRefreshesUsedThisVisit = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -169,7 +181,38 @@ internal static class RunSnapshots
             draftsWithoutAboveCommon ?? 0,
             draftsWithoutOwnedUpgrade ?? 0,
             startingLoadout ?? EmptyLoadout,
-            itemsAtOrAboveFloorBand ?? 0);
+            itemsAtOrAboveFloorBand ?? 0,
+            shrineBuffs ?? Ids(),
+            runBuffs ?? Ids(),
+            curses ?? Ids(),
+            dieFaceUpgrades ?? DieFaceUpgrades(),
+            consumables ?? Consumables(),
+            escapeRopeArmed ?? false,
+            rerollChargesGrantedThisStage ?? 0,
+            freeDraftRerolls ?? 0,
+            shopOfferDraw,
+            shopSlotsPurchased ?? 0,
+            shopRefreshesUsedThisVisit ?? 0);
+
+    /// <summary>
+    /// An id list, empty by default — the shape <c>Run.ToSnapshot</c> writes for a run that has taken
+    /// no shrine buff, bought no run buff and carries no curse.
+    /// </summary>
+    /// <remarks>
+    /// Empty rather than <c>null</c>, and that is what keeps the byte round-trip honest: the
+    /// aggregate always writes a list, so a fixture row holding <c>null</c> would encode differently
+    /// from the row the same state produces after one trip through <c>Rehydrate</c>.
+    /// </remarks>
+    internal static IReadOnlyList<string> Ids(params string[] ids) =>
+        ids.Length == 0 ? Array.Empty<string>() : ids;
+
+    /// <inheritdoc cref="Ids"/>
+    internal static IReadOnlyDictionary<int, int> DieFaceUpgrades(params (int FaceIndex, int Code)[] upgrades) =>
+        upgrades.ToDictionary(u => u.FaceIndex, u => u.Code);
+
+    /// <inheritdoc cref="Ids"/>
+    internal static IReadOnlyDictionary<string, int> Consumables(params (string Id, int Count)[] held) =>
+        held.ToDictionary(h => h.Id, h => h.Count, StringComparer.Ordinal);
 
     /// <summary>
     /// Empty, never <c>null</c> — an absent starting loadout is a fault. Expression-bodied, which
