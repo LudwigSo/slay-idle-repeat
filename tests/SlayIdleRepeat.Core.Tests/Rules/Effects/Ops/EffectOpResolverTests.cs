@@ -20,7 +20,10 @@ public sealed class EffectOpResolverTests
     [Fact]
     public void Every_op_of_18_2_is_routed()
     {
-        EffectOps.All.Count.ShouldBe(42, "18 §11 — and S3's floor under the loop below");
+        EffectOps.All.Count.ShouldBe(
+            41,
+            "18 §11 — and S3's floor under the loop below. ⚠️ 41, not the document's 42: "
+            + "REVEAL_TILES went with the tile preview (16 D42).");
 
         var unrouted = new List<string>();
 

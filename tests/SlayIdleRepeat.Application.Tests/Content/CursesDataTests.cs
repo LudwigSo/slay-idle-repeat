@@ -5,7 +5,7 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>Tests <c>content/curses/curses.json</c>: the ten-curse catalogue and its chapter-gating column.</summary>
+/// <summary>Tests <c>content/curses/curses.json</c>: the nine-curse catalogue and its chapter-gating column.</summary>
 /// <remarks>
 /// ⚠️ Ten, not `19` Part E's twelve. <c>CUR_DIZZY</c> ("the next 3 rolls cannot be rerolled") and
 /// <c>CUR_LEADFOOT</c> ("Chain and Surge faces behave as plain Pip 3") were removed with the reroll
@@ -33,9 +33,9 @@ public sealed class CursesDataTests
     }
 
     [Fact]
-    public void The_catalogue_carries_the_ten_19_part_e_curses_that_are_still_authored()
+    public void The_catalogue_carries_the_nine_19_part_e_curses_that_are_still_authored()
     {
-        Data().Read($"{Document}#/curses").Items.Count.ShouldBe(10);
+        Data().Read($"{Document}#/curses").Items.Count.ShouldBe(9);
     }
 
     /// <summary>Each curse's chapter gate, pinned individually so an edit to any one gate is caught rather than only a change in the aggregate count.</summary>
@@ -48,7 +48,6 @@ public sealed class CursesDataTests
     [InlineData("CUR_FAMISHED", 3)]
     [InlineData("CUR_BRITTLE_BONES", 3)]
     [InlineData("CUR_MISERLY", 3)]
-    [InlineData("CUR_BLIND", 3)]
     [InlineData("CUR_TITHE", 3)]
     public void Each_curse_carries_O13s_chapter_gate(string curseId, int expectedChapter)
     {

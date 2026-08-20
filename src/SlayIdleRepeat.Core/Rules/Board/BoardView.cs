@@ -10,13 +10,13 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// <c>Core</c> can see a tile track or a fork preview at all.
 /// </summary>
 /// <remarks>
-/// ⚠️ <b>The whole board is projected, ungated.</b> Tile preview range is authored content —
-/// <c>StatId.TilePreviewRange</c> and <c>EffectOp.REVEAL_TILES</c>, which perks, a talent rank, an
-/// event outcome and a curse all move — and nothing reads either yet: <c>REVEAL_TILES</c> is one of
-/// the ops queued for the run rather than resolved. Every caller therefore sees every tile. When
-/// that gate is built it belongs in <see cref="Project"/> and not in whatever draws the track — a
-/// screen that clipped the track itself would be a rule living outside the rules assembly, and a
-/// second screen would clip it differently.
+/// 🔒 <b>The whole board is projected, ungated, and that is now the RULE rather than a gap.</b> A
+/// tile preview range used to be authored content — a <c>TILE_PREVIEW</c> stat and a
+/// <c>REVEAL_TILES</c> op that perks, a talent rank, an event outcome and <c>CUR_BLIND</c> all moved
+/// — and none of it was ever read. `16` D42 settled it the other way: the board is completely
+/// visible at all times, because a die that only answers a number is only interesting if the player
+/// can see what the numbers reach. All three are removed, so there is no gate to build here and
+/// nothing for a screen to clip.
 /// </remarks>
 public sealed class BoardView
 {

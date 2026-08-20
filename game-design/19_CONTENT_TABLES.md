@@ -310,10 +310,17 @@ Curses are run-scoped negative effects applied by `TILE_CURSE`, by certain event
 | `CUR_FAMISHED` | Famished | −40% Healing Received | +12% ATK |
 | `CUR_BRITTLE_BONES` | Brittle Bones | −12% Max HP | +8% Crit Chance |
 | `CUR_MISERLY` | Miserly | Shop prices +50% | +600 Gold |
-| `CUR_BLIND` | Blind | Tile preview reduced to 2 | +15% Gold ⚠️ **was +2 Reroll Charges.** Reassigned to the reward `CUR_LEADFOOT` was authored with rather than a number invented here — see below. |
 | `CUR_TITHE` | Tithe | 20% of all Gold gained is lost | +20% gear drop chance |
 
-⚠️ **Ten curses, not twelve.** `CUR_DIZZY` (*the next 3 rolls cannot be rerolled*, +180 Gold) and `CUR_LEADFOOT` (*`Chain` and `Surge` faces behave as plain Pip 3*, +15% Gold) are removed with the reroll and the die's special faces (`04` §5). Neither has a replacement, so the pool a `TILE_CURSE` draws from is two rows short — and `CUR_BLIND` above took `CUR_LEADFOOT`'s freed +15% Gold rather than have a reward number invented for it.
+⚠️ **Nine curses, not twelve.** Three are removed and none replaced, so the pool a `TILE_CURSE` draws from is three rows short:
+
+| Removed | Was | With |
+|---|---|---|
+| `CUR_DIZZY` | *the next 3 rolls cannot be rerolled*, +180 Gold | the reroll (`04` §5) |
+| `CUR_LEADFOOT` | *`Chain` and `Surge` faces behave as plain Pip 3*, +15% Gold | the die's special faces (`04` §5) |
+| `CUR_BLIND` | *Tile preview reduced to 2*, +15% Gold | the tile preview, when the board became permanently visible (`04` §4, `16` D42) |
+
+⚠️ `CUR_BLIND` briefly held `CUR_LEADFOOT`'s freed +15% Gold, rather than have a reward number invented for it. Both rows are gone now, so that reward is unclaimed again.
 
 📐 TUNABLE: all values and pairings. `CUR_HUNTED` and `CUR_TITHE` are the two most likely to need rebalancing — both change the run's economy rather than a single stat.
 

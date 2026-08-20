@@ -194,13 +194,18 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["outcome", "gold", "crowns", "beastFeed", "enhanceStones"],
+            "required": ["outcome", "gold", "crowns", "beastFeed", "enhanceStones", "fixedDice"],
             "properties": {
               "outcome": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
               "gold": { "type": "integer", "minimum": 0 },
               "crowns": { "type": "integer", "minimum": 0 },
               "beastFeed": { "type": "integer", "minimum": 0 },
-              "enhanceStones": { "type": "integer", "minimum": 0 }
+              "enhanceStones": { "type": "integer", "minimum": 0 },
+              "fixedDice": {
+                "description": "03 \u00a76.1 \u2014 how many FIXED DIE CHOICES the row grants. Deliberately NOT chapter-scaled, unlike every currency column beside it: a fixed die is one die whatever chapter it was won in, and scaling it would hand a late-chapter dice duel a fistful. Only MG_DICE_DUEL's Win 2-0 row pays one.",
+                "type": "integer",
+                "minimum": 0
+              }
             }
           }
         }

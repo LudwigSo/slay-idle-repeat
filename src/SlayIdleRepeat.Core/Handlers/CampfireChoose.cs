@@ -7,15 +7,15 @@ using SlayIdleRepeat.Core.Rules.Board.Resolution;
 namespace SlayIdleRepeat.Core.Handlers;
 
 /// <summary>
-/// The <c>CAMPFIRE_CHOOSE</c> handler: one of the campfire's two options (`03` §2) — rest, or
-/// upgrade an owned perk.
+/// The <c>CAMPFIRE_CHOOSE</c> handler: one of the campfire's three options (`03` §2) — rest,
+/// upgrade an owned perk, or take a fixed die.
 /// </summary>
 /// <remarks>
 /// <para>
-/// ⚠️ <b>The campfire's third option is gone with the reroll charge.</b> `03` §2 used to offer "+2
-/// Reroll Charges" beside the rest and the perk upgrade; there is no reroll to charge for any more,
-/// so the option was removed rather than left as a button that grants nothing. The campfire is a
-/// two-way decision until something is authored to take the empty seat.
+/// 🔒 <b>The third option is a fixed die, and it took the seat "+2 Reroll Charges" left empty.</b>
+/// The campfire owes the choice rather than handing a die over, so the player names its number
+/// through <c>CHOOSE_FIXED_DIE</c> — the same door every other grant site uses, because most of
+/// them have no command a number could ride on.
 /// </para>
 /// <para>
 /// 🔒 <b>The perk upgrade is refused when there is nothing to upgrade</b> — a run with no perks, or
@@ -40,12 +40,23 @@ internal static class CampfireChoose
     /// <summary>Upgrade one owned perk to its next tier.</summary>
     internal const int UpgradePerkChoiceIndex = 1;
 
+    /// <summary>How many fixed-die choices the campfire's third option owes. 📐 TUNABLE.</summary>
+    /// <remarks>
+    /// One, where the reroll option it replaced granted two charges. A fixed die is a strictly
+    /// stronger thing than a reroll charge — it is a guaranteed landing rather than a second attempt
+    /// at a random one — so the count is not carried across from what it replaced.
+    /// </remarks>
+    internal const int FixedDiceGranted = 1;
+
+    /// <summary>Take a fixed die, its number chosen through <c>CHOOSE_FIXED_DIE</c>.</summary>
+    internal const int FixedDieChoiceIndex = 2;
+
     /// <summary>Applies <c>CAMPFIRE_CHOOSE</c>.</summary>
-    /// <param name="command">Which of the two options.</param>
+    /// <param name="command">Which of the three options.</param>
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
     /// <returns>
     /// <see cref="RejectionReason.ILLEGAL_STATE"/> when no campfire is pending, the index is outside
-    /// the two, or the upgrade option was chosen with no upgradeable perk; otherwise accepted, with
+    /// the three, or the upgrade option was chosen with no upgradeable perk; otherwise accepted, with
     /// the option applied and the tile cleared.
     /// </returns>
     internal static HandlerResult Handle(CampfireChooseCommand command, HandlerInput input)
@@ -84,6 +95,12 @@ internal static class CampfireChoose
 
                 return HandlerResult.Accept();
             }
+
+            case FixedDieChoiceIndex:
+                run.GrantFixedDieChoices(FixedDiceGranted);
+                run.ClearPendingTile();
+
+                return HandlerResult.Accept();
 
             default:
                 return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);

@@ -184,6 +184,14 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.Curses), v, RunSnapshots.With(curses: RunSnapshots.Ids("CUR_FRACTURED"))),
             (nameof(RunSnapshot.Consumables), v,
                 RunSnapshots.With(consumables: RunSnapshots.Consumables(("CON_HEALTH_DRAUGHT", 1)))),
+
+            // The fixed dice, probed apart: the holding and the debt are written by different seams
+            // — a grant site owes a choice, and CHOOSE_FIXED_DIE turns one into a die — so a combined
+            // probe would go green on either one alone reaching the encoder.
+            (nameof(RunSnapshot.FixedDice), v,
+                RunSnapshots.With(fixedDice: RunSnapshots.FixedDice((3, 1)))),
+            (nameof(RunSnapshot.PendingFixedDieChoices), v,
+                RunSnapshots.With(pendingFixedDieChoices: 1)),
             (nameof(RunSnapshot.EscapeRopeArmed), v, RunSnapshots.With(escapeRopeArmed: true)),
             (nameof(RunSnapshot.FreeDraftRerolls), v, RunSnapshots.With(freeDraftRerolls: 1)),
 

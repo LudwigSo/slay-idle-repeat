@@ -26,7 +26,9 @@ public sealed class RunBoardOpTests
 
         // The floor under the loop below: an empty family would make every assertion vacuous.
         runOps.Length.ShouldBe(
-            11, "18 §2.5 — twelve table rows, APPLY_CURSE/CLEANSE_CURSE are two ops, and two are removed");
+            10,
+            "18 §2.5 — twelve table rows, APPLY_CURSE/CLEANSE_CURSE are two ops, and three are "
+            + "removed: two with the die's special faces, REVEAL_TILES with the tile preview.");
 
         foreach (var op in runOps)
         {
@@ -111,7 +113,7 @@ public sealed class RunBoardOpTests
 
         // The floor: EffectOps.FamilyOf is a hand-written switch; edit one arm and this loop runs
         // zero times and reports success over nothing.
-        runOps.Length.ShouldBe(11, "18 §2.5");
+        runOps.Length.ShouldBe(10, "18 §2.5, less the three removed ops");
 
         foreach (var op in runOps)
         {

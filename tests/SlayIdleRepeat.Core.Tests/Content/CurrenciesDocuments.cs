@@ -32,6 +32,7 @@ internal static class CurrenciesDocuments
     internal static readonly (string Id, long Price)[] ShippedConsumableBasePrice =
     {
         ("CON_HEALTH_DRAUGHT", 140),
+        ("CON_FIXED_DIE_TOKEN", 120),
         ("CON_DRAFT_TOKEN", 160),
         ("CON_ESCAPE_ROPE", 100),
     };

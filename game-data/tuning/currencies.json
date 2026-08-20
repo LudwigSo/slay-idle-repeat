@@ -49,7 +49,7 @@
       "eggChance": 0.06
     },
     "campfire": {
-      "_doc": "03 §2 — the campfire's rest option heals healPctMaxHp of Max HP. Flat across chapters: it is a share of a run-scoped maximum, so it takes no M(c) or G(c) scalar. The campfire's other option (upgrade a perk tier) moves no currency and is authored where that system is; its third option, +2 Reroll Charges, is gone with the reroll.",
+      "_doc": "03 §2 — the campfire's rest option heals healPctMaxHp of Max HP. Flat across chapters: it is a share of a run-scoped maximum, so it takes no M(c) or G(c) scalar. The campfire's other two options move no currency and are authored where those systems are: the perk-tier upgrade, and the fixed die that took the +2 Reroll Charges seat.",
       "healPctMaxHp": 0.4
     },
     "stageGate": {
@@ -78,25 +78,25 @@
   "minigameRewards": {
     "_doc": "03 §6.1 — Chapter 1 base values, multiplied by (1 + 0.35 * (chapter - 1)).",
     "MG_CHEST_PICK": [
-      { "outcome": "BRONZE", "gold": 150, "crowns": 0, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "SILVER", "gold": 300, "crowns": 20, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "GOLD", "gold": 500, "crowns": 60, "beastFeed": 15, "enhanceStones": 0 }
+      { "outcome": "BRONZE", "gold": 150, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "SILVER", "gold": 300, "crowns": 20, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "GOLD", "gold": 500, "crowns": 60, "beastFeed": 15, "enhanceStones": 0, "fixedDice": 0 }
     ],
     "MG_TIMING_BAR": [
-      { "outcome": "HITS_0", "gold": 100, "crowns": 0, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "HITS_1", "gold": 250, "crowns": 0, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "HITS_2", "gold": 400, "crowns": 30, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "HITS_3", "gold": 600, "crowns": 80, "beastFeed": 0, "enhanceStones": 5 }
+      { "outcome": "HITS_0", "gold": 100, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "HITS_1", "gold": 250, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "HITS_2", "gold": 400, "crowns": 30, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "HITS_3", "gold": 600, "crowns": 80, "beastFeed": 0, "enhanceStones": 5, "fixedDice": 0 }
     ],
     "MG_DICE_DUEL": [
-      { "outcome": "LOSS", "gold": 150, "crowns": 0, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "WIN_2_1", "gold": 400, "crowns": 40, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "WIN_2_0", "gold": 550, "crowns": 50, "beastFeed": 0, "enhanceStones": 0 }
+      { "outcome": "LOSS", "gold": 150, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "WIN_2_1", "gold": 400, "crowns": 40, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "WIN_2_0", "gold": 550, "crowns": 50, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 1 }
     ],
     "MG_MEMORY_RUNE": [
-      { "outcome": "FAIL_ROUND_1", "gold": 100, "crowns": 0, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "ROUND_1_ONLY", "gold": 300, "crowns": 25, "beastFeed": 0, "enhanceStones": 0 },
-      { "outcome": "BOTH_ROUNDS", "gold": 550, "crowns": 70, "beastFeed": 20, "enhanceStones": 0 }
+      { "outcome": "FAIL_ROUND_1", "gold": 100, "crowns": 0, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "ROUND_1_ONLY", "gold": 300, "crowns": 25, "beastFeed": 0, "enhanceStones": 0, "fixedDice": 0 },
+      { "outcome": "BOTH_ROUNDS", "gold": 550, "crowns": 70, "beastFeed": 20, "enhanceStones": 0, "fixedDice": 0 }
     ]
   },
   "shopTile": {
@@ -109,6 +109,7 @@
       "PERK": { "COMMON": 180, "RARE": 320, "EPIC": 560, "LEGENDARY": 950 },
       "CONSUMABLE": {
         "CON_HEALTH_DRAUGHT": 140,
+        "CON_FIXED_DIE_TOKEN": 120,
         "CON_DRAFT_TOKEN": 160,
         "CON_ESCAPE_ROPE": 100
       },

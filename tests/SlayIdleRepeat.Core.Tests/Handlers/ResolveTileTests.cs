@@ -399,18 +399,29 @@ public sealed class ResolveTileTests
     /// upgrade landing on the mere acknowledgement turns this red.
     /// </remarks>
     [Fact]
-    public void A_dice_forge_visit_changes_nothing_besides_the_pending_tile()
+    public void A_dice_forge_visit_owes_a_fixed_die_choice_and_moves_nothing_else()
     {
         var state = TileWorlds.OnTile(TileKind.DiceForge, gold: 500, currentHp: 40);
-        var before = BytesBesidesThePendingTile(state);
 
         var result = Resolve(state);
+        var run = result.NewState.Run!;
 
-        result.Events.ShouldBeEmpty("a forge visit that upgrades nothing announces nothing");
-        BytesBesidesThePendingTile(result.NewState).ShouldBe(
-            before,
-            "a Dice Forge visit moved something on the run. The acknowledgement decides nothing; " +
-            "DICE_FORGE_CHOOSE is what installs a face.");
+        result.Events.ShouldBeEmpty(
+            "the forge owes a choice rather than granting anything, so there is nothing to announce");
+
+        run.PendingFixedDieChoices.ShouldBe(
+            Core.Handlers.ResolveTile.DiceForgeFixedDiceGranted,
+            "a forge visit that owed nothing would be a tile the player walks over for free.");
+
+        run.FixedDice.ShouldBeEmpty(
+            "the forge owes a choice; it does not pick a number for the player.");
+
+        // 🔒 The wallet and the hero are the negative half, and they are read explicitly rather than
+        // through a whole-bytes comparison: the pending-choice counter is EXPECTED to move now, so a
+        // bytes pin would have to exclude it and would then stop watching it.
+        run.BalanceOf(CurrencyId.GOLD).ShouldBe(500L, "a forge visit costs nothing and pays nothing.");
+        run.CurrentHp.ShouldBe(40, "a forge visit does not touch the hero.");
+        run.HasPendingTile.ShouldBeFalse("nothing can clear the tile after this, so it clears itself.");
     }
 
     /// <summary>

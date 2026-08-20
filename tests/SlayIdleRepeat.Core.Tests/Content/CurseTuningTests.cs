@@ -36,10 +36,10 @@ public sealed class CurseTuningTests
     [Theory]
     [InlineData(1, 3)]
     [InlineData(2, 3)]
-    [InlineData(3, 9)]
-    [InlineData(4, 9)]
-    [InlineData(5, 10)]
-    [InlineData(8, 10)]
+    [InlineData(3, 8)]
+    [InlineData(4, 8)]
+    [InlineData(5, 9)]
+    [InlineData(8, 9)]
     public void The_chapter_gate_opens_a_curse_and_keeps_it_open(int chapterId, int expected)
     {
         Shipped.AvailableFrom(chapterId).Count.ShouldBe(expected);
@@ -116,7 +116,6 @@ public sealed class CurseTuningTests
     [Theory]
     [InlineData("CUR_HUNTED")]
     [InlineData("CUR_FAMISHED")]
-    [InlineData("CUR_BLIND")]
     [InlineData("CUR_NOT_REAL")]
     public void An_unpayable_curse_is_refused(string curseId)
     {

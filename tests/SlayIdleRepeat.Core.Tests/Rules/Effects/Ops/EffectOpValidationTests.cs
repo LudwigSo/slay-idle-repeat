@@ -19,7 +19,7 @@ public sealed class EffectOpValidationTests
     [Fact]
     public void No_op_falls_through_to_the_validators_default_arm()
     {
-        EffectOps.All.Count.ShouldBe(42, "18 §11 — the floor under the loop");
+        EffectOps.All.Count.ShouldBe(41, "18 §11 — the floor under the loop. ⚠️ 41, not the document's 42: REVEAL_TILES went with the tile preview (16 D42).");
 
         var uncovered = new List<string>();
 

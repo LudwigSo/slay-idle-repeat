@@ -48,6 +48,14 @@ internal static class FeatCounterProjection
 
     internal const string DiceRolledCounter = "dice_rolled";
 
+    /// <summary>The counter that counts fixed dice spent — a MOVE that was chosen, never rolled.</summary>
+    /// <remarks>
+    /// 🔒 Counted apart from <see cref="DiceRolledCounter"/> on purpose: "how many times have you
+    /// rolled" and "how many times have you refused to" are two different questions, and one counter
+    /// serving both would answer neither.
+    /// </remarks>
+    internal const string FixedDieUsedCounter = "fixed_die_used";
+
     /// <summary>Every counter advance the events in one <c>Apply</c> call imply, in the order they happened.</summary>
     /// <param name="events">One command's event list.</param>
     /// <returns>The advances, or an empty list — allocation-free — when the events imply none.</returns>
@@ -77,6 +85,13 @@ internal static class FeatCounterProjection
                     advances ??= new List<FeatCounterIncrement>();
                     advances.Add(new FeatCounterIncrement(DiceRolledCounter, 1L));
                     advances.Add(new FeatCounterIncrement(PipsRolledCounterFor(roll.Pips), 1L));
+
+                    break;
+
+                case FixedDieUsed spent:
+                    advances ??= new List<FeatCounterIncrement>();
+                    advances.Add(new FeatCounterIncrement(FixedDieUsedCounter, 1L));
+                    advances.Add(new FeatCounterIncrement(FixedDieUsedCounterFor(spent.Pips), 1L));
 
                     break;
 
@@ -113,6 +128,27 @@ internal static class FeatCounterProjection
             "04 §1's die shows 1..6 pips; " + Text(pips) + " is outside that range, so no lifetime " +
             "counter can be named for this roll. A zero reads as a DiceRolled a handler built " +
             "without drawing anything."),
+    };
+
+    /// <summary>The counter that counts fixed dice spent showing a particular number.</summary>
+    /// <remarks>
+    /// The second axis over the same event, matching <see cref="PipsRolledCounterFor"/>'s shape for
+    /// rolls: which numbers a player chooses to bank and spend is the whole texture of the mechanic,
+    /// and it is answerable from today's event or never.
+    /// </remarks>
+    /// <exception cref="InvalidOperationException"><paramref name="pips"/> is outside the die's range.</exception>
+    internal static string FixedDieUsedCounterFor(int pips) => pips switch
+    {
+        1 => "fixed_die_used_pips_1",
+        2 => "fixed_die_used_pips_2",
+        3 => "fixed_die_used_pips_3",
+        4 => "fixed_die_used_pips_4",
+        5 => "fixed_die_used_pips_5",
+        6 => "fixed_die_used_pips_6",
+        _ => throw new InvalidOperationException(
+            "04 §1's die shows 1..6 pips; " + Text(pips) + " is outside that range, so no lifetime " +
+            "counter can be named for this move. A zero reads as a FixedDieUsed a handler built " +
+            "without spending anything."),
     };
 
     /// <summary>The counter that accumulates one currency's lifetime income, or its lifetime spend.</summary>

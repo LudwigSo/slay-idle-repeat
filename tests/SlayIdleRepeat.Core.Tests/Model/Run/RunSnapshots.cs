@@ -137,6 +137,8 @@ internal static class RunSnapshots
         IReadOnlyList<string>? runBuffs = null,
         IReadOnlyList<string>? curses = null,
         IReadOnlyDictionary<string, int>? consumables = null,
+        IReadOnlyDictionary<int, int>? fixedDice = null,
+        int? pendingFixedDieChoices = null,
         bool? escapeRopeArmed = null,
         int? freeDraftRerolls = null,
         ulong? shopOfferDraw = null,
@@ -180,6 +182,8 @@ internal static class RunSnapshots
             runBuffs ?? Ids(),
             curses ?? Ids(),
             consumables ?? Consumables(),
+            fixedDice ?? FixedDice(),
+            pendingFixedDieChoices ?? 0,
             escapeRopeArmed ?? false,
             freeDraftRerolls ?? 0,
             shopOfferDraw,
@@ -197,6 +201,10 @@ internal static class RunSnapshots
     /// </remarks>
     internal static IReadOnlyList<string> Ids(params string[] ids) =>
         ids.Length == 0 ? Array.Empty<string>() : ids;
+
+    /// <inheritdoc cref="Ids"/>
+    internal static IReadOnlyDictionary<int, int> FixedDice(params (int Pips, int Count)[] held) =>
+        held.ToDictionary(h => h.Pips, h => h.Count);
 
     /// <inheritdoc cref="Ids"/>
     internal static IReadOnlyDictionary<string, int> Consumables(params (string Id, int Count)[] held) =>

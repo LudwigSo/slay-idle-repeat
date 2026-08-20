@@ -56,7 +56,10 @@ public sealed class EffectSchemaTests
         counts.Where(c => c.Value > 1).Select(c => c.Key)
               .ShouldBeEmpty("an op in two branches matches two oneOf branches and can never validate");
 
-        counts.Count.ShouldBe(42, "18 §11 — and S3's floor under the loops above");
+        counts.Count.ShouldBe(
+            41,
+            "18 §11 — and S3's floor under the loops above. ⚠️ 41, not the document's 42: "
+            + "REVEAL_TILES went with the tile preview (16 D42).");
     }
 
     /// <summary>The same partition over the 23 trigger kinds and the schema's trigger branches.</summary>
@@ -904,7 +907,7 @@ public sealed class EffectSchemaTests
         Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
         // The count is asserted, not merely implied by the partition below, so a branch appearing
         // or vanishing is a decision.
-        branches!.Items.Count.ShouldBe(16, "18 §2's 42 ops partition into sixteen key shapes");
+        branches!.Items.Count.ShouldBe(16, "18 §2's 41 ops partition into sixteen key shapes");
 
         foreach (var branch in branches.Items)
         {

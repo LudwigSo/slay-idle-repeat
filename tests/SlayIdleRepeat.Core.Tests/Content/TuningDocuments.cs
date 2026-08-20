@@ -224,8 +224,8 @@ internal static class TuningDocuments
     /// <summary>The authored top-tier outcome token of MG_CHEST_PICK — the chest pick's guarantee token.</summary>
     internal const string ShippedChestPickTopOutcome = "GOLD";
 
-    /// <summary>Per-minigame reward array, in (outcome, gold, crowns, beastFeed, enhanceStones, rerollCharges) order.</summary>
-    private static ContentValue Rewards(params (string Outcome, int Gold, int Crowns, int BeastFeed, int EnhanceStones, int RerollCharges)[] rows) =>
+    /// <summary>Per-minigame reward array, in (outcome, gold, crowns, beastFeed, enhanceStones, fixedDice) order.</summary>
+    private static ContentValue Rewards(params (string Outcome, int Gold, int Crowns, int BeastFeed, int EnhanceStones, int FixedDice)[] rows) =>
         ContentValue.Array(rows.Select(row => ContentValue.Object(new Dictionary<string, ContentValue>(StringComparer.Ordinal)
         {
             ["outcome"] = ContentValue.Text(row.Outcome),
@@ -233,6 +233,6 @@ internal static class TuningDocuments
             ["crowns"] = ContentValue.Number(row.Crowns),
             ["beastFeed"] = ContentValue.Number(row.BeastFeed),
             ["enhanceStones"] = ContentValue.Number(row.EnhanceStones),
-            ["rerollCharges"] = ContentValue.Number(row.RerollCharges),
+            ["fixedDice"] = ContentValue.Number(row.FixedDice),
         })));
 }

@@ -60,15 +60,19 @@ public static class GameRules
     /// </remarks>
     private static readonly CommandDispatch Dispatch = new CommandDispatch()
 
-        // ------------------------------------------------ the 20 RUN commands
+        // ------------------------------------------------ the 22 RUN commands
         //
         // 🔒 20, not 22: SHOP_LEAVE and SHRINE_CHOOSE were added to `14` §2.3's registry, each
         // carrying a player choice a tile makes and no existing command could express. USE_REROLL and
         // DICE_FORGE_CHOOSE were then removed with the reroll and the die's special faces — a reroll
         // has nothing to spend and a forge has no face to install, so both rows became commands that
-        // could only be refused. Their wire names stay retired rather than reused.
+        // could only be refused. Their wire names stay retired rather than reused. USE_FIXED_DIE and
+        // CHOOSE_FIXED_DIE then arrived with the run-scoped fixed dice that replaced the faces: a
+        // second way to MOVE, and the one command every grant site's number choice is answered by.
         .Handled<StartRunCommand>("START_RUN", CommandKind.Run, StartRun.Handle, opensRun: true)
         .Handled<RollDiceCommand>("ROLL_DICE", CommandKind.Run, RollDice.Handle)
+        .Handled<UseFixedDieCommand>("USE_FIXED_DIE", CommandKind.Run, UseFixedDie.Handle)
+        .Handled<ChooseFixedDieCommand>("CHOOSE_FIXED_DIE", CommandKind.Run, ChooseFixedDie.Handle)
         .Handled<ChooseForkCommand>("CHOOSE_FORK", CommandKind.Run, ChooseFork.Handle)
         .Handled<ResolveTileCommand>("RESOLVE_TILE", CommandKind.Run, ResolveTile.Handle)
         .Handled<PickPerkCommand>("PICK_PERK", CommandKind.Run, PickPerk.Handle)

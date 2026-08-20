@@ -53,7 +53,11 @@ The draw is **uniform** over the six sides, straight off the run's `dice` RNG st
 
 ## 4. The player-facing surface
 
-One control: the roll button, the largest interactive element on the board screen and inside the thumb zone (`13` §3). It is a single tap and it is final.
+**Two controls.** The roll button — the largest interactive element on the board screen and inside the thumb zone (`13` §3), a single tap, and final. And the **fixed-die tray**, which the player may spend instead of rolling; see §6.
+
+🔒 **The board is completely visible at all times.** There is no fog, no preview range and no reveal distance: every tile of every stage is drawn from the moment the run starts. This is load-bearing rather than a convenience — a die that only answers a number is only an interesting decision if the player can see what the numbers reach, and it is the entire reason a *fixed* die is worth choosing a number for.
+
+⚠️ A tile preview range used to be authored content: a `TILE_PREVIEW` stat and a `REVEAL_TILES` op that perks, a talent rank, an event outcome and `CUR_BLIND` all moved. None of it was ever read by anything, and all of it is removed rather than left as a gate nobody may build — see `16` D42, and `19` Part E for the curse.
 
 ⚠️ **There is no Die Panel.** Screen S12 showed the current six faces with the source that granted each, because *a hidden die is a hostile die* — a real concern when talents, mounts, perks, forge upgrades and curses could all rewrite a face. A die that is always 1..6 has nothing to disclose, so the screen is gone rather than emptied. `13` §1's screen register moves with it.
 
@@ -70,7 +74,7 @@ Recorded here rather than deleted silently, because most of it is referenced fro
 | `DieFaceKind` — `Star`, `Surge`, `Fortune`, `Void`, `Chain` | Five special faces beside `Pip`: choose-your-movement, move-and-heal, move-and-double-the-tile, stay-and-re-resolve, move-and-roll-again | This document; `19` Part E's `CUR_LEADFOOT`; `17` §9's Dicelord |
 | Face `Tier` (0..3) | Scaled a face's non-movement effect | This document |
 | The five upgrade sources | Talent tree Fortune branch (`09` §6), mount face grants (`07`), `TILE_DICE_FORGE`, run perks, curse downgrades | `09_TALENT_TREE.md`; `07_HERO_PETS_MOUNTS.md`; `03` §2's tile list |
-| **Reroll charges** | 1/stage base, +2 from a Campfire choice, +2 from talents, perks, the Reroll Token consumable, `AD_REROLL_DICE`, cap 5 | `03` §2's campfire; `03` §7.1's consumables; `12` §4.1's ad placements |
+| **Reroll charges** | 1/stage base, +2 from a Campfire choice, +2 from talents, perks, the Reroll Token consumable, `AD_REROLL_DICE`, cap 5 | Replaced: every one of those grant sites now grants a **fixed die** instead (§6.4). The two that are not re-pointed — a gear affix and the Fateweave set bonus — are §6.4's open holes. |
 | **Nudge** | A talent-granted ±1 on a roll, 1/stage | `09_TALENT_TREE.md` |
 | **Fair Dice** | The weighted-bag smoothing and its settings row | §2 above; `13` §8's settings list |
 | The Die Panel (S12) | The screen that disclosed the composed die | §4 above; `13` §1 |
@@ -88,3 +92,62 @@ Recorded here rather than deleted silently, because most of it is referenced fro
 - The Stage Gate's heal. The gate used to also refresh reroll charges and re-anchor the Fair-Dice bag; the heal is now all it does.
 - `CUR_SLIPPERY`. It reads a roll's number, which a plain die still has.
 - The **perk draft's** reroll (`REROLL_DRAFT`, Draft Tokens, `AD_REROLL_PERK`, the free-reroll count). A different mechanic that happens to share a word, and untouched throughout.
+
+---
+
+## 6. Fixed dice
+
+A **fixed die** is a die with one number written on it. Spending one moves the hero **exactly that many nodes**, and the die is gone.
+
+It is the answer to the question an ordinary die raises: if the board is the interesting part and the roll is just a number, the player is a spectator to the one input the game has. A fixed die is the input. It is not a reroll — nothing is re-drawn and no result is replaced — it is a **second, deterministic movement command** the player may take instead of rolling.
+
+### 6.1 The two ways to move
+
+| | Roll | Spend a fixed die |
+|---|---|---|
+| Result | uniform 1..6 off the `dice` stream | exactly the number on the die |
+| Cost | free, always available | consumes the die |
+| RNG | one draw | **zero draws** |
+| `CUR_SLIPPERY` | −1, floor 1 | **does not apply** |
+| Command | `ROLL_DICE` | `USE_FIXED_DIE { pips }` |
+
+🔒 **A curse does not shorten a fixed die.** `CUR_SLIPPERY` takes 1 off a *roll* and deliberately not off this. A fixed die's whole promise is *this many steps*, and a curse that silently broke it would make the one dependable tool in the game undependable — the player would have to remember which curses they carry before reading their own dice.
+
+🔒 **Spending one takes no draw from the `dice` stream.** A deterministic move that consumed randomness would shift every later roll of the same seed for no reason, which is a replay divergence with no cause.
+
+### 6.2 The player picks the number
+
+A grant does not hand over *a 3*. It hands over **a choice**, which the player answers with `CHOOSE_FIXED_DIE { pips }`, naming any number 1..6.
+
+That is the whole design: the reward is worth something because the player decides what it is worth, having looked at the board. Rolling a granted 3 that lands on a Trap is not a reward.
+
+The choice is **owed and persisted**, not resolved at the grant, because most grant sites carry no command a number could ride on — an event outcome is drawn by weight, a minigame reward is decided by play, and an ad reward and a set bonus are entirely passive. A run therefore holds two things: the dice it owns, and the choices it still owes.
+
+⚠️ **An owed choice blocks nothing.** Unlike a pending perk draft, which refuses every other run command until answered, a fixed-die grant can land mid-shop-visit and the player may keep rolling with it outstanding. Interrupting them to name a number would be the worse trade.
+
+### 6.3 Holding them
+
+A run's dice are a **multiset, uncapped**: two dice showing 3 are the same holding twice, so a count is the whole truth. Nothing is per-stage, nothing refreshes, and nothing expires — a die held at the boss is a die spent at the boss.
+
+⚠️ **Uncapped is a decision, not an omission.** The recommendation was a cap of 4 (the consumable cap's precedent). It was overruled: a cap turns every grant past the ceiling into a silently wasted reward, and the grant rate is low enough that hoarding is a plan rather than an exploit. 🔴 If hoarding does turn out to dominate, the cap is the lever, and it belongs here.
+
+### 6.4 Where they come from
+
+Every grant site below is one the reroll used to own. That is deliberate — the reroll's grants were the design's already-balanced answer to *how often should the player get a small movement favour*, and re-pointing them costs nothing a new economy would have to re-derive.
+
+| Site | Grant | Where |
+|---|---|---|
+| `TILE_CAMPFIRE`, third option | 1 choice | `03` §2 |
+| `TILE_DICE_FORGE` | 1 choice | §5.1, and see the note below |
+| `CON_FIXED_DIE_TOKEN` | 1 choice, instant at the till | `03` §7.1 |
+| Shop tile, slot 2 | sells the token | `03` §7 |
+| Minigame rewards | 1 choice on a win | `20` — **not** chapter-scaled |
+| Resource dungeons | 1 choice | `25` §3 |
+| `AD_FIXED_DIE` | 1 choice, 2 per run | `12` §4.1 |
+
+⚠️ **`TILE_DICE_FORGE` grants one and remains a placeholder.** A tile that does nothing was the worse of the two holes (§5.1), so the forge grants a fixed-die choice until its repurposing lands. That is a stopgap and is not the design the tile is owed.
+
+🔴 **Two grant sites the reroll had are still empty**: a gear affix and the Fateweave set bonus. Both would need new effects-DSL stat vocabulary — a fixed die is a *held object*, not a stat, and `18` has no way to say "grant one of these". Neither is wired, and neither pretends to be.
+
+⚠️ **Six event-card outcomes (`19` Part A) are still unpayable.** They granted reroll charges; the board-events op vocabulary has no way to grant a fixed-die choice yet, so they resolve as `UNSUPPORTED`. That is the largest remaining hole in this mechanic.
+

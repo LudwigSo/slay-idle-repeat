@@ -179,15 +179,19 @@ internal static class ShopBuy
         }
     }
 
-    /// <summary>`03` §7.1's purchase column: two consumables are held, one converts at the till.</summary>
+    /// <summary>`03` §7.1's purchase column: two consumables are held, two convert at the till.</summary>
     /// <remarks>
-    /// ⚠️ The Reroll Token used to be the second converting one. It is gone with the reroll charge —
-    /// there is nothing for a token to convert into — so the shop no longer stocks it.
+    /// ⚠️ The second converting one was the Reroll Token and is now the Fixed Die Token, which
+    /// converts into a fixed-die CHOICE rather than a die — the number is the player's to name.
     /// </remarks>
     private static void GrantConsumable(Model.Run run, string consumableId)
     {
         switch (consumableId)
         {
+            case Consumables.FixedDieToken:
+                run.GrantFixedDieChoices(1);
+                break;
+
             case Consumables.DraftToken:
                 run.GrantFreeDraftRerolls(1);
                 break;

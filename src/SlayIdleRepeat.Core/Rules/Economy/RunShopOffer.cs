@@ -49,7 +49,7 @@ internal readonly record struct RunShopSlot(
 /// </remarks>
 internal static class RunShopOffer
 {
-    /// <summary>The three consumables of `03` §7.1, in the document's order — slot 2's pool.</summary>
+    /// <summary>The four consumables of `03` §7.1, in the document's order — slot 2's pool.</summary>
     /// <remarks>
     /// A code list rather than a read of the price table's keys: the price table is a map, whose key
     /// order is not a fact the document states, and drawing an index into it would make the offer
@@ -59,6 +59,7 @@ internal static class RunShopOffer
     internal static IReadOnlyList<string> ConsumablePool { get; } = Array.AsReadOnly(new[]
     {
         Consumables.HealthDraught,
+        Consumables.FixedDieToken,
         Consumables.DraftToken,
         Consumables.EscapeRope,
     });

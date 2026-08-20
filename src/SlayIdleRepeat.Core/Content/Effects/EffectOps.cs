@@ -65,7 +65,6 @@ public static class EffectOps
         EffectOp.GRANT_PERK or
         EffectOp.UPGRADE_PERK or
         EffectOp.MOVE_NODES or
-        EffectOp.REVEAL_TILES or
         EffectOp.RESOLVE_TILE_AGAIN or
         EffectOp.MODIFY_SHOP or
         EffectOp.MODIFY_DROP_TABLE or
@@ -74,7 +73,7 @@ public static class EffectOps
 
         _ => throw new ArgumentOutOfRangeException(
             nameof(op), op,
-            "18 §2 declares 42 ops in five families and this value is none of them. A new op belongs " +
+            "18 §2 declares 41 ops in five families and this value is none of them. A new op belongs " +
             "to a family here, to game-data/schema/effect.schema.json and to 18 itself, in one commit " +
             "(18 §10)."),
     };

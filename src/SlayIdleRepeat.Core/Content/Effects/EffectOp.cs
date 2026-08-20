@@ -156,8 +156,8 @@ public enum EffectOp
     /// <summary>Move the token forward/backward N nodes.</summary>
     MOVE_NODES = 37,
 
-    /// <summary>Extend tile preview range.</summary>
-    REVEAL_TILES = 38,
+    // 38 was REVEAL_TILES, "extend tile preview range". The board is completely visible at all times (`04` §4, `16` D42), so nothing can narrow a preview and nothing can widen one. The number stays
+    // retired rather than reused: it is a wire value.
 
     /// <summary>Re-resolve the current tile at a multiplier.</summary>
     RESOLVE_TILE_AGAIN = 39,

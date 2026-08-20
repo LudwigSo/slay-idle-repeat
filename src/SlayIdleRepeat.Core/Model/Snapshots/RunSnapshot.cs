@@ -67,6 +67,17 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// removed rather than stored. Only the two HELD consumables ever appear — the two token
 /// consumables convert to their charge at the till and are never held.
 /// </param>
+/// <param name="FixedDice">
+/// The fixed dice this run holds: pips → how many of that number are held. Sparse, uncapped, and a
+/// zero count is removed rather than stored. A fixed die is spent instead of a roll and moves the
+/// hero exactly its number — see <c>Handlers.UseFixedDie</c>.
+/// </param>
+/// <param name="PendingFixedDieChoices">
+/// Fixed dice granted but not yet given a number by the player. Never negative. Persisted rather
+/// than resolved at the grant because most grant sites carry no command a number could ride on: an
+/// event outcome is drawn by weight, a minigame reward is decided by play, an ad and a set bonus are
+/// passive. <c>CHOOSE_FIXED_DIE</c> answers one, and an owed choice blocks nothing.
+/// </param>
 /// <param name="EscapeRopeArmed">
 /// Whether an Escape Rope is armed (`03` §7.1). Only one may be armed at a time, which is why this
 /// is a flag and not a count, and it persists across rolls until it fires.
@@ -138,6 +149,8 @@ public sealed record RunSnapshot(
     IReadOnlyList<string>? RunBuffs = null,
     IReadOnlyList<string>? Curses = null,
     IReadOnlyDictionary<string, int>? Consumables = null,
+    IReadOnlyDictionary<int, int>? FixedDice = null,
+    int PendingFixedDieChoices = 0,
     bool EscapeRopeArmed = false,
     int FreeDraftRerolls = 0,
     ulong? ShopOfferDraw = null,

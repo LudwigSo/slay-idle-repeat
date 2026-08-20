@@ -39,6 +39,56 @@ public sealed record StartRunCommand(int ChapterId, DifficultyTier Tier) : GameC
 /// <summary><c>ROLL_DICE</c> — roll. The server answers with the number, the movement and the landing outcome in one command.</summary>
 public sealed record RollDiceCommand : GameCommand;
 
+/// <summary>
+/// <c>USE_FIXED_DIE</c> — spend one held fixed die and move exactly its number instead of rolling.
+/// </summary>
+/// <remarks>
+/// 🔒 A command of its own rather than a payload on <see cref="RollDiceCommand"/>, and the reason is
+/// the log: this one takes NO draw from the <c>dice</c> stream while a roll always takes exactly one,
+/// so a single command whose RNG consumption depended on a payload would make every replay read the
+/// payload before it could know where the stream stands.
+/// </remarks>
+/// <param name="Pips">The number on the die to spend, 1..6. The run must hold one showing it.</param>
+public sealed record UseFixedDieCommand(int Pips) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(Pips)} = {Pips}");
+
+        return true;
+    }
+}
+
+/// <summary>
+/// <c>CHOOSE_FIXED_DIE</c> — name the number on a fixed die the run has been granted.
+/// </summary>
+/// <remarks>
+/// 🔒 One command for every grant site. A site records that a choice is owed rather than handing
+/// over a die, because most of them have no command a number could ride on — an event outcome is
+/// drawn by weight, a minigame reward is decided by play, an ad reward and a set bonus are passive.
+/// See <c>Handlers.ChooseFixedDie</c>.
+/// </remarks>
+/// <param name="Pips">The number the granted die shows, 1..6.</param>
+public sealed record ChooseFixedDieCommand(int Pips) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(Pips)} = {Pips}");
+
+        return true;
+    }
+}
+
 /// <summary><c>CHOOSE_FORK</c> — pick a branch at a junction.</summary>
 /// <param name="BranchIndex">
 /// The chosen branch's position in the server-issued branch list — an index rather than a node

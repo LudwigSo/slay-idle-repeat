@@ -150,6 +150,16 @@ internal static class MinigameSubmit
             events.Add(new PityCounterAdvanced(DomainEvent.UnstampedSequence, moved.Key, moved.Value));
         }
 
+        // 🔒 The dice duel's own reward, and the shape of it is the point: winning a game ABOUT dice
+        // pays a die you get to choose the number on. `03` §6.1's "Win 2-0" row is where it is
+        // authored; every other row pays none.
+        if (reward.FixedDice > 0)
+        {
+            // Narrowed after the check, not before: the reward column is a long because every other
+            // column is, and a grant count is an int — the check is what makes the cast safe.
+            run.GrantFixedDieChoices((int)Math.Min(reward.FixedDice, int.MaxValue));
+        }
+
         run.RecordMinigameResolution(run.Position, command.MinigameId);
 
         // Must be cleared here or ROLL_DICE can never legally fire again: RecordMinigameResolution

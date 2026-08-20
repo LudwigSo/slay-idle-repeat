@@ -136,7 +136,6 @@ internal static class InRunIncomeDocuments
         ("CUR_FAMISHED", "+12% ATK", 3),
         ("CUR_BRITTLE_BONES", "+8% Crit Chance", 3),
         ("CUR_MISERLY", "+600 Gold", 3),
-        ("CUR_BLIND", "+15% Gold", 3),
         ("CUR_TITHE", "+20% gear drop chance", 3),
     };
 

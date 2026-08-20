@@ -193,7 +193,7 @@ public sealed class TriggerRoutingTests
     {
         var runOps = EffectOps.All.Where(EffectOps.IsRunAndBoard).ToArray();
 
-        runOps.Length.ShouldBe(11, "18 §2.5 tabulates thirteen run and board ops, less the two removed");
+        runOps.Length.ShouldBe(10, "18 §2.5 tabulates thirteen run and board ops, less the three removed");
 
         foreach (var op in runOps)
         {

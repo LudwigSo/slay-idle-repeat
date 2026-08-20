@@ -180,15 +180,15 @@ public sealed class RunModifierEffectSourceTests
     [Fact]
     public void A_curse_with_no_mechanism_contributes_nothing_and_says_why()
     {
-        Find(Effects(curses: ["CUR_BLIND"]), "curse:CUR_BLIND").ShouldBeNull();
+        Find(Effects(curses: ["CUR_MARKED"]), "curse:CUR_MARKED").ShouldBeNull();
 
-        CurseEffects.UnappliedReason("CUR_BLIND").ShouldNotBeNullOrWhiteSpace(
+        CurseEffects.UnappliedReason("CUR_MARKED").ShouldNotBeNullOrWhiteSpace(
             "an unapplied curse names the mechanism it is missing, or it is indistinguishable from " +
             "one nobody noticed.");
     }
 
     /// <summary>
-    /// 🔒 Every one of `19` Part E's twelve curses is accounted for: applied as a stat, honoured by
+    /// 🔒 Every one of `19` Part E's nine curses is accounted for: applied as a stat, honoured by
     /// the board, or carrying a written reason it is neither.
     /// </summary>
     /// <remarks>
@@ -201,9 +201,10 @@ public sealed class RunModifierEffectSourceTests
         var catalogue = CurseTuning.Read(Content);
 
         catalogue.AvailableFrom(8).Count.ShouldBe(
-            10,
-            "19 Part E authors twelve curses, less CUR_DIZZY and CUR_LEADFOOT — both removed with the " +
-            "reroll and the die's special faces.");
+            9,
+            "19 Part E authors twelve curses, less CUR_DIZZY and CUR_LEADFOOT — both removed with " +
+            "the reroll and the die's special faces — and less CUR_BLIND, removed with the tile " +
+            "preview when the board became permanently visible (16 D42).");
 
         foreach (var row in catalogue.AvailableFrom(8))
         {

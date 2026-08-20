@@ -343,7 +343,6 @@
             "GRANT_PERK",
             "UPGRADE_PERK",
             "MOVE_NODES",
-            "REVEAL_TILES",
             "RESOLVE_TILE_AGAIN",
             "MODIFY_SHOP",
             "MODIFY_DROP_TABLE",
@@ -394,35 +393,35 @@
     },
 
     "stat": {
-      "description": "18 §2.1 — the 26 stats: fourteen combat, twelve non-combat. 🔒 ALL_COMBAT is deliberately absent: it names a SET of stats, has no base value, no cap and no row in the aggregation, and the fourteen combat entries here are exactly the actor stat block the combat document fixes.",
+      "description": "18 §2.1 — the 24 stats: fourteen combat, ten non-combat. 🔒 ALL_COMBAT is deliberately absent: it names a SET of stats, has no base value, no cap and no row in the aggregation, and the fourteen combat entries here are exactly the actor stat block the combat document fixes.",
       "enum": [
         "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
         "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
         "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
-        "PET_AURA_PCT", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "PET_AURA_PCT", "SHOP_PRICE_PCT",
         "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT"
       ]
     },
 
     "statSelector": {
-      "description": "18 §2.1 plus 18 §9.1's ALL_COMBAT — the 26 stats or the combat group. Admitted only by STAT_ADD_FLAT, STAT_ADD_PCT and STAT_MULT.",
+      "description": "18 §2.1 plus 18 §9.1's ALL_COMBAT — the 24 stats or the combat group. Admitted only by STAT_ADD_FLAT, STAT_ADD_PCT and STAT_MULT.",
       "enum": [
         "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
         "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
         "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
-        "PET_AURA_PCT", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "PET_AURA_PCT", "SHOP_PRICE_PCT",
         "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT",
         "ALL_COMBAT"
       ]
     },
 
     "statCopySelector": {
-      "description": "18 §2.4 — the 26 stats or HIGHEST_PCT_BONUS, which names whichever stat carries the largest percent bucket at copy time. Admitted only by STAT_COPY.",
+      "description": "18 §2.4 — the 24 stats or HIGHEST_PCT_BONUS, which names whichever stat carries the largest percent bucket at copy time. Admitted only by STAT_COPY.",
       "enum": [
         "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
         "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
         "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
-        "PET_AURA_PCT", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "PET_AURA_PCT", "SHOP_PRICE_PCT",
         "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT",
         "HIGHEST_PCT_BONUS"
       ]
@@ -448,7 +447,7 @@
         "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
         "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
         "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
-        "PET_AURA_PCT", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "PET_AURA_PCT", "SHOP_PRICE_PCT",
         "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT"
       ]
     },

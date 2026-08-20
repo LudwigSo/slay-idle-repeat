@@ -84,8 +84,8 @@ public enum StatId
     // 21 was REROLL_CHARGES. Nothing can grant a reroll charge any more, so no effect, affix or
     // set bonus may name the stat. The number stays retired rather than reused: it is a wire value.
 
-    /// <summary>Tile preview range.</summary>
-    TILE_PREVIEW = 22,
+    // 22 was TILE_PREVIEW, the tile preview range. The board is completely visible at all times (`04` §4, `16` D42), so nothing can narrow a preview and nothing can widen one. The number stays retired
+    // rather than reused: it is a wire value.
 
     /// <summary>Shop price percent.</summary>
     SHOP_PRICE_PCT = 23,

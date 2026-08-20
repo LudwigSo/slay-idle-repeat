@@ -3,7 +3,7 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
-/// What each of `19` Part E's ten curses actually DOES, as a narrow, named table keyed on curse
+/// What each of `19` Part E's nine curses actually DOES, as a narrow, named table keyed on curse
 /// id — and, just as importantly, which of them this build cannot yet do and why.
 /// </summary>
 /// <remarks>
@@ -94,8 +94,33 @@ internal static class CurseEffects
         _ => 0,
     };
 
-    /// <summary>The floor a Pip face can be reduced to — `19` Part E's "(minimum 1)".</summary>
+    /// <summary>The floor a roll can be reduced to — `19` Part E's "(minimum 1)".</summary>
     internal const int MinimumPipAfterPenalty = 1;
+
+    /// <summary>
+    /// The movement a rolled number produces once the run's curses have had their say.
+    /// </summary>
+    /// <param name="pips">The number the die came up.</param>
+    /// <param name="curses">The curses active on the run.</param>
+    /// <remarks>
+    /// 🔒 The penalty stops at <see cref="MinimumPipAfterPenalty"/> — `19` Part E's
+    /// <c>CUR_SLIPPERY</c> reads <em>"-1 to all Pip rolls (minimum 1)"</em>, and the floor is the
+    /// whole reason the curse cannot stop a run dead: a hero who rolled a 1 still moves one node.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="curses"/> is null.</exception>
+    internal static int PenalisedMovement(int pips, IReadOnlyList<string> curses)
+    {
+        ArgumentNullException.ThrowIfNull(curses);
+
+        var penalty = 0;
+
+        foreach (var curseId in curses)
+        {
+            penalty += PipPenalty(curseId);
+        }
+
+        return penalty == 0 ? pips : Math.Max(MinimumPipAfterPenalty, pips - penalty);
+    }
 
     /// <summary>Whether this curse is honoured as a board rule rather than as a build effect.</summary>
     internal static bool IsBoardRule(string? curseId) => PipPenalty(curseId) != 0;
@@ -131,12 +156,7 @@ internal static class CurseEffects
                 "to draw an extra from. Its paired reward (+1 gear drop per Elite) is equally " +
                 "unpayable, which is why CurseRewards does not name it either.",
 
-            "CUR_BLIND" =>
-                "'Tile preview reduced to 2' is a CLIENT rule — how many tiles the board screen " +
-                "shows ahead. TILE_PREVIEW exists as a stat, but the curse SETS it rather than " +
-                "moving it, and nothing in Core reads it; the board screen reads its own constant.",
-
-            _ => "This curse is outside 19 Part E's ten. Nothing here knows what it does.",
+            _ => "This curse is outside 19 Part E's nine. Nothing here knows what it does.",
         };
     }
 }

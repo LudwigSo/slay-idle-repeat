@@ -12,6 +12,7 @@
     "guardianPowerMultiplier": 2.6,
     "guardianEliteModifiers": 1,
     "perkDrafts": true,
+    "fixedDice": 1,
     "energyCost": 10,
     "reviveOffered": false,
     "abandonRefund": 0

@@ -127,7 +127,6 @@ internal static class EffectOpResolver
             EffectOp.GRANT_PERK or
             EffectOp.UPGRADE_PERK or
             EffectOp.MOVE_NODES or
-            EffectOp.REVEAL_TILES or
             EffectOp.RESOLVE_TILE_AGAIN or
             EffectOp.MODIFY_SHOP or
             EffectOp.MODIFY_DROP_TABLE or

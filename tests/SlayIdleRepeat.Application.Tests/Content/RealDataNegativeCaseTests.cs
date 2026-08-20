@@ -166,7 +166,7 @@ public sealed class RealDataNegativeCaseTests
     [Fact]
     public void a_global_ad_cap_that_is_not_the_sum_of_its_placements_is_rejected()
     {
-        Rejects("tuning/ads.json", "\"maxInRunImpressionsPerRun\": 15", "\"maxInRunImpressionsPerRun\": 16",
+        Rejects("tuning/ads.json", "\"maxInRunImpressionsPerRun\": 17", "\"maxInRunImpressionsPerRun\": 18",
             ContentIssueCode.OutOfRange, "tuning/ads.json#/globalCaps/maxInRunImpressionsPerRun");
     }
 

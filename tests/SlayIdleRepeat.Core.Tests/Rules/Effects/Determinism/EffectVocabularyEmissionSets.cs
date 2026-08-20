@@ -72,13 +72,12 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.STAT_COPY,
         EffectOp.RANDOM_OUTCOME,
 
-        // run and board (13)
+        // run and board (10)
         EffectOp.GRANT_CURRENCY,
         EffectOp.GRANT_ITEM,
         EffectOp.GRANT_PERK,
         EffectOp.UPGRADE_PERK,
         EffectOp.MOVE_NODES,
-        EffectOp.REVEAL_TILES,
         EffectOp.RESOLVE_TILE_AGAIN,
         EffectOp.MODIFY_SHOP,
         EffectOp.MODIFY_DROP_TABLE,
@@ -180,7 +179,6 @@ internal static class EffectVocabularyEmissionSets
         StatId.RARITY_SHIFT,
         StatId.ENERGY_REGEN_PCT,
         StatId.PET_AURA_PCT,
-        StatId.TILE_PREVIEW,
         StatId.SHOP_PRICE_PCT,
         StatId.XP_PCT,
         StatId.BEAST_FEED_PCT,

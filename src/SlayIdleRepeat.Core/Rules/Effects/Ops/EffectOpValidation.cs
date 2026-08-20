@@ -178,7 +178,6 @@ internal static class EffectOpValidation
             case EffectOp.GRANT_PERK:
             case EffectOp.UPGRADE_PERK:
             case EffectOp.MOVE_NODES:
-            case EffectOp.REVEAL_TILES:
             case EffectOp.RESOLVE_TILE_AGAIN:
             case EffectOp.MODIFY_SHOP:
             case EffectOp.MODIFY_DROP_TABLE:
@@ -187,7 +186,7 @@ internal static class EffectOpValidation
                 break;
 
             default:
-                problems.Add($"op {(int)effect.Op} is not one of 18 §2's 42");
+                problems.Add($"op {(int)effect.Op} is not one of 18 §2's 41");
                 break;
         }
 

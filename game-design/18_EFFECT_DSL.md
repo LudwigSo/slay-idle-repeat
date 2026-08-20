@@ -88,9 +88,11 @@ steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
 | `STAT_CAP_OVERRIDE` | Raise or redirect a cap, per `capKind`: `STAT_MAX` replaces `05` §1's ceiling on `stat` with `value`; `REDIRECT_EXCESS` multiplies the amount by which `stat` overshot its ceiling by `value` and adds it to `toStat` (`Perfect Strike`); `HEAL_CEILING` bounds `Heal()` (`05` §4.3) at `value` × Max HP and touches no stat cap (`Avatar of War`) |
 
 Valid `stat` values: `MAX_HP · ATK · DEF · ASPD · CRIT · CDMG · LIFESTEAL · DODGE · BLOCK · PEN · DMG_PCT · DR_PCT · HEAL_PCT · THORNS`
-Plus the non-combat stats: `GOLD_PCT · CROWNS_PCT · DROP_CHANCE · RARITY_SHIFT · ENERGY_REGEN_PCT · PET_AURA_PCT · TILE_PREVIEW · SHOP_PRICE_PCT · XP_PCT · BEAST_FEED_PCT · STONE_PCT`
+Plus the non-combat stats: `GOLD_PCT · CROWNS_PCT · DROP_CHANCE · RARITY_SHIFT · ENERGY_REGEN_PCT · PET_AURA_PCT · SHOP_PRICE_PCT · XP_PCT · BEAST_FEED_PCT · STONE_PCT`
 
 ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). *`REROLL_CHARGES` was a twelfth non-combat stat; nothing can grant a reroll charge, so no effect, affix or set bonus may name it. Its wire number stays retired rather than reused.*
+
+⚠️ `TILE_PREVIEW` was the eleventh, removed with the tile preview when the board became permanently visible (`04` §4, `16` D42), together with the `REVEAL_TILES` op that moved it. *Nothing narrows the board and nothing widens it, so the stat has no reader; its wire number stays retired too.* 🔒 A **fixed die** is deliberately NOT a stat — it is a held object, so no DSL vocabulary reaches it, which is why `04` §6.4's affix and set-bonus grant sites are still empty.
 
 ### 2.2 Damage and healing operations
 
@@ -156,7 +158,6 @@ These are resolved by the run controller, never by the combat simulator.
 | ~~`MODIFY_DIE_FACE`~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). Ordinal 35 stays retired. |
 | ~~`GRANT_REROLL`~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). Ordinal 36 stays retired. |
 | `MOVE_NODES` | Move the token forward/backward N nodes |
-| `REVEAL_TILES` | Extend tile preview range |
 | `RESOLVE_TILE_AGAIN` | Re-resolve the current tile at a multiplier |
 | `MODIFY_SHOP` | Slot count, price multiplier, forced rarity |
 | `MODIFY_DROP_TABLE` | Rarity shift or drop-count bonus |

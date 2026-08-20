@@ -219,6 +219,28 @@ public sealed class Run
     /// <inheritdoc cref="_consumables"/>
     private readonly ReadOnlyDictionary<string, int> _consumablesView;
 
+    /// <summary>Fixed dice held: pips → count. A zero count is removed, never stored.</summary>
+    /// <remarks>
+    /// 🔒 A multiset rather than a list, and UNCAPPED. Two dice showing a 3 are the same holding
+    /// twice, so a count is the whole truth about them and a list would put an order into the bytes
+    /// that nothing means. No ceiling by ruling: a run may bank as many as it earns.
+    /// </remarks>
+    private readonly Dictionary<int, int> _fixedDice;
+
+    /// <inheritdoc cref="_fixedDice"/>
+    private readonly ReadOnlyDictionary<int, int> _fixedDiceView;
+
+    /// <summary>Fixed dice granted but not yet given a number by the player.</summary>
+    /// <remarks>
+    /// 🔒 A COUNT of outstanding choices, not a list of them, and it is the reason every grant site
+    /// can offer a real choice. Most of them have no command a number could ride on — an event
+    /// outcome is drawn by weight, a minigame reward is decided by play, an ad and a set bonus are
+    /// passive — so the grant records that a choice is owed and <c>CHOOSE_FIXED_DIE</c> answers it.
+    /// Non-blocking on purpose: an owed choice does not stop the run, unlike a pending draft, because
+    /// a grant can land in the middle of a shop visit the player is not finished with.
+    /// </remarks>
+    private int _pendingFixedDieChoices;
+
     /// <summary>Whether an Escape Rope is armed. A flag, not a count: only one may be armed at a time.</summary>
     private bool _escapeRopeArmed;
 
@@ -276,6 +298,8 @@ public sealed class Run
         List<string> runBuffs,
         List<string> curses,
         Dictionary<string, int> consumables,
+        Dictionary<int, int> fixedDice,
+        int pendingFixedDieChoices,
         bool escapeRopeArmed,
         int freeDraftRerolls,
         ulong? shopOfferDraw,
@@ -324,6 +348,9 @@ public sealed class Run
         _cursesView = new ReadOnlyCollection<string>(curses);
         _consumables = consumables;
         _consumablesView = new ReadOnlyDictionary<string, int>(consumables);
+        _fixedDice = fixedDice;
+        _fixedDiceView = new ReadOnlyDictionary<int, int>(fixedDice);
+        _pendingFixedDieChoices = pendingFixedDieChoices;
         _escapeRopeArmed = escapeRopeArmed;
         _freeDraftRerolls = freeDraftRerolls;
         _shopOfferDraw = shopOfferDraw;
@@ -622,6 +649,8 @@ public sealed class Run
         CopyIds(_runBuffs),
         CopyIds(_curses),
         CopyConsumables(_consumables),
+        CopyFixedDice(_fixedDice),
+        _pendingFixedDieChoices,
         _escapeRopeArmed,
         _freeDraftRerolls,
         _shopOfferDraw,
@@ -642,6 +671,13 @@ public sealed class Run
     /// </remarks>
     private static IReadOnlyList<string> CopyIds(List<string> ids) =>
         ids.Count == 0 ? NoIds : ids.ToArray();
+
+    /// <inheritdoc cref="CopyIds"/>
+    private static IReadOnlyDictionary<int, int> CopyFixedDice(Dictionary<int, int> fixedDice) =>
+        fixedDice.Count == 0 ? NoFixedDice : new Dictionary<int, int>(fixedDice);
+
+    /// <inheritdoc cref="CopyIds"/>
+    private static readonly IReadOnlyDictionary<int, int> NoFixedDice = new Dictionary<int, int>(0);
 
     /// <inheritdoc cref="CopyIds"/>
     private static IReadOnlyDictionary<string, int> CopyConsumables(Dictionary<string, int> consumables) =>
@@ -708,6 +744,7 @@ public sealed class Run
         var runBuffs = ReadIdList(snapshot.RunBuffs, nameof(RunSnapshot.RunBuffs), allowDuplicates: true, faults);
         var curses = ReadIdList(snapshot.Curses, nameof(RunSnapshot.Curses), allowDuplicates: false, faults);
         var consumables = ReadConsumables(snapshot, faults);
+        var fixedDice = ReadFixedDice(snapshot, faults);
         RequireGrantCounters(snapshot, faults);
         RequireShopVisit(snapshot, faults);
 
@@ -716,7 +753,7 @@ public sealed class Run
         // operators so the correlation is checked rather than asserted at the compiler.
         if (faults.Count > 0 || streams is null || adUses is null || resolvedMinigames is null ||
             ownedPerkTiers is null || startingLoadout is null || shrineBuffs is null ||
-            runBuffs is null || curses is null || consumables is null)
+            runBuffs is null || curses is null || consumables is null || fixedDice is null)
         {
             return Result<Run>.Failure(
                 "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -767,6 +804,8 @@ public sealed class Run
             runBuffs,
             curses,
             consumables,
+            fixedDice,
+            snapshot.PendingFixedDieChoices,
             snapshot.EscapeRopeArmed,
             snapshot.FreeDraftRerolls,
             snapshot.ShopOfferDraw,
@@ -874,9 +913,65 @@ public sealed class Run
         return failed ? null : read;
     }
 
+    /// <summary>Reads the fixed dice held: every key a number the die can show, every count positive.</summary>
+    /// <remarks>
+    /// 🔒 The pip bound is checked here and the count bound with it, for <c>ReadConsumables</c>'s
+    /// reason: a zero count is a FAULT rather than a silently-dropped entry, because this aggregate
+    /// removes an exhausted holding instead of storing a zero — so two rows both meaning "none held"
+    /// would otherwise encode to different bytes.
+    /// </remarks>
+    private static Dictionary<int, int>? ReadFixedDice(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.FixedDice is null)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        var read = new Dictionary<int, int>(snapshot.FixedDice.Count);
+        var failed = false;
+
+        foreach (var (pips, count) in snapshot.FixedDice)
+        {
+            if (!Content.Dice.Die.IsPips(pips))
+            {
+                faults.Add(
+                    nameof(RunSnapshot.FixedDice) + " holds a die showing " + Text(pips) +
+                    ". 04 §1's die shows " + Text(Content.Dice.Die.MinPips) + ".." +
+                    Text(Content.Dice.Die.MaxPips) + "; a fixed die outside that range would move the " +
+                    "run a distance no roll could.");
+                failed = true;
+                continue;
+            }
+
+            if (count <= 0)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.FixedDice) + "[" + Text(pips) + "] is " + Text(count) +
+                    ". A held count is at least one: this aggregate REMOVES an exhausted holding " +
+                    "rather than storing a zero, so two rows meaning 'none held' would otherwise " +
+                    "encode to different bytes.");
+                failed = true;
+                continue;
+            }
+
+            read[pips] = count;
+        }
+
+        return failed ? null : read;
+    }
+
     /// <summary>The grant counter counts grants, so it is never negative.</summary>
     private static void RequireGrantCounters(RunSnapshot snapshot, List<string> faults)
     {
+        if (snapshot.PendingFixedDieChoices < 0)
+        {
+            faults.Add(
+                nameof(RunSnapshot.PendingFixedDieChoices) + " is " +
+                Text(snapshot.PendingFixedDieChoices) +
+                ". It counts fixed dice granted but not yet given a number, and a negative count " +
+                "would owe the player a choice they could never take.");
+        }
+
         if (snapshot.FreeDraftRerolls < 0)
         {
             faults.Add(
@@ -1698,6 +1793,13 @@ public sealed class Run
     /// <summary>Held consumables: id → count. Never holds a zero.</summary>
     public IReadOnlyDictionary<string, int> Consumables => _consumablesView;
 
+    /// <summary>The fixed dice this run holds: pips → count. Never holds a zero.</summary>
+    /// <remarks>Public because the Board screen draws them — the player picks which one to spend.</remarks>
+    public IReadOnlyDictionary<int, int> FixedDice => _fixedDiceView;
+
+    /// <summary>Fixed dice granted but not yet given a number. See <see cref="_pendingFixedDieChoices"/>.</summary>
+    public int PendingFixedDieChoices => _pendingFixedDieChoices;
+
     /// <summary>Whether an Escape Rope is armed and waiting to fire on the next landing.</summary>
     public bool EscapeRopeArmed => _escapeRopeArmed;
 
@@ -1853,6 +1955,79 @@ public sealed class Run
         }
 
         return true;
+    }
+
+    /// <summary>Records that the run has been granted a fixed die it has not yet numbered.</summary>
+    /// <param name="count">How many choices to owe. Strictly positive.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is not positive.</exception>
+    internal void GrantFixedDieChoices(int count)
+    {
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count), count, "Owing zero or fewer choices is not a grant.");
+        }
+
+        _pendingFixedDieChoices += count;
+    }
+
+    /// <summary>Answers one owed choice by adding a fixed die showing <paramref name="pips"/>.</summary>
+    /// <returns>
+    /// <c>true</c> when a choice was owed and taken, <c>false</c> when none was — an answer rather
+    /// than a throw, on <see cref="ConsumeOne"/>'s precedent: "nothing owes you one" is a player
+    /// request the handler refuses, not a defect.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="pips"/> is not a number the die can show.</exception>
+    internal bool TakeFixedDieChoice(int pips)
+    {
+        RequirePips(pips);
+
+        if (_pendingFixedDieChoices <= 0)
+        {
+            return false;
+        }
+
+        _pendingFixedDieChoices--;
+        _fixedDice[pips] = _fixedDice.GetValueOrDefault(pips) + 1;
+
+        return true;
+    }
+
+    /// <summary>Spends one held fixed die showing <paramref name="pips"/>.</summary>
+    /// <returns><c>true</c> when one was spent, <c>false</c> when the run holds none of that number.</returns>
+    /// <remarks>The last one removes the entry rather than leaving a zero — see <c>ReadFixedDice</c> for why.</remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="pips"/> is not a number the die can show.</exception>
+    internal bool SpendFixedDie(int pips)
+    {
+        RequirePips(pips);
+
+        if (!_fixedDice.TryGetValue(pips, out var held) || held <= 0)
+        {
+            return false;
+        }
+
+        if (held == 1)
+        {
+            _fixedDice.Remove(pips);
+        }
+        else
+        {
+            _fixedDice[pips] = held - 1;
+        }
+
+        return true;
+    }
+
+    /// <summary>The pip bound both fixed-die seams share.</summary>
+    private static void RequirePips(int pips)
+    {
+        if (!Content.Dice.Die.IsPips(pips))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(pips), pips,
+                "04 §1's die shows " + Text(Content.Dice.Die.MinPips) + ".." +
+                Text(Content.Dice.Die.MaxPips) + " pips.");
+        }
     }
 
     /// <summary>Arms the Escape Rope. Idempotent: only one may ever be armed.</summary>

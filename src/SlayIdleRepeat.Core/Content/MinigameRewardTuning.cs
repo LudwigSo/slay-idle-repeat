@@ -90,7 +90,8 @@ internal sealed class MinigameRewardTuning
             Scale(row.Gold, scalar),
             Scale(row.Crowns, scalar),
             Scale(row.BeastFeed, scalar),
-            Scale(row.EnhanceStones, scalar));
+            Scale(row.EnhanceStones, scalar),
+            row.FixedDice);
     }
 
     /// <summary>Reads all four tables. Throws rather than defaulting on anything malformed.</summary>
@@ -117,7 +118,8 @@ internal sealed class MinigameRewardTuning
                     content.ReadInt64(rowReference + "/gold"),
                     content.ReadInt64(rowReference + "/crowns"),
                     content.ReadInt64(rowReference + "/beastFeed"),
-                    content.ReadInt64(rowReference + "/enhanceStones"));
+                    content.ReadInt64(rowReference + "/enhanceStones"),
+                    content.ReadInt64(rowReference + "/fixedDice"));
             }
 
             if (tableRows.Length == 0)
@@ -167,13 +169,15 @@ internal sealed class MinigameRewardTuning
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     private readonly record struct MinigameRewardRow(
-        string Outcome, long Gold, long Crowns, long BeastFeed, long EnhanceStones);
+        string Outcome, long Gold, long Crowns, long BeastFeed, long EnhanceStones, long FixedDice);
 }
 
 /// <summary>One chapter-scaled minigame reward.</summary>
 /// <remarks>
-/// ⚠️ There was a <c>RerollCharges</c> column here, read and carried but never spent. It is gone
-/// with the reroll: the dice duel's "Win 2-0" row paid one, and there is nothing left to pay.
+/// 🔒 <see cref="FixedDice"/> is NOT chapter-scaled, and it is the one column that is not: every
+/// other is a currency amount that grows with the chapter, while a fixed die is one die whatever
+/// chapter it was won in. Scaling it would hand a late-chapter dice duel a fistful of them.
+/// ⚠️ The column replaces a <c>RerollCharges</c> one, which the reroll's removal emptied.
 /// </remarks>
 internal readonly record struct MinigameReward(
-    long Gold, long Crowns, long BeastFeed, long EnhanceStones);
+    long Gold, long Crowns, long BeastFeed, long EnhanceStones, long FixedDice);

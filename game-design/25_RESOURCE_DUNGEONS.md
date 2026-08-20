@@ -52,7 +52,7 @@ A compressed board. It reuses `GenerateBoard` (`03` §3) with a dungeon profile 
 | `TILE_CACHE_DUNGEON` | A new tile type — pays a fixed portion of the dungeon's material. Not a random cache. |
 | Guardian | An Elite-tier encounter (`05` §6.2) at **2.6× tier power**, with one Elite Modifier drawn from the standard pool. Not a boss — no phases, no authored mechanics. |
 | Perk drafts | ✅ Yes, from the standard pool. A dungeon is short enough that a build never really forms, which is the point: dungeons are where gear and talents carry you, not perks. |
-| ~~Reroll charges~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
+| Fixed dice | **1** 📐 fixed-die choice at the start of the run, no refresh. It took the seat the reroll allotment left (`16` D41): a dungeon is eight nodes and one Guardian, so one guaranteed landing is worth more here than on a full board. The number is the player's, named through `CHOOSE_FIXED_DIE`. |
 | Energy cost | **10** 📐 (half a run) |
 | Duration | 2–4 minutes |
 | Death | Pays out at the clear multiplier for the last node reached (§4.3). Revive is **not** offered and `AD_REVIVE` does not apply. |

@@ -117,9 +117,25 @@ public sealed class CampfireChooseTests
         Choose(refused.NewState, 0).NewState.Run!.CurrentHp.ShouldBe(90);
     }
 
+    /// <summary>🔒 The campfire's third option grants a fixed-die CHOICE, not a die.</summary>
+    /// <remarks>
+    /// The number is the player's and <c>CHOOSE_FIXED_DIE</c> is where they name it, so what this
+    /// asserts is the debt — the holding is still empty until that second command answers.
+    /// </remarks>
+    [Fact]
+    public void The_fixed_die_option_owes_a_choice_and_spends_the_campfire()
+    {
+        var result = Choose(TileWorlds.OnTile(TileKind.Campfire, currentHp: 50), 2);
+
+        result.Accepted.ShouldBeTrue();
+        result.NewState.Run!.PendingFixedDieChoices.ShouldBe(Core.Handlers.CampfireChoose.FixedDiceGranted);
+        result.NewState.Run.FixedDice.ShouldBeEmpty(
+            "the campfire owes a choice; it does not pick a number for the player.");
+        result.NewState.Run.HasPendingTile.ShouldBeFalse("the campfire is spent on the choice.");
+    }
+
     [Theory]
     [InlineData(-1)]
-    [InlineData(2)]
     [InlineData(3)]
     [InlineData(1000)]
     public void An_out_of_range_choice_index_is_rejected(int choiceIndex)
