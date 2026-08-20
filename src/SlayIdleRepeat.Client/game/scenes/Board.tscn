@@ -111,10 +111,11 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Track" type="HBoxContainer" parent="SafeArea/Column/TrackFrame"]
+[node name="Track" type="HFlowContainer" parent="SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
 
 [node name="StandingOnRow" type="HBoxContainer" parent="SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true
@@ -218,6 +219,42 @@ autowrap_mode = 3
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
+
+[node name="DieChoicePanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="DieChoiceLabel" type="Label" parent="SafeArea/Column/ActionColumn/DieChoicePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 52
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="DieChoiceButtons" type="HFlowContainer" parent="SafeArea/Column/ActionColumn/DieChoicePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+
+[node name="DicePanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="DiceLabel" type="Label" parent="SafeArea/Column/ActionColumn/DicePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 44
+
+[node name="DiceButtons" type="HFlowContainer" parent="SafeArea/Column/ActionColumn/DicePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
 
 [node name="RollButton" type="Button" parent="SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true

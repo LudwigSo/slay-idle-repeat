@@ -110,7 +110,7 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 │ 💰 1,340  [🧪 2]          [≡ perks] │  ← gold, consumable pouch, perks
 ├─────────────────────────────────────┤
 │                                     │
-│         ・  ⚔  ✨                    │  ← upcoming tiles (scroll up to preview)
+│         ・  ⚔  ✨                    │  ← the WHOLE track, always (`04` §4, `16` D42)
 │           ╲ │ ╱                     │
 │            🎁                       │
 │             │                       │
@@ -125,6 +125,7 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 │              ╭─────╮                │
 │              │  🎲 │  ← big roll button, thumb-reachable
 │              ╰─────╯                │
+│   Your dice  [3] [5 ×2]             │  ← fixed dice, spent instead of rolling
 └─────────────────────────────────────┘
 ```
 
@@ -132,6 +133,8 @@ Rules:
 - The roll button is the largest interactive element on screen and sits in the bottom-third thumb zone.
 - The perks button `[≡ perks]` opens a scrollable list of everything drafted this run with current tiers. It must be reachable at all times; a player must never lose track of their build.
 - ⚠️ The roll button has **no long press**. It opened the Die Panel (S12), which is gone with the die's faces (`04` §4), so a roll is one tap and there is no second gesture on the control.
+- 🔒 **The whole track is drawn, always** — no fog, no preview range, nothing clipped or scrolled to (`16` D42). It is the reason a *fixed* die is worth choosing a number for: the player is reading what the numbers reach. A track too long for one row **wraps**; a board the player has to drag to see is not a board that is completely visible.
+- 🔒 **The fixed-die tray** sits directly above the roll button, inside the same thumb zone, as one control per number held (`04` §6). Pressing one spends it and moves exactly that far. It is disabled by exactly what disables the roll, and hidden when the run owns none. A granted die opens a **six-way number prompt** in its place — the player names the number (`04` §6.2) — and that prompt is live in every state, including the ones that refuse a roll, because naming a number moves nothing.
 - **The consumable pouch** sits in the top HUD row (⚠️ it used to sit beside the reroll pips, which are gone with the reroll — `04` §5): a compact `[🧪 n]` button showing the held count (cap 4 — `03` §7.1). Tapping it fans out the held items (Health Draughts, Escape Ropes) as mini-cards with a one-line effect and a USE button each. USE is enabled only in `AWAIT_ROLL` and never during battle (D3); the Draught's USE is additionally disabled at full HP. An **armed Escape Rope** shows as a small rope icon hovering over the hero token until it fires. When empty, the pouch renders at 40% opacity but stays visible — the affordance must be learnable before the first purchase. `03` §7.1 owns the designs.
 
 ---

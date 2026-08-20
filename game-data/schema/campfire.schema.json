@@ -64,7 +64,7 @@
       }
     },
     "action": {
-      "description": "🔒 The campfire's two options and the shrine's. ⚠️ Two, not three: `rerollCharges` captioned a \"+2 Reroll Charges\" card and is gone with the reroll charge itself. `take` captions a shrine row's own control, because the row IS the action — a shrine has exactly two, and a separate button beside each would be a second control for the same slot. `cleanse` captions the slot a Cleanse occupies instead of a buff name. `continue` is kept and no longer wired to anything: the shrine is left by CHOOSING, and the caption stays authored so the control has wording the day a screen needs one again.",
+      "description": "🔒 The campfire's three options and the shrine's. ⚠️ `rerollCharges` captioned a \"+2 Reroll Charges\" card and went with the reroll charge itself; `fixedDie` is that third seat filled again by the fixed dice (`04` §6), and it is not the same card renamed — the reroll granted two charges of a second attempt, this grants ONE die that guarantees a landing, and it grants a CHOICE rather than a die because the player names the number. `take` captions a shrine row's own control, because the row IS the action — a shrine has exactly two, and a separate button beside each would be a second control for the same slot. `cleanse` captions the slot a Cleanse occupies instead of a buff name. `continue` is kept and no longer wired to anything: the shrine is left by CHOOSING, and the caption stays authored so the control has wording the day a screen needs one again.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -72,7 +72,8 @@
         "upgradePerk",
         "continue",
         "take",
-        "cleanse"
+        "cleanse",
+        "fixedDie"
       ],
       "properties": {
         "rest": {
@@ -88,6 +89,10 @@
           "$ref": "#/$defs/locKey"
         },
         "cleanse": {
+          "$ref": "#/$defs/locKey"
+        },
+        "fixedDie": {
+          "description": "The campfire's third option: take one fixed die (`04` §6). 🔒 The caption names the thing taken and no number — neither the count granted (one) nor the die's own number, which the player names afterwards through CHOOSE_FIXED_DIE. A caption carrying either would be a tunable, or a player's choice, transcribed into a translated string.",
           "$ref": "#/$defs/locKey"
         }
       }

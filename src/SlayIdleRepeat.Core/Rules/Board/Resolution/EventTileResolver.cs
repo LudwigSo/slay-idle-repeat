@@ -163,6 +163,14 @@ internal static class EventTileResolver
                 return;
             }
 
+            case EventEffectOp.FixedDie:
+                // A CHOICE, not a die: a card drawn by weight cannot ask the player for a number, so
+                // the debt is persisted and CHOOSE_FIXED_DIE answers it (`04` §6.2). Nothing is
+                // emitted — the run row carries the debt, and a grant event nobody consumes would be
+                // a second, divergent record of it.
+                input.Run.GrantFixedDieChoices(effect.FixedDice!.Value);
+                return;
+
             case EventEffectOp.None:
             case EventEffectOp.Unsupported:
                 // Nothing happens, and for UNSUPPORTED that is correct rather than a missing branch:
@@ -175,7 +183,7 @@ internal static class EventTileResolver
                     nameof(effect),
                     effect.Op,
                     "The event effect vocabulary grew an op this resolver does not handle. It is a " +
-                    "CLOSED five-op set (board_events.schema.json): a new op is a new branch here, " +
+                    "CLOSED six-op set (board_events.schema.json): a new op is a new branch here, " +
                     "not a new content row, and falling through silently would make it a no-op that " +
                     "looks authored.");
         }

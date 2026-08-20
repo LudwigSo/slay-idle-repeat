@@ -63,8 +63,15 @@ public enum CampfireOption
     /// <summary>Raise one owned perk a tier. Refused: nothing tracks a perk-tier upgrade.</summary>
     UpgradePerk = 2,
 
-    // 3 was RerollCharges — "+2 Reroll Charges". It is gone with the reroll charge itself; the
-    // number stays retired rather than reused, because it is the wire index CAMPFIRE_CHOOSE carries.
+    /// <summary>Take one fixed die, whose number the player names afterwards (`04` §6).</summary>
+    /// <remarks>
+    /// ⚠️ Member 3 was <c>RerollCharges</c>, "+2 Reroll Charges", and this is NOT that card renamed:
+    /// the reroll granted two charges of a second attempt, and this grants one die that guarantees a
+    /// landing. It re-uses the enum member and the wire index 2, which is safe where a command wire
+    /// name is not: a campfire choice index is a POSITION ON A CARD carried by one transient command
+    /// and persisted nowhere, so an old client sending 2 has no stale state to disagree with.
+    /// </remarks>
+    FixedDie = 3,
 }
 
 /// <summary>One campfire option as the screen draws it.</summary>
@@ -109,10 +116,12 @@ public sealed record CampfireShrineRow(string BuffId, string Name, int ChoiceInd
 /// and offering shrine rows on a campfire would describe a draw that never happened.
 /// </para>
 /// <para>
-/// ⚠️ <b>A campfire is a two-way decision.</b> It used to offer a third option, "+2 Reroll
-/// Charges"; that is gone with the reroll charge itself rather than left as a card that grants
-/// nothing. Raising a perk tier is refused only when the run holds no perk that can take one, which
-/// is a state rather than a missing system, and it keeps the tile so the player can rest instead.
+/// 🔒 <b>A campfire is a three-way decision again.</b> The third card was "+2 Reroll
+/// Charges", went with the reroll charge itself, and is now <b>take a fixed die</b> (`04` §6) — not
+/// the same card renamed: one die that guarantees a landing rather than two attempts at a random
+/// one, and a CHOICE rather than a die, because the player names the number afterwards. Raising a
+/// perk tier is refused only when the run holds no perk that can take one, which is a state rather
+/// than a missing system, and it keeps the tile so the player can rest instead.
 /// </para>
 /// <para>
 /// 🔴 <b>The shrine's choice is not the player's, and this screen says so.</b> There is no shrine
@@ -148,6 +157,7 @@ public sealed class CampfirePresenter
     private const string ShrineBuffsLabelKey = "loc.campfire.shrine_buffs.label";
     private const string RestActionKey = "loc.campfire.rest.action";
     private const string UpgradePerkActionKey = "loc.campfire.upgrade_perk.action";
+    private const string FixedDieActionKey = "loc.campfire.fixed_die.action";
     private const string ContinueActionKey = "loc.campfire.continue.action";
     private const string UpgradePerkNoneBlockKey = "loc.campfire.upgrade_perk_none.block";
     private const string TakeActionKey = "loc.campfire.take.action";
@@ -183,6 +193,9 @@ public sealed class CampfirePresenter
 
     /// <summary>The index for raising a perk a tier, refused for its own named reason.</summary>
     private const int UpgradePerkChoiceIndex = 1;
+
+    /// <summary>The index for taking a fixed die — the third card, and the second that works.</summary>
+    private const int FixedDieChoiceIndex = 2;
 
     private readonly IGameHost _gameHost;
     private readonly LocaleStringCatalogue _strings;
@@ -390,6 +403,16 @@ public sealed class CampfirePresenter
             _strings.Resolve(UpgradePerkActionKey),
             Available: canUpgradeAPerk,
             canUpgradeAPerk ? NothingLeftToSay : _strings.Resolve(UpgradePerkNoneBlockKey)),
+        // 🔒 Unconditionally available, and it is the only option here that is. Resting is refused at
+        // full HP and the upgrade is refused with no upgradeable perk; a fixed die has no precondition
+        // at all — the holding is uncapped (`04` §6.3), so there is no state in which taking one
+        // cannot be done.
+        new CampfireOptionRow(
+            CampfireOption.FixedDie,
+            FixedDieChoiceIndex,
+            _strings.Resolve(FixedDieActionKey),
+            Available: true,
+            NothingLeftToSay),
     ];
 
     /// <remarks>

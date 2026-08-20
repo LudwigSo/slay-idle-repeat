@@ -68,7 +68,7 @@ public sealed class CampfirePresenterTests
 
         presenter.Stage.ShouldBe(CampfireStage.Campfire);
         presenter.Options.Select(row => row.Option).ShouldBe(
-            [CampfireOption.Rest, CampfireOption.UpgradePerk]);
+            [CampfireOption.Rest, CampfireOption.UpgradePerk, CampfireOption.FixedDie]);
         presenter.ShrineRows.ShouldBeEmpty(
             "a campfire drew no shrine buffs, so any row here was invented rather than projected.");
     }

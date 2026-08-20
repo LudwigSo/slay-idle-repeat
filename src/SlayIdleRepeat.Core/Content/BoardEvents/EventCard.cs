@@ -57,7 +57,7 @@ internal sealed record EventOption(
 /// <param name="Effects">Applied in order, all of them, once this branch is drawn. Never empty.</param>
 internal sealed record EventOutcome(double Weight, IReadOnlyList<EventEffect> Effects);
 
-/// <summary>One effect of one outcome — a row of the closed five-op vocabulary.</summary>
+/// <summary>One effect of one outcome — a row of the closed six-op vocabulary.</summary>
 /// <param name="Op">Which of the five this is; every other member's meaning follows from it.</param>
 /// <param name="Currency"><see cref="EventEffectOp.Currency"/> only: which currency moves.</param>
 /// <param name="Amount"><see cref="EventEffectOp.Currency"/> only: the signed amount, before scaling.</param>
@@ -78,7 +78,8 @@ internal sealed record EventEffect(
     bool ChapterScaled,
     double? HpPct,
     string? CurseId,
-    string? Note);
+    string? Note,
+    int? FixedDice = null);
 
 /// <summary>
 /// The closed vocabulary an event outcome's effects are drawn from. Extending it is a new resolver
@@ -97,6 +98,18 @@ internal enum EventEffectOp
     /// persisted. See <c>CurseRewards</c>.
     /// </summary>
     CurseReward,
+
+    /// <summary>
+    /// Grant fixed-die CHOICES (`04` §6) — the player names each number afterwards.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The sixth op, and the only one added since the vocabulary was closed. It exists because
+    /// three of `19` Part A's outcomes granted reroll charges and had nowhere to go once the reroll
+    /// was removed: they were <c>UNSUPPORTED</c>, which reads as deferred, when the mechanic that
+    /// replaced the reroll was already built. ⚠️ It grants a CHOICE and never a die, because a card
+    /// drawn by weight cannot ask the player anything.
+    /// </remarks>
+    FixedDie,
 
     /// <summary>A deliberate no-op — "Walk away", "Leave it", "Decline".</summary>
     None,

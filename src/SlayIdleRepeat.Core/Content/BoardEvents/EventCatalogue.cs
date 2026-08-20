@@ -329,6 +329,28 @@ internal sealed class EventCatalogue
                     HpPct: null, curseId, Note: null);
             }
 
+            case "FIXED_DIE":
+            {
+                var count = Member(entry, "count", pointer).AsInt32(pointer + "/count");
+
+                // Zero is refused for the same reason a zero CURRENCY is: the grant would resolve to
+                // nothing and be indistinguishable from a row nobody finished. Negative is refused
+                // because there is no way to take a die back — the run does not know which of the
+                // player's dice this card gave it.
+                if (count < 1)
+                {
+                    throw new InvalidTunableException(
+                        pointer + "/count",
+                        "A FIXED_DIE effect grants at least one choice. This document authors " +
+                        Text(count) + ", which resolves to nothing at all, or to a debt the run has " +
+                        "no way to pay back.");
+                }
+
+                return new EventEffect(
+                    EventEffectOp.FixedDie, Currency: null, Amount: null, ChapterScaled: false,
+                    HpPct: null, CurseId: null, Note: null, count);
+            }
+
             case "NONE":
                 return new EventEffect(
                     EventEffectOp.None, Currency: null, Amount: null, ChapterScaled: false,
@@ -342,9 +364,9 @@ internal sealed class EventCatalogue
             default:
                 throw new InvalidTunableException(
                     pointer + "/op",
-                    "'" + op + "' is not one of the five ops board_events.schema.json authors " +
-                    "(CURRENCY, HP_PCT, CURSE_REWARD, NONE, UNSUPPORTED). The vocabulary is closed: " +
-                    "a new op is a new resolver branch, not a new content row.");
+                    "'" + op + "' is not one of the six ops board_events.schema.json authors " +
+                    "(CURRENCY, HP_PCT, CURSE_REWARD, FIXED_DIE, NONE, UNSUPPORTED). The vocabulary " +
+                    "is closed: a new op is a new resolver branch, not a new content row.");
         }
     }
 

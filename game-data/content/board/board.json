@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/board.schema.json",
-  "_doc": "M7-05 — the strings the Board screen (S05) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `block` group is the load-bearing one: a roll can be refused for four different reasons that all arrive on the wire as the single value ILLEGAL_STATE, so the screen names the cause from the run's own state and needs one sentence per cause. The `tile` group carries all fourteen tile names because the run's pending tile arrives as a bare integer and the screen has to say what the player is standing on. Deliberately absent, each because a later milestone owns it: the perks list, the consumable pouch, the upcoming-tile preview, the fork's authored branch previews (the board generator never leaves Core, so no label or icon set is reachable here) and every battle, draft, shop, event and campfire caption. Gone rather than absent: the reroll's caption, its 'changes the next roll' sentence, its exhausted-refusal line and the die panel's control, all removed with the reroll and the die's special faces.",
+  "_doc": "M7-05 — the strings the Board screen (S05) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `block` group is the load-bearing one: a roll can be refused for four different reasons that all arrive on the wire as the single value ILLEGAL_STATE, so the screen names the cause from the run's own state and needs one sentence per cause. The `tile` group carries all fourteen tile names because the run's pending tile arrives as a bare integer and the screen has to say what the player is standing on. The `forkLabel` group is new with the real board: BoardView.Project hands the client the bias label each branch's tiles were actually drawn under, so the two branch buttons name where they go instead of naming their structural position. The `dice` group is the fixed dice (`04` §6): a tray heading over the numbers the run holds, and the prompt that asks the player to name a number for one it has been granted. Neither carries a numeral — a die's number is drawn as a numeral on its own control, which needs no translation. Deliberately absent, each because a later milestone owns it: the perks list, the consumable pouch, and every battle, draft, shop, event and campfire caption. Gone rather than absent: the reroll's caption, its 'changes the next roll' sentence, its exhausted-refusal line and the die panel's control, all removed with the reroll and the die's special faces.",
   "label": {
     "hp": "loc.board.hp.label",
     "gold": "loc.board.gold.label",
@@ -18,6 +18,16 @@
   },
   "name": {
     "fork": "loc.board.fork.name"
+  },
+  "forkLabel": {
+    "perilous": "loc.board.fork_perilous.label",
+    "sheltered": "loc.board.fork_sheltered.label",
+    "arcane": "loc.board.fork_arcane.label",
+    "feral": "loc.board.fork_feral.label"
+  },
+  "dice": {
+    "held": "loc.board.dice_held.label",
+    "choose": "loc.board.dice_choose.label"
   },
   "status": {
     "loading": "loc.board.loading.status",

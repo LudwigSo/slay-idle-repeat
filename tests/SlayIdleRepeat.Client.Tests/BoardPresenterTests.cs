@@ -589,45 +589,54 @@ public sealed class BoardPresenterTests
 
     /// <summary>
     /// 🔒 The stage count is READ from the chapter's own authored stage lengths, never transcribed.
-    /// Both shipped chapters author three stages, so a hard-coded 3 agrees with them forever — the
-    /// fixture authors a different shape precisely so it cannot.
     /// </summary>
-    [Theory]
-    [InlineData(new[] { 12, 14, 16 }, 3)]
-    [InlineData(new[] { 8, 9 }, 2)]
-    [InlineData(new[] { 5, 6, 7, 8 }, 4)]
-    public async Task The_stage_count_comes_from_the_chapters_own_document(int[] stageLengths, int expected)
+    /// <remarks>
+    /// ⚠️ <b>This used to vary the COUNT — a two-stage and a four-stage chapter — and it cannot any
+    /// more.</b> `03` §1 fixes exactly three stages and <c>ChapterBoardTuning</c> refuses a chapter
+    /// whose weight tables are not three, so once the presenter projects the board a chapter with any
+    /// other count is a state the game cannot reach rather than a shape a fixture may author. What is
+    /// still worth pinning, and is pinned in the case below, is that the LENGTHS are read: the two
+    /// shipped chapters both author 12/14/16, so a transcribed 14 agrees with them forever.
+    /// </remarks>
+    [Fact]
+    public async Task The_stage_count_comes_from_the_chapters_own_document()
     {
-        var content = BoardContent.Authoring(chapterId: 7, stageLengths);
+        var content = BoardContent.Authoring(chapterId: 7, 9, 10, 11);
         var presenter = Build(
             RecordingGameHost.Finding(
                 AnyPlayer(),
-                PlayerState.Run(
-                    Run, Player, RunPhase.InProgress,
-                    chapterId: 7, pendingTileKind: EnemyTileKind, pendingTileStage: 1)),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 7, position: 0)),
             content: content);
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.StageCount.ShouldBe(expected);
+        presenter.StageCount.ShouldBe(3);
     }
 
+    /// <summary>
+    /// The current stage's length is the one the chapter authors for that stage — not the first, and
+    /// not a constant.
+    /// </summary>
+    /// <remarks>
+    /// Authored 9/10/11, none of them a shipped value, so the assertion cannot be satisfied by a
+    /// transcription of the shipped chapters. The stage itself now comes from the node the run stands
+    /// on: on the spine a node's id and its linear index agree, so position 9 is the first node of
+    /// stage 2 of a chapter whose first stage is 9 nodes long.
+    /// </remarks>
     [Fact]
     public async Task The_current_stages_length_comes_from_the_same_document()
     {
-        var content = BoardContent.Authoring(chapterId: 7, 12, 14, 16);
+        var content = BoardContent.Authoring(chapterId: 7, 9, 10, 11);
         var presenter = Build(
             RecordingGameHost.Finding(
                 AnyPlayer(),
-                PlayerState.Run(
-                    Run, Player, RunPhase.InProgress,
-                    chapterId: 7, pendingTileKind: EnemyTileKind, pendingTileStage: 2)),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 7, position: 9)),
             content: content);
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.StageNumber.ShouldBe(2);
-        presenter.StageLength.ShouldBe(14);
+        presenter.StageNumber.ShouldBe(2, "position 9 is the first node past a 9-node first stage.");
+        presenter.StageLength.ShouldBe(10);
     }
 
     [Fact]
@@ -647,110 +656,297 @@ public sealed class BoardPresenterTests
     }
 
     /// <summary>
-    /// 🔒 The exact distance along the track is carried only by a pending tile. Between resolving
-    /// one tile and landing on the next it is not knowable, and the screen says so rather than
-    /// drawing the token at a plausible node.
+    /// 🔒 <b>The whole board, every node of it.</b> `16` D42 makes the board completely visible at
+    /// all times, so this is the claim that no window, range or clip is applied anywhere between the
+    /// projection and the screen: the track is as long as the chapter's own stages plus the boss.
     /// </summary>
+    /// <remarks>
+    /// The length is computed from the authored stage lengths rather than written as 43, so the case
+    /// follows a chapter authored differently instead of pinning the shipped shape twice.
+    /// </remarks>
     [Fact]
-    public async Task The_track_index_is_absent_when_no_tile_pins_it()
+    public async Task The_whole_board_is_drawn_and_never_a_window_on_it()
     {
-        var presenter = Build(RecordingGameHost.Finding(
-            AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.InProgress, position: 9)));
+        int[] stages = [12, 14, 16];
+
+        var presenter = Build(
+            RecordingGameHost.Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 7)),
+            content: BoardContent.Authoring(chapterId: 7, stages));
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.Position.ShouldBe(9);
-        presenter.TrackIndex.ShouldBeNull();
-        presenter.StageNumber.ShouldBeNull();
+        presenter.Track.Count.ShouldBe(
+            stages.Sum() + 1,
+            "every node of every stage, and the boss — a track shorter than that is a board the "
+            + "screen is clipping.");
     }
 
+    /// <summary>
+    /// Every node carries a real tile kind, the boss is the last of them, and they are not all the
+    /// same — which is the whole point of projecting rather than counting.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Three claims, none of them about WHICH tile the generator drew. That is deliberate: the
+    /// weighted draw and its constraints are the rules layer's business and pinning one node's kind
+    /// here would make a re-tune of `03` §2's weights fail on a client assertion. What this catches is
+    /// the projection collapsing — a track reporting one kind everywhere, or a kind number outside the
+    /// vocabulary, both of which the strip this replaced could not have told from a working board.
+    /// ⚠️ The fixture paves each stage with one kind, so the variety asserted comes from the
+    /// generator's own constraints (its elites, its guaranteed pre-boss campfire) rather than from the
+    /// weights.
+    /// </remarks>
     [Fact]
-    public async Task The_track_index_is_the_pending_tiles_own_and_not_the_node_identity()
+    public async Task Each_node_of_the_track_carries_its_own_tile_kind()
     {
-        // Inside a fork branch the two genuinely differ: the branch node's identity is far past the
-        // spine, while its distance from the start is the spine node level with it.
+        var presenter = Build(
+            RecordingGameHost.Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 7)),
+            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        var track = presenter.Track;
+
+        track.ShouldAllBe(
+            node => BoardTileKinds.NameKeyFor((int)node.Tile) != null,
+            "a node whose kind this build cannot name is a projection reporting a number, not a tile.");
+
+        track[^1].Tile.ShouldBe(
+            SlayIdleRepeat.Core.Rules.Board.TileKind.Boss, "the boss is the last node of the track.");
+
+        track.Select(node => node.Tile).Distinct().Count().ShouldBeGreaterThan(
+            1, "one kind everywhere is what a projection that lost the tile would report.");
+    }
+
+    /// <summary>
+    /// 🔒 <b>The position is exact between tiles, which is what the projection fixed.</b> This used
+    /// to be answered from the pending tile alone, so a run that had just resolved one and not yet
+    /// landed on the next reported null and the screen drew no token at all.
+    /// </summary>
+    [Fact]
+    public async Task The_node_the_run_stands_on_is_known_with_no_tile_pending()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(
+                AnyPlayer(),
+                PlayerState.Run(
+                    Run, Player, RunPhase.InProgress, chapterId: 7, position: 9,
+                    pendingTileKind: NoPendingTile)),
+            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTile.ShouldBeNull("the premise: nothing pins the position but the board.");
+        presenter.StandingOn.ShouldNotBeNull().NodeId.ShouldBe(9);
+        presenter.TrackIndex.ShouldBe(9, "on the spine the node's identity and its distance agree.");
+        presenter.StageNumber.ShouldBe(1);
+    }
+
+    /// <summary>
+    /// A chapter this build does not ship draws no track, and does not throw on the way to saying so.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The state a saved run whose chapter was removed leaves, and the screen has to open on it:
+    /// the abandon control is the only way out of such a run, and it is on this screen.
+    /// </remarks>
+    [Fact]
+    public async Task A_chapter_the_content_set_does_not_author_draws_no_track()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 99)),
+            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Stage.ShouldBe(BoardStage.Ready, "the run is still playable, and still abandonable.");
+        presenter.Track.ShouldBeEmpty();
+        presenter.StandingOn.ShouldBeNull();
+        presenter.TrackIndex.ShouldBeNull();
+        presenter.AbandonOffered.ShouldBeTrue();
+    }
+
+    // ---- the fixed dice -----------------------------------------------------------------------
+
+    /// <summary>The tray is ordered by number, so a grant never re-arranges the controls.</summary>
+    /// <remarks>
+    /// 🔒 The run persists a multiset, whose enumeration order is an accident of insertion. A tray
+    /// drawn straight off it would move under the player's thumb every time a die was granted.
+    /// </remarks>
+    [Fact]
+    public async Task The_tray_lists_the_dice_the_run_owns_in_ascending_order()
+    {
         var presenter = Build(RecordingGameHost.Finding(
             AnyPlayer(),
             PlayerState.Run(
                 Run, Player, RunPhase.InProgress,
-                position: 44, pendingTileKind: EnemyTileKind, pendingTileLinearIndex: 6,
-                pendingTileStage: 1)));
+                fixedDice: new Dictionary<int, int> { [5] = 1, [2] = 3, [6] = 1 })));
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.Position.ShouldBe(44);
-        presenter.TrackIndex.ShouldBe(6);
-    }
-
-    /// <summary>
-    /// 🔴 <b>The stage-local pip, over stages of DIFFERENT lengths.</b> The run's index runs
-    /// continuously across the whole chapter, so placing the token inside a stage means subtracting
-    /// the real sum of the stages before it. The shipped chapters author 12, 14 then 16, so any
-    /// arithmetic that multiplies one stage's length by the stage number lands on the wrong node
-    /// everywhere but stage one — which is exactly what the first version of this did, in the scene,
-    /// where nothing could catch it.
-    /// </summary>
-    [Theory]
-    [InlineData(1, 0, 0)]    // the very first node of the chapter
-    [InlineData(1, 11, 11)]  // the last node of stage 1
-    [InlineData(2, 12, 0)]   // the first node of stage 2 — offset 12, not 14
-    [InlineData(2, 25, 13)]  // the last node of stage 2
-    [InlineData(3, 26, 0)]   // the first node of stage 3 — offset 26, not 32
-    [InlineData(3, 41, 15)]  // the last node of stage 3
-    public async Task The_token_sits_where_the_chapters_own_stage_lengths_put_it(
-        int stage, int linearIndex, int expectedPip)
-    {
-        var presenter = Build(
-            RecordingGameHost.Finding(
-                AnyPlayer(),
-                PlayerState.Run(
-                    Run, Player, RunPhase.InProgress,
-                    chapterId: 7, pendingTileKind: EnemyTileKind,
-                    pendingTileLinearIndex: linearIndex, pendingTileStage: stage)),
-            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        presenter.StageTrackIndex.ShouldBe(expectedPip);
-    }
-
-    /// <summary>
-    /// An index that does not land inside the stage it claims lights no pip. A clamp would draw the
-    /// token at a plausible node, which is the board quietly lying about where the player is.
-    /// </summary>
-    [Theory]
-    [InlineData(1, 40)]
-    [InlineData(3, 0)]
-    public async Task An_index_outside_its_stage_places_no_token(int stage, int linearIndex)
-    {
-        var presenter = Build(
-            RecordingGameHost.Finding(
-                AnyPlayer(),
-                PlayerState.Run(
-                    Run, Player, RunPhase.InProgress,
-                    chapterId: 7, pendingTileKind: EnemyTileKind,
-                    pendingTileLinearIndex: linearIndex, pendingTileStage: stage)),
-            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        presenter.StageTrackIndex.ShouldBeNull();
+        presenter.FixedDice.Select(held => held.Pips).ShouldBe([2, 5, 6]);
+        presenter.FixedDice.Select(held => held.Count).ShouldBe([3, 1, 1]);
+        presenter.FixedDiceOffered.ShouldBeTrue();
     }
 
     [Fact]
-    public async Task No_pending_tile_places_no_token()
+    public async Task A_run_holding_no_dice_offers_no_tray()
     {
-        var presenter = Build(
-            RecordingGameHost.Finding(
-                AnyPlayer(),
-                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 7, position: 9)),
-            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), AnyRun()));
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.StageTrackIndex.ShouldBeNull();
-        presenter.StageLength.ShouldBeNull();
+        presenter.FixedDice.ShouldBeEmpty();
+        presenter.FixedDiceOffered.ShouldBeFalse();
+        presenter.FixedDieChoiceOffered.ShouldBeFalse();
     }
+
+    /// <summary>Spending one submits <c>USE_FIXED_DIE</c> carrying the number pressed.</summary>
+    [Fact]
+    public async Task Spending_a_die_submits_use_fixed_die_for_that_number()
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(
+                Run, Player, RunPhase.InProgress,
+                fixedDice: new Dictionary<int, int> { [4] = 1 }));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.UseFixedDieAsync(4, CancellationToken.None))
+            .ShouldBe(BoardSubmission.Submitted);
+
+        host.SubmitCommand.ShouldBeOfType<UseFixedDieCommand>().Pips.ShouldBe(4);
+    }
+
+    /// <summary>
+    /// 🔒 A number the run does not hold is never submitted. That refusal comes back as the same
+    /// wire value as the four the block already tells apart, so spending a command on it would leave
+    /// the player reading the generic sentence for something the screen already knew.
+    /// </summary>
+    [Fact]
+    public async Task A_number_the_run_does_not_hold_is_not_submitted_at_all()
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(
+                Run, Player, RunPhase.InProgress,
+                fixedDice: new Dictionary<int, int> { [4] = 1 }));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.UseFixedDieAsync(3, CancellationToken.None))
+            .ShouldBe(BoardSubmission.RefusedNotAvailable);
+
+        host.SubmitCommand.ShouldBeNull("nothing may reach the host at all.");
+    }
+
+    /// <summary>
+    /// 🔒 The die is gated by exactly what gates the roll, because the rules layer refuses both
+    /// movement commands from the same states. Offering one where the other is refused would promise
+    /// a way out of a state the game has none of.
+    /// </summary>
+    [Fact]
+    public async Task An_unresolved_tile_refuses_a_fixed_die_the_way_it_refuses_a_roll()
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(
+                Run, Player, RunPhase.InProgress,
+                pendingTileKind: EnemyTileKind,
+                fixedDice: new Dictionary<int, int> { [4] = 1 }));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.RollBlock.ShouldBe(BoardRollBlock.TilePending);
+
+        (await presenter.UseFixedDieAsync(4, CancellationToken.None))
+            .ShouldBe(BoardSubmission.RefusedNotAvailable);
+
+        host.SubmitCommand.ShouldBeNull("nothing may reach the host at all.");
+    }
+
+    /// <summary>An owed choice is offered, and naming a number submits it.</summary>
+    [Fact]
+    public async Task Naming_a_number_submits_choose_fixed_die()
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingFixedDieChoices: 1));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingFixedDieChoices.ShouldBe(1);
+        presenter.FixedDieChoiceOffered.ShouldBeTrue();
+
+        (await presenter.ChooseFixedDieAsync(6, CancellationToken.None))
+            .ShouldBe(BoardSubmission.Submitted);
+
+        host.SubmitCommand.ShouldBeOfType<ChooseFixedDieCommand>().Pips.ShouldBe(6);
+    }
+
+    /// <summary>
+    /// 🔒 <b>Naming a number is NOT gated on the block, unlike every other control here.</b> A grant
+    /// can land while a tile is unresolved or a battle is open, and naming a number moves nothing —
+    /// refusing it until the board was clear would leave the player holding a reward they cannot open
+    /// in the states they most want to open it.
+    /// </summary>
+    [Theory]
+    [InlineData(EnemyTileKind)]
+    [InlineData(TreasureTileKind)]
+    public async Task An_unresolved_tile_does_not_block_naming_a_number(int pendingTileKind)
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(
+                Run, Player, RunPhase.InProgress,
+                pendingTileKind: pendingTileKind, pendingFixedDieChoices: 1));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.RollBlock.ShouldBe(BoardRollBlock.TilePending);
+        presenter.FixedDieChoiceOffered.ShouldBeTrue();
+
+        (await presenter.ChooseFixedDieAsync(2, CancellationToken.None))
+            .ShouldBe(BoardSubmission.Submitted);
+    }
+
+    /// <summary>A number no die can show is not submitted, and neither is a choice nothing owes.</summary>
+    [Theory]
+    [InlineData(1, 0)]
+    [InlineData(1, 7)]
+    [InlineData(1, -1)]
+    [InlineData(0, 3)]
+    public async Task A_choice_that_cannot_be_made_is_not_submitted(int owed, int pips)
+    {
+        var host = RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingFixedDieChoices: owed));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.ChooseFixedDieAsync(pips, CancellationToken.None))
+            .ShouldBe(BoardSubmission.RefusedNotAvailable);
+
+        host.SubmitCommand.ShouldBeNull("nothing may reach the host at all.");
+    }
+
 
     // ---- fixture ------------------------------------------------------------------------------
 

@@ -149,5 +149,7 @@ Every grant site below is one the reroll used to own. That is deliberate — the
 
 🔴 **Two grant sites the reroll had are still empty**: a gear affix and the Fateweave set bonus. Both would need new effects-DSL stat vocabulary — a fixed die is a *held object*, not a stat, and `18` has no way to say "grant one of these". Neither is wired, and neither pretends to be.
 
-⚠️ **Six event-card outcomes (`19` Part A) are still unpayable.** They granted reroll charges; the board-events op vocabulary has no way to grant a fixed-die choice yet, so they resolve as `UNSUPPORTED`. That is the largest remaining hole in this mechanic.
+🔒 **Three event-card outcomes (`19` Part A) grant them too.** The board-events vocabulary gained a sixth op, `FIXED_DIE { count }`, for exactly this: three outcomes granted reroll charges (+2, +1, +1) and were left reading as *deferred* long after the mechanic replacing the reroll existed. The authored amounts are carried across rather than flattened.
+
+⚠️ **Two more event outcomes stay unpayable, and for a reason that is not the die's.** `EVT_TAX`'s *pay 15% of current Gold, then +1 charge* and `EVT_STORM`'s *lose 1 charge to heal 20%* both need something else: a proportional cost the flat cost field cannot express, and a way to take a die back — which a card cannot have, because it does not know which of the player's dice it gave them. Paying either reward without its cost would make the option strictly good, so neither half is applied.
 

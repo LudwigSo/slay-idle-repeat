@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/board_events.schema.json",
-  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed five-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges (removed outright), none of which exist in Core today, so each such outcome carries one UNSUPPORTED op naming the mechanic and its owning milestone. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
+  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed six-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges, so each outcome Core cannot execute carries one UNSUPPORTED op naming the mechanic and its owning milestone. Two of those groups have since been RESOLVED rather than deferred, and the notes say which is which: the three reroll-charge grants are now FIXED_DIE choices (04 §6), and the three tile-reveal outcomes are dead outright because the board is completely visible at all times (04 §4, 16 D42) — they pay nothing and are owed a replacement reward, which is a design decision and not a transcription's to make. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
   "_status": "transcribed",
   "cards": [
     {
@@ -67,7 +67,7 @@
         },
         {
           "label": "Share your rations",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.05 }, { "op": "UNSUPPORTED", "note": "+2 Reroll Charges — the reroll is removed, so there is nothing to grant" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.05 }, { "op": "FIXED_DIE", "count": 2 } ] } ]
         }
       ]
     },
@@ -164,7 +164,7 @@
       "options": [
         {
           "label": "Ask about the road",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles in this stage — board reveal needs the run's generated board, M3-02's" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles in this stage — REMOVED rather than deferred: the board is completely visible at all times (04 §4, 16 D42), so there is nothing left to reveal. The outcome is owed a replacement reward, and inventing one here would be authoring design in a transcription" } ] } ]
         },
         {
           "label": "Ask about his armour",
@@ -173,7 +173,7 @@
         },
         {
           "label": "Ask nothing",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — the reroll is removed, so there is nothing to grant" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "FIXED_DIE", "count": 1 } ] } ]
         }
       ]
     },
@@ -357,7 +357,7 @@
       "options": [
         {
           "label": "Pay",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "pay 15% of current Gold to pass, then +1 Reroll Charge — a proportional cost the flat cost field cannot express, and the reroll is removed" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "pay 15% of current Gold to pass, then +1 Reroll Charge — the reward half IS payable now (a FIXED_DIE choice, 04 §6), but the COST is a proportional one the flat amount field cannot express. Paying the reward without the cost would make this option strictly good, so neither half is applied" } ] } ]
         },
         {
           "label": "Refuse",
@@ -407,7 +407,7 @@
         },
         {
           "label": "Read the maps",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles for the rest of this stage — board reveal needs the run's generated board, M3-02's" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles for the rest of this stage — REMOVED rather than deferred, for the reason the Scout option above carries: the board is always wholly visible (04 §4, 16 D42)" } ] } ]
         },
         {
           "label": "Sell the lot",
@@ -428,7 +428,7 @@
         },
         {
           "label": "Shelter",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "lose 1 Reroll Charge to heal 20% HP — the reroll is removed, so the cost cannot be taken and the heal is deliberately not paid either" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "lose 1 Reroll Charge to heal 20% HP — the cost is still unpayable: a fixed die (04 §6) replaced the reroll CHARGE but is not the same resource, and this card would have to choose which of the player's dice to take. The heal is deliberately not paid either, or the option becomes a free 20%" } ] } ]
         },
         {
           "label": "Walk through it",
@@ -538,7 +538,7 @@
         },
         {
           "label": "Avoid it",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — the reroll is removed, so there is nothing to grant" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "FIXED_DIE", "count": 1 } ] } ]
         },
         {
           "label": "Watch from here",
@@ -618,7 +618,7 @@
       "options": [
         {
           "label": "Take it",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "tile preview +6 and every TILE_CURSE in this stage revealed — board reveal needs the run's generated board, M3-02's" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "tile preview +6 and every TILE_CURSE in this stage revealed — REMOVED rather than deferred: the tile preview no longer exists in any form (04 §4, 16 D42) and every tile including every curse is already drawn. This outcome pays nothing and is owed a replacement" } ] } ]
         },
         { "label": "Leave it lit", "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": 0.4 } ] } ] },
         {

@@ -291,7 +291,9 @@ internal static class PlayerState
         IReadOnlyList<string>? shrineBuffs = null,
         ulong? shopOfferDraw = null,
         int shopSlotsPurchased = 0,
-        int shopRefreshesUsedThisVisit = 0) =>
+        int shopRefreshesUsedThisVisit = 0,
+        IReadOnlyDictionary<int, int>? fixedDice = null,
+        int pendingFixedDieChoices = 0) =>
         new(
             SnapshotSchema.SchemaVersion,
             id,
@@ -330,7 +332,9 @@ internal static class PlayerState
             Curses: curses,
             ShopOfferDraw: shopOfferDraw,
             ShopSlotsPurchased: shopSlotsPurchased,
-            ShopRefreshesUsedThisVisit: shopRefreshesUsedThisVisit);
+            ShopRefreshesUsedThisVisit: shopRefreshesUsedThisVisit,
+            FixedDice: fixedDice,
+            PendingFixedDieChoices: pendingFixedDieChoices);
 
     /// <summary>The same slice, carrying a run rehydrated from the given row.</summary>
     /// <remarks>

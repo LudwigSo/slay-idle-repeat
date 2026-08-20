@@ -53,6 +53,36 @@ public sealed class EventCardLivenessTests
     /// case above is satisfied by a catalogue where nothing costs anything and the property it
     /// guards has never been exercised.
     /// </remarks>
+    /// <summary>
+    /// 🔒 <b>The three outcomes that grant fixed dice actually grant them.</b> All three were
+    /// <c>UNSUPPORTED</c> reroll-charge grants, which reads as DEFERRED — and they stayed that way for
+    /// a whole milestone after the mechanic that replaced the reroll was built. Pinned over the
+    /// SHIPPED catalogue so a future edit that re-defers one is a failure rather than a silent loss of
+    /// three of the card pool's few payable rewards.
+    /// </summary>
+    /// <remarks>
+    /// Counted, not located: which cards carry them is `19` Part A's business and moving one between
+    /// cards is a content decision. That three exist and pay is this task's claim.
+    /// </remarks>
+    [Fact]
+    public void The_three_authored_fixed_die_grants_are_payable_rather_than_deferred()
+    {
+        var catalogue = EventCatalogue.Read(ShippedHarness.Content);
+
+        var grants = catalogue.All
+            .SelectMany(card => card.Options)
+            .SelectMany(option => option.Outcomes)
+            .SelectMany(outcome => outcome.Effects)
+            .Where(effect => effect.Op == EventEffectOp.FixedDie)
+            .ToArray();
+
+        grants.Length.ShouldBe(
+            3, "19 Part A authors three reroll-charge grants, and all three are fixed dice now.");
+
+        grants.Sum(effect => effect.FixedDice!.Value).ShouldBe(
+            4, "+2, +1 and +1 — the authored amounts, carried across rather than flattened to one each.");
+    }
+
     [Fact]
     public void The_catalogue_is_populated_and_some_of_it_costs_something()
     {

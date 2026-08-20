@@ -113,7 +113,7 @@
       }
     },
     "effect": {
-      "description": "🔒 The closed five-op vocabulary. Extending it means a new resolver branch, not a new content row.",
+      "description": "🔒 The closed six-op vocabulary. Extending it means a new resolver branch, not a new content row. ⚠️ FIXED_DIE is the one addition since it was closed, and it was added because three outcomes granted reroll charges and were left reading as DEFERRED once the reroll was removed — while the mechanic that replaced it was already built.",
       "oneOf": [
         {
           "description": "Move one currency. GOLD moves on the Run (10 §1's one RUN-scoped currency); the other seven move on the Player's wallet.",
@@ -155,6 +155,20 @@
           "properties": {
             "op": { "const": "CURSE_REWARD" },
             "curseId": { "enum": ["CUR_SLIPPERY", "CUR_MARKED", "CUR_FRACTURED"] }
+          }
+        },
+        {
+          "description": "🔒 Grant fixed-die CHOICES (`04` §6). ⚠️ Choices, never dice: the player names each number, and a card drawn by weight cannot ask them anything — so what the run persists is the debt, answered later by CHOOSE_FIXED_DIE. `count` is how many, and it is authored rather than defaulted because 19 Part A's three reroll outcomes granted different amounts (+2, +1, +1).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["op", "count"],
+          "properties": {
+            "op": { "const": "FIXED_DIE" },
+            "count": {
+              "description": "How many choices this outcome owes. At least one: a zero resolves to nothing and is indistinguishable from a row nobody finished authoring, and there is no way to take a die back.",
+              "type": "integer",
+              "minimum": 1
+            }
           }
         },
         {

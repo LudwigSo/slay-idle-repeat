@@ -3,9 +3,11 @@ using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Dice;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
 
@@ -83,6 +85,16 @@ public enum BoardSubmission
     RefusedByRules = 3,
 }
 
+/// <summary>One entry of the fixed-dice tray: a number the run holds, and how many of it.</summary>
+/// <param name="Pips">The number written on the die, 1-6, and what <c>USE_FIXED_DIE</c> carries.</param>
+/// <param name="Count">How many dice showing that number the run holds — at least one.</param>
+/// <remarks>
+/// 🔒 A count rather than one entry per die, because that is what a run persists and two dice
+/// showing a 3 are genuinely the same holding twice. A list would put an order into the tray that
+/// nothing means, and the player would be choosing between identical controls.
+/// </remarks>
+public sealed record HeldFixedDie(int Pips, int Count);
+
 /// <summary>The tile the run is standing on and has not resolved.</summary>
 /// <param name="Kind">The kind, as the run's own integer.</param>
 /// <param name="NameKey">Its caption key, or null when the number names no kind this build knows.</param>
@@ -90,10 +102,27 @@ public enum BoardSubmission
 /// <param name="Stage">The stage it belongs to, 1-3, or 0 for the boss node.</param>
 public sealed record PendingTile(int Kind, string? NameKey, int LinearIndex, int Stage);
 
-/// <summary>One branch a paused junction offers.</summary>
+/// <summary>One branch a paused junction offers, with the preview the generator authored for it.</summary>
 /// <param name="BranchIndex">What <c>CHOOSE_FORK</c> carries for it.</param>
 /// <param name="CaptionKey">The caption key describing where it goes.</param>
-public sealed record ForkBranch(int BranchIndex, string CaptionKey);
+/// <param name="Label">
+/// The bias label this branch's tiles were drawn under, or null for the edge that keeps to the
+/// spine — which was drawn under no bias, so naming one for it would be inventing a preview.
+/// </param>
+/// <param name="Icons">
+/// The branch's own first tiles in walk order, at most three, or empty for the spine edge.
+/// </param>
+/// <remarks>
+/// 🔒 The label and the icons are two INDEPENDENT reads of the same branch, and neither is derived
+/// from the other: the label is the bias the draw ran under and the icons are what the draw actually
+/// produced. A screen showing icons computed from the label would be showing the intention rather
+/// than the board, and the two differ every time the weighted draw does not go the label's way.
+/// </remarks>
+public sealed record ForkBranch(
+    int BranchIndex,
+    string CaptionKey,
+    ForkLabel? Label = null,
+    IReadOnlyList<TileKind>? Icons = null);
 
 /// <summary>A movement paused at a junction, waiting for the player to pick an edge.</summary>
 /// <param name="JunctionPosition">The junction the run is paused on.</param>
@@ -113,21 +142,33 @@ public sealed record ForkPrompt(int JunctionPosition, int RemainingSteps, IReadO
 /// screen makes is therefore made in this file.
 /// </para>
 /// <para>
-/// 🔴 <b>There is no board here, and that is the largest thing to know about this screen.</b> The
-/// graph a run is played on — which tile sits at which node, how many nodes a fork branch has, what
-/// is coming up — is generated inside the rules assembly and never leaves it. No persisted field
-/// carries it and no reachable type describes it. So this screen cannot draw the track of upcoming
-/// tiles the design calls for. What it draws instead is true: how far through the current stage the
-/// run has walked, out of the stage's own authored length, and the name of the one tile the run is
-/// actually standing on. The upcoming-tile preview, the fork's authored branch labels and icon sets,
-/// and the burning-tile marks are all absent because they are unreadable, not because they were
-/// forgotten.
+/// 🔒 <b>The board is here, whole, and that is the largest thing to know about this screen.</b>
+/// <see cref="BoardView.Project"/> regenerates the run's graph from its seed and hands back every
+/// node of the track with the tile that sits on it, plus each junction's real branch preview. `16`
+/// D42 makes the whole of it visible at all times — no fog, no preview range, no reveal distance —
+/// because a die that only answers a number is only an interesting decision if the player can see
+/// what the numbers reach, and that is the entire reason a FIXED die is worth choosing a number for.
+/// So this screen draws the track, not a progress strip: the three paragraphs that used to stand
+/// here saying the board was unreadable are gone with the thing they described.
+/// </para>
+/// <para>
+/// 🔴 What is still absent from the track: the burning-tile marks of a Chapter 4 hazard (`03`
+/// §4.1), which no projected node carries, and any mark for a node already walked — a run records
+/// where it IS, not where it has been, so a visited node is indistinguishable from one ahead.
 /// </para>
 /// <para>
 /// ⚠️ <b>A roll is one tap and is final.</b> There is no reroll and no acceptance window: the die
 /// is an ordinary 1..6, <c>ROLL_DICE</c> answers with the number, the movement and the landing
 /// together, and the board decides what the landing means. What the screen shows afterwards is the
 /// number that was rolled.
+/// </para>
+/// <para>
+/// 🔒 <b>There are TWO ways to move, and this screen offers both.</b> A fixed die (`04` §6) is
+/// spent instead of rolling and moves the hero exactly its own number. It is not a reroll — nothing
+/// is re-drawn — so it is offered as its own control rather than as something done to a roll, and it
+/// is gated by exactly the same <see cref="RollBlock"/>: the rules layer refuses both movement
+/// commands from the same states, so a screen that offered one where the other was refused would be
+/// promising a way out of a state the game has none of.
 /// </para>
 /// <para>
 /// 🔴 Absent because a later screen owns each: the battle, the perk draft, the shop, the event card,
@@ -138,21 +179,6 @@ public sealed record ForkPrompt(int JunctionPosition, int RemainingSteps, IReadO
 /// </remarks>
 public sealed class BoardPresenter
 {
-    /// <summary>
-    /// ⚠️ Deliberately unread, and named so it can be found. Nothing reachable from a client
-    /// describes the board, so the two branches a junction offers are named by their structural
-    /// position rather than by the labels the generator actually authored for them.
-    /// </summary>
-    private const string TheForkPreviewIsNotReachableHere =
-        "03 §3.1 gives each branch a one-word label — Perilous, Sheltered, Arcane, Feral — and up " +
-        "to three icons drawn from its real contents, and the generator does author them. They are " +
-        "built inside the rules assembly, attached to an edge of a graph that is regenerated per " +
-        "command, and deliberately not persisted; every type involved is internal. So this screen " +
-        "knows a junction is open and how many steps are left, and nothing whatever about what " +
-        "either branch holds. It names the two edges by the one fact it does have — that a junction " +
-        "has exactly two, the first continuing the spine and the second entering the side path — " +
-        "and shows no preview, rather than inventing one for the run's only real navigation choice.";
-
     private const string HpLabelKey = "loc.board.hp.label";
     private const string GoldLabelKey = "loc.board.gold.label";
     private const string StageLabelKey = "loc.board.stage.label";
@@ -165,6 +191,12 @@ public sealed class BoardPresenter
     private const string ForkNameKey = "loc.board.fork.name";
     private const string ForkContinueActionKey = "loc.board.fork_continue.action";
     private const string ForkBranchActionKey = "loc.board.fork_branch.action";
+    private const string ForkPerilousLabelKey = "loc.board.fork_perilous.label";
+    private const string ForkShelteredLabelKey = "loc.board.fork_sheltered.label";
+    private const string ForkArcaneLabelKey = "loc.board.fork_arcane.label";
+    private const string ForkFeralLabelKey = "loc.board.fork_feral.label";
+    private const string FixedDiceHeldLabelKey = "loc.board.dice_held.label";
+    private const string FixedDiceChooseLabelKey = "loc.board.dice_choose.label";
     private const string LoadingStatusKey = "loc.board.loading.status";
     private const string RunMissingStatusKey = "loc.board.run_missing.status";
     private const string RunEndedStatusKey = "loc.board.run_ended.status";
@@ -205,6 +237,7 @@ public sealed class BoardPresenter
     private readonly RunId _run;
 
     private RunSnapshot? _snapshot;
+    private BoardView? _board;
 
     /// <summary>Builds the screen over the host, the strings, the content set and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and its commands are submitted through.</param>
@@ -282,25 +315,37 @@ public sealed class BoardPresenter
     /// </remarks>
     public int Position { get; private set; }
 
+    /// <summary>Every node of the run's board in walk order, boss last — the whole track.</summary>
+    /// <remarks>
+    /// 🔒 The WHOLE track, never a window on it (`16` D42). Empty only when the board could not be
+    /// projected at all, which is a chapter this build does not ship rather than a run mid-move.
+    /// ⚠️ The spine, so a fork's branch nodes are not in this list: they hang off a junction and
+    /// share their linear index with the spine node level with them, so laying them out in one row
+    /// would put two tiles on one step. <see cref="Fork"/> is where a branch's own tiles are read.
+    /// </remarks>
+    public IReadOnlyList<BoardTrackNode> Track => _board?.Spine ?? [];
+
+    /// <summary>The node the run is standing on, or null while it is at the trailhead.</summary>
+    public BoardTrackNode? StandingOn => _board?.StandingOn;
+
     /// <summary>
-    /// How far along the track the run stands, or null when that cannot be said exactly.
+    /// How far along the track the run stands, or null while it stands on no node of this board.
     /// </summary>
     /// <remarks>
-    /// 🔒 Null rather than a best guess. The exact distance is carried only by a pending tile, so
-    /// between resolving one tile and landing on the next there is a window in which the run's
-    /// distance is knowable for a spine node and not for a branch node — and the client cannot tell
-    /// which it is standing on. A token drawn at a plausible position for those few nodes would be a
-    /// board quietly lying about where the player is, so the track holds its last exact position
-    /// instead.
+    /// 🔒 <b>Exact, and no longer a guess withheld.</b> This used to read the pending tile, because
+    /// that was the only field carrying a linear index — so between resolving one tile and landing on
+    /// the next it had to answer null rather than place the token at a plausible node. The projected
+    /// board answers it from the run's actual position for every node, spine or branch, so the window
+    /// in which the screen did not know where the player was is closed rather than merely narrowed.
     /// </remarks>
-    public int? TrackIndex => PendingTile?.LinearIndex;
+    public int? TrackIndex => StandingOn?.LinearIndex;
 
-    /// <summary>The stage the run is in, 1-3, or null while that is not known.</summary>
+    /// <summary>The stage the run is in, 1-3, or null while it is on no stage of this chapter.</summary>
     /// <remarks>
-    /// Known only from a pending tile, for the same reason <see cref="TrackIndex"/> is. The boss
-    /// node reports its own stage value, which is why a pending tile is asked for its kind as well.
+    /// Read off the node the run stands on, so it is known between tiles as well. The boss node
+    /// belongs to no stage and reports 0, which is why the range is stated rather than assumed.
     /// </remarks>
-    public int? StageNumber => PendingTile is { Stage: >= 1 and <= 3 } tile ? tile.Stage : null;
+    public int? StageNumber => StandingOn is { Stage: >= 1 and <= 3 } node ? node.Stage : null;
 
     /// <summary>
     /// How many stages this run's chapter has, read from the chapter's own authored stage lengths.
@@ -313,30 +358,35 @@ public sealed class BoardPresenter
     public int? StageCount { get; private set; }
 
     /// <summary>How long the current stage is, in nodes, or null when that is not known.</summary>
-    public int? StageLength { get; private set; }
-
-    /// <summary>
-    /// Where the token sits <em>within</em> the current stage, or null when it cannot be placed.
-    /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Here rather than in the scene, and the first version of it was wrong in the scene.</b>
-    /// The run's index is measured from the start of the chapter and runs continuously across every
-    /// stage, so a stage after the first begins part-way along it and the offset to subtract is the
-    /// sum of the lengths of the stages BEFORE it. Those lengths differ — the shipped chapters
-    /// author twelve, then fourteen, then sixteen — so multiplying any one of them by the stage
-    /// number lands on the wrong node everywhere except stage one, confidently and silently.
-    /// </para>
-    /// <para>
-    /// 🔒 Null rather than a clamp when the offset does not land inside the stage. A token drawn at
-    /// a plausible pip is a board quietly lying about where the player is, which is worse than a
-    /// board that draws no token at all.
-    /// </para>
+    /// ⚠️ Read from the chapter document rather than counted off <see cref="Track"/>, and kept for
+    /// the caption rather than for the track: it is the authored length, so a generated board of a
+    /// different length is a disagreement worth being able to see rather than one to paper over.
     /// </remarks>
-    public int? StageTrackIndex { get; private set; }
+    public int? StageLength { get; private set; }
 
     /// <summary>The tile the run is standing on and has not resolved, or null when none is pending.</summary>
     public PendingTile? PendingTile { get; private set; }
+
+    /// <summary>
+    /// The fixed dice the run owns, ascending by number — one entry per distinct number, carrying how
+    /// many of it are held (`04` §6.3).
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Ordered here rather than in the scene. The run persists a multiset, whose enumeration
+    /// order is the dictionary's and therefore an accident of insertion — so a tray drawn straight
+    /// off it would re-order itself whenever a die was granted or spent, and the control under the
+    /// player's thumb would not be the one they were looking at. Uncapped, so this list has no
+    /// authored maximum length; the scene lays it out as a row that wraps.
+    /// </remarks>
+    public IReadOnlyList<HeldFixedDie> FixedDice { get; private set; } = [];
+
+    /// <summary>How many fixed dice have been granted whose number the player has not named yet.</summary>
+    /// <remarks>
+    /// ⚠️ A count, not a queue: every owed choice is the same offer, so there is nothing to tell one
+    /// from another. It blocks nothing (`04` §6.2) — the roll stays live with one outstanding.
+    /// </remarks>
+    public int PendingFixedDieChoices { get; private set; }
 
     /// <summary>The junction the run is paused at, or null when movement is not paused.</summary>
     public ForkPrompt? Fork { get; private set; }
@@ -409,6 +459,35 @@ public sealed class BoardPresenter
 
     /// <summary>The fork prompt's heading, resolved.</summary>
     public string ForkTitle => _strings.Resolve(ForkNameKey);
+
+    /// <summary>The heading over the tray of dice the run owns, resolved.</summary>
+    public string FixedDiceLabel => _strings.Resolve(FixedDiceHeldLabelKey);
+
+    /// <summary>The prompt asking the player to name a granted die's number, resolved.</summary>
+    public string FixedDieChoiceLabel => _strings.Resolve(FixedDiceChooseLabelKey);
+
+    /// <summary>Whether the tray has anything in it to draw.</summary>
+    public bool FixedDiceOffered => Stage == BoardStage.Ready && FixedDice.Count > 0;
+
+    /// <summary>Whether the screen should be asking the player to name a number.</summary>
+    public bool FixedDieChoiceOffered => Stage == BoardStage.Ready && PendingFixedDieChoices > 0;
+
+    /// <summary>One branch's bias label, resolved — empty for the edge that keeps to the spine.</summary>
+    /// <param name="branch">The branch to label.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="branch"/> is null.</exception>
+    public string BranchLabelText(ForkBranch branch)
+    {
+        ArgumentNullException.ThrowIfNull(branch);
+
+        // Empty rather than a fallback word for the spine edge: it was drawn under no bias, so there
+        // is no label the generator authored for it and inventing one would be a preview of nothing.
+        return branch.Label is { } label ? _strings.Resolve(LabelKeyFor(label)) : NothingLeftToSay;
+    }
+
+    /// <summary>A tile kind's name, resolved — empty for a number this build knows no name for.</summary>
+    /// <param name="tile">The tile kind to name.</param>
+    public string TileName(TileKind tile) =>
+        BoardTileKinds.NameKeyFor((int)tile) is { } key ? _strings.Resolve(key) : NothingLeftToSay;
 
     /// <summary>The pending tile's name, resolved — empty when nothing is pending.</summary>
     /// <remarks>
@@ -567,6 +646,51 @@ public sealed class BoardPresenter
     }
 
     /// <summary>
+    /// Spends one fixed die, moving the hero exactly its own number instead of rolling.
+    /// </summary>
+    /// <param name="pips">The number on the die to spend.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// 🔒 Gated on <see cref="RollBlock"/>, the same gate the roll takes, because the rules layer
+    /// refuses both movement commands from the same three states. It is ALSO checked against the
+    /// tray, so a number the run does not hold is never submitted: that refusal comes back as the
+    /// same wire value as the four the block already tells apart, and spending a command to learn
+    /// something the screen already knows would leave the player reading the generic sentence.
+    /// </remarks>
+    public async Task<BoardSubmission> UseFixedDieAsync(int pips, CancellationToken ct)
+    {
+        CancelAbandon();
+
+        if (RollBlock != BoardRollBlock.None || !FixedDice.Any(held => held.Pips == pips))
+        {
+            return BoardSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new UseFixedDieCommand(pips), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Names the number on one granted fixed die.</summary>
+    /// <param name="pips">The number the player chose, 1-6.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// ⚠️ NOT gated on <see cref="RollBlock"/>, and that is the difference between this and every
+    /// other control here: a grant can land while a tile is unresolved or a battle is open, and
+    /// naming a number moves nothing. Refusing it until the board was clear would leave the player
+    /// holding a reward they cannot open, in the states they most want to open it.
+    /// </remarks>
+    public async Task<BoardSubmission> ChooseFixedDieAsync(int pips, CancellationToken ct)
+    {
+        CancelAbandon();
+
+        if (Stage != BoardStage.Ready || PendingFixedDieChoices <= 0 || !Die.IsPips(pips))
+        {
+            return BoardSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new ChooseFixedDieCommand(pips), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Whether the pending tile is one that is left by FIGHTING it rather than by resolving it.
     /// </summary>
     /// <remarks>
@@ -713,9 +837,20 @@ public sealed class BoardPresenter
                 run.PendingTileLinearIndex,
                 run.PendingTileStage);
 
+        // Projected BEFORE the fork and the stage shape are settled, because both read it.
+        _board = ProjectBoard(run);
+
         Fork = run.PendingForkJunctionPosition is { } junction && run.PendingForkRemainingSteps is { } steps
             ? new ForkPrompt(junction, steps, Branches())
             : null;
+
+        FixedDice = run.FixedDice is { Count: > 0 } held
+            ? held.OrderBy(entry => entry.Key)
+                  .Select(entry => new HeldFixedDie(entry.Key, entry.Value))
+                  .ToArray()
+            : [];
+
+        PendingFixedDieChoices = run.PendingFixedDieChoices;
 
         ReadStageShape(run.ChapterId);
 
@@ -731,19 +866,75 @@ public sealed class BoardPresenter
         RunAwaitingResults = run.Phase != RunPhase.Ended && (run.CurrentHp == 0 || run.BossDefeated);
     }
 
-    /// <remarks>See <see cref="TheForkPreviewIsNotReachableHere"/> for why these carry no preview.</remarks>
-    private static IReadOnlyList<ForkBranch> Branches() =>
-    [
-        new ForkBranch(ContinueBranchIndex, ForkContinueActionKey),
-        new ForkBranch(ContinueBranchIndex + 1, ForkBranchActionKey),
-    ];
+    /// <summary>
+    /// Regenerates the run's board out of its seed, or null when this build cannot draw one.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b><see cref="MissingContentException"/> and nothing else is caught.</b> It means one
+    /// thing — the run names a chapter this content set does not carry — and it is reachable from a
+    /// saved run whose chapter was removed, so a screen that let it through would fail to open a
+    /// board the player can otherwise still abandon. Every OTHER failure is a malformed chapter
+    /// document, and swallowing those would draw a boardless board over a content bug that every
+    /// content gate in CI is built to make loud.
+    /// </remarks>
+    private BoardView? ProjectBoard(RunSnapshot run)
+    {
+        try
+        {
+            return BoardView.Project(run, _content);
+        }
+        catch (MissingContentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The two edges a junction offers, the second carrying the branch's authored preview.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The preview is the generator's own: <see cref="BoardFork.BranchLabel"/> is the bias the
+    /// branch's tiles were drawn under and <see cref="BoardFork.BranchIcons"/> are the tiles that
+    /// draw actually produced. The spine edge carries neither, because it was drawn under no bias —
+    /// the board offers a preview of the side path and of nothing else, so that is what is shown.
+    /// ⚠️ Both edges still fall back to their structural caption when the junction is not one this
+    /// board knows, which is the state a fork paused at a position off the projected graph leaves.
+    /// </remarks>
+    private IReadOnlyList<ForkBranch> Branches()
+    {
+        var preview = _board?.PendingFork;
+
+        return
+        [
+            new ForkBranch(ContinueBranchIndex, ForkContinueActionKey),
+            new ForkBranch(
+                ContinueBranchIndex + 1,
+                ForkBranchActionKey,
+                preview?.BranchLabel,
+                preview?.BranchIcons ?? []),
+        ];
+    }
+
+    /// <summary>The loc key for one fork bias label.</summary>
+    /// <remarks>
+    /// A total switch over the four rather than a name-derived key, so adding a fifth label upstream
+    /// is a compile-time hole here instead of a key that resolves to nothing at run time.
+    /// </remarks>
+    private static string LabelKeyFor(ForkLabel label) => label switch
+    {
+        ForkLabel.Perilous => ForkPerilousLabelKey,
+        ForkLabel.Sheltered => ForkShelteredLabelKey,
+        ForkLabel.Arcane => ForkArcaneLabelKey,
+        ForkLabel.Feral => ForkFeralLabelKey,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(label), label, "03 §3.1 gives a fork four bias labels and this is none of them."),
+    };
 
     /// <summary>Reads the chapter's authored stage lengths, which is where "stage 2 of 3" comes from.</summary>
     private void ReadStageShape(int chapterId)
     {
         StageCount = null;
         StageLength = null;
-        StageTrackIndex = null;
 
         foreach (var path in _content.DocumentPaths)
         {
@@ -773,22 +964,7 @@ public sealed class BoardPresenter
                 return;
             }
 
-            var length = stageLengths[stage - 1].AsInt32();
-
-            StageLength = length;
-
-            // The real sum of the stages before this one, taken from the chapter's own array. Every
-            // earlier length is added; none is assumed equal to any other.
-            var preceding = 0;
-
-            for (var earlier = 0; earlier < stage - 1; earlier++)
-            {
-                preceding += stageLengths[earlier].AsInt32();
-            }
-
-            var within = (TrackIndex ?? -1) - preceding;
-
-            StageTrackIndex = within >= 0 && within < length ? within : null;
+            StageLength = stageLengths[stage - 1].AsInt32();
 
             return;
         }
