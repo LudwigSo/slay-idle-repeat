@@ -34,14 +34,25 @@
       "description": "Every control the screen offers. The two fork captions are separate keys rather than one parameterised caption because they are the run's one real navigation decision and a player choosing between two identical words has not chosen anything.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["roll", "reroll", "resolve", "diePanel", "forkContinue", "forkBranch"],
+      "required": [
+        "roll", "reroll", "resolve", "diePanel", "forkContinue", "forkBranch",
+        "abandon", "abandonConfirm"
+      ],
       "properties": {
         "roll": { "$ref": "#/$defs/locKey" },
         "reroll": { "$ref": "#/$defs/locKey" },
         "resolve": { "$ref": "#/$defs/locKey" },
         "diePanel": { "$ref": "#/$defs/locKey" },
         "forkContinue": { "$ref": "#/$defs/locKey" },
-        "forkBranch": { "$ref": "#/$defs/locKey" }
+        "forkBranch": { "$ref": "#/$defs/locKey" },
+        "abandon": {
+          "description": "The control that gives up the run. Required, and required from THIS screen in particular: 16 D39 makes ABANDON_RUN legal from every state a live run can stand in, and this is the only surface that reaches it — a board standing on a tile whose screen this build has not written has no other way out.",
+          "$ref": "#/$defs/locKey"
+        },
+        "abandonConfirm": {
+          "description": "What the same control reads once armed. A second key rather than a reused one: abandoning is unrecoverable and pays a tenth of what the run banked, so the confirmation has to STATE that rather than repeat the offer the player already pressed.",
+          "$ref": "#/$defs/locKey"
+        }
       }
     },
     "name": {

@@ -206,6 +206,8 @@
     "loc.board.fork.name": "##TODO_DE## The path splits",
     "loc.board.fork_continue.action": "##TODO_DE## Keep to the main path",
     "loc.board.fork_branch.action": "##TODO_DE## Take the side path",
+    "loc.board.abandon.action": "##TODO_DE## Abandon run",
+    "loc.board.abandon_confirm.action": "##TODO_DE## Confirm — the run ends here",
     "loc.board.loading.status": "##TODO_DE## Opening your run…",
     "loc.board.run_missing.status": "##TODO_DE## That run could not be found.",
     "loc.board.run_ended.status": "##TODO_DE## This run is over.",

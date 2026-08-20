@@ -1121,6 +1121,173 @@ public sealed class BoardPresenterTests
 
     // ---- fixture ------------------------------------------------------------------------------
 
+    // ---- abandoning ------------------------------------------------------------------------------
+
+    /// <summary>
+    /// 🔒 <b>The abandon control is offered from every state a live run can stand in.</b>
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>This is the product owner's requirement, and it is the only surface that carries it.</b>
+    /// <c>16</c> D39 makes <c>ABANDON_RUN</c> legal mid-battle, mid-draft, at a paused junction and on
+    /// an unresolved tile; the domain proves it in <c>RunLivenessTests</c>. None of that reaches a
+    /// player unless a control offers it, and this screen has the only one.
+    /// </para>
+    /// <para>
+    /// ⚠️ The theory's rows are the four states that BLOCK the roll plus the clear one — every value
+    /// <c>BoardRollBlock</c> has except <c>RunEnded</c>, which is not a live run. A control gated on
+    /// the block would pass the first row and fail the other four.
+    /// </para>
+    /// <para>
+    /// 🔒 The tile row is the one that matters most: a run standing on an Event or a Minigame is
+    /// standing on a tile this client has no screen for (M7-07b), so the abandon is not merely a way
+    /// out — it is the ONLY way out.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("nothing in the way")]
+    [InlineData("a tile is pending")]
+    [InlineData("a fork is open")]
+    [InlineData("a battle is open")]
+    [InlineData("a draft is open")]
+    public async Task Abandoning_is_offered_from_every_state_a_live_run_can_stand_in(string state)
+    {
+        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), Standing(state)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Stage.ShouldBe(BoardStage.Ready);
+        presenter.AbandonOffered.ShouldBeTrue(
+            $"a run with {state} can be abandoned, and this screen is the only place a player can " +
+            "say so. Standing on a tile the client has no screen for, it is the only way out at all.");
+        presenter.AbandonText.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    /// <summary>
+    /// The negative control: a run that is already over is not offered a way to give it up.
+    /// </summary>
+    /// <remarks>
+    /// Without this, the case above is satisfied by a property that is simply always true — and a
+    /// control offered over a closed run would spend a round trip on <c>RUN_ALREADY_ENDED</c>.
+    /// </remarks>
+    [Fact]
+    public async Task A_run_that_has_already_ended_is_not_offered_the_abandon()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.Ended)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.Stage.ShouldBe(BoardStage.RunEnded);
+        presenter.AbandonOffered.ShouldBeFalse();
+    }
+
+    /// <summary>
+    /// 🔒 The first press does not abandon anything — it arms, and the caption changes to say so.
+    /// </summary>
+    [Fact]
+    public async Task The_first_press_arms_the_control_rather_than_ending_the_run()
+    {
+        var host = RecordingGameHost.Finding(AnyPlayer(), AnyRun());
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        var offer = presenter.AbandonText;
+
+        var submission = await presenter.AbandonRunAsync(CancellationToken.None);
+
+        submission.ShouldBe(BoardSubmission.RefusedNotAvailable);
+        host.SubmitCallCount.ShouldBe(
+            0, "a single mis-tap must not be able to throw a run away.");
+        presenter.AbandonArmed.ShouldBeTrue();
+        presenter.AbandonText.ShouldNotBe(
+            offer,
+            "the armed control has to READ differently from the one the player just pressed, or the " +
+            "confirmation is invisible and the second press is the same tap again.");
+    }
+
+    [Fact]
+    public async Task The_second_press_submits_ABANDON_RUN()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), AnyRun())
+            .AcceptingInto(PlayerState.Run(Run, Player, RunPhase.Ended));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+        await presenter.AbandonRunAsync(CancellationToken.None);
+
+        var submission = await presenter.AbandonRunAsync(CancellationToken.None);
+
+        submission.ShouldBe(BoardSubmission.Submitted);
+        host.SubmitCommand.ShouldBeOfType<AbandonRunCommand>();
+        host.SubmitRun.ShouldBe(Run);
+        presenter.AbandonArmed.ShouldBeFalse("the run is gone; there is nothing left to confirm.");
+    }
+
+    /// <summary>
+    /// 🔒 An armed confirmation does not survive the player carrying on.
+    /// </summary>
+    /// <remarks>
+    /// A board is played for many minutes. An arming that outlived the roll it was abandoned for
+    /// would sit there for the rest of the run, one stray press from ending it — and the press that
+    /// ended it would be a press on a control whose caption the player last read as an offer.
+    /// </remarks>
+    [Fact]
+    public async Task Rolling_after_arming_disarms_the_control()
+    {
+        var presenter = Build(Rolling(DieFace.Pip(3)));
+
+        await presenter.StartAsync(CancellationToken.None);
+        await presenter.AbandonRunAsync(CancellationToken.None);
+
+        presenter.AbandonArmed.ShouldBeTrue();
+
+        await presenter.RollAsync(CancellationToken.None);
+
+        presenter.AbandonArmed.ShouldBeFalse();
+    }
+
+    /// <summary>A refusal from the rules layer is reported rather than swallowed.</summary>
+    [Fact]
+    public async Task An_abandon_the_rules_layer_refuses_is_told_to_the_player()
+    {
+        var host = RecordingGameHost
+            .Finding(AnyPlayer(), AnyRun())
+            .RefusingCommands(RejectionReason.ILLEGAL_STATE);
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+        await presenter.AbandonRunAsync(CancellationToken.None);
+
+        var submission = await presenter.AbandonRunAsync(CancellationToken.None);
+
+        submission.ShouldBe(BoardSubmission.RefusedByRules);
+        presenter.RulesRejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
+        presenter.RejectionText.ShouldNotBeNullOrWhiteSpace();
+    }
+
+    // ---- fixture ---------------------------------------------------------------------------------
+
+    /// <summary>One run per row of the abandon theory, in the state that row names.</summary>
+    private static RunSnapshot Standing(string state) => state switch
+    {
+        "nothing in the way" => AnyRun(),
+        "a tile is pending" => PlayerState.Run(
+            Run, Player, RunPhase.InProgress, pendingTileKind: TreasureTileKind),
+        "a fork is open" => PlayerState.Run(
+            Run, Player, RunPhase.InProgress,
+            pendingForkJunctionPosition: 4, pendingForkRemainingSteps: 2),
+        "a battle is open" => PlayerState.Run(
+            Run, Player, RunPhase.BattlePending, pendingTileKind: EnemyTileKind),
+        "a draft is open" => PlayerState.Run(
+            Run, Player, RunPhase.InProgress, draftPending: true, draftBattleKind: EnemyTileKind),
+        _ => throw new ArgumentOutOfRangeException(nameof(state), state, "No run is built for it."),
+    };
+
     private static PlayerSnapshot AnyPlayer() => PlayerState.Player(Player);
 
     private static RunSnapshot AnyRun() => PlayerState.Run(Run, Player, RunPhase.InProgress);

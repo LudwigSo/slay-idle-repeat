@@ -152,6 +152,7 @@ public partial class Board : Control
     private const string DiePanelButtonPath = "%DiePanelButton";
     private const string RollButtonPath = "%RollButton";
     private const string ResolveButtonPath = "%ResolveButton";
+    private const string AbandonButtonPath = "%AbandonButton";
     private const string DiePanelOverlayPath = "%DiePanelOverlay";
     private const string OverlaySafeAreaPath = "%OverlaySafeArea";
     private const string DiePanelTitleLabelPath = "%DiePanelTitleLabel";
@@ -184,6 +185,16 @@ public partial class Board : Control
 
     /// <summary>And one with nothing to do — the same quiet grey every caption is drawn in.</summary>
     private static readonly Color UnavailableColour = new(0.66f, 0.67f, 0.73f);
+
+    /// <summary>
+    /// The abandon control once it is armed — the one warm colour on the screen.
+    /// </summary>
+    /// <remarks>
+    /// The colour is not the confirmation; the caption is, and it says the run ends here. This is
+    /// what stops the second press looking like the first one on a screen where every other control
+    /// is the same off-white.
+    /// </remarks>
+    private static readonly Color ArmedColour = new(0.91f, 0.45f, 0.38f);
 
     /// <summary>
     /// How tall one node pip is drawn — and only how tall.
@@ -261,6 +272,7 @@ public partial class Board : Control
     private Button? _diePanelButton;
     private Button? _rollButton;
     private Button? _resolveButton;
+    private Button? _abandonButton;
     private Control? _diePanelOverlay;
     private Label? _diePanelTitleLabel;
     private Label? _facesUnavailableLabel;
@@ -422,6 +434,7 @@ public partial class Board : Control
         _diePanelButton = GetNode<Button>(DiePanelButtonPath);
         _rollButton = GetNode<Button>(RollButtonPath);
         _resolveButton = GetNode<Button>(ResolveButtonPath);
+        _abandonButton = GetNode<Button>(AbandonButtonPath);
         _diePanelOverlay = GetNode<Control>(DiePanelOverlayPath);
         _diePanelTitleLabel = GetNode<Label>(DiePanelTitleLabelPath);
         _facesUnavailableLabel = GetNode<Label>(FacesUnavailableLabelPath);
@@ -435,6 +448,7 @@ public partial class Board : Control
         _rollButton.ButtonUp += OnRollHoldEnded;
         _rerollButton.Pressed += OnRerollPressed;
         _resolveButton.Pressed += OnResolvePressed;
+        _abandonButton.Pressed += OnAbandonPressed;
         _diePanelButton.Pressed += OnDiePanelPressed;
         _closeButton.Pressed += OnClosePressed;
         _ground.GuiInput += OnGroundInput;
@@ -480,6 +494,11 @@ public partial class Board : Control
         if (_resolveButton is not null)
         {
             _resolveButton.Pressed -= OnResolvePressed;
+        }
+
+        if (_abandonButton is not null)
+        {
+            _abandonButton.Pressed -= OnAbandonPressed;
         }
 
         if (_diePanelButton is not null)
@@ -607,7 +626,7 @@ public partial class Board : Control
             _statusLabel is null || _blockLabel is null || _rejectionLabel is null ||
             _forkPanel is null || _forkTitleLabel is null || _forkButtons is null ||
             _promptPanel is null || _rollButton is null || _resolveButton is null ||
-            _diePanelButton is null)
+            _abandonButton is null || _diePanelButton is null)
         {
             return;
         }
@@ -694,6 +713,20 @@ public partial class Board : Control
         _resolveButton.Text = presenter.ResolveText;
         _resolveButton.Visible = tilePending;
         _resolveButton.Disabled = _busy;
+
+        // 🔒 Drawn from AbandonOffered and from NOTHING else on this screen — not from the block,
+        // not from whether a tile is pending, not from whether a fork is open. It is the one control
+        // that has to be there in every state a live run can stand in, INCLUDING the states that
+        // hide every other control, because it is the only way out of a tile this build has no
+        // screen for.
+        _abandonButton.Text = presenter.AbandonText;
+        _abandonButton.Visible = presenter.AbandonOffered;
+        _abandonButton.Disabled = _busy;
+
+        ButtonTextColours.ApplyTo(
+            _abandonButton,
+            presenter.AbandonArmed ? ArmedColour : UnavailableColour,
+            UnavailableColour);
 
         _diePanelButton.Text = presenter.DiePanelText;
     }
@@ -943,6 +976,14 @@ public partial class Board : Control
     private void OnResolvePressed() =>
         _ = SubmitAsync(presenter => presenter.ResolvePendingTileAsync(_lifetime));
 
+    /// <remarks>
+    /// The first press arms and the second submits, and the presenter holds which one this is — see
+    /// <see cref="BoardPresenter.AbandonRunAsync"/>. Routed through the same
+    /// <see cref="SubmitAsync"/> as every other control, so the arming press redraws the caption.
+    /// </remarks>
+    private void OnAbandonPressed() =>
+        _ = SubmitAsync(presenter => presenter.AbandonRunAsync(_lifetime));
+
     private void OnBranchPressed(int branchIndex) =>
         _ = SubmitAsync(presenter => presenter.ChooseForkAsync(branchIndex, _lifetime));
 
@@ -1045,10 +1086,45 @@ public partial class Board : Control
             $"fork={presenter.Fork?.Branches.Count.ToString(CultureInfo.InvariantCulture) ?? "none"} " +
             $"faces=[{FaceReadout(presenter)}] rejection={Describe(presenter.RulesRejection)}");
 
+        if (LeaveIfTheRunHasClosed(presenter))
+        {
+            // This board has been detached and queued for freeing. Nothing below may touch it.
+            return;
+        }
+
         ReportUnbuiltDestination(presenter);
         OpenBattle(presenter);
         OpenDecision(presenter);
     }
+
+    /// <summary>
+    /// Takes the player back to the starting menu the moment the run this board is drawing has
+    /// closed, and says whether this board has stood down.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>ABANDON_RUN's way off, and the only one it has.</b> Abandoning pays the run out and
+    /// closes it inside its own handler — there is no unbanked tally left for S14 to offer and no
+    /// <c>END_RUN</c> left for it to accept — so a board that handed over to the results screen
+    /// would put the player on a screen whose one control is refused. Home is where a closed run
+    /// belongs, and this is what gets them there.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Asked of a closed run however it closed</b>, rather than only after this screen's own
+    /// abandon: a board entered on a run that was already over reached exactly the same dead end,
+    /// and it is the same fix. <see cref="ReportUnbuiltDestination"/> still stands behind it for the
+    /// one case that genuinely has nowhere to go, which is a board driven without a Home.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The tally an abandoned run is owed is not drawn.</b> <c>13</c>'s S14 lists a reward
+    /// tally for every ending, and this one goes straight past it, because the payout is applied
+    /// before the client ever reads the run back. Showing it means splitting <c>ABANDON_RUN</c> into
+    /// a marker and an <c>END_RUN</c> the way a death and a victory are already split — the results
+    /// screen's row, not this control's.
+    /// </para>
+    /// </remarks>
+    private bool LeaveIfTheRunHasClosed(BoardPresenter presenter) =>
+        presenter.Stage == BoardStage.RunEnded && LeaveToHome();
 
     /// <remarks>
     /// Reported rather than navigated to. A finished run belongs to a screen a later row owns, and a
