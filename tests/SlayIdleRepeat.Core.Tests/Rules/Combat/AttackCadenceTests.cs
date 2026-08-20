@@ -118,12 +118,25 @@ public sealed class AttackCadenceTests
     /// Summons enter with a full attack cooldown (they never attack on their spawn tick), at the end
     /// of the enemy index list and on a log id that is never reused.
     /// </summary>
+    /// <remarks>
+    /// 🔒 Admitted from INSIDE the tick loop, through the pipeline's own hook, rather than from a
+    /// captured <c>BattleServices</c> after <c>Simulate</c> returned. Admitting one writes an
+    /// <c>ActorSpawned</c> to the log and <c>Complete</c> seals the log, so the after-the-fact form is
+    /// refused — correctly, since a roster that could still grow after the result exists would make the
+    /// result's own <c>LogHash</c> stop covering its log. This is where a real <c>SUMMON</c> op runs.
+    /// </remarks>
     [Fact]
     public void A_summon_enters_at_the_end_of_the_list_with_a_full_cooldown()
     {
         BattleServices? services = null;
+        BattleActor? summon = null;
+        var before = 0;
 
-        CombatSimulator.Simulate(BattleTestBench.Plan(
+        // Read at the moment of entry, not after the fight: the tick loop spends a cooldown down as
+        // the fight runs, so the entry value is only observable here.
+        var cooldownAtEntry = double.NaN;
+
+        var result = CombatSimulator.Simulate(BattleTestBench.Plan(
             new[]
             {
                 BattleTestBench.Hero(BattleTestBench.Stats(maxHp: 10_000)),
@@ -133,19 +146,32 @@ public sealed class AttackCadenceTests
             {
                 services = s;
 
-                return BattleSeams.Strict with { Attack = new RecordingAttackPipeline(s, 1.0) };
+                var pipeline = new RecordingAttackPipeline(s, 1.0);
+
+                pipeline.BeforeSwing = () =>
+                {
+                    if (summon is not null)
+                    {
+                        return;
+                    }
+
+                    before = s.Actors.Count;
+                    summon = s.AdmitSummon(BattleTestBench.Enemy(99, BattleTestBench.Stats(aspd: 2.0)) with
+                    {
+                        Id = "SHARD",
+                        Index = -1,
+                        LogId = 1,
+                    });
+
+                    cooldownAtEntry = summon.AttackCooldown;
+                };
+
+                return BattleSeams.Strict with { Attack = pipeline };
             },
             rules: new CombatRules(MaxTicks: 3, OnKillTriggersFire: true)));
 
         services.ShouldNotBeNull();
-
-        var before = services.Actors.Count;
-        var summon = services.AdmitSummon(BattleTestBench.Enemy(99, BattleTestBench.Stats(aspd: 2.0)) with
-        {
-            Id = "SHARD",
-            Index = -1,
-            LogId = 1,
-        });
+        summon.ShouldNotBeNull();
 
         services.Actors.Count.ShouldBe(before + 1);
         services.Actors[^1].ShouldBeSameAs(summon);
@@ -155,8 +181,17 @@ public sealed class AttackCadenceTests
         summon.LogId.ShouldBeGreaterThan(services.Actors[before - 1].LogId);
 
         // A full cooldown — 1.0 / 2.0 — not the zero every opener gets at the pre-tick.
-        summon.AttackCooldown.ShouldBe(0.5);
+        cooldownAtEntry.ShouldBe(0.5);
         summon.IsSummon.ShouldBeTrue();
+
+        // 🔒 And it arrives in the log with a bar to be drawn against, on the tick it entered rather
+        // than among the pre-tick roster: a summon whose spawn were left to step 0a would take hits
+        // against no denominator, which is the whole defect ActorSpawned exists to end.
+        var spawn = result.Log.Last(e => e.Type == CombatEventType.ActorSpawned);
+
+        spawn.TargetId.ShouldBe(summon.LogId);
+        spawn.Value.ShouldBe(summon.MaxHp);
+        spawn.Tick.ShouldBe(0);
     }
 
     /// <summary>

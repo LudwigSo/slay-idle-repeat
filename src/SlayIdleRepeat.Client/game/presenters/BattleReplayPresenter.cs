@@ -116,8 +116,8 @@ public enum ReplayBurst
 /// <param name="FloaterAmount">The size of that number, always positive.</param>
 /// <param name="Burst">Which procedural burst fires, if any.</param>
 /// <param name="Health">
-/// What this actor's health now stands at, or null when the event moves none or the log never fixed
-/// a starting value to move.
+/// What this actor's health now stands at, or null when the event moves none or the log spawned no
+/// actor on this slot to move.
 /// </param>
 /// <param name="Died">Whether the log records this actor going down here.</param>
 /// <param name="StatusId">The status whose stack count changed, or null when none did.</param>
@@ -145,21 +145,37 @@ public readonly record struct ReplayCue(
 /// <param name="ActorId">The slot the log identifies this actor by.</param>
 /// <param name="Side">Which side of the stage it stands on, read off that slot.</param>
 /// <param name="SideIndex">Which one of its side it is — zero for the hero, first is one otherwise.</param>
+/// <param name="MaxHp">
+/// The bar's denominator, as the log states it. Null only for an actor the log mentions without ever
+/// spawning, which is a malformed log rather than an ordinary fight.
+/// </param>
 /// <param name="StartingHp">
-/// What it began the fight with, or null when the log does not fix it. Null is a real answer for a
-/// surviving enemy and must stay one.
+/// What it began the fight with. Null carries the same meaning as <paramref name="MaxHp"/>'s null and
+/// no other.
 /// </param>
 /// <param name="EndingHp">What it finished the fight with, or null when the log does not fix that.</param>
 /// <remarks>
-/// 🔴 <b>A maximum HP is not in the log and is not derivable for every actor.</b> The hero's start
-/// follows from the reported remaining HP with every change the log records — every blow, every heal
-/// and every tick of something already on it — undone in reverse, and any actor the log records a
-/// death for ended at zero, which makes its start follow the same way. An
-/// enemy that survived gives neither equation an anchor, so its bar has no denominator — and a
-/// denominator invented here would draw a health bar that is wrong by whatever the guess was off by.
+/// <para>
+/// 🔴 <b>The maximum is read off the log's own <c>ActorSpawned</c>, and nothing here derives or guesses
+/// one.</b> This record used to publish a null <paramref name="MaxHp"/> for every enemy that survived a
+/// fight, on the reasoning that a maximum was not in the log and could not be recovered: the hero's
+/// start follows from the reported remaining HP with every change the log records undone in reverse,
+/// and an actor the log records a death for ended at zero — but a surviving enemy anchors neither
+/// equation. That reasoning was sound and its conclusion was a battle screen with <em>no enemy health
+/// bar</em>, which a losing hero never fixed because it never killed anything. The answer was to put
+/// the maximum in the log rather than to keep deriving around its absence; see
+/// <see cref="CombatEventType.ActorSpawned"/>.
+/// </para>
+/// <para>
+/// 🔒 <b><paramref name="StartingHp"/> still prefers the walk, and only falls back to the maximum.</b>
+/// The hero opens on the health its run persisted rather than on full, so a start taken from
+/// <paramref name="MaxHp"/> would draw its bar opening fuller than the fight it is replaying. The walk
+/// answers for the hero and for anything that died; the fallback answers for everything else, all of
+/// which opens full.
+/// </para>
 /// </remarks>
 public sealed record ReplayActor(
-    byte ActorId, ReplaySide Side, int SideIndex, double? StartingHp, double? EndingHp);
+    byte ActorId, ReplaySide Side, int SideIndex, double? MaxHp, double? StartingHp, double? EndingHp);
 
 /// <summary>
 /// Drives the Battle Replay screen: what the pre-computed log shows, how fast it is shown, and the
@@ -1139,12 +1155,14 @@ public sealed class BattleReplayPresenter
     }
 
     /// <remarks>
-    /// 🔴 See <see cref="ReplayActor"/> for why two of the three bars are derivable and the third is
-    /// not. Nothing is guessed for the third.
+    /// 🔒 One pass over the log settles all four numbers: which actors are in the fight, what each was
+    /// spawned with, how far its health moved in total, and which of them died. See
+    /// <see cref="ReplayActor"/> for which of them each end of a bar is taken from.
     /// </remarks>
     private static IReadOnlyList<ReplayActor> ActorsIn(SimulationResult fight)
     {
         var mentioned = new SortedSet<byte>();
+        var spawned = new Dictionary<byte, double>();
         var moved = new Dictionary<byte, double>();
         var slain = new HashSet<byte>();
 
@@ -1160,6 +1178,15 @@ public sealed class BattleReplayPresenter
 
             switch (entry.Type)
             {
+                case CombatEventType.ActorSpawned:
+
+                    // Assigned rather than accumulated, and first-writer-wins: ids are never reused,
+                    // so a second spawn for one slot is a malformed log and taking the later one would
+                    // silently redraw a bar mid-fight against a denominator the earlier events were
+                    // not measured on.
+                    spawned.TryAdd(entry.TargetId, entry.Value);
+                    break;
+
                 case CombatEventType.Hit:
                     Accumulate(moved, entry.TargetId, -entry.Value);
                     break;
@@ -1181,26 +1208,48 @@ public sealed class BattleReplayPresenter
         return
         [
             .. mentioned.Select(slot => Bar(
-                slot, EndingHpOf(slot, fight, slain), moved.GetValueOrDefault(slot)))
+                slot,
+                spawned.TryGetValue(slot, out var maxHp) ? maxHp : null,
+                EndingHpOf(slot, fight, slain),
+                moved.GetValueOrDefault(slot)))
         ];
     }
 
-    /// <summary>One actor's bar: both ends where the log anchors one, and neither where it does not.</summary>
+    /// <summary>One actor's bar: its denominator, and both ends the log fixes.</summary>
     /// <remarks>
-    /// 🔒 The derivation runs the walk backwards, and it accounts for exactly what the walk accounts
-    /// for — every blow, every heal and every tick of something already on the actor. A derivation
-    /// that counted one fewer kind of event than the walk applies would put the bar's own beginning
-    /// out of reach of its end, so a fight watched to the finish would stop somewhere other than the
-    /// health the result reports.
+    /// 🔒 The starting value is derived by running the walk backwards, and it accounts for exactly what
+    /// the walk accounts for — every blow, every heal and every tick of something already on the actor.
+    /// A derivation that counted one fewer kind of event than the walk applies would put the bar's own
+    /// beginning out of reach of its end, so a fight watched to the finish would stop somewhere other
+    /// than the health the result reports. The spawned maximum is the fallback rather than the first
+    /// answer for that reason: it is right about every actor that opens full and wrong about the one
+    /// that does not.
     /// </remarks>
-    private static ReplayActor Bar(byte slot, double? endingHp, double moved) =>
-        new(slot,
-            SideOf(slot),
-            SideIndexOf(slot),
-            endingHp is { } ending ? Math.Round(ending - moved, HealthDecimals) : null,
-            endingHp);
+    private static ReplayActor Bar(byte slot, double? maxHp, double? anchoredEndingHp, double moved)
+    {
+        var startingHp = anchoredEndingHp is { } anchored
+            ? Math.Round(anchored - moved, HealthDecimals)
+            : maxHp;
 
-    /// <summary>What an actor finished on, when the log fixes it at all.</summary>
+        // Both ends satisfy `end = start + moved` on either arm, which is what lets a skip and a
+        // watched fight land on the same number — see AnchorHealthToTheEnd.
+        var endingHp = anchoredEndingHp ??
+            (startingHp is { } start ? Math.Round(start + moved, HealthDecimals) : null);
+
+        return new ReplayActor(slot, SideOf(slot), SideIndexOf(slot), maxHp, startingHp, endingHp);
+    }
+
+    /// <summary>
+    /// What an actor finished on where the log states it outright, rather than leaving it to the walk.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Two actors are anchored and the rest are not, and the difference is which end of the bar is
+    /// the known one. The hero's finish is reported by the result and anything the log records a death
+    /// for finished at zero — so for those two the START is the derived end. Everything else opens on
+    /// the maximum it was spawned with, so the FINISH is the derived one. A survivor's finish used to be
+    /// null and a skip left its bar wherever it opened; it is derived here because the spawn event made
+    /// the other end knowable.
+    /// </remarks>
     private static double? EndingHpOf(byte slot, SimulationResult fight, HashSet<byte> slain)
     {
         if (slot == HeroSlot)

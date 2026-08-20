@@ -10,7 +10,7 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 /// sides of a duel and on both architectures of the determinism job. The values are therefore written
 /// out explicitly, and new members are appended.
 /// </para>
-/// <para><see cref="Telegraph"/> is an addition beyond the original seventeen-member set — see its own remarks.</para>
+/// <para><see cref="Telegraph"/> and <see cref="ActorSpawned"/> are additions beyond the original seventeen-member set — see their own remarks.</para>
 /// <para>An undefined value is refused by <see cref="CombatLog.Append"/>: this is a closed vocabulary, and an out-of-range value would otherwise hash as its ordinal and replay as nothing at all.</para>
 ///
 /// <para><b>The per-attack emission sequence.</b> Events are appended at the moment each state change occurs, which is step order rather than the damage formula's own line order — the HP decrease happens before the lifesteal and thorns that follow it. Two implementations that each read the formula honestly could otherwise produce different <c>LogHash</c>es for the same fight:</para>
@@ -39,8 +39,9 @@ public enum CombatEventType
     /// <remarks>
     /// Exactly one per log, at tick 0, with both actor slots <see cref="CombatActor.None"/> — all three
     /// enforced, since a disagreement about this event's actor ids between client and server would read
-    /// as tampering. It is not the first event of the log: it is emitted after the ward grants and
-    /// opening buffs of the battle-start pre-tick.
+    /// as tampering. It is not the first event of the log: it is emitted after the roster's
+    /// <see cref="ActorSpawned"/> entries, and after the ward grants and opening buffs, of the
+    /// battle-start pre-tick.
     /// </remarks>
     BattleStart = 0,
 
@@ -112,4 +113,45 @@ public enum CombatEventType
     /// </para>
     /// </remarks>
     Telegraph = 17,
+
+    /// <summary>
+    /// An actor has entered the fight. <see cref="CombatEvent.Value"/> is its Max HP — the
+    /// denominator of its health bar.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Added because a health bar needs a denominator and no other member carries one.</b> Every
+    /// other event is a delta, so an actor's maximum was recoverable from the log for exactly two
+    /// actors: the hero, whose remaining HP <see cref="SimulationResult.HeroHpRemaining"/> reports, and
+    /// anyone the log records an <see cref="ActorDeath"/> for, who ended at zero. An enemy that
+    /// survived anchored neither equation, so the battle replay drew <em>no enemy health bar at all</em>
+    /// — and since a losing hero never kills anything, that was every enemy of every lost fight. The
+    /// screen looked like a hero being beaten by something invulnerable. It was not: the enemy was
+    /// taking damage the whole time and the log said so, one <see cref="Hit"/> at a time, with nothing
+    /// to draw them against.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Appended, and it changes every <c>LogHash</c> in existence.</b> That is the cost of putting
+    /// anything new in the log and it is paid once: the ordinal is 18 rather than an insertion, so no
+    /// <em>existing</em> member's hashed value moves, and client and server reach the same new hash
+    /// because both compute the fight through one composition. No stored hash outlives a battle — the
+    /// confirming command carries the hash of the fight it is confirming — so there is nothing
+    /// persisted for the change to invalidate.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>One per actor, at the moment it enters, rather than one roster event for the fight.</b> A
+    /// summon enters mid-fight and its bar needs a denominator from the tick it appears on, and
+    /// <see cref="CombatEvent"/> has one actor slot pair and one number — a roster of nine actors
+    /// cannot be spelled in either.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The maximum, not the opening current HP.</b> They differ for exactly one actor — the hero,
+    /// who opens on the health its run persisted — and that one is already recoverable by undoing every
+    /// change the log records against
+    /// <see cref="SimulationResult.HeroHpRemaining"/>. Everything else opens full, because nothing else
+    /// carries health between fights. A consumer that cannot anchor an opening value therefore reads
+    /// this one, and is right about every actor the game composes.
+    /// </para>
+    /// </remarks>
+    ActorSpawned = 18,
 }

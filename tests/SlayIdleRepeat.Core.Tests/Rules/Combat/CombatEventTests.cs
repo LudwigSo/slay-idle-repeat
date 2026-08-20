@@ -96,6 +96,7 @@ public sealed class CombatEventTests
     [InlineData(nameof(CombatEventType.PhaseChange), 15)]
     [InlineData(nameof(CombatEventType.BattleEnd), 16)]
     [InlineData(nameof(CombatEventType.Telegraph), 17)]
+    [InlineData(nameof(CombatEventType.ActorSpawned), 18)]
     public void Every_event_type_holds_its_documented_ordinal(string member, int ordinal)
     {
         ((int)Enum.Parse<CombatEventType>(member, ignoreCase: false)).ShouldBe(ordinal,
@@ -104,17 +105,18 @@ public sealed class CombatEventTests
     }
 
     /// <summary>
-    /// The enum has exactly the eighteen members above and no nineteenth that slipped in unpinned:
+    /// The enum has exactly the nineteen members above and no twentieth that slipped in unpinned:
     /// <see cref="Every_event_type_holds_its_documented_ordinal"/> is a theory over a written-out
     /// list, so a member added to the enum and not added there is a member nothing checks.
     /// </summary>
     [Fact]
-    public void The_event_vocabulary_is_exactly_the_documented_eighteen()
+    public void The_event_vocabulary_is_exactly_the_documented_nineteen()
     {
-        Enum.GetValues<CombatEventType>().Length.ShouldBe(18,
-            "17 from 05 §7 plus Telegraph (17 §1, §11). A new member must be APPENDED, given the next " +
-            "ordinal, added to Every_event_type_holds_its_documented_ordinal, and regenerated into the " +
-            "every-event-type reference row");
+        Enum.GetValues<CombatEventType>().Length.ShouldBe(19,
+            "17 from 05 §7, plus Telegraph (17 §1, §11) and ActorSpawned (the health bar's " +
+            "denominator). A new member must be APPENDED, given the next ordinal, added to " +
+            "Every_event_type_holds_its_documented_ordinal, and regenerated into the every-event-type " +
+            "reference row");
     }
 
     /// <summary>
@@ -131,7 +133,7 @@ public sealed class CombatEventTests
 
         documented.Length.ShouldBe(17);
         ((int)CombatEventType.BattleEnd).ShouldBe(16);
-        Enum.GetValues<CombatEventType>().Select(t => (int)t).ShouldBe(Enumerable.Range(0, 18));
+        Enum.GetValues<CombatEventType>().Select(t => (int)t).ShouldBe(Enumerable.Range(0, 19));
     }
 
     /// <summary>An event is a value: two with the same six fields are the same event.</summary>

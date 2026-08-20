@@ -1143,8 +1143,13 @@ public sealed class BattleReplayPresenterTests
             "because full-width flashes make them ill still gets the flash otherwise.");
     }
 
-    // ---- health bars: derived where the log fixes it, unknown where it does not ------------------
+    // ---- health bars: a denominator from the log, both ends derived against it -------------------
 
+    /// <summary>
+    /// 🔒 The case that pins which of the two answers wins for the hero. Its spawned maximum and
+    /// the health it opens on are different numbers, so a screen that took the maximum as the opening
+    /// value fails here.
+    /// </summary>
     [Fact]
     public async Task The_heros_starting_health_is_recovered_from_what_it_lost_and_regained()
     {
@@ -1154,17 +1159,24 @@ public sealed class BattleReplayPresenterTests
 
         var hero = Actor(presenter, HeroSlot);
 
-        hero.StartingHp.ShouldNotBeNull(
-            "the hero is the one actor whose starting health the log always fixes, so reporting it " +
-            "as unknown would leave the player's own bar the only one on screen without a " +
-            "denominator.");
+        hero.MaxHp!.Value.ShouldBe(
+            HeroMaxHp,
+            tolerance: HealthTolerance,
+            customMessage:
+            "the bar is scaled to the maximum the log spawned the actor with, which is the whole " +
+            "reason the log carries one.");
         hero.StartingHp!.Value.ShouldBe(
             HeroHpAtTheStart,
             tolerance: HealthTolerance,
             customMessage:
-            "no maximum HP is anywhere in the log, so a hero's bar has no denominator unless " +
-            "it is reconstructed: what was left, plus every point taken off, minus every point healed " +
-            "back. A bar drawn against a guess is a bar that lies about how close the fight was.");
+            "a hero opens on the health its run persisted, not on full, and that number is only " +
+            "recoverable by reconstruction: what was left, plus every point taken off, minus every " +
+            "point healed back. Drawing it at its maximum instead would hide every point of damage " +
+            "the hero carried in from an earlier fight.");
+        hero.StartingHp!.Value.ShouldBeLessThan(
+            hero.MaxHp!.Value,
+            "and the fixture's two numbers differ on purpose, so a screen that confused them fails " +
+            "here rather than passing on a hero that happened to be at full health.");
         hero.EndingHp!.Value.ShouldBe(
             HeroHpAtTheEnd,
             tolerance: HealthTolerance,
@@ -1180,38 +1192,86 @@ public sealed class BattleReplayPresenterTests
 
         var slain = Actor(presenter, FirstEnemySlot);
 
-        slain.EndingHp.ShouldNotBeNull(
-            "the log records this actor's death, so its bar is one of the two the arithmetic can " +
-            "anchor — reporting it as unknown throws away the only measurement an enemy bar gets.");
-        slain.StartingHp.ShouldNotBeNull(
-            "and the same death is what fixes the other end of it.");
         slain.EndingHp!.Value.ShouldBe(
             0,
             tolerance: HealthTolerance,
             customMessage:
-            "a death event is the one thing that fixes an enemy's final health, and it is " +
-            "what lets its bar be drawn at all.");
+            "a death is the one thing that fixes an actor's final health outright, and it must win " +
+            "over the walk — a walk that had drifted a fraction above zero would leave a sliver of " +
+            "bar standing under an actor the log has just killed.");
         slain.StartingHp!.Value.ShouldBe(
             DamageTakenByTheDyingEnemy,
             tolerance: HealthTolerance,
-            customMessage:
-            "an actor that ended at zero started at exactly the damage it absorbed, so the " +
-            "one death event turns an unmeasurable bar into a measured one.");
+            customMessage: "an actor that ended at zero started at exactly the damage it absorbed.");
+        slain.MaxHp!.Value.ShouldBe(
+            DyingEnemyMaxHp,
+            tolerance: HealthTolerance,
+            customMessage: "and its bar is scaled to the maximum it was spawned with.");
     }
 
-    /// <summary>🔴 The absence, asserted as an absence.</summary>
+    /// <summary>
+    /// 🔴 <b>The case this screen was broken by, asserted as the presence it is now.</b> An enemy
+    /// that survives anchors neither the hero's equation nor a death's, and for as long as the log
+    /// carried no maximum it was reported as unknown and drawn with no bar at all — which, since a
+    /// losing hero kills nothing, was every enemy of every fight a player lost.
+    /// </summary>
     [Fact]
-    public async Task A_surviving_enemys_starting_health_is_reported_as_unknown_rather_than_guessed()
+    public async Task A_surviving_enemys_bar_is_drawn_from_the_maximum_the_log_spawned_it_with()
     {
         var presenter = await Playing(ShortFight());
 
         await presenter.AdvanceAsync(30, CancellationToken.None);
 
-        Actor(presenter, SecondEnemySlot).StartingHp.ShouldBeNull(
-            "an enemy that neither died nor reported its own health gives the arithmetic no " +
-            "anchor at all. A plausible number here would draw a health bar whose fullness is a " +
-            "fabrication, and a player watching a boss they cannot beat would be reading a fiction " +
-            "about how close they came.");
+        var survivor = Actor(presenter, SecondEnemySlot);
+
+        survivor.MaxHp!.Value.ShouldBe(
+            SurvivingEnemyMaxHp,
+            tolerance: HealthTolerance,
+            customMessage:
+            "the surviving enemy's maximum comes from its spawn event and from nothing else — no " +
+            "derivation over this log can reach it, which is why the log states it.");
+        survivor.StartingHp!.Value.ShouldBe(
+            SurvivingEnemyMaxHp,
+            tolerance: HealthTolerance,
+            customMessage:
+            "nothing but the hero carries health between fights, so an enemy opens on its maximum.");
+        survivor.EndingHp!.Value.ShouldBe(
+            SurvivingEnemyMaxHp - DamageDealtToTheSurvivingEnemy,
+            tolerance: HealthTolerance,
+            customMessage:
+            "and its finish is its opening less what it absorbed — which is what lets a SKIPPED fight " +
+            "leave its bar where a watched one would have walked it, rather than at full.");
+    }
+
+    /// <summary>
+    /// 🔒 The absence that is still an absence: an actor some event names and no spawn ever
+    /// introduced.
+    /// </summary>
+    /// <remarks>
+    /// Not a log the simulator emits — every actor is spawned before anything happens to it — so this
+    /// pins that a malformed log reads as malformed rather than as an actor at full health. A bar
+    /// invented here would be wrong by exactly however far the guess was off, and a player watching a
+    /// bar is reading the fraction, not the number.
+    /// </remarks>
+    [Fact]
+    public async Task An_actor_the_log_never_spawned_is_reported_as_unknown_rather_than_guessed()
+    {
+        var presenter = await Playing(FightWithAnUnspawnedActor());
+
+        await presenter.AdvanceAsync(30, CancellationToken.None);
+
+        var unspawned = Actor(presenter, SecondEnemySlot);
+
+        unspawned.MaxHp.ShouldBeNull(
+            "no spawn event names this slot, so nothing states its maximum.");
+        unspawned.StartingHp.ShouldBeNull(
+            "and with neither a spawn nor a death nor a reported remainder, no arithmetic reaches " +
+            "either end of its bar.");
+        unspawned.EndingHp.ShouldBeNull();
+
+        Actor(presenter, HeroSlot).MaxHp.ShouldNotBeNull(
+            "while the hero of the same log still has its own — one malformed row does not cost the " +
+            "rest of the roster their bars.");
     }
 
     // ---- 🔒 the real simulator, and the tick rate this screen transcribes -----------------------
@@ -1616,14 +1676,25 @@ public sealed class BattleReplayPresenterTests
             0,
             "and the actor the log records a death for ended at nothing, however little of " +
             "the fight was watched.");
-        presenter.HealthOf(SecondEnemySlot).ShouldBeNull(
-            "while an enemy still standing anchors no arithmetic at all — a number invented " +
-            "for it on the skip path would be a bar that only appears when the player is in a hurry.");
+        presenter.HealthOf(SecondEnemySlot).ShouldBe(
+            SurvivingEnemyMaxHp - DamageDealtToTheSurvivingEnemy,
+            "and an enemy still standing lands exactly where a watched fight would have walked " +
+            "it — its spawned maximum less what it absorbed. This is the assertion the fix is visible " +
+            "in: it read ShouldBeNull for as long as a surviving enemy had no bar to put anywhere, so a " +
+            "skipped fight ended on a screen whose enemy bars were simply absent.");
     }
 
-    /// <summary>🔴 The absence again, this time in the middle of a fight.</summary>
+    /// <summary>
+    /// 🔴 <b>The symptom, in the middle of a fight.</b> A blow against an enemy that survives
+    /// moves that enemy's bar.
+    /// </summary>
+    /// <remarks>
+    /// This case read <c>Health.ShouldBeNull</c> and was named for it. The floater was drawn and the bar
+    /// was not, so a player watched damage numbers rise off an enemy whose health never moved — which
+    /// reads as an enemy taking no damage rather than as a screen missing a denominator.
+    /// </remarks>
     [Fact]
-    public async Task A_blow_against_an_actor_whose_health_was_never_fixed_moves_no_bar()
+    public async Task A_blow_against_a_surviving_enemy_moves_its_bar()
     {
         var presenter = await Playing(ShortFight());
 
@@ -1633,16 +1704,38 @@ public sealed class BattleReplayPresenterTests
 
         struck.Floater.ShouldBe(
             ReplayFloater.Hit,
-            "the blow itself is real and its number is drawn — what is missing is the bar to " +
-            "take it off, not the hit.");
+            "the blow itself is real and its number is drawn.");
         struck.FloaterAmount.ShouldBe(
             DamageDealtToTheSurvivingEnemy,
             tolerance: HealthTolerance,
             customMessage: "and the number drawn is the health the blow actually removed.");
+        struck.Health!.Value.ShouldBe(
+            SurvivingEnemyMaxHp - DamageDealtToTheSurvivingEnemy,
+            tolerance: HealthTolerance,
+            customMessage:
+            "and the bar moves with it, off the maximum the log spawned the enemy with. A floater " +
+            "with no bar under it is the exact shape of the bug: the damage was always in the log and " +
+            "always drawn, and the enemy still looked invulnerable.");
+    }
+
+    /// <summary>🔒 The absence, where it is still an absence: a slot no spawn introduced.</summary>
+    [Fact]
+    public async Task A_blow_against_an_actor_the_log_never_spawned_moves_no_bar()
+    {
+        var presenter = await Playing(FightWithAnUnspawnedActor());
+
+        await presenter.AdvanceAsync(1.0, CancellationToken.None);
+
+        var struck = presenter.StepCues.Single(cue => cue.ActorId == SecondEnemySlot);
+
+        struck.Floater.ShouldBe(
+            ReplayFloater.Hit,
+            "the blow is in the log, so its number is drawn — what is missing is the bar to take it " +
+            "off, not the hit.");
         struck.Health.ShouldBeNull(
-            "an enemy that survives anchors neither end of the arithmetic, so there is no " +
-            "value to move. Moving a bar from a starting point that was guessed would draw a fraction " +
-            "of a fight that is fiction, on the actor the player is most anxiously watching.");
+            "with no spawn event for this slot there is no maximum to move a bar against. Moving one " +
+            "from a starting point that was guessed would draw a fraction of a fight that is fiction, " +
+            "on the actor the player is most anxiously watching.");
     }
 
     /// <summary>
@@ -1752,8 +1845,9 @@ public sealed class BattleReplayPresenterTests
     /// A short decided fight: the hero takes a blow, heals, and kills one of two enemies.
     /// </summary>
     /// <remarks>
-    /// The second enemy is alive at the end on purpose — it is the actor whose starting health is
-    /// deliberately unknowable, and a fixture where every enemy dies could not state that.
+    /// The second enemy is alive at the end on purpose — it is the actor whose bar was undrawable
+    /// before the log carried a maximum, and a fixture where every enemy dies could not state that its
+    /// bar is drawn now.
     /// </remarks>
     /// <summary>What the hero has left when <see cref="ShortFight"/> ends.</summary>
     private const double HeroHpAtTheEnd = 40.0;
@@ -1772,6 +1866,30 @@ public sealed class BattleReplayPresenterTests
     private const double DamageTakenByTheDyingEnemy = 30.8765;
 
     /// <summary>
+    /// The hero's Max HP in <see cref="ShortFight"/> — deliberately far above the health it opens on.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The two numbers are different on purpose. A run carries health between fights, so the hero
+    /// opens part-way along its bar, and a screen that took the spawned maximum as the opening value
+    /// would draw it at full — the one thing the bar exists to contradict. Equal numbers here would let
+    /// that bug pass.
+    /// </remarks>
+    private const double HeroMaxHp = 200.0;
+
+    /// <summary>
+    /// The dying enemy's Max HP, which is exactly what it absorbs: it opens full and dies.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ The two derivations agree for this actor, necessarily — an enemy that opened full and ended
+    /// at zero absorbed its whole maximum — so it is the hero that pins which one wins, not this one.
+    /// </remarks>
+    private const double DyingEnemyMaxHp = DamageTakenByTheDyingEnemy;
+
+    /// <summary>The surviving enemy's Max HP in <see cref="ShortFight"/>.</summary>
+    private const double SurvivingEnemyMaxHp = 60.0;
+
+
+    /// <summary>
     /// The width a health derivation may be wrong by. Four decimals is what the rules layer rounds
     /// its own values to, so anything wider than a rounding artefact is a real disagreement.
     /// </summary>
@@ -1784,16 +1902,44 @@ public sealed class BattleReplayPresenterTests
             HeroHpRemaining: HeroHpAtTheEnd,
             Log:
             [
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, HeroSlot, value: HeroMaxHp),
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, FirstEnemySlot, value: DyingEnemyMaxHp),
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, SecondEnemySlot, value: SurvivingEnemyMaxHp),
                 At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
                 At(10, CombatEventType.Attack),
                 At(10, CombatEventType.Hit, HeroSlot, FirstEnemySlot, value: DamageTakenByTheDyingEnemy),
                 At(20, CombatEventType.Hit, FirstEnemySlot, HeroSlot, value: DamageTakenByTheHero),
-                At(20, CombatEventType.Hit, HeroSlot, SecondEnemySlot, value: 8.25),
+                At(20, CombatEventType.Hit, HeroSlot, SecondEnemySlot, value: DamageDealtToTheSurvivingEnemy),
                 At(30, CombatEventType.Heal, HeroSlot, HeroSlot, value: HealingReceivedByTheHero),
                 At(ShortFightDurationTicks, CombatEventType.ActorDeath, HeroSlot, FirstEnemySlot),
                 At(ShortFightDurationTicks, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
             ],
             LogHash: 17278238499121983245UL);
+
+    /// <summary>
+    /// A log that lands a blow on a slot no <c>ActorSpawned</c> ever introduced.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 <b>Not a log the simulator emits, deliberately.</b> The pre-tick spawns every actor of
+    /// the opening roster before anything happens to any of them, and <c>AdmitSummon</c> spawns a
+    /// newcomer on the tick it enters, so a slot that takes a hit without a spawn is malformed. It is
+    /// constructed here because the screen still has to answer for one: the reachable way to get this
+    /// log is a client and a server that disagree about the roster, and the honest answer is "no bar"
+    /// rather than a bar at whatever fullness a guess produced.
+    /// </remarks>
+    private static SimulationResult FightWithAnUnspawnedActor() =>
+        new(
+            HeroWon: false,
+            DurationTicks: ShortFightDurationTicks,
+            HeroHpRemaining: HeroHpAtTheEnd,
+            Log:
+            [
+                At(0, CombatEventType.ActorSpawned, NoActorSlot, HeroSlot, value: HeroMaxHp),
+                At(0, CombatEventType.BattleStart, NoActorSlot, NoActorSlot),
+                At(20, CombatEventType.Hit, HeroSlot, SecondEnemySlot, value: DamageDealtToTheSurvivingEnemy),
+                At(ShortFightDurationTicks, CombatEventType.BattleEnd, NoActorSlot, NoActorSlot),
+            ],
+            LogHash: 313131UL);
 
     /// <summary>A fight long enough that a case can advance several seconds without finishing it.</summary>
     private static SimulationResult LongFight() =>

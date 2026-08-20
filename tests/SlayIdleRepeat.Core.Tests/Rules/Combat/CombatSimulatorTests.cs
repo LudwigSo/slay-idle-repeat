@@ -53,7 +53,18 @@ public sealed class CombatSimulatorTests
         result.HeroWon.ShouldBeTrue();
         result.DurationTicks.ShouldBeLessThan(CombatLog.MaxTicks);
 
-        result.Log[0].Type.ShouldBe(CombatEventType.BattleStart);
+        // The roster comes FIRST and BattleStart follows all of it, which is what lets a replayer draw
+        // an opening arena that already has a bar for everyone standing in it. This roster summons
+        // nothing, so every spawn in the log is an opening one.
+        var opening = result.Log
+            .TakeWhile(e => e.Type != CombatEventType.BattleStart)
+            .ToArray();
+
+        result.Log[0].Type.ShouldBe(CombatEventType.ActorSpawned);
+        opening.Count(e => e.Type == CombatEventType.ActorSpawned)
+            .ShouldBe(result.Log.Count(e => e.Type == CombatEventType.ActorSpawned));
+        opening.ShouldAllBe(e => e.Tick == 0);
+
         result.Log[^1].Type.ShouldBe(CombatEventType.BattleEnd);
         result.DurationTicks.ShouldBeInRange(1, CombatLog.MaxTicks);
         result.LogHash.ShouldNotBe(0UL);

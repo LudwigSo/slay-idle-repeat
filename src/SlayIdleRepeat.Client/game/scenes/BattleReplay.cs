@@ -42,11 +42,11 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// two clauses are satisfied by there being nothing to disable.
 /// </para>
 /// <para>
-/// 🔴 Four things this screen cannot name or draw, each named instead — see
+/// 🔴 Three things this screen cannot name or draw, each named instead — see
 /// <see cref="TheResultScreensAreNotBuiltHere"/>,
-/// <see cref="ASurvivingEnemysHealthBarHasNoDenominator"/>,
 /// <see cref="AStatusEffectHasNoNameOrIconHere"/> and
-/// <see cref="LargeNumbersAreNotAbbreviatedHere"/>.
+/// <see cref="LargeNumbersAreNotAbbreviatedHere"/>. There were four: the fourth was a surviving
+/// enemy's health bar, which had no denominator until the log started carrying one.
 /// </para>
 /// <para>
 /// 🔒 <b>The banner and the control row are fixed; everything between them scrolls.</b> The stage is
@@ -93,18 +93,29 @@ public partial class BattleReplay : Control
         "log settled and the board re-reads the run it changed.";
 
     /// <summary>
-    /// 🔴 Deliberately undrawn, and named so it can be found. An enemy that survives the fight leaves
-    /// the log with no anchor for its starting health, so it is given no bar rather than a guessed
-    /// one.
+    /// 🔴 <b>Every actor gets a bar now, and the reason it took a rules-layer change to get one is
+    /// worth keeping.</b> This constant used to justify drawing no bar for an enemy that survived.
     /// </summary>
-    private const string ASurvivingEnemysHealthBarHasNoDenominator =
-        "A health bar needs a starting value and the log carries none. The hero's follows from the " +
-        "reported remaining health with every change the log records undone in reverse, and any " +
-        "actor the log records a death for ended at zero, which anchors the same arithmetic. An " +
-        "enemy still " +
-        "standing at the end anchors neither equation. A denominator invented here would draw a bar " +
-        "wrong by exactly however far the guess was off, and a player watching a bar is reading the " +
-        "fraction, not the number — so that actor is drawn with its name and no bar at all.";
+    /// <remarks>
+    /// It read: <em>"A health bar needs a starting value and the log carries none. The hero's follows
+    /// from the reported remaining health with every change the log records undone in reverse, and any
+    /// actor the log records a death for ended at zero, which anchors the same arithmetic. An enemy
+    /// still standing at the end anchors neither equation. A denominator invented here would draw a bar
+    /// wrong by exactly however far the guess was off, and a player watching a bar is reading the
+    /// fraction, not the number — so that actor is drawn with its name and no bar at all."</em>
+    /// <para>
+    /// Every sentence was true and the conclusion was still a broken screen: a hero that loses kills
+    /// nothing, so <em>no fight a player lost drew an enemy bar at all</em>, and the fight read as a
+    /// hero being beaten by something invulnerable. Refusing to invent the number was right; the missing
+    /// step was putting the real one in the log, which
+    /// <see cref="CombatEventType.ActorSpawned"/> now does. Kept as a note because the same reasoning
+    /// will look correct the next time a bar wants a number the log does not carry, and the answer is
+    /// the same: get it into the log.
+    /// </para>
+    /// </remarks>
+    private const string EveryActorsBarNowHasADenominatorFromTheLog =
+        "The log carries each actor's Max HP in an ActorSpawned event, so a bar's denominator is read " +
+        "rather than derived and every actor has one from the tick it enters on.";
 
     /// <summary>
     /// 🔴 Deliberately unnamed, and named so it can be found. A status arrives as an integer, and the
@@ -236,11 +247,17 @@ public partial class BattleReplay : Control
     /// What stands beside an actor whose health the log never fixes.
     /// </summary>
     /// <remarks>
-    /// 🔒 A dash rather than an empty space — see
-    /// <see cref="ASurvivingEnemysHealthBarHasNoDenominator"/>. The row is drawn either way, so
-    /// leaving the number blank draws a captioned actor with a gap where every other actor has a
-    /// figure, which reads as a number that failed to arrive rather than as one nothing knows. The
-    /// dash says the same thing the missing bar says, in the place a player is looking.
+    /// 🔒 A dash rather than an empty space. The row is drawn either way, so leaving the number blank
+    /// draws a captioned actor with a gap where every other actor has a figure, which reads as a number
+    /// that failed to arrive rather than as one nothing knows. The dash says the same thing the missing
+    /// bar says, in the place a player is looking.
+    /// <para>
+    /// ⚠️ Unreachable for any fight the simulator produces, and kept anyway: every actor is now spawned
+    /// into the log with a Max HP — see <see cref="EveryActorsBarNowHasADenominatorFromTheLog"/> — so
+    /// the only actor without one is an actor some other event mentioned and no
+    /// <c>ActorSpawned</c> ever introduced. That is a malformed log, and a malformed log should read as
+    /// one rather than as an actor at full health.
+    /// </para>
     /// </remarks>
     private const string UnknownValue = "—";
 
@@ -711,10 +728,10 @@ public partial class BattleReplay : Control
     /// Builds one row per actor the log mentions, once, off a roster the fight does not change.
     /// </summary>
     /// <remarks>
-    /// 🔴 An actor whose starting health the log does not fix gets no bar — see
-    /// <see cref="ASurvivingEnemysHealthBarHasNoDenominator"/>. Built here rather than per frame
+    /// 🔒 Every actor the log spawns gets a bar, scaled to the Max HP the log states — see
+    /// <see cref="EveryActorsBarNowHasADenominatorFromTheLog"/>. Built here rather than per frame
     /// because the roster is settled by the read: every actor the fight ever mentions is in the log
-    /// before the first frame is drawn.
+    /// before the first frame is drawn, summons included.
     /// </remarks>
     private void BuildBars(BattleReplayPresenter presenter)
     {
@@ -749,7 +766,7 @@ public partial class BattleReplay : Control
 
             caption.SizeFlagsHorizontal = SizeFlags.ExpandFill;
 
-            var known = actor.StartingHp is not null;
+            var known = actor.MaxHp is not null;
 
             var value = Caption(
                 known ? "" : UnknownValue, known ? LiveColour : UnavailableColour, wrapping: false);
@@ -759,13 +776,18 @@ public partial class BattleReplay : Control
             captionRow.AddChild(caption);
             captionRow.AddChild(value);
 
+            // 🔒 The maximum is the SCALE and the starting health is the FILL, and they are two
+            // different numbers for the hero: a run carries its health between fights, so a wounded
+            // hero opens part-way along a full-length bar. Scaling to the opening value instead would
+            // draw every actor at full and turn the hero's accumulated damage invisible — which is the
+            // one thing the bar is there to show.
             var bar = new ProgressBar
             {
                 CustomMinimumSize = BarSize,
                 ShowPercentage = false,
-                MaxValue = Math.Max(actor.StartingHp ?? 0, 1),
+                MaxValue = Math.Max(actor.MaxHp ?? 0, 1),
                 Value = actor.StartingHp ?? 0,
-                Visible = actor.StartingHp is not null,
+                Visible = known,
             };
 
             // Every actor's bar is stacked in one column here rather than split left and right the
@@ -786,7 +808,8 @@ public partial class BattleReplay : Control
 
             column.AddChild(row);
 
-            var tracked = new ActorBar(actor.ActorId, value, bar, statuses, actor.StartingHp);
+            var tracked = new ActorBar(
+                actor.ActorId, value, bar, statuses, actor.MaxHp, actor.StartingHp);
 
             _rows.Add(tracked);
             _rowBySlot[actor.ActorId] = tracked;
@@ -1147,13 +1170,13 @@ public partial class BattleReplay : Control
             {
                 row.Dirty = false;
 
-                if (row.Current is { } current && row.Start is { } start)
+                if (row.Current is { } current && row.Maximum is { } maximum)
                 {
                     row.Bar.Value = current;
                     row.Value.Text =
                         Math.Round(current).ToString("0", CultureInfo.InvariantCulture) +
                         OverSeparator +
-                        Math.Round(start).ToString("0", CultureInfo.InvariantCulture);
+                        Math.Round(maximum).ToString("0", CultureInfo.InvariantCulture);
                 }
             }
 
@@ -1319,7 +1342,12 @@ public partial class BattleReplay : Control
     /// screen has least room to.
     /// </remarks>
     private sealed class ActorBar(
-        byte slot, Label value, ProgressBar bar, HBoxContainer statuses, double? start)
+        byte slot,
+        Label value,
+        ProgressBar bar,
+        HBoxContainer statuses,
+        double? maxHp,
+        double? startingHp)
     {
         /// <summary>The slot the log identifies this actor by, which the presenter is asked about it by.</summary>
         internal byte Slot { get; } = slot;
@@ -1327,17 +1355,26 @@ public partial class BattleReplay : Control
         /// <summary>The readout beside the bar.</summary>
         internal Label Value { get; } = value;
 
-        /// <summary>The bar itself, hidden outright when the log fixes no starting health.</summary>
+        /// <summary>The bar itself, hidden outright when the log spawns no actor on this slot.</summary>
         internal ProgressBar Bar { get; } = bar;
 
         /// <summary>The row of status chips under the bar.</summary>
         internal HBoxContainer Statuses { get; } = statuses;
 
-        /// <summary>What the log fixes this actor started on, or null when it fixes nothing.</summary>
-        internal double? Start { get; } = start;
+        /// <summary>
+        /// The maximum the bar is scaled to and the readout is written over, or null when the log
+        /// spawns no actor on this slot.
+        /// </summary>
+        /// <remarks>
+        /// 🔒 The MAXIMUM, not the opening health. The readout stands beside a bar and has to agree
+        /// with it — a "current / opening" pair beside a bar scaled to the maximum reads as a bar that
+        /// is drawn wrong, and for a hero carrying damage in from an earlier fight the two denominators
+        /// are genuinely different numbers.
+        /// </remarks>
+        internal double? Maximum { get; } = maxHp;
 
         /// <summary>Where the playhead has walked this actor's health to.</summary>
-        internal double? Current { get; set; } = start;
+        internal double? Current { get; set; } = startingHp;
 
         /// <summary>What is on this actor now, by status number.</summary>
         internal Dictionary<ushort, int> Stacks { get; } = new();

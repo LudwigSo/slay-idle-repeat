@@ -131,10 +131,24 @@ internal sealed class RecordingAttackPipeline : IAttackPipeline
     internal List<(int Tick, string Attacker, string Defender, double Multiplier, string SourceEffectId)> Swings
     { get; } = new();
 
+    /// <summary>
+    /// Run at the top of every <c>ResolveAttack</c>, for a case that has to do something from inside
+    /// the running tick loop rather than before or after it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The seam exists because some things a case wants to observe are only legal mid-fight:
+    /// <c>AdmitSummon</c> writes an <c>ActorSpawned</c> to the log, and <c>Complete</c> seals the log —
+    /// so a summon admitted through a captured <c>BattleServices</c> after <c>Simulate</c> returned is
+    /// refused, correctly. This is the hook that puts such a case where a real <c>SUMMON</c> op runs.
+    /// </remarks>
+    internal Action? BeforeSwing { get; set; }
+
     /// <inheritdoc />
     public AttackResolution ResolveAttack(
         IEffectActorView attacker, IEffectActorView defender, double attackMultiplier, string sourceEffectId)
     {
+        BeforeSwing?.Invoke();
+
         Swings.Add((_services.Tick, attacker.Id, defender.Id, attackMultiplier, sourceEffectId));
 
         var target = (BattleActor)defender;

@@ -15,21 +15,79 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Combat;
 public sealed class TickOrderTests
 {
     /// <summary>
-    /// <c>BattleStart</c> is emitted last of the pre-tick, at tick 0; every opening ward grant and
-    /// buff is already in the log before it.
+    /// <c>BattleStart</c> is emitted last of the pre-tick, at tick 0; the roster and every opening
+    /// ward grant and buff are already in the log before it.
     /// </summary>
     [Fact]
     public void The_pre_tick_emits_BattleStart_at_tick_0_naming_no_actor()
     {
         var result = Fight();
 
-        var first = result.Log[0];
-        first.Type.ShouldBe(CombatEventType.BattleStart);
-        first.Tick.ShouldBe(0);
-        first.SourceId.ShouldBe(CombatActor.None);
-        first.TargetId.ShouldBe(CombatActor.None);
+        var start = result.Log.Single(e => e.Type == CombatEventType.BattleStart);
+        start.Tick.ShouldBe(0);
+        start.SourceId.ShouldBe(CombatActor.None);
+        start.TargetId.ShouldBe(CombatActor.None);
 
         result.Log[^1].Type.ShouldBe(CombatEventType.BattleEnd);
+    }
+
+    /// <summary>
+    /// The roster is announced in step 0a, so every actor is spawned into the log before
+    /// <c>BattleStart</c> and before anything happens to any of them.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The order is the whole point rather than a detail: a spawn arriving after the first ward grant
+    /// or the first blow would be a bar the replayer had already been asked to move, so it would draw
+    /// the opening of the fight against a denominator it did not have yet.
+    /// </remarks>
+    [Fact]
+    public void The_pre_tick_spawns_every_actor_before_anything_happens_to_them()
+    {
+        var result = Fight();
+
+        var beforeStart = result.Log
+            .TakeWhile(e => e.Type != CombatEventType.BattleStart)
+            .ToArray();
+
+        // The hero and the one enemy of Fight()'s roster, in the roster's own index order.
+        beforeStart
+            .Where(e => e.Type == CombatEventType.ActorSpawned)
+            .Select(e => e.TargetId)
+            .ShouldBe([CombatActor.Hero, CombatActor.FirstEnemy]);
+
+        result.Log.Count(e => e.Type == CombatEventType.ActorSpawned).ShouldBe(2);
+
+        beforeStart.ShouldAllBe(e => e.Tick == 0);
+        beforeStart
+            .Where(e => e.Type == CombatEventType.ActorSpawned)
+            .ShouldAllBe(e => e.SourceId == CombatActor.None);
+
+        // Every spawn precedes every event that moves health, which is the property a bar depends on.
+        var firstSpawn = Array.FindIndex(beforeStart, e => e.Type == CombatEventType.ActorSpawned);
+        var lastSpawn = Array.FindLastIndex(beforeStart, e => e.Type == CombatEventType.ActorSpawned);
+
+        firstSpawn.ShouldBe(0);
+        lastSpawn.ShouldBe(beforeStart.Count(e => e.Type == CombatEventType.ActorSpawned) - 1);
+    }
+
+    /// <summary>An actor is spawned with the Max HP the fight actually runs it on.</summary>
+    /// <remarks>
+    /// 🔴 The number is read after aggregation, not off the plan's base block. A hero holding an effect
+    /// that raises Max HP would otherwise be spawned with a maximum smaller than the health it opens on,
+    /// so its bar would open past its own right-hand end.
+    /// </remarks>
+    [Fact]
+    public void An_actor_is_spawned_with_its_aggregated_maximum()
+    {
+        var result = Fight();
+
+        // Fight()'s roster: a 1000 HP hero against a 20 HP enemy. Two different numbers, so a spawn
+        // that reported one actor's maximum for every actor would fail here rather than pass by
+        // coincidence on a roster whose members happen to match.
+        result.Log
+            .Where(e => e.Type == CombatEventType.ActorSpawned)
+            .Select(e => (e.TargetId, e.Value))
+            .ShouldBe([(CombatActor.Hero, 1000.0), (CombatActor.FirstEnemy, 20.0)]);
     }
 
     /// <summary>Every battle-opening actor's cooldown starts at 0, so the first basic attack lands on tick 0.</summary>

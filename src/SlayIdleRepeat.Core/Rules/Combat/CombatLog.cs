@@ -96,14 +96,16 @@ internal sealed class CombatLog
     {
         // Members with rules of their own are routed to the method that enforces them, rather than
         // trusting every caller to remember.
-        if (entry.Type is CombatEventType.Telegraph or CombatEventType.RunEffectQueued)
+        if (entry.Type is CombatEventType.Telegraph or CombatEventType.RunEffectQueued
+            or CombatEventType.ActorSpawned)
         {
             throw new InvalidOperationException(
                 $"A {entry.Type} was appended through {nameof(Append)}, which cannot enforce the rules that " +
-                $"member carries — `17` §1's 1.0–1.5 s wind-up band for Telegraph, and the RUN target of " +
-                $"`18` §5 for RunEffectQueued. Use {nameof(AppendTelegraph)} or " +
-                $"{nameof(AppendRunEffectQueued)}, so those rules hold by construction rather than by everyone " +
-                "remembering them.");
+                $"member carries — `17` §1's 1.0–1.5 s wind-up band for Telegraph, the RUN target of " +
+                $"`18` §5 for RunEffectQueued, and the named actor and positive Max HP an ActorSpawned owes " +
+                $"the health bar it is the denominator of. Use {nameof(AppendTelegraph)}, " +
+                $"{nameof(AppendRunEffectQueued)} or {nameof(AppendActorSpawn)}, so those rules hold by " +
+                "construction rather than by everyone remembering them.");
         }
 
         AppendCore(entry);
@@ -303,6 +305,57 @@ internal sealed class CombatLog
         }
 
         AppendCore(new CombatEvent(tick, CombatEventType.Telegraph, sourceId, targetId, leadSeconds, effectIndex));
+    }
+
+    /// <summary>Records that an actor has entered the fight, and the Max HP its health bar is drawn against.</summary>
+    /// <param name="tick">The tick it entered on — <c>0</c> for the opening roster.</param>
+    /// <param name="sourceId">The summoner, or <see cref="CombatActor.None"/> for an actor of the opening roster.</param>
+    /// <param name="targetId">The actor that entered. Never <see cref="CombatActor.None"/>.</param>
+    /// <param name="maxHp">Its Max HP, after aggregation and every multiplier. Positive, rounded to 4 dp.</param>
+    /// <exception cref="InvalidOperationException">
+    /// The event names no actor, or its Max HP is not a positive rounded finite number.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>Both rules are enforced rather than documented, because the consumer cannot check either.</b>
+    /// A replayer reads this number as a bar's denominator: an unnamed actor is a denominator belonging
+    /// to nobody, and a zero one is a division the drawing code performs on every frame of the fight.
+    /// A screen defending itself against both would be a screen inventing a maximum, which draws a bar
+    /// that is wrong by whatever the invention was off by — the exact failure the member was added to
+    /// end.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>The aggregated maximum, not the plan's base block.</b> They are the same number only while
+    /// nothing standing modifies Max HP; a hero whose loadout raises it would otherwise be drawn against
+    /// a denominator smaller than its own opening health, so the bar would open past its right-hand end.
+    /// The caller reads it off the live actor after the pass that aggregates, which is the only moment
+    /// it is settled.
+    /// </para>
+    /// </remarks>
+    public void AppendActorSpawn(int tick, byte sourceId, byte targetId, double maxHp)
+    {
+        if (targetId == CombatActor.None)
+        {
+            throw new InvalidOperationException(
+                $"An ActorSpawned at tick {InvariantText.Text(tick)} names no actor. It exists to " +
+                "fix one actor's health bar denominator, so an unnamed one is a maximum belonging to nobody — " +
+                "and it is inside LogHash, so a client that named an actor and a server that did not would " +
+                "disagree about an identical fight (`11` §6).");
+        }
+
+        // NaN first and explicitly, for AppendTelegraph's reason: `NaN <= 0` is false, so a NaN would
+        // pass this gate and be caught by the rounding guard below, reporting the wrong rule.
+        if (double.IsNaN(maxHp) || maxHp <= 0.0)
+        {
+            throw new InvalidOperationException(
+                $"An ActorSpawned for actor {InvariantText.Text(targetId)} carries Max HP " +
+                $"{Format(maxHp)}. `05` §2 gives every actor a complete stat block and MAX_HP is one of the " +
+                "fourteen, so a non-positive maximum is an unaggregated or overflowed block rather than an " +
+                "actor with no health — and it is a bar denominator, so it would be divided by on every frame " +
+                "of the fight.");
+        }
+
+        AppendCore(new CombatEvent(tick, CombatEventType.ActorSpawned, sourceId, targetId, maxHp, NoDataId));
     }
 
     /// <summary>Seals the log with a <see cref="CombatEventType.BattleEnd"/> and returns the result, <see cref="SimulationResult.LogHash"/> included.</summary>
