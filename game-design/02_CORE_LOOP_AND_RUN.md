@@ -298,7 +298,7 @@ The first run is a scripted tutorial board, shipped as an **authored data packag
 | 2 | After battle #1 | The perk draft — the game's core decision | 2–3 |
 | 3 | Roll #3 → Treasure | Loot exists and is yours | 4 |
 | 4 | Roll #5 → Shop | Gold is spent inside the run | 5 |
-| 5 | Roll #7 → Elite (scripted near-death) | ⚠️ The beat taught the reroll and the tension of the die; both are gone (`04` §5), so this FTUE step is owed a replacement lesson | 6–6b |
+| 5 | Roll #7 → Elite (scripted near-death), then a **fixed die** granted with a curse tile visibly ahead | Fixed dice: a die carrying your own number, and a board you can read before you choose it | 6–6b |
 | 6 | Final tile → mini-boss | The victory payoff and the reward screen | 7–8 |
 
 `19` Part D's beat numbering (0–10 plus 6b) is canonical — it is what `beatId` persistence (`19` D7) and the resume rule index. The rows above are a teaching summary, not a second numbering.

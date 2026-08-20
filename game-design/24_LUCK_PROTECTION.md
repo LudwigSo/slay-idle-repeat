@@ -164,7 +164,9 @@ The existing rule (guaranteed S every 30, SS every 150) stands, with three addit
 
 ### 4.5 `CRATE_MOUNT` — new, was unprotected
 
-`07` §3 specifies no pity at all for mounts, which is the single largest unprotected chase in the game: 12 mounts, 2,500 Soul Shards per crate, and the SS mounts (`MNT_VOIDSTEED`, `MNT_FATESPINNER`, `MNT_WORLDBEARER`) carry run-defining effects.
+`07` §3 specifies no pity at all for mounts, which is the single largest unprotected chase in the game: **11 mounts**, 2,500 Soul Shards per crate, and the SS mounts carry run-defining effects.
+
+⚠️ **The SS pool is now two** — `MNT_FATESPINNER` and `MNT_WORLDBEARER`; `MNT_VOIDSTEED` is removed (`16` D55). 📐 The hard-pity numbers below were set against a three-mount SS pool, so **duplicate protection now has one fewer alternative to redirect an SS duplicate to** and the every-30-crates SS guarantee reaches a completed set faster than authored. Both numbers are owed a re-check.
 
 | Property | Value |
 |---|---|

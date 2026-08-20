@@ -453,6 +453,6 @@ All five are validated at build time against schemas (`14` §6) and are hot-relo
 |---|---|
 | `02` §4.4 | `PlayerPower` formula superseded by §2 here. The additive form is retained in data as `additive_legacy` and is not the default. The "too weak" warning threshold (`0.7 × ParPower`) is unchanged. |
 | `05` §9.1 | The 70% clear-rate-at-par guardrail becomes the *definition* of `ParPower` (§4) rather than a separate target, and gains a tolerance band (62–78%) as assertion A11. |
-| `09` §8 | The talent power guardrail table is now `TalentFactor(L)` in §5 and must be re-derived for 324 points (**E22**). |
+| `09` §7 | The talent power guardrail table is now `TalentFactor(L)` in §5 and must be re-derived for 324 points over a **422**-point two-branch tree (`16` D54) — **E22**. |
 | `11` §4 | PvP candidate selection may use `PlayerPower` for band construction; it must not use `UtilityIndex`. |
 | `21` | Rewritten around this document — see `21` §4, §5, §8. |

@@ -467,13 +467,13 @@ with these interactions fixed:
 
 **Risk accepted:** this is a deliberately extreme, low-appearance-rate perk. It appears only from `TILE_CURSE` and only from Chapter 5 onward. If the balance harness shows it exceeding a 12 pp swing in clear rate (`05` §9 guardrail 2), reduce it to ×1.6.
 
-### 9.2 `PET_DICEBEAST` active (was P2 #29)
+### 9.2 ~~`PET_DICEBEAST` active~~ (was P2 #29)
 
-**Ruling:** Dicebeast's active is **not** on a combat cooldown. It fires `ON_BATTLE_END` (win only), granting `{"op":"MODIFY_DIE_FACE","scope":"NEXT_3_ROLLS","newFace":{"kind":"Star"}}`. This removes the category error of an out-of-combat effect on an in-combat timer, and it makes the pet feel like a board-layer reward, which fits its identity.
+⚠️ **Retired with the pet** (`16` D55). The ruling put Dicebeast's active on `ON_BATTLE_END` rather than a combat cooldown, granting `MODIFY_DIE_FACE` over the next three rolls — an op that no longer exists (`16` D41) for a pet that no longer exists. Nothing replaces it, and the `ON_BATTLE_END` reading it established stands on its own for any future out-of-combat pet active.
 
 ### 9.3 PvP behaviour of non-combat perks (was P2 #26)
 
-🔒 **Decision: keep the ban.** Dice & Board (12 perks) and Economy (10 perks) are **ineligible in PvP**. The eligible pool is **68 perks**.
+⚠️ **Superseded by `16` D57: there is no ban.** This section ruled to keep Dice & Board (12) and Economy (10) **ineligible in PvP** for a 68-perk pool. Both categories are gone — the perk rework replaced that taxonomy with nine gated categories (`06` §2) and D41 deleted the twelve dice perks — so **every category is eligible** and the pool is simply every combat perk the player has discovered. The reasoning that chose banning over *converting* non-combat perks is not reversed; it is spent, because no non-combat category remains to convert.
 
 Consequently the PvP perk budget shrinks: **5 slots, 10 Perk Points** (was 6 slots, 12 points). See `11_PVP_GHOST_DUEL.md` §3.
 

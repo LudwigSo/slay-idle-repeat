@@ -186,7 +186,7 @@ They contradict each other. A player away for two days regenerates 720 Energy an
 | Spends | Automatically. A run or dungeon draws from the main bar first, then from the Reserve for any shortfall. There is no button and no decision. |
 | Regenerates | ❌ Never on its own. The Reserve only ever receives what the main bar could not hold. |
 | Purchasable | ❌ Never, by money or ad. `AD_ENERGY` (`12` §4.2) grants +40 to the main bar and overflows into the Reserve exactly like any other source — capped, and identical for Plus. |
-| Talents | `FT_VIGOR` (`09` §6) raises the regeneration rate and therefore fills the Reserve faster. No new talent node. |
+| Talents | ⚠️ **Nothing raises Energy regeneration any more.** `FT_VIGOR` was the only node that did and it went with the FORTUNE branch (`16` D54). The Reserve fills at the base rate alone. No new talent node is added here — that would be a MIGHT or WARD node about Energy, which is neither branch's subject. |
 | UI | A second, thinner segment drawn behind the main Energy bar in a desaturated tint, with the numbers read as `138/200 (+200)`. Not a separate widget. |
 
 **Maximum banked value: 400 Energy = 20 runs ≈ 2.5–3 hours of play.** That is a generous weekend, and it is deliberately not more — a player who returns after three weeks should not find a month of content stacked up, because the whole point of a run-based design (D2) is that the session is an active choice.
@@ -354,20 +354,22 @@ Format: `Feat — measure — tier thresholds (1 / 2 / 3)`. Feats marked **(sing
 
 | # | Feat | Measure | Tiers |
 |---|---|---|---|
-| 87 | Menagerie Keeper | Distinct pets owned | 8 / 16 / 24 |
+| 87 | Menagerie Keeper | Distinct pets owned | 8 / 16 / **23** |
 | 88 | Five Stars | Pets at ★5 | 1 / 5 / 12 |
 | 89 | Growth Spurt | Pet level-ups | 100 / 1,000 / 5,000 |
 | 90 | Fully Grown | Pets at level 60 | 1 / 3 / 12 |
 | 91 | Egg Collection | Pet Eggs opened | 25 / 250 / 2,500 |
-| 92 | The Rare Ones | SS pets owned | 1 / 2 / 4 |
+| 92 | The Rare Ones | SS pets owned | 1 / 2 / **3** |
 | 93 | Marked Progress | Beast Marks earned | 60 / 200 / 600 |
 | 94 | Chosen, Not Rolled | Pets bought with Beast Marks | 1 / 2 / 5 |
 | 95 | Well Fed | Beast Feed spent | 5,000 / 50,000 / 500,000 |
-| 96 | Stable Hand | Distinct mounts owned | 4 / 8 / 12 |
-| 97 | Thoroughbreds | SS mounts owned | 1 / 2 / 3 |
+| 96 | Stable Hand | Distinct mounts owned | 4 / 8 / **11** |
+| 97 | Thoroughbreds | **Both** SS mounts owned | **(single)** |
 | 98 | Broken In | Mounts at level 30 | 1 / 4 / 12 |
 | 99 | Crate Expectations | Mount Crates opened | 10 / 100 / 1,000 |
 | 100 | The Dream Team | Runs won with 3 SS pets equipped | 1 / 10 / 100 |
+
+⚠️ **Five thresholds in this category moved with `16` D55**, which removed `PET_DICEBEAST` and `MNT_VOIDSTEED`: the catalogues are **23 pets and 11 mounts**, and the SS pools are **3 pets and 2 mounts**. Feats 87, 92 and 96 had a tier-3 threshold equal to the old catalogue size and would have been unreachable; they now equal the new one. **Feat 97 becomes `(single)`** — with two SS mounts in the game a three-tier ladder has nowhere to go, and *own both* is the honest shape for a complete-the-pool feat; ⚠️ **that shape is the conductor's call, not the owner's.** Feat 100 is unchanged and still reachable, but it now requires **literally every SS pet in the game** rather than three of four — 📐 the softer reading is *3 SS pets equipped* becoming *3 S-or-better pets equipped*, and it is not taken here.
 
 **The Arena (14)**
 
@@ -446,7 +448,7 @@ Total v1 Renown available ≈ 12,000 📐
 
 Renown milestones at every **1,000 points** pay **+2 Talent Points**, for **+24 total**, plus a final +6 at full completion.
 
-**This changes the number in `09` §2.** The v1 Talent Point maximum rises from **~294 to ~324** against a tree costing 633 to max. The tree is still not completable in v1, which is the property `09` §2 exists to preserve, and the balance guardrail in `09` §8 must be re-derived for 324 points rather than 294 — expect roughly ×6.9 PlayerPower rather than ×6.5.
+**This changes the number in `09` §2.** The v1 Talent Point maximum rises from **~294 to ~324** against a tree costing **422** to max (`16` D54 removed the FORTUNE branch). The tree is still not completable in v1, which is the property `09` §2 exists to preserve. 🔴 **The ×6.9 expectation does not survive the shorter tree** and is not restated here: `09` §7 and **assertion E22** own the re-derivation, over 324 points against 422 rather than 324 against 633.
 
 📐 The +30 is the dial. It is deliberately small: Feats are meant to give the post-content player a **list**, not a power spike that invalidates the enemy ramp.
 
@@ -485,7 +487,7 @@ There are no cosmetics (D14) and PvP tier is already a text label (`11` §5.2). 
 |---|---|
 | **E20** | Model the **Energy Reserve** for the lapsed-and-returning profile specifically. The relevant question is not average income but whether a player returning after 48 hours can spend what they banked in one sitting — if they cannot, the cap is too high and the Reserve is decoration. |
 | **E21** | Model **Feat rewards as a one-off retroactive grant** at the moment of first launch after release, then as a slow trickle. The retroactive lump for an existing account is the largest single currency injection in the game and must not break the Crown curve. |
-| **E22** | Re-derive the `09` §8 talent power guardrail for **324 points**, not 294. |
+| **E22** | Re-derive the `09` §7 talent power guardrail for **324 points against a 422-point, two-branch tree** — not 294, and not against 633 (`16` D54). |
 | **E23** | **Assertion:** compensation and inbox grants are excluded from all fairness assertions. Ops grants are outside the economy by definition and must not be allowed to mask a broken curve. |
 
 Assertion count: **28 → 32**. Profiles: **11 → 12** (adding *lapsed-and-returning*).

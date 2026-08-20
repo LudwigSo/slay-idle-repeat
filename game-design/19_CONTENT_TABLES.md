@@ -148,8 +148,8 @@ The "Roll *n*" triggers below are the **forced results of the rigged die sequenc
 | 4 | Roll 3 → Treasure | *"Yours. All of it, even if you die."* | Auto-resolves; the authored payout (D5) flies to the HUD. |
 | 5 | Roll 5 → Shop | *"Gold is for now. It does not follow you home."* | Player must buy exactly one thing (fixed offers and authored prices — D4.2). Every offer costs less than the Gold held, so anything is affordable. |
 | 6 | Roll 7 → Elite (`FTUE_ELITE`, leaves the hero at ~25% HP — D4) | *"That was close."* | Battle auto-plays. Afterwards: the second perk draft (fixed options — D4). |
-| ~~6b~~ | ⚠️ **Removed with the reroll** (`04` §5). It showed a `2` pointing at the Cursed Ground tile, pulsed the reroll button, and taught that rerolls exist and dodge trouble. | — | 🔴 The FTUE is one beat short and the tile it threatened is now unthreatening — see beat 10 below. The replacement lesson is owed. |
-| 7 | Roll 9 → mini-boss (`BOSS_FTUE` — D4) | *"Last one."* | The hero heals to full on landing (tutorial-only 📐). The forced `6` clamps onto the boss node — the boss is always reached exactly (`03` §1.1). Phase 1 only. No draft afterwards (D4). |
+| 6b | Roll 8 → node 9 (empty), with node 10's Cursed Ground visibly two steps ahead | *"A die with your number on it. The board is right there — pick where you land."* | 🔒 **The fixed-die lesson** (`16` D59). One fixed die is granted; the six-way number prompt opens and the player names it. Nothing is forced and nothing is pulsed except the prompt. |
+| 7 | **Spending** the fixed die → mini-boss (`BOSS_FTUE` — D4) | *"Last one."* | The player spends the die from the board tray. **Any number ≥ 2 lands the boss**, because the boss node is always reached exactly (`03` §1.1) — so five of the six choices work and the clamp teaches itself. Naming `1` instead lands node 10's curse; see D3. The hero heals to full on landing (tutorial-only 📐). Phase 1 only. No draft afterwards (D4). |
 | 8 | Victory | *"Take it back with you."* | Run Results screen, all rewards positive, no ad offer. |
 | 9 | Home screen | *"You kept the gear. Put it on."* | Forced single gear equip on the Hero screen. |
 | 10 | After equip | *"And this is permanent."* | Forced single Talent Point spend. Then FTUE ends. |
@@ -177,8 +177,8 @@ No stage gates, no forks, no campfire. Node 11 is the final node and holds the m
 | 6 | `TILE_SHOP` | Beat 5: tutorial shop (D4.2) |
 | 7 | `TILE_EMPTY` | spacing |
 | 8 | `TILE_ELITE` | Beat 6: `FTUE_ELITE` |
-| 9 | `TILE_EMPTY` | ⚠️ Was where beat 6b's reroll landed; nothing lands here on purpose now |
-| 10 | `TILE_CURSE` (`CUR_SLIPPERY`) | ⚠️ **Designed never to be landed on** — it existed as the reroll lesson's visible threat, and that lesson is gone (`04` §5). It is now a tile the forced sequence passes over for no stated reason. Inspectable (tooltip works); passing never resolves (`03` §1.1). |
+| 9 | `TILE_EMPTY` | Beat 6b: where the fixed die is granted. Empty on purpose — the lesson is the *choice*, so the tile the player stands on must ask nothing of them |
+| 10 | `TILE_CURSE` (`CUR_SLIPPERY`) | **The fixed-die lesson's visible threat, and a real one.** It is the only tile in the FTUE the player can land on by choosing badly: from node 9, naming `1` resolves it. Naming anything else passes over it, and passing never resolves (`03` §1.1). Inspectable before the choice — which is the point, because the board is completely visible (`04` §4). |
 | 11 | `TILE_MINIBOSS` (`BOSS_FTUE`) | Beat 7–8 |
 
 The board deliberately violates generator constraint C7 (≥2 treasure, ≥1 cache) — authored boards bypass constraints (`03` §3), and the day-1 payout is scripted (D5), so C7's protection is not needed here.
@@ -196,10 +196,12 @@ The hero starts at the trailhead before node 0, like every run (`03` §1.1). The
 | 5 | `1` | 7 | node 6 — SHOP | 5 |
 | 6 | `1` | 8 | node 7 — empty | — |
 | 7 | `1` | 9 | node 8 — ELITE | 6 |
-| 8 | ⚠️ was `2` → forced reroll → `1` | 10 | 🔴 **This row has no rigged value now.** The reroll it demonstrated is gone (`04` §5), so the roll has to become an ordinary one — and whatever number it takes must not land on node 10's curse, which beat 6b's reroll used to be what avoided. Owed with the replacement beat. | ~~6b~~ |
-| 9 | `6` (clamped) | 12 | node 11 — MINIBOSS. The clamp teaches the boss-reached-exactly rule (`03` §1.1). | 7 |
+| 8 | `1` | 10 | node 9 — empty. The **fixed die is granted here** and the number prompt opens. | 6b |
+| — | **the player's own number** (fixed-die spend, no draw) | 12 | node 11 — MINIBOSS, for any number ≥ 2. 🔒 Naming `1` lands node 10's curse instead: `CUR_SLIPPERY` applies (−1 to rolls, floor 1 — and **not** to fixed dice, `04` §6.1), and **one ordinary roll of any value then reaches the boss** under the reached-exactly rule. The script needs no extra rigging for that branch. | 7 |
 
-⚠️ *Roll 8 is the only roll where the reroll prompt is interactive; on every other roll the reroll button is hidden* — there is no reroll prompt at all (`04` §4). The small forced values are deliberate: nine rolls across twelve tiles keeps every beat visible.
+🔒 **Eight forced rolls and one spent fixed die**, across twelve tiles — which keeps every beat visible. The small forced values are deliberate.
+
+🔒 **The player's number is genuinely their own.** No tutorial-only flag constrains it: the board is visible, the curse is inspectable, and five of six answers reach the boss. A player who names `1` is not punished with a dead end — they take a mild curse and roll once more. That is the honest version of the lesson, and it costs one authored branch rather than a rigged prompt.
 
 ## D4. Tutorial-only definitions
 

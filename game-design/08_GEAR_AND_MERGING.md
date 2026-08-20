@@ -27,7 +27,7 @@ Families are not cosmetic — each biases a build:
 |---|---|---|
 | Blade / Hood / Leathers / Treads / Band / Pendant | Balanced, crit-leaning | **Bloodmoon** |
 | Axe / Helm / Plate / Greaves / Signet / Talisman | Heavy: ATK + Max HP, lower ASPD | **Ironvow** |
-| Staff / Circlet / Robe / Slippers / Loop / Charm | Caster: DoT power, ASPD, low DEF | **Fateweave** |
+| Staff / Circlet / Robe / Slippers / Loop / Charm | Caster: DoT power, ASPD, low DEF | — 🔴 **none** (`16` D56) |
 | Bow / Mask / Scalemail / Sandals / Seal / Idol | Agile: ASPD, dodge, penetration | **Stormcall** |
 
 ---
@@ -117,7 +117,13 @@ Rarity B and above roll random affixes from a pool. Affix pools are slot-restric
 
 ### 3.2 Set bonuses (SS only)
 
-**There are exactly 4 sets, one per family axis** (§1.1). Every SS item's set is therefore determined by its family — no separate mapping table is needed, and 4 sets × 6 slots = **24 SS items**, matching the 24 base items exactly.
+**There are exactly 3 sets** (`16` D56 removed Fateweave), and each belongs to one family axis (§1.1). An SS item's set is therefore still determined by its family — no separate mapping table is needed — but the mapping is no longer total: there are still **24 SS items** (4 families × 6 slots), and **18 of them belong to a set while the 6 Caster items belong to none**.
+
+🔴 **The Caster axis has no set bonus, and that is an asymmetry rather than a gap in the authoring.** Fateweave's three bonuses were a Reroll Charge, a `Star`-face draft grant and a face conversion — all three were the die, and the die is an ordinary 1..6 (`04`). The set was removed rather than re-themed, so a 6-piece Caster commitment currently pays nothing beyond the items themselves. Consequences that must be honoured rather than smoothed over:
+
+- The **UI must say so**: `13` S17's set panel and every Caster SS tooltip need a legible *"no set bonus"* state, not an empty row a player reads as a bug.
+- **Caster SS gear is strictly weaker at the 6-piece breakpoint** than Balanced, Heavy or Agile. 📐 If the balance harness shows Caster builds falling behind by more than the axis' own stat bias explains, the fix is a **re-themed third—fourth set on the Caster axis**, authored around damage-over-time (the axis' actual subject), not a partial restoration of Fateweave.
+- `GearFamilyAxis.CASTER` **stays** — the axis is a stat bias on every slot's family and is unaffected. Only the set built on top of it is gone.
 
 Wearing 2 / 4 / 6 pieces of a set grants escalating bonuses.
 
@@ -125,10 +131,9 @@ Wearing 2 / 4 / 6 pieces of a set grants escalating bonuses.
 |---|---|---|---|---|
 | **Bloodmoon** | Balanced | +10% Lifesteal | Kills heal 8% Max HP | Lifesteal also applies to pet damage |
 | **Ironvow** | Heavy | +15% DEF | −15% damage taken from Elites/Bosses | Once per battle, negate a lethal hit |
-| **Fateweave** | Caster | 🔴 **All three bonuses removed** (⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41).) — a Reroll Charge, a `Star`-face draft grant and a face conversion. The set is named for a mechanic that no longer exists and currently grants **nothing at any breakpoint**. Owed a re-theme or a removal. | — | — |
 | **Stormcall** | Agile | +10% ASPD | Every 5th attack chains to all enemies | Attack speed also scales pet ability cooldowns |
 
-Because a set maps to a family axis, a full 6-piece set is also a full commitment to one build archetype. That is intentional: mixing axes is the flexible, safe play; committing to one is the high-ceiling play.
+Because a set maps to a family axis, a full 6-piece set is also a full commitment to one build archetype. That is intentional: mixing axes is the flexible, safe play; committing to one is the high-ceiling play — **on the three axes that have a set.**
 
 ---
 

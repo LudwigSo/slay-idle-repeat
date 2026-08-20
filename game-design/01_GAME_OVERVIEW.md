@@ -97,7 +97,7 @@ The emotional arc the design chases, in order:
 | Difficulty tiers per chapter | 3 (Normal / Heroic / Mythic) |
 | Tile types | 14 |
 | Perks (run-scoped) | 98 (90 standard + 8 cursed) |
-| Talent nodes | 60 (3 branches × 20) |
+| Talent nodes | 40 (2 branches × 20) |
 | Gear families | 4 per slot × 6 slots = 24 base items, × 5 rarities |
 | Pets | 24 |
 | Mounts | 12 |

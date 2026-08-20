@@ -105,7 +105,7 @@ Consistency across ~1,000 assets is the hard part. Follow this pipeline; do not 
 1. **Generate the Style Anchor Sheet first.** One image containing 6 characters in the target style (hero, a grunt, a brute, a pet, a mount, a boss silhouette). Iterate on this single image until it is exactly right. Everything downstream references it.
 2. **Lock a seed family.** Record the seed, sampler, CFG and model version that produced the anchor. Reuse the same settings for every asset in a category.
 3. **Upload the anchor sheet and use it as `--sref` on every subsequent generation.** This is what actually holds the style together — prompt text alone will not. Record the `--sref` URL/ID and never change it mid-project.
-4. **Generate in category batches**, not one asset at a time. All 24 pets in one session, all 64 enemies in one session. Style drifts between sessions.
+4. **Generate in category batches**, not one asset at a time. All 23 pets in one session, all 64 enemies in one session. Style drifts between sessions.
 5. **Character sheets before variants.** For the hero and each boss, generate a 4-pose sheet in a single image (idle, attack, hurt, victory), then cut it. Poses generated separately will not match.
 6. **Post-process every asset** through the standard pipeline (§B4).
 7. **Silhouette-test** every character asset (§A4). Reject and regenerate failures.
@@ -210,8 +210,8 @@ Examples:
 |---|---|
 | `atlas_hero` | Hero body + all gear overlays |
 | `atlas_biome_{n}` | That biome's enemies, elites, boss, tiles, board pieces, decor |
-| `atlas_pets` | All 24 pets |
-| `atlas_mounts` | All 12 mounts |
+| `atlas_pets` | All 23 pets |
+| `atlas_mounts` | All 11 mounts |
 | `atlas_icons_gear` | All 120 gear icons |
 | `atlas_icons_perks` | All perk + talent + status icons |
 | `atlas_ui` | Panels, buttons, frames, currency icons |
@@ -232,25 +232,27 @@ Backgrounds are **not** atlased (they are full-screen and streamed per biome).
 | E3 | Enemies (standard) | 128 |
 | E4 | Elites | 32 |
 | E5 | Bosses | 32 |
-| E6 | Pets | 48 |
-| E7 | Mounts | 24 |
+| E6 | Pets | 46 |
+| E7 | Mounts | 22 |
 | E8 | Tile icons | 14 |
 | E9 | Board paths & decor | 112 |
 | E10 | Battle backdrops & scene backgrounds | 28 |
 | E11 | Gear icons | 120 |
 | E12 | Perk icons | 98 |
-| E13 | Talent node icons | 60 |
+| E13 | Talent node icons | 40 |
 | E14 | Status effect icons | 12 |
 | E15 | Currency & resource icons | 9 |
-| E16 | Dice faces | 11 |
-| E17 | UI panels, buttons, frames | 86 |
+| E16 | Dice faces | 6 |
+| E17 | UI panels, buttons, frames | 89 |
 | E18 | ~~Profile frames & cosmetics~~ | **0 — cut** |
 | E19 | VFX sprite sheets | 32 |
 | E20 | Misc UI icons | 50 |
 | E21 | Store & marketing | 15 |
-| | **TOTAL** | **975** |
+| | **TOTAL** | **949** |
 
 🔒 **Cosmetics are cut entirely** (decision D14). No die skins, no profile frames, no borders, no badges. Rank and Plus status are displayed as **text labels**. This removed 97 assets from the manifest.
+
+⚠️ **The total moved 975 → 949** across four rulings: −5 dice faces (`04` §3), −20 talent node icons (`16` D54), −2 pet and −2 mount assets (`16` D55), **+3** perk-category card frames — E17 budgeted six and the perk rework authored **nine** categories (`06` §2). 🔴 **E12's 98 perk icons are not re-counted here**: the rework leaves 67 standard + 8 cursed, and reconciling that with 98 is a content question this manifest cannot answer on its own.
 
 ---
 
@@ -376,9 +378,9 @@ Phase variants: phase 2 adds a visible damage/transformation cue; phase 3 adds a
 
 ---
 
-## E6. Pets (48)
+## E6. Pets (46)
 
-**24 pets × 2 assets** (idle, ability-cast). 256×256. All pets are round, bouncy and unambiguously cute — they are the collection reward and must be desirable at thumbnail size.
+**23 pets × 2 assets** (idle, ability-cast) — `PET_DICEBEAST` is removed (`16` D55). 256×256. All pets are round, bouncy and unambiguously cute — they are the collection reward and must be desirable at thumbnail size.
 
 | ID | Name | Rarity | Descriptor |
 |---|---|---|---|
@@ -402,16 +404,15 @@ Phase variants: phase 2 adds a visible damage/transformation cue; phase 3 adds a
 | `PET_GOLDWYRM` | Goldwyrm | S | *a tiny chubby golden dragon curled around a pile of coins* |
 | `PET_SPOREMOTHER` | Sporemother | S | *a round pink fungal creature with a mushroom cap, glowing spores drifting off* |
 | `PET_CLOCKHOUND` | Clockhound | S | *a brass mechanical puppy with a clock face on its chest and gear ears* |
-| `PET_DICEBEAST` | Dicebeast | SS | *a small creature whose whole body is a glowing golden six-sided die, with tiny legs and big eyes* |
 | `PET_SOLARION` | Solarion | SS | *a radiant miniature sun lion with a mane of golden flame and white-hot eyes* |
 | `PET_NYXWEAVER` | Nyxweaver | SS | *a small elegant spider of woven night sky with silver constellation markings* |
 | `PET_ARCHIVIST` | The Archivist | SS | *a floating hooded book-creature with glowing pages for a face and quill-tipped arms* |
 
 ---
 
-## E7. Mounts (24)
+## E7. Mounts (22)
 
-**12 mounts × 2 assets** (idle, moving). 512×384, side-profile 3/4 view with a visible saddle sized for a chibi rider.
+**11 mounts × 2 assets** (idle, moving) — `MNT_VOIDSTEED` is removed (`16` D55). 512×384, side-profile 3/4 view with a visible saddle sized for a chibi rider.
 
 | ID | Name | Rarity | Descriptor |
 |---|---|---|---|
@@ -424,7 +425,6 @@ Phase variants: phase 2 adds a visible damage/transformation cue; phase 3 adds a
 | `MNT_CINDERMANE` | Cindermane | S | *a black horse with a mane and tail of orange flame, molten hoof prints* |
 | `MNT_TIDECALLER` | Tidecaller | S | *a teal sea serpent that glides above the ground with flowing water fins* |
 | `MNT_COINWYRM` | Coinwyrm | S | *a golden serpentine dragon whose scales are stacked coins* |
-| `MNT_VOIDSTEED` | Voidsteed | SS | *a shadow horse made of purple starfield with white flame hooves and no eyes* |
 | `MNT_FATESPINNER` | Fatespinner | SS | *a large elegant spider-like creature with a body of golden dice and silk threads of light* |
 | `MNT_WORLDBEARER` | Worldbearer | SS | *an enormous stone tortoise-elephant carrying a tiny floating island with a tree on its back* |
 
@@ -519,19 +519,18 @@ high contrast, glossy magical emblem, chibi cartoon fantasy game art style
 
 ---
 
-## E13. Talent node icons (60)
+## E13. Talent node icons (40)
 
-**3 branches × 20 nodes.** 128×128, same emblem language as perks but with a **hexagonal** frame instead of circular, so talents and perks are never confused.
+**2 branches × 20 nodes** — the FORTUNE branch is removed (`16` D54). 128×128, same emblem language as perks but with a **hexagonal** frame instead of circular, so talents and perks are never confused.
 
 | Branch | Disc colour | Symbol language |
 |---|---|---|
 | MIGHT | red `#D9453C` | weapons, fists, flames |
 | WARD | blue `#3B82F6` | shields, armour, roots |
-| FORTUNE | gold `#F5A623` | dice, clovers, coins, stars |
 
-Keystones (9 of the 60) get a larger **star-shaped** frame and an animated glow overlay.
+Keystones (6 of the 40) get a larger **star-shaped** frame and an animated glow overlay.
 
-> ✅ **All 60 symbol descriptors are authored in `22_ICON_PROMPT_TABLES.md` Part B.**
+> ⚠️ **`22_ICON_PROMPT_TABLES.md` Part B authored 60 symbol descriptors**; the 20 FORTUNE rows retire with the branch, leaving **40**. The gold disc colour retires with them and is not reassigned.
 
 ---
 
@@ -561,11 +560,11 @@ Descriptors: *a flame · a green skull bubble · a red droplet · a snowflake ·
 
 ---
 
-## E16. Dice faces (11)
+## E16. Dice faces (6)
 
 **One die design only.** 🔒 Skins were cut with the rest of the cosmetics (D14).
 
-11 face artworks at 256×256, composited onto a 3D-look die body: `pip1`–`pip6` plus the five special faces.
+**6** face artworks at 256×256, composited onto a 3D-look die body: `pip1`–`pip6`. The five special-face artworks retire with the die's face kinds (`04` §3).
 
 | Face | ID | Descriptor |
 |---|---|---|
@@ -589,7 +588,7 @@ The die **body** is a single asset reused for every face, so an upgraded face re
 | Item rarity frames | 10 | 5 rarities × (square item slot, round portrait) |
 | Progress bars | 9 | HP, Energy, Legend XP — fill + track + cap for each |
 | Tab bar & nav icons | 12 | Home, Hero, Forge, Talents, Menagerie, Arena, Shop, Codex, Settings, Back, Close, Info |
-| Card backs & draft cards | 8 | 6 category card frames + owned-upgrade gold frame + the dashed ad-slot card |
+| Card backs & draft cards | 11 | **9** perk-category card frames (`06` §2) + owned-upgrade gold frame + the dashed ad-slot card |
 | Decorative dividers, ribbons, banners | 10 | |
 | Toast / notification chrome | 4 | |
 | Loading elements | 3 | spinner die, progress track, tip card frame |

@@ -17,7 +17,7 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 | S07 | **Perk Draft** | 3 cards, reroll, skip, ad-4th-option |
 | S08 | Shop Tile | 4 offers, gold, refresh |
 | S09 | Event Card | Title, body, 2–3 options |
-| S10 | Minigame (×4) | `MG_CHEST_PICK`, `MG_TIMING_BAR`, `MG_DICE_DUEL`, `MG_MEMORY_RUNE` |
+| S10 | Minigame (×3) | `MG_CHEST_PICK`, `MG_TIMING_BAR`, `MG_MEMORY_RUNE` — `MG_DICE_DUEL` is removed (`16` D58) |
 | S11 | Campfire / Shrine | 2–3 choice cards |
 | ~~S12~~ | ~~Die Panel~~ | ⚠️ **Removed.** It disclosed the composed die because *a hidden die is a hostile die*; the die is an ordinary 1..6 with nothing to disclose (`04` §4). The number stays retired rather than reused. |
 | S13 | Death / Revive | Revive offer |
@@ -47,7 +47,7 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 | S37 | **Inbox** | Server messages by category, attachments, CLAIM ALL (`28` Part A) |
 | S38 | **Feats** | 140 feats in 9 categories, tier pips, Renown header (`28` Part D) |
 
-**39 screens.** The bottom navigation stays at **five** items (`13` §2) — Dungeons enter from Chapter Select, Events and Guilds from Home cards. Adding a sixth nav item breaks one-handed reach on a 6.1" phone, and none of these three is a hub the player visits more than once a day.
+**37 numbered screens** (S12 is retired, not reused), and **39 distinct layouts** — S10 is three separate minigame screens. The bottom navigation stays at **five** items (`13` §2) — Dungeons enter from Chapter Select, Events and Guilds from Home cards. Adding a sixth nav item breaks one-handed reach on a 6.1" phone, and none of these three is a hub the player visits more than once a day.
 
 ### 1.1 New surfaces on existing screens
 
@@ -99,6 +99,8 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 ```
 
 **Two taps from launch to rolling a die.** Continue → confirm → board.
+
+⏳ **Reserve a fourth widget slot in the daily strip** for the planned **Idle Reward** (`16` O37). The rail must flex to a fourth card without re-flowing the screen. Nothing else about it is designed, and **no "while you were away" language appears anywhere in the UI** until it is — the game has no offline accrual beyond Energy regeneration, and promising accrual it does not have is worse than not mentioning it.
 
 ---
 
@@ -231,18 +233,18 @@ Everything must be readable at arm's length on a phone in daylight. Bold outline
 
 ## 10. Localisation 🔒
 
-**Launch languages: English and German only.**
+**Launch language: English only** (`16` D43 — amends D20). German is descoped to post-launch: `loc/de.json` and its `##TODO_DE##` rows stay **frozen, not deleted**, and the `en`/`de` key-parity test stays live.
 
-All user-facing strings are keys in `res://data/loc/*.json` from day one regardless, so adding languages later is a translation job rather than an engineering one.
+All user-facing strings are keys in `res://data/loc/*.json` regardless, so adding a language later is a translation job rather than an engineering one. That is the whole reason the descope is cheap.
 
 | Rule | Detail |
 |---|---|
 | Source language | English |
-| Launch set | `en`, `de` |
-| Layout tolerance | German strings run **~30% longer** than English. Every label, button and panel must be tested with the German string at the largest text-size setting. This is the single most common launch bug in German localisation. |
-| Numbers and dates | Locale-aware formatting (German uses `.` for thousands and `,` for decimals) |
-| Quality | German is human-reviewed, because it is verifiable by the team. No language ships machine-translated and unreviewed. |
-| Future expansion | The high-ROI next set is FR, ES, PT-BR, RU, TR — Latin/Cyrillic only, so no font work is needed. CJK would require font siblings and wider UI tolerance; treat it as a separate project. |
+| Launch set | `en` |
+| Layout tolerance | 🔒 **Keep ~30% width tolerance anyway.** Every label, button and panel is designed and tested as if it held a German string at the largest text-size setting. German returns post-launch, and re-laying out every screen at that point is the expensive outcome — the tolerance costs nothing now and buys the whole locale later. |
+| Numbers and dates | Locale-aware formatting from day one (German uses `.` for thousands and `,` for decimals) |
+| Quality | 🔒 **Nothing ships machine-translated.** D20's rule is honoured by shipping one locale rather than weakened — DE returns only when a named human localiser is assigned and the EN string set is frozen. |
+| Future expansion | The high-ROI set after DE is FR, ES, PT-BR, RU, TR — Latin/Cyrillic only, so no font work is needed. CJK would require font siblings and wider UI tolerance; treat it as a separate project. |
 
 ---
 

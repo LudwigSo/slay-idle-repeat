@@ -65,7 +65,7 @@ In PvE, perks are drafted randomly during a run. In PvP there is no run, so the 
 | Cost by rarity | Common 1 · Rare 2 · Epic 3 · Legendary 5 |
 | Eligibility | Any **combat** perk discovered in the Codex (see `06_PERKS.md` §6) |
 | Tier | All PvP perks are locked to **Tier II** |
-| Banned 🔒 | The **Economy** (10) and **Dice & Board** (12) categories are ineligible. Eligible pool: **68 perks.** |
+| Banned 🔒 | **None** (`16` D57). Every one of the nine perk categories (`06` §2) is eligible, so the pool is simply every **combat** perk the player has discovered. The old ban named an *Economy* and a *Dice & Board* category; the perk rework retired both taxonomies and the die rework deleted the twelve dice perks, so there is nothing left to ban and no reason to invent a replacement ban. |
 
 🔒 **Decision:** the ban stands rather than converting non-combat perks into PvP equivalents. The metagame stays legible, balance stays tractable, and PvE remains the main objective — a fifth of the Codex being PvE-only is acceptable in a PvE-first game. Recorded in `16_DECISION_LOG.md` §A4 ("PvP perks").
 

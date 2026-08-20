@@ -60,7 +60,7 @@ Stage 1 (12 nodes)          Stage 2 (14 nodes)              Stage 3 (16 nodes)  
 | `TILE_EVENT` | Event | ❓ | Medium | A text choice card with 2–3 options and uncertain outcomes. |
 | `TILE_PORTAL` | Portal | 🌀 | Low | Jump forward a seeded 3–6 node draw (§1.1), skipping the passed content. Good when low on HP, bad for greed. |
 | `TILE_CACHE` | Beast Cache | 🐾 | Low | Beast Feed, or (6% 📐) a Pet Egg — payout table §7a.4. |
-| `TILE_DICE_FORGE` | Dice Forge | 🎲 | Low | 🔴 **Does nothing, and is kept for a repurposing** (`04` §5.1). It upgraded one die face for the rest of the run through `DICE_FORGE_CHOOSE`; the die has no faces and that command is gone, so landing on one **resolves in place and grants nothing**. It still occupies one of the `Arcane` fork's three outcomes (§3.1), so the hole is in the board's reward texture rather than nowhere. |
+| `TILE_DICE_FORGE` | Dice Forge | 🎲 | Low | **Grants one fixed die** — the player names a number 1..6 and holds a die that moves exactly that far (`04` §6). 🔒 This is the tile's design, not a placeholder (`16` D53): it is the board's one reliable source of guaranteed movement, and the only fixed-die grant site that is a tile. |
 | `TILE_EMPTY` | Waypoint | ・ | Filler | Nothing. Used as spacing so the board breathes and rolls feel varied. |
 
 ### 2.1 Frequency bands
@@ -211,7 +211,7 @@ Format:
 
 ---
 
-## 6. Minigames (`TILE_MINIGAME`) — 4 in v1
+## 6. Minigames (`TILE_MINIGAME`) — 3 in v1
 
 All minigames are ≤ 15 seconds, one-thumb, and *cannot* fail catastrophically — worst case is a small reward.
 
@@ -219,8 +219,13 @@ All minigames are ≤ 15 seconds, one-thumb, and *cannot* fail catastrophically 
 |---|---|---|---|
 | `MG_CHEST_PICK` | **Three Chests** | Pick 1 of 3 shuffled chests. One is gold-tier. | Low variance |
 | `MG_TIMING_BAR` | **Strike the Anvil** | A marker sweeps a bar; tap in the shrinking green zone. 3 attempts, each success upgrades the reward tier. | Skill-scaled |
-| `MG_DICE_DUEL` | **Dice Duel** | Best-of-3 die rolls vs. an NPC gambler. | ⚠️ It rewarded die-face investment; there is none to reward (`04` §5), so it is now a coin-flip minigame with nothing behind it. Owed a rethink. |
 | `MG_MEMORY_RUNE` | **Rune Recall** | 4-symbol Simon-style sequence, 2 rounds. | Skill-scaled |
+
+🔒 **`MG_DICE_DUEL` is removed** (`16` D58). It was best-of-3 against an NPC gambler using the player's own upgraded die faces, and its whole point was rewarding die-face investment — which no longer exists (`04` §5). What was left was a coin flip with nothing behind it, and the pool is **three** rather than four. The id is retired rather than reused.
+
+⚠️ **Two of the three are now skill minigames and one is a pick**, so the `TILE_MINIGAME` pool leans further toward execution than it did. 📐 That is accepted: `MG_CHEST_PICK` is the low-variance floor for a player who does not want to perform, and a fourth minigame is a content drop rather than a design hole.
+
+Every minigame **win also grants one fixed-die choice** on top of its reward row (`04` §6.4).
 
 Failed minigames offer a single ad-retry (`AD_RETRY_MINIGAME`, 1/run).
 
@@ -237,9 +242,6 @@ Values below are **Chapter 1 base values**, multiplied by `(1 + 0.35 × (chapter
 | | 1 hit | 250 Gold |
 | | 2 hits | 400 Gold + 30 Crowns |
 | | 3 hits | 600 Gold + 80 Crowns + 5 Enhance Stones |
-| `MG_DICE_DUEL` | Loss | 150 Gold |
-| | Win 2–1 | 400 Gold + 40 Crowns |
-| | Win 2–0 | 550 Gold + 50 Crowns ⚠️ (the Reroll Charge is removed — `04` §5) |
 | `MG_MEMORY_RUNE` | Fail round 1 | 100 Gold |
 | | Clear round 1 only | 300 Gold + 25 Crowns |
 | | Clear both rounds | 550 Gold + 70 Crowns + 20 Beast Feed |
@@ -248,7 +250,7 @@ Values below are **Chapter 1 base values**, multiplied by `(1 + 0.35 × (chapter
 
 ### 6.2 Server authority for skill minigames 🔒
 
-`MG_CHEST_PICK` and `MG_DICE_DUEL` are server-rolled like everything else. `MG_TIMING_BAR` and `MG_MEMORY_RUNE` are **genuine skill inputs, and their outcomes are client-asserted** — a deliberate, documented exception to `14` §2.1:
+`MG_CHEST_PICK` is server-rolled like everything else. `MG_TIMING_BAR` and `MG_MEMORY_RUNE` are **genuine skill inputs, and their outcomes are client-asserted** — a deliberate, documented exception to `14` §2.1:
 
 - `MINIGAME_SUBMIT` carries the claimed result; the server validates **legality only** (a valid outcome tier, exactly one submission per tile, rate limits).
 - Accepted because the worst case is a player granting themselves a small, capped, run-local reward — and the alternative (server-scripted "skill") would be dishonest.
@@ -413,10 +415,10 @@ A shrine offers **2 distinct options** drawn seeded (stream `"shrine"`, equal we
 
 ## 8. Board presentation notes
 
-- The board scrolls vertically; the hero token sits at roughly 40% screen height with the upcoming path visible above.
+- 🔒 **The whole track is drawn at all times** — every tile of every stage, from run start, with no fog, no preview range and nothing clipped (`16` D42). The hero token sits at roughly 40% screen height. A track too long for one column **wraps**; a board the player has to drag to see is not a board that is completely visible.
 - Tiles are drawn as flat, chunky, high-contrast pucks with a large icon. Readability at 48 dp is mandatory.
 - Already-resolved tiles dim to 55% opacity and lose their icon glow.
-- The next 6 tiles are always visible without scrolling; the player may free-scroll ahead to plan and a "recenter" button returns to the token.
+- A "recenter" button returns to the token after the player pans away to read a distant stage.
 - Fork branches are drawn side by side with a clear join, never as ambiguous crossing lines.
 
 See `15_ART_DIRECTION_AND_ASSET_MANIFEST.md` §E8 (tile icons) and §E9 (board paths and decor) for the tile art specification.
