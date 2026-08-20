@@ -66,6 +66,9 @@ namespace SlayIdleRepeat.Core.Rules.Combat;
 ///   <item><term><see cref="CombatEventType.Telegraph"/></term>
 ///     <description>the winding-up actor · who it will hit, or — for an AoE · the wind-up in seconds,
 ///       <c>1.0..1.5</c> · battle-local effect index</description></item>
+///   <item><term><see cref="CombatEventType.ActorSpawned"/></term>
+///     <description>the summoner, or — for an actor of the opening roster · the actor that entered ·
+///       its Max HP, positive · <c>0</c></description></item>
 /// </list>
 /// <para>
 /// <see cref="DataId"/>'s namespace is a function of <see cref="Type"/> alone: a status id for the

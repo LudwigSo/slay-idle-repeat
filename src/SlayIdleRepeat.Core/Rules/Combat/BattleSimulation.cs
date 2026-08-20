@@ -300,6 +300,14 @@ internal sealed class BattleSimulation
             actor.SetCurrentHp(actor.Plan.StartingHp ?? actor.MaxHp);
 
             actor.AttackCooldown = 0.0;
+
+            // 🔒 The roster is announced BEFORE anything happens to it, and after the aggregation
+            // above rather than before. Both halves are load-bearing: this number is the denominator
+            // of the actor's health bar, so a value read off the base block would be smaller than the
+            // opening health the line above just set for any actor whose holdings raise Max HP — a bar
+            // that opens past its own right-hand end — and an event that arrived after the first ward
+            // grant would be a bar the replayer had already been asked to move.
+            Log.AppendActorSpawn(0, CombatActor.None, actor.LogId, actor.MaxHp);
         }
 
         // ── 0a/0b · register every effect active at battle start, at activationTick 0. That is
@@ -350,9 +358,9 @@ internal sealed class BattleSimulation
             }
         }
 
-        // ── 0d · emit BattleStart. Last, so every ward grant and opening buff of 0b already sits
-        //    before it in the log — which is what a replayer needs to draw the opening banner over
-        //    an arena that is already in its starting state.
+        // ── 0d · emit BattleStart. Last, so the roster of 0a and every ward grant and opening buff
+        //    of 0b already sit before it in the log — which is what a replayer needs to draw the
+        //    opening banner over an arena that is already in its starting state.
         Log.Append(0, CombatEventType.BattleStart, CombatActor.None, CombatActor.None);
     }
 
@@ -1050,6 +1058,13 @@ internal sealed class BattleSimulation
 
         RefreshStats(actor);
 
+        // 🔒 Announced on the tick it enters on, not left to the pre-tick's roster: a summon appears
+        // mid-fight and the replayer has to draw a bar for it from that tick onward, so an actor with
+        // no spawn event of its own would take hits against no denominator — which is the whole defect
+        // ActorSpawned exists to end, reintroduced for exactly the actors a boss fight adds. After
+        // RefreshStats for the pre-tick's reason: this is the bar's denominator.
+        Log.AppendActorSpawn(Tick, SummonerLogIdOf(admitted), actor.LogId, actor.MaxHp);
+
         // A STAT_COPY reads the start-of-tick snapshot, and the per-tick sweep that takes one has
         // already run by the time a summon is admitted. Its opening block IS its correct snapshot for
         // the rest of this tick; without this a STAT_COPY reading it would hit BattleStatReader's
@@ -1065,6 +1080,32 @@ internal sealed class BattleSimulation
         actor.AttackCooldown = aspd > 0.0 ? StatRounding.Round(1.0 / aspd) : BattleClock.TickSeconds;
 
         return actor;
+    }
+
+    /// <summary>The log id of a summon's summoner, or <see cref="CombatActor.None"/> when nothing names one.</summary>
+    /// <remarks>
+    /// <c>OwnerId</c> is the roster's own string identity — <c>OWNER</c>'s subject — and the log
+    /// addresses actors by byte, so the two are bridged here rather than by widening the plan. Absent
+    /// rather than refused when the owner is unnamed or has left the roster: the spawn event's job is
+    /// the newcomer's health bar, and a summon whose summoner already died is an ordinary end to a
+    /// boss fight rather than a reason to lose the bar.
+    /// </remarks>
+    private byte SummonerLogIdOf(ActorPlan summon)
+    {
+        if (summon.OwnerId is not { } owner)
+        {
+            return CombatActor.None;
+        }
+
+        foreach (var actor in _actors)
+        {
+            if (string.Equals(actor.Id, owner, StringComparison.Ordinal))
+            {
+                return actor.LogId;
+            }
+        }
+
+        return CombatActor.None;
     }
 
     // ══════════════════════════════════════════════════════════════════ outcome

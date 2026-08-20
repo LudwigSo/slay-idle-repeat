@@ -243,20 +243,73 @@ public sealed class CombatLogTests
     }
 
     /// <summary>
-    /// The two members with rules of their own cannot be smuggled past those rules through the
+    /// The three members with rules of their own cannot be smuggled past those rules through the
     /// general <see cref="CombatLog.Append"/> — otherwise a raw append could put an out-of-band
-    /// wind-up or a run-effect target with no meaning into the log.
+    /// wind-up, a run-effect target with no meaning, or a health bar denominator belonging to nobody
+    /// into the log.
     /// </summary>
     [Theory]
     [InlineData(nameof(CombatEventType.Telegraph))]
     [InlineData(nameof(CombatEventType.RunEffectQueued))]
+    [InlineData(nameof(CombatEventType.ActorSpawned))]
     public void A_member_with_its_own_rules_may_not_be_appended_directly(string member)
     {
         var log = Started();
         var type = Enum.Parse<CombatEventType>(member, ignoreCase: false);
 
         Should.Throw<InvalidOperationException>(() => log.Append(1, type, Enemy0, CombatActor.Hero, 99.0, 7))
-            .Message.ShouldMatchWildcard("*was appended through Append*Use AppendTelegraph or AppendRunEffectQueued*");
+            .Message.ShouldMatchWildcard(
+                "*was appended through Append*Use AppendTelegraph, AppendRunEffectQueued or AppendActorSpawn*");
+    }
+
+    /// <summary>
+    /// An <see cref="CombatEventType.ActorSpawned"/> naming no actor is refused: it exists to fix one
+    /// actor's health bar denominator, so an unnamed one is a maximum belonging to nobody.
+    /// </summary>
+    [Fact]
+    public void ActorSpawned_naming_no_actor_is_refused()
+    {
+        var log = Started();
+
+        Should.Throw<InvalidOperationException>(
+                () => log.AppendActorSpawn(1, CombatActor.None, CombatActor.None, 100.0))
+            .Message.ShouldMatchWildcard("*ActorSpawned at tick 1 names no actor*`11` §6*");
+    }
+
+    /// <summary>
+    /// A non-positive Max HP is refused. It is a bar's denominator, so a zero would be divided by on
+    /// every frame of the fight, and `05` §2's "an unstated stat is a bug, not a zero" makes it an
+    /// unaggregated block rather than an actor with no health.
+    /// </summary>
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-1.0)]
+    [InlineData(double.NaN)]
+    public void ActorSpawned_carrying_no_health_is_refused(double maxHp)
+    {
+        var log = Started();
+
+        Should.Throw<InvalidOperationException>(
+                () => log.AppendActorSpawn(1, CombatActor.None, Enemy0, maxHp))
+            .Message.ShouldMatchWildcard("*carries Max HP*non-positive maximum*bar denominator*");
+    }
+
+    /// <summary>A spawn the log accepts carries the Max HP it was handed, in the slot it names.</summary>
+    [Fact]
+    public void ActorSpawned_records_the_maximum_against_the_actor_that_entered()
+    {
+        var log = Started();
+
+        log.AppendActorSpawn(4, CombatActor.Hero, Enemy0, 612.5);
+
+        var entry = log.Events[^1];
+
+        entry.Type.ShouldBe(CombatEventType.ActorSpawned);
+        entry.Tick.ShouldBe(4);
+        entry.SourceId.ShouldBe(CombatActor.Hero);
+        entry.TargetId.ShouldBe(Enemy0);
+        entry.Value.ShouldBe(612.5);
+        entry.DataId.ShouldBe(CombatLog.NoDataId);
     }
 
     /// <summary>
