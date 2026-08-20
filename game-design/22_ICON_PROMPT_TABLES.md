@@ -1,6 +1,6 @@
-# 22 — Icon Prompt Tables (158 icons)
+# 22 — Icon Prompt Tables (138 icons)
 
-Resolves open items P1 #6 (98 perk icons) and P1 #7 (60 talent icons).
+Resolves open items P1 #6 (perk icons) and P1 #7 (talent icons). ⚠️ **Talent icons are 40, not 60** (`16` D54 removed the FORTUNE branch). 🔴 The perk count is unreconciled: this document's Part A is organised on a seven-category taxonomy the perk rework replaced with nine (`06` §2), so Part A is owed a re-section before its rows are generated.
 
 Without these, generated icons come out interchangeable and the player cannot tell their build apart at a glance. Every row below gives the `{SYMBOL}` string that slots into the icon prompt scaffold in `15_ART_DIRECTION_AND_ASSET_MANIFEST.md` §E12/§E13.
 
@@ -156,7 +156,7 @@ All cursed icons carry a **cracked** motif and a downward-hanging chain fragment
 
 ---
 
-# PART B — Talent Node Icons (60)
+# PART B — Talent Node Icons (40)
 
 Hexagonal frame. Keystones (9) use a star-shaped frame at 1.4× size with an animated glow overlay.
 
@@ -210,28 +210,7 @@ Hexagonal frame. Keystones (9) use a star-shaped frame at 1.4× size with an ani
 | 4★ | **Aegis Eternal** | a vast radiant shield eclipsing a small figure |
 | 4★ | **Reversal** | an arrow bending back on itself into its archer |
 
-## B3. FORTUNE — gold disc `#F5A623` (20)
-
-| Tier | Node | `{SYMBOL}` |
-|---|---|---|
-| 1 | Coinpurse | a fat drawstring purse |
-| 1 | Prospector | a small jewelled crown on a pick |
-| 1 | Sharp Eyes | an eye with a gem reflected in the pupil |
-| 1 | Forager | a bundle of herbs and a bone biscuit |
-| 1 | Stone Sense | a rune stone glowing in an open palm |
-| 1 | Vigor | a lightning droplet with an upward arrow |
-| 2 | Steady Hand | a hand holding a die perfectly level |
-| 2 | Nudge | a fingertip tipping a die by one pip |
-| 2 | Haggler | a coin with a downward chevron |
-| 2 | Scavenger's Luck | two treasure chests, one ghosted behind the other |
-| 2 | Wanderer | a plain flagstone turning into a chest |
-| 2 | Cartography | an unrolled map corner with a compass |
-⚠️ **`Weighted Faces` and `Surging Fate` sat here.** ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41).
-| 3 | Rich Veins | a mineral vein glowing through rock |
-| 3 | Draft Insight | three cards fanned, the middle one glowing |
-| 3 | Lucky Streak | a comet trail of three small stars |
-⚠️ **`The Sixth Star` and `Chainweaver` sat here** — two of the FORTUNE branch's keystones. ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). The keystone count moves with them.
-| 4★ | **Golden Fate** | a die's five face replaced by a clover over a coin |
+⚠️ **B3 held the FORTUNE branch's 20 rows and is removed with the branch** (`16` D54). The gold disc `#F5A623` retires with it and is **not** reassigned to a future branch — a colour that once meant *fortune* on a talent node would read as a third branch that no longer exists. The talent icon set is **40 rows over two branches**.
 
 ---
 

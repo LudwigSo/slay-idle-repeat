@@ -80,14 +80,14 @@ Four markers appear throughout:
 
 **Production**
 
-19. `13_UI_UX_SCREENS.md` — 39 screens, flows, fonts, accessibility, connection states
+19. `13_UI_UX_SCREENS.md` — 37 numbered screens (39 layouts), flows, fonts, accessibility, connection states
 20. `14_TECHNICAL_ARCHITECTURE.md` — Godot client, server-authoritative backend, determinism, observability
 21. `30_DOMAIN_MODEL.md` — **the centrepiece**: aggregates, one pure transition function, and the rule that the whole game is playable in memory from `Core` alone
 22. `23_PORTS_AND_ADAPTERS.md` — **the architectural constraint that shapes the whole codebase**: port catalogue, adapter rules, enforcement
 23. `18_EFFECT_DSL.md` — the one language every game effect is written in
 24. `19_CONTENT_TABLES.md` — 30 events, 20 quests, 14 modifiers, FTUE, curses, the Lucky Wheel, the 28-day login calendar
 25. `15_ART_DIRECTION_AND_ASSET_MANIFEST.md` — **975 art assets**
-26. `22_ICON_PROMPT_TABLES.md` — per-icon prompts for all 158 perk and talent icons
+26. `22_ICON_PROMPT_TABLES.md` — per-icon prompts for the perk and talent icons (138; ⚠️ Part A is owed a re-section against the nine perk categories)
 27. `20_AUDIO_MANIFEST.md` — **106 audio assets**
 28. `29_POWER_MODEL.md` — **`PlayerPower`, and the three authored tables that say what it should be.** The product owner's primary dial.
 29. `21_ECONOMY_SIMULATOR_SPEC.md` — the tool that grades the game against `29`: **14 player profiles, 16 assertions + 23 inherited requirements**
@@ -151,7 +151,7 @@ PvE progression is the main objective. The player should always see the next pow
 8–12 minutes. Roll, move, fight, draft, get greedy, survive or die, bank the loot. A run must be legible in the first 30 seconds and satisfying even when it ends in death.
 
 **P3 — Randomness the player can bend, and randomness that cannot bury them.**
-Dice, drops and drafts are random, but the player accumulates tools to bend them: rerolls, upgraded die faces, draft rerolls, drop-rate talents, a chosen loot **Focus**. Luck is an input you level up. And underneath all of it, **every random source has a visible floor** — a counted guarantee that no streak can outlast. A game with no wallet shortcut must not have a luck shortcut either. See `24_LUCK_PROTECTION.md`.
+Drops and drafts are random, but the player accumulates tools to bend them: **fixed dice** they choose the number on, draft rerolls, a chosen loot **Focus**. ⚠️ *Rerolls, upgraded die faces and drop-rate talents* were the other three and are all gone — the die is an ordinary 1..6 (`16` D41) and the FORTUNE branch is removed (`16` D54). Luck is an input you level up. And underneath all of it, **every random source has a visible floor** — a counted guarantee that no streak can outlast. A game with no wallet shortcut must not have a luck shortcut either. See `24_LUCK_PROTECTION.md`.
 
 **P4 — Competition without an arms race.**
 One PvP mode, asynchronous, decided by build quality and accumulated progress. Because nothing is purchasable, the ladder is a pure measure of play — and everyone can see exactly where they stand on it.
@@ -184,7 +184,7 @@ Explicitly out of scope. Do not implement these even if genre convention suggest
 | Chapters × difficulty tiers | 8 × 3 |
 | Tile types | 14 |
 | Perks | 98 (90 standard + 8 cursed) |
-| Talent nodes | 60 (3 branches × 20, 9 keystones) |
+| Talent nodes | 40 (2 branches × 20, 6 keystones) |
 | Gear | 24 base items × 5 rarities = 120, plus 4 SS sets |
 | Pets / mounts | 24 / 12 |
 | Enemy archetypes / visual variants | 8 / 64 |

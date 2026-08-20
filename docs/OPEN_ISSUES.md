@@ -105,7 +105,8 @@ product owner rather than a guess.
 | **Chest / egg / crate / wheel grants** | `M4-02`/`07`/`08`/`09`, all in **M9**. Six of the ten `LuckService` source classes have no caller. |
 | **`AD_ENHANCE_LUCK` and the Plus lucky charges** | Need the ad-reward path; `08` §4.2's ruling makes them byte-for-byte identical, so they must land together. |
 | **The auto-salvage filter** | Persisted on `Player`, but no command sets it and none applies it at run end. |
-| **`EffectOp.REVEAL_TILES`** | Queued-never-resolved. When it lands, the board preview-range gate belongs in `BoardView.Project`, not the presenter. |
+| ~~**`EffectOp.REVEAL_TILES`**~~ | ✅ **CLOSED by removal** (`16` D42). The board is completely visible at all times, so there is no preview range to gate. |
+| **`MG_DICE_DUEL`, `PET_DICEBEAST`, `MNT_VOIDSTEED`, the Fateweave set, the FORTUNE talent branch** | 🔴 **Removed from the design set** (`16` D54–D58) and **still live in code and content**: `MinigameCatalogue`, `MinigameRewardTuning`, `currencies.json` + its schema and four test suites carry the duel; `asset_manifest_art.json`, `progression.json` and `power_model.json` carry the branch, the pet and the mount; `sets.json`, `drops.json`, both locale files and `GearFamilyAxis`' XML comment carry the set. The design set is the authority and the code is behind — **this needs a tracker task with an owner**, not a further ruling. |
 | **All 106 audio ids** | Transcribed a milestone ago; **none of the assets exists** (M8-07, no tool licence). |
 
 ---

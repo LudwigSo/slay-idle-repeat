@@ -6,13 +6,14 @@ The talent tree is the **permanent power spine**. Gear fluctuates, perks vanish 
 
 ## 1. Structure
 
-**3 branches × 20 nodes = 60 nodes.**
+**2 branches × 20 nodes = 40 nodes.**
 
 | Branch | Theme | Colour | Unlocked at |
 |---|---|---|---|
 | **MIGHT** | Offense, crit, penetration, damage conversion | red | Legend Level 1 |
 | **WARD** | HP, defense, mitigation, sustain, survivability | blue | Legend Level 1 |
-| **FORTUNE** | Drop rates, gold, board control | gold | Legend Level 40 | ⚠️ **Dice faces and rerolls are gone** (`04` §5), which takes the branch's two headline subjects with them — including its three face keystones. The branch is owed a re-theme.
+
+Both branches are open from Legend Level 1, so a player never waits for a tab.
 
 Each branch is a **4-tier gated ladder**:
 
@@ -23,7 +24,7 @@ Tier 3 (nodes 13-17) — requires 14 points spent in this branch
 Tier 4 (nodes 18-20) — requires 24 points spent in this branch  [Keystones]
 ```
 
-The gating means a player cannot cherry-pick the three keystones. They must commit. **Specialisation is the point.**
+The gating means a player cannot cherry-pick the three keystones. They must commit. **Specialisation is the point**, and with two branches rather than three the commitment is sharper: every point in MIGHT is a point not in WARD.
 
 ---
 
@@ -39,7 +40,7 @@ The gating means a player cannot cherry-pick the three keystones. They must comm
 | Codex milestones | +10 total |
 | **Renown milestones** (`28` Part D) | **+30 total** — +2 per 1,000 Renown, plus +6 at full Feat completion |
 
-**Maximum obtainable in v1: ~324 points** (199 from levels + 80 from first clears + ~5 from seasons + 10 from Codex + 30 from Renown) against a tree that costs **633 points to fully max**. The tree is deliberately never completable in v1 — a maxed player has bought less than half of it. This preserves meaningful choice and gives the post-launch level-cap raise somewhere to go.
+**Maximum obtainable in v1: ~324 points** (199 from levels + 80 from first clears + ~5 from seasons + 10 from Codex + 30 from Renown) against a tree that costs **422 points to fully max**. The tree is deliberately never completable in v1 — a maxed player has bought roughly three quarters of it. This preserves meaningful choice and gives the post-launch level-cap raise somewhere to go.
 
 ### 2.1 Respec
 
@@ -57,13 +58,13 @@ The gating means a player cannot cherry-pick the three keystones. They must comm
 ### 2.2 Node ID convention
 
 ```
-{BRANCH}_{NODE_NAME}     branch prefix: MT (Might) · WD (Ward) · FT (Fortune)
+{BRANCH}_{NODE_NAME}     branch prefix: MT (Might) · WD (Ward)
 
-Examples:  MT_WHETSTONE · MT_PRECISION · WD_CONSTITUTION · FT_COINPURSE
-Keystones: MT_KS_BLOODMOON · WD_KS_UNYIELDING · FT_KS_SIXTH_STAR
+Examples:  MT_WHETSTONE · MT_PRECISION · WD_CONSTITUTION · WD_BULWARK
+Keystones: MT_KS_BLOODMOON · WD_KS_UNYIELDING
 ```
 
-All 60 node IDs follow this pattern. They appear in save data, PvP ghost snapshots (`11` §2) and the effect DSL.
+All 40 node IDs follow this pattern. 🔒 The **`FT` prefix is retired, not reused** — no future branch may claim it, because retired FORTUNE ids appear in save data written before this ruling. They appear in save data, PvP ghost snapshots (`11` §2) and the effect DSL.
 
 ---
 
@@ -77,7 +78,7 @@ Keystone nodes: single rank, cost 8 points, no ranks.
 ```
 
 Per-branch totals: 17 five-rank nodes (17 × 11 = 187) + 3 keystones (3 × 8 = 24) = **211 points to max one branch**.
-Whole tree: 3 × 211 = **633 points to max everything**.
+Whole tree: 2 × 211 = **422 points to max everything**.
 
 ---
 
@@ -161,53 +162,9 @@ Whole tree: 3 × 211 = **633 points to max everything**.
 
 ---
 
-## 6. FORTUNE branch (20 nodes) — unlocked at Legend Level 40
+## 6. UI requirements
 
-This is the branch that makes the die *yours*. It is deliberately gated late so that the die's evolution is a mid-game reveal rather than a day-1 checkbox.
-
-### Tier 1
-| Node | Per rank (×5) |
-|---|---|
-| Coinpurse | +5% Gold |
-| Prospector | +4% Crowns from all sources |
-| Sharp Eyes | +2% gear drop chance |
-| Forager | +5% Beast Feed |
-| Stone Sense | +4% Enhance Stones |
-| Vigor | +3% Energy regeneration rate |
-
-### Tier 2 (needs 6)
-| Node | Per rank (×5) |
-|---|---|
-| ~~Steady Hand~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
-| Nudge | 1 per stage: adjust a Pip result by ±1 (+1 use per 2 ranks) |
-| Haggler | −3% shop prices |
-| Scavenger's Luck | +3% chance for Treasure tiles to double |
-| Wanderer | +2% chance a `TILE_EMPTY` becomes a `TILE_TREASURE` |
-| Cartography | Reveal +1 upcoming tile per rank |
-
-### Tier 3 (needs 14)
-| Node | Per rank (×5) |
-|---|---|
-| **Weighted Faces** | Your `1` face becomes a `2` at rank 1, a `3` at rank 3, a `4` at rank 5 |
-| **Surging Fate** | Your `2` face becomes `Surge` at rank 3; `Surge` heals +3%/rank |
-| Rich Veins | +4% rarity weight shift on all drops |
-| Draft Insight | +6% chance an owned-perk upgrade appears in a draft |
-| Lucky Streak | +2% Legendary perk weight |
-
-### Tier 4 — Keystones
-| Keystone | Effect |
-|---|---|
-| **The Sixth Star** | Your `6` face becomes a `Star` face permanently |
-| **Chainweaver** | Your `4` face becomes a `Chain` face; `Chain` may chain up to 5 times |
-| **Golden Fate** | Your `5` face becomes a `Fortune` face; `Fortune` also grants +1 free perk draft reroll |
-
-**Note:** a player who takes all three Fortune keystones ends with a die of `[Weighted, Surge, 3, Chain, Fortune, Star]` — a fundamentally different game feel. That transformation is the branch's whole promise and should be showcased in marketing.
-
----
-
-## 7. UI requirements
-
-- Vertical scrolling tree per branch, tabs to switch branch. Portrait-friendly: nodes in a 3-column zigzag.
+- Vertical scrolling tree per branch, **two tabs** to switch branch. Portrait-friendly: nodes in a 3-column zigzag.
 - Locked tiers are visible but greyed, with the requirement stated ("14 points in MIGHT").
 - Every node shows current rank `2/5` and the **exact delta** the next rank gives, in real numbers, not percentages alone: *"+3% DEF (+42 DEF)"*.
 - A persistent header shows total points, unspent points, and a **RESPEC** button (free, one confirm tap).
@@ -215,7 +172,7 @@ This is the branch that makes the die *yours*. It is deliberately gated late so 
 
 ---
 
-## 8. Balance guardrail
+## 7. Balance guardrail
 
 ⚠️ **This table is now `TalentFactor(L)` in `29_POWER_MODEL.md` §5**, one of four factor curves that together define `ExpectedPower(L)`. It is subject to assertion **A13**: no single factor column may exceed 60% of the total power multiplier at any level. Talents currently sit well under that; **gear is the column at risk.**
 
@@ -226,8 +183,10 @@ Across the whole tree, a fully-invested player should gain roughly:
 | 50 points | ×1.6 PlayerPower |
 | 120 points | ×2.8 |
 | 200 points | ×4.5 |
-| 324 points (v1 max) | **×6.9** ⚠️ re-derive |
+| 324 points (v1 max) | **⚠️ re-derive** — the ×6.9 figure was extrapolated over a 633-point, three-branch tree and does not survive the tree becoming 422 points over two |
 
 Combined with gear (up to ×20 across chapters) and pets/mounts (up to ×2.5), total attainable power growth from Legend Level 1 to v1 endgame is roughly **×320**, against the ×128 enemy power ramp across 8 chapters plus ×16 for Mythic. That leaves a comfortable but not trivial margin at the top end. 📐 Verify with the balance harness (`05` §9).
 
-⚠️ The v1 maximum rose from 294 to 324 when Renown milestones were added (`28` D3.1). The ×6.9 figure is extrapolated, not derived — it is **assertion E22** in `21` §7a and must be recomputed rather than assumed. The +30 is deliberately small precisely so that this extrapolation stays safe; if the harness disagrees, cut the Renown Talent Point grant before touching the tree.
+🔴 **Every figure in this table is owed a re-derivation, and the reason is structural rather than a tuning drift.** ~324 obtainable points now buy into a **422**-point tree rather than a 633-point one, so the same budget reaches proportionally further — a maxed player owns roughly three quarters of the tree instead of half. It is **assertion E22** in `21` §7a and must be recomputed rather than assumed. The Renown +30 stays the smallest available lever: if the harness disagrees, cut it before touching the tree.
+
+⚠️ **`TalentFactor(L)` in `29` §5 moves with this**, and it is one of four factor curves defining `ExpectedPower(L)`. A shorter tree that the same point budget penetrates further is not automatically a weaker column — which is exactly why it cannot be assumed either way.

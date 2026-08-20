@@ -73,18 +73,20 @@ Recorded here rather than deleted silently, because most of it is referenced fro
 |---|---|---|
 | `DieFaceKind` — `Star`, `Surge`, `Fortune`, `Void`, `Chain` | Five special faces beside `Pip`: choose-your-movement, move-and-heal, move-and-double-the-tile, stay-and-re-resolve, move-and-roll-again | This document; `19` Part E's `CUR_LEADFOOT`; `17` §9's Dicelord |
 | Face `Tier` (0..3) | Scaled a face's non-movement effect | This document |
-| The five upgrade sources | Talent tree Fortune branch (`09` §6), mount face grants (`07`), `TILE_DICE_FORGE`, run perks, curse downgrades | `09_TALENT_TREE.md`; `07_HERO_PETS_MOUNTS.md`; `03` §2's tile list |
+| The five upgrade sources | Talent tree Fortune branch (removed entirely — `16` D54), mount face grants (`07`), `TILE_DICE_FORGE`, run perks, curse downgrades | `09_TALENT_TREE.md`; `07_HERO_PETS_MOUNTS.md`; `03` §2's tile list |
 | **Reroll charges** | 1/stage base, +2 from a Campfire choice, +2 from talents, perks, the Reroll Token consumable, `AD_REROLL_DICE`, cap 5 | Replaced: every one of those grant sites now grants a **fixed die** instead (§6.4). The two that are not re-pointed — a gear affix and the Fateweave set bonus — are §6.4's open holes. |
 | **Nudge** | A talent-granted ±1 on a roll, 1/stage | `09_TALENT_TREE.md` |
 | **Fair Dice** | The weighted-bag smoothing and its settings row | §2 above; `13` §8's settings list |
 | The Die Panel (S12) | The screen that disclosed the composed die | §4 above; `13` §1 |
 | 12 Dice & Board perks | `PK_LOADED_DIE`, `PK_SECOND_THOUGHT`, `PK_MOMENTUM_DIE`, `PK_FORTUNES_FAVOUR`, `PK_CHAINBREAKER`, `PK_TWIN_FATES`, `PK_WEIGHTED_FATE`, `PK_DICELORD_GIFT` and the rest | `06_PERKS.md` — the pool is short by a category's worth of rows |
 
-### 5.1 The Dice Forge tile is kept, and does nothing
+### 5.1 The Dice Forge tile is the fixed-die tile 🔒
 
-`TILE_DICE_FORGE` stays in `03` §2's fourteen tile kinds. Its mechanic — pick a face, upgrade it for the run — has nothing left to act on, so **landing on one resolves in place and grants nothing.** It is held for a repurposing, and until that lands it is a tile the player walks over.
+`TILE_DICE_FORGE` stays in `03` §2's fourteen tile kinds, and **granting one fixed die is its design** — not a stopgap awaiting a repurposing (`16` D53). Landing on one grants a fixed-die choice: the player names a number 1..6 and holds a die that moves exactly that far.
 
-🔴 A tile that does nothing is a real hole in the board's reward texture, not a neutral placeholder: it occupies one of the `Arcane` fork's three outcomes (`03` §3.1). Whatever replaces it is owed a design section here or in `03`.
+🔒 **The tile keeps its name and its icon.** A forge that hands you a die with your number on it is the same fiction the face-upgrade version had — you leave with a better die than you arrived with — so nothing about the art, the icon or the `Arcane` fork's risk profile needs to change. The fork's three outcomes are all real again.
+
+⚠️ **It is the only grant site that is a tile**, which makes it the board's one reliable source of guaranteed movement. 📐 If the frequency band (`03` §2.1, weight 2) turns out to make fixed dice too rare to plan around, the weight is the lever — not the grant size.
 
 ### 5.2 What the removal did not touch
 
@@ -138,16 +140,14 @@ Every grant site below is one the reroll used to own. That is deliberate — the
 | Site | Grant | Where |
 |---|---|---|
 | `TILE_CAMPFIRE`, third option | 1 choice | `03` §2 |
-| `TILE_DICE_FORGE` | 1 choice | §5.1, and see the note below |
+| `TILE_DICE_FORGE` | 1 choice | §5.1 — the tile's design, permanently |
 | `CON_FIXED_DIE_TOKEN` | 1 choice, instant at the till | `03` §7.1 |
 | Shop tile, slot 2 | sells the token | `03` §7 |
-| Minigame rewards | 1 choice on a win | `20` — **not** chapter-scaled |
+| Minigame rewards | 1 choice on a win | `03` §6 — **not** chapter-scaled, and across **three** minigames (`16` D58) |
 | Resource dungeons | 1 choice | `25` §3 |
 | `AD_FIXED_DIE` | 1 choice, 2 per run | `12` §4.1 |
 
-⚠️ **`TILE_DICE_FORGE` grants one and remains a placeholder.** A tile that does nothing was the worse of the two holes (§5.1), so the forge grants a fixed-die choice until its repurposing lands. That is a stopgap and is not the design the tile is owed.
-
-🔴 **Two grant sites the reroll had are still empty**: a gear affix and the Fateweave set bonus. Both would need new effects-DSL stat vocabulary — a fixed die is a *held object*, not a stat, and `18` has no way to say "grant one of these". Neither is wired, and neither pretends to be.
+🔴 **One grant site the reroll had is still empty**: a gear affix. It would need new effects-DSL stat vocabulary — a fixed die is a *held object*, not a stat, and `18` has no way to say "grant one of these". It is not wired and does not pretend to be. ⚠️ The **Fateweave set bonus** was the second such site and is no longer a hole of any kind: the set is removed (`16` D56).
 
 🔒 **Three event-card outcomes (`19` Part A) grant them too.** The board-events vocabulary gained a sixth op, `FIXED_DIE { count }`, for exactly this: three outcomes granted reroll charges (+2, +1, +1) and were left reading as *deferred* long after the mechanic replacing the reroll existed. The authored amounts are carried across rather than flattened.
 

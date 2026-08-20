@@ -506,7 +506,7 @@ The tool exits non-zero — **failing the build** — if any of these fail. It r
 | **A5** | No currency starved | none at zero >40% of days after day 14 |
 | **A6** | Progress never stalls | weekly `PlayerPower` growth ≥ 3% through day 120 |
 | **A7** | Energy is a soft gate | `NoAds_Core` energy-blocked on <25% of days |
-| **A8** | Talents stay meaningful | `NoAds_Core` spends ≤60% of the 633-point tree by day 180 |
+| **A8** | Talents stay meaningful | `NoAds_Core` spends ≤60% of the **422**-point tree by day 180 ⚠️ — the tree lost a branch (`16` D54), so the same spend is a larger fraction and this threshold is owed a re-derivation alongside **E22** |
 | **A9** | Chapter pacing monotonic | each chapter longer than the last, never >2.5× |
 
 ### 11.2 Power model (A10–A14) — new, from `29`

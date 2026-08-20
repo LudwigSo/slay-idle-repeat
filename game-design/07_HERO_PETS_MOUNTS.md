@@ -47,7 +47,6 @@ CumulativeXp(L)     = Σ(i=1..L-1) LegendXpForLevel(i)
 | 15 | ~14.1k | Pet slot 2 |
 | 20 | ~25.8k | Mount slot |
 | 30 | ~60.3k | Pet slot 3 |
-| 40 | ~109.7k | Talent tree branch 3 (Fortune) |
 | 60 | ~254.2k | Mythic difficulty tier |
 | 100 | ~729.4k | Codex mastery bonuses |
 | 200 | ~3.04M | Level cap |
@@ -78,7 +77,7 @@ Boots, Ring and Amulet are stat-only, no visual.
 
 | Property | Value |
 |---|---|
-| Total pets in v1 | 24 |
+| Total pets in v1 | 23 |
 | Equipped simultaneously | up to 3 (unlocked at Legend Level 5 / 15 / 30) |
 | Roles | Each pet has a **passive aura** (always on) and an **active ability** (on a cooldown during battle) |
 | Targetable | ❌ Pets cannot be attacked or killed (see `05` §3.2) |
@@ -138,14 +137,13 @@ Pity: guaranteed S or better every 30 eggs; guaranteed SS every 150 eggs.
 | `PET_GOLDWYRM` | Goldwyrm | S | +30% Gold, +12% gear drop chance | Hoard: instantly gain 250 Gold (20 s) |
 | `PET_SPOREMOTHER` | Sporemother | S | Your DoTs deal +40% | Bloomburst: apply `POISON` ×3 to all (12 s) |
 | `PET_CLOCKHOUND` | Clockhound | S | −12% all pet cooldowns, +8% ASPD | Rewind: restore 15% Max HP and clear all debuffs (22 s) |
-| `PET_DICEBEAST` | Dicebeast | SS | +8% all stats | 🔴 **Both halves of its identity are gone** (`04` §5): the per-stage Reroll Charge and *Loaded Fate*'s three `Star` rolls. It is now a flat +8% stat pet with an SS price tag, and it is owed a redesign or a removal. |
 | `PET_SOLARION` | Solarion | SS | +18% ATK, +18% Max HP | Solar Lance: 500% ATK to one enemy, ignores 50% DEF (15 s) |
 | `PET_NYXWEAVER` | Nyxweaver | SS | +15% all stats while below 50% HP | Web of Night: enemies take +35% damage for 6 s (18 s) |
 | `PET_ARCHIVIST` | The Archivist | SS | Your active perks gain +1 effective tier (max III) | Recall: re-trigger every perk's on-battle-start effect (once per battle) |
 
 📐 TUNABLE: all values.
 
-✅ `PET_DICEBEAST`'s active is ruled in `18_EFFECT_DSL.md` §9.2: it is **not** on a combat cooldown. It fires `ON_BATTLE_END` (win only) and turns the player's next 3 rolls into `Star` faces. This makes it a board-layer reward rather than a combat ability, which fits its identity.
+🔒 **`PET_DICEBEAST` is removed** (`16` D55). Its passive and its *Loaded Fate* active were both dice mechanics, and a flat +8%-all-stats pet at SS rarity is a price tag with no identity behind it. The **catalogue is 23**, not 24, and the id is retired rather than reused. `18` §9.2's ruling on its active retires with it.
 
 ---
 
@@ -155,7 +153,7 @@ Pity: guaranteed S or better every 30 eggs; guaranteed SS every 150 eggs.
 
 | Property | Value |
 |---|---|
-| Total mounts in v1 | 12 |
+| Total mounts in v1 | 11 |
 | Equipped | 1 (slot unlocked at Legend Level 20) |
 | Effect shape | A **stat block** + **one run-level perk** (not a combat ability) |
 | Rarity | A / S / SS |
@@ -195,11 +193,12 @@ Mounts are the "run modifier" slot. Where pets shape combat, mounts shape the **
 | `MNT_CINDERMANE` | Cindermane | S | +16% ATK, +10% Crit Damage | Elite tiles drop +1 gear item |
 | `MNT_TIDECALLER` | Tidecaller | S | +12% Max HP, +10% Healing Received | Campfires and Shrines can be used twice |
 | `MNT_COINWYRM` | Coinwyrm | S | +8% all stats | Shops always show one Epic perk offer |
-| `MNT_VOIDSTEED` | Voidsteed | SS | +14% all stats | 🔴 **Its whole modifier is gone** (`04` §5) — a per-stage Reroll Charge and a no-repeat rule on rerolls. Owed a redesign or a removal. |
 | `MNT_FATESPINNER` | Fatespinner | SS | +12% all stats | Your `6` face becomes a `Star` face |
 | `MNT_WORLDBEARER` | Worldbearer | SS | +20% Max HP, +20% ATK, +20% DEF | Board length +4 nodes (more content per run, more risk) |
 
 📐 TUNABLE.
+
+🔒 **`MNT_VOIDSTEED` is removed** (`16` D55). A mount is a stat block **plus** a run perk, and Voidsteed's whole run perk was reroll charges — leaving an SS mount that is only a stat block, which is the one shape this slot must never be. The **catalogue is 11**, not 12, and the id is retired rather than reused. **Two SS mounts remain** (Fatespinner, Worldbearer), and `24` §4.5's `CRATE_MOUNT` pity is owed a re-check against the narrower SS pool.
 
 ---
 

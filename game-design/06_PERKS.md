@@ -273,9 +273,9 @@ Previously only the perk bonus was specified. The full Codex has five sections; 
 | Perks | 98 | +0.10% | +9.8% |
 | Enemies (bestiary — visual variants catalogued by defeating one) | 64 | +0.05% | +3.2% |
 | Gear (base item × rarity discovered) | 120 | +0.02% | +2.4% |
-| Pets | 24 | +0.05% | +1.2% |
-| Mounts | 12 | +0.05% | +0.6% |
+| Pets | 23 | +0.05% | +1.15% |
+| Mounts | 11 | +0.05% | +0.55% |
 
-**Full-Codex total: +17.2% all stats.** 📐 TUNABLE. The passive stat bonuses **activate at Legend Level 100** (`07` §1.1 — "Codex mastery bonuses" is that unlock); entries and completion percentages are tracked and visible from the start.
+**Full-Codex total: +17.1% all stats** ⚠️ — recomputed from the 23-pet and 11-mount catalogues (`16` D55). The perk and gear rows are owed their own re-count after the perk rework, so treat this total as provisional. 📐 TUNABLE. The passive stat bonuses **activate at Legend Level 100** (`07` §1.1 — "Codex mastery bonuses" is that unlock); entries and completion percentages are tracked and visible from the start.
 
 **Talent Point milestones (the 10 TP in `09` §2):** +2 TP at **25% / 50% / 75% / 90% / 100%** overall Codex completion. Claimable at any level — only the passive stat bonuses are gated behind Legend 100.
