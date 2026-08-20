@@ -27,12 +27,10 @@ public sealed class RunSnapshotTests
         gold: 1_450,
         rngStreamPositions: RunSnapshots.Streams(
             (RngStreams.Dice, 12UL), (RngStreams.Board, 8UL), (RngStreams.Combat, 3UL)),
-        adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_DICE", 2)),
+        adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_PERK", 2)),
         resolvedMinigames: RunSnapshots.ResolvedMinigames((3, "MG_CHEST_PICK"), (11, "MG_TIMING_BAR")),
         pendingForkJunctionPosition: 19,
         pendingForkRemainingSteps: 2,
-        rerollChargesSpentThisStage: 1,
-        stageGateDiceAnchor: 5UL,
         ownedPerkTiers: RunSnapshots.OwnedPerkTiers(("PK_SHARP_EDGE", 2)),
         bankedLegendXp: 40,
         bankedSoulShards: 15,
@@ -140,9 +138,6 @@ public sealed class RunSnapshotTests
 
             (nameof(RunSnapshot.Phase), v, RunSnapshots.With(phase: RunPhase.BattlePending)),
             (nameof(RunSnapshot.DraftPending), v, RunSnapshots.With(draftPending: true)),
-            (nameof(RunSnapshot.RerollChargesSpentThisStage), v,
-                RunSnapshots.With(rerollChargesSpentThisStage: 1)),
-            (nameof(RunSnapshot.StageGateDiceAnchor), v, RunSnapshots.With(stageGateDiceAnchor: 5UL)),
 
             // Probed together with DraftPending true, on the pending-tile probes' precedent:
             // Rehydrate refuses a kind or stage with no draft pending.
@@ -187,13 +182,17 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.ShrineBuffs), v, RunSnapshots.With(shrineBuffs: RunSnapshots.Ids("SHR_ATK"))),
             (nameof(RunSnapshot.RunBuffs), v, RunSnapshots.With(runBuffs: RunSnapshots.Ids("WHETSTONE"))),
             (nameof(RunSnapshot.Curses), v, RunSnapshots.With(curses: RunSnapshots.Ids("CUR_FRACTURED"))),
-            (nameof(RunSnapshot.DieFaceUpgrades), v,
-                RunSnapshots.With(dieFaceUpgrades: RunSnapshots.DieFaceUpgrades((1, 42)))),
             (nameof(RunSnapshot.Consumables), v,
                 RunSnapshots.With(consumables: RunSnapshots.Consumables(("CON_HEALTH_DRAUGHT", 1)))),
+
+            // The fixed dice, probed apart: the holding and the debt are written by different seams
+            // — a grant site owes a choice, and CHOOSE_FIXED_DIE turns one into a die — so a combined
+            // probe would go green on either one alone reaching the encoder.
+            (nameof(RunSnapshot.FixedDice), v,
+                RunSnapshots.With(fixedDice: RunSnapshots.FixedDice((3, 1)))),
+            (nameof(RunSnapshot.PendingFixedDieChoices), v,
+                RunSnapshots.With(pendingFixedDieChoices: 1)),
             (nameof(RunSnapshot.EscapeRopeArmed), v, RunSnapshots.With(escapeRopeArmed: true)),
-            (nameof(RunSnapshot.RerollChargesGrantedThisStage), v,
-                RunSnapshots.With(rerollChargesGrantedThisStage: 2)),
             (nameof(RunSnapshot.FreeDraftRerolls), v, RunSnapshots.With(freeDraftRerolls: 1)),
 
             // The shop trio is probed against an OPEN shop for the pending-tile probes' reason:
@@ -206,10 +205,6 @@ public sealed class RunSnapshotTests
             (nameof(RunSnapshot.ShopRefreshesUsedThisVisit),
                 RunSnapshots.With(shopOfferDraw: 3UL),
                 RunSnapshots.With(shopOfferDraw: 3UL, shopRefreshesUsedThisVisit: 1)),
-
-            // A roll sequence mid-chain. Persisted because a Chain hop resolves its landing tile in
-            // full before the next chained roll, so the sequence spans several commands.
-            (nameof(RunSnapshot.ChainLinksTaken), v, RunSnapshots.With(chainLinksTaken: 1)),
         };
 
         var invisible = probes

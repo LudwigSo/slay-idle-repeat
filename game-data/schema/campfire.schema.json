@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/campfire.schema.json",
   "title": "content/campfire/campfire.json",
-  "description": "The loc keys the Campfire / Shrine screen (S11) renders. One document and one schema for two arms, because a campfire and a shrine are two tile kinds that open one screen. What is fixed here is that the screen heads each arm, lists the shrine's drawn rows under a caption and a prompt, offers the campfire's three options and the shrine's two, carries the one absence that is still real, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. ⚠️ THREE OF ITS FOUR ABSENCES ARE GONE. It had no shrine choose control, no cleanse caption and no curse name, because the command vocabulary had no shrine choice in it and a run held no curse list; and it carried two sentences saying the campfire's perk upgrade and reroll grant were not built. The run-tiles pass of 2026-08-20 (16 D38, D40) built all of it. What is STILL absent, and load-bearing: there is no member for the ten shrine buff NAMES, because the buff pool in the tuning set already names them as its own display names and a second document claiming those keys would be free to drift out of step with the pool it describes; there is no member carrying a healed AMOUNT, because the rested share of Max HP is an authored tunable read at render time; and there is no member for a curse NAME, because the curse catalogue names its own rows for the same reason the buff pool does.",
+  "description": "The loc keys the Campfire / Shrine screen (S11) renders. One document and one schema for two arms, because a campfire and a shrine are two tile kinds that open one screen. What is fixed here is that the screen heads each arm, lists the shrine's drawn rows under a caption and a prompt, offers the campfire's two options and the shrine's two, carries the one absence that is still real, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. ⚠️ THREE OF ITS FOUR ABSENCES ARE GONE. It had no shrine choose control, no cleanse caption and no curse name, because the command vocabulary had no shrine choice in it and a run held no curse list; and it carried two sentences saying the campfire's perk upgrade and reroll grant were not built. The run-tiles pass of 2026-08-20 (16 D38, D40) built all of it. What is STILL absent, and load-bearing: there is no member for the ten shrine buff NAMES, because the buff pool in the tuning set already names them as its own display names and a second document claiming those keys would be free to drift out of step with the pool it describes; there is no member carrying a healed AMOUNT, because the rested share of Max HP is an authored tunable read at render time; and there is no member for a curse NAME, because the curse catalogue names its own rows for the same reason the buff pool does.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -64,25 +64,22 @@
       }
     },
     "action": {
-      "description": "🔒 The campfire's three options and the shrine's. `take` captions a shrine row's own control, because the row IS the action — a shrine has exactly two, and a separate button beside each would be a second control for the same slot. `cleanse` captions the slot a Cleanse occupies instead of a buff name. `continue` is kept and no longer wired to anything: the shrine is left by CHOOSING, and the caption stays authored so the control has wording the day a screen needs one again.",
+      "description": "🔒 The campfire's three options and the shrine's. ⚠️ `rerollCharges` captioned a \"+2 Reroll Charges\" card and went with the reroll charge itself; `fixedDie` is that third seat filled again by the fixed dice (`04` §6), and it is not the same card renamed — the reroll granted two charges of a second attempt, this grants ONE die that guarantees a landing, and it grants a CHOICE rather than a die because the player names the number. `take` captions a shrine row's own control, because the row IS the action — a shrine has exactly two, and a separate button beside each would be a second control for the same slot. `cleanse` captions the slot a Cleanse occupies instead of a buff name. `continue` is kept and no longer wired to anything: the shrine is left by CHOOSING, and the caption stays authored so the control has wording the day a screen needs one again.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "rest",
         "upgradePerk",
-        "rerollCharges",
         "continue",
         "take",
-        "cleanse"
+        "cleanse",
+        "fixedDie"
       ],
       "properties": {
         "rest": {
           "$ref": "#/$defs/locKey"
         },
         "upgradePerk": {
-          "$ref": "#/$defs/locKey"
-        },
-        "rerollCharges": {
           "$ref": "#/$defs/locKey"
         },
         "continue": {
@@ -92,6 +89,10 @@
           "$ref": "#/$defs/locKey"
         },
         "cleanse": {
+          "$ref": "#/$defs/locKey"
+        },
+        "fixedDie": {
+          "description": "The campfire's third option: take one fixed die (`04` §6). 🔒 The caption names the thing taken and no number — neither the count granted (one) nor the die's own number, which the player names afterwards through CHOOSE_FIXED_DIE. A caption carrying either would be a tunable, or a player's choice, transcribed into a translated string.",
           "$ref": "#/$defs/locKey"
         }
       }

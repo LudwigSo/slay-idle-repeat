@@ -104,9 +104,6 @@ public static class ContentLayout
             // The Board screen's string slots — likewise.
             [ContentDirectory + "board/"] = SchemaDirectory + "board" + SchemaSuffix,
 
-            // The Die Panel's string slots — likewise.
-            [ContentDirectory + "die_panel/"] = SchemaDirectory + "die_panel" + SchemaSuffix,
-
             // The Battle Replay screen's string slots — likewise.
             [ContentDirectory + "battle/"] = SchemaDirectory + "battle" + SchemaSuffix,
 
@@ -120,10 +117,6 @@ public static class ContentLayout
             // The Campfire / Shrine screen's string slots — one document serving two arms, and
             // splitting the shrine's half out is the tidy-up this row keeps buildable.
             [ContentDirectory + "campfire/"] = SchemaDirectory + "campfire" + SchemaSuffix,
-
-            // The Dice Forge screen's string slots. `13` authors no layout section for this tile, so
-            // the document is shaped like its three siblings rather than to a spec of its own.
-            [ContentDirectory + "dice_forge/"] = SchemaDirectory + "dice_forge" + SchemaSuffix,
         };
 
     /// <summary>True for a document under <c>schema/</c>.</summary>

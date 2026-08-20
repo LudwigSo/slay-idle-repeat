@@ -3,20 +3,19 @@ using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Board.Resolution;
-using SlayIdleRepeat.Core.Rules.Dice;
 
 namespace SlayIdleRepeat.Core.Handlers;
 
 /// <summary>
-/// The <c>CAMPFIRE_CHOOSE</c> handler: one of the campfire's three fixed options (`03` §2) — rest,
-/// upgrade an owned perk, or gain two Reroll Charges.
+/// The <c>CAMPFIRE_CHOOSE</c> handler: one of the campfire's three options (`03` §2) — rest,
+/// upgrade an owned perk, or take a fixed die.
 /// </summary>
 /// <remarks>
 /// <para>
-/// All three are implemented. Two of them used to be refused as <c>ILLEGAL_STATE</c> because neither
-/// drafted perks nor a reroll-charge grant was tracked anywhere; both are now, so a campfire before
-/// the boss is the three-way decision the document describes rather than a heal with two greyed-out
-/// buttons beside it.
+/// 🔒 <b>The third option is a fixed die, and it took the seat "+2 Reroll Charges" left empty.</b>
+/// The campfire owes the choice rather than handing a die over, so the player names its number
+/// through <c>CHOOSE_FIXED_DIE</c> — the same door every other grant site uses, because most of
+/// them have no command a number could ride on.
 /// </para>
 /// <para>
 /// 🔒 <b>The perk upgrade is refused when there is nothing to upgrade</b> — a run with no perks, or
@@ -41,8 +40,16 @@ internal static class CampfireChoose
     /// <summary>Upgrade one owned perk to its next tier.</summary>
     internal const int UpgradePerkChoiceIndex = 1;
 
-    /// <summary>Gain Reroll Charges for the current stage.</summary>
-    internal const int RerollChargesChoiceIndex = 2;
+    /// <summary>How many fixed-die choices the campfire's third option owes. 📐 TUNABLE.</summary>
+    /// <remarks>
+    /// One, where the reroll option it replaced granted two charges. A fixed die is a strictly
+    /// stronger thing than a reroll charge — it is a guaranteed landing rather than a second attempt
+    /// at a random one — so the count is not carried across from what it replaced.
+    /// </remarks>
+    internal const int FixedDiceGranted = 1;
+
+    /// <summary>Take a fixed die, its number chosen through <c>CHOOSE_FIXED_DIE</c>.</summary>
+    internal const int FixedDieChoiceIndex = 2;
 
     /// <summary>Applies <c>CAMPFIRE_CHOOSE</c>.</summary>
     /// <param name="command">Which of the three options.</param>
@@ -89,8 +96,8 @@ internal static class CampfireChoose
                 return HandlerResult.Accept();
             }
 
-            case RerollChargesChoiceIndex:
-                run.GrantRerollCharges(RerollEconomy.CampfireBonus);
+            case FixedDieChoiceIndex:
+                run.GrantFixedDieChoices(FixedDiceGranted);
                 run.ClearPendingTile();
 
                 return HandlerResult.Accept();

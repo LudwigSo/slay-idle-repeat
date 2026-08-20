@@ -226,7 +226,6 @@ internal static class PlayerState
     /// </para>
     /// </param>
     /// <param name="draftBattleStage">The stage that battle belonged to, 1-3, or 0 for no draft.</param>
-    /// <param name="rerollChargesSpentThisStage">Reroll charges spent since the stage began.</param>
     /// <param name="runSeed">
     /// The run's committed seed. Defaulted rather than left to a case, because only the cases about
     /// the battle replay depend on it — every other screen reads a run that has one and does not
@@ -277,7 +276,6 @@ internal static class PlayerState
         bool draftPending = false,
         int draftBattleKind = -1,
         int draftBattleStage = 0,
-        int rerollChargesSpentThisStage = 0,
         int draftsSinceLegendaryOffered = 0,
         int draftsWithoutAboveCommon = 0,
         int draftsWithoutOwnedUpgrade = 0,
@@ -291,10 +289,11 @@ internal static class PlayerState
         IReadOnlyDictionary<string, long>? adUses = null,
         IReadOnlyList<string>? curses = null,
         IReadOnlyList<string>? shrineBuffs = null,
-        IReadOnlyDictionary<int, int>? dieFaceUpgrades = null,
         ulong? shopOfferDraw = null,
         int shopSlotsPurchased = 0,
-        int shopRefreshesUsedThisVisit = 0) =>
+        int shopRefreshesUsedThisVisit = 0,
+        IReadOnlyDictionary<int, int>? fixedDice = null,
+        int pendingFixedDieChoices = 0) =>
         new(
             SnapshotSchema.SchemaVersion,
             id,
@@ -318,7 +317,6 @@ internal static class PlayerState
             PendingEventCardId: "",
             Phase: phase,
             DraftPending: draftPending,
-            RerollChargesSpentThisStage: rerollChargesSpentThisStage,
             DraftBattleKind: draftBattleKind,
             DraftBattleStage: draftBattleStage,
             OwnedPerkTiers: ownedPerkTiers,
@@ -332,10 +330,11 @@ internal static class PlayerState
             ItemsAtOrAboveFloorBand: itemsAtOrAboveFloorBand,
             ShrineBuffs: shrineBuffs,
             Curses: curses,
-            DieFaceUpgrades: dieFaceUpgrades,
             ShopOfferDraw: shopOfferDraw,
             ShopSlotsPurchased: shopSlotsPurchased,
-            ShopRefreshesUsedThisVisit: shopRefreshesUsedThisVisit);
+            ShopRefreshesUsedThisVisit: shopRefreshesUsedThisVisit,
+            FixedDice: fixedDice,
+            PendingFixedDieChoices: pendingFixedDieChoices);
 
     /// <summary>The same slice, carrying a run rehydrated from the given row.</summary>
     /// <remarks>

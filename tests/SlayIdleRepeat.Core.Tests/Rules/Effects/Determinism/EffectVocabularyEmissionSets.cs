@@ -72,15 +72,12 @@ internal static class EffectVocabularyEmissionSets
         EffectOp.STAT_COPY,
         EffectOp.RANDOM_OUTCOME,
 
-        // run and board (13)
+        // run and board (10)
         EffectOp.GRANT_CURRENCY,
         EffectOp.GRANT_ITEM,
         EffectOp.GRANT_PERK,
         EffectOp.UPGRADE_PERK,
-        EffectOp.MODIFY_DIE_FACE,
-        EffectOp.GRANT_REROLL,
         EffectOp.MOVE_NODES,
-        EffectOp.REVEAL_TILES,
         EffectOp.RESOLVE_TILE_AGAIN,
         EffectOp.MODIFY_SHOP,
         EffectOp.MODIFY_DROP_TABLE,
@@ -132,7 +129,6 @@ internal static class EffectVocabularyEmissionSets
         ConditionFunction.PERK_COUNT,
         ConditionFunction.DISTINCT_PERK_CATEGORIES,
         ConditionFunction.PET_COUNT,
-        ConditionFunction.DIE_FACE_COUNT,
         ConditionFunction.GOLD_HELD,
         ConditionFunction.BATTLES_WON_THIS_RUN,
         ConditionFunction.STAGE_INDEX,
@@ -183,8 +179,6 @@ internal static class EffectVocabularyEmissionSets
         StatId.RARITY_SHIFT,
         StatId.ENERGY_REGEN_PCT,
         StatId.PET_AURA_PCT,
-        StatId.REROLL_CHARGES,
-        StatId.TILE_PREVIEW,
         StatId.SHOP_PRICE_PCT,
         StatId.XP_PCT,
         StatId.BEAST_FEED_PCT,
@@ -245,7 +239,6 @@ internal static class EffectVocabularyEmissionSets
         StatusTagOnRemoveStatus,
         ChanceOnOnAttack,
         ValueScaleStatusId,
-        ValueScaleFaceKind,
         ValueScaleCategory,
     };
 
@@ -274,7 +267,6 @@ internal static class EffectVocabularyEmissionSets
     internal const string ValueScaleStatusId = "M2-06 statusId argument on valueScale";
 
     /// <summary><c>valueScale</c>'s <c>faceKind</c> argument.</summary>
-    internal const string ValueScaleFaceKind = "M2-06 faceKind argument on valueScale";
 
     /// <summary><c>valueScale</c>'s <c>category</c> argument.</summary>
     internal const string ValueScaleCategory = "M2-06 category argument on valueScale";

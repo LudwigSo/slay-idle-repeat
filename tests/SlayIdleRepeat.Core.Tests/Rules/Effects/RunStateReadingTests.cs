@@ -10,15 +10,12 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects;
 /// </summary>
 public sealed class RunStateReadingTests
 {
-    private static RunStateReading Reading(
-        IReadOnlyDictionary<string, int>? perks = null,
-        IReadOnlyDictionary<string, int>? faces = null) =>
+    private static RunStateReading Reading(IReadOnlyDictionary<string, int>? perks = null) =>
         new()
         {
             StageIndex = 1,
             Chapter = 1,
             PerksByCategory = perks ?? new Dictionary<string, int>(StringComparer.Ordinal),
-            DieFacesByKind = faces ?? new Dictionary<string, int>(StringComparer.Ordinal),
         };
 
     /// <summary><c>PERK_COUNT</c> answers per category, and a null category is every perk held.</summary>
@@ -48,15 +45,12 @@ public sealed class RunStateReadingTests
     }
 
     [Fact]
-    public void Category_and_face_kind_lookups_are_ordinal()
+    public void Category_lookups_are_ordinal()
     {
-        var view = Reading(
-            perks: new Dictionary<string, int>(StringComparer.Ordinal) { ["OFFENSE"] = 4 },
-            faces: new Dictionary<string, int>(StringComparer.Ordinal) { ["Star"] = 2 });
+        var view = Reading(perks: new Dictionary<string, int>(StringComparer.Ordinal) { ["OFFENSE"] = 4 });
 
         view.PerkCount("offense").ShouldBe(0, "a differently-cased category is a different key");
-        view.DieFaceCount("STAR").ShouldBe(0);
-        view.DieFaceCount("Star").ShouldBe(2);
+        view.PerkCount("OFFENSE").ShouldBe(4);
     }
 
     /// <summary>
@@ -81,30 +75,6 @@ public sealed class RunStateReadingTests
             .DistinctPerkCategories.ShouldBe(0);
     }
 
-    [Fact]
-    public void DieFaceCount_answers_per_face_kind()
-    {
-        var view = Reading(faces: new Dictionary<string, int>(StringComparer.Ordinal)
-        {
-            ["Pip"] = 16,
-            ["Star"] = 2,
-        });
-
-        view.DieFaceCount("Pip").ShouldBe(16);
-        view.DieFaceCount("Star").ShouldBe(2);
-        view.DieFaceCount("Void").ShouldBe(0);
-    }
-
-    /// <summary>
-    /// <c>PERK_COUNT</c>'s null category means "every perk"; <c>DIE_FACE_COUNT</c>'s face kind is not
-    /// optional, so the two must not answer alike.
-    /// </summary>
-    [Fact]
-    public void DieFaceCount_of_a_null_face_kind_throws_ArgumentNullException()
-    {
-        Should.Throw<ArgumentNullException>(() => Reading().DieFaceCount(null!));
-    }
-
     /// <summary>A fresh run's counters default to zero readings, and nowhere throws.</summary>
     [Fact]
     public void An_empty_run_reads_zero_rather_than_failing()
@@ -114,7 +84,6 @@ public sealed class RunStateReadingTests
         view.PerkCount(null).ShouldBe(0);
         view.PerkCount("OFFENSE").ShouldBe(0);
         view.DistinctPerkCategories.ShouldBe(0);
-        view.DieFaceCount("Star").ShouldBe(0);
         view.PetCount.ShouldBe(0);
         view.GoldHeld.ShouldBe(0);
         view.BattlesWonThisRun.ShouldBe(0);

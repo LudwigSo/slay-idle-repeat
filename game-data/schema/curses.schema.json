@@ -11,10 +11,10 @@
     "_doc": { "type": "string", "minLength": 1 },
     "_status": { "enum": ["transcribed", "partial", "skeleton"] },
     "curses": {
-      "description": "19 Part E — exactly twelve, ids unique.",
+      "description": "19 Part E — exactly nine, ids unique. ⚠️ Nine, not the document's twelve. CUR_DIZZY (\"the next 3 rolls cannot be rerolled\") and CUR_LEADFOOT (\"Chain and Surge faces behave as plain Pip 3\") were removed with the reroll and the die's special faces; CUR_BLIND (\"Tile preview reduced to 2\") was removed with the tile preview, when the board became permanently visible (`16` D42). None of the three has a replacement.",
       "type": "array",
-      "minItems": 12,
-      "maxItems": 12,
+      "minItems": 9,
+      "maxItems": 9,
       "uniqueItems": true,
       "items": {
         "type": "object",
@@ -34,7 +34,7 @@
             "minLength": 1
           },
           "availableFromChapter": {
-            "description": "O13 (resolved at the M3 kickoff): the earliest chapter this curse can be drawn in. 1-4 (CUR_SLIPPERY, CUR_MARKED, CUR_DIZZY, CUR_FRACTURED) open from Chapter 1; CUR_HUNTED specifically from Chapter 5; the remaining seven open from Chapter 3.",
+            "description": "O13 (resolved at the M3 kickoff): the earliest chapter this curse can be drawn in. CUR_SLIPPERY, CUR_MARKED and CUR_FRACTURED open from Chapter 1; CUR_HUNTED specifically from Chapter 5; the remaining six open from Chapter 3.",
             "type": "integer",
             "minimum": 1,
             "maximum": 8

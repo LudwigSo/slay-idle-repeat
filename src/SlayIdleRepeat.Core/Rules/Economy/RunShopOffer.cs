@@ -59,7 +59,7 @@ internal static class RunShopOffer
     internal static IReadOnlyList<string> ConsumablePool { get; } = Array.AsReadOnly(new[]
     {
         Consumables.HealthDraught,
-        Consumables.RerollToken,
+        Consumables.FixedDieToken,
         Consumables.DraftToken,
         Consumables.EscapeRope,
     });

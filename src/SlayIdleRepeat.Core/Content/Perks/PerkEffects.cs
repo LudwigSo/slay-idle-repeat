@@ -21,9 +21,9 @@ namespace SlayIdleRepeat.Core.Content.Perks;
 /// the document and the game disagreeing with everything green.
 /// </para>
 /// <para>
-/// The six ops whose keys are unreachable from a perk — <c>SUMMON</c>'s archetype pair,
-/// <c>MODIFY_DIE_FACE</c>'s face triple, <c>STAT_CAP_OVERRIDE</c>'s cap kind and
-/// <c>RANDOM_OUTCOME</c>'s outcome table — are absent from the key set on purpose. No perk authors
+/// The ops whose keys are unreachable from a perk — <c>SUMMON</c>'s archetype pair,
+/// <c>STAT_CAP_OVERRIDE</c>'s cap kind and <c>RANDOM_OUTCOME</c>'s outcome table — are absent from
+/// the key set on purpose. No perk authors
 /// one, and admitting a key nothing writes would be a branch no data covers.
 /// </para>
 /// </remarks>
@@ -41,14 +41,14 @@ internal static class PerkEffects
     private static readonly string[] KnownTriggerKeys =
     [
         "kind", "onlyIfWon", "everyNth", "chance", "cooldown", "threshold", "once", "interval",
-        "startDelay", "phase", "tileType", "faceKind", "category",
+        "startDelay", "phase", "tileType", "category",
     ];
 
     /// <summary>The keys one authored comparison term may carry.</summary>
-    private static readonly string[] KnownTermKeys = ["fn", "op", "value", "statusId", "faceKind", "category"];
+    private static readonly string[] KnownTermKeys = ["fn", "op", "value", "statusId", "category"];
 
     /// <summary>The keys one authored value scale may carry.</summary>
-    private static readonly string[] KnownValueScaleKeys = ["fn", "per", "cap", "statusId", "faceKind", "category"];
+    private static readonly string[] KnownValueScaleKeys = ["fn", "per", "cap", "statusId", "category"];
 
     /// <summary>The keys one authored duration may carry.</summary>
     private static readonly string[] KnownDurationKeys = ["scope", "seconds", "until"];
@@ -192,7 +192,6 @@ internal static class PerkEffects
             StartDelay = Amount(content, pointer + "/startDelay"),
             Phase = Count(content, pointer + "/phase"),
             TileType = Word(content, pointer + "/tileType"),
-            FaceKind = Word(content, pointer + "/faceKind"),
             Category = Word(content, pointer + "/category"),
         };
     }
@@ -265,7 +264,6 @@ internal static class PerkEffects
                 : null,
             StatusId = Word(content, pointer + "/statusId"),
             Category = Word(content, pointer + "/category"),
-            FaceKind = Word(content, pointer + "/faceKind"),
         };
     }
 
@@ -303,7 +301,6 @@ internal static class PerkEffects
             Cap = Count(content, pointer + "/cap"),
             StatusId = Word(content, pointer + "/statusId"),
             Category = Word(content, pointer + "/category"),
-            FaceKind = Word(content, pointer + "/faceKind"),
         };
     }
 

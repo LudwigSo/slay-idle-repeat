@@ -46,8 +46,6 @@ public static class StatIds
         StatId.RARITY_SHIFT or
         StatId.ENERGY_REGEN_PCT or
         StatId.PET_AURA_PCT or
-        StatId.REROLL_CHARGES or
-        StatId.TILE_PREVIEW or
         StatId.SHOP_PRICE_PCT or
         StatId.XP_PCT or
         StatId.BEAST_FEED_PCT or
@@ -55,6 +53,6 @@ public static class StatIds
 
         _ => throw new ArgumentOutOfRangeException(
             nameof(stat), stat,
-            "18 §2.1 declares 26 stats and this value is none of them."),
+            "18 §2.1 declares 24 stats and this value is none of them."),
     };
 }

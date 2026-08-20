@@ -63,8 +63,15 @@ public enum CampfireOption
     /// <summary>Raise one owned perk a tier. Refused: nothing tracks a perk-tier upgrade.</summary>
     UpgradePerk = 2,
 
-    /// <summary>Take two reroll charges. Refused: no draft reroll charge exists to be granted.</summary>
-    RerollCharges = 3,
+    /// <summary>Take one fixed die, whose number the player names afterwards (`04` §6).</summary>
+    /// <remarks>
+    /// ⚠️ Member 3 was <c>RerollCharges</c>, "+2 Reroll Charges", and this is NOT that card renamed:
+    /// the reroll granted two charges of a second attempt, and this grants one die that guarantees a
+    /// landing. It re-uses the enum member and the wire index 2, which is safe where a command wire
+    /// name is not: a campfire choice index is a POSITION ON A CARD carried by one transient command
+    /// and persisted nowhere, so an old client sending 2 has no stale state to disagree with.
+    /// </remarks>
+    FixedDie = 3,
 }
 
 /// <summary>One campfire option as the screen draws it.</summary>
@@ -103,17 +110,18 @@ public sealed record CampfireShrineRow(string BuffId, string Name, int ChoiceInd
 /// runner with no engine anywhere near it.
 /// </para>
 /// <para>
-/// 🔒 <b>The two arms never overlap.</b> A campfire draws three option cards and no buff rows; a
+/// 🔒 <b>The two arms never overlap.</b> A campfire draws two option cards and no buff rows; a
 /// shrine draws two buff rows and no option cards. Offering a campfire option on a shrine would put
 /// a control on screen whose command the rules layer refuses for a reason the player cannot see,
 /// and offering shrine rows on a campfire would describe a draw that never happened.
 /// </para>
 /// <para>
-/// 🔴 <b>Two of the three campfire options are refused, for two different missing systems.</b>
-/// Raising a perk tier is refused because nothing anywhere tracks perk tiers as an upgradeable
-/// thing outside the draft; taking two reroll charges is refused because no draft reroll charge
-/// exists to grant. Both come back on the wire as the same value, so the sentence is the only thing
-/// telling them apart — see <see cref="TheTwoRefusedOptionsAreRefusedForDifferentReasons"/>.
+/// 🔒 <b>A campfire is a three-way decision again.</b> The third card was "+2 Reroll
+/// Charges", went with the reroll charge itself, and is now <b>take a fixed die</b> (`04` §6) — not
+/// the same card renamed: one die that guarantees a landing rather than two attempts at a random
+/// one, and a CHOICE rather than a die, because the player names the number afterwards. Raising a
+/// perk tier is refused only when the run holds no perk that can take one, which is a state rather
+/// than a missing system, and it keeps the tile so the player can rest instead.
 /// </para>
 /// <para>
 /// 🔴 <b>The shrine's choice is not the player's, and this screen says so.</b> There is no shrine
@@ -132,18 +140,6 @@ public sealed record CampfireShrineRow(string BuffId, string Name, int ChoiceInd
 public sealed class CampfirePresenter
 {
     /// <summary>
-    /// ⚠️ Deliberately kept apart, and named so it can be found. Both refused campfire options come
-    /// back as one wire value, so nothing but the wording distinguishes two unrelated gaps.
-    /// </summary>
-    private const string TheTwoRefusedOptionsAreRefusedForDifferentReasons =
-        "Choice 1 raises an owned perk by a tier and choice 2 grants two reroll charges. The " +
-        "handler refuses both, deliberately, and refuses rather than silently succeeding because " +
-        "neither thing is tracked: no field records a perk tier as upgradeable outside the draft, " +
-        "and no field counts draft reroll charges at all. They are two different missing systems " +
-        "with two different owners, and the refusal reaches the client as the same value for both. " +
-        "One sentence for the pair would tell a player that the game has one hole where it has two.";
-
-    /// <summary>
     /// 🔒 Kept as the marker for what changed, because the absence it used to describe was the
     /// screen's whole shape.
     /// </summary>
@@ -161,7 +157,7 @@ public sealed class CampfirePresenter
     private const string ShrineBuffsLabelKey = "loc.campfire.shrine_buffs.label";
     private const string RestActionKey = "loc.campfire.rest.action";
     private const string UpgradePerkActionKey = "loc.campfire.upgrade_perk.action";
-    private const string RerollChargesActionKey = "loc.campfire.reroll_charges.action";
+    private const string FixedDieActionKey = "loc.campfire.fixed_die.action";
     private const string ContinueActionKey = "loc.campfire.continue.action";
     private const string UpgradePerkNoneBlockKey = "loc.campfire.upgrade_perk_none.block";
     private const string TakeActionKey = "loc.campfire.take.action";
@@ -198,8 +194,8 @@ public sealed class CampfirePresenter
     /// <summary>The index for raising a perk a tier, refused for its own named reason.</summary>
     private const int UpgradePerkChoiceIndex = 1;
 
-    /// <summary>The index for taking reroll charges, refused for a different named reason.</summary>
-    private const int RerollChargesChoiceIndex = 2;
+    /// <summary>The index for taking a fixed die — the third card, and the second that works.</summary>
+    private const int FixedDieChoiceIndex = 2;
 
     private readonly IGameHost _gameHost;
     private readonly LocaleStringCatalogue _strings;
@@ -407,10 +403,14 @@ public sealed class CampfirePresenter
             _strings.Resolve(UpgradePerkActionKey),
             Available: canUpgradeAPerk,
             canUpgradeAPerk ? NothingLeftToSay : _strings.Resolve(UpgradePerkNoneBlockKey)),
+        // 🔒 Unconditionally available, and it is the only option here that is. Resting is refused at
+        // full HP and the upgrade is refused with no upgradeable perk; a fixed die has no precondition
+        // at all — the holding is uncapped (`04` §6.3), so there is no state in which taking one
+        // cannot be done.
         new CampfireOptionRow(
-            CampfireOption.RerollCharges,
-            RerollChargesChoiceIndex,
-            _strings.Resolve(RerollChargesActionKey),
+            CampfireOption.FixedDie,
+            FixedDieChoiceIndex,
+            _strings.Resolve(FixedDieActionKey),
             Available: true,
             NothingLeftToSay),
     ];

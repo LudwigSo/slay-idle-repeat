@@ -142,7 +142,8 @@ public sealed class GearAffixRollerTests
     /// <summary>A zero-width range still consumes its value draw.</summary>
     /// <remarks>
     /// So a re-tune that widens one affix's range does not shift every later affix on the same item.
-    /// The shipped pool has such an affix — the reroll charge, authored at exactly one.
+    /// ⚠️ The affix below is synthetic: the shipped pool's one zero-width affix was the reroll
+    /// charge, which went with the reroll. The rule it states outlives the row that motivated it.
     /// </remarks>
     [Fact]
     public void A_zero_width_range_still_consumes_its_value_draw()
@@ -151,8 +152,8 @@ public sealed class GearAffixRollerTests
 
         var rolled = GearAffixRoller.Roll(
             [new GearAffixDefinition(
-                "AFX_REROLL_CHARGE",
-                StatId.REROLL_CHARGES,
+                "AFX_ZERO_WIDTH",
+                StatId.SHOP_PRICE_PCT,
                 EffectOp.STAT_ADD_FLAT,
                 1.0,
                 1.0,

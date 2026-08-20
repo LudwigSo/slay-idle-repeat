@@ -21,6 +21,32 @@ public sealed class EventChooseTests
         TileWorlds.OnTile(
             TileKind.Event, chapterId: chapterId, gold: gold, currentHp: currentHp, eventCardId: cardId);
 
+    /// <summary>
+    /// 🔒 A <c>FIXED_DIE</c> outcome owes the player the number of CHOICES it authors — never a
+    /// die. A card is drawn by weight and cannot ask anybody for a number (`04` §6.2), so what lands
+    /// on the run is the debt, and <c>CHOOSE_FIXED_DIE</c> answers it.
+    /// </summary>
+    /// <remarks>
+    /// Both options of the fixture card, because they grant DIFFERENT counts: a handler granting a
+    /// flat single choice would satisfy the first forever.
+    /// </remarks>
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 2)]
+    public void An_event_that_grants_fixed_dice_owes_that_many_choices(int choiceIndex, int expected)
+    {
+        var result = Choose(OnCard(FixtureCards.FixedDice), choiceIndex);
+
+        result.Accepted.ShouldBeTrue("EVENT_CHOOSE was refused " + result.Rejection);
+
+        var run = result.NewState.Run!;
+
+        run.PendingFixedDieChoices.ShouldBe(expected);
+        run.FixedDice.ShouldBeEmpty(
+            "the card owes a choice; it does not pick a number the player never saw.");
+        run.HasPendingTile.ShouldBeFalse("the card is spent.");
+    }
+
     [Fact]
     public void A_run_with_no_pending_tile_is_rejected()
     {
@@ -374,10 +400,19 @@ public sealed class EventChooseTests
         again.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
+    /// <summary>Same seed, same card, same outcome, same payout.</summary>
+    /// <remarks>
+    /// ⚠️ <b>The deltas are compared as TEXT, and that is a fix rather than a style.</b> They used
+    /// to be an <c>IReadOnlyList&lt;long&gt;</c> inside the compared tuple, which a tuple's structural
+    /// equality compares by REFERENCE — so the case only ever held while the seed happened to draw a
+    /// card that paid nothing, because an empty <c>ToArray()</c> is the same shared instance every
+    /// time. The first card added to the fixture pool moved the draw onto one that pays, and the case
+    /// went red on two equal payouts. Joined text is compared by value, so it holds for either.
+    /// </remarks>
     [Fact]
     public void The_whole_event_loop_is_deterministic_for_a_fixed_seed()
     {
-        static (string Card, long Gold, int Hp, IReadOnlyList<long> Deltas) Loop()
+        static (string Card, long Gold, int Hp, string Deltas) Loop()
         {
             var drawn = SlayIdleRepeat.Core.GameRules.Apply(
                 TileWorlds.OnTile(TileKind.Event, gold: 500, runSeed: 4242UL),
@@ -391,7 +426,10 @@ public sealed class EventChooseTests
                 drawn.NewState.Run!.ToSnapshot().PendingEventCardId,
                 chosen.NewState.Run!.Gold,
                 chosen.NewState.Run!.CurrentHp,
-                chosen.Events.OfType<CurrencyChanged>().Select(e => e.Delta).ToArray());
+                string.Join(
+                    ",",
+                    chosen.Events.OfType<CurrencyChanged>()
+                        .Select(e => e.Delta.ToString(System.Globalization.CultureInfo.InvariantCulture))));
         }
 
         Loop().ShouldBe(Loop());

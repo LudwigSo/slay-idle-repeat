@@ -117,7 +117,7 @@ public sealed class ManifestLayoutTests
 
         loaded.Art.Assets.ShouldNotBeEmpty();
         loaded.Audio.Assets.ShouldNotBeEmpty();
-        loaded.AllIds.Count.ShouldBe(1080);
+        loaded.AllIds.Count.ShouldBe(1072);
     }
 
     /// <summary>A missing directory says what is missing rather than throwing an IO error.</summary>

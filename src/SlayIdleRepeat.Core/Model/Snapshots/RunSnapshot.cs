@@ -25,8 +25,6 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// <param name="PendingEventCardId">The event card a pending <c>TILE_EVENT</c> has already drawn, or <c>""</c> when none has — never <c>null</c>. Exists so the card cannot be re-drawn across the two commands an event resolves over.</param>
 /// <param name="Phase">The genuine server-side subset of the run's state machine. See <see cref="Primitives.RunPhase"/>.</param>
 /// <param name="DraftPending">True while a perk draft is waiting and no draft command has resolved it yet — set by a won battle, and by the run opening.</param>
-/// <param name="RerollChargesSpentThisStage">Reroll charges spent since the run's current stage began. Reset at every Stage Gate.</param>
-/// <param name="StageGateDiceAnchor">The <c>dice</c> stream draw index the run's current stage began at.</param>
 /// <param name="DraftBattleKind">The tile kind the pending draft draws its rarity band against — the battle's own kind for a post-battle draft, and <c>Empty</c> for the run's opening draft, which no battle caused. <b>-1</b> when no draft is pending.</param>
 /// <param name="DraftBattleStage">The stage the battle named by <paramref name="DraftBattleKind"/> belonged to. <c>0</c> when no draft is pending.</param>
 /// <param name="OwnedPerkTiers">The perks this run has drafted: perk id → owned internal tier (1-3). Sparse.</param>
@@ -64,27 +62,25 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// semantics: `19` Part E gives curses no stacking, so <c>Run.ApplyCurse</c> refuses a duplicate
 /// rather than adding a second copy.
 /// </param>
-/// <param name="DieFaceUpgrades">
-/// The run-scoped die-face replacements a Dice Forge tile installed: 1-based face index → the
-/// opaque face code <c>Rules.Dice.DieFaceCodec</c> owns the meaning of. Sparse — an unlisted face is
-/// the starting die's. An <c>int</c> code rather than the face type for `30` §11.4's reason: the die
-/// vocabulary is <c>Rules</c>', and <c>Model</c> may not name it, exactly as
-/// <paramref name="PendingTileKind"/> carries a tile kind.
-/// </param>
 /// <param name="Consumables">
 /// Held consumables (`03` §7.1): consumable id → how many are held. Sparse, and a zero count is
 /// removed rather than stored. Only the two HELD consumables ever appear — the two token
 /// consumables convert to their charge at the till and are never held.
 /// </param>
+/// <param name="FixedDice">
+/// The fixed dice this run holds: pips → how many of that number are held. Sparse, uncapped, and a
+/// zero count is removed rather than stored. A fixed die is spent instead of a roll and moves the
+/// hero exactly its number — see <c>Handlers.UseFixedDie</c>.
+/// </param>
+/// <param name="PendingFixedDieChoices">
+/// Fixed dice granted but not yet given a number by the player. Never negative. Persisted rather
+/// than resolved at the grant because most grant sites carry no command a number could ride on: an
+/// event outcome is drawn by weight, a minigame reward is decided by play, an ad and a set bonus are
+/// passive. <c>CHOOSE_FIXED_DIE</c> answers one, and an owed choice blocks nothing.
+/// </param>
 /// <param name="EscapeRopeArmed">
 /// Whether an Escape Rope is armed (`03` §7.1). Only one may be armed at a time, which is why this
 /// is a flag and not a count, and it persists across rolls until it fires.
-/// </param>
-/// <param name="RerollChargesGrantedThisStage">
-/// Reroll charges granted on top of the stage's base allotment — Campfire's +2, Reroll Tokens, the
-/// dice-duel minigame's charge (`04` §3). Never negative. Reset at every Stage Gate with
-/// <paramref name="RerollChargesSpentThisStage"/>, because Campfire's grant is for the current
-/// stage only.
 /// </param>
 /// <param name="FreeDraftRerolls">
 /// Free perk-draft rerolls held, from Draft Tokens (`03` §7.1). Never negative. Not per stage: the
@@ -104,19 +100,9 @@ namespace SlayIdleRepeat.Core.Model.Snapshots;
 /// Refreshes spent at the shop currently open. Never negative. Per VISIT, not per run, which is what
 /// `03` §7's "1 free refresh per shop visit" is counted against.
 /// </param>
-/// <param name="ChainLinksTaken">
-/// How many <c>Chain</c> hops the run's current roll sequence has already taken (`04` §1). Never
-/// negative. Zero for a run whose last roll was not a Chain, which is every run that has never
-/// forged one.
-/// <para>
-/// Persisted because a Chain hop RESOLVES ITS LANDING TILE IN FULL before the next chained roll
-/// (`03` §1.1), and resolving a tile takes its own command — so the sequence genuinely spans several
-/// <c>ROLL_DICE</c> calls and the link count cannot live inside one of them.
-/// </para>
-/// </param>
 /// <remarks>
 /// Flat: the only structured members are <see cref="Primitives.RunId"/> and
-/// <see cref="Primitives.PlayerId"/>, plus the two dictionaries — a positional record with no members
+/// <see cref="Primitives.PlayerId"/>, plus the dictionaries — a positional record with no members
 /// outside the primary constructor, which is what makes the field-order pin able to describe it at
 /// all. Every timestamp is refused unless its offset is zero, checked by <c>Run.Rehydrate</c>. The
 /// board is never stored — it regenerates deterministically from
@@ -148,8 +134,6 @@ public sealed record RunSnapshot(
     string PendingEventCardId,
     RunPhase Phase = RunPhase.InProgress,
     bool DraftPending = false,
-    int RerollChargesSpentThisStage = 0,
-    ulong StageGateDiceAnchor = 0,
     int DraftBattleKind = -1,
     int DraftBattleStage = 0,
     IReadOnlyDictionary<string, int>? OwnedPerkTiers = null,
@@ -164,12 +148,11 @@ public sealed record RunSnapshot(
     IReadOnlyList<string>? ShrineBuffs = null,
     IReadOnlyList<string>? RunBuffs = null,
     IReadOnlyList<string>? Curses = null,
-    IReadOnlyDictionary<int, int>? DieFaceUpgrades = null,
     IReadOnlyDictionary<string, int>? Consumables = null,
+    IReadOnlyDictionary<int, int>? FixedDice = null,
+    int PendingFixedDieChoices = 0,
     bool EscapeRopeArmed = false,
-    int RerollChargesGrantedThisStage = 0,
     int FreeDraftRerolls = 0,
     ulong? ShopOfferDraw = null,
     int ShopSlotsPurchased = 0,
-    int ShopRefreshesUsedThisVisit = 0,
-    int ChainLinksTaken = 0);
+    int ShopRefreshesUsedThisVisit = 0);

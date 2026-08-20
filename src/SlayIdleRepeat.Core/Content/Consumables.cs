@@ -25,8 +25,13 @@ internal static class Consumables
     /// <summary>Held. Use on the board: heal a share of Max HP. Disabled at full HP.</summary>
     internal const string HealthDraught = "CON_HEALTH_DRAUGHT";
 
-    /// <summary>Instant: +1 Reroll Charge on purchase. Never held.</summary>
-    internal const string RerollToken = "CON_REROLL_TOKEN";
+    /// <summary>Instant: owes one fixed-die choice on purchase. Never held.</summary>
+    /// <remarks>
+    /// 🔒 Took the Reroll Token's seat in the shop's consumable pool. It converts at the till like
+    /// the Draft Token does — but into a CHOICE rather than a die, because the number is the player's
+    /// and <c>CHOOSE_FIXED_DIE</c> is where they name it.
+    /// </remarks>
+    internal const string FixedDieToken = "CON_FIXED_DIE_TOKEN";
 
     /// <summary>Instant: +1 free perk-draft reroll on purchase. Never held.</summary>
     internal const string DraftToken = "CON_DRAFT_TOKEN";
@@ -35,9 +40,13 @@ internal static class Consumables
     internal const string EscapeRope = "CON_ESCAPE_ROPE";
 
     /// <summary>The four ids, in `03` §7.1's own order.</summary>
+    /// <remarks>
+    /// ⚠️ Four again, but not the same four: the Reroll Token is gone with the reroll charge and the
+    /// Fixed Die Token took its place in the pool.
+    /// </remarks>
     internal static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
     {
-        HealthDraught, RerollToken, DraftToken, EscapeRope,
+        HealthDraught, FixedDieToken, DraftToken, EscapeRope,
     });
 
     /// <summary>The two that go into the pouch. The other two are spent at the till.</summary>
@@ -46,7 +55,7 @@ internal static class Consumables
 
     /// <summary>Whether this id is one of the four.</summary>
     internal static bool IsKnown(string? consumableId) =>
-        consumableId is HealthDraught or RerollToken or DraftToken or EscapeRope;
+        consumableId is HealthDraught or FixedDieToken or DraftToken or EscapeRope;
 
     /// <summary>
     /// The held cap of `03` §7.1 — at most this many consumables in the pouch at once, counted

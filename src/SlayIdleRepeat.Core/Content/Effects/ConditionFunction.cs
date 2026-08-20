@@ -56,8 +56,8 @@ public enum ConditionFunction
     /// <summary>int.</summary>
     PET_COUNT = 13,
 
-    /// <summary>int, by face kind.</summary>
-    DIE_FACE_COUNT = 14,
+    // 14 was DIE_FACE_COUNT, "int, by face kind". The die has no face kinds to count, so no
+    // condition and no valueScale may name it. The number stays retired — it is a wire value.
 
     /// <summary>int.</summary>
     GOLD_HELD = 15,

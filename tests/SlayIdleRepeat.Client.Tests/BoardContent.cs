@@ -1,18 +1,23 @@
 using SlayIdleRepeat.Client.Game.Presenters;
 using SlayIdleRepeat.Core.Content;
-using SlayIdleRepeat.Core.Content.Dice;
 
 namespace SlayIdleRepeat.Client.Tests;
 
-/// <summary>
-/// The Board screen's and Die Panel's string keys, and the content sets their cases run against.
-/// </summary>
+/// <summary>The Board screen's string keys, and the content sets its cases run against.</summary>
 /// <remarks>
 /// <para>
 /// Built in memory rather than loaded, so a case can state exactly what a chapter's stage lengths
 /// are. That is the only way to hold the presenter to reading them: the two shipped chapters both
 /// author <c>[12, 14, 16]</c>, so a transcribed 3 agrees with them forever and a transcribed 16
 /// agrees with the last stage of both.
+/// </para>
+/// <para>
+/// 🔒 <b>The chapter is authored WHOLE, not only its stage lengths.</b> The presenter now projects
+/// the run's board through <c>BoardView</c>, which reads the chapter's elite counts, its three tile
+/// weight tables and its boss as well — so a fixture carrying only stage lengths would make every
+/// case throw on a malformed chapter rather than exercise the screen. The weights are deliberately
+/// NOT the shipped ones: one kind per stage at weight 1, so a generated board is made of tiles a
+/// case can name, and the shipped balance can be re-tuned without moving a client assertion.
 /// </para>
 /// <para>
 /// Fixture values are the key with a marker in front, so every string is unique, obviously not the
@@ -27,10 +32,7 @@ internal static class BoardContent
     internal const string RolledLabelKey = "loc.board.rolled.label";
     internal const string StandingOnLabelKey = "loc.board.standing_on.label";
     internal const string RollActionKey = "loc.board.roll.action";
-    internal const string RerollActionKey = "loc.board.reroll.action";
-    internal const string RerollChangesNextRollLabelKey = "loc.board.reroll_changes_next_roll.label";
     internal const string ResolveActionKey = "loc.board.resolve.action";
-    internal const string DiePanelActionKey = "loc.board.die_panel.action";
     internal const string AbandonActionKey = "loc.board.abandon.action";
     internal const string AbandonConfirmActionKey = "loc.board.abandon_confirm.action";
     internal const string ForkNameKey = "loc.board.fork.name";
@@ -41,16 +43,16 @@ internal static class BoardContent
     internal const string RunEndedStatusKey = "loc.board.run_ended.status";
     internal const string UnavailableStatusKey = "loc.board.unavailable.status";
     internal const string RefusedStatusKey = "loc.board.refused.status";
-    internal const string RerollExhaustedStatusKey = "loc.board.reroll_exhausted.status";
     internal const string BlockedTileStatusKey = "loc.board.blocked_tile.status";
     internal const string BlockedForkStatusKey = "loc.board.blocked_fork.status";
     internal const string BlockedBattleStatusKey = "loc.board.blocked_battle.status";
     internal const string BlockedDraftStatusKey = "loc.board.blocked_draft.status";
-
-    internal const string DiePanelTitleKey = "loc.die_panel.title.name";
-    internal const string DiePanelLastFaceLabelKey = "loc.die_panel.last_face.label";
-    internal const string DiePanelNoRollYetStatusKey = "loc.die_panel.no_roll_yet.status";
-    internal const string DiePanelFacesUnavailableStatusKey = "loc.die_panel.faces_unavailable.status";
+    internal const string ForkPerilousLabelKey = "loc.board.fork_perilous.label";
+    internal const string ForkShelteredLabelKey = "loc.board.fork_sheltered.label";
+    internal const string ForkArcaneLabelKey = "loc.board.fork_arcane.label";
+    internal const string ForkFeralLabelKey = "loc.board.fork_feral.label";
+    internal const string FixedDiceHeldLabelKey = "loc.board.dice_held.label";
+    internal const string FixedDiceChooseLabelKey = "loc.board.dice_choose.label";
 
     internal const string ChaptersDirectory = "content/chapters/";
 
@@ -63,35 +65,15 @@ internal static class BoardContent
     internal static IReadOnlyList<string> BoardKeys { get; } =
     [
         HpLabelKey, GoldLabelKey, StageLabelKey, RolledLabelKey, StandingOnLabelKey,
-        RerollChangesNextRollLabelKey,
-        RollActionKey, RerollActionKey, ResolveActionKey, DiePanelActionKey,
+        RollActionKey, ResolveActionKey,
         AbandonActionKey, AbandonConfirmActionKey,
         ForkNameKey, ForkContinueActionKey, ForkBranchActionKey,
         LoadingStatusKey, RunMissingStatusKey, RunEndedStatusKey, UnavailableStatusKey,
-        RefusedStatusKey, RerollExhaustedStatusKey,
+        RefusedStatusKey,
         BlockedTileStatusKey, BlockedForkStatusKey, BlockedBattleStatusKey, BlockedDraftStatusKey,
+        ForkPerilousLabelKey, ForkShelteredLabelKey, ForkArcaneLabelKey, ForkFeralLabelKey,
+        FixedDiceHeldLabelKey, FixedDiceChooseLabelKey,
     ];
-
-    /// <summary>Every string key the Die Panel renders, built the way the panel builds them.</summary>
-    /// <remarks>
-    /// The per-face keys are derived from the enum rather than listed, for the same reason the
-    /// panel derives them: a face kind added to the game must arrive in both places or in neither,
-    /// and a hand-written list here would let it arrive in the panel alone and go unnoticed.
-    /// </remarks>
-    internal static IReadOnlyList<string> DiePanelKeys { get; } =
-    [
-        DiePanelTitleKey, DiePanelLastFaceLabelKey,
-        DiePanelNoRollYetStatusKey, DiePanelFacesUnavailableStatusKey,
-        .. Enum.GetValues<DieFaceKind>().SelectMany(kind => new[] { NameKeyOf(kind), EffectKeyOf(kind) }),
-    ];
-
-    /// <summary>The name key the panel resolves one face kind through.</summary>
-    internal static string NameKeyOf(DieFaceKind kind) =>
-        $"loc.die_panel.{kind.ToString().ToLowerInvariant()}.name";
-
-    /// <summary>The effect key the panel resolves one face kind through.</summary>
-    internal static string EffectKeyOf(DieFaceKind kind) =>
-        $"loc.die_panel.{kind.ToString().ToLowerInvariant()}.effect";
 
     /// <summary>The English fixture value for a key.</summary>
     internal static string EnglishValueOf(string key) => "FIXTURE " + key;
@@ -136,10 +118,29 @@ internal static class BoardContent
     /// </param>
     internal static ContentSnapshot Authoring(int chapterId, params int[] stageLengths)
     {
-        var documents = new List<ContentDocument>(Locales()) { Chapter(chapterId, stageLengths) };
+        var documents = new List<ContentDocument>(Locales())
+        {
+            Chapter(chapterId, stageLengths),
+            BoardGeneration(),
+        };
 
         return new ContentSnapshot(FixtureStamp, documents);
     }
+
+    /// <summary>The one tile kind each stage of the fixture chapter is paved with.</summary>
+    /// <remarks>
+    /// 🔒 One kind per stage at weight 1, so the generated board is entirely predictable without a
+    /// case having to know the weighted draw: stage 1 is Empty, stage 2 Enemy, stage 3 Shrine. Three
+    /// DIFFERENT kinds rather than one, so a case can tell the stages apart on the track — and none
+    /// of them is the shipped distribution, so re-tuning `03` §2's weights moves no client assertion.
+    /// ⚠️ The generator's own constraints still place the elites and the boss, so a board is never
+    /// only these three.
+    /// </remarks>
+    internal static IReadOnlyList<string> FixtureStageTiles { get; } =
+        ["TILE_EMPTY", "TILE_ENEMY", "TILE_SHRINE"];
+
+    /// <summary>The boss the fixture chapter authors, for the last node of the track.</summary>
+    internal const string FixtureBossId = "BOSS_FIXTURE";
 
     private static ContentDocument Chapter(int chapterId, IReadOnlyList<int> stageLengths) =>
         new($"{ChaptersDirectory}CH_{chapterId:00}_FIXTURE.json", ContentValue.Object(
@@ -148,11 +149,42 @@ internal static class BoardContent
             new KeyValuePair<string, ContentValue>(
                 StageLengthsMember,
                 ContentValue.Array(stageLengths.Select(length => ContentValue.Number(length)))),
+            new KeyValuePair<string, ContentValue>(
+                "eliteCount",
+                ContentValue.Array(stageLengths.Select(_ => ContentValue.Number(1)))),
+            new KeyValuePair<string, ContentValue>(
+                "tileWeights",
+                ContentValue.Array(FixtureStageTiles.Select(tile => ContentValue.Object(
+                [
+                    new KeyValuePair<string, ContentValue>(tile, ContentValue.Number(1)),
+                ])))),
+            new KeyValuePair<string, ContentValue>("bossId", ContentValue.Text(FixtureBossId)),
+        ]));
+
+    /// <summary>
+    /// The fork-bias multipliers, which are global rather than per-chapter and so live in their own
+    /// document.
+    /// </summary>
+    /// <remarks>
+    /// The shipped pair (2.5 / 0.2). Transcribed rather than read, because what these cases are about
+    /// is the SCREEN: a fixture that read the shipped tuning would fail here when that tuning was
+    /// re-balanced, which is a board-generation change and not a client one.
+    /// </remarks>
+    private static ContentDocument BoardGeneration() =>
+        new("tuning/currencies.json", ContentValue.Object(
+        [
+            new KeyValuePair<string, ContentValue>("boardGeneration", ContentValue.Object(
+            [
+                new KeyValuePair<string, ContentValue>(
+                    "forkBiasPlusMultiplier", ContentValue.Number(2.5m)),
+                new KeyValuePair<string, ContentValue>(
+                    "forkBiasMinusMultiplier", ContentValue.Number(0.2m)),
+            ])),
         ]));
 
     private static IReadOnlyList<ContentDocument> Locales()
     {
-        var keys = BoardKeys.Concat(DiePanelKeys).Concat(BoardTileKinds.NameKeys).ToArray();
+        var keys = BoardKeys.Concat(BoardTileKinds.NameKeys).ToArray();
 
         return
         [

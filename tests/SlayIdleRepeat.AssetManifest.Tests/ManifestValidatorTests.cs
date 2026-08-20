@@ -30,7 +30,7 @@ public sealed class ManifestValidatorTests
         var manifest = ManifestFiles.Shipped;
 
         manifest.Art.Assets.Count.ShouldBeGreaterThan(900);
-        manifest.Audio.Assets.Count.ShouldBeGreaterThan(100);
+        manifest.Audio.Assets.Count.ShouldBeGreaterThan(90);
         manifest.Art.Sections.ShouldNotBeEmpty();
         manifest.Art.Atlases.ShouldNotBeEmpty();
         manifest.Audio.Families.ShouldNotBeEmpty();
@@ -253,13 +253,13 @@ public sealed class ManifestValidatorTests
     public void An_audio_family_whose_stored_count_drifted_is_reported()
     {
         var mutated = ManifestFiles.WithAudioEdit(
-            "\"id\": \"dice\",\n      \"label\": \"Dice\",\n      \"claimedCount\": 11,\n      \"transcribedCount\": 11",
-            "\"id\": \"dice\",\n      \"label\": \"Dice\",\n      \"claimedCount\": 11,\n      \"transcribedCount\": 10");
+            "\"id\": \"dice\",\n      \"label\": \"Dice\",\n      \"claimedCount\": 3,\n      \"transcribedCount\": 3",
+            "\"id\": \"dice\",\n      \"label\": \"Dice\",\n      \"claimedCount\": 3,\n      \"transcribedCount\": 2");
 
         // Two distinct rules emit CountMismatch under families/dice; this edit trips both, so
         // both locations are pinned rather than relying on a prefix filter to tell them apart.
         Only(mutated, ManifestIssueCode.CountMismatch, "families/dice/transcribedCount")
-            .Message.ShouldContain("records 10 but the data holds 11", Case.Sensitive);
+            .Message.ShouldContain("records 2 but the data holds 3", Case.Sensitive);
 
         Only(mutated, ManifestIssueCode.CountMismatch, "families/dice")
             .Message.ShouldContain("stores countsAgree=True", Case.Sensitive);
@@ -269,7 +269,7 @@ public sealed class ManifestValidatorTests
     [Fact]
     public void An_audio_total_that_starts_disagreeing_with_no_record_is_reported()
     {
-        var mutated = ManifestFiles.WithAudioEdit("\"claimedSfx\": 94", "\"claimedSfx\": 95");
+        var mutated = ManifestFiles.WithAudioEdit("\"claimedSfx\": 86", "\"claimedSfx\": 87");
 
         var issues = ManifestValidator.Validate(mutated);
 

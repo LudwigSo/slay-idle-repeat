@@ -15,14 +15,18 @@ public sealed class CommandVocabularyTests
 {
     /// <summary>14 §2.3's Run table, transcribed by hand in the document's order.</summary>
     /// <remarks>
-    /// 22 rows since SHOP_LEAVE, SHRINE_CHOOSE and DICE_FORGE_CHOOSE were added to the registry
-    /// (52 -> 55), each carrying a tile choice no existing command could express.
+    /// 22 rows. SHOP_LEAVE and SHRINE_CHOOSE were added to the registry, each carrying a tile choice
+    /// no existing command could express; USE_REROLL and DICE_FORGE_CHOOSE were then removed with the
+    /// reroll and the die's special faces (55 -> 53); and USE_FIXED_DIE and CHOOSE_FIXED_DIE arrived
+    /// with the fixed dice that replaced them (53 -> 55) — a second way to MOVE, and the one door
+    /// every grant site's number choice is answered by.
     /// </remarks>
     public static readonly string[] RunCommandWireNames =
     {
         "START_RUN",
         "ROLL_DICE",
-        "USE_REROLL",
+        "USE_FIXED_DIE",
+        "CHOOSE_FIXED_DIE",
         "CHOOSE_FORK",
         "RESOLVE_TILE",
         "PICK_PERK",
@@ -32,7 +36,6 @@ public sealed class CommandVocabularyTests
         "SHOP_REFRESH",
         "SHOP_LEAVE",
         "SHRINE_CHOOSE",
-        "DICE_FORGE_CHOOSE",
         "EVENT_CHOOSE",
         "MINIGAME_SUBMIT",
         "CAMPFIRE_CHOOSE",
@@ -151,7 +154,8 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void Every_row_is_registered_under_the_kind_its_table_gives_it()
     {
-        RunCommandWireNames.Length.ShouldBe(22, "14 §2.3's run table, counted off the document.");
+        RunCommandWireNames.Length.ShouldBe(
+            22, "14 §2.3's run table, counted off the document.");
         MetaCommandWireNames.Length.ShouldBe(33, "14 §2.3's meta table, counted off the document.");
         Registry.Count.ShouldBe(55, "an emptied registry makes the sweep below silent, not red.");
 
@@ -298,7 +302,9 @@ public sealed class CommandVocabularyTests
             metaRows++;
         }
 
-        runRows.ShouldBe(22, "14 §2.3's run table has 22 rows.");
+        runRows.ShouldBe(
+            22,
+            "14 §2.3's run table: 22 rows again after two removals and two arrivals — see RunCommandWireNames.");
         metaRows.ShouldBe(33, "14 §2.3's meta table has 33 rows.");
 
         // Both sides by identity: the tier assertion above is satisfied by a table in which every
@@ -658,11 +664,11 @@ public sealed class CommandVocabularyTests
             return Array.Empty<AutoSalvageRule>();
         }
 
-        // DICE_FORGE_CHOOSE's optional pip count. A VALUE rather than null, on the SET_FOCUS
-        // precedent above and for the same reason: null exercises the "this option needs no pip
-        // count" path, and the sampled option index of 0 is the one option that does need one — so a
-        // null sample would make this row's generic build a request the handler must refuse for a
-        // reason unrelated to what the sweep is asking about.
+        // An optional integer payload. A VALUE rather than null, on the SET_FOCUS precedent above
+        // and for the same reason: a null sample would make a row's generic build a request the
+        // handler must refuse for a reason unrelated to what the sweep is asking about.
+        // ⚠️ DICE_FORGE_CHOOSE's pip count was the one row that reached this arm; no command carries
+        // an int? today, so this is a guard with nothing exercising it.
         if (type == typeof(int?))
         {
             return 6;

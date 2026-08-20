@@ -119,7 +119,7 @@
       }
     },
     "affixPool": {
-      "description": "08 §3.1 — 14 affixes, slot-restricted, rolled by rarity B and above. Three ids are authored in the design docs (AFX_CRIT_CHANCE, AFX_CRIT_DAMAGE, AFX_PEN); M4-03 derived the other eleven from the same AFX_<STAT> convention under a kickoff ruling, so the id is now required rather than nullable — a row that loses its id can no longer be rolled, and the schema says so instead of the reader discovering it.",
+      "description": "08 §3.1 — 13 affixes, slot-restricted, rolled by rarity B and above. ⚠️ Thirteen, not the document's fourteen: AFX_REROLL_CHARGE is gone with the reroll charge it granted, so RING and AMULET each have one fewer eligible affix. Three ids are authored in the design docs (AFX_CRIT_CHANCE, AFX_CRIT_DAMAGE, AFX_PEN); M4-03 derived the rest from the same AFX_<STAT> convention under a kickoff ruling, so the id is now required rather than nullable — a row that loses its id can no longer be rolled, and the schema says so instead of the reader discovering it.",
       "type": "object",
       "additionalProperties": false,
       "required": ["_doc", "affixes"],
@@ -127,8 +127,8 @@
         "_doc": { "type": "string", "minLength": 1 },
         "affixes": {
           "type": "array",
-          "minItems": 14,
-          "maxItems": 14,
+          "minItems": 13,
+          "maxItems": 13,
           "uniqueItems": true,
           "items": {
             "type": "object",

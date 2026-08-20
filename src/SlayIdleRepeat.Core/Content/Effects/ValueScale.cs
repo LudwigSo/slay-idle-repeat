@@ -66,20 +66,18 @@ public sealed record ValueScale
     /// <summary>The status <c>HAS_STATUS</c> and <c>STATUS_STACKS</c> read, by status id.</summary>
     /// <remarks>
     /// <para>
-    /// Closes a gap the original spec shipped with: <c>STATUS_STACKS</c> and <c>DIE_FACE_COUNT</c>
-    /// both take an argument, but no field existed to carry either, so a scale over either was
-    /// unexpressible. Recorded as an erratum.
+    /// Closes a gap the original spec shipped with: <c>STATUS_STACKS</c> takes an argument, but no
+    /// field existed to carry it, so a scale over it was unexpressible. Recorded as an erratum.
     /// </para>
     /// <para>
-    /// The same three keys a condition term already carries, with the same names, types and
-    /// meanings — no new vocabulary is introduced.
+    /// The same keys a condition term already carries, with the same names, types and meanings —
+    /// no new vocabulary is introduced.
     /// </para>
     /// <para>
-    /// Three loose keys rather than the condition evaluator's own arguments type, because that type
-    /// is internal under <c>Rules</c> and <c>Content</c> may not name <c>Rules</c>. The seam is
-    /// still reused rather than duplicated: a converter turns these three into the same arguments
-    /// the condition path builds, so a function can never answer differently to a scale than to a
-    /// condition.
+    /// Loose keys rather than the condition evaluator's own arguments type, because that type is
+    /// internal under <c>Rules</c> and <c>Content</c> may not name <c>Rules</c>. The seam is still
+    /// reused rather than duplicated: a converter turns these into the same arguments the condition
+    /// path builds, so a function can never answer differently to a scale than to a condition.
     /// </para>
     /// </remarks>
     public string? StatusId { get; init; }
@@ -89,9 +87,6 @@ public sealed record ValueScale
     /// reason it is optional there.
     /// </summary>
     public string? Category { get; init; }
-
-    /// <summary>The face kind <c>DIE_FACE_COUNT</c> counts.</summary>
-    public string? FaceKind { get; init; }
 
     /// <summary>
     /// <c>steps = min( floor( fn / per ), cap )</c>, with <paramref name="functionValue"/> rounded

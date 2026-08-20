@@ -1,8 +1,8 @@
 namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 
-/// <summary>The twelve parameters a trigger kind can carry, as a set — the C# statement of the partition the content schema states in JSON.</summary>
+/// <summary>The eleven parameters a trigger kind can carry, as a set — the C# statement of the partition the content schema states in JSON.</summary>
 /// <remarks>
-/// <see cref="Content.Effects.EffectTrigger"/> is one record with twelve nullable parameters. The
+/// <see cref="Content.Effects.EffectTrigger"/> is one record with eleven nullable parameters. The
 /// schema partitions authored triggers already, but a trigger built in code (the balance harness, a
 /// test, a built-in system effect) is outside that enforcement, so
 /// <see cref="TriggerCatalogue.Validate"/> restates the partition for those callers.
@@ -43,8 +43,8 @@ internal enum TriggerParameter
     /// <summary><c>ON_TILE_RESOLVED</c>.</summary>
     TILE_TYPE = 1 << 9,
 
-    /// <summary><c>ON_ROLL</c>.</summary>
-    FACE_KIND = 1 << 10,
+    // 1 << 10 was FACE_KIND, ON_ROLL's face filter. The die has no face kinds, so ON_ROLL takes
+    // no parameter at all and fires on every roll. The bit stays retired rather than reused.
 
     /// <summary><c>ON_PERK_TAKEN</c>.</summary>
     CATEGORY = 1 << 11,

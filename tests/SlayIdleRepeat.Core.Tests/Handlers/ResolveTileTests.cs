@@ -308,15 +308,21 @@ public sealed class ResolveTileTests
         again.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>A Dice Forge visit is acknowledged and left for <c>DICE_FORGE_CHOOSE</c>.</summary>
+    /// <summary>A Dice Forge visit is acknowledged and CLEARS the tile — the forge offers nothing.</summary>
+    /// <remarks>
+    /// ⚠️ It used to be left pending for <c>DICE_FORGE_CHOOSE</c>. The forge installed replacement
+    /// die faces, the die has no faces, and that command is gone — so leaving the tile pending would
+    /// wedge the run on it with nothing able to clear it. The kind is kept for a later repurposing.
+    /// </remarks>
     [Fact]
-    public void A_dice_forge_tile_is_acknowledged_and_left_for_the_choice()
+    public void A_dice_forge_tile_is_acknowledged_and_clears_itself()
     {
         var result = Resolve(TileWorlds.OnTile(TileKind.DiceForge));
 
         result.Accepted.ShouldBeTrue();
-        result.Events.ShouldBeEmpty("no die face is modified by walking in");
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe((int)TileKind.DiceForge);
+        result.Events.ShouldBeEmpty("walking into a forge grants nothing");
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(
+            RunSnapshots.NoPendingTile, "a tile nothing can resolve must not stay pending.");
     }
 
     /// <summary>
@@ -343,23 +349,26 @@ public sealed class ResolveTileTests
             left.NewState.Run!.Position, "the roll was accepted and the run stood still.");
     }
 
-    /// <summary>…and so can it off a Dice Forge it has used.</summary>
+    /// <summary>
+    /// …and so can it off a Dice Forge, which RESOLVE_TILE now clears by itself.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The load-bearing half is that the tile is no longer pending. The forge's mechanic is gone
+    /// and so is DICE_FORGE_CHOOSE, so nothing else can clear it — a forge that stayed pending would
+    /// wedge the run on the tile with no command able to move it.
+    /// </remarks>
     [Fact]
-    public void A_run_rolls_off_a_dice_forge_it_has_used()
+    public void A_dice_forge_clears_itself_and_the_run_rolls_off_it()
     {
         var open = Resolve(TileWorlds.OnTile(TileKind.DiceForge)).NewState;
 
-        var forged = SlayIdleRepeat.Core.GameRules.Apply(
-            open, new DiceForgeChooseCommand(FaceIndex: 1, OptionIndex: 0, HigherPipValue: 6),
-            TileWorlds.Context);
-
-        forged.Accepted.ShouldBeTrue("DICE_FORGE_CHOOSE was refused " + forged.Rejection);
+        open.Run!.HasPendingTile.ShouldBeFalse("a forge offers nothing, so it does not stay pending.");
 
         var rolled = SlayIdleRepeat.Core.GameRules.Apply(
-            forged.NewState, new RollDiceCommand(), TileWorlds.Context);
+            open, new RollDiceCommand(), TileWorlds.Context);
 
         rolled.Accepted.ShouldBeTrue(
-            "ROLL_DICE was refused " + rolled.Rejection + " from a forge the run had already used.");
+            "ROLL_DICE was refused " + rolled.Rejection + " from a forge the run had landed on.");
     }
 
     /// <summary>
@@ -390,18 +399,29 @@ public sealed class ResolveTileTests
     /// upgrade landing on the mere acknowledgement turns this red.
     /// </remarks>
     [Fact]
-    public void A_dice_forge_visit_changes_nothing_besides_the_pending_tile()
+    public void A_dice_forge_visit_owes_a_fixed_die_choice_and_moves_nothing_else()
     {
         var state = TileWorlds.OnTile(TileKind.DiceForge, gold: 500, currentHp: 40);
-        var before = BytesBesidesThePendingTile(state);
 
         var result = Resolve(state);
+        var run = result.NewState.Run!;
 
-        result.Events.ShouldBeEmpty("a forge visit that upgrades nothing announces nothing");
-        BytesBesidesThePendingTile(result.NewState).ShouldBe(
-            before,
-            "a Dice Forge visit moved something on the run. The acknowledgement decides nothing; " +
-            "DICE_FORGE_CHOOSE is what installs a face.");
+        result.Events.ShouldBeEmpty(
+            "the forge owes a choice rather than granting anything, so there is nothing to announce");
+
+        run.PendingFixedDieChoices.ShouldBe(
+            Core.Handlers.ResolveTile.DiceForgeFixedDiceGranted,
+            "a forge visit that owed nothing would be a tile the player walks over for free.");
+
+        run.FixedDice.ShouldBeEmpty(
+            "the forge owes a choice; it does not pick a number for the player.");
+
+        // 🔒 The wallet and the hero are the negative half, and they are read explicitly rather than
+        // through a whole-bytes comparison: the pending-choice counter is EXPECTED to move now, so a
+        // bytes pin would have to exclude it and would then stop watching it.
+        run.BalanceOf(CurrencyId.GOLD).ShouldBe(500L, "a forge visit costs nothing and pays nothing.");
+        run.CurrentHp.ShouldBe(40, "a forge visit does not touch the hero.");
+        run.HasPendingTile.ShouldBeFalse("nothing can clear the tile after this, so it clears itself.");
     }
 
     /// <summary>

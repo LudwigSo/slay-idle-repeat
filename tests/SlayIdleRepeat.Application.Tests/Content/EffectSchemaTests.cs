@@ -56,7 +56,10 @@ public sealed class EffectSchemaTests
         counts.Where(c => c.Value > 1).Select(c => c.Key)
               .ShouldBeEmpty("an op in two branches matches two oneOf branches and can never validate");
 
-        counts.Count.ShouldBe(44, "18 §11 — and S3's floor under the loops above");
+        counts.Count.ShouldBe(
+            41,
+            "18 §11 — and S3's floor under the loops above. ⚠️ 41, not the document's 42: "
+            + "REVEAL_TILES went with the tile preview (16 D42).");
     }
 
     /// <summary>The same partition over the 23 trigger kinds and the schema's trigger branches.</summary>
@@ -171,21 +174,13 @@ public sealed class EffectSchemaTests
             """
         },
         {
-            // STATUS_STACKS/DIE_FACE_COUNT valueScale functions need an argument (statusId/faceKind)
-            // that was originally offered with no field to carry it; conditionTerm's keys fill the gap.
+            // The STATUS_STACKS valueScale function needs an argument (statusId) that was originally
+            // offered with no field to carry it; conditionTerm's keys fill the gap.
             "18 §1.1 — a valueScale over STATUS_STACKS, which needs an argument",
             """
             { "id": "PK_SUNDERER", "op": "STAT_ADD_PCT", "stat": "DMG_PCT", "value": 0.05,
               "trigger": {"kind":"ALWAYS"}, "target": "CURRENT_TARGET",
               "valueScale": { "fn": "STATUS_STACKS", "per": 1, "cap": 5, "statusId": "SUNDER" } }
-            """
-        },
-        {
-            "18 §1.1 — a valueScale over DIE_FACE_COUNT, likewise",
-            """
-            { "id": "PK_STARGAZER", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.03,
-              "trigger": {"kind":"ALWAYS"}, "target": "SELF",
-              "valueScale": { "fn": "DIE_FACE_COUNT", "per": 1, "cap": null, "faceKind": "Star" } }
             """
         },
         {
@@ -248,14 +243,6 @@ public sealed class EffectSchemaTests
             """
         },
         {
-            "18 §7.9 — TILE_DICE_FORGE, a run/board op on a run trigger",
-            """
-            { "id": "TILE_DICE_FORGE_FACE", "op": "MODIFY_DIE_FACE", "faceIndex": "PLAYER_CHOICE",
-              "newFace": {"kind":"Pip","value":4}, "duration": {"scope":"RUN"},
-              "trigger": {"kind":"ON_TILE_RESOLVED","tileType":"TILE_DICE_FORGE"} }
-            """
-        },
-        {
             "18 §7.10 — PK_STALWART, an any over the attacker predicates",
             """
             { "id": "PK_STALWART_T1", "op": "DAMAGE_TAKEN_MULT", "value": 0.80,
@@ -309,13 +296,6 @@ public sealed class EffectSchemaTests
             """
         },
         {
-            "18 §9.2 — PET_DICEBEAST's ON_BATTLE_END die-face grant",
-            """
-            { "id": "PET_DICEBEAST_ACTIVE", "op": "MODIFY_DIE_FACE", "scope": "NEXT_3_ROLLS",
-              "newFace": {"kind":"Star"}, "trigger": {"kind":"ON_BATTLE_END","onlyIfWon":true} }
-            """
-        },
-        {
             "05 §3.1 — the built-in SYS_ENRAGE, expressed with no new concept",
             """
             { "id": "SYS_ENRAGE", "op": "STAT_MULT", "stat": "ATK", "value": 1.08,
@@ -329,13 +309,6 @@ public sealed class EffectSchemaTests
             """
             { "id": "BOSS_SPOREQUEEN_SPORELING_PRIORITY", "op": "SET_TARGET_PRIORITY", "value": -1,
               "trigger": {"kind":"ON_BATTLE_START"}, "target": "SELF" }
-            """
-        },
-        {
-            "18 §2.5 — the combat-context exception: MODIFY_DIE_FACE from a PERIODIC combat trigger",
-            """
-            { "id": "BOSS_DICELORD_SCRAMBLE", "op": "MODIFY_DIE_FACE", "newFace": {"kind":"Void"},
-              "trigger": {"kind":"PERIODIC","interval":15.0} }
             """
         },
 
@@ -445,21 +418,13 @@ public sealed class EffectSchemaTests
             """
         },
         {
-            "18 §4 — DIE_FACE_COUNT by face kind, and PERK_COUNT by category",
+            "18 §4 — PERK_COUNT by category, inside an all",
             """
             { "id": "PK_STARGAZER", "op": "STAT_ADD_PCT", "stat": "ATK", "value": 0.05,
               "trigger": {"kind":"ALWAYS"},
               "condition": { "all": [
-                  { "fn": "DIE_FACE_COUNT", "op": "gte", "value": 2, "faceKind": "Star" },
+                  { "fn": "GOLD_HELD", "op": "gte", "value": 100 },
                   { "fn": "PERK_COUNT", "op": "gte", "value": 3, "category": "OFFENSE" } ] } }
-            """
-        },
-        {
-            "18 §7.9 — the numbered faceIndex form (Weighted Faces), 1-based over 04 §1's six faces",
-            """
-            { "id": "TILE_WEIGHTED_FACES", "op": "MODIFY_DIE_FACE", "faceIndex": 6,
-              "newFace": {"kind":"Star"}, "duration": {"scope":"RUN"},
-              "trigger": {"kind":"ON_TILE_RESOLVED","tileType":"TILE_DICE_FORGE"} }
             """
         },
         {
@@ -821,7 +786,6 @@ public sealed class EffectSchemaTests
     // These argument keys are closed the same way: the enum member has to exist, and an
     // unrecognised key is a validation failure rather than a field that silently means nothing.
     [InlineData("\"fn\": \"STATUS_STACKS\", \"per\": 1, \"cap\": 1, \"statusId\": \"NOT_A_STATUS\"")]
-    [InlineData("\"fn\": \"DIE_FACE_COUNT\", \"per\": 1, \"cap\": 1, \"faceKind\": \"Sparkle\"")]
     [InlineData("\"fn\": \"STATUS_STACKS\", \"per\": 1, \"cap\": 1, \"arg\": \"SUNDER\"")]
     public void A_malformed_value_scale_is_rejected(string brokenScale)
     {
@@ -851,40 +815,14 @@ public sealed class EffectSchemaTests
         """).ShouldNotBeEmpty("the operand is the only edit");
     }
 
-    /// <summary>The die has six faces; the schema and <see cref="DieFaceIndex"/> agree on the bound.</summary>
-    [Theory]
-    [InlineData("0")]
-    [InlineData("7")]
-    [InlineData("\"RANDOM\"")]
-    public void A_face_index_outside_the_die_is_rejected(string faceIndex)
-    {
-        Validate("""
-        { "id": "TILE_WEIGHTED_FACES", "op": "MODIFY_DIE_FACE", "faceIndex": 6,
-          "newFace": {"kind":"Star"} }
-        """).ShouldBeEmpty("the control: face 6 is on the die");
-
-        Validate($$"""
-        { "id": "TILE_WEIGHTED_FACES", "op": "MODIFY_DIE_FACE", "faceIndex": {{faceIndex}},
-          "newFace": {"kind":"Star"} }
-        """).ShouldNotBeEmpty($"faceIndex {faceIndex} is the only edit");
-    }
-
     /// <summary>
-    /// The die face bounds are stated in three places — the schema's <c>faceIndex</c>,
-    /// <c>dieFace.value</c>, and <see cref="DieFaceIndex"/>'s constants — and nothing but this
-    /// test makes them agree.
+    /// The single-token enum the schema and the C# both restate. A small set, but a divergence in it
+    /// is a token nobody can author against a record that still declares it.
     /// </summary>
-    [Fact]
-    public void The_die_face_bounds_agree_between_the_schema_and_the_record()
-    {
-        Bound("faceIndex", "oneOf", 1).ShouldBe((DieFaceIndex.MinFace, DieFaceIndex.MaxFace));
-        Bound("dieFace", "properties", "value").ShouldBe((DieFaceIndex.MinFace, DieFaceIndex.MaxFace));
-    }
-
-    /// <summary>
-    /// The two single-token enums the schema and the C# both restate. Small sets, but a divergence
-    /// in one of them is a token nobody can author against a record that still declares it.
-    /// </summary>
+    /// <remarks>
+    /// ⚠️ It used to check <c>DieFaceScope</c> alongside it, off the <c>MODIFY_DIE_FACE</c> branch of
+    /// the <c>oneOf</c>. Both are gone with the die's special faces.
+    /// </remarks>
     [Fact]
     public void The_single_token_enums_agree_between_the_schema_and_the_C_sharp()
     {
@@ -894,20 +832,6 @@ public sealed class EffectSchemaTests
             Enum.GetNames<StatCapKind>().OrderBy(n => n, StringComparer.Ordinal),
             Case.Sensitive,
             "$defs/capKind and StatCapKind are two statements of one vocabulary");
-
-        Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
-        var dieFaceBranch = branches!.Items.Single(b =>
-        {
-            b.TryGetMember("properties", out var p);
-            p!.TryGetMember("op", out var op);
-            return op!.TryGetMember("const", out var c) && c!.AsText() == nameof(EffectOp.MODIFY_DIE_FACE);
-        });
-
-        dieFaceBranch.TryGetMember("properties", out var properties).ShouldBeTrue();
-        properties!.TryGetMember("scope", out var scope).ShouldBeTrue();
-        scope!.TryGetMember("enum", out var members).ShouldBeTrue();
-
-        members!.Items.Select(i => i.AsText()).ShouldBe(Enum.GetNames<DieFaceScope>());
     }
 
     /// <summary>Guards effect.schema.json under <c>ContentLoader.VocabularySchemas</c> — the one exemption in the repo with no mechanical expiry of its own.</summary>
@@ -960,31 +884,6 @@ public sealed class EffectSchemaTests
         return schema!;
     }
 
-    /// <summary>The <c>minimum</c>/<c>maximum</c> pair at a <c>$defs</c> path, for the bound checks.</summary>
-    /// <remarks>A numeric path segment indexes into a <c>oneOf</c>, so <c>faceIndex/oneOf/1</c> reaches the integer branch of the two forms.</remarks>
-    private static (int Minimum, int Maximum) Bound(string definition, params object[] path)
-    {
-        Schema.TryGetMember("$defs", out var defs).ShouldBeTrue();
-        defs!.TryGetMember(definition, out var node).ShouldBeTrue();
-
-        foreach (var segment in path)
-        {
-            if (segment is int index)
-            {
-                node = node!.Items[index];
-                continue;
-            }
-
-            node!.TryGetMember((string)segment, out var next).ShouldBeTrue($"$defs/{definition} has no '{segment}'");
-            node = next!;
-        }
-
-        node!.TryGetMember("minimum", out var minimum).ShouldBeTrue();
-        node.TryGetMember("maximum", out var maximum).ShouldBeTrue();
-
-        return (minimum!.AsInt32(), maximum!.AsInt32());
-    }
-
     /// <summary>The ordinal-sorted members of an <c>enum</c> keyword under <c>$defs</c>.</summary>
     private static IReadOnlyList<string> Members(params string[] path)
     {
@@ -1008,7 +907,7 @@ public sealed class EffectSchemaTests
         Schema.TryGetMember("oneOf", out var branches).ShouldBeTrue();
         // The count is asserted, not merely implied by the partition below, so a branch appearing
         // or vanishing is a decision.
-        branches!.Items.Count.ShouldBe(17, "18 §2's 44 ops partition into seventeen key shapes");
+        branches!.Items.Count.ShouldBe(16, "18 §2's 41 ops partition into sixteen key shapes");
 
         foreach (var branch in branches.Items)
         {

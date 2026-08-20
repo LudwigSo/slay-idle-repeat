@@ -428,14 +428,15 @@ public sealed class TriggerFiringTests
 
     // ------------------------------------------------------------------ run-layer filters
 
-    /// <summary>The six run-layer kinds' filters — declared and unit-tested here, fired by the run controller.</summary>
+    /// <summary>The run-layer kinds' filters — declared and unit-tested here, fired by the run controller.</summary>
+    /// <remarks>
+    /// ⚠️ <c>ON_ROLL</c> is absent: it carried a <c>faceKind</c> filter, and the die has no face kinds,
+    /// so the trigger fires on every roll and there is no filter left to match.
+    /// </remarks>
     [Theory]
     [InlineData(TriggerKind.ON_TILE_RESOLVED, "TILE_DICE_FORGE", "TILE_DICE_FORGE", nameof(TriggerOutcome.FIRES))]
     [InlineData(TriggerKind.ON_TILE_RESOLVED, "TILE_DICE_FORGE", "TILE_SHRINE", nameof(TriggerOutcome.FILTER_MISMATCH))]
     [InlineData(TriggerKind.ON_TILE_RESOLVED, null, "TILE_SHRINE", nameof(TriggerOutcome.FIRES))]
-    [InlineData(TriggerKind.ON_ROLL, "Star", "Star", nameof(TriggerOutcome.FIRES))]
-    [InlineData(TriggerKind.ON_ROLL, "Star", "STAR", nameof(TriggerOutcome.FILTER_MISMATCH))]
-    [InlineData(TriggerKind.ON_ROLL, "Star", "Pip", nameof(TriggerOutcome.FILTER_MISMATCH))]
     [InlineData(TriggerKind.ON_PERK_TAKEN, "OFFENSE", "OFFENSE", nameof(TriggerOutcome.FIRES))]
     [InlineData(TriggerKind.ON_PERK_TAKEN, "OFFENSE", "DEFENSE", nameof(TriggerOutcome.FILTER_MISMATCH))]
     public void A_run_layer_filter_is_matched_ordinally(
@@ -444,7 +445,6 @@ public sealed class TriggerFiringTests
         var trigger = kind switch
         {
             TriggerKind.ON_TILE_RESOLVED => new EffectTrigger { Kind = kind, TileType = authored },
-            TriggerKind.ON_ROLL => new EffectTrigger { Kind = kind, FaceKind = authored },
             _ => new EffectTrigger { Kind = kind, Category = authored },
         };
 
@@ -455,7 +455,6 @@ public sealed class TriggerFiringTests
             Kind = kind,
             Tick = 0,
             TileType = kind == TriggerKind.ON_TILE_RESOLVED ? occurred : null,
-            FaceKind = kind == TriggerKind.ON_ROLL ? occurred : null,
             Category = kind == TriggerKind.ON_PERK_TAKEN ? occurred : null,
         };
 

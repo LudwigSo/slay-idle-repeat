@@ -62,7 +62,7 @@ public sealed partial class GearAuthoringGapRegisterTests
         // ── the affix pool ────────────────────────────────────────────────────────────────────
         //
         // Thirteen of the fourteen affixes name a stat and a bucket. This is the one that cannot.
-        new(Drops + "#/affixPool/affixes/13/stat",
+        new(Drops + "#/affixPool/affixes/12/stat",
             "the +X% damage-vs-Elites affix",
             null,
             "Conditional damage. The stat block is fourteen unconditional combat stats and has no " +

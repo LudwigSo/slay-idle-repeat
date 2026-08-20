@@ -58,7 +58,7 @@ Respect the dependency direction: dependencies point inward and toward compositi
 Write the code well the first time, applying these quality bars as you go — not afterwards:
 
 - **No duplication.** If the same logic or object-construction appears twice, extract a private method, factory, or value object before moving on.
-- **Intent-revealing names.** Name classes, methods, and variables for what they mean in the game's own vocabulary — reuse the project's proper nouns (`Chapter`, `Stage`, `Tile`, `Perk`, `Talent`, `LegendLevel`, `Ghost`, `DieFace`, stat names, effect op/trigger/condition keywords) rather than inventing generic synonyms. Never borrow names from test files or use single-letter names outside tight loops.
+- **Intent-revealing names.** Name classes, methods, and variables for what they mean in the game's own vocabulary — reuse the project's proper nouns (`Chapter`, `Stage`, `Tile`, `Perk`, `Talent`, `LegendLevel`, `Ghost`, stat names, effect op/trigger/condition keywords) rather than inventing generic synonyms. Never borrow names from test files or use single-letter names outside tight loops.
 - **Right-sized methods.** Keep methods focused on one thing; split a method that grows past ~40 lines or does more than one job.
 - **Simplest structure that works.** Pick the data structure that fits the access pattern. Prefer early-return guard clauses over nested conditionals.
 - **Group values that travel together.** Model a snapshot/aggregate (a stat block, a loadout, a `CombatEvent`) as a `record`/value object instead of loose parameters.

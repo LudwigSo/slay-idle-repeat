@@ -235,9 +235,10 @@ public sealed class StageBoundaryTraversalTests
     /// happen.
     /// </para>
     /// <para>
-    /// Counted off the run's own Fair-Dice reset anchor moving — see
+    /// Counted off the stage each recorded tile belongs to — see
     /// <c>MetaLoopDriver.StageGatesCrossed</c> — rather than off a second reading of the boundary
-    /// rule, which would agree with a broken one.
+    /// rule, which would agree with a broken one. ⚠️ That counter measures the run's TRAVERSAL over
+    /// the boundaries, not the gate firing at them; <c>StageGateTriggerTests</c> owns that claim.
     /// </para>
     /// </remarks>
     [Fact]
@@ -259,9 +260,8 @@ public sealed class StageBoundaryTraversalTests
             driver.StageGatesCrossed.ShouldBe(
                 ExpectedStageGates,
                 "a run that travelled the whole board crossed " + driver.StageGatesCrossed +
-                " Stage Gates. One means the trigger narrowed back to the overshoot clamp; three " +
-                "means a roll that came to rest exactly on stage 3's last node gated on its way to " +
-                "the boss." + Trace(driver));
+                " stage boundaries. One means it never left stage 2; three means the step onto the " +
+                "boss was counted as a boundary, which it is not." + Trace(driver));
         }
     }
 

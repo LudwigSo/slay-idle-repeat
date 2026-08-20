@@ -41,9 +41,9 @@ public sealed class ShippedStoreTests
 
         // …but it is NOT a pass over an empty register: 1,080 rows were quantified over, and the
         // floor and the canaries were checked against them.
-        report.RegisteredAssets.ShouldBe(1080);
+        report.RegisteredAssets.ShouldBe(1072);
         report.RegisteredAssets.ShouldBeGreaterThanOrEqualTo(ProvenanceGate.MinimumRegisteredAssets);
-        report.ActiveAssets.ShouldBe(1048);
+        report.ActiveAssets.ShouldBe(1040);
         report.CutAssets.ShouldBe(32);
 
         report.Headline().ShouldStartWith("AWAITING FIRST DELIVERY", Case.Sensitive);

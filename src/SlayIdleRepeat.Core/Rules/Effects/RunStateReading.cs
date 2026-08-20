@@ -20,10 +20,6 @@ internal sealed record RunStateReading : IRunStateView
     public IReadOnlyDictionary<string, int> PerksByCategory { get; init; } =
         new Dictionary<string, int>(StringComparer.Ordinal);
 
-    /// <summary>Die faces, by face kind. Read by <see cref="DieFaceCount"/>.</summary>
-    public IReadOnlyDictionary<string, int> DieFacesByKind { get; init; } =
-        new Dictionary<string, int>(StringComparer.Ordinal);
-
     /// <inheritdoc />
     public int PetCount { get; init; }
 
@@ -95,13 +91,5 @@ internal sealed record RunStateReading : IRunStateView
                 $"the run's perk table sums to {total.ToString(System.Globalization.CultureInfo.InvariantCulture)}, which is not a perk count",
                 "18 §4 types PERK_COUNT as an int. A table this size is a construction defect, and " +
                 "silently truncating it would hand a scaled effect an arbitrary multiplier.");
-    }
-
-    /// <inheritdoc />
-    public int DieFaceCount(string faceKind)
-    {
-        ArgumentNullException.ThrowIfNull(faceKind);
-
-        return DieFacesByKind.TryGetValue(faceKind, out var held) ? held : 0;
     }
 }

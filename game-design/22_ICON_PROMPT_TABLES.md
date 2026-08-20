@@ -95,9 +95,7 @@ These IDs are shared with `04_DICE_SYSTEM.md` §5.
 | `PK_LOADED_DIE` | Loaded Die | a die with a small lead weight visible inside |
 | `PK_SECOND_THOUGHT` | Second Thought | a die with a circular refresh arrow around it |
 | `PK_MOMENTUM_DIE` | Momentum | four dice in a row, the last one glowing gold |
-| `PK_FORTUNES_FAVOUR` | Fortune's Favour | a four-leaf clover resting on a die face |
-| `PK_CHAINBREAKER` | Chainbreaker | a die trailing three chain links |
-| `PK_TWIN_FATES` | Twin Fates | two overlapping dice showing the same star face |
+⚠️ **The three rows here were `PK_FORTUNES_FAVOUR`, `PK_CHAINBREAKER` and `PK_TWIN_FATES`.** ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). Their perks are gone, so the icons are not owed.
 | `PK_WEIGHTED_FATE` | Weighted Fate | a die on a tilted balance scale |
 | `PK_DICELORD_GIFT` | The Dicelord's Gift | a golden die floating inside a masked figure's open palm |
 | `PK_PATHFINDER` | Pathfinder | a winding dotted path with a small flag at the end |
@@ -228,13 +226,11 @@ Hexagonal frame. Keystones (9) use a star-shaped frame at 1.4× size with an ani
 | 2 | Scavenger's Luck | two treasure chests, one ghosted behind the other |
 | 2 | Wanderer | a plain flagstone turning into a chest |
 | 2 | Cartography | an unrolled map corner with a compass |
-| 3 | **Weighted Faces** | a die face showing a 1 morphing into a 4 |
-| 3 | **Surging Fate** | a die face showing a lightning bolt |
+⚠️ **`Weighted Faces` and `Surging Fate` sat here.** ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41).
 | 3 | Rich Veins | a mineral vein glowing through rock |
 | 3 | Draft Insight | three cards fanned, the middle one glowing |
 | 3 | Lucky Streak | a comet trail of three small stars |
-| 4★ | **The Sixth Star** | a die's six face replaced by a radiant golden star |
-| 4★ | **Chainweaver** | a die trailing five chain links in a spiral |
+⚠️ **`The Sixth Star` and `Chainweaver` sat here** — two of the FORTUNE branch's keystones. ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). The keystone count moves with them.
 | 4★ | **Golden Fate** | a die's five face replaced by a clover over a coin |
 
 ---

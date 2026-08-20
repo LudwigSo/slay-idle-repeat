@@ -59,17 +59,17 @@ public sealed class StatSelectorTests
     }
 
     /// <summary>
-    /// Stated against a literal list: only naming the twelve non-combat stats can catch a stat that
+    /// Stated against a literal list: only naming the ten non-combat stats can catch a stat that
     /// moved sides, which silently changes what <c>ALL_COMBAT</c> selects.
     /// </summary>
     [Fact]
-    public void The_non_combat_stats_are_exactly_the_twelve_outside_the_actor_stat_block()
+    public void The_non_combat_stats_are_exactly_the_ten_outside_the_actor_stat_block()
     {
         StatIds.NonCombat.ShouldBe(
         [
             StatId.GOLD_PCT, StatId.CROWNS_PCT, StatId.DROP_CHANCE, StatId.RARITY_SHIFT,
-            StatId.ENERGY_REGEN_PCT, StatId.PET_AURA_PCT, StatId.REROLL_CHARGES,
-            StatId.TILE_PREVIEW, StatId.SHOP_PRICE_PCT, StatId.XP_PCT,
+            StatId.ENERGY_REGEN_PCT, StatId.PET_AURA_PCT,
+            StatId.SHOP_PRICE_PCT, StatId.XP_PCT,
             StatId.BEAST_FEED_PCT, StatId.STONE_PCT,
         ]);
     }

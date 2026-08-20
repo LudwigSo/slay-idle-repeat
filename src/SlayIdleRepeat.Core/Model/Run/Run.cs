@@ -162,12 +162,6 @@ public sealed class Run
     private int _draftsWithoutAboveCommon;
     private int _draftsWithoutOwnedUpgrade;
 
-    /// <summary>Reroll charges spent since the run's current stage began. Reset to 0 at every Stage Gate.</summary>
-    private int _rerollChargesSpentThisStage;
-
-    /// <summary>The <c>dice</c> stream draw index the run's current stage began at.</summary>
-    private ulong _stageGateDiceAnchor;
-
     /// <summary>A movement paused mid-move at a junction, waiting for <c>CHOOSE_FORK</c>. Null except while standing there.</summary>
     private PendingFork? _pendingFork;
 
@@ -219,28 +213,36 @@ public sealed class Run
     /// <inheritdoc cref="_curses"/>
     private readonly ReadOnlyCollection<string> _cursesView;
 
-    /// <summary>Run-scoped die-face replacements: 1-based face index → an opaque face code.</summary>
-    /// <remarks>
-    /// The code is an <c>int</c> for <see cref="_pendingTileKind"/>'s reason — the die vocabulary
-    /// belongs to <c>Rules.Dice</c> and `30` §11.4 forbids <c>Model</c> from naming it. This
-    /// aggregate enforces only what it can see: a face index inside 1..6 and a non-negative code.
-    /// </remarks>
-    private readonly Dictionary<int, int> _dieFaceUpgrades;
-
-    /// <inheritdoc cref="_dieFaceUpgrades"/>
-    private readonly ReadOnlyDictionary<int, int> _dieFaceUpgradesView;
-
     /// <summary>Held consumables: id → count. A zero count is removed, never stored.</summary>
     private readonly Dictionary<string, int> _consumables;
 
     /// <inheritdoc cref="_consumables"/>
     private readonly ReadOnlyDictionary<string, int> _consumablesView;
 
+    /// <summary>Fixed dice held: pips → count. A zero count is removed, never stored.</summary>
+    /// <remarks>
+    /// 🔒 A multiset rather than a list, and UNCAPPED. Two dice showing a 3 are the same holding
+    /// twice, so a count is the whole truth about them and a list would put an order into the bytes
+    /// that nothing means. No ceiling by ruling: a run may bank as many as it earns.
+    /// </remarks>
+    private readonly Dictionary<int, int> _fixedDice;
+
+    /// <inheritdoc cref="_fixedDice"/>
+    private readonly ReadOnlyDictionary<int, int> _fixedDiceView;
+
+    /// <summary>Fixed dice granted but not yet given a number by the player.</summary>
+    /// <remarks>
+    /// 🔒 A COUNT of outstanding choices, not a list of them, and it is the reason every grant site
+    /// can offer a real choice. Most of them have no command a number could ride on — an event
+    /// outcome is drawn by weight, a minigame reward is decided by play, an ad and a set bonus are
+    /// passive — so the grant records that a choice is owed and <c>CHOOSE_FIXED_DIE</c> answers it.
+    /// Non-blocking on purpose: an owed choice does not stop the run, unlike a pending draft, because
+    /// a grant can land in the middle of a shop visit the player is not finished with.
+    /// </remarks>
+    private int _pendingFixedDieChoices;
+
     /// <summary>Whether an Escape Rope is armed. A flag, not a count: only one may be armed at a time.</summary>
     private bool _escapeRopeArmed;
-
-    /// <summary>Reroll charges granted on top of the stage's base allotment. Reset at every Stage Gate.</summary>
-    private int _rerollChargesGrantedThisStage;
 
     /// <summary>Free perk-draft rerolls held, from Draft Tokens. Not per stage — held until spent.</summary>
     private int _freeDraftRerolls;
@@ -258,9 +260,6 @@ public sealed class Run
 
     /// <summary>Refreshes spent at the currently open shop. Per visit, not per run.</summary>
     private int _shopRefreshesUsedThisVisit;
-
-    /// <summary>Chain hops the current roll sequence has already taken. Zero when no chain is running.</summary>
-    private int _chainLinksTaken;
 
     /// <summary>The one constructor. Private; every value has already been checked by <see cref="Rehydrate"/>, the only caller.</summary>
     private Run(
@@ -287,8 +286,6 @@ public sealed class Run
         int draftBattleKind,
         int draftBattleStage,
         Dictionary<string, int> ownedPerkTiers,
-        int rerollChargesSpentThisStage,
-        ulong stageGateDiceAnchor,
         long bankedLegendXp,
         long bankedSoulShards,
         bool bossDefeated,
@@ -300,15 +297,14 @@ public sealed class Run
         List<string> shrineBuffs,
         List<string> runBuffs,
         List<string> curses,
-        Dictionary<int, int> dieFaceUpgrades,
         Dictionary<string, int> consumables,
+        Dictionary<int, int> fixedDice,
+        int pendingFixedDieChoices,
         bool escapeRopeArmed,
-        int rerollChargesGrantedThisStage,
         int freeDraftRerolls,
         ulong? shopOfferDraw,
         int shopSlotsPurchased,
-        int shopRefreshesUsedThisVisit,
-        int chainLinksTaken)
+        int shopRefreshesUsedThisVisit)
     {
         StartingLoadout = startingLoadout;
         _itemsAtOrAboveFloorBand = itemsAtOrAboveFloorBand;
@@ -341,8 +337,6 @@ public sealed class Run
         _draftBattleStage = draftBattleStage;
         _ownedPerkTiers = ownedPerkTiers;
         _draftedPerksView = new DraftedPerks(new ReadOnlyDictionary<string, int>(ownedPerkTiers));
-        _rerollChargesSpentThisStage = rerollChargesSpentThisStage;
-        _stageGateDiceAnchor = stageGateDiceAnchor;
         _bankedLegendXp = bankedLegendXp;
         _bankedSoulShards = bankedSoulShards;
         _bossDefeated = bossDefeated;
@@ -352,17 +346,16 @@ public sealed class Run
         _runBuffsView = new ReadOnlyCollection<string>(runBuffs);
         _curses = curses;
         _cursesView = new ReadOnlyCollection<string>(curses);
-        _dieFaceUpgrades = dieFaceUpgrades;
-        _dieFaceUpgradesView = new ReadOnlyDictionary<int, int>(dieFaceUpgrades);
         _consumables = consumables;
         _consumablesView = new ReadOnlyDictionary<string, int>(consumables);
+        _fixedDice = fixedDice;
+        _fixedDiceView = new ReadOnlyDictionary<int, int>(fixedDice);
+        _pendingFixedDieChoices = pendingFixedDieChoices;
         _escapeRopeArmed = escapeRopeArmed;
-        _rerollChargesGrantedThisStage = rerollChargesGrantedThisStage;
         _freeDraftRerolls = freeDraftRerolls;
         _shopOfferDraw = shopOfferDraw;
         _shopSlotsPurchased = shopSlotsPurchased;
         _shopRefreshesUsedThisVisit = shopRefreshesUsedThisVisit;
-        _chainLinksTaken = chainLinksTaken;
     }
 
     /// <summary>
@@ -525,9 +518,6 @@ public sealed class Run
     /// <remarks>A live view over the run's own map — see <see cref="_draftedPerksView"/>.</remarks>
     internal DraftedPerks DraftedPerks => _draftedPerksView;
 
-    /// <inheritdoc cref="_rerollChargesSpentThisStage"/>
-    internal int RerollChargesSpentThisStage => _rerollChargesSpentThisStage;
-
     /// <summary>Legend XP banked so far this run. See <see cref="_bankedLegendXp"/>.</summary>
     internal long BankedLegendXp => _bankedLegendXp;
 
@@ -536,9 +526,6 @@ public sealed class Run
 
     /// <summary>Whether this run's Boss has been killed. See <see cref="_bossDefeated"/>.</summary>
     internal bool BossDefeated => _bossDefeated;
-
-    /// <inheritdoc cref="_stageGateDiceAnchor"/>
-    internal ulong StageGateDiceAnchor => _stageGateDiceAnchor;
 
     /// <summary>Drafts picked from since one last offered a Legendary option.</summary>
     internal int DraftsSinceLegendaryOffered => _draftsSinceLegendaryOffered;
@@ -647,8 +634,6 @@ public sealed class Run
         _pendingEventCardId ?? string.Empty,
         _phase,
         _draftPending,
-        _rerollChargesSpentThisStage,
-        _stageGateDiceAnchor,
         _draftBattleKind,
         _draftBattleStage,
         CopyOwnedPerkTiers(_ownedPerkTiers),
@@ -663,18 +648,17 @@ public sealed class Run
         CopyIds(_shrineBuffs),
         CopyIds(_runBuffs),
         CopyIds(_curses),
-        CopyDieFaceUpgrades(_dieFaceUpgrades),
         CopyConsumables(_consumables),
+        CopyFixedDice(_fixedDice),
+        _pendingFixedDieChoices,
         _escapeRopeArmed,
-        _rerollChargesGrantedThisStage,
         _freeDraftRerolls,
         _shopOfferDraw,
         _shopSlotsPurchased,
-        _shopRefreshesUsedThisVisit,
-        _chainLinksTaken);
+        _shopRefreshesUsedThisVisit);
 
     /// <summary>
-    /// A defensive copy of a die-face upgrade map, run-buff list or consumable pouch — this
+    /// A defensive copy of a run-buff list or consumable pouch — this
     /// aggregate mutates its own in place, so a snapshot handed out uncopied would keep changing
     /// after it was taken.
     /// </summary>
@@ -689,8 +673,11 @@ public sealed class Run
         ids.Count == 0 ? NoIds : ids.ToArray();
 
     /// <inheritdoc cref="CopyIds"/>
-    private static IReadOnlyDictionary<int, int> CopyDieFaceUpgrades(Dictionary<int, int> upgrades) =>
-        upgrades.Count == 0 ? NoDieFaceUpgrades : new Dictionary<int, int>(upgrades);
+    private static IReadOnlyDictionary<int, int> CopyFixedDice(Dictionary<int, int> fixedDice) =>
+        fixedDice.Count == 0 ? NoFixedDice : new Dictionary<int, int>(fixedDice);
+
+    /// <inheritdoc cref="CopyIds"/>
+    private static readonly IReadOnlyDictionary<int, int> NoFixedDice = new Dictionary<int, int>(0);
 
     /// <inheritdoc cref="CopyIds"/>
     private static IReadOnlyDictionary<string, int> CopyConsumables(Dictionary<string, int> consumables) =>
@@ -700,9 +687,6 @@ public sealed class Run
 
     /// <inheritdoc cref="CopyIds"/>
     private static readonly IReadOnlyList<string> NoIds = Array.Empty<string>();
-
-    /// <inheritdoc cref="CopyIds"/>
-    private static readonly IReadOnlyDictionary<int, int> NoDieFaceUpgrades = new Dictionary<int, int>(0);
 
     /// <inheritdoc cref="CopyIds"/>
     private static readonly IReadOnlyDictionary<string, int> NoConsumables =
@@ -750,7 +734,6 @@ public sealed class Run
         RequirePendingFork(snapshot, faults);
         RequirePendingTile(snapshot, faults);
         RequirePhase(snapshot, faults);
-        RequireRerollCharges(snapshot, faults);
         RequireDraftBattle(snapshot, faults);
         var ownedPerkTiers = ReadOwnedPerkTiers(snapshot, faults);
         RequireBankedRewards(snapshot, faults);
@@ -760,18 +743,17 @@ public sealed class Run
         var shrineBuffs = ReadIdList(snapshot.ShrineBuffs, nameof(RunSnapshot.ShrineBuffs), allowDuplicates: true, faults);
         var runBuffs = ReadIdList(snapshot.RunBuffs, nameof(RunSnapshot.RunBuffs), allowDuplicates: true, faults);
         var curses = ReadIdList(snapshot.Curses, nameof(RunSnapshot.Curses), allowDuplicates: false, faults);
-        var dieFaceUpgrades = ReadDieFaceUpgrades(snapshot, faults);
         var consumables = ReadConsumables(snapshot, faults);
+        var fixedDice = ReadFixedDice(snapshot, faults);
         RequireGrantCounters(snapshot, faults);
         RequireShopVisit(snapshot, faults);
-        RequireChainLinks(snapshot, faults);
 
         // The `is null` arms are unreachable while `faults` is empty — every path that returns
         // null also adds a fault — but they are written as a pattern rather than as `!`
         // operators so the correlation is checked rather than asserted at the compiler.
         if (faults.Count > 0 || streams is null || adUses is null || resolvedMinigames is null ||
             ownedPerkTiers is null || startingLoadout is null || shrineBuffs is null ||
-            runBuffs is null || curses is null || dieFaceUpgrades is null || consumables is null)
+            runBuffs is null || curses is null || consumables is null || fixedDice is null)
         {
             return Result<Run>.Failure(
                 "This RunSnapshot is not a state the game can be in (" + Text(faults.Count) +
@@ -810,8 +792,6 @@ public sealed class Run
             snapshot.DraftBattleKind,
             snapshot.DraftBattleStage,
             ownedPerkTiers,
-            snapshot.RerollChargesSpentThisStage,
-            snapshot.StageGateDiceAnchor,
             snapshot.BankedLegendXp,
             snapshot.BankedSoulShards,
             snapshot.BossDefeated,
@@ -823,15 +803,14 @@ public sealed class Run
             shrineBuffs,
             runBuffs,
             curses,
-            dieFaceUpgrades,
             consumables,
+            fixedDice,
+            snapshot.PendingFixedDieChoices,
             snapshot.EscapeRopeArmed,
-            snapshot.RerollChargesGrantedThisStage,
             snapshot.FreeDraftRerolls,
             snapshot.ShopOfferDraw,
             snapshot.ShopSlotsPurchased,
-            snapshot.ShopRefreshesUsedThisVisit,
-            snapshot.ChainLinksTaken));
+            snapshot.ShopRefreshesUsedThisVisit));
     }
 
     // ------------------------------------------------------ the tile-state readers
@@ -889,54 +868,6 @@ public sealed class Run
         return failed ? null : read;
     }
 
-    /// <summary>
-    /// Reads the run-scoped die-face replacements: face index inside 1..6, code non-negative.
-    /// </summary>
-    /// <remarks>
-    /// What a code MEANS is <c>Rules.Dice.DieFaceCodec</c>'s, not this aggregate's — `30` §11.4
-    /// forbids <c>Model</c> from naming the die vocabulary, exactly as it forbids it naming the tile
-    /// one. So the bound checked here is the face index, which is a number this layer can reason
-    /// about, plus the one thing true of every code: it is not negative.
-    /// </remarks>
-    private static Dictionary<int, int>? ReadDieFaceUpgrades(RunSnapshot snapshot, List<string> faults)
-    {
-        if (snapshot.DieFaceUpgrades is null)
-        {
-            return new Dictionary<int, int>();
-        }
-
-        var read = new Dictionary<int, int>(snapshot.DieFaceUpgrades.Count);
-        var failed = false;
-
-        foreach (var (faceIndex, code) in snapshot.DieFaceUpgrades)
-        {
-            if (faceIndex is < MinFaceIndex or > MaxFaceIndex)
-            {
-                faults.Add(
-                    nameof(RunSnapshot.DieFaceUpgrades) + " names face " + Text(faceIndex) +
-                    ". 04 §1 numbers the die's faces " + Text(MinFaceIndex) + ".." + Text(MaxFaceIndex) +
-                    "; an upgrade to a face that does not exist would be installed on nothing and " +
-                    "read back as a die the player cannot roll.");
-                failed = true;
-                continue;
-            }
-
-            if (code < 0)
-            {
-                faults.Add(
-                    nameof(RunSnapshot.DieFaceUpgrades) + "[" + Text(faceIndex) + "] is " + Text(code) +
-                    ". A face code is a non-negative encoding of (kind, pips, tier); a negative one " +
-                    "decodes to no face at all.");
-                failed = true;
-                continue;
-            }
-
-            read[faceIndex] = code;
-        }
-
-        return failed ? null : read;
-    }
-
     /// <summary>Reads the held consumables: ids non-blank, counts strictly positive.</summary>
     /// <remarks>
     /// A zero count is a FAULT rather than a silently-dropped entry: the aggregate removes an
@@ -982,16 +913,63 @@ public sealed class Run
         return failed ? null : read;
     }
 
-    /// <summary>The two grant counters count grants, so neither is negative.</summary>
+    /// <summary>Reads the fixed dice held: every key a number the die can show, every count positive.</summary>
+    /// <remarks>
+    /// 🔒 The pip bound is checked here and the count bound with it, for <c>ReadConsumables</c>'s
+    /// reason: a zero count is a FAULT rather than a silently-dropped entry, because this aggregate
+    /// removes an exhausted holding instead of storing a zero — so two rows both meaning "none held"
+    /// would otherwise encode to different bytes.
+    /// </remarks>
+    private static Dictionary<int, int>? ReadFixedDice(RunSnapshot snapshot, List<string> faults)
+    {
+        if (snapshot.FixedDice is null)
+        {
+            return new Dictionary<int, int>();
+        }
+
+        var read = new Dictionary<int, int>(snapshot.FixedDice.Count);
+        var failed = false;
+
+        foreach (var (pips, count) in snapshot.FixedDice)
+        {
+            if (!Content.Dice.Die.IsPips(pips))
+            {
+                faults.Add(
+                    nameof(RunSnapshot.FixedDice) + " holds a die showing " + Text(pips) +
+                    ". 04 §1's die shows " + Text(Content.Dice.Die.MinPips) + ".." +
+                    Text(Content.Dice.Die.MaxPips) + "; a fixed die outside that range would move the " +
+                    "run a distance no roll could.");
+                failed = true;
+                continue;
+            }
+
+            if (count <= 0)
+            {
+                faults.Add(
+                    nameof(RunSnapshot.FixedDice) + "[" + Text(pips) + "] is " + Text(count) +
+                    ". A held count is at least one: this aggregate REMOVES an exhausted holding " +
+                    "rather than storing a zero, so two rows meaning 'none held' would otherwise " +
+                    "encode to different bytes.");
+                failed = true;
+                continue;
+            }
+
+            read[pips] = count;
+        }
+
+        return failed ? null : read;
+    }
+
+    /// <summary>The grant counter counts grants, so it is never negative.</summary>
     private static void RequireGrantCounters(RunSnapshot snapshot, List<string> faults)
     {
-        if (snapshot.RerollChargesGrantedThisStage < 0)
+        if (snapshot.PendingFixedDieChoices < 0)
         {
             faults.Add(
-                nameof(RunSnapshot.RerollChargesGrantedThisStage) + " is " +
-                Text(snapshot.RerollChargesGrantedThisStage) +
-                ". It counts charges GRANTED on top of the stage allotment; a negative grant would " +
-                "take away charges the base allotment already paid for.");
+                nameof(RunSnapshot.PendingFixedDieChoices) + " is " +
+                Text(snapshot.PendingFixedDieChoices) +
+                ". It counts fixed dice granted but not yet given a number, and a negative count " +
+                "would owe the player a choice they could never take.");
         }
 
         if (snapshot.FreeDraftRerolls < 0)
@@ -1044,29 +1022,6 @@ public sealed class Run
                 "run walks into.");
         }
     }
-
-    /// <summary>The chain-link count counts hops, so it is never negative.</summary>
-    /// <remarks>
-    /// No upper bound here: the cap is <c>Rules.Dice.FaceEffectResolver.ChainMaxLinks</c>, a number
-    /// perks are specified to be able to RAISE, so an aggregate-side ceiling would be a second
-    /// statement of a tunable rule and the two would disagree the day a perk moved it.
-    /// </remarks>
-    private static void RequireChainLinks(RunSnapshot snapshot, List<string> faults)
-    {
-        if (snapshot.ChainLinksTaken < 0)
-        {
-            faults.Add(
-                nameof(RunSnapshot.ChainLinksTaken) + " is " + Text(snapshot.ChainLinksTaken) +
-                ". It counts the Chain hops the current roll sequence has taken, and a negative " +
-                "count would push the chain cap further away the longer the sequence ran.");
-        }
-    }
-
-    /// <summary>04 §1 numbers the die's faces 1..6. Named here because <c>Model</c> may not reach the die vocabulary that declares them.</summary>
-    private const int MinFaceIndex = 1;
-
-    /// <inheritdoc cref="MinFaceIndex"/>
-    private const int MaxFaceIndex = 6;
 
     /// <summary>
     /// Reads the loadout the run started with. <c>null</c> is a <b>fault</b>, on the player
@@ -1835,18 +1790,18 @@ public sealed class Run
     /// <summary>The curses active on this run. Never holds one id twice — `19` Part E gives curses no stacking.</summary>
     public IReadOnlyList<string> Curses => _cursesView;
 
-    /// <summary>The run-scoped die-face replacements: 1-based face index → an opaque face code.</summary>
-    /// <remarks>Sparse: a face with no entry is still the starting die's.</remarks>
-    public IReadOnlyDictionary<int, int> DieFaceUpgrades => _dieFaceUpgradesView;
-
     /// <summary>Held consumables: id → count. Never holds a zero.</summary>
     public IReadOnlyDictionary<string, int> Consumables => _consumablesView;
 
+    /// <summary>The fixed dice this run holds: pips → count. Never holds a zero.</summary>
+    /// <remarks>Public because the Board screen draws them — the player picks which one to spend.</remarks>
+    public IReadOnlyDictionary<int, int> FixedDice => _fixedDiceView;
+
+    /// <summary>Fixed dice granted but not yet given a number. See <see cref="_pendingFixedDieChoices"/>.</summary>
+    public int PendingFixedDieChoices => _pendingFixedDieChoices;
+
     /// <summary>Whether an Escape Rope is armed and waiting to fire on the next landing.</summary>
     public bool EscapeRopeArmed => _escapeRopeArmed;
-
-    /// <summary>Reroll charges granted on top of the stage's base allotment. Reset at every Stage Gate.</summary>
-    internal int RerollChargesGrantedThisStage => _rerollChargesGrantedThisStage;
 
     /// <summary>Free perk-draft rerolls held.</summary>
     internal int FreeDraftRerolls => _freeDraftRerolls;
@@ -1859,31 +1814,6 @@ public sealed class Run
 
     /// <summary>Refreshes spent at the currently open shop.</summary>
     internal int ShopRefreshesUsedThisVisit => _shopRefreshesUsedThisVisit;
-
-    /// <summary>Chain hops the current roll sequence has already taken. Zero when no chain is running.</summary>
-    internal int ChainLinksTaken => _chainLinksTaken;
-
-    /// <summary>
-    /// Records where the roll sequence stands after one roll: one more link, or back to none.
-    /// </summary>
-    /// <param name="links">The new count. Never negative.</param>
-    /// <remarks>
-    /// Set rather than incremented, because every <c>ROLL_DICE</c> ends by answering this question
-    /// one way or the other — a chain continues, or it is over — and an increment-only seam would
-    /// leave the caller to remember a separate reset. Forgetting that reset is a run whose chain cap
-    /// is already spent on its first roll of every later turn.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="links"/> is negative.</exception>
-    internal void SetChainLinksTaken(int links)
-    {
-        if (links < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(links), links, "A chain-link count counts hops and is never negative.");
-        }
-
-        _chainLinksTaken = links;
-    }
 
     /// <summary>How many of the given consumable this run holds. Zero for one it holds none of.</summary>
     /// <exception cref="ArgumentNullException"><paramref name="consumableId"/> is null.</exception>
@@ -1975,36 +1905,6 @@ public sealed class Run
         return _curses.Remove(curseId);
     }
 
-    /// <summary>Installs a run-scoped die-face replacement, overwriting whatever stood at that index.</summary>
-    /// <param name="faceIndex">1-based, 1..6.</param>
-    /// <param name="faceCode">The opaque encoding of the replacement face. Never negative.</param>
-    /// <remarks>
-    /// Last write wins, which is <c>Rules.Dice.DieComposer</c>'s own rule for layered upgrade
-    /// sources: a second Dice Forge targeting a face the first already upgraded replaces it rather
-    /// than stacking, because a face IS one thing.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException">The index is outside 1..6, or the code is negative.</exception>
-    internal void UpgradeDieFace(int faceIndex, int faceCode)
-    {
-        if (faceIndex is < MinFaceIndex or > MaxFaceIndex)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(faceIndex), faceIndex,
-                "04 §1 numbers the die's faces " + Text(MinFaceIndex) + ".." + Text(MaxFaceIndex) + ".");
-        }
-
-        if (faceCode < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(faceCode), faceCode,
-                "A face code is a non-negative encoding of (kind, pips, tier). What it MEANS is " +
-                "Rules.Dice.DieFaceCodec's; 30 §11.4 keeps that vocabulary out of Model, so this is " +
-                "the only bound this aggregate can state.");
-        }
-
-        _dieFaceUpgrades[faceIndex] = faceCode;
-    }
-
     /// <summary>Adds held consumables to the pouch.</summary>
     /// <param name="consumableId">The consumable id. Never blank.</param>
     /// <param name="count">How many to add. Strictly positive.</param>
@@ -2057,29 +1957,84 @@ public sealed class Run
         return true;
     }
 
+    /// <summary>Records that the run has been granted a fixed die it has not yet numbered.</summary>
+    /// <param name="count">How many choices to owe. Strictly positive.</param>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="count"/> is not positive.</exception>
+    internal void GrantFixedDieChoices(int count)
+    {
+        if (count <= 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(count), count, "Owing zero or fewer choices is not a grant.");
+        }
+
+        _pendingFixedDieChoices += count;
+    }
+
+    /// <summary>Answers one owed choice by adding a fixed die showing <paramref name="pips"/>.</summary>
+    /// <returns>
+    /// <c>true</c> when a choice was owed and taken, <c>false</c> when none was — an answer rather
+    /// than a throw, on <see cref="ConsumeOne"/>'s precedent: "nothing owes you one" is a player
+    /// request the handler refuses, not a defect.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="pips"/> is not a number the die can show.</exception>
+    internal bool TakeFixedDieChoice(int pips)
+    {
+        RequirePips(pips);
+
+        if (_pendingFixedDieChoices <= 0)
+        {
+            return false;
+        }
+
+        _pendingFixedDieChoices--;
+        _fixedDice[pips] = _fixedDice.GetValueOrDefault(pips) + 1;
+
+        return true;
+    }
+
+    /// <summary>Spends one held fixed die showing <paramref name="pips"/>.</summary>
+    /// <returns><c>true</c> when one was spent, <c>false</c> when the run holds none of that number.</returns>
+    /// <remarks>The last one removes the entry rather than leaving a zero — see <c>ReadFixedDice</c> for why.</remarks>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="pips"/> is not a number the die can show.</exception>
+    internal bool SpendFixedDie(int pips)
+    {
+        RequirePips(pips);
+
+        if (!_fixedDice.TryGetValue(pips, out var held) || held <= 0)
+        {
+            return false;
+        }
+
+        if (held == 1)
+        {
+            _fixedDice.Remove(pips);
+        }
+        else
+        {
+            _fixedDice[pips] = held - 1;
+        }
+
+        return true;
+    }
+
+    /// <summary>The pip bound both fixed-die seams share.</summary>
+    private static void RequirePips(int pips)
+    {
+        if (!Content.Dice.Die.IsPips(pips))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(pips), pips,
+                "04 §1's die shows " + Text(Content.Dice.Die.MinPips) + ".." +
+                Text(Content.Dice.Die.MaxPips) + " pips.");
+        }
+    }
+
     /// <summary>Arms the Escape Rope. Idempotent: only one may ever be armed.</summary>
     internal void ArmEscapeRope() => _escapeRopeArmed = true;
 
     /// <summary>Clears the armed Escape Rope — it has fired, or the run has left the state it was armed for.</summary>
     internal void DisarmEscapeRope() => _escapeRopeArmed = false;
-
-    /// <summary>Grants reroll charges on top of the stage's base allotment.</summary>
-    /// <param name="charges">How many. Strictly positive.</param>
-    /// <remarks>
-    /// The stored cap of 5 (`04` §3) is not enforced here for <see cref="AddConsumable"/>'s reason —
-    /// it is <c>Rules.Dice.RerollEconomy</c>'s number, and this aggregate cannot reach it.
-    /// </remarks>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="charges"/> is not positive.</exception>
-    internal void GrantRerollCharges(int charges)
-    {
-        if (charges <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(charges), charges, "Granting zero or fewer charges is not a grant.");
-        }
-
-        _rerollChargesGrantedThisStage += charges;
-    }
 
     /// <summary>Grants free perk-draft rerolls — the Draft Token consumable's instant effect.</summary>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="rerolls"/> is not positive.</exception>
@@ -2197,28 +2152,18 @@ public sealed class Run
         }
     }
 
-    /// <summary>Records that one reroll charge was spent this stage. Called only after the caller has itself confirmed the reroll is affordable.</summary>
-    internal void SpendReroll() => _rerollChargesSpentThisStage++;
-
-    /// <summary>
-    /// Applies a Stage Gate: heals to the caller-computed hit points, refreshes reroll charges to the
-    /// stage's base allotment, and advances the Fair-Dice bag's reset anchor to this stage's start.
-    /// </summary>
+    /// <summary>Applies a Stage Gate: heals to the caller-computed hit points.</summary>
     /// <param name="healedCurrentHp">The hero's hit points after the Stage Gate heal — already computed and clamped by the caller.</param>
-    /// <param name="diceStreamPositionAtGate">The <c>dice</c> stream's draw index at the instant the gate fired.</param>
+    /// <remarks>
+    /// ⚠️ The heal is all a gate does to the run now. It used to refresh the stage's reroll charges
+    /// and re-anchor the Fair-Dice bag as well; both are gone with the reroll and the weighted draw,
+    /// and nothing was left in their place — an ordinary die needs no per-stage reset.
+    /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="healedCurrentHp"/> is negative or above <see cref="MaxHp"/>.</exception>
-    internal void ApplyStageGate(int healedCurrentHp, ulong diceStreamPositionAtGate)
+    internal void ApplyStageGate(int healedCurrentHp)
     {
         // Reuses SetHitPoints rather than writing _currentHp directly: one seam validates the pair.
         SetHitPoints(healedCurrentHp, _maxHp);
-        _rerollChargesSpentThisStage = 0;
-
-        // Campfire's +2 is "for the current stage only" (03 section 2), and a Reroll Token bought in
-        // stage 1 buys a charge for stage 1 -- so the GRANT resets here alongside the SPEND. Reset
-        // together or the two drift: clearing only the spend would hand the next stage every bonus
-        // charge the last one had, refreshed.
-        _rerollChargesGrantedThisStage = 0;
-        _stageGateDiceAnchor = diceStreamPositionAtGate;
     }
 
     /// <summary>The one seam that writes the per-stream draw counters: it replaces the whole map, and refuses a map that is not a superset of the one already committed.</summary>
@@ -2762,16 +2707,6 @@ public sealed class Run
                 nameof(RunSnapshot.Phase) + " is " + Text((int)snapshot.Phase) + ", which names no " +
                 "RunPhase member. A row outside the vocabulary is not a state Run.EnterBattle, " +
                 "Run.ExitBattle or a future M3-13 mutator could have written.");
-        }
-    }
-
-    private static void RequireRerollCharges(RunSnapshot snapshot, List<string> faults)
-    {
-        if (snapshot.RerollChargesSpentThisStage < 0)
-        {
-            faults.Add(
-                nameof(RunSnapshot.RerollChargesSpentThisStage) + " is " +
-                Text(snapshot.RerollChargesSpentThisStage) + ". A spent count is never negative.");
         }
     }
 

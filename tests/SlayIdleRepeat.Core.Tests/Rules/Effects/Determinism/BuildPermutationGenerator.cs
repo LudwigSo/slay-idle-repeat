@@ -109,10 +109,6 @@ internal static class BuildPermutationGenerator
         "SUNDER", "SPORE", "RAGE", "WARD", "HASTE", "REGEN",
     };
 
-    /// <summary>All six <c>DieFaceKind</c> values, as that enum spells them.</summary>
-    private static readonly IReadOnlyList<string> FaceKinds =
-        new List<string> { "Pip", "Star", "Surge", "Fortune", "Void", "Chain" };
-
     /// <summary>
     /// The six standard perk categories, spaces and punctuation included, because
     /// <c>IRunStateView.PerkCount</c> compares them ordinally. The hidden "Cursed" category is
@@ -324,11 +320,6 @@ internal static class BuildPermutationGenerator
         if (effect.ValueScale?.StatusId is not null)
         {
             yield return EffectVocabularyEmissionSets.ValueScaleStatusId;
-        }
-
-        if (effect.ValueScale?.FaceKind is not null)
-        {
-            yield return EffectVocabularyEmissionSets.ValueScaleFaceKind;
         }
 
         if (effect.ValueScale?.Category is not null)
@@ -590,13 +581,6 @@ internal static class BuildPermutationGenerator
                         Cap = 4,
                         StatusId = StatusIds[rng.Range(0, StatusIds.Count)],
                     }),
-                    ScaledFlat("EFF_EXT_M206_FAC", rng, new ValueScale
-                    {
-                        Fn = ConditionFunction.DIE_FACE_COUNT,
-                        Per = 1.0,
-                        Cap = 4,
-                        FaceKind = FaceKinds[rng.Range(0, FaceKinds.Count)],
-                    }),
                     ScaledFlat("EFF_EXT_M206_CAT", rng, new ValueScale
                     {
                         Fn = ConditionFunction.PERK_COUNT,
@@ -794,14 +778,6 @@ internal static class BuildPermutationGenerator
                 SourceCapPct = Rounded(rng, 0.10, 1.0),
             },
 
-            EffectOp.MODIFY_DIE_FACE => effect with
-            {
-                Value = null,
-                FaceIndex = rng.Range(0, 2) == 0 ? DieFaceIndex.At(1 + rng.Range(0, 6)) : DieFaceIndex.PlayerChoice,
-                NewFace = new DieFaceSpec(FaceKinds[rng.Range(0, FaceKinds.Count)]),
-                Scope = DieFaceScope.NEXT_3_ROLLS,
-            },
-
             _ => effect,
         };
     }
@@ -826,9 +802,6 @@ internal static class BuildPermutationGenerator
     {
         var statusId = function is ConditionFunction.HAS_STATUS or ConditionFunction.STATUS_STACKS
             ? StatusIds[rng.Range(0, StatusIds.Count)]
-            : null;
-        var faceKind = function == ConditionFunction.DIE_FACE_COUNT
-            ? FaceKinds[rng.Range(0, FaceKinds.Count)]
             : null;
 
         // PERK_COUNT's category is optional — a null category reads the whole perk table — so both
@@ -856,7 +829,6 @@ internal static class BuildPermutationGenerator
                     Value = Rounded(rng, 0.0, 4.0),
                     StatusId = statusId,
                     Category = category,
-                    FaceKind = faceKind,
                 };
 
             case 1:
@@ -869,7 +841,6 @@ internal static class BuildPermutationGenerator
                     RangeHigh = DeterminismRounding.Round(low + (rng.NextDouble() * 3.0)),
                     StatusId = statusId,
                     Category = category,
-                    FaceKind = faceKind,
                 };
 
             default:
@@ -880,7 +851,6 @@ internal static class BuildPermutationGenerator
                     Flag = rng.Range(0, 2) == 0,
                     StatusId = statusId,
                     Category = category,
-                    FaceKind = faceKind,
                 };
         }
     }
@@ -943,9 +913,6 @@ internal static class BuildPermutationGenerator
                 PerksByCategory = PerkCategories
                     .Take(1 + (index % PerkCategories.Count))
                     .ToDictionary(category => category, category => (index + category.Length) % 6, StringComparer.Ordinal),
-                DieFacesByKind = FaceKinds
-                    .Take(1 + (index % FaceKinds.Count))
-                    .ToDictionary(kind => kind, kind => (index + kind.Length) % 7, StringComparer.Ordinal),
             },
 
             // The combat RNG stream, with the battle seed HANDED IN. `runSeed` never enters this layer.
@@ -1021,9 +988,6 @@ internal static class BuildPermutationGenerator
             Cap = rng.Range(0, 5),
             StatusId = function is ConditionFunction.HAS_STATUS or ConditionFunction.STATUS_STACKS
                 ? StatusIds[rng.Range(0, StatusIds.Count)]
-                : null,
-            FaceKind = function == ConditionFunction.DIE_FACE_COUNT
-                ? FaceKinds[rng.Range(0, FaceKinds.Count)]
                 : null,
             Category = function == ConditionFunction.PERK_COUNT
                 ? PerkCategories[rng.Range(0, PerkCategories.Count)]

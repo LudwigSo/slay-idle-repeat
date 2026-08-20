@@ -19,8 +19,8 @@ namespace SlayIdleRepeat.Core.Tests;
 /// </remarks>
 public sealed class GameRulesFeatCounterTests
 {
-    private static DomainEvent Rolled(DieFaceKind kind) =>
-        new DiceRolled(DomainEvent.UnstampedSequence, DieFace.Special(kind));
+    private static DomainEvent Rolled(int pips) =>
+        new DiceRolled(DomainEvent.UnstampedSequence, pips);
 
     /// <summary>A slice whose player has drained banks, so a day of catch-up regenerates something.</summary>
     private static WorldSlice EmptyBanks() => new(
@@ -38,39 +38,39 @@ public sealed class GameRulesFeatCounterTests
         var state = Worlds.InARun();
 
         var result = Core.GameRules.Execute(
-            Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(DieFaceKind.Star), Rolled(DieFaceKind.Chain))),
+            Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(3), Rolled(5))),
             state,
             new Worlds.RunFixtureCommand(),
             Worlds.Context);
 
         result.Accepted.ShouldBeTrue();
         result.NewState.Player.FeatCount("dice_rolled").ShouldBe(2L);
-        result.NewState.Player.FeatCount("dice_rolled_star").ShouldBe(1L);
-        result.NewState.Player.FeatCount("dice_rolled_chain").ShouldBe(1L);
+        result.NewState.Player.FeatCount("dice_rolled_pips_3").ShouldBe(1L);
+        result.NewState.Player.FeatCount("dice_rolled_pips_5").ShouldBe(1L);
     }
 
     /// <summary>
     /// Two events of the SAME shape in one list count twice. The test above uses two different
-    /// faces, which an implementation folding one advance per distinct counter would also satisfy.
+    /// numbers, which an implementation folding one advance per distinct counter would also satisfy.
     /// </summary>
     [Fact]
     public void Two_identical_events_in_one_list_count_twice()
     {
         var result = Core.GameRules.Execute(
-            Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(DieFaceKind.Star), Rolled(DieFaceKind.Star))),
+            Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(3), Rolled(3))),
             Worlds.InARun(),
             new Worlds.RunFixtureCommand(),
             Worlds.Context);
 
-        result.NewState.Player.FeatCount("dice_rolled_star").ShouldBe(2L);
+        result.NewState.Player.FeatCount("dice_rolled_pips_3").ShouldBe(2L);
         result.NewState.Player.FeatCount("dice_rolled").ShouldBe(2L);
     }
 
     /// <summary>
     /// An event carrying a value no counter can be named for is a DEFECT out of <c>Apply</c>, not a
-    /// rejection: a handler that built a <c>DiceRolled</c> around an unset face has produced an
-    /// animation frame and a log row that mean nothing either, and answering the player a polite
-    /// "no" would leave that row in the stream.
+    /// rejection: a handler that built a <c>DiceRolled</c> around a number the die cannot show has
+    /// produced an animation frame and a log row that mean nothing either, and answering the player
+    /// a polite "no" would leave that row in the stream.
     /// </summary>
     [Fact]
     public void An_event_carrying_an_uncountable_value_is_a_defect_out_of_Apply()
@@ -81,14 +81,14 @@ public sealed class GameRulesFeatCounterTests
             new Worlds.RunFixtureCommand(),
             Worlds.Context));
 
-        thrown.Message.ShouldContain("04 §1 fixes DieFaceKind at six named members", Case.Sensitive);
+        thrown.Message.ShouldContain("04 §1's die shows 1..6 pips", Case.Sensitive);
     }
 
     /// <summary>The counters accumulate across commands: this is the point of them being aggregate state.</summary>
     [Fact]
     public void Counts_accumulate_across_commands()
     {
-        var table = Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(DieFaceKind.Star)));
+        var table = Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(3)));
         var state = Worlds.InARun();
 
         for (var i = 0; i < 3; i++)
@@ -96,7 +96,7 @@ public sealed class GameRulesFeatCounterTests
             state = Core.GameRules.Execute(table, state, new Worlds.RunFixtureCommand(), Worlds.Context).NewState;
         }
 
-        state.Player.FeatCount("dice_rolled_star").ShouldBe(3L);
+        state.Player.FeatCount("dice_rolled_pips_3").ShouldBe(3L);
     }
 
     /// <summary>
@@ -144,7 +144,7 @@ public sealed class GameRulesFeatCounterTests
         var state = Worlds.InARun();
 
         var result = Core.GameRules.Execute(
-            Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(DieFaceKind.Surge))),
+            Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(4))),
             state,
             new Worlds.RunFixtureCommand(),
             Worlds.Context);
@@ -213,12 +213,12 @@ public sealed class GameRulesFeatCounterTests
     [Fact]
     public void A_counter_survives_a_boundary_crossed_by_a_later_command()
     {
-        var table = Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(DieFaceKind.Star)));
+        var table = Worlds.RunTable((_, _) => HandlerResult.Accept(Rolled(3)));
 
         var state = Core.GameRules.Execute(
             table, Worlds.InARun(), new Worlds.RunFixtureCommand(), Worlds.Context).NewState;
 
-        state.Player.FeatCount("dice_rolled_star").ShouldBe(1L);
+        state.Player.FeatCount("dice_rolled_pips_3").ShouldBe(1L);
 
         var later = Core.GameRules.Execute(
             table,
@@ -229,6 +229,6 @@ public sealed class GameRulesFeatCounterTests
         later.NewState.Player.DailyPeriodStartUtc.ShouldBeGreaterThan(
             state.Player.DailyPeriodStartUtc, "the command crossed a game-day boundary.");
 
-        later.NewState.Player.FeatCount("dice_rolled_star").ShouldBe(2L);
+        later.NewState.Player.FeatCount("dice_rolled_pips_3").ShouldBe(2L);
     }
 }

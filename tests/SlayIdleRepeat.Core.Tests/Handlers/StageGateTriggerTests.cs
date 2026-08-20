@@ -1,10 +1,10 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Dice;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
-using SlayIdleRepeat.Core.Rules.Dice;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
@@ -65,8 +65,6 @@ public sealed class StageGateTriggerTests
     /// <summary>40 + round(100 × 0.15), the shipped Stage Gate heal.</summary>
     private const int HealedHp = 55;
 
-    private const int ChargesSpent = 3;
-
     /// <summary>A committed <c>dice</c> position for the cases that take no dice draw of their own.</summary>
     private const ulong DrawnAlready = 6UL;
 
@@ -93,7 +91,6 @@ public sealed class StageGateTriggerTests
             position: Board.SpineNode(StageOneLast - 1).Value,
             currentHp: WoundedHp,
             maxHp: MaxHp,
-            rerollChargesSpentThisStage: ChargesSpent,
             rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, dice))));
 
         result.Accepted.ShouldBeTrue();
@@ -106,11 +103,6 @@ public sealed class StageGateTriggerTests
             "node, which is what this case is about.");
 
         run.CurrentHp.ShouldBe(HealedHp, "the gate heals 15% of Max HP from " + WoundedHp + ".");
-        run.RerollChargesSpentThisStage.ShouldBe(0, "the gate refreshes the stage's reroll charges.");
-        run.StageGateDiceAnchor.ShouldBe(
-            dice + 1,
-            "the gate moves the Fair-Dice bag's reset anchor to the dice position it fired at, so " +
-            "the next stage's weights replay from this stage rather than from draw 0 of the run.");
     }
 
     /// <summary>
@@ -128,7 +120,6 @@ public sealed class StageGateTriggerTests
             position: Board.SpineNode(StageOneLast - 1).Value,
             currentHp: WoundedHp,
             maxHp: MaxHp,
-            rerollChargesSpentThisStage: ChargesSpent,
             rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, dice))));
 
         result.Accepted.ShouldBeTrue();
@@ -140,8 +131,6 @@ public sealed class StageGateTriggerTests
             "the premise: a three-step roll from one node short is clamped ON stage 1's last node.");
 
         run.CurrentHp.ShouldBe(HealedHp);
-        run.RerollChargesSpentThisStage.ShouldBe(0);
-        run.StageGateDiceAnchor.ShouldBe(dice + 1);
     }
 
     // ═════════════════════════════════════════════════════════ CHOOSE_FORK
@@ -162,7 +151,6 @@ public sealed class StageGateTriggerTests
             position: junction.Value,
             currentHp: WoundedHp,
             maxHp: MaxHp,
-            rerollChargesSpentThisStage: ChargesSpent,
             pendingForkJunctionPosition: junction.Value,
             pendingForkRemainingSteps: steps,
             rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, DrawnAlready))));
@@ -177,11 +165,6 @@ public sealed class StageGateTriggerTests
             "the premise: the resumed movement comes to rest ON stage 1's last node.");
 
         run.CurrentHp.ShouldBe(HealedHp);
-        run.RerollChargesSpentThisStage.ShouldBe(0);
-        run.StageGateDiceAnchor.ShouldBe(
-            DrawnAlready,
-            "CHOOSE_FORK draws no die of its own, so the anchor lands on the run's committed dice " +
-            "position — not on 0, which is where it started.");
     }
 
     // ═════════════════════════════════════════════════════════ the Portal jump
@@ -207,7 +190,6 @@ public sealed class StageGateTriggerTests
                 position: PortalBoard.SpineNode(PortalStart).Value,
                 currentHp: WoundedHp,
                 maxHp: MaxHp,
-                rerollChargesSpentThisStage: ChargesSpent,
                 pendingTileKind: (int)TileKind.Portal,
                 pendingTileLinearIndex: PortalStart,
                 pendingTileStage: 1,
@@ -227,11 +209,6 @@ public sealed class StageGateTriggerTests
             " comes to rest ON stage 1's last node.");
 
         run.CurrentHp.ShouldBe(HealedHp);
-        run.RerollChargesSpentThisStage.ShouldBe(0);
-        run.StageGateDiceAnchor.ShouldBe(
-            DrawnAlready,
-            "a Portal jump draws from the board stream, not the dice one, so the anchor lands on the " +
-            "run's committed dice position — not on 0, which is where it started.");
     }
 
     // ═════════════════════════════════════════════════════════ where it must NOT fire
@@ -248,7 +225,6 @@ public sealed class StageGateTriggerTests
             position: Board.SpineNode(0).Value,
             currentHp: WoundedHp,
             maxHp: MaxHp,
-            rerollChargesSpentThisStage: ChargesSpent,
             rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, dice))));
 
         result.NewState.Run!.Position.ShouldBe(
@@ -272,7 +248,6 @@ public sealed class StageGateTriggerTests
             position: Board.SpineNode(StageThreeLast - 1).Value,
             currentHp: WoundedHp,
             maxHp: MaxHp,
-            rerollChargesSpentThisStage: ChargesSpent,
             rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, dice))));
 
         result.NewState.Run!.Position.ShouldBe(
@@ -306,7 +281,6 @@ public sealed class StageGateTriggerTests
             position: Board.SpineNode(Board.Node(junction).LinearIndex - 1).Value,
             currentHp: WoundedHp,
             maxHp: MaxHp,
-            rerollChargesSpentThisStage: ChargesSpent,
             rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, dice))));
 
         result.NewState.Run!.Position.ShouldBe(
@@ -329,39 +303,12 @@ public sealed class StageGateTriggerTests
             position: Board.SpineNode(StageThreeLast).Value,
             currentHp: WoundedHp,
             maxHp: MaxHp,
-            rerollChargesSpentThisStage: ChargesSpent,
             rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, dice))));
 
         result.NewState.Run!.Position.ShouldBe(
             Board.SpineNode(BossNode).Value, "the premise: the run reached the boss node.");
 
         NoGateFired(result, dice);
-    }
-
-    // ═════════════════════════════════════════════════════════ the chain, and why it is not here
-
-    /// <summary>
-    /// 🔒 No face <c>ROLL_DICE</c> can roll today asks to roll again, which is why nothing here
-    /// crosses a stage boundary mid-chain.
-    /// </summary>
-    /// <remarks>
-    /// The handler rolls the starting die and nothing else, so a chain cannot be reached through any
-    /// command — the case that would assert "an exact landing on a stage's last node ends the chain"
-    /// cannot be built. This goes red on the commit that puts a rolling-again face within reach, and
-    /// that commit owes the case.
-    /// </remarks>
-    [Fact]
-    public void No_face_the_handler_can_roll_asks_to_roll_again()
-    {
-        var faces = DieComposer.StartingDie;
-
-        faces.Count.ShouldBe(6, "a die has six faces, and this claim is about all of them.");
-
-        faces.Select(face => FaceEffectResolver.Resolve(face)).ShouldAllBe(
-            outcome => !outcome.RollAgain,
-            "a face the handler can roll now asks to roll again, so a chain can carry a run over a " +
-            "stage boundary without stopping on it. Write the case: an exact landing on a stage's " +
-            "last node ends the chain and fires the gate.");
     }
 
     // ═════════════════════════════════════════════════════════ fixtures
@@ -406,12 +353,14 @@ public sealed class StageGateTriggerTests
         var reason = because ?? "a Stage Gate fired on a landing that crosses no stage boundary.";
         var run = result.NewState.Run!;
 
-        run.CurrentHp.ShouldBe(WoundedHp, reason + " The hero was healed.");
-        run.RerollChargesSpentThisStage.ShouldBe(
-            ChargesSpent, reason + " The stage's reroll charges were refreshed.");
-        run.StageGateDiceAnchor.ShouldBe(
-            0UL, reason + " The Fair-Dice anchor moved off 0, and only a gate moves it. (The dice " +
-            "stream stood at " + diceBefore + " before the command.)");
+        // ⚠️ The heal is the gate's ONLY observable now. It used to also refresh the stage's reroll
+        // charges and move the Fair-Dice reset anchor, and this control watched all three; both of
+        // those are gone with the reroll and the weighted draw, so an un-fired gate is now proven by
+        // the hero's hit points alone. A weaker control than it was, and named as such.
+        run.CurrentHp.ShouldBe(
+            WoundedHp,
+            reason + " The hero was healed, and only a gate heals here. (The dice stream stood at " +
+            diceBefore + " before the command.)");
     }
 
     /// <summary>The first junction along the spine — every board this size has one in stage 1.</summary>
@@ -454,16 +403,16 @@ public sealed class StageGateTriggerTests
             "; this fixture's seed needs revisiting.");
     }
 
-    /// <summary>The <c>dice</c> position whose replayed draw is exactly <paramref name="pip"/>.</summary>
+    /// <summary>The <c>dice</c> position whose draw is exactly <paramref name="pip"/>.</summary>
     private static ulong DicePositionDrawing(int pip)
     {
         for (var position = 0UL; position < 200; position++)
         {
-            var weights = FairDiceBag.Replay(Seed, resetAtDraw: 0, uptoDraw: position);
-            var (face, _) = FairDiceBag.Step(
-                DeterministicRng.OpenAt(Seed, RngStreams.Dice, position), weights);
+            var drawn = DeterministicRng
+                .OpenAt(Seed, RngStreams.Dice, position)
+                .Range(Die.MinPips, Die.MaxPips + 1);
 
-            if (face == pip)
+            if (drawn == pip)
             {
                 return position;
             }

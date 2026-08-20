@@ -177,9 +177,7 @@ internal static class EffectOpValidation
             case EffectOp.GRANT_ITEM:
             case EffectOp.GRANT_PERK:
             case EffectOp.UPGRADE_PERK:
-            case EffectOp.GRANT_REROLL:
             case EffectOp.MOVE_NODES:
-            case EffectOp.REVEAL_TILES:
             case EffectOp.RESOLVE_TILE_AGAIN:
             case EffectOp.MODIFY_SHOP:
             case EffectOp.MODIFY_DROP_TABLE:
@@ -187,17 +185,8 @@ internal static class EffectOpValidation
             case EffectOp.CLEANSE_CURSE:
                 break;
 
-            case EffectOp.MODIFY_DIE_FACE:
-                if (effect.NewFace is null)
-                {
-                    problems.Add("MODIFY_DIE_FACE names no newFace; 18 §7.9 replaces a face WITH one, and " +
-                                 "an effect with no replacement is a face deleted");
-                }
-
-                break;
-
             default:
-                problems.Add($"op {(int)effect.Op} is not one of 18 §2's 44");
+                problems.Add($"op {(int)effect.Op} is not one of 18 §2's 41");
                 break;
         }
 
@@ -212,13 +201,10 @@ internal static class EffectOpValidation
         Exclusive(effect, problems, effect.Archetype is not null, "archetype", EffectOp.SUMMON);
         Exclusive(effect, problems, effect.MaxAlive is not null, "maxAlive", EffectOp.SUMMON);
         Exclusive(effect, problems, effect.StatusTag is not null, "statusTag", EffectOp.REMOVE_STATUS);
-        Exclusive(effect, problems, effect.FaceIndex is not null, "faceIndex", EffectOp.MODIFY_DIE_FACE);
-        Exclusive(effect, problems, effect.NewFace is not null, "newFace", EffectOp.MODIFY_DIE_FACE);
-        Exclusive(effect, problems, effect.Scope is not null, "scope", EffectOp.MODIFY_DIE_FACE);
         Exclusive(effect, problems, effect.Outcomes is not null, "outcomes", EffectOp.RANDOM_OUTCOME);
 
         // The last two op-specific keys, checked as predicates rather than as the params array the
-        // other ten use: an array literal of four-plus constants here would emit a compiler-generated
+        // other eight use: an array literal of four-plus constants here would emit a compiler-generated
         // type into the global namespace that trips the namespace-boundary test.
         // REVIVE is excluded even though RulesFor gives it a row — its valueMode is SURVIVE_LETHAL's
         // alone; having a value-mode table entry isn't the same as admitting an authored valueMode.

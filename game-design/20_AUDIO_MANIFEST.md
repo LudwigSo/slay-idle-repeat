@@ -80,7 +80,9 @@ game audio, dry, no reverb tail, mono, no music
 ```
 
 ### 4.1 Dice (11)
-`sfx_die_pickup` *wooden die lifted* · `sfx_die_tumble` *die tumbling on wood, 0.8 s* · `sfx_die_land` *die landing with a solid clack* · `sfx_die_land_star` *clack with a bright magical chime* · `sfx_die_land_surge` *clack with an electric zap* · `sfx_die_land_fortune` *clack with coins jingling* · `sfx_die_land_void` *clack with a hollow reversed whoosh* · `sfx_die_land_chain` *clack with metal links rattling* · `sfx_reroll` *quick magical swirl and re-tumble* · `sfx_nudge` *soft click with a rising pitch* · `sfx_face_upgrade` *ascending chime with a metallic forge ring*
+`sfx_die_pickup` *wooden die lifted* · `sfx_die_tumble` *die tumbling on wood, 0.8 s* · `sfx_die_land` *die landing with a solid clack*
+
+⚠️ **Three rows, not eleven.** ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). The eight removed are the five per-face landings (`sfx_die_land_star` / `_surge` / `_fortune` / `_void` / `_chain`), `sfx_reroll`, `sfx_nudge` and `sfx_face_upgrade`. The register's SFX total moves 94 → 86 and its combined total 106 → 98.
 
 ### 4.2 Board & movement (12)
 `sfx_hop` *light footstep hop on stone* · `sfx_hop_mount` *heavier hoof-step* · `sfx_stage_gate` *rising fanfare, 1.2 s* · `sfx_tile_reveal` *soft paper flip* · `sfx_fork_choose` *decisive wooden thunk* · `sfx_portal_enter` *swirling whoosh* · `sfx_shrine` *warm ascending chime* · `sfx_curse` *low dissonant sting with a whisper* · `sfx_campfire` *crackling fire, 1 s* · `sfx_treasure_open` *chest lid creak then sparkle burst* · `sfx_shop_enter` *small shopkeeper bell* · `sfx_cache_open` *wooden crate pop with a creature chirp*

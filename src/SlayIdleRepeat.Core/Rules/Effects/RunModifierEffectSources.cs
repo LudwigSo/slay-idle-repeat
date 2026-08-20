@@ -242,8 +242,8 @@ internal sealed class RunBuffEffectSource : IEffectSource
 /// <summary>The <c>CURSES</c> source: the debuffs of `19` Part E's curses this run carries.</summary>
 /// <remarks>
 /// <para>
-/// Six of the twelve curses are a percentage move on one stat and contribute one effect each. The
-/// other six do not, and this source contributes NOTHING for them rather than approximating one —
+/// Six of the nine curses are a percentage move on one stat and contribute one effect each. The
+/// other three do not, and this source contributes NOTHING for them rather than approximating one —
 /// <see cref="CurseEffects.UnappliedReason"/> names the missing mechanism for each, and one of them
 /// (<c>CUR_SLIPPERY</c>) is honoured by the board instead, in <c>Handlers.RollDice</c>.
 /// </para>

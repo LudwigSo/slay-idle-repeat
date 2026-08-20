@@ -398,7 +398,6 @@ public sealed class RunLivenessTests
             TileKind.Campfire => new CampfireChooseCommand(choice),
             TileKind.Event when run.PendingEventCardId is { Length: > 0 } => new EventChooseCommand(choice),
             TileKind.Shrine => new ShrineChooseCommand(choice),
-            TileKind.DiceForge => new DiceForgeChooseCommand(1 + choice, 0, HigherPipValue: 6),
 
             // The shop is walked all the way through: stock, buy every slot the ladder reaches,
             // refresh, then leave. Every one of those is a command that can refuse, and a refusal

@@ -292,7 +292,7 @@ public sealed class PvpDuelTests
     [Fact]
     public void A_duel_discards_the_run_effect_queue()
     {
-        EffectOps.IsRunAndBoard(EffectOp.MODIFY_DIE_FACE).ShouldBeTrue("18 §2.5");
+        EffectOps.IsRunAndBoard(EffectOp.MOVE_NODES).ShouldBeTrue("18 §2.5");
 
         var pve = QueueFight(DuelRules(3, isPvp: false));
         var duel = QueueFight(DuelRules(3, isPvp: true));
@@ -578,12 +578,12 @@ public sealed class PvpDuelTests
             services => BattleSeams.Strict with { Attack = new RecordingAttackPipeline(services, 1.0) },
             rules));
 
-    /// <summary>Dicelord Scramble's shape — the sanctioned combat trigger carrying a run op.</summary>
+    /// <summary>The sanctioned shape: a combat trigger carrying a run/board op.</summary>
     private static HeldEffect Scramble(string id, TriggerKind kind) =>
         new(new EffectDefinition
         {
             Id = id,
-            Op = EffectOp.MODIFY_DIE_FACE,
+            Op = EffectOp.MOVE_NODES,
             Trigger = new EffectTrigger { Kind = kind },
         });
 

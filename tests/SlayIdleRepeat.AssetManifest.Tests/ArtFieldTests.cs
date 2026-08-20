@@ -281,7 +281,7 @@ public sealed class ArtFieldTests
     {
         var ids = ManifestFiles.Shipped.AllIds;
 
-        ids.Count.ShouldBe(974 + 106);
+        ids.Count.ShouldBe(974 + 98);
         ids.Distinct(StringComparer.Ordinal).Count().ShouldBe(ids.Count);
     }
 

@@ -187,13 +187,15 @@ Both mean **the ad build cannot be produced by a plain one-click Godot export.**
 
 ### 4.1 In-run placements (13)
 
+⚠️ Placement 5 was `AD_REROLL_DICE`, removed with the reroll (`04` §5, `16` D41), which briefly took the list to 12 and the in-run impression cap to 15. `AD_FIXED_DIE` takes the same seat with the same cap (`16` D42), so both numbers are restored — 13 placements, cap 17.
+
 | # | ID | Trigger point | Reward | Cap |
 |---|---|---|---|---|
 | 1 | `AD_REVIVE` | Hero reaches 0 HP | Revive at 50% Max HP, restart that battle, 2 s invulnerability. **Works on bosses.** 🔒 | **1 per run** |
 | 2 | `AD_DOUBLE_RUN_REWARDS` | Run results screen | ×2 all banked run rewards | 1 per run |
 | 3 | `AD_REROLL_PERK` | Perk draft screen | Reroll the 3 options | 2 per run |
 | 4 | `AD_EXTRA_PERK_CHOICE` | Perk draft screen | Add a 4th option from a rarity-upgraded pool | 1 per run |
-| 5 | `AD_REROLL_DICE` | After the die settles | Free reroll, doesn't consume a charge | 2 per run |
+| 5 | `AD_FIXED_DIE` | Board screen, any time | **+1 fixed die** — the player names its number (`04` §6.2) | 2 per run |
 | 6 | `AD_SHOP_REFRESH` | Shop tile, after the free refresh | Refresh all 4 offers | 2 per run |
 | 7 | `AD_SHOP_FREEBIE` | Shop tile | Take one offer for free | 1 per run |
 | 8 | `AD_SKIP_CURSE` | Landing on `TILE_CURSE` | Nullify the curse, keep any attached reward | 1 per run |

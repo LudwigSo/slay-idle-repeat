@@ -18,12 +18,16 @@ Schema is defined in `03_BOARD_AND_TILES.md` §5. `w` = outcome weight. Costs an
 |---|---|---|---|---|
 | 1 | `EVT_WELL` | The Wishing Well | *Coins glitter under black water.* | **Toss 100 Gold** → 60% random perk / 40% +40 Crowns · **Reach in** (−10% HP) → 70% +3 Enhance Stones / 30% curse `Slippery` · **Walk away** |
 | 2 | `EVT_SIGNPOST` | A Rotted Signpost | *Three arms. Two have fallen off.* | **Follow the standing arm** → move forward 3 nodes · **Search the fallen ones** → +150 Gold, +1 curse chance 25% · **Ignore it** |
-| 3 | `EVT_TRAVELLER` | The Tired Traveller | *He offers his pack. He does not offer his name.* | **Trade 200 Gold** → a random B-or-better gear item · **Rob him** → +400 Gold, curse `Marked` (enemies +10% ATK this stage) · **Share your rations** (−5% HP) → +2 Reroll Charges |
+| 3 | `EVT_TRAVELLER` | The Tired Traveller | *He offers his pack. He does not offer his name.* | **Trade 200 Gold** → a random B-or-better gear item · **Rob him** → +400 Gold, curse `Marked` (enemies +10% ATK this stage) · **Share your rations** (−5% HP) → **2 fixed dice** (was *+2 Reroll Charges*; `04` §6) | |
 | 4 | `EVT_SHRINE_CRACKED` | A Cracked Shrine | *Something used to live in here.* | **Pray** → 50% +15% Max HP / 50% −10% DEF, both for the run · **Repair it** (150 Gold) → +12% Max HP guaranteed · **Leave** |
 | 5 | `EVT_BEEHIVE` | Sunlit Hive | *The buzzing is louder than it should be.* | **Take the honey** (−8% HP) → heal 30% HP after the next battle, +2 Beast Feed ×20 · **Smoke it out** (100 Gold) → +40% of the above, no HP cost · **Leave** |
 | 6 | `EVT_LOST_PUP` | A Lost Whelp | *It follows you three paces, then stops.* | **Feed it** (−80 Gold) → 35% Pet Egg / 65% +60 Beast Feed · **Leave it** → nothing · **Take it with you** → +5% pet aura power this run |
 | 7 | `EVT_MERCHANT_CART` | Overturned Cart | *The wheels are still spinning.* | **Loot it** → +250 Gold, 20% chance of an ambush battle · **Right the cart** (−5% HP) → the next Shop tile has 6 slots · **Move on** |
-| 8 | `EVT_OLD_SOLDIER` | The Old Soldier | *"Tried this road once. Didn't like it."* | **Ask about the road** → reveal all tiles in this stage · **Ask about his armour** (250 Gold) → +15% DEF for the run · **Ask nothing** → +1 Reroll Charge |
+⚠️ **Three of Part A's outcomes granted Reroll Charges and now grant fixed dice** (`04` §6): `EVT_TRAVELLER`'s *Share your rations* (+2), `EVT_OLD_SOLDIER`'s *Ask nothing* (+1) and `EVT_STARFALL`'s *Avoid it* (+1). Two more are NOT converted: `EVT_TAX`'s toll needs a proportional cost the flat cost field cannot express, and `EVT_STORM`'s *lose a charge to heal* needs a way to take a die back, which a card cannot have — it does not know which of the player's dice it gave them.
+
+🔒 **Three options are REMOVED OUTRIGHT, and will not be replaced.** Every *reveal the tiles* option — `EVT_OLD_SOLDIER`'s *Ask about the road*, `EVT_ARCHIVE`'s *Read the maps* and `EVT_LAST_LAMP`'s *Take it* — is deleted from `content/board_events/board_events.json`, not deferred and not left paying nothing. The board is completely visible at all times (`04` §4, `16` D42), so what they offered cannot exist, and a card that lists an option paying nothing asks the player to make a choice that is not one. **Those three cards therefore offer two options each, and the rows below are the design's record of what they used to offer.** ⚠️ This is the first place the shipped card data deliberately holds FEWER options than this table lists; option order is load-bearing (`EVENT_CHOOSE` names an option by index) and a removal renumbers those after it, which is safe only because an index rides one transient command and is persisted nowhere.
+
+| 8 | `EVT_OLD_SOLDIER` | The Old Soldier | *"Tried this road once. Didn't like it."* | **Ask about his armour** (250 Gold) → +15% DEF for the run · **Ask nothing** → **1 fixed die** (was *+1 Reroll Charge*; `04` §6) · ⚠️ **Two options, not three** — *Ask about the road* → *reveal all tiles in this stage* is **REMOVED OUTRIGHT** and will not be replaced: the board is completely visible at all times (`04` §4, `16` D42), so what it offered cannot exist, and a card listing an option that pays nothing asks the player to make a choice that is not one. | |
 | 9 | `EVT_MUSHROOM_RING` | A Ring of Mushrooms | *Fairy circle. Or just fungus.* | **Step inside** → 40% teleport forward 5 nodes / 40% +200 Crowns / 20% curse `Dizzy` (−1 to Pip rolls, 3 rolls) · **Harvest** → +25 Beast Feed · **Step around** |
 | 10 | `EVT_STONE_FACE` | The Weeping Stone | *Water runs from its eyes. It has been doing this a while.* | **Drink** → heal 25% Max HP · **Chisel it** (−10% HP) → +1 Enhance Stone ×5 · **Sit with it** → +8% Healing Received for the run |
 
@@ -37,25 +41,25 @@ Schema is defined in `03_BOARD_AND_TILES.md` §5. `w` = outcome weight. Costs an
 | 14 | `EVT_TWO_DOORS` | Two Doors, One Key | *The key is warm.* | **Left door** → a Treasure tile's contents, doubled · **Right door** → a free perk draft with upgraded rarity · **Melt the key** → +6 Enhance Stones |
 | 15 | `EVT_BATTLEFIELD` | An Old Battlefield | *Nobody buried them.* | **Loot the dead** → 2 random gear items, C–B rarity · **Bury them** (costs 20 s of run time, no mechanical cost) → +15% Max HP for the run · **Salt the ground** (−200 Gold) → next 3 enemies have −20% ATK |
 | 16 | `EVT_MIRROR` | A Standing Mirror | *Your reflection is a half-second late.* | **Touch it** → copy your highest stat bonus onto your lowest stat · **Break it** → +500 Gold, curse `Fractured` (−8% DEF, run) · **Turn it around** → nothing |
-| 17 | `EVT_TAX` | The Toll Collector | *He has no authority. He does have a large friend.* | **Pay** (15% of current Gold) → pass, +1 Reroll Charge · **Refuse** → elite battle, keep everything · **Haggle** (roll 4+) → pay half, else pay double |
+| 17 | `EVT_TAX` | The Toll Collector | *He has no authority. He does have a large friend.* | **Pay** (15% of current Gold) → pass, +1 fixed die ⚠️ **the whole option is unapplied**: the reward half is payable now (`04` §6) and the 15% proportional cost is not expressible, and paying a reward without its cost makes an option strictly good. · **Refuse** → elite battle, keep everything · **Haggle** (roll 4+) → pay half, else pay double |
 | 18 | `EVT_SPRING` | A Hot Spring | *Steam, and no one else for miles.* | **Bathe** → heal 50% Max HP, +5% Max HP for the run · **Fill your flask** → gain a Health Draught consumable ×2 · **Both** (−250 Gold) |
-| 19 | `EVT_ARCHIVE` | A Buried Archive | *Wet paper. Some of it legible.* | **Read the combat notes** → +1 tier on one owned perk · **Read the maps** → reveal all tiles for the rest of this stage · **Sell the lot** → +400 Crowns |
-| 20 | `EVT_STORM` | Gathering Storm | *You have maybe two minutes.* | **Run for it** → move forward 4 nodes, skip their content · **Shelter** (lose 1 Reroll Charge) → heal 20% HP · **Walk through it** (−15% HP) → +25% ATK for the rest of the stage |
+| 19 | `EVT_ARCHIVE` | A Buried Archive | *Wet paper. Some of it legible.* | **Read the combat notes** → +1 tier on one owned perk · **Sell the lot** → +400 Crowns · ⚠️ **Two options, not three** — *Read the maps* → *reveal all tiles for the rest of this stage* is **REMOVED OUTRIGHT** and will not be replaced: the board is completely visible at all times (`04` §4, `16` D42), so what it offered cannot exist, and a card listing an option that pays nothing asks the player to make a choice that is not one. |
+| 20 | `EVT_STORM` | Gathering Storm | *You have maybe two minutes.* | **Run for it** → move forward 4 nodes, skip their content · **Shelter** (lose 1 Reroll Charge) → heal 20% HP ⚠️ **unapplied**: a fixed die replaced the reroll charge but is not the same resource, and a card cannot choose which of the player's dice to take — so the cost cannot be paid and the heal is deliberately not given either. · **Walk through it** (−15% HP) → +25% ATK for the rest of the stage |
 
 ## A3. Chapters 6–8 (late)
 
 | # | ID | Title | Body | Options |
 |---|---|---|---|---|
-| 21 | `EVT_ORACLE` | The Blind Oracle | *"You will roll a four." You have not rolled yet.* | **Ask about the boss** → the boss starts at 90% HP · **Ask about yourself** → +1 tier on two owned perks · **Ask about the die** → one die face upgraded for the run |
+| 21 | `EVT_ORACLE` | The Blind Oracle | *"You will roll a four." You have not rolled yet.* | **Ask about the boss** → the boss starts at 90% HP · **Ask about yourself** → +1 tier on two owned perks · **Ask about the die** → ~~one die face upgraded for the run~~ ⚠️ the die has no faces (`04` §5); owed a replacement |
 | 22 | `EVT_BARGAIN` | An Even Bargain | *Nothing is written down.* | **Give 25% Max HP** → +45% ATK for the run · **Give 30% ATK** → +60% Max HP for the run · **Give nothing** → +150 Crowns |
 | 23 | `EVT_SPORE_FIELD` | A Field of Caps | *They lean toward you.* | **Walk through** → 3 `SPORE` stacks, +600 Crowns · **Burn a path** (−300 Gold) → safe passage, +2 Beast Feed ×50 · **Go around** → lose 2 nodes of progress |
 | 24 | `EVT_AUTOMATON` | A Stopped Automaton | *One gear short.* | **Give it a gear** (−6 Enhance Stones) → it fights alongside you for 3 battles · **Strip it** → +10 Enhance Stones, +300 Crowns · **Wind it up** → 50% it helps / 50% it attacks (elite battle) |
-| 25 | `EVT_STARFALL` | Starfall | *Something lands two nodes ahead.* | **Investigate** → move to that node, guaranteed S-rarity gear · **Avoid it** → +1 Reroll Charge · **Watch from here** → +8% all stats for the run |
+| 25 | `EVT_STARFALL` | Starfall | *Something lands two nodes ahead.* | **Investigate** → move to that node, guaranteed S-rarity gear · **Avoid it** → **1 fixed die** (was *+1 Reroll Charge*; `04` §6) · · **Watch from here** → +8% all stats for the run |
 | 26 | `EVT_DEBT` | A Collector's Ledger | *Your name is in it. You have never been here.* | **Pay in Gold** (all of it) → +30% all stats for the run · **Pay in blood** (−35% current HP) → 2 S-rarity gear items · **Tear out the page** → curse `Hunted` (all elites gain a modifier) |
 | 27 | `EVT_TWIN` | Someone Wearing Your Face | *They are also surprised.* | **Fight** → duel a copy of your own build (elite-tier rewards ×2) · **Trade** → swap your lowest-value gear for a random A item · **Walk past** → +12% Dodge for the run |
 | 28 | `EVT_CLOCKTOWER` | The Clock That Runs Back | *The hands move the wrong way. Slowly.* | **Wind it forward** → skip to the next stage immediately, keep all rewards banked so far · **Wind it back** → replay the last 3 tiles with new contents · **Smash it** → +800 Crowns, curse `Untimely` (−15% ASPD, run) |
-| 29 | `EVT_LAST_LAMP` | The Last Lamp | *It is the only light for a long way.* | **Take it** → tile preview +6 for the run, all `TILE_CURSE` in this stage are revealed · **Leave it lit** → heal 40% Max HP · **Extinguish it** (−10% HP) → +40% Crit Damage for the run |
-| 30 | `EVT_DICELORD_OFFER` | An Offer, Unsigned | *A single golden die on a flat stone.* | **Take it** → one die face becomes `Star` for the run, and the boss gains +15% ATK · **Roll it** → 50% both above / 50% neither · **Leave it** → +1,000 Crowns |
+| 29 | `EVT_LAST_LAMP` | The Last Lamp | *It is the only light for a long way.* | **Leave it lit** → heal 40% Max HP · **Extinguish it** (−10% HP) → +40% Crit Damage for the run · ⚠️ **Two options, not three** — *Take it* → *tile preview +6 for the run, all `TILE_CURSE` in this stage revealed* is **REMOVED OUTRIGHT** and will not be replaced: the board is completely visible at all times (`04` §4, `16` D42), so what it offered cannot exist, and a card listing an option that pays nothing asks the player to make a choice that is not one. |
+| 30 | `EVT_DICELORD_OFFER` | An Offer, Unsigned | *A single golden die on a flat stone.* | **Take it** → ~~one die face becomes `Star` for the run~~, and the boss gains +15% ATK · **Roll it** → 50% both above / 50% neither · **Leave it** → +1,000 Crowns ⚠️ **The card's whole premise is a face grant** (`04` §5), so `EVT_DICELORD_OFFER` is now a pure downside on *Take it*. Owed a redesign or a removal. |
 
 ⚠️ **NEEDS DETAIL:** Exact outcome weights and value scalars for events 11–30 are indicative. They must be passed through the economy simulator (doc 21) before they are treated as final, because several (26, 28, 30) can swing a run's reward total by more than 50%.
 
@@ -108,7 +112,7 @@ One challenge per week: a fixed `(chapter, tier, seed, modifier set)` shared by 
 | 4 | `MOD_NO_HEAL` | Bloodless | All healing reduced by 70% | Denial |
 | 5 | `MOD_DOUBLE_ELITES` | Gauntlet | Elite count doubled, Elite drops doubled | Risk/Reward |
 | 6 | `MOD_FIXED_DIE` | Fixed Fate | Every roll is exactly 3 | Twist |
-| 7 | `MOD_CHAOS_DIE` | Wild Dice | All six faces are `Star` (you always choose), but rerolls are disabled | Twist |
+| ~~7~~ | ~~`MOD_CHAOS_DIE`~~ | ~~Wild Dice~~ | ⚠️ **Unbuildable and unreplaced.** *All six faces are `Star`, but rerolls are disabled* — both halves are gone (`04` §5). The modifier pool is one row short. | Twist |
 | 8 | `MOD_RICH` | Gilded | Gold and Crowns ×3, enemy DEF +40% | Risk/Reward |
 | 9 | `MOD_SPEEDRUN` | Against the Clock | Score is based on real time to clear; enemies −20% HP | Scoring |
 | 10 | `MOD_ONE_LIFE` | Ironclad | No revives of any kind, including the ad revive | Risk |
@@ -144,7 +148,7 @@ The "Roll *n*" triggers below are the **forced results of the rigged die sequenc
 | 4 | Roll 3 → Treasure | *"Yours. All of it, even if you die."* | Auto-resolves; the authored payout (D5) flies to the HUD. |
 | 5 | Roll 5 → Shop | *"Gold is for now. It does not follow you home."* | Player must buy exactly one thing (fixed offers and authored prices — D4.2). Every offer costs less than the Gold held, so anything is affordable. |
 | 6 | Roll 7 → Elite (`FTUE_ELITE`, leaves the hero at ~25% HP — D4) | *"That was close."* | Battle auto-plays. Afterwards: the second perk draft (fixed options — D4). |
-| 6b | Roll 8 shows a `2` — pointing at the Cursed Ground tile ahead | *"You can ask for a different number."* | The reroll button pulses; nothing else is tappable. The player spends their first Reroll Charge; the forced reroll (`1`) lands safely short of the curse. Teaches: rerolls exist, and they dodge trouble. |
+| ~~6b~~ | ⚠️ **Removed with the reroll** (`04` §5). It showed a `2` pointing at the Cursed Ground tile, pulsed the reroll button, and taught that rerolls exist and dodge trouble. | — | 🔴 The FTUE is one beat short and the tile it threatened is now unthreatening — see beat 10 below. The replacement lesson is owed. |
 | 7 | Roll 9 → mini-boss (`BOSS_FTUE` — D4) | *"Last one."* | The hero heals to full on landing (tutorial-only 📐). The forced `6` clamps onto the boss node — the boss is always reached exactly (`03` §1.1). Phase 1 only. No draft afterwards (D4). |
 | 8 | Victory | *"Take it back with you."* | Run Results screen, all rewards positive, no ad offer. |
 | 9 | Home screen | *"You kept the gear. Put it on."* | Forced single gear equip on the Hero screen. |
@@ -173,15 +177,15 @@ No stage gates, no forks, no campfire. Node 11 is the final node and holds the m
 | 6 | `TILE_SHOP` | Beat 5: tutorial shop (D4.2) |
 | 7 | `TILE_EMPTY` | spacing |
 | 8 | `TILE_ELITE` | Beat 6: `FTUE_ELITE` |
-| 9 | `TILE_EMPTY` | Beat 6b: the reroll lands here |
-| 10 | `TILE_CURSE` (`CUR_SLIPPERY`) | **Designed never to be landed on** — it exists as the reroll lesson's visible threat. Inspectable (tooltip works); the forced sequence guarantees it is passed over, and passing never resolves (`03` §1.1). |
+| 9 | `TILE_EMPTY` | ⚠️ Was where beat 6b's reroll landed; nothing lands here on purpose now |
+| 10 | `TILE_CURSE` (`CUR_SLIPPERY`) | ⚠️ **Designed never to be landed on** — it existed as the reroll lesson's visible threat, and that lesson is gone (`04` §5). It is now a tile the forced sequence passes over for no stated reason. Inspectable (tooltip works); passing never resolves (`03` §1.1). |
 | 11 | `TILE_MINIBOSS` (`BOSS_FTUE`) | Beat 7–8 |
 
 The board deliberately violates generator constraint C7 (≥2 treasure, ≥1 cache) — authored boards bypass constraints (`03` §3), and the day-1 payout is scripted (D5), so C7's protection is not needed here.
 
 ## D3. Forced die sequence
 
-The hero starts at the trailhead before node 0, like every run (`03` §1.1). The FTUE's die stream is **rigged**: results come from this ordered list, not from the RNG, and the Fair-Dice bag is not consulted (tutorial-only flag, D4.3). All results are faces of the starting die `[1][2][3][4][5][6]`.
+The hero starts at the trailhead before node 0, like every run (`03` §1.1). The FTUE's die stream is **rigged**: results come from this ordered list, not from the RNG (tutorial-only flag, D4.3). ⚠️ *and the Fair-Dice bag is not consulted* — there is no bag any more (`04` §2). All results are numbers the die can show, 1..6.
 
 | Roll | Forced result | Cumulative | Lands on | Beat |
 |---|---|---|---|---|
@@ -192,10 +196,10 @@ The hero starts at the trailhead before node 0, like every run (`03` §1.1). The
 | 5 | `1` | 7 | node 6 — SHOP | 5 |
 | 6 | `1` | 8 | node 7 — empty | — |
 | 7 | `1` | 9 | node 8 — ELITE | 6 |
-| 8 | `2` → forced reroll → `1` | 10 | initial result points at node 10 (CURSE); the reroll lands node 9 (empty) | 6b |
+| 8 | ⚠️ was `2` → forced reroll → `1` | 10 | 🔴 **This row has no rigged value now.** The reroll it demonstrated is gone (`04` §5), so the roll has to become an ordinary one — and whatever number it takes must not land on node 10's curse, which beat 6b's reroll used to be what avoided. Owed with the replacement beat. | ~~6b~~ |
 | 9 | `6` (clamped) | 12 | node 11 — MINIBOSS. The clamp teaches the boss-reached-exactly rule (`03` §1.1). | 7 |
 
-Roll 8 is the only roll where the reroll prompt is interactive; on every other roll the reroll button is hidden (D4.3). The small forced values are deliberate: nine rolls across twelve tiles keeps every beat visible.
+⚠️ *Roll 8 is the only roll where the reroll prompt is interactive; on every other roll the reroll button is hidden* — there is no reroll prompt at all (`04` §4). The small forced values are deliberate: nine rolls across twelve tiles keeps every beat visible.
 
 ## D4. Tutorial-only definitions
 
@@ -226,7 +230,7 @@ The **tutorial shop** (beat 5) has four fixed offers in the standard §7 slot sh
 
 ### D4.3 Tutorial-only rule flags (complete list)
 
-1. `riggedDieStream` — die results come from D3's list; the Fair-Dice bag is bypassed.
+1. `riggedDieStream` — die results come from D3's list. ⚠️ *the Fair-Dice bag is bypassed* — there is no bag to bypass (`04` §2).
 2. `noAds` — no ad placements anywhere (existing lock, now a package flag).
 3. `heroLethalClampAt1Hp` — the hero cannot die; lethal damage clamps to 1 HP. The fights are authored so this never fires; if it does, emit `ftue_clamp_fired` telemetry — it means tuning drifted, and it must be investigated, not shipped around.
 4. `fixedDrafts` / `noDraftReroll` / `noBossDraft` — D4.2.
@@ -304,20 +308,27 @@ Curses are run-scoped negative effects applied by `TILE_CURSE`, by certain event
 |---|---|---|---|
 | `CUR_SLIPPERY` | Slippery | −1 to all Pip rolls (minimum 1) | +250 Gold |
 | `CUR_MARKED` | Marked | Enemies +10% ATK for the rest of the stage | +2 Enhance Stones |
-| `CUR_DIZZY` | Dizzy | The next 3 rolls cannot be rerolled | +180 Gold |
 | `CUR_FRACTURED` | Fractured | −8% DEF | +500 Gold |
 | `CUR_HUNTED` | Hunted | Every Elite for the rest of the run gains an extra modifier | +1 gear drop per Elite |
 | `CUR_UNTIMELY` | Untimely | −15% Attack Speed | +300 Crowns |
 | `CUR_FAMISHED` | Famished | −40% Healing Received | +12% ATK |
 | `CUR_BRITTLE_BONES` | Brittle Bones | −12% Max HP | +8% Crit Chance |
 | `CUR_MISERLY` | Miserly | Shop prices +50% | +600 Gold |
-| `CUR_BLIND` | Blind | Tile preview reduced to 2 | +2 Reroll Charges |
-| `CUR_LEADFOOT` | Leadfoot | `Chain` and `Surge` faces behave as plain Pip 3 | +15% Gold |
 | `CUR_TITHE` | Tithe | 20% of all Gold gained is lost | +20% gear drop chance |
+
+⚠️ **Nine curses, not twelve.** Three are removed and none replaced, so the pool a `TILE_CURSE` draws from is three rows short:
+
+| Removed | Was | With |
+|---|---|---|
+| `CUR_DIZZY` | *the next 3 rolls cannot be rerolled*, +180 Gold | the reroll (`04` §5) |
+| `CUR_LEADFOOT` | *`Chain` and `Surge` faces behave as plain Pip 3*, +15% Gold | the die's special faces (`04` §5) |
+| `CUR_BLIND` | *Tile preview reduced to 2*, +15% Gold | the tile preview, when the board became permanently visible (`04` §4, `16` D42) |
+
+⚠️ `CUR_BLIND` briefly held `CUR_LEADFOOT`'s freed +15% Gold, rather than have a reward number invented for it. Both rows are gone now, so that reward is unclaimed again.
 
 📐 TUNABLE: all values and pairings. `CUR_HUNTED` and `CUR_TITHE` are the two most likely to need rebalancing — both change the run's economy rather than a single stat.
 
-⚠️ **NEEDS DETAIL:** which curses can appear in which chapters is unspecified. Suggested: `CUR_SLIPPERY`, `CUR_MARKED`, `CUR_DIZZY`, `CUR_FRACTURED` from Chapter 1; the rest gated from Chapter 3 onward, with `CUR_HUNTED` from Chapter 5.
+⚠️ **NEEDS DETAIL:** which curses can appear in which chapters is unspecified. Suggested: `CUR_SLIPPERY`, `CUR_MARKED`, `CUR_FRACTURED` from Chapter 1; the rest gated from Chapter 3 onward, with `CUR_HUNTED` from Chapter 5.
 
 ---
 

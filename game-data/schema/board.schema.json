@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/board.schema.json",
   "title": "content/board/board.json",
-  "description": "M7-05 — the loc keys the Board screen (S05) renders. What is fixed here is that the screen labels HP, Gold, the stage, the face last rolled and the tile it stands on; offers a roll, a reroll, a tile acknowledgement, the die panel and the two fork branches; carries one status line per state the read can be in and one per reason a roll is refused; and names all fourteen tile kinds. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Two absences are load-bearing. There is no member for a reroll charge REMAINING count, because the per-stage cap is computed inside the rules and no client can read it; the screen shows what was spent and learns exhaustion from the refusal instead. And there is no member for a fork branch LABEL or icon set, because the board generator that authors them never leaves the rules assembly — the two branches are named by what the client actually knows, which is that one edge continues the spine and the other enters the side path.",
+  "description": "M7-05 — the loc keys the Board screen (S05) renders. What is fixed here is that the screen labels HP, Gold, the stage, the number last rolled and the tile it stands on; offers a roll, a tile acknowledgement and the two fork branches; carries one status line per state the read can be in and one per reason a roll is refused; and names all fourteen tile kinds. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. The `forkLabel` group is what that absence turned into: BoardView.Project exports the bias label each branch's tiles were actually drawn under, so the four labels are named here and the two branch buttons say where they go. The `dice` group is the fixed dice (`04` §6) — a tray heading, and the prompt asking the player to name a granted die's number. Neither group carries a numeral: a die's number and a fork branch's icons are drawn from values the run and the board already carry, and a number needs no translation.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "label", "action", "name", "status", "block", "tile"],
+  "required": ["$schema", "_doc", "label", "action", "name", "forkLabel", "dice", "status", "block", "tile"],
   "$defs": {
     "locKey": {
       "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
@@ -17,17 +17,16 @@
     "$schema": { "type": "string" },
     "_doc": { "type": "string", "minLength": 1 },
     "label": {
-      "description": "The captions beside the values the run row literally carries. HP and Gold are on the run; the stage is derived from the run's pending tile against the chapter's own stage list; 'rolled' captions the face the last accepted roll reported, and 'standing on' the tile that has not been resolved yet.",
+      "description": "The captions beside the values the run row literally carries. HP and Gold are on the run; the stage is derived from the run's pending tile against the chapter's own stage list; 'rolled' captions the number the last accepted roll came up, and 'standing on' the tile that has not been resolved yet.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["hp", "gold", "stage", "rolled", "standingOn", "rerollChangesNextRoll"],
+      "required": ["hp", "gold", "stage", "rolled", "standingOn"],
       "properties": {
         "hp": { "$ref": "#/$defs/locKey" },
         "gold": { "$ref": "#/$defs/locKey" },
         "stage": { "$ref": "#/$defs/locKey" },
         "rolled": { "$ref": "#/$defs/locKey" },
-        "standingOn": { "$ref": "#/$defs/locKey" },
-        "rerollChangesNextRoll": { "$ref": "#/$defs/locKey" }
+        "standingOn": { "$ref": "#/$defs/locKey" }
       }
     },
     "action": {
@@ -35,14 +34,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "roll", "reroll", "resolve", "diePanel", "forkContinue", "forkBranch",
+        "roll", "resolve", "forkContinue", "forkBranch",
         "abandon", "abandonConfirm"
       ],
       "properties": {
         "roll": { "$ref": "#/$defs/locKey" },
-        "reroll": { "$ref": "#/$defs/locKey" },
         "resolve": { "$ref": "#/$defs/locKey" },
-        "diePanel": { "$ref": "#/$defs/locKey" },
         "forkContinue": { "$ref": "#/$defs/locKey" },
         "forkBranch": { "$ref": "#/$defs/locKey" },
         "abandon": {
@@ -55,6 +52,28 @@
         }
       }
     },
+    "forkLabel": {
+      "description": "03 §3.1's four fork-branch bias labels, one key each. Exported by BoardView as ForkLabel and drawn on the branch button beside the branch's own first tiles — so the label and the icons are two independent reads of the same branch rather than one derived from the other. Four separate keys rather than one parameterised caption, for the reason the two branch actions are separate: a player choosing between two identical words has not chosen anything.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["perilous", "sheltered", "arcane", "feral"],
+      "properties": {
+        "perilous": { "$ref": "#/$defs/locKey" },
+        "sheltered": { "$ref": "#/$defs/locKey" },
+        "arcane": { "$ref": "#/$defs/locKey" },
+        "feral": { "$ref": "#/$defs/locKey" }
+      }
+    },
+    "dice": {
+      "description": "The fixed dice (`04` §6). `held` captions the tray of dice the run owns, each drawn as its own number; `choose` is the prompt a granted die opens, because the player names the number rather than being given one. 🔒 Neither key carries the number itself, and no key here is parameterised on a count: a numeral is drawn from the run's own state and translating one would be inventing a plural rule for a value that has none.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["held", "choose"],
+      "properties": {
+        "held": { "$ref": "#/$defs/locKey" },
+        "choose": { "$ref": "#/$defs/locKey" }
+      }
+    },
     "name": {
       "description": "The fork prompt's heading. A heading rather than a status line, because a junction is a question the screen is asking rather than a state it is reporting.",
       "type": "object",
@@ -65,17 +84,16 @@
       }
     },
     "status": {
-      "description": "The line shown while the screen has no board to act on, plus the two lines about an action that was refused. 'refused' covers every rejection the rules layer can answer with; 'rerollExhausted' is separated from it because the reroll cap arrives as its own distinct wire value and is the one refusal on this screen a player can plan around.",
+      "description": "The line shown while the screen has no board to act on, plus the line about an action that was refused. 'refused' covers every rejection the rules layer can answer with. There used to be a second, 'rerollExhausted', separated because the reroll cap arrived as its own wire value; it is gone with the reroll.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["loading", "runMissing", "runEnded", "unavailable", "refused", "rerollExhausted"],
+      "required": ["loading", "runMissing", "runEnded", "unavailable", "refused"],
       "properties": {
         "loading": { "$ref": "#/$defs/locKey" },
         "runMissing": { "$ref": "#/$defs/locKey" },
         "runEnded": { "$ref": "#/$defs/locKey" },
         "unavailable": { "$ref": "#/$defs/locKey" },
-        "refused": { "$ref": "#/$defs/locKey" },
-        "rerollExhausted": { "$ref": "#/$defs/locKey" }
+        "refused": { "$ref": "#/$defs/locKey" }
       }
     },
     "block": {

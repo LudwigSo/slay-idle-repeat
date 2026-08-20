@@ -12,7 +12,7 @@ The talent tree is the **permanent power spine**. Gear fluctuates, perks vanish 
 |---|---|---|---|
 | **MIGHT** | Offense, crit, penetration, damage conversion | red | Legend Level 1 |
 | **WARD** | HP, defense, mitigation, sustain, survivability | blue | Legend Level 1 |
-| **FORTUNE** | Dice faces, rerolls, drop rates, gold, board control | gold | Legend Level 40 |
+| **FORTUNE** | Drop rates, gold, board control | gold | Legend Level 40 | ⚠️ **Dice faces and rerolls are gone** (`04` §5), which takes the branch's two headline subjects with them — including its three face keystones. The branch is owed a re-theme.
 
 Each branch is a **4-tier gated ladder**:
 
@@ -178,7 +178,7 @@ This is the branch that makes the die *yours*. It is deliberately gated late so 
 ### Tier 2 (needs 6)
 | Node | Per rank (×5) |
 |---|---|
-| Steady Hand | +1 Reroll Charge at rank 3 and rank 5 (max +2) |
+| ~~Steady Hand~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
 | Nudge | 1 per stage: adjust a Pip result by ±1 (+1 use per 2 ranks) |
 | Haggler | −3% shop prices |
 | Scavenger's Luck | +3% chance for Treasure tiles to double |

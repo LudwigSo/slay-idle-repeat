@@ -3,9 +3,11 @@ using SlayIdleRepeat.Application.Ports.Shared;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Dice;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
+using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
 
@@ -83,6 +85,16 @@ public enum BoardSubmission
     RefusedByRules = 3,
 }
 
+/// <summary>One entry of the fixed-dice tray: a number the run holds, and how many of it.</summary>
+/// <param name="Pips">The number written on the die, 1-6, and what <c>USE_FIXED_DIE</c> carries.</param>
+/// <param name="Count">How many dice showing that number the run holds — at least one.</param>
+/// <remarks>
+/// 🔒 A count rather than one entry per die, because that is what a run persists and two dice
+/// showing a 3 are genuinely the same holding twice. A list would put an order into the tray that
+/// nothing means, and the player would be choosing between identical controls.
+/// </remarks>
+public sealed record HeldFixedDie(int Pips, int Count);
+
 /// <summary>The tile the run is standing on and has not resolved.</summary>
 /// <param name="Kind">The kind, as the run's own integer.</param>
 /// <param name="NameKey">Its caption key, or null when the number names no kind this build knows.</param>
@@ -90,36 +102,33 @@ public enum BoardSubmission
 /// <param name="Stage">The stage it belongs to, 1-3, or 0 for the boss node.</param>
 public sealed record PendingTile(int Kind, string? NameKey, int LinearIndex, int Stage);
 
-/// <summary>One branch a paused junction offers.</summary>
+/// <summary>One branch a paused junction offers, with the preview the generator authored for it.</summary>
 /// <param name="BranchIndex">What <c>CHOOSE_FORK</c> carries for it.</param>
 /// <param name="CaptionKey">The caption key describing where it goes.</param>
-public sealed record ForkBranch(int BranchIndex, string CaptionKey);
+/// <param name="Label">
+/// The bias label this branch's tiles were drawn under, or null for the edge that keeps to the
+/// spine — which was drawn under no bias, so naming one for it would be inventing a preview.
+/// </param>
+/// <param name="Icons">
+/// The branch's own first tiles in walk order, at most three, or empty for the spine edge.
+/// </param>
+/// <remarks>
+/// 🔒 The label and the icons are two INDEPENDENT reads of the same branch, and neither is derived
+/// from the other: the label is the bias the draw ran under and the icons are what the draw actually
+/// produced. A screen showing icons computed from the label would be showing the intention rather
+/// than the board, and the two differ every time the weighted draw does not go the label's way.
+/// </remarks>
+public sealed record ForkBranch(
+    int BranchIndex,
+    string CaptionKey,
+    ForkLabel? Label = null,
+    IReadOnlyList<TileKind>? Icons = null);
 
 /// <summary>A movement paused at a junction, waiting for the player to pick an edge.</summary>
 /// <param name="JunctionPosition">The junction the run is paused on.</param>
 /// <param name="RemainingSteps">Steps left to spend once the edge is taken.</param>
 /// <param name="Branches">The edges on offer, in the order <c>CHOOSE_FORK</c> indexes them.</param>
 public sealed record ForkPrompt(int JunctionPosition, int RemainingSteps, IReadOnlyList<ForkBranch> Branches);
-
-/// <summary>The window after a roll during which the reroll is offered.</summary>
-/// <param name="Face">The face the roll reported.</param>
-/// <param name="Remaining">How much of the ring is left, or null when this prompt never lapses.</param>
-/// <param name="RingFraction">
-/// How full the ring is drawn, from one down to zero — and one for a prompt that never lapses.
-/// </param>
-/// <remarks>
-/// 🔒 The fraction is computed here rather than by whatever draws the ring, because dividing by the
-/// window's length means knowing the window's length, and that duration is authored. A renderer
-/// working it out would be a second copy of it in the one place this codebase keeps saying a copy
-/// must not go.
-/// </remarks>
-public sealed record RerollPrompt(DieFaceReading Face, TimeSpan? Remaining, double RingFraction);
-
-/// <summary>A face as the run reported having rolled it.</summary>
-/// <param name="Sequence">Its position among the faces one roll produced — a chain reports several.</param>
-/// <param name="Kind">The kind, as the rules layer's own public vocabulary spells it.</param>
-/// <param name="Value">Its pips, meaningful only for a pip face.</param>
-public sealed record DieFaceReading(int Sequence, string Kind, int Value);
 
 /// <summary>
 /// Drives the Board screen: what the run carries, what the player may do next, and the four commands
@@ -133,24 +142,33 @@ public sealed record DieFaceReading(int Sequence, string Kind, int Value);
 /// screen makes is therefore made in this file.
 /// </para>
 /// <para>
-/// 🔴 <b>There is no board here, and that is the largest thing to know about this screen.</b> The
-/// graph a run is played on — which tile sits at which node, how many nodes a fork branch has, what
-/// is coming up — is generated inside the rules assembly and never leaves it. No persisted field
-/// carries it and no reachable type describes it. So this screen cannot draw the track of upcoming
-/// tiles the design calls for. What it draws instead is true: how far through the current stage the
-/// run has walked, out of the stage's own authored length, and the name of the one tile the run is
-/// actually standing on. The upcoming-tile preview, the fork's authored branch labels and icon sets,
-/// and the burning-tile marks are all absent because they are unreadable, not because they were
-/// forgotten.
+/// 🔒 <b>The board is here, whole, and that is the largest thing to know about this screen.</b>
+/// <see cref="BoardView.Project"/> regenerates the run's graph from its seed and hands back every
+/// node of the track with the tile that sits on it, plus each junction's real branch preview. `16`
+/// D42 makes the whole of it visible at all times — no fog, no preview range, no reveal distance —
+/// because a die that only answers a number is only an interesting decision if the player can see
+/// what the numbers reach, and that is the entire reason a FIXED die is worth choosing a number for.
+/// So this screen draws the track, not a progress strip: the three paragraphs that used to stand
+/// here saying the board was unreadable are gone with the thing they described.
 /// </para>
 /// <para>
-/// ⚠️ <b>The reroll does not re-roll the face it is offered beside.</b> The design describes a
-/// prompt that appears after the die settles and before movement, offering to replace the result.
-/// The shipped command cannot do that: one <c>ROLL_DICE</c> answers with the face, the movement and
-/// the landing together, so by the time a face is known the run has already moved. The reroll
-/// command that exists spends a charge to advance the die for the NEXT roll. This screen therefore
-/// offers it for what it is — see <see cref="TheRerollCannotReplaceTheFaceItIsShownBeside"/> — and
-/// does not caption it as an undo it cannot perform.
+/// 🔴 What is still absent from the track: the burning-tile marks of a Chapter 4 hazard (`03`
+/// §4.1), which no projected node carries, and any mark for a node already walked — a run records
+/// where it IS, not where it has been, so a visited node is indistinguishable from one ahead.
+/// </para>
+/// <para>
+/// ⚠️ <b>A roll is one tap and is final.</b> There is no reroll and no acceptance window: the die
+/// is an ordinary 1..6, <c>ROLL_DICE</c> answers with the number, the movement and the landing
+/// together, and the board decides what the landing means. What the screen shows afterwards is the
+/// number that was rolled.
+/// </para>
+/// <para>
+/// 🔒 <b>There are TWO ways to move, and this screen offers both.</b> A fixed die (`04` §6) is
+/// spent instead of rolling and moves the hero exactly its own number. It is not a reroll — nothing
+/// is re-drawn — so it is offered as its own control rather than as something done to a roll, and it
+/// is gated by exactly the same <see cref="RollBlock"/>: the rules layer refuses both movement
+/// commands from the same states, so a screen that offered one where the other was refused would be
+/// promising a way out of a state the game has none of.
 /// </para>
 /// <para>
 /// 🔴 Absent because a later screen owns each: the battle, the perk draft, the shop, the event card,
@@ -161,90 +179,29 @@ public sealed record DieFaceReading(int Sequence, string Kind, int Value);
 /// </remarks>
 public sealed class BoardPresenter
 {
-    /// <summary>
-    /// 🔒 <b>SETTLED, and kept because the reasoning is still load-bearing.</b> The divergence this
-    /// used to state as unowned was ruled at the M7 kickoff (D6) and the document yielded: <c>04</c>
-    /// §3.1 now says a reroll changes the NEXT roll and cannot undo the one it is offered beside.
-    /// </summary>
-    /// <remarks>
-    /// ⚠️ The constant stays rather than being deleted with the divergence. It is the argument for why
-    /// the amendment went the way it did, and the next person to read <c>04</c> §3's prompt UX and
-    /// think a bare <em>"Reroll"</em> would do is the person who needs it: <c>ROLL_DICE</c> answers the
-    /// face, the movement and the landing in one command, so the run has already moved before any face
-    /// is known. The alternative was splitting that command in two, at the cost of a 53rd and 54th
-    /// entry in <c>14</c> §2.3's frozen vocabulary, a change to RNG consumption on the dice stream, and
-    /// divergence in every saved command log.
-    /// </remarks>
-    private const string TheRerollChangesTheNextRollAndTheDocumentSaysSoNow =
-        "04 §3.1 (kickoff decision D6): a reroll changes the NEXT roll. USE_REROLL cannot replace the " +
-        "face the die just settled on, because ROLL_DICE answers with the face, the movement and the " +
-        "landing in one command, so the run has already moved before a face is known — the handler's " +
-        "own remarks say it burns a dice-stream draw so the next ROLL_DICE differs. The prompt is the " +
-        "authored acceptance window and the control inside it is offered for what the command does. " +
-        "RerollChangesNextRollText is the caption that says so on screen, because a bare 'Reroll' " +
-        "beside a settled face is read as a redo.";
-
-    /// <summary>
-    /// ⚠️ Deliberately unread, and named so it can be found. Nothing reachable from a client
-    /// describes the board, so the two branches a junction offers are named by their structural
-    /// position rather than by the labels the generator actually authored for them.
-    /// </summary>
-    private const string TheForkPreviewIsNotReachableHere =
-        "03 §3.1 gives each branch a one-word label — Perilous, Sheltered, Arcane, Feral — and up " +
-        "to three icons drawn from its real contents, and the generator does author them. They are " +
-        "built inside the rules assembly, attached to an edge of a graph that is regenerated per " +
-        "command, and deliberately not persisted; every type involved is internal. So this screen " +
-        "knows a junction is open and how many steps are left, and nothing whatever about what " +
-        "either branch holds. It names the two edges by the one fact it does have — that a junction " +
-        "has exactly two, the first continuing the spine and the second entering the side path — " +
-        "and shows no preview, rather than inventing one for the run's only real navigation choice.";
-
-    /// <summary>
-    /// ⚠️ Deliberately not computed, and named so it can be found. The reroll charge allowance is
-    /// decided inside the rules layer and no client can read it, so this screen reports what has
-    /// been spent and learns exhaustion from the refusal rather than predicting it.
-    /// </summary>
-    private const string TheRerollAllowanceIsNotReadableHere =
-        "The per-stage reroll allowance is computed by a rules-internal calculator from a base " +
-        "allotment plus talent, campfire, perk and token bonuses. Nothing public exposes it and no " +
-        "tuning document carries it, so a remaining-charges number shown here would be a second " +
-        "copy of that calculation — and it would be wrong the moment the first bonus source is " +
-        "wired, which is exactly when a player starts having more than one. The screen shows the " +
-        "spent count, which is a real persisted field, and reports exhaustion only once the rules " +
-        "layer has answered CAP_REACHED — a reason distinct enough on the wire to be told apart.";
-
-    /// <summary>
-    /// The ring that runs around the reroll control once a roll lands.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <b>Authored, not chosen here.</b> The design set fixes this duration and fixes what
-    /// happens when it lapses: the roll is accepted. It is not a number this task picked, and it is
-    /// not an economy tunable, so it is stated here rather than in the tuning tree. The case that
-    /// pins it names the section it comes from.
-    /// </remarks>
-    private static readonly TimeSpan RerollRingDuration = TimeSpan.FromSeconds(4);
-
     private const string HpLabelKey = "loc.board.hp.label";
     private const string GoldLabelKey = "loc.board.gold.label";
     private const string StageLabelKey = "loc.board.stage.label";
     private const string RolledLabelKey = "loc.board.rolled.label";
     private const string StandingOnLabelKey = "loc.board.standing_on.label";
     private const string RollActionKey = "loc.board.roll.action";
-    private const string RerollActionKey = "loc.board.reroll.action";
-    private const string RerollChangesNextRollLabelKey = "loc.board.reroll_changes_next_roll.label";
     private const string ResolveActionKey = "loc.board.resolve.action";
     private const string AbandonActionKey = "loc.board.abandon.action";
     private const string AbandonConfirmActionKey = "loc.board.abandon_confirm.action";
-    private const string DiePanelActionKey = "loc.board.die_panel.action";
     private const string ForkNameKey = "loc.board.fork.name";
     private const string ForkContinueActionKey = "loc.board.fork_continue.action";
     private const string ForkBranchActionKey = "loc.board.fork_branch.action";
+    private const string ForkPerilousLabelKey = "loc.board.fork_perilous.label";
+    private const string ForkShelteredLabelKey = "loc.board.fork_sheltered.label";
+    private const string ForkArcaneLabelKey = "loc.board.fork_arcane.label";
+    private const string ForkFeralLabelKey = "loc.board.fork_feral.label";
+    private const string FixedDiceHeldLabelKey = "loc.board.dice_held.label";
+    private const string FixedDiceChooseLabelKey = "loc.board.dice_choose.label";
     private const string LoadingStatusKey = "loc.board.loading.status";
     private const string RunMissingStatusKey = "loc.board.run_missing.status";
     private const string RunEndedStatusKey = "loc.board.run_ended.status";
     private const string UnavailableStatusKey = "loc.board.unavailable.status";
     private const string RefusedStatusKey = "loc.board.refused.status";
-    private const string RerollExhaustedStatusKey = "loc.board.reroll_exhausted.status";
     private const string BlockedTileStatusKey = "loc.board.blocked_tile.status";
     private const string BlockedForkStatusKey = "loc.board.blocked_fork.status";
     private const string BlockedBattleStatusKey = "loc.board.blocked_battle.status";
@@ -276,61 +233,39 @@ public sealed class BoardPresenter
     private readonly IGameHost _gameHost;
     private readonly LocaleStringCatalogue _strings;
     private readonly ContentSnapshot _content;
-    private readonly IClockPort _clock;
     private readonly PlayerId _player;
     private readonly RunId _run;
-    private readonly bool _ringLapses;
 
     private RunSnapshot? _snapshot;
-    private DateTimeOffset _promptOpenedAt;
-    private DieFaceReading? _promptFace;
-    private bool _promptOpen;
+    private BoardView? _board;
 
-    /// <summary>When the ring was covered, or null while it is running.</summary>
-    private DateTimeOffset? _suspendedAt;
-
-    /// <summary>The faces the most recent command reported — empty when it reported none.</summary>
-    /// <remarks>
-    /// Distinct from <see cref="LastRolledFaces"/> on purpose: this one is scoped to one command
-    /// and is what a roll opens its prompt from, while that one is what the die panel shows and
-    /// therefore outlives commands that roll nothing.
-    /// </remarks>
-    private IReadOnlyList<DieFaceReading> _facesFromLastCommand = [];
-
-    /// <summary>Builds the screen over the host, the strings, the content set, the clock and the run.</summary>
+    /// <summary>Builds the screen over the host, the strings, the content set and the run.</summary>
     /// <param name="gameHost">The seam the run is read through and its commands are submitted through.</param>
     /// <param name="strings">Key to display string, over the loaded content set.</param>
     /// <param name="content">The loaded content set the chapter's stage lengths are read from.</param>
-    /// <param name="clock">What the reroll ring is measured against — injected, so a case can drive it.</param>
     /// <param name="player">The profile this run belongs to.</param>
     /// <param name="run">The run being played.</param>
-    /// <param name="rerollRingLapses">
-    /// Whether the ring expires on its own. False is the accessibility setting that removes every
-    /// soft timer and lets each prompt wait indefinitely; the screen that would set it is not built,
-    /// so it arrives as a constructor argument rather than being read from a store that does not exist.
-    /// </param>
+    /// <remarks>
+    /// ⚠️ No clock. This screen used to take one to measure the reroll's 4-second acceptance ring
+    /// against; with no reroll there is no window, so nothing here is time-dependent.
+    /// </remarks>
     /// <exception cref="ArgumentNullException">A collaborator is null.</exception>
     public BoardPresenter(
         IGameHost gameHost,
         LocaleStringCatalogue strings,
         ContentSnapshot content,
-        IClockPort clock,
         PlayerId player,
-        RunId run,
-        bool rerollRingLapses = true)
+        RunId run)
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(strings);
         ArgumentNullException.ThrowIfNull(content);
-        ArgumentNullException.ThrowIfNull(clock);
 
         _gameHost = gameHost;
         _strings = strings;
         _content = content;
-        _clock = clock;
         _player = player;
         _run = run;
-        _ringLapses = rerollRingLapses;
     }
 
     /// <summary>How far the read this screen depends on has got.</summary>
@@ -380,25 +315,37 @@ public sealed class BoardPresenter
     /// </remarks>
     public int Position { get; private set; }
 
+    /// <summary>Every node of the run's board in walk order, boss last — the whole track.</summary>
+    /// <remarks>
+    /// 🔒 The WHOLE track, never a window on it (`16` D42). Empty only when the board could not be
+    /// projected at all, which is a chapter this build does not ship rather than a run mid-move.
+    /// ⚠️ The spine, so a fork's branch nodes are not in this list: they hang off a junction and
+    /// share their linear index with the spine node level with them, so laying them out in one row
+    /// would put two tiles on one step. <see cref="Fork"/> is where a branch's own tiles are read.
+    /// </remarks>
+    public IReadOnlyList<BoardTrackNode> Track => _board?.Spine ?? [];
+
+    /// <summary>The node the run is standing on, or null while it is at the trailhead.</summary>
+    public BoardTrackNode? StandingOn => _board?.StandingOn;
+
     /// <summary>
-    /// How far along the track the run stands, or null when that cannot be said exactly.
+    /// How far along the track the run stands, or null while it stands on no node of this board.
     /// </summary>
     /// <remarks>
-    /// 🔒 Null rather than a best guess. The exact distance is carried only by a pending tile, so
-    /// between resolving one tile and landing on the next there is a window in which the run's
-    /// distance is knowable for a spine node and not for a branch node — and the client cannot tell
-    /// which it is standing on. A token drawn at a plausible position for those few nodes would be a
-    /// board quietly lying about where the player is, so the track holds its last exact position
-    /// instead.
+    /// 🔒 <b>Exact, and no longer a guess withheld.</b> This used to read the pending tile, because
+    /// that was the only field carrying a linear index — so between resolving one tile and landing on
+    /// the next it had to answer null rather than place the token at a plausible node. The projected
+    /// board answers it from the run's actual position for every node, spine or branch, so the window
+    /// in which the screen did not know where the player was is closed rather than merely narrowed.
     /// </remarks>
-    public int? TrackIndex => PendingTile?.LinearIndex;
+    public int? TrackIndex => StandingOn?.LinearIndex;
 
-    /// <summary>The stage the run is in, 1-3, or null while that is not known.</summary>
+    /// <summary>The stage the run is in, 1-3, or null while it is on no stage of this chapter.</summary>
     /// <remarks>
-    /// Known only from a pending tile, for the same reason <see cref="TrackIndex"/> is. The boss
-    /// node reports its own stage value, which is why a pending tile is asked for its kind as well.
+    /// Read off the node the run stands on, so it is known between tiles as well. The boss node
+    /// belongs to no stage and reports 0, which is why the range is stated rather than assumed.
     /// </remarks>
-    public int? StageNumber => PendingTile is { Stage: >= 1 and <= 3 } tile ? tile.Stage : null;
+    public int? StageNumber => StandingOn is { Stage: >= 1 and <= 3 } node ? node.Stage : null;
 
     /// <summary>
     /// How many stages this run's chapter has, read from the chapter's own authored stage lengths.
@@ -411,50 +358,45 @@ public sealed class BoardPresenter
     public int? StageCount { get; private set; }
 
     /// <summary>How long the current stage is, in nodes, or null when that is not known.</summary>
-    public int? StageLength { get; private set; }
-
-    /// <summary>
-    /// Where the token sits <em>within</em> the current stage, or null when it cannot be placed.
-    /// </summary>
     /// <remarks>
-    /// <para>
-    /// 🔒 <b>Here rather than in the scene, and the first version of it was wrong in the scene.</b>
-    /// The run's index is measured from the start of the chapter and runs continuously across every
-    /// stage, so a stage after the first begins part-way along it and the offset to subtract is the
-    /// sum of the lengths of the stages BEFORE it. Those lengths differ — the shipped chapters
-    /// author twelve, then fourteen, then sixteen — so multiplying any one of them by the stage
-    /// number lands on the wrong node everywhere except stage one, confidently and silently.
-    /// </para>
-    /// <para>
-    /// 🔒 Null rather than a clamp when the offset does not land inside the stage. A token drawn at
-    /// a plausible pip is a board quietly lying about where the player is, which is worse than a
-    /// board that draws no token at all.
-    /// </para>
+    /// ⚠️ Read from the chapter document rather than counted off <see cref="Track"/>, and kept for
+    /// the caption rather than for the track: it is the authored length, so a generated board of a
+    /// different length is a disagreement worth being able to see rather than one to paper over.
     /// </remarks>
-    public int? StageTrackIndex { get; private set; }
+    public int? StageLength { get; private set; }
 
     /// <summary>The tile the run is standing on and has not resolved, or null when none is pending.</summary>
     public PendingTile? PendingTile { get; private set; }
 
+    /// <summary>
+    /// The fixed dice the run owns, ascending by number — one entry per distinct number, carrying how
+    /// many of it are held (`04` §6.3).
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Ordered here rather than in the scene. The run persists a multiset, whose enumeration
+    /// order is the dictionary's and therefore an accident of insertion — so a tray drawn straight
+    /// off it would re-order itself whenever a die was granted or spent, and the control under the
+    /// player's thumb would not be the one they were looking at. Uncapped, so this list has no
+    /// authored maximum length; the scene lays it out as a row that wraps.
+    /// </remarks>
+    public IReadOnlyList<HeldFixedDie> FixedDice { get; private set; } = [];
+
+    /// <summary>How many fixed dice have been granted whose number the player has not named yet.</summary>
+    /// <remarks>
+    /// ⚠️ A count, not a queue: every owed choice is the same offer, so there is nothing to tell one
+    /// from another. It blocks nothing (`04` §6.2) — the roll stays live with one outstanding.
+    /// </remarks>
+    public int PendingFixedDieChoices { get; private set; }
+
     /// <summary>The junction the run is paused at, or null when movement is not paused.</summary>
     public ForkPrompt? Fork { get; private set; }
 
-    /// <summary>Reroll charges spent since this stage began, as the run carries them.</summary>
+    /// <summary>The number the last accepted roll came up, or null until one has been accepted.</summary>
     /// <remarks>
-    /// ⚠️ The spent count and not the remaining one — see
-    /// <see cref="TheRerollAllowanceIsNotReadableHere"/>.
+    /// One number, not a list: a roll is one draw off an ordinary die. It survives commands that
+    /// roll nothing — acknowledging a tile or choosing a branch does not blank "what you rolled".
     /// </remarks>
-    public int RerollChargesSpent { get; private set; }
-
-    /// <summary>Whether the last reroll was refused for having no charge left.</summary>
-    public bool RerollExhausted { get; private set; }
-
-    /// <summary>The faces the last accepted roll reported, in the order it produced them.</summary>
-    /// <remarks>
-    /// A list because one roll can produce several: a chain face rolls again immediately, and every
-    /// face it draws on the way is reported. Empty until a roll has been accepted.
-    /// </remarks>
-    public IReadOnlyList<DieFaceReading> LastRolledFaces { get; private set; } = [];
+    public int? LastRolledPips { get; private set; }
 
     /// <summary>Why the roll is not live, decided from the run's own state.</summary>
     public BoardRollBlock RollBlock =>
@@ -465,32 +407,6 @@ public sealed class BoardPresenter
             BoardStage.Ready => BlockFromSnapshot(),
             _ => BoardRollBlock.NotYetRead,
         };
-
-    /// <summary>The open reroll prompt, or null when none is open.</summary>
-    /// <remarks>
-    /// The clock is read once and both values are derived from that one reading. Two readings would
-    /// disagree the moment the clock moves between them, and a ring whose fraction and remaining
-    /// time describe two different instants is a ring that stutters.
-    /// </remarks>
-    public RerollPrompt? Prompt
-    {
-        get
-        {
-            if (!_promptOpen || _promptFace is not { } face)
-            {
-                return null;
-            }
-
-            if (!_ringLapses)
-            {
-                return new RerollPrompt(face, Remaining: null, RingFraction: 1);
-            }
-
-            var left = RingRemaining();
-
-            return new RerollPrompt(face, left, left / RerollRingDuration);
-        }
-    }
 
     /// <summary>The HP caption, resolved.</summary>
     public string HpLabel => _strings.Resolve(HpLabelKey);
@@ -509,22 +425,6 @@ public sealed class BoardPresenter
 
     /// <summary>The roll control's caption, resolved.</summary>
     public string RollText => _strings.Resolve(RollActionKey);
-
-    /// <summary>The reroll control's caption, resolved.</summary>
-    public string RerollText => _strings.Resolve(RerollActionKey);
-
-    /// <summary>
-    /// The sentence beside the reroll saying what it changes, resolved.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 Not optional decoration — see
-    /// <see cref="TheRerollChangesTheNextRollAndTheDocumentSaysSoNow"/>. <c>04</c> §3.1 requires the
-    /// wording not to promise an undo, and a button label alone cannot carry the distinction between
-    /// "re-roll this" and "change the next one". Always resolved rather than shown only on the first
-    /// prompt: a player who learns the rule once and then sees a bare control on every later roll has
-    /// been taught the wrong thing by repetition.
-    /// </remarks>
-    public string RerollChangesNextRollText => _strings.Resolve(RerollChangesNextRollLabelKey);
 
     /// <summary>The tile acknowledgement's caption, resolved.</summary>
     public string ResolveText => _strings.Resolve(ResolveActionKey);
@@ -557,11 +457,37 @@ public sealed class BoardPresenter
     /// </remarks>
     public bool AbandonOffered => Stage == BoardStage.Ready;
 
-    /// <summary>The die panel control's caption, resolved.</summary>
-    public string DiePanelText => _strings.Resolve(DiePanelActionKey);
-
     /// <summary>The fork prompt's heading, resolved.</summary>
     public string ForkTitle => _strings.Resolve(ForkNameKey);
+
+    /// <summary>The heading over the tray of dice the run owns, resolved.</summary>
+    public string FixedDiceLabel => _strings.Resolve(FixedDiceHeldLabelKey);
+
+    /// <summary>The prompt asking the player to name a granted die's number, resolved.</summary>
+    public string FixedDieChoiceLabel => _strings.Resolve(FixedDiceChooseLabelKey);
+
+    /// <summary>Whether the tray has anything in it to draw.</summary>
+    public bool FixedDiceOffered => Stage == BoardStage.Ready && FixedDice.Count > 0;
+
+    /// <summary>Whether the screen should be asking the player to name a number.</summary>
+    public bool FixedDieChoiceOffered => Stage == BoardStage.Ready && PendingFixedDieChoices > 0;
+
+    /// <summary>One branch's bias label, resolved — empty for the edge that keeps to the spine.</summary>
+    /// <param name="branch">The branch to label.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="branch"/> is null.</exception>
+    public string BranchLabelText(ForkBranch branch)
+    {
+        ArgumentNullException.ThrowIfNull(branch);
+
+        // Empty rather than a fallback word for the spine edge: it was drawn under no bias, so there
+        // is no label the generator authored for it and inventing one would be a preview of nothing.
+        return branch.Label is { } label ? _strings.Resolve(LabelKeyFor(label)) : NothingLeftToSay;
+    }
+
+    /// <summary>A tile kind's name, resolved — empty for a number this build knows no name for.</summary>
+    /// <param name="tile">The tile kind to name.</param>
+    public string TileName(TileKind tile) =>
+        BoardTileKinds.NameKeyFor((int)tile) is { } key ? _strings.Resolve(key) : NothingLeftToSay;
 
     /// <summary>The pending tile's name, resolved — empty when nothing is pending.</summary>
     /// <remarks>
@@ -618,23 +544,12 @@ public sealed class BoardPresenter
     /// refused.
     /// </summary>
     /// <remarks>
-    /// The exhausted reroll gets its own sentence because it is the one refusal on this screen a
-    /// player can plan around, and because it is the one that arrives on the wire distinctly enough
-    /// to be recognised. Everything else shares one sentence; the identity is carried by
-    /// <see cref="RulesRejection"/> for the log.
+    /// ⚠️ One sentence for every refusal. The exhausted reroll used to get its own — it was the
+    /// only refusal on this screen a player could plan around — and it is gone with the reroll. The
+    /// reason's identity is still carried by <see cref="RulesRejection"/> for the log.
     /// </remarks>
-    public string RejectionText => RulesRejection switch
-    {
-        null => NothingLeftToSay,
-
-        // Paired with the reason that set it, not merely with the flag. The flag alone would let
-        // the reroll's sentence be printed under a refusal of something else entirely, which is the
-        // collapse this screen exists to avoid, reintroduced one layer out.
-        RejectionReason.CAP_REACHED when RerollExhausted =>
-            _strings.Resolve(RerollExhaustedStatusKey),
-
-        _ => _strings.Resolve(RefusedStatusKey),
-    };
+    public string RejectionText =>
+        RulesRejection is null ? NothingLeftToSay : _strings.Resolve(RefusedStatusKey);
 
     /// <summary>Reads the run this screen is about and settles everything drawn from it.</summary>
     /// <param name="ct">Cancellation.</param>
@@ -691,8 +606,8 @@ public sealed class BoardPresenter
     /// </summary>
     /// <remarks>
     /// 🔒 An armed confirmation that survived a roll would sit there through the rest of the run,
-    /// one stray press from ending it. Rolling, rerolling, choosing a fork or resolving a tile all
-    /// say the player has moved on.
+    /// one stray press from ending it. Rolling, choosing a fork or resolving a tile all say the
+    /// player has moved on.
     /// </remarks>
     public void CancelAbandon() => AbandonArmed = false;
 
@@ -707,56 +622,7 @@ public sealed class BoardPresenter
             return BoardSubmission.RefusedNotAvailable;
         }
 
-        // Closed before the command rather than after it: the prompt is about the roll that has
-        // just been accepted, and leaving it open across a new one would put an old face beside a
-        // new result.
-        ClosePromptWithoutRerolling();
-
-        var outcome = await SubmitAsync(new RollDiceCommand(), ct).ConfigureAwait(false);
-
-        if (outcome != BoardSubmission.Submitted)
-        {
-            return outcome;
-        }
-
-        // Opened from the faces THIS command reported, never from the screen-wide list: that list
-        // deliberately survives commands that report none, so opening from it would caption a new
-        // prompt with an old roll's face.
-        if (_facesFromLastCommand.Count > 0)
-        {
-            OpenPrompt(_facesFromLastCommand[^1]);
-        }
-
-        return outcome;
-    }
-
-    /// <summary>
-    /// Submits <c>USE_REROLL</c> — which advances the die for the next roll rather than replacing
-    /// the face this prompt is shown beside.
-    /// </summary>
-    /// <remarks>
-    /// See <see cref="TheRerollCannotReplaceTheFaceItIsShownBeside"/>. Refused outright unless a
-    /// prompt is open, so the charge cannot be spent from a screen that is not offering it.
-    /// </remarks>
-    /// <param name="ct">Cancellation.</param>
-    public async Task<BoardSubmission> UseRerollAsync(CancellationToken ct)
-    {
-        CancelAbandon();
-
-        if (!_promptOpen || Stage != BoardStage.Ready)
-        {
-            return BoardSubmission.RefusedNotAvailable;
-        }
-
-        var outcome = await SubmitAsync(new UseRerollCommand(), ct).ConfigureAwait(false);
-
-        // Recorded before the prompt closes, so the sentence the player reads survives the window
-        // that produced it. Only this reason latches it: any other refusal is the generic sentence.
-        RerollExhausted = RulesRejection == RejectionReason.CAP_REACHED;
-
-        ClosePromptWithoutRerolling();
-
-        return outcome;
+        return await SubmitAsync(new RollDiceCommand(), ct).ConfigureAwait(false);
     }
 
     /// <summary>Submits <c>CHOOSE_FORK</c> for one of the branches on offer.</summary>
@@ -777,6 +643,51 @@ public sealed class BoardPresenter
         }
 
         return await SubmitAsync(new ChooseForkCommand(branchIndex), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Spends one fixed die, moving the hero exactly its own number instead of rolling.
+    /// </summary>
+    /// <param name="pips">The number on the die to spend.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// 🔒 Gated on <see cref="RollBlock"/>, the same gate the roll takes, because the rules layer
+    /// refuses both movement commands from the same three states. It is ALSO checked against the
+    /// tray, so a number the run does not hold is never submitted: that refusal comes back as the
+    /// same wire value as the four the block already tells apart, and spending a command to learn
+    /// something the screen already knows would leave the player reading the generic sentence.
+    /// </remarks>
+    public async Task<BoardSubmission> UseFixedDieAsync(int pips, CancellationToken ct)
+    {
+        CancelAbandon();
+
+        if (RollBlock != BoardRollBlock.None || !FixedDice.Any(held => held.Pips == pips))
+        {
+            return BoardSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new UseFixedDieCommand(pips), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Names the number on one granted fixed die.</summary>
+    /// <param name="pips">The number the player chose, 1-6.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// ⚠️ NOT gated on <see cref="RollBlock"/>, and that is the difference between this and every
+    /// other control here: a grant can land while a tile is unresolved or a battle is open, and
+    /// naming a number moves nothing. Refusing it until the board was clear would leave the player
+    /// holding a reward they cannot open, in the states they most want to open it.
+    /// </remarks>
+    public async Task<BoardSubmission> ChooseFixedDieAsync(int pips, CancellationToken ct)
+    {
+        CancelAbandon();
+
+        if (Stage != BoardStage.Ready || PendingFixedDieChoices <= 0 || !Die.IsPips(pips))
+        {
+            return BoardSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new ChooseFixedDieCommand(pips), ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -825,107 +736,6 @@ public sealed class BoardPresenter
             : await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
     }
 
-    /// <summary>
-    /// Lets the ring advance, and closes the prompt by accepting the roll once it has lapsed.
-    /// </summary>
-    /// <remarks>
-    /// 🔒 <b>A lapse ACCEPTS the roll.</b> It does not reroll, and it does not spend a charge — the
-    /// design is explicit that letting the timer run out and tapping anywhere else are the same
-    /// thing. A ring that spent a charge on expiry would take the run's scarcest resource from a
-    /// player who did nothing, which is the opposite of what a countdown on a free choice means.
-    /// </remarks>
-    /// <returns>True when this call was the one that closed the prompt.</returns>
-    public bool TickRerollPrompt()
-    {
-        if (!_promptOpen || !_ringLapses || RingRemaining() > TimeSpan.Zero)
-        {
-            return false;
-        }
-
-        ClosePromptWithoutRerolling();
-
-        return true;
-    }
-
-    /// <summary>Closes the prompt by accepting the roll — what a tap outside the control does.</summary>
-    /// <returns>True when a prompt was open to close.</returns>
-    public bool AcceptRoll()
-    {
-        if (!_promptOpen)
-        {
-            return false;
-        }
-
-        ClosePromptWithoutRerolling();
-
-        return true;
-    }
-
-    /// <summary>Stops the ring while something is covering it, so the window is not spent unseen.</summary>
-    /// <remarks>
-    /// 🔒 The window is a deadline the player is answering. Opening the die panel over it — which is
-    /// a thing the board offers, and a reasonable thing to do before deciding — would otherwise
-    /// spend that answer on the act of looking something up. Suspending and resuming rather than
-    /// simply not ticking, because the clock keeps moving either way: without this the ring would
-    /// be found already lapsed the moment the panel closed.
-    /// </remarks>
-    /// <returns>True when there was a running ring to stop.</returns>
-    public bool SuspendRerollPrompt()
-    {
-        if (!_promptOpen || _suspendedAt is not null)
-        {
-            return false;
-        }
-
-        _suspendedAt = _clock.UtcNow;
-
-        return true;
-    }
-
-    /// <summary>Starts the ring again, having lost none of it to the interruption.</summary>
-    /// <returns>True when there was a suspended ring to start.</returns>
-    public bool ResumeRerollPrompt()
-    {
-        if (_suspendedAt is not { } suspended)
-        {
-            return false;
-        }
-
-        // The window is moved forward by exactly as long as it was covered, so the player gets back
-        // the ring they had rather than whatever is left of it.
-        _promptOpenedAt += _clock.UtcNow - suspended;
-        _suspendedAt = null;
-
-        return true;
-    }
-
-    private TimeSpan RingRemaining()
-    {
-        // A suspended ring is frozen at the instant it was covered, so reading it while the panel is
-        // up neither advances it nor reports a window that is quietly draining.
-        var elapsed = (_suspendedAt ?? _clock.UtcNow) - _promptOpenedAt;
-        var left = RerollRingDuration - elapsed;
-
-        // Clamped at zero rather than allowed to go negative, so "how much ring is left" is never a
-        // number a renderer would have to sanitise into an angle of its own.
-        return left > TimeSpan.Zero ? left : TimeSpan.Zero;
-    }
-
-    private void OpenPrompt(DieFaceReading face)
-    {
-        _promptFace = face;
-        _promptOpenedAt = _clock.UtcNow;
-        _promptOpen = true;
-        _suspendedAt = null;
-    }
-
-    private void ClosePromptWithoutRerolling()
-    {
-        _promptOpen = false;
-        _promptFace = null;
-        _suspendedAt = null;
-    }
-
     private BoardRollBlock BlockFromSnapshot()
     {
         if (_snapshot is not { } run)
@@ -964,12 +774,6 @@ public sealed class BoardPresenter
 
     private async Task<BoardSubmission> SubmitAsync(GameCommand command, CancellationToken ct)
     {
-        // Cleared before the command rather than after it. Cleared afterwards it would survive every
-        // path that returns early — which is every REFUSAL — and the reroll's sentence would then be
-        // printed under the next unrelated refusal.
-        RerollExhausted = false;
-        _facesFromLastCommand = [];
-
         var outcome = await _gameHost.SubmitAsync(_player, _run, command, ct).ConfigureAwait(false);
 
         RulesRejection = outcome.Rejection;
@@ -982,7 +786,7 @@ public sealed class BoardPresenter
         // 🔒 The state comes back with the outcome rather than being read again. A second read would
         // be a second round trip on every tap, and — worse — a window in which the screen draws a
         // run the command has already moved past.
-        CarryFaces(outcome.Events);
+        CarryRoll(outcome.Events);
 
         if (outcome.State.Run?.ToSnapshot() is { } moved)
         {
@@ -993,22 +797,15 @@ public sealed class BoardPresenter
     }
 
     /// <remarks>
-    /// Only the faces one command produced, replacing rather than appending: the caption is "what
-    /// you just rolled", and a list that grew across a run would answer a question nobody asked.
+    /// The number is kept only when a command actually reported one, so acknowledging a tile or
+    /// choosing a branch does not blank "what you rolled". Replacing rather than appending: the
+    /// caption is what you just rolled, and a history would answer a question nobody asked.
     /// </remarks>
-    private void CarryFaces(IReadOnlyList<DomainEvent> events)
+    private void CarryRoll(IReadOnlyList<DomainEvent> events)
     {
-        _facesFromLastCommand =
-            [.. events.OfType<DiceRolled>()
-                      .Select(e => new DieFaceReading(e.Sequence, e.Face.Kind.ToString(), e.Face.Value))];
-
-        // The screen-wide list keeps the last faces that EXIST, so acknowledging a tile or choosing
-        // a branch does not blank the panel's "last rolled". The per-command list above is what a
-        // roll opens its prompt from, so a roll that somehow reported nothing opens no prompt rather
-        // than one captioned with the previous roll's face.
-        if (_facesFromLastCommand.Count > 0)
+        if (events.OfType<DiceRolled>().LastOrDefault() is { } rolled)
         {
-            LastRolledFaces = _facesFromLastCommand;
+            LastRolledPips = rolled.Pips;
         }
     }
 
@@ -1031,7 +828,6 @@ public sealed class BoardPresenter
         MaxHp = run.MaxHp;
         Gold = run.Gold;
         Position = run.Position;
-        RerollChargesSpent = run.RerollChargesSpentThisStage;
 
         PendingTile = run.PendingTileKind == BoardTileKinds.NoPendingTile
             ? null
@@ -1041,9 +837,20 @@ public sealed class BoardPresenter
                 run.PendingTileLinearIndex,
                 run.PendingTileStage);
 
+        // Projected BEFORE the fork and the stage shape are settled, because both read it.
+        _board = ProjectBoard(run);
+
         Fork = run.PendingForkJunctionPosition is { } junction && run.PendingForkRemainingSteps is { } steps
             ? new ForkPrompt(junction, steps, Branches())
             : null;
+
+        FixedDice = run.FixedDice is { Count: > 0 } held
+            ? held.OrderBy(entry => entry.Key)
+                  .Select(entry => new HeldFixedDie(entry.Key, entry.Value))
+                  .ToArray()
+            : [];
+
+        PendingFixedDieChoices = run.PendingFixedDieChoices;
 
         ReadStageShape(run.ChapterId);
 
@@ -1059,19 +866,75 @@ public sealed class BoardPresenter
         RunAwaitingResults = run.Phase != RunPhase.Ended && (run.CurrentHp == 0 || run.BossDefeated);
     }
 
-    /// <remarks>See <see cref="TheForkPreviewIsNotReachableHere"/> for why these carry no preview.</remarks>
-    private static IReadOnlyList<ForkBranch> Branches() =>
-    [
-        new ForkBranch(ContinueBranchIndex, ForkContinueActionKey),
-        new ForkBranch(ContinueBranchIndex + 1, ForkBranchActionKey),
-    ];
+    /// <summary>
+    /// Regenerates the run's board out of its seed, or null when this build cannot draw one.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b><see cref="MissingContentException"/> and nothing else is caught.</b> It means one
+    /// thing — the run names a chapter this content set does not carry — and it is reachable from a
+    /// saved run whose chapter was removed, so a screen that let it through would fail to open a
+    /// board the player can otherwise still abandon. Every OTHER failure is a malformed chapter
+    /// document, and swallowing those would draw a boardless board over a content bug that every
+    /// content gate in CI is built to make loud.
+    /// </remarks>
+    private BoardView? ProjectBoard(RunSnapshot run)
+    {
+        try
+        {
+            return BoardView.Project(run, _content);
+        }
+        catch (MissingContentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The two edges a junction offers, the second carrying the branch's authored preview.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The preview is the generator's own: <see cref="BoardFork.BranchLabel"/> is the bias the
+    /// branch's tiles were drawn under and <see cref="BoardFork.BranchIcons"/> are the tiles that
+    /// draw actually produced. The spine edge carries neither, because it was drawn under no bias —
+    /// the board offers a preview of the side path and of nothing else, so that is what is shown.
+    /// ⚠️ Both edges still fall back to their structural caption when the junction is not one this
+    /// board knows, which is the state a fork paused at a position off the projected graph leaves.
+    /// </remarks>
+    private IReadOnlyList<ForkBranch> Branches()
+    {
+        var preview = _board?.PendingFork;
+
+        return
+        [
+            new ForkBranch(ContinueBranchIndex, ForkContinueActionKey),
+            new ForkBranch(
+                ContinueBranchIndex + 1,
+                ForkBranchActionKey,
+                preview?.BranchLabel,
+                preview?.BranchIcons ?? []),
+        ];
+    }
+
+    /// <summary>The loc key for one fork bias label.</summary>
+    /// <remarks>
+    /// A total switch over the four rather than a name-derived key, so adding a fifth label upstream
+    /// is a compile-time hole here instead of a key that resolves to nothing at run time.
+    /// </remarks>
+    private static string LabelKeyFor(ForkLabel label) => label switch
+    {
+        ForkLabel.Perilous => ForkPerilousLabelKey,
+        ForkLabel.Sheltered => ForkShelteredLabelKey,
+        ForkLabel.Arcane => ForkArcaneLabelKey,
+        ForkLabel.Feral => ForkFeralLabelKey,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(label), label, "03 §3.1 gives a fork four bias labels and this is none of them."),
+    };
 
     /// <summary>Reads the chapter's authored stage lengths, which is where "stage 2 of 3" comes from.</summary>
     private void ReadStageShape(int chapterId)
     {
         StageCount = null;
         StageLength = null;
-        StageTrackIndex = null;
 
         foreach (var path in _content.DocumentPaths)
         {
@@ -1101,22 +964,7 @@ public sealed class BoardPresenter
                 return;
             }
 
-            var length = stageLengths[stage - 1].AsInt32();
-
-            StageLength = length;
-
-            // The real sum of the stages before this one, taken from the chapter's own array. Every
-            // earlier length is added; none is assumed equal to any other.
-            var preceding = 0;
-
-            for (var earlier = 0; earlier < stage - 1; earlier++)
-            {
-                preceding += stageLengths[earlier].AsInt32();
-            }
-
-            var within = (TrackIndex ?? -1) - preceding;
-
-            StageTrackIndex = within >= 0 && within < length ? within : null;
+            StageLength = stageLengths[stage - 1].AsInt32();
 
             return;
         }

@@ -285,7 +285,6 @@ internal sealed class TriggerInstance
         TriggerKind.ON_LOW_HP => Crossing(occurrence.HpFraction),
 
         TriggerKind.ON_TILE_RESOLVED => Matches(Trigger.TileType, occurrence.TileType),
-        TriggerKind.ON_ROLL => Matches(Trigger.FaceKind, occurrence.FaceKind),
         TriggerKind.ON_PERK_TAKEN => Matches(Trigger.Category, occurrence.Category),
 
         _ => null,

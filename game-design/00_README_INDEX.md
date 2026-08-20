@@ -216,7 +216,7 @@ Explicitly out of scope. Do not implement these even if genre convention suggest
 | **Talent** | A permanent node in the meta talent tree. Never lost. |
 | **Legend Level** | The player's meta level, 1–200. Grants Talent Points and base stats. |
 | **Ghost** | A server-stored snapshot of a player's build, used as the opponent in async PvP. |
-| **Die Face** | One of the six configurable faces of the player's die. |
+| ~~**Die Face**~~ | ⚠️ **Removed.** The die is an ordinary six-sided die showing 1..6; no face is configurable and no face has a kind (`04`). |
 | **Core** | `SlayIdleRepeat.Core` — the pure C# domain model and rules library shared by client and server. **The whole game runs from this one assembly.** `30` |
 | **Apply** | `GameRules.Apply(state, command, context) → (newState, events)` — the single entry point to every rule in the game. `30` §2 |
 | **GameContext** | Everything ambient, passed as data: time, seed, content snapshot, entitlement, feature flags. Never a service call. `30` §3 |
@@ -237,4 +237,4 @@ Explicitly out of scope. Do not implement these even if genre convention suggest
 | **PlayerPower** | The canonical combat-power scalar, `K·√(EffectiveHP × DPS)` against a fixed reference opponent. `29` §2 |
 | **EmpiricalPower** | The same quantity *measured* from real simulated fights. Must track `PlayerPower` within ±12%. `29` §1 |
 | **ParPower** | The authored power at which a given `(chapter, tier)` clears ~70% of the time. A 24-cell table, not a formula. `29` §4 |
-| **Utility Index** | The second scalar covering everything `PlayerPower` excludes — die faces, income, board control, throughput. Internal only. `29` §3.1 |
+| **Utility Index** | The second scalar covering everything `PlayerPower` excludes — income, board control, throughput. ⚠️ Die faces were its first term and are gone (`04`). Internal only. `29` §3.1 |

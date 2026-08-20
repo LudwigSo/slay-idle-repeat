@@ -39,9 +39,6 @@ internal readonly record struct TriggerOccurrence
     /// <summary><see cref="TriggerKind.ON_TILE_RESOLVED"/> — the tile id that resolved.</summary>
     internal string? TileType { get; init; }
 
-    /// <summary><see cref="TriggerKind.ON_ROLL"/> — the die face kind the roll produced.</summary>
-    internal string? FaceKind { get; init; }
-
     /// <summary><see cref="TriggerKind.ON_PERK_TAKEN"/> — the category of the perk drafted.</summary>
     internal string? Category { get; init; }
 }

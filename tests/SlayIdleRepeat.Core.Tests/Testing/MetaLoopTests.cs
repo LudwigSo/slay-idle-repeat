@@ -122,8 +122,14 @@ public sealed class MetaLoopTests
     /// sufficient choice rather than a uniquely necessary one — the assertions below still hold, and
     /// re-sweeping for a cheaper board would only be tidying.
     /// </para>
+    /// <para>
+    /// ⚠️ <b>Re-swept from +12h to +13h when the weighted dice bag was removed.</b> A roll is now a
+    /// uniform 1..6 rather than a decay-weighted draw, so every run walks a different sequence of
+    /// nodes from the same seed — and the +12h board's new path met no Crowns-paying tile at all.
+    /// Nothing about the assertions moved; the instant that satisfies their premise did.
+    /// </para>
     /// </remarks>
-    private static readonly DateTimeOffset ForgeStart = Start.AddHours(12);
+    private static readonly DateTimeOffset ForgeStart = Start.AddHours(13);
 
     /// <summary>
     /// 🔴 The gear-banking case's own start instant, and it exists for the same reason
@@ -733,9 +739,10 @@ public sealed class MetaLoopTests
 
         driver.StageGatesCrossed.ShouldBe(
             ExpectedStageGates,
-            "the run crossed " + driver.StageGatesCrossed + " Stage Gates. One means the gate still " +
-            "only fires on an overshoot clamp; three means stage 3's last node gated on its way to " +
-            "the boss." + Trace(driver));
+            "the run crossed " + driver.StageGatesCrossed + " stage boundaries. One means it never " +
+            "left stage 2; three means the step onto the boss was counted as a boundary, which it is " +
+            "not — the boss belongs to no stage. ⚠️ This counts the run's TRAVERSAL, not the gate " +
+            "firing at each boundary; StageGateTriggerTests owns that." + Trace(driver));
     }
 
     // ═════════════════════════════════════════════════════════ the budget

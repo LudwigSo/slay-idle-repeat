@@ -223,7 +223,7 @@ The absolute magnitudes of the stat blocks only anchor the *shape* — the scali
 | Excluded | Why | Tracked instead as |
 |---|---|---|
 | Run-scoped **perks** (`06`) | They do not exist outside a run. Including them would make the number unstable and unusable for gating. | Modelled inside `RunModel` (`21` §6) |
-| **Die faces**, reroll charges, Nudge (`04`) | Board-layer. They change how much content you reach, not whether you win a fight. | **Utility Index** (§3.1) |
+| ~~**Die faces**, reroll charges, Nudge (`04`)~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). They were the Utility Index's board-layer term; nothing replaced them, so the index is short by its first contributor. | ~~**Utility Index** (§3.1)~~ |
 | **Economy** perks and talents — Gold, Crowns, drop rates, Focus (`24` §5) | Income, not power | **Utility Index** |
 | **Guild perks** (`27` §5) | Non-combat by locked rule R1. If a guild perk ever showed up in `PlayerPower`, R1 has been violated and an architecture test should already have failed. | **Utility Index** |
 | **Energy**, Energy Reserve (`28` C) | Throughput, not power | **Utility Index** |
@@ -238,7 +238,7 @@ A second, deliberately cruder scalar covering everything above, so that progress
 UtilityIndex = 100
              * (1 + DieFaceValue)      // sum of per-face weights, Star=1.0 … Pip1=0.05
              * (1 + IncomeMultiplier)  // Crowns/Gold/drop-rate bonuses from all sources
-             * (1 + BoardControl)      // rerolls, Nudge, tile preview, portals, Focus
+             * (1 + BoardControl)      // tile preview, portals, Focus (⚠️ rerolls and Nudge removed — 04 §5)
              * (1 + Throughput)        // energy cap, regen, reserve, dungeon entries
 ```
 

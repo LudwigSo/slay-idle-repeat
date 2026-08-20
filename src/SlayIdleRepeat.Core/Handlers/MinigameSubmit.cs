@@ -150,16 +150,14 @@ internal static class MinigameSubmit
             events.Add(new PityCounterAdvanced(DomainEvent.UnstampedSequence, moved.Key, moved.Value));
         }
 
-        // 🔒 The dice duel's charge, granted rather than dropped: `03` §6.1's "Win 2-0" row pays a
-        // Reroll Charge, and the run has somewhere to put one now. It is the same counter the
-        // Campfire and the Reroll Token write into, so the ceiling is RerollEconomy's, not this
-        // handler's.
-        if (reward.RerollCharges > 0)
+        // 🔒 The dice duel's own reward, and the shape of it is the point: winning a game ABOUT dice
+        // pays a die you get to choose the number on. `03` §6.1's "Win 2-0" row is where it is
+        // authored; every other row pays none.
+        if (reward.FixedDice > 0)
         {
             // Narrowed after the check, not before: the reward column is a long because every other
-            // column is, and a charge count is an int — the check is what makes the cast safe, and
-            // an authored value beyond int range is a content defect the clamp names rather than wraps.
-            run.GrantRerollCharges((int)Math.Min(reward.RerollCharges, int.MaxValue));
+            // column is, and a grant count is an int — the check is what makes the cast safe.
+            run.GrantFixedDieChoices((int)Math.Min(reward.FixedDice, int.MaxValue));
         }
 
         run.RecordMinigameResolution(run.Position, command.MinigameId);

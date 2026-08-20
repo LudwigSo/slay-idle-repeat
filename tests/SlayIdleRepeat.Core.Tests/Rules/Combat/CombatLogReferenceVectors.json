@@ -167,7 +167,7 @@
       },
       {
         "id": "run-effect-queued",
-        "why": "`18` section 2.5's sanctioned case: the Dicelord's Scramble queueing MODIFY_DIE_FACE. DataId is the battle-local effect index, Value the one runtime-resolved argument (the die face index), TargetId is None because the target is the RUN",
+        "why": "`18` section 2.5's sanctioned case: a combat trigger queueing a run/board op. DataId is the battle-local effect index, Value the one runtime-resolved argument, TargetId is None because the target is the RUN. WARNING the vector was authored around the Dicelord's Scramble queueing MODIFY_DIE_FACE, which is gone with the die's special faces and the reroll; the BYTES are unchanged because the op ordinal is not part of this event's canonical form",
         "eventCount": 1,
         "encodedByteLength": 52,
         "encodedHex": "0100000070030000000000000d000000000000000400000000000000ff0000000000000000000000000008402900000000000000",

@@ -23,50 +23,39 @@ namespace SlayIdleRepeat.Client.Composition;
 /// </remarks>
 public sealed class ComposedBoardScreen
 {
-    /// <summary>Pairs the Board presenter with the panel it shows and the screens it hands over to.</summary>
+    /// <summary>Pairs the Board presenter with the screens it hands over to.</summary>
     /// <param name="board">Drives the Board screen.</param>
-    /// <param name="diePanel">Drives the Die Panel the board's HUD opens.</param>
     /// <param name="battle">Builds the replay for the fight the run is standing in.</param>
     /// <param name="perkDraft">Builds the draft screen for the draft the run has open.</param>
     /// <param name="shop">Builds the shop screen for the shop tile the run is standing on.</param>
     /// <param name="campfire">Builds the campfire / shrine screen for the tile the run is standing on.</param>
-    /// <param name="diceForge">Builds the Dice Forge screen for the forge tile the run is standing on.</param>
     /// <param name="runEnd">Builds the run-end screen for the run this board is playing.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public ComposedBoardScreen(
         BoardPresenter board,
-        DiePanelPresenter diePanel,
         Func<ComposedBattleScreen> battle,
         Func<ComposedPerkDraftScreen> perkDraft,
         Func<ComposedShopScreen> shop,
         Func<ComposedCampfireScreen> campfire,
-        Func<ComposedDiceForgeScreen> diceForge,
         Func<ComposedRunEndScreen> runEnd)
     {
         ArgumentNullException.ThrowIfNull(board);
-        ArgumentNullException.ThrowIfNull(diePanel);
         ArgumentNullException.ThrowIfNull(battle);
         ArgumentNullException.ThrowIfNull(perkDraft);
         ArgumentNullException.ThrowIfNull(shop);
         ArgumentNullException.ThrowIfNull(campfire);
-        ArgumentNullException.ThrowIfNull(diceForge);
         ArgumentNullException.ThrowIfNull(runEnd);
 
         Board = board;
-        DiePanel = diePanel;
         Battle = battle;
         PerkDraft = perkDraft;
         Shop = shop;
         Campfire = campfire;
-        DiceForge = diceForge;
         RunEnd = runEnd;
     }
 
     /// <summary>Drives the Board screen.</summary>
     public BoardPresenter Board { get; }
-
-    /// <summary>Drives the Die Panel the board's HUD opens.</summary>
-    public DiePanelPresenter DiePanel { get; }
 
     /// <summary>
     /// Builds the replay of the fight the run is standing in.
@@ -100,14 +89,6 @@ public sealed class ComposedBoardScreen
     /// </remarks>
     public Func<ComposedCampfireScreen> Campfire { get; }
 
-    /// <summary>Builds the Dice Forge screen for the forge tile the run has landed on.</summary>
-    /// <remarks>
-    /// A factory for the reason every other screen here is one: a run can meet several forges, each
-    /// needs its own read of the die as it stands at that moment, and one built at composition time
-    /// would show every later forge the die the first one saw.
-    /// </remarks>
-    public Func<ComposedDiceForgeScreen> DiceForge { get; }
-
     /// <summary>Builds the run-end screen (S13 / S14) for the run this board is playing.</summary>
     /// <remarks>
     /// 🔒 One factory for both screens, because <c>02</c> §6 makes them one moment — and a factory
@@ -136,20 +117,15 @@ public sealed class ComposedBoardScreen
 /// </remarks>
 public static class BoardComposition
 {
-    /// <summary>Wires both over an already-composed client, for one run of one player.</summary>
+    /// <summary>Wires the board over an already-composed client, for one run of one player.</summary>
     /// <param name="composed">The graph the application root built and holds.</param>
     /// <param name="player">The profile the boot opened.</param>
     /// <param name="run">The run being played.</param>
-    /// <param name="rerollRingLapses">
-    /// Whether the reroll ring expires by itself. Passed through rather than read, because the
-    /// accessibility screen that would turn it off is not built — see <see cref="BoardPresenter"/>.
-    /// </param>
     /// <exception cref="ArgumentNullException"><paramref name="composed"/> is null.</exception>
     public static ComposedBoardScreen CreateBoardScreen(
         ComposedGodotClient composed,
         PlayerId player,
-        RunId run,
-        bool rerollRingLapses = true)
+        RunId run)
     {
         ArgumentNullException.ThrowIfNull(composed);
 
@@ -157,25 +133,14 @@ public static class BoardComposition
         var strings = new LocaleStringCatalogue(content, composed.Capabilities.PlatformInfo.Locale);
 
         return new ComposedBoardScreen(
-            new BoardPresenter(
-                composed.Client.GameHost,
-                strings,
-                content,
-                composed.Client.Clock,
-                player,
-                run,
-                rerollRingLapses),
-            new DiePanelPresenter(strings),
+            new BoardPresenter(composed.Client.GameHost, strings, content, player, run),
 
             // 🔴 The replay's opening speed and its motion setting take their defaults, because the
-            // settings screen that would remember either is not built — see BattleComposition. The
-            // ring's own accessibility flag above is deliberately not reused for them: a player who
-            // turned off one soft timer has not said anything about how fast a fight should play.
+            // settings screen that would remember either is not built — see BattleComposition.
             () => BattleComposition.CreateBattleScreen(composed, player, run),
             () => PerkDraftComposition.CreatePerkDraftScreen(composed, player, run),
             () => ShopComposition.CreateShopScreen(composed, player, run),
             () => CampfireComposition.CreateCampfireScreen(composed, player, run),
-            () => DiceForgeComposition.CreateDiceForgeScreen(composed, player, run),
             () => RunEndComposition.CreateRunEndScreen(composed, player, run));
     }
 }

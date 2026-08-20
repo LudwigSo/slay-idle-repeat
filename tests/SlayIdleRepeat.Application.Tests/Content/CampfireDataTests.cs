@@ -18,7 +18,7 @@ namespace SlayIdleRepeat.Application.Tests.Content;
 /// <para>
 /// 🔴 <b>One document for two arms, because it is one screen with two arms.</b> A campfire and a
 /// shrine are separate tile kinds that open the same screen, and the <c>block</c> group carries
-/// four separate absences across them: the campfire's perk-tier upgrade and its reroll-charge grant
+/// four separate absences across them: the campfire's perk-tier upgrade and its reroll-charge grant (the latter now removed outright)
 /// are refused for two different unbuilt reasons, the shrine's choice does not exist as a command
 /// at all, and the shrine's Cleanse arm cannot fire because a run holds no curse list. Four
 /// sentences, because a player told the wrong one goes looking for the wrong thing.
@@ -131,7 +131,6 @@ public sealed class CampfireDataTests
     [InlineData("loc.campfire.shrine_buffs.label")]
     [InlineData(RestActionKey)]
     [InlineData("loc.campfire.upgrade_perk.action")]
-    [InlineData("loc.campfire.reroll_charges.action")]
     [InlineData("loc.campfire.continue.action")]
     [InlineData(UpgradePerkNoneBlockKey)]
     [InlineData(TakeActionKey)]

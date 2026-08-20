@@ -31,13 +31,13 @@
   },
   "totals": {
     "claimedMusic": 12,
-    "claimedSfx": 94,
-    "claimedCombined": 106,
+    "claimedSfx": 86,
+    "claimedCombined": 98,
     "transcribedMusic": 12,
-    "transcribedSfx": 94,
-    "transcribedCombined": 106,
+    "transcribedSfx": 86,
+    "transcribedCombined": 98,
     "sfxWithoutDescriptor": 8,
-    "_doc": "Counted from the id lists, not copied from doc 20's stated totals."
+    "_doc": "Counted from the id lists, not copied from doc 20's stated totals. ⚠️ Doc 20 claims 94 SFX and 106 combined; eight dice-family rows are gone with the die's special faces and the reroll (sfx_die_land_star/surge/fortune/void/chain, sfx_reroll, sfx_nudge, sfx_face_upgrade), so the shipped register is 86 and 98."
   },
   "families": [
     {
@@ -51,8 +51,8 @@
     {
       "id": "dice",
       "label": "Dice",
-      "claimedCount": 11,
-      "transcribedCount": 11,
+      "claimedCount": 3,
+      "transcribedCount": 3,
       "countsAgree": true,
       "sourceSection": "20 §4.1"
     },
@@ -274,78 +274,6 @@
       "family": "dice",
       "sourceSection": "20 §4.1",
       "descriptor": "die landing with a solid clack",
-      "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false
-    },
-    {
-      "id": "sfx_die_land_star",
-      "kind": "sfx",
-      "family": "dice",
-      "sourceSection": "20 §4.1",
-      "descriptor": "clack with a bright magical chime",
-      "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false
-    },
-    {
-      "id": "sfx_die_land_surge",
-      "kind": "sfx",
-      "family": "dice",
-      "sourceSection": "20 §4.1",
-      "descriptor": "clack with an electric zap",
-      "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false
-    },
-    {
-      "id": "sfx_die_land_fortune",
-      "kind": "sfx",
-      "family": "dice",
-      "sourceSection": "20 §4.1",
-      "descriptor": "clack with coins jingling",
-      "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false
-    },
-    {
-      "id": "sfx_die_land_void",
-      "kind": "sfx",
-      "family": "dice",
-      "sourceSection": "20 §4.1",
-      "descriptor": "clack with a hollow reversed whoosh",
-      "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false
-    },
-    {
-      "id": "sfx_die_land_chain",
-      "kind": "sfx",
-      "family": "dice",
-      "sourceSection": "20 §4.1",
-      "descriptor": "clack with metal links rattling",
-      "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false
-    },
-    {
-      "id": "sfx_reroll",
-      "kind": "sfx",
-      "family": "dice",
-      "sourceSection": "20 §4.1",
-      "descriptor": "quick magical swirl and re-tumble",
-      "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false
-    },
-    {
-      "id": "sfx_nudge",
-      "kind": "sfx",
-      "family": "dice",
-      "sourceSection": "20 §4.1",
-      "descriptor": "soft click with a rising pitch",
-      "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
-      "ducksMusic": false
-    },
-    {
-      "id": "sfx_face_upgrade",
-      "kind": "sfx",
-      "family": "dice",
-      "sourceSection": "20 §4.1",
-      "descriptor": "ascending chime with a metallic forge ring",
       "format": "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping",
       "ducksMusic": false
     },

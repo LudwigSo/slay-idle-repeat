@@ -424,29 +424,33 @@ public sealed class DropsTuningTests
             "pool never offered it on is a stat the item screen cannot explain.");
     }
 
-    /// <summary>The floored affix is absent below its band and present at and above it.</summary>
+    /// <summary>🔴 No shipped affix authors a rarity floor, so every band draws the whole slot pool.</summary>
     /// <remarks>
-    /// The floor is applied where the pool is read rather than at the roll: a roller that had to
-    /// remember it would eventually forget, and the affix is a reroll charge — the one that would be
-    /// most visible on an item that should not have it.
+    /// ⚠️ <b>This case used to prove the floor bites.</b> <c>AFX_REROLL_CHARGE</c> was the only affix
+    /// carrying one ("S"), and it is gone with the reroll charge it granted — so the floor mechanism
+    /// in <c>EligibleAffixes</c> is now live code no shipped row exercises. What is pinned instead is
+    /// that fact, stated as a fact: the pool a band gets is band-independent today, and the commit
+    /// that authors the next floored affix owes this case back.
     /// </remarks>
     [Theory]
-    [InlineData(Rarity.C, false)]
-    [InlineData(Rarity.B, false)]
-    [InlineData(Rarity.A, false)]
-    [InlineData(Rarity.S, true)]
-    [InlineData(Rarity.SS, true)]
-    public void EligibleAffixes_applies_the_authored_rarity_floor(Rarity rarity, bool eligible)
+    [InlineData(Rarity.C)]
+    [InlineData(Rarity.B)]
+    [InlineData(Rarity.A)]
+    [InlineData(Rarity.S)]
+    [InlineData(Rarity.SS)]
+    public void EligibleAffixes_offers_the_same_pool_at_every_band_because_none_is_floored(Rarity rarity)
     {
-        var pool = Tuning().EligibleAffixes(GearSlot.RING, rarity)
+        var tuning = Tuning();
+
+        var pool = tuning.EligibleAffixes(GearSlot.RING, rarity)
             .Select(affix => affix.AffixId)
             .ToArray();
 
-        pool.Contains(GearDocuments.ShippedFlooredAffixId, StringComparer.Ordinal).ShouldBe(eligible);
-        pool.ShouldContain(
-            "AFX_CRIT_CHANCE",
-            "the floor moves one affix, not the pool: an unfloored affix must be eligible at every " +
-            "band, or this theory would pass over an empty pool at the bottom rows.");
+        pool.ShouldBe(
+            tuning.EligibleAffixes(GearSlot.RING, Rarity.C).Select(affix => affix.AffixId),
+            $"{rarity} draws the same RING pool as C while nothing is floored.");
+
+        pool.ShouldContain("AFX_CRIT_CHANCE", "a pool with nothing in it would pass vacuously.");
     }
 
     /// <summary>An affix range a roll cannot land inside is refused.</summary>

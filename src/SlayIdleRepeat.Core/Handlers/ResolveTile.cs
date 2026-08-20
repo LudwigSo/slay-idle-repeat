@@ -21,7 +21,8 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// <item>
 /// <b>Resolved here and cleared</b> — <c>Empty</c>, <c>Treasure</c>, <c>Cache</c>, <c>Shrine</c>,
 /// <c>Curse</c>, <c>Shop</c>, <c>DiceForge</c>. The tile's whole effect happens in this command —
-/// which for a Shop and a Dice Forge is deliberately nothing at all; see their branch.
+/// which for a Shop is deliberately nothing at all; see its branch. A Dice Forge owes a fixed-die
+/// choice and clears, which is its repurposing.
 /// </item>
 /// <item>
 /// <b>Advanced but not cleared</b> — <c>Event</c> and <c>Campfire</c>. A second command
@@ -41,6 +42,13 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// </remarks>
 internal static class ResolveTile
 {
+    /// <summary>How many fixed-die choices a Dice Forge tile owes. 📐 TUNABLE.</summary>
+    /// <remarks>
+    /// One, matching the campfire's option. The forge used to install one face upgrade for the run,
+    /// so one die is the same shape of reward without the permanence.
+    /// </remarks>
+    internal const int DiceForgeFixedDiceGranted = 1;
+
     /// <summary>Applies <c>RESOLVE_TILE</c>.</summary>
     /// <param name="command">Carries no payload: the tile is whatever the run is standing on.</param>
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
@@ -124,7 +132,14 @@ internal static class ResolveTile
                 return StockShop(input, run);
 
             case TileKind.DiceForge:
-                // Acknowledgement only. DICE_FORGE_CHOOSE installs the upgrade and clears the tile.
+                // 🔒 REPURPOSED. The forge installed replacement die faces; the die has no faces, so
+                // what it forges now is a FIXED DIE — one the run spends instead of a roll to move
+                // exactly its number. It owes the choice rather than handing a die over, so the
+                // player names the number through CHOOSE_FIXED_DIE; that is why this clears the tile
+                // instead of leaving it pending for a command of its own, and why DICE_FORGE_CHOOSE
+                // stayed retired.
+                run.GrantFixedDieChoices(DiceForgeFixedDiceGranted);
+                run.ClearPendingTile();
                 return HandlerResult.Accept();
 
             case TileKind.Minigame:

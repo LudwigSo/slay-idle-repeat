@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/board_events.schema.json",
-  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed five-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges, none of which exist in Core today, so each such outcome carries one UNSUPPORTED op naming the mechanic and its owning milestone. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
+  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed six-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges, so each outcome Core cannot execute carries one UNSUPPORTED op naming the mechanic and its owning milestone. Two of those groups have since been RESOLVED rather than deferred: the three reroll-charge grants are now FIXED_DIE choices (04 §6), and the three tile-reveal OPTIONS are gone from this document entirely — not deferred, not left paying nothing, DELETED, with no replacement. The board is completely visible at all times (04 §4, 16 D42), so what they offered cannot exist, and a card listing an option that pays nothing asks the player to make a choice that is not one. So EVT_OLD_SOLDIER, EVT_ARCHIVE and EVT_LAST_LAMP each offer TWO options here where 19 Part A's table lists three, and 19 says so on each of their rows. ⚠️ Option order is load-bearing (EVENT_CHOOSE names an option by index) and removing one RENUMBERS those after it — safe here because an index is carried by one transient command and persisted nowhere; only the drawn card's id is on the run. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
   "_status": "transcribed",
   "cards": [
     {
@@ -67,7 +67,7 @@
         },
         {
           "label": "Share your rations",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.05 }, { "op": "UNSUPPORTED", "note": "+2 Reroll Charges — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.05 }, { "op": "FIXED_DIE", "count": 2 } ] } ]
         }
       ]
     },
@@ -163,17 +163,13 @@
       "maxChapter": 3,
       "options": [
         {
-          "label": "Ask about the road",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles in this stage — board reveal needs the run's generated board, M3-02's" } ] } ]
-        },
-        {
           "label": "Ask about his armour",
           "cost": { "currency": "GOLD", "amount": 250 },
           "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+15% DEF for the run — DEF is not tracked on Run" } ] } ]
         },
         {
           "label": "Ask nothing",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "FIXED_DIE", "count": 1 } ] } ]
         }
       ]
     },
@@ -189,7 +185,7 @@
           "outcomes": [
             { "w": 40, "effects": [ { "op": "UNSUPPORTED", "note": "teleport forward 5 nodes — board movement is M3-02's" } ] },
             { "w": 40, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 200, "chapterScaled": true } ] },
-            { "w": 20, "effects": [ { "op": "CURSE_REWARD", "curseId": "CUR_DIZZY" } ] }
+            { "w": 20, "effects": [ { "op": "CURSE_REWARD", "curseId": "CUR_FRACTURED" } ] }
           ]
         },
         {
@@ -357,7 +353,7 @@
       "options": [
         {
           "label": "Pay",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "pay 15% of current Gold to pass, then +1 Reroll Charge — a proportional cost the flat cost field cannot express, and reroll charges are not tracked" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "pay 15% of current Gold to pass, then +1 Reroll Charge — the reward half IS payable now (a FIXED_DIE choice, 04 §6), but the COST is a proportional one the flat amount field cannot express. Paying the reward without the cost would make this option strictly good, so neither half is applied" } ] } ]
         },
         {
           "label": "Refuse",
@@ -406,10 +402,6 @@
           "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 tier on one owned perk — DraftedPerks is M3-06's" } ] } ]
         },
         {
-          "label": "Read the maps",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles for the rest of this stage — board reveal needs the run's generated board, M3-02's" } ] } ]
-        },
-        {
           "label": "Sell the lot",
           "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 400, "chapterScaled": true } ] } ]
         }
@@ -428,7 +420,7 @@
         },
         {
           "label": "Shelter",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "lose 1 Reroll Charge to heal 20% HP — reroll charges are not tracked, so the cost cannot be taken and the heal is deliberately not paid either" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "lose 1 Reroll Charge to heal 20% HP — the cost is still unpayable: a fixed die (04 §6) replaced the reroll CHARGE but is not the same resource, and this card would have to choose which of the player's dice to take. The heal is deliberately not paid either, or the option becomes a free 20%" } ] } ]
         },
         {
           "label": "Walk through it",
@@ -538,7 +530,7 @@
         },
         {
           "label": "Avoid it",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "FIXED_DIE", "count": 1 } ] } ]
         },
         {
           "label": "Watch from here",
@@ -616,10 +608,6 @@
       "minChapter": 6,
       "maxChapter": 8,
       "options": [
-        {
-          "label": "Take it",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "tile preview +6 and every TILE_CURSE in this stage revealed — board reveal needs the run's generated board, M3-02's" } ] } ]
-        },
         { "label": "Leave it lit", "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": 0.4 } ] } ] },
         {
           "label": "Extinguish it",

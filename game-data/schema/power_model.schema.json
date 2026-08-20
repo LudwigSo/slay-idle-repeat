@@ -74,7 +74,7 @@
       "properties": {
         "scale": { "type": "number", "exclusiveMinimum": 0 },
         "dieFaceWeights": {
-          "description": "29 §3.1 — sum of per-face weights. Only the two endpoints (Star=1.0, Pip1=0.05) are authored in the design docs; the rest are null. Face kinds are the 04 §1 DieFaceKind enum.",
+          "description": "29 §3.1 — sum of per-face weights. \u26a0\ufe0f Unbuildable: the die is an ordinary six-sided die with no face kinds, so there are no per-face weights to sum. The two authored endpoints were Star=1.0 and Pip1=0.05. Kept as a declared shape until the Utility Index is re-derived without a die term.",
           "type": "object",
           "additionalProperties": false,
           "required": ["STAR", "SURGE", "FORTUNE", "CHAIN", "VOID", "PIP_1", "PIP_2", "PIP_3", "PIP_4", "PIP_5", "PIP_6"],

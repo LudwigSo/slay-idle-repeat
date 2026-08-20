@@ -9,7 +9,7 @@ namespace SlayIdleRepeat.Core.Tests.Model;
 /// <summary>
 /// <c>Run</c>'s phase/battle/draft/reroll/stage-gate defect guards and rehydrate faults. The
 /// legal transitions are covered at the <c>Apply</c> seam by <c>StartBattleTests</c>/
-/// <c>ConfirmBattleResultTests</c>/<c>UseRerollTests</c>/<c>StageGateTriggerTests</c>.
+/// <c>ConfirmBattleResultTests</c>/<c>StageGateTriggerTests</c>.
 /// </summary>
 public sealed class RunPhaseTests
 {
@@ -73,7 +73,7 @@ public sealed class RunPhaseTests
     {
         var run = RunAggregate.Rehydrate(RunSnapshots.With(currentHp: 40, maxHp: 100)).Value;
 
-        Should.Throw<ArgumentOutOfRangeException>(() => run.ApplyStageGate(101, 0UL));
+        Should.Throw<ArgumentOutOfRangeException>(() => run.ApplyStageGate(101));
     }
 
     [Fact]
@@ -85,17 +85,6 @@ public sealed class RunPhaseTests
 
         result.IsFailure.ShouldBeTrue();
         result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.Phase));
-    }
-
-    [Fact]
-    public void Rehydrate_refuses_a_negative_reroll_spent_count()
-    {
-        var snapshot = RunSnapshots.Valid with { RerollChargesSpentThisStage = -1 };
-
-        var result = RunAggregate.Rehydrate(snapshot);
-
-        result.IsFailure.ShouldBeTrue();
-        result.Error.ShouldContain(nameof(SlayIdleRepeat.Core.Model.Snapshots.RunSnapshot.RerollChargesSpentThisStage));
     }
 
     /// <summary>One half of the pair present without the other is not a row <c>Run.BeginPendingFork</c> could write.</summary>
@@ -178,13 +167,12 @@ public sealed class RunPhaseTests
     }
 
     [Fact]
-    public void ToSnapshot_round_trips_all_four_fields()
+    public void ToSnapshot_round_trips_the_phase_and_draft_fields()
     {
         var run = RunAggregate.Rehydrate(RunSnapshots.With(
             pendingTileKind: (int)TileKind.Enemy, pendingTileLinearIndex: 3, pendingTileStage: 1)).Value;
         run.EnterBattle();
-        run.SpendReroll();
-        run.ApplyStageGate(50, 7UL);
+        run.ApplyStageGate(50);
         run.ExitBattle();
         run.MarkDraftPending((int)TileKind.Enemy, 1);
 
@@ -192,15 +180,13 @@ public sealed class RunPhaseTests
 
         snapshot.Phase.ShouldBe(RunPhase.InProgress);
         snapshot.DraftPending.ShouldBeTrue();
-        snapshot.RerollChargesSpentThisStage.ShouldBe(0);
-        snapshot.StageGateDiceAnchor.ShouldBe(7UL);
+        snapshot.CurrentHp.ShouldBe(50, "the gate's heal is the one thing it writes.");
         snapshot.DraftBattleKind.ShouldBe((int)TileKind.Enemy);
         snapshot.DraftBattleStage.ShouldBe(1);
 
         var rehydrated = RunAggregate.Rehydrate(snapshot).Value;
         rehydrated.Phase.ShouldBe(RunPhase.InProgress);
         rehydrated.DraftPending.ShouldBeTrue();
-        rehydrated.RerollChargesSpentThisStage.ShouldBe(0);
-        rehydrated.StageGateDiceAnchor.ShouldBe(7UL);
+        rehydrated.CurrentHp.ShouldBe(50);
     }
 }

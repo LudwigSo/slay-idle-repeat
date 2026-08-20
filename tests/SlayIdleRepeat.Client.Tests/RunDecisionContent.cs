@@ -80,7 +80,6 @@ internal static class RunDecisionContent
     internal const string CampfireShrineBuffsLabelKey = "loc.campfire.shrine_buffs.label";
     internal const string CampfireRestActionKey = "loc.campfire.rest.action";
     internal const string CampfireUpgradePerkActionKey = "loc.campfire.upgrade_perk.action";
-    internal const string CampfireRerollChargesActionKey = "loc.campfire.reroll_charges.action";
     internal const string CampfireContinueActionKey = "loc.campfire.continue.action";
     internal const string CampfireUpgradePerkNoneBlockKey = "loc.campfire.upgrade_perk_none.block";
     internal const string CampfireTakeActionKey = "loc.campfire.take.action";
@@ -201,7 +200,7 @@ internal static class RunDecisionContent
     internal static IReadOnlyList<string> CampfireKeys { get; } =
     [
         CampfireTitleNameKey, CampfireShrineTitleNameKey, CampfireShrineBuffsLabelKey,
-        CampfireRestActionKey, CampfireUpgradePerkActionKey, CampfireRerollChargesActionKey,
+        CampfireRestActionKey, CampfireUpgradePerkActionKey,
         CampfireContinueActionKey,
         CampfireUpgradePerkNoneBlockKey, CampfireTakeActionKey, CampfireCleanseActionKey,
         CampfireShrineChooseLabelKey,

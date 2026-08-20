@@ -36,11 +36,58 @@ public sealed record StartRunCommand(int ChapterId, DifficultyTier Tier) : GameC
     }
 }
 
-/// <summary><c>ROLL_DICE</c> — roll. The server answers with the face, the movement and the landing outcome in one command.</summary>
+/// <summary><c>ROLL_DICE</c> — roll. The server answers with the number, the movement and the landing outcome in one command.</summary>
 public sealed record RollDiceCommand : GameCommand;
 
-/// <summary><c>USE_REROLL</c> — spend one reroll charge on the face just shown.</summary>
-public sealed record UseRerollCommand : GameCommand;
+/// <summary>
+/// <c>USE_FIXED_DIE</c> — spend one held fixed die and move exactly its number instead of rolling.
+/// </summary>
+/// <remarks>
+/// 🔒 A command of its own rather than a payload on <see cref="RollDiceCommand"/>, and the reason is
+/// the log: this one takes NO draw from the <c>dice</c> stream while a roll always takes exactly one,
+/// so a single command whose RNG consumption depended on a payload would make every replay read the
+/// payload before it could know where the stream stands.
+/// </remarks>
+/// <param name="Pips">The number on the die to spend, 1..6. The run must hold one showing it.</param>
+public sealed record UseFixedDieCommand(int Pips) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(Pips)} = {Pips}");
+
+        return true;
+    }
+}
+
+/// <summary>
+/// <c>CHOOSE_FIXED_DIE</c> — name the number on a fixed die the run has been granted.
+/// </summary>
+/// <remarks>
+/// 🔒 One command for every grant site. A site records that a choice is owed rather than handing
+/// over a die, because most of them have no command a number could ride on — an event outcome is
+/// drawn by weight, a minigame reward is decided by play, an ad reward and a set bonus are passive.
+/// See <c>Handlers.ChooseFixedDie</c>.
+/// </remarks>
+/// <param name="Pips">The number the granted die shows, 1..6.</param>
+public sealed record ChooseFixedDieCommand(int Pips) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(Pips)} = {Pips}");
+
+        return true;
+    }
+}
 
 /// <summary><c>CHOOSE_FORK</c> — pick a branch at a junction.</summary>
 /// <param name="BranchIndex">
@@ -126,8 +173,8 @@ public sealed record ShopRefreshCommand : GameCommand;
 /// <c>SHRINE_CHOOSE</c> — take one of the two options a Shrine tile offers (`03` §7a.5).
 /// </summary>
 /// <remarks>
-/// Added to `14` §2.3's registry alongside <see cref="DiceForgeChooseCommand"/> and
-/// <see cref="ShopLeaveCommand"/> (52 → 55; decision recorded in `16`). A shrine offers two distinct
+/// Added to `14` §2.3's registry alongside <see cref="ShopLeaveCommand"/> (decision recorded in
+/// `16`). A shrine offers two distinct
 /// options and the player takes one; before this command existed the resolver had to settle it
 /// itself, always taking slot 1, which made the game's only "relief or greed" decision a roll.
 /// </remarks>
@@ -145,40 +192,6 @@ public sealed record ShrineChooseCommand(int OptionIndex) : GameCommand
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Append(CultureInfo.InvariantCulture, $"{nameof(OptionIndex)} = {OptionIndex}");
-
-        return true;
-    }
-}
-
-/// <summary>
-/// <c>DICE_FORGE_CHOOSE</c> — upgrade one face of the run's die at a Dice Forge tile (`03` §2).
-/// </summary>
-/// <remarks>
-/// The upgrade is permanent for the run and free: landing on the tile is the whole cost. Which
-/// options are offered is <c>Handlers.DiceForgeChoose</c>'s, not this payload's — the command only
-/// names a face and a choice.
-/// </remarks>
-/// <param name="FaceIndex">The die face to upgrade, 1-based (`04` §1 numbers faces 1..6).</param>
-/// <param name="OptionIndex">The chosen option's position in the server-issued menu.</param>
-/// <param name="HigherPipValue">
-/// The new pip count, required by — and only by — the "raise to a higher Pip value" option, which
-/// is relative to the face being upgraded rather than a fixed target. <c>null</c> for every other
-/// option, and a value supplied alongside one of them is ignored rather than refused: it names
-/// nothing that option could install.
-/// </param>
-public sealed record DiceForgeChooseCommand(int FaceIndex, int OptionIndex, int? HigherPipValue = null)
-    : GameCommand
-{
-    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
-    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
-    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
-    protected override bool PrintMembers(StringBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Append(CultureInfo.InvariantCulture, $"{nameof(FaceIndex)} = {FaceIndex}");
-        builder.Append(CultureInfo.InvariantCulture, $", {nameof(OptionIndex)} = {OptionIndex}");
-        builder.Append(CultureInfo.InvariantCulture, $", {nameof(HigherPipValue)} = {HigherPipValue}");
 
         return true;
     }

@@ -67,7 +67,6 @@ public sealed class GameRulesRunPhaseGateTests
     /// <summary>A battle open blocks every run command except CONFIRM_BATTLE_RESULT.</summary>
     [Theory]
     [InlineData(nameof(RollDiceCommand))]
-    [InlineData(nameof(UseRerollCommand))]
     [InlineData(nameof(ResolveTileCommand))]
     [InlineData(nameof(StartBattleCommand))]
     public void A_run_command_other_than_CONFIRM_BATTLE_RESULT_is_rejected_while_a_battle_is_open(
@@ -78,7 +77,6 @@ public sealed class GameRulesRunPhaseGateTests
         SlayIdleRepeat.Core.Commands.GameCommand command = commandName switch
         {
             nameof(RollDiceCommand) => new RollDiceCommand(),
-            nameof(UseRerollCommand) => new UseRerollCommand(),
             nameof(ResolveTileCommand) => new ResolveTileCommand(),
             nameof(StartBattleCommand) => new StartBattleCommand(),
             _ => throw new InvalidOperationException("unreachable"),
@@ -410,7 +408,6 @@ public sealed class GameRulesRunPhaseGateTests
     private static readonly string[] SweptCommands =
     [
         nameof(RollDiceCommand),
-        nameof(UseRerollCommand),
         nameof(ResolveTileCommand),
         nameof(StartBattleCommand),
         nameof(EndRunCommand),
@@ -452,7 +449,6 @@ public sealed class GameRulesRunPhaseGateTests
     private static SlayIdleRepeat.Core.Commands.GameCommand Named(string commandName) => commandName switch
     {
         nameof(RollDiceCommand) => new RollDiceCommand(),
-        nameof(UseRerollCommand) => new UseRerollCommand(),
         nameof(ResolveTileCommand) => new ResolveTileCommand(),
         nameof(StartBattleCommand) => new StartBattleCommand(),
         nameof(EndRunCommand) => new EndRunCommand(),

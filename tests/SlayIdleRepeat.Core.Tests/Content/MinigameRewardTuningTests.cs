@@ -45,14 +45,6 @@ public sealed class MinigameRewardTuningTests
         reward.Crowns.ShouldBe(60L);
         reward.BeastFeed.ShouldBe(15L);
         reward.EnhanceStones.ShouldBe(0L);
-        reward.RerollCharges.ShouldBe(0L);
-    }
-
-    /// <summary>The one row that authors a reroll charge — read, not applied by this type.</summary>
-    [Fact]
-    public void MG_DICE_DUELs_2_0_row_carries_one_reroll_charge()
-    {
-        Tuning.RewardFor(MinigameCatalogue.DiceDuel, tier: 2, chapterId: 1).RerollCharges.ShouldBe(1L);
     }
 
     // ------------------------------------------------------------------ the chapter-scaling formula

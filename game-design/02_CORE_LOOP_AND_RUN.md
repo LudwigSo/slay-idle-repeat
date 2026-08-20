@@ -34,7 +34,7 @@ A **Run** is one attempt at one `(Chapter, DifficultyTier)` pair.
    │    └──────┬───────┘                           │
    │           ↓                                   │
    │    ┌──────────────┐                           │
-   │    │ REROLL_PROMPT│  optional, if charges > 0 │
+   │    │  (removed)   │  ⚠️ was REROLL_PROMPT — `04` §4 │
    │    └──────┬───────┘                           │
    │           ↓                                   │
    │    ┌──────────────┐                           │
@@ -71,7 +71,7 @@ Reaching the last tile of a stage triggers a **Stage Gate**:
 
 - Full-screen banner: *"STAGE 2 — The Ashen Mire"*
 - Hero restores **15%** of Max HP 📐 TUNABLE
-- Reroll charges refresh to base value
+- ⚠️ *Reroll charges refresh to base value* — removed with the reroll (`04` §5). The gate's heal is now all it does.
 - Perk draft rarity weights shift upward (see `06_PERKS.md` §4)
 - Enemy power multiplier steps up (see §4 below)
 - Autosave checkpoint written
@@ -113,7 +113,6 @@ One "turn" = one die roll and its full resolution.
 | Step | Duration | Player input |
 |---|---|---|
 | 1. Roll | 0.8 s | Tap the die (or tap-and-hold to see face preview) |
-| 2. Reroll decision | up to 4 s, skippable | Optional tap. Costs 1 Reroll Charge. Ad-reroll available (2/run). |
 | 3. Movement | 0.25 s × pips | None (auto). Tap to speed up. |
 | 4. Fork choice | up to 6 s per junction | Whenever the move reaches a junction, movement pauses for `CHOOSE_FORK`; remaining pips continue down the chosen branch. May occur mid-move, more than once per move. `03` §1.1 is the authority. |
 | 5. Tile resolution | 2 s – 40 s | Depends on tile type |
@@ -299,7 +298,7 @@ The first run is a scripted tutorial board, shipped as an **authored data packag
 | 2 | After battle #1 | The perk draft — the game's core decision | 2–3 |
 | 3 | Roll #3 → Treasure | Loot exists and is yours | 4 |
 | 4 | Roll #5 → Shop | Gold is spent inside the run | 5 |
-| 5 | Roll #7 → Elite (scripted near-death), then the reroll taught on the next roll | Reroll charges; the tension of the die | 6–6b |
+| 5 | Roll #7 → Elite (scripted near-death) | ⚠️ The beat taught the reroll and the tension of the die; both are gone (`04` §5), so this FTUE step is owed a replacement lesson | 6–6b |
 | 6 | Final tile → mini-boss | The victory payoff and the reward screen | 7–8 |
 
 `19` Part D's beat numbering (0–10 plus 6b) is canonical — it is what `beatId` persistence (`19` D7) and the resume rule index. The rows above are a teaching summary, not a second numbering.

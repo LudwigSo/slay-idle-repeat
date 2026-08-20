@@ -148,17 +148,16 @@ public enum EffectOp
     /// <summary>Raise an owned perk one tier.</summary>
     UPGRADE_PERK = 34,
 
-    /// <summary>Replace a die face (<c>Weighted Faces</c>, <c>The Sixth Star</c>, <c>Scramble</c>).</summary>
-    MODIFY_DIE_FACE = 35,
-
-    /// <summary>Add reroll charges.</summary>
-    GRANT_REROLL = 36,
+    // 35 and 36 were MODIFY_DIE_FACE and GRANT_REROLL. Both are gone with the die's special faces
+    // and the reroll charge: the die is an ordinary 1..6 and nothing may replace a face or hand out
+    // a reroll. The numbers stay retired rather than reused — they are wire values, and a row or a
+    // payload written when they meant something must never decode to a different op now.
 
     /// <summary>Move the token forward/backward N nodes.</summary>
     MOVE_NODES = 37,
 
-    /// <summary>Extend tile preview range.</summary>
-    REVEAL_TILES = 38,
+    // 38 was REVEAL_TILES, "extend tile preview range". The board is completely visible at all times (`04` §4, `16` D42), so nothing can narrow a preview and nothing can widen one. The number stays
+    // retired rather than reused: it is a wire value.
 
     /// <summary>Re-resolve the current tile at a multiplier.</summary>
     RESOLVE_TILE_AGAIN = 39,

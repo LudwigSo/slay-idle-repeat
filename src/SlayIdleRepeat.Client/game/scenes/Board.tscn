@@ -111,10 +111,11 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="Track" type="HBoxContainer" parent="SafeArea/Column/TrackFrame"]
+[node name="Track" type="HFlowContainer" parent="SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
 
 [node name="StandingOnRow" type="HBoxContainer" parent="SafeArea/Column/TrackFrame"]
 unique_name_in_owner = true
@@ -201,29 +202,6 @@ theme_override_font_sizes/font_size = 52
 horizontal_alignment = 2
 text_overrun_behavior = 3
 
-[node name="RingBar" type="ProgressBar" parent="SafeArea/Column/ActionColumn/PromptPanel"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 20)
-layout_mode = 2
-max_value = 1.0
-step = 0.001
-show_percentage = false
-
-[node name="RerollButton" type="Button" parent="SafeArea/Column/ActionColumn/PromptPanel"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-theme_override_font_sizes/font_size = 48
-autowrap_mode = 3
-
-[node name="RerollChangesNextRollLabel" type="Label" parent="SafeArea/Column/ActionColumn/PromptPanel"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 32
-horizontal_alignment = 1
-autowrap_mode = 3
-
 [node name="ForkPanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -242,12 +220,41 @@ unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 24
 
-[node name="DiePanelButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="DieChoicePanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
 layout_mode = 2
-theme_override_font_sizes/font_size = 44
+theme_override_constants/separation = 16
+
+[node name="DieChoiceLabel" type="Label" parent="SafeArea/Column/ActionColumn/DieChoicePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
+theme_override_font_sizes/font_size = 52
+horizontal_alignment = 1
 autowrap_mode = 3
+
+[node name="DieChoiceButtons" type="HFlowContainer" parent="SafeArea/Column/ActionColumn/DieChoicePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
+
+[node name="DicePanel" type="VBoxContainer" parent="SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="DiceLabel" type="Label" parent="SafeArea/Column/ActionColumn/DicePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
+theme_override_font_sizes/font_size = 44
+
+[node name="DiceButtons" type="HFlowContainer" parent="SafeArea/Column/ActionColumn/DicePanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 16
 
 [node name="RollButton" type="Button" parent="SafeArea/Column/ActionColumn"]
 unique_name_in_owner = true
@@ -270,80 +277,3 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 36
 autowrap_mode = 3
 
-[node name="DiePanelOverlay" type="PanelContainer" parent="."]
-unique_name_in_owner = true
-visible = false
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-
-[node name="OverlayGround" type="ColorRect" parent="DiePanelOverlay"]
-layout_mode = 2
-color = Color(0.04, 0.04, 0.06, 0.97)
-
-[node name="OverlaySafeArea" type="MarginContainer" parent="DiePanelOverlay"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_constants/margin_left = 64
-theme_override_constants/margin_top = 128
-theme_override_constants/margin_right = 64
-theme_override_constants/margin_bottom = 128
-
-[node name="OverlayColumn" type="VBoxContainer" parent="DiePanelOverlay/OverlaySafeArea"]
-layout_mode = 2
-theme_override_constants/separation = 32
-
-[node name="DiePanelTitleLabel" type="Label" parent="DiePanelOverlay/OverlaySafeArea/OverlayColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 72
-autowrap_mode = 3
-
-[node name="FacesUnavailableLabel" type="Label" parent="DiePanelOverlay/OverlaySafeArea/OverlayColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
-theme_override_font_sizes/font_size = 40
-autowrap_mode = 3
-
-[node name="FaceScroll" type="ScrollContainer" parent="DiePanelOverlay/OverlaySafeArea/OverlayColumn"]
-layout_mode = 2
-size_flags_vertical = 3
-size_flags_stretch_ratio = 1.0
-horizontal_scroll_mode = 0
-
-[node name="FaceList" type="VBoxContainer" parent="DiePanelOverlay/OverlaySafeArea/OverlayColumn/FaceScroll"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_constants/separation = 24
-
-[node name="LastFaceRow" type="HBoxContainer" parent="DiePanelOverlay/OverlaySafeArea/OverlayColumn"]
-layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="LastFaceLabel" type="Label" parent="DiePanelOverlay/OverlaySafeArea/OverlayColumn/LastFaceRow"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_horizontal = 3
-theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
-theme_override_font_sizes/font_size = 44
-autowrap_mode = 3
-
-[node name="LastFaceValue" type="Label" parent="DiePanelOverlay/OverlaySafeArea/OverlayColumn/LastFaceRow"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.93, 0.93, 0.96, 1)
-theme_override_font_sizes/font_size = 44
-horizontal_alignment = 2
-text_overrun_behavior = 3
-
-[node name="CloseButton" type="Button" parent="DiePanelOverlay/OverlaySafeArea/OverlayColumn"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 168)
-layout_mode = 2
-theme_override_font_sizes/font_size = 52
-autowrap_mode = 3

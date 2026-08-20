@@ -2,40 +2,44 @@ using System.Globalization;
 using Godot;
 using SlayIdleRepeat.Client.Composition;
 using SlayIdleRepeat.Client.Game.Presenters;
+using SlayIdleRepeat.Core.Content.Dice;
+using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Client.Game.Scenes;
 
 /// <summary>
-/// S05 — the board a run is played on: a driving adapter over <see cref="BoardPresenter"/>, with
-/// S12's die panel drawn over it from <see cref="DiePanelPresenter"/>.
+/// S05 — the board a run is played on: a driving adapter over <see cref="BoardPresenter"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// It renders what the presenters say and forwards five presses. No rules, no ports, no adapters,
-/// and above all no decision about what may be pressed: which of the roll, the reroll, the tile
+/// It renders what the presenter says and forwards its presses. No rules, no ports, no adapters,
+/// and above all no decision about what may be pressed: which of the roll, the tile
 /// acknowledgement and the two branches is live at any moment is the presenter's answer, and this
 /// half only draws it. That split is load-bearing rather than stylistic here — there is no scene
 /// test harness in this repository, so anything decided in this file is decided where nothing can
 /// check it.
 /// </para>
 /// <para>
-/// 🔴 <b>There is no track of tiles, because no client can read one.</b> The board's graph is
-/// generated inside the rules layer and never leaves it: which tile sits at which node, what a fork
-/// branch holds, what is coming up. What is drawn instead is honest — a strip of pips as long as
-/// the stage the chapter authors, with the one the run stands on lit, and the name of the tile it
-/// stands on. The upcoming-tile preview, the two branch previews with their labels and icon sets,
-/// and the perks and consumable-pouch controls of the HUD are all absent; the first three because
-/// they are unreadable, the last two because later milestones own them.
+/// 🔒 <b>The whole track is drawn, every node of it, always.</b> <c>BoardView</c> regenerates the
+/// run's graph from its seed, so each node is drawn as its own tile kind and the branch previews
+/// carry the labels and icons the generator actually authored. `16` D42 fixes the visibility: no
+/// fog, no preview range, nothing clipped — a die that only answers a number is only an interesting
+/// decision if the player can see what the numbers reach. The row WRAPS rather than scrolls, because
+/// a board the player has to drag to see is not a board that is completely visible. ⚠️ Still absent
+/// from the HUD: the perks list and the consumable pouch, both owned by later milestones.
 /// </para>
 /// <para>
 /// 🔒 <b>There is no art here at all, placeholder or otherwise, and no VFX.</b> The tile pips, the
-/// hero token, the HP bar and the reroll ring are drawn as containers and coloured rectangles the
-/// engine already provides. The die tumble, the dust puff and the floating result number the design
+/// hero token, the dice of the tray and the HP bar are drawn as containers, buttons and coloured
+/// rectangles the engine already provides. ⚠️ So a node's tile kind is drawn as a COLOUR, from the
+/// table below, and the name of the one the run stands on is the only tile named in words. That is
+/// the honest limit of a screen with no icon set: the colours tell nodes apart and the caption says
+/// what the player is on. The die tumble, the dust puff and the floating result number the design
 /// asks for are not built: they are procedural in-engine work by ruling, never a sprite sheet, and
 /// this task adds no asset row for them.
 /// </para>
 /// <para>
-/// ⚠️ Every type size, colour and gap in <c>Board.tscn</c> and <c>DieFaceRow.tscn</c> is a per-node
+/// ⚠️ Every type size, colour and gap in <c>Board.tscn</c> is a per-node
 /// override, because the shared theme resource and the display faces it will carry do not exist yet
 /// — they are M8-03's, and these overrides are debt owed to it rather than a naming scheme of this
 /// screen's own. The sizes were chosen against the engine's default font, so they have to be
@@ -106,7 +110,6 @@ public partial class Board : Control
     /// press is. The panel is therefore also reachable from a control of its own, so nothing about
     /// the disclosure depends on a number nobody wrote down.
     /// </summary>
-    private const double LongPressSeconds = 0.5;
 
     /// <summary>
     /// The one line a headless run's screen state is read off. Distinctive on purpose: a board
@@ -116,13 +119,9 @@ public partial class Board : Control
     private const string BoardMarker = "SIR_BOARD_READY";
 
     /// <summary>Where the per-face row of the die panel lives, instantiated once per face kind.</summary>
-    private const string DieFaceRowScenePath = "res://game/scenes/DieFaceRow.tscn";
 
-    private const string RowNameLabelPath = "NameLabel";
-    private const string RowEffectLabelPath = "EffectLabel";
 
     private const string SafeAreaPath = "%SafeArea";
-    private const string GroundPath = "%Ground";
     private const string HudPath = "%Hud";
     private const string StageRowPath = "%StageRow";
     private const string HpLabelPath = "%HpLabel";
@@ -146,27 +145,32 @@ public partial class Board : Control
     private const string PromptPanelPath = "%PromptPanel";
     private const string RolledLabelPath = "%RolledLabel";
     private const string RolledValuePath = "%RolledValue";
-    private const string RingBarPath = "%RingBar";
-    private const string RerollButtonPath = "%RerollButton";
-    private const string RerollChangesNextRollLabelPath = "%RerollChangesNextRollLabel";
-    private const string DiePanelButtonPath = "%DiePanelButton";
+    private const string DicePanelPath = "%DicePanel";
+    private const string DiceLabelPath = "%DiceLabel";
+    private const string DiceButtonsPath = "%DiceButtons";
+    private const string DieChoicePanelPath = "%DieChoicePanel";
+    private const string DieChoiceLabelPath = "%DieChoiceLabel";
+    private const string DieChoiceButtonsPath = "%DieChoiceButtons";
     private const string RollButtonPath = "%RollButton";
     private const string ResolveButtonPath = "%ResolveButton";
     private const string AbandonButtonPath = "%AbandonButton";
-    private const string DiePanelOverlayPath = "%DiePanelOverlay";
-    private const string OverlaySafeAreaPath = "%OverlaySafeArea";
-    private const string DiePanelTitleLabelPath = "%DiePanelTitleLabel";
-    private const string FacesUnavailableLabelPath = "%FacesUnavailableLabel";
-    private const string FaceListPath = "%FaceList";
-    private const string LastFaceLabelPath = "%LastFaceLabel";
-    private const string LastFaceValuePath = "%LastFaceValue";
-    private const string CloseButtonPath = "%CloseButton";
 
     /// <summary>Separates the two halves of one value pair: the amount, then its denominator.</summary>
     private const char OverSeparator = '/';
 
+    /// <summary>Separates the tiles of a fork branch's preview, in the order the branch walks them.</summary>
+    private const string IconSeparator = " \u00b7 ";
+
+    /// <summary>Marks the count on a tray control holding more than one die of the same number.</summary>
+    /// <remarks>
+    /// ⚠️ A symbol rather than a word, and the one string on this screen that is not a loc key: it is
+    /// the multiplication sign, which is read the same way in both shipped locales and carries no
+    /// grammar to translate. A worded count would need a plural rule per locale for a value the run
+    /// already states as a numeral.
+    /// </remarks>
+    private const string HeldCountPrefix = " \u00d7";
+
     /// <summary>Joins the faces one command reported, in the order it produced them.</summary>
-    private const string FaceJoin = " · ";
 
     /// <summary>The theme entry a control's own text size is written into.</summary>
     private const string FontSizeOverride = "font_size";
@@ -174,8 +178,51 @@ public partial class Board : Control
     /// <summary>What a fork branch's caption is drawn at, matching the body size beside it.</summary>
     private const int BranchFontSize = 48;
 
-    /// <summary>The pip a node the run has not reached is drawn as.</summary>
+    /// <summary>The pip a node whose tile kind this build has no colour for is drawn as.</summary>
+    /// <remarks>
+    /// Reachable only for a tile number outside `03` §2's fourteen, which is a board generated by a
+    /// newer rules layer than this scene. Drawn as the quiet grey rather than skipped, so the node is
+    /// still counted and the track still measures the board.
+    /// </remarks>
     private static readonly Color UnvisitedNodeColour = new(0.24f, 0.25f, 0.30f);
+
+    /// <summary>
+    /// What each of `03` §2's fourteen tile kinds is drawn as, with no icon set to draw instead.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Presentation, and debt owed to M8-03 exactly like every font size in the scene.</b>
+    /// Colour is the only channel a container-and-rectangle screen has for fourteen kinds, so these
+    /// are grouped by what a tile DOES to the player rather than chosen individually: the three
+    /// fights are one red, the four payouts one gold, the three that open a choice one blue, the
+    /// curse its own warning colour, and the empty node the quiet grey. Two tiles sharing a colour
+    /// is deliberate — the player reads the group at a glance and the caption names the one they are
+    /// standing on.
+    /// </para>
+    /// <para>
+    /// 🔒 Keyed on <see cref="TileKind"/> rather than on the run's bare integer, so a kind added
+    /// upstream is a MISSING entry answered by the grey above rather than a wrong colour: the
+    /// dictionary is asked, never indexed.
+    /// </para>
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<TileKind, Color> TileColours =
+        new Dictionary<TileKind, Color>
+        {
+            [TileKind.Enemy] = new(0.78f, 0.31f, 0.28f),
+            [TileKind.Elite] = new(0.78f, 0.31f, 0.28f),
+            [TileKind.Boss] = new(0.91f, 0.45f, 0.38f),
+            [TileKind.Treasure] = new(0.85f, 0.72f, 0.34f),
+            [TileKind.Cache] = new(0.85f, 0.72f, 0.34f),
+            [TileKind.Shop] = new(0.85f, 0.72f, 0.34f),
+            [TileKind.Minigame] = new(0.85f, 0.72f, 0.34f),
+            [TileKind.Shrine] = new(0.40f, 0.62f, 0.80f),
+            [TileKind.Campfire] = new(0.40f, 0.62f, 0.80f),
+            [TileKind.Event] = new(0.40f, 0.62f, 0.80f),
+            [TileKind.Portal] = new(0.55f, 0.45f, 0.78f),
+            [TileKind.DiceForge] = new(0.55f, 0.45f, 0.78f),
+            [TileKind.Curse] = new(0.62f, 0.36f, 0.60f),
+            [TileKind.Empty] = new(0.30f, 0.31f, 0.36f),
+        };
 
     /// <summary>And the one it is standing on — the token, in the palette's own live colour.</summary>
     private static readonly Color TokenColour = new(0.93f, 0.93f, 0.96f);
@@ -207,8 +254,26 @@ public partial class Board : Control
     /// </remarks>
     private static readonly Vector2 NodePipSize = new(0, 24);
 
+    /// <summary>
+    /// One node of the track, now that a node has a tile kind worth telling apart.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A fixed WIDTH, unlike the strip this replaced. The strip divided one row between the
+    /// nodes of one stage; this draws the whole board, which is 43 nodes on the shipped chapters and
+    /// authored content on any other — so dividing a row between them would shrink each node as the
+    /// board grew and eventually draw a board too fine to read. A fixed size and a wrapping
+    /// container means a longer board takes another line instead.
+    /// </remarks>
+    private static readonly Vector2 TrackNodeSize = new(40, 40);
+
+    /// <summary>What a die of the tray, and a number on the choice prompt, is drawn at.</summary>
+    /// <remarks>
+    /// Square and thumb-sized: `13` §3 puts every control a run turn needs inside the thumb zone,
+    /// and a tray of up to six numbers plus a six-way choice is a lot of controls to fit there.
+    /// </remarks>
+    private static readonly Vector2 DieControlSize = new(140, 140);
+
     private BoardPresenter? _presenter;
-    private DiePanelPresenter? _diePanel;
 
     /// <summary>Builds the replay of the fight the run is standing in, once there is one.</summary>
     private Func<ComposedBattleScreen>? _battle;
@@ -221,7 +286,6 @@ public partial class Board : Control
 
     /// <summary>Builds the campfire / shrine screen for the tile the run has landed on.</summary>
     private Func<ComposedCampfireScreen>? _campfire;
-    private Func<ComposedDiceForgeScreen>? _diceForge;
     private Func<ComposedRunEndScreen>? _runEnd;
 
     /// <summary>Whether the battle now open has already had its replay watched.</summary>
@@ -242,7 +306,6 @@ public partial class Board : Control
 
     private CancellationToken _lifetime;
 
-    private ColorRect? _ground;
     private Control? _hud;
     private Control? _stageRow;
     private Label? _hpLabel;
@@ -253,7 +316,7 @@ public partial class Board : Control
     private Label? _stageLabel;
     private Label? _stageValue;
     private Control? _trackFrame;
-    private HBoxContainer? _track;
+    private HFlowContainer? _track;
     private Control? _standingOnRow;
     private Label? _standingOnLabel;
     private Label? _pendingTileLabel;
@@ -263,30 +326,18 @@ public partial class Board : Control
     private Control? _forkPanel;
     private Label? _forkTitleLabel;
     private HBoxContainer? _forkButtons;
+    private Control? _dicePanel;
+    private Label? _diceLabel;
+    private HFlowContainer? _diceButtons;
+    private Control? _dieChoicePanel;
+    private Label? _dieChoiceLabel;
+    private HFlowContainer? _dieChoiceButtons;
     private Control? _promptPanel;
     private Label? _rolledLabel;
     private Label? _rolledValue;
-    private ProgressBar? _ringBar;
-    private Button? _rerollButton;
-    private Label? _rerollChangesNextRollLabel;
-    private Button? _diePanelButton;
     private Button? _rollButton;
     private Button? _resolveButton;
     private Button? _abandonButton;
-    private Control? _diePanelOverlay;
-    private Label? _diePanelTitleLabel;
-    private Label? _facesUnavailableLabel;
-    private VBoxContainer? _faceList;
-    private Label? _lastFaceLabel;
-    private Label? _lastFaceValue;
-    private Button? _closeButton;
-
-    /// <summary>How long the roll button has been held, or null when it is not being held.</summary>
-    private double? _heldFor;
-
-    /// <summary>Whether the current hold has already opened the panel, so its release does not roll.</summary>
-    private bool _holdConsumed;
-
     /// <summary>Whether a submission is in flight, so a second press cannot start another.</summary>
     private bool _busy;
 
@@ -309,12 +360,10 @@ public partial class Board : Control
         ArgumentNullException.ThrowIfNull(home);
 
         _presenter = screen.Board;
-        _diePanel = screen.DiePanel;
         _battle = screen.Battle;
         _perkDraft = screen.PerkDraft;
         _shop = screen.Shop;
         _campfire = screen.Campfire;
-        _diceForge = screen.DiceForge;
         _runEnd = screen.RunEnd;
         _home = home;
         _lifetime = lifetime;
@@ -404,7 +453,6 @@ public partial class Board : Control
     {
         // Resolved once. A scene-unique lookup is a string search of the owner's table each time it
         // is asked, and this screen redraws on every command and on every frame the ring is open.
-        _ground = GetNode<ColorRect>(GroundPath);
         _hud = GetNode<Control>(HudPath);
         _stageRow = GetNode<Control>(StageRowPath);
         _hpLabel = GetNode<Label>(HpLabelPath);
@@ -415,7 +463,7 @@ public partial class Board : Control
         _stageLabel = GetNode<Label>(StageLabelPath);
         _stageValue = GetNode<Label>(StageValuePath);
         _trackFrame = GetNode<Control>(TrackFramePath);
-        _track = GetNode<HBoxContainer>(TrackPath);
+        _track = GetNode<HFlowContainer>(TrackPath);
         _standingOnRow = GetNode<Control>(StandingOnRowPath);
         _standingOnLabel = GetNode<Label>(StandingOnLabelPath);
         _pendingTileLabel = GetNode<Label>(PendingTileLabelPath);
@@ -428,44 +476,31 @@ public partial class Board : Control
         _promptPanel = GetNode<Control>(PromptPanelPath);
         _rolledLabel = GetNode<Label>(RolledLabelPath);
         _rolledValue = GetNode<Label>(RolledValuePath);
-        _ringBar = GetNode<ProgressBar>(RingBarPath);
-        _rerollButton = GetNode<Button>(RerollButtonPath);
-        _rerollChangesNextRollLabel = GetNode<Label>(RerollChangesNextRollLabelPath);
-        _diePanelButton = GetNode<Button>(DiePanelButtonPath);
+        _dicePanel = GetNode<Control>(DicePanelPath);
+        _diceLabel = GetNode<Label>(DiceLabelPath);
+        _diceButtons = GetNode<HFlowContainer>(DiceButtonsPath);
+        _dieChoicePanel = GetNode<Control>(DieChoicePanelPath);
+        _dieChoiceLabel = GetNode<Label>(DieChoiceLabelPath);
+        _dieChoiceButtons = GetNode<HFlowContainer>(DieChoiceButtonsPath);
         _rollButton = GetNode<Button>(RollButtonPath);
         _resolveButton = GetNode<Button>(ResolveButtonPath);
         _abandonButton = GetNode<Button>(AbandonButtonPath);
-        _diePanelOverlay = GetNode<Control>(DiePanelOverlayPath);
-        _diePanelTitleLabel = GetNode<Label>(DiePanelTitleLabelPath);
-        _facesUnavailableLabel = GetNode<Label>(FacesUnavailableLabelPath);
-        _faceList = GetNode<VBoxContainer>(FaceListPath);
-        _lastFaceLabel = GetNode<Label>(LastFaceLabelPath);
-        _lastFaceValue = GetNode<Label>(LastFaceValuePath);
-        _closeButton = GetNode<Button>(CloseButtonPath);
 
         _rollButton.Pressed += OnRollPressed;
-        _rollButton.ButtonDown += OnRollHoldStarted;
-        _rollButton.ButtonUp += OnRollHoldEnded;
-        _rerollButton.Pressed += OnRerollPressed;
         _resolveButton.Pressed += OnResolvePressed;
         _abandonButton.Pressed += OnAbandonPressed;
-        _diePanelButton.Pressed += OnDiePanelPressed;
-        _closeButton.Pressed += OnClosePressed;
-        _ground.GuiInput += OnGroundInput;
 
         // Painted once, because nothing about which colour belongs to which state changes while the
         // screen is up. It is painted at all because a Button draws its text by draw mode, and the
         // disabled mode every one of these controls spends most of its life in has an engine default
         // of half-transparent grey that no override of font_color reaches.
-        foreach (var button in new[] { _rollButton, _resolveButton, _rerollButton, _diePanelButton })
+        foreach (var button in new[] { _rollButton, _resolveButton })
         {
             ButtonTextColours.ApplyTo(button, LiveColour, UnavailableColour);
         }
 
         SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
-        SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(OverlaySafeAreaPath), GetViewportRect().Size);
 
-        BuildFaceList();
         Render();
 
         _ = StartAsync();
@@ -482,13 +517,6 @@ public partial class Board : Control
         if (_rollButton is not null)
         {
             _rollButton.Pressed -= OnRollPressed;
-            _rollButton.ButtonDown -= OnRollHoldStarted;
-            _rollButton.ButtonUp -= OnRollHoldEnded;
-        }
-
-        if (_rerollButton is not null)
-        {
-            _rerollButton.Pressed -= OnRerollPressed;
         }
 
         if (_resolveButton is not null)
@@ -501,60 +529,6 @@ public partial class Board : Control
             _abandonButton.Pressed -= OnAbandonPressed;
         }
 
-        if (_diePanelButton is not null)
-        {
-            _diePanelButton.Pressed -= OnDiePanelPressed;
-        }
-
-        if (_closeButton is not null)
-        {
-            _closeButton.Pressed -= OnClosePressed;
-        }
-
-        if (_ground is not null)
-        {
-            _ground.GuiInput -= OnGroundInput;
-        }
-    }
-
-    /// <inheritdoc/>
-    /// <remarks>
-    /// <para>
-    /// Two things need a frame rather than an event: the ring, which is a countdown nothing else
-    /// ticks, and the hold that opens the die panel.
-    /// </para>
-    /// <para>
-    /// 🔒 The ring's DECISION is not made here. This asks the presenter to look at its clock and
-    /// answer whether the window has closed; whether four seconds have passed, and what a lapse
-    /// means, are the presenter's, where a case can drive them. What is left here is the redraw.
-    /// </para>
-    /// </remarks>
-    /// <param name="delta">Seconds since the previous frame.</param>
-    public override void _Process(double delta)
-    {
-        // 🔒 Nothing ticks while the die panel is up. The prompt's window is a deadline the player
-        // is answering, and letting it drain behind a modal they opened to read their die spends
-        // their answer on the act of looking something up.
-        if (_diePanelOverlay is { Visible: true })
-        {
-            return;
-        }
-
-        AdvanceHold(delta);
-
-        if (_presenter is not { } presenter || presenter.Prompt is null)
-        {
-            return;
-        }
-
-        if (presenter.TickRerollPrompt())
-        {
-            Render();
-
-            return;
-        }
-
-        RenderPrompt(presenter);
     }
 
     /// <remarks>
@@ -587,28 +561,7 @@ public partial class Board : Control
         }
     }
 
-    private void AdvanceHold(double delta)
-    {
-        if (_heldFor is not { } held || _holdConsumed)
-        {
-            return;
-        }
-
-        _heldFor = held + delta;
-
-        if (_heldFor < LongPressSeconds)
-        {
-            return;
-        }
-
-        // Consumed before the panel opens, so the release that follows is not also a roll. A player
-        // who holds the button to read their die has not asked to spend a turn.
-        _holdConsumed = true;
-
-        ShowDiePanel();
-    }
-
-    /// <summary>Writes both presenters' state into the scene, if the scene is still there to write into.</summary>
+    /// <summary>Writes the presenter's state into the scene, if the scene is still there to write into.</summary>
     private void Render()
     {
         var presenter = _presenter;
@@ -626,7 +579,7 @@ public partial class Board : Control
             _statusLabel is null || _blockLabel is null || _rejectionLabel is null ||
             _forkPanel is null || _forkTitleLabel is null || _forkButtons is null ||
             _promptPanel is null || _rollButton is null || _resolveButton is null ||
-            _abandonButton is null || _diePanelButton is null)
+            _abandonButton is null)
         {
             return;
         }
@@ -687,7 +640,9 @@ public partial class Board : Control
         _rejectionLabel.Visible = _rejectionLabel.Text.Length > 0;
 
         RenderFork(presenter);
-        RenderPrompt(presenter);
+        RenderRolled(presenter);
+        RenderFixedDice(presenter);
+        RenderFixedDieChoice(presenter);
 
         // 🔒 The three things that move a run on share the bottom of the screen and are never live
         // together: a pending tile is exactly what refuses a roll, and so is an open fork. Swapping
@@ -700,15 +655,6 @@ public partial class Board : Control
         _rollButton.Text = presenter.RollText;
         _rollButton.Visible = !tilePending && !forkOpen;
         _rollButton.Disabled = _busy || presenter.RollBlock != BoardRollBlock.None;
-
-        // A hold in progress on a button that has just been taken out of use is abandoned here. The
-        // engine raises no release for a control disabled mid-press, so without this the hold keeps
-        // accumulating and the die panel opens on its own some seconds later.
-        if (_rollButton.Disabled || !_rollButton.Visible)
-        {
-            _heldFor = null;
-            _holdConsumed = false;
-        }
 
         _resolveButton.Text = presenter.ResolveText;
         _resolveButton.Visible = tilePending;
@@ -728,19 +674,29 @@ public partial class Board : Control
             presenter.AbandonArmed ? ArmedColour : UnavailableColour,
             UnavailableColour);
 
-        _diePanelButton.Text = presenter.DiePanelText;
     }
 
     /// <summary>
-    /// Draws the run's progress through the stage it is in, one pip per authored node.
+    /// Draws the whole board: one square per node of the track, coloured by the tile that sits on it.
     /// </summary>
     /// <remarks>
-    /// 🔴 <b>This is a progress strip, not the board.</b> Each pip is a node the chapter authors and
-    /// nothing more — no tile kind, no fork, no preview, because none of that is readable from a
-    /// client. The pip the run stands on is lit; every other pip is identical, which is honest: this
-    /// screen genuinely does not know what is on them. It draws nothing at all when either the
-    /// stage's length or the run's exact distance along it is unknown, rather than guessing a length
-    /// or a position.
+    /// <para>
+    /// 🔒 <b>The whole track, every time (`16` D42).</b> This used to be a progress strip of
+    /// identical pips as long as the current stage, because no client could read a tile — and it drew
+    /// nothing at all whenever the run's exact distance was unknown. Both limits are gone: the
+    /// presenter projects the board, so every node has a kind and the node the run stands on is known
+    /// between tiles as well.
+    /// </para>
+    /// <para>
+    /// The node the run stands on is drawn in the token colour rather than its tile's, which is the
+    /// one place a colour is overridden: where the player IS matters more than what they are on, and
+    /// the caption below the track names that tile in words anyway.
+    /// </para>
+    /// <para>
+    /// ⚠️ Hidden rather than empty when the board could not be projected — a chapter this build does
+    /// not ship. An empty container still claims its separation, so an invisible one is the
+    /// difference between "no board" and "a board with nothing on it".
+    /// </para>
     /// </remarks>
     private void RenderTrack(BoardPresenter presenter)
     {
@@ -751,7 +707,7 @@ public partial class Board : Control
 
         Clear(track);
 
-        if (presenter.StageLength is not { } length)
+        if (presenter.Track is not { Count: > 0 } nodes)
         {
             track.Visible = false;
 
@@ -760,21 +716,21 @@ public partial class Board : Control
 
         track.Visible = true;
 
-        // Which pip carries the token is the presenter's answer, not this file's: it is arithmetic
-        // over the chapter's authored stage lengths, and arithmetic in a scene is arithmetic nothing
-        // can test. Null lights no pip, which is the honest drawing of a position not known exactly.
-        var token = presenter.StageTrackIndex;
+        var standingOn = presenter.StandingOn?.NodeId;
 
-        for (var node = 0; node < length; node++)
+        foreach (var node in nodes)
         {
             track.AddChild(new ColorRect
             {
-                CustomMinimumSize = NodePipSize,
-                SizeFlagsHorizontal = SizeFlags.ExpandFill,
-                Color = node == token ? TokenColour : UnvisitedNodeColour,
+                CustomMinimumSize = TrackNodeSize,
+                Color = node.NodeId == standingOn ? TokenColour : ColourOf(node.Tile),
             });
         }
     }
+
+    /// <summary>The colour one tile kind is drawn as, or the quiet grey for a kind this build has none for.</summary>
+    private static Color ColourOf(TileKind tile) =>
+        TileColours.TryGetValue(tile, out var colour) ? colour : UnvisitedNodeColour;
 
     /// <summary>Empties a container now, rather than at the end of the frame.</summary>
     /// <remarks>
@@ -816,7 +772,7 @@ public partial class Board : Control
         {
             var button = new Button
             {
-                Text = presenter.BranchText(branch),
+                Text = BranchCaption(presenter, branch),
                 Disabled = _busy,
                 CustomMinimumSize = new Vector2(0, 200),
                 SizeFlagsHorizontal = SizeFlags.ExpandFill,
@@ -840,16 +796,21 @@ public partial class Board : Control
         }
     }
 
-    private void RenderPrompt(BoardPresenter presenter)
+    /// <remarks>
+    /// ⚠️ A readout, not a prompt. This panel used to be the reroll's 4-second acceptance window,
+    /// with a countdown ring and a control inside it. There is no reroll and no window: what is left
+    /// is the number the last roll came up, shown until the next one replaces it, and hidden before
+    /// the run has rolled at all rather than showing a zero nothing produced.
+    /// </remarks>
+    private void RenderRolled(BoardPresenter presenter)
     {
         if (_promptPanel is not { } panel || _rolledLabel is not { } label ||
-            _rolledValue is not { } value || _ringBar is not { } ring ||
-            _rerollButton is not { } reroll)
+            _rolledValue is not { } value)
         {
             return;
         }
 
-        if (presenter.Prompt is not { } prompt)
+        if (presenter.LastRolledPips is not { } pips)
         {
             panel.Visible = false;
 
@@ -858,76 +819,152 @@ public partial class Board : Control
 
         panel.Visible = true;
         label.Text = presenter.RolledLabel;
-        value.Text = FaceReadout(presenter);
+        value.Text = pips.ToString(CultureInfo.InvariantCulture);
+    }
 
-        // A prompt that never lapses carries no countdown, so it draws no ring at all — a bar that
-        // sat full forever would read as a timer that had stopped rather than as no timer.
-        ring.Visible = prompt.Remaining is not null;
-        ring.Value = prompt.RingFraction;
+    /// <summary>
+    /// One branch's caption: what it is, then the bias it was drawn under, then its own first tiles.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Three lines rather than one, because they are three different claims and the player is
+    /// choosing between two paths on the strength of them: the action, the generator's label, and the
+    /// tiles the draw actually produced. The spine edge has only the first — it was drawn under no
+    /// bias — so it gets one line rather than two padded ones.
+    /// </remarks>
+    private static string BranchCaption(BoardPresenter presenter, ForkBranch branch)
+    {
+        var caption = presenter.BranchText(branch);
+        var label = presenter.BranchLabelText(branch);
 
-        reroll.Text = presenter.RerollText;
-        reroll.Disabled = _busy;
-
-        // 🔒 04 §3.1: the caption is what stops a bare "Reroll" beside a settled face reading as a
-        // redo. Drawn on every prompt rather than only the first — a player taught the rule once and
-        // then shown a bare control on every later roll has been taught the other thing by repetition.
-        if (_rerollChangesNextRollLabel is { } explains)
+        if (label.Length > 0)
         {
-            explains.Text = presenter.RerollChangesNextRollText;
+            caption += "\n" + label;
+        }
+
+        // Named in words rather than drawn as coloured squares, unlike the track: there are at most
+        // three of them, they are the whole content of a decision, and a row of three anonymous
+        // colours inside a button is a preview the player has to have memorised the track to read.
+        var icons = branch.Icons ?? [];
+
+        if (icons.Count > 0)
+        {
+            caption += "\n" + string.Join(IconSeparator, icons.Select(presenter.TileName));
+        }
+
+        return caption;
+    }
+
+    /// <summary>
+    /// Draws the tray of fixed dice the run owns — one control per number held, spending it on press.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔒 <b>A control per NUMBER, not per die</b>, with the count beside it when more than one is
+    /// held. Two dice showing a 3 are the same holding twice, so two identical buttons would be a
+    /// choice between indistinguishable things.
+    /// </para>
+    /// <para>
+    /// ⚠️ Disabled by exactly what disables the roll, because the rules layer refuses both movement
+    /// commands from the same states. Hidden, not greyed, when the tray is empty: a heading over
+    /// nothing reads as dice that failed to load.
+    /// </para>
+    /// </remarks>
+    private void RenderFixedDice(BoardPresenter presenter)
+    {
+        if (_dicePanel is not { } panel || _diceLabel is not { } label ||
+            _diceButtons is not { } buttons)
+        {
+            return;
+        }
+
+        Clear(buttons);
+
+        if (!presenter.FixedDiceOffered)
+        {
+            panel.Visible = false;
+
+            return;
+        }
+
+        panel.Visible = true;
+        label.Text = presenter.FixedDiceLabel;
+
+        var live = presenter.RollBlock == BoardRollBlock.None;
+
+        foreach (var held in presenter.FixedDice)
+        {
+            var pips = held.Pips;
+
+            var button = new Button
+            {
+                Text = held.Count > 1
+                    ? $"{pips.ToString(CultureInfo.InvariantCulture)}{HeldCountPrefix}" +
+                      held.Count.ToString(CultureInfo.InvariantCulture)
+                    : pips.ToString(CultureInfo.InvariantCulture),
+                Disabled = _busy || !live,
+                CustomMinimumSize = DieControlSize,
+            };
+
+            button.AddThemeFontSizeOverride(FontSizeOverride, BranchFontSize);
+
+            ButtonTextColours.ApplyTo(button, LiveColour, UnavailableColour);
+
+            // Captured by value, for the reason the branch index is: the tray is rebuilt underneath
+            // these handlers every time a die is granted or spent.
+            button.Pressed += () => OnFixedDiePressed(pips);
+
+            buttons.AddChild(button);
         }
     }
 
-    private void BuildFaceList()
+    /// <summary>
+    /// Draws the prompt that names a granted die's number — six controls, one per side.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Live from every state, unlike every other control on this screen.</b> Naming a number
+    /// moves nothing, and a grant can land while a tile is unresolved or a battle is open; refusing
+    /// it until the board was clear would leave the player holding a reward they cannot open in the
+    /// states they most want to open it. Only <c>_busy</c> takes it out of use.
+    /// </remarks>
+    private void RenderFixedDieChoice(BoardPresenter presenter)
     {
-        if (_diePanel is not { } panel || _faceList is not { } list ||
-            _diePanelTitleLabel is not { } title || _facesUnavailableLabel is not { } unavailable)
+        if (_dieChoicePanel is not { } panel || _dieChoiceLabel is not { } label ||
+            _dieChoiceButtons is not { } buttons)
         {
             return;
         }
 
-        title.Text = panel.Title;
-        unavailable.Text = panel.FacesUnavailableStatus;
+        Clear(buttons);
 
-        var rowScene = GD.Load<PackedScene>(DieFaceRowScenePath);
-
-        if (rowScene is null)
+        if (!presenter.FixedDieChoiceOffered)
         {
-            // Load answers null rather than throwing when the resource is missing or its import
-            // cannot be read, so an unnamed null reference is all a caller gets unless it says so.
-            GD.PushError($"The die-face row could not be loaded from '{DieFaceRowScenePath}'.");
+            panel.Visible = false;
 
             return;
         }
 
-        foreach (var face in panel.Faces)
+        panel.Visible = true;
+        label.Text = presenter.FixedDieChoiceLabel;
+
+        for (var pips = Die.MinPips; pips <= Die.MaxPips; pips++)
         {
-            var row = rowScene.Instantiate<VBoxContainer>();
+            var chosen = pips;
 
-            row.GetNode<Label>(RowNameLabelPath).Text = face.Name;
-            row.GetNode<Label>(RowEffectLabelPath).Text = face.Effect;
+            var button = new Button
+            {
+                Text = pips.ToString(CultureInfo.InvariantCulture),
+                Disabled = _busy,
+                CustomMinimumSize = DieControlSize,
+            };
 
-            list.AddChild(row);
+            button.AddThemeFontSizeOverride(FontSizeOverride, BranchFontSize);
+
+            ButtonTextColours.ApplyTo(button, LiveColour, UnavailableColour);
+
+            button.Pressed += () => OnFixedDieChosen(chosen);
+
+            buttons.AddChild(button);
         }
-    }
-
-    private void RenderDiePanel()
-    {
-        if (_diePanel is not { } panel || _presenter is not { } presenter ||
-            _lastFaceLabel is not { } label || _lastFaceValue is not { } value ||
-            _closeButton is not { } close)
-        {
-            return;
-        }
-
-        label.Text = panel.LastFaceLabel;
-
-        // The one thing about the player's own die this panel can honestly show: what the run has
-        // actually been observed to roll. Before that there is nothing, and it says so.
-        value.Text = presenter.LastRolledFaces.Count > 0
-            ? FaceReadout(presenter)
-            : panel.NoRollYetStatus;
-
-        close.Text = presenter.DiePanelText;
     }
 
     private string StageReadout(BoardPresenter presenter) =>
@@ -936,42 +973,7 @@ public partial class Board : Control
               $"{count.ToString(CultureInfo.InvariantCulture)}"
             : "";
 
-    /// <remarks>
-    /// Every face the last command reported, joined — a chain reports several, and showing only one
-    /// would hide the roll that produced the movement the player just watched. A pip face reads as
-    /// its number; every other face reads as its kind, because its magnitude is the rules layer's.
-    /// </remarks>
-    private static string FaceReadout(BoardPresenter presenter) =>
-        string.Join(
-            FaceJoin,
-            presenter.LastRolledFaces.Select(face =>
-                face.Kind == nameof(SlayIdleRepeat.Core.Content.Dice.DieFaceKind.Pip)
-                    ? face.Value.ToString(CultureInfo.InvariantCulture)
-                    : face.Kind));
-
-    private void OnRollHoldStarted()
-    {
-        _heldFor = 0;
-        _holdConsumed = false;
-    }
-
-    private void OnRollHoldEnded() => _heldFor = null;
-
-    private void OnRollPressed()
-    {
-        // A press that has already opened the die panel is not also a roll. The engine raises
-        // Pressed on release, so without this a player reading their die spends a turn doing it.
-        if (_holdConsumed)
-        {
-            _holdConsumed = false;
-
-            return;
-        }
-
-        _ = SubmitAsync(presenter => presenter.RollAsync(_lifetime));
-    }
-
-    private void OnRerollPressed() => _ = SubmitAsync(presenter => presenter.UseRerollAsync(_lifetime));
+    private void OnRollPressed() => _ = SubmitAsync(presenter => presenter.RollAsync(_lifetime));
 
     private void OnResolvePressed() =>
         _ = SubmitAsync(presenter => presenter.ResolvePendingTileAsync(_lifetime));
@@ -987,57 +989,11 @@ public partial class Board : Control
     private void OnBranchPressed(int branchIndex) =>
         _ = SubmitAsync(presenter => presenter.ChooseForkAsync(branchIndex, _lifetime));
 
-    private void OnDiePanelPressed() => ShowDiePanel();
+    private void OnFixedDiePressed(int pips) =>
+        _ = SubmitAsync(presenter => presenter.UseFixedDieAsync(pips, _lifetime));
 
-    private void OnClosePressed()
-    {
-        if (_diePanelOverlay is not { } overlay)
-        {
-            return;
-        }
-
-        overlay.Visible = false;
-
-        // The ring gets back exactly what the panel covered, rather than resuming already lapsed.
-        _presenter?.ResumeRerollPrompt();
-
-        Render();
-    }
-
-    private void ShowDiePanel()
-    {
-        if (_diePanelOverlay is not { } overlay)
-        {
-            return;
-        }
-
-        _presenter?.SuspendRerollPrompt();
-
-        RenderDiePanel();
-
-        overlay.Visible = true;
-    }
-
-    /// <remarks>
-    /// 🔒 The design makes a tap anywhere else an acceptance of the roll, and the ground is where
-    /// "anywhere else" lands. Without this the only way out of an open prompt is to spend a reroll
-    /// charge — and with the no-timer accessibility setting on, where nothing lapses, the prompt
-    /// would never close at all.
-    /// </remarks>
-    /// <param name="event">The input the ground received.</param>
-    private void OnGroundInput(InputEvent @event)
-    {
-        if (@event is not InputEventMouseButton { Pressed: true } and
-            not InputEventScreenTouch { Pressed: true })
-        {
-            return;
-        }
-
-        if (_presenter?.AcceptRoll() == true)
-        {
-            Render();
-        }
-    }
+    private void OnFixedDieChosen(int pips) =>
+        _ = SubmitAsync(presenter => presenter.ChooseFixedDieAsync(pips, _lifetime));
 
     /// <remarks>
     /// Every control is taken out of use for the whole round trip and put back once, on one path.
@@ -1084,7 +1040,7 @@ public partial class Board : Control
             $"stage_no={Describe(presenter.StageNumber)}/{Describe(presenter.StageCount)} " +
             $"tile={presenter.PendingTile?.Kind.ToString(CultureInfo.InvariantCulture) ?? "none"} " +
             $"fork={presenter.Fork?.Branches.Count.ToString(CultureInfo.InvariantCulture) ?? "none"} " +
-            $"faces=[{FaceReadout(presenter)}] rejection={Describe(presenter.RulesRejection)}");
+            $"rolled={Describe(presenter.LastRolledPips)} rejection={Describe(presenter.RulesRejection)}");
 
         if (LeaveIfTheRunHasClosed(presenter))
         {
@@ -1245,7 +1201,6 @@ public partial class Board : Control
                 ShopPresenter.ShopTileKind => RunDecision.Shop,
                 CampfirePresenter.CampfireTileKind or CampfirePresenter.ShrineTileKind =>
                     RunDecision.Campfire,
-                DiceForgePresenter.DiceForgeTileKind => RunDecision.DiceForge,
                 _ => null,
             },
             _ => null,
@@ -1265,9 +1220,6 @@ public partial class Board : Control
 
             case RunDecision.Campfire when _campfire is { } campfire:
                 return CampfireHandover.Show(this, campfire(), _lifetime);
-
-            case RunDecision.DiceForge when _diceForge is { } forge:
-                return DiceForgeHandover.Show(this, forge(), _lifetime);
 
             case RunDecision.RunEnd when _runEnd is { } runEnd:
                 return RunEndHandover.Show(this, runEnd(), _lifetime);
@@ -1302,11 +1254,9 @@ public partial class Board : Control
         /// <summary>S11, the campfire and the shrine — one screen with two arms.</summary>
         Campfire = 3,
 
-        /// <summary>
-        /// The Dice Forge tile. Not one of `13`'s numbered screens — the document authors no layout
-        /// for it — so it is drawn to the same shape as its three siblings rather than to a spec.
-        /// </summary>
-        DiceForge = 5,
+        // 5 was the Dice Forge tile's own screen. The forge installed die-face replacements and
+        // the die has no faces to replace, so the screen is gone and the tile resolves in place —
+        // a landing that costs nothing. The number stays retired rather than reused.
 
         /// <summary>
         /// S13 and S14, the death offer and the reward tally — one screen, because <c>02</c> §6 makes

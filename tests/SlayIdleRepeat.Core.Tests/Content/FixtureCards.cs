@@ -43,6 +43,13 @@ internal static class FixtureCards
     /// <summary>A card available only in chapter 5 — the chapter-band filter's own subject.</summary>
     internal const string LateOnly = "EVT_FIXTURE_LATE_ONLY";
 
+    /// <summary>A card whose two options grant fixed-die choices — one die, then two.</summary>
+    /// <remarks>
+    /// Two options with DIFFERENT counts, so a case can tell the authored number from a hard-coded
+    /// one: an implementation granting a flat single choice satisfies the first option forever.
+    /// </remarks>
+    internal const string FixedDice = "EVT_FIXTURE_FIXED_DICE";
+
     /// <summary>Every fixture card, in a fixed order the draw tests can index against.</summary>
     internal static IReadOnlyList<ContentValue> All { get; } =
     [
@@ -84,6 +91,12 @@ internal static class FixtureCards
                 Outcome(70, HpPct(-0.10m), Currency("ENHANCE_STONES", 3, true)),
                 Outcome(30, HpPct(-0.10m), Currency("MERGE_DUST", 5, true)))),
         Card(LateOnly, 5, 5, Option("Nothing happens", null, Outcome(1, None()))),
+        Card(
+            FixedDice,
+            1,
+            8,
+            Option("Take one die", null, Outcome(1, FixedDie(1))),
+            Option("Take two", null, Outcome(1, FixedDie(2)))),
     ];
 
     internal static ContentValue Card(string id, int minChapter, int maxChapter, params ContentValue[] options) =>
@@ -143,4 +156,9 @@ internal static class FixtureCards
         InRunIncomeDocuments.Obj(
             ("op", ContentValue.Text("UNSUPPORTED")),
             ("note", ContentValue.Text(note)));
+
+    internal static ContentValue FixedDie(int count) =>
+        InRunIncomeDocuments.Obj(
+            ("op", ContentValue.Text("FIXED_DIE")),
+            ("count", ContentValue.Number(count)));
 }

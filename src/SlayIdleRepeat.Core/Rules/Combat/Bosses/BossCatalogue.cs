@@ -274,8 +274,6 @@ internal sealed record BossCatalogue(
         var durationPointer = pointer + "/duration";
         var stackingPointer = pointer + "/stacking";
         var outcomesPointer = pointer + "/outcomes";
-        var newFacePointer = pointer + "/newFace";
-        var faceIndexPointer = pointer + "/faceIndex";
 
         return new EffectDefinition
         {
@@ -300,12 +298,6 @@ internal sealed record BossCatalogue(
             Stacking = content.IsAuthorised(stackingPointer) ? ReadStacking(content, stackingPointer) : null,
             Outcomes = content.IsAuthorised(outcomesPointer)
                 ? ReadOutcomes(content, script, index)
-                : null,
-            NewFace = content.IsAuthorised(newFacePointer)
-                ? new DieFaceSpec(content.ReadText(newFacePointer + "/kind"))
-                : null,
-            FaceIndex = content.IsAuthorised(faceIndexPointer)
-                ? ReadFaceIndex(content, faceIndexPointer)
                 : null,
         };
     }
@@ -379,26 +371,6 @@ internal sealed record BossCatalogue(
         }
 
         return outcomes;
-    }
-
-    /// <summary>The face selector: the <c>PLAYER_CHOICE</c> token, or a 1-6 index.</summary>
-    private static DieFaceIndex ReadFaceIndex(ContentSnapshot content, string pointer)
-    {
-        if (content.Read(pointer).Kind != ContentValueKind.Text)
-        {
-            return DieFaceIndex.At(content.ReadInt32(pointer));
-        }
-
-        var token = content.ReadText(pointer);
-
-        return string.Equals(token, DieFaceIndex.PlayerChoiceToken, StringComparison.Ordinal)
-            ? DieFaceIndex.PlayerChoice
-            : throw new ContentTypeMismatchException(
-                pointer, ContentValueKind.Text,
-                $"'{token}', which is not a face selector 18 §7.9 states. It offers " +
-                $"'{DieFaceIndex.PlayerChoiceToken}' or a face index of " +
-                $"{DieFaceIndex.MinFace.ToString(CultureInfo.InvariantCulture)}-" +
-                $"{DieFaceIndex.MaxFace.ToString(CultureInfo.InvariantCulture)}");
     }
 
     /// <summary>
@@ -510,8 +482,7 @@ internal sealed record BossCatalogue(
         new List<string>
         {
             "id", "op", "stat", "value", "valueMode", "statusId", "archetype", "maxAlive",
-            "charges", "target", "trigger", "duration", "stacking", "outcomes", "newFace",
-            "faceIndex",
+            "charges", "target", "trigger", "duration", "stacking", "outcomes",
         },
         StringComparer.Ordinal);
 

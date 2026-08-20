@@ -162,7 +162,7 @@ public sealed class EventCatalogueTests
         Should.Throw<InvalidTunableException>(() => Catalogue(card));
     }
 
-    /// <summary>An op outside the closed five is refused rather than skipped as a no-op.</summary>
+    /// <summary>An op outside the closed six is refused rather than skipped as a no-op.</summary>
     [Fact]
     public void An_unknown_effect_op_is_refused()
     {
@@ -191,6 +191,26 @@ public sealed class EventCatalogueTests
 
         Should.Throw<InvalidTunableException>(() => Catalogue(card))
             .Message.ShouldContain("CUR_HUNTED", Case.Sensitive);
+    }
+
+    /// <summary>
+    /// 🔒 A <c>FIXED_DIE</c> effect granting nothing is refused. A zero resolves to no grant at
+    /// all and is indistinguishable from a row nobody finished; a negative is a debt the run has no
+    /// way to pay back, because it does not know which of the player's dice this card gave it.
+    /// </summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void A_fixed_die_effect_granting_nothing_is_refused(int count)
+    {
+        var card = FixtureCards.Card(
+            "EVT_FIXTURE_EMPTY_GRANT",
+            1,
+            8,
+            FixtureCards.Option("Only", null, FixtureCards.Outcome(1, FixtureCards.FixedDie(count))));
+
+        Should.Throw<InvalidTunableException>(() => Catalogue(card))
+            .Message.ShouldContain("at least one choice", Case.Sensitive);
     }
 
     /// <summary>A band that closes before it opens can never be drawn from.</summary>

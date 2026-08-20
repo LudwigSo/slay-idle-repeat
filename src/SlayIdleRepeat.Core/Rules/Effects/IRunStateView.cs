@@ -2,8 +2,8 @@ namespace SlayIdleRepeat.Core.Rules.Effects;
 
 /// <summary>
 /// The read-only run-state contract behind the conditions that read the run rather than the battle:
-/// <c>PERK_COUNT</c>, <c>DISTINCT_PERK_CATEGORIES</c>, <c>PET_COUNT</c>, <c>DIE_FACE_COUNT</c>,
-/// <c>GOLD_HELD</c>, <c>BATTLES_WON_THIS_RUN</c>, <c>STAGE_INDEX</c>, <c>CHAPTER</c> and <c>TIER</c>.
+/// <c>PERK_COUNT</c>, <c>DISTINCT_PERK_CATEGORIES</c>, <c>PET_COUNT</c>, <c>GOLD_HELD</c>,
+/// <c>BATTLES_WON_THIS_RUN</c>, <c>STAGE_INDEX</c>, <c>CHAPTER</c> and <c>TIER</c>.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -44,13 +44,6 @@ internal interface IRunStateView
     /// roster — they agree in an ordinary fight but this one is also answerable outside a battle.
     /// </remarks>
     int PetCount { get; }
-
-    /// <summary><c>DIE_FACE_COUNT</c> — how many faces of the given kind the run's dice currently carry.</summary>
-    /// <param name="faceKind">
-    /// A face kind name. A string rather than an enum, since the closed set belongs to the dice
-    /// system to declare, not a second enum here that has to agree with it.
-    /// </param>
-    int DieFaceCount(string faceKind);
 
     /// <summary><c>GOLD_HELD</c> — the Gold currently held, uncapped.</summary>
     /// <remarks>

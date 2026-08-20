@@ -59,11 +59,8 @@ public sealed record EffectTrigger
     /// <summary><see cref="TriggerKind.ON_TILE_RESOLVED"/> — a <c>TILE_*</c> id.</summary>
     public string? TileType { get; init; }
 
-    /// <summary>
-    /// <see cref="TriggerKind.ON_ROLL"/> — one of the six <c>DieFaceKind</c> names. A string for the
-    /// reason <see cref="DieFaceSpec.Kind"/> is.
-    /// </summary>
-    public string? FaceKind { get; init; }
+    // ON_ROLL used to carry a FaceKind, so an effect could fire only on a particular face. The die
+    // has no face kinds, so an ON_ROLL trigger fires on every roll and carries no filter.
 
     /// <summary><see cref="TriggerKind.ON_PERK_TAKEN"/> — a perk category.</summary>
     /// <remarks>

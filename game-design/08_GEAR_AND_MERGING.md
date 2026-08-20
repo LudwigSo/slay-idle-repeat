@@ -112,7 +112,7 @@ Rarity B and above roll random affixes from a pool. Affix pools are slot-restric
 | `+X% Damage Reduction` | 2–8% | Armor, Amulet |
 | `+X% Gold Gain` | 8–30% | Ring, Amulet |
 | `+X% Pet Aura Power` | 5–20% | Amulet, Ring |
-| `+X Reroll Charge` | 1 | Ring, Amulet (rare, S+ only) |
+| ~~`+X Reroll Charge`~~ | — | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). The affix pool is **13, not 14**, and Ring and Amulet each have one fewer eligible affix. It was also the only affix carrying a rarity floor, so `EligibleAffixes`' floor logic is now live code no shipped row exercises. |
 | `+X% Damage vs Elites` | 8–25% | Weapon, Ring |
 
 ### 3.2 Set bonuses (SS only)
@@ -125,7 +125,7 @@ Wearing 2 / 4 / 6 pieces of a set grants escalating bonuses.
 |---|---|---|---|---|
 | **Bloodmoon** | Balanced | +10% Lifesteal | Kills heal 8% Max HP | Lifesteal also applies to pet damage |
 | **Ironvow** | Heavy | +15% DEF | −15% damage taken from Elites/Bosses | Once per battle, negate a lethal hit |
-| **Fateweave** | Caster | +1 Reroll Charge | `Star` faces grant a free perk draft | One die face of your choice becomes `Star` |
+| **Fateweave** | Caster | 🔴 **All three bonuses removed** (⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41).) — a Reroll Charge, a `Star`-face draft grant and a face conversion. The set is named for a mechanic that no longer exists and currently grants **nothing at any breakpoint**. Owed a re-theme or a removal. | — | — |
 | **Stormcall** | Agile | +10% ASPD | Every 5th attack chains to all enemies | Attack speed also scales pet ability cooldowns |
 
 Because a set maps to a family axis, a full 6-piece set is also a full commitment to one build archetype. That is intentional: mixing axes is the flexible, safe play; committing to one is the high-ceiling play.
