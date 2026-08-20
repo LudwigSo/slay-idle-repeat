@@ -174,7 +174,7 @@ Append these to the scaffold:
 | Battle backdrops | 1080×1440 per layer | 3 parallax layers per biome |
 | VFX sheets | 1024×1024 (4×4 grid of 256 px frames) | |
 
-| Die faces | 256×256 | |
+| Die faces | 256×256 | ⚠️ Six, not eleven: the five special-face artworks are gone (`04` §3). |
 
 ---
 

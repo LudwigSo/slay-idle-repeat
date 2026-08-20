@@ -50,15 +50,15 @@ public sealed class StageGateResolverTests
         run.Position.ShouldBe(
             board.SpineNode(StageOneLast).Value,
             "the premise: any roll from one node short comes to rest on stage 1's last node.");
-        run.StageGateDiceAnchor.ShouldBe(1UL, "the premise: the gate fired — only a gate moves the anchor.");
-        run.CurrentHp.ShouldBe(100, "95 + 15 healed is clamped at Max HP.");
+        run.CurrentHp.ShouldBe(
+            100, "the premise: the gate fired — 95 + 15 healed is clamped at Max HP.");
     }
 
     /// <summary>The heal takes the CALLER'S running HP total, not <c>Run.CurrentHp</c>.</summary>
     /// <remarks>
     /// Internal seam by necessity: the divergence exists only mid-command, when
-    /// <c>Handlers.RollDice</c> has applied a Surge heal it has not yet written to <c>Run</c> —
-    /// a state no snapshot handed to <c>Apply</c> can express.
+    /// a caller has computed a heal it has not yet written to <c>Run</c> — a state no snapshot
+    /// handed to <c>Apply</c> can express.
     /// </remarks>
     [Fact]
     public void Apply_heals_from_the_callers_running_total_not_from_Run_CurrentHp()

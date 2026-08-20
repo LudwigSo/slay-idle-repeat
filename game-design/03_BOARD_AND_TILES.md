@@ -20,7 +20,7 @@ Stage 1 (12 nodes)          Stage 2 (14 nodes)              Stage 3 (16 nodes)  
 - Each stage is a linear spine with **1–2 forks**. A fork branch is 2–4 nodes long and rejoins the spine.
 - Forks are the board's main *decision*: each branch is labelled with a preview icon set (e.g. "⚔⚔💰" vs "🎲🛡❓") so the player chooses a risk profile, not a coin flip.
 - Movement is always forward. There is no backtracking.
-- Movement resolution — the virtual start, junction pauses, Chain hops, Portal jumps and the linear node index — is specified in §1.1, which is the single authority; `02` §3 and `04` defer to it.
+- Movement resolution — the virtual start, junction pauses, Portal jumps and the linear node index — is specified in §1.1, which is the single authority; `02` §3 and `04` defer to it.
 - If a die roll would move the player past the last node of a stage, the player stops on the last node and the Stage Gate fires. (No overshoot waste — overshoot punishment feels bad on a die-driven board.)
 - The boss node is always reached exactly; the final roll before it is clamped.
 
@@ -30,13 +30,13 @@ Stage 1 (12 nodes)          Stage 2 (14 nodes)              Stage 3 (16 nodes)  
 
 **Start position.** The hero begins every run at a virtual **trailhead** one step before node 0 (position −1). The trailhead is not a tile: nothing resolves there, and the token is drawn at the head of the track. A first roll of `1` therefore lands on node 0.
 
-**Stepwise traversal.** All forward movement — Pip results, `Star` choices, the fixed moves on `Surge` / `Fortune` / `Chain`, and Portal jumps — traverses the graph **one edge at a time**. Passed-over nodes never resolve; only the landing node resolves.
+**Stepwise traversal.** All forward movement — the number a roll came up, and Portal jumps — traverses the graph **one edge at a time**. Passed-over nodes never resolve; only the landing node resolves.
 
 **Junction pause.** A junction is a node with two outgoing edges (the spine continuation and a branch entry). Whenever movement must **leave** a junction — whether the move started there or reached it mid-move — movement pauses and the run waits for `CHOOSE_FORK` (`14` §2.3), with the branch previews of §3.1 shown. The remaining movement then continues along the chosen edge. Landing exactly on a junction with zero movement left does not prompt; the choice happens when the next movement leaves it. Fork choice is **always free and always explicit** — there is no "landed segment" condition, and no perk, face or item is required to choose a branch.
 
 **Stage-end clamp.** A move that would carry past the last node of a stage stops **on** that node; the tile resolves, then the Stage Gate fires (`02` §1.2). The boss node is always reached **exactly**: any roll taken from stage 3's last node moves exactly one step onto the boss node — this is the "final roll before it is clamped" rule, made precise.
 
-**Chain (`⛓`).** A Chain hop is: move 2 (junction pauses apply), **resolve the landing tile in full** — battle, draft, shop, everything — then the next chained roll fires automatically, up to the chain cap (`04` §1; perks may raise it). The **stage-gate clamp ends the chain**: a hop that lands on a stage's last node resolves that tile, fires the Stage Gate, and the chain stops — no further chained roll. Landing on the boss node likewise ends the chain.
+⚠️ **Chained rolls are gone.** A `Chain` face used to move 2, resolve its landing tile in full, and then fire another roll automatically — up to a cap, with the stage-gate clamp and the boss node ending the sequence. The die has no face kinds (`04` §5), so **no roll can ever ask to roll again**: one `ROLL_DICE` is one movement and one landing, always.
 
 **Portal (`TILE_PORTAL`).** Resolving a Portal draws its jump distance **uniformly from 3–6**, seeded from the run's `board` stream (`14` §8.1) — never chosen by the player, never rolled client-side. The jump is stepwise traversal like any move: junctions inside the jump still pause for `CHOOSE_FORK`, and passed nodes do not resolve. Clamps: the jump obeys the **stage-end clamp** above, and in stage 3 it additionally never carries past the guaranteed pre-boss campfire (§3 step 1) — a draw that would pass it lands **on** the campfire instead. The generous reading is deliberate: a portal that skips the one guaranteed heal before the boss would be a trap wearing a gift's colours. Consequence: a Portal can never reach the boss node — the boss is entered only by a die move, under the reached-exactly rule. 📐 TUNABLE: the 3–6 range.
 
@@ -55,12 +55,12 @@ Stage 1 (12 nodes)          Stage 2 (14 nodes)              Stage 3 (16 nodes)  
 | `TILE_CURSE` | Cursed Ground | 💀 | Medium | Forced debuff, but pays. E.g. "−15% DEF for the rest of the run, +300 Gold". Some curses can be cleansed at a Shrine or by an ad (`AD_SKIP_CURSE`). ⚠️ `16` D40: six of the twelve are applied as stat moves and one as a board rule; the other five are carried by the run — cleansable, nameable — with the debuff not applied and the missing mechanism written down per curse. |
 | `TILE_TREASURE` | Treasure | 🎁 | Medium | Meta-currency: Crowns, Enhance Stones, Merge Dust — payout table §7a.3. Revealed on landing, banked at run end like all meta rewards (§7a). Ad-doubleable (`AD_DOUBLE_CHEST`). |
 | `TILE_SHOP` | Shop | 🏪 | Guaranteed ≥1 per stage | 4 offers for Gold: a perk, a consumable, a stat buff, a heal. One refresh free, more via ad. The visit opens on `RESOLVE_TILE` and closes on `SHOP_LEAVE` (`16` D38) — it is the one tile a player stands at for several commands by choice. |
-| `TILE_CAMPFIRE` | Campfire | 🔥 | Guaranteed 1 before boss | Choose: heal 40% Max HP · upgrade one owned perk to its next tier · gain 2 Reroll Charges. |
+| `TILE_CAMPFIRE` | Campfire | 🔥 | Guaranteed 1 before boss | Choose: heal 40% Max HP · upgrade one owned perk to its next tier. ⚠️ **Two options, not three** — the third was *gain 2 Reroll Charges*, removed with the reroll (`04` §5). A two-way campfire is a thinner decision than the design intends; the empty seat is owed a replacement. |
 | `TILE_MINIGAME` | Minigame | 🎯 | Medium | One of 4 minigames (§6). Skill/luck for a reward. |
 | `TILE_EVENT` | Event | ❓ | Medium | A text choice card with 2–3 options and uncertain outcomes. |
 | `TILE_PORTAL` | Portal | 🌀 | Low | Jump forward a seeded 3–6 node draw (§1.1), skipping the passed content. Good when low on HP, bad for greed. |
 | `TILE_CACHE` | Beast Cache | 🐾 | Low | Beast Feed, or (6% 📐) a Pet Egg — payout table §7a.4. |
-| `TILE_DICE_FORGE` | Dice Forge | 🎲 | Low | Temporarily upgrade one die face for the rest of the run (e.g. turn a `1` into a `4`, or into a `★`), through `DICE_FORGE_CHOOSE` (`16` D38). ⚠️ The offered menu withholds `Star` and `Chain` while nothing can resolve a die carrying them — see D38. |
+| `TILE_DICE_FORGE` | Dice Forge | 🎲 | Low | 🔴 **Does nothing, and is kept for a repurposing** (`04` §5.1). It upgraded one die face for the rest of the run through `DICE_FORGE_CHOOSE`; the die has no faces and that command is gone, so landing on one **resolves in place and grants nothing**. It still occupies one of the `Arcane` fork's three outcomes (§3.1), so the hole is in the board's reward texture rather than nowhere. |
 | `TILE_EMPTY` | Waypoint | ・ | Filler | Nothing. Used as spacing so the board breathes and rolls feel varied. |
 
 ### 2.1 Frequency bands
@@ -166,7 +166,7 @@ Each chapter is a data file. Fields: `id`, `displayName`, `biomeArtSet`, `powerT
 | 5 | **Frostbound Reach** | Glacier | ice spires, aurora, pale blues, snow drifts | **Rimehold**, an ice golem | Freeze: attack speed periodically halved |
 | 6 | **Clockwork Vaults** | Brass machine dungeon | gears, pipes, steam, copper/teal | **Cogitator Prime**, a spider automaton | Clockwork Pressure: enemy power grows with each roll taken (§4.1) |
 | 7 | **Bloom of Decay** | Fungal overgrowth | bioluminescent spores, rot pinks, giant caps | **Sporequeen Vell** | Spore clouds add a stacking debuff |
-| 8 | **Astral Spire** | Celestial tower | starfields, floating platforms, violet/gold | **The Dicelord**, a masked cosmic figure | Random reality shifts: one die face is scrambled each stage |
+| 8 | **Astral Spire** | Celestial tower | starfields, floating platforms, violet/gold | **The Dicelord**, a masked cosmic figure | ⚠️ *Random reality shifts: one die face is scrambled each stage* — **unbuildable and unreplaced**, the die has no faces to scramble (`04` §5). Chapter 8 currently has no chapter modifier. |
 
 ### 4.1 Chapter signature mechanics — rulings 🔒
 
@@ -175,8 +175,8 @@ Three signatures were named but underspecified; these rulings define them. All a
 | Chapter | Ruling |
 |---|---|
 | **3 — Sunken Crypt** | Chapter-pool normal enemies **and Elites** carry `ON_LETHAL (once) → REVIVE at 20% Max HP`. Active DoTs and debuffs **persist** through the revive (DoT builds are the natural counter — a chapter build identity). `SWARM` units revive individually. The boss is excluded — Ossuary King has his own Rise Again (`17` §4). |
-| **4 — Emberpeak** | **Burning tiles.** The generator marks ~20% 📐 of non-mandatory tiles as *Burning*, visibly flagged on the board. Landing on one costs **4% Max HP** 📐 before the tile resolves. A board-layer hazard the player can route around at forks and with `Star` faces — it makes board-control tools matter. `MNT_GLIDEWING`-style portal play and high preview range are the soft counters. Never on `TILE_CAMPFIRE`, the boss node, or the first 2 tiles of Stage 1. |
-| **6 — Clockwork Vaults** | **Clockwork Pressure.** Each die roll taken in the **current stage** adds **+5%** 📐 enemy power to subsequent battles, capped at **+50%** 📐, resetting at each Stage Gate. A board-level clock: efficient routing (portals, high rolls, `Chain`) is rewarded, dawdling is taxed. Displayed as a small gear counter in the board HUD. |
+| **4 — Emberpeak** | **Burning tiles.** The generator marks ~20% 📐 of non-mandatory tiles as *Burning*, visibly flagged on the board. Landing on one costs **4% Max HP** 📐 before the tile resolves. A board-layer hazard the player can route around at forks — ⚠️ routing around it with a `Star` face's chosen movement is no longer possible (`04` §5), so the only counter left is the fork. `MNT_GLIDEWING`-style portal play and high preview range are the soft counters. Never on `TILE_CAMPFIRE`, the boss node, or the first 2 tiles of Stage 1. |
+| **6 — Clockwork Vaults** | **Clockwork Pressure.** Each die roll taken in the **current stage** adds **+5%** 📐 enemy power to subsequent battles, capped at **+50%** 📐, resetting at each Stage Gate. A board-level clock: efficient routing (portals, high rolls) is rewarded, dawdling is taxed. ⚠️ `Chain` is no longer one of its tools (`04` §5). Displayed as a small gear counter in the board HUD. |
 
 Chapters 2, 5 and 7 need no ruling — their signatures (poison enemies, freeze, spore stacks) are ordinary combat effects already covered by §5 of `05`. Chapter 8's die scramble is specified via `MODIFY_DIE_FACE` (`18` §2.5).
 
@@ -219,7 +219,7 @@ All minigames are ≤ 15 seconds, one-thumb, and *cannot* fail catastrophically 
 |---|---|---|---|
 | `MG_CHEST_PICK` | **Three Chests** | Pick 1 of 3 shuffled chests. One is gold-tier. | Low variance |
 | `MG_TIMING_BAR` | **Strike the Anvil** | A marker sweeps a bar; tap in the shrinking green zone. 3 attempts, each success upgrades the reward tier. | Skill-scaled |
-| `MG_DICE_DUEL` | **Dice Duel** | Best-of-3 die rolls vs. an NPC gambler, using your actual upgraded die faces. | Rewards die-face investment |
+| `MG_DICE_DUEL` | **Dice Duel** | Best-of-3 die rolls vs. an NPC gambler. | ⚠️ It rewarded die-face investment; there is none to reward (`04` §5), so it is now a coin-flip minigame with nothing behind it. Owed a rethink. |
 | `MG_MEMORY_RUNE` | **Rune Recall** | 4-symbol Simon-style sequence, 2 rounds. | Skill-scaled |
 
 Failed minigames offer a single ad-retry (`AD_RETRY_MINIGAME`, 1/run).
@@ -239,7 +239,7 @@ Values below are **Chapter 1 base values**, multiplied by `(1 + 0.35 × (chapter
 | | 3 hits | 600 Gold + 80 Crowns + 5 Enhance Stones |
 | `MG_DICE_DUEL` | Loss | 150 Gold |
 | | Win 2–1 | 400 Gold + 40 Crowns |
-| | Win 2–0 | 550 Gold + 50 Crowns + 1 Reroll Charge |
+| | Win 2–0 | 550 Gold + 50 Crowns ⚠️ (the Reroll Charge is removed — `04` §5) |
 | `MG_MEMORY_RUNE` | Fail round 1 | 100 Gold |
 | | Clear round 1 only | 300 Gold + 25 Crowns |
 | | Clear both rounds | 550 Gold + 70 Crowns + 20 Beast Feed |
@@ -265,7 +265,7 @@ The shop offers exactly **4 slots**, drawn from separate pools so the offer is a
 | Slot | Pool |
 |---|---|
 | 1 | A **Perk** (rarity-weighted, priced by rarity) |
-| 2 | A **Consumable** (§7.1: Health Draught, Reroll Token, Draft Token, Escape Rope) |
+| 2 | A **Consumable** (§7.1: Health Draught, Draft Token, Escape Rope) |
 | 3 | A **Run Buff** (flat +ATK / +HP / +Crit for the rest of the run) |
 | 4 | A **Heal** (restore 35% Max HP), always available, price scales with stage |
 
@@ -289,7 +289,6 @@ chapterPriceScalar  = 1.55^(c-1)                       // the same growth as Gol
 |---|---|---|
 | 1 — Perk | Common / Rare / Epic / Legendary | 180 / 320 / 560 / 950 |
 | 2 — Consumable | Health Draught (heals 30% Max HP, board-use — `16` A7) | 140 |
-| | Reroll Token (+1 Reroll Charge on purchase) | 120 |
 | | Draft Token (+1 free perk-draft reroll on purchase — §7.1) | 160 |
 | | Escape Rope (skips the next tile) | 100 |
 | 3 — Run Buff | see the magnitude table below | 300 / 300 / 280 |
@@ -318,7 +317,6 @@ Consumables are **run-scoped and board-use only**. They are sold at Shop tiles (
 | ID | Name | On purchase | Effect |
 |---|---|---|---|
 | `CON_HEALTH_DRAUGHT` | Health Draught | Held | Use on the board: heal **30% Max HP** 📐. Disabled at full HP — a draught can never be wasted by a mis-tap. |
-| `CON_REROLL_TOKEN` | Reroll Token | **Instant: +1 Reroll Charge** (`04` §3) | Never held. The shop slot greys out when charges are at the max stored (5) — the grant can never be wasted. |
 | `CON_DRAFT_TOKEN` | Draft Token | **Instant: +1 free perk-draft reroll** (`06` §1) | Never held. Greys out when free draft rerolls are at their cap (3). |
 | `CON_ESCAPE_ROPE` | Escape Rope | Held | Use on the board: **arms** the rope. The next tile the hero lands on is **skipped**: it is marked resolved, its content does not run, it pays nothing, and landing-triggered board hazards (Ch. 4 Burning tiles, §4.1) do not fire. The rope is consumed when it fires. |
 
@@ -327,7 +325,7 @@ Rules:
 - **Held cap: 4** 📐, counted across all held consumables (Draughts + Ropes). Only Draughts and Ropes are ever actually held — the two tokens convert to their charge at the till. A purchase or event grant that would exceed the cap is unavailable (the shop slot greys out); an event grant clamps to what fits (`EVT_SPRING`'s ×2 grants one if only one fits).
 - Only **one** rope may be armed at a time. An armed rope persists across rolls until it fires.
 - The rope never skips `TILE_BOSS`: if the next landing is the boss node, the boss resolves normally and the rope simply never fires. The **Stage Gate is positional, not tile content**: landing on a stage's last node with a rope armed skips that tile's content, but the gate (heal, refresh, checkpoint — `02` §1.2) still fires.
-- A `Fortune` face's double-pay does nothing on a skipped tile — a skipped tile pays nothing. A `Chain` hop that lands while a rope is armed skips that hop's tile and the chain continues (§1.1).
+- ⚠️ The two clauses that used to sit here were about a `Fortune` face's double-pay on a skipped tile and a `Chain` hop landing while a rope is armed. Both faces are gone (`04` §5), so a rope now has exactly one interaction: it skips the tile the next roll lands on.
 - Prices come from the consumable rows of `BasePrice(itemType, rarity)` in `currencies.json` through the §7 price formula.
 - The HUD home is the S05 consumable pouch (`13` §3). Held consumables and the armed-rope flag are run state (`30` §4).
 

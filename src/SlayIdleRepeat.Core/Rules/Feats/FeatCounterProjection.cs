@@ -76,12 +76,7 @@ internal static class FeatCounterProjection
                 case DiceRolled roll:
                     advances ??= new List<FeatCounterIncrement>();
                     advances.Add(new FeatCounterIncrement(DiceRolledCounter, 1L));
-                    advances.Add(new FeatCounterIncrement(DiceRolledCounterFor(roll.Face.Kind), 1L));
-
-                    if (roll.Face.Kind == DieFaceKind.Pip)
-                    {
-                        advances.Add(new FeatCounterIncrement(PipsRolledCounterFor(roll.Face.Value), 1L));
-                    }
+                    advances.Add(new FeatCounterIncrement(PipsRolledCounterFor(roll.Pips), 1L));
 
                     break;
 
@@ -99,28 +94,11 @@ internal static class FeatCounterProjection
         return advances ?? Nothing;
     }
 
-    /// <summary>The counter that counts rolls of one face kind.</summary>
-    /// <exception cref="InvalidOperationException"><paramref name="kind"/> is not a defined face kind.</exception>
-    internal static string DiceRolledCounterFor(DieFaceKind kind) => kind switch
-    {
-        DieFaceKind.Pip => "dice_rolled_pip",
-        DieFaceKind.Star => "dice_rolled_star",
-        DieFaceKind.Surge => "dice_rolled_surge",
-        DieFaceKind.Fortune => "dice_rolled_fortune",
-        DieFaceKind.Void => "dice_rolled_void",
-        DieFaceKind.Chain => "dice_rolled_chain",
-        _ => throw new InvalidOperationException(
-            "04 §1 fixes DieFaceKind at six named members; " + Text((int)kind) + " is not one of " +
-            "them, so no lifetime counter can be named for this roll. A zero reads as an UNSET " +
-            "DieFace — a handler that built a DiceRolled around a face it never resolved, which is " +
-            "an animation frame and an economy row with nothing in them either."),
-    };
-
     /// <summary>The counter that counts rolls showing a particular number of pips.</summary>
     /// <remarks>
     /// A second axis over the same event, and it is not redundant with
-    /// <see cref="DiceRolledCounterFor"/>: how often a specific number came up is a question a face
-    /// kind cannot answer, and it is answerable from today's event. Counting it later is impossible.
+    /// <see cref="DiceRolledCounter"/>: how often a specific number came up is a question a total
+    /// cannot answer, and it is answerable from today's event. Counting it later is impossible.
     /// </remarks>
     /// <exception cref="InvalidOperationException"><paramref name="pips"/> is outside the die's range.</exception>
     internal static string PipsRolledCounterFor(int pips) => pips switch
@@ -133,8 +111,8 @@ internal static class FeatCounterProjection
         6 => "dice_rolled_pips_6",
         _ => throw new InvalidOperationException(
             "04 §1's die shows 1..6 pips; " + Text(pips) + " is outside that range, so no lifetime " +
-            "counter can be named for this roll. A zero reads as a Pip face built past DieFace.Pip's " +
-            "own validation."),
+            "counter can be named for this roll. A zero reads as a DiceRolled a handler built " +
+            "without drawing anything."),
     };
 
     /// <summary>The counter that accumulates one currency's lifetime income, or its lifetime spend.</summary>

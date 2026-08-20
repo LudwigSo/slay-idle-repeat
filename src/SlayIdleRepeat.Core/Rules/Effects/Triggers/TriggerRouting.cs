@@ -21,7 +21,7 @@ internal enum EffectRouting
 /// <para>The rule has three arms, easy to collapse into two by accident:</para>
 /// <list type="bullet">
 ///   <item>Fired by the combat loop and carrying a run/board op — it's queued. The simulator stays pure.</item>
-///   <item>Fired by the run controller — an <c>ON_TILE_RESOLVED</c> effect firing <c>MODIFY_DIE_FACE</c>,
+///   <item>Fired by the run controller — an <c>ON_TILE_RESOLVED</c> effect firing <c>MOVE_NODES</c>,
 ///   or an <c>ALWAYS</c> perk carrying <c>MODIFY_SHOP</c> — it's resolved. It's already on the run
 ///   layer; queueing it would post a letter to the room it's standing in.</item>
 ///   <item>In a duel the queue is discarded — a duel has no run to apply anything to.</item>

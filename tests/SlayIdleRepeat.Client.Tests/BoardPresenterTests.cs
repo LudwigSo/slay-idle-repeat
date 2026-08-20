@@ -32,40 +32,9 @@ public sealed class BoardPresenterTests
     /// </remarks>
     private const int TreasureTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Treasure;
 
-    /// <summary>The reroll ring's authored duration (`04` §3, "Reroll prompt UX").</summary>
-    private static readonly TimeSpan AuthoredRingDuration = TimeSpan.FromSeconds(4);
-
     private static readonly PlayerId Player = new("PLAYER_board_7f30");
     private static readonly RunId Run = new("RUN_board_2a95");
     private static readonly DateTimeOffset Noon = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
-
-    /// <summary>
-    /// 🔒 <b>The reroll says what it changes, and the sentence is never empty.</b> <c>04</c> §3.1: a
-    /// reroll changes the NEXT roll and cannot undo the one it is offered beside.
-    /// </summary>
-    /// <remarks>
-    /// 🔴 <b>Why this is a test and not a comment.</b> <c>ROLL_DICE</c> answers the face, the movement
-    /// and the landing in one command, so by the time a face is on screen the run has already moved.
-    /// A bare <em>"Reroll"</em> next to that face is read as a redo — the one thing the command cannot
-    /// do — and a player who acts on that reading spends a charge expecting their landing back. The
-    /// caption is the only thing standing between the control and that misreading, so it is pinned as
-    /// present rather than assumed.
-    /// </remarks>
-    [Fact]
-    public void The_reroll_says_that_it_changes_the_next_roll()
-    {
-        var presenter = Build(RecordingGameHost.FindingNoSuchPlayer());
-
-        presenter.RerollChangesNextRollText.ShouldNotBeNullOrWhiteSpace(
-            "04 §3.1 requires the wording beside the reroll not to promise an undo, and an empty " +
-            "caption leaves the bare button to be read as one.");
-        presenter.RerollChangesNextRollText.StartsWith("loc.", StringComparison.Ordinal).ShouldBeFalse(
-            "the caption fell through to its own key, so the string set does not carry it.");
-        presenter.RerollChangesNextRollText.ShouldNotBe(
-            presenter.RerollText,
-            "the caption and the button label are the same string, so the caption is adding nothing " +
-            "and the distinction 04 §3.1 exists to draw is not on screen.");
-    }
 
     [Fact]
     public void A_freshly_built_presenter_has_not_read_anything()
@@ -288,7 +257,7 @@ public sealed class BoardPresenterTests
     [Fact]
     public async Task A_clear_roll_submits_ROLL_DICE_against_this_run()
     {
-        var host = Rolling(DieFace.Pip(4));
+        var host = Rolling(4);
         var presenter = Build(host);
 
         await presenter.StartAsync(CancellationToken.None);
@@ -301,44 +270,35 @@ public sealed class BoardPresenterTests
     }
 
     /// <summary>
-    /// 🔒 No persisted field carries a rolled face, so the events the command answers with are the
+    /// 🔒 No persisted field carries a rolled number, so the events the command answers with are the
     /// only route from the die to the screen. A presenter that ignored them would leave the board
     /// unable to say what was just rolled at all.
     /// </summary>
     [Fact]
-    public async Task The_face_a_roll_reported_comes_off_the_commands_own_events()
+    public async Task The_number_a_roll_reported_comes_off_the_commands_own_events()
     {
-        var presenter = Build(Rolling(DieFace.Pip(5)));
+        var presenter = Build(Rolling(5));
 
         await presenter.StartAsync(CancellationToken.None);
         await presenter.RollAsync(CancellationToken.None);
 
-        presenter.LastRolledFaces.Count.ShouldBe(1);
-        presenter.LastRolledFaces[0].Kind.ShouldBe(nameof(DieFaceKind.Pip));
-        presenter.LastRolledFaces[0].Value.ShouldBe(5);
+        presenter.LastRolledPips.ShouldBe(5);
     }
 
     /// <summary>
-    /// A chain face rolls again immediately, so one command reports several faces. Reporting only
-    /// the last would hide the roll that produced the movement the player just watched.
+    /// A command that reports no roll leaves the last number standing. Blanking it would wipe "what
+    /// you rolled" the moment the player acknowledged the tile they landed on.
     /// </summary>
     [Fact]
-    public async Task Every_face_one_command_reported_is_carried_in_order()
+    public async Task A_command_that_rolls_nothing_leaves_the_last_number_standing()
     {
-        var host = RecordingGameHost
-            .Finding(AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.InProgress))
-            .AcceptingInto(PlayerState.Run(Run, Player, RunPhase.InProgress, position: 4))
-            .Emitting(
-                new DiceRolled(0, DieFace.Special(DieFaceKind.Chain)),
-                new DiceRolled(1, DieFace.Pip(2)));
-
-        var presenter = Build(host);
+        var presenter = Build(Rolling(5));
 
         await presenter.StartAsync(CancellationToken.None);
         await presenter.RollAsync(CancellationToken.None);
+        await presenter.ChooseForkAsync(0, CancellationToken.None);
 
-        presenter.LastRolledFaces.Select(f => f.Kind)
-                 .ShouldBe([nameof(DieFaceKind.Chain), nameof(DieFaceKind.Pip)]);
+        presenter.LastRolledPips.ShouldBe(5);
     }
 
     /// <summary>
@@ -354,7 +314,7 @@ public sealed class BoardPresenterTests
                 Run, Player, RunPhase.InProgress,
                 position: 3, gold: 55, pendingTileKind: EnemyTileKind, pendingTileLinearIndex: 3,
                 pendingTileStage: 1))
-            .Emitting(new DiceRolled(0, DieFace.Pip(4)));
+            .Emitting(new DiceRolled(0, 4));
 
         var presenter = Build(host);
 
@@ -624,333 +584,6 @@ public sealed class BoardPresenterTests
         host.SubmitCallCount.ShouldBe(0);
     }
 
-    // ---- the reroll ring ----------------------------------------------------------------------
-
-    [Fact]
-    public async Task No_prompt_is_open_until_a_roll_has_landed()
-    {
-        var presenter = Build(Rolling(DieFace.Pip(3)));
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        presenter.Prompt.ShouldBeNull();
-    }
-
-    /// <summary>
-    /// 🔒 The ring's duration is authored (`04` §3, "Reroll prompt UX": a 4-second ring timer), not
-    /// chosen by this screen. Pinned against a literal built here from the section rather than read
-    /// off the presenter, so a presenter that changed it fails rather than agreeing with itself.
-    /// </summary>
-    [Fact]
-    public async Task A_landed_roll_opens_a_prompt_with_the_authored_ring()
-    {
-        var presenter = Build(Rolling(DieFace.Pip(3)), Frozen());
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        presenter.Prompt.ShouldNotBeNull();
-        presenter.Prompt!.Remaining.ShouldBe(AuthoredRingDuration);
-        presenter.Prompt.Face.Value.ShouldBe(3);
-    }
-
-    /// <summary>
-    /// 🔒 The identity, not the symptom. "The second reading is smaller than the first" is
-    /// satisfied by any countdown at any rate, and mostly proves the fixture clock steps. What the
-    /// ring must actually report is the authored window minus the time that has passed.
-    /// </summary>
-    [Fact]
-    public async Task The_ring_reports_the_authored_window_minus_the_time_that_has_passed()
-    {
-        var step = TimeSpan.FromSeconds(1);
-        var presenter = Build(Rolling(DieFace.Pip(3)), SteppingClock.Advancing(Noon, step));
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        // Each read of this clock advances it by one step, so the n-th read of the prompt sits n
-        // steps after the reading the prompt was opened at.
-        presenter.Prompt!.Remaining.ShouldBe(AuthoredRingDuration - step);
-        presenter.Prompt!.Remaining.ShouldBe(AuthoredRingDuration - (2 * step));
-    }
-
-    /// <summary>
-    /// The fraction a ring is drawn from is the presenter's, because working it out means dividing
-    /// by the authored window — and a renderer that knew the window would be a second copy of it.
-    /// </summary>
-    [Fact]
-    public async Task The_ring_fraction_is_the_share_of_the_authored_window_left()
-    {
-        var half = AuthoredRingDuration / 2;
-        var presenter = Build(Rolling(DieFace.Pip(3)), SteppingClock.Advancing(Noon, half));
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        presenter.Prompt!.RingFraction.ShouldBe(0.5, tolerance: 1e-9);
-    }
-
-    [Fact]
-    public async Task A_ring_that_never_lapses_is_drawn_full()
-    {
-        var presenter = Build(
-            Rolling(DieFace.Pip(3)),
-            SteppingClock.Advancing(Noon, TimeSpan.FromHours(1)),
-            ringLapses: false);
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        presenter.Prompt!.RingFraction.ShouldBe(1);
-    }
-
-    /// <summary>
-    /// 🔒 <b>The authored behaviour on expiry, and the one worth getting right.</b> `04` §3: letting
-    /// the timer lapse ACCEPTS the roll. A ring that rerolled on expiry would spend the run's
-    /// scarcest resource on a player who did nothing at all.
-    /// </summary>
-    [Fact]
-    public async Task A_lapsed_ring_accepts_the_roll_and_spends_no_charge()
-    {
-        var clock = SteppingClock.Advancing(Noon, AuthoredRingDuration);
-        var host = Rolling(DieFace.Pip(3));
-        var presenter = Build(host, clock);
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        var submissionsBefore = host.SubmitCallCount;
-
-        presenter.TickRerollPrompt().ShouldBeTrue();
-
-        presenter.Prompt.ShouldBeNull();
-        host.SubmitCallCount.ShouldBe(
-            submissionsBefore,
-            "the ring lapsing sent a command. 04 §3 makes a lapse identical to tapping elsewhere — " +
-            "it accepts the roll — so nothing at all may be submitted, and above all not the reroll " +
-            "that would spend a charge the player never asked to spend.");
-    }
-
-    [Fact]
-    public async Task A_ring_that_has_not_lapsed_leaves_the_prompt_open()
-    {
-        var clock = SteppingClock.Advancing(Noon, TimeSpan.FromSeconds(1));
-        var presenter = Build(Rolling(DieFace.Pip(3)), clock);
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        presenter.TickRerollPrompt().ShouldBeFalse();
-        presenter.Prompt.ShouldNotBeNull();
-    }
-
-    /// <summary>
-    /// `13` §8's no-timer accessibility mode: every soft timer is removed and each prompt waits
-    /// indefinitely. A ring that lapsed anyway would be the one setting that does not work.
-    /// </summary>
-    [Fact]
-    public async Task A_prompt_that_never_lapses_survives_any_amount_of_time()
-    {
-        var clock = SteppingClock.Advancing(Noon, TimeSpan.FromHours(1));
-        var presenter = Build(Rolling(DieFace.Pip(3)), clock, ringLapses: false);
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        presenter.TickRerollPrompt().ShouldBeFalse();
-        presenter.Prompt.ShouldNotBeNull();
-        presenter.Prompt!.Remaining.ShouldBeNull(
-            "a prompt that never lapses reported a countdown, so the screen would draw a ring that " +
-            "empties and then does nothing — which reads as a broken timer rather than as no timer.");
-    }
-
-    [Fact]
-    public async Task Tapping_elsewhere_accepts_the_roll_and_spends_no_charge()
-    {
-        var host = Rolling(DieFace.Pip(3));
-        var presenter = Build(host, Frozen());
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        var submissionsBefore = host.SubmitCallCount;
-
-        presenter.AcceptRoll().ShouldBeTrue();
-
-        presenter.Prompt.ShouldBeNull();
-        host.SubmitCallCount.ShouldBe(submissionsBefore);
-    }
-
-    /// <summary>
-    /// 🔒 A ring covered by the die panel loses nothing. The window is a deadline the player is
-    /// answering, and the board offers the panel as a thing to consult before answering — so a ring
-    /// that drained behind it would spend the answer on the act of looking something up.
-    /// </summary>
-    [Fact]
-    public async Task A_suspended_ring_gives_back_everything_the_interruption_covered()
-    {
-        var step = TimeSpan.FromSeconds(1);
-        var presenter = Build(Rolling(DieFace.Pip(3)), SteppingClock.Advancing(Noon, step));
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        presenter.SuspendRerollPrompt().ShouldBeTrue();
-
-        var frozen = presenter.Prompt!.Remaining!.Value;
-
-        // However long the panel stays up — and every read of this clock is another second — the
-        // ring does not move at all while it is suspended.
-        presenter.Prompt!.Remaining.ShouldBe(frozen);
-        presenter.Prompt!.Remaining.ShouldBe(frozen);
-        presenter.TickRerollPrompt().ShouldBeFalse(
-            "a suspended ring lapsed, so a player who opened the die panel had their roll accepted " +
-            "out from under them while they were reading it.");
-        presenter.Prompt.ShouldNotBeNull();
-
-        presenter.ResumeRerollPrompt().ShouldBeTrue();
-
-        // One step, because reading the prompt is itself a tick of this clock — so exactly one
-        // second of real time has passed since the ring started again, and none of the several
-        // seconds it spent covered. Anything smaller means the interruption was charged to the
-        // player after all.
-        presenter.Prompt!.Remaining.ShouldBe(
-            frozen - step,
-            "the ring did not resume from where it was covered, so the time the die panel was up " +
-            "was taken out of the window the player had to answer in.");
-    }
-
-    [Fact]
-    public void Suspending_and_resuming_a_ring_that_is_not_running_does_nothing()
-    {
-        var presenter = Build(RecordingGameHost.FindingNoSuchPlayer());
-
-        presenter.SuspendRerollPrompt().ShouldBeFalse();
-        presenter.ResumeRerollPrompt().ShouldBeFalse();
-    }
-
-    [Fact]
-    public async Task A_ring_suspended_twice_is_only_suspended_once()
-    {
-        var presenter = Build(Rolling(DieFace.Pip(3)), SteppingClock.Advancing(Noon, TimeSpan.FromSeconds(1)));
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        presenter.SuspendRerollPrompt().ShouldBeTrue();
-        presenter.SuspendRerollPrompt().ShouldBeFalse(
-            "a second suspension moved the frozen instant forward, so the ring would come back with " +
-            "more time than it was covered for.");
-    }
-
-    [Fact]
-    public async Task The_reroll_is_refused_outright_when_no_prompt_is_open()
-    {
-        var host = RecordingGameHost.Finding(AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.InProgress));
-        var presenter = Build(host);
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        (await presenter.UseRerollAsync(CancellationToken.None))
-            .ShouldBe(BoardSubmission.RefusedNotAvailable);
-
-        host.SubmitCallCount.ShouldBe(0);
-    }
-
-    [Fact]
-    public async Task Taking_the_reroll_submits_USE_REROLL_and_closes_the_prompt()
-    {
-        var host = Rolling(DieFace.Pip(3));
-        var presenter = Build(host, Frozen());
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        var submission = await presenter.UseRerollAsync(CancellationToken.None);
-
-        submission.ShouldBe(BoardSubmission.Submitted);
-        host.SubmitCommand.ShouldBeOfType<UseRerollCommand>();
-        presenter.Prompt.ShouldBeNull();
-    }
-
-    /// <summary>
-    /// 🔒 The exhausted reroll gets its own sentence, because it is the one refusal on this screen a
-    /// player can plan around — and it is the one that arrives on the wire distinctly enough to be
-    /// recognised. The per-stage allowance itself is not readable from a client, so this is learned
-    /// from the answer rather than predicted.
-    /// </summary>
-    [Fact]
-    public async Task An_exhausted_reroll_is_told_apart_from_every_other_refusal()
-    {
-        var host = Rolling(DieFace.Pip(3));
-        var presenter = Build(host, Frozen());
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        host.RefusingCommands(RejectionReason.CAP_REACHED);
-
-        await presenter.UseRerollAsync(CancellationToken.None);
-
-        presenter.RulesRejection.ShouldBe(RejectionReason.CAP_REACHED);
-        presenter.RerollExhausted.ShouldBeTrue();
-        presenter.RejectionText.ShouldBe(
-            BoardContent.EnglishValueOf(BoardContent.RerollExhaustedStatusKey));
-        presenter.RejectionText.ShouldNotBe(
-            BoardContent.EnglishValueOf(BoardContent.RefusedStatusKey));
-    }
-
-    /// <summary>
-    /// 🔒 And the exhausted-reroll sentence does not outlive the refusal it came from. A latch
-    /// cleared only on the accepted path survives every refusal, and the next unrelated one — a
-    /// tile that would not resolve, a branch the rules layer would not take — would then be
-    /// explained to the player as a reroll they have no charges for.
-    /// </summary>
-    [Fact]
-    public async Task The_exhausted_sentence_does_not_survive_onto_the_next_refusal()
-    {
-        var host = RecordingGameHost
-            .Finding(
-                AnyPlayer(),
-                PlayerState.Run(Run, Player, RunPhase.InProgress))
-            .AcceptingInto(PlayerState.Run(
-                Run, Player, RunPhase.InProgress, pendingTileKind: EnemyTileKind))
-            .Emitting(new DiceRolled(0, DieFace.Pip(3)));
-
-        var presenter = Build(host, Frozen());
-
-        await presenter.StartAsync(CancellationToken.None);
-        await presenter.RollAsync(CancellationToken.None);
-
-        host.RefusingCommands(RejectionReason.CAP_REACHED);
-        await presenter.UseRerollAsync(CancellationToken.None);
-
-        presenter.RerollExhausted.ShouldBeTrue();
-
-        // Now something else is refused, for a completely different reason.
-        host.RefusingCommands(RejectionReason.ILLEGAL_STATE);
-        await presenter.ResolvePendingTileAsync(CancellationToken.None);
-
-        presenter.RulesRejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
-        presenter.RerollExhausted.ShouldBeFalse();
-        presenter.RejectionText.ShouldBe(
-            BoardContent.EnglishValueOf(BoardContent.RefusedStatusKey),
-            "a refusal of something else is still being explained as an exhausted reroll, so the " +
-            "one refusal on this screen a player can plan around has been smeared over one they " +
-            "cannot.");
-    }
-
-    [Fact]
-    public async Task The_spent_charge_count_is_the_one_the_run_carries()
-    {
-        var presenter = Build(RecordingGameHost.Finding(
-            AnyPlayer(),
-            PlayerState.Run(Run, Player, RunPhase.InProgress, rerollChargesSpentThisStage: 2)));
-
-        await presenter.StartAsync(CancellationToken.None);
-
-        presenter.RerollChargesSpent.ShouldBe(2);
-    }
 
     // ---- the stage readout --------------------------------------------------------------------
 
@@ -1238,7 +871,7 @@ public sealed class BoardPresenterTests
     [Fact]
     public async Task Rolling_after_arming_disarms_the_control()
     {
-        var presenter = Build(Rolling(DieFace.Pip(3)));
+        var presenter = Build(Rolling(3));
 
         await presenter.StartAsync(CancellationToken.None);
         await presenter.AbandonRunAsync(CancellationToken.None);
@@ -1292,25 +925,17 @@ public sealed class BoardPresenterTests
 
     private static RunSnapshot AnyRun() => PlayerState.Run(Run, Player, RunPhase.InProgress);
 
-    private static SteppingClock Frozen() => SteppingClock.Frozen(Noon);
-
-    /// <summary>A host whose run is clear to roll and whose roll reports one face.</summary>
-    private static RecordingGameHost Rolling(DieFace face) =>
+    /// <summary>A host whose run is clear to roll and whose roll reports one number.</summary>
+    private static RecordingGameHost Rolling(int pips) =>
         RecordingGameHost
             .Finding(AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.InProgress))
-            .AcceptingInto(PlayerState.Run(Run, Player, RunPhase.InProgress, position: face.Value))
-            .Emitting(new DiceRolled(0, face));
+            .AcceptingInto(PlayerState.Run(Run, Player, RunPhase.InProgress, position: pips))
+            .Emitting(new DiceRolled(0, pips));
 
-    private static BoardPresenter Build(
-        RecordingGameHost host,
-        SteppingClock? clock = null,
-        ContentSnapshot? content = null,
-        bool ringLapses = true) =>
+    private static BoardPresenter Build(RecordingGameHost host, ContentSnapshot? content = null) =>
         new(host,
             BoardContent.Catalogue(content ?? BoardContent.Strings()),
             content ?? BoardContent.Strings(),
-            clock ?? SteppingClock.Frozen(Noon),
             Player,
-            Run,
-            ringLapses);
+            Run);
 }

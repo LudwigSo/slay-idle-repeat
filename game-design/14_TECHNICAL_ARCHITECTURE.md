@@ -124,7 +124,7 @@ This table is the **complete** command vocabulary — wire protocol and domain `
 |---|---|---|
 | `START_RUN` | `{ chapterId, tier }` | Commits `runSeed` before the board is shown (`02` §2) |
 | `ROLL_DICE` | `{}` | Server answers with the face, movement and landing outcome |
-| `USE_REROLL` | `{}` | Spends one reroll charge on the just-shown face (`02` §3) |
+| ~~`USE_REROLL`~~ | — | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
 | `CHOOSE_FORK` | `{ branchIndex }` | Always required at a junction (`02` §3, A7 movement ruling) |
 | `RESOLVE_TILE` | `{}` | Acknowledges / advances the pending tile resolution |
 | `PICK_PERK` | `{ optionIndex }` | |
@@ -151,7 +151,9 @@ This table is the **complete** command vocabulary — wire protocol and domain `
 
 *(Counted off the table below rather than carried forward: 30 rows before this edit, verified line by line, plus three.)*
 
-🔒 **The run-tiles pass of 2026-08-20 (`16` D38) added three RUN rows: `SHOP_LEAVE`, `SHRINE_CHOOSE` and `DICE_FORGE_CHOOSE`.** The vocabulary goes **52 → 55** (22 run + 33 meta); the meta table is untouched. None of the three draws, so none carries **⚄** — the die count stays eleven. Each carries a player choice a tile makes that no existing command could express, and without them the Shrine was a roll, the Dice Forge did nothing at all, and the Shop could never sell anything because `RESOLVE_TILE` had to clear its tile on arrival for the run to be able to leave.
+🔒 **The run-tiles pass of 2026-08-20 (`16` D38) added three RUN rows: `SHOP_LEAVE`, `SHRINE_CHOOSE` and `DICE_FORGE_CHOOSE`.** The vocabulary went **52 → 55** (22 run + 33 meta); the meta table was untouched. None of the three draws, so none carries **⚄**. Each carries a player choice a tile makes that no existing command could express, and without them the Shrine was a roll, the Dice Forge did nothing at all, and the Shop could never sell anything because `RESOLVE_TILE` had to clear its tile on arrival for the run to be able to leave.
+
+🔒 **D41 then REMOVED two RUN rows: `USE_REROLL` and `DICE_FORGE_CHOOSE`.** The vocabulary goes **55 → 53** (20 run + 33 meta) — the first time this registry has shrunk. A reroll has no charge to spend and a forge has no face to install (`04` §5), so both could only ever be refused. **Their wire names stay retired rather than reused**, because a client built against an older build may still send one and it must not decode to a different command. The Dice Forge TILE is kept and `RESOLVE_TILE` clears it in place.
 
 | Command | Payload sketch | Notes |
 |---|---|---|

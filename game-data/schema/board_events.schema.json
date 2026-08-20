@@ -154,7 +154,7 @@
           "required": ["op", "curseId"],
           "properties": {
             "op": { "const": "CURSE_REWARD" },
-            "curseId": { "enum": ["CUR_SLIPPERY", "CUR_MARKED", "CUR_DIZZY", "CUR_FRACTURED"] }
+            "curseId": { "enum": ["CUR_SLIPPERY", "CUR_MARKED", "CUR_FRACTURED"] }
           }
         },
         {

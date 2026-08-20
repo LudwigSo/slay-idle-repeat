@@ -192,15 +192,18 @@ public sealed class RunModifierEffectSourceTests
     /// the board, or carrying a written reason it is neither.
     /// </summary>
     /// <remarks>
-    /// Stated over the shipped catalogue rather than a list of twelve ids, so a thirteenth curse
-    /// authored into the data fails here rather than becoming a silent no-op.
+    /// Stated over the shipped catalogue rather than a list of ids, so a curse authored into the data
+    /// fails here rather than becoming a silent no-op.
     /// </remarks>
     [Fact]
     public void Every_authored_curse_is_applied_or_names_its_missing_mechanism()
     {
         var catalogue = CurseTuning.Read(Content);
 
-        catalogue.AvailableFrom(8).Count.ShouldBe(12, "19 Part E authors twelve curses.");
+        catalogue.AvailableFrom(8).Count.ShouldBe(
+            10,
+            "19 Part E authors twelve curses, less CUR_DIZZY and CUR_LEADFOOT — both removed with the " +
+            "reroll and the die's special faces.");
 
         foreach (var row in catalogue.AvailableFrom(8))
         {

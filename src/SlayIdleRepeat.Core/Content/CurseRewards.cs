@@ -30,22 +30,23 @@ internal static class CurseRewards
     /// <summary><c>CUR_MARKED</c>'s reward, <c>"+2 Enhance Stones"</c>.</summary>
     internal const string Marked = "CUR_MARKED";
 
-    /// <summary><c>CUR_DIZZY</c>'s reward, <c>"+180 Gold"</c>.</summary>
-    internal const string Dizzy = "CUR_DIZZY";
-
     /// <summary><c>CUR_FRACTURED</c>'s reward, <c>"+500 Gold"</c>.</summary>
     internal const string Fractured = "CUR_FRACTURED";
 
     /// <summary>Whether this curse's reward is one this table can pay.</summary>
     internal static bool IsPayable(string? curseId) => curseId switch
     {
-        Slippery or Marked or Dizzy or Fractured => true,
+        Slippery or Marked or Fractured => true,
         _ => false,
     };
 
-    /// <summary>The four ids this table pays, in the design document's own order.</summary>
+    /// <summary>The three ids this table pays, in the design document's own order.</summary>
+    /// <remarks>
+    /// ⚠️ Three, not four: <c>CUR_DIZZY</c> was removed with the reroll — "the next 3 rolls cannot be
+    /// rerolled" is a penalty with nothing left to deny.
+    /// </remarks>
     internal static IReadOnlyList<string> PayableIds { get; } =
-        Array.AsReadOnly(new[] { Slippery, Marked, Dizzy, Fractured });
+        Array.AsReadOnly(new[] { Slippery, Marked, Fractured });
 
     /// <summary>The currency and amount paired with this curse.</summary>
     /// <param name="curseId">One of <see cref="PayableIds"/>.</param>
@@ -58,14 +59,13 @@ internal static class CurseRewards
     {
         Slippery => (CurrencyId.GOLD, 250L),
         Marked => (CurrencyId.ENHANCE_STONES, 2L),
-        Dizzy => (CurrencyId.GOLD, 180L),
         Fractured => (CurrencyId.GOLD, 500L),
         _ => throw new ArgumentException(
             "19 Part E authors no PAYABLE reward for '" + curseId + "'. This table deliberately " +
-            "covers only the four chapter-1 curses whose reward is a flat currency amount (" +
-            string.Join(", ", PayableIds) + "); the other eight pay percentages, reroll charges or " +
-            "gear drops that no system exists to grant, and parsing the prose column generally " +
-            "would be inventing a grammar nothing specifies.",
+            "covers only the chapter-1 curses whose reward is a flat currency amount (" +
+            string.Join(", ", PayableIds) + "); the others pay percentages or gear drops that no " +
+            "system exists to grant, and parsing the prose column generally would be inventing a " +
+            "grammar nothing specifies.",
             nameof(curseId)),
     };
 }

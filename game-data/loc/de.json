@@ -38,7 +38,6 @@
     "loc.affix.damage_reduction.name": "##TODO_DE## Damage Reduction",
     "loc.affix.gold_gain.name": "##TODO_DE## Gold Gain",
     "loc.affix.pet_aura_power.name": "##TODO_DE## Pet Aura Power",
-    "loc.affix.reroll_charge.name": "##TODO_DE## Reroll Charge",
     "loc.affix.damage_vs_elites.name": "##TODO_DE## Damage vs Elites",
 
     "loc.dungeon.stonevault.name": "##TODO_DE## The Stonevault",
@@ -120,7 +119,6 @@
 
     "loc.curse.slippery.name": "##TODO_DE## Slippery",
     "loc.curse.marked.name": "##TODO_DE## Marked",
-    "loc.curse.dizzy.name": "##TODO_DE## Dizzy",
     "loc.curse.fractured.name": "##TODO_DE## Fractured",
     "loc.curse.hunted.name": "##TODO_DE## Hunted",
     "loc.curse.untimely.name": "##TODO_DE## Untimely",
@@ -128,7 +126,6 @@
     "loc.curse.brittle_bones.name": "##TODO_DE## Brittle Bones",
     "loc.curse.miserly.name": "##TODO_DE## Miserly",
     "loc.curse.blind.name": "##TODO_DE## Blind",
-    "loc.curse.leadfoot.name": "##TODO_DE## Leadfoot",
     "loc.curse.tithe.name": "##TODO_DE## Tithe",
 
     "loc.boot.title.name": "##TODO_DE## Slay. Idle. Repeat.",
@@ -197,10 +194,7 @@
     "loc.board.gold.label": "##TODO_DE## Gold",
     "loc.board.stage.label": "##TODO_DE## Stage",
     "loc.board.roll.action": "##TODO_DE## Roll",
-    "loc.board.reroll.action": "##TODO_DE## Reroll next roll",
-    "loc.board.reroll_changes_next_roll.label": "##TODO_DE## Rerolling changes your next roll — this one has already moved you.",
     "loc.board.resolve.action": "##TODO_DE## Continue",
-    "loc.board.die_panel.action": "##TODO_DE## Die",
     "loc.board.rolled.label": "##TODO_DE## Rolled",
     "loc.board.standing_on.label": "##TODO_DE## Standing on",
     "loc.board.fork.name": "##TODO_DE## The path splits",
@@ -217,7 +211,6 @@
     "loc.board.blocked_battle.status": "##TODO_DE## A battle is waiting to be fought.",
     "loc.board.blocked_draft.status": "##TODO_DE## Choose a perk before rolling again.",
     "loc.board.refused.status": "##TODO_DE## That action was refused.",
-    "loc.board.reroll_exhausted.status": "##TODO_DE## No reroll charges are left this stage.",
 
     "loc.tile.enemy.name": "##TODO_DE## Enemy",
     "loc.tile.elite.name": "##TODO_DE## Elite",
@@ -234,22 +227,6 @@
     "loc.tile.dice_forge.name": "##TODO_DE## Dice Forge",
     "loc.tile.empty.name": "##TODO_DE## Waypoint",
 
-    "loc.die_panel.title.name": "##TODO_DE## Your Die",
-    "loc.die_panel.pip.name": "##TODO_DE## Pip",
-    "loc.die_panel.pip.effect": "##TODO_DE## Move the number shown.",
-    "loc.die_panel.star.name": "##TODO_DE## Star",
-    "loc.die_panel.star.effect": "##TODO_DE## Choose how far you move.",
-    "loc.die_panel.surge.name": "##TODO_DE## Surge",
-    "loc.die_panel.surge.effect": "##TODO_DE## Move, then heal.",
-    "loc.die_panel.fortune.name": "##TODO_DE## Fortune",
-    "loc.die_panel.fortune.effect": "##TODO_DE## Move, and the tile you land on pays double.",
-    "loc.die_panel.void.name": "##TODO_DE## Void",
-    "loc.die_panel.void.effect": "##TODO_DE## Stay where you are and resolve this tile again for less.",
-    "loc.die_panel.chain.name": "##TODO_DE## Chain",
-    "loc.die_panel.chain.effect": "##TODO_DE## Move, then roll again.",
-    "loc.die_panel.last_face.label": "##TODO_DE## Last rolled",
-    "loc.die_panel.no_roll_yet.status": "##TODO_DE## You have not rolled yet in this session.",
-    "loc.die_panel.faces_unavailable.status": "##TODO_DE## Which face sits in which slot is not shown: the game does not yet report your composed die.",
 
     "loc.battle.title.name": "##TODO_DE## Battle",
     "loc.battle.hero.label": "##TODO_DE## You",
@@ -326,7 +303,6 @@
     "loc.campfire.shrine_buffs.label": "##TODO_DE## The shrine drew",
     "loc.campfire.rest.action": "##TODO_DE## Rest",
     "loc.campfire.upgrade_perk.action": "##TODO_DE## Raise a perk a tier",
-    "loc.campfire.reroll_charges.action": "##TODO_DE## Take reroll charges",
     "loc.campfire.continue.action": "##TODO_DE## Continue",
     "loc.campfire.upgrade_perk_none.block": "##TODO_DE## You hold no perk that can be raised another tier.",
     "loc.campfire.take.action": "##TODO_DE## Take",
@@ -338,20 +314,7 @@
     "loc.campfire.read_unavailable.status": "##TODO_DE## Your run could not be read, so this tile cannot be opened.",
     "loc.campfire.shrine_unavailable.status": "##TODO_DE## This shrine is open, but what it drew could not be built from the game's data.",
     "loc.campfire.refused.status": "##TODO_DE## That was refused.",
-    "loc.campfire.host_unavailable.status": "##TODO_DE## The game did not answer, so nothing happened here. Try again.",
+    "loc.campfire.host_unavailable.status": "##TODO_DE## The game did not answer, so nothing happened here. Try again."
 
-    "loc.dice_forge.title.name": "##TODO_DE## Dice Forge",
-    "loc.dice_forge.face.label": "##TODO_DE## Face",
-    "loc.dice_forge.upgrade.action": "##TODO_DE## Forge",
-    "loc.dice_forge.higher_pip.name": "##TODO_DE## Raise the pips",
-    "loc.dice_forge.to_surge.name": "##TODO_DE## Make it a Surge",
-    "loc.dice_forge.to_fortune.name": "##TODO_DE## Make it a Fortune",
-    "loc.dice_forge.withheld.block": "##TODO_DE## Star and Chain faces are not offered: nothing in this build can resolve a roll that lands on one.",
-    "loc.dice_forge.loading.status": "##TODO_DE## Opening the forge…",
-    "loc.dice_forge.run_missing.status": "##TODO_DE## That run could not be found, so no forge can be shown.",
-    "loc.dice_forge.not_at_a_forge.status": "##TODO_DE## You are not standing at a dice forge.",
-    "loc.dice_forge.read_unavailable.status": "##TODO_DE## Your run could not be read, so the forge cannot be opened.",
-    "loc.dice_forge.refused.status": "##TODO_DE## That upgrade was refused.",
-    "loc.dice_forge.host_unavailable.status": "##TODO_DE## The game did not answer, so nothing was forged. Try again."
   }
 }

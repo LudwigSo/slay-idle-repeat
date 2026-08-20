@@ -151,8 +151,8 @@ public sealed class GearAffixRollerTests
 
         var rolled = GearAffixRoller.Roll(
             [new GearAffixDefinition(
-                "AFX_REROLL_CHARGE",
-                StatId.REROLL_CHARGES,
+                "AFX_TILE_PREVIEW",
+                StatId.TILE_PREVIEW,
                 EffectOp.STAT_ADD_FLAT,
                 1.0,
                 1.0,

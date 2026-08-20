@@ -8,7 +8,7 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Ops;
 /// These are resolved by the run controller, never by the combat simulator, which doesn't exist yet
 /// on this branch — a declared op with no resolver is the correct end state for now, not an
 /// omission. What this class implements is the one combat-context exception: a combat trigger may
-/// emit a run/board op (e.g. a periodic effect firing <c>MODIFY_DIE_FACE</c>). The simulator still
+/// emit a run/board op (e.g. a periodic effect firing <c>MOVE_NODES</c>). The simulator still
 /// never resolves it — it appends a queued event to the combat log, and the run controller applies
 /// queued ops in log order when the battle resolves. In a PvP duel the queue is discarded.
 /// </para>

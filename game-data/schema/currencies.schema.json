@@ -194,14 +194,13 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["outcome", "gold", "crowns", "beastFeed", "enhanceStones", "rerollCharges"],
+            "required": ["outcome", "gold", "crowns", "beastFeed", "enhanceStones"],
             "properties": {
               "outcome": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
               "gold": { "type": "integer", "minimum": 0 },
               "crowns": { "type": "integer", "minimum": 0 },
               "beastFeed": { "type": "integer", "minimum": 0 },
-              "enhanceStones": { "type": "integer", "minimum": 0 },
-              "rerollCharges": { "type": "integer", "minimum": 0 }
+              "enhanceStones": { "type": "integer", "minimum": 0 }
             }
           }
         }

@@ -6,7 +6,7 @@ namespace SlayIdleRepeat.Core.Rules.Effects.Triggers;
 /// <remarks>
 /// <para>
 /// A combat trigger may emit a run/board op — the sanctioned case is a periodic effect firing
-/// <c>MODIFY_DIE_FACE</c>. The simulator still never resolves it: it appends a queued event to the
+/// <c>MOVE_NODES</c>. The simulator still never resolves it: it appends a queued event to the
 /// combat log, and the run controller applies queued ops in log order when the battle resolves. In a
 /// PvP duel the queue is discarded.
 /// </para>

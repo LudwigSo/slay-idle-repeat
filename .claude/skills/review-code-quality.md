@@ -47,7 +47,7 @@ If you notice an architectural problem, note it in a single line under "Out of s
 - Guard clauses / early returns over deep nesting.
 
 ### Idioms & clarity
-- `switch` expressions and pattern matching over long `if`/`else if` chains on a type or enum — especially relevant for the many enum-shaped concepts in this codebase (`TileType`, `DieFaceKind`, `CombatEventType`, effect ops/triggers/conditions).
+- `switch` expressions and pattern matching over long `if`/`else if` chains on a type or enum — especially relevant for the many enum-shaped concepts in this codebase (`TileKind`, `CombatEventType`, effect ops/triggers/conditions).
 - Expression-bodied members only where they improve readability.
 - Consistent `var` usage matching the surrounding file.
 - String interpolation over concatenation; no string building in loops.
@@ -55,7 +55,7 @@ If you notice an architectural problem, note it in a single line under "Out of s
 - Remove dead code, unused locals, and unused `using`s.
 
 ### Types & data
-- Prefer `readonly` fields and immutable `record`/`record struct`/`readonly struct` for value-like data — this project already leans on this for value types like `CombatEvent` (a `readonly struct`), `SimulationResult`, `DieFace`, `AdOutcome`; match that pattern for new value types.
+- Prefer `readonly` fields and immutable `record`/`record struct`/`readonly struct` for value-like data — this project already leans on this for value types like `CombatEvent` (a `readonly struct`), `SimulationResult`, `AdOutcome`; match that pattern for new value types.
 - Correct, consistent `Equals`/`GetHashCode` when a type is used as a key or compared (e.g. anything keyed by an effect ID for the resolver's ascending-order pass).
 - Avoid unnecessary allocations and boxing; pick the collection type that fits the access pattern — this matters more than usual in `Core/Combat`, which has an explicit <5ms-per-fight budget.
 - Expose `IReadOnlyList<T>`/`IReadOnlyDictionary<,>` in signatures when callers must not mutate.

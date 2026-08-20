@@ -8,7 +8,8 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Effects.Triggers;
 
 /// <summary>The combat-context exception: a combat trigger carrying a run/board op emits, it never resolves.</summary>
 /// <remarks>
-/// The sanctioned case is the Dicelord's Scramble — a <c>PERIODIC</c> firing <c>MODIFY_DIE_FACE</c>.
+/// The sanctioned case is a <c>PERIODIC</c> combat trigger firing a run/board op. ⚠️ It used to be
+/// the Dicelord's Scramble firing <c>MODIFY_DIE_FACE</c>; that op is gone with the die's faces.
 /// The simulator appends a <c>RunEffectQueued</c> event; in a duel the queue is discarded.
 /// </remarks>
 public sealed class TriggerRoutingTests
@@ -78,11 +79,10 @@ public sealed class TriggerRoutingTests
         var diceForge = new EffectDefinition
         {
             Id = "TILE_DICE_FORGE_REPLACE",
-            Op = EffectOp.MODIFY_DIE_FACE,
+            Op = EffectOp.MOVE_NODES,
             Trigger = new EffectTrigger { Kind = TriggerKind.ON_TILE_RESOLVED, TileType = "TILE_DICE_FORGE" },
             Target = EffectTarget.RUN,
-            FaceIndex = DieFaceIndex.PlayerChoice,
-            NewFace = new DieFaceSpec("Pip", 4),
+            Value = 4.0,
             Duration = new EffectDuration { Scope = DurationScope.RUN },
         };
 
@@ -136,10 +136,9 @@ public sealed class TriggerRoutingTests
         var triggerless = new EffectDefinition
         {
             Id = "PET_DICEBEAST_ACTIVE",
-            Op = EffectOp.MODIFY_DIE_FACE,
+            Op = EffectOp.MOVE_NODES,
             Target = EffectTarget.RUN,
-            FaceIndex = DieFaceIndex.At(1),
-            NewFace = new DieFaceSpec("Star"),
+            Value = 1.0,
         };
 
         TriggerRouting.RouteOf(triggerless, TriggerLayer.RUN, isPvp: false).ShouldBe(EffectRouting.RESOLVE);
@@ -194,7 +193,7 @@ public sealed class TriggerRoutingTests
     {
         var runOps = EffectOps.All.Where(EffectOps.IsRunAndBoard).ToArray();
 
-        runOps.Length.ShouldBe(13, "18 §2.5 tabulates thirteen run and board ops");
+        runOps.Length.ShouldBe(11, "18 §2.5 tabulates thirteen run and board ops, less the two removed");
 
         foreach (var op in runOps)
         {

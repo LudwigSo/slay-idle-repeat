@@ -19,7 +19,7 @@ public sealed class EffectOpValidationTests
     [Fact]
     public void No_op_falls_through_to_the_validators_default_arm()
     {
-        EffectOps.All.Count.ShouldBe(44, "18 §11 — the floor under the loop");
+        EffectOps.All.Count.ShouldBe(42, "18 §11 — the floor under the loop");
 
         var uncovered = new List<string>();
 
@@ -189,18 +189,12 @@ public sealed class EffectOpValidationTests
 
             new()
             {
-                Id = "TILE_DICE_FORGE_FACE", Op = EffectOp.MODIFY_DIE_FACE,
-                FaceIndex = DieFaceIndex.PlayerChoice, NewFace = new DieFaceSpec("Pip", 4),
-            },
-
-            new()
-            {
                 Id = "PK_CLEAVE_T1", Op = EffectOp.DAMAGE, Value = 0.40, Target = EffectTarget.OTHER_ENEMIES,
             },
         };
 
         // The floor under the loop: an empty fixture list would report success over nothing.
-        examples.Length.ShouldBe(7);
+        examples.Length.ShouldBe(6);
 
         examples.SelectMany(e => EffectOpValidation.Problems(e).Select(p => $"{e.Id}: {p}"))
                 .ShouldBeEmpty();
@@ -225,7 +219,6 @@ public sealed class EffectOpValidationTests
             EffectOp.ATTACK_MULT_NEXT => effect with { Charges = 1 },
             EffectOp.FORCE_CRIT_NEXT => effect with { Value = null, Charges = 1 },
             EffectOp.SUMMON => effect with { Archetype = "SWARM" },
-            EffectOp.MODIFY_DIE_FACE => effect with { NewFace = new DieFaceSpec("Star") },
 
             // RANDOM_OUTCOME carries no value at all; two rows because one outcome is not a choice.
             EffectOp.RANDOM_OUTCOME => effect with

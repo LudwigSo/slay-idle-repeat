@@ -89,7 +89,7 @@ Red flags:
 
 ### 8. Missing edge cases
 Flag scenarios that are conspicuously absent given the feature's nature:
-- Zero / null / empty inputs (zero reroll charges, empty board, empty perk pool).
+- Zero / null / empty inputs (empty board, empty perk pool, no consumables held).
 - Stat/rarity/tier/level boundaries (a stat cap, gear rarity C→SS, talent rank 5, Legend Level 200).
 - Repeated application of the same operation (drafting an owned perk twice, merging past SS).
 - Invalid / unexpected inputs that should be rejected or produce a defined outcome (a perk not in the offered draft pool, a command replayed with a duplicate `commandId`).

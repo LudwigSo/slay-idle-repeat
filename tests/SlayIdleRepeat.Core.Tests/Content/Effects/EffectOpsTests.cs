@@ -43,7 +43,7 @@ public sealed class EffectOpsTests
 
     /// <summary>The 13 run and board ops: resolved by the run controller, never by the combat simulator.</summary>
     [Fact]
-    public void The_run_and_board_ops_are_exactly_the_thirteen_of_section_2_5()
+    public void The_run_and_board_ops_are_exactly_the_eleven_of_section_2_5()
     {
         EffectOps.All.Where(EffectOps.IsRunAndBoard).ShouldBe(
         [
@@ -51,8 +51,6 @@ public sealed class EffectOpsTests
             EffectOp.GRANT_ITEM,
             EffectOp.GRANT_PERK,
             EffectOp.UPGRADE_PERK,
-            EffectOp.MODIFY_DIE_FACE,
-            EffectOp.GRANT_REROLL,
             EffectOp.MOVE_NODES,
             EffectOp.REVEAL_TILES,
             EffectOp.RESOLVE_TILE_AGAIN,

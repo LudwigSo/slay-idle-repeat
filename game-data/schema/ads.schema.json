@@ -59,10 +59,10 @@
       }
     },
     "inRunPlacements": {
-      "description": "12 §4.1 — 13 in-run placements, all capped per run.",
+      "description": "12 §4.1 — 12 in-run placements, all capped per run. ⚠️ Twelve, not the document's thirteen: AD_REROLL_DICE is gone with the reroll it paid for.",
       "type": "array",
-      "minItems": 13,
-      "maxItems": 13,
+      "minItems": 12,
+      "maxItems": 12,
       "uniqueItems": true,
       "items": { "$ref": "#/$defs/placement" }
     },

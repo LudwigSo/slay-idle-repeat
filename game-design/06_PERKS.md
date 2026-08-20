@@ -195,7 +195,7 @@ A hybrid is any row whose **Requires** names more than one base; they are listed
 | `CP_BRITTLE` | Brittle Fury | +60% Crit Damage | −40% DEF |
 | `CP_HUNGER` | Endless Hunger | +25% Lifesteal | −2% Max HP per tile moved |
 | `CP_MYOPIA` | Myopia | +35% all stats | Cannot see upcoming tiles |
-| `CP_LEADEN` | Leaden Die | +50% Max HP | All Pip faces −1 (min 1) |
+| `CP_LEADEN` | Leaden Die | +50% Max HP | −1 to every roll (min 1) ⚠️ was *All Pip faces −1*; a plain die has no face kinds (`04` §1), and the effect is unchanged |
 | `CP_PAUPER` | Pauper's Bargain | +30% all stats | Gold gain reduced to 0 |
 | `CP_GLASS_HEART` | Glass Heart | ×2 all stats | Max HP set to 1 (dodge/block/shields still work) |
 | `CP_TIMEBOUND` | Timebound | +80% ATK | Take 2% Max HP damage per second in battle |
@@ -256,7 +256,7 @@ Additional rules:
 
 The `effects` array is interpreted by a single generic effect resolver. **Do not write per-perk code.** Any perk that cannot be expressed in the effect DSL must extend the DSL, not bypass it. This is what makes 98 perks (and later 300) maintainable.
 
-✅ **The full DSL — 44 operations, 23 triggers, 23 conditions (after the `16` A7 batch extension and `18` §10.1's E6 extension), resolution order and worked examples — is specified in `18_EFFECT_DSL.md`.** That document also resolves the two ambiguous perk designs previously flagged here: `CP_GLASS_HEART` (§9.1) and `PET_DICEBEAST` (§9.2).
+✅ **The full DSL — 42 operations, 23 triggers, 22 conditions (after the `16` A7 batch extension, `18` §10.1's E6 extension and D41's removals), resolution order and worked examples — is specified in `18_EFFECT_DSL.md`.** That document also resolves the two ambiguous perk designs previously flagged here: `CP_GLASS_HEART` (§9.1) and `PET_DICEBEAST` (§9.2).
 
 ---
 

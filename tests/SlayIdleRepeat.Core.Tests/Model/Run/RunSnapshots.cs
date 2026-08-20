@@ -122,8 +122,6 @@ internal static class RunSnapshots
         string? pendingEventCardId = null,
         RunPhase? phase = null,
         bool? draftPending = null,
-        int? rerollChargesSpentThisStage = null,
-        ulong? stageGateDiceAnchor = null,
         int? draftBattleKind = null,
         int? draftBattleStage = null,
         IReadOnlyDictionary<string, int>? ownedPerkTiers = null,
@@ -138,15 +136,12 @@ internal static class RunSnapshots
         IReadOnlyList<string>? shrineBuffs = null,
         IReadOnlyList<string>? runBuffs = null,
         IReadOnlyList<string>? curses = null,
-        IReadOnlyDictionary<int, int>? dieFaceUpgrades = null,
         IReadOnlyDictionary<string, int>? consumables = null,
         bool? escapeRopeArmed = null,
-        int? rerollChargesGrantedThisStage = null,
         int? freeDraftRerolls = null,
         ulong? shopOfferDraw = null,
         int? shopSlotsPurchased = null,
-        int? shopRefreshesUsedThisVisit = null,
-        int? chainLinksTaken = null) =>
+        int? shopRefreshesUsedThisVisit = null) =>
         new(
             schemaVersion ?? SnapshotSchema.SchemaVersion,
             id ?? Id,
@@ -170,8 +165,6 @@ internal static class RunSnapshots
             pendingEventCardId ?? NoPendingEventCard,
             phase ?? RunPhase.InProgress,
             draftPending ?? false,
-            rerollChargesSpentThisStage ?? 0,
-            stageGateDiceAnchor ?? 0,
             draftBattleKind ?? NoDraftBattleKind,
             draftBattleStage ?? 0,
             ownedPerkTiers ?? OwnedPerkTiers(),
@@ -186,15 +179,12 @@ internal static class RunSnapshots
             shrineBuffs ?? Ids(),
             runBuffs ?? Ids(),
             curses ?? Ids(),
-            dieFaceUpgrades ?? DieFaceUpgrades(),
             consumables ?? Consumables(),
             escapeRopeArmed ?? false,
-            rerollChargesGrantedThisStage ?? 0,
             freeDraftRerolls ?? 0,
             shopOfferDraw,
             shopSlotsPurchased ?? 0,
-            shopRefreshesUsedThisVisit ?? 0,
-            chainLinksTaken ?? 0);
+            shopRefreshesUsedThisVisit ?? 0);
 
     /// <summary>
     /// An id list, empty by default — the shape <c>Run.ToSnapshot</c> writes for a run that has taken
@@ -207,10 +197,6 @@ internal static class RunSnapshots
     /// </remarks>
     internal static IReadOnlyList<string> Ids(params string[] ids) =>
         ids.Length == 0 ? Array.Empty<string>() : ids;
-
-    /// <inheritdoc cref="Ids"/>
-    internal static IReadOnlyDictionary<int, int> DieFaceUpgrades(params (int FaceIndex, int Code)[] upgrades) =>
-        upgrades.ToDictionary(u => u.FaceIndex, u => u.Code);
 
     /// <inheritdoc cref="Ids"/>
     internal static IReadOnlyDictionary<string, int> Consumables(params (string Id, int Count)[] held) =>

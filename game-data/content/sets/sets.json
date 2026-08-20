@@ -64,20 +64,7 @@
       "familyAxis": "CASTER",
       "displayName": "loc.set.fateweave.name",
       "bonuses": [
-        {
-          "pieces": 2,
-          "effects": [
-            {
-              "id": "SET_BONUS_CASTER_2",
-              "op": "STAT_ADD_FLAT",
-              "stat": "REROLL_CHARGES",
-              "trigger": { "kind": "ALWAYS" },
-              "condition": null,
-              "target": "SELF",
-              "value": 1
-            }
-          ]
-        },
+        { "pieces": 2, "effects": null },
         { "pieces": 4, "effects": null },
         { "pieces": 6, "effects": null }
       ]

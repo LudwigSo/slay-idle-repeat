@@ -36,11 +36,8 @@ public sealed record StartRunCommand(int ChapterId, DifficultyTier Tier) : GameC
     }
 }
 
-/// <summary><c>ROLL_DICE</c> — roll. The server answers with the face, the movement and the landing outcome in one command.</summary>
+/// <summary><c>ROLL_DICE</c> — roll. The server answers with the number, the movement and the landing outcome in one command.</summary>
 public sealed record RollDiceCommand : GameCommand;
-
-/// <summary><c>USE_REROLL</c> — spend one reroll charge on the face just shown.</summary>
-public sealed record UseRerollCommand : GameCommand;
 
 /// <summary><c>CHOOSE_FORK</c> — pick a branch at a junction.</summary>
 /// <param name="BranchIndex">
@@ -126,8 +123,8 @@ public sealed record ShopRefreshCommand : GameCommand;
 /// <c>SHRINE_CHOOSE</c> — take one of the two options a Shrine tile offers (`03` §7a.5).
 /// </summary>
 /// <remarks>
-/// Added to `14` §2.3's registry alongside <see cref="DiceForgeChooseCommand"/> and
-/// <see cref="ShopLeaveCommand"/> (52 → 55; decision recorded in `16`). A shrine offers two distinct
+/// Added to `14` §2.3's registry alongside <see cref="ShopLeaveCommand"/> (decision recorded in
+/// `16`). A shrine offers two distinct
 /// options and the player takes one; before this command existed the resolver had to settle it
 /// itself, always taking slot 1, which made the game's only "relief or greed" decision a roll.
 /// </remarks>
@@ -145,40 +142,6 @@ public sealed record ShrineChooseCommand(int OptionIndex) : GameCommand
         ArgumentNullException.ThrowIfNull(builder);
 
         builder.Append(CultureInfo.InvariantCulture, $"{nameof(OptionIndex)} = {OptionIndex}");
-
-        return true;
-    }
-}
-
-/// <summary>
-/// <c>DICE_FORGE_CHOOSE</c> — upgrade one face of the run's die at a Dice Forge tile (`03` §2).
-/// </summary>
-/// <remarks>
-/// The upgrade is permanent for the run and free: landing on the tile is the whole cost. Which
-/// options are offered is <c>Handlers.DiceForgeChoose</c>'s, not this payload's — the command only
-/// names a face and a choice.
-/// </remarks>
-/// <param name="FaceIndex">The die face to upgrade, 1-based (`04` §1 numbers faces 1..6).</param>
-/// <param name="OptionIndex">The chosen option's position in the server-issued menu.</param>
-/// <param name="HigherPipValue">
-/// The new pip count, required by — and only by — the "raise to a higher Pip value" option, which
-/// is relative to the face being upgraded rather than a fixed target. <c>null</c> for every other
-/// option, and a value supplied alongside one of them is ignored rather than refused: it names
-/// nothing that option could install.
-/// </param>
-public sealed record DiceForgeChooseCommand(int FaceIndex, int OptionIndex, int? HigherPipValue = null)
-    : GameCommand
-{
-    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
-    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
-    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
-    protected override bool PrintMembers(StringBuilder builder)
-    {
-        ArgumentNullException.ThrowIfNull(builder);
-
-        builder.Append(CultureInfo.InvariantCulture, $"{nameof(FaceIndex)} = {FaceIndex}");
-        builder.Append(CultureInfo.InvariantCulture, $", {nameof(OptionIndex)} = {OptionIndex}");
-        builder.Append(CultureInfo.InvariantCulture, $", {nameof(HigherPipValue)} = {HigherPipValue}");
 
         return true;
     }

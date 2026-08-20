@@ -366,8 +366,6 @@ internal static class OpFixtures
 
             EffectOp.SUMMON => effect with { Archetype = "SWARM", Value = 2.0 },
 
-            EffectOp.MODIFY_DIE_FACE => effect with { NewFace = new DieFaceSpec("Star") },
-
             // RANDOM_OUTCOME carries no value (its own number is the winning row's index) and needs
             // two rows, because one outcome is not a choice.
             EffectOp.RANDOM_OUTCOME => effect with

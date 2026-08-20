@@ -25,7 +25,7 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Feats;
 /// </remarks>
 public sealed class FeatCounterProjectionTests
 {
-    private static DomainEvent Rolled(DieFace face) => new DiceRolled(1, face);
+    private static DomainEvent Rolled(int pips) => new DiceRolled(1, pips);
 
     private static DomainEvent Moved(CurrencyId currency, long delta) =>
         new CurrencyChanged(1, currency, delta, "fixture_reason");
@@ -39,17 +39,16 @@ public sealed class FeatCounterProjectionTests
     // ------------------------------------------------------------------ the die
 
     [Fact]
-    public void A_pip_roll_advances_the_total_the_pip_counter_and_its_own_number()
+    public void A_roll_advances_the_total_and_its_own_number()
     {
-        var increments = Project(Rolled(DieFace.Pip(4)));
+        var increments = Project(Rolled(4));
 
         AmountFor(increments, "dice_rolled").ShouldBe(1L);
-        AmountFor(increments, "dice_rolled_pip").ShouldBe(1L);
         AmountFor(increments, "dice_rolled_pips_4").ShouldBe(1L);
         AmountFor(increments, "dice_rolled_pips_5").ShouldBe(0L, "a four is not a five.");
 
         increments.Count.ShouldBe(
-            3, "a pip roll advances the total, the kind and the number shown, and nothing else.");
+            2, "a roll advances the total and the number shown, and nothing else.");
     }
 
     /// <summary>
@@ -68,16 +67,7 @@ public sealed class FeatCounterProjectionTests
     {
         FeatCounterProjection.PipsRolledCounterFor(pips).ShouldBe(counterId);
 
-        AmountFor(Project(Rolled(DieFace.Pip(pips))), counterId).ShouldBe(1L);
-    }
-
-    /// <summary>A face that is not a Pip carries no number, so it registers none.</summary>
-    [Fact]
-    public void A_non_pip_face_advances_no_number_counter()
-    {
-        Project(Rolled(DieFace.Special(DieFaceKind.Star)))
-            .Select(i => i.CounterId)
-            .ShouldBe(new[] { "dice_rolled", "dice_rolled_star" }, ignoreOrder: true);
+        AmountFor(Project(Rolled(pips)), counterId).ShouldBe(1L);
     }
 
     /// <summary>The number vocabulary is closed at the die's own range, in both directions.</summary>
@@ -98,81 +88,29 @@ public sealed class FeatCounterProjectionTests
             .ShouldBe(6, "two numbers sharing a counter would merge two histories.");
     }
 
-    [Fact]
-    public void A_star_roll_advances_the_total_and_the_star_counter()
-    {
-        var increments = Project(Rolled(DieFace.Special(DieFaceKind.Star)));
-
-        AmountFor(increments, "dice_rolled").ShouldBe(1L);
-        AmountFor(increments, "dice_rolled_star").ShouldBe(1L);
-        AmountFor(increments, "dice_rolled_pip").ShouldBe(0L, "a Star is not a Pip.");
-    }
-
-    /// <summary>A chain emits several rolls in one command's list; every one of them counts.</summary>
+    /// <summary>Several rolls in one command's list all count.</summary>
     [Fact]
     public void Every_roll_in_one_commands_list_counts()
     {
-        var increments = Project(
-            Rolled(DieFace.Special(DieFaceKind.Chain)),
-            Rolled(DieFace.Special(DieFaceKind.Chain)),
-            Rolled(DieFace.Pip(2)));
+        var increments = Project(Rolled(6), Rolled(6), Rolled(2));
 
         AmountFor(increments, "dice_rolled").ShouldBe(3L);
-        AmountFor(increments, "dice_rolled_chain").ShouldBe(2L);
-        AmountFor(increments, "dice_rolled_pip").ShouldBe(1L);
+        AmountFor(increments, "dice_rolled_pips_6").ShouldBe(2L);
         AmountFor(increments, "dice_rolled_pips_2").ShouldBe(1L);
     }
 
     /// <summary>
-    /// 🔒 The whole face vocabulary, pinned as literals. `28` D2.2's "roll every face kind once"
-    /// needs all six to exist, so a partial table would make that Feat unclaimable.
-    /// </summary>
-    [Theory]
-    [InlineData(DieFaceKind.Pip, "dice_rolled_pip")]
-    [InlineData(DieFaceKind.Star, "dice_rolled_star")]
-    [InlineData(DieFaceKind.Surge, "dice_rolled_surge")]
-    [InlineData(DieFaceKind.Fortune, "dice_rolled_fortune")]
-    [InlineData(DieFaceKind.Void, "dice_rolled_void")]
-    [InlineData(DieFaceKind.Chain, "dice_rolled_chain")]
-    public void Each_face_kind_has_its_own_pinned_counter_id(DieFaceKind kind, string counterId)
-    {
-        FeatCounterProjection.DiceRolledCounterFor(kind).ShouldBe(counterId);
-
-        var face = kind == DieFaceKind.Pip ? DieFace.Pip(1) : DieFace.Special(kind);
-
-        AmountFor(Project(Rolled(face)), counterId).ShouldBe(1L);
-    }
-
-    /// <summary>S3 — the table covers the enum, not a subset of it, and covers it without collisions.</summary>
-    [Fact]
-    public void Every_defined_face_kind_maps_to_a_distinct_counter()
-    {
-        var kinds = Enum.GetValues<DieFaceKind>();
-
-        kinds.Length.ShouldBeGreaterThanOrEqualTo(6, "04 §1 fixes six faces; a shrunken enum would make this vacuous.");
-
-        var ids = kinds.Select(FeatCounterProjection.DiceRolledCounterFor).ToArray();
-
-        ids.Distinct(StringComparer.Ordinal).Count().ShouldBe(
-            kinds.Length,
-            "two faces sharing a counter would silently merge two Feats' histories.");
-
-        ids.ShouldAllBe(id => id.StartsWith("dice_rolled_", StringComparison.Ordinal));
-        ids.ShouldNotContain("dice_rolled", "the total is not one of the per-kind rows.");
-    }
-
-    /// <summary>
-    /// An unset or undefined face names no counter, and is refused rather than counted as
+    /// A number the die cannot show names no counter, and is refused rather than counted as
     /// something. Pinned by <b>identity</b> — the exception type alone is shared by every other
     /// refusal in this file and by any catch-all a later edit might add.
     /// </summary>
     [Fact]
-    public void An_unset_face_is_refused_rather_than_counted()
+    public void A_number_the_die_cannot_show_is_refused_rather_than_counted()
     {
-        Should.Throw<InvalidOperationException>(() => Project(Rolled(default)))
-            .Message.ShouldContain("04 §1 fixes DieFaceKind at six named members", Case.Sensitive);
+        Should.Throw<InvalidOperationException>(() => Project(Rolled(0)))
+            .Message.ShouldContain("04 §1's die shows 1..6 pips", Case.Sensitive);
 
-        Should.Throw<InvalidOperationException>(() => FeatCounterProjection.DiceRolledCounterFor((DieFaceKind)99))
+        Should.Throw<InvalidOperationException>(() => FeatCounterProjection.PipsRolledCounterFor(99))
             .Message.ShouldContain("99", Case.Sensitive);
     }
 
@@ -285,9 +223,9 @@ public sealed class FeatCounterProjectionTests
     {
         Project(new UnprojectedFixtureEvent(1)).ShouldBeEmpty();
 
-        Project(new UnprojectedFixtureEvent(1), Rolled(DieFace.Pip(1)))
+        Project(new UnprojectedFixtureEvent(1), Rolled(1))
             .Select(i => i.CounterId)
-            .ShouldBe(new[] { "dice_rolled", "dice_rolled_pip", "dice_rolled_pips_1" }, ignoreOrder: true);
+            .ShouldBe(new[] { "dice_rolled", "dice_rolled_pips_1" }, ignoreOrder: true);
     }
 
     /// <summary>
@@ -321,18 +259,15 @@ public sealed class FeatCounterProjectionTests
     /// over one event of every shape, not off the mapping helpers.
     /// </summary>
     /// <remarks>
-    /// A sweep built from <c>Enum.GetValues</c> and the two helpers would be a claim about the
-    /// helpers; this is a claim about the table. If a row stopped emitting — a face kind dropped
-    /// from the switch, one direction of the currency rule deleted — the count below falls and the
+    /// A sweep built from <c>Enum.GetValues</c> and the helper would be a claim about the helper;
+    /// this is a claim about the table. If a row stopped emitting — a pip number dropped from the
+    /// switch, one direction of the currency rule deleted — the count below falls and the
     /// helper-driven version would not have noticed.
     /// </remarks>
     [Fact]
     public void Every_id_the_table_emits_is_a_distinct_lower_snake_case_token()
     {
-        var everyShape = Enum.GetValues<DieFaceKind>()
-            .Where(k => k != DieFaceKind.Pip)
-            .Select(k => Rolled(DieFace.Special(k)))
-            .Concat(Enumerable.Range(1, 6).Select(pips => Rolled(DieFace.Pip(pips))))
+        var everyShape = Enumerable.Range(1, 6).Select(Rolled)
             .Concat(Enum.GetValues<CurrencyId>().Select(c => Moved(c, 1L)))
             .Concat(Enum.GetValues<CurrencyId>().Select(c => Moved(c, -1L)))
             .ToArray();
@@ -343,10 +278,9 @@ public sealed class FeatCounterProjectionTests
             .ToArray();
 
         ids.Length.ShouldBe(
-            29,
-            "6 face kinds + 6 pip numbers + 8 currencies x 2 directions + the roll total. This is " +
-            "what the table EMITS: a row that stopped firing lowers it, whatever the mapping " +
-            "helpers still answer.");
+            23,
+            "6 pip numbers + 8 currencies x 2 directions + the roll total. This is what the table " +
+            "EMITS: a row that stopped firing lowers it, whatever the mapping helper still answers.");
 
         ids.ShouldAllBe(id => id.Length > 0 && id.All(c => (c >= 'a' && c <= 'z') || c == '_' || (c >= '1' && c <= '6')));
         ids.ShouldContain("dice_rolled");

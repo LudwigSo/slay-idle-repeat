@@ -138,7 +138,7 @@ Pity: guaranteed S or better every 30 eggs; guaranteed SS every 150 eggs.
 | `PET_GOLDWYRM` | Goldwyrm | S | +30% Gold, +12% gear drop chance | Hoard: instantly gain 250 Gold (20 s) |
 | `PET_SPOREMOTHER` | Sporemother | S | Your DoTs deal +40% | Bloomburst: apply `POISON` ×3 to all (12 s) |
 | `PET_CLOCKHOUND` | Clockhound | S | −12% all pet cooldowns, +8% ASPD | Rewind: restore 15% Max HP and clear all debuffs (22 s) |
-| `PET_DICEBEAST` | Dicebeast | SS | +8% all stats; +1 Reroll Charge per stage | Loaded Fate: your next 3 rolls are `Star` faces (once per battle, out-of-combat effect) |
+| `PET_DICEBEAST` | Dicebeast | SS | +8% all stats | 🔴 **Both halves of its identity are gone** (`04` §5): the per-stage Reroll Charge and *Loaded Fate*'s three `Star` rolls. It is now a flat +8% stat pet with an SS price tag, and it is owed a redesign or a removal. |
 | `PET_SOLARION` | Solarion | SS | +18% ATK, +18% Max HP | Solar Lance: 500% ATK to one enemy, ignores 50% DEF (15 s) |
 | `PET_NYXWEAVER` | Nyxweaver | SS | +15% all stats while below 50% HP | Web of Night: enemies take +35% damage for 6 s (18 s) |
 | `PET_ARCHIVIST` | The Archivist | SS | Your active perks gain +1 effective tier (max III) | Recall: re-trigger every perk's on-battle-start effect (once per battle) |
@@ -180,7 +180,7 @@ MountFeedCost(level)  = 24 × level^1.3                       // = the pet Beast
 
 ⚠️ Mounts were previously the **only unprotected chase in the game** — 12 mounts, 2,500 Soul Shards per crate, and three SS mounts with run-defining effects. `24` §4.5 closes that.
 
-Mounts are the "run modifier" slot. Where pets shape combat, mounts shape the **run**: die faces, board movement, shop access, drop rates. This gives the two systems clearly separate identities.
+Mounts are the "run modifier" slot. Where pets shape combat, mounts shape the **run**: board movement, shop access, drop rates. ⚠️ *die faces* was the first item and is gone (`04` §5). This gives the two systems clearly separate identities.
 
 ### 3.2 Mount catalogue (12)
 
@@ -195,7 +195,7 @@ Mounts are the "run modifier" slot. Where pets shape combat, mounts shape the **
 | `MNT_CINDERMANE` | Cindermane | S | +16% ATK, +10% Crit Damage | Elite tiles drop +1 gear item |
 | `MNT_TIDECALLER` | Tidecaller | S | +12% Max HP, +10% Healing Received | Campfires and Shrines can be used twice |
 | `MNT_COINWYRM` | Coinwyrm | S | +8% all stats | Shops always show one Epic perk offer |
-| `MNT_VOIDSTEED` | Voidsteed | SS | +14% all stats | +1 Reroll Charge per stage; rerolls never repeat the previous face |
+| `MNT_VOIDSTEED` | Voidsteed | SS | +14% all stats | 🔴 **Its whole modifier is gone** (`04` §5) — a per-stage Reroll Charge and a no-repeat rule on rerolls. Owed a redesign or a removal. |
 | `MNT_FATESPINNER` | Fatespinner | SS | +12% all stats | Your `6` face becomes a `Star` face |
 | `MNT_WORLDBEARER` | Worldbearer | SS | +20% Max HP, +20% ATK, +20% DEF | Board length +4 nodes (more content per run, more risk) |
 

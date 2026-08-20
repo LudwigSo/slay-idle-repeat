@@ -3,7 +3,7 @@ using SlayIdleRepeat.Core.Content.Effects;
 namespace SlayIdleRepeat.Core.Content;
 
 /// <summary>
-/// What each of `19` Part E's twelve curses actually DOES, as a narrow, named table keyed on curse
+/// What each of `19` Part E's ten curses actually DOES, as a narrow, named table keyed on curse
 /// id — and, just as importantly, which of them this build cannot yet do and why.
 /// </summary>
 /// <remarks>
@@ -125,11 +125,6 @@ internal static class CurseEffects
                 "at fight time, with no seam for a run-scoped modifier. It also expires at the stage " +
                 "boundary, and no curse carries a duration today.",
 
-            "CUR_DIZZY" =>
-                "'The next 3 rolls cannot be rerolled' needs a per-curse countdown on the run, and " +
-                "the curse list stores ids alone. A curse with its own counter is a shape change to " +
-                "the list, not a value in it.",
-
             "CUR_HUNTED" =>
                 "'Every Elite gains an extra modifier' needs the Elite modifier system, which does " +
                 "not exist: enemies.json authors elites as a power multiplier, with no modifier pool " +
@@ -141,13 +136,7 @@ internal static class CurseEffects
                 "shows ahead. TILE_PREVIEW exists as a stat, but the curse SETS it rather than " +
                 "moving it, and nothing in Core reads it; the board screen reads its own constant.",
 
-            "CUR_LEADFOOT" =>
-                "'Chain and Surge faces behave as plain Pip 3' is a face rewrite, not a penalty: it " +
-                "would compose through DieComposer as a curse layer, which the composer already " +
-                "accepts — but the run's die stores REPLACEMENTS by face index, and this curse acts " +
-                "on face KINDS wherever they sit, which the map cannot express.",
-
-            _ => "This curse is outside 19 Part E's twelve. Nothing here knows what it does.",
+            _ => "This curse is outside 19 Part E's ten. Nothing here knows what it does.",
         };
     }
 }

@@ -9,12 +9,6 @@ namespace SlayIdleRepeat.Core.Content;
 /// reading them all up front means a malformed document fails once, at the seam, rather than on
 /// whichever minigame a player happens to resolve first.
 /// </para>
-/// <para>
-/// <see cref="MinigameReward.RerollCharges"/> is read and carried, and deliberately not applied by
-/// any caller today: the reroll-charge economy that would spend it does not exist yet, and
-/// <c>Run</c> carries no reroll-charge field. Reading the number now and leaving it unspent is a
-/// recorded assumption rather than an oversight.
-/// </para>
 /// </remarks>
 internal sealed class MinigameRewardTuning
 {
@@ -96,8 +90,7 @@ internal sealed class MinigameRewardTuning
             Scale(row.Gold, scalar),
             Scale(row.Crowns, scalar),
             Scale(row.BeastFeed, scalar),
-            Scale(row.EnhanceStones, scalar),
-            row.RerollCharges);
+            Scale(row.EnhanceStones, scalar));
     }
 
     /// <summary>Reads all four tables. Throws rather than defaulting on anything malformed.</summary>
@@ -124,8 +117,7 @@ internal sealed class MinigameRewardTuning
                     content.ReadInt64(rowReference + "/gold"),
                     content.ReadInt64(rowReference + "/crowns"),
                     content.ReadInt64(rowReference + "/beastFeed"),
-                    content.ReadInt64(rowReference + "/enhanceStones"),
-                    content.ReadInt64(rowReference + "/rerollCharges"));
+                    content.ReadInt64(rowReference + "/enhanceStones"));
             }
 
             if (tableRows.Length == 0)
@@ -175,12 +167,13 @@ internal sealed class MinigameRewardTuning
     private static string Text(int value) => value.ToString(CultureInfo.InvariantCulture);
 
     private readonly record struct MinigameRewardRow(
-        string Outcome, long Gold, long Crowns, long BeastFeed, long EnhanceStones, long RerollCharges);
+        string Outcome, long Gold, long Crowns, long BeastFeed, long EnhanceStones);
 }
 
-/// <summary>
-/// One chapter-scaled minigame reward. <see cref="RerollCharges"/> is carried but unspent — see
-/// <see cref="MinigameRewardTuning"/>'s remarks.
-/// </summary>
+/// <summary>One chapter-scaled minigame reward.</summary>
+/// <remarks>
+/// ⚠️ There was a <c>RerollCharges</c> column here, read and carried but never spent. It is gone
+/// with the reroll: the dice duel's "Win 2-0" row paid one, and there is nothing left to pay.
+/// </remarks>
 internal readonly record struct MinigameReward(
-    long Gold, long Crowns, long BeastFeed, long EnhanceStones, long RerollCharges);
+    long Gold, long Crowns, long BeastFeed, long EnhanceStones);

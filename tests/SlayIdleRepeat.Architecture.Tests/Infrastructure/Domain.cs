@@ -269,22 +269,23 @@ internal static class Domain
     /// </para>
     /// <para>
     /// 🔒 <b>The run-tiles pass of 2026-08-20 adds a TENTH and an ELEVENTH, <c>ShopView</c> (with
-    /// <c>ShopSlotRow</c>) and <c>RunDieView</c> (with <c>RunDieFaceRow</c> and
-    /// <c>DiceForgeMenu</c>).</b> Each closes exactly the hole <c>ShrineView</c> closed for the
+    /// <c>ShopSlotRow</c>).</b> ⚠️ <c>RunDieView</c>, <c>RunDieFaceRow</c> and
+    /// <c>DiceForgeMenu</c> were three more and are gone with the die's special faces. Each closes
+    /// exactly the hole <c>ShrineView</c> closed for the
     /// shrine: the shop's four slots and the run's own six die faces are DERIVED from a seed and a
     /// recorded position, so a screen without an entry point would have to re-derive them — and a
     /// shop that shows one offer while <c>SHOP_BUY</c> charges for another, or a forge that shows the
     /// starting die while <c>ROLL_DICE</c> rolls an upgraded one, is what a second derivation
-    /// produces. <c>DiceForgeMenu</c> is the one non-view of the five, and it is public for the same
+    /// produces. ⚠️ <c>DiceForgeMenu</c> was the one non-view, and it was public for the same
     /// reason: the screen draws the menu the handler validates against, and two lists would let a
     /// screen offer an option the rules layer refuses.
     /// </para>
     /// <para>
     /// ⚠️ <b>Their machinery stays internal too.</b> <c>RunShopOffer</c>, <c>RunShopContext</c>,
     /// <c>ShopPricing</c>, <c>ShopTuning</c>, <c>RunModifierTotals</c>, <c>RunDie</c> and
-    /// <c>DieFaceCodec</c> are all still <c>internal</c>: what leaves is the offer as priced and the
-    /// die as composed, never the price formula, the modifier arithmetic or the face encoding. Both
-    /// entry points take an already-public snapshot and grant nothing.
+    /// are all still <c>internal</c>: what leaves is the offer as priced, never the price formula or
+    /// the modifier arithmetic. Every entry point takes an already-public snapshot and grants
+    /// nothing. ⚠️ <c>RunDie</c> and <c>DieFaceCodec</c> were named here too and are gone.
     /// </para>
     /// </remarks>
     internal static IReadOnlyList<string> PublicRuleTypes { get; } = new[]
@@ -318,9 +319,6 @@ internal static class Domain
         "RunEndCounterKind",
         "ShopView",
         "ShopSlotRow",
-        "RunDieView",
-        "RunDieFaceRow",
-        "DiceForgeMenu",
     };
 
     /// <summary>

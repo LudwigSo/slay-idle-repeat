@@ -157,7 +157,7 @@ public sealed class BoardViewTests
                 // A refused CHOICE is an option this hero cannot afford, not a dead end — the next
                 // one is tried. A refusal of anything else ends the walk.
                 if (next is EventChooseCommand or CampfireChooseCommand or ChooseForkCommand
-                         or ShrineChooseCommand or DiceForgeChooseCommand && choice < 3)
+                         or ShrineChooseCommand && choice < 3)
                 {
                     choice++;
                     continue;
@@ -805,12 +805,11 @@ public sealed class BoardViewTests
             TileKind.Campfire => new CampfireChooseCommand(choice),
             TileKind.Event when run.PendingEventCardId is { Length: > 0 } => new EventChooseCommand(choice),
 
-            // The three tiles that finish on a choice of their own. Without them this walk stops at
-            // the first shrine it meets, which is what makes the landing floor below bite.
+            // The two tiles that finish on a choice of their own. Without them this walk stops at
+            // the first shrine it meets, which is what makes the landing floor below bite. The Dice
+            // Forge used to be a third; RESOLVE_TILE clears it in place now, so it needs none.
             TileKind.Shrine => new ShrineChooseCommand(choice),
             TileKind.Shop when run.HasOpenShop => new ShopLeaveCommand(),
-            TileKind.DiceForge => new DiceForgeChooseCommand(
-                FaceIndex: 1 + choice, OptionIndex: 0, HigherPipValue: 6),
 
             TileKind.Minigame => new RollDiceCommand(),
             _ => new ResolveTileCommand(),

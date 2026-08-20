@@ -68,7 +68,7 @@ public sealed class CampfirePresenterTests
 
         presenter.Stage.ShouldBe(CampfireStage.Campfire);
         presenter.Options.Select(row => row.Option).ShouldBe(
-            [CampfireOption.Rest, CampfireOption.UpgradePerk, CampfireOption.RerollCharges]);
+            [CampfireOption.Rest, CampfireOption.UpgradePerk]);
         presenter.ShrineRows.ShouldBeEmpty(
             "a campfire drew no shrine buffs, so any row here was invented rather than projected.");
     }
@@ -313,9 +313,8 @@ public sealed class CampfirePresenterTests
         upgrade.BlockText.ShouldBe(
             RunDecisionContent.EnglishValueOf(RunDecisionContent.CampfireUpgradePerkNoneBlockKey));
 
-        presenter.Options.Single(row => row.Option == CampfireOption.Rest).Available.ShouldBeTrue();
-        presenter.Options.Single(row => row.Option == CampfireOption.RerollCharges)
-            .Available.ShouldBeTrue("…and the other two are unaffected by it.");
+        presenter.Options.Single(row => row.Option == CampfireOption.Rest)
+            .Available.ShouldBeTrue("…and the other option is unaffected by it.");
     }
 
     /// <summary>

@@ -254,7 +254,7 @@ public sealed class GearDocumentsMatchesTuningDataTests
 
     // ═════════════════════════════════════════════════════════ the affix pool
 
-    /// <summary><c>08</c> §3.1 — the fourteen affixes: range, eligible slots, and any band floor.</summary>
+    /// <summary><c>08</c> §3.1 — the thirteen affixes: range, eligible slots, and any band floor.</summary>
     public static TheoryData<int, string, double, double, string[], string?> EveryAffix() => new()
     {
         { 0, "AFX_CRIT_CHANCE", 0.02, 0.08, ["WEAPON", "RING", "HELMET"], null },
@@ -269,22 +269,22 @@ public sealed class GearDocumentsMatchesTuningDataTests
         { 9, "AFX_DAMAGE_REDUCTION", 0.02, 0.08, ["ARMOR", "AMULET"], null },
         { 10, "AFX_GOLD_GAIN", 0.08, 0.3, ["RING", "AMULET"], null },
         { 11, "AFX_PET_AURA_POWER", 0.05, 0.2, ["AMULET", "RING"], null },
-        { 12, "AFX_REROLL_CHARGE", 1, 1, ["RING", "AMULET"], "S" },
-        { 13, "AFX_DAMAGE_VS_ELITES", 0.08, 0.25, ["WEAPON", "RING"], null },
+        { 12, "AFX_DAMAGE_VS_ELITES", 0.08, 0.25, ["WEAPON", "RING"], null },
     };
 
     /// <summary><c>08</c> §3.1 — one affix as the pool authors it.</summary>
     /// <remarks>
     /// <para>
     /// 🔒 <b>The slot lists carry more weight here than the ranges.</b> They are what makes a band's
-    /// affix count reachable: only three of the fourteen allow <c>BOOTS</c>, against an SS count of
+    /// affix count reachable: only three of the thirteen allow <c>BOOTS</c>, against an SS count of
     /// four, which is the content defect M4-03 found and the conductor answered with a slot-aware
     /// cap. A slot quietly dropped from a list moves that boundary with nothing else noticing.
     /// </para>
     /// <para>
-    /// ⚠️ Three ids are authored by the design set and eleven are derived from the same
+    /// ⚠️ Three ids are authored by the design set and the rest are derived from the same
     /// <c>AFX_&lt;STAT&gt;</c> convention. Pinned identically: the derivation was a ruling, and what
-    /// this file asserts is what the document ships.
+    /// this file asserts is what the document ships. <c>AFX_REROLL_CHARGE</c> was the fourteenth and
+    /// is gone with the reroll charge it granted, so no affix carries a band floor any more.
     /// </para>
     /// </remarks>
     [Theory]
@@ -315,18 +315,22 @@ public sealed class GearDocumentsMatchesTuningDataTests
 
         row.GetProperty("minRarity").GetString().ShouldBe(
             minRarity,
-            $"{id} is the one affix carrying a band floor; without it the affix becomes reachable at " +
-            "every band that rolls one.");
+            $"{id} carries a band floor; without it the affix becomes reachable at every band that " +
+            "rolls one.");
     }
 
-    /// <summary>The pool is fourteen — the number an SS roll of four draws against.</summary>
+    /// <summary>The pool is thirteen — the number an SS roll of four draws against.</summary>
+    /// <remarks>
+    /// ⚠️ Thirteen, not the document's fourteen: <c>AFX_REROLL_CHARGE</c> is gone with the reroll
+    /// charge it granted, and nothing was authored in its place.
+    /// </remarks>
     [Fact]
-    public void The_shipped_affix_pool_is_fourteen_deep()
+    public void The_shipped_affix_pool_is_thirteen_deep()
     {
         Affixes().GetArrayLength().ShouldBe(
-            14,
-            "08 §3.1 authors fourteen affixes, and the pool's size is what a band's affix count is " +
-            "capped against per slot.");
+            13,
+            "08 §3.1 authors fourteen affixes and one of them is removed, so the pool is thirteen — " +
+            "and the pool's size is what a band's affix count is capped against per slot.");
     }
 
     // ═════════════════════════════════════════════════════════ sets

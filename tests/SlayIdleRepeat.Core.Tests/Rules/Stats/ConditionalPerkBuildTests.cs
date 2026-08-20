@@ -1,5 +1,6 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Effects;
 using SlayIdleRepeat.Core.Rules.Stats;
@@ -144,12 +145,23 @@ public sealed class ConditionalPerkBuildTests
 
             var kind = (Core.Rules.Board.TileKind)run.PendingTileKindValue;
 
-            game.Send(
-                player,
-                kind is Core.Rules.Board.TileKind.Enemy or Core.Rules.Board.TileKind.Elite
-                        or Core.Rules.Board.TileKind.Boss
-                    ? new StartBattleCommand()
-                    : new ResolveTileCommand());
+            // 🔒 The tiles that stand open for a SECOND command are sent it, rather than being sent
+            // RESOLVE_TILE again. A resend is refused, and the walk would then spend its whole budget
+            // on one tile and report "never reached a battle" — which is what it used to do the
+            // moment the dice sequence happened to land on one of them before an enemy.
+            game.Send(player, kind switch
+            {
+                Core.Rules.Board.TileKind.Enemy or Core.Rules.Board.TileKind.Elite
+                    or Core.Rules.Board.TileKind.Boss => new StartBattleCommand(),
+                Core.Rules.Board.TileKind.Shop when run.HasOpenShop => new ShopLeaveCommand(),
+                Core.Rules.Board.TileKind.Shrine => new ShrineChooseCommand(0),
+                Core.Rules.Board.TileKind.Campfire => new CampfireChooseCommand(0),
+                Core.Rules.Board.TileKind.Event when run.PendingEventCardId is { Length: > 0 } =>
+                    new EventChooseCommand(0),
+                Core.Rules.Board.TileKind.Minigame when !run.HasResolvedMinigameAt(run.Position) =>
+                    new MinigameSubmitCommand(MinigameCatalogue.ChestPick, 0),
+                _ => new ResolveTileCommand(),
+            });
         }
 
         battles.ShouldBe(

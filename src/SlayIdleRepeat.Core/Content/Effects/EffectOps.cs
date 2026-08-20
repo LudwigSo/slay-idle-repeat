@@ -64,8 +64,6 @@ public static class EffectOps
         EffectOp.GRANT_ITEM or
         EffectOp.GRANT_PERK or
         EffectOp.UPGRADE_PERK or
-        EffectOp.MODIFY_DIE_FACE or
-        EffectOp.GRANT_REROLL or
         EffectOp.MOVE_NODES or
         EffectOp.REVEAL_TILES or
         EffectOp.RESOLVE_TILE_AGAIN or
@@ -76,7 +74,7 @@ public static class EffectOps
 
         _ => throw new ArgumentOutOfRangeException(
             nameof(op), op,
-            "18 §2 declares 44 ops in five families and this value is none of them. A new op belongs " +
+            "18 §2 declares 42 ops in five families and this value is none of them. A new op belongs " +
             "to a family here, to game-data/schema/effect.schema.json and to 18 itself, in one commit " +
             "(18 §10)."),
     };
@@ -86,7 +84,7 @@ public static class EffectOps
     /// </summary>
     /// <remarks>
     /// This is a property of the op, never of the trigger: a combat trigger may still emit a
-    /// run/board op — e.g. firing <see cref="EffectOp.MODIFY_DIE_FACE"/> from a
+    /// run/board op — e.g. firing <see cref="EffectOp.MOVE_NODES"/> from a
     /// <see cref="TriggerKind.PERIODIC"/> trigger — and the simulator appends a queued-effect event
     /// rather than resolving it. A rule that forbade run ops on combat triggers would be wrong.
     /// </remarks>

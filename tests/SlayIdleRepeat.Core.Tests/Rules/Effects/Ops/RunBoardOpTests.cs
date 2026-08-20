@@ -25,7 +25,8 @@ public sealed class RunBoardOpTests
         var runOps = EffectOps.All.Where(EffectOps.IsRunAndBoard).ToArray();
 
         // The floor under the loop below: an empty family would make every assertion vacuous.
-        runOps.Length.ShouldBe(13, "18 §2.5 — twelve table rows, and APPLY_CURSE/CLEANSE_CURSE are two ops");
+        runOps.Length.ShouldBe(
+            11, "18 §2.5 — twelve table rows, APPLY_CURSE/CLEANSE_CURSE are two ops, and two are removed");
 
         foreach (var op in runOps)
         {
@@ -44,8 +45,8 @@ public sealed class RunBoardOpTests
     }
 
     /// <summary>
-    /// The sanctioned combat-context exception: the Dicelord's Scramble fires <c>MODIFY_DIE_FACE</c>
-    /// from a <c>PERIODIC</c> trigger, and the simulator queues it.
+    /// The sanctioned combat-context exception: a boss effect fires a run/board op from a
+    /// <c>PERIODIC</c> trigger, and the simulator queues it.
     /// </summary>
     /// <remarks>
     /// This is why <see cref="EffectOps.IsRunAndBoard"/> is a property of the op and never of the
@@ -59,19 +60,17 @@ public sealed class RunBoardOpTests
         var bench = new OpTestBench();
 
         var scramble = OpFixtures.Effect(
-            "BOSS_DICELORD_SCRAMBLE", EffectOp.MODIFY_DIE_FACE, target: EffectTarget.RUN) with
+            "BOSS_DICELORD_SCRAMBLE", EffectOp.MOVE_NODES, 1.0, EffectTarget.RUN) with
         {
             Trigger = new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 10.0 },
-            NewFace = new DieFaceSpec("Void"),
-            FaceIndex = DieFaceIndex.PlayerChoice,
         };
 
         var outcome = EffectOpResolver.Resolve(
             scramble, bench.Context(EffectTestBattle.Context(dicelord, dicelord, hero)));
 
         outcome.Disposition.ShouldBe(OpDisposition.QUEUED_FOR_RUN);
-        bench.Queued.ShouldBe([("BOSS_DICELORD_SCRAMBLE", EffectOp.MODIFY_DIE_FACE, "BOSS_DICELORD", 0.0)]);
-        bench.Calls.ShouldBe(["Queue(BOSS_DICELORD_SCRAMBLE, MODIFY_DIE_FACE)"], Case.Sensitive);
+        bench.Queued.ShouldBe([("BOSS_DICELORD_SCRAMBLE", EffectOp.MOVE_NODES, "BOSS_DICELORD", 0.0)]);
+        bench.Calls.ShouldBe(["Queue(BOSS_DICELORD_SCRAMBLE, MOVE_NODES)"], Case.Sensitive);
     }
 
     /// <summary>With no queue supplied, a run/board op throws naming M3, and never silently does nothing.</summary>
@@ -112,15 +111,13 @@ public sealed class RunBoardOpTests
 
         // The floor: EffectOps.FamilyOf is a hand-written switch; edit one arm and this loop runs
         // zero times and reports success over nothing.
-        runOps.Length.ShouldBe(13, "18 §2.5");
+        runOps.Length.ShouldBe(11, "18 §2.5");
 
         foreach (var op in runOps)
         {
-            var effect = OpFixtures.Effect($"TILE_{op}", op, 1.0, EffectTarget.RUN) with
-            {
-                // MODIFY_DIE_FACE is the one run/board op with authored keys, and it needs its replacement.
-                NewFace = op == EffectOp.MODIFY_DIE_FACE ? new DieFaceSpec("Star") : null,
-            };
+            // No run/board op carries an authored key of its own any more — MODIFY_DIE_FACE was the
+            // one that did, and it is gone with the die's special faces.
+            var effect = OpFixtures.Effect($"TILE_{op}", op, 1.0, EffectTarget.RUN);
 
             offenders.AddRange(EffectOpValidation.Problems(effect).Select(p => $"{op}: {p}"));
         }

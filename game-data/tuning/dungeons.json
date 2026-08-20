@@ -12,8 +12,6 @@
     "guardianPowerMultiplier": 2.6,
     "guardianEliteModifiers": 1,
     "perkDrafts": true,
-    "rerollCharges": 1,
-    "rerollRefresh": false,
     "energyCost": 10,
     "reviveOffered": false,
     "abandonRefund": 0

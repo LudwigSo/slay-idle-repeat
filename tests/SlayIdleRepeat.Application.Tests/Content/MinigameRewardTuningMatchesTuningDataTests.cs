@@ -37,14 +37,15 @@ public sealed class MinigameRewardTuningMatchesTuningDataTests
             "legality-checks MINIGAME_SUBMIT against a different one.");
     }
 
-    /// <summary>Every reward row's five currency columns are present and non-negative integers.</summary>
+    /// <summary>Every reward row's four currency columns are present and non-negative integers.</summary>
+    /// <remarks>⚠️ Four, not five: the <c>rerollCharges</c> column is gone with the reroll.</remarks>
     [Theory]
     [MemberData(nameof(ExpectedTierCounts))]
-    public void Every_row_carries_all_five_non_negative_integer_columns(string minigameId, int _)
+    public void Every_row_carries_all_four_non_negative_integer_columns(string minigameId, int _)
     {
         foreach (var row in Rewards(minigameId).EnumerateArray())
         {
-            foreach (var column in new[] { "gold", "crowns", "beastFeed", "enhanceStones", "rerollCharges" })
+            foreach (var column in new[] { "gold", "crowns", "beastFeed", "enhanceStones" })
             {
                 row.TryGetProperty(column, out var value).ShouldBeTrue(
                     $"{RewardsPointer}/{minigameId} is missing '{column}' on a row; " +

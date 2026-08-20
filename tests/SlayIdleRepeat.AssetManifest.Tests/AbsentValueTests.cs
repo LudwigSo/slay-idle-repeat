@@ -72,11 +72,11 @@ public sealed class AbsentValueTests
 
         audio.Count(a => a.Descriptor is null).ShouldBe(8,
             "doc 20 attaches no descriptor of their own to these eight SFX");
-        audio.Count(a => a.Use is null).ShouldBe(94, "20 §4 gives SFX no Use column");
-        audio.Count(a => a.LengthSeconds is null).ShouldBe(94, "loop length is a music property");
-        audio.Count(a => a.DurationSeconds is null).ShouldBe(98,
-            "12 music tracks plus the 86 SFX whose descriptor states no duration");
-        audio.Count(a => a.GroupDescriptor is null).ShouldBe(106, "nobody has ruled one yet");
+        audio.Count(a => a.Use is null).ShouldBe(86, "20 §4 gives SFX no Use column");
+        audio.Count(a => a.LengthSeconds is null).ShouldBe(86, "loop length is a music property");
+        audio.Count(a => a.DurationSeconds is null).ShouldBe(90,
+            "12 music tracks plus the 78 SFX whose descriptor states no duration");
+        audio.Count(a => a.GroupDescriptor is null).ShouldBe(98, "nobody has ruled one yet");
         audio.Count(a => a.DucksMusic is null).ShouldBe(12, "20 §5's ducking row is about SFX");
     }
 

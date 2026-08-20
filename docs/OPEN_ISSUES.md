@@ -70,7 +70,7 @@ left it alone rather than inventing a 50th wire name. **These are one product de
 |---|---|
 | `EXPAND_INVENTORY` | `10` §4's ten-rung Crown ladder and the 400-Soul-Shard alternative are fully authored and **entirely unspendable**. Capacity can be modelled, priced and tested; no player action can move it. |
 | `UNEQUIP` | A loadout slot can be filled and **never emptied**, except by overwriting it. `Player.Unequip(GearSlot)` and `Loadout.Without(slot)` exist and no command reaches them. |
-| *(resolved)* Shop / Dice Forge clearing | Was the same shape; **closed** by `M7-00e` routing both through the existing `RESOLVE_TILE` rather than adding a command. |
+| *(resolved)* Shop / Dice Forge clearing | Was the same shape; **closed** by `M7-00e` routing both through the existing `RESOLVE_TILE` rather than adding a command. ⚠️ The Dice Forge half is now moot: the tile grants nothing and `RESOLVE_TILE` clears it in place (`16` D41). |
 
 M3's review had already carried Shop and Dice Forge to `M3-08b`/`M3-11` — **which sit in M11**, five
 milestones away. That is why M7 had to take the minimum itself.
@@ -89,7 +89,7 @@ product owner rather than a guess.
 | 3.3 | **`03` §1.1 says the tile resolves and *then* the Stage Gate fires**; the code fires it at the movement landing, preserving M3-05's architecture. Deferring it needs a persisted "gate owed" flag and a rework of every follow-up-command tile. | `M7-00f` implemented the landing order |
 | 3.4 | **The chapter clear gate is authored twice.** `content/chapters/*.json` carry a required `unlockCondition` that **nothing reads at runtime**, and `chapter.schema.json` permits shapes the generic ladder cannot express — such a chapter would be **opened anyway**. An Application test now pins that the two sources agree, but whether `unlockCondition` replaces or adds to the rung is undecided. | `M7-04` |
 | 3.5 | **Chapter/tier gating in `START_RUN` is presentation-only and unowned.** `StartRun.Handle` checks only that the chapter id is ≥ 1 and the tier is defined. The ladder is enforced on screen and nowhere else. | `M7-04` |
-| 3.6 | **`USE_REROLL` cannot re-roll the face it is shown beside.** `ROLL_DICE` answers face, movement *and* landing in one command, so the run has already moved; `UseReroll` instead burns a dice-stream draw so the *next* roll differs. `04` §3's authored UX promises an undo the shipped command cannot give. | `M7-05` |
+| ~~3.6~~ | ✅ **CLOSED by removal, not by resolution** (`16` D41). `USE_REROLL` could not re-roll the face it was shown beside; the whole reroll is gone, so the divergence has no subject. |
 | 3.7 | **`13` §3 is the Board screen (S05), not Home.** Home is `13` §2 and **Chapter Select has no dedicated `13` section at all** — its real sources are `02` §2 and `10` §7. *(Tracker spec ref already corrected.)* | `M7-04` |
 | 3.8 | **`07` §1.1's cumulative-XP column contradicts its own prose** — `~3.04M` in the table, `~3.07M` two lines later. **Resolved by arithmetic**: the formula gives 3,036,044, so the table is right and the prose sums one term too many. Errata landed. | `M4-10` |
 
@@ -99,7 +99,7 @@ product owner rather than a guess.
 
 | What | Why |
 |---|---|
-| **The `Star` die face** | `RollDiceCommand` carries no payload, so a face needing a player choice is refused `ILLEGAL_STATE`. Confirmed still true at M7-05. |
+| ~~**The `Star` die face**~~ | ✅ **CLOSED by removal** (`16` D41). The die has no face kinds at all, so there is no face needing a player choice. |
 | **The 10-rung inventory Crown ladder** | No `EXPAND_INVENTORY` command (§2). |
 | **Reforge, Retune, Focus, Set-Token redemption** | `24` §5–§6 fully specifies them and `luck.json` carries all their tuning; scheduled as `M4-04b` in **M9**. |
 | **Chest / egg / crate / wheel grants** | `M4-02`/`07`/`08`/`09`, all in **M9**. Six of the ten `LuckService` source classes have no caller. |

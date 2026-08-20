@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/board.schema.json",
   "title": "content/board/board.json",
-  "description": "M7-05 — the loc keys the Board screen (S05) renders. What is fixed here is that the screen labels HP, Gold, the stage, the face last rolled and the tile it stands on; offers a roll, a reroll, a tile acknowledgement, the die panel and the two fork branches; carries one status line per state the read can be in and one per reason a roll is refused; and names all fourteen tile kinds. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Two absences are load-bearing. There is no member for a reroll charge REMAINING count, because the per-stage cap is computed inside the rules and no client can read it; the screen shows what was spent and learns exhaustion from the refusal instead. And there is no member for a fork branch LABEL or icon set, because the board generator that authors them never leaves the rules assembly — the two branches are named by what the client actually knows, which is that one edge continues the spine and the other enters the side path.",
+  "description": "M7-05 — the loc keys the Board screen (S05) renders. What is fixed here is that the screen labels HP, Gold, the stage, the number last rolled and the tile it stands on; offers a roll, a tile acknowledgement and the two fork branches; carries one status line per state the read can be in and one per reason a roll is refused; and names all fourteen tile kinds. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. One absence is load-bearing: there is no member for a fork branch LABEL or icon set, because the board generator that authors them never leaves the rules assembly — the two branches are named by what the client actually knows, which is that one edge continues the spine and the other enters the side path.",
   "type": "object",
   "additionalProperties": false,
   "required": ["$schema", "_doc", "label", "action", "name", "status", "block", "tile"],
@@ -17,17 +17,16 @@
     "$schema": { "type": "string" },
     "_doc": { "type": "string", "minLength": 1 },
     "label": {
-      "description": "The captions beside the values the run row literally carries. HP and Gold are on the run; the stage is derived from the run's pending tile against the chapter's own stage list; 'rolled' captions the face the last accepted roll reported, and 'standing on' the tile that has not been resolved yet.",
+      "description": "The captions beside the values the run row literally carries. HP and Gold are on the run; the stage is derived from the run's pending tile against the chapter's own stage list; 'rolled' captions the number the last accepted roll came up, and 'standing on' the tile that has not been resolved yet.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["hp", "gold", "stage", "rolled", "standingOn", "rerollChangesNextRoll"],
+      "required": ["hp", "gold", "stage", "rolled", "standingOn"],
       "properties": {
         "hp": { "$ref": "#/$defs/locKey" },
         "gold": { "$ref": "#/$defs/locKey" },
         "stage": { "$ref": "#/$defs/locKey" },
         "rolled": { "$ref": "#/$defs/locKey" },
-        "standingOn": { "$ref": "#/$defs/locKey" },
-        "rerollChangesNextRoll": { "$ref": "#/$defs/locKey" }
+        "standingOn": { "$ref": "#/$defs/locKey" }
       }
     },
     "action": {
@@ -35,14 +34,12 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "roll", "reroll", "resolve", "diePanel", "forkContinue", "forkBranch",
+        "roll", "resolve", "forkContinue", "forkBranch",
         "abandon", "abandonConfirm"
       ],
       "properties": {
         "roll": { "$ref": "#/$defs/locKey" },
-        "reroll": { "$ref": "#/$defs/locKey" },
         "resolve": { "$ref": "#/$defs/locKey" },
-        "diePanel": { "$ref": "#/$defs/locKey" },
         "forkContinue": { "$ref": "#/$defs/locKey" },
         "forkBranch": { "$ref": "#/$defs/locKey" },
         "abandon": {
@@ -65,17 +62,16 @@
       }
     },
     "status": {
-      "description": "The line shown while the screen has no board to act on, plus the two lines about an action that was refused. 'refused' covers every rejection the rules layer can answer with; 'rerollExhausted' is separated from it because the reroll cap arrives as its own distinct wire value and is the one refusal on this screen a player can plan around.",
+      "description": "The line shown while the screen has no board to act on, plus the line about an action that was refused. 'refused' covers every rejection the rules layer can answer with. There used to be a second, 'rerollExhausted', separated because the reroll cap arrived as its own wire value; it is gone with the reroll.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["loading", "runMissing", "runEnded", "unavailable", "refused", "rerollExhausted"],
+      "required": ["loading", "runMissing", "runEnded", "unavailable", "refused"],
       "properties": {
         "loading": { "$ref": "#/$defs/locKey" },
         "runMissing": { "$ref": "#/$defs/locKey" },
         "runEnded": { "$ref": "#/$defs/locKey" },
         "unavailable": { "$ref": "#/$defs/locKey" },
-        "refused": { "$ref": "#/$defs/locKey" },
-        "rerollExhausted": { "$ref": "#/$defs/locKey" }
+        "refused": { "$ref": "#/$defs/locKey" }
       }
     },
     "block": {

@@ -11,7 +11,7 @@ public sealed class AudioTranscriptionTests
 {
     /// <summary>Doc family headings vs the ids each family actually lists.</summary>
     [Theory]
-    [InlineData("dice", "20 §4.1", 11, 11)]
+    [InlineData("dice", "20 §4.1", 3, 3)]
     [InlineData("board_movement", "20 §4.2", 12, 12)]
     [InlineData("combat", "20 §4.3", 26, 26)]
     [InlineData("pets_mounts", "20 §4.4", 8, 8)]
@@ -32,23 +32,23 @@ public sealed class AudioTranscriptionTests
         ManifestFiles.Shipped.AudioInFamily(familyId).Count().ShouldBe(listed);
     }
 
-    /// <summary>The doc's arithmetic checks out exactly: 11+12+26+8+18+19 = 94 SFX, plus 12 music = 106. Nothing here needed recording as a discrepancy.</summary>
+    /// <summary>The doc's arithmetic checked out exactly: 11+12+26+8+18+19 = 94 SFX, plus 12 music = 106. ⚠️ Doc 20 claims 94 SFX and 106 combined. Eight dice-family rows are gone with the die's special faces and the reroll — the five per-face landings, sfx_reroll, sfx_nudge and sfx_face_upgrade — so the shipped register is 86 and 98.</summary>
     [Fact]
-    public void Doc_20_claims_94_SFX_and_106_total_and_both_are_correct()
+    public void The_register_carries_86_SFX_and_98_total_and_the_claim_agrees()
     {
         var totals = ManifestFiles.Shipped.Audio.Totals;
 
-        totals.ClaimedSfx.ShouldBe(94);
-        totals.TranscribedSfx.ShouldBe(94);
+        totals.ClaimedSfx.ShouldBe(86);
+        totals.TranscribedSfx.ShouldBe(86);
         totals.ClaimedMusic.ShouldBe(12);
         totals.TranscribedMusic.ShouldBe(12);
-        totals.ClaimedCombined.ShouldBe(106);
-        totals.TranscribedCombined.ShouldBe(106);
+        totals.ClaimedCombined.ShouldBe(98);
+        totals.TranscribedCombined.ShouldBe(98);
 
         ManifestFiles.Shipped.Audio.Families
             .Where(f => f.Id != "music")
             .Sum(f => f.TranscribedCount)
-            .ShouldBe(94);
+            .ShouldBe(86);
     }
 
     /// <summary>S3 floor first: "no family disagrees" is true of an empty family list too.</summary>
@@ -93,7 +93,7 @@ public sealed class AudioTranscriptionTests
     {
         var sfx = ManifestFiles.Shipped.Audio.Assets.Where(a => !a.IsMusic).ToArray();
 
-        sfx.Length.ShouldBe(94);
+        sfx.Length.ShouldBe(86);
         sfx.ShouldAllBe(a =>
             a.Format == "WAV 16-bit 44.1 kHz mono in source, converted to OGG q4 for shipping");
     }
@@ -126,14 +126,14 @@ public sealed class AudioTranscriptionTests
         ManifestFiles.Shipped.RequireAudio(id).DurationSeconds.ShouldBe(seconds);
     }
 
-    /// <summary>The other 86 SFX state no duration; the manifest does not infer one from the doc's stated band — a band is not a value.</summary>
+    /// <summary>The other 78 SFX state no duration; the manifest does not infer one from the doc's stated band — a band is not a value.</summary>
     [Fact]
     public void SFX_without_a_stated_duration_carry_null_rather_than_the_section_1_band()
     {
         var sfx = ManifestFiles.Shipped.Audio.Assets.Where(a => !a.IsMusic).ToArray();
 
         sfx.Count(a => a.DurationSeconds is not null).ShouldBe(8);
-        sfx.Count(a => a.DurationSeconds is null).ShouldBe(86);
+        sfx.Count(a => a.DurationSeconds is null).ShouldBe(78);
     }
 
     /// <summary>The doc caps celebratory stingers at 1.2s, but the victory fanfare is 1.5s — transcribed as written, not clamped to the cap.</summary>
@@ -179,7 +179,7 @@ public sealed class AudioTranscriptionTests
     {
         var audio = ManifestFiles.Shipped.Audio;
 
-        audio.Assets.Count.ShouldBe(106);
+        audio.Assets.Count.ShouldBe(98);
         audio.Families.Count.ShouldBe(7);
         audio.Discrepancies.Count.ShouldBeGreaterThan(3);
         audio.Status.ShouldBe("transcribed");

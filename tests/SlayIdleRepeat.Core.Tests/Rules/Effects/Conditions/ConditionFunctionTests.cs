@@ -269,11 +269,11 @@ public sealed class ConditionFunctionTests
 
         var battle = EffectTestBattle.Context(hero, hero, target) with { CurrentTarget = target };
 
-        Read(ConditionFunction.STATUS_STACKS, battle, new ConditionArguments("SUNDER", null, null)).ShouldBe(3);
-        Read(ConditionFunction.HAS_STATUS, battle, new ConditionArguments("SUNDER", null, null)).ShouldBe(1);
+        Read(ConditionFunction.STATUS_STACKS, battle, new ConditionArguments("SUNDER", null)).ShouldBe(3);
+        Read(ConditionFunction.HAS_STATUS, battle, new ConditionArguments("SUNDER", null)).ShouldBe(1);
 
-        Read(ConditionFunction.STATUS_STACKS, battle, new ConditionArguments("BURN", null, null)).ShouldBe(0);
-        Read(ConditionFunction.HAS_STATUS, battle, new ConditionArguments("BURN", null, null)).ShouldBe(0);
+        Read(ConditionFunction.STATUS_STACKS, battle, new ConditionArguments("BURN", null)).ShouldBe(0);
+        Read(ConditionFunction.HAS_STATUS, battle, new ConditionArguments("BURN", null)).ShouldBe(0);
     }
 
     /// <summary>Status ids compare ordinally, as every id in this repository.</summary>
@@ -287,13 +287,13 @@ public sealed class ConditionFunctionTests
 
         var battle = EffectTestBattle.Context(hero, hero, EffectTestBattle.Enemy("GRUNT_A", 1));
 
-        Read(ConditionFunction.HAS_STATUS, battle, new ConditionArguments("sunder", null, null))
+        Read(ConditionFunction.HAS_STATUS, battle, new ConditionArguments("sunder", null))
             .ShouldBe(0, "a differently-cased id is a different status, not the same one");
     }
 
     // ------------------------------------------------------------------ the run
 
-    /// <summary>The nine functions that read run state, read it through <c>IRunStateView</c>.</summary>
+    /// <summary>The eight functions that read run state, read it through <c>IRunStateView</c>.</summary>
     [Fact]
     public void The_run_state_functions_read_the_run_view()
     {
@@ -304,11 +304,6 @@ public sealed class ConditionFunctionTests
                 ["OFFENSE"] = 4,
                 ["DEFENSE"] = 2,
                 ["POISON"] = 1,
-            },
-            DieFacesByKind = new Dictionary<string, int>(StringComparer.Ordinal)
-            {
-                ["Star"] = 2,
-                ["Pip"] = 16,
             },
             PetCount = 3,
             GoldHeld = 1_450,
@@ -325,13 +320,11 @@ public sealed class ConditionFunctionTests
         };
 
         Read(ConditionFunction.PERK_COUNT, battle).ShouldBe(7, "no category means every perk held");
-        Read(ConditionFunction.PERK_COUNT, battle, new ConditionArguments(null, "OFFENSE", null)).ShouldBe(4);
-        Read(ConditionFunction.PERK_COUNT, battle, new ConditionArguments(null, "LIGHTNING", null))
+        Read(ConditionFunction.PERK_COUNT, battle, new ConditionArguments(null, "OFFENSE")).ShouldBe(4);
+        Read(ConditionFunction.PERK_COUNT, battle, new ConditionArguments(null, "LIGHTNING"))
             .ShouldBe(0, "a category the run holds none of is a reading, not an error");
         Read(ConditionFunction.DISTINCT_PERK_CATEGORIES, battle).ShouldBe(3);
         Read(ConditionFunction.PET_COUNT, battle).ShouldBe(3);
-        Read(ConditionFunction.DIE_FACE_COUNT, battle, new ConditionArguments(null, null, "Star")).ShouldBe(2);
-        Read(ConditionFunction.DIE_FACE_COUNT, battle, new ConditionArguments(null, null, "Void")).ShouldBe(0);
         Read(ConditionFunction.GOLD_HELD, battle).ShouldBe(1_450);
         Read(ConditionFunction.BATTLES_WON_THIS_RUN, battle).ShouldBe(6);
         Read(ConditionFunction.STAGE_INDEX, battle).ShouldBe(2);

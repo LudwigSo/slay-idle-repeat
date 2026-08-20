@@ -38,7 +38,6 @@
     "loc.affix.damage_reduction.name": "Damage Reduction",
     "loc.affix.gold_gain.name": "Gold Gain",
     "loc.affix.pet_aura_power.name": "Pet Aura Power",
-    "loc.affix.reroll_charge.name": "Reroll Charge",
     "loc.affix.damage_vs_elites.name": "Damage vs Elites",
 
     "loc.dungeon.stonevault.name": "The Stonevault",
@@ -120,7 +119,6 @@
 
     "loc.curse.slippery.name": "Slippery",
     "loc.curse.marked.name": "Marked",
-    "loc.curse.dizzy.name": "Dizzy",
     "loc.curse.fractured.name": "Fractured",
     "loc.curse.hunted.name": "Hunted",
     "loc.curse.untimely.name": "Untimely",
@@ -128,7 +126,6 @@
     "loc.curse.brittle_bones.name": "Brittle Bones",
     "loc.curse.miserly.name": "Miserly",
     "loc.curse.blind.name": "Blind",
-    "loc.curse.leadfoot.name": "Leadfoot",
     "loc.curse.tithe.name": "Tithe",
 
     "loc.boot.title.name": "Slay. Idle. Repeat.",
@@ -197,10 +194,7 @@
     "loc.board.gold.label": "Gold",
     "loc.board.stage.label": "Stage",
     "loc.board.roll.action": "Roll",
-    "loc.board.reroll.action": "Reroll next roll",
-    "loc.board.reroll_changes_next_roll.label": "Rerolling changes your next roll — this one has already moved you.",
     "loc.board.resolve.action": "Continue",
-    "loc.board.die_panel.action": "Die",
     "loc.board.rolled.label": "Rolled",
     "loc.board.standing_on.label": "Standing on",
     "loc.board.fork.name": "The path splits",
@@ -217,7 +211,6 @@
     "loc.board.blocked_battle.status": "A battle is waiting to be fought.",
     "loc.board.blocked_draft.status": "Choose a perk before rolling again.",
     "loc.board.refused.status": "That action was refused.",
-    "loc.board.reroll_exhausted.status": "No reroll charges are left this stage.",
 
     "loc.tile.enemy.name": "Enemy",
     "loc.tile.elite.name": "Elite",
@@ -234,22 +227,6 @@
     "loc.tile.dice_forge.name": "Dice Forge",
     "loc.tile.empty.name": "Waypoint",
 
-    "loc.die_panel.title.name": "Your Die",
-    "loc.die_panel.pip.name": "Pip",
-    "loc.die_panel.pip.effect": "Move the number shown.",
-    "loc.die_panel.star.name": "Star",
-    "loc.die_panel.star.effect": "Choose how far you move.",
-    "loc.die_panel.surge.name": "Surge",
-    "loc.die_panel.surge.effect": "Move, then heal.",
-    "loc.die_panel.fortune.name": "Fortune",
-    "loc.die_panel.fortune.effect": "Move, and the tile you land on pays double.",
-    "loc.die_panel.void.name": "Void",
-    "loc.die_panel.void.effect": "Stay where you are and resolve this tile again for less.",
-    "loc.die_panel.chain.name": "Chain",
-    "loc.die_panel.chain.effect": "Move, then roll again.",
-    "loc.die_panel.last_face.label": "Last rolled",
-    "loc.die_panel.no_roll_yet.status": "You have not rolled yet in this session.",
-    "loc.die_panel.faces_unavailable.status": "Which face sits in which slot is not shown: the game does not yet report your composed die.",
 
     "loc.battle.title.name": "Battle",
     "loc.battle.hero.label": "You",
@@ -326,7 +303,6 @@
     "loc.campfire.shrine_buffs.label": "The shrine drew",
     "loc.campfire.rest.action": "Rest",
     "loc.campfire.upgrade_perk.action": "Raise a perk a tier",
-    "loc.campfire.reroll_charges.action": "Take reroll charges",
     "loc.campfire.continue.action": "Continue",
     "loc.campfire.upgrade_perk_none.block": "You hold no perk that can be raised another tier.",
     "loc.campfire.take.action": "Take",
@@ -338,20 +314,7 @@
     "loc.campfire.read_unavailable.status": "Your run could not be read, so this tile cannot be opened.",
     "loc.campfire.shrine_unavailable.status": "This shrine is open, but what it drew could not be built from the game's data.",
     "loc.campfire.refused.status": "That was refused.",
-    "loc.campfire.host_unavailable.status": "The game did not answer, so nothing happened here. Try again.",
+    "loc.campfire.host_unavailable.status": "The game did not answer, so nothing happened here. Try again."
 
-    "loc.dice_forge.title.name": "Dice Forge",
-    "loc.dice_forge.face.label": "Face",
-    "loc.dice_forge.upgrade.action": "Forge",
-    "loc.dice_forge.higher_pip.name": "Raise the pips",
-    "loc.dice_forge.to_surge.name": "Make it a Surge",
-    "loc.dice_forge.to_fortune.name": "Make it a Fortune",
-    "loc.dice_forge.withheld.block": "Star and Chain faces are not offered: nothing in this build can resolve a roll that lands on one.",
-    "loc.dice_forge.loading.status": "Opening the forge…",
-    "loc.dice_forge.run_missing.status": "That run could not be found, so no forge can be shown.",
-    "loc.dice_forge.not_at_a_forge.status": "You are not standing at a dice forge.",
-    "loc.dice_forge.read_unavailable.status": "Your run could not be read, so the forge cannot be opened.",
-    "loc.dice_forge.refused.status": "That upgrade was refused.",
-    "loc.dice_forge.host_unavailable.status": "The game did not answer, so nothing was forged. Try again."
   }
 }

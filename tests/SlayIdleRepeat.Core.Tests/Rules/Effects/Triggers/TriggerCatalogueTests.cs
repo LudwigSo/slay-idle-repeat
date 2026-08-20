@@ -95,10 +95,11 @@ public sealed class TriggerCatalogueTests
 
         unused.ShouldBeEmpty("a parameter no kind admits is a key nothing can ever author");
 
-        // Floored against EffectTrigger's own property list: Kind plus the twelve parameters.
+        // Floored against EffectTrigger's own property list: Kind plus the eleven parameters.
         typeof(EffectTrigger).GetProperties().Length.ShouldBe(
-            13,
-            "18 §3 gives its kinds twelve parameters, and EffectTrigger carries Kind as well");
+            12,
+            "18 §3 gives its kinds twelve parameters, less faceKind — gone with the die's face kinds, " +
+            "so ON_ROLL now takes none at all — and EffectTrigger carries Kind as well");
     }
 
     /// <summary><c>ON_ATTACK</c> takes <c>chance</c>; <c>ON_KILL</c> does not. The extension and its boundary, in one assertion.</summary>

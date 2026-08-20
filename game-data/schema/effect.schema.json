@@ -246,31 +246,6 @@
       }
     },
     {
-      "title": "18 §2.5 — MODIFY_DIE_FACE",
-      "description": "18 §2.5 / §7.9 / §9.2 — replaces a die face. A run and board op, resolved by the run controller and never by the combat simulator; a COMBAT trigger may still emit it (18 §2.5's sanctioned combat-context exception, the Dicelord's Scramble firing it from PERIODIC), in which case the simulator appends RunEffectQueued and the run controller applies it in log order when the battle resolves.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["id", "op"],
-      "properties": {
-        "id": { "$ref": "#/$defs/effectId" },
-        "op": { "const": "MODIFY_DIE_FACE" },
-        "faceIndex": { "$ref": "#/$defs/faceIndex" },
-        "newFace": { "$ref": "#/$defs/dieFace" },
-        "scope": {
-          "description": "18 §9.2's own scope key on PET_DICEBEAST, which is NOT duration.scope and uses a different vocabulary. Both spellings are authored in 18 and both are declared; which survives is a design decision, recorded as errata rather than settled here by deleting one.",
-          "enum": ["NEXT_3_ROLLS"]
-        },
-        "trigger": { "$ref": "#/$defs/trigger" },
-        "condition": { "$ref": "#/$defs/condition" },
-        "target": { "$ref": "#/$defs/target" },
-        "value": { "$ref": "#/$defs/value" },
-        "valueScale": { "$ref": "#/$defs/valueScale" },
-        "duration": { "$ref": "#/$defs/duration" },
-        "stacking": { "$ref": "#/$defs/stacking" },
-        "tags": { "$ref": "#/$defs/tags" }
-      }
-    },
-    {
       "title": "18 §2.3 — STATUS_POWER_PCT / STATUS_DURATION_PCT",
       "description": "18 §2.3 — the two status ops that scale statuses in bulk rather than naming one. STATUS_POWER_PCT scales the potency of statuses this actor applies; STATUS_DURATION_PCT scales the duration of statuses applied TO this actor.",
       "type": "object",
@@ -367,7 +342,6 @@
             "GRANT_ITEM",
             "GRANT_PERK",
             "UPGRADE_PERK",
-            "GRANT_REROLL",
             "MOVE_NODES",
             "REVEAL_TILES",
             "RESOLVE_TILE_AGAIN",
@@ -425,7 +399,7 @@
         "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
         "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
         "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
-        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "PET_AURA_PCT", "TILE_PREVIEW", "SHOP_PRICE_PCT",
         "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT"
       ]
     },
@@ -436,7 +410,7 @@
         "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
         "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
         "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
-        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "PET_AURA_PCT", "TILE_PREVIEW", "SHOP_PRICE_PCT",
         "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT",
         "ALL_COMBAT"
       ]
@@ -448,7 +422,7 @@
         "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
         "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
         "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
-        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "PET_AURA_PCT", "TILE_PREVIEW", "SHOP_PRICE_PCT",
         "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT",
         "HIGHEST_PCT_BONUS"
       ]
@@ -474,7 +448,7 @@
         "MAX_HP", "ATK", "DEF", "ASPD", "CRIT", "CDMG", "LIFESTEAL",
         "DODGE", "BLOCK", "PEN", "DMG_PCT", "DR_PCT", "HEAL_PCT", "THORNS",
         "GOLD_PCT", "CROWNS_PCT", "DROP_CHANCE", "RARITY_SHIFT", "ENERGY_REGEN_PCT",
-        "PET_AURA_PCT", "REROLL_CHARGES", "TILE_PREVIEW", "SHOP_PRICE_PCT",
+        "PET_AURA_PCT", "TILE_PREVIEW", "SHOP_PRICE_PCT",
         "XP_PCT", "BEAST_FEED_PCT", "STONE_PCT"
       ]
     },
@@ -505,27 +479,6 @@
       ]
     },
 
-    "dieFaceKind": {
-      "description": "The six DieFaceKind names the dice document fixes, spelled as 18 §7.9 and §9.2 write them.",
-      "enum": ["Pip", "Star", "Surge", "Fortune", "Void", "Chain"]
-    },
-
-    "dieFace": {
-      "description": "18 §7.9 — the replacement face a MODIFY_DIE_FACE writes: {\"kind\":\"Pip\",\"value\":4} or {\"kind\":\"Star\"}. The dice document's DieFace also carries a Tier; no effect in 18 writes one, so none is admitted here.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["kind"],
-      "properties": {
-        "kind": { "$ref": "#/$defs/dieFaceKind" },
-        "value": {
-          "description": "Pips, for Pip faces; ignored otherwise.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 6
-        }
-      }
-    },
-
     "outcomes": {
       "description": "18 §10.1 E6 — RANDOM_OUTCOME's weighted table. minItems 2 because one outcome is not a choice: an effect that always fires should be authored directly rather than spending a combat draw index to reach itself. 🔒 Each row names a SIBLING effect id — an id declared by the SAME owning content as the RANDOM_OUTCOME itself — and never embeds an effect object. An effect is embedded in the content that owns it rather than living in a registry, so the reference resolves inside that one owner and needs nothing global: the boss encounter builder is holding the script's own effect set at the moment it has to answer, and it refuses a row naming an id the script does not declare. It is a reference rather than a nested object for three reasons: (1) the outcome rows are ordinary phase mechanics that must ALSO sit on ActorPlan.Effects to be registered, telegraphable and resolvable in the battle's effect table, so inlining would author each one twice and give the log two identities for one mechanic; (2) no other op nests an effect inside an effect and this file's oneOf is a closed op-to-key partition with no branch shaped like one; (3) a nested effect would sit outside 18 §8's ascending-effect-id ordering and outside every id-keyed lookup 05 §3.1 and 05 §4 make. ⚠️ uniqueItems catches two IDENTICAL rows only; a table naming one effect twice at DIFFERENT weights is refused by EffectOpValidation, which is also where the self-reference and all-zero-weights rules live — this schema cannot compare a row against the effect's own id.",
       "type": "array",
@@ -546,14 +499,6 @@
       }
     },
 
-    "faceIndex": {
-      "description": "18 §7.9 — which face is replaced. PLAYER_CHOICE is the only form 18 writes; the numbered form is taken to be 1-based over the six faces the dice document gives the die, which is how that document prints the starting die. The base is an inference and is recorded as such.",
-      "oneOf": [
-        { "const": "PLAYER_CHOICE", "type": "string" },
-        { "type": "integer", "minimum": 1, "maximum": 6 }
-      ]
-    },
-
     "tags": {
       "description": "18 §1 / §7.5 — free-form author tags (\"offense\", \"drawback\") on the EFFECT. 🔒 'drawback' is RESERVED: it is the marker 05 §4.1's ward bypass list (b) keys on, defined by 18 §7.5's CP_BLOOD_PRICE. ⚠️ NOT what REMOVE_STATUS means by a tag group — that is $defs/statusTag, a label on a STATUS, and the two are separate C# types so they cannot be confused. Not a closed set: no document catalogues them, and enumerating a guess would be worse than a shape.",
       "type": "array",
@@ -562,7 +507,7 @@
     },
 
     "valueScale": {
-      "description": "🔒 18 §1.1 — effectiveValue = value × steps, steps = min(floor(fn / per), cap). fn is evaluated against current state and rounded to 4 decimal places BEFORE the division. null — the default — means effectiveValue = value. 🔴 ERRATUM ON 18 §1.1, closed by M2-06 via §10's route: §1.1 offers fn 'any condition function from §4' and its own worked list names STATUS_STACKS and DIE_FACE_COUNT, but both take an argument (§4 types DIE_FACE_COUNT 'by face kind'; STATUS_STACKS counts one status, the same one §4 types HAS_STATUS 'by status id' — §4's own STATUS_STACKS row states no argument at all, which is the same gap one section over) and §1.1's table declared no field to carry either — so a scale over either was unexpressible, and the two functions were offered for something the vocabulary could not do. The three argument keys below close it. They are NOT new vocabulary: they are conditionTerm's own three keys, pointed at the same $defs, so a function reads an argument the same way from a scale as from a condition.",
+      "description": "🔒 18 §1.1 — effectiveValue = value × steps, steps = min(floor(fn / per), cap). fn is evaluated against current state and rounded to 4 decimal places BEFORE the division. null — the default — means effectiveValue = value. 🔴 ERRATUM ON 18 §1.1, closed by M2-06 via §10's route: §1.1 offers fn 'any condition function from §4' and its own worked list names STATUS_STACKS, which takes an argument (it counts one status, the same one §4 types HAS_STATUS 'by status id' — §4's own STATUS_STACKS row states no argument at all, which is the same gap one section over) and §1.1's table declared no field to carry it — so a scale over it was unexpressible, and the function was offered for something the vocabulary could not do. The argument keys below close it. They are NOT new vocabulary: they are conditionTerm's own keys, pointed at the same $defs, so a function reads an argument the same way from a scale as from a condition. ⚠️ The list used to name DIE_FACE_COUNT alongside it; that function is gone with the die's face kinds.",
       "type": ["object", "null"],
       "additionalProperties": false,
       "required": ["fn", "per"],
@@ -581,10 +526,6 @@
         "statusId": {
           "description": "18 §4 — the status STATUS_STACKS and HAS_STATUS read ('by status id'). Required in practice by those two functions and meaningless to the rest; the evaluator refuses a STATUS_STACKS scale that names none rather than counting every status.",
           "$ref": "#/$defs/statusId"
-        },
-        "faceKind": {
-          "description": "18 §4 — the 04 §1 face kind DIE_FACE_COUNT counts ('by face kind'). Same rule as statusId.",
-          "$ref": "#/$defs/dieFaceKind"
         },
         "category": {
           "description": "18 §4 — the perk category PERK_COUNT restricts to ('optionally by category'). Genuinely optional, exactly as it is on a condition term: its absence counts every perk.",
@@ -643,7 +584,6 @@
         "PERK_COUNT",
         "DISTINCT_PERK_CATEGORIES",
         "PET_COUNT",
-        "DIE_FACE_COUNT",
         "GOLD_HELD",
         "BATTLES_WON_THIS_RUN",
         "STAGE_INDEX",
@@ -682,7 +622,6 @@
               ]
             },
             "statusId": { "$ref": "#/$defs/statusId" },
-            "faceKind": { "$ref": "#/$defs/dieFaceKind" },
             "category": { "$ref": "#/$defs/perkCategory" }
           }
         },
@@ -885,8 +824,7 @@
           "additionalProperties": false,
           "required": ["kind"],
           "properties": {
-            "kind": { "const": "ON_ROLL" },
-            "faceKind": { "$ref": "#/$defs/dieFaceKind" }
+            "kind": { "const": "ON_ROLL" }
           }
         },
         {

@@ -755,12 +755,13 @@ internal static class GapRegister
         // literal list, in both directions, by SlayIdleRepeat.Core.Tests.CommandVocabularyTests.
         // Two mechanisms over two subject sets: this one watches DECLARATION, that one watches
         // REGISTRATION, and a command can lose either without losing the other.
-        new("14 §2.3 (the canonical command registry — 19 run + 33 meta)", Domain.CommandsNamespace, new[]
+        new("14 §2.3 (the canonical command registry — 20 run + 33 meta)", Domain.CommandsNamespace, new[]
         {
-            // The 19 run commands, in the table's order.
+            // The 20 run commands, in the table's order. ⚠️ Twenty, not the document's 22:
+            // UseRerollCommand and DiceForgeChooseCommand were removed with the reroll and the die's
+            // special faces, so 14 §2.3 no longer enumerates them.
             "StartRunCommand",
             "RollDiceCommand",
-            "UseRerollCommand",
             "ChooseForkCommand",
             "ResolveTileCommand",
             "PickPerkCommand",
@@ -770,7 +771,6 @@ internal static class GapRegister
             "ShopRefreshCommand",
             "ShopLeaveCommand",
             "ShrineChooseCommand",
-            "DiceForgeChooseCommand",
             "EventChooseCommand",
             "MinigameSubmitCommand",
             "CampfireChooseCommand",

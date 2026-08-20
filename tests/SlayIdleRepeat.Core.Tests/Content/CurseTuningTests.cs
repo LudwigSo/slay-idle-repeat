@@ -34,12 +34,12 @@ public sealed class CurseTuningTests
     /// <c>availableFromChapter &lt;= chapterId</c> and a curse stays available after.
     /// </summary>
     [Theory]
-    [InlineData(1, 4)]
-    [InlineData(2, 4)]
-    [InlineData(3, 11)]
-    [InlineData(4, 11)]
-    [InlineData(5, 12)]
-    [InlineData(8, 12)]
+    [InlineData(1, 3)]
+    [InlineData(2, 3)]
+    [InlineData(3, 9)]
+    [InlineData(4, 9)]
+    [InlineData(5, 10)]
+    [InlineData(8, 10)]
     public void The_chapter_gate_opens_a_curse_and_keeps_it_open(int chapterId, int expected)
     {
         Shipped.AvailableFrom(chapterId).Count.ShouldBe(expected);
@@ -98,13 +98,12 @@ public sealed class CurseTuningTests
     // ------------------------------------------------------------------ CurseRewards
 
     /// <summary>
-    /// The four-row payout table: transcribed from the content's <c>reward</c> prose ("+250 Gold"),
-    /// which nothing parses.
+    /// The three-row payout table: transcribed from the content's <c>reward</c> prose ("+250 Gold"),
+    /// which nothing parses. ⚠️ Three, not four: <c>CUR_DIZZY</c> is gone with the reroll.
     /// </summary>
     [Theory]
     [InlineData("CUR_SLIPPERY", CurrencyId.GOLD, 250L)]
     [InlineData("CUR_MARKED", CurrencyId.ENHANCE_STONES, 2L)]
-    [InlineData("CUR_DIZZY", CurrencyId.GOLD, 180L)]
     [InlineData("CUR_FRACTURED", CurrencyId.GOLD, 500L)]
     public void Each_payable_curse_pays_its_authored_currency_and_amount(
         string curseId, CurrencyId currency, long amount)
@@ -113,7 +112,7 @@ public sealed class CurseTuningTests
         CurseRewards.For(curseId).ShouldBe((currency, amount));
     }
 
-    /// <summary>A curse whose reward is a percentage, a reroll charge, or a gear drop is refused rather than paid a guessed amount.</summary>
+    /// <summary>A curse whose reward is a percentage or a gear drop is refused rather than paid a guessed amount.</summary>
     [Theory]
     [InlineData("CUR_HUNTED")]
     [InlineData("CUR_FAMISHED")]

@@ -51,7 +51,6 @@ public sealed class IntraRulesLayeringRuleTests
     internal const string EconomyNamespace = "SlayIdleRepeat.Core.Rules.Economy";
 
     /// <summary>M3-04's die math — outside the Combat/Stats/Effects ordering entirely, like <see cref="EconomyNamespace"/>.</summary>
-    internal const string DiceNamespace = "SlayIdleRepeat.Core.Rules.Dice";
 
     /// <summary>M3-01's board DAG + generator — outside the Combat/Stats/Effects ordering entirely.</summary>
     internal const string BoardNamespace = "SlayIdleRepeat.Core.Rules.Board";
@@ -128,22 +127,11 @@ public sealed class IntraRulesLayeringRuleTests
             "Economy is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
             "remarks) — energy accrual/spend math has no current reason to read the combat simulator."),
 
-        // 🔒 M3-04's Dice namespace, pinned OUTSIDE the ordering the same way Economy is, and for
-        // the same reason: FairDiceBag/FaceEffectResolver/DieComposer/RerollEconomy are pure die
-        // arithmetic with ZERO current coupling to Combat/Stats/Effects in either direction. The
-        // MODIFY_DIE_FACE resolver a future ResolveTileCommand handler calls
-        // (DiceForgeUpgradeResolver) reads Content.Dice only, not the effect DSL's resolver layer —
-        // 18's interpreter calls INTO the dice system when M3-03 wires TILE_DICE_FORGE, which is the
-        // direction these edges leave open by forbidding only the reverse.
-        (DiceNamespace, EffectsNamespace,
-            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
-            "remarks) — die-face arithmetic has no current reason to read the effect DSL's resolver."),
-        (DiceNamespace, StatsNamespace,
-            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
-            "remarks) — die-face arithmetic has no current reason to read stat aggregation."),
-        (DiceNamespace, CombatNamespace,
-            "Dice is pinned OUTSIDE the Combat/Stats/Effects ordering (see the ForbiddenEdges " +
-            "remarks) — die-face arithmetic has no current reason to read the combat simulator."),
+        // ⚠️ M3-04's Rules/Dice namespace and its three forbidden edges are GONE, not relaxed. It
+        // held FairDiceBag, FaceEffectResolver, DieComposer, RerollEconomy, RunDie, DieFaceCodec,
+        // DieFaceKindCodec and the Dice Forge resolvers — all of it removed with the die's special
+        // faces and the reroll. A roll is now a uniform 1..6 drawn in Handlers.RollDice, so there is
+        // no dice arithmetic left anywhere under Rules to order.
 
         // 🔒 M3-01 added Rules/Board/ (the board DAG + GenerateBoard). Verified by inspection, same
         // as Economy above: BoardGenerator's only Core dependency outside its own namespace is

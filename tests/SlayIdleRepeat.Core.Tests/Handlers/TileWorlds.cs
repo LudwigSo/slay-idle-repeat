@@ -84,7 +84,6 @@ internal static class TileWorlds
         IReadOnlyList<string>? shrineBuffs = null,
         IReadOnlyList<string>? runBuffs = null,
         IReadOnlyDictionary<string, int>? consumables = null,
-        IReadOnlyDictionary<int, int>? dieFaceUpgrades = null,
         bool escapeRopeArmed = false,
         ulong? shopOfferDraw = null) =>
         new(
@@ -108,7 +107,6 @@ internal static class TileWorlds
                 shrineBuffs: shrineBuffs,
                 runBuffs: runBuffs,
                 consumables: consumables,
-                dieFaceUpgrades: dieFaceUpgrades,
                 escapeRopeArmed: escapeRopeArmed,
                 shopOfferDraw: shopOfferDraw)));
 

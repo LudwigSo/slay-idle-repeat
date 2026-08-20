@@ -124,7 +124,13 @@ internal static class ResolveTile
                 return StockShop(input, run);
 
             case TileKind.DiceForge:
-                // Acknowledgement only. DICE_FORGE_CHOOSE installs the upgrade and clears the tile.
+                // ⚠️ A placeholder, and it CLEARS THE TILE. The forge's whole mechanic was installing
+                // replacement die faces, and the die no longer has faces to replace — so there is
+                // nothing to offer and DICE_FORGE_CHOOSE is gone with it. Clearing is not a detail:
+                // the forge used to leave the tile pending for that command, and leaving it pending
+                // now would wedge the run on the tile forever. The kind is kept so the tile can be
+                // repurposed; until it is, landing on one costs the player nothing but a roll.
+                run.ClearPendingTile();
                 return HandlerResult.Accept();
 
             case TileKind.Minigame:

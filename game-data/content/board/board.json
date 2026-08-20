@@ -1,19 +1,16 @@
 {
   "$schema": "../../schema/board.schema.json",
-  "_doc": "M7-05 — the strings the Board screen (S05) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `block` group is the load-bearing one: a roll can be refused for four different reasons that all arrive on the wire as the single value ILLEGAL_STATE, so the screen names the cause from the run's own state and needs one sentence per cause. The `tile` group carries all fourteen tile names because the run's pending tile arrives as a bare integer and the screen has to say what the player is standing on. Deliberately absent, each because a later milestone owns it: the perks list, the consumable pouch, the upcoming-tile preview, the fork's authored branch previews (the board generator never leaves Core, so no label or icon set is reachable here), the reroll charge remaining count (the cap is internal to the rules) and every battle, draft, shop, event and campfire caption.",
+  "_doc": "M7-05 — the strings the Board screen (S05) shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The `block` group is the load-bearing one: a roll can be refused for four different reasons that all arrive on the wire as the single value ILLEGAL_STATE, so the screen names the cause from the run's own state and needs one sentence per cause. The `tile` group carries all fourteen tile names because the run's pending tile arrives as a bare integer and the screen has to say what the player is standing on. Deliberately absent, each because a later milestone owns it: the perks list, the consumable pouch, the upcoming-tile preview, the fork's authored branch previews (the board generator never leaves Core, so no label or icon set is reachable here) and every battle, draft, shop, event and campfire caption. Gone rather than absent: the reroll's caption, its 'changes the next roll' sentence, its exhausted-refusal line and the die panel's control, all removed with the reroll and the die's special faces.",
   "label": {
     "hp": "loc.board.hp.label",
     "gold": "loc.board.gold.label",
     "stage": "loc.board.stage.label",
     "rolled": "loc.board.rolled.label",
-    "standingOn": "loc.board.standing_on.label",
-    "rerollChangesNextRoll": "loc.board.reroll_changes_next_roll.label"
+    "standingOn": "loc.board.standing_on.label"
   },
   "action": {
     "roll": "loc.board.roll.action",
-    "reroll": "loc.board.reroll.action",
     "resolve": "loc.board.resolve.action",
-    "diePanel": "loc.board.die_panel.action",
     "forkContinue": "loc.board.fork_continue.action",
     "forkBranch": "loc.board.fork_branch.action",
     "abandon": "loc.board.abandon.action",
@@ -27,8 +24,7 @@
     "runMissing": "loc.board.run_missing.status",
     "runEnded": "loc.board.run_ended.status",
     "unavailable": "loc.board.unavailable.status",
-    "refused": "loc.board.refused.status",
-    "rerollExhausted": "loc.board.reroll_exhausted.status"
+    "refused": "loc.board.refused.status"
   },
   "block": {
     "tile": "loc.board.blocked_tile.status",

@@ -286,16 +286,18 @@ public sealed class GapRegisterTests
             s => s.Citation.StartsWith("14 §2.3", StringComparison.Ordinal));
 
         commandRegistry.Subjects.Count.ShouldBe(
-            55,
-            "14 §2.3's registry is 22 run commands plus 33 meta commands, and it is EXHAUSTIVE — 'a " +
+            53,
+            "14 §2.3's registry is 22 run commands plus 33 meta commands, less USE_REROLL and " +
+            "DICE_FORGE_CHOOSE — removed with the reroll and the die's special faces — and it is " +
+            "EXHAUSTIVE — 'a " +
             "command not listed here does not exist'. A transcription that shrank would stop asking " +
             "about the rows it dropped, and deleting a command type would then be silent.");
 
         commandRegistry.Namespace.ShouldBe(Domain.CommandsNamespace);
 
         commandRegistry.Subjects.Distinct(StringComparer.Ordinal).Count().ShouldBe(
-            55,
-            "a duplicated name would keep the count at 55 while one row went untranscribed.");
+            53,
+            "a duplicated name would keep the count at 53 while one row went untranscribed.");
 
         // 🔒 A shape check on the hand-written list, and it is load-bearing rather than tidy.
         // MEASURED: replacing "AbandonRunCommand" with "CommandPayload" passed 58/58 — the count
@@ -477,7 +479,10 @@ public sealed class GapRegisterTests
         // and APPLY_PRESET (25 / 24), and M7-00d took EQUIP (24 / 25). The M4 retro ruling of
         // 2026-08-17 then ADDED three already-handled rows, which is the first change here that
         // moves the sum instead of the split: 24 DEFERRED and 28 HANDLED, summing to 52.
-        // A sibling that wires another row moves both by one again; the SUM below is the invariant.
+        // ⚠️ Then the reroll and the die's special faces were REMOVED, which moves the sum the other
+        // way for the first time: USE_REROLL and DICE_FORGE_CHOOSE were both HANDLED, so the split
+        // is 23 DEFERRED and 30 HANDLED, summing to 53. A row REMOVED lowers the sum; a row wired
+        // moves only the split.
         owners.Length.ShouldBe(
             23,
             "14 §2.3's registry is 19 run + 33 meta, and 24 of the 52 rows are Deferred since " +
@@ -496,7 +501,7 @@ public sealed class GapRegisterTests
         handled.ShouldBe(
             new[]
             {
-                "BEGIN_SESSION", "START_RUN", "MINIGAME_SUBMIT", "ROLL_DICE", "USE_REROLL",
+                "BEGIN_SESSION", "START_RUN", "MINIGAME_SUBMIT", "ROLL_DICE",
                 "SHOP_BUY", "SHOP_REFRESH", "CHOOSE_FORK",
                 "RESOLVE_TILE", "EVENT_CHOOSE", "CAMPFIRE_CHOOSE",
                 "START_BATTLE", "CONFIRM_BATTLE_RESULT",
@@ -506,14 +511,14 @@ public sealed class GapRegisterTests
                 "SAVE_PRESET", "APPLY_PRESET",
                 "EQUIP",
                 "UNEQUIP", "LOCK_ITEM", "SET_AUTO_SALVAGE_RULES",
-                "SHOP_LEAVE", "SHRINE_CHOOSE", "DICE_FORGE_CHOOSE",
+                "SHOP_LEAVE", "SHRINE_CHOOSE",
                 "USE_CONSUMABLE",
             },
             ignoreOrder: true,
             "the Handled rows, by IDENTITY rather than by count (steering S3): a count-only floor is " +
             "satisfied by whatever handler replaced the one this names. 30 §2.3's BEGIN_SESSION was " +
             "the first; 02 §2's START_RUN (M3-15) the second; 03 §6's MINIGAME_SUBMIT (M3-03c) the " +
-            "third; 04 §§1,3-4's ROLL_DICE and USE_REROLL (M3-04) the fourth and fifth; 03 §7's " +
+            "third; 04 §1's ROLL_DICE (M3-04) the fourth; 03 §7's " +
             "SHOP_BUY and SHOP_REFRESH (M3-08) the sixth and seventh — real, dispatched handlers " +
             "that refuse every call today because no Run shaped by today's aggregate can carry an " +
             "active shop offer yet (see Handlers.ShopBuy's remarks); 03 §1.1's CHOOSE_FORK (M3-02) " +
@@ -543,23 +548,26 @@ public sealed class GapRegisterTests
             "tile vocabulary. Their dispatch rows were corrected rather than left to go stale " +
             "(steering S4). \u26a0\ufe0f SHOP_BUY and SHOP_REFRESH are NO LONGER the pair that " +
             "refuses every call: a run carries an active shop offer now, so both are live — and the " +
-            "three rows added to the registry beside them (SHOP_LEAVE, SHRINE_CHOOSE, " +
-            "DICE_FORGE_CHOOSE, the twenty-ninth to thirty-first) each carry a tile choice no " +
-            "existing command could express. USE_CONSUMABLE is the thirty-second, and it was " +
+            "two rows added to the registry beside them (SHOP_LEAVE and SHRINE_CHOOSE) each carry a " +
+            "tile choice no existing command could express. ⚠️ USE_REROLL and DICE_FORGE_CHOOSE were " +
+            "Handled rows here too, and both are GONE rather than deferred: the reroll had nothing " +
+            "to spend and the forge had no face to install. USE_CONSUMABLE is the last, and it was " +
             "Deferred to 'M3-08' — a STALE owner, on EVENT_CHOOSE's own precedent: what it waited " +
             "for was a run that could HOLD a consumable, which the shop's own purchase path now " +
             "gives it.");
 
 
         (owners.Length + handled.Length).ShouldBe(
-            55,
+            53,
             "…and the sum, because the two floors above are separately satisfiable while a row goes " +
             "missing entirely. 14 §2.3 says the registry is EXHAUSTIVE — 'a command not listed here " +
-            "does not exist' — so 55 is the number the table has, whatever the split. It was 49 " +
+            "does not exist' — so 53 is the number the table has, whatever the split. It was 49 " +
             "until the M4 retro ruling of 2026-08-17 added three meta rows, and 52 until the tile " +
             "work added SHOP_LEAVE, SHRINE_CHOOSE and DICE_FORGE_CHOOSE — all six of them Handled, " +
             "which is why the DEFERRED floor above moved only once, when USE_CONSUMABLE gained a " +
-            "handler.");
+            "handler. ⚠️ It then dropped 55 -> 53: USE_REROLL and DICE_FORGE_CHOOSE were removed with " +
+            "the reroll and the die's special faces. Both were Handled, so the DEFERRED floor did " +
+            "not move with them.");
 
         var tracker = File.ReadAllText(Path.Combine(RepoLayout.RepoRoot, "IMPLEMENTATION_TRACKER.md"));
 

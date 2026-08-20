@@ -161,11 +161,6 @@ internal static class TriggerCatalogue
             written |= TriggerParameter.TILE_TYPE;
         }
 
-        if (trigger.FaceKind is not null)
-        {
-            written |= TriggerParameter.FACE_KIND;
-        }
-
         if (trigger.Category is not null)
         {
             written |= TriggerParameter.CATEGORY;
@@ -310,7 +305,7 @@ internal static class TriggerCatalogue
                 TriggerParameter.PHASE),
 
             [TriggerKind.ON_TILE_RESOLVED] = new(TriggerLayer.RUN, TriggerParameter.TILE_TYPE, none),
-            [TriggerKind.ON_ROLL] = new(TriggerLayer.RUN, TriggerParameter.FACE_KIND, none),
+            [TriggerKind.ON_ROLL] = new(TriggerLayer.RUN, TriggerParameter.NONE, none),
             [TriggerKind.ON_PERK_TAKEN] = new(TriggerLayer.RUN, TriggerParameter.CATEGORY, none),
             [TriggerKind.ON_STAGE_GATE] = new(TriggerLayer.RUN, none, none),
             [TriggerKind.ON_RUN_START] = new(TriggerLayer.RUN, none, none),
@@ -347,7 +342,6 @@ internal static class TriggerCatalogue
         TriggerParameter.START_DELAY => "startDelay",
         TriggerParameter.PHASE => "phase",
         TriggerParameter.TILE_TYPE => "tileType",
-        TriggerParameter.FACE_KIND => "faceKind",
         TriggerParameter.CATEGORY => "category",
         _ => parameter.ToString(),
     };

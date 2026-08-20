@@ -225,7 +225,7 @@ That matters more now than it did, because **D28 accepts the content cliff**. A 
 |---|---|---|
 | **Slaughter** | 20 | Enemies, elites, bosses defeated; crit totals; overkill |
 | **The Road** | 18 | Tiles travelled, runs completed, chapters cleared per tier, deathless runs, forks taken |
-| **The Die** | 14 | `Star` faces rolled, rerolls used, Chain lengths, faces permanently upgraded |
+| **The Die** | 🔴 **3, not 14** | Rolls taken, and how often each number 1–6 came up. ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). Eleven of this category's Feats measured face kinds, rerolls, chain lengths and face upgrades — none of which exist. **The category is the largest hole D41 left in the Feat list**, and the counters behind it (`dice_rolled_star` and its siblings) are gone from the projection too, so the rows cannot simply be re-pointed. |
 | **The Draft** | 16 | Perks drafted, Tier III perks, distinct perks seen, Legendary drafts, `PK_SINGULARITY` survived |
 | **The Forge** | 18 | Merges, `+15` items, SS items owned, Reforges, a full 6-piece set |
 | **The Menagerie** | 14 | Pets owned, ★5 pets, mounts owned, pet levels |
@@ -292,19 +292,19 @@ Format: `Feat — measure — tier thresholds (1 / 2 / 3)`. Feats marked **(sing
 | # | Feat | Measure | Tiers |
 |---|---|---|---|
 | 39 | Roller | Dice rolled | 1,000 / 10,000 / 100,000 |
-| 40 | Star Struck | `Star` faces rolled | 100 / 1,000 / 10,000 |
-| 41 | Second Opinions | Rerolls used | 100 / 1,000 / 10,000 |
-| 42 | Chain Reaction | `Chain` faces triggered | 50 / 500 / 5,000 |
-| 43 | Full Chain | Maximum-length chains completed | 10 / 100 / 1,000 |
-| 44 | Surge Protector | `Surge` heals triggered | 50 / 500 / 5,000 |
-| 45 | Double Down | `Fortune` doubles landed | 50 / 500 / 5,000 |
+| ~~40~~ | ~~Star Struck~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
+| ~~41~~ | ~~Second Opinions~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
+| ~~42~~ | ~~Chain Reaction~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
+| ~~43~~ | ~~Full Chain~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
+| ~~44~~ | ~~Surge Protector~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
+| ~~45~~ | ~~Double Down~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
 | 46 | Gentle Persuasion | Nudges used | 25 / 250 / 2,500 |
-| 47 | Forge Ahead | Dice Forge upgrades taken | 10 / 100 / 1,000 |
-| 48 | A Die of One's Own | Die faces permanently upgraded | 1 / 3 / 6 |
+| ~~47~~ | ~~Forge Ahead~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
+| ~~48~~ | ~~A Die of One's Own~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
 | 49 | Boxcars | Sixes rolled | 200 / 2,000 / 20,000 |
 | 50 | Snake Eyes | Ones rolled | 200 / 2,000 / 20,000 |
 | 51 | House Rules | Dice Duel minigames won | 10 / 100 / 1,000 |
-| 52 | The Whole Repertoire | Roll every face kind once (Pip, Star, Surge, Fortune, Chain, Void) | **(single)** |
+| ~~52~~ | ~~The Whole Repertoire~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). *A replacement over the six NUMBERS — roll each of 1–6 once — is available off the shipped `dice_rolled_pips_1..6` counters, and is the obvious re-entry point for this category.* | **(single)** |
 
 **The Draft (16)**
 

@@ -35,7 +35,4 @@ public sealed record ConditionTerm
 
     /// <summary>The perk category <see cref="ConditionFunction.PERK_COUNT"/> restricts to.</summary>
     public string? Category { get; init; }
-
-    /// <summary>The die-face kind <see cref="ConditionFunction.DIE_FACE_COUNT"/> counts.</summary>
-    public string? FaceKind { get; init; }
 }

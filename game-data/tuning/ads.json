@@ -24,7 +24,6 @@
     { "id": "AD_DOUBLE_RUN_REWARDS", "cap": 1, "capWindow": "RUN" },
     { "id": "AD_REROLL_PERK", "cap": 2, "capWindow": "RUN" },
     { "id": "AD_EXTRA_PERK_CHOICE", "cap": 1, "capWindow": "RUN" },
-    { "id": "AD_REROLL_DICE", "cap": 2, "capWindow": "RUN" },
     { "id": "AD_SHOP_REFRESH", "cap": 2, "capWindow": "RUN" },
     { "id": "AD_SHOP_FREEBIE", "cap": 1, "capWindow": "RUN" },
     { "id": "AD_SKIP_CURSE", "cap": 1, "capWindow": "RUN" },
@@ -66,7 +65,7 @@
   },
   "globalCaps": {
     "totalRewardedPerDaySoftCap": 44,
-    "maxInRunImpressionsPerRun": 17,
+    "maxInRunImpressionsPerRun": 15,
     "maxMetaImpressionsPerDay": 36,
     "minSecondsBetweenRewarded": 20,
     "grantRewardOnLoadFailure": true,

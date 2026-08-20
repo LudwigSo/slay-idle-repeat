@@ -308,15 +308,21 @@ public sealed class ResolveTileTests
         again.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 
-    /// <summary>A Dice Forge visit is acknowledged and left for <c>DICE_FORGE_CHOOSE</c>.</summary>
+    /// <summary>A Dice Forge visit is acknowledged and CLEARS the tile — the forge offers nothing.</summary>
+    /// <remarks>
+    /// ⚠️ It used to be left pending for <c>DICE_FORGE_CHOOSE</c>. The forge installed replacement
+    /// die faces, the die has no faces, and that command is gone — so leaving the tile pending would
+    /// wedge the run on it with nothing able to clear it. The kind is kept for a later repurposing.
+    /// </remarks>
     [Fact]
-    public void A_dice_forge_tile_is_acknowledged_and_left_for_the_choice()
+    public void A_dice_forge_tile_is_acknowledged_and_clears_itself()
     {
         var result = Resolve(TileWorlds.OnTile(TileKind.DiceForge));
 
         result.Accepted.ShouldBeTrue();
-        result.Events.ShouldBeEmpty("no die face is modified by walking in");
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe((int)TileKind.DiceForge);
+        result.Events.ShouldBeEmpty("walking into a forge grants nothing");
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(
+            RunSnapshots.NoPendingTile, "a tile nothing can resolve must not stay pending.");
     }
 
     /// <summary>
@@ -343,23 +349,26 @@ public sealed class ResolveTileTests
             left.NewState.Run!.Position, "the roll was accepted and the run stood still.");
     }
 
-    /// <summary>…and so can it off a Dice Forge it has used.</summary>
+    /// <summary>
+    /// …and so can it off a Dice Forge, which RESOLVE_TILE now clears by itself.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The load-bearing half is that the tile is no longer pending. The forge's mechanic is gone
+    /// and so is DICE_FORGE_CHOOSE, so nothing else can clear it — a forge that stayed pending would
+    /// wedge the run on the tile with no command able to move it.
+    /// </remarks>
     [Fact]
-    public void A_run_rolls_off_a_dice_forge_it_has_used()
+    public void A_dice_forge_clears_itself_and_the_run_rolls_off_it()
     {
         var open = Resolve(TileWorlds.OnTile(TileKind.DiceForge)).NewState;
 
-        var forged = SlayIdleRepeat.Core.GameRules.Apply(
-            open, new DiceForgeChooseCommand(FaceIndex: 1, OptionIndex: 0, HigherPipValue: 6),
-            TileWorlds.Context);
-
-        forged.Accepted.ShouldBeTrue("DICE_FORGE_CHOOSE was refused " + forged.Rejection);
+        open.Run!.HasPendingTile.ShouldBeFalse("a forge offers nothing, so it does not stay pending.");
 
         var rolled = SlayIdleRepeat.Core.GameRules.Apply(
-            forged.NewState, new RollDiceCommand(), TileWorlds.Context);
+            open, new RollDiceCommand(), TileWorlds.Context);
 
         rolled.Accepted.ShouldBeTrue(
-            "ROLL_DICE was refused " + rolled.Rejection + " from a forge the run had already used.");
+            "ROLL_DICE was refused " + rolled.Rejection + " from a forge the run had landed on.");
     }
 
     /// <summary>

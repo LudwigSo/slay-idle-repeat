@@ -70,7 +70,7 @@ If you notice an out-of-scope problem, note it in a single line under "Out of sc
 ### Accessibility implementation
 - Touch targets are at least 48×48dp with 8dp spacing — a cramped or overlapping tap target is a Critical finding on a mobile game.
 - Reduced-motion mode actually disables the shake/parallax/particle effects it's supposed to and shortens animations to ~100ms where the setting is respected — a screen that ignores the setting is a finding.
-- No-timer mode actually removes soft timers (e.g. the reroll countdown) where present, not just visually de-emphasises them.
+- No-timer mode actually removes soft timers where present, not just visually de-emphasises them.
 - Rarity and status information is never colour-only — a frame shape or gem symbol must also convey it, and the 3 colourblind palettes (default/deuteranopia/tritanopia) must be honoured by whatever is drawing rarity, not just the default palette.
 - Text scales through the project's 3 size steps (100/115/130%) and the layout reflows rather than clipping or overlapping at the largest step — check this especially against a German-length string.
 - Left-handed mode actually mirrors the roll button and bottom navigation, not just one of the two.

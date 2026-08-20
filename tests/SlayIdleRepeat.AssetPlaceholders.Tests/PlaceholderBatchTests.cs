@@ -110,7 +110,7 @@ public sealed class PlaceholderBatchTests(SampleBatch batch) : IClassFixture<Sam
         // equality below reads both sides off the same loaded register, so a reader that silently
         // returned zero rows would satisfy 0 == 0 for all of them.
         PlaceholderFiles.Shipped.Art.Assets.Count.ShouldBe(974);
-        PlaceholderFiles.Shipped.Audio.Assets.Count.ShouldBe(106);
+        PlaceholderFiles.Shipped.Audio.Assets.Count.ShouldBe(98);
 
         report.ArtRowsInRegister.ShouldBe(PlaceholderFiles.Shipped.Art.Assets.Count);
         report.AudioRowsInRegister.ShouldBe(PlaceholderFiles.Shipped.Audio.Assets.Count);

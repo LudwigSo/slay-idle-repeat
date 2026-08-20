@@ -28,7 +28,7 @@ public sealed class RunRehydrateTests
             maxHp: 140,
             gold: 1_450,
             rngStreamPositions: RunSnapshots.Streams((RngStreams.Dice, 12UL), (RngStreams.Board, 8UL)),
-            adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_DICE", 2)));
+            adUses: RunSnapshots.AdUses(("AD_REVIVE", 1), ("AD_REROLL_PERK", 2)));
 
         var run = Run.Rehydrate(snapshot).Value;
 
@@ -47,7 +47,7 @@ public sealed class RunRehydrateTests
         run.StreamPosition(RngStreams.Board).ShouldBe(8UL);
         run.StreamPosition(RngStreams.Drops).ShouldBe(0UL, "a stream nobody drew from stands at draw 0");
         run.AdUseCount("AD_REVIVE").ShouldBe(1);
-        run.AdUseCount("AD_REROLL_DICE").ShouldBe(2);
+        run.AdUseCount("AD_REROLL_PERK").ShouldBe(2);
         run.AdUseCount("AD_SHOP_FREEBIE").ShouldBe(0);
     }
 

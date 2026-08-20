@@ -27,10 +27,7 @@ internal static class BoardContent
     internal const string RolledLabelKey = "loc.board.rolled.label";
     internal const string StandingOnLabelKey = "loc.board.standing_on.label";
     internal const string RollActionKey = "loc.board.roll.action";
-    internal const string RerollActionKey = "loc.board.reroll.action";
-    internal const string RerollChangesNextRollLabelKey = "loc.board.reroll_changes_next_roll.label";
     internal const string ResolveActionKey = "loc.board.resolve.action";
-    internal const string DiePanelActionKey = "loc.board.die_panel.action";
     internal const string AbandonActionKey = "loc.board.abandon.action";
     internal const string AbandonConfirmActionKey = "loc.board.abandon_confirm.action";
     internal const string ForkNameKey = "loc.board.fork.name";
@@ -41,16 +38,10 @@ internal static class BoardContent
     internal const string RunEndedStatusKey = "loc.board.run_ended.status";
     internal const string UnavailableStatusKey = "loc.board.unavailable.status";
     internal const string RefusedStatusKey = "loc.board.refused.status";
-    internal const string RerollExhaustedStatusKey = "loc.board.reroll_exhausted.status";
     internal const string BlockedTileStatusKey = "loc.board.blocked_tile.status";
     internal const string BlockedForkStatusKey = "loc.board.blocked_fork.status";
     internal const string BlockedBattleStatusKey = "loc.board.blocked_battle.status";
     internal const string BlockedDraftStatusKey = "loc.board.blocked_draft.status";
-
-    internal const string DiePanelTitleKey = "loc.die_panel.title.name";
-    internal const string DiePanelLastFaceLabelKey = "loc.die_panel.last_face.label";
-    internal const string DiePanelNoRollYetStatusKey = "loc.die_panel.no_roll_yet.status";
-    internal const string DiePanelFacesUnavailableStatusKey = "loc.die_panel.faces_unavailable.status";
 
     internal const string ChaptersDirectory = "content/chapters/";
 
@@ -63,35 +54,13 @@ internal static class BoardContent
     internal static IReadOnlyList<string> BoardKeys { get; } =
     [
         HpLabelKey, GoldLabelKey, StageLabelKey, RolledLabelKey, StandingOnLabelKey,
-        RerollChangesNextRollLabelKey,
-        RollActionKey, RerollActionKey, ResolveActionKey, DiePanelActionKey,
+        RollActionKey, ResolveActionKey,
         AbandonActionKey, AbandonConfirmActionKey,
         ForkNameKey, ForkContinueActionKey, ForkBranchActionKey,
         LoadingStatusKey, RunMissingStatusKey, RunEndedStatusKey, UnavailableStatusKey,
-        RefusedStatusKey, RerollExhaustedStatusKey,
+        RefusedStatusKey,
         BlockedTileStatusKey, BlockedForkStatusKey, BlockedBattleStatusKey, BlockedDraftStatusKey,
     ];
-
-    /// <summary>Every string key the Die Panel renders, built the way the panel builds them.</summary>
-    /// <remarks>
-    /// The per-face keys are derived from the enum rather than listed, for the same reason the
-    /// panel derives them: a face kind added to the game must arrive in both places or in neither,
-    /// and a hand-written list here would let it arrive in the panel alone and go unnoticed.
-    /// </remarks>
-    internal static IReadOnlyList<string> DiePanelKeys { get; } =
-    [
-        DiePanelTitleKey, DiePanelLastFaceLabelKey,
-        DiePanelNoRollYetStatusKey, DiePanelFacesUnavailableStatusKey,
-        .. Enum.GetValues<DieFaceKind>().SelectMany(kind => new[] { NameKeyOf(kind), EffectKeyOf(kind) }),
-    ];
-
-    /// <summary>The name key the panel resolves one face kind through.</summary>
-    internal static string NameKeyOf(DieFaceKind kind) =>
-        $"loc.die_panel.{kind.ToString().ToLowerInvariant()}.name";
-
-    /// <summary>The effect key the panel resolves one face kind through.</summary>
-    internal static string EffectKeyOf(DieFaceKind kind) =>
-        $"loc.die_panel.{kind.ToString().ToLowerInvariant()}.effect";
 
     /// <summary>The English fixture value for a key.</summary>
     internal static string EnglishValueOf(string key) => "FIXTURE " + key;
@@ -152,7 +121,7 @@ internal static class BoardContent
 
     private static IReadOnlyList<ContentDocument> Locales()
     {
-        var keys = BoardKeys.Concat(DiePanelKeys).Concat(BoardTileKinds.NameKeys).ToArray();
+        var keys = BoardKeys.Concat(BoardTileKinds.NameKeys).ToArray();
 
         return
         [

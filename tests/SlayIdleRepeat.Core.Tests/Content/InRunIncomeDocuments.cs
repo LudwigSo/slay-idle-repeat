@@ -130,15 +130,13 @@ internal static class InRunIncomeDocuments
     {
         ("CUR_SLIPPERY", "+250 Gold", 1),
         ("CUR_MARKED", "+2 Enhance Stones", 1),
-        ("CUR_DIZZY", "+180 Gold", 1),
         ("CUR_FRACTURED", "+500 Gold", 1),
         ("CUR_HUNTED", "+1 gear drop per Elite", 5),
         ("CUR_UNTIMELY", "+300 Crowns", 3),
         ("CUR_FAMISHED", "+12% ATK", 3),
         ("CUR_BRITTLE_BONES", "+8% Crit Chance", 3),
         ("CUR_MISERLY", "+600 Gold", 3),
-        ("CUR_BLIND", "+2 Reroll Charges", 3),
-        ("CUR_LEADFOOT", "+15% Gold", 3),
+        ("CUR_BLIND", "+15% Gold", 3),
         ("CUR_TITHE", "+20% gear drop chance", 3),
     };
 

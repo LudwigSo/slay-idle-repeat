@@ -15,14 +15,14 @@ public sealed class CommandVocabularyTests
 {
     /// <summary>14 §2.3's Run table, transcribed by hand in the document's order.</summary>
     /// <remarks>
-    /// 22 rows since SHOP_LEAVE, SHRINE_CHOOSE and DICE_FORGE_CHOOSE were added to the registry
-    /// (52 -> 55), each carrying a tile choice no existing command could express.
+    /// 20 rows. SHOP_LEAVE and SHRINE_CHOOSE were added to the registry, each carrying a tile choice
+    /// no existing command could express; USE_REROLL and DICE_FORGE_CHOOSE were then removed with the
+    /// reroll and the die's special faces, so the whole register is 53 rather than 55.
     /// </remarks>
     public static readonly string[] RunCommandWireNames =
     {
         "START_RUN",
         "ROLL_DICE",
-        "USE_REROLL",
         "CHOOSE_FORK",
         "RESOLVE_TILE",
         "PICK_PERK",
@@ -32,7 +32,6 @@ public sealed class CommandVocabularyTests
         "SHOP_REFRESH",
         "SHOP_LEAVE",
         "SHRINE_CHOOSE",
-        "DICE_FORGE_CHOOSE",
         "EVENT_CHOOSE",
         "MINIGAME_SUBMIT",
         "CAMPFIRE_CHOOSE",
@@ -128,8 +127,8 @@ public sealed class CommandVocabularyTests
             "14 §2.3 is exhaustive: 'a command not listed here does not exist'.");
 
         Registry.Count.ShouldBe(
-            55,
-            "22 run + 33 meta. The literal floors both set comparisons above: an emptied registry " +
+            53,
+            "20 run + 33 meta. The literal floors both set comparisons above: an emptied registry " +
             "would otherwise make 'nothing unlisted' trivially true.");
     }
 
@@ -151,9 +150,10 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void Every_row_is_registered_under_the_kind_its_table_gives_it()
     {
-        RunCommandWireNames.Length.ShouldBe(22, "14 §2.3's run table, counted off the document.");
+        RunCommandWireNames.Length.ShouldBe(
+            20, "14 §2.3's run table, counted off the document, less the two removed rows.");
         MetaCommandWireNames.Length.ShouldBe(33, "14 §2.3's meta table, counted off the document.");
-        Registry.Count.ShouldBe(55, "an emptied registry makes the sweep below silent, not red.");
+        Registry.Count.ShouldBe(53, "an emptied registry makes the sweep below silent, not red.");
 
         var offenders = new List<string>();
 
@@ -298,7 +298,7 @@ public sealed class CommandVocabularyTests
             metaRows++;
         }
 
-        runRows.ShouldBe(22, "14 §2.3's run table has 22 rows.");
+        runRows.ShouldBe(20, "14 §2.3's run table has 22 rows, less the two removed with the reroll and the die's faces.");
         metaRows.ShouldBe(33, "14 §2.3's meta table has 33 rows.");
 
         // Both sides by identity: the tier assertion above is satisfied by a table in which every
@@ -658,11 +658,11 @@ public sealed class CommandVocabularyTests
             return Array.Empty<AutoSalvageRule>();
         }
 
-        // DICE_FORGE_CHOOSE's optional pip count. A VALUE rather than null, on the SET_FOCUS
-        // precedent above and for the same reason: null exercises the "this option needs no pip
-        // count" path, and the sampled option index of 0 is the one option that does need one — so a
-        // null sample would make this row's generic build a request the handler must refuse for a
-        // reason unrelated to what the sweep is asking about.
+        // An optional integer payload. A VALUE rather than null, on the SET_FOCUS precedent above
+        // and for the same reason: a null sample would make a row's generic build a request the
+        // handler must refuse for a reason unrelated to what the sweep is asking about.
+        // ⚠️ DICE_FORGE_CHOOSE's pip count was the one row that reached this arm; no command carries
+        // an int? today, so this is a guard with nothing exercising it.
         if (type == typeof(int?))
         {
             return 6;

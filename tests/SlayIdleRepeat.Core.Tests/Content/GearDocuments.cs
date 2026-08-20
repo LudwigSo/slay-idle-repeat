@@ -95,14 +95,11 @@ internal static class GearDocuments
     /// <summary>The piece counts a set bonus fires at, ascending.</summary>
     internal static IReadOnlyList<int> ShippedSetBreakpoints { get; } = [2, 4, 6];
 
-    /// <summary>The affix that carries a rarity floor, and the band it floors at.</summary>
-    internal const string ShippedFlooredAffixId = "AFX_REROLL_CHARGE";
-
-    /// <summary>The band <see cref="ShippedFlooredAffixId"/> first becomes eligible at.</summary>
-    internal const string ShippedFlooredAffixMinimumRarity = "S";
+    // ⚠️ There is no floored affix any more. AFX_REROLL_CHARGE was the only one carrying a rarity
+    // floor ("S"), and it is gone with the reroll charge it granted.
 
     /// <summary>How many affixes the pool authors.</summary>
-    internal const int ShippedAffixPoolSize = 14;
+    internal const int ShippedAffixPoolSize = 13;
 
     // ---------------------------------------------------------------- the base-item roster
 
@@ -198,14 +195,6 @@ internal static class GearDocuments
         new("AFX_DAMAGE_REDUCTION", "DR_PCT", "STAT_ADD_FLAT", 0.02m, 0.08m, ["ARMOR", "AMULET"], null),
         new("AFX_GOLD_GAIN", "GOLD_PCT", "STAT_ADD_FLAT", 0.08m, 0.3m, ["RING", "AMULET"], null),
         new("AFX_PET_AURA_POWER", "PET_AURA_PCT", "STAT_ADD_FLAT", 0.05m, 0.2m, ["AMULET", "RING"], null),
-        new(
-            ShippedFlooredAffixId,
-            "REROLL_CHARGES",
-            "STAT_ADD_FLAT",
-            1m,
-            1m,
-            ["RING", "AMULET"],
-            ShippedFlooredAffixMinimumRarity),
         new("AFX_DAMAGE_VS_ELITES", null, null, 0.08m, 0.25m, ["WEAPON", "RING"], null),
     ];
 

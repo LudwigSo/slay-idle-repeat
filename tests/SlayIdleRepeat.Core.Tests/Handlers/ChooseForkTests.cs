@@ -1,12 +1,12 @@
 using Shouldly;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Dice;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
 using SlayIdleRepeat.Core.Rules.Board;
-using SlayIdleRepeat.Core.Rules.Dice;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Model;
 using Xunit;
@@ -53,13 +53,9 @@ public sealed class ChooseForkTests
         }
     }
 
-    /// <summary>What <see cref="Rules.Dice.FaceEffectResolver"/> would draw at a given committed <c>dice</c> position — the same computation <c>Handlers.RollDice</c> makes.</summary>
-    private static int PredictedPip(ulong dicePosition)
-    {
-        var weights = FairDiceBag.Replay(Seed, resetAtDraw: 0, uptoDraw: dicePosition);
-        var (face, _) = FairDiceBag.Step(DeterministicRng.OpenAt(Seed, RngStreams.Dice, dicePosition), weights);
-        return face;
-    }
+    /// <summary>What the die draws at a given committed <c>dice</c> position — the same computation <c>Handlers.RollDice</c> makes.</summary>
+    private static int PredictedPip(ulong dicePosition) =>
+        DeterministicRng.OpenAt(Seed, RngStreams.Dice, dicePosition).Range(Die.MinPips, Die.MaxPips + 1);
 
     /// <summary>The lowest dice-stream position whose predicted Pip is at least <paramref name="min"/>.</summary>
     private static ulong FindDicePositionWithPipAtLeast(int min)
@@ -209,7 +205,7 @@ public sealed class ChooseForkTests
 
         result.Accepted.ShouldBeTrue();
         result.Events.Count.ShouldBe(1, "the draw happened and is reported even though the move paused.");
-        result.Events[0].ShouldBeOfType<DiceRolled>().Face.Value.ShouldBe(pip);
+        result.Events[0].ShouldBeOfType<DiceRolled>().Pips.ShouldBe(pip);
 
         result.NewState.Run!.Position.ShouldBe(junction.Value);
         result.NewState.Run.PendingFork.ShouldNotBeNull();

@@ -14,7 +14,7 @@
       "description": "25 §3 — one stage, no forks, no interstitial. Duration target 2-4 minutes (25 §1 C2).",
       "type": "object",
       "additionalProperties": false,
-      "required": ["nodesBeforeGuardian", "guardianNodes", "stages", "forks", "tileComposition", "shrineForbiddenNodes", "guardianPowerMultiplier", "guardianEliteModifiers", "perkDrafts", "rerollCharges", "rerollRefresh", "energyCost", "reviveOffered", "abandonRefund"],
+      "required": ["nodesBeforeGuardian", "guardianNodes", "stages", "forks", "tileComposition", "shrineForbiddenNodes", "guardianPowerMultiplier", "guardianEliteModifiers", "perkDrafts", "energyCost", "reviveOffered", "abandonRefund"],
       "properties": {
         "nodesBeforeGuardian": { "type": "integer", "minimum": 1 },
         "guardianNodes": { "type": "integer", "minimum": 1, "maximum": 1 },
@@ -31,8 +31,6 @@
         "guardianPowerMultiplier": { "type": "number", "exclusiveMinimum": 1 },
         "guardianEliteModifiers": { "type": "integer", "minimum": 0 },
         "perkDrafts": { "type": "boolean" },
-        "rerollCharges": { "type": "integer", "minimum": 0 },
-        "rerollRefresh": { "type": "boolean" },
         "energyCost": { "type": "integer", "minimum": 1 },
         "reviveOffered": {
           "description": "25 §3 — AD_REVIVE does not apply to dungeons. This must be false.",

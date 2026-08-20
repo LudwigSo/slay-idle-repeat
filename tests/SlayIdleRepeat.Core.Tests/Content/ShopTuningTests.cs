@@ -29,7 +29,6 @@ public sealed class ShopTuningTests
         tuning.PerkBasePrice(ShopRarity.LEGENDARY).ShouldBe(950);
 
         tuning.ConsumableBasePrice("CON_HEALTH_DRAUGHT").ShouldBe(140);
-        tuning.ConsumableBasePrice("CON_REROLL_TOKEN").ShouldBe(120);
         tuning.ConsumableBasePrice("CON_DRAFT_TOKEN").ShouldBe(160);
         tuning.ConsumableBasePrice("CON_ESCAPE_ROPE").ShouldBe(100);
 

@@ -128,7 +128,7 @@ public sealed class PublicRuleTypeFloorTests
     /// captioning boss kills as Elite ones.
     /// </para>
     /// </remarks>
-    private const int ResolvedPublicRuleTypeFloor = 32;
+    private const int ResolvedPublicRuleTypeFloor = 29;
 
     /// <summary>
     /// 🔒 `30` §11.2 — every name in <c>Domain.PublicRuleTypes</c> that resolves to a <c>Core</c>
@@ -368,18 +368,19 @@ public sealed class PublicRuleTypeFloorTests
         // and which of 24 §4.3's two breakers a footer row is counting. Raised by exactly those two, so
         // ReviveTuning and the counter-key spelling stay internal.
         // 🔒 THIRTY-TWO since the run-tiles pass of 2026-08-20. TWO entry points — ShopView, whose
-        // consumer is the client's run Shop screen (S08), and RunDieView, whose consumer is the new
+        // consumer is the client's run Shop screen (S08). ⚠️ RunDieView's consumer was the
         // Dice Forge screen — plus the two types their public members name (ShopSlotRow,
-        // RunDieFaceRow) and one non-view, DiceForgeMenu. Each closes exactly the hole ShrineView
+        // RunDieFaceRow) and one non-view, DiceForgeMenu — all three gone with the die's special
+        // faces. Each closes exactly the hole ShrineView
         // closed for the shrine: the offer and the run's die are DERIVED from a seed and a recorded
         // position, so a screen without an entry point re-derives them, and a shop that shows one
         // offer while SHOP_BUY charges for another is what a second derivation produces.
-        // DiceForgeMenu is public for the same reason in miniature: the screen draws the menu the
-        // handler validates against, and two lists would let a screen offer an option the rules
-        // layer refuses. Raised by exactly those five, so RunShopOffer, RunShopContext, ShopPricing,
-        // ShopTuning, RunModifierTotals, RunDie and DieFaceCodec stay internal: what leaves is the
-        // offer as priced and the die as composed, never the price formula or the face encoding.
-        if (Domain.PublicRuleTypes.Count > 32)
+        // ⚠️ DiceForgeMenu, RunDieView and RunDieFaceRow were three of these and are gone with the
+        // die's special faces: the forge had a menu because a face could be replaced, and neither the
+        // menu nor the die projection has anything left to describe. So RunShopOffer, RunShopContext,
+        // ShopPricing, ShopTuning and RunModifierTotals stay internal: what leaves is the offer as
+        // priced, never the price formula.
+        if (Domain.PublicRuleTypes.Count > 29)
         {
             offenders.Add(
                 $"Domain.PublicRuleTypes now holds {Domain.PublicRuleTypes.Count} names. R16 is explicit " +

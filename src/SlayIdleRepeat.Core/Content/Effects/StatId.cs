@@ -81,8 +81,8 @@ public enum StatId
     /// <summary>Pet aura strength percent.</summary>
     PET_AURA_PCT = 20,
 
-    /// <summary>Reroll charges.</summary>
-    REROLL_CHARGES = 21,
+    // 21 was REROLL_CHARGES. Nothing can grant a reroll charge any more, so no effect, affix or
+    // set bonus may name the stat. The number stays retired rather than reused: it is a wire value.
 
     /// <summary>Tile preview range.</summary>
     TILE_PREVIEW = 22,

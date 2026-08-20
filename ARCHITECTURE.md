@@ -36,7 +36,8 @@ Pure, deterministic game logic — must stay playable and testable without Godot
   `StartRun.cs`, `ChooseFork.cs`, `ShopBuy.cs`, `PickPerk.cs`), dispatched via `CommandDispatch.cs`.
 - `Rules/` — game systems, subfoldered: `Board`, `Combat`, `Dice`, `Economy`, `Effects`, `Feats`,
   `Forge`, `Gear`, `Hero`, `Inventory`, `Luck`, `Perks`, `Stats`. Tile-kind resolution (Portal,
-  Minigame, Shop, Dice Forge, …) lives here, driven from `Handlers/ResolveTile.cs`.
+  Minigame, Shop, …) lives here, driven from `Handlers/ResolveTile.cs`. ⚠️ The Dice Forge is a
+  placeholder that clears itself; its resolver is gone with the die's faces (`04` §5.1).
   `Economy` is energy, currency math, shop pricing and run rewards; **merge, enhance and salvage
   are `Forge`**, not `Economy`.
 - `Model/` — `Player`, `Run`, `Guild`, `Gear`, `Snapshots` (versioned state via `SchemaVersion`).

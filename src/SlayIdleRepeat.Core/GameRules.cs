@@ -60,15 +60,15 @@ public static class GameRules
     /// </remarks>
     private static readonly CommandDispatch Dispatch = new CommandDispatch()
 
-        // ------------------------------------------------ the 22 RUN commands
+        // ------------------------------------------------ the 20 RUN commands
         //
-        // 🔒 22, not 19: SHOP_LEAVE, SHRINE_CHOOSE and DICE_FORGE_CHOOSE were added to `14` §2.3's
-        // registry (52 -> 55; decision recorded in `16`). Each carries a player choice a tile makes
-        // and no existing command could express, and without them the Shop, Shrine and Dice Forge
-        // tiles were a roll, a roll and nothing at all.
+        // 🔒 20, not 22: SHOP_LEAVE and SHRINE_CHOOSE were added to `14` §2.3's registry, each
+        // carrying a player choice a tile makes and no existing command could express. USE_REROLL and
+        // DICE_FORGE_CHOOSE were then removed with the reroll and the die's special faces — a reroll
+        // has nothing to spend and a forge has no face to install, so both rows became commands that
+        // could only be refused. Their wire names stay retired rather than reused.
         .Handled<StartRunCommand>("START_RUN", CommandKind.Run, StartRun.Handle, opensRun: true)
         .Handled<RollDiceCommand>("ROLL_DICE", CommandKind.Run, RollDice.Handle)
-        .Handled<UseRerollCommand>("USE_REROLL", CommandKind.Run, UseReroll.Handle)
         .Handled<ChooseForkCommand>("CHOOSE_FORK", CommandKind.Run, ChooseFork.Handle)
         .Handled<ResolveTileCommand>("RESOLVE_TILE", CommandKind.Run, ResolveTile.Handle)
         .Handled<PickPerkCommand>("PICK_PERK", CommandKind.Run, PickPerk.Handle)
@@ -78,7 +78,6 @@ public static class GameRules
         .Handled<ShopRefreshCommand>("SHOP_REFRESH", CommandKind.Run, ShopRefresh.Handle)
         .Handled<ShopLeaveCommand>("SHOP_LEAVE", CommandKind.Run, ShopLeave.Handle)
         .Handled<ShrineChooseCommand>("SHRINE_CHOOSE", CommandKind.Run, ShrineChoose.Handle)
-        .Handled<DiceForgeChooseCommand>("DICE_FORGE_CHOOSE", CommandKind.Run, DiceForgeChoose.Handle)
         .Handled<EventChooseCommand>("EVENT_CHOOSE", CommandKind.Run, EventChoose.Handle)
         .Handled<MinigameSubmitCommand>("MINIGAME_SUBMIT", CommandKind.Run, MinigameSubmit.Handle)
         .Handled<CampfireChooseCommand>("CAMPFIRE_CHOOSE", CommandKind.Run, CampfireChoose.Handle)

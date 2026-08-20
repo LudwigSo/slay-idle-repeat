@@ -172,14 +172,12 @@ public sealed class ShopBuyTests
         if (Consumables.IsHeld(id))
         {
             run.ConsumableCount(id).ShouldBe(1);
-            run.RerollChargesGrantedThisStage.ShouldBe(0);
             run.FreeDraftRerolls.ShouldBe(0);
         }
         else
         {
             run.Consumables.ShouldBeEmpty("a token is never held.");
-            (run.RerollChargesGrantedThisStage + run.FreeDraftRerolls).ShouldBe(
-                1, "…it converts to its charge at the till instead.");
+            run.FreeDraftRerolls.ShouldBe(1, "…it converts to its charge at the till instead.");
         }
     }
 

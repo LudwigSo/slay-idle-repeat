@@ -40,14 +40,13 @@ steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
 
 | Field | Meaning |
 |---|---|
-| `fn` | Any condition function from §4 (`SELF_MISSING_HP_PCT`, `GOLD_HELD`, `PET_COUNT`, `STATUS_STACKS`, `DIE_FACE_COUNT`, `PERK_COUNT`, `DISTINCT_PERK_CATEGORIES`, `BATTLES_WON_THIS_RUN`, …), evaluated against current state and rounded to 4 dp **before** the division |
+| `fn` | Any condition function from §4 (`SELF_MISSING_HP_PCT`, `GOLD_HELD`, `PET_COUNT`, `STATUS_STACKS`, `PERK_COUNT`, `DISTINCT_PERK_CATEGORIES`, `BATTLES_WON_THIS_RUN`, …), evaluated against current state and rounded to 4 dp **before** the division |
 | `per` | State units per step |
 | `cap` | Maximum number of steps; `null` = uncapped |
 | `statusId` | The status `HAS_STATUS` and `STATUS_STACKS` read — §4's *"by status id"*. Required by both, meaningless to the rest |
-| `faceKind` | The `04` §1 face kind `DIE_FACE_COUNT` counts — §4's *"by face kind"*. Same rule |
 | `category` | The perk category `PERK_COUNT` restricts to — §4's *"optionally by category"*. Genuinely optional; its absence counts every perk |
 
-🔴 **Erratum, closed by M2-06 via §10's route.** The last three rows were missing. This table offered `fn` *"any condition function from §4"* and named `STATUS_STACKS` and `DIE_FACE_COUNT` in its own worked list — but both take an argument (§4 types `DIE_FACE_COUNT` *"by face kind"*; `STATUS_STACKS` counts one status, the same one §4 types `HAS_STATUS` *"by status id"* — §4's own `STATUS_STACKS` row states no argument at all, which is this gap one section over) and there was no field to carry either, so **a scale driven by either was unexpressible** and the two functions were offered for something the vocabulary could not do. The three keys are **not new vocabulary**: they are the same three keys a §4 condition term already carries, with the same names, types and meanings, so a function reads an argument the same way from a scale as from a condition. A scale over `STATUS_STACKS` that names no status is **refused**, not read as "every status" or as zero.
+🔴 **Erratum, closed by M2-06 via §10's route.** The argument rows were missing. This table offered `fn` *"any condition function from §4"* and named `STATUS_STACKS` in its own worked list — but it takes an argument (it counts one status, the same one §4 types `HAS_STATUS` *"by status id"* — §4's own `STATUS_STACKS` row states no argument at all, which is this gap one section over) and there was no field to carry it, so **a scale driven by it was unexpressible** and the function was offered for something the vocabulary could not do. The keys are **not new vocabulary**: they are the same keys a §4 condition term already carries, with the same names, types and meanings, so a function reads an argument the same way from a scale as from a condition. A scale over `STATUS_STACKS` that names no status is **refused**, not read as "every status" or as zero. ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). *The list used to name `DIE_FACE_COUNT` alongside `STATUS_STACKS`, and `faceKind` was the third argument key.*
 
 ```json
 { "op": "STAT_ADD_PCT", "stat": "DMG_PCT", "value": 0.05,
@@ -89,7 +88,9 @@ steps          = min( floor( fn / per ), cap )        // cap: null ⇒ uncapped
 | `STAT_CAP_OVERRIDE` | Raise or redirect a cap, per `capKind`: `STAT_MAX` replaces `05` §1's ceiling on `stat` with `value`; `REDIRECT_EXCESS` multiplies the amount by which `stat` overshot its ceiling by `value` and adds it to `toStat` (`Perfect Strike`); `HEAL_CEILING` bounds `Heal()` (`05` §4.3) at `value` × Max HP and touches no stat cap (`Avatar of War`) |
 
 Valid `stat` values: `MAX_HP · ATK · DEF · ASPD · CRIT · CDMG · LIFESTEAL · DODGE · BLOCK · PEN · DMG_PCT · DR_PCT · HEAL_PCT · THORNS`
-Plus the non-combat stats: `GOLD_PCT · CROWNS_PCT · DROP_CHANCE · RARITY_SHIFT · ENERGY_REGEN_PCT · PET_AURA_PCT · REROLL_CHARGES · TILE_PREVIEW · SHOP_PRICE_PCT · XP_PCT · BEAST_FEED_PCT · STONE_PCT`
+Plus the non-combat stats: `GOLD_PCT · CROWNS_PCT · DROP_CHANCE · RARITY_SHIFT · ENERGY_REGEN_PCT · PET_AURA_PCT · TILE_PREVIEW · SHOP_PRICE_PCT · XP_PCT · BEAST_FEED_PCT · STONE_PCT`
+
+⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). *`REROLL_CHARGES` was a twelfth non-combat stat; nothing can grant a reroll charge, so no effect, affix or set bonus may name it. Its wire number stays retired rather than reused.*
 
 ### 2.2 Damage and healing operations
 
@@ -144,7 +145,7 @@ The last two exist only inside `ON_HEAL` contexts (`05` §4.3): `HEAL_AMOUNT` is
 
 These are resolved by the run controller, never by the combat simulator.
 
-🔒 **Combat-context exception** *(ruled in `16` A7)*: a **combat trigger may emit a run/board op** — the sanctioned case is the Dicelord's Scramble firing `MODIFY_DIE_FACE` from a `PERIODIC` trigger (`17` §9). The simulator still never resolves it: it appends a `RunEffectQueued` event to the combat log (`05` §7) and the run controller applies the queued ops **in log order when the battle resolves** — after the outcome is fixed, before `ON_BATTLE_END` effects are granted. In a PvP duel the queue is discarded, consistent with `IS_PVP` skipping (§9.3). This keeps the simulator pure while letting combat mark consequences for the run.
+🔒 **Combat-context exception** *(ruled in `16` A7)*: a **combat trigger may emit a run/board op** — e.g. a boss firing `MOVE_NODES` from a `PERIODIC` trigger. ⚠️ The sanctioned case used to be the Dicelord's Scramble firing `MODIFY_DIE_FACE` (`17` §9); that op is gone (`04` §5) and so is the Scramble. The simulator still never resolves it: it appends a `RunEffectQueued` event to the combat log (`05` §7) and the run controller applies the queued ops **in log order when the battle resolves** — after the outcome is fixed, before `ON_BATTLE_END` effects are granted. In a PvP duel the queue is discarded, consistent with `IS_PVP` skipping (§9.3). This keeps the simulator pure while letting combat mark consequences for the run.
 
 | Op | Meaning |
 |---|---|
@@ -152,8 +153,8 @@ These are resolved by the run controller, never by the combat simulator.
 | `GRANT_ITEM` | A gear item at a given rarity band |
 | `GRANT_PERK` | A perk, random or specified |
 | `UPGRADE_PERK` | Raise an owned perk one tier |
-| `MODIFY_DIE_FACE` | Replace a die face (`Weighted Faces`, `The Sixth Star`, `Scramble`) |
-| `GRANT_REROLL` | Add reroll charges |
+| ~~`MODIFY_DIE_FACE`~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). Ordinal 35 stays retired. |
+| ~~`GRANT_REROLL`~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). Ordinal 36 stays retired. |
 | `MOVE_NODES` | Move the token forward/backward N nodes |
 | `REVEAL_TILES` | Extend tile preview range |
 | `RESOLVE_TILE_AGAIN` | Re-resolve the current tile at a multiplier |
@@ -184,7 +185,7 @@ These are resolved by the run controller, never by the combat simulator.
 | `PERIODIC` | Every N seconds of battle time | `interval`, `startDelay` |
 | `ON_PHASE_ENTER` | Boss phase begins | `phase` |
 | `ON_TILE_RESOLVED` | A board tile resolves | `tileType` |
-| `ON_ROLL` | A die roll completes | `faceKind` |
+| `ON_ROLL` | A die roll completes | *(none)* ⚠️ it took `faceKind`; the die has no face kinds (`04` §1), so the trigger fires on every roll |
 | `ON_PERK_TAKEN` | A perk is drafted | `category` |
 | `ON_STAGE_GATE` | A stage boundary is crossed | — |
 | `ON_RUN_START` / `ON_RUN_END` | Run boundaries | — |
@@ -207,7 +208,7 @@ Because `once` exists, `ON_LOW_HP` must be able to fire more than once — which
 
 **R2 — `once` is a boolean**, as §3 and §7.4 both write it. `05` §3.1's *"at most their authored `once` count"* is loose prose for "the authored limit". Erratum on `05` §3.1's wording.
 
-**Parameters that are constitutive rather than narrowing.** A parameter that narrows the row's own sentence means "not narrowed" when it is absent — `chance`, `everyNth`, `cooldown`, `onlyIfWon`, `tileType`, `faceKind`, `category`. Three cannot be read that way and are **refused** when absent rather than defaulted: `PERIODIC` without `interval` has no period, `ON_LOW_HP` without `threshold` names no crossing, and `ON_PHASE_ENTER` without `phase` cannot say which entry it means.
+**Parameters that are constitutive rather than narrowing.** A parameter that narrows the row's own sentence means "not narrowed" when it is absent — `chance`, `everyNth`, `cooldown`, `onlyIfWon`, `tileType`, `category`. Three cannot be read that way and are **refused** when absent rather than defaulted: `PERIODIC` without `interval` has no period, `ON_LOW_HP` without `threshold` names no crossing, and `ON_PHASE_ENTER` without `phase` cannot say which entry it means.
 
 ---
 
@@ -235,7 +236,7 @@ Conditions gate an effect without changing when it is evaluated. All are pure fu
 | `PERK_COUNT` | int, optionally by category |
 | `DISTINCT_PERK_CATEGORIES` | int |
 | `PET_COUNT` | int |
-| `DIE_FACE_COUNT` | int, by face kind |
+| ~~`DIE_FACE_COUNT`~~ | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). |
 | `GOLD_HELD` | int |
 | `BATTLES_WON_THIS_RUN` | int |
 | `STAGE_INDEX` | 1..3 |
@@ -523,14 +524,14 @@ no amount of authored content could express.
 
 - [ ] `EffectDefinition` record and JSON schema
 - [ ] `EffectResolver` implementing §8's order exactly
-- [ ] All 44 ops implemented with unit tests
+- [ ] All 42 ops implemented with unit tests
 - [ ] All 23 trigger kinds wired into the combat and run loops
-- [ ] All 23 condition functions
+- [ ] All 22 condition functions
 - [ ] All 98 perks, 60 talents, 14 affixes, 4 set bonuses, 24 pet definitions, 12 mount definitions, 12 statuses and 8 boss scripts authored as data — **zero hardcoded content**
 - [ ] Schema validation in the build, failing on unknown ops or ids
 - [ ] Parity test: client and server resolvers agree on 10,000 random build permutations
 
-*(Counts after the `16` A7 batch extension and §10.1 E6: 44 ops = 41 + `CLEAR_SUMMONS` + `STAT_COPY` + `RANDOM_OUTCOME`; 23 triggers = 21 + `ON_DEATH` + `ON_REVIVE`; 23 conditions = 20 + the three `ATTACKER_IS_*`; 11 targets = 9 + `OTHER_ENEMIES` + `OWNER`; 6 duration scopes = 5 + `PHASE`.)*
+*(Counts after the `16` A7 batch extension, §10.1 E6 and D41's removals: 42 ops = 41 + `CLEAR_SUMMONS` + `STAT_COPY` + `RANDOM_OUTCOME` − `MODIFY_DIE_FACE` − `GRANT_REROLL`; 23 triggers = 21 + `ON_DEATH` + `ON_REVIVE`; 22 conditions = 20 + the three `ATTACKER_IS_*` − `DIE_FACE_COUNT`; 11 targets = 9 + `OTHER_ENEMIES` + `OWNER`; 6 duration scopes = 5 + `PHASE`.)*
 
 ### 11.1 Erratum on the last checklist line — the parity test (M2-17)
 

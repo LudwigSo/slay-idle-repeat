@@ -735,68 +735,6 @@
           "duration": { "seconds": 8.0, "scope": "BATTLE" }
         },
         {
-          "id": "BOSS_DICELORD_P2_SCRAMBLE",
-          "op": "RANDOM_OUTCOME",
-          "outcomes": [
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F1", "weight": 1 },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F2", "weight": 1 },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F3", "weight": 1 },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F4", "weight": 1 },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F5", "weight": 1 },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F6", "weight": 1 }
-          ],
-          "trigger": { "kind": "PERIODIC", "interval": 14.0 },
-          "target": "SELF"
-        },
-        {
-          "id": "BOSS_DICELORD_P2_SCRAMBLE_F1",
-          "op": "MODIFY_DIE_FACE",
-          "faceIndex": 1,
-          "newFace": { "kind": "Void" },
-          "target": "RUN",
-          "duration": { "scope": "RUN" }
-        },
-        {
-          "id": "BOSS_DICELORD_P2_SCRAMBLE_F2",
-          "op": "MODIFY_DIE_FACE",
-          "faceIndex": 2,
-          "newFace": { "kind": "Void" },
-          "target": "RUN",
-          "duration": { "scope": "RUN" }
-        },
-        {
-          "id": "BOSS_DICELORD_P2_SCRAMBLE_F3",
-          "op": "MODIFY_DIE_FACE",
-          "faceIndex": 3,
-          "newFace": { "kind": "Void" },
-          "target": "RUN",
-          "duration": { "scope": "RUN" }
-        },
-        {
-          "id": "BOSS_DICELORD_P2_SCRAMBLE_F4",
-          "op": "MODIFY_DIE_FACE",
-          "faceIndex": 4,
-          "newFace": { "kind": "Void" },
-          "target": "RUN",
-          "duration": { "scope": "RUN" }
-        },
-        {
-          "id": "BOSS_DICELORD_P2_SCRAMBLE_F5",
-          "op": "MODIFY_DIE_FACE",
-          "faceIndex": 5,
-          "newFace": { "kind": "Void" },
-          "target": "RUN",
-          "duration": { "scope": "RUN" }
-        },
-        {
-          "id": "BOSS_DICELORD_P2_SCRAMBLE_F6",
-          "op": "MODIFY_DIE_FACE",
-          "faceIndex": 6,
-          "newFace": { "kind": "Void" },
-          "target": "RUN",
-          "duration": { "scope": "RUN" }
-        },
-        {
           "id": "BOSS_DICELORD_P3_HOUSE_WARD",
           "op": "SHIELD",
           "value": 0.25,
@@ -851,14 +789,7 @@
           "mechanics": [
             { "effectId": "BOSS_DICELORD_P2_LOADED_DICE" },
             { "effectId": "BOSS_DICELORD_P2_FATE_BOSS_ATK" },
-            { "effectId": "BOSS_DICELORD_P2_FATE_BOTH_ASPD" },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE" },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F1" },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F2" },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F3" },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F4" },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F5" },
-            { "effectId": "BOSS_DICELORD_P2_SCRAMBLE_F6" }
+            { "effectId": "BOSS_DICELORD_P2_FATE_BOTH_ASPD" }
           ]
         },
         {

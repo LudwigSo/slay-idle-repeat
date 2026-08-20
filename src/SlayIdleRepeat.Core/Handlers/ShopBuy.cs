@@ -136,13 +136,10 @@ internal static class ShopBuy
     /// check for the two that convert at the till.
     /// </summary>
     /// <remarks>
-    /// ⚠️ The two token consumables are accepted unconditionally, and `03` §7.1's "greys out when
-    /// charges are at the max stored" is therefore NOT enforced. It cannot be honestly enforced
-    /// here: the stored-charge cap is counted against a total that includes talent and perk bonuses,
-    /// neither of which exists, so a cap check today would refuse a purchase against a number that
-    /// is not yet the real one. The grant itself is capped where it is spent, in
-    /// <c>Rules.Dice.RerollEconomy</c>, so the charge cannot exceed the ceiling — what a player can
-    /// still do is buy a token that grants them nothing.
+    /// ⚠️ The Draft Token is accepted unconditionally, and `03` §7.1's "greys out at the cap"
+    /// is therefore NOT enforced — a player can buy one that grants them nothing. The clause used to
+    /// be about the REROLL Token's stored-charge cap as well; that consumable is gone with the
+    /// reroll, so what is left is the draft-reroll cap alone.
     /// </remarks>
     private static bool CanTakeConsumable(Model.Run run, string consumableId) =>
         !Consumables.IsHeld(consumableId) || run.HeldConsumableCount < Consumables.HeldCap;
@@ -182,15 +179,15 @@ internal static class ShopBuy
         }
     }
 
-    /// <summary>`03` §7.1's purchase column: two consumables are held, two convert at the till.</summary>
+    /// <summary>`03` §7.1's purchase column: two consumables are held, one converts at the till.</summary>
+    /// <remarks>
+    /// ⚠️ The Reroll Token used to be the second converting one. It is gone with the reroll charge —
+    /// there is nothing for a token to convert into — so the shop no longer stocks it.
+    /// </remarks>
     private static void GrantConsumable(Model.Run run, string consumableId)
     {
         switch (consumableId)
         {
-            case Consumables.RerollToken:
-                run.GrantRerollCharges(1);
-                break;
-
             case Consumables.DraftToken:
                 run.GrantFreeDraftRerolls(1);
                 break;

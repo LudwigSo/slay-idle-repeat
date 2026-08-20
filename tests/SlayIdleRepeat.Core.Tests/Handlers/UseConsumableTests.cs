@@ -83,11 +83,10 @@ public sealed class UseConsumableTests
     }
 
     /// <summary>
-    /// The two token consumables are never held, so naming one is the same refusal as naming a
-    /// Draught the run has none of.
+    /// The token consumable is never held, so naming it is the same refusal as naming a Draught
+    /// the run has none of.
     /// </summary>
     [Theory]
-    [InlineData(Consumables.RerollToken)]
     [InlineData(Consumables.DraftToken)]
     [InlineData("CON_NOT_A_THING")]
     public void A_consumable_that_is_never_held_is_refused(string consumableId)

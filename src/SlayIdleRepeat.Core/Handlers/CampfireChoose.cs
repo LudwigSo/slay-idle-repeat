@@ -3,20 +3,19 @@ using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Board.Resolution;
-using SlayIdleRepeat.Core.Rules.Dice;
 
 namespace SlayIdleRepeat.Core.Handlers;
 
 /// <summary>
-/// The <c>CAMPFIRE_CHOOSE</c> handler: one of the campfire's three fixed options (`03` §2) — rest,
-/// upgrade an owned perk, or gain two Reroll Charges.
+/// The <c>CAMPFIRE_CHOOSE</c> handler: one of the campfire's two options (`03` §2) — rest, or
+/// upgrade an owned perk.
 /// </summary>
 /// <remarks>
 /// <para>
-/// All three are implemented. Two of them used to be refused as <c>ILLEGAL_STATE</c> because neither
-/// drafted perks nor a reroll-charge grant was tracked anywhere; both are now, so a campfire before
-/// the boss is the three-way decision the document describes rather than a heal with two greyed-out
-/// buttons beside it.
+/// ⚠️ <b>The campfire's third option is gone with the reroll charge.</b> `03` §2 used to offer "+2
+/// Reroll Charges" beside the rest and the perk upgrade; there is no reroll to charge for any more,
+/// so the option was removed rather than left as a button that grants nothing. The campfire is a
+/// two-way decision until something is authored to take the empty seat.
 /// </para>
 /// <para>
 /// 🔒 <b>The perk upgrade is refused when there is nothing to upgrade</b> — a run with no perks, or
@@ -41,15 +40,12 @@ internal static class CampfireChoose
     /// <summary>Upgrade one owned perk to its next tier.</summary>
     internal const int UpgradePerkChoiceIndex = 1;
 
-    /// <summary>Gain Reroll Charges for the current stage.</summary>
-    internal const int RerollChargesChoiceIndex = 2;
-
     /// <summary>Applies <c>CAMPFIRE_CHOOSE</c>.</summary>
-    /// <param name="command">Which of the three options.</param>
+    /// <param name="command">Which of the two options.</param>
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
     /// <returns>
     /// <see cref="RejectionReason.ILLEGAL_STATE"/> when no campfire is pending, the index is outside
-    /// the three, or the upgrade option was chosen with no upgradeable perk; otherwise accepted, with
+    /// the two, or the upgrade option was chosen with no upgradeable perk; otherwise accepted, with
     /// the option applied and the tile cleared.
     /// </returns>
     internal static HandlerResult Handle(CampfireChooseCommand command, HandlerInput input)
@@ -88,12 +84,6 @@ internal static class CampfireChoose
 
                 return HandlerResult.Accept();
             }
-
-            case RerollChargesChoiceIndex:
-                run.GrantRerollCharges(RerollEconomy.CampfireBonus);
-                run.ClearPendingTile();
-
-                return HandlerResult.Accept();
 
             default:
                 return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);

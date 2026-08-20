@@ -5,7 +5,12 @@ using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
 
-/// <summary>Tests <c>content/curses/curses.json</c>: the twelve-curse catalogue and its chapter-gating column.</summary>
+/// <summary>Tests <c>content/curses/curses.json</c>: the ten-curse catalogue and its chapter-gating column.</summary>
+/// <remarks>
+/// ⚠️ Ten, not `19` Part E's twelve. <c>CUR_DIZZY</c> ("the next 3 rolls cannot be rerolled") and
+/// <c>CUR_LEADFOOT</c> ("Chain and Surge faces behave as plain Pip 3") were removed with the reroll
+/// and the die's special faces, and neither has a replacement.
+/// </remarks>
 /// <remarks>The mechanical rules engine (no-stacking, paired-reward payout, mount immunity) is tested elsewhere, not here.</remarks>
 public sealed class CursesDataTests
 {
@@ -28,16 +33,15 @@ public sealed class CursesDataTests
     }
 
     [Fact]
-    public void The_catalogue_carries_all_twelve_19_part_e_curses()
+    public void The_catalogue_carries_the_ten_19_part_e_curses_that_are_still_authored()
     {
-        Data().Read($"{Document}#/curses").Items.Count.ShouldBe(12);
+        Data().Read($"{Document}#/curses").Items.Count.ShouldBe(10);
     }
 
     /// <summary>Each curse's chapter gate, pinned individually so an edit to any one gate is caught rather than only a change in the aggregate count.</summary>
     [Theory]
     [InlineData("CUR_SLIPPERY", 1)]
     [InlineData("CUR_MARKED", 1)]
-    [InlineData("CUR_DIZZY", 1)]
     [InlineData("CUR_FRACTURED", 1)]
     [InlineData("CUR_HUNTED", 5)]
     [InlineData("CUR_UNTIMELY", 3)]
@@ -45,7 +49,6 @@ public sealed class CursesDataTests
     [InlineData("CUR_BRITTLE_BONES", 3)]
     [InlineData("CUR_MISERLY", 3)]
     [InlineData("CUR_BLIND", 3)]
-    [InlineData("CUR_LEADFOOT", 3)]
     [InlineData("CUR_TITHE", 3)]
     public void Each_curse_carries_O13s_chapter_gate(string curseId, int expectedChapter)
     {
@@ -58,9 +61,8 @@ public sealed class CursesDataTests
     [Theory]
     [InlineData("CUR_SLIPPERY", "-1 to all Pip rolls (minimum 1)", "+250 Gold")]
     [InlineData("CUR_MARKED", "Enemies +10% ATK for the rest of the stage", "+2 Enhance Stones")]
-    [InlineData("CUR_DIZZY", "The next 3 rolls cannot be rerolled", "+180 Gold")]
     [InlineData("CUR_FRACTURED", "-8% DEF", "+500 Gold")]
-    public void The_four_chapter_1_curses_match_19_part_es_effect_and_reward_columns(
+    public void The_three_chapter_1_curses_match_19_part_es_effect_and_reward_columns(
         string curseId, string effect, string reward)
     {
         var curses = Data().Read($"{Document}#/curses").Items;

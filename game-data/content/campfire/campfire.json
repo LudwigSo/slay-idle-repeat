@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/campfire.schema.json",
-  "_doc": "The strings the Campfire / Shrine screen (S11) shows, and nothing else. One document for two arms, because a campfire and a shrine are two tile kinds that open one screen. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. ⚠️ Its `block` group used to carry four unrelated absences; three of them are gone, because the run-tiles pass of 2026-08-20 built what they described — the campfire's perk upgrade and reroll grant, the shrine's choice, and the Cleanse. The one left is about the RUN: a hero holding no upgradeable perk. Deliberately absent still: the ten shrine buff names and every curse name, because their own catalogues name them, and any healed amount, because it is a tunable read at render time.",
+  "_doc": "The strings the Campfire / Shrine screen (S11) shows, and nothing else. One document for two arms, because a campfire and a shrine are two tile kinds that open one screen. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. ⚠️ Its `block` group used to carry four unrelated absences; three of them are gone, because the run-tiles pass of 2026-08-20 built what they described — the campfire's perk upgrade and reroll grant, the shrine's choice, and the Cleanse. The one left is about the RUN: a hero holding no upgradeable perk. ⚠️ The campfire's third option then went with the reroll: `action.rerollCharges` captioned +2 Reroll Charges and there is no reroll charge to grant, so the card was removed rather than left granting nothing. Deliberately absent still: the ten shrine buff names and every curse name, because their own catalogues name them, and any healed amount, because it is a tunable read at render time.",
   "name": {
     "title": "loc.campfire.title.name",
     "shrineTitle": "loc.campfire.shrine_title.name"
@@ -12,7 +12,6 @@
   "action": {
     "rest": "loc.campfire.rest.action",
     "upgradePerk": "loc.campfire.upgrade_perk.action",
-    "rerollCharges": "loc.campfire.reroll_charges.action",
     "continue": "loc.campfire.continue.action",
     "take": "loc.campfire.take.action",
     "cleanse": "loc.campfire.cleanse.action"

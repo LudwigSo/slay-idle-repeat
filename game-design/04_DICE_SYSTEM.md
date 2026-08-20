@@ -1,141 +1,90 @@
 # 04 — The Dice System
 
-The die is the game's signature. It is not a random number generator the player suffers — it is **a piece of equipment the player upgrades**. This is the mechanic that distinguishes Slay Idle Repeat from every other auto-battler in the genre, so it gets its own systems budget.
+The die moves the hero and does nothing else. It is **an ordinary six-sided die**: you roll it, you get a number from 1 to 6, and you walk that many nodes. What happens when you get there is the board's business, not the die's.
+
+⚠️ **This document used to describe the opposite**, and the change is the largest single reduction in the design set: the die was the game's signature mechanic, a piece of equipment upgraded through six face kinds, five upgrade sources and a reroll economy. All of it was removed — see §5 for exactly what, and `16_DECISION_LOG.md` D41 for the ruling. What is left is this page.
 
 ---
 
 ## 1. The die
 
-The player owns **one die with six faces**. Each face is a `DieFace` value.
+The player rolls **one die with six sides**, showing 1 to 6. There is no face type, no face tier, and nothing anywhere in the game that can change what a side shows.
 
-```csharp
-public enum DieFaceKind { Pip, Star, Surge, Fortune, Void, Chain }
-
-public readonly struct DieFace {
-    public DieFaceKind Kind;
-    public int  Value;      // pips for Kind == Pip; ignored otherwise
-    public int  Tier;       // 0..3 — scales the face's non-movement effect only
-                            // (e.g. Surge heals 12% at T0, 15/18/21% at T1-3).
-                            // Purely mechanical; there is no cosmetic tier (D14).
-}
+```
+[1] [2] [3] [4] [5] [6]
 ```
 
-### Starting die
-```
-[1] [2] [3] [4] [5] [6]      // all Kind = Pip
-```
+A roll answers a number. The number is the movement. Nothing else about a roll is a decision or a modifier.
 
-### Face kinds
+🔒 **The board is what makes a roll interesting.** A 6 is not better than a 2 in the abstract — it is better or worse depending on what sits six nodes ahead, which is a thing the board decides and the player can read. That is where the game's texture now lives; see `03_BOARD_AND_TILES.md`.
 
-| Kind | Symbol | Effect on roll |
-|---|---|---|
-| `Pip` | 1–6 | Move that many nodes. The baseline. |
-| `Star` | ★ | **Choose** your movement, 1–6. The most valuable face in the game. |
-| `Surge` | ⚡ | Move 3, then heal 12% Max HP. |
-| `Fortune` | ✦ | Move 4, and the tile you land on pays double (Gold, Crowns, drops — not perks). |
-| `Void` | ○ | Move 0. Stay in place and immediately re-resolve the current tile at 50% reward. Appears only as a **curse-inflicted** face, never as an upgrade. |
-| `Chain` | ⛓ | Move 2, then roll again immediately (chains up to 3 times, then forced to stop). |
+### The one thing that moves a roll
 
-📐 TUNABLE: all values above.
+`CUR_SLIPPERY` (`19` Part E) applies **−1 to every roll, to a minimum of 1**. It is a curse, it is the only modifier of any kind on a roll, and the floor of 1 is what stops a cursed run standing still.
 
 ---
 
-## 2. Where die faces are upgraded
+## 2. Randomness
 
-| Source | Scope | Notes |
-|---|---|---|
-| **Talent tree — Fortune branch** | Permanent | *Weighted Faces*: `1` → `2` at rank 1, `3` at rank 3, `4` at rank 5. *Surging Fate*: `2` → `Surge` at rank 3. Keystones: *The Sixth Star* (`6` → `Star`), *Chainweaver* (`4` → `Chain`), *Golden Fate* (`5` → `Fortune`). See `09_TALENT_TREE.md` §6 — these are the tree's most expensive nodes. |
-| **Mounts** | Permanent while equipped | Certain mounts grant a face change (e.g. Starhoof Stag: `3` → `Fortune`). |
-| **`TILE_DICE_FORGE`** | Run-scoped | Pick one face, upgrade it for the rest of this run. |
-| **Perks** | Run-scoped | e.g. *Loaded Die* (+1 to all Pip faces), *Twin Fates* (Star faces trigger twice) |
-| **Curses / Chapter 8** | Temporary | Faces can be *downgraded* or scrambled into `Void` |
+The draw is **uniform** over the six sides, straight off the run's `dice` RNG stream. The same seed and the same number of previous draws always produce the same roll, which is what makes a run replayable and a command log verifiable.
 
-The full die, with all sources applied, is recomputed at run start and displayed in a **Die Panel** the player can open at any time during a run. Transparency here is essential — a hidden die is a hostile die.
+⚠️ **There is no luck smoothing.** A weighted "Fair Dice" bag used to sit here — a decaying weight vector that made repeated faces rare and was disclosed in the settings menu as *"Fair Dice: ON"*. It went with the rest of the dice system: an ordinary die is ordinary, streaks included, and a settings row promising otherwise would have to be removed too.
+
+🔒 Note for PvP: Ghost Duels contain **no dice**. Dice affect board movement only, never combat. See `11_PVP_GHOST_DUEL.md`.
 
 ---
 
-## 3. Reroll charges
-
-| Property | Value |
-|---|---|
-| Base charges per stage | 1 📐 TUNABLE |
-| Refresh | On each Stage Gate (charges do not carry over) |
-| Sources of extra charges | Talents (Fortune branch, up to +2), Campfire choice (+2 this stage), perks, the Reroll Token consumable — **+1 charge granted immediately on purchase**, never held; greyed out at the max-stored cap (`03` §7.1, ruled in `16` A7) |
-| Ad reroll | `AD_REROLL_DICE`, **2 per run**, does not consume a charge |
-| Max stored | 5 |
-
-A reroll re-rolls the die completely — it is not a "+1 nudge". A separate talent grants **Nudge** (±1 to a Pip result, 1/stage), which is a different, cheaper tool.
-
-### 3.1 What a reroll actually changes 🔒 (ruled at the M7 kickoff, D6, 2026-08-18)
-
-🔒 **A reroll changes the NEXT roll. It does not undo the roll it is offered beside, and it never could.**
-
-`ROLL_DICE` answers three questions in one command — the face, the movement it buys and the tile the run lands on — so by the moment a face is on screen the run has **already moved**. There is nothing left to undo. `USE_REROLL` instead burns one draw of the dice stream, advancing the Fair-Dice bag exactly as a real roll would but without moving the run, so the very next `ROLL_DICE` draws a different index against updated weights.
-
-⚠️ **This section previously implied the other reading, and the document is what yielded.** The alternative was splitting `ROLL_DICE` into a roll and a commit, which would cost a 53rd and 54th command against `14` §2.3's frozen vocabulary (another logged `16` decision), change RNG consumption on the dice stream, and diverge **every saved command log** — the same replay blast radius that kept M4-17 out of the M4 review. The shipped command is correct; the sentence describing it was not.
-
-Consequences that follow, and are **not** changed by this amendment:
-- The charge is spent when the reroll is taken, and it buys an effect on the next roll rather than a redo of this one.
-- The counts, sources and caps in the table above are untouched, tunable markers included — this amendment is about what a reroll *does*, not about any number.
-- The 4-second ring and its lapse behaviour are untouched, and are already shipped correctly: **on lapse the roll is accepted and no charge is spent.**
-
-### Reroll prompt UX
-After the die settles, a 4-second ring timer runs around a `REROLL (2)` button. Tapping anywhere else or letting the timer lapse accepts the roll. The timer must be skippable and its duration must respect an accessibility setting that removes it entirely (see `13_UI_UX_SCREENS.md` §8).
-
-🔒 **The button's wording must not promise an undo** (§3.1). It offers to change the next roll, and the caption beside it says so — a bare *"Reroll"* on a screen where the run has already moved is read as a redo, which is the one thing the command cannot do.
-
----
-
-## 4. Randomness fairness
-
-Pure uniform randomness on a 6-sided die produces streaks that players read as broken. Slay Idle Repeat uses a **lightly smoothed distribution**, disclosed in the settings menu ("Fair Dice: ON").
-
-```
-Algorithm: weighted-bag with decay
-  - Maintain a weight vector w[6], initialised to 1.0 for each face.
-  - On roll: pick face f with probability w[f] / sum(w).
-  - After rolling f:  w[f] *= 0.55  ; all other faces w[i] += 0.12
-  - Clamp each w[i] to [0.25, 2.0].
-  - Reset the bag at each Stage Gate.
-```
-
-Effect: the same face three times in a row is rare; the expected value stays at 3.5; no face is ever impossible. 📐 TUNABLE (0.55 / 0.12 / clamps).
-
-**The player-facing wording must be honest.** Call it "Fair Dice — reduces long streaks", not "true random".
-
-🔒 Note for PvP: Ghost Duels contain **no dice**. Dice affect board movement only, never combat. This means PvP is entirely free of the dice smoothing question. See `11_PVP_GHOST_DUEL.md`.
-
----
-
-## 5. Dice-related perks (subset of the perk pool)
-
-These live in the main perk pool (`06_PERKS.md`) but are listed here for cohesion:
-
-| ID | Perk | Rarity | Effect |
-|---|---|---|---|
-| `PK_LOADED_DIE` | Loaded Die | Common | +1 to all Pip results (max 6) |
-| `PK_SECOND_THOUGHT` | Second Thought | Common | +1 Reroll Charge per stage |
-| `PK_MOMENTUM_DIE` | Momentum | Rare | Every 4th roll is automatically a `Star` |
-| `PK_FORTUNES_FAVOUR` | Fortune's Favour | Rare | `Fortune` faces also grant +1 Reroll Charge |
-| `PK_CHAINBREAKER` | Chainbreaker | Rare | `Chain` faces chain up to 5 times |
-| `PK_TWIN_FATES` | Twin Fates | Epic | `Star` faces resolve the landed tile twice |
-| `PK_WEIGHTED_FATE` | Weighted Fate | Epic | Convert your lowest Pip face into a `Surge` |
-| `PK_DICELORD_GIFT` | The Dicelord's Gift | Legendary | ⚠️ **Redesign pending (O35, `16` B4).** Its fork-choice clause is superseded — fork choice is always free (`03` §1.1, ruled in `16` A7). Placeholder effect until re-ruled: your `6` face becomes a `Star`. Do not build content or balance against this row. |
-
-🔒 All 12 Dice & Board perks are **ineligible in PvP** (`11` §3). They are pure PvE value.
-
----
-
-## 6. Presentation
+## 3. Presentation
 
 - The die is a chunky 3D-look 2D sprite rendered with a squash-and-stretch tumble, **0.8 s**, landing with a bounce and a small dust puff.
-- Upgraded faces are visually distinct at a glance: `Star` is gold with rays, `Surge` cyan with a lightning glyph, `Fortune` green with a coin, `Void` a black hole with a purple rim, `Chain` orange links.
 - The result is echoed as a large floating number above the hero token before movement begins.
-- Haptics: light tap on roll start, medium on land, heavy on `Star`/`Fortune`.
-- Tapping and holding the die at any time shows the current 6 faces in a fan layout.
+- Haptics: light tap on roll start, medium on land.
+- The board screen shows the number the last roll came up, until the next roll replaces it.
 
 📐 TUNABLE: animation timings must be reducible via the "Fast Mode" setting to 0.25 s.
 
-🔒 **No die skins in v1.** All cosmetic rewards were cut (decision D14), so there is exactly one die design and eleven face artworks (`15` §E16).
+⚠️ **Six sides means six artworks, not eleven.** The per-face art (`Star` gold with rays, `Surge` cyan, `Fortune` green, `Void` black, `Chain` orange) is gone with the faces, and so is the `Star`/`Fortune` heavy haptic. `15` §E16's count moves with it.
 
-⚠️ **Flagged for later:** die skins remain the cheapest and most thematic cosmetic this game could ever add — roughly 11 assets per skin and no system changes anywhere else. If the ladder or mastery tracks need a visual trophy after launch, this is the re-entry point. See `16_DECISION_LOG.md` R3.
+🔒 **No die skins in v1.** All cosmetic rewards were cut (decision D14), so there is exactly one die design.
+
+⚠️ **Flagged for later:** die skins remain a cheap and thematic cosmetic — roughly six assets per skin and no system changes anywhere else. See `16_DECISION_LOG.md` R3.
+
+---
+
+## 4. The player-facing surface
+
+One control: the roll button, the largest interactive element on the board screen and inside the thumb zone (`13` §3). It is a single tap and it is final.
+
+⚠️ **There is no Die Panel.** Screen S12 showed the current six faces with the source that granted each, because *a hidden die is a hostile die* — a real concern when talents, mounts, perks, forge upgrades and curses could all rewrite a face. A die that is always 1..6 has nothing to disclose, so the screen is gone rather than emptied. `13` §1's screen register moves with it.
+
+⚠️ **There is no reroll prompt.** A 4-second ring used to run around a `REROLL (n)` button after the die settled, with a tap-anywhere-else acceptance and an accessibility setting that removed the timer. All of it is gone: with no reroll to offer there is no window to offer it in, and a roll is committed the moment it is taken.
+
+---
+
+## 5. What was removed, and where it went
+
+Recorded here rather than deleted silently, because most of it is referenced from other documents and because some of it is worth rebuilding differently.
+
+| Removed | What it was | Where its absence is now visible |
+|---|---|---|
+| `DieFaceKind` — `Star`, `Surge`, `Fortune`, `Void`, `Chain` | Five special faces beside `Pip`: choose-your-movement, move-and-heal, move-and-double-the-tile, stay-and-re-resolve, move-and-roll-again | This document; `19` Part E's `CUR_LEADFOOT`; `17` §9's Dicelord |
+| Face `Tier` (0..3) | Scaled a face's non-movement effect | This document |
+| The five upgrade sources | Talent tree Fortune branch (`09` §6), mount face grants (`07`), `TILE_DICE_FORGE`, run perks, curse downgrades | `09_TALENT_TREE.md`; `07_HERO_PETS_MOUNTS.md`; `03` §2's tile list |
+| **Reroll charges** | 1/stage base, +2 from a Campfire choice, +2 from talents, perks, the Reroll Token consumable, `AD_REROLL_DICE`, cap 5 | `03` §2's campfire; `03` §7.1's consumables; `12` §4.1's ad placements |
+| **Nudge** | A talent-granted ±1 on a roll, 1/stage | `09_TALENT_TREE.md` |
+| **Fair Dice** | The weighted-bag smoothing and its settings row | §2 above; `13` §8's settings list |
+| The Die Panel (S12) | The screen that disclosed the composed die | §4 above; `13` §1 |
+| 12 Dice & Board perks | `PK_LOADED_DIE`, `PK_SECOND_THOUGHT`, `PK_MOMENTUM_DIE`, `PK_FORTUNES_FAVOUR`, `PK_CHAINBREAKER`, `PK_TWIN_FATES`, `PK_WEIGHTED_FATE`, `PK_DICELORD_GIFT` and the rest | `06_PERKS.md` — the pool is short by a category's worth of rows |
+
+### 5.1 The Dice Forge tile is kept, and does nothing
+
+`TILE_DICE_FORGE` stays in `03` §2's fourteen tile kinds. Its mechanic — pick a face, upgrade it for the run — has nothing left to act on, so **landing on one resolves in place and grants nothing.** It is held for a repurposing, and until that lands it is a tile the player walks over.
+
+🔴 A tile that does nothing is a real hole in the board's reward texture, not a neutral placeholder: it occupies one of the `Arcane` fork's three outcomes (`03` §3.1). Whatever replaces it is owed a design section here or in `03`.
+
+### 5.2 What the removal did not touch
+
+- The `dice` RNG stream, its per-run seeding and its draw accounting. One roll is still exactly one draw.
+- The Stage Gate's heal. The gate used to also refresh reroll charges and re-anchor the Fair-Dice bag; the heal is now all it does.
+- `CUR_SLIPPERY`. It reads a roll's number, which a plain die still has.
+- The **perk draft's** reroll (`REROLL_DRAFT`, Draft Tokens, `AD_REROLL_PERK`, the free-reroll count). A different mechanic that happens to share a word, and untouched throughout.

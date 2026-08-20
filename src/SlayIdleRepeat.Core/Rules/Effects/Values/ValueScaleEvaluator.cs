@@ -59,7 +59,7 @@ internal static class ValueScaleEvaluator
     /// <remarks>
     /// Uses <see cref="ConditionArguments.Of(ValueScale)"/> rather than
     /// <see cref="ConditionArguments.None"/>, since <c>fn</c> can be any condition function including
-    /// ones that take an argument (<c>STATUS_STACKS</c>, <c>DIE_FACE_COUNT</c>).
+    /// ones that take an argument (<c>STATUS_STACKS</c>).
     /// </remarks>
     private static double Reading(ValueScale scale, EffectEvaluationContext context) =>
         ConditionEvaluator.Read(scale.Fn, ConditionArguments.Of(scale), context);

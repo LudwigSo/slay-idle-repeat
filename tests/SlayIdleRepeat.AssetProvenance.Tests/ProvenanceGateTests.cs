@@ -443,7 +443,7 @@ public sealed class ProvenanceGateTests
         report.CoveredSlots.ShouldBe(1);
         report.VerifiedPairings.ShouldBe(1);
         report.Coverage.ShouldBe(DeliveryCoverage.Partial);
-        report.Headline().ShouldStartWith("PARTIAL DELIVERY — 1 of 1048", Case.Sensitive);
+        report.Headline().ShouldStartWith("PARTIAL DELIVERY — 1 of 1040", Case.Sensitive);
     }
 
     /// <summary>
@@ -481,9 +481,9 @@ public sealed class ProvenanceGateTests
         // Counted from the shipped register, not quoted.
         report.RegisteredAssets.ShouldBe(
             ProvenanceFixtures.Register.Art.Assets.Count + ProvenanceFixtures.Register.Audio.Assets.Count);
-        report.RegisteredAssets.ShouldBe(1080);
+        report.RegisteredAssets.ShouldBe(1072);
         report.CutAssets.ShouldBe(32);
-        report.ActiveAssets.ShouldBe(1048);
+        report.ActiveAssets.ShouldBe(1040);
     }
 
     /// <summary>

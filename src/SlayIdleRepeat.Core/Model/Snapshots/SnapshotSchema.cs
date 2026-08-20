@@ -9,5 +9,11 @@ public static class SnapshotSchema
     /// serialisation change: it bumps this number and is a versioned migration, never silent — and
     /// changes every existing <c>stateHash</c>.
     /// </summary>
-    public const int SchemaVersion = 16;
+    /// <remarks>
+    /// 17 drops five <c>RunSnapshot</c> fields at once — <c>RerollChargesSpentThisStage</c>,
+    /// <c>StageGateDiceAnchor</c>, <c>DieFaceUpgrades</c>, <c>RerollChargesGrantedThisStage</c> and
+    /// <c>ChainLinksTaken</c> — with the reroll charge, the weighted dice bag and the die's special
+    /// faces. <c>FreeDraftRerolls</c> stays: the perk draft's reroll is a different mechanic.
+    /// </remarks>
+    public const int SchemaVersion = 17;
 }

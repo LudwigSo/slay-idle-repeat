@@ -156,18 +156,6 @@ public sealed record EffectDefinition
     /// </remarks>
     public IReadOnlyList<RandomOutcomeEntry>? Outcomes { get; init; }
 
-    /// <summary><see cref="EffectOp.MODIFY_DIE_FACE"/> only — which face is replaced.</summary>
-    public DieFaceIndex? FaceIndex { get; init; }
-
-    /// <summary><see cref="EffectOp.MODIFY_DIE_FACE"/> only — the replacement face.</summary>
-    public DieFaceSpec? NewFace { get; init; }
-
-    /// <summary>
-    /// <see cref="EffectOp.MODIFY_DIE_FACE"/> only — its own <c>scope</c> key. See
-    /// <see cref="DieFaceScope"/> for why this is not <see cref="Duration"/>'s scope.
-    /// </summary>
-    public DieFaceScope? Scope { get; init; }
-
     /// <summary>The family <see cref="Op"/> belongs to.</summary>
     public EffectOpFamily Family => EffectOps.FamilyOf(Op);
 }

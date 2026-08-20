@@ -240,7 +240,6 @@ public sealed class DslDeterminismBaselineTests
     [InlineData(EffectVocabularyEmissionSets.StatusTagOnRemoveStatus)]
     [InlineData(EffectVocabularyEmissionSets.ChanceOnOnAttack)]
     [InlineData(EffectVocabularyEmissionSets.ValueScaleStatusId)]
-    [InlineData(EffectVocabularyEmissionSets.ValueScaleFaceKind)]
     [InlineData(EffectVocabularyEmissionSets.ValueScaleCategory)]
     public void Every_named_18_10_1_extension_reaches_the_corpus(string extension)
     {
@@ -258,10 +257,12 @@ public sealed class DslDeterminismBaselineTests
     public void The_extension_key_vocabulary_is_18_10_1s_arithmetic()
     {
         EffectVocabularyEmissionSets.ExtensionKeys.Count.ShouldBe(
-            10,
+            9,
             "18 §10.1's five rows — E2 contributing two, because STAT_MAX and REDIRECT_EXCESS are " +
-            "different halves of step 9 — plus 18 §3.1 R11's chance on ON_ATTACK and M2-06's three " +
-            "valueScale argument keys: 5 + 1 + 1 + 3 = 10");
+            "different halves of step 9 — plus 18 §3.1 R11's chance on ON_ATTACK and M2-06's " +
+            "valueScale argument keys, now two rather than three: 5 + 1 + 1 + 2 = 9. ⚠️ The third was " +
+            "faceKind, gone with the die's face kinds and with DIE_FACE_COUNT, the only function that " +
+            "took it");
 
         EffectVocabularyEmissionSets.ExtensionKeys.ShouldBeUnique();
     }

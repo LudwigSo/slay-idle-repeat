@@ -19,7 +19,7 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 | S09 | Event Card | Title, body, 2–3 options |
 | S10 | Minigame (×4) | `MG_CHEST_PICK`, `MG_TIMING_BAR`, `MG_DICE_DUEL`, `MG_MEMORY_RUNE` |
 | S11 | Campfire / Shrine | 2–3 choice cards |
-| S12 | Die Panel | Current 6 faces with sources, opened from the board HUD |
+| ~~S12~~ | ~~Die Panel~~ | ⚠️ **Removed.** It disclosed the composed die because *a hidden die is a hostile die*; the die is an ordinary 1..6 with nothing to disclose (`04` §4). The number stays retired rather than reused. |
 | S13 | Death / Revive | Revive offer |
 | S14 | Run Results | Reward tally, ad-double, retry, home |
 | S15 | **Hero** | Equipped gear, pets, mount, full stat sheet, loadout presets |
@@ -107,7 +107,7 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 ```
 ┌─────────────────────────────────────┐
 │ ❤ 4,120/5,600 ▓▓▓▓▓▓▓░░  Stage 2/3  │  ← HP bar, stage pips
-│ 💰 1,340  🎲 ●●○  [🧪 2]   [≡ perks] │  ← gold, rerolls, consumable pouch, perks
+│ 💰 1,340  [🧪 2]          [≡ perks] │  ← gold, consumable pouch, perks
 ├─────────────────────────────────────┤
 │                                     │
 │         ・  ⚔  ✨                    │  ← upcoming tiles (scroll up to preview)
@@ -131,8 +131,8 @@ Portrait only. One-handed. Designed for a 6.1" phone at 1080×2340, safe-area aw
 Rules:
 - The roll button is the largest interactive element on screen and sits in the bottom-third thumb zone.
 - The perks button `[≡ perks]` opens a scrollable list of everything drafted this run with current tiers. It must be reachable at all times; a player must never lose track of their build.
-- The die panel (S12) is opened by long-pressing the roll button.
-- **The consumable pouch** sits in the top HUD row beside the reroll pips: a compact `[🧪 n]` button showing the held count (cap 4 — `03` §7.1). Tapping it fans out the held items (Health Draughts, Escape Ropes) as mini-cards with a one-line effect and a USE button each. USE is enabled only in `AWAIT_ROLL` and never during battle (D3); the Draught's USE is additionally disabled at full HP. An **armed Escape Rope** shows as a small rope icon hovering over the hero token until it fires. When empty, the pouch renders at 40% opacity but stays visible — the affordance must be learnable before the first purchase. `03` §7.1 owns the designs.
+- ⚠️ The roll button has **no long press**. It opened the Die Panel (S12), which is gone with the die's faces (`04` §4), so a roll is one tap and there is no second gesture on the control.
+- **The consumable pouch** sits in the top HUD row (⚠️ it used to sit beside the reroll pips, which are gone with the reroll — `04` §5): a compact `[🧪 n]` button showing the held count (cap 4 — `03` §7.1). Tapping it fans out the held items (Health Draughts, Escape Ropes) as mini-cards with a one-line effect and a USE button each. USE is enabled only in `AWAIT_ROLL` and never during battle (D3); the Draught's USE is additionally disabled at full HP. An **armed Escape Rope** shows as a small rope icon hovering over the hero token until it fires. When empty, the pouch renders at 40% opacity but stays visible — the affordance must be learnable before the first purchase. `03` §7.1 owns the designs.
 
 ---
 
@@ -210,7 +210,7 @@ Everything must be readable at arm's length on a phone in daylight. Bold outline
 | Feature | Requirement |
 |---|---|
 | Reduced motion | Disables screen shake, parallax, particle bursts; shortens all animations to 100 ms |
-| No-timer mode | Removes the 4 s reroll countdown and all soft timers; every prompt waits indefinitely |
+| No-timer mode | Removes all soft timers; every prompt waits indefinitely. ⚠️ Its headline subject was the 4 s reroll countdown, which is gone with the reroll (`04` §4) — the setting still governs every other prompt. |
 | Colourblind support | Rarity conveyed by **frame shape + gem symbol**, not colour alone. Three palettes: default, deuteranopia, tritanopia. |
 | Text size | 3 steps (100 / 115 / 130%) with layouts that reflow |
 | Haptics toggle | On/off |

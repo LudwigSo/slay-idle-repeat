@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/board_events.schema.json",
-  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed five-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges, none of which exist in Core today, so each such outcome carries one UNSUPPORTED op naming the mechanic and its owning milestone. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
+  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed five-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges (removed outright), none of which exist in Core today, so each such outcome carries one UNSUPPORTED op naming the mechanic and its owning milestone. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
   "_status": "transcribed",
   "cards": [
     {
@@ -67,7 +67,7 @@
         },
         {
           "label": "Share your rations",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.05 }, { "op": "UNSUPPORTED", "note": "+2 Reroll Charges — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": -0.05 }, { "op": "UNSUPPORTED", "note": "+2 Reroll Charges — the reroll is removed, so there is nothing to grant" } ] } ]
         }
       ]
     },
@@ -173,7 +173,7 @@
         },
         {
           "label": "Ask nothing",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — the reroll is removed, so there is nothing to grant" } ] } ]
         }
       ]
     },
@@ -189,7 +189,7 @@
           "outcomes": [
             { "w": 40, "effects": [ { "op": "UNSUPPORTED", "note": "teleport forward 5 nodes — board movement is M3-02's" } ] },
             { "w": 40, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 200, "chapterScaled": true } ] },
-            { "w": 20, "effects": [ { "op": "CURSE_REWARD", "curseId": "CUR_DIZZY" } ] }
+            { "w": 20, "effects": [ { "op": "CURSE_REWARD", "curseId": "CUR_FRACTURED" } ] }
           ]
         },
         {
@@ -357,7 +357,7 @@
       "options": [
         {
           "label": "Pay",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "pay 15% of current Gold to pass, then +1 Reroll Charge — a proportional cost the flat cost field cannot express, and reroll charges are not tracked" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "pay 15% of current Gold to pass, then +1 Reroll Charge — a proportional cost the flat cost field cannot express, and the reroll is removed" } ] } ]
         },
         {
           "label": "Refuse",
@@ -428,7 +428,7 @@
         },
         {
           "label": "Shelter",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "lose 1 Reroll Charge to heal 20% HP — reroll charges are not tracked, so the cost cannot be taken and the heal is deliberately not paid either" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "lose 1 Reroll Charge to heal 20% HP — the reroll is removed, so the cost cannot be taken and the heal is deliberately not paid either" } ] } ]
         },
         {
           "label": "Walk through it",
@@ -538,7 +538,7 @@
         },
         {
           "label": "Avoid it",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — reroll charges are tracked nowhere in this codebase yet" } ] } ]
+          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 Reroll Charge — the reroll is removed, so there is nothing to grant" } ] } ]
         },
         {
           "label": "Watch from here",

@@ -25,28 +25,29 @@ internal static class Consumables
     /// <summary>Held. Use on the board: heal a share of Max HP. Disabled at full HP.</summary>
     internal const string HealthDraught = "CON_HEALTH_DRAUGHT";
 
-    /// <summary>Instant: +1 Reroll Charge on purchase. Never held.</summary>
-    internal const string RerollToken = "CON_REROLL_TOKEN";
-
     /// <summary>Instant: +1 free perk-draft reroll on purchase. Never held.</summary>
     internal const string DraftToken = "CON_DRAFT_TOKEN";
 
     /// <summary>Held. Use on the board: arms the rope, which skips the next tile landed on.</summary>
     internal const string EscapeRope = "CON_ESCAPE_ROPE";
 
-    /// <summary>The four ids, in `03` §7.1's own order.</summary>
+    /// <summary>The three ids, in `03` §7.1's own order.</summary>
+    /// <remarks>
+    /// ⚠️ Three, not four: the Reroll Token is gone with the reroll charge — a token that converts
+    /// into nothing is not a purchase.
+    /// </remarks>
     internal static IReadOnlyList<string> All { get; } = Array.AsReadOnly(new[]
     {
-        HealthDraught, RerollToken, DraftToken, EscapeRope,
+        HealthDraught, DraftToken, EscapeRope,
     });
 
-    /// <summary>The two that go into the pouch. The other two are spent at the till.</summary>
+    /// <summary>The two that go into the pouch. The other one is spent at the till.</summary>
     internal static bool IsHeld(string? consumableId) =>
         consumableId is HealthDraught or EscapeRope;
 
-    /// <summary>Whether this id is one of the four.</summary>
+    /// <summary>Whether this id is one of the three.</summary>
     internal static bool IsKnown(string? consumableId) =>
-        consumableId is HealthDraught or RerollToken or DraftToken or EscapeRope;
+        consumableId is HealthDraught or DraftToken or EscapeRope;
 
     /// <summary>
     /// The held cap of `03` §7.1 — at most this many consumables in the pouch at once, counted

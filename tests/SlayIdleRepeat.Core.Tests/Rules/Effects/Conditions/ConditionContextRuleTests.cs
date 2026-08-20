@@ -68,29 +68,12 @@ public sealed class ConditionContextRuleTests
     }
 
     /// <summary>
-    /// <c>DIE_FACE_COUNT</c> is the ninth run-state function and needs an argument as well as a run,
-    /// so it gets its own row rather than sharing the theory above.
-    /// </summary>
-    [Fact]
-    public void DIE_FACE_COUNT_with_no_run_view_fails_loudly()
-    {
-        var thrown = Should.Throw<EffectContextException>(
-            () => ConditionEvaluator.Read(
-                ConditionFunction.DIE_FACE_COUNT,
-                new ConditionArguments(null, null, "Star"),
-                EffectTestBattle.Duel()));
-
-        thrown.Token.ShouldBe(nameof(ConditionFunction.DIE_FACE_COUNT));
-    }
-
-    /// <summary>
-    /// A function keyed "by status id" or "by face kind" has no answer without one — this is the
-    /// failure that makes a missing argument visible instead of silently counting every status.
+    /// A function keyed "by status id" has no answer without one — this is the failure that makes a
+    /// missing argument visible instead of silently counting every status.
     /// </summary>
     [Theory]
     [InlineData(ConditionFunction.HAS_STATUS)]
     [InlineData(ConditionFunction.STATUS_STACKS)]
-    [InlineData(ConditionFunction.DIE_FACE_COUNT)]
     public void A_function_that_needs_an_argument_fails_loudly_without_one(ConditionFunction function)
     {
         var hero = EffectTestBattle.Hero();
@@ -289,10 +272,13 @@ public sealed class ConditionContextRuleTests
     /// count is re-asserted here so that dependency is visible from the rule that relies on it.
     /// </summary>
     [Fact]
-    public void Every_one_of_the_twenty_three_functions_reads_a_value()
+    public void Every_one_of_the_twenty_two_functions_reads_a_value()
     {
         var functions = Enum.GetValues<ConditionFunction>();
-        functions.Length.ShouldBe(23, "18 §11: '23 conditions = 20 + the three ATTACKER_IS_*'");
+        functions.Length.ShouldBe(
+            22,
+            "18 §11: '23 conditions = 20 + the three ATTACKER_IS_*', less DIE_FACE_COUNT, which is " +
+            "gone with the die's face kinds");
 
         var hero = EffectTestBattle.Hero(currentHp: 40, maxHp: 100) with
         {
@@ -314,7 +300,7 @@ public sealed class ConditionContextRuleTests
             Run = EffectTestBattle.Run(),
         };
 
-        var arguments = new ConditionArguments("SUNDER", "OFFENSE", "Star");
+        var arguments = new ConditionArguments("SUNDER", "OFFENSE");
 
         var unhandled = new List<string>();
 

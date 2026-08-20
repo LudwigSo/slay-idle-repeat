@@ -193,7 +193,7 @@ Both mean **the ad build cannot be produced by a plain one-click Godot export.**
 | 2 | `AD_DOUBLE_RUN_REWARDS` | Run results screen | ×2 all banked run rewards | 1 per run |
 | 3 | `AD_REROLL_PERK` | Perk draft screen | Reroll the 3 options | 2 per run |
 | 4 | `AD_EXTRA_PERK_CHOICE` | Perk draft screen | Add a 4th option from a rarity-upgraded pool | 1 per run |
-| 5 | `AD_REROLL_DICE` | After the die settles | Free reroll, doesn't consume a charge | 2 per run |
+| ~~5~~ | ~~`AD_REROLL_DICE`~~ | — | ⚠️ Removed with the die's special faces and the reroll (`04` §5, `16` D41). The in-run placement list is **12, not 13**, and the global in-run impression cap moves 17 → 15 with it. |
 | 6 | `AD_SHOP_REFRESH` | Shop tile, after the free refresh | Refresh all 4 offers | 2 per run |
 | 7 | `AD_SHOP_FREEBIE` | Shop tile | Take one offer for free | 1 per run |
 | 8 | `AD_SKIP_CURSE` | Landing on `TILE_CURSE` | Nullify the curse, keep any attached reward | 1 per run |

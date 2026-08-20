@@ -90,8 +90,8 @@ internal sealed class MetaLoopDriver
     /// <summary>Which option of a choice this player is on. Reset the moment one is accepted.</summary>
     private int _choice;
 
-    /// <summary>The Fair-Dice reset anchor as of the last command — see <see cref="StageGatesCrossed"/>.</summary>
-    private ulong _diceAnchor;
+    /// <summary>The stage of the last tile recorded — see <see cref="StageGatesCrossed"/>.</summary>
+    private int _stage;
 
     private MetaLoopDriver(InMemoryGame game, PlayerId player)
     {
@@ -182,9 +182,21 @@ internal sealed class MetaLoopDriver
 
     /// <summary>How many Stage Gates this run crossed.</summary>
     /// <remarks>
-    /// Counted off the run's own Fair-Dice reset anchor moving, which is the one thing nothing but a
-    /// gate touches — a counter built on "the run stood on a boundary node" would be a second
-    /// implementation of the rule under test, and would agree with a broken one.
+    /// ⚠️ <b>This counts the run's own stage BOUNDARY crossings, not the gate firing.</b> It used to
+    /// count the Fair-Dice reset anchor moving, which nothing but a gate touched; that anchor is gone
+    /// with the weighted draw, and the gate's heal is all it still writes — an observable that reads
+    /// zero for a hero already at full hit points, which a run through this harness usually is.
+    /// <para>
+    /// So what is left is traversal, read off the stage each recorded tile belongs to: one crossing
+    /// per ASCENDING change, the boss stage excluded because it belongs to no stage and is reached by
+    /// the boss-exact rule rather than by gating. That is exactly the question the two suites reading
+    /// this counter ask — how many boundaries a whole run walks over — and it is independent of the
+    /// gate rule rather than a second implementation of it.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>It no longer proves the gate FIRED at those boundaries.</b> That claim lives in
+    /// <c>StageGateTriggerTests</c>, which asserts the heal directly on a deliberately wounded hero.
+    /// </para>
     /// </remarks>
     internal int StageGatesCrossed { get; private set; }
 
@@ -288,7 +300,7 @@ internal sealed class MetaLoopDriver
                 // not a dead end: the next one is tried before the run is given up on. A refusal of
                 // anything else means the run genuinely cannot go on.
                 if (next is EventChooseCommand or CampfireChooseCommand or ChooseForkCommand
-                         or ShrineChooseCommand or DiceForgeChooseCommand &&
+                         or ShrineChooseCommand &&
                     _choice < ChoiceLadder)
                 {
                     _choice++;
@@ -328,12 +340,6 @@ internal sealed class MetaLoopDriver
 
             var after = _game.State(_player).Run;
 
-            if (after is not null && after.StageGateDiceAnchor != _diceAnchor)
-            {
-                _diceAnchor = after.StageGateDiceAnchor;
-                StageGatesCrossed++;
-            }
-
             // A tile counts as resolved once it is CLEARED, not once a command was aimed at it: an
             // Event needs RESOLVE_TILE and then EVENT_CHOOSE, and marking it on the first would make
             // the second look like a re-arrival.
@@ -347,7 +353,18 @@ internal sealed class MetaLoopDriver
             // crossing made by a Portal jump would otherwise go unrecorded.
             if (after?.HasPendingTile == true && after.PendingTileLinearIndex != tileBefore)
             {
-                _stages.Add(after.PendingTileStage);
+                var stage = after.PendingTileStage;
+
+                // An ASCENDING change only, and never into the boss stage: the boss belongs to no
+                // stage and is reached by the boss-exact rule, so the step onto it is not a boundary
+                // the run gated over.
+                if (stage > _stage && _stage > 0)
+                {
+                    StageGatesCrossed++;
+                }
+
+                _stage = stage;
+                _stages.Add(stage);
             }
 
             if (next is ResolveTileCommand && after?.HasPendingTile == true && before >= 0)
@@ -453,11 +470,6 @@ internal sealed class MetaLoopDriver
             // This player buys nothing — MetaLoopTests is about the loop closing, and a driver that
             // spent the run's Gold would make every income assertion depend on what the shop drew.
             TileKind.Shop when run.HasOpenShop => new ShopLeaveCommand(),
-
-            // Raise a low face to a 6. The face moves with the choice ladder so a second forge in
-            // one run (which would find face 1 already at 6) has somewhere to go.
-            TileKind.DiceForge => new DiceForgeChooseCommand(
-                FaceIndex: 1 + _choice, OptionIndex: 0, HigherPipValue: 6),
 
             TileKind.Minigame => new RollDiceCommand(),
             _ => new ResolveTileCommand(),

@@ -172,7 +172,6 @@ internal static class ConditionEvaluator
             ConditionFunction.PERK_COUNT => Run(context, function).PerkCount(arguments.Category),
             ConditionFunction.DISTINCT_PERK_CATEGORIES => Run(context, function).DistinctPerkCategories,
             ConditionFunction.PET_COUNT => Run(context, function).PetCount,
-            ConditionFunction.DIE_FACE_COUNT => DieFaceCount(arguments, context, function),
             ConditionFunction.GOLD_HELD => Run(context, function).GoldHeld,
             ConditionFunction.BATTLES_WON_THIS_RUN => Run(context, function).BattlesWonThisRun,
             ConditionFunction.STAGE_INDEX => Run(context, function).StageIndex,
@@ -257,19 +256,6 @@ internal static class ConditionEvaluator
             "18 §4 types it 'by status id'. Counting every status instead would be a reading the " +
             "document does not describe. (18 §1.1 offers the same function to valueScale, which " +
             "carries no argument key at all — see ConditionArguments.)");
-
-    private static double DieFaceCount(
-        ConditionArguments arguments,
-        EffectEvaluationContext context,
-        ConditionFunction function)
-    {
-        var faceKind = arguments.FaceKind ?? throw Malformed(
-            function.ToString(),
-            "it counts one face kind and the term names none",
-            "18 §4 types it 'by face kind' — one of 04 §1's six.");
-
-        return Run(context, function).DieFaceCount(faceKind);
-    }
 
     // ------------------------------------------------------------------ the seven comparators
 

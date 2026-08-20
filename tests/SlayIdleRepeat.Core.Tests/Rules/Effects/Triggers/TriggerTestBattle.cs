@@ -79,16 +79,15 @@ internal static class TriggerTestBattle
             new EffectTrigger { Kind = TriggerKind.ON_LOW_HP, Threshold = 0.01, Once = true },
             EffectOp.REVIVE);
 
-    /// <summary>The Dicelord's Scramble: a combat trigger carrying a run/board op. The one sanctioned case of the combat-context exception.</summary>
+    /// <summary>A combat trigger carrying a run/board op. The one sanctioned case of the combat-context exception.</summary>
     internal static EffectDefinition Scramble() =>
         new()
         {
             Id = "BOSS_DICELORD_P2_SCRAMBLE",
-            Op = EffectOp.MODIFY_DIE_FACE,
+            Op = EffectOp.MOVE_NODES,
             Trigger = new EffectTrigger { Kind = TriggerKind.PERIODIC, Interval = 14.0 },
             Target = EffectTarget.RUN,
-            FaceIndex = DieFaceIndex.At(1),
-            NewFace = new DieFaceSpec("Void"),
+            Value = 1.0,
         };
 
     /// <summary><c>PK_FLURRY</c>: an extra attack on every 5th attack.</summary>

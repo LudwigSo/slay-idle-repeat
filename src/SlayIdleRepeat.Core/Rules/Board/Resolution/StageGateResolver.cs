@@ -12,12 +12,13 @@ namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Three things move, all through <c>Run.ApplyStageGate</c>: the hero heals
-/// <see cref="StageGateTuning.HealPctMaxHp"/> of Max HP (clamped, the same rounding shape
-/// <c>Handlers.RollDice</c> already uses for a Surge face's heal); reroll charges spent this stage
-/// reset to 0; and the Fair-Dice bag's reset anchor moves to the <c>dice</c> stream's position at
-/// the gate, so the next <c>FairDiceBag.Replay</c> call reconstructs weights from THIS stage rather
-/// than draw 0 of the whole run.
+/// One thing moves, through <c>Run.ApplyStageGate</c>: the hero heals
+/// <see cref="StageGateTuning.HealPctMaxHp"/> of Max HP, clamped.
+/// </para>
+/// <para>
+/// ⚠️ <b>Two others used to.</b> The gate reset the stage's spent reroll charges and moved the
+/// Fair-Dice bag's reset anchor to the <c>dice</c> stream's position at the gate; both are gone with
+/// the reroll and the weighted draw, and nothing was put in their place.
 /// </para>
 /// <para>
 /// What does not move, and why: rarity-shift and the enemy-power step are driven by the stage
@@ -37,8 +38,8 @@ internal static class StageGateResolver
     /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
     /// <param name="currentHpBeforeGate">
     /// The hero's hit points immediately before the gate — the caller's own running total, since
-    /// <c>Handlers.RollDice</c> may have already applied a Surge heal earlier in the same chain and
-    /// has not yet written it to <c>Run</c>.
+    /// the caller's running total rather than <c>Run.CurrentHp</c>, so a heal this command has
+    /// already computed but not yet written is not lost.
     /// </param>
     /// <returns>The hero's hit points after the gate's heal, clamped to Max HP.</returns>
     internal static int Apply(HandlerInput input, int currentHpBeforeGate)
@@ -52,12 +53,7 @@ internal static class StageGateResolver
             (int)Math.Round(run.MaxHp * tuning.HealPctMaxHp, MidpointRounding.AwayFromZero);
         var healedCurrentHp = Math.Min(healed, run.MaxHp);
 
-        // Read off the OPEN stream, not Run.StreamPosition: this command's own draws (the chain
-        // that reached the gate) have not been folded back into Run yet, so the committed position
-        // would be stale by exactly this command's own draws.
-        var diceStreamPositionAtGate = input.Rng.Stream(RngStreams.Dice).Position;
-
-        run.ApplyStageGate(healedCurrentHp, diceStreamPositionAtGate);
+        run.ApplyStageGate(healedCurrentHp);
 
         return healedCurrentHp;
     }

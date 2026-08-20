@@ -43,26 +43,6 @@ public sealed class ValueScaleArgumentTests
             0.0, "the scale names SUNDER, and the actor carries none");
     }
 
-    /// <summary>A scale over <c>DIE_FACE_COUNT</c> — the die face kinds, counted on the run's dice.</summary>
-    [Fact]
-    public void A_scale_over_DIE_FACE_COUNT_reads_the_face_kind_it_names()
-    {
-        var perStar = Scaled(
-            new ValueScale
-            {
-                Fn = ConditionFunction.DIE_FACE_COUNT,
-                Per = 1,
-                Cap = null,
-                FaceKind = "Star",
-            },
-            value: 0.03);
-
-        ValueScaleEvaluator.EffectiveValue(perStar, WithFaces("Star", 4)).ShouldBe(0.12);
-
-        ValueScaleEvaluator.EffectiveValue(perStar, WithFaces("Pip", 4)).ShouldBe(
-            0.0, "the scale names Star, and the run's dice carry none");
-    }
-
     /// <summary>
     /// A scale over <c>PERK_COUNT</c>, whose category is optional — the same key is optional here
     /// too, and its absence counts every perk.
@@ -178,16 +158,6 @@ public sealed class ValueScaleArgumentTests
         };
 
         return EffectTestBattle.Context(hero, hero);
-    }
-
-    private static EffectEvaluationContext WithFaces(string faceKind, int count)
-    {
-        var run = EffectTestBattle.Run() with
-        {
-            DieFacesByKind = new Dictionary<string, int>(StringComparer.Ordinal) { [faceKind] = count },
-        };
-
-        return WithRun(run);
     }
 
     private static EffectEvaluationContext WithRun(RunStateReading run)
