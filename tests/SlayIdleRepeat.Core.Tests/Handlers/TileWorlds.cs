@@ -129,6 +129,29 @@ internal static class TileWorlds
             Worlds.NewPlayer(),
             Rehydrated(RunSnapshots.With(gold: gold, lastAppliedAtUtc: NowUtc, phase: phase)));
 
+    /// <summary>
+    /// A run between rolls — no tile, no fork — carrying whatever pouch and rope state a case needs.
+    /// </summary>
+    /// <remarks>
+    /// The one board state <c>USE_CONSUMABLE</c> is legal in, and therefore the fixture its suite is
+    /// written over. Separate from <see cref="OnNoTile"/> rather than adding four parameters to it:
+    /// that overload is the "every handler's first refusal" fixture and a dozen suites pass it
+    /// positionally.
+    /// </remarks>
+    internal static WorldSlice OnNoTileHolding(
+        int currentHp = 100,
+        IReadOnlyDictionary<string, int>? consumables = null,
+        bool escapeRopeArmed = false,
+        int freeDraftRerolls = 0) =>
+        new(
+            Worlds.NewPlayer(),
+            Rehydrated(RunSnapshots.With(
+                lastAppliedAtUtc: NowUtc,
+                currentHp: currentHp,
+                consumables: consumables,
+                escapeRopeArmed: escapeRopeArmed,
+                freeDraftRerolls: freeDraftRerolls)));
+
     private static RunAggregate Rehydrated(RunSnapshot snapshot)
     {
         var run = RunAggregate.Rehydrate(snapshot);

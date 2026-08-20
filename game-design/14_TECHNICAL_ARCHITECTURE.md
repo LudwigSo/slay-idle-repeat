@@ -118,7 +118,7 @@ A command the server says no to returns a **rejection envelope**, also on HTTP 2
 
 This table is the **complete** command vocabulary — wire protocol and domain `GameCommand` hierarchy alike, per the one-vocabulary rule above. 🔒 **It is exhaustive: a command not listed here does not exist.** Adding one is a decision, recorded in `16`, and lands here first. Payload sketches show shape and intent; the field-level source of truth is the public `GameCommand` subtypes in `Core/Commands` (`30` §11.2) — `Contracts` wraps them and never re-declares them (`30` §11.6). Commands marked *(A7)* were added by the `16` A7 registry ruling.
 
-**Run commands (19)** — `POST /run/{runId}/command`, sequence per run. *(Exception: `START_RUN` is submitted on the player endpoint, since no `runId` exists yet; the server allocates the `RunId` and the run's sequence starts at 1.)*
+**Run commands (22)** — `POST /run/{runId}/command`, sequence per run. *(Exception: `START_RUN` is submitted on the player endpoint, since no `runId` exists yet; the server allocates the `RunId` and the run's sequence starts at 1.)*
 
 | Command | Payload sketch | Notes |
 |---|---|---|
@@ -131,7 +131,10 @@ This table is the **complete** command vocabulary — wire protocol and domain `
 | `REROLL_DRAFT` | `{}` | |
 | `SKIP_DRAFT` | `{}` | |
 | `SHOP_BUY` | `{ shopSlotIndex }` | In-run shop, run-local Gold (`03` §7). Distinct from the meta `SHOP_PURCHASE` |
-| `SHOP_REFRESH` | `{}` | |
+| `SHOP_REFRESH` | `{}` | 1 free per shop visit, then `AD_SHOP_REFRESH` (2/run), then unavailable (`03` §7) |
+| `SHOP_LEAVE` | `{}` | *(D38)* Closes the shop visit and clears the tile. A shop is the one tile a player stands at for several commands by choice, so it needs an explicit "I am finished" — without one, `RESOLVE_TILE` had to clear the tile on arrival and the shop could never sell anything |
+| `SHRINE_CHOOSE` | `{ optionIndex }` | *(D38)* Takes slot 1 or slot 2 of the shrine's offer (`03` §7a.5); slot 2 is the Cleanse whenever the run carries a curse. The draw happens on THIS command, so the screen and the command read the same offer off the same committed stream position |
+| `DICE_FORGE_CHOOSE` | `{ faceIndex, optionIndex, higherPipValue? }` | *(D38)* Upgrades one face of the run's die, permanently for the run and free (`03` §2). ⚠️ The offered menu is narrower than `DiceForgeUpgradeTable`: `Star` and `Chain` are withheld — see D38 |
 | `EVENT_CHOOSE` | `{ choiceIndex }` | |
 | `MINIGAME_SUBMIT` | `{ minigameId, result }` | Client-asserted, legality-validated only (`03` §6.2, §9) |
 | `CAMPFIRE_CHOOSE` | `{ choiceIndex }` | |
@@ -140,13 +143,15 @@ This table is the **complete** command vocabulary — wire protocol and domain `
 | `REVIVE` | `{}` | Once per run (`02` §6) |
 | `USE_CONSUMABLE` | `{ consumableId }` | *(A7)* Board-only, never during combat (`03` §7, `04` §3) |
 | `END_RUN` | `{}` | |
-| `ABANDON_RUN` | `{}` | |
+| `ABANDON_RUN` | `{}` | *(D39)* Legal from every state a LIVE run can stand in — mid-battle, mid-draft, at a paused junction, on an unresolved tile. An `Ended` run answers `RUN_ALREADY_ENDED` |
 
 **Meta commands (33)** — `POST /player/command`, sequence per player (§16.3). Commands whose outcome needs randomness are marked **⚄** and draw from the command's server-issued seed (`30` §3, §8.1). *(M4-04 corrected the count — the table had held thirty rows since the A7 additions — and marked `MERGE` and `ENHANCE` ⚄: both draw, and neither was marked. Eleven rows carry the die.)*
 
 🔒 **The M4 retro's product-owner ruling of 2026-08-17 added three rows: `UNEQUIP`, `LOCK_ITEM` and `SET_AUTO_SALVAGE_RULES`.** The vocabulary goes **49 → 52** (19 run + 33 meta); the run table is untouched. None of the three draws, so none carries **⚄** — the die count stays eleven. Each closes a mechanism that shipped with no way to reach it: a gear slot could be filled but never emptied, `Inventory.SetLock` had no production caller so `LOCKED` was a state no real player could be in, and `Player.AutoSalvageRules` had no writer so `Rules/Forge/AutoSalvageFilter` was unreachable code. ⚠️ The same ruling **explicitly did not add `EXPAND_INVENTORY`** — capacity is a flat 1000 instead (`08` §5), and `10` §4's ladder stays authored and unspendable.
 
 *(Counted off the table below rather than carried forward: 30 rows before this edit, verified line by line, plus three.)*
+
+🔒 **The run-tiles pass of 2026-08-20 (`16` D38) added three RUN rows: `SHOP_LEAVE`, `SHRINE_CHOOSE` and `DICE_FORGE_CHOOSE`.** The vocabulary goes **52 → 55** (22 run + 33 meta); the meta table is untouched. None of the three draws, so none carries **⚄** — the die count stays eleven. Each carries a player choice a tile makes that no existing command could express, and without them the Shrine was a roll, the Dice Forge did nothing at all, and the Shop could never sell anything because `RESOLVE_TILE` had to clear its tile on arrival for the run to be able to leave.
 
 | Command | Payload sketch | Notes |
 |---|---|---|

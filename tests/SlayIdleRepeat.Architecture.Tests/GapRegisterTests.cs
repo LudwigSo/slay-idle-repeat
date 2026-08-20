@@ -286,16 +286,16 @@ public sealed class GapRegisterTests
             s => s.Citation.StartsWith("14 §2.3", StringComparison.Ordinal));
 
         commandRegistry.Subjects.Count.ShouldBe(
-            52,
-            "14 §2.3's registry is 19 run commands plus 33 meta commands, and it is EXHAUSTIVE — 'a " +
+            55,
+            "14 §2.3's registry is 22 run commands plus 33 meta commands, and it is EXHAUSTIVE — 'a " +
             "command not listed here does not exist'. A transcription that shrank would stop asking " +
             "about the rows it dropped, and deleting a command type would then be silent.");
 
         commandRegistry.Namespace.ShouldBe(Domain.CommandsNamespace);
 
         commandRegistry.Subjects.Distinct(StringComparer.Ordinal).Count().ShouldBe(
-            52,
-            "a duplicated name would keep the count at 52 while one row went untranscribed.");
+            55,
+            "a duplicated name would keep the count at 55 while one row went untranscribed.");
 
         // 🔒 A shape check on the hand-written list, and it is load-bearing rather than tidy.
         // MEASURED: replacing "AbandonRunCommand" with "CommandPayload" passed 58/58 — the count

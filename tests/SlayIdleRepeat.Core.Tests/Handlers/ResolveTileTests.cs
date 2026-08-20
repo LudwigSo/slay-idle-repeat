@@ -197,6 +197,45 @@ public sealed class ResolveTileTests
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
     }
 
+    /// <summary>
+    /// 🔒 …and it APPLIES the curse, which is what stops the tile being strictly good.
+    /// </summary>
+    /// <remarks>
+    /// The reward assertion above cannot see this: a resolver that paid and applied nothing
+    /// satisfies it completely, which is exactly what this tile did before the run could hold a
+    /// curse at all.
+    /// </remarks>
+    [Fact]
+    public void A_curse_tile_applies_the_curse_it_drew()
+    {
+        var result = Resolve(TileWorlds.OnTile(TileKind.Curse));
+
+        result.NewState.Run!.Curses.Count.ShouldBe(
+            1, "the run took the reward and suffered nothing.");
+    }
+
+    /// <summary>
+    /// A curse already carried is not applied twice (`19` Part E gives curses no stacking) — and the
+    /// reward is still paid.
+    /// </summary>
+    /// <remarks>
+    /// Paying anyway is the reading that keeps the tile's bargain honest: the alternative is a tile
+    /// that sometimes does nothing at all, decided by a draw the player cannot see or influence.
+    /// </remarks>
+    [Fact]
+    public void A_curse_already_carried_is_not_stacked_and_still_pays()
+    {
+        var first = Resolve(TileWorlds.OnTile(TileKind.Curse)).NewState;
+        var carried = first.Run!.Curses[0];
+
+        var again = Resolve(TileWorlds.OnTile(TileKind.Curse, curses: [carried]));
+
+        again.Accepted.ShouldBeTrue();
+        again.NewState.Run!.Curses.ShouldBe(new[] { carried }, "no second copy.");
+        again.Events.ShouldHaveSingleItem().ShouldBeOfType<CurrencyChanged>()
+            .Delta.ShouldBeGreaterThan(0, "the reward is paid whether or not the debuff landed.");
+    }
+
     /// <summary>…and the reward it pays is one of the chapter-1 curses CurseRewards can pay, whatever the seed.</summary>
     [Theory]
     [InlineData(1UL)]

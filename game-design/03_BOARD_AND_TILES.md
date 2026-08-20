@@ -51,16 +51,16 @@ Stage 1 (12 nodes)          Stage 2 (14 nodes)              Stage 3 (16 nodes)  
 | `TILE_ENEMY` | Enemy | ⚔ | Very high | Auto-battle vs a standard enemy. Win → Gold, Legend XP, **perk draft**. |
 | `TILE_ELITE` | Elite | ☠ | Low | Auto-battle vs an Elite (2.2× power, unique modifier). Win → Gold, XP, **guaranteed gear drop**, perk draft from an upgraded pool. |
 | `TILE_BOSS` | Boss | ★ | Fixed (1/run) | Chapter boss. Multi-phase. Win → run victory. |
-| `TILE_SHRINE` | Shrine (Buff) | ✨ | Medium | Choose 1 of 2 permanent-for-this-run buffs from the authored pool in §7a.5. When the player carries a cleansable curse, a **Cleanse** offer always replaces the second option (§7a.5). |
-| `TILE_CURSE` | Cursed Ground | 💀 | Medium | Forced debuff, but pays. E.g. "−15% DEF for the rest of the run, +300 Gold". Some curses can be cleansed at a Shrine or by an ad (`AD_SKIP_CURSE`). |
+| `TILE_SHRINE` | Shrine (Buff) | ✨ | Medium | Choose 1 of 2 permanent-for-this-run buffs from the authored pool in §7a.5 — the choice arrives as `SHRINE_CHOOSE` (`14` §2.3, `16` D38). When the player carries a cleansable curse, a **Cleanse** offer always replaces the second option (§7a.5). |
+| `TILE_CURSE` | Cursed Ground | 💀 | Medium | Forced debuff, but pays. E.g. "−15% DEF for the rest of the run, +300 Gold". Some curses can be cleansed at a Shrine or by an ad (`AD_SKIP_CURSE`). ⚠️ `16` D40: six of the twelve are applied as stat moves and one as a board rule; the other five are carried by the run — cleansable, nameable — with the debuff not applied and the missing mechanism written down per curse. |
 | `TILE_TREASURE` | Treasure | 🎁 | Medium | Meta-currency: Crowns, Enhance Stones, Merge Dust — payout table §7a.3. Revealed on landing, banked at run end like all meta rewards (§7a). Ad-doubleable (`AD_DOUBLE_CHEST`). |
-| `TILE_SHOP` | Shop | 🏪 | Guaranteed ≥1 per stage | 4 offers for Gold: a perk, a consumable, a stat buff, a heal. One refresh free, more via ad. |
+| `TILE_SHOP` | Shop | 🏪 | Guaranteed ≥1 per stage | 4 offers for Gold: a perk, a consumable, a stat buff, a heal. One refresh free, more via ad. The visit opens on `RESOLVE_TILE` and closes on `SHOP_LEAVE` (`16` D38) — it is the one tile a player stands at for several commands by choice. |
 | `TILE_CAMPFIRE` | Campfire | 🔥 | Guaranteed 1 before boss | Choose: heal 40% Max HP · upgrade one owned perk to its next tier · gain 2 Reroll Charges. |
 | `TILE_MINIGAME` | Minigame | 🎯 | Medium | One of 4 minigames (§6). Skill/luck for a reward. |
 | `TILE_EVENT` | Event | ❓ | Medium | A text choice card with 2–3 options and uncertain outcomes. |
 | `TILE_PORTAL` | Portal | 🌀 | Low | Jump forward a seeded 3–6 node draw (§1.1), skipping the passed content. Good when low on HP, bad for greed. |
 | `TILE_CACHE` | Beast Cache | 🐾 | Low | Beast Feed, or (6% 📐) a Pet Egg — payout table §7a.4. |
-| `TILE_DICE_FORGE` | Dice Forge | 🎲 | Low | Temporarily upgrade one die face for the rest of the run (e.g. turn a `1` into a `4`, or into a `★`). |
+| `TILE_DICE_FORGE` | Dice Forge | 🎲 | Low | Temporarily upgrade one die face for the rest of the run (e.g. turn a `1` into a `4`, or into a `★`), through `DICE_FORGE_CHOOSE` (`16` D38). ⚠️ The offered menu withholds `Star` and `Chain` while nothing can resolve a die carrying them — see D38. |
 | `TILE_EMPTY` | Waypoint | ・ | Filler | Nothing. Used as spacing so the board breathes and rolls feel varied. |
 
 ### 2.1 Frequency bands
