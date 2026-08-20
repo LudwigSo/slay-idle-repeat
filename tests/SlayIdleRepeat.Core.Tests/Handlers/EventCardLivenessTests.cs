@@ -54,6 +54,58 @@ public sealed class EventCardLivenessTests
     /// guards has never been exercised.
     /// </remarks>
     /// <summary>
+    /// 🔒 <b>No card offers to reveal tiles, and none will.</b> Three options did — every one of
+    /// them the sole outcome of its option — and all three are DELETED rather than deferred: the board
+    /// is completely visible at all times (`16` D42), so what they offered cannot exist.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// ⚠️ <b>Stated over the note TEXT, which is unusual here and is the point.</b> An
+    /// <c>UNSUPPORTED</c> effect's only content IS its note, so there is nothing else to assert
+    /// against — and the failure this guards is a reader deciding the outcome was merely deferred and
+    /// authoring it back. A deleted option leaves no trace for a structural check to find.
+    /// </para>
+    /// <para>
+    /// 🔒 The three cards are named and their option counts floored, so re-adding an option to one is
+    /// a failure even if it is worded so as not to say "reveal". `19` Part A's table still lists three
+    /// options for each, and this is the record that the shipped data deliberately holds two.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void No_card_offers_to_reveal_tiles_and_the_three_that_did_are_two_options_short()
+    {
+        var catalogue = EventCatalogue.Read(ShippedHarness.Content);
+
+        var reveals = catalogue.All
+            .SelectMany(card => card.Options.SelectMany(option => option.Outcomes)
+                                    .SelectMany(outcome => outcome.Effects)
+                                    .Select(effect => (card.Id, effect.Note)))
+            .Where(row => row.Note is not null &&
+                          (row.Note.Contains("reveal", StringComparison.OrdinalIgnoreCase) ||
+                           row.Note.Contains("tile preview", StringComparison.OrdinalIgnoreCase)))
+            .Select(row => row.Id)
+            .ToArray();
+
+        reveals.ShouldBeEmpty(
+            "an outcome that reveals tiles or widens a preview is offering something the board " +
+            "already gives away for free (16 D42). It was deleted, not deferred, so this is a " +
+            "re-authored option rather than a leftover.");
+
+        foreach (var id in ShorterCards)
+        {
+            catalogue.All.Single(card => card.Id == id).Options.Count.ShouldBe(
+                2,
+                id + " offers two options in the shipped data where 19 Part A's table lists three. " +
+                "The third was its tile-reveal option and it is not coming back — a card listing an " +
+                "option that pays nothing asks the player to make a choice that is not one.");
+        }
+    }
+
+    /// <summary>The three cards `19` Part A lists three options for and the data authors two of.</summary>
+    private static readonly string[] ShorterCards =
+        ["EVT_OLD_SOLDIER", "EVT_ARCHIVE", "EVT_LAST_LAMP"];
+
+    /// <summary>
     /// 🔒 <b>The three outcomes that grant fixed dice actually grant them.</b> All three were
     /// <c>UNSUPPORTED</c> reroll-charge grants, which reads as DEFERRED — and they stayed that way for
     /// a whole milestone after the mechanic that replaced the reroll was built. Pinned over the

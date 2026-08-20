@@ -1,6 +1,6 @@
 {
   "$schema": "../../schema/board_events.schema.json",
-  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed six-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges, so each outcome Core cannot execute carries one UNSUPPORTED op naming the mechanic and its owning milestone. Two of those groups have since been RESOLVED rather than deferred, and the notes say which is which: the three reroll-charge grants are now FIXED_DIE choices (04 §6), and the three tile-reveal outcomes are dead outright because the board is completely visible at all times (04 §4, 16 D42) — they pay nothing and are owed a replacement reward, which is a design decision and not a transcription's to make. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
+  "_doc": "19 Part A — the 30 in-run event cards, transcribed with their titles, bodies, option labels and outcome odds verbatim, and their EFFECTS translated into the closed six-op vocabulary schema/board_events.schema.json defines. ⚠️ The translation is the authored decision, not the numbers: 19 Part A's prose describes movement, battles, gear, perks, stat buffs, tile reveals, consumables and reroll charges, so each outcome Core cannot execute carries one UNSUPPORTED op naming the mechanic and its owning milestone. Two of those groups have since been RESOLVED rather than deferred: the three reroll-charge grants are now FIXED_DIE choices (04 §6), and the three tile-reveal OPTIONS are gone from this document entirely — not deferred, not left paying nothing, DELETED, with no replacement. The board is completely visible at all times (04 §4, 16 D42), so what they offered cannot exist, and a card listing an option that pays nothing asks the player to make a choice that is not one. So EVT_OLD_SOLDIER, EVT_ARCHIVE and EVT_LAST_LAMP each offer TWO options here where 19 Part A's table lists three, and 19 says so on each of their rows. ⚠️ Option order is load-bearing (EVENT_CHOOSE names an option by index) and removing one RENUMBERS those after it — safe here because an index is carried by one transient command and persisted nowhere; only the drawn card's id is on the run. Currency and HP percentages are the only two things the resolver can genuinely execute, plus a curse's authored paired reward (19 Part E) WITHOUT the curse itself, which is M3-11's. 19 Part A's own trailing note flags events 11-30's weights and value scalars as indicative pending the doc-21 economy simulator; they are transcribed as written.",
   "_status": "transcribed",
   "cards": [
     {
@@ -162,10 +162,6 @@
       "minChapter": 1,
       "maxChapter": 3,
       "options": [
-        {
-          "label": "Ask about the road",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles in this stage — REMOVED rather than deferred: the board is completely visible at all times (04 §4, 16 D42), so there is nothing left to reveal. The outcome is owed a replacement reward, and inventing one here would be authoring design in a transcription" } ] } ]
-        },
         {
           "label": "Ask about his armour",
           "cost": { "currency": "GOLD", "amount": 250 },
@@ -406,10 +402,6 @@
           "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "+1 tier on one owned perk — DraftedPerks is M3-06's" } ] } ]
         },
         {
-          "label": "Read the maps",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "reveal all tiles for the rest of this stage — REMOVED rather than deferred, for the reason the Scout option above carries: the board is always wholly visible (04 §4, 16 D42)" } ] } ]
-        },
-        {
           "label": "Sell the lot",
           "outcomes": [ { "w": 1, "effects": [ { "op": "CURRENCY", "currency": "CROWNS", "amount": 400, "chapterScaled": true } ] } ]
         }
@@ -616,10 +608,6 @@
       "minChapter": 6,
       "maxChapter": 8,
       "options": [
-        {
-          "label": "Take it",
-          "outcomes": [ { "w": 1, "effects": [ { "op": "UNSUPPORTED", "note": "tile preview +6 and every TILE_CURSE in this stage revealed — REMOVED rather than deferred: the tile preview no longer exists in any form (04 §4, 16 D42) and every tile including every curse is already drawn. This outcome pays nothing and is owed a replacement" } ] } ]
-        },
         { "label": "Leave it lit", "outcomes": [ { "w": 1, "effects": [ { "op": "HP_PCT", "amount": 0.4 } ] } ] },
         {
           "label": "Extinguish it",

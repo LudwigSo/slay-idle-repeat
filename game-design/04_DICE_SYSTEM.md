@@ -153,3 +153,5 @@ Every grant site below is one the reroll used to own. That is deliberate — the
 
 ⚠️ **Two more event outcomes stay unpayable, and for a reason that is not the die's.** `EVT_TAX`'s *pay 15% of current Gold, then +1 charge* and `EVT_STORM`'s *lose 1 charge to heal 20%* both need something else: a proportional cost the flat cost field cannot express, and a way to take a die back — which a card cannot have, because it does not know which of the player's dice it gave them. Paying either reward without its cost would make the option strictly good, so neither half is applied.
 
+🔒 **And three event OPTIONS are gone, deleted rather than deferred.** `EVT_OLD_SOLDIER`'s *Ask about the road*, `EVT_ARCHIVE`'s *Read the maps* and `EVT_LAST_LAMP`'s *Take it* each revealed tiles, which §4 makes impossible — the board is already wholly visible — so there is nothing there to defer. They are **not replaced**: those three cards offer two options each now. A card listing an option that pays nothing asks the player to make a choice that is not one, which is worse than a shorter card. See `19` Part A.
+
