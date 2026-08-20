@@ -10,13 +10,13 @@ namespace SlayIdleRepeat.Client.Tests;
 /// </summary>
 /// <remarks>
 /// 🔒 The table is a copy of an enum this assembly cannot see. A copy that agrees only with itself
-/// is not evidence of anything, so the literal shape is pinned: the fourteen kinds of `03` §2 in the
+/// is not evidence of anything, so the literal shape is pinned: the fifteen kinds of `03` §2 in the
 /// order the rules layer numbers them, and the sentinel that is not one of them.
 /// </remarks>
 public sealed class BoardTileKindsTests
 {
     /// <summary>
-    /// The fourteen tile kinds of `03` §2, in the order the rules layer's own enum declares them —
+    /// The fifteen tile kinds of `03` §2, in the order the rules layer's own enum declares them —
     /// written out here rather than derived, because a derivation from the table under test would
     /// agree with any table at all.
     /// </summary>
@@ -36,15 +36,16 @@ public sealed class BoardTileKindsTests
         "loc.tile.cache.name",
         "loc.tile.dice_forge.name",
         "loc.tile.empty.name",
+        "loc.tile.miniboss.name",
     ];
 
     [Fact]
-    public void The_table_carries_the_fourteen_tile_kinds_in_the_rules_layers_own_order()
+    public void The_table_carries_the_fifteen_tile_kinds_in_the_rules_layers_own_order()
     {
         BoardTileKinds.NameKeys.ShouldBe(
             ExpectedKeysInKindOrder,
-            "the tile-kind table no longer matches the enum it transcribes. 03 §2 authors fourteen " +
-            "kinds and the rules layer numbers them 0..13 with no explicit values; a kind inserted, " +
+            "the tile-kind table no longer matches the enum it transcribes. 03 §2 authors fifteen " +
+            "kinds and the rules layer numbers them 0..14 with no explicit values; a kind inserted, " +
             "removed or reordered there renumbers every kind after it, and this table would go on " +
             "resolving each number to the name that used to sit at it — every tile after the change " +
             "silently mislabelled on the board. Re-transcribe the enum rather than adjusting this list " +
@@ -52,9 +53,9 @@ public sealed class BoardTileKindsTests
     }
 
     [Fact]
-    public void The_count_is_the_fourteen_kinds_the_design_authors()
+    public void The_count_is_the_fifteen_kinds_the_design_authors()
     {
-        BoardTileKinds.Count.ShouldBe(14);
+        BoardTileKinds.Count.ShouldBe(15);
     }
 
     /// <summary>
@@ -71,6 +72,7 @@ public sealed class BoardTileKindsTests
     [Theory]
     [InlineData(0)]
     [InlineData(13)]
+    [InlineData(14)]
     public void Every_number_inside_the_table_resolves(int kind)
     {
         BoardTileKinds.NameKeyFor(kind).ShouldBe(ExpectedKeysInKindOrder[kind]);
@@ -82,7 +84,7 @@ public sealed class BoardTileKindsTests
     /// </summary>
     [Theory]
     [InlineData(-2)]
-    [InlineData(14)]
+    [InlineData(15)]
     [InlineData(99)]
     public void A_number_outside_the_table_resolves_to_nothing(int kind)
     {

@@ -168,6 +168,24 @@ public sealed class ChaptersDataTests
         chapterElites.ShouldBe(producerElites);
     }
 
+    /// <summary>
+    /// A chapter names the two mini-bosses its run fights, one per stage gate. Each is an elite of
+    /// that chapter's own pool: a mini-boss is a predetermined elite, so an id from outside the pool
+    /// would name an elite this chapter's biome never otherwise presents.
+    /// </summary>
+    [Theory]
+    [InlineData(ChapterOne)]
+    [InlineData(ChapterTwo)]
+    public void Each_chapter_names_two_mini_bosses_drawn_from_its_own_elite_pool(string document)
+    {
+        var data = Data();
+        var miniBosses = data.Read($"{document}#/miniBossIds").Items.Select(i => i.AsText()).ToArray();
+        var elites = data.Read($"{document}#/elitePool").Items.Select(i => i.AsText()).ToArray();
+
+        miniBosses.Length.ShouldBe(2, "the last node of stage 1 and of stage 2, and no others");
+        miniBosses.ShouldBeSubsetOf(elites);
+    }
+
     [Fact]
     public void Chapter_1_has_no_unlock_condition_and_chapter_2_requires_clearing_chapter_1_normal()
     {

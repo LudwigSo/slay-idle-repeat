@@ -97,6 +97,32 @@ internal static class PerkDocuments
                     })))),
             ]);
 
+    /// <summary>The four categories the deep-band catalogue spreads each rarity across.</summary>
+    private static readonly string[] DeepBandCategories = ["OFFENSE", "DEFENSE", "SUSTAIN", "FIRE"];
+
+    /// <summary>The four rarity bands the deep-band catalogue authors in every category.</summary>
+    private static readonly string[] DeepBandRarities = ["COMMON", "RARE", "EPIC", "LEGENDARY"];
+
+    /// <summary>
+    /// Four categories × all four bands, as a document to compose beside the draft's other tuning.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The shape a "this draft offers only Epic+" case needs. The draft engine falls through to
+    /// the unbanded pool whenever the band it drew is empty, so on the five-row catalogue above an
+    /// epic+ table and a Common-heavy one are indistinguishable: both end up offering the two
+    /// highest rows. Every band being populated in enough categories to satisfy the diversity
+    /// narrowing is what makes the offered bands evidence of the weights.
+    /// </remarks>
+    internal static ContentDocument DeepBandsDocument { get; } = new(DocumentPath, Obj(
+        ("perks", ContentValue.Array(
+            DeepBandCategories.SelectMany(
+                category => DeepBandRarities.Select(
+                    rarity => Perk(DeepBandId(category, rarity), category, rarity)))))));
+
+    /// <summary>The id the deep-band catalogue gives one (category, band) pair.</summary>
+    internal static string DeepBandId(string category, string rarity) =>
+        "PK_TEST_DEEP_" + category + "_" + rarity;
+
     /// <summary>The whole fixture catalogue, three tiers each.</summary>
     internal static ContentSnapshot Shipped { get; } = Build();
 

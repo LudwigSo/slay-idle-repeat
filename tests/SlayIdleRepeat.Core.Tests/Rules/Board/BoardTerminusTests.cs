@@ -178,9 +178,36 @@ public sealed class BoardTerminusTests
     }
 
     /// <summary>
+    /// The refusal names <see cref="TileKind.Boss"/> and nothing else. A mini-boss is a boss-tier
+    /// fight that sits mid-board by design, so a guard widened to "any boss-tier kind" would refuse
+    /// every generated board.
+    /// </summary>
+    [Fact]
+    public void A_mini_boss_tile_mid_board_is_accepted()
+    {
+        var a = new BoardNode(new NodeId(0), TileKind.Enemy, 0, 1);
+        var miniBoss = new BoardNode(new NodeId(1), TileKind.MiniBoss, 1, 1);
+        var c = new BoardNode(new NodeId(2), TileKind.Enemy, 2, 2);
+        var terminus = new BoardNode(new NodeId(3), TileKind.Boss, 3, CoreBoard.BossStage);
+
+        var board = CoreBoard.FromLayout(
+            new[] { a, miniBoss, c, terminus },
+            new[]
+            {
+                new BoardEdge(a.Id, miniBoss.Id, EdgeKind.Continue),
+                new BoardEdge(miniBoss.Id, c.Id, EdgeKind.Continue),
+                new BoardEdge(c.Id, terminus.Id, EdgeKind.Continue),
+            },
+            new[] { a.Id, miniBoss.Id, c.Id, terminus.Id },
+            Array.Empty<NodeId>());
+
+        board.Node(miniBoss.Id).Tile.ShouldBe(TileKind.MiniBoss);
+        board.BossNodeId.ShouldBe(terminus.Id, "the mini-boss did not become the board's terminus.");
+    }
+
+    /// <summary>
     /// Today's behaviour, pinned so changing it is deliberate: the rule is "a boss tile may only be
-    /// the terminus", NOT the converse "the terminus must be a boss tile" — the converse cannot be
-    /// authored until a mini-boss tile id exists (M4-12).
+    /// the terminus", NOT the converse "the terminus must be a boss tile".
     /// </summary>
     [Fact]
     public void A_terminus_carrying_an_ordinary_tile_is_still_accepted_and_still_reports_the_boss()

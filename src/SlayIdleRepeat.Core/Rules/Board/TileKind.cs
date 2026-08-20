@@ -1,6 +1,10 @@
 namespace SlayIdleRepeat.Core.Rules.Board;
 
-/// <summary>The closed set of 14 tile kinds a board node can hold, including the boss.</summary>
+/// <summary>The closed set of 15 tile kinds a board node can hold, including the boss.</summary>
+/// <remarks>
+/// 🔒 The numbering is a contract, not an accident: the run reports its pending tile as a bare int
+/// and the client's own name table is indexed by it, so a new kind is APPENDED and never inserted.
+/// </remarks>
 public enum TileKind
 {
     Enemy,
@@ -17,6 +21,7 @@ public enum TileKind
     Cache,
     DiceForge,
     Empty,
+    MiniBoss,
 }
 
 /// <summary>

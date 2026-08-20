@@ -39,6 +39,17 @@ internal static class DraftRarityWeights
             (PerkRarity.Epic, 55), (PerkRarity.Legendary, 45),
         });
 
+    /// <summary>The weight table for one draft slot, keyed on the battle that opened the draft.</summary>
+    /// <param name="stage">The stage that battle belonged to.</param>
+    /// <param name="battleKind">The tile kind of the battle that opened the draft.</param>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="battleKind"/> opens no draft, or <paramref name="stage"/> is not 1, 2 or 3.
+    /// </exception>
+    internal static IReadOnlyList<(PerkRarity Rarity, double Weight)> For(
+        int stage, Board.TileKind battleKind) =>
+        throw new NotImplementedException(
+            "Phase 3 owns this table. It is declared so the mini-boss draft's tests compile.");
+
     /// <summary>The weight table for one draft slot.</summary>
     /// <param name="stage">1, 2 or 3. Ignored when <paramref name="isBoss"/> is true.</param>
     /// <param name="isElite">Whether the just-won battle was an Elite tile.</param>

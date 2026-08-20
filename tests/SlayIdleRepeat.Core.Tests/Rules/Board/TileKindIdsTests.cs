@@ -24,6 +24,7 @@ public sealed class TileKindIdsTests
     [InlineData("TILE_CACHE")]
     [InlineData("TILE_DICE_FORGE")]
     [InlineData("TILE_EMPTY")]
+    [InlineData("TILE_MINIBOSS")]
     public void Every_tile_kind_round_trips_through_its_id(string id)
     {
         var kind = TileKindIds.Parse(id);
@@ -36,6 +37,18 @@ public sealed class TileKindIdsTests
     {
         TileKindIds.TryParse("TILE_NOPE", out _).ShouldBeFalse();
         Should.Throw<ArgumentException>(() => TileKindIds.Parse("TILE_NOPE"));
+    }
+
+    /// <summary>
+    /// The newest kind is numbered LAST. The client's tile-name table is indexed by this number and
+    /// transcribes the enum positionally, so a kind inserted mid-enum renumbers every kind after it
+    /// and silently mislabels each one on the board; appending keeps every existing number.
+    /// </summary>
+    [Fact]
+    public void MiniBoss_is_the_last_numbered_kind_so_no_existing_kinds_number_moved()
+    {
+        ((int)TileKind.MiniBoss).ShouldBe(14);
+        ((int)TileKind.Empty).ShouldBe(13, "the kind MiniBoss was appended after.");
     }
 
     [Fact]

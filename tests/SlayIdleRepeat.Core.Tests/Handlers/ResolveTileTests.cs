@@ -642,17 +642,17 @@ public sealed class ResolveTileTests
 
     // ------------------------------------------------------------------ the vocabulary floor
 
-    /// <summary>Every one of the fourteen tile kinds has a branch — none reaches the default arm.</summary>
+    /// <summary>Every one of the fifteen tile kinds has a branch — none reaches the default arm.</summary>
     /// <remarks>
-    /// Stated over the enum itself rather than as a list of fourteen cases, so a fifteenth member
-    /// fails this test on the commit that adds it.
+    /// Stated over the enum itself rather than as a list of cases, so a new member fails this test
+    /// on the commit that adds it.
     /// </remarks>
     [Fact]
     public void Every_authored_tile_kind_has_a_branch()
     {
         var kinds = Enum.GetValues<TileKind>();
 
-        kinds.Length.ShouldBe(14, "fourteen tile kinds are authored");
+        kinds.Length.ShouldBe(15, "fifteen tile kinds are authored");
 
         foreach (var kind in kinds)
         {
@@ -662,7 +662,7 @@ public sealed class ResolveTileTests
         }
     }
 
-    /// <summary>…and a kind outside the fourteen throws rather than being silently accepted.</summary>
+    /// <summary>…and a kind outside the vocabulary throws rather than being silently accepted.</summary>
     [Fact]
     public void A_kind_outside_the_vocabulary_throws()
     {

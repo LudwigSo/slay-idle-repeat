@@ -924,6 +924,34 @@ public sealed class BoardPresenterTests
     }
 
     /// <summary>
+    /// The run's two mini-bosses reach the track, and this build can name them. A kind the name
+    /// table has not been taught renders as a number, which is the one thing the board may not draw
+    /// — and a mini-boss is the one node a player may not walk past, so an unnamed one is a stop
+    /// with no explanation on it.
+    /// </summary>
+    [Fact]
+    public async Task The_track_carries_the_runs_two_mini_boss_nodes_and_can_name_them()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, chapterId: 7)),
+            content: BoardContent.Authoring(chapterId: 7, 12, 14, 16));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        var miniBosses = presenter.Track
+            .Where(node => node.Tile == SlayIdleRepeat.Core.Rules.Board.TileKind.MiniBoss)
+            .ToArray();
+
+        miniBosses.Select(node => node.LinearIndex).ShouldBe(
+            new[] { 11, 25 },
+            "12/14/16 puts the last node of stage 1 at 11 and of stage 2 at 25.");
+        miniBosses.Select(node => BoardTileKinds.NameKeyFor((int)node.Tile))
+                  .ShouldAllBe(key => key != null);
+    }
+
+    /// <summary>
     /// 🔒 <b>The position is exact between tiles, which is what the projection fixed.</b> This used
     /// to be answered from the pending tile alone, so a run that had just resolved one and not yet
     /// landed on the next reported null and the screen drew no token at all.
