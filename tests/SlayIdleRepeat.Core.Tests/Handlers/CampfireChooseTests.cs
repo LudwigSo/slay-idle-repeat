@@ -95,30 +95,64 @@ public sealed class CampfireChooseTests
     }
 
     /// <summary>
-    /// The unbuilt options (perk upgrade, reroll charge) are refused, not silently accepted: an
-    /// accept would tell the player they had spent their rest on nothing.
+    /// 🔒 Gaining Reroll Charges is a real option now: it grants `04` §3's Campfire bonus for the
+    /// current stage and finishes the tile.
     /// </summary>
-    [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void An_unbuilt_option_is_rejected(int choiceIndex)
+    [Fact]
+    public void The_reroll_charge_option_grants_the_campfire_bonus()
     {
-        var result = Choose(TileWorlds.OnTile(TileKind.Campfire, currentHp: 50), choiceIndex);
+        var result = Choose(TileWorlds.OnTile(TileKind.Campfire, currentHp: 50), 2);
 
-        result.Accepted.ShouldBeFalse();
-        result.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
+        result.Accepted.ShouldBeTrue();
+        result.NewState.Run!.RerollChargesGrantedThisStage.ShouldBe(2);
+        result.NewState.Run!.HasPendingTile.ShouldBeFalse("the campfire is spent on the choice.");
     }
 
-    /// <summary>…and neither refusal consumes the campfire, so the player may still take the rest.</summary>
-    [Theory]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void A_refused_option_leaves_the_campfire_available(int choiceIndex)
+    /// <summary>
+    /// …and the charges are actually spendable, which the counter alone does not prove: the base
+    /// allotment is one per stage, so a second <c>USE_REROLL</c> is only affordable if the grant
+    /// reached <c>RerollEconomy</c>.
+    /// </summary>
+    [Fact]
+    public void The_granted_charges_are_spendable()
+    {
+        var granted = Choose(TileWorlds.OnTile(TileKind.Campfire, currentHp: 50), 2).NewState;
+
+        var first = SlayIdleRepeat.Core.GameRules.Apply(
+            granted, new UseRerollCommand(), TileWorlds.Context);
+        var second = SlayIdleRepeat.Core.GameRules.Apply(
+            first.NewState, new UseRerollCommand(), TileWorlds.Context);
+        var third = SlayIdleRepeat.Core.GameRules.Apply(
+            second.NewState, new UseRerollCommand(), TileWorlds.Context);
+
+        first.Accepted.ShouldBeTrue("the stage's own base allotment.");
+        second.Accepted.ShouldBeTrue("the campfire's first granted charge.");
+        third.Accepted.ShouldBeTrue("the campfire's second granted charge.");
+
+        SlayIdleRepeat.Core.GameRules.Apply(third.NewState, new UseRerollCommand(), TileWorlds.Context)
+            .Rejection.ShouldBe(
+                RejectionReason.CAP_REACHED,
+                "negative control: base 1 + campfire 2 is three charges, not an unbounded supply.");
+    }
+
+    /// <summary>
+    /// The perk upgrade is refused when there is no perk to upgrade — and refusing leaves the
+    /// campfire intact, so the player can still rest.
+    /// </summary>
+    /// <remarks>
+    /// Refusing rather than accepting a no-op is the whole point: a campfire is the run's one
+    /// guaranteed pre-boss heal, and an option that silently consumed it would cost the player that
+    /// heal for nothing.
+    /// </remarks>
+    [Fact]
+    public void The_perk_upgrade_is_refused_with_no_perk_to_upgrade()
     {
         var state = TileWorlds.OnTile(TileKind.Campfire, currentHp: 50);
 
-        var refused = Choose(state, choiceIndex);
+        var refused = Choose(state, 1);
 
+        refused.Accepted.ShouldBeFalse();
+        refused.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
         refused.NewState.ShouldBeSameAs(state, "a rejection returns the caller's slice");
 
         Choose(refused.NewState, 0).NewState.Run!.CurrentHp.ShouldBe(90);

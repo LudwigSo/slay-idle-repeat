@@ -15,7 +15,9 @@
     "resolve": "loc.board.resolve.action",
     "diePanel": "loc.board.die_panel.action",
     "forkContinue": "loc.board.fork_continue.action",
-    "forkBranch": "loc.board.fork_branch.action"
+    "forkBranch": "loc.board.fork_branch.action",
+    "abandon": "loc.board.abandon.action",
+    "abandonConfirm": "loc.board.abandon_confirm.action"
   },
   "name": {
     "fork": "loc.board.fork.name"

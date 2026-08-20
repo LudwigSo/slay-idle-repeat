@@ -152,9 +152,14 @@ internal static class ConfirmBattleResult
         {
             var reward = RunRewardMath.ForKill(kind, run.ChapterId, run.Tier, input.Context.Content);
 
-            if (reward.Gold != 0)
+            // Scaled by the run's own Gold modifiers — 03 §7a.5's Gilded Tongue and 19 Part E's
+            // Tithe. Applied at the income site rather than inside RunRewardMath, whose formula is
+            // 03 §7a.1 verbatim and knows nothing about what the run is carrying.
+            var gold = RunModifierTotals.ScaleGoldIncome(run, input.Context.Content, reward.Gold);
+
+            if (gold != 0)
             {
-                events.Add(run.MoveCurrency(CurrencyId.GOLD, reward.Gold, RewardReason));
+                events.Add(run.MoveCurrency(CurrencyId.GOLD, gold, RewardReason));
             }
 
             run.BankRewards(reward.LegendXp, reward.SoulShards);

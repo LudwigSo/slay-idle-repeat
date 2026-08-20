@@ -13,11 +13,10 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// no decision about what may be pressed.
 /// </para>
 /// <para>
-/// 🔴 <b>There is no buy slot and no refresh control, and their absence is the point.</b> The rules
-/// layer refuses every purchase and every refresh because a run carries no offer state at all, so
-/// an affordance for either would assert an offer that does not exist — a disabled Buy button says
-/// "not right now", and the truth is "not in this build". What is drawn instead is the named reason,
-/// permanently, and the one action that is genuinely legal here: leaving.
+/// 🔒 <b>Four buy slots, a restock and a departure.</b> Each slot is one button, captioned with what
+/// it sells and what it costs, and a slot that cannot be pressed carries the reason under it in
+/// words — "Sold", "Too dear", "Nothing left in this pool" — rather than being greyed out and left
+/// to be guessed at.
 /// </para>
 /// <para>
 /// ⚠️ Every type size and colour in <c>Shop.tscn</c> is a per-node override, because the shared
@@ -65,10 +64,19 @@ public partial class Shop : Control
 
     private const string SafeAreaPath = "%SafeArea";
     private const string TitleLabelPath = "%TitleLabel";
-    private const string NothingStockedLabelPath = "%NothingStockedLabel";
+    private const string GoldLabelPath = "%GoldLabel";
+    private const string SlotListPath = "%SlotList";
+    private const string RefreshSpentLabelPath = "%RefreshSpentLabel";
     private const string StatusLabelPath = "%StatusLabel";
     private const string RejectionLabelPath = "%RejectionLabel";
+    private const string RefreshButtonPath = "%RefreshButton";
     private const string LeaveButtonPath = "%LeaveButton";
+
+    /// <summary>Where one slot's row scene lives.</summary>
+    private const string SlotRowScenePath = "res://game/scenes/ShopSlotRow.tscn";
+
+    private const string SlotBuyButtonPath = "BuyButton";
+    private const string SlotBlockedLabelPath = "BlockedLabel";
 
     /// <summary>A control with something to do.</summary>
     private static readonly Color LiveColour = new(0.93f, 0.93f, 0.96f);
@@ -81,10 +89,24 @@ public partial class Shop : Control
     private CancellationToken _lifetime;
 
     private Label? _titleLabel;
-    private Label? _nothingStockedLabel;
+    private Label? _goldLabel;
+    private VBoxContainer? _slotList;
+    private Label? _refreshSpentLabel;
     private Label? _statusLabel;
     private Label? _rejectionLabel;
+    private Button? _refreshButton;
     private Button? _leaveButton;
+
+    /// <summary>
+    /// The offer the slot rows currently drawn were built from, so a redraw that changed nothing
+    /// does not rebuild them.
+    /// </summary>
+    /// <remarks>
+    /// Rebuilding on every render would destroy and re-instantiate four scenes each time a button
+    /// went busy — and would drop the focus a player is holding, which on a handset is how a
+    /// keyboard or a controller loses its place mid-purchase.
+    /// </remarks>
+    private IReadOnlyList<ShopSlotCard> _drawn = Array.Empty<ShopSlotCard>();
 
     /// <summary>Whether a submission is in flight, so a second press cannot start another.</summary>
     private bool _busy;
@@ -110,16 +132,21 @@ public partial class Shop : Control
         // Resolved once. A scene-unique lookup is a string search of the owner's table each time it
         // is asked, and this screen redraws on every press.
         _titleLabel = GetNode<Label>(TitleLabelPath);
-        _nothingStockedLabel = GetNode<Label>(NothingStockedLabelPath);
+        _goldLabel = GetNode<Label>(GoldLabelPath);
+        _slotList = GetNode<VBoxContainer>(SlotListPath);
+        _refreshSpentLabel = GetNode<Label>(RefreshSpentLabelPath);
         _statusLabel = GetNode<Label>(StatusLabelPath);
         _rejectionLabel = GetNode<Label>(RejectionLabelPath);
+        _refreshButton = GetNode<Button>(RefreshButtonPath);
         _leaveButton = GetNode<Button>(LeaveButtonPath);
 
+        _refreshButton.Pressed += OnRefreshPressed;
         _leaveButton.Pressed += OnLeavePressed;
 
-        // Painted because a Button draws its text by draw mode, and the disabled mode this control
-        // spends every round trip in has an engine default of half-transparent grey that no override
+        // Painted because a Button draws its text by draw mode, and the disabled mode these controls
+        // spend every round trip in has an engine default of half-transparent grey that no override
         // of font_color reaches.
+        ButtonTextColours.ApplyTo(_refreshButton, LiveColour, UnavailableColour);
         ButtonTextColours.ApplyTo(_leaveButton, LiveColour, UnavailableColour);
 
         SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
@@ -137,6 +164,11 @@ public partial class Shop : Control
     /// </remarks>
     public override void _ExitTree()
     {
+        if (_refreshButton is not null)
+        {
+            _refreshButton.Pressed -= OnRefreshPressed;
+        }
+
         if (_leaveButton is not null)
         {
             _leaveButton.Pressed -= OnLeavePressed;
@@ -183,22 +215,34 @@ public partial class Shop : Control
         // itself the crash, and a shutdown during a slow command is the ordinary case on a handset.
         // Every node this writes to is checked, not just the one.
         if (presenter is null || !IsInstanceValid(this) || !IsInsideTree() ||
-            _titleLabel is null || _nothingStockedLabel is null || _statusLabel is null ||
-            _rejectionLabel is null || _leaveButton is null)
+            _titleLabel is null || _goldLabel is null || _slotList is null ||
+            _refreshSpentLabel is null || _statusLabel is null || _rejectionLabel is null ||
+            _refreshButton is null || _leaveButton is null)
         {
             return;
         }
 
         _titleLabel.Text = presenter.Title;
 
-        // 🔒 Drawn only while the player is actually standing in the shop. Told to someone whose run
-        // could not be read, "this shop has nothing in stock" is a claim about a shop nobody has
-        // established they are in — and the status line below already says what did happen.
-        _nothingStockedLabel.Text = presenter.NothingStockedText;
-        _nothingStockedLabel.Visible = presenter.Stage == ShopStage.Ready;
+        // 🔒 Drawn only while the player is actually standing in the shop: a Gold total and four
+        // slots shown to someone whose run could not be read are claims about a shop nobody has
+        // established they are in, and the status line below already says what did happen.
+        var open = presenter.Stage == ShopStage.Ready;
+
+        _goldLabel.Text = presenter.GoldLabel + " " + presenter.Gold.ToString(Culture);
+        _goldLabel.Visible = open;
+
+        DrawSlots(presenter, open);
+
+        _refreshSpentLabel.Text = presenter.RefreshSpentText;
+        _refreshSpentLabel.Visible = open && _refreshSpentLabel.Text.Length > 0;
+
+        _refreshButton.Text = presenter.RefreshText;
+        _refreshButton.Visible = open && presenter.RefreshOffered;
+        _refreshButton.Disabled = _busy || !open || !presenter.RefreshOffered;
 
         _leaveButton.Text = presenter.LeaveText;
-        _leaveButton.Disabled = _busy || presenter.Stage != ShopStage.Ready;
+        _leaveButton.Disabled = _busy || !open;
 
         // Hidden rather than blanked once it has nothing to say: an empty label still claims a full
         // line of height, so a blank one is a sentence a player can see room for and cannot read.
@@ -212,6 +256,94 @@ public partial class Shop : Control
         _rejectionLabel.Text = presenter.RejectionText;
         _rejectionLabel.Visible = _rejectionLabel.Text.Length > 0;
     }
+
+    /// <summary>Rebuilds the slot rows when the offer changed, and re-captions them when it did not.</summary>
+    /// <remarks>
+    /// The identity check is on the CARDS rather than on a version number, because a purchase
+    /// changes exactly one of them and a restock changes all four — and the record's own equality is
+    /// the one comparison that cannot fall out of step with what is drawn.
+    /// </remarks>
+    private void DrawSlots(ShopPresenter presenter, bool open)
+    {
+        if (_slotList is null)
+        {
+            return;
+        }
+
+        _slotList.Visible = open;
+
+        if (!_drawn.SequenceEqual(presenter.Slots))
+        {
+            Rebuild(presenter);
+        }
+
+        for (var slot = 0; slot < _drawn.Count && slot < _slotList.GetChildCount(); slot++)
+        {
+            if (_slotList.GetChild(slot) is not Control row)
+            {
+                continue;
+            }
+
+            var card = _drawn[slot];
+
+            row.GetNode<Button>(SlotBuyButtonPath).Disabled = _busy || !open || !card.Buyable;
+
+            var blocked = row.GetNode<Label>(SlotBlockedLabelPath);
+
+            blocked.Text = card.Blocked;
+            blocked.Visible = card.Blocked.Length > 0;
+        }
+    }
+
+    /// <summary>Instantiates one row per slot, captioned and wired to its own index.</summary>
+    private void Rebuild(ShopPresenter presenter)
+    {
+        if (_slotList is null)
+        {
+            return;
+        }
+
+        foreach (var stale in _slotList.GetChildren())
+        {
+            _slotList.RemoveChild(stale);
+            stale.QueueFree();
+        }
+
+        _drawn = presenter.Slots;
+
+        if (GD.Load<PackedScene>(SlotRowScenePath) is not { } rowScene)
+        {
+            GD.PushError($"The shop slot row could not be loaded from '{SlotRowScenePath}'.");
+
+            return;
+        }
+
+        foreach (var card in _drawn)
+        {
+            var row = rowScene.Instantiate<VBoxContainer>();
+            var buy = row.GetNode<Button>(SlotBuyButtonPath);
+
+            buy.Text = card.Name + "  —  " + card.Price.ToString(Culture) + "  " + presenter.BuyText;
+            ButtonTextColours.ApplyTo(buy, LiveColour, UnavailableColour);
+
+            // Captured by value, because the loop variable would otherwise be shared by all four
+            // handlers and every slot would buy the last one.
+            var slotIndex = card.SlotIndex;
+
+            buy.Pressed += () => OnBuyPressed(slotIndex);
+
+            _slotList.AddChild(row);
+        }
+    }
+
+    /// <summary>Numbers are drawn invariantly: a price is a quantity, not prose.</summary>
+    private static System.Globalization.CultureInfo Culture =>
+        System.Globalization.CultureInfo.InvariantCulture;
+
+    private void OnBuyPressed(int slotIndex) =>
+        _ = SubmitAsync(presenter => presenter.BuyAsync(slotIndex, _lifetime));
+
+    private void OnRefreshPressed() => _ = SubmitAsync(presenter => presenter.RefreshAsync(_lifetime));
 
     private void OnLeavePressed() => _ = SubmitAsync(presenter => presenter.LeaveAsync(_lifetime));
 
@@ -269,12 +401,13 @@ public partial class Shop : Control
     }
 
     /// <summary>
-    /// Prints, on one greppable line, what this screen resolved against the run the build shipped —
-    /// including the two numbers that are zero on purpose.
+    /// Prints, on one greppable line, what this screen resolved against the run the build shipped.
     /// </summary>
     private static void Report(ShopPresenter presenter) =>
         GD.Print(
-            $"{ShopMarker} stage={presenter.Stage} buy_slots={ShopPresenter.BuySlotCount} " +
+            $"{ShopMarker} stage={presenter.Stage} buy_slots={presenter.Slots.Count} " +
+            $"gold={presenter.Gold} " +
+            $"buyable={presenter.Slots.Count(slot => slot.Buyable)} " +
             $"refresh_offered={presenter.RefreshOffered} host_faulted={presenter.HostFaulted} " +
             $"rejection={presenter.RulesRejection?.ToString() ?? "none"}");
 }

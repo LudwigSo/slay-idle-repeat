@@ -354,6 +354,10 @@ internal static class InRunIncomeDocuments
                     ("optionsOffered", optionsOffered ?? ContentValue.Number(ShippedOptionsOffered)),
                     ("buffs", shrineBuffs ?? ContentValue.Array(
                         ShippedShrineBuffs.Select(ShrineBuff))))))),
+            // The shop block, shared with CurrenciesDocuments rather than transcribed again: this
+            // fixture replaces the WHOLE of currencies.json, so without it every handler that reads
+            // a price throws — which is exactly how the shop tile's own suite discovered it.
+            ("shopTile", CurrenciesDocuments.ShopTile()),
             ("draftEconomy", Obj(
                 ("skipGoldReward", skipGoldReward ?? ContentValue.Number(ShippedSkipGoldReward)),
                 ("rerollGoldCost", rerollGoldCost ?? ContentValue.Number(ShippedRerollGoldCost)))),

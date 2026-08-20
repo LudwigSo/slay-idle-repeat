@@ -56,7 +56,9 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// give every <c>CommandDispatch.Deferred</c> row an entry in <see cref="Deferred"/>.
 /// </para>
 /// <para>
-/// The transcription is below — <b>and all forty-nine subjects are authored</b>. What that
+/// The transcription is below — <b>and all fifty-five subjects are authored</b> (forty-nine at the
+/// time this paragraph was written; the M4 retro added three meta rows and the 2026-08-20 run-tiles
+/// pass added three run rows, `16` D35 and D38). What that
 /// discharges is `14` §2.3's <b>inventory</b>: M1-02 declared every row of the registry, so the
 /// table's <em>first</em> column has nothing left to defer. ⚠️ Its <b>payload</b> column does — some
 /// twenty fields whose value sets belong to M2-15, M4-02, M4-03, M4-06, M4-09, M5-08, M12 and
@@ -71,7 +73,7 @@ namespace SlayIdleRepeat.Architecture.Tests;
 /// <see cref="Expired"/>'s second arm fires on <c>IsPresentInCore(gap.Subject)</c> — so
 /// <c>Gap("RollDiceCommand", …)</c> would fail the build <em>on the commit that added it</em>,
 /// because M1-02 authored the command. A per-command entry is unrepresentable in this register.
-/// (The softer argument holds as well: forty-nine <see cref="Gap.WaitsFor"/> names invented on
+/// (The softer argument holds as well: fifty-five <see cref="Gap.WaitsFor"/> names invented on
 /// behalf of milestones that have not chosen them is the same move this file's own
 /// <see cref="Surfaces"/> remarks refuse for the five <c>Player</c>-contents types M4-05 owns —
 /// "naming five types five unwritten milestones have not chosen is the invention S6 forbids,
@@ -416,18 +418,33 @@ internal static class GapRegister
         // it authored directly under Domain.ModelNamespace, with no entry needed to carry it, on
         // 'PendingFork's own precedent two entries above this one.
 
+        // ⚠️ THE STATE IS BUILT; THE DEFINITION TYPE IS NOT — and the entry is rewritten rather than
+        // removed, because Undeclared() still needs something to carry the 30 §4 subject and nothing
+        // authored under Model/ answers to this name.
         new("HeldConsumables", "M3-08", "ConsumableDefinition",
-            "30 §4 lists 'held consumables and the armed Escape Rope flag (03 §7.1)'. Both are M3-08's " +
-            "('consumables incl. Escape Rope arming/skip semantics + USE_CONSUMABLE legality'). The " +
-            "armed flag is deferred WITH them rather than beside them, and that is the ruling: it is " +
-            "one consumable's state, not a second field on the aggregate — storing a bool for it now " +
-            "would fix the Escape Rope's mechanics before M3-08 has chosen them."),
+            "30 §4's 'held consumables and the armed Escape Rope flag (03 §7.1)' NOW EXIST on Run — a " +
+            "sparse id→count map and a bool, written by SHOP_BUY and spent by USE_CONSUMABLE, with " +
+            "the rope firing through Rules/Board/Resolution/TileArrival (run-tiles pass, 2026-08-20). " +
+            "What is still deferred is the DEFINITION TYPE this entry is keyed on: a consumable is an " +
+            "id and a price row in currencies.json, and its behaviour is a switch in the handler " +
+            "rather than authored data. Two things are missing before one exists — content/consumables/ " +
+            "(no file, no schema) and the two 📐 TUNABLE numbers 03 §7.1 prints but currencies.json " +
+            "does not author (the held cap of 4, the Draught's 30%), both transcribed as named " +
+            "constants today because S6 forbids inventing the keys. Authoring the document is what " +
+            "turns the switch into a reader, and this entry expires on it."),
 
+        // ⚠️ Same shape as HeldConsumables above: the LIST is built, the definition type is not.
         new("Curses", "M3-11", "CurseDefinition",
-            "30 §4 lists 'curses' on Run. 19 E catalogues twelve of them and M3-11 owns the rules " +
-            "engine around them — no stacking, paired rewards, the AD_SKIP_CURSE hook and mount " +
-            "immunity. A held-curse list authored now would freeze the curse shape under all four of " +
-            "those rules before any of them is written (S6)."),
+            "30 §4's 'curses' NOW EXIST on Run — an ordered list with set semantics, written by " +
+            "TILE_CURSE and removed by a Shrine's Cleanse, with no stacking enforced at " +
+            "Run.ApplyCurse (run-tiles pass, 2026-08-20). Two of M3-11's four rules are live with " +
+            "it: no stacking, and the paired reward. What is still deferred is the DEFINITION TYPE " +
+            "this entry is keyed on, and the reason is that curses.json's effect column is PROSE — " +
+            "Content.CurseEffects transcribes the six that are a stat move and names, per curse, the " +
+            "mechanism the other six are missing. A CurseDefinition is what an AUTHORED effect array " +
+            "on each curse row would be read into, and it would retire that transcription. The other " +
+            "two rules stay M3-11's: AD_SKIP_CURSE has no ad attribution reaching the domain, and " +
+            "mount immunity has no mounts."),
 
         // 🔒 M3-05 DISCHARGED THE RunPhase ENTRY THAT USED TO SIT HERE. RunPhase is authored
         // (SlayIdleRepeat.Core.Primitives.RunPhase) — Expired()'s second arm would fire the moment
@@ -751,6 +768,9 @@ internal static class GapRegister
             "SkipDraftCommand",
             "ShopBuyCommand",
             "ShopRefreshCommand",
+            "ShopLeaveCommand",
+            "ShrineChooseCommand",
+            "DiceForgeChooseCommand",
             "EventChooseCommand",
             "MinigameSubmitCommand",
             "CampfireChooseCommand",

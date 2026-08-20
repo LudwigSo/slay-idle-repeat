@@ -287,7 +287,8 @@ internal sealed class MetaLoopDriver
                 // A refused CHOICE is a choice this player cannot afford or the card does not offer,
                 // not a dead end: the next one is tried before the run is given up on. A refusal of
                 // anything else means the run genuinely cannot go on.
-                if (next is EventChooseCommand or CampfireChooseCommand or ChooseForkCommand &&
+                if (next is EventChooseCommand or CampfireChooseCommand or ChooseForkCommand
+                         or ShrineChooseCommand or DiceForgeChooseCommand &&
                     _choice < ChoiceLadder)
                 {
                     _choice++;
@@ -443,6 +444,21 @@ internal sealed class MetaLoopDriver
             TileKind.Campfire => new CampfireChooseCommand(_choice),
             TileKind.Event when run.PendingEventCardId is { Length: > 0 } =>
                 new EventChooseCommand(_choice),
+
+            // A shrine's two options are drawn by SHRINE_CHOOSE, so RESOLVE_TILE is a pure
+            // acknowledgement here and this player skips straight to the choice.
+            TileKind.Shrine => new ShrineChooseCommand(_choice),
+
+            // A shop stocks on RESOLVE_TILE and then stays open until the player says otherwise.
+            // This player buys nothing — MetaLoopTests is about the loop closing, and a driver that
+            // spent the run's Gold would make every income assertion depend on what the shop drew.
+            TileKind.Shop when run.HasOpenShop => new ShopLeaveCommand(),
+
+            // Raise a low face to a 6. The face moves with the choice ladder so a second forge in
+            // one run (which would find face 1 already at 6) has somewhere to go.
+            TileKind.DiceForge => new DiceForgeChooseCommand(
+                FaceIndex: 1 + _choice, OptionIndex: 0, HigherPipValue: 6),
+
             TileKind.Minigame => new RollDiceCommand(),
             _ => new ResolveTileCommand(),
         };

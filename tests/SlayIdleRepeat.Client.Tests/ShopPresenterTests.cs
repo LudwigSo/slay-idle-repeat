@@ -53,44 +53,35 @@ public sealed class ShopPresenterTests
     // ---- the absence the screen exists to state ------------------------------------------------
 
     /// <summary>
-    /// 🔒 <b>No buy slot and no refresh control.</b> The rules layer refuses every purchase and
-    /// every refresh, so an affordance for either would be a control whose only possible outcome is
-    /// a refusal — and, worse, a claim that an offer exists.
+    /// 🔒 A screen that has not read a run yet offers nothing: no slots, no restock. An affordance
+    /// drawn before the read would assert an offer nobody has established exists.
     /// </summary>
     [Fact]
-    public void The_screen_draws_no_buy_slot_and_no_refresh_control()
+    public void A_screen_that_has_read_nothing_offers_nothing()
     {
-        ShopPresenter.BuySlotCount.ShouldBe(
-            0,
-            "a buy slot asserts an offer. The run row carries no stock, no price and no visit " +
-            "count, and SHOP_BUY refuses every call — so a slot drawn here is a button that can " +
-            "only ever tell the player their own purchase was illegal.");
-
         var presenter = Build(RecordingGameHost.FindingNoSuchPlayer());
 
-        presenter.RefreshOffered.ShouldBeFalse(
-            "and a refresh control asserts something to refresh. SHOP_REFRESH refuses every call " +
-            "for the same reason: there is no offer list to replace. The refresh economy the design " +
-            "describes — one free per visit, then an ad, then unavailable — is not modelled here at " +
-            "all, and half of it drawn as a live button would be the other half invented.");
+        presenter.Slots.ShouldBeEmpty();
+        presenter.RefreshOffered.ShouldBeFalse();
     }
 
     /// <summary>
-    /// 🔒 The four ways this screen comes to nothing are four different sentences, <b>as authored</b>.
+    /// 🔒 The ways this screen comes to nothing are all different sentences, <b>as authored</b>.
     /// </summary>
     /// <remarks>
     /// 🔴 Stated over the shipped locale, not over a fixture, and the distinction is the whole value
-    /// of the case: every fixture string in this suite is derived from its own key, so four distinct
-    /// keys give four distinct values by construction and a fixture-based version could never fail
+    /// of the case: every fixture string in this suite is derived from its own key, so distinct
+    /// keys give distinct values by construction and a fixture-based version could never fail
     /// whatever anyone wrote in <c>en.json</c>.
     /// </remarks>
     [Fact]
-    public void The_four_ways_this_screen_comes_to_nothing_are_four_different_authored_sentences()
+    public void The_ways_this_screen_comes_to_nothing_are_different_authored_sentences()
     {
         string[] keys =
         [
-            RunDecisionContent.ShopNothingStockedBlockKey,
+            RunDecisionContent.ShopOfferUnavailableStatusKey,
             RunDecisionContent.ShopNotAtAShopStatusKey,
+            RunDecisionContent.ShopUnaffordableStatusKey,
             RunDecisionContent.ShopRefusedStatusKey,
             RunDecisionContent.ShopHostUnavailableStatusKey,
         ];
@@ -98,7 +89,7 @@ public sealed class ShopPresenterTests
         var authored = keys.Select(key =>
         {
             RunDecisionContent.ShippedEnglish.TryGetValue(key, out var sentence).ShouldBeTrue(
-                $"'{key}' is not in the shipped English locale, so one of this screen's four " +
+                $"'{key}' is not in the shipped English locale, so one of this screen's " +
                 "outcomes has no sentence and a player meeting it is shown its key.");
 
             return sentence!;
@@ -107,7 +98,7 @@ public sealed class ShopPresenterTests
         authored.ShouldAllBe(sentence => sentence.Length > 0);
         authored.Distinct(StringComparer.Ordinal).Count().ShouldBe(
             authored.Length,
-            "two of the four are AUTHORED the same, so the screen has stopped distinguishing an " +
+            "two of them are AUTHORED the same, so the screen has stopped distinguishing an " +
             "empty shop from a missing one, from a refusal, from a host that did not answer — and " +
             "three of those four are somebody's bug and one is not: " +
             $"[{string.Join(" | ", authored)}]");
@@ -190,11 +181,14 @@ public sealed class ShopPresenterTests
         await presenter.StartAsync(CancellationToken.None);
 
         presenter.Stage.ShouldBe(ShopStage.Ready);
+
+        // 🔒 Standing on the tile with nothing stocked yet — the momentary state between arriving
+        // and RESOLVE_TILE landing. No slots, no restock, and NOT the offer-unavailable arm: the
+        // offer has not failed to project, it has not been drawn.
+        presenter.Slots.ShouldBeEmpty();
+        presenter.RefreshOffered.ShouldBeFalse();
+        presenter.OfferAvailable.ShouldBeTrue();
         presenter.StatusText.ShouldBeEmpty();
-        presenter.NothingStockedText.ShouldBe(
-            RunDecisionContent.EnglishValueOf(RunDecisionContent.ShopNothingStockedBlockKey),
-            "the one thing this screen is for is saying why there is nothing to buy, and it says it " +
-            "on the arm where a shop is actually open.");
     }
 
     /// <summary>
@@ -245,7 +239,7 @@ public sealed class ShopPresenterTests
     // ---- leaving -------------------------------------------------------------------------------
 
     [Fact]
-    public async Task Leaving_submits_RESOLVE_TILE_against_this_run()
+    public async Task Leaving_submits_SHOP_LEAVE_against_this_run()
     {
         var host = RecordingGameHost
             .Finding(AnyPlayer(), AtAShop())
@@ -258,7 +252,9 @@ public sealed class ShopPresenterTests
         var submission = await presenter.LeaveAsync(CancellationToken.None);
 
         submission.ShouldBe(ShopSubmission.Submitted);
-        host.SubmitCommand.ShouldBeOfType<ResolveTileCommand>();
+        host.SubmitCommand.ShouldBeOfType<ShopLeaveCommand>(
+            "RESOLVE_TILE used to be what this sent, back when it cleared the tile. It now STOCKS " +
+            "the offer, so a screen still sending it would leave the run on the tile with no way off.");
         host.SubmitRun.ShouldBe(Run);
     }
 
@@ -450,9 +446,16 @@ public sealed class ShopPresenterTests
     public void Every_reference_collaborator_is_required()
     {
         Should.Throw<ArgumentNullException>(() =>
-            new ShopPresenter(null!, RunDecisionContent.Catalogue(), Player, Run));
+            new ShopPresenter(
+                null!, RunDecisionContent.Catalogue(), Player, Run, RunDecisionContent.Strings()));
         Should.Throw<ArgumentNullException>(() =>
-            new ShopPresenter(RecordingGameHost.FindingNoSuchPlayer(), null!, Player, Run));
+            new ShopPresenter(
+                RecordingGameHost.FindingNoSuchPlayer(), null!, Player, Run,
+                RunDecisionContent.Strings()));
+        Should.Throw<ArgumentNullException>(() =>
+            new ShopPresenter(
+                RecordingGameHost.FindingNoSuchPlayer(), RunDecisionContent.Catalogue(),
+                Player, Run, null!));
     }
 
     // ---- fixture -------------------------------------------------------------------------------
@@ -469,5 +472,5 @@ public sealed class ShopPresenterTests
             pendingTileStage: 1);
 
     private static ShopPresenter Build(RecordingGameHost host) =>
-        new(host, RunDecisionContent.Catalogue(), Player, Run);
+        new(host, RunDecisionContent.Catalogue(), Player, Run, RunDecisionContent.Strings());
 }

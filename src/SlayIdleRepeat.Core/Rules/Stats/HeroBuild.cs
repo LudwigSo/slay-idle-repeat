@@ -33,17 +33,19 @@ namespace SlayIdleRepeat.Core.Rules.Stats;
 /// </remarks>
 public sealed class HeroBuild
 {
+    private readonly Lazy<AggregatedStats> _aggregated;
+
     private HeroBuild(
         ActorStats baseStats,
         IReadOnlyList<EffectDefinition> effects,
         IReadOnlyList<CollectedEffect> collected,
-        AggregatedStats aggregated,
+        Lazy<AggregatedStats> aggregated,
         IReadOnlyList<GearInstance> equipped)
     {
         BaseStats = baseStats;
         Effects = effects;
         Collected = collected;
-        Aggregated = aggregated;
+        _aggregated = aggregated;
         Equipped = equipped;
     }
 
@@ -79,13 +81,28 @@ public sealed class HeroBuild
     /// The aggregation this build reads its published figures off.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// 🔒 <b>Internal, and this type is a class rather than a record so that it can be.</b> A
     /// positional record's parameters are public properties, so carrying the aggregate as one would
     /// have exported <see cref="AggregatedStats"/> — and with it the attack pipeline's heal
     /// ceiling — to every consumer of a hero screen. The three facts a caller outside <c>Core</c>
     /// actually needs are published individually instead.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>Computed on first read, not in the constructor, and that is a correctness fix rather
+    /// than an optimisation.</b> The aggregation runs under
+    /// <see cref="StatAggregationSeams.Strict"/>, whose condition gate REFUSES an effect carrying a
+    /// condition — deliberately, because evaluating one needs the live fight. A fight does not need
+    /// this block at all: <c>RunBattle</c> is handed <see cref="BaseStats"/> and
+    /// <see cref="Collected"/> and re-aggregates every pass with a gate of its own. So while this
+    /// was computed eagerly, <b>drafting any perk with a conditional effect made every later command
+    /// that composed the hero throw out of <c>GameRules.Apply</c></b> — a run bricked by a legal
+    /// <c>PICK_PERK</c>, on a perk the draft itself had offered. Deferring the work to the one
+    /// caller that wants a composed block (a hero screen) leaves the refusal exactly where it
+    /// belongs and takes it off the run loop.
+    /// </para>
     /// </remarks>
-    internal AggregatedStats Aggregated { get; }
+    internal AggregatedStats Aggregated => _aggregated.Value;
 
     /// <summary>The capped, rounded fourteen-stat block.</summary>
     public ActorStats Stats => Aggregated.Final;
@@ -141,7 +158,8 @@ public sealed class HeroBuild
             player.LegendLevel,
             Equip(run is null ? player.Loadout : run.StartingLoadout, player.Inventory),
             content,
-            run?.DraftedPerks);
+            run?.DraftedPerks,
+            RunModifiers.Of(run));
     }
 
     /// <summary>
@@ -193,7 +211,8 @@ public sealed class HeroBuild
         int legendLevel,
         IReadOnlyList<GearInstance> equipped,
         ContentSnapshot content,
-        DraftedPerks? perks = null)
+        DraftedPerks? perks = null,
+        RunModifiers? runModifiers = null)
     {
         ArgumentNullException.ThrowIfNull(equipped);
         ArgumentNullException.ThrowIfNull(content);
@@ -207,10 +226,15 @@ public sealed class HeroBuild
 
         var inSlotOrder = GearEffectNames.InSlotOrder(equipped);
 
+        var modifiers = runModifiers ?? RunModifiers.None;
+
         var sources = EffectSourceSet.Of(
             new GearEffectSource(par, drops, forge, inSlotOrder),
             new GearAffixEffectSource(drops, inSlotOrder),
             new SetBonusEffectSource(catalogue, drops, sets, inSlotOrder),
+            new RunBuffEffectSource(content, modifiers.RunBuffs, modifiers.ChapterId),
+            new ShrineBuffEffectSource(content, modifiers.ShrineBuffs),
+            new CurseEffectSource(modifiers.Curses),
             new PerkEffectSource(content, perks ?? NoPerks));
 
         var collected = EffectResolutionOrder.Sort(sources.Collect());
@@ -227,7 +251,12 @@ public sealed class HeroBuild
             baseStats,
             Array.AsReadOnly(effects),
             collected,
-            StatAggregation.Aggregate(baseStats, effects, caps.Caps, StatAggregationSeams.Strict),
+
+            // Deferred, not skipped — see Aggregated's remarks. LazyThreadSafetyMode is the default
+            // (ExecutionAndPublication), which is what keeps a build shared across threads from
+            // aggregating twice and from publishing a half-built block.
+            new Lazy<AggregatedStats>(
+                () => StatAggregation.Aggregate(baseStats, effects, caps.Caps, StatAggregationSeams.Strict)),
             inSlotOrder);
     }
 

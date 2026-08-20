@@ -2,10 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/shop.schema.json",
   "title": "content/shop/shop.json",
-  "description": "M7-07 — the loc keys the run Shop screen (S08) renders. What is fixed here is that the screen heads the tile, says in words why there is nothing to buy, offers one way out, and carries one status line per state the read and a departure can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. The absences are the point of this schema. There is no member for a buy slot, a price, a stock line, a refresh control or a consumable name, because the run row carries no offer state at all: the rules layer refuses every purchase and every refresh, and resolving the tile deliberately does nothing but let the run walk away. A caption authored for any of those would assert that an offer exists, and the only outcome a control drawn from it could ever have is telling a player their own purchase was illegal. The offer catalogue, the refresh economy and the consumable pouch are one later milestone's work, and they land as a second document in this directory governed by this same schema. These keys are also the RUN shop's and are three segments deep; the four-segment staple and daily keys already in the locales belong to the meta shop's offer catalogue and share a domain segment with these and nothing else.",
+  "description": "The loc keys the run Shop screen (S08) renders. What is fixed here is that the screen heads the tile, prices and captions four buy slots, offers a restock and a departure, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. ⚠️ THIS SCHEMA WAS ONCE ABOUT ITS ABSENCES: it had no member for a buy slot, a price, a stock line or a refresh control, because a run carried no offer state and the rules layer refused every purchase. The run-tiles pass of 2026-08-20 (16 D38) built the visit — an offer position, a purchase mask and a refresh count — so all four slots are real, priced and buyable, and SHOP_LEAVE is what clears the tile. What is STILL absent is a per-item name: a slot is captioned by the POOL it drew from, because the perk, consumable and run-buff catalogues already name their own rows and a second document claiming those keys would be free to drift out of step with the pools it describes. These keys are the RUN shop's and are three segments deep; the four-segment staple and daily keys already in the locales belong to the meta shop's offer catalogue and are a different screen's.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "name", "action", "block", "status"],
+  "required": [
+    "$schema",
+    "_doc",
+    "name",
+    "action",
+    "label",
+    "block",
+    "status"
+  ],
   "$defs": {
     "locKey": {
       "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
@@ -14,49 +22,140 @@
     }
   },
   "properties": {
-    "$schema": { "type": "string" },
-    "_doc": { "type": "string", "minLength": 1 },
+    "$schema": {
+      "type": "string"
+    },
+    "_doc": {
+      "type": "string",
+      "minLength": 1
+    },
     "name": {
-      "description": "The screen's own heading, so a player can tell which tile they are standing on before reading why it is empty.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["title"],
-      "properties": {
-        "title": { "$ref": "#/$defs/locKey" }
-      }
-    },
-    "action": {
-      "description": "🔒 The one control this screen has, and the only one it may have. Leaving submits the tile's own resolution, which is the whole of what a shop visit can legally do; a run whose leave caption went missing is a run standing on a tile it cannot read its way off.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["leave"],
-      "properties": {
-        "leave": { "$ref": "#/$defs/locKey" }
-      }
-    },
-    "block": {
-      "description": "🔒 The sentence this screen is mostly made of. Nothing about this build stocks a shop on a good day, so the line is permanent rather than shown on a failure: a line that came and went would suggest a state where the shop does have stock. It has to differ from the three status lines below, because an empty shop, a shop the player is not standing at, a refused departure and a host that never answered are the same blank page unless the wording separates them.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["nothingStocked"],
-      "properties": {
-        "nothingStocked": { "$ref": "#/$defs/locKey" }
-      }
-    },
-    "status": {
-      "description": "One line per state the read can be in, plus the two answers a departure can come back with. notAtAShop is separated from runMissing because a screen opened on the wrong tile is not a run that has gone; refused and hostUnavailable are separated because a refusal is an answer about the game and a fault is the game not answering, and a player told the first when it was the second retries a move the rules would have allowed all along.",
+      "description": "The screen's own heading, so a player can tell which tile they are standing on.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "loading", "runMissing", "notAtAShop", "readUnavailable", "refused", "hostUnavailable"
+        "title"
       ],
       "properties": {
-        "loading": { "$ref": "#/$defs/locKey" },
-        "runMissing": { "$ref": "#/$defs/locKey" },
-        "notAtAShop": { "$ref": "#/$defs/locKey" },
-        "readUnavailable": { "$ref": "#/$defs/locKey" },
-        "refused": { "$ref": "#/$defs/locKey" },
-        "hostUnavailable": { "$ref": "#/$defs/locKey" }
+        "title": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "action": {
+      "description": "🔒 The three controls this screen has. `leave` is SHOP_LEAVE, the tile's clearing step and the ONLY way off it — a run whose leave caption went missing is a run standing on a tile it cannot read its way off. `buy` and `refresh` are the two that used to be absent, and their absence used to be this schema's whole point: the run row now carries a visit, an offer position and a refresh count, so both are controls whose press has a real outcome.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "leave",
+        "buy",
+        "refresh"
+      ],
+      "properties": {
+        "leave": {
+          "$ref": "#/$defs/locKey"
+        },
+        "buy": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refresh": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "label": {
+      "description": "🔒 The four slot names and the four words a slot is captioned with. A slot that cannot be pressed carries its reason IN WORDS — sold, too dear, nothing left in this pool — because three different refusals greyed out identically leave a player unable to tell 'you already have this' from 'you cannot afford this'. `gold` heads the run-local total the prices are against.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gold",
+        "sold",
+        "unaffordable",
+        "emptySlot",
+        "perkSlot",
+        "consumableSlot",
+        "runBuffSlot",
+        "healSlot"
+      ],
+      "properties": {
+        "gold": {
+          "$ref": "#/$defs/locKey"
+        },
+        "sold": {
+          "$ref": "#/$defs/locKey"
+        },
+        "unaffordable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "emptySlot": {
+          "$ref": "#/$defs/locKey"
+        },
+        "perkSlot": {
+          "$ref": "#/$defs/locKey"
+        },
+        "consumableSlot": {
+          "$ref": "#/$defs/locKey"
+        },
+        "runBuffSlot": {
+          "$ref": "#/$defs/locKey"
+        },
+        "healSlot": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "block": {
+      "description": "The one permanent sentence left: a visit whose free refresh and the run's ad refreshes are all spent says so, rather than hiding the control and leaving the player to infer why.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "refreshSpent"
+      ],
+      "properties": {
+        "refreshSpent": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "status": {
+      "description": "One line per state the read can be in, plus the answers a submission can come back with. `notAtAShop` is separated from `runMissing` because a screen opened on the wrong tile is not a run that has gone; `offerUnavailable` from both, because a run standing at a stocked shop whose CONTENT could not be read is a different fact again, and the screen keeps its departure through it; `refused` and `hostUnavailable` because a refusal is an answer about the game and a fault is the game not answering; and `unaffordable` from `refused`, because it is the one refusal the player can act on.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading",
+        "runMissing",
+        "notAtAShop",
+        "readUnavailable",
+        "offerUnavailable",
+        "refused",
+        "unaffordable",
+        "hostUnavailable"
+      ],
+      "properties": {
+        "loading": {
+          "$ref": "#/$defs/locKey"
+        },
+        "runMissing": {
+          "$ref": "#/$defs/locKey"
+        },
+        "notAtAShop": {
+          "$ref": "#/$defs/locKey"
+        },
+        "readUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "offerUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refused": {
+          "$ref": "#/$defs/locKey"
+        },
+        "unaffordable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hostUnavailable": {
+          "$ref": "#/$defs/locKey"
+        }
       }
     }
   }

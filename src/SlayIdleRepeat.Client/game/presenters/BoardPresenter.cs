@@ -233,6 +233,8 @@ public sealed class BoardPresenter
     private const string RerollActionKey = "loc.board.reroll.action";
     private const string RerollChangesNextRollLabelKey = "loc.board.reroll_changes_next_roll.label";
     private const string ResolveActionKey = "loc.board.resolve.action";
+    private const string AbandonActionKey = "loc.board.abandon.action";
+    private const string AbandonConfirmActionKey = "loc.board.abandon_confirm.action";
     private const string DiePanelActionKey = "loc.board.die_panel.action";
     private const string ForkNameKey = "loc.board.fork.name";
     private const string ForkContinueActionKey = "loc.board.fork_continue.action";
@@ -527,6 +529,34 @@ public sealed class BoardPresenter
     /// <summary>The tile acknowledgement's caption, resolved.</summary>
     public string ResolveText => _strings.Resolve(ResolveActionKey);
 
+    /// <summary>
+    /// The abandon control's caption, resolved — and it changes to the confirmation once armed.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>Two presses, not a modal.</b> Abandoning throws the run away and pays a tenth of what it
+    /// banked, so a single mis-tap must not be able to do it — and `13` §11 forbids a full-screen
+    /// blocking dialog during a run. A control that states the consequence on itself and needs a
+    /// second press is the strongest confirmation this build can give without inventing a mechanism.
+    /// </remarks>
+    public string AbandonText =>
+        _strings.Resolve(AbandonArmed ? AbandonConfirmActionKey : AbandonActionKey);
+
+    /// <summary>Whether the abandon control is showing its confirmation rather than its offer.</summary>
+    public bool AbandonArmed { get; private set; }
+
+    /// <summary>
+    /// 🔒 Whether the run can be abandoned right now — <b>true from every state a live run can stand
+    /// in</b>.
+    /// </summary>
+    /// <remarks>
+    /// It is not gated on <see cref="RollBlock"/>, and that is the whole point: `16` D39 makes
+    /// <c>ABANDON_RUN</c> legal mid-battle, mid-draft, at a paused junction and on an unresolved
+    /// tile, and this control is the only surface that reaches it. A player standing on a tile whose
+    /// screen this build has not written — an Event, a Minigame — has no other way out at all, so a
+    /// control gated on the same block that stranded them would strand them again.
+    /// </remarks>
+    public bool AbandonOffered => Stage == BoardStage.Ready;
+
     /// <summary>The die panel control's caption, resolved.</summary>
     public string DiePanelText => _strings.Resolve(DiePanelActionKey);
 
@@ -628,10 +658,50 @@ public sealed class BoardPresenter
         }
     }
 
+    /// <summary>
+    /// Arms the abandon control, or — once armed — submits <c>ABANDON_RUN</c>.
+    /// </summary>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// One method for both presses rather than an Arm and an Abandon, because the caller is one
+    /// control: two methods would leave the screen deciding which press it is on, which is the state
+    /// this presenter already holds.
+    /// </remarks>
+    public async Task<BoardSubmission> AbandonRunAsync(CancellationToken ct)
+    {
+        if (!AbandonOffered)
+        {
+            return BoardSubmission.RefusedNotAvailable;
+        }
+
+        if (!AbandonArmed)
+        {
+            AbandonArmed = true;
+
+            return BoardSubmission.RefusedNotAvailable;
+        }
+
+        AbandonArmed = false;
+
+        return await SubmitAsync(new AbandonRunCommand(), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Disarms the abandon control — every other action on this screen calls it.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 An armed confirmation that survived a roll would sit there through the rest of the run,
+    /// one stray press from ending it. Rolling, rerolling, choosing a fork or resolving a tile all
+    /// say the player has moved on.
+    /// </remarks>
+    public void CancelAbandon() => AbandonArmed = false;
+
     /// <summary>Submits <c>ROLL_DICE</c>, and nothing at all when something is in the way.</summary>
     /// <param name="ct">Cancellation.</param>
     public async Task<BoardSubmission> RollAsync(CancellationToken ct)
     {
+        CancelAbandon();
+
         if (RollBlock != BoardRollBlock.None)
         {
             return BoardSubmission.RefusedNotAvailable;
@@ -671,6 +741,8 @@ public sealed class BoardPresenter
     /// <param name="ct">Cancellation.</param>
     public async Task<BoardSubmission> UseRerollAsync(CancellationToken ct)
     {
+        CancelAbandon();
+
         if (!_promptOpen || Stage != BoardStage.Ready)
         {
             return BoardSubmission.RefusedNotAvailable;
@@ -692,6 +764,8 @@ public sealed class BoardPresenter
     /// <param name="ct">Cancellation.</param>
     public async Task<BoardSubmission> ChooseForkAsync(int branchIndex, CancellationToken ct)
     {
+        CancelAbandon();
+
         // Checked against the prompt actually on offer rather than against a bare range: a screen
         // that submitted an index for a fork that is not open would spend a command on a refusal
         // whose reason is shared with four other things.
@@ -739,6 +813,8 @@ public sealed class BoardPresenter
     /// <param name="ct">Cancellation.</param>
     public async Task<BoardSubmission> ResolvePendingTileAsync(CancellationToken ct)
     {
+        CancelAbandon();
+
         if (Stage != BoardStage.Ready || PendingTile is null)
         {
             return BoardSubmission.RefusedNotAvailable;

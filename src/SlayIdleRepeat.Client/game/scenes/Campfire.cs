@@ -217,11 +217,14 @@ public partial class Campfire : Control
         _rejectionLabel = GetNode<Label>(RejectionLabelPath);
         _continueButton = GetNode<Button>(ContinueButtonPath);
 
-        _continueButton.Pressed += OnContinuePressed;
+        // 🔒 Nothing subscribes to it any more, and it is left in the scene rather than removed so
+        // the layout below it does not shift: a shrine is left by CHOOSING one of its two rows, and
+        // a campfire by taking one of its three options — there is no tile here a Continue resolves.
+        _continueButton.Visible = false;
 
         // Painted because a Button draws its text by draw mode, and the disabled mode this control
-        // spends the whole campfire arm in has an engine default of half-transparent grey that no
-        // override of font_color reaches.
+        // spends its whole life in has an engine default of half-transparent grey that no override
+        // of font_color reaches.
         ButtonTextColours.ApplyTo(_continueButton, LiveColour, UnavailableColour);
 
         SafeAreaInsets.ApplyTo(GetNode<MarginContainer>(SafeAreaPath), GetViewportRect().Size);
@@ -233,16 +236,13 @@ public partial class Campfire : Control
 
     /// <inheritdoc/>
     /// <remarks>
-    /// The matching half of the subscription in <c>_Ready</c>. The control is a child and dies with
-    /// this node either way, but a handler left connected across a scene that is merely detached and
-    /// re-added would fire twice — and once is the whole contract of resolving a tile.
+    /// 🔒 Nothing to unsubscribe from any more: the option cards and the shrine rows are rebuilt from
+    /// their scenes on every render and die with the containers they are cleared out of, and the
+    /// Continue control this used to detach is no longer wired to anything. Kept as an override
+    /// rather than deleted so a control added back here has somewhere obvious to unhook.
     /// </remarks>
     public override void _ExitTree()
     {
-        if (_continueButton is not null)
-        {
-            _continueButton.Pressed -= OnContinuePressed;
-        }
     }
 
     /// <remarks>
@@ -307,15 +307,19 @@ public partial class Campfire : Control
         _shrinePanel.Visible = shrine;
 
         _shrineBuffsLabel.Text = presenter.ShrineBuffsLabel;
-        _shrineChoiceBlockLabel.Text = presenter.ShrineChoiceBlockText;
-        _shrineCleanseBlockLabel.Text = presenter.ShrineCleanseBlockText;
 
-        // 🔒 The shrine's one action, and only the shrine's. The campfire arm is left by resting,
-        // which is a campfire choose — a Continue drawn there would submit a command the rules layer
-        // accepts without clearing the tile, and the player would press it and stay put.
-        _continueButton.Text = presenter.ContinueText;
-        _continueButton.Visible = shrine;
-        _continueButton.Disabled = _busy || !shrine;
+        // The prompt, and the curse the second slot would lift when there is one. Both sit above the
+        // rows so a player reads what the choice IS before they read the two things it is between.
+        _shrineChoiceBlockLabel.Text = presenter.ShrineChooseLabel;
+        _shrineCleanseBlockLabel.Text =
+            presenter.CleansableCurseId is { } curse ? presenter.CleanseText + ": " + curse : "";
+        _shrineCleanseBlockLabel.Visible = _shrineCleanseBlockLabel.Text.Length > 0;
+
+        // 🔒 The shrine is left by CHOOSING, not by continuing — SHRINE_CHOOSE is what draws the two
+        // options and applies one, and RESOLVE_TILE only acknowledges the tile. So the control that
+        // used to sit here is gone, and the rows themselves are the actions.
+        _continueButton.Visible = false;
+        _continueButton.Disabled = true;
 
         // Hidden rather than blanked once it has nothing to say: an empty label still claims a full
         // line of height, so a blank one is a sentence a player can see room for and cannot read.
@@ -506,17 +510,29 @@ public partial class Campfire : Control
             var row = rowScene.Instantiate<HBoxContainer>();
             var name = row.GetNode<Label>(RowNameLabelPath);
 
-            row.GetNode<ColorRect>(RowTakenMarkPath).Color =
-                drew.IsTaken ? TakenMarkColour : UntakenMarkColour;
-
-            // Marked twice over, because a mark that is only a colour is a mark some players cannot
-            // read: the taken row keeps the live text colour and the rest drop to the quiet one, so
-            // the difference survives with the mark itself unseen.
-            name.AddThemeColorOverride(
-                FontColourOverride, drew.IsTaken ? LiveColour : UnavailableColour);
+            // Every drawn row is choosable now, so every one carries the live mark and the live
+            // text colour. The mark is kept rather than dropped because the row it sits on is still
+            // an option the player can take, and a row with no mark at all reads as disabled.
+            row.GetNode<ColorRect>(RowTakenMarkPath).Color = TakenMarkColour;
+            name.AddThemeColorOverride(FontColourOverride, LiveColour);
 
             name.Text = drew.Name;
 
+            // The row IS the action: a shrine has exactly two, and a separate take button beside
+            // each would be a second control for the same slot. Captured by value, because the loop
+            // variable would otherwise be shared and every row would take the last one.
+            var take = new Button
+            {
+                Text = presenter.TakeText,
+                Disabled = _busy,
+            };
+
+            var choiceIndex = drew.ChoiceIndex;
+
+            take.Pressed += () => OnShrineRowPressed(choiceIndex);
+            ButtonTextColours.ApplyTo(take, LiveColour, UnavailableColour);
+
+            row.AddChild(take);
             list.AddChild(row);
         }
     }
@@ -539,7 +555,8 @@ public partial class Campfire : Control
     private void OnOptionPressed(CampfireOption option) =>
         _ = SubmitAsync(presenter => presenter.ChooseAsync(option, _lifetime));
 
-    private void OnContinuePressed() => _ = SubmitAsync(presenter => presenter.ContinueAsync(_lifetime));
+    private void OnShrineRowPressed(int optionIndex) =>
+        _ = SubmitAsync(presenter => presenter.ChooseShrineAsync(optionIndex, _lifetime));
 
     /// <remarks>
     /// Every control is taken out of use for the whole round trip and put back once, on one path. A
@@ -602,7 +619,7 @@ public partial class Campfire : Control
         GD.Print(
             $"{CampfireMarker} stage={presenter.Stage} options={presenter.Options.Count} " +
             $"shrine_rows={presenter.ShrineRows.Count} available={presenter.ShrineRowsAvailable} " +
-            $"taken={presenter.ShrineRows.FirstOrDefault(row => row.IsTaken)?.BuffId ?? "none"} " +
+            $"offers={string.Join(",", presenter.ShrineRows.Select(row => row.BuffId))} " +
             $"host_faulted={presenter.HostFaulted} " +
             $"rejection={presenter.RulesRejection?.ToString() ?? "none"}");
 }

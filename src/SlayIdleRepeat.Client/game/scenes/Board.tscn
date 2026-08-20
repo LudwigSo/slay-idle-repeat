@@ -263,6 +263,13 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 80
 autowrap_mode = 3
 
+[node name="AbandonButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 132)
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+autowrap_mode = 3
+
 [node name="DiePanelOverlay" type="PanelContainer" parent="."]
 unique_name_in_owner = true
 visible = false

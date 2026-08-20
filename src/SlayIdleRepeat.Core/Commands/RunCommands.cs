@@ -122,6 +122,80 @@ public sealed record ShopBuyCommand(int ShopSlotIndex) : GameCommand
 /// <summary><c>SHOP_REFRESH</c> — restock the in-run shop.</summary>
 public sealed record ShopRefreshCommand : GameCommand;
 
+/// <summary>
+/// <c>SHRINE_CHOOSE</c> — take one of the two options a Shrine tile offers (`03` §7a.5).
+/// </summary>
+/// <remarks>
+/// Added to `14` §2.3's registry alongside <see cref="DiceForgeChooseCommand"/> and
+/// <see cref="ShopLeaveCommand"/> (52 → 55; decision recorded in `16`). A shrine offers two distinct
+/// options and the player takes one; before this command existed the resolver had to settle it
+/// itself, always taking slot 1, which made the game's only "relief or greed" decision a roll.
+/// </remarks>
+/// <param name="OptionIndex">
+/// The chosen option's slot: <c>0</c> for the first drawn buff, <c>1</c> for the second — or for the
+/// Cleanse, which replaces the second slot whenever the run carries a cleansable curse.
+/// </param>
+public sealed record ShrineChooseCommand(int OptionIndex) : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(OptionIndex)} = {OptionIndex}");
+
+        return true;
+    }
+}
+
+/// <summary>
+/// <c>DICE_FORGE_CHOOSE</c> — upgrade one face of the run's die at a Dice Forge tile (`03` §2).
+/// </summary>
+/// <remarks>
+/// The upgrade is permanent for the run and free: landing on the tile is the whole cost. Which
+/// options are offered is <c>Handlers.DiceForgeChoose</c>'s, not this payload's — the command only
+/// names a face and a choice.
+/// </remarks>
+/// <param name="FaceIndex">The die face to upgrade, 1-based (`04` §1 numbers faces 1..6).</param>
+/// <param name="OptionIndex">The chosen option's position in the server-issued menu.</param>
+/// <param name="HigherPipValue">
+/// The new pip count, required by — and only by — the "raise to a higher Pip value" option, which
+/// is relative to the face being upgraded rather than a fixed target. <c>null</c> for every other
+/// option, and a value supplied alongside one of them is ignored rather than refused: it names
+/// nothing that option could install.
+/// </param>
+public sealed record DiceForgeChooseCommand(int FaceIndex, int OptionIndex, int? HigherPipValue = null)
+    : GameCommand
+{
+    /// <inheritdoc cref="CommandPayload.PrintMembersContract"/>
+    /// <param name="builder">The builder the record's <c>ToString()</c> is assembling into.</param>
+    /// <returns><see langword="true"/>, so <c>ToString()</c> spaces the closing brace.</returns>
+    protected override bool PrintMembers(StringBuilder builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.Append(CultureInfo.InvariantCulture, $"{nameof(FaceIndex)} = {FaceIndex}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(OptionIndex)} = {OptionIndex}");
+        builder.Append(CultureInfo.InvariantCulture, $", {nameof(HigherPipValue)} = {HigherPipValue}");
+
+        return true;
+    }
+}
+
+/// <summary>
+/// <c>SHOP_LEAVE</c> — done shopping; close the offer and walk on (`03` §7).
+/// </summary>
+/// <remarks>
+/// 🔒 <b>A shop is the one tile a player can stand at for several commands by choice</b> — buy,
+/// refresh, buy again — so unlike every other tile it needs an explicit "I am finished". Before this
+/// command existed, <c>RESOLVE_TILE</c> cleared the shop tile the instant the run arrived, which is
+/// what let a run walk away from a shop it could never buy anything at.
+/// </remarks>
+public sealed record ShopLeaveCommand : GameCommand;
+
+
 /// <summary><c>EVENT_CHOOSE</c> — take one outcome of an event card.</summary>
 /// <param name="ChoiceIndex">The chosen outcome's position in the server-issued card.</param>
 public sealed record EventChooseCommand(int ChoiceIndex) : GameCommand

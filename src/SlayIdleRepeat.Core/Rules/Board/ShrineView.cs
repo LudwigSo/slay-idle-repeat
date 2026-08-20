@@ -16,45 +16,48 @@ namespace SlayIdleRepeat.Core.Rules.Board;
 /// the command applied another would be the shrine lying about what it gave.
 /// </para>
 /// <para>
-/// <b>The choice is not the player's.</b> No choose command exists, so the resolver settles it:
-/// <see cref="TakenRowIndex"/> names the row that is actually applied, and only its immediate-heal
-/// half is applied at all — nothing consumes the stat half of a buff yet.
+/// 🔒 <b>The choice IS the player's now.</b> <c>SHRINE_CHOOSE</c> names the slot, and both halves of
+/// the chosen row are applied — the immediate heal and the permanent stat move. There is no longer a
+/// row this view can call "the taken one" before the player has spoken, which is why the property
+/// that used to say so is gone.
 /// </para>
 /// <para>
-/// <b>The cleanse arm cannot fire in this build.</b> A run holds no curse list, so
-/// <see cref="IsCleanse"/> is false and both rows are drawn buffs. The property is here because the
-/// arm is real in the resolver and a screen that could not express it would have to be rewritten
-/// rather than extended.
+/// <b>The cleanse arm fires off the run's own curse list.</b> With at least one curse carried,
+/// <see cref="IsCleanse"/> is true, slot 2 is the Cleanse and no second buff is drawn — which is
+/// also one fewer draw off the shrine stream, so a view that guessed this wrong would show a
+/// different pair than the command applies.
 /// </para>
 /// <para>🔒 Read-only: projecting mutates no <c>Run</c> and moves no stream position.</para>
 /// </remarks>
 public sealed class ShrineView
 {
-    /// <summary>The slot the resolver applies, and therefore the row this view reports as taken.</summary>
-    private const int TakenSlot = 0;
-
-    /// <summary>
-    /// What a projection passes for the cleanse branch. A run holds no curse list, so nothing can
-    /// answer this any other way until one exists — and the branch changes how many draws the shrine
-    /// spends, so guessing it would desynchronise the stream rather than mislabel a row.
-    /// </summary>
-    private const bool NoCleansableCurse = false;
-
-    private ShrineView(IReadOnlyList<ShrineBuffRow> rows, int takenRowIndex, bool isCleanse)
+    private ShrineView(IReadOnlyList<ShrineBuffRow> rows, bool isCleanse, string? cleansableCurseId)
     {
         Rows = rows;
-        TakenRowIndex = takenRowIndex;
         IsCleanse = isCleanse;
+        CleansableCurseId = cleansableCurseId;
     }
 
     /// <summary>The rows the shrine offers, in slot order.</summary>
+    /// <remarks>
+    /// One row when <see cref="IsCleanse"/> is true — slot 2 is the Cleanse, which is not a pool row
+    /// and has nothing to name here — and two otherwise.
+    /// </remarks>
     public IReadOnlyList<ShrineBuffRow> Rows { get; }
-
-    /// <summary>The index into <see cref="Rows"/> of the row the resolver actually applies.</summary>
-    public int TakenRowIndex { get; }
 
     /// <summary>Whether the second slot is a Cleanse rather than a drawn buff.</summary>
     public bool IsCleanse { get; }
+
+    /// <summary>
+    /// The curse a Cleanse would remove, or <c>null</c> when the shrine offers none.
+    /// </summary>
+    /// <remarks>
+    /// Named so the screen can say WHICH curse the option lifts. It is the run's first-applied
+    /// curse rather than the player's pick, for the reason <c>Handlers.ShrineChoose</c> gives — and
+    /// a screen that could not name it would have to describe the option as "remove a curse", which
+    /// is a worse offer than the one the player is actually being made.
+    /// </remarks>
+    public string? CleansableCurseId { get; }
 
     /// <summary>Projects the shrine <paramref name="run"/> is standing on, or <c>null</c> when its pending tile is not one.</summary>
     /// <param name="run">The run whose shrine is being drawn.</param>
@@ -73,12 +76,17 @@ public sealed class ShrineView
 
         var tuning = ShrineTuning.Read(content);
 
+        // Off the run's own curse list, exactly as SHRINE_CHOOSE reads it: the branch decides how
+        // many draws the shrine spends, so a view that guessed it would show a different pair than
+        // the command applies.
+        var cleansable = run.Curses is { Count: > 0 } curses ? curses[0] : null;
+
         // Reopened at the position the run COMMITTED the stream at, and never folded back: these are
-        // the draws RESOLVE_TILE will spend, re-derived rather than consumed.
+        // the draws SHRINE_CHOOSE will spend, re-derived rather than consumed.
         var drawn = ShrineResolver.Draw(
             tuning,
             DeterministicRng.OpenAt(run.RunSeed, RngStreams.Shrine, CommittedShrinePosition(run)),
-            NoCleansableCurse);
+            cleansable is not null);
 
         var rows = new List<ShrineBuffRow>(2) { RowOf(tuning, drawn.FirstIndex) };
 
@@ -87,8 +95,7 @@ public sealed class ShrineView
             rows.Add(RowOf(tuning, second));
         }
 
-        return new ShrineView(
-            Array.AsReadOnly(rows.ToArray()), TakenSlot, NoCleansableCurse);
+        return new ShrineView(Array.AsReadOnly(rows.ToArray()), cleansable is not null, cleansable);
     }
 
     /// <summary>The <c>shrine</c> stream index the run stands at. An unrecorded stream stands at zero.</summary>

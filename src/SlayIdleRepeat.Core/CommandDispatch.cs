@@ -41,12 +41,17 @@ internal sealed class CommandDispatch
     /// has to answer the question in the table it is already editing. See
     /// <c>GameRules.BattlePendingRefusesAStockChange</c> for why the refusal exists at all.
     /// </param>
+    /// <param name="leavesRun">
+    /// 🔒 <c>true</c> for exactly one row, <c>ABANDON_RUN</c> — see
+    /// <see cref="CommandRegistration.LeavesRun"/>.
+    /// </param>
     internal CommandDispatch Handled<TCommand>(
         string wireName,
         CommandKind kind,
         CommandHandler<TCommand> handler,
         bool opensRun = false,
-        bool changesHeroBuild = false)
+        bool changesHeroBuild = false,
+        bool leavesRun = false)
         where TCommand : GameCommand
     {
         ArgumentNullException.ThrowIfNull(handler);
@@ -58,7 +63,8 @@ internal sealed class CommandDispatch
             (command, input) => handler((TCommand)command, input),
             DeferredTo: null,
             OpensRun: opensRun,
-            ChangesHeroBuild: changesHeroBuild));
+            ChangesHeroBuild: changesHeroBuild,
+            LeavesRun: leavesRun));
     }
 
     /// <summary>
@@ -267,6 +273,19 @@ internal delegate HandlerResult CommandHandler<in TCommand>(TCommand command, Ha
 /// are questions the table answers about a row, and a gear command added without answering this one
 /// would reopen the hole silently.
 /// </param>
+/// <param name="LeavesRun">
+/// 🔒 <c>true</c> for exactly one row, <c>ABANDON_RUN</c>: the command whose entire job is to
+/// get the player out of the run they are in, and which is therefore legal from every state a LIVE
+/// run can stand in — mid-battle, mid-draft, mid-fork, standing on an unresolved tile. It exempts
+/// the row from <c>GameRules.Execute</c>'s battle-open and draft-open gates, and from nothing else:
+/// an <c>Ended</c> run still answers <c>RUN_ALREADY_ENDED</c>, because there is no longer a run to
+/// leave.
+/// <para>
+/// On the registration rather than as a type test inside the two gates, on
+/// <paramref name="ChangesHeroBuild"/>'s own argument: both gates would otherwise name the same
+/// exemption twice, and a third gate added later would silently not know about it.
+/// </para>
+/// </param>
 internal sealed record CommandRegistration(
     Type CommandType,
     string WireName,
@@ -274,7 +293,8 @@ internal sealed record CommandRegistration(
     Func<GameCommand, HandlerInput, HandlerResult>? Handler,
     string? DeferredTo,
     bool OpensRun = false,
-    bool ChangesHeroBuild = false)
+    bool ChangesHeroBuild = false,
+    bool LeavesRun = false)
 {
     /// <summary>Whether this command's system exists yet.</summary>
     internal bool IsHandled => Handler is not null;

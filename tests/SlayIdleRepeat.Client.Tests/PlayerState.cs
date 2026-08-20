@@ -288,7 +288,13 @@ internal static class PlayerState
         long bankedSoulShards = 0,
         bool bossDefeated = false,
         int itemsAtOrAboveFloorBand = 0,
-        IReadOnlyDictionary<string, long>? adUses = null) =>
+        IReadOnlyDictionary<string, long>? adUses = null,
+        IReadOnlyList<string>? curses = null,
+        IReadOnlyList<string>? shrineBuffs = null,
+        IReadOnlyDictionary<int, int>? dieFaceUpgrades = null,
+        ulong? shopOfferDraw = null,
+        int shopSlotsPurchased = 0,
+        int shopRefreshesUsedThisVisit = 0) =>
         new(
             SnapshotSchema.SchemaVersion,
             id,
@@ -323,7 +329,13 @@ internal static class PlayerState
             BankedLegendXp: bankedLegendXp,
             BankedSoulShards: bankedSoulShards,
             BossDefeated: bossDefeated,
-            ItemsAtOrAboveFloorBand: itemsAtOrAboveFloorBand);
+            ItemsAtOrAboveFloorBand: itemsAtOrAboveFloorBand,
+            ShrineBuffs: shrineBuffs,
+            Curses: curses,
+            DieFaceUpgrades: dieFaceUpgrades,
+            ShopOfferDraw: shopOfferDraw,
+            ShopSlotsPurchased: shopSlotsPurchased,
+            ShopRefreshesUsedThisVisit: shopRefreshesUsedThisVisit);
 
     /// <summary>The same slice, carrying a run rehydrated from the given row.</summary>
     /// <remarks>

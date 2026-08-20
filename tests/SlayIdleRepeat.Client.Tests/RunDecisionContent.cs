@@ -53,7 +53,19 @@ internal static class RunDecisionContent
 
     internal const string ShopTitleNameKey = "loc.shop.title.name";
     internal const string ShopLeaveActionKey = "loc.shop.leave.action";
-    internal const string ShopNothingStockedBlockKey = "loc.shop.nothing_stocked.block";
+    internal const string ShopBuyActionKey = "loc.shop.buy.action";
+    internal const string ShopRefreshActionKey = "loc.shop.refresh.action";
+    internal const string ShopGoldLabelKey = "loc.shop.gold.label";
+    internal const string ShopPerkSlotNameKey = "loc.shop.slot.perk.name";
+    internal const string ShopConsumableSlotNameKey = "loc.shop.slot.consumable.name";
+    internal const string ShopRunBuffSlotNameKey = "loc.shop.slot.run_buff.name";
+    internal const string ShopHealSlotNameKey = "loc.shop.slot.heal.name";
+    internal const string ShopSoldLabelKey = "loc.shop.sold.label";
+    internal const string ShopUnaffordableLabelKey = "loc.shop.unaffordable.label";
+    internal const string ShopEmptySlotLabelKey = "loc.shop.empty_slot.label";
+    internal const string ShopRefreshSpentBlockKey = "loc.shop.refresh_spent.block";
+    internal const string ShopOfferUnavailableStatusKey = "loc.shop.offer_unavailable.status";
+    internal const string ShopUnaffordableStatusKey = "loc.shop.unaffordable.status";
     internal const string ShopLoadingStatusKey = "loc.shop.loading.status";
     internal const string ShopRunMissingStatusKey = "loc.shop.run_missing.status";
     internal const string ShopNotAtAShopStatusKey = "loc.shop.not_at_a_shop.status";
@@ -70,10 +82,10 @@ internal static class RunDecisionContent
     internal const string CampfireUpgradePerkActionKey = "loc.campfire.upgrade_perk.action";
     internal const string CampfireRerollChargesActionKey = "loc.campfire.reroll_charges.action";
     internal const string CampfireContinueActionKey = "loc.campfire.continue.action";
-    internal const string CampfireUpgradePerkBlockKey = "loc.campfire.upgrade_perk_untracked.block";
-    internal const string CampfireRerollChargesBlockKey = "loc.campfire.reroll_charges_untracked.block";
-    internal const string CampfireShrineChoiceBlockKey = "loc.campfire.shrine_choice_absent.block";
-    internal const string CampfireShrineCleanseBlockKey = "loc.campfire.shrine_cleanse_absent.block";
+    internal const string CampfireUpgradePerkNoneBlockKey = "loc.campfire.upgrade_perk_none.block";
+    internal const string CampfireTakeActionKey = "loc.campfire.take.action";
+    internal const string CampfireCleanseActionKey = "loc.campfire.cleanse.action";
+    internal const string CampfireShrineChooseLabelKey = "loc.campfire.shrine_choose.label";
     internal const string CampfireLoadingStatusKey = "loc.campfire.loading.status";
     internal const string CampfireRunMissingStatusKey = "loc.campfire.run_missing.status";
     internal const string CampfireNotAtACampfireStatusKey = "loc.campfire.not_at_a_campfire.status";
@@ -176,9 +188,13 @@ internal static class RunDecisionContent
     /// <summary>Every string key the run Shop screen renders.</summary>
     internal static IReadOnlyList<string> ShopKeys { get; } =
     [
-        ShopTitleNameKey, ShopLeaveActionKey, ShopNothingStockedBlockKey,
+        ShopTitleNameKey, ShopLeaveActionKey, ShopBuyActionKey, ShopRefreshActionKey,
+        ShopGoldLabelKey,
+        ShopPerkSlotNameKey, ShopConsumableSlotNameKey, ShopRunBuffSlotNameKey, ShopHealSlotNameKey,
+        ShopSoldLabelKey, ShopUnaffordableLabelKey, ShopEmptySlotLabelKey, ShopRefreshSpentBlockKey,
         ShopLoadingStatusKey, ShopRunMissingStatusKey, ShopNotAtAShopStatusKey,
-        ShopReadUnavailableStatusKey, ShopRefusedStatusKey, ShopHostUnavailableStatusKey,
+        ShopReadUnavailableStatusKey, ShopOfferUnavailableStatusKey, ShopRefusedStatusKey,
+        ShopUnaffordableStatusKey, ShopHostUnavailableStatusKey,
     ];
 
     /// <summary>Every string key the Campfire / Shrine screen renders, buff names aside.</summary>
@@ -187,8 +203,8 @@ internal static class RunDecisionContent
         CampfireTitleNameKey, CampfireShrineTitleNameKey, CampfireShrineBuffsLabelKey,
         CampfireRestActionKey, CampfireUpgradePerkActionKey, CampfireRerollChargesActionKey,
         CampfireContinueActionKey,
-        CampfireUpgradePerkBlockKey, CampfireRerollChargesBlockKey,
-        CampfireShrineChoiceBlockKey, CampfireShrineCleanseBlockKey,
+        CampfireUpgradePerkNoneBlockKey, CampfireTakeActionKey, CampfireCleanseActionKey,
+        CampfireShrineChooseLabelKey,
         CampfireLoadingStatusKey, CampfireRunMissingStatusKey, CampfireNotAtACampfireStatusKey,
         CampfireReadUnavailableStatusKey, CampfireShrineUnavailableStatusKey,
         CampfireRefusedStatusKey, CampfireHostUnavailableStatusKey,

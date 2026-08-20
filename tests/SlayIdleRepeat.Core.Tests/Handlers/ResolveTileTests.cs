@@ -166,16 +166,22 @@ public sealed class ResolveTileTests
         result.Events.ShouldHaveSingleItem().ShouldBeOfType<CurrencyChanged>().Delta.ShouldBe(expected);
     }
 
-    /// <summary>A shrine resolves, heals if it drew a healing row, and clears.</summary>
-    /// <remarks>Produces no events by design: a shrine moves no currency and HP has no domain event.</remarks>
+    /// <summary>
+    /// A shrine is ACKNOWLEDGED here and finished by <c>SHRINE_CHOOSE</c> — the player picks one of
+    /// the two options, so <c>RESOLVE_TILE</c> cannot be the command that applies one.
+    /// </summary>
+    /// <remarks>
+    /// Produces no events either way: a shrine moves no currency and HP has no domain event. What
+    /// this pins is that the tile is STILL PENDING, which is what makes the choose command reachable.
+    /// </remarks>
     [Fact]
-    public void A_shrine_tile_resolves_to_no_events_and_clears()
+    public void A_shrine_tile_is_acknowledged_and_left_for_the_choice()
     {
         var result = Resolve(TileWorlds.OnTile(TileKind.Shrine, currentHp: 50));
 
         result.Accepted.ShouldBeTrue();
         result.Events.ShouldBeEmpty();
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe((int)TileKind.Shrine);
     }
 
     /// <summary>A curse tile pays a curse's reward and clears.</summary>
@@ -189,6 +195,45 @@ public sealed class ResolveTileTests
         paid.Delta.ShouldBeGreaterThan(0);
         paid.Reason.ShouldBe("curse_tile_reward");
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
+    }
+
+    /// <summary>
+    /// 🔒 …and it APPLIES the curse, which is what stops the tile being strictly good.
+    /// </summary>
+    /// <remarks>
+    /// The reward assertion above cannot see this: a resolver that paid and applied nothing
+    /// satisfies it completely, which is exactly what this tile did before the run could hold a
+    /// curse at all.
+    /// </remarks>
+    [Fact]
+    public void A_curse_tile_applies_the_curse_it_drew()
+    {
+        var result = Resolve(TileWorlds.OnTile(TileKind.Curse));
+
+        result.NewState.Run!.Curses.Count.ShouldBe(
+            1, "the run took the reward and suffered nothing.");
+    }
+
+    /// <summary>
+    /// A curse already carried is not applied twice (`19` Part E gives curses no stacking) — and the
+    /// reward is still paid.
+    /// </summary>
+    /// <remarks>
+    /// Paying anyway is the reading that keeps the tile's bargain honest: the alternative is a tile
+    /// that sometimes does nothing at all, decided by a draw the player cannot see or influence.
+    /// </remarks>
+    [Fact]
+    public void A_curse_already_carried_is_not_stacked_and_still_pays()
+    {
+        var first = Resolve(TileWorlds.OnTile(TileKind.Curse)).NewState;
+        var carried = first.Run!.Curses[0];
+
+        var again = Resolve(TileWorlds.OnTile(TileKind.Curse, curses: [carried]));
+
+        again.Accepted.ShouldBeTrue();
+        again.NewState.Run!.Curses.ShouldBe(new[] { carried }, "no second copy.");
+        again.Events.ShouldHaveSingleItem().ShouldBeOfType<CurrencyChanged>()
+            .Delta.ShouldBeGreaterThan(0, "the reward is paid whether or not the debuff landed.");
     }
 
     /// <summary>…and the reward it pays is one of the chapter-1 curses CurseRewards can pay, whatever the seed.</summary>
@@ -233,32 +278,45 @@ public sealed class ResolveTileTests
 
     // ------------------------------------------------------------------ the visits that grant nothing
 
-    /// <summary>A shop visit is recorded as resolved and the tile clears.</summary>
+    /// <summary>A shop visit stocks the offer and leaves the tile open for the player to shop at.</summary>
     [Fact]
-    public void A_shop_tile_resolves_to_nothing_and_clears()
+    public void A_shop_tile_stocks_an_offer_and_stays_open()
     {
         var result = Resolve(TileWorlds.OnTile(TileKind.Shop));
 
         result.Accepted.ShouldBeTrue();
-        result.Events.ShouldBeEmpty("no offer is stocked and nothing is bought by walking in");
+        result.Events.ShouldBeEmpty("stocking announces nothing; nothing has been bought yet");
+        result.NewState.Run!.HasOpenShop.ShouldBeTrue("the visit is what stocks the four slots");
         result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(
-            -1,
-            "the shop tile is still pending, and no command in the frozen vocabulary can clear it — " +
-            "so the run is held on it for ever and a pending tile refuses every ROLL_DICE.");
+            (int)TileKind.Shop,
+            "SHOP_LEAVE is the shop's clearing step — a shop that cleared on arrival could never " +
+            "sell anything, which is exactly what it used to do.");
     }
 
-    /// <summary>A Dice Forge visit is recorded as resolved and the tile clears.</summary>
+    /// <summary>
+    /// 🔒 A second <c>RESOLVE_TILE</c> at an open shop is refused rather than re-stocking: a free
+    /// re-roll of the offer would sidestep the refresh economy entirely.
+    /// </summary>
     [Fact]
-    public void A_dice_forge_tile_resolves_to_nothing_and_clears()
+    public void A_second_visit_to_an_open_shop_is_refused()
+    {
+        var open = Resolve(TileWorlds.OnTile(TileKind.Shop)).NewState;
+
+        var again = Resolve(open);
+
+        again.Accepted.ShouldBeFalse();
+        again.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
+    }
+
+    /// <summary>A Dice Forge visit is acknowledged and left for <c>DICE_FORGE_CHOOSE</c>.</summary>
+    [Fact]
+    public void A_dice_forge_tile_is_acknowledged_and_left_for_the_choice()
     {
         var result = Resolve(TileWorlds.OnTile(TileKind.DiceForge));
 
         result.Accepted.ShouldBeTrue();
         result.Events.ShouldBeEmpty("no die face is modified by walking in");
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(
-            -1,
-            "the forge tile is still pending, and there is no command at all that clears it — so the " +
-            "run is held on it for ever and a pending tile refuses every ROLL_DICE.");
+        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe((int)TileKind.DiceForge);
     }
 
     /// <summary>
@@ -266,45 +324,70 @@ public sealed class ResolveTileTests
     /// changing is the claim "the tile is no longer pending" alone does not make (steering S24).
     /// </summary>
     [Fact]
-    public void A_run_rolls_off_a_resolved_shop_tile()
+    public void A_run_rolls_off_a_shop_it_has_left()
     {
-        var visited = Resolve(TileWorlds.OnTile(TileKind.Shop)).NewState;
+        var open = Resolve(TileWorlds.OnTile(TileKind.Shop)).NewState;
+
+        var left = SlayIdleRepeat.Core.GameRules.Apply(
+            open, new ShopLeaveCommand(), TileWorlds.Context);
+
+        left.Accepted.ShouldBeTrue("SHOP_LEAVE was refused " + left.Rejection);
 
         var rolled = SlayIdleRepeat.Core.GameRules.Apply(
-            visited, new RollDiceCommand(), TileWorlds.Context);
+            left.NewState, new RollDiceCommand(), TileWorlds.Context);
 
         rolled.Accepted.ShouldBeTrue(
-            "ROLL_DICE was refused " + rolled.Rejection + " from a shop tile RESOLVE_TILE had just " +
-            "answered, so the shop is still pending and the run cannot leave it.");
+            "ROLL_DICE was refused " + rolled.Rejection + " from a shop the run had left, so the " +
+            "shop is still pending and the run cannot leave it.");
         rolled.NewState.Run!.Position.ShouldBeGreaterThan(
-            visited.Run!.Position, "the roll was accepted and the run stood still.");
+            left.NewState.Run!.Position, "the roll was accepted and the run stood still.");
     }
 
-    /// <summary>A shop visit moves nothing but the pending tile — no currency, no HP, no counter.</summary>
+    /// <summary>…and so can it off a Dice Forge it has used.</summary>
     [Fact]
-    public void A_shop_visit_changes_nothing_besides_the_pending_tile()
+    public void A_run_rolls_off_a_dice_forge_it_has_used()
+    {
+        var open = Resolve(TileWorlds.OnTile(TileKind.DiceForge)).NewState;
+
+        var forged = SlayIdleRepeat.Core.GameRules.Apply(
+            open, new DiceForgeChooseCommand(FaceIndex: 1, OptionIndex: 0, HigherPipValue: 6),
+            TileWorlds.Context);
+
+        forged.Accepted.ShouldBeTrue("DICE_FORGE_CHOOSE was refused " + forged.Rejection);
+
+        var rolled = SlayIdleRepeat.Core.GameRules.Apply(
+            forged.NewState, new RollDiceCommand(), TileWorlds.Context);
+
+        rolled.Accepted.ShouldBeTrue(
+            "ROLL_DICE was refused " + rolled.Rejection + " from a forge the run had already used.");
+    }
+
+    /// <summary>
+    /// 🔒 A shop visit spends no Gold and grants nothing — walking IN is not buying. What it does
+    /// move is the shop stream and the visit's own three fields, which is why this reads the run's
+    /// wallet and hit points rather than its whole bytes.
+    /// </summary>
+    [Fact]
+    public void A_shop_visit_buys_nothing_by_itself()
     {
         var state = TileWorlds.OnTile(TileKind.Shop, gold: 500, currentHp: 40);
-        var before = BytesBesidesThePendingTile(state);
 
         var result = Resolve(state);
 
         result.Events.ShouldBeEmpty(
-            "a shop visit announced something. The bytes below read the RUN only, so a row paid into " +
-            "the PLAYER's wallet would slip past them — this is what catches it.");
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
-        BytesBesidesThePendingTile(result.NewState).ShouldBe(
-            before, "a shop visit moved something. It stocks no offer and spends no Gold.");
+            "a shop visit announced something. Stocking is not a purchase, and a purchase is the " +
+            "only thing at a shop that moves a currency.");
+        result.NewState.Run!.Gold.ShouldBe(500);
+        result.NewState.Run!.CurrentHp.ShouldBe(40);
+        result.NewState.Run!.ShrineBuffs.ShouldBeEmpty();
+        result.NewState.Run!.RunBuffs.ShouldBeEmpty();
+        result.NewState.Run!.Consumables.ShouldBeEmpty();
     }
 
-    /// <summary>
-    /// 🔒 A Dice Forge visit modifies no die face, and this is the pin that expires the moment one
-    /// does (steering S4).
-    /// </summary>
+    /// <summary>A Dice Forge visit modifies no die face — the CHOICE does, and it has not been made.</summary>
     /// <remarks>
     /// Stated as "nothing at all moved" rather than as a list of what a forge must not touch: an
-    /// upgrade landing anywhere on the run turns this red and asks its author for the forge's own
-    /// clearing step.
+    /// upgrade landing on the mere acknowledgement turns this red.
     /// </remarks>
     [Fact]
     public void A_dice_forge_visit_changes_nothing_besides_the_pending_tile()
@@ -315,49 +398,58 @@ public sealed class ResolveTileTests
         var result = Resolve(state);
 
         result.Events.ShouldBeEmpty("a forge visit that upgrades nothing announces nothing");
-        result.NewState.Run!.ToSnapshot().PendingTileKind.ShouldBe(-1);
         BytesBesidesThePendingTile(result.NewState).ShouldBe(
             before,
-            "a Dice Forge visit moved something on the run. Nothing in the frozen vocabulary can " +
-            "carry a player's face choice, so the visit resolves to nothing on purpose — the day an " +
-            "upgrade lands, it owes its own clearing step and RESOLVE_TILE's has to be revisited.");
+            "a Dice Forge visit moved something on the run. The acknowledgement decides nothing; " +
+            "DICE_FORGE_CHOOSE is what installs a face.");
     }
 
     /// <summary>
-    /// 🔒 …and the other half of that bargain (steering S4): a shop buys nothing, <b>while the run is
-    /// standing on the tile and after the visit alike</b>, for every slot SHOP_BUY names.
+    /// 🔒 A purchase is legal only at an OPEN shop: not before the visit stocked one, and not after
+    /// the run has left it.
     /// </summary>
     /// <remarks>
-    /// The state ON the unresolved tile carries the pin: it is where a stocked offer would first
-    /// make a purchase legal, so it is where this goes red — the cleared state alone never expires.
+    /// The "after" half is the one worth having. A shop offer is derived from a recorded stream
+    /// position, so a purchase mask or an offer position that outlived the visit would let the run
+    /// go on buying from a shop several nodes behind it — and no assertion about the tile alone can
+    /// see that.
     /// </remarks>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
     [InlineData(3)]
-    public void A_shop_visit_makes_no_purchase_legal(int slotIndex)
+    public void A_purchase_is_legal_only_while_the_shop_is_open(int slotIndex)
     {
-        var standingOn = TileWorlds.OnTile(TileKind.Shop);
+        // Hurt, because slot 4 is the Heal and 03 §7.1 refuses one at full HP — a fixture at full
+        // health would make the acceptance below unreachable for that slot alone.
+        var standingOn = TileWorlds.OnTile(TileKind.Shop, gold: 100_000, currentHp: 40);
 
         var early = SlayIdleRepeat.Core.GameRules.Apply(
             standingOn, new ShopBuyCommand(slotIndex), TileWorlds.Context);
 
         early.Accepted.ShouldBeFalse(
-            "slot " + slotIndex + " was purchasable while the run stood on the shop tile. " +
-            "RESOLVE_TILE clears a shop tile precisely BECAUSE a visit buys nothing; the moment a " +
-            "purchase is legal the shop owes its own clearing step and RESOLVE_TILE's has to be " +
-            "revisited.");
+            "slot " + slotIndex + " was purchasable before RESOLVE_TILE stocked an offer — so the " +
+            "run bought from a shop whose contents nothing had drawn yet.");
         early.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
 
-        var visited = Resolve(standingOn).NewState;
+        var open = Resolve(standingOn).NewState;
+
+        SlayIdleRepeat.Core.GameRules.Apply(open, new ShopBuyCommand(slotIndex), TileWorlds.Context)
+            .Accepted.ShouldBeTrue(
+                "slot " + slotIndex + " was refused at an open shop with 100,000 Gold in the run. " +
+                "Negative control for the two refusals either side of it: without this, both would " +
+                "pass on a shop that sells nothing at all.");
+
+        var left = SlayIdleRepeat.Core.GameRules.Apply(
+            open, new ShopLeaveCommand(), TileWorlds.Context).NewState;
 
         var bought = SlayIdleRepeat.Core.GameRules.Apply(
-            visited, new ShopBuyCommand(slotIndex), TileWorlds.Context);
+            left, new ShopBuyCommand(slotIndex), TileWorlds.Context);
 
         bought.Accepted.ShouldBeFalse(
-            "slot " + slotIndex + " became purchasable after the visit cleared the tile, so the run " +
-            "can shop at a tile it has already left.");
+            "slot " + slotIndex + " was still purchasable after SHOP_LEAVE, so the run can shop at " +
+            "a tile it has already walked away from.");
         bought.Rejection.ShouldBe(RejectionReason.ILLEGAL_STATE);
     }
 

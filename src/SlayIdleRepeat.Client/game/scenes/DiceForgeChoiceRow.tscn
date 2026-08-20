@@ -1,0 +1,51 @@
+[gd_scene format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_choice_rest"]
+bg_color = Color(0.18, 0.19, 0.24, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_choice_hover"]
+bg_color = Color(0.24, 0.25, 0.31, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_choice_down"]
+bg_color = Color(0.30, 0.31, 0.38, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_choice_off"]
+bg_color = Color(0.14, 0.15, 0.18, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_choice_on"]
+bg_color = Color(0.36, 0.38, 0.47, 1)
+border_width_left = 6
+border_width_top = 6
+border_width_right = 6
+border_width_bottom = 6
+border_color = Color(0.98, 0.83, 0.45, 1)
+corner_radius_top_left = 24
+corner_radius_top_right = 24
+corner_radius_bottom_right = 24
+corner_radius_bottom_left = 24
+
+[node name="DiceForgeChoiceRow" type="Button"]
+custom_minimum_size = Vector2(0, 160)
+toggle_mode = true
+theme_override_font_sizes/font_size = 48
+theme_override_styles/normal = SubResource("StyleBoxFlat_choice_rest")
+theme_override_styles/hover = SubResource("StyleBoxFlat_choice_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_choice_on")
+theme_override_styles/disabled = SubResource("StyleBoxFlat_choice_off")
+autowrap_mode = 3

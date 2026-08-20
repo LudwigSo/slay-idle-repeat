@@ -88,10 +88,11 @@ public sealed class CampfirePresenterTests
             "the buff pool is authored to offer exactly two distinct options, and both are shown: " +
             "the player did not choose between them, so hiding the one that will not be taken would " +
             "hide half of what the shrine actually did.");
-        presenter.ShrineRows.Count(row => row.IsTaken).ShouldBe(
-            1,
-            "and exactly one is the row the resolver will apply. Marking none leaves the screen " +
-            "implying a choice; marking both claims two buffs are granted when only one is.");
+        presenter.ShrineRows.Select(row => row.ChoiceIndex).ShouldBe(
+            new[] { 0, 1 },
+            "each row carries the slot index SHRINE_CHOOSE names to take it, in slot order. The " +
+            "player chooses between the two now, so a screen that pre-marked one as taken would be " +
+            "describing a decision the rules layer no longer makes.");
         presenter.Options.ShouldBeEmpty(
             "a shrine offers no campfire options. A rest card here would submit a command the rules " +
             "layer refuses because the pending tile is not a campfire.");
@@ -268,60 +269,84 @@ public sealed class CampfirePresenterTests
     // ---- S2: the two refused options never share a sentence ---------------------------------------
 
     /// <summary>
-    /// 🔒 <b>The two refused campfire options carry their own reasons.</b> Both come back on the
-    /// wire as the same value, so the sentence is the only thing between "no perk-tier upgrade is
-    /// tracked anywhere" and "no reroll charge exists to grant".
+    /// 🔒 <b>All three campfire options are live for a run that can take them.</b> Two of the three
+    /// used to be permanently refused, and the sentences that said so were most of this screen.
     /// </summary>
     [Fact]
-    public async Task The_two_refused_options_do_not_share_one_sentence()
+    public async Task All_three_options_are_offered_to_a_run_that_can_take_them()
     {
-        var presenter = Build(RecordingGameHost.Finding(AnyPlayer(), AtACampfire()));
+        var presenter = Build(
+            RecordingGameHost.Finding(
+                AnyPlayer(),
+                AtACampfire(ownedPerkTiers: new Dictionary<string, int> { ["PK_STATIC_CHARGE"] = 1 })),
+            BootContent.Shipped);
 
         await presenter.StartAsync(CancellationToken.None);
 
-        var rest = presenter.Options.Single(row => row.Option == CampfireOption.Rest);
-        var upgrade = presenter.Options.Single(row => row.Option == CampfireOption.UpgradePerk);
-        var charges = presenter.Options.Single(row => row.Option == CampfireOption.RerollCharges);
-
-        rest.Available.ShouldBeTrue("resting heals the authored share of Max HP and clears the tile.");
-        rest.BlockText.ShouldBeEmpty("and an option that works has nothing to explain.");
-
-        upgrade.Available.ShouldBeFalse();
-        charges.Available.ShouldBeFalse();
-        upgrade.BlockText.ShouldNotBeNullOrWhiteSpace();
-        charges.BlockText.ShouldNotBeNullOrWhiteSpace();
-        upgrade.BlockText.ShouldNotBe(
-            charges.BlockText,
-            "the two unavailable options are unavailable for two completely different reasons — one " +
-            "system does not track perk tiers outside the draft, the other has no reroll charge to " +
-            "grant at all. One sentence for the pair tells a player the game has one hole where it " +
-            "has two.");
+        foreach (var row in presenter.Options)
+        {
+            row.Available.ShouldBeTrue(
+                row.Option + " is drawn as unavailable on a run that can take it.");
+            row.BlockText.ShouldBeEmpty("and an option that works has nothing to explain.");
+        }
     }
 
     /// <summary>
-    /// 🔒 The four absences this screen names are four different sentences, <b>as authored</b>.
+    /// 🔒 …and the perk upgrade is the ONE that can still be refused — for a reason about the run,
+    /// not about the build.
+    /// </summary>
+    /// <remarks>
+    /// The negative control for the case above: without it, "all three available" is equally
+    /// satisfied by a screen that never marks anything unavailable at all.
+    /// </remarks>
+    [Fact]
+    public async Task The_perk_upgrade_is_unavailable_to_a_run_holding_no_upgradeable_perk()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(AnyPlayer(), AtACampfire()), BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        var upgrade = presenter.Options.Single(row => row.Option == CampfireOption.UpgradePerk);
+
+        upgrade.Available.ShouldBeFalse("the run holds no perk at all, so there is none to raise.");
+        upgrade.BlockText.ShouldBe(
+            RunDecisionContent.EnglishValueOf(RunDecisionContent.CampfireUpgradePerkNoneBlockKey));
+
+        presenter.Options.Single(row => row.Option == CampfireOption.Rest).Available.ShouldBeTrue();
+        presenter.Options.Single(row => row.Option == CampfireOption.RerollCharges)
+            .Available.ShouldBeTrue("…and the other two are unaffected by it.");
+    }
+
+    /// <summary>
+    /// 🔒 The sentences this screen adds are authored, and authored apart from each other.
     /// </summary>
     /// <remarks>
     /// 🔴 Stated over the shipped locale, never over the fixture: fixture values are derived from
     /// their own keys, so distinct keys give distinct values by construction and a fixture-based
     /// version of this case could never fail whatever anyone wrote in <c>en.json</c>.
+    /// <para>
+    /// Three rather than four now: two of the four absences it used to name are gone, because the
+    /// options they described are built. The one that remains is about the RUN — a hero holding no
+    /// upgradeable perk — and it is joined by the shrine's two new captions.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void The_four_absences_this_screen_names_are_four_different_authored_sentences()
+    public void The_sentences_this_screen_adds_are_authored_and_distinct()
     {
         string[] keys =
         [
-            RunDecisionContent.CampfireUpgradePerkBlockKey,
-            RunDecisionContent.CampfireRerollChargesBlockKey,
-            RunDecisionContent.CampfireShrineChoiceBlockKey,
-            RunDecisionContent.CampfireShrineCleanseBlockKey,
+            RunDecisionContent.CampfireUpgradePerkNoneBlockKey,
+            RunDecisionContent.CampfireTakeActionKey,
+            RunDecisionContent.CampfireCleanseActionKey,
+            RunDecisionContent.CampfireShrineChooseLabelKey,
         ];
 
         var authored = keys.Select(key =>
         {
             RunDecisionContent.ShippedEnglish.TryGetValue(key, out var sentence).ShouldBeTrue(
-                $"'{key}' is not in the shipped English locale, so one of this screen's four " +
-                "absences has no sentence and a player meeting it is shown its key.");
+                $"'{key}' is not in the shipped English locale, so one of this screen's own " +
+                "sentences has no wording and a player meeting it is shown its key.");
 
             return sentence!;
         }).ToArray();
@@ -336,25 +361,43 @@ public sealed class CampfirePresenterTests
     }
 
     /// <summary>
-    /// 🔒 The shrine names both of its own facts, and names them apart from each other.
+    /// 🔒 A shrine on a run carrying no curse offers two drawn rows and no Cleanse.
     /// </summary>
     [Fact]
-    public async Task The_shrine_names_that_the_choice_is_not_the_players_and_that_cleanse_cannot_fire()
+    public async Task A_shrine_with_no_curse_to_lift_offers_no_cleanse()
     {
         var presenter = Build(
             RecordingGameHost.Finding(AnyPlayer(), AtAShrine()), BootContent.Shipped);
 
         await presenter.StartAsync(CancellationToken.None);
 
-        presenter.ShrineChoiceBlockText.ShouldBe(
-            RunDecisionContent.EnglishValueOf(RunDecisionContent.CampfireShrineChoiceBlockKey),
-            "there is no shrine choose command in the frozen vocabulary, so the first row is simply " +
-            "taken and only its immediate-heal half is applied. A screen that showed two rows and " +
-            "said nothing would read as a choice the player forgot to make.");
-        presenter.ShrineCleanseBlockText.ShouldBe(
-            RunDecisionContent.EnglishValueOf(RunDecisionContent.CampfireShrineCleanseBlockKey),
-            "and the Cleanse arm cannot fire at all, because a run carries no curse list. A shrine " +
-            "that silently never cleanses looks exactly like one that rolled badly.");
+        presenter.CleansableCurseId.ShouldBeNull(
+            "03 §7a.5 puts a Cleanse in slot 2 only while a curse is carried; naming one here would " +
+            "offer relief from nothing.");
+        presenter.ShrineRows.Count.ShouldBe(2, "so both slots are drawn rows.");
+        presenter.ShrineChooseLabel.ShouldBe(
+            RunDecisionContent.EnglishValueOf(RunDecisionContent.CampfireShrineChooseLabelKey));
+    }
+
+    /// <summary>
+    /// 🔒 …and one on a cursed run names the curse its second slot would lift.
+    /// </summary>
+    /// <remarks>
+    /// The negative control for the case above, and the assertion that the Cleanse arm is reachable
+    /// at all: it was unreachable for the whole of M3 and M7 because a run could not hold a curse.
+    /// </remarks>
+    [Fact]
+    public async Task A_shrine_on_a_cursed_run_names_the_curse_it_would_lift()
+    {
+        var presenter = Build(
+            RecordingGameHost.Finding(AnyPlayer(), AtAShrine(curses: ["CUR_FRACTURED"])),
+            BootContent.Shipped);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.CleansableCurseId.ShouldBe("CUR_FRACTURED");
+        presenter.ShrineRows.Count.ShouldBe(
+            1, "the Cleanse takes slot 2, so only one row is a drawn buff.");
     }
 
     // ---- the actions --------------------------------------------------------------------------------
@@ -382,24 +425,33 @@ public sealed class CampfirePresenterTests
     /// rules layer would refuse it too — with a value four other things share — and the sentence
     /// naming the real missing system would be replaced by one naming nothing.
     /// </summary>
-    [Theory]
-    [InlineData(CampfireOption.UpgradePerk)]
-    [InlineData(CampfireOption.RerollCharges)]
-    public async Task An_option_drawn_as_unavailable_never_reaches_the_host(CampfireOption option)
+    [Fact]
+    public async Task An_option_drawn_as_unavailable_never_reaches_the_host()
     {
         var host = RecordingGameHost.Finding(AnyPlayer(), AtACampfire());
-        var presenter = Build(host);
+        var presenter = Build(host, BootContent.Shipped);
 
         await presenter.StartAsync(CancellationToken.None);
 
-        var submission = await presenter.ChooseAsync(option, CancellationToken.None);
+        var submission = await presenter.ChooseAsync(
+            CampfireOption.UpgradePerk, CancellationToken.None);
 
         submission.ShouldBe(CampfireSubmission.RefusedNotAvailable);
         host.SubmitCallCount.ShouldBe(0);
     }
 
-    [Fact]
-    public async Task Continuing_from_a_shrine_submits_RESOLVE_TILE()
+    /// <summary>
+    /// 🔒 A shrine is left by CHOOSING, and the command carries which slot.
+    /// </summary>
+    /// <remarks>
+    /// It used to send <c>RESOLVE_TILE</c>, which is now an acknowledgement that leaves the tile
+    /// pending — a screen still sending it would leave the run standing on the shrine with no way
+    /// off it.
+    /// </remarks>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public async Task Choosing_a_shrine_row_submits_SHRINE_CHOOSE_carrying_its_slot(int optionIndex)
     {
         var host = RecordingGameHost
             .Finding(AnyPlayer(), AtAShrine())
@@ -409,10 +461,10 @@ public sealed class CampfirePresenterTests
 
         await presenter.StartAsync(CancellationToken.None);
 
-        var submission = await presenter.ContinueAsync(CancellationToken.None);
+        var submission = await presenter.ChooseShrineAsync(optionIndex, CancellationToken.None);
 
         submission.ShouldBe(CampfireSubmission.Submitted);
-        host.SubmitCommand.ShouldBeOfType<ResolveTileCommand>();
+        host.SubmitCommand.ShouldBeOfType<ShrineChooseCommand>().OptionIndex.ShouldBe(optionIndex);
     }
 
     /// <summary>
@@ -428,7 +480,7 @@ public sealed class CampfirePresenterTests
 
         await campfire.StartAsync(CancellationToken.None);
 
-        (await campfire.ContinueAsync(CancellationToken.None))
+        (await campfire.ChooseShrineAsync(0, CancellationToken.None))
             .ShouldBe(CampfireSubmission.RefusedNotAvailable);
         campfireHost.SubmitCallCount.ShouldBe(0);
 
@@ -592,21 +644,23 @@ public sealed class CampfirePresenterTests
 
     private static PlayerSnapshot AnyPlayer() => PlayerState.Player(Player);
 
-    private static RunSnapshot AtACampfire() =>
+    private static RunSnapshot AtACampfire(IReadOnlyDictionary<string, int>? ownedPerkTiers = null) =>
         PlayerState.Run(
             Run, Player, RunPhase.InProgress,
             position: 5, currentHp: 40,
             pendingTileKind: CampfirePresenter.CampfireTileKind,
             pendingTileLinearIndex: 5,
-            pendingTileStage: 1);
+            pendingTileStage: 1,
+            ownedPerkTiers: ownedPerkTiers);
 
-    private static RunSnapshot AtAShrine() =>
+    private static RunSnapshot AtAShrine(IReadOnlyList<string>? curses = null) =>
         PlayerState.Run(
             Run, Player, RunPhase.InProgress,
             position: 5, currentHp: 40,
             pendingTileKind: CampfirePresenter.ShrineTileKind,
             pendingTileLinearIndex: 5,
-            pendingTileStage: 1);
+            pendingTileStage: 1,
+            curses: curses);
 
     /// <summary>Either arm's run, for the cases whose claim holds on both.</summary>
     private static RunSnapshot OnTile(int tileKind) =>

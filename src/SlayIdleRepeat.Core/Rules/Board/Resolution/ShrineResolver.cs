@@ -11,70 +11,45 @@ namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Two options are offered; exactly one is applied. A player never receives both rows — see
-/// <see cref="Resolve"/> for why slot 1 is the one taken and what has to exist before that stops
-/// being an assumption.
+/// Two options are offered; exactly one is applied, and the player picks which —
+/// <c>Handlers.ShrineChoose</c> owns the choice and calls <see cref="ApplyBuff"/> with the row it
+/// names. This type owns the DRAW, which is the half that must be identical for the screen showing
+/// the offer and the command applying it.
 /// </para>
 /// <para>
-/// Only the immediate-heal half of a drawn buff is applied. The buffs are meant to be permanent
-/// for the run and stack additively, which needs a run-scoped stat-aggregation consumer that does
-/// not exist yet. Applying a stat buff to nothing would be invisible; applying a guessed one would
-/// be worse. So <c>SHR_HEAL</c>'s and <c>SHR_HP</c>'s <c>immediateHealPctMaxHp</c> is honoured —
-/// that component is mechanically real today — and the stat component of the other rows is
-/// deliberately not applied.
+/// 🔒 <b>Both halves of a drawn row are applied.</b> The immediate heal is written here; the
+/// permanent stat move is recorded on the run and turned into a build effect every aggregation pass
+/// by <c>Rules.Effects.ShrineBuffEffectSource</c>. Applying only the heal — which is what this
+/// resolver did before that source existed — left eight of the ten pool rows indistinguishable from
+/// taking nothing at all.
 /// </para>
 /// <para>
-/// The result is almost always empty, and that is correct. A heal is a <c>Run</c> mutation through
+/// A shrine produces no domain events. A heal is a <c>Run</c> mutation through
 /// <see cref="Run.SetHitPoints"/>, which returns <c>void</c> — there is no HP domain event in the
-/// game, and inventing one here would be a wire change this task is not authorised to make. A
-/// shrine moves no currency, so this resolver returns an empty list every time and mutates the run
-/// in place.
+/// game — and a shrine moves no currency.
 /// </para>
 /// </remarks>
 internal static class ShrineResolver
 {
     /// <summary>
-    /// Resolves a shrine tile: draws its options and applies the immediate heal of any drawn row that
-    /// carries one.
+    /// Applies one drawn row in full: its immediate heal, if it carries one, and its permanent stat
+    /// move, recorded on the run for the effect source to read.
     /// </summary>
-    /// <param name="input">The cloned, already-caught-up, in-run slice.</param>
-    /// <param name="hasCleansableCurse">
-    /// Whether the run holds at least one cleansable curse — with one active, option slot 2 is
-    /// always a Cleanse.
-    /// <para>
-    /// An explicit parameter, and it cannot be anything else today: <c>Run</c> holds no curse list
-    /// yet, and authoring one here to read would freeze the curse shape under rules none of which
-    /// is written. The caller passes <c>false</c> until that lands, and the parameter is where it
-    /// will be wired in.
-    /// </para>
-    /// </param>
-    /// <returns>
-    /// The options drawn, and an empty event list — see this type's remarks for why a heal produces
-    /// no event.
-    /// </returns>
-    internal static ShrineOffer Resolve(HandlerInput input, bool hasCleansableCurse)
+    /// <param name="run">The run taking the buff.</param>
+    /// <param name="row">The pool row the player chose.</param>
+    /// <remarks>
+    /// 🔒 <b>Every taken row joins the list, including <c>SHR_HEAL</c>, which has no stat.</b> The
+    /// list is the record of what the shrine gave — a screen naming this run's buffs reads it, and a
+    /// row omitted because it happened to have no stat would be a shrine visit that left no trace.
+    /// The effect source skips a stat-less row on its own, so nothing is contributed twice.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="run"/> is null.</exception>
+    internal static void ApplyBuff(Run run, ShrineBuffPoolEntry row)
     {
-        ArgumentNullException.ThrowIfNull(input);
+        ArgumentNullException.ThrowIfNull(run);
 
-        var tuning = ShrineTuning.Read(input.Context.Content);
-        var drawn = Draw(tuning, input.Rng.Stream(RngStreams.Shrine), hasCleansableCurse);
-        var first = drawn.FirstIndex;
-
-        // ONE option is applied — slot 1 — and NOT both. The shrine offers two distinct options and
-        // the player takes one of them; applying both drawn rows' heals paid up to 58% of Max HP
-        // (SHR_HEAL's 40 plus SHR_HP's 18) where no single option pays more than 40, so it was not a
-        // generous reading of the spec but an impossible one.
-        // That slot 1 is the one taken IS an assumption: there is no choose command, so the player
-        // cannot express a pick and the resolver has to settle it. Slot 1 is the option present in
-        // BOTH branches — the cleanse branch has no slot 2 at all — so it is the only choice that
-        // resolves identically either way. The day a choose command exists, this is the line it
-        // replaces.
-        ApplyImmediateHeal(input.Run, tuning.Buffs[first]);
-
-        return new ShrineOffer(
-            tuning.Buffs[first].Id,
-            drawn.SecondIndex is { } secondIndex ? tuning.Buffs[secondIndex].Id : null,
-            IsCleanse: hasCleansableCurse);
+        ApplyImmediateHeal(run, row);
+        run.AddShrineBuff(row.Id);
     }
 
     /// <summary>
@@ -146,6 +121,44 @@ internal static class ShrineResolver
         var current = Math.Min(run.MaxHp, run.CurrentHp + healed);
 
         run.SetHitPoints(current, run.MaxHp);
+    }
+}
+
+
+/// <summary>Which of the run's curses a Shrine's Cleanse would remove, and whether it offers one.</summary>
+/// <remarks>
+/// <para>
+/// 🔒 <b>Every curse this build applies is cleansable, and that is a decision rather than an
+/// omission.</b> `19` Part E says "SOME curses can be cleansed at a Shrine or by an ad", and never
+/// marks which — there is no <c>cleansable</c> column in <c>curses.json</c> and no list in the
+/// document. Treating them all as cleansable is the reading that cannot silently strand a player:
+/// the alternative is inventing the column (steering S6), and inventing it the wrong way makes a
+/// curse permanent that the design meant to be removable, on a tile whose whole purpose is removing
+/// it. The day the column is authored, this type is the one place that reads it.
+/// </para>
+/// <para>
+/// In <c>Rules/</c> rather than beside the handler that calls it, because `30` §11.4 makes
+/// <c>Core/Handlers/</c> one type per command: a shared helper there widens the set of types the
+/// architecture suite treats as dispatch surface.
+/// </para>
+/// </remarks>
+internal static class ShrineCleanse
+{
+    /// <summary>The curse a Cleanse would remove, or <c>null</c> when the run carries none.</summary>
+    /// <remarks>
+    /// The FIRST applied, not the player's pick: `03` §7a.5 says "of the player's choice" and
+    /// <c>ShrineChooseCommand</c> carries a slot index with no room for a curse id — a gap named
+    /// rather than papered over, closable by widening that payload the day the screen offers the
+    /// list. First rather than last so the choice is stable: a run that picks up another curse
+    /// between the screen being drawn and the command landing still cleanses the one the screen
+    /// named.
+    /// </remarks>
+    /// <exception cref="ArgumentNullException"><paramref name="run"/> is null.</exception>
+    internal static string? FirstCleansable(Run run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+
+        return run.Curses.Count == 0 ? null : run.Curses[0];
     }
 }
 

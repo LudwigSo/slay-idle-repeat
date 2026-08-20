@@ -210,8 +210,15 @@ internal static class EventTileResolver
             return;
         }
 
+        // Gold gains take the run's own Gold modifiers; every other currency is a META reward and
+        // 03 §7a.5's "+15% Gold from all sources this run" is about Gold alone.
         events.Add(currency == CurrencyId.GOLD
-            ? input.Run.MoveCurrency(currency, amount, Reason)
+            ? input.Run.MoveCurrency(
+                currency,
+                amount > 0
+                    ? Economy.RunModifierTotals.ScaleGoldIncome(input.Run, input.Context.Content, amount)
+                    : amount,
+                Reason)
             : input.Player.MoveCurrency(currency, amount, Reason));
     }
 

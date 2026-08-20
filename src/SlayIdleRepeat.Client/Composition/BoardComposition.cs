@@ -30,6 +30,7 @@ public sealed class ComposedBoardScreen
     /// <param name="perkDraft">Builds the draft screen for the draft the run has open.</param>
     /// <param name="shop">Builds the shop screen for the shop tile the run is standing on.</param>
     /// <param name="campfire">Builds the campfire / shrine screen for the tile the run is standing on.</param>
+    /// <param name="diceForge">Builds the Dice Forge screen for the forge tile the run is standing on.</param>
     /// <param name="runEnd">Builds the run-end screen for the run this board is playing.</param>
     /// <exception cref="ArgumentNullException">Any argument is null.</exception>
     public ComposedBoardScreen(
@@ -39,6 +40,7 @@ public sealed class ComposedBoardScreen
         Func<ComposedPerkDraftScreen> perkDraft,
         Func<ComposedShopScreen> shop,
         Func<ComposedCampfireScreen> campfire,
+        Func<ComposedDiceForgeScreen> diceForge,
         Func<ComposedRunEndScreen> runEnd)
     {
         ArgumentNullException.ThrowIfNull(board);
@@ -47,6 +49,7 @@ public sealed class ComposedBoardScreen
         ArgumentNullException.ThrowIfNull(perkDraft);
         ArgumentNullException.ThrowIfNull(shop);
         ArgumentNullException.ThrowIfNull(campfire);
+        ArgumentNullException.ThrowIfNull(diceForge);
         ArgumentNullException.ThrowIfNull(runEnd);
 
         Board = board;
@@ -55,6 +58,7 @@ public sealed class ComposedBoardScreen
         PerkDraft = perkDraft;
         Shop = shop;
         Campfire = campfire;
+        DiceForge = diceForge;
         RunEnd = runEnd;
     }
 
@@ -95,6 +99,14 @@ public sealed class ComposedBoardScreen
     /// this decides it.
     /// </remarks>
     public Func<ComposedCampfireScreen> Campfire { get; }
+
+    /// <summary>Builds the Dice Forge screen for the forge tile the run has landed on.</summary>
+    /// <remarks>
+    /// A factory for the reason every other screen here is one: a run can meet several forges, each
+    /// needs its own read of the die as it stands at that moment, and one built at composition time
+    /// would show every later forge the die the first one saw.
+    /// </remarks>
+    public Func<ComposedDiceForgeScreen> DiceForge { get; }
 
     /// <summary>Builds the run-end screen (S13 / S14) for the run this board is playing.</summary>
     /// <remarks>
@@ -163,6 +175,7 @@ public static class BoardComposition
             () => PerkDraftComposition.CreatePerkDraftScreen(composed, player, run),
             () => ShopComposition.CreateShopScreen(composed, player, run),
             () => CampfireComposition.CreateCampfireScreen(composed, player, run),
+            () => DiceForgeComposition.CreateDiceForgeScreen(composed, player, run),
             () => RunEndComposition.CreateRunEndScreen(composed, player, run));
     }
 }

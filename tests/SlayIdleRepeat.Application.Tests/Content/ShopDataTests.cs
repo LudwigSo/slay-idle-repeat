@@ -48,7 +48,9 @@ public sealed class ShopDataTests
 
     private const string TitleNameKey = "loc.shop.title.name";
 
-    private const string NothingStockedBlockKey = "loc.shop.nothing_stocked.block";
+    private const string OfferUnavailableStatusKey = "loc.shop.offer_unavailable.status";
+
+    private const string UnaffordableStatusKey = "loc.shop.unaffordable.status";
 
     private const string NotAtAShopStatusKey = "loc.shop.not_at_a_shop.status";
 
@@ -125,7 +127,19 @@ public sealed class ShopDataTests
     [Theory]
     [InlineData(TitleNameKey)]
     [InlineData(LeaveActionKey)]
-    [InlineData(NothingStockedBlockKey)]
+    [InlineData("loc.shop.buy.action")]
+    [InlineData("loc.shop.refresh.action")]
+    [InlineData("loc.shop.gold.label")]
+    [InlineData("loc.shop.slot.perk.name")]
+    [InlineData("loc.shop.slot.consumable.name")]
+    [InlineData("loc.shop.slot.run_buff.name")]
+    [InlineData("loc.shop.slot.heal.name")]
+    [InlineData("loc.shop.sold.label")]
+    [InlineData("loc.shop.unaffordable.label")]
+    [InlineData("loc.shop.empty_slot.label")]
+    [InlineData("loc.shop.refresh_spent.block")]
+    [InlineData(OfferUnavailableStatusKey)]
+    [InlineData(UnaffordableStatusKey)]
     [InlineData("loc.shop.loading.status")]
     [InlineData("loc.shop.run_missing.status")]
     [InlineData(NotAtAShopStatusKey)]
@@ -153,29 +167,32 @@ public sealed class ShopDataTests
     /// authored</b>.
     /// </summary>
     /// <remarks>
-    /// 🔴 A shop that stocks nothing, a screen opened where no shop is, a departure the rules layer
-    /// refused and a host that never answered all look identical: a page of text and no purchase.
-    /// Two that read the same send the player — and whoever reads their bug report — after the wrong
-    /// one of four problems, one of which is not a problem at all.
+    /// 🔴 A screen opened where no shop is, a shop whose contents could not be read, a refusal, a
+    /// purchase the run cannot afford and a host that never answered all look identical: a page of
+    /// text and no purchase. Two that read the same send the player — and whoever reads their bug
+    /// report — after the wrong one of five problems, one of which is not a problem at all.
+    /// ⚠️ Five rather than four: the shop-has-nothing-in-stock sentence is gone, because the shop
+    /// stocks; the offer-unreadable and cannot-afford sentences are the two that replaced it.
     /// </remarks>
     [Fact]
-    public void The_four_ways_the_shop_comes_to_nothing_read_as_four_different_sentences()
+    public void The_ways_the_shop_comes_to_nothing_read_as_different_sentences()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
         string?[] sentences =
         [
-            snapshot.ReadText(EnglishStrings + NothingStockedBlockKey),
             snapshot.ReadText(EnglishStrings + NotAtAShopStatusKey),
+            snapshot.ReadText(EnglishStrings + OfferUnavailableStatusKey),
             snapshot.ReadText(EnglishStrings + RefusedStatusKey),
+            snapshot.ReadText(EnglishStrings + UnaffordableStatusKey),
             snapshot.ReadText(EnglishStrings + HostUnavailableStatusKey),
         ];
 
         sentences.Distinct(StringComparer.Ordinal).Count().ShouldBe(
             sentences.Length,
-            "two of the shop's four sentences are AUTHORED the same, so the screen has stopped " +
-            "distinguishing an empty shop from a missing one, from a refusal, from a host that did " +
-            $"not answer: [{string.Join(" | ", sentences)}]");
+            "two of the shop's sentences are AUTHORED the same, so the screen has stopped " +
+            "distinguishing a missing shop from an unreadable offer, from a refusal, from a purchase " +
+            $"the run cannot afford, from a host that did not answer: [{string.Join(" | ", sentences)}]");
     }
 
     /// <summary>

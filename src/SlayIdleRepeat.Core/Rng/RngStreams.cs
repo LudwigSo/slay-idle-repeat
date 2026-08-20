@@ -40,6 +40,15 @@ public static class RngStreams
     /// <summary>Event card outcomes.</summary>
     public const string Events = "events";
 
+    /// <summary>The in-run shop tile's offer draws — one block of four per stocking, per refresh.</summary>
+    /// <remarks>
+    /// A row of its own rather than borrowing <see cref="Drops"/> or <see cref="Treasure"/>: a
+    /// refresh spends a block of draws on demand, an arbitrary number of times per visit, so folding
+    /// it into a stream a tile also draws from would make every later payout in the run depend on
+    /// how often the player pressed refresh.
+    /// </remarks>
+    public const string Shop = "shop";
+
     /// <summary>Forge draws: a fusion's affix re-roll and an enhancement attempt.</summary>
     /// <remarks>
     /// A row of its own rather than borrowing <see cref="Drops"/>, which is what a drop draws from.
@@ -56,10 +65,10 @@ public static class RngStreams
     /// <summary>The prefix of the one parameterised row, <c>minigame:{index}</c>.</summary>
     public const string MinigamePrefix = "minigame:";
 
-    /// <summary>The nine fixed rows of the registry. The tenth row is parameterised and cannot be enumerated — build it with <see cref="Minigame"/>.</summary>
+    /// <summary>The ten fixed rows of the registry. The eleventh row is parameterised and cannot be enumerated — build it with <see cref="Minigame"/>.</summary>
     public static IReadOnlyList<string> FixedNames { get; } = Array.AsReadOnly(new[]
     {
-        Board, Dice, Draft, Drops, Treasure, Shrine, Combat, Events, Forge,
+        Board, Dice, Draft, Drops, Treasure, Shrine, Combat, Events, Forge, Shop,
     });
 
     /// <summary>The minigame stream for the given index — the parameterised row of the registry.</summary>

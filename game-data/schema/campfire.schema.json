@@ -2,10 +2,18 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://slayidlerepeat.local/schema/campfire.schema.json",
   "title": "content/campfire/campfire.json",
-  "description": "M7-07 — the loc keys the Campfire / Shrine screen (S11) renders. One document and one schema for two arms, because a campfire and a shrine are two tile kinds that open one screen. What is fixed here is that the screen heads each arm, lists the shrine's drawn rows under a caption, offers the campfire's three options and the shrine's one way out, carries one sentence per absence across both arms, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Three absences are load-bearing. There is no member for the ten shrine buff NAMES, because the buff pool in the tuning set already names them as its own display names and a second document claiming those keys would be free to drift out of step with the pool it describes. There is no member carrying a healed AMOUNT, because the rested share of Max HP is an authored tunable read at render time and a magnitude written into a translated string cannot be tuned. And there is no member for a shrine choose control, a curse name or a cleanse caption, because none of those exists in this build to be captioned — the command vocabulary has no shrine choice in it and a run holds no curse list.",
+  "description": "The loc keys the Campfire / Shrine screen (S11) renders. One document and one schema for two arms, because a campfire and a shrine are two tile kinds that open one screen. What is fixed here is that the screen heads each arm, lists the shrine's drawn rows under a caption and a prompt, offers the campfire's three options and the shrine's two, carries the one absence that is still real, and carries one status line per state the read and a submission can be in. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. ⚠️ THREE OF ITS FOUR ABSENCES ARE GONE. It had no shrine choose control, no cleanse caption and no curse name, because the command vocabulary had no shrine choice in it and a run held no curse list; and it carried two sentences saying the campfire's perk upgrade and reroll grant were not built. The run-tiles pass of 2026-08-20 (16 D38, D40) built all of it. What is STILL absent, and load-bearing: there is no member for the ten shrine buff NAMES, because the buff pool in the tuning set already names them as its own display names and a second document claiming those keys would be free to drift out of step with the pool it describes; there is no member carrying a healed AMOUNT, because the rested share of Max HP is an authored tunable read at render time; and there is no member for a curse NAME, because the curse catalogue names its own rows for the same reason the buff pool does.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "_doc", "name", "label", "action", "block", "status"],
+  "required": [
+    "$schema",
+    "_doc",
+    "name",
+    "label",
+    "action",
+    "block",
+    "status"
+  ],
   "$defs": {
     "locKey": {
       "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
@@ -14,69 +22,128 @@
     }
   },
   "properties": {
-    "$schema": { "type": "string" },
-    "_doc": { "type": "string", "minLength": 1 },
+    "$schema": {
+      "type": "string"
+    },
+    "_doc": {
+      "type": "string",
+      "minLength": 1
+    },
     "name": {
-      "description": "A heading per arm. Two headings rather than one, because the two arms are two tile kinds and a player who walked onto a shrine and read the campfire's heading would have no way to tell that the screen had opened on the wrong tile.",
+      "description": "One heading per arm, so a player can tell which tile they are standing on.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["title", "shrineTitle"],
+      "required": [
+        "title",
+        "shrineTitle"
+      ],
       "properties": {
-        "title": { "$ref": "#/$defs/locKey" },
-        "shrineTitle": { "$ref": "#/$defs/locKey" }
+        "title": {
+          "$ref": "#/$defs/locKey"
+        },
+        "shrineTitle": {
+          "$ref": "#/$defs/locKey"
+        }
       }
     },
     "label": {
-      "description": "The lead-in the shrine's drawn rows are listed under. The rows themselves are named through the buff pool's own display-name keys, so nothing here repeats them.",
+      "description": "The caption over the shrine's drawn rows, and the prompt saying the choice between them is the player's to make.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["shrineBuffs"],
+      "required": [
+        "shrineBuffs",
+        "shrineChoose"
+      ],
       "properties": {
-        "shrineBuffs": { "$ref": "#/$defs/locKey" }
+        "shrineBuffs": {
+          "$ref": "#/$defs/locKey"
+        },
+        "shrineChoose": {
+          "$ref": "#/$defs/locKey"
+        }
       }
     },
     "action": {
-      "description": "Every control across both arms. The campfire offers three options of which only rest can do anything; the other two are captioned because an unavailable option with no caption is a blank card rather than a named absence. The shrine offers only the departure, because there is no shrine choose command to attach a second control to.",
+      "description": "🔒 The campfire's three options and the shrine's. `take` captions a shrine row's own control, because the row IS the action — a shrine has exactly two, and a separate button beside each would be a second control for the same slot. `cleanse` captions the slot a Cleanse occupies instead of a buff name. `continue` is kept and no longer wired to anything: the shrine is left by CHOOSING, and the caption stays authored so the control has wording the day a screen needs one again.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["rest", "upgradePerk", "rerollCharges", "continue"],
+      "required": [
+        "rest",
+        "upgradePerk",
+        "rerollCharges",
+        "continue",
+        "take",
+        "cleanse"
+      ],
       "properties": {
-        "rest": { "$ref": "#/$defs/locKey" },
-        "upgradePerk": { "$ref": "#/$defs/locKey" },
-        "rerollCharges": { "$ref": "#/$defs/locKey" },
-        "continue": { "$ref": "#/$defs/locKey" }
+        "rest": {
+          "$ref": "#/$defs/locKey"
+        },
+        "upgradePerk": {
+          "$ref": "#/$defs/locKey"
+        },
+        "rerollCharges": {
+          "$ref": "#/$defs/locKey"
+        },
+        "continue": {
+          "$ref": "#/$defs/locKey"
+        },
+        "take": {
+          "$ref": "#/$defs/locKey"
+        },
+        "cleanse": {
+          "$ref": "#/$defs/locKey"
+        }
       }
     },
     "block": {
-      "description": "🔒 Four unrelated absences with four different fixes, and the reason this object exists at all. Raising a perk a tier is refused because nothing outside a draft tracks a perk tier; taking reroll charges is refused because no reroll charge exists anywhere to be granted; the shrine's choice is absent because the frozen command vocabulary has none, so the first drawn row is simply taken and only its immediate-heal half applied; and the cleanse arm cannot fire because a run carries no curse list. Both campfire refusals arrive on the wire as one value and both shrine facts are permanent properties of this build, so the sentence is the only thing telling any of them apart. Two of them reading alike sends a player looking for the wrong thing.",
+      "description": "🔒 The one absence left, and it is about the RUN rather than the build: a hero holding no perk below its top tier has nothing to raise. Named rather than greyed out silently, because 'you own no upgradeable perk' and 'this is not built' look identical otherwise — and the second of the two was true here until the run-tiles pass of 2026-08-20.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "upgradePerkUntracked", "rerollChargesUntracked", "shrineChoiceAbsent", "shrineCleanseAbsent"
+        "upgradePerkNone"
       ],
       "properties": {
-        "upgradePerkUntracked": { "$ref": "#/$defs/locKey" },
-        "rerollChargesUntracked": { "$ref": "#/$defs/locKey" },
-        "shrineChoiceAbsent": { "$ref": "#/$defs/locKey" },
-        "shrineCleanseAbsent": { "$ref": "#/$defs/locKey" }
+        "upgradePerkNone": {
+          "$ref": "#/$defs/locKey"
+        }
       }
     },
     "status": {
-      "description": "One line per state the read can be in, plus the two answers a submission can come back with. notAtACampfire covers a screen opened on neither tile kind, which is not the same fact as a run that has gone. shrineUnavailable is a shrine that is genuinely open whose draw the content set could not project — two blank rows and no explanation would read as a shrine that gave nothing. refused and hostUnavailable are separated because a refusal is an answer about the game and a fault is the game not answering.",
+      "description": "One line per state the read can be in, plus the answers a submission can come back with. `notAtACampfire` is separated from `runMissing` because a screen opened on the wrong tile is not a run that has gone; `shrineUnavailable` from both, because a shrine whose drawn rows could not be built from the content set is a different fact again; `refused` and `hostUnavailable` because a refusal is an answer about the game and a fault is the game not answering.",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "loading", "runMissing", "notAtACampfire", "readUnavailable", "shrineUnavailable",
-        "refused", "hostUnavailable"
+        "loading",
+        "runMissing",
+        "notAtACampfire",
+        "readUnavailable",
+        "shrineUnavailable",
+        "refused",
+        "hostUnavailable"
       ],
       "properties": {
-        "loading": { "$ref": "#/$defs/locKey" },
-        "runMissing": { "$ref": "#/$defs/locKey" },
-        "notAtACampfire": { "$ref": "#/$defs/locKey" },
-        "readUnavailable": { "$ref": "#/$defs/locKey" },
-        "shrineUnavailable": { "$ref": "#/$defs/locKey" },
-        "refused": { "$ref": "#/$defs/locKey" },
-        "hostUnavailable": { "$ref": "#/$defs/locKey" }
+        "loading": {
+          "$ref": "#/$defs/locKey"
+        },
+        "runMissing": {
+          "$ref": "#/$defs/locKey"
+        },
+        "notAtACampfire": {
+          "$ref": "#/$defs/locKey"
+        },
+        "readUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "shrineUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refused": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hostUnavailable": {
+          "$ref": "#/$defs/locKey"
+        }
       }
     }
   }

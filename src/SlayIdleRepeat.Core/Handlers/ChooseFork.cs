@@ -64,8 +64,11 @@ internal static class ChooseFork
             StageGateResolver.Apply(input, run.CurrentHp);
         }
 
-        var node = board.Node(result.Node);
-        run.ArriveAtTile((int)node.Tile, node.LinearIndex, node.Stage);
+        // Through TileArrival, not ArriveAtTile directly: the resumed half of a movement is the same
+        // landing as an unbroken one, so an armed Escape Rope must skip its tile here too. A rope
+        // honoured only on unbroken movement is a consumable that works depending on whether a
+        // junction happened to interrupt the roll.
+        TileArrival.Land(run, board.Node(result.Node));
 
         return HandlerResult.Accept();
     }

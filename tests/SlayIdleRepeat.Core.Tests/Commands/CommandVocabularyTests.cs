@@ -14,6 +14,10 @@ namespace SlayIdleRepeat.Core.Tests.Commands;
 public sealed class CommandVocabularyTests
 {
     /// <summary>14 §2.3's Run table, transcribed by hand in the document's order.</summary>
+    /// <remarks>
+    /// 22 rows since SHOP_LEAVE, SHRINE_CHOOSE and DICE_FORGE_CHOOSE were added to the registry
+    /// (52 -> 55), each carrying a tile choice no existing command could express.
+    /// </remarks>
     public static readonly string[] RunCommandWireNames =
     {
         "START_RUN",
@@ -26,6 +30,9 @@ public sealed class CommandVocabularyTests
         "SKIP_DRAFT",
         "SHOP_BUY",
         "SHOP_REFRESH",
+        "SHOP_LEAVE",
+        "SHRINE_CHOOSE",
+        "DICE_FORGE_CHOOSE",
         "EVENT_CHOOSE",
         "MINIGAME_SUBMIT",
         "CAMPFIRE_CHOOSE",
@@ -121,8 +128,8 @@ public sealed class CommandVocabularyTests
             "14 §2.3 is exhaustive: 'a command not listed here does not exist'.");
 
         Registry.Count.ShouldBe(
-            52,
-            "19 run + 33 meta. The literal floors both set comparisons above: an emptied registry " +
+            55,
+            "22 run + 33 meta. The literal floors both set comparisons above: an emptied registry " +
             "would otherwise make 'nothing unlisted' trivially true.");
     }
 
@@ -144,9 +151,9 @@ public sealed class CommandVocabularyTests
     [Fact]
     public void Every_row_is_registered_under_the_kind_its_table_gives_it()
     {
-        RunCommandWireNames.Length.ShouldBe(19, "14 §2.3's run table, counted off the document.");
+        RunCommandWireNames.Length.ShouldBe(22, "14 §2.3's run table, counted off the document.");
         MetaCommandWireNames.Length.ShouldBe(33, "14 §2.3's meta table, counted off the document.");
-        Registry.Count.ShouldBe(52, "an emptied registry makes the sweep below silent, not red.");
+        Registry.Count.ShouldBe(55, "an emptied registry makes the sweep below silent, not red.");
 
         var offenders = new List<string>();
 
@@ -204,7 +211,7 @@ public sealed class CommandVocabularyTests
             "a mismatch means the loop skipped a deferred row rather than that the count moved.");
 
         deferred.ShouldBe(
-            24,
+            23,
             "the absolute number, because the assertion above compares the loop against the same " +
             "table it walks and would agree with itself if every row silently became Handled. Lower " +
             "this by exactly the number of rows that gain a handler.");
@@ -291,7 +298,7 @@ public sealed class CommandVocabularyTests
             metaRows++;
         }
 
-        runRows.ShouldBe(19, "14 §2.3's run table has 19 rows.");
+        runRows.ShouldBe(22, "14 §2.3's run table has 22 rows.");
         metaRows.ShouldBe(33, "14 §2.3's meta table has 33 rows.");
 
         // Both sides by identity: the tier assertion above is satisfied by a table in which every
@@ -649,6 +656,16 @@ public sealed class CommandVocabularyTests
         if (type == typeof(IReadOnlyList<AutoSalvageRule>))
         {
             return Array.Empty<AutoSalvageRule>();
+        }
+
+        // DICE_FORGE_CHOOSE's optional pip count. A VALUE rather than null, on the SET_FOCUS
+        // precedent above and for the same reason: null exercises the "this option needs no pip
+        // count" path, and the sampled option index of 0 is the one option that does need one — so a
+        // null sample would make this row's generic build a request the handler must refuse for a
+        // reason unrelated to what the sweep is asking about.
+        if (type == typeof(int?))
+        {
+            return 6;
         }
 
         throw new InvalidOperationException(

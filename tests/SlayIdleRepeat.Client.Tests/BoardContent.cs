@@ -31,6 +31,8 @@ internal static class BoardContent
     internal const string RerollChangesNextRollLabelKey = "loc.board.reroll_changes_next_roll.label";
     internal const string ResolveActionKey = "loc.board.resolve.action";
     internal const string DiePanelActionKey = "loc.board.die_panel.action";
+    internal const string AbandonActionKey = "loc.board.abandon.action";
+    internal const string AbandonConfirmActionKey = "loc.board.abandon_confirm.action";
     internal const string ForkNameKey = "loc.board.fork.name";
     internal const string ForkContinueActionKey = "loc.board.fork_continue.action";
     internal const string ForkBranchActionKey = "loc.board.fork_branch.action";
@@ -63,6 +65,7 @@ internal static class BoardContent
         HpLabelKey, GoldLabelKey, StageLabelKey, RolledLabelKey, StandingOnLabelKey,
         RerollChangesNextRollLabelKey,
         RollActionKey, RerollActionKey, ResolveActionKey, DiePanelActionKey,
+        AbandonActionKey, AbandonConfirmActionKey,
         ForkNameKey, ForkContinueActionKey, ForkBranchActionKey,
         LoadingStatusKey, RunMissingStatusKey, RunEndedStatusKey, UnavailableStatusKey,
         RefusedStatusKey, RerollExhaustedStatusKey,

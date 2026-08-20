@@ -2,22 +2,27 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Economy;
 
 namespace SlayIdleRepeat.Core.Rules.Board.Resolution;
 
 /// <summary><c>TILE_CURSE</c>: draw one chapter-eligible curse and pay its authored paired reward.</summary>
 /// <remarks>
 /// <para>
-/// This resolver does not apply the curse — it pays the reward and stops. Curses are a full rules
-/// engine (stacking, the paired-reward payout, an ad-skip hook, mount immunity) that does not exist
-/// in this codebase yet, and <c>Run</c> holds no curse list. Authoring a held-curse list now would
-/// freeze the curse's shape under all of those unwritten rules.
+/// 🔒 <b>The curse is applied AND the reward paid.</b> Landing here used to be strictly good — the
+/// player took the Gold or the Enhance Stones and suffered no debuff at all, because the run had
+/// nowhere to hold a curse. It does now, and six of `19` Part E's twelve carry a real stat penalty
+/// through <c>Rules.Effects.CurseEffectSource</c> while a seventh (<c>CUR_SLIPPERY</c>) is honoured
+/// by the board. <see cref="Content.CurseEffects.UnappliedReason"/> names, per curse, what the other
+/// five still cannot do and why — those are still APPLIED to the run, so a Shrine can cleanse them
+/// and a screen can name them; what does not happen is the debuff.
 /// </para>
 /// <para>
-/// What that means for a player today: landing on a curse tile is strictly good — they take the
-/// Gold or Enhance Stones and suffer no debuff. That is a known, temporary imbalance rather than
-/// this tile's real economy; paying nothing instead would be worse, since it would hide the gap
-/// behind a tile that looks like it works.
+/// 🔒 <b>No stacking, and a re-draw of a curse already carried still pays.</b> `19` Part E gives
+/// curses no stacking, so <c>Run.ApplyCurse</c> refuses the duplicate — and the reward is paid
+/// anyway. The alternative would be a tile that sometimes does nothing at all, decided by a draw the
+/// player cannot see or influence; paying is the reading that keeps the tile's bargain honest even
+/// when the debuff half is a no-op.
 /// </para>
 /// <para>
 /// The draw happens on the <c>drops</c> stream — the closest existing semantic fit; there is no
@@ -73,11 +78,23 @@ internal static class CurseTileResolver
         var drawn = eligible[input.Rng.Stream(RngStreams.Drops).Range(0, eligible.Count)];
         var (currency, amount) = CurseRewards.For(drawn.Id);
 
-        return new DomainEvent[]
-        {
-            currency == CurrencyId.GOLD
-                ? input.Run.MoveCurrency(currency, amount, Reason)
-                : input.Player.MoveCurrency(currency, amount, Reason),
-        };
+        // The debuff first, then the payment — so a Gold reward is scaled by every Gold modifier the
+        // run holds INCLUDING one this very curse just applied. CUR_TITHE ("20% of all Gold gained is
+        // lost") pays in Gold, and a tithe that spared its own reward would be the one gain in the
+        // run it did not touch.
+        input.Run.ApplyCurse(drawn.Id);
+
+        var paid = currency == CurrencyId.GOLD
+            ? RunModifierTotals.ScaleGoldIncome(input.Run, input.Context.Content, amount)
+            : amount;
+
+        return paid == 0
+            ? Array.Empty<DomainEvent>()
+            : new DomainEvent[]
+            {
+                currency == CurrencyId.GOLD
+                    ? input.Run.MoveCurrency(currency, paid, Reason)
+                    : input.Player.MoveCurrency(currency, paid, Reason),
+            };
     }
 }

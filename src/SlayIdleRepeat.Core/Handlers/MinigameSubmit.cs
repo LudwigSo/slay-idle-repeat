@@ -3,6 +3,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Events;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Economy;
 using SlayIdleRepeat.Core.Rules.Luck;
 
 namespace SlayIdleRepeat.Core.Handlers;
@@ -34,8 +35,9 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// absent, and depends on a system that does not exist yet.
 /// </para>
 /// <para>
-/// <see cref="Content.MinigameReward.RerollCharges"/> is read but deliberately not granted: <c>Run</c>
-/// carries no reroll-charge field yet. Every other reward column is still applied.
+/// Every reward column is applied, the Reroll Charge included — the run carries a grant counter
+/// now, and it is the same one the Campfire and the Reroll Token write into. Gold is scaled by the
+/// run's own Gold modifiers on the way in, at the income site rather than in the reward table.
 /// </para>
 /// </remarks>
 internal static class MinigameSubmit
@@ -118,9 +120,11 @@ internal static class MinigameSubmit
         // Gold is the run's own currency and moves through Run; the other three columns are wallet
         // currencies on Player. A zero column is skipped rather than moved, to avoid a misleading
         // zero-delta row for a currency this tier doesn't actually pay.
-        if (reward.Gold != 0)
+        var gold = RunModifierTotals.ScaleGoldIncome(run, input.Context.Content, reward.Gold);
+
+        if (gold != 0)
         {
-            events.Add(run.MoveCurrency(CurrencyId.GOLD, reward.Gold, RewardReason));
+            events.Add(run.MoveCurrency(CurrencyId.GOLD, gold, RewardReason));
         }
 
         if (reward.Crowns != 0)
@@ -146,7 +150,18 @@ internal static class MinigameSubmit
             events.Add(new PityCounterAdvanced(DomainEvent.UnstampedSequence, moved.Key, moved.Value));
         }
 
-        // reward.RerollCharges is deliberately not spent — see this type's remarks.
+        // 🔒 The dice duel's charge, granted rather than dropped: `03` §6.1's "Win 2-0" row pays a
+        // Reroll Charge, and the run has somewhere to put one now. It is the same counter the
+        // Campfire and the Reroll Token write into, so the ceiling is RerollEconomy's, not this
+        // handler's.
+        if (reward.RerollCharges > 0)
+        {
+            // Narrowed after the check, not before: the reward column is a long because every other
+            // column is, and a charge count is an int — the check is what makes the cast safe, and
+            // an authored value beyond int range is a content defect the clamp names rather than wraps.
+            run.GrantRerollCharges((int)Math.Min(reward.RerollCharges, int.MaxValue));
+        }
+
         run.RecordMinigameResolution(run.Position, command.MinigameId);
 
         // Must be cleared here or ROLL_DICE can never legally fire again: RecordMinigameResolution
