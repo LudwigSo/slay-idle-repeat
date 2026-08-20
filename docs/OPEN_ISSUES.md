@@ -205,10 +205,25 @@ caught were introduced by the fix pass itself and were green.** Worth a steering
 - ⛔ **CI building the APK on a runner** — no git remote.
 - ✅ **A run can now roll, move, fight, draft and reach its results screen** — §1.1 is closed on both
   sides as of 2026-08-19, the client half verified against a real save rather than off the unit tier.
-- 🔴 **Two tile kinds still dead-end a Chapter-1 run in the client**: `TILE_EVENT` (weight 8) and
-  `TILE_MINIGAME` (weight 7) are accepted by `RESOLVE_TILE` and not cleared, and neither S09 nor S10
-  exists as a screen, so the board submits neither `EVENT_CHOOSE` nor `MINIGAME_SUBMIT`. Same shape as
-  the fight bug, and no tracker row owns either screen.
+- ⚠️ **Two tile kinds still have no screen, but they no longer dead-end a run** (2026-08-20,
+  `claude/unresolvable-tiles-impl`). `TILE_EVENT` (weight 8) and `TILE_MINIGAME` (weight 7) are
+  accepted by `RESOLVE_TILE` and not cleared, and neither S09 nor S10 exists — so the board submitted
+  neither `EVENT_CHOOSE` nor `MINIGAME_SUBMIT` and a Chapter-1 run parked on the first of either with
+  `ABANDON_RUN` as its only exit. Same shape as the fight bug, found the same way, and no tracker row
+  owns either screen.
+
+  **What changed**: `Client.Game.Presenters.UnbuiltTileScreens` submits the command the missing screen
+  would have — `MINIGAME_SUBMIT` at the lowest outcome tier, and `RESOLVE_TILE` followed by
+  `EVENT_CHOOSE` on the drawn card's first cost-free option — so the tile resolves through the handler
+  that owns it and the rest of a run is reachable. The board says so on both surfaces a player reads:
+  the control says **Skip** rather than *Continue*, the sentence under the board names the missing
+  screen, and `Board.Report` pushes a warning (not an error — the run is not stuck).
+
+  🔴 **Still a placeholder, and it decides for the player**: an event option is chosen rather than
+  offered and a minigame is scored rather than played, both biased to the least the tile can pay so
+  skipping can never be the profitable way to play one. S09 and S10 are still unowned. The whole
+  placeholder is one file plus two call sites in `BoardPresenter`, and it is meant to be deleted when
+  they land.
 
 ---
 

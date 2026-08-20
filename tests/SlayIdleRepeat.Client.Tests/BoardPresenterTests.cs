@@ -32,6 +32,20 @@ public sealed class BoardPresenterTests
     /// </remarks>
     private const int TreasureTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Treasure;
 
+    /// <summary>An Event tile — one of the two whose own screen this build has not written.</summary>
+    /// <remarks>
+    /// 🔒 Read off the rules layer's enum for <c>TreasureTileKind</c>'s reason, and one more: these
+    /// two numbers decide whether a tile is SKIPPED, so a renumbering that moved a working tile into
+    /// one of these slots would have that tile's screen quietly replaced by a placeholder reward.
+    /// </remarks>
+    private const int EventTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Event;
+
+    /// <summary>A Minigame tile — the other one.</summary>
+    private const int MinigameTileKind = (int)SlayIdleRepeat.Core.Rules.Board.TileKind.Minigame;
+
+    /// <summary>The card a case's event tile has drawn.</summary>
+    private const string DrawnCard = "EVT_FIXTURE";
+
     private static readonly PlayerId Player = new("PLAYER_board_7f30");
     private static readonly RunId Run = new("RUN_board_2a95");
     private static readonly DateTimeOffset Noon = new(2026, 6, 1, 12, 0, 0, TimeSpan.Zero);
@@ -471,6 +485,194 @@ public sealed class BoardPresenterTests
             .ShouldBe(BoardSubmission.RefusedNotAvailable);
 
         host.SubmitCallCount.ShouldBe(0);
+    }
+
+    // ---- the two tiles with no screen ---------------------------------------------------------
+
+    /// <summary>
+    /// 🔴 <b>THE SECOND RUN THAT COULD NOT MOVE.</b> A Minigame tile is cleared by
+    /// <c>MINIGAME_SUBMIT</c> and by nothing else — <c>Handlers.ResolveTile</c> says of it exactly
+    /// what it says of a fight, *"acknowledged and not cleared"* — and this build has no minigame
+    /// screen to submit it. So the board's own press accepted, cleared nothing, and redrew the
+    /// identical state for ever, with the roll refused and <c>ABANDON_RUN</c> the only way off the
+    /// tile. Found the same way the fight was: by playing an exported build.
+    /// </summary>
+    [Fact]
+    public async Task A_minigame_tile_is_left_by_submitting_the_minigame_the_missing_screen_would_have()
+    {
+        var host = RecordingGameHost
+            .Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: MinigameTileKind))
+            .AcceptingInto(PlayerState.Run(Run, Player, RunPhase.InProgress));
+
+        var presenter = Build(host);
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTileHasNoScreen.ShouldBeTrue("the premise: no minigame screen is built.");
+        presenter.PendingTileOpensAFight.ShouldBeFalse("a minigame is not a fight.");
+
+        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
+            .ShouldBe(BoardSubmission.Submitted);
+
+        var submit = host.SubmitCommand.ShouldBeOfType<MinigameSubmitCommand>(
+            "a minigame tile was sent RESOLVE_TILE, which the rules ACCEPT and which clears nothing " +
+            "— so the board redraws the identical state for ever and the run can never roll again.");
+
+        submit.Result.ShouldBe(
+            UnbuiltTileScreens.LowestOutcomeTier,
+            "a skipped minigame pays the least it can. Any other tier would make not playing the " +
+            "profitable way to play.");
+
+        host.SubmitCallCount.ShouldBe(1, "a minigame needs no acknowledgement first.");
+        presenter.PendingTile.ShouldBeNull();
+        presenter.RollBlock.ShouldBe(BoardRollBlock.None);
+    }
+
+    /// <summary>
+    /// 🔴 The Event tile's version of the same dead end, and it took TWO commands to leave rather
+    /// than one: <c>RESOLVE_TILE</c> draws the card, <c>EVENT_CHOOSE</c> spends it, and the draw may
+    /// not be re-sent — so the board's second press was REFUSED outright, which is the one arm of
+    /// this that a player could actually see going wrong.
+    /// </summary>
+    [Fact]
+    public async Task An_event_tile_is_drawn_and_then_chosen_from_one_press()
+    {
+        var host = RecordingGameHost
+            .Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind))
+            .AcceptingInto(PlayerState.Run(
+                Run,
+                Player,
+                RunPhase.InProgress,
+                pendingTileKind: EventTileKind,
+                pendingEventCardId: DrawnCard))
+            .ThenAcceptingInto(PlayerState.Run(Run, Player, RunPhase.InProgress));
+
+        // The card's first option is PRICED and its second is free, which is the whole point of the
+        // arrangement: an index of 0 here is a command EVENT_CHOOSE refuses for funds.
+        var presenter = Build(host, BoardContent.AuthoringEventCard(1, DrawnCard, true, false));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTileHasNoScreen.ShouldBeTrue("the premise: no event screen is built.");
+
+        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
+            .ShouldBe(BoardSubmission.Submitted);
+
+        host.SubmittedCommands.Count.ShouldBe(
+            2,
+            "an event tile takes the draw and then the choice. One command alone leaves the tile " +
+            "pending, and the press after it would be a different command from the same control.");
+
+        host.SubmittedCommands[0].ShouldBeOfType<ResolveTileCommand>(
+            "EVENT_CHOOSE before the card is drawn finds no card and is refused.");
+
+        host.SubmittedCommands[1].ShouldBeOfType<EventChooseCommand>()
+            .ChoiceIndex.ShouldBe(1, "option 0 costs Gold, so a run with none could not take it.");
+
+        presenter.PendingTile.ShouldBeNull();
+        presenter.RollBlock.ShouldBe(BoardRollBlock.None);
+    }
+
+    /// <summary>
+    /// 🔒 The card is chosen from the run the DRAW came back with. A presenter that decided the
+    /// choice before submitting anything has no card to decide it from, so it would fall back to
+    /// option zero — which is the affordability hole wearing the shape of a working command.
+    /// </summary>
+    [Fact]
+    public async Task A_draw_that_comes_back_with_no_card_submits_no_choice()
+    {
+        var host = RecordingGameHost
+            .Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind))
+            .AcceptingInto(PlayerState.Run(
+                Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind));
+
+        var presenter = Build(host, BoardContent.AuthoringEventCard(1, DrawnCard, true, false));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
+            .ShouldBe(BoardSubmission.Submitted);
+
+        host.SubmitCallCount.ShouldBe(1);
+        host.SubmitCommand.ShouldBeOfType<ResolveTileCommand>();
+    }
+
+    [Fact]
+    public async Task A_refused_draw_stops_before_the_choice()
+    {
+        var host = RecordingGameHost
+            .Finding(
+                AnyPlayer(),
+                PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: EventTileKind))
+            .RefusingCommands(RejectionReason.ILLEGAL_STATE);
+
+        var presenter = Build(host, BoardContent.AuthoringEventCard(1, DrawnCard, false));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        (await presenter.ResolvePendingTileAsync(CancellationToken.None))
+            .ShouldBe(BoardSubmission.RefusedByRules);
+
+        host.SubmitCallCount.ShouldBe(
+            1, "a choice submitted after a refused draw is a second refusal for one press.");
+    }
+
+    /// <summary>
+    /// 🔒 The screen SAYS the screen is missing, on both surfaces a player can read: the sentence
+    /// under the board and the caption on the control. "Resolve this tile before rolling again" told
+    /// a player standing here to do something no control could do, and "Continue" promised the screen
+    /// the tile is supposed to open.
+    /// </summary>
+    [Theory]
+    [InlineData(EventTileKind)]
+    [InlineData(MinigameTileKind)]
+    public async Task A_tile_with_no_screen_says_so_rather_than_naming_the_block(int tileKind)
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: tileKind)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.RollBlock.ShouldBe(BoardRollBlock.TilePending);
+        presenter.BlockText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.UnbuiltScreenStatusKey));
+        presenter.ResolveText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.SkipUnbuiltActionKey));
+
+        // 🔒 And it is still abandonable, which is what it was before this and has to stay: `16` D39
+        // makes ABANDON_RUN legal on an unresolved tile whether or not anything else is.
+        presenter.AbandonOffered.ShouldBeTrue();
+    }
+
+    [Fact]
+    public async Task An_ordinary_pending_tile_still_names_the_block_and_offers_to_continue()
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(),
+            PlayerState.Run(Run, Player, RunPhase.InProgress, pendingTileKind: TreasureTileKind)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTileHasNoScreen.ShouldBeFalse();
+        presenter.BlockText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.BlockedTileStatusKey));
+        presenter.ResolveText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.ResolveActionKey));
+    }
+
+    [Fact]
+    public async Task A_run_on_no_tile_at_all_is_not_standing_on_a_missing_screen()
+    {
+        var presenter = Build(RecordingGameHost.Finding(
+            AnyPlayer(), PlayerState.Run(Run, Player, RunPhase.InProgress)));
+
+        await presenter.StartAsync(CancellationToken.None);
+
+        presenter.PendingTileHasNoScreen.ShouldBeFalse();
+        presenter.ResolveText.ShouldBe(BoardContent.EnglishValueOf(BoardContent.ResolveActionKey));
     }
 
     // ---- the fork -----------------------------------------------------------------------------

@@ -105,6 +105,18 @@ public partial class Board : Control
         "drawn as ended and has nowhere to go. The board neither banks it nor abandons it.";
 
     /// <summary>
+    /// 🔴 Deliberately unbuilt, and named so it can be found — but NOT a dead end any more, which is
+    /// why it is a warning and the sentence above is an error.
+    /// </summary>
+    private const string TheEventAndMinigameScreensAreNotBuiltHere =
+        "The event-card and minigame screens are not built: the run is standing on a tile that has " +
+        "no screen to open. It is not stuck — the board's own control resolves the tile through the " +
+        "command that screen would have submitted, taking the card's first cost-free option or the " +
+        "minigame's lowest outcome tier, so the rest of the run is reachable. What the player does " +
+        "not get is the choice or the game. See UnbuiltTileScreens, which is the whole of the " +
+        "placeholder and goes when the two screens land.";
+
+    /// <summary>
     /// ⚠️ This task's choice, and the only timing on this screen that is not authored. The design
     /// says the die panel opens on a long press of the roll button and does not say how long a long
     /// press is. The panel is therefore also reachable from a control of its own, so nothing about
@@ -1085,12 +1097,27 @@ public partial class Board : Control
     /// <remarks>
     /// Reported rather than navigated to. A finished run belongs to a screen a later row owns, and a
     /// run that reaches it stops here with the reason named in the log.
+    /// <para>
+    /// 🔒 <b>Two levels, because the two gaps are not the same gap.</b> A finished run is an ERROR
+    /// here: this screen has nowhere to send it and the player is stuck looking at it. An Event or a
+    /// Minigame tile is a WARNING: the screen is missing and the log says so, but the run is not
+    /// stuck — the tile's own command still resolves it, so the line records a placeholder taken
+    /// rather than a dead end reached. Pushing both as errors would make the one that traps a player
+    /// unfindable among the ones that do not.
+    /// </para>
     /// </remarks>
     private static void ReportUnbuiltDestination(BoardPresenter presenter)
     {
         if (presenter.RollBlock == BoardRollBlock.RunEnded)
         {
             GD.PushError($"{BoardMarker} halted · {TheRunEndScreensAreNotBuiltHere}");
+        }
+
+        if (presenter.PendingTileHasNoScreen)
+        {
+            GD.PushWarning(
+                $"{BoardMarker} placeholder · {TheEventAndMinigameScreensAreNotBuiltHere} " +
+                $"tile={presenter.PendingTile?.Kind.ToString(CultureInfo.InvariantCulture) ?? "none"}");
         }
     }
 

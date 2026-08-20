@@ -176,6 +176,13 @@ public sealed record ForkPrompt(int JunctionPosition, int RemainingSteps, IReadO
 /// board turn hands off to one of them this screen stops at a named destination rather than building
 /// half of a screen it does not own.
 /// </para>
+/// <para>
+/// 🔴 <b>Two of those absences were a run that could not move, and this screen now skips past them.</b>
+/// The event card and the minigame have no screen AND no other command that clears their tile, so a
+/// run that landed on one was parked with the roll refused. It resolves them through their own
+/// commands with the least the tile can pay — see <see cref="UnbuiltTileScreens"/>, which is the whole
+/// of that placeholder and is meant to be deleted when the two screens land.
+/// </para>
 /// </remarks>
 public sealed class BoardPresenter
 {
@@ -203,6 +210,8 @@ public sealed class BoardPresenter
     private const string UnavailableStatusKey = "loc.board.unavailable.status";
     private const string RefusedStatusKey = "loc.board.refused.status";
     private const string BlockedTileStatusKey = "loc.board.blocked_tile.status";
+    private const string UnbuiltScreenStatusKey = "loc.board.unbuilt_screen.status";
+    private const string SkipUnbuiltActionKey = "loc.board.skip_unbuilt.action";
     private const string BlockedForkStatusKey = "loc.board.blocked_fork.status";
     private const string BlockedBattleStatusKey = "loc.board.blocked_battle.status";
     private const string BlockedDraftStatusKey = "loc.board.blocked_draft.status";
@@ -426,8 +435,18 @@ public sealed class BoardPresenter
     /// <summary>The roll control's caption, resolved.</summary>
     public string RollText => _strings.Resolve(RollActionKey);
 
-    /// <summary>The tile acknowledgement's caption, resolved.</summary>
-    public string ResolveText => _strings.Resolve(ResolveActionKey);
+    /// <summary>
+    /// The tile acknowledgement's caption, resolved — and it says SKIP on a tile whose screen this
+    /// build has not written.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A different caption rather than the same one, because it is a different offer. "Continue"
+    /// on an Event or a Minigame tile would promise the screen that tile is supposed to open, and
+    /// what the press actually does is resolve the tile without one — see
+    /// <see cref="UnbuiltTileScreens"/>. The sentence saying so is <see cref="BlockText"/>'s.
+    /// </remarks>
+    public string ResolveText =>
+        _strings.Resolve(PendingTileHasNoScreen ? SkipUnbuiltActionKey : ResolveActionKey);
 
     /// <summary>
     /// The abandon control's caption, resolved — and it changes to the confirmation once armed.
@@ -451,9 +470,14 @@ public sealed class BoardPresenter
     /// <remarks>
     /// It is not gated on <see cref="RollBlock"/>, and that is the whole point: `16` D39 makes
     /// <c>ABANDON_RUN</c> legal mid-battle, mid-draft, at a paused junction and on an unresolved
-    /// tile, and this control is the only surface that reaches it. A player standing on a tile whose
-    /// screen this build has not written — an Event, a Minigame — has no other way out at all, so a
-    /// control gated on the same block that stranded them would strand them again.
+    /// tile, and this control is the only surface that reaches it. A control gated on the same block
+    /// that stranded a run would strand it again.
+    /// <para>
+    /// ⚠️ It used to be the ONLY way off a tile whose screen this build has not written, and that is
+    /// no longer true: <see cref="UnbuiltTileScreens"/> resolves an Event and a Minigame tile through
+    /// their own commands, so giving the run up is a choice again rather than the only exit. The
+    /// ungated offer stands regardless — every reason `16` D39 lists for it is still a reason.
+    /// </para>
     /// </remarks>
     public bool AbandonOffered => Stage == BoardStage.Ready;
 
@@ -532,6 +556,13 @@ public sealed class BoardPresenter
     /// </remarks>
     public string BlockText => RollBlock switch
     {
+        // 🔴 A FIFTH sentence, and it is the one that admits a gap rather than naming a state. Two
+        // of the fourteen tile kinds have no screen in this build, and "resolve this tile before
+        // rolling again" told a player standing on one to do something no control on the screen
+        // could do. The sentence says the screen is missing and what the skip will do instead, so
+        // the tile reads as a hole in the build rather than as a control the player cannot find.
+        BoardRollBlock.TilePending when PendingTileHasNoScreen =>
+            _strings.Resolve(UnbuiltScreenStatusKey),
         BoardRollBlock.TilePending => _strings.Resolve(BlockedTileStatusKey),
         BoardRollBlock.ForkOpen => _strings.Resolve(BlockedForkStatusKey),
         BoardRollBlock.BattleOpen => _strings.Resolve(BlockedBattleStatusKey),
@@ -702,6 +733,19 @@ public sealed class BoardPresenter
         PendingTile is { } tile && BattleReplayPresenter.OpensAFight(tile.Kind);
 
     /// <summary>
+    /// Whether the pending tile is one whose own screen this build has not written — an Event or a
+    /// Minigame.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The state this used to be a dead end in. Both tiles are left by a command a screen that
+    /// does not exist would submit, so the board's Continue press could not clear either and
+    /// abandoning the run was the only way off the tile. <see cref="UnbuiltTileScreens"/> is what it
+    /// is skipped through and states the whole of why; this is the flag every surface asks.
+    /// </remarks>
+    public bool PendingTileHasNoScreen =>
+        PendingTile is { } tile && UnbuiltTileScreens.HasNoScreen(tile.Kind);
+
+    /// <summary>
     /// Acts on the tile the run is standing on, with the command that tile is actually left by.
     /// </summary>
     /// <remarks>
@@ -731,10 +775,71 @@ public sealed class BoardPresenter
             return BoardSubmission.RefusedNotAvailable;
         }
 
-        return PendingTileOpensAFight
-            ? await SubmitAsync(new StartBattleCommand(), ct).ConfigureAwait(false)
+        if (PendingTileOpensAFight)
+        {
+            return await SubmitAsync(new StartBattleCommand(), ct).ConfigureAwait(false);
+        }
+
+        return PendingTileHasNoScreen
+            ? await SkipUnbuiltTileAsync(ct).ConfigureAwait(false)
             : await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Resolves a tile whose own screen this build has not written, so the run can go on past it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>THE SECOND FIX FOR A RUN THAT COULD NOT MOVE, and the same shape as the fight's.</b> An
+    /// Event and a Minigame tile are each left by a command only their own screen submits, and
+    /// neither screen exists — so <c>RESOLVE_TILE</c> was the only thing this board could send, it
+    /// cleared neither tile, and the run was parked with the roll refused and nothing but
+    /// <c>ABANDON_RUN</c> reachable. <see cref="UnbuiltTileScreens"/> holds what is submitted instead
+    /// and why each payload is the one it is.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>TWO commands from one press, for the Event tile only.</b> The card is drawn by
+    /// <c>RESOLVE_TILE</c> and spent by <c>EVENT_CHOOSE</c>, and the second is refused until the
+    /// first has run — so a single press that submitted one of them would leave the tile pending and
+    /// need a second press to mean something different from the first. The choice is decided from the
+    /// run the DRAW came back with, not from the one the press started on, because which option is
+    /// free is a fact about the card that draw picked.
+    /// </para>
+    /// <para>
+    /// ⚠️ A draw that came back with no card leaves the tile as it was and reports the draw's own
+    /// outcome. The rules layer sets a card on every accepted draw, so this is a host answering with
+    /// a state the domain does not produce — and inventing a choice index for a card that is not
+    /// there would submit a command certain to be refused.
+    /// </para>
+    /// </remarks>
+    /// <param name="ct">Cancellation.</param>
+    private async Task<BoardSubmission> SkipUnbuiltTileAsync(CancellationToken ct)
+    {
+        if (PendingTile is { Kind: UnbuiltTileScreens.EventTileKind } &&
+            string.IsNullOrEmpty(DrawnEventCardId))
+        {
+            var drawn = await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
+
+            if (drawn != BoardSubmission.Submitted ||
+                PendingTile is null ||
+                string.IsNullOrEmpty(DrawnEventCardId))
+            {
+                return drawn;
+            }
+        }
+
+        return UnbuiltTileScreens.CommandThatLeaves(PendingTile!.Kind, DrawnEventCardId, _content)
+            is { } leaving
+            ? await SubmitAsync(leaving, ct).ConfigureAwait(false)
+            : BoardSubmission.RefusedNotAvailable;
+    }
+
+    /// <summary>The event card the run has already drawn for its pending tile, or null for none.</summary>
+    /// <remarks>
+    /// Empty and null both mean "no card drawn" — the run row spells it as the empty string so its
+    /// canonical encoding has no nullable slot, and this reads it back as the absence it is.
+    /// </remarks>
+    private string? DrawnEventCardId => _snapshot?.PendingEventCardId;
 
     private BoardRollBlock BlockFromSnapshot()
     {

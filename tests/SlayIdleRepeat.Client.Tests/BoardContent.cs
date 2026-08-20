@@ -44,6 +44,8 @@ internal static class BoardContent
     internal const string UnavailableStatusKey = "loc.board.unavailable.status";
     internal const string RefusedStatusKey = "loc.board.refused.status";
     internal const string BlockedTileStatusKey = "loc.board.blocked_tile.status";
+    internal const string UnbuiltScreenStatusKey = "loc.board.unbuilt_screen.status";
+    internal const string SkipUnbuiltActionKey = "loc.board.skip_unbuilt.action";
     internal const string BlockedForkStatusKey = "loc.board.blocked_fork.status";
     internal const string BlockedBattleStatusKey = "loc.board.blocked_battle.status";
     internal const string BlockedDraftStatusKey = "loc.board.blocked_draft.status";
@@ -56,6 +58,9 @@ internal static class BoardContent
 
     internal const string ChaptersDirectory = "content/chapters/";
 
+    /// <summary>Where the event cards live — the one document the unbuilt-screen skip reads.</summary>
+    internal const string BoardEventsDocument = "content/board_events/board_events.json";
+
     internal const string StageLengthsMember = "stageLengths";
 
     private static readonly ContentVersion FixtureStamp =
@@ -65,12 +70,13 @@ internal static class BoardContent
     internal static IReadOnlyList<string> BoardKeys { get; } =
     [
         HpLabelKey, GoldLabelKey, StageLabelKey, RolledLabelKey, StandingOnLabelKey,
-        RollActionKey, ResolveActionKey,
+        RollActionKey, ResolveActionKey, SkipUnbuiltActionKey,
         AbandonActionKey, AbandonConfirmActionKey,
         ForkNameKey, ForkContinueActionKey, ForkBranchActionKey,
         LoadingStatusKey, RunMissingStatusKey, RunEndedStatusKey, UnavailableStatusKey,
         RefusedStatusKey,
-        BlockedTileStatusKey, BlockedForkStatusKey, BlockedBattleStatusKey, BlockedDraftStatusKey,
+        BlockedTileStatusKey, UnbuiltScreenStatusKey,
+        BlockedForkStatusKey, BlockedBattleStatusKey, BlockedDraftStatusKey,
         ForkPerilousLabelKey, ForkShelteredLabelKey, ForkArcaneLabelKey, ForkFeralLabelKey,
         FixedDiceHeldLabelKey, FixedDiceChooseLabelKey,
     ];
@@ -127,6 +133,36 @@ internal static class BoardContent
         return new ContentSnapshot(FixtureStamp, documents);
     }
 
+    /// <summary>
+    /// A content set carrying the strings, one chapter, and one authored event card.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 The card's options are described by whether each one COSTS something and by nothing else,
+    /// because that is the only thing <see cref="UnbuiltTileScreens.FreeOptionIndexOf"/> reads. A
+    /// fixture that transcribed a shipped card would tie a client assertion to `19` Part A's
+    /// authoring, and the claim being made is about the reader rather than about any one card.
+    /// </remarks>
+    /// <param name="chapterId">The chapter the run names.</param>
+    /// <param name="cardId">The card the run has drawn.</param>
+    /// <param name="optionsCost">
+    /// One flag per option, in the card's authored order: true for an option that charges a
+    /// currency, false for a free one.
+    /// </param>
+    internal static ContentSnapshot AuthoringEventCard(
+        int chapterId, string cardId, params bool[] optionsCost)
+    {
+        ArgumentNullException.ThrowIfNull(optionsCost);
+
+        var documents = new List<ContentDocument>(Locales())
+        {
+            Chapter(chapterId, [12, 14, 16]),
+            BoardGeneration(),
+            EventCards(cardId, optionsCost),
+        };
+
+        return new ContentSnapshot(FixtureStamp, documents);
+    }
+
     /// <summary>The one tile kind each stage of the fixture chapter is paved with.</summary>
     /// <remarks>
     /// 🔒 One kind per stage at weight 1, so the generated board is entirely predictable without a
@@ -141,6 +177,41 @@ internal static class BoardContent
 
     /// <summary>The boss the fixture chapter authors, for the last node of the track.</summary>
     internal const string FixtureBossId = "BOSS_FIXTURE";
+
+    /// <summary>A card catalogue holding exactly one card, with the options a case asked for.</summary>
+    private static ContentDocument EventCards(string cardId, IReadOnlyList<bool> optionsCost) =>
+        new(BoardEventsDocument, ContentValue.Object(
+        [
+            new KeyValuePair<string, ContentValue>("cards", ContentValue.Array(
+            [
+                ContentValue.Object(
+                [
+                    new KeyValuePair<string, ContentValue>("id", ContentValue.Text(cardId)),
+                    new KeyValuePair<string, ContentValue>(
+                        "options", ContentValue.Array(optionsCost.Select(EventOption))),
+                ]),
+            ])),
+        ]));
+
+    /// <summary>One option of a fixture card: priced, or free.</summary>
+    private static ContentValue EventOption(bool costs)
+    {
+        var members = new List<KeyValuePair<string, ContentValue>>
+        {
+            new("label", ContentValue.Text("FIXTURE event option")),
+        };
+
+        if (costs)
+        {
+            members.Add(new KeyValuePair<string, ContentValue>("cost", ContentValue.Object(
+            [
+                new KeyValuePair<string, ContentValue>("currency", ContentValue.Text("GOLD")),
+                new KeyValuePair<string, ContentValue>("amount", ContentValue.Number(100)),
+            ])));
+        }
+
+        return ContentValue.Object(members);
+    }
 
     private static ContentDocument Chapter(int chapterId, IReadOnlyList<int> stageLengths) =>
         new($"{ChaptersDirectory}CH_{chapterId:00}_FIXTURE.json", ContentValue.Object(

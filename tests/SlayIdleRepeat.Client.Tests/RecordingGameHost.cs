@@ -36,7 +36,9 @@ internal sealed class RecordingGameHost : IGameHost
     private Exception? _submitFailure;
     private int _submitFailuresLeft;
     private RunSnapshot? _acceptedRun;
+    private RunSnapshot? _laterAcceptedRun;
     private IReadOnlyList<DomainEvent> _acceptedEvents = [];
+    private readonly List<GameCommand> _submitted = [];
 
     private RecordingGameHost(OwnStateResult? read, Exception? readFailure)
     {
@@ -67,6 +69,15 @@ internal sealed class RecordingGameHost : IGameHost
 
     /// <summary>The last command submitted, or null while none has been.</summary>
     internal GameCommand? SubmitCommand { get; private set; }
+
+    /// <summary>Every command submitted, in the order they were.</summary>
+    /// <remarks>
+    /// 🔒 Kept alongside <see cref="SubmitCommand"/> rather than instead of it. One press can submit
+    /// more than one command — the board's skip of an unbuilt tile screen draws an event card and
+    /// then spends it — and "the last command was EVENT_CHOOSE" cannot tell that apart from a press
+    /// that skipped the draw altogether, which is the version the rules layer refuses.
+    /// </remarks>
+    internal IReadOnlyList<GameCommand> SubmittedCommands => _submitted;
 
     /// <summary>The token the last submission was handed.</summary>
     internal CancellationToken? SubmitToken { get; private set; }
@@ -165,6 +176,24 @@ internal sealed class RecordingGameHost : IGameHost
         return this;
     }
 
+    /// <summary>
+    /// Makes the second and every later accepted command hand back a different run from the first.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A moving store on the SUBMIT side, and <see cref="ThenFinding"/>'s exact counterpart: a
+    /// press that submits two commands in sequence — the board's skip of an unbuilt tile screen is
+    /// one — decides the second from the run the first came back with, and a host that answered both
+    /// alike would satisfy a screen that read the moved run and a screen that never did. Left unset,
+    /// every acceptance answers alike and nothing about the existing cases changes.
+    /// </remarks>
+    /// <param name="run">The row the second and later commands hand back.</param>
+    internal RecordingGameHost ThenAcceptingInto(RunSnapshot run)
+    {
+        _laterAcceptedRun = run;
+
+        return this;
+    }
+
     /// <summary>Makes an accepted command hand back the given events, in order.</summary>
     /// <remarks>
     /// The events are how a rolled face reaches a screen at all — no persisted field carries one —
@@ -212,6 +241,7 @@ internal sealed class RecordingGameHost : IGameHost
         SubmitRun = run;
         SubmitCommand = command;
         SubmitToken = ct;
+        _submitted.Add(command);
 
         if (_submitFailure is { } failure && _submitFailuresLeft > 0)
         {
@@ -227,7 +257,9 @@ internal sealed class RecordingGameHost : IGameHost
             return Task.FromResult(ApplyCommandOutcome.Reject(rejection, unchanged));
         }
 
+        var accepted = SubmitCallCount > 1 && _laterAcceptedRun is { } later ? later : _acceptedRun;
+
         return Task.FromResult(
-            ApplyCommandOutcome.Accept(PlayerState.SliceWith(unchanged, _acceptedRun), _acceptedEvents, []));
+            ApplyCommandOutcome.Accept(PlayerState.SliceWith(unchanged, accepted), _acceptedEvents, []));
     }
 }

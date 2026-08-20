@@ -211,6 +211,16 @@ internal static class PlayerState
     /// <param name="pendingTileKind">The unresolved tile's kind, or -1 for none.</param>
     /// <param name="pendingTileLinearIndex">Where that tile sits along the track.</param>
     /// <param name="pendingTileStage">Which stage it belongs to.</param>
+    /// <param name="pendingEventCardId">
+    /// The event card a pending Event tile has already drawn, or "" for none — which is how the row
+    /// spells the absence, so that its canonical encoding carries no nullable slot.
+    /// <para>
+    /// 🔒 Only an EVENT tile can legibly carry one, but <c>Run.Rehydrate</c> deliberately does not
+    /// check the pairing: naming the tile vocabulary is Rules' and not Model's, so the pairing is
+    /// <c>EVENT_CHOOSE</c>'s to refuse. A row that sets this with NO tile pending is refused,
+    /// though — a drawn card with no tile to resolve it would be stranded for the run's life.
+    /// </para>
+    /// </param>
     /// <param name="pendingForkJunctionPosition">The paused junction, or null when movement is not paused.</param>
     /// <param name="pendingForkRemainingSteps">Steps left once the chosen edge is taken.</param>
     /// <param name="draftPending">Whether a won battle's draft is open.</param>
@@ -271,6 +281,7 @@ internal static class PlayerState
         int pendingTileKind = -1,
         int pendingTileLinearIndex = 0,
         int pendingTileStage = 0,
+        string pendingEventCardId = "",
         int? pendingForkJunctionPosition = null,
         int? pendingForkRemainingSteps = null,
         bool draftPending = false,
@@ -314,7 +325,7 @@ internal static class PlayerState
             pendingTileKind,
             pendingTileLinearIndex,
             pendingTileStage,
-            PendingEventCardId: "",
+            pendingEventCardId,
             Phase: phase,
             DraftPending: draftPending,
             DraftBattleKind: draftBattleKind,

@@ -34,12 +34,16 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "roll", "resolve", "forkContinue", "forkBranch",
+        "roll", "resolve", "skipUnbuilt", "forkContinue", "forkBranch",
         "abandon", "abandonConfirm"
       ],
       "properties": {
         "roll": { "$ref": "#/$defs/locKey" },
         "resolve": { "$ref": "#/$defs/locKey" },
+        "skipUnbuilt": {
+          "description": "🔴 What the tile control reads on a tile whose own screen this build has not written — an Event or a Minigame. A second key rather than a reused `resolve`, because it is a different offer: `Continue` promises the screen the tile is supposed to open, and the press actually resolves the tile WITHOUT one. Required rather than optional so that deleting the placeholder is a diff somebody has to argue for, the same way `abandonConfirm` is required.",
+          "$ref": "#/$defs/locKey"
+        },
         "forkContinue": { "$ref": "#/$defs/locKey" },
         "forkBranch": { "$ref": "#/$defs/locKey" },
         "abandon": {
@@ -100,9 +104,13 @@
       "description": "🔒 One sentence per reason the roll is not live, and the reason this object exists at all: a tile left unresolved, a fork left unchosen, a battle left unfought and a draft left untaken all refuse a roll with the SAME wire value. A screen that showed one sentence for all four would tell the player the roll failed and not one thing they could do about it — and each of the four is escaped by doing something different. The screen therefore decides the cause from the run's own state before submitting anything, and these are the four things it can then say.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["tile", "fork", "battle", "draft"],
+      "required": ["tile", "unbuiltScreen", "fork", "battle", "draft"],
       "properties": {
         "tile": { "$ref": "#/$defs/locKey" },
+        "unbuiltScreen": {
+          "description": "🔴 A FIFTH sentence, and the only one that admits a gap in the build rather than naming a state of the run. Two of the fourteen tile kinds — Event and Minigame — are left by a command only their own screen submits, and neither screen exists, so `tile`'s `resolve this tile before rolling again` told a player standing on one to do something no control on the screen could do. This says the screen is missing and what the skip does instead.",
+          "$ref": "#/$defs/locKey"
+        },
         "fork": { "$ref": "#/$defs/locKey" },
         "battle": { "$ref": "#/$defs/locKey" },
         "draft": { "$ref": "#/$defs/locKey" }
