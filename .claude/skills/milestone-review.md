@@ -103,6 +103,10 @@ Suite status on review/M<N>: <literal result>
 Next steps: review and merge review/M<N>; then /kickoff-milestone M<N+1>.
 ```
 
+🔒 **Say nothing about cleaning up afterwards.** Merging `review/M<N>` to `main` fires `build/git/hooks/post-merge`, which runs `build/git/Remove-MergedRefs.ps1 -Into main` and reaps `review/M<N>`, `milestone/M<N>`, every feature branch beneath them and every clean worktree on one. The report prints what it kept and why. A "next step" telling the user to tidy up by hand is stale advice.
+
+If you used a scratch worktree for Phase 2's re-measurement, leave it — that same run removes it, provided you left it clean.
+
 ## Hard rules
 
 - **All fixes on `review/M<N>`.** Never commit to the base branch or rewrite the milestone's history; never push.

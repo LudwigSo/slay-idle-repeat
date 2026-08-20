@@ -23,6 +23,7 @@ The tracker is the single source of truth for scope and state. The design docs i
 2. Check prerequisites honestly:
    - Are the milestones this one builds on ✅/🔍, or at least far enough that this milestone's tasks have what they need? (Use the build-order column and each task's spec refs, not just the snapshot row.)
    - Is the working tree clean? If not, stop and ask the user before touching anything.
+   - Is `git config core.hooksPath` set to `build/git/hooks`? A run creates branches and worktrees on the assumption that the merge to `main` reaps them; in a clone where the hooks were never installed it does not. If it is unset, run `pwsh build/git/Install-GitHooks.ps1` — it is idempotent and refuses rather than clobbering a hook that is already there.
    - Are there leftover 🔄/🔍 tasks from an earlier kickoff of this same milestone? If so, this is a **resume**, not a fresh kickoff: skip already-resolved decisions, pick up the remaining tasks.
 3. For each kickoff decision, pull the referenced design-doc sections and prepare: a one-paragraph summary of the question, the constraint(s) the docs impose, and **your recommended answer with a one-line rationale**. Do the reading now so Phase 1 is a decision meeting, not a research session.
 4. Skim every task row in the milestone and its spec refs (delegate bulk reading to Explore subagents if the milestone is large — keep your own context lean). You are looking for **input gaps beyond the listed kickoff decisions**: contradictions between docs, tasks whose spec refs don't actually specify the thing, placeholder numbers an agent would have to invent, and anything the A7 rulings changed out from under a task.
@@ -121,7 +122,7 @@ On dispatch, set the task 🔄 in the tracker (you, the conductor, own the track
 2. If green: merge the feature branch into `milestone/M<N>` (resolve trivial conflicts yourself; a non-trivial conflict means the wave plan was wrong — serialize the remainder). Re-run the three unit suites on the integration branch after each merge; a merge that goes red gets fixed before anything else is merged.
 3. Update the tracker: task → 🔍 (branch merged to `milestone/M<N>`, awaiting human review) with the branch name in a note. Commit tracker updates on the integration branch as you go.
 4. After **every** merge, re-read the lane map and dispatch every task whose own predecessor has now landed — **in the same turn** (its agents base off the now-updated `milestone/M<N>`). Do not report, summarise or hand back between waves — a wave landing is a mid-run checkpoint, not an endpoint.
-5. Clean up merged worktrees.
+5. Clean up what the integration branch has absorbed: `pwsh build/git/Remove-MergedRefs.ps1 -Into milestone/M<N>`. It removes only worktrees whose branch is already in `milestone/M<N>` and whose tree is clean, deletes the feature branches that merged, and *reports* anything it is unsure of — a dirty worktree, an unmerged branch, a directory git has forgotten. Read that report: a "kept" line naming a task you believe finished means the merge did not land what you think it did. Never reach for `--force`; there isn't one.
 
 **Run the whole milestone, not one wave.** Phase 5 is a loop, and it exits only into Phase 6. After every merge, re-read the wave plan in the kickoff record and ask: *is any dispatchable task still ⬜ or 🔄?* If yes, the run continues — dispatch the next wave now. Ending your turn while a ⬜ task remains dispatchable is an incomplete run, no matter how much was accomplished. The only legitimate exits are:
 
@@ -152,7 +153,10 @@ Tasks: <n> merged to milestone/M<N> (🔍) · <n> blocked (⛔, with reasons) ·
 Assumptions made after the interactive window: <list or none>
 Suite status on milestone/M<N>: <literal result>
 Next steps: review milestone/M<N> and merge to <base>; verify the milestone exit criteria; fold the recorded O-item rulings into game-design/16_DECISION_LOG.md; then /kickoff-milestone M<N+1>.
+Left standing: <worktrees/branches Remove-MergedRefs.ps1 kept, and why — or none>
 ```
+
+🔒 **The merge to `main` reaps the rest by itself.** `build/git/hooks/post-merge` runs `Remove-MergedRefs.ps1 -Into main` after any merge that lands on `main`, so `milestone/M<N>` and every feature branch under it disappear when the milestone does. Nothing in this skill needs to delete them, and nothing should leave a note asking a human to.
 
 ## Hard rules
 

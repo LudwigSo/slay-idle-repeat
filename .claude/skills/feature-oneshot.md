@@ -204,3 +204,5 @@ Next steps: review the feature branch and merge; open the changed scenes in the 
 ```
 
 The checkout stays on the feature branch after the run so the user can review it in place. **Do not** merge, push, delete the branch, or switch back to the base branch unless the user explicitly asks — leave the branch checked out for them to inspect.
+
+The branch is not litter and does not need a reminder attached: whenever it reaches `main`, `build/git/hooks/post-merge` deletes it. Until then it stays, which is the point.

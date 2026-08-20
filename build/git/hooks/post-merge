@@ -1,0 +1,48 @@
+#!/bin/sh
+#
+# Reaps the branches and worktrees a merge into main has just made redundant.
+#
+# Why a hook rather than a step in the skills: nothing in this repository's
+# workflow merges to main. `kickoff-milestone` stops at `milestone/M<N>`,
+# `milestone-review` stops at `review/M<N>`, and `feature-oneshot` deliberately
+# leaves its branch checked out. The merge to main is always a human act, so the
+# cleanup has to hang off the merge itself if it is to happen without being
+# remembered.
+#
+# 🔒 Only merges that land ON main do anything. Every wave of a milestone run
+# merges a feature branch into an integration branch; reaping there would delete
+# branches the run is still reporting on.
+#
+# Nothing here can fail a merge — post-merge runs after the commit exists and its
+# exit code is ignored by git. Failures are printed and swallowed for that reason:
+# a cleanup that appeared to break a merge would be worse than no cleanup.
+#
+# Escape hatch: SIR_NO_AUTOCLEAN=1 skips it for one command.
+#   SIR_NO_AUTOCLEAN=1 git merge some-branch
+
+if [ -n "$SIR_NO_AUTOCLEAN" ]; then
+    exit 0
+fi
+
+branch=$(git symbolic-ref --short -q HEAD)
+
+if [ "$branch" != "main" ]; then
+    exit 0
+fi
+
+root=$(git rev-parse --show-toplevel)
+script="$root/build/git/Remove-MergedRefs.ps1"
+
+if [ ! -f "$script" ]; then
+    exit 0
+fi
+
+pwsh="pwsh"
+command -v pwsh >/dev/null 2>&1 || pwsh="powershell"
+command -v "$pwsh" >/dev/null 2>&1 || exit 0
+
+"$pwsh" -NoProfile -ExecutionPolicy Bypass -File "$script" -Into main -Quiet || {
+    echo "post-merge cleanup did not complete. The merge itself is fine; run build/git/Remove-MergedRefs.ps1 by hand to see why." >&2
+}
+
+exit 0
