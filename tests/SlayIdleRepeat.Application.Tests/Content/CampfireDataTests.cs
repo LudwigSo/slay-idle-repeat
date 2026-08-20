@@ -47,13 +47,13 @@ public sealed class CampfireDataTests
 
     private const string TitleNameKey = "loc.campfire.title.name";
 
-    private const string UpgradePerkBlockKey = "loc.campfire.upgrade_perk_untracked.block";
+    private const string UpgradePerkNoneBlockKey = "loc.campfire.upgrade_perk_none.block";
 
-    private const string RerollChargesBlockKey = "loc.campfire.reroll_charges_untracked.block";
+    private const string TakeActionKey = "loc.campfire.take.action";
 
-    private const string ShrineChoiceBlockKey = "loc.campfire.shrine_choice_absent.block";
+    private const string CleanseActionKey = "loc.campfire.cleanse.action";
 
-    private const string ShrineCleanseBlockKey = "loc.campfire.shrine_cleanse_absent.block";
+    private const string ShrineChooseLabelKey = "loc.campfire.shrine_choose.label";
 
     private const string EnglishStrings = "loc/en.json#/strings/";
 
@@ -133,10 +133,10 @@ public sealed class CampfireDataTests
     [InlineData("loc.campfire.upgrade_perk.action")]
     [InlineData("loc.campfire.reroll_charges.action")]
     [InlineData("loc.campfire.continue.action")]
-    [InlineData(UpgradePerkBlockKey)]
-    [InlineData(RerollChargesBlockKey)]
-    [InlineData(ShrineChoiceBlockKey)]
-    [InlineData(ShrineCleanseBlockKey)]
+    [InlineData(UpgradePerkNoneBlockKey)]
+    [InlineData(TakeActionKey)]
+    [InlineData(CleanseActionKey)]
+    [InlineData(ShrineChooseLabelKey)]
     [InlineData("loc.campfire.loading.status")]
     [InlineData("loc.campfire.run_missing.status")]
     [InlineData("loc.campfire.not_at_a_campfire.status")]
@@ -161,36 +161,34 @@ public sealed class CampfireDataTests
     }
 
     /// <summary>
-    /// 🔒 The four absences this screen has to name read as four different sentences, <b>as
-    /// authored</b>.
+    /// 🔒 The sentences this screen adds read as different sentences, <b>as authored</b>.
     /// </summary>
     /// <remarks>
-    /// 🔴 They are four unrelated holes with four different fixes. The campfire's perk upgrade is
-    /// refused because no perk-tier upgrade path is tracked anywhere; its reroll-charge grant is
-    /// refused because no reroll charge exists to grant; the shrine's choice is absent because the
-    /// command vocabulary has no shrine choice in it at all, so the first slot is simply taken; and
-    /// the Cleanse arm is unreachable because a run carries no curse list. Sharing a sentence
-    /// between any two of them tells the player one of these is the other.
+    /// ⚠️ THREE OF THE FOUR ABSENCES THIS USED TO GUARD ARE GONE, because the run-tiles pass of
+    /// 2026-08-20 built what they described: the campfire's perk upgrade and reroll grant, and the
+    /// shrine's choice and Cleanse. What is left is one absence about the RUN — a hero holding no
+    /// upgradeable perk — beside the shrine's two new captions and its prompt. Sharing a sentence
+    /// between any two of them still tells the player one of these is the other.
     /// </remarks>
     [Fact]
-    public void The_four_absences_this_screen_names_read_as_four_different_sentences()
+    public void The_sentences_this_screen_adds_read_as_different_sentences()
     {
         var snapshot = ContentLoader.Load(RepoData.Source()).Require();
 
         string?[] sentences =
         [
-            snapshot.ReadText(EnglishStrings + UpgradePerkBlockKey),
-            snapshot.ReadText(EnglishStrings + RerollChargesBlockKey),
-            snapshot.ReadText(EnglishStrings + ShrineChoiceBlockKey),
-            snapshot.ReadText(EnglishStrings + ShrineCleanseBlockKey),
+            snapshot.ReadText(EnglishStrings + UpgradePerkNoneBlockKey),
+            snapshot.ReadText(EnglishStrings + TakeActionKey),
+            snapshot.ReadText(EnglishStrings + CleanseActionKey),
+            snapshot.ReadText(EnglishStrings + ShrineChooseLabelKey),
         ];
 
         sentences.Distinct(StringComparer.Ordinal).Count().ShouldBe(
             sentences.Length,
-            "two of the four absences are AUTHORED with the same sentence. Both campfire options " +
-            "come back on the wire as the same ILLEGAL_STATE and both shrine facts are permanent " +
-            "properties of this build, so the sentence is the only thing telling any of them apart: " +
-            $"[{string.Join(" | ", sentences)}]");
+            "two of this screen's own sentences are AUTHORED the same. A refused perk upgrade comes " +
+            "back on the wire as the same ILLEGAL_STATE four other things do, and the shrine's two " +
+            "captions sit on adjacent rows, so the wording is the only thing telling any of them " +
+            $"apart: [{string.Join(" | ", sentences)}]");
     }
 
     /// <summary>

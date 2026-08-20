@@ -33,9 +33,9 @@ public sealed class ComposedShopScreen
 /// locale source is the composition root's job, and this is the part of it this screen needs.
 /// </para>
 /// <para>
-/// 🔴 The content set is read for the locale catalogue and for nothing else, because there is no
-/// offer to project: the shop this build ships has no stock, and the presenter takes no content
-/// snapshot at all. The day the offer model lands, this is where the set arrives.
+/// The content set reaches the presenter as well as the locale catalogue: the offer's pools and its
+/// price tables are content, and <c>Rules.Economy.ShopView</c> projects the four rows out of them
+/// against the position the run recorded when it stocked.
 /// </para>
 /// </remarks>
 public static class ShopComposition
@@ -54,6 +54,6 @@ public static class ShopComposition
         var strings = new LocaleStringCatalogue(content, composed.Capabilities.PlatformInfo.Locale);
 
         return new ComposedShopScreen(
-            new ShopPresenter(composed.Client.GameHost, strings, player, run));
+            new ShopPresenter(composed.Client.GameHost, strings, player, run, content));
     }
 }

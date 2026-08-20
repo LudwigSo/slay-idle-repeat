@@ -210,6 +210,7 @@ public partial class Board : Control
 
     /// <summary>Builds the campfire / shrine screen for the tile the run has landed on.</summary>
     private Func<ComposedCampfireScreen>? _campfire;
+    private Func<ComposedDiceForgeScreen>? _diceForge;
     private Func<ComposedRunEndScreen>? _runEnd;
 
     /// <summary>Whether the battle now open has already had its replay watched.</summary>
@@ -301,6 +302,7 @@ public partial class Board : Control
         _perkDraft = screen.PerkDraft;
         _shop = screen.Shop;
         _campfire = screen.Campfire;
+        _diceForge = screen.DiceForge;
         _runEnd = screen.RunEnd;
         _home = home;
         _lifetime = lifetime;
@@ -1167,6 +1169,7 @@ public partial class Board : Control
                 ShopPresenter.ShopTileKind => RunDecision.Shop,
                 CampfirePresenter.CampfireTileKind or CampfirePresenter.ShrineTileKind =>
                     RunDecision.Campfire,
+                DiceForgePresenter.DiceForgeTileKind => RunDecision.DiceForge,
                 _ => null,
             },
             _ => null,
@@ -1186,6 +1189,9 @@ public partial class Board : Control
 
             case RunDecision.Campfire when _campfire is { } campfire:
                 return CampfireHandover.Show(this, campfire(), _lifetime);
+
+            case RunDecision.DiceForge when _diceForge is { } forge:
+                return DiceForgeHandover.Show(this, forge(), _lifetime);
 
             case RunDecision.RunEnd when _runEnd is { } runEnd:
                 return RunEndHandover.Show(this, runEnd(), _lifetime);
@@ -1219,6 +1225,12 @@ public partial class Board : Control
 
         /// <summary>S11, the campfire and the shrine — one screen with two arms.</summary>
         Campfire = 3,
+
+        /// <summary>
+        /// The Dice Forge tile. Not one of `13`'s numbered screens — the document authors no layout
+        /// for it — so it is drawn to the same shape as its three siblings rather than to a spec.
+        /// </summary>
+        DiceForge = 5,
 
         /// <summary>
         /// S13 and S14, the death offer and the reward tally — one screen, because <c>02</c> §6 makes

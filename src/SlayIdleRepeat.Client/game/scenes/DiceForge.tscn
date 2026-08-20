@@ -1,6 +1,6 @@
 [gd_scene load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://game/scenes/Shop.cs" id="1_shop"]
+[ext_resource type="Script" path="res://game/scenes/DiceForge.cs" id="1_forge"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_primary_rest"]
 content_margin_left = 40.0
@@ -76,13 +76,13 @@ corner_radius_bottom_right = 63
 corner_radius_bottom_left = 63
 corner_detail = 12
 
-[node name="Shop" type="Control"]
+[node name="DiceForge" type="Control"]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_shop")
+script = ExtResource("1_forge")
 
 [node name="Ground" type="ColorRect" parent="."]
 unique_name_in_owner = true
@@ -130,23 +130,20 @@ size_flags_horizontal = 3
 size_flags_vertical = 3
 mouse_filter = 2
 theme_override_constants/separation = 24
-alignment = 1
 
-[node name="GoldLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_override_colors/font_color = Color(0.98, 0.83, 0.45, 1)
-theme_override_font_sizes/font_size = 48
-horizontal_alignment = 1
-autowrap_mode = 3
-
-[node name="SlotList" type="VBoxContainer" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
+[node name="FaceList" type="VBoxContainer" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 24
+theme_override_constants/separation = 16
 
-[node name="RefreshSpentLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
+[node name="OptionList" type="VBoxContainer" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 16
+
+[node name="WithheldLabel" type="Label" parent="SafeArea/Column/MiddleScroll/MiddleColumn"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_colors/font_color = Color(0.66, 0.67, 0.73, 1)
@@ -170,22 +167,7 @@ theme_override_font_sizes/font_size = 44
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="ActionColumn" type="VBoxContainer" parent="SafeArea/Column"]
-layout_mode = 2
-theme_override_constants/separation = 24
-
-[node name="RefreshButton" type="Button" parent="SafeArea/Column/ActionColumn"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 240)
-layout_mode = 2
-theme_override_font_sizes/font_size = 64
-theme_override_styles/normal = SubResource("StyleBoxFlat_primary_rest")
-theme_override_styles/hover = SubResource("StyleBoxFlat_primary_hover")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_primary_down")
-theme_override_styles/disabled = SubResource("StyleBoxFlat_primary_off")
-autowrap_mode = 3
-
-[node name="LeaveButton" type="Button" parent="SafeArea/Column/ActionColumn"]
+[node name="ForgeButton" type="Button" parent="SafeArea/Column"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 340)
 layout_mode = 2

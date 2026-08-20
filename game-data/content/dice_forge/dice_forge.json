@@ -1,0 +1,27 @@
+{
+  "$schema": "../../schema/dice_forge.schema.json",
+  "_doc": "The strings the Dice Forge screen shows, and nothing else. It exists because X-04 requires every user-facing string to be a loc key in EN and DE from day one, and because ContentInvariants.CheckLocaleKeyReferences fails a loc key that nothing in the content set names — a key referenced only from C# is an orphan, and an orphan is fatal. This document is that naming. The upgrade names are the three the rules layer OFFERS (Rules.Dice.DiceForgeMenu): raise the pips, make it a Surge, make it a Fortune. Star and Chain are withheld — a Star face makes every later ROLL_DICE answer ILLEGAL_STATE, and nothing fires a chain's follow-up roll — and `block.withheld` is the sentence that says so. Deliberately absent: the six face names, which the Die Panel's document already carries.",
+  "name": {
+    "title": "loc.dice_forge.title.name",
+    "higherPip": "loc.dice_forge.higher_pip.name",
+    "toSurge": "loc.dice_forge.to_surge.name",
+    "toFortune": "loc.dice_forge.to_fortune.name"
+  },
+  "label": {
+    "face": "loc.dice_forge.face.label"
+  },
+  "action": {
+    "upgrade": "loc.dice_forge.upgrade.action"
+  },
+  "block": {
+    "withheld": "loc.dice_forge.withheld.block"
+  },
+  "status": {
+    "loading": "loc.dice_forge.loading.status",
+    "runMissing": "loc.dice_forge.run_missing.status",
+    "notAtAForge": "loc.dice_forge.not_at_a_forge.status",
+    "readUnavailable": "loc.dice_forge.read_unavailable.status",
+    "refused": "loc.dice_forge.refused.status",
+    "hostUnavailable": "loc.dice_forge.host_unavailable.status"
+  }
+}

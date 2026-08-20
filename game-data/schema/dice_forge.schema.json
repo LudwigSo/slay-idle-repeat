@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://slayidlerepeat.local/schema/dice_forge.schema.json",
+  "title": "content/dice_forge/dice_forge.json",
+  "description": "The loc keys the Dice Forge screen renders. `13` authors no layout section for this tile — it is not one of the numbered screens — so what is fixed here is the shape its three siblings already have: a heading, the six faces of the run's own die, the upgrades the rules layer offers, one commit control, the named reason two upgrades are withheld, and one status line per state. Every value is a loc key, so the content build resolves it against every locale file: a key this document names but a locale does not carry fails the build, and a locale string this document stops naming fails it as an orphan. additionalProperties is false on every object so the absences are enforced rather than merely observed. Deliberately absent: any FACE name, because the Die Panel's own document already names all six kinds and a second document claiming those keys would be free to drift out of step with it; and any pip count, because a face's value is a number the run carries rather than prose.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "_doc",
+    "name",
+    "label",
+    "action",
+    "block",
+    "status"
+  ],
+  "$defs": {
+    "locKey": {
+      "description": "loc.<domain>.<id>.<field>, lowercase, dot-separated, snake_case segments — the same shape schema/loc.schema.json governs the locale files by.",
+      "type": "string",
+      "pattern": "^loc(\\.[a-z0-9_]+)+$"
+    }
+  },
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "_doc": {
+      "type": "string",
+      "minLength": 1
+    },
+    "name": {
+      "description": "🔒 The screen's heading and one name per OFFERED upgrade. Named by the option's shape rather than by its position, because the menu is a filter over the upgrade table and an option added or withheld there renumbers every index after it — a position-keyed list would silently mislabel the survivors. There is deliberately no name for Star or Chain: neither is offered, because nothing in this build can resolve a roll that lands on one.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title",
+        "higherPip",
+        "toSurge",
+        "toFortune"
+      ],
+      "properties": {
+        "title": {
+          "$ref": "#/$defs/locKey"
+        },
+        "higherPip": {
+          "$ref": "#/$defs/locKey"
+        },
+        "toSurge": {
+          "$ref": "#/$defs/locKey"
+        },
+        "toFortune": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "label": {
+      "description": "The word a face row is labelled with, so a row reads as a die face rather than a number.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "face"
+      ],
+      "properties": {
+        "face": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "action": {
+      "description": "The one commit control. A face and an option are two independent choices and the command carries both, so the screen holds a selection of each and forges when the player says.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "upgrade"
+      ],
+      "properties": {
+        "upgrade": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "block": {
+      "description": "🔒 The named reason two of the table's five options are not on the menu. A permanent line rather than one shown on a failure: they are withheld in every build that cannot resolve them, and a player who counted five in the design and three here is owed the reason.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "withheld"
+      ],
+      "properties": {
+        "withheld": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    },
+    "status": {
+      "description": "One line per state the read can be in, plus the answers a submission can come back with — the same five distinctions every other run-decision screen draws, for the same reasons.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "loading",
+        "runMissing",
+        "notAtAForge",
+        "readUnavailable",
+        "refused",
+        "hostUnavailable"
+      ],
+      "properties": {
+        "loading": {
+          "$ref": "#/$defs/locKey"
+        },
+        "runMissing": {
+          "$ref": "#/$defs/locKey"
+        },
+        "notAtAForge": {
+          "$ref": "#/$defs/locKey"
+        },
+        "readUnavailable": {
+          "$ref": "#/$defs/locKey"
+        },
+        "refused": {
+          "$ref": "#/$defs/locKey"
+        },
+        "hostUnavailable": {
+          "$ref": "#/$defs/locKey"
+        }
+      }
+    }
+  }
+}

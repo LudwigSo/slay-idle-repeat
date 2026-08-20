@@ -2,6 +2,7 @@ using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
@@ -143,18 +144,17 @@ public sealed class CampfirePresenter
         "One sentence for the pair would tell a player that the game has one hole where it has two.";
 
     /// <summary>
-    /// ⚠️ Deliberately not offered, and named so it can be found. The shrine picks for the player
-    /// because the command that would let them pick was never written.
+    /// 🔒 Kept as the marker for what changed, because the absence it used to describe was the
+    /// screen's whole shape.
     /// </summary>
-    private const string TheShrineChoiceIsNotThePlayers =
-        "The design gives a shrine two options and a choice between them. The frozen command " +
-        "vocabulary has no shrine choose in it, so resolving the tile is the only thing that can " +
-        "happen, and the resolver takes the first of the two rows it drew — its own remarks call " +
-        "that an assumption awaiting a choose command. Only the immediate-heal half of a taken buff " +
-        "is applied, because nothing aggregates a run-scoped stat buff yet. Drawing two pressable " +
-        "options here would offer a choice that cannot be submitted; drawing one would hide the " +
-        "second row the shrine really drew. Both rows are shown, the taken one is marked, and the " +
-        "absence is a sentence.";
+    private const string TheShrineChoiceIsNowThePlayers =
+        "The design gives a shrine two options and a choice between them, and this screen used to " +
+        "offer neither: the command vocabulary had no shrine choose in it, so RESOLVE_TILE was the " +
+        "only thing that could happen and the resolver took the first row it drew. SHRINE_CHOOSE " +
+        "(16 D38) carries the choice now, both halves of a taken buff are applied — the immediate " +
+        "heal and the permanent stat move — and slot 2 is a real Cleanse whenever the run carries a " +
+        "curse. Both rows are pressable, and neither is marked as taken in advance, because nothing " +
+        "has been taken until the player says so.";
 
     private const string TitleNameKey = "loc.campfire.title.name";
     private const string ShrineTitleNameKey = "loc.campfire.shrine_title.name";
@@ -163,10 +163,10 @@ public sealed class CampfirePresenter
     private const string UpgradePerkActionKey = "loc.campfire.upgrade_perk.action";
     private const string RerollChargesActionKey = "loc.campfire.reroll_charges.action";
     private const string ContinueActionKey = "loc.campfire.continue.action";
-    private const string UpgradePerkBlockKey = "loc.campfire.upgrade_perk_untracked.block";
-    private const string RerollChargesBlockKey = "loc.campfire.reroll_charges_untracked.block";
-    private const string ShrineChoiceBlockKey = "loc.campfire.shrine_choice_absent.block";
-    private const string ShrineCleanseBlockKey = "loc.campfire.shrine_cleanse_absent.block";
+    private const string UpgradePerkNoneBlockKey = "loc.campfire.upgrade_perk_none.block";
+    private const string TakeActionKey = "loc.campfire.take.action";
+    private const string CleanseActionKey = "loc.campfire.cleanse.action";
+    private const string ShrineChooseLabelKey = "loc.campfire.shrine_choose.label";
     private const string LoadingStatusKey = "loc.campfire.loading.status";
     private const string RunMissingStatusKey = "loc.campfire.run_missing.status";
     private const string NotAtACampfireStatusKey = "loc.campfire.not_at_a_campfire.status";
@@ -275,14 +275,23 @@ public sealed class CampfirePresenter
     /// <summary>The shrine arm's one action, resolved.</summary>
     public string ContinueText => _strings.Resolve(ContinueActionKey);
 
-    /// <summary>
-    /// The named fact that the shrine's choice is not the player's, resolved.
-    /// </summary>
-    /// <remarks>A permanent line — see <see cref="TheShrineChoiceIsNotThePlayers"/>.</remarks>
-    public string ShrineChoiceBlockText => _strings.Resolve(ShrineChoiceBlockKey);
+    /// <summary>The prompt above the shrine's two rows, resolved.</summary>
+    public string ShrineChooseLabel => _strings.Resolve(ShrineChooseLabelKey);
 
-    /// <summary>The named fact that the Cleanse arm cannot fire, resolved.</summary>
-    public string ShrineCleanseBlockText => _strings.Resolve(ShrineCleanseBlockKey);
+    /// <summary>The caption on a shrine row's take control, resolved.</summary>
+    public string TakeText => _strings.Resolve(TakeActionKey);
+
+    /// <summary>The caption the Cleanse slot carries instead of a buff name, resolved.</summary>
+    public string CleanseText => _strings.Resolve(CleanseActionKey);
+
+    /// <summary>
+    /// The curse a Cleanse would lift, or <c>null</c> when this shrine offers none.
+    /// </summary>
+    /// <remarks>
+    /// Named so the screen can say WHICH curse the option lifts rather than "remove a curse", which
+    /// is a worse offer than the one the player is actually being made.
+    /// </remarks>
+    public string? CleansableCurseId { get; private set; }
 
     /// <summary>The line saying what the screen is doing while its arm is not an answer, resolved.</summary>
     public string StatusText => Stage switch
@@ -353,19 +362,38 @@ public sealed class CampfirePresenter
 
     /// <summary>Submits <c>RESOLVE_TILE</c>, which is how the shrine arm is left.</summary>
     /// <param name="ct">Cancellation.</param>
-    public async Task<CampfireSubmission> ContinueAsync(CancellationToken ct)
+    /// <remarks>
+    /// 🔒 <c>SHRINE_CHOOSE</c>, not <c>RESOLVE_TILE</c>. Resolving a shrine tile is an acknowledgement
+    /// that leaves it pending — the draw and the application both belong to the choice — so a screen
+    /// that sent it here would leave the run standing on the shrine with no way off it.
+    /// </remarks>
+    public async Task<CampfireSubmission> ChooseShrineAsync(int optionIndex, CancellationToken ct)
     {
-        if (Stage != CampfireStage.Shrine)
+        if (Stage != CampfireStage.Shrine || !ShrineRowsAvailable ||
+            optionIndex < 0 || optionIndex >= ShrineSlotCount)
         {
             return CampfireSubmission.RefusedNotAvailable;
         }
 
-        return await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
+        return await SubmitAsync(new ShrineChooseCommand(optionIndex), ct).ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// How many slots a shrine offers: `03` §7a.5's two, whether both are drawn rows or the second
+    /// is the Cleanse.
+    /// </summary>
+    public const int ShrineSlotCount = 2;
 
     /// <summary>The three option rows a campfire offers, built from the keys above.</summary>
     /// <remarks>See <see cref="TheTwoRefusedOptionsAreRefusedForDifferentReasons"/>.</remarks>
-    private IReadOnlyList<CampfireOptionRow> CampfireOptions() =>
+    /// <remarks>
+    /// 🔒 All three are live now. The perk upgrade is the one that can still be unavailable, and it
+    /// is unavailable for a reason about the RUN rather than about the build: a hero holding no perk
+    /// below its top tier has nothing to raise. Reported as a named block rather than a silent
+    /// grey-out, because "you own no upgradeable perk" and "this is not built" look identical
+    /// otherwise.
+    /// </remarks>
+    private IReadOnlyList<CampfireOptionRow> CampfireOptions(bool canUpgradeAPerk) =>
     [
         new CampfireOptionRow(
             CampfireOption.Rest,
@@ -377,14 +405,14 @@ public sealed class CampfirePresenter
             CampfireOption.UpgradePerk,
             UpgradePerkChoiceIndex,
             _strings.Resolve(UpgradePerkActionKey),
-            Available: false,
-            _strings.Resolve(UpgradePerkBlockKey)),
+            Available: canUpgradeAPerk,
+            canUpgradeAPerk ? NothingLeftToSay : _strings.Resolve(UpgradePerkNoneBlockKey)),
         new CampfireOptionRow(
             CampfireOption.RerollCharges,
             RerollChargesChoiceIndex,
             _strings.Resolve(RerollChargesActionKey),
-            Available: false,
-            _strings.Resolve(RerollChargesBlockKey)),
+            Available: true,
+            NothingLeftToSay),
     ];
 
     /// <remarks>
@@ -457,10 +485,12 @@ public sealed class CampfirePresenter
         ShrineRows = [];
         ShrineRowsAvailable = false;
 
+        CleansableCurseId = null;
+
         if (run.PendingTileKind == CampfireTileKind)
         {
             Stage = CampfireStage.Campfire;
-            Options = CampfireOptions();
+            Options = CampfireOptions(CanUpgradeAPerk(run));
 
             return;
         }
@@ -489,11 +519,50 @@ public sealed class CampfirePresenter
 
             ShrineRows = Draw(shrine);
             ShrineRowsAvailable = true;
+            CleansableCurseId = shrine.CleansableCurseId;
         }
         catch (ContentException)
         {
             ShrineRows = [];
             ShrineRowsAvailable = false;
+        }
+    }
+
+    /// <summary>
+    /// Whether this run holds a perk the campfire could raise — one owned below the top tier its
+    /// catalogue row authors.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ It asks the CATALOGUE for each owned perk's tier count rather than assuming three, because
+    /// `06` §1.1's three tiers are the general case and the reader is explicit that a perk authored
+    /// with fewer is honoured. A content set that cannot answer leaves the option offered: the rules
+    /// layer refuses it harmlessly, and refusing it here on a content failure would take an option
+    /// away for a reason that has nothing to do with the player's perks.
+    /// </remarks>
+    private bool CanUpgradeAPerk(RunSnapshot run)
+    {
+        if (run.OwnedPerkTiers is not { Count: > 0 } owned)
+        {
+            return false;
+        }
+
+        try
+        {
+            var catalogue = PerkCatalogue.Read(_content);
+
+            foreach (var (perkId, tier) in owned)
+            {
+                if (catalogue.Contains(perkId) && tier < catalogue.Find(perkId).TierCount)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+        catch (ContentException)
+        {
+            return true;
         }
     }
 

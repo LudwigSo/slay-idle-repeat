@@ -91,25 +91,30 @@ internal static class RunShopOffer
     /// </param>
     /// <returns>The four slots, in slot order.</returns>
     /// <exception cref="ArgumentNullException">An argument is null.</exception>
-    internal static IReadOnlyList<RunShopSlot> Draw(Run run, ContentSnapshot content, DeterministicRng stream)
+    internal static IReadOnlyList<RunShopSlot> Draw(
+        RunShopContext shop, ContentSnapshot content, DeterministicRng stream)
     {
-        ArgumentNullException.ThrowIfNull(run);
+        ArgumentNullException.ThrowIfNull(shop);
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(stream);
 
         var tuning = ShopTuning.Read(content);
-        var stage = StageIndexOf(run);
 
         var slots = new List<RunShopSlot>(4)
         {
-            PerkRow(run, content, tuning, stream, stage),
-            ConsumableRow(run, content, tuning, stream, stage),
-            RunBuffRow(run, content, tuning, stream, stage),
-            HealRow(run, content, tuning, stage),
+            PerkRow(shop, content, tuning, stream),
+            ConsumableRow(shop, content, tuning, stream),
+            RunBuffRow(shop, content, tuning, stream),
+            HealRow(shop, content, tuning),
         };
 
         return slots;
     }
+
+    /// <inheritdoc cref="Draw(RunShopContext, ContentSnapshot, DeterministicRng)"/>
+    internal static IReadOnlyList<RunShopSlot> Draw(
+        Run run, ContentSnapshot content, DeterministicRng stream) =>
+        Draw(RunShopContext.Of(run), content, stream);
 
     /// <summary>
     /// Re-derives the offer a shop opened at <paramref name="drawPosition"/> is showing.
@@ -123,7 +128,17 @@ internal static class RunShopOffer
     {
         ArgumentNullException.ThrowIfNull(run);
 
-        return Draw(run, content, DeterministicRng.OpenAt(run.RunSeed, RngStreams.Shop, drawPosition));
+        return DrawAt(RunShopContext.Of(run), content, drawPosition);
+    }
+
+    /// <inheritdoc cref="DrawAt(Run, ContentSnapshot, ulong)"/>
+    internal static IReadOnlyList<RunShopSlot> DrawAt(
+        RunShopContext shop, ContentSnapshot content, ulong drawPosition)
+    {
+        ArgumentNullException.ThrowIfNull(shop);
+
+        return Draw(
+            shop, content, DeterministicRng.OpenAt(shop.RunSeed, RngStreams.Shop, drawPosition));
     }
 
     /// <summary>
@@ -146,21 +161,17 @@ internal static class RunShopOffer
     /// carries a stage value of its own that is outside 1..3, and a clamp is what stops a
     /// hypothetical shop reached from there throwing out of a pricing formula.
     /// </remarks>
-    internal static int StageIndexOf(Run run)
-    {
-        var stage = run.HasPendingTile ? run.PendingTileStage : 1;
-
-        return Math.Clamp(stage - 1, ShopPricing.MinStageIndex, ShopPricing.MaxStageIndex);
-    }
+    internal static int StageIndexOf(int pendingTileStage) =>
+        Math.Clamp(pendingTileStage - 1, ShopPricing.MinStageIndex, ShopPricing.MaxStageIndex);
 
     private static RunShopSlot PerkRow(
-        Run run, ContentSnapshot content, ShopTuning tuning, DeterministicRng stream, int stage)
+        RunShopContext shop, ContentSnapshot content, ShopTuning tuning, DeterministicRng stream)
     {
         // The rarity is drawn first and ALWAYS, so the number of draws is fixed regardless of what
         // the catalogue holds — see the type remarks.
-        var weights = DraftRarityWeights.For(stage + 1, isElite: false, isBoss: false);
+        var weights = DraftRarityWeights.For(shop.StageIndex + 1, isElite: false, isBoss: false);
         var rarity = WeightedPick(weights, stream);
-        var rows = Buyable(PerkCatalogue.Read(content), rarity, run);
+        var rows = Buyable(PerkCatalogue.Read(content), rarity, shop);
 
         // The row draw is spent whether or not there is anything to draw, for the same reason.
         var index = stream.Range(0, Math.Max(1, rows.Count));
@@ -171,11 +182,11 @@ internal static class RunShopOffer
                 ShopItemKind.PERK,
                 rows[index].Id,
                 ShopRarityOf(rarity),
-                PriceOf(run, content, ShopItemKind.PERK, key: null, ShopRarityOf(rarity), stage, tuning));
+                PriceOf(shop, content, ShopItemKind.PERK, key: null, ShopRarityOf(rarity), tuning));
     }
 
     private static RunShopSlot ConsumableRow(
-        Run run, ContentSnapshot content, ShopTuning tuning, DeterministicRng stream, int stage)
+        RunShopContext shop, ContentSnapshot content, ShopTuning tuning, DeterministicRng stream)
     {
         var id = ConsumablePool[stream.Range(0, ConsumablePool.Count)];
 
@@ -183,11 +194,11 @@ internal static class RunShopOffer
             ShopItemKind.CONSUMABLE,
             id,
             Rarity: null,
-            PriceOf(run, content, ShopItemKind.CONSUMABLE, id, rarity: null, stage, tuning));
+            PriceOf(shop, content, ShopItemKind.CONSUMABLE, id, rarity: null, tuning));
     }
 
     private static RunShopSlot RunBuffRow(
-        Run run, ContentSnapshot content, ShopTuning tuning, DeterministicRng stream, int stage)
+        RunShopContext shop, ContentSnapshot content, ShopTuning tuning, DeterministicRng stream)
     {
         var pool = tuning.RunBuffs;
         var index = stream.Range(0, Math.Max(1, pool.Count));
@@ -198,40 +209,43 @@ internal static class RunShopOffer
                 ShopItemKind.RUN_BUFF,
                 pool[index].Id,
                 Rarity: null,
-                PriceOf(run, content, ShopItemKind.RUN_BUFF, pool[index].Id, rarity: null, stage, tuning));
+                PriceOf(shop, content, ShopItemKind.RUN_BUFF, pool[index].Id, rarity: null, tuning));
     }
 
     /// <summary>Slot 4 — "always available" (`03` §7), so it draws nothing at all.</summary>
-    private static RunShopSlot HealRow(Run run, ContentSnapshot content, ShopTuning tuning, int stage) =>
+    private static RunShopSlot HealRow(
+        RunShopContext shop, ContentSnapshot content, ShopTuning tuning) =>
         new(
             ShopItemKind.HEAL,
             ItemId: null,
             Rarity: null,
-            PriceOf(run, content, ShopItemKind.HEAL, key: null, rarity: null, stage, tuning));
+            PriceOf(shop, content, ShopItemKind.HEAL, key: null, rarity: null, tuning));
 
     private static long PriceOf(
-        Run run,
+        RunShopContext shop,
         ContentSnapshot content,
         ShopItemKind kind,
         string? key,
         ShopRarity? rarity,
-        int stage,
         ShopTuning tuning) =>
         RunModifierTotals.ScaleShopPrice(
-            run, content, ShopPricing.Price(kind, key, rarity, stage, run.ChapterId, tuning));
+            shop.ShrineBuffs,
+            shop.Curses,
+            content,
+            ShopPricing.Price(kind, key, rarity, shop.StageIndex, shop.ChapterId, tuning));
 
     /// <summary>
     /// The catalogue rows of one rarity this run could still benefit from: everything it does not
     /// already own at the top tier that perk authors.
     /// </summary>
     private static IReadOnlyList<PerkCatalogueEntry> Buyable(
-        PerkCatalogue catalogue, PerkRarity rarity, Run run)
+        PerkCatalogue catalogue, PerkRarity rarity, RunShopContext shop)
     {
         var rows = new List<PerkCatalogueEntry>();
 
         foreach (var row in catalogue.OfRarity(rarity))
         {
-            if (run.DraftedPerks.TierOf(row.Id) < row.TierCount)
+            if (shop.OwnedPerkTiers.TierOf(row.Id) < row.TierCount)
             {
                 rows.Add(row);
             }

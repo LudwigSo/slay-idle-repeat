@@ -2,6 +2,7 @@ using System.Globalization;
 using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Dice;
 using SlayIdleRepeat.Core.Model;
+using SlayIdleRepeat.Core.Model.Snapshots;
 
 namespace SlayIdleRepeat.Core.Rules.Dice;
 
@@ -117,8 +118,30 @@ internal static class RunDie
     {
         ArgumentNullException.ThrowIfNull(run);
 
-        var upgrades = run.DieFaceUpgrades;
+        return Of(run.DieFaceUpgrades);
+    }
 
+    /// <summary>The die a persisted row rolls — the form a read-only projection can call.</summary>
+    /// <remarks>
+    /// Both doors exist because both callers are real and neither can be the other: a handler holds
+    /// a live <c>Run</c>, and a screen holds a <c>RunSnapshot</c> and cannot construct one. They
+    /// share this body, so a screen and the roll it is describing cannot compose different dice.
+    /// </remarks>
+    /// <param name="run">The persisted row.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="run"/> is null.</exception>
+    internal static IReadOnlyList<DieFace> Of(RunSnapshot run)
+    {
+        ArgumentNullException.ThrowIfNull(run);
+
+        return Of(run.DieFaceUpgrades ?? NoUpgrades);
+    }
+
+    /// <summary>The absent-map default, for a row written before the field existed.</summary>
+    private static readonly IReadOnlyDictionary<int, int> NoUpgrades = new Dictionary<int, int>(0);
+
+    /// <summary>The composition both doors share.</summary>
+    private static IReadOnlyList<DieFace> Of(IReadOnlyDictionary<int, int> upgrades)
+    {
         if (upgrades.Count == 0)
         {
             return DieComposer.StartingDie;

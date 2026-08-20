@@ -1,9 +1,11 @@
 using SlayIdleRepeat.Application.Hosting;
 using SlayIdleRepeat.Application.UseCases;
 using SlayIdleRepeat.Core.Commands;
+using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Model.Snapshots;
 using SlayIdleRepeat.Core.Primitives;
 using SlayIdleRepeat.Core.Rules.Board;
+using SlayIdleRepeat.Core.Rules.Economy;
 
 namespace SlayIdleRepeat.Client.Game.Presenters;
 
@@ -49,9 +51,22 @@ public enum ShopSubmission
     HostUnavailable = 4,
 }
 
+/// <summary>One row of the shop's offer, as the screen draws it.</summary>
+/// <param name="SlotIndex">The index <c>SHOP_BUY</c> names to buy this slot.</param>
+/// <param name="Name">The slot's name, resolved — the pool it drew from, or the item it holds.</param>
+/// <param name="Price">What it costs in run-local Gold, with the run's own price modifiers applied.</param>
+/// <param name="Buyable">
+/// Whether pressing it could succeed. False for a slot already bought, one the run cannot afford,
+/// and one whose pool had nothing left — and the screen says WHICH through <paramref name="Blocked"/>
+/// rather than greying it out silently.
+/// </param>
+/// <param name="Blocked">The resolved reason it cannot be pressed, or empty when it can.</param>
+public sealed record ShopSlotCard(
+    int SlotIndex, string Name, long Price, bool Buyable, string Blocked);
+
 /// <summary>
-/// Drives the run Shop screen: says where the player is standing, says why there is nothing to buy,
-/// and leaves.
+/// Drives the run Shop screen: draws the four slots the run's own visit stocked, buys them,
+/// restocks, and leaves.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -59,13 +74,15 @@ public enum ShopSubmission
 /// runner with no engine anywhere near it.
 /// </para>
 /// <para>
-/// 🔴 <b>There is no shop here, and that is the whole screen.</b> The run row carries no offer
-/// state — no stock, no prices, no refresh count — so the rules layer refuses every purchase and
-/// every refresh outright, and resolving the tile is the only thing a shop visit can legally do.
-/// This screen therefore renders <b>no buy slot and no refresh control</b>: an affordance for an
-/// offer that does not exist would assert that an offer exists, and a player who pressed it would
-/// be told their own purchase was illegal. It says in words that nothing is stocked, and offers the
-/// one action that works. See <see cref="TheOfferModelIsNotBuiltYet"/>.
+/// 🔒 <b>The offer is PROJECTED, never re-derived here.</b> <c>Rules.Economy.ShopView</c> reads the
+/// four rows off the position the run recorded when it stocked, and that is the same derivation
+/// <c>SHOP_BUY</c> charges against. A screen that drew its own would be a second copy of derived
+/// data, and the failure that produces is a shop showing one thing and charging for another.
+/// </para>
+/// <para>
+/// 🔒 <b>A slot that cannot be pressed says why.</b> Bought, unaffordable and an empty pool are three
+/// different sentences, and a screen that greyed all three out identically would leave a player
+/// unable to tell "you already have this" from "you cannot afford this".
 /// </para>
 /// <para>
 /// 🔒 Every way this screen can come to nothing gets its own sentence: an empty shop, a screen
@@ -75,29 +92,41 @@ public enum ShopSubmission
 /// </remarks>
 public sealed class ShopPresenter
 {
-    /// <summary>
-    /// ⚠️ Deliberately not built, and named so it can be found. A run's shop has no stock because
-    /// nothing in the persisted run describes one, and inventing a slot here would be inventing the
-    /// economy that fills it.
-    /// </summary>
-    private const string TheOfferModelIsNotBuiltYet =
-        "SHOP_BUY validates its slot index and then refuses every call, and SHOP_REFRESH refuses " +
-        "every call, both because the run row carries no offer, no price, no visit count and no " +
-        "refresh allowance. The tile's own resolution deliberately does nothing but clear the " +
-        "pending tile, which is what lets the run walk away. The offer catalogue, the refresh " +
-        "economy and the consumable pouch are one later milestone's work; until it lands, a buy " +
-        "slot drawn here would be a control whose only possible outcome is a refusal, and a price " +
-        "drawn beside it would be a number this build invented.";
-
     private const string TitleNameKey = "loc.shop.title.name";
     private const string LeaveActionKey = "loc.shop.leave.action";
-    private const string NothingStockedBlockKey = "loc.shop.nothing_stocked.block";
+    private const string BuyActionKey = "loc.shop.buy.action";
+    private const string RefreshActionKey = "loc.shop.refresh.action";
+    private const string GoldLabelKey = "loc.shop.gold.label";
+    private const string SoldLabelKey = "loc.shop.sold.label";
+    private const string UnaffordableLabelKey = "loc.shop.unaffordable.label";
+    private const string EmptySlotLabelKey = "loc.shop.empty_slot.label";
+    private const string RefreshSpentBlockKey = "loc.shop.refresh_spent.block";
+    private const string OfferUnavailableStatusKey = "loc.shop.offer_unavailable.status";
     private const string LoadingStatusKey = "loc.shop.loading.status";
     private const string RunMissingStatusKey = "loc.shop.run_missing.status";
     private const string NotAtAShopStatusKey = "loc.shop.not_at_a_shop.status";
     private const string ReadUnavailableStatusKey = "loc.shop.read_unavailable.status";
     private const string RefusedStatusKey = "loc.shop.refused.status";
+    private const string UnaffordableStatusKey = "loc.shop.unaffordable.status";
     private const string HostUnavailableStatusKey = "loc.shop.host_unavailable.status";
+
+    /// <summary>
+    /// The localisation key each slot kind's name is drawn from, keyed on the token
+    /// <c>ShopSlotRow.Kind</c> carries.
+    /// </summary>
+    /// <remarks>
+    /// A map rather than a switch so an unrecognised token falls through to the item's own id rather
+    /// than to a thrown exception: the kind vocabulary is `Core`'s and a fifth pool would reach this
+    /// screen before this file learned about it.
+    /// </remarks>
+    private static readonly IReadOnlyDictionary<string, string> SlotNameKeys =
+        new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["PERK"] = "loc.shop.slot.perk.name",
+            ["CONSUMABLE"] = "loc.shop.slot.consumable.name",
+            ["RUN_BUFF"] = "loc.shop.slot.run_buff.name",
+            ["HEAL"] = "loc.shop.slot.heal.name",
+        };
 
     /// <summary>The status line of a screen that has nothing left to say.</summary>
     private const string NothingLeftToSay = "";
@@ -115,17 +144,14 @@ public sealed class ShopPresenter
     /// </remarks>
     public const int ShopTileKind = (int)TileKind.Shop;
 
-    /// <summary>
-    /// How many buy slots this screen draws. 🔒 Zero, and it is a stated number rather than an
-    /// absent control so that a case can pin the absence — see <see cref="TheOfferModelIsNotBuiltYet"/>.
-    /// </summary>
-    public const int BuySlotCount = 0;
-
     private readonly IGameHost _gameHost;
     private readonly LocaleStringCatalogue _strings;
     private readonly PlayerId _player;
     private readonly RunId _run;
+    private readonly ContentSnapshot _content;
 
+    private IReadOnlyList<ShopSlotCard> _slots = Array.Empty<ShopSlotCard>();
+    private bool _refreshOffered;
     private bool _submissionInFlight;
 
     /// <summary>Builds the screen over the host, the strings and the run.</summary>
@@ -134,15 +160,23 @@ public sealed class ShopPresenter
     /// <param name="player">The profile this run belongs to.</param>
     /// <param name="run">The run being played.</param>
     /// <exception cref="ArgumentNullException">A collaborator is null.</exception>
-    public ShopPresenter(IGameHost gameHost, LocaleStringCatalogue strings, PlayerId player, RunId run)
+    /// <param name="content">The loaded content set the offer's pools and prices are read from.</param>
+    public ShopPresenter(
+        IGameHost gameHost,
+        LocaleStringCatalogue strings,
+        PlayerId player,
+        RunId run,
+        ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(gameHost);
         ArgumentNullException.ThrowIfNull(strings);
+        ArgumentNullException.ThrowIfNull(content);
 
         _gameHost = gameHost;
         _strings = strings;
         _player = player;
         _run = run;
+        _content = content;
     }
 
     /// <summary>How far the read this screen depends on has got.</summary>
@@ -154,8 +188,36 @@ public sealed class ShopPresenter
     /// <summary>Whether the last submission failed to complete at all.</summary>
     public bool HostFaulted { get; private set; }
 
-    /// <summary>Whether the screen offers a refresh control. 🔒 Never — there is nothing to refresh.</summary>
-    public bool RefreshOffered => false;
+    /// <summary>The four slots the run's visit stocked, in slot order. Empty until the read lands.</summary>
+    public IReadOnlyList<ShopSlotCard> Slots => _slots;
+
+    /// <summary>
+    /// Whether the screen offers a restock control — false once this visit's free refresh and the
+    /// run's ad refreshes are all spent.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ It is a CEILING check, not a promise: the ad allowance is per run and this screen reads
+    /// only the visit's own count, so a control offered here can still be refused. The refusal is
+    /// reported like any other rather than pre-empted — pre-empting it would mean this screen
+    /// keeping a second copy of the run's ad-use tally.
+    /// </remarks>
+    public bool RefreshOffered => _refreshOffered;
+
+    /// <summary>The buy control's caption, resolved.</summary>
+    public string BuyText => _strings.Resolve(BuyActionKey);
+
+    /// <summary>The restock control's caption, resolved.</summary>
+    public string RefreshText => _strings.Resolve(RefreshActionKey);
+
+    /// <summary>The Gold label, resolved.</summary>
+    public string GoldLabel => _strings.Resolve(GoldLabelKey);
+
+    /// <summary>The run-local Gold the prices are against.</summary>
+    public long Gold { get; private set; }
+
+    /// <summary>The named reason the shop cannot be restocked again, resolved — empty while it can.</summary>
+    public string RefreshSpentText =>
+        _refreshOffered ? NothingLeftToSay : _strings.Resolve(RefreshSpentBlockKey);
 
     /// <summary>The screen's heading, resolved.</summary>
     public string Title => _strings.Resolve(TitleNameKey);
@@ -163,17 +225,22 @@ public sealed class ShopPresenter
     /// <summary>The leave control's caption, resolved.</summary>
     public string LeaveText => _strings.Resolve(LeaveActionKey);
 
-    /// <summary>The named reason there is nothing to buy, resolved.</summary>
+    /// <summary>
+    /// Whether the offer could be projected at all.
+    /// </summary>
     /// <remarks>
-    /// A permanent line rather than one shown on a failure. Nothing about this build stocks a shop
-    /// on a good day, so a line that came and went would suggest a state where it does.
+    /// 🔒 False says the run IS at a stocked shop and the content set could not answer what it
+    /// sells — a different fact from "there is no shop here", and the campfire screen's shrine arm
+    /// draws the same distinction for the same reason. The screen keeps its departure either way:
+    /// a player must never be held on a tile by a content read.
     /// </remarks>
-    public string NothingStockedText => _strings.Resolve(NothingStockedBlockKey);
+    public bool OfferAvailable { get; private set; } = true;
 
     /// <summary>The line saying what the screen is doing while it is not yet an answer, resolved.</summary>
     public string StatusText => Stage switch
     {
         ShopStage.NotYetRead => _strings.Resolve(LoadingStatusKey),
+        ShopStage.Ready when !OfferAvailable => _strings.Resolve(OfferUnavailableStatusKey),
         ShopStage.Ready => NothingLeftToSay,
         ShopStage.NotAtAShop => _strings.Resolve(NotAtAShopStatusKey),
         ShopStage.RunMissing => _strings.Resolve(RunMissingStatusKey),
@@ -188,7 +255,15 @@ public sealed class ShopPresenter
     /// </remarks>
     public string RejectionText => HostFaulted
         ? _strings.Resolve(HostUnavailableStatusKey)
-        : RulesRejection is null ? NothingLeftToSay : _strings.Resolve(RefusedStatusKey);
+        : RulesRejection switch
+        {
+            null => NothingLeftToSay,
+
+            // Named apart from every other refusal, because it is the one the player can DO
+            // something about — sell nothing, fight on, come back richer.
+            RejectionReason.INSUFFICIENT_FUNDS => _strings.Resolve(UnaffordableStatusKey),
+            _ => _strings.Resolve(RefusedStatusKey),
+        };
 
     /// <summary>Reads the run this screen is about and settles everything drawn from it.</summary>
     /// <param name="ct">Cancellation.</param>
@@ -209,8 +284,45 @@ public sealed class ShopPresenter
         }
     }
 
-    /// <summary>Submits <c>RESOLVE_TILE</c>, which is the whole of what a shop visit can do.</summary>
+    /// <summary>Buys one slot of the offer.</summary>
+    /// <param name="slotIndex">The slot's index, as <see cref="Slots"/> reports it.</param>
     /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// A slot this screen has already drawn as unbuyable is refused here rather than submitted: the
+    /// rules layer would refuse it too, but sending it would put a rejection on the status line for
+    /// a control the screen itself had said was not available.
+    /// </remarks>
+    public async Task<ShopSubmission> BuyAsync(int slotIndex, CancellationToken ct)
+    {
+        if (Stage != ShopStage.Ready || SlotAt(slotIndex) is not { Buyable: true })
+        {
+            return ShopSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new ShopBuyCommand(slotIndex), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>Restocks the offer, under `03` §7's refresh economy.</summary>
+    /// <param name="ct">Cancellation.</param>
+    public async Task<ShopSubmission> RefreshAsync(CancellationToken ct)
+    {
+        if (Stage != ShopStage.Ready || !_refreshOffered)
+        {
+            return ShopSubmission.RefusedNotAvailable;
+        }
+
+        return await SubmitAsync(new ShopRefreshCommand(), ct).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Submits <c>SHOP_LEAVE</c> — the shop's clearing step, and the only way off this tile.
+    /// </summary>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// 🔒 <c>RESOLVE_TILE</c> used to be what this sent, back when it cleared the tile. It now STOCKS
+    /// the offer instead, so sending it here would refuse (the shop is already open) and the run
+    /// would sit on the tile with no way off it.
+    /// </remarks>
     public async Task<ShopSubmission> LeaveAsync(CancellationToken ct)
     {
         if (Stage != ShopStage.Ready)
@@ -218,8 +330,12 @@ public sealed class ShopPresenter
             return ShopSubmission.RefusedNotAvailable;
         }
 
-        return await SubmitAsync(new ResolveTileCommand(), ct).ConfigureAwait(false);
+        return await SubmitAsync(new ShopLeaveCommand(), ct).ConfigureAwait(false);
     }
+
+    /// <summary>The slot at that index, or <c>null</c> when the offer has no such slot.</summary>
+    private ShopSlotCard? SlotAt(int slotIndex) =>
+        slotIndex >= 0 && slotIndex < _slots.Count ? _slots[slotIndex] : null;
 
     /// <remarks>
     /// 🔒 The latch is taken BEFORE the await, not after it. Taken afterwards, a second call
@@ -285,6 +401,99 @@ public sealed class ShopPresenter
         Carry(run);
     }
 
-    private void Carry(RunSnapshot run) =>
-        Stage = run.PendingTileKind == ShopTileKind ? ShopStage.Ready : ShopStage.NotAtAShop;
+    private void Carry(RunSnapshot run)
+    {
+        if (run.PendingTileKind != ShopTileKind)
+        {
+            Stage = ShopStage.NotAtAShop;
+            _slots = Array.Empty<ShopSlotCard>();
+            _refreshOffered = false;
+
+            return;
+        }
+
+        Stage = ShopStage.Ready;
+        Gold = run.Gold;
+        OfferAvailable = true;
+
+        ShopView? view;
+
+        try
+        {
+            // A shop tile with no offer yet is a visit whose RESOLVE_TILE has not landed — the board
+            // sends it before handing over, so a null here is a momentary state rather than a broken
+            // one, and an empty slot list is the honest thing to draw for it.
+            view = ShopView.Project(run, _content);
+        }
+        catch (ContentException)
+        {
+            // 🔒 A content set that cannot answer what this shop sells is NAMED, not thrown: a
+            // screen that fell over here would hold the player on the tile with no way off it,
+            // which is the exact failure this whole change exists to prevent. Leaving stays live.
+            OfferAvailable = false;
+            _slots = Array.Empty<ShopSlotCard>();
+            _refreshOffered = false;
+
+            return;
+        }
+
+        _slots = view is null
+            ? Array.Empty<ShopSlotCard>()
+            : view.Slots.Select(Card).ToArray();
+
+        _refreshOffered = view is not null && view.RefreshesUsedThisVisit < RefreshCeiling;
+    }
+
+    /// <summary>
+    /// The most refreshes one visit can spend: `03` §7's one free plus the run's two ad-gated.
+    /// </summary>
+    /// <remarks>
+    /// ⚠️ A CEILING for the control's visibility, not the rule. The ad half is counted per RUN and
+    /// this screen reads only the visit's count, so the control can be offered and then refused —
+    /// see <see cref="RefreshOffered"/>. Enforcing it properly here would mean mirroring the run's
+    /// ad-use tally onto this screen, which is a second copy of a number the rules layer owns.
+    /// </remarks>
+    private const int RefreshCeiling = 3;
+
+    /// <summary>One projected row, as the screen draws it.</summary>
+    private ShopSlotCard Card(ShopSlotRow row) =>
+        new(
+            row.SlotIndex,
+            NameOf(row),
+            row.Price,
+            Buyable: row.ItemId is not null || IsHeal(row),
+            Blocked: BlockedReason(row));
+
+    /// <summary>
+    /// The Heal slot is the one row that legitimately carries no item id — `03` §7 sells a fixed
+    /// effect there rather than a catalogue row.
+    /// </summary>
+    private static bool IsHeal(ShopSlotRow row) =>
+        string.Equals(row.Kind, "HEAL", StringComparison.Ordinal);
+
+    /// <summary>The slot's name: its pool's, or the item's own id where the pool has no name for it.</summary>
+    private string NameOf(ShopSlotRow row) =>
+        SlotNameKeys.TryGetValue(row.Kind, out var key)
+            ? _strings.Resolve(key)
+            : row.ItemId ?? row.Kind;
+
+    /// <summary>Why this slot cannot be pressed, or empty when it can.</summary>
+    /// <remarks>
+    /// Ordered: an empty pool first, because a slot with nothing in it is neither bought nor
+    /// unaffordable and reporting it as either would be wrong rather than merely unhelpful.
+    /// </remarks>
+    private string BlockedReason(ShopSlotRow row)
+    {
+        if (row.ItemId is null && !IsHeal(row))
+        {
+            return _strings.Resolve(EmptySlotLabelKey);
+        }
+
+        if (row.Purchased)
+        {
+            return _strings.Resolve(SoldLabelKey);
+        }
+
+        return row.Affordable ? NothingLeftToSay : _strings.Resolve(UnaffordableLabelKey);
+    }
 }

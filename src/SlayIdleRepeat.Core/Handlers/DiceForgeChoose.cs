@@ -49,18 +49,11 @@ internal static class DiceForgeChoose
     /// <c>DiceForgeChooseCommand.OptionIndex</c> names.
     /// </summary>
     /// <remarks>
-    /// Built from <see cref="DiceForgeUpgradeTable.Options"/> by FILTERING rather than by
-    /// re-listing: the table stays the one statement of the vocabulary, and a target added there
-    /// arrives here automatically unless <see cref="IsResolvable"/> refuses it — which is the
-    /// direction that fails safe.
+    /// 🔒 <c>Rules.Dice.DiceForgeMenu</c>'s, not this handler's, and read rather than restated: the
+    /// forge SCREEN draws the same menu, and a handler validating against a private list would
+    /// accept an index the screen never offered or refuse one it did.
     /// </remarks>
-    internal static IReadOnlyList<DiceForgeUpgradeOption> Menu { get; } = Array.AsReadOnly(
-        DiceForgeUpgradeTable.Options.Where(IsResolvable).ToArray());
-
-    /// <summary>Whether the rest of the game can resolve a die carrying this option's result.</summary>
-    /// <remarks>See this type's remarks for what each refusal costs a player who is handed it anyway.</remarks>
-    internal static bool IsResolvable(DiceForgeUpgradeOption option) =>
-        option.IsHigherPip || option.Kind is not (DieFaceKind.Star or DieFaceKind.Chain);
+    internal static IReadOnlyList<DiceForgeUpgradeOption> Menu => DiceForgeMenu.Offered;
 
     /// <summary>Applies <c>DICE_FORGE_CHOOSE</c>.</summary>
     /// <param name="command">The face to upgrade, the option, and the new pip count where one is needed.</param>

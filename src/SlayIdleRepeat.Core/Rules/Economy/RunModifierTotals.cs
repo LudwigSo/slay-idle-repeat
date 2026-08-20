@@ -42,11 +42,38 @@ internal static class RunModifierTotals
     internal static double PctAdd(Run run, ContentSnapshot content, StatId stat)
     {
         ArgumentNullException.ThrowIfNull(run);
+
+        return PctAdd(run.ShrineBuffs, run.Curses, content, stat);
+    }
+
+    /// <summary>
+    /// The same total, over the two lists rather than the aggregate — the form a projection built
+    /// from a persisted row can call.
+    /// </summary>
+    /// <remarks>
+    /// Both overloads exist because both callers are real and neither can be the other: a handler
+    /// holds a live <c>Run</c>, and a read-only view holds a <c>RunSnapshot</c> and cannot construct
+    /// one. The aggregate overload delegates here rather than duplicating the arithmetic, so a shop
+    /// screen and the purchase it leads to cannot come to different prices.
+    /// </remarks>
+    /// <param name="shrineBuffs">The shrine buff ids taken this run.</param>
+    /// <param name="curses">The curse ids active on this run.</param>
+    /// <param name="content">The version-stamped snapshot the shrine pool is read from.</param>
+    /// <param name="stat">The non-combat stat being asked about.</param>
+    /// <exception cref="ArgumentNullException">An argument is null.</exception>
+    internal static double PctAdd(
+        IReadOnlyList<string> shrineBuffs,
+        IReadOnlyList<string> curses,
+        ContentSnapshot content,
+        StatId stat)
+    {
+        ArgumentNullException.ThrowIfNull(shrineBuffs);
+        ArgumentNullException.ThrowIfNull(curses);
         ArgumentNullException.ThrowIfNull(content);
 
         var total = 0.0;
 
-        foreach (var curseId in run.Curses)
+        foreach (var curseId in curses)
         {
             if (CurseEffects.Stat(curseId) is { } move && move.Stat == stat)
             {
@@ -54,11 +81,11 @@ internal static class RunModifierTotals
             }
         }
 
-        if (run.ShrineBuffs.Count > 0)
+        if (shrineBuffs.Count > 0)
         {
             var pool = ShrineTuning.Read(content);
 
-            foreach (var buffId in run.ShrineBuffs)
+            foreach (var buffId in shrineBuffs)
             {
                 total += MagnitudeOf(pool, buffId, stat);
             }
@@ -121,7 +148,11 @@ internal static class RunModifierTotals
     /// </para>
     /// </remarks>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="price"/> is negative.</exception>
-    internal static long ScaleShopPrice(Run run, ContentSnapshot content, long price)
+    internal static long ScaleShopPrice(
+        IReadOnlyList<string> shrineBuffs,
+        IReadOnlyList<string> curses,
+        ContentSnapshot content,
+        long price)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(price);
 
@@ -130,7 +161,7 @@ internal static class RunModifierTotals
             return 0;
         }
 
-        var pct = PctAdd(run, content, StatId.SHOP_PRICE_PCT);
+        var pct = PctAdd(shrineBuffs, curses, content, StatId.SHOP_PRICE_PCT);
 
         if (pct == 0.0)
         {
