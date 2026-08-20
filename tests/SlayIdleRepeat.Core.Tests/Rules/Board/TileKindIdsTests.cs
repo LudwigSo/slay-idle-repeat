@@ -40,15 +40,25 @@ public sealed class TileKindIdsTests
     }
 
     /// <summary>
-    /// The newest kind is numbered LAST. The client's tile-name table is indexed by this number and
-    /// transcribes the enum positionally, so a kind inserted mid-enum renumbers every kind after it
-    /// and silently mislabels each one on the board; appending keeps every existing number.
+    /// Written out rather than derived, for the same reason the client's own name table is: a
+    /// transcription that agrees only with itself is not evidence that any particular kind still
+    /// carries the number it shipped with.
     /// </summary>
     [Fact]
     public void MiniBoss_is_the_last_numbered_kind_so_no_existing_kinds_number_moved()
     {
-        ((int)TileKind.MiniBoss).ShouldBe(14);
-        ((int)TileKind.Empty).ShouldBe(13, "the kind MiniBoss was appended after.");
+        Enum.GetValues<TileKind>()
+            .Select(kind => kind + "=" + (int)kind)
+            .ShouldBe(
+                new[]
+                {
+                    "Enemy=0", "Elite=1", "Boss=2", "Shrine=3", "Curse=4", "Treasure=5", "Shop=6",
+                    "Campfire=7", "Minigame=8", "Event=9", "Portal=10", "Cache=11", "DiceForge=12",
+                    "Empty=13", "MiniBoss=14",
+                },
+                "the run reports its pending tile as a bare int and the client's name table is " +
+                "indexed by it, so a kind inserted mid-enum renumbers every kind after it and " +
+                "silently mislabels each one on the board. Append, never insert.");
     }
 
     [Fact]

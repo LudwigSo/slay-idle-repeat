@@ -96,10 +96,15 @@ public sealed class DraftRarityWeightsTests
     /// </summary>
     [Theory]
     [InlineData(1)]
+    [InlineData(2)]
     [InlineData(3)]
     public void A_boss_battle_has_no_table_at_all(int stage)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => DraftRarityWeights.For(stage, TileKind.Boss));
+        Should.Throw<ArgumentOutOfRangeException>(() => DraftRarityWeights.For(stage, TileKind.Boss))
+              .ParamName.ShouldBe(
+                  "battleKind",
+                  "every stage passed here is a real stage, so a refusal naming the stage instead " +
+                  "would be a different rule firing and this case would stop being about the boss.");
     }
 
     // ------------------------------------------------------------------ the guard, mutated on purpose (S1)

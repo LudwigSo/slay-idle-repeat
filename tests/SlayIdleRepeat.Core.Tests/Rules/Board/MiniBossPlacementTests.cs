@@ -12,12 +12,20 @@ namespace SlayIdleRepeat.Core.Tests.Rules.Board;
 /// </summary>
 public sealed class MiniBossPlacementTests
 {
-    /// <summary>A spread of seeds, so every claim below is about the arithmetic, not one draw.</summary>
+    /// <summary>A spread of seeds, so the two position claims are about the arithmetic, not one draw.</summary>
     public static IEnumerable<object[]> Seeds() => new[]
     {
         1UL, 2UL, 3UL, 42UL, 1337UL, 99999UL, 0xC0FFEEUL, 0xDEADBEEFUL, 123456789UL, 987654321UL,
         1111UL, 2222UL, 3333UL, 4444UL, 5555UL, 6666UL, 7777UL, 8888UL, 9999UL, 10101UL,
     }.Select(seed => new object[] { seed });
+
+    /// <summary>
+    /// Wider than the spread above on purpose: the three sampled negatives forbid single-digit-percent
+    /// draws at one specific index, so over twenty boards the sample can hold no counterexample at all
+    /// and then passes over a generator that never learned the constraint. Each of the three carries a
+    /// floor proving its own sample reached the neighbourhood in question.
+    /// </summary>
+    private static readonly ulong[] Sweep = Enumerable.Range(1, 200).Select(i => (ulong)i).ToArray();
 
     [Theory]
     [MemberData(nameof(Seeds))]
@@ -70,57 +78,102 @@ public sealed class MiniBossPlacementTests
     /// stage's last node (junction at <c>len-4</c>, branch length 3), so this is a real constraint
     /// rather than one the existing arithmetic already delivers.
     /// </summary>
-    [Theory]
-    [MemberData(nameof(Seeds))]
-    public void No_fork_branch_node_stands_on_a_MiniBoss_nodes_linear_index(ulong seed)
+    [Fact]
+    public void No_fork_branch_node_stands_on_a_MiniBoss_nodes_linear_index()
     {
         var config = BoardFixtures.ChapterOneConfig();
-        var board = Generate(config, seed);
-        var miniBossIndices = MiniBossLinearIndices(board, config);
+        var sweep = Sweep.Select(seed => Swept(config, seed)).ToArray();
 
-        miniBossIndices.Count.ShouldBe(2, "the claim is vacuous on a board with no mini-boss.");
+        EveryBoardCarriesTwoMiniBosses(sweep);
 
-        BranchNodes(board, config)
-            .Where(node => miniBossIndices.Contains(node.LinearIndex))
-            .Select(node => node.Id + "@" + node.LinearIndex)
-            .ShouldBeEmpty("a branch node at a mini-boss's index is a second tile at that step of " +
-                           "the track, so the branch is a way to stand where the mini-boss stands " +
-                           "without meeting it.");
+        sweep.Sum(board => board.Branches.Count).ShouldBeGreaterThan(
+            0, "no fork branch was generated anywhere in the sweep, so nothing was measured.");
+        sweep.Sum(board => board.Branches.Count(
+                      node => board.MiniBosses.Contains(node.LinearIndex + 1)))
+             .ShouldBeGreaterThan(
+                 0,
+                 "no branch in the sweep reached even the node immediately before a mini-boss, so " +
+                 "every branch stopped short of the boundary this constraint draws and a generator " +
+                 "that drew no boundary at all would have produced these same branches. Widen the " +
+                 "sweep.");
+
+        sweep.SelectMany(board => board.Branches
+                 .Where(node => board.MiniBosses.Contains(node.LinearIndex))
+                 .Select(node => "seed " + board.Seed + ": branch node at " + node.LinearIndex))
+             .ShouldBeEmpty("a branch node at a mini-boss's index is a second tile at that step of " +
+                            "the track, so the branch is a way to stand where the mini-boss stands " +
+                            "without meeting it.");
     }
 
-    [Theory]
-    [MemberData(nameof(Seeds))]
-    public void No_elite_is_placed_next_to_a_MiniBoss_node(ulong seed)
+    [Fact]
+    public void No_elite_is_placed_next_to_a_MiniBoss_node()
     {
         var config = BoardFixtures.ChapterOneConfig();
-        var board = Generate(config, seed);
-        var miniBossIndices = MiniBossLinearIndices(board, config);
+        var sweep = Sweep.Select(seed => Swept(config, seed)).ToArray();
 
-        miniBossIndices.Count.ShouldBe(2, "the claim is vacuous on a board with no mini-boss.");
+        EveryBoardCarriesTwoMiniBosses(sweep);
 
-        NeighbourTiles(board, config, miniBossIndices)
-            .Where(entry => entry.Tile == TileKind.Elite)
-            .Select(entry => "index " + entry.LinearIndex)
-            .ShouldBeEmpty("an elite beside a mini-boss stacks two elite fights on adjacent steps.");
+        sweep.Sum(board => TilesTwoBefore(board, TileKind.Elite)).ShouldBeGreaterThan(
+            0,
+            "not one elite in the sweep landed even two steps before a mini-boss, so an elite never " +
+            "reached the neighbourhood this rule clears and a generator that cleared nothing would " +
+            "have produced these same boards. Widen the sweep.");
+
+        sweep.SelectMany(board => NeighbourTiles(board.Board, config, board.MiniBosses)
+                 .Where(entry => entry.Tile == TileKind.Elite)
+                 .Select(entry => "seed " + board.Seed + ": elite at index " + entry.LinearIndex))
+             .ShouldBeEmpty("an elite beside a mini-boss stacks two elite fights on adjacent steps.");
     }
 
-    [Theory]
-    [MemberData(nameof(Seeds))]
-    public void No_curse_is_placed_immediately_before_a_MiniBoss_node(ulong seed)
+    [Fact]
+    public void No_curse_is_placed_immediately_before_a_MiniBoss_node()
     {
         var config = BoardFixtures.ChapterOneConfig();
-        var board = Generate(config, seed);
-        var miniBossIndices = MiniBossLinearIndices(board, config);
+        var sweep = Sweep.Select(seed => Swept(config, seed)).ToArray();
 
-        miniBossIndices.Count.ShouldBe(2, "the claim is vacuous on a board with no mini-boss.");
+        EveryBoardCarriesTwoMiniBosses(sweep);
 
-        miniBossIndices
-            .Where(index => index >= 1 && SpineTile(board, index - 1) == TileKind.Curse)
-            .Select(index => "curse at index " + (index - 1))
-            .ShouldBeEmpty("the curse rule that spares an elite and the boss spares a mini-boss too.");
+        sweep.Sum(board => TilesTwoBefore(board, TileKind.Curse)).ShouldBeGreaterThan(
+            0,
+            "not one curse in the sweep was drawn two steps before a mini-boss either, so a curse " +
+            "never reached the neighbourhood this rule clears and a generator that cleared nothing " +
+            "would have produced these same boards. Widen the sweep.");
+
+        sweep.SelectMany(board => board.MiniBosses
+                 .Where(index => index >= 1 && SpineTile(board.Board, index - 1) == TileKind.Curse)
+                 .Select(index => "seed " + board.Seed + ": curse at index " + (index - 1)))
+             .ShouldBeEmpty("the curse rule that spares an elite and the boss spares a mini-boss too.");
     }
 
     // ---------------------------------------------------------------- fixtures and readers
+
+    /// <summary>One board of the sweep, with the two readings every sampled case takes off it.</summary>
+    private sealed record SweptBoard(
+        ulong Seed,
+        CoreBoard Board,
+        IReadOnlyList<int> MiniBosses,
+        IReadOnlyList<BoardNode> Branches);
+
+    private static SweptBoard Swept(ChapterBoardConfig config, ulong seed)
+    {
+        var board = Generate(config, seed);
+
+        return new SweptBoard(
+            seed, board, MiniBossLinearIndices(board, config), BranchNodes(board, config));
+    }
+
+    /// <summary>The floor every sampled case shares: a board with no mini-boss proves nothing.</summary>
+    private static void EveryBoardCarriesTwoMiniBosses(IReadOnlyList<SweptBoard> sweep) =>
+        sweep.Select(board => board.MiniBosses.Count).Distinct().ShouldBe(
+            new[] { 2 }, "every board in the sweep carries two mini-bosses, or the claim is vacuous.");
+
+    /// <summary>
+    /// How many of a board's mini-bosses have <paramref name="tile"/> two steps in front of them: the
+    /// position beside the one the rule clears, and so the evidence the tile could have reached it.
+    /// </summary>
+    private static int TilesTwoBefore(SweptBoard board, TileKind tile) =>
+        board.MiniBosses.Count(
+            index => index >= 2 && SpineTile(board.Board, index - 2) == tile);
 
     // GenerateBoard takes an already-opened stream, not a seed: DeterministicRng may only be
     // constructed inside Core.Rng, so the stream is built here exactly as BoardGeneratorTests does.

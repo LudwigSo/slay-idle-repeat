@@ -150,6 +150,10 @@ public sealed class ConfirmBattleResultTests
 
         elite.NewState.Run!.Gold.ShouldBeGreaterThan(
             0L, "the elite arm is the reference; a reference that paid nothing compares nothing.");
+        elite.NewState.Run!.BankedLegendXp.ShouldBeGreaterThan(
+            0L, "same reason: two zeroes agree about nothing.");
+        GearGrants(elite).ShouldBeGreaterThan(
+            0, "and a reference that granted no gear would compare no gear.");
 
         miniBoss.NewState.Run!.Gold.ShouldBe(
             elite.NewState.Run!.Gold, "elite Gold-per-kill, scaled by the same run modifiers.");

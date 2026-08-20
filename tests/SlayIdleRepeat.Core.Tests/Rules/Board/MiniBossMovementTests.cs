@@ -17,11 +17,13 @@ public sealed class MiniBossMovementTests
 {
     private const ulong Seed = 20260821UL;
 
-    private static readonly ulong[] PortalSeeds =
-    {
-        1UL, 2UL, 3UL, 42UL, 1337UL, 99999UL, 0xC0FFEEUL, 0xDEADBEEFUL, 123456789UL, 987654321UL,
-        1111UL, 2222UL, 3333UL, 4444UL, 5555UL, 6666UL, 7777UL, 8888UL, 9999UL, 10101UL,
-    };
+    /// <summary>
+    /// The sweep the Portal claim is sampled over. Wide rather than the twenty seeds the rest of the
+    /// board suite spreads across, because a Portal is a 2-in-108 draw and only the two latest
+    /// positions C4 leaves it can overshoot a mini-boss at all — a narrow spread draws plenty of
+    /// Portals while never once reaching the clamp the case is about.
+    /// </summary>
+    private static readonly ulong[] Sweep = Enumerable.Range(1, 200).Select(i => (ulong)i).ToArray();
 
     /// <summary>Every roll that overshoots from two tiles out. A roll of 2 lands exactly and is not a clamp.</summary>
     [Theory]
@@ -77,25 +79,29 @@ public sealed class MiniBossMovementTests
     }
 
     /// <summary>
-    /// A Portal jump cannot carry past a mini-boss either. Aggregated over the whole seed spread in
-    /// one case rather than one case per seed, because the two floors — that the mini-bosses exist
-    /// at all, and that some Portal was actually jumped from — are what stop the claim being
-    /// vacuous, and both are properties of the spread.
+    /// A Portal jump cannot carry past a mini-boss either. Aggregated over the whole sweep in one
+    /// case rather than one case per seed, because the floors that stop the claim being vacuous are
+    /// properties of the sweep and not of any one seed.
     /// </summary>
     [Fact]
     public void A_Portal_jump_never_carries_past_a_MiniBoss_node()
     {
         var config = BoardFixtures.ChapterOneConfig();
 
-        var boards = PortalSeeds.Select(seed => Generate(config, seed)).ToArray();
+        var boards = Sweep.Select(seed => Generate(config, seed)).ToArray();
 
         boards.Select(board => MiniBossCount(board, config)).Distinct().ShouldBe(
-            new[] { 2 }, "every board in the spread carries two mini-bosses, or the claim is vacuous.");
+            new[] { 2 }, "every board in the sweep carries two mini-bosses, or the claim is vacuous.");
 
         var jumps = boards.Select(board => PortalJumps(board, config)).ToArray();
 
         jumps.Sum(jump => jump.Examined).ShouldBeGreaterThan(
-            0, "no Portal was jumped from anywhere in the spread, so nothing was measured.");
+            0, "no Portal was jumped from anywhere in the sweep, so nothing was measured.");
+        jumps.Sum(jump => jump.WouldOvershoot).ShouldBeGreaterThan(
+            0,
+            "every Portal in the sweep stood far enough back that its longest jump landed at or " +
+            "before the mini-boss anyway, so no jump ever asked to pass it and an engine with no " +
+            "clamp at all would have produced these same landings. Widen the sweep.");
         jumps.SelectMany(jump => jump.Violations).ShouldBeEmpty(
             "a Portal that overshoots a mini-boss is a way to skip it, which is the one thing the " +
             "node may not allow.");
@@ -150,14 +156,21 @@ public sealed class MiniBossMovementTests
                   .Count(index => SpineTile(board, index) == TileKind.MiniBoss);
 
     /// <summary>
-    /// Every Portal jump a run could take in stage 1 or 2, and the ones that ended past that
-    /// stage's mini-boss. Stage 3 is excluded: it holds no mini-boss, and its own pre-boss campfire
-    /// clamp is already pinned by <see cref="MovementEngineTests"/>.
+    /// Every Portal jump a run could take in stage 1 or 2: how many there were, how many of them
+    /// asked to land past that stage's mini-boss, and the ones that actually did. Stage 3 is
+    /// excluded: it holds no mini-boss, and its own pre-boss campfire clamp is already pinned by
+    /// <see cref="MovementEngineTests"/>.
     /// </summary>
-    private static (int Examined, IReadOnlyList<string> Violations) PortalJumps(
+    /// <remarks>
+    /// <c>WouldOvershoot</c> is the discriminating count: <c>index + distance</c> is where an engine
+    /// that clamped nothing would put the run, so a jump whose unclamped destination is at or before
+    /// the mini-boss proves nothing about the clamp.
+    /// </remarks>
+    private static (int Examined, int WouldOvershoot, IReadOnlyList<string> Violations) PortalJumps(
         CoreBoard board, ChapterBoardConfig config)
     {
         var examined = 0;
+        var wouldOvershoot = 0;
         var violations = new List<string>();
 
         for (var stageIndex = 0; stageIndex < 2; stageIndex++)
@@ -176,6 +189,11 @@ public sealed class MiniBossMovementTests
                 {
                     examined++;
 
+                    if (index + distance > miniBossIndex)
+                    {
+                        wouldOvershoot++;
+                    }
+
                     var landed = MovementEngine.AdvancePortal(board, board.SpineNode(index), distance);
                     var landedIndex = board.Node(landed.Node).LinearIndex;
 
@@ -189,6 +207,6 @@ public sealed class MiniBossMovementTests
             }
         }
 
-        return (examined, violations);
+        return (examined, wouldOvershoot, violations);
     }
 }

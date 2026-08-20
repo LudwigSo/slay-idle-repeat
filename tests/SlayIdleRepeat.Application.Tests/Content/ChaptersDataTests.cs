@@ -183,6 +183,7 @@ public sealed class ChaptersDataTests
         var elites = data.Read($"{document}#/elitePool").Items.Select(i => i.AsText()).ToArray();
 
         miniBosses.Length.ShouldBe(2, "the last node of stage 1 and of stage 2, and no others");
+        miniBosses.ShouldBeUnique("two rows naming one elite is one mini-boss fought twice.");
         miniBosses.ShouldBeSubsetOf(elites);
     }
 
