@@ -390,7 +390,8 @@ public sealed class RunLivenessTests
 
         return (TileKind)run.PendingTileKindValue switch
         {
-            TileKind.Enemy or TileKind.Elite or TileKind.Boss => new StartBattleCommand(),
+            TileKind.Enemy or TileKind.Elite or TileKind.MiniBoss or TileKind.Boss =>
+                new StartBattleCommand(),
 
             TileKind.Minigame when !run.HasResolvedMinigameAt(run.Position) =>
                 new MinigameSubmitCommand(MinigameCatalogue.ChestPick, 0),

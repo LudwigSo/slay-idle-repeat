@@ -11,6 +11,7 @@ using SlayIdleRepeat.Core.Rules.Perks;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Content.Perks;
 using Xunit;
+using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Perks;
 
@@ -45,7 +46,7 @@ public sealed class DraftCompositionRuleTests
                 catalogue,
                 owned,
                 Tuning,
-                DraftRarityWeights.For(stage, isElite: false, isBoss: false),
+                DraftRarityWeights.For(stage, TileKind.Enemy),
                 Array.Empty<DraftForce>(),
                 new HashSet<string>(StringComparer.Ordinal)),
             new DeterministicRng(seed, RngStreams.Draft));

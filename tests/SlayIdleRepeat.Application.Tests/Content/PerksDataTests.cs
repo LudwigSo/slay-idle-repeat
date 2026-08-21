@@ -253,6 +253,80 @@ public sealed class PerksDataTests
         result.Issues.ShouldNotBeEmpty();
     }
 
+    /// <summary>
+    /// The pool tag the draft draws from, as the data authors it.
+    /// </summary>
+    /// <remarks>
+    /// Spelled here rather than shared with the engine's own constant, which this tier cannot see —
+    /// <c>Core</c> opens its internals to its own test assembly only. The two cannot drift in
+    /// silence: if the engine's token stopped matching the data's, no shipped row would be draftable
+    /// and the engine refuses an empty pool outright, which the run sweeps in the Core suite hit on
+    /// the first draft of every run.
+    /// </remarks>
+    private const string StandardPoolTag = "standard";
+
+    /// <summary>
+    /// The functions that read the RUN rather than the battle. An effect scaling on one of these
+    /// cannot be evaluated by any fight this build composes, so a row carrying one is authored,
+    /// schema-valid and unplayable — taking it ends the run at the next battle.
+    /// </summary>
+    private static readonly string[] RunScopedConditionFunctions =
+    {
+        "PERK_COUNT", "DISTINCT_PERK_CATEGORIES", "PET_COUNT", "GOLD_HELD", "BATTLES_WON_THIS_RUN",
+        "STAGE_INDEX", "CHAPTER", "TIER",
+    };
+
+    /// <summary>
+    /// The rows the draft withholds are exactly the rows it cannot evaluate.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Stated as an equality in both directions, because each side fails silently on its own. A
+    /// row that reads run state and IS in the standard pool is a run that ends on the perk the player
+    /// just chose; a row withheld for any other reason is a perk nobody can ever be offered and no
+    /// other test would miss. Retagging a row back into the pool is therefore a claim this case
+    /// checks against the effect data rather than against a list of ids.
+    /// </remarks>
+    [Fact]
+    public void A_row_is_withheld_from_the_standard_draft_pool_exactly_when_it_reads_run_state()
+    {
+        var rows = Rows();
+
+        var withheld = rows.Where(r => !PoolTags(r).Contains(StandardPoolTag, StringComparer.Ordinal))
+                           .Select(r => Text(r, "id"))
+                           .ToArray();
+        var unevaluatable = rows.Where(ReadsRunState).Select(r => Text(r, "id")).ToArray();
+
+        withheld.ShouldBe(unevaluatable, ignoreOrder: true);
+    }
+
+    /// <summary>
+    /// …and the pool the draft actually draws from is every other row.
+    /// </summary>
+    /// <remarks>
+    /// 🔴 The anti-vacuity floor for the case above, and the reason it is a separate one. A tag
+    /// filter over a token nothing carries empties the pool, and an empty pool satisfies "no
+    /// withheld row is offered" perfectly while breaking every draft in the game — so the count is
+    /// pinned against the catalogue's own size rather than left as "some rows survive".
+    /// </remarks>
+    [Fact]
+    public void The_standard_pool_is_every_row_but_the_withheld_ones()
+    {
+        var rows = Rows();
+        var standard = rows.Where(r => PoolTags(r).Contains(StandardPoolTag, StringComparer.Ordinal))
+                           .ToArray();
+        var withheld = rows.Count - standard.Length;
+
+        withheld.ShouldBe(
+            1,
+            "one row is withheld today. A second is a design decision, and zero means the engine " +
+            "grew into the row that was withheld — either way this number moves deliberately.");
+        standard.Length.ShouldBe(
+            rows.Count - 1,
+            "every row but the withheld one is draftable, so a renamed tag cannot quietly shrink " +
+            "the pool.");
+        standard.ShouldNotBeEmpty("a pool the draft cannot draw from is not a pool.");
+    }
+
     // ───────────────────────────────────────────────────── reading the rows
 
     /// <summary>The nine categories, spelled once.</summary>
@@ -288,5 +362,58 @@ public sealed class PerksDataTests
         row.TryGetMember(member, out var value).ShouldBeTrue(member);
 
         return value!.Items;
+    }
+
+    private static IReadOnlyList<string> PoolTags(ContentValue row) =>
+        Array(row, "poolTags").Select(tag => tag.AsText("poolTags")).ToArray();
+
+    /// <summary>Whether any effect of any tier of this row reads a run-scoped condition function.</summary>
+    /// <remarks>
+    /// Every <c>fn</c> at any depth, collected rather than matched at a known path: the DSL puts a
+    /// condition function under an effect's <c>valueScale</c>, under its <c>trigger</c>, and inside a
+    /// nested boolean tree, so a reader that looked at one of those would report a row clean for the
+    /// wrong reason.
+    /// </remarks>
+    private static bool ReadsRunState(ContentValue row) =>
+        ConditionFunctionsOf(row).Intersect(RunScopedConditionFunctions, StringComparer.Ordinal).Any();
+
+    private static IReadOnlyList<string> ConditionFunctionsOf(ContentValue value)
+    {
+        var found = new List<string>();
+
+        Collect(value, found);
+
+        return found;
+    }
+
+    private static void Collect(ContentValue value, List<string> found)
+    {
+        switch (value.Kind)
+        {
+            case ContentValueKind.Object:
+                foreach (var name in value.MemberNames)
+                {
+                    value.TryGetMember(name, out var member);
+
+                    if (name.Equals("fn", StringComparison.Ordinal) &&
+                        member!.Kind == ContentValueKind.Text)
+                    {
+                        found.Add(member.AsText("fn"));
+                        continue;
+                    }
+
+                    Collect(member!, found);
+                }
+
+                break;
+
+            case ContentValueKind.Array:
+                foreach (var item in value.Items)
+                {
+                    Collect(item, found);
+                }
+
+                break;
+        }
     }
 }

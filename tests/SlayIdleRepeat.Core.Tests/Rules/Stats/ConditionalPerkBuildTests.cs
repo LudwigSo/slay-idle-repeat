@@ -152,6 +152,7 @@ public sealed class ConditionalPerkBuildTests
             game.Send(player, kind switch
             {
                 Core.Rules.Board.TileKind.Enemy or Core.Rules.Board.TileKind.Elite
+                    or Core.Rules.Board.TileKind.MiniBoss
                     or Core.Rules.Board.TileKind.Boss => new StartBattleCommand(),
                 Core.Rules.Board.TileKind.Shop when run.HasOpenShop => new ShopLeaveCommand(),
                 Core.Rules.Board.TileKind.Shrine => new ShrineChooseCommand(0),

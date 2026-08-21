@@ -51,7 +51,8 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// On a win, this handler pays Gold-per-kill immediately into <c>Run.Gold</c>, banks Legend XP (and,
 /// on a Boss kill, Soul Shards) onto <c>Run</c> rather than <c>Player</c> — those wait for the
 /// run-end payout in <c>Handlers.EndRun</c>/<c>Handlers.AbandonRun</c> — marks a Boss kill, grants
-/// the one-time first-clear bonus, and marks the post-battle draft as pending. On a loss, it sets the
+/// the one-time first-clear bonus, and marks the post-battle draft as pending on every win but the
+/// Boss's, which ends the run and so has no run left to draft into. On a loss, it sets the
 /// hero's HP to zero and leaves the pending tile in place so <c>Handlers.Revive</c> can reopen the
 /// fight and <c>Handlers.EndRun</c> can still read which tile the hero died on. Either way
 /// <c>Run.ExitBattle()</c> runs: the death prompt is client-only UI, not a server phase.
@@ -148,7 +149,7 @@ internal static class ConfirmBattleResult
     {
         var run = input.Run;
 
-        if (kind is TileKind.Enemy or TileKind.Elite or TileKind.Boss)
+        if (kind is TileKind.Enemy or TileKind.Elite or TileKind.MiniBoss or TileKind.Boss)
         {
             var reward = RunRewardMath.ForKill(kind, run.ChapterId, run.Tier, input.Context.Content);
 
@@ -178,10 +179,17 @@ internal static class ConfirmBattleResult
                 run.BankRewards(legendXp: 0, RunRewardMath.FirstClearBonus(input.Context.Content));
             }
         }
+        else
+        {
+            // 🔒 The boss is the one win that opens no draft. It is the last fight of the run, so
+            // there is no run left to spend a perk in — and a pending draft gates every other run
+            // command, so the run would end standing behind an offer that can change nothing.
+            //
+            // Captured before ClearPendingTile wipes PendingTileKindValue/Stage, which the draft's
+            // rarity weights need.
+            run.MarkDraftPending(run.PendingTileKindValue, run.PendingTileStage);
+        }
 
-        // Captured before ClearPendingTile wipes PendingTileKindValue/Stage, which the draft's
-        // rarity weights need.
-        run.MarkDraftPending(run.PendingTileKindValue, run.PendingTileStage);
         run.ClearPendingTile();
     }
 
@@ -281,7 +289,9 @@ internal static class ConfirmBattleResult
     private static RunDropTrigger TriggerFor(TileKind kind) => kind switch
     {
         TileKind.Enemy => RunDropTrigger.NORMAL_ENEMY,
-        TileKind.Elite => RunDropTrigger.ELITE,
+        // A mini-boss drops on the elite trigger, at the elite count: the guaranteed drop is part of
+        // what makes an elite worth stopping for, and a mini-boss is one that cannot be walked past.
+        TileKind.Elite or TileKind.MiniBoss => RunDropTrigger.ELITE,
         TileKind.Boss => RunDropTrigger.BOSS,
         _ => throw new ArgumentOutOfRangeException(
             nameof(kind),

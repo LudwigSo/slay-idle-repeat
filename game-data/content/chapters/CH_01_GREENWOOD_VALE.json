@@ -14,6 +14,7 @@
   ],
   "enemyPool": { "GRUNT": 40, "SWARM": 20, "BRUTE": 15, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 5, "LEECH": 5, "REAVER": 0 },
   "elitePool": ["EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA"],
+  "miniBossIds": ["EL_THORN_SENTINEL", "EL_MOSSBACK_ALPHA"],
   "bossId": "BOSS_THORNMAW",
   "lootTable": "LT_CH1",
   "unlockCondition": null

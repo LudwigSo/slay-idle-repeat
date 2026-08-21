@@ -1,4 +1,5 @@
 ﻿using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Rules.Perks;
 
 namespace SlayIdleRepeat.Core.Tests.Content.Perks;
 
@@ -126,6 +127,32 @@ internal static class PerkDocuments
     /// <summary>The whole fixture catalogue, three tiers each.</summary>
     internal static ContentSnapshot Shipped { get; } = Build();
 
+    /// <summary>The id of the row <see cref="OneRowWithheldFromTheStandardPool"/> keeps out of the draw.</summary>
+    internal const string WithheldRow = "PK_TEST_WITHHELD";
+
+    /// <summary>
+    /// The five-row catalogue plus a sixth row carrying some other pool tag — the shape of a perk the
+    /// engine cannot yet honour: authored, schema-valid, and not for offering.
+    /// </summary>
+    /// <remarks>
+    /// A sixth row rather than a retagged fifth, so the withheld row shows up as six rows offering
+    /// five rather than as a rarity band quietly emptying.
+    /// </remarks>
+    internal static ContentSnapshot OneRowWithheldFromTheStandardPool { get; } = new(
+        ContentVersion.FromHex(new string('d', ContentVersion.HexLength)),
+        [
+            new ContentDocument(DocumentPath, Obj(
+                ("perks", ContentValue.Array(new[]
+                {
+                    Perk(Common1, "OFFENSE", "COMMON"),
+                    Perk(Common2, "DEFENSE", "COMMON"),
+                    Perk(Rare1, "SUSTAIN", "RARE"),
+                    Perk(Epic1, "POISON", "EPIC"),
+                    Perk(Legendary1, "FIRE", "LEGENDARY"),
+                    Perk(WithheldRow, "OFFENSE", "COMMON", poolTag: "needs_run_state"),
+                })))),
+        ]);
+
     /// <summary>A snapshot carrying only this document — for tests that need nothing else.</summary>
     private static ContentSnapshot Build() =>
         new(ContentVersion.FromHex(new string('c', ContentVersion.HexLength)), [Document]);
@@ -141,7 +168,8 @@ internal static class PerkDocuments
         })));
 
     private static ContentValue Perk(
-        string id, string category, string rarity, string? requires = null) => Obj(
+        string id, string category, string rarity, string? requires = null,
+        string poolTag = PerkDraftEngine.StandardPoolTag) => Obj(
         ("id", ContentValue.Text(id)),
         ("name", ContentValue.Text(id)),
         ("category", ContentValue.Text(category)),
@@ -157,7 +185,7 @@ internal static class PerkDocuments
         ("excludes", ContentValue.Array(Array.Empty<ContentValue>())),
         ("requires", ContentValue.Array(
             requires is null ? Array.Empty<ContentValue>() : new[] { ContentValue.Text(requires) })),
-        ("poolTags", ContentValue.Array(new[] { ContentValue.Text("standard") })));
+        ("poolTags", ContentValue.Array(new[] { ContentValue.Text(poolTag) })));
 
     private static ContentValue Tier(int tier, string id, decimal value) => Obj(
         ("tier", ContentValue.Number(tier)),

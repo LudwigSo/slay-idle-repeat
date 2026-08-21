@@ -4,8 +4,9 @@ using SlayIdleRepeat.Core.Content;
 namespace SlayIdleRepeat.Core.Rules.Board;
 
 /// <summary>
-/// Reads one chapter's <c>content/chapters/CH_*.json</c> document into the
-/// <see cref="ChapterBoardConfig"/> <see cref="BoardGenerator.GenerateBoard"/> needs.
+/// Reads one chapter's <c>content/chapters/CH_*.json</c> document: the
+/// <see cref="ChapterBoardConfig"/> <see cref="BoardGenerator.GenerateBoard"/> needs, and the
+/// identity of the mini-boss standing at each of the chapter's first two stage gates.
 /// </summary>
 /// <remarks>
 /// Lives under <c>Rules/Board/</c>, not <c>Content/</c>: <c>Content</c> sits below <c>Rules</c> in
@@ -48,6 +49,45 @@ internal static class ChapterBoardTuning
 
         return ChapterBoardConfig.From(
             chapterId, stageLengths, eliteCount, tileWeights, bossId, forkBiasPlus, forkBiasMinus);
+    }
+
+    /// <summary>
+    /// The elite a mini-boss fight at <paramref name="stage"/>'s gate is: the chapter's own
+    /// <c>miniBossIds</c> entry for that stage.
+    /// </summary>
+    /// <remarks>
+    /// Read from the CHAPTER document rather than from <c>content/enemies/enemies.json</c>'s chapter
+    /// pool, for the reason <c>bossId</c> is: which enemy a chapter's structure puts a player in
+    /// front of, and at which node, is a fact about the chapter's own run — the enemy catalogue
+    /// states what an elite IS, not where the run schedules one. The two stay in agreement because
+    /// each id here has to be a member of the same chapter's own <c>elitePool</c>.
+    /// </remarks>
+    /// <param name="content">The loaded content set.</param>
+    /// <param name="chapterId">The chapter number.</param>
+    /// <param name="stage">The stage whose gate the fight stands at — 1 or 2.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="content"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="stage"/> is not 1 or 2 — stage 3 ends on the boss node, not a gate.
+    /// </exception>
+    /// <exception cref="MissingContentException">
+    /// The chapter has no document, or that document names no mini-boss for the stage.
+    /// </exception>
+    internal static string MiniBossId(ContentSnapshot content, int chapterId, int stage)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (stage is not (1 or 2))
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(stage), stage,
+                "A mini-boss stands on the last node of stage 1 and of stage 2. Stage 3's last node " +
+                "is followed by the boss, so it carries no gate of its own.");
+        }
+
+        var documentPath = FindChapterDocument(content, chapterId);
+        var index = (stage - 1).ToString(CultureInfo.InvariantCulture);
+
+        return content.ReadText($"{documentPath}#/miniBossIds/{index}");
     }
 
     /// <summary>

@@ -110,7 +110,7 @@
           },
 
           "poolTags": {
-            "description": "06 §5's worked example authors exactly one tag, 'standard' — the fresh-pool draw 06 §4 weights over. No other tag is named anywhere in 06, so 'standard' is the only token this file uses; a future tag (e.g. an event-exclusive pool) is a data decision for the milestone that adds one.",
+            "description": "06 §5's worked example authors exactly one tag, 'standard' — the fresh-pool draw 06 §4 weights over. No other tag is named anywhere in 06, so 'standard' is the pool the draft draws from and the token every playable row carries; any OTHER token withholds the row from that draw, which is how a row the engine cannot yet evaluate stays out of the pool without a branch in the engine. Adding a tag is a data decision for the milestone that needs one.",
             "type": "array",
             "minItems": 1,
             "uniqueItems": true,

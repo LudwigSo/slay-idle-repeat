@@ -145,12 +145,24 @@ internal static class BoardGenerator
         {
             tiles[spineLength - 2] = TileKind.Campfire; // always just before boss
         }
+        else
+        {
+            // The stage gate's fight. Placed structurally like the shop and the campfire, so no draw
+            // of the board stream is spent naming it, and placed on the stage's LAST node so the
+            // existing stage-end clamp is what makes it unskippable — no movement rule of its own.
+            tiles[spineLength - 1] = TileKind.MiniBoss;
+        }
 
         PlaceElites(config.EliteCount[stageIndex], tiles, rng, config.ChapterId, stageNumber);
 
         // Step 2 + 3 (C1,C2,C4,C5): weighted fill of every remaining index.
         var table = ToWeightTable(config.TileWeights[stageIndex]);
         var isStage3 = stageNumber == 3;
+
+        // Every stage after the first opens on the node immediately AFTER the previous stage's gate,
+        // and the two stand in different stage arrays — so the mini-boss adjacency rule cannot be
+        // read off this stage's own tiles at position 0 and is carried in instead.
+        var followsAMiniBoss = stageNumber > 1;
 
         for (var position = 0; position < spineLength; position++)
         {
@@ -159,7 +171,8 @@ internal static class BoardGenerator
                 continue;
             }
 
-            tiles[position] = DrawConstrained(rng, table, tiles, position, spineLength, isStage3);
+            tiles[position] = DrawConstrained(
+                rng, table, tiles, position, spineLength, isStage3, followsAMiniBoss);
         }
 
         var resolved = tiles.Select(t => t!.Value).ToArray();
@@ -189,6 +202,11 @@ internal static class BoardGenerator
                     continue;
                 }
 
+                if (IsBesideAMiniBoss(tiles, index))
+                {
+                    continue;
+                }
+
                 candidates.Add(index);
             }
 
@@ -207,6 +225,42 @@ internal static class BoardGenerator
     }
 
     /// <summary>
+    /// Whether placing <paramref name="candidate"/> at <paramref name="position"/> would leave three
+    /// of it standing in a row, counting the two neighbours on either side.
+    /// </summary>
+    private static bool WouldCompleteATriple(TileKind candidate, TileKind?[] tiles, int position)
+    {
+        for (var start = position - 2; start <= position; start++)
+        {
+            if (start >= 0 &&
+                start + 2 < tiles.Length &&
+                IsOrIsAt(candidate, tiles, start, position) &&
+                IsOrIsAt(candidate, tiles, start + 1, position) &&
+                IsOrIsAt(candidate, tiles, start + 2, position))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether <paramref name="index"/> holds <paramref name="candidate"/>, or is where it is about to go.</summary>
+    private static bool IsOrIsAt(TileKind candidate, TileKind?[] tiles, int index, int position) =>
+        index == position || tiles[index] == candidate;
+
+    /// <summary>
+    /// Whether <paramref name="position"/> stands immediately before or after a mini-boss node.
+    /// </summary>
+    /// <remarks>
+    /// Two elite fights on adjacent steps is the spike the stage gate is meant to be; a mini-boss is
+    /// already an elite, so an elite beside it doubles the gate rather than leading up to it.
+    /// </remarks>
+    private static bool IsBesideAMiniBoss(TileKind?[] tiles, int position) =>
+        (position > 0 && tiles[position - 1] == TileKind.MiniBoss) ||
+        (position + 1 < tiles.Length && tiles[position + 1] == TileKind.MiniBoss);
+
+    /// <summary>
     /// One redraw-guarded weighted pick for a single spine (or branch) position. Position-local
     /// constraints only: C1, C2, C4, C5. Redraws up to <see cref="RedrawCap"/> times; on
     /// exhaustion falls back to <see cref="TileKind.Enemy"/>.
@@ -217,12 +271,14 @@ internal static class BoardGenerator
         TileKind?[] tiles,
         int position,
         int length,
-        bool nextIsBoss)
+        bool nextIsBoss,
+        bool firstNodeFollowsAMiniBoss = false)
     {
         for (var attempt = 0; attempt < RedrawCap; attempt++)
         {
             var candidate = rng.WeightedPick(table);
-            if (!ViolatesPositionalConstraints(candidate, tiles, position, length, nextIsBoss))
+            if (!ViolatesPositionalConstraints(
+                    candidate, tiles, position, length, nextIsBoss, firstNodeFollowsAMiniBoss))
             {
                 return candidate;
             }
@@ -232,13 +288,17 @@ internal static class BoardGenerator
     }
 
     private static bool ViolatesPositionalConstraints(
-        TileKind candidate, TileKind?[] tiles, int position, int length, bool nextIsBoss)
+        TileKind candidate,
+        TileKind?[] tiles,
+        int position,
+        int length,
+        bool nextIsBoss,
+        bool firstNodeFollowsAMiniBoss)
     {
-        // C1: no 3 identical non-ENEMY tiles in a row.
-        if (candidate != TileKind.Enemy
-            && position >= 2
-            && tiles[position - 1] == candidate
-            && tiles[position - 2] == candidate)
+        // C1: no 3 identical non-ENEMY tiles in a row. Read in BOTH directions, not only backwards:
+        // Step 1's mandatory tiles are already standing ahead of the fill, so a backwards-only check
+        // lets a draw slot into the gap between two of them and complete a triple nothing rejected.
+        if (candidate != TileKind.Enemy && WouldCompleteATriple(candidate, tiles, position))
         {
             return true;
         }
@@ -259,10 +319,11 @@ internal static class BoardGenerator
             return true;
         }
 
-        // C5: TILE_CURSE never immediately before TILE_ELITE or TILE_BOSS.
+        // C5: TILE_CURSE never immediately before TILE_ELITE or TILE_BOSS — and a mini-boss is a
+        // boss-tier fight standing where a stage ends, so it is spared for the same reason.
         if (candidate == TileKind.Curse)
         {
-            if (position + 1 < length && tiles[position + 1] == TileKind.Elite)
+            if (position + 1 < length && tiles[position + 1] is TileKind.Elite or TileKind.MiniBoss)
             {
                 return true;
             }
@@ -275,6 +336,14 @@ internal static class BoardGenerator
 
         // C5's mirror image: an already-placed CURSE immediately before a just-drawn ELITE.
         if (candidate == TileKind.Elite && position >= 1 && tiles[position - 1] == TileKind.Curse)
+        {
+            return true;
+        }
+
+        // The weighted draw can reach an ELITE too, so the adjacency rule PlaceElites applies to the
+        // mandatory elites has to hold here as well or the fill re-creates what Step 1 avoided.
+        if (candidate == TileKind.Elite &&
+            (IsBesideAMiniBoss(tiles, position) || (firstNodeFollowsAMiniBoss && position == 0)))
         {
             return true;
         }
@@ -311,12 +380,17 @@ internal static class BoardGenerator
     private static bool IsHealing(TileKind tile) =>
         tile is TileKind.Shrine or TileKind.Campfire or TileKind.Shop;
 
-    /// <summary>Latest Empty in range, else latest Enemy in range, else the range's last index — never index 0 of stage 1 (C6).</summary>
+    /// <summary>Latest Empty in range, else latest Enemy in range, else the range's last index — never index 0 of stage 1 (C6), never a mini-boss.</summary>
+    /// <remarks>
+    /// The last resort overwrites whatever stands there, so it has to step over the mini-boss: a
+    /// stage that healed itself by replacing its own gate would end the run's structure, not soften
+    /// its difficulty.
+    /// </remarks>
     private static int FindLatestReplaceable(TileKind[] tiles, int start, int end, int stageNumber)
     {
-        var guardStageOneOpener = stageNumber == 1 ? 1 : 0;
+        var floor = Math.Max(start, stageNumber == 1 ? 1 : 0);
 
-        for (var i = end - 1; i >= Math.Max(start, guardStageOneOpener); i--)
+        for (var i = end - 1; i >= floor; i--)
         {
             if (tiles[i] == TileKind.Empty)
             {
@@ -324,7 +398,7 @@ internal static class BoardGenerator
             }
         }
 
-        for (var i = end - 1; i >= Math.Max(start, guardStageOneOpener); i--)
+        for (var i = end - 1; i >= floor; i--)
         {
             if (tiles[i] == TileKind.Enemy)
             {
@@ -332,7 +406,15 @@ internal static class BoardGenerator
             }
         }
 
-        return Math.Max(end - 1, guardStageOneOpener);
+        for (var i = end - 1; i > floor; i--)
+        {
+            if (tiles[i] != TileKind.MiniBoss)
+            {
+                return i;
+            }
+        }
+
+        return floor;
     }
 
     // ----------------------------------------------------------------------------------------
@@ -413,6 +495,7 @@ internal static class BoardGenerator
         DeterministicRng rng)
     {
         var spineLength = stageSpine.Length;
+        var lastRejoinLocal = LastRejoinLocalIndex(stageSpine);
         var forkCount = rng.Range(1, 3); // "1-2 forks" — exclusive-max Range needs +1, see type doc.
 
         var usedSpan = new List<(int start, int endExclusive)>(); // occupied local-index ranges (junction..rejoin]
@@ -432,7 +515,7 @@ internal static class BoardGenerator
                     continue;
                 }
 
-                var maxBranchLen = Math.Min(4, spineLength - 1 - localIndex);
+                var maxBranchLen = Math.Min(4, lastRejoinLocal - localIndex);
                 if (maxBranchLen < 2)
                 {
                     continue; // rejoin would fall off the spine — not a viable junction here.
@@ -449,7 +532,7 @@ internal static class BoardGenerator
             }
 
             var junctionLocal = candidates[rng.Range(0, candidates.Count)];
-            var maxBranchLenAtJunction = Math.Min(4, spineLength - 1 - junctionLocal);
+            var maxBranchLenAtJunction = Math.Min(4, lastRejoinLocal - junctionLocal);
             var branchLen = rng.Range(2, maxBranchLenAtJunction + 1); // "2-4 nodes" — see type doc.
 
             usedSpan.Add((junctionLocal, junctionLocal + branchLen + 1));
@@ -487,6 +570,20 @@ internal static class BoardGenerator
             builder.AddEdge(branchIds[^1], spineIds[rejoinLinearIndex], EdgeKind.Continue);
         }
     }
+
+    /// <summary>
+    /// The latest local index a branch may rejoin the spine on.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A branch's last node is built at the rejoin index, so it stands at the same step of the
+    /// track as the spine node it rejoins onto. Where that step holds a mini-boss, the branch is a
+    /// way to stand on the gate's step without meeting it — so a stage carrying one keeps its rejoins
+    /// one node earlier. Always satisfiable: the earliest junction is local index 4, the latest is
+    /// <c>length − 4</c>, and the shortest branch is 2, so <c>length − 2</c> is reachable from every
+    /// junction the candidate scan offers.
+    /// </remarks>
+    private static int LastRejoinLocalIndex(TileKind[] stageSpine) =>
+        stageSpine[^1] == TileKind.MiniBoss ? stageSpine.Length - 2 : stageSpine.Length - 1;
 
     private static IReadOnlyDictionary<TileKind, double> BuildBranchWeights(
         IReadOnlyDictionary<TileKind, double> baseWeights, ForkLabel label, ChapterBoardConfig config)

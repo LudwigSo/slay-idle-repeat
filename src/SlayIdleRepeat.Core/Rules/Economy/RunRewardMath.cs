@@ -69,11 +69,11 @@ internal static class RunRewardMath
     /// The reward one kill pays: immediate Gold, banked Legend XP, and (Boss only) banked Soul
     /// Shards.
     /// </summary>
-    /// <param name="kind">The tile kind fought — <see cref="TileKind.Enemy"/>, <see cref="TileKind.Elite"/> or <see cref="TileKind.Boss"/>.</param>
+    /// <param name="kind">The tile kind fought — <see cref="TileKind.Enemy"/>, <see cref="TileKind.Elite"/>, <see cref="TileKind.MiniBoss"/> or <see cref="TileKind.Boss"/>.</param>
     /// <param name="chapterId">The chapter, from 1.</param>
     /// <param name="tier">The run's difficulty tier.</param>
     /// <param name="content">The version-stamped content snapshot the command is reading.</param>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not Enemy, Elite or Boss.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not Enemy, Elite, MiniBoss or Boss.</exception>
     internal static KillReward ForKill(TileKind kind, int chapterId, DifficultyTier tier, ContentSnapshot content)
     {
         ArgumentNullException.ThrowIfNull(content);
@@ -89,7 +89,9 @@ internal static class RunRewardMath
                 runXp.LegendXpFor(RunXpTuning.NormalEnemyKillSource, chapterId, tier),
                 SoulShards: 0),
 
-            TileKind.Elite => new KillReward(
+            // A mini-boss pays exactly an elite's: it IS an elite, chosen by the chapter rather than
+            // drawn, so a payout of its own would be a second elite economy to keep in balance.
+            TileKind.Elite or TileKind.MiniBoss => new KillReward(
                 goldPerKill.ForEliteKill(scalars, chapterId),
                 runXp.LegendXpFor(RunXpTuning.EliteKillSource, chapterId, tier),
                 SoulShards: 0),
@@ -100,7 +102,8 @@ internal static class RunRewardMath
                 SoulShardTuning.Read(content).BossKillShards(chapterId, tier)),
 
             _ => throw new ArgumentOutOfRangeException(
-                nameof(kind), kind, "A kill reward is only defined for Enemy, Elite or Boss tiles."),
+                nameof(kind), kind,
+                "A kill reward is only defined for Enemy, Elite, MiniBoss or Boss tiles."),
         };
     }
 

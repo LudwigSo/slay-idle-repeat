@@ -14,6 +14,7 @@
   ],
   "enemyPool": { "GRUNT": 25, "SWARM": 15, "BRUTE": 10, "SKIRMISHER": 10, "WARDEN": 5, "CASTER": 20, "LEECH": 15, "REAVER": 0 },
   "elitePool": ["EL_BOGFATHER", "EL_MIRESTALKER"],
+  "miniBossIds": ["EL_BOGFATHER", "EL_MIRESTALKER"],
   "bossId": "BOSS_GULGROT",
   "lootTable": "LT_CH2",
   "unlockCondition": { "clearChapter": 1, "tier": "NORMAL" }

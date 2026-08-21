@@ -47,8 +47,9 @@ internal static class TileKindIds
         TileKind.Cache => "TILE_CACHE",
         TileKind.DiceForge => "TILE_DICE_FORGE",
         TileKind.Empty => "TILE_EMPTY",
+        TileKind.MiniBoss => "TILE_MINIBOSS",
         _ => throw new ArgumentOutOfRangeException(
-            nameof(kind), kind, "not one of 03 §2's 14 tile kinds."),
+            nameof(kind), kind, "not one of 03 §2's 15 tile kinds."),
     };
 
     /// <summary>Attempts to parse a <c>TILE_*</c> id. False for anything outside the set.</summary>
@@ -70,12 +71,13 @@ internal static class TileKindIds
             case "TILE_CACHE": kind = TileKind.Cache; return true;
             case "TILE_DICE_FORGE": kind = TileKind.DiceForge; return true;
             case "TILE_EMPTY": kind = TileKind.Empty; return true;
+            case "TILE_MINIBOSS": kind = TileKind.MiniBoss; return true;
             default: kind = default; return false;
         }
     }
 
     /// <summary>Parses a <c>TILE_*</c> id.</summary>
-    /// <exception cref="ArgumentException">The id is not one of the 14 ids.</exception>
+    /// <exception cref="ArgumentException">The id is not one of the 15 ids.</exception>
     public static TileKind Parse(string id)
     {
         ArgumentNullException.ThrowIfNull(id);

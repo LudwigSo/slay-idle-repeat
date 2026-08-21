@@ -140,9 +140,12 @@ public sealed class MetaLoopTests
     /// an ordinary kill drops at the authored per-kill chance — under a tenth — so a run on it banks
     /// gear only by luck. This board resolves an <b>Elite</b>, which is the kill kind the acquisition
     /// rates guarantee a drop from, so the clause is driven rather than hoped for. Swept across both
-    /// authored chapters and a day of start instants while writing this.
+    /// authored chapters and a day of start instants while writing this, and re-picked from hour 3
+    /// to hour 4 when the mini-boss node changed every board's shape: the hour-3 board still
+    /// resolves an Elite, but it no longer passes anything that pays Enhance Stones, so the forge
+    /// half of this case had nothing to spend.
     /// </remarks>
-    private static readonly DateTimeOffset DropStart = Start.AddHours(3);
+    private static readonly DateTimeOffset DropStart = Start.AddHours(4);
 
     // ═════════════════════════════════════════════════════════ the run
 

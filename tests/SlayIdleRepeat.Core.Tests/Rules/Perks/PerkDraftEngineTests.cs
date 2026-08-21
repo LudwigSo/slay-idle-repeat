@@ -11,6 +11,7 @@ using SlayIdleRepeat.Core.Rules.Perks;
 using SlayIdleRepeat.Core.Tests.Content;
 using SlayIdleRepeat.Core.Tests.Content.Perks;
 using Xunit;
+using SlayIdleRepeat.Core.Rules.Board;
 
 namespace SlayIdleRepeat.Core.Tests.Rules.Perks;
 
@@ -59,7 +60,7 @@ public sealed class PerkDraftEngineTests
                 catalogue,
                 owned,
                 Tuning,
-                DraftRarityWeights.For(stage, isElite, isBoss),
+                DraftRarityWeights.For(stage, BandKind(isElite, isBoss)),
                 forces ?? Unforced,
                 everDrafted ?? NothingEverDrafted),
             rng);
@@ -380,7 +381,14 @@ public sealed class PerkDraftEngineTests
             PerkDraftEngine.GenerateOptions(default, Draft(1)));
     }
 
+    /// <summary>
+    /// The tile kind whose band the two flags name: <c>isBoss</c> is the epic+ band, which the
+    /// mini-boss now carries, and <c>isElite</c> is the elite shift over the stage's own.
+    /// </summary>
+    private static TileKind BandKind(bool isElite, bool isBoss) =>
+        isBoss ? TileKind.MiniBoss : isElite ? TileKind.Elite : TileKind.Enemy;
+
     /// <summary>A neutral rarity table, for the cases that are not about which battle the draft follows.</summary>
     private static IReadOnlyList<(PerkRarity Rarity, double Weight)> Weights =>
-        DraftRarityWeights.For(1, isElite: false, isBoss: false);
+        DraftRarityWeights.For(1, TileKind.Enemy);
 }

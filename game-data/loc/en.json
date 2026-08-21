@@ -233,6 +233,7 @@
     "loc.tile.cache.name": "Beast Cache",
     "loc.tile.dice_forge.name": "Dice Forge",
     "loc.tile.empty.name": "Waypoint",
+    "loc.tile.miniboss.name": "Mini-Boss",
 
 
     "loc.battle.title.name": "Battle",

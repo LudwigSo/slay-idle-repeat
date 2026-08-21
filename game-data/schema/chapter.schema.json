@@ -5,7 +5,7 @@
   "description": "14 §6 — a chapter definition, transcribed field-for-field from the worked example in that section. CONTENT schema, not a tuning schema: the chapter files themselves belong to M2/M3. powerTarget must agree with the matching cell in tuning/par_power.json.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["id", "displayName", "biomeArtSet", "paletteId", "musicId", "powerTarget", "stageLengths", "eliteCount", "tileWeights", "enemyPool", "elitePool", "bossId", "lootTable", "unlockCondition"],
+  "required": ["id", "displayName", "biomeArtSet", "paletteId", "musicId", "powerTarget", "stageLengths", "eliteCount", "tileWeights", "enemyPool", "elitePool", "miniBossIds", "bossId", "lootTable", "unlockCondition"],
   "properties": {
     "id": {
       "description": "14 §6 — the chapter number. Unique across content/chapters/.",
@@ -58,6 +58,14 @@
       "description": "05 §6.2 — the chapter's two biome elites. game-data/README.md 🔒: content/elites/ is empty and stays empty, because an elite modifier has no identity apart from the enemy it is drawn onto; every id here resolves against content/enemies/enemies.json#/elites/identities instead, which is the single source of truth for the EL_ id space (R32 cross-checks it there). Erratum fixed here: this field used to describe a content/elites/ directory that the README rules out.",
       "type": "array",
       "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^EL_[A-Z0-9_]+$" }
+    },
+    "miniBossIds": {
+      "description": "The two mini-bosses a run of this chapter fights, one per stage gate: index 0 stands on the last node of stage 1 and index 1 on the last node of stage 2. A mini-boss is a predetermined elite, so each id must also appear in this chapter's own elitePool — an id from outside it would name an elite this chapter's biome never otherwise presents. Exactly two: stage 3's last node is followed by the boss node, so it carries no gate.",
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^EL_[A-Z0-9_]+$" }
     },

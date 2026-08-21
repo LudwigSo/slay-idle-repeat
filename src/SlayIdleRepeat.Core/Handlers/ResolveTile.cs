@@ -119,6 +119,7 @@ internal static class ResolveTile
 
             case TileKind.Enemy:
             case TileKind.Elite:
+            case TileKind.MiniBoss:
             case TileKind.Boss:
                 // Acknowledgement only. START_BATTLE is the real trigger and reads this pending state.
                 return HandlerResult.Accept();
@@ -153,10 +154,10 @@ internal static class ResolveTile
                 // InvalidOperationException, not ArgumentOutOfRangeException: the bad value is a
                 // state value read off run.PendingTileKindValue, not an argument to this method.
                 throw new InvalidOperationException(
-                    "03 §2 fixes fourteen tile kinds and RESOLVE_TILE has a branch for each. A kind " +
+                    "03 §2 fixes fifteen tile kinds and RESOLVE_TILE has a branch for each. A kind " +
                     "of " + run.PendingTileKindValue.ToString(CultureInfo.InvariantCulture) + " arriving " +
                     "here that none of them names is one of two things, both defects: the vocabulary " +
-                    "grew a fifteenth member and this handler was not extended, or a persisted row " +
+                    "grew another member and this handler was not extended, or a persisted row " +
                     "carried a value outside it — which Run.Rehydrate deliberately cannot catch, " +
                     "because 30 §11.4 forbids Model from naming this vocabulary. Either way it throws, " +
                     "so the gap is loud rather than silently accepted as a tile that does nothing.");

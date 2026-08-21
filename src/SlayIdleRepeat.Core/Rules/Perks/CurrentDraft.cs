@@ -116,7 +116,6 @@ internal static class CurrentDraft
         var tuning = LuckTuning.Read(standing.Content);
         var owned = standing.Owned;
 
-        var isElite = standing.BattleKind == TileKind.Elite;
         var isBoss = standing.BattleKind == TileKind.Boss;
 
         demand = Demand(catalogue, owned, standing.Stage, isBoss);
@@ -129,7 +128,7 @@ internal static class CurrentDraft
                 catalogue,
                 owned,
                 tuning,
-                DraftRarityWeights.For(standing.Stage, isElite, isBoss),
+                DraftRarityWeights.For(standing.Stage, BandKind(standing.BattleKind)),
                 forces,
                 // ⚠️ The run's own drafted perks, which is a genuine SUBSET of "ever drafted": no
                 // player-lifetime Codex exists yet and M4-11 owns building one. The rule is exact
@@ -137,6 +136,19 @@ internal static class CurrentDraft
                 owned.Tiers.Keys.ToHashSet(StringComparer.Ordinal)),
             rng);
     }
+
+    /// <summary>
+    /// The kind whose rarity band this draft is drawn under.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 A boss battle no longer opens a draft, and nothing in the game marks one pending — but a
+    /// run PERSISTED before that still can, and a save is not refused for carrying a reward the game
+    /// has since withdrawn. Such a snapshot draws the epic+ band, which is what it was drawn under
+    /// when the boss still paid one. The rarity table itself refuses the boss kind outright, so this
+    /// tolerance is stated in exactly one place instead of hiding as a fallthrough inside it.
+    /// </remarks>
+    private static TileKind BandKind(TileKind battleKind) =>
+        battleKind == TileKind.Boss ? TileKind.MiniBoss : battleKind;
 
     /// <summary>What the run owns and where it stands, as the <c>DRAFT</c> guarantees read it.</summary>
     /// <remarks>

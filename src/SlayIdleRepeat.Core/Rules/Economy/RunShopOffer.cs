@@ -2,6 +2,7 @@ using SlayIdleRepeat.Core.Content;
 using SlayIdleRepeat.Core.Content.Perks;
 using SlayIdleRepeat.Core.Model;
 using SlayIdleRepeat.Core.Rng;
+using SlayIdleRepeat.Core.Rules.Board;
 using SlayIdleRepeat.Core.Rules.Perks;
 
 namespace SlayIdleRepeat.Core.Rules.Economy;
@@ -169,7 +170,9 @@ internal static class RunShopOffer
     {
         // The rarity is drawn first and ALWAYS, so the number of draws is fixed regardless of what
         // the catalogue holds — see the type remarks.
-        var weights = DraftRarityWeights.For(shop.StageIndex + 1, isElite: false, isBoss: false);
+        // TileKind.Empty is the "no battle caused this draw" spelling the run's opening draft already
+        // uses: a shop row is priced off the stage's own band with no battle bonus of any kind.
+        var weights = DraftRarityWeights.For(shop.StageIndex + 1, TileKind.Empty);
         var rarity = WeightedPick(weights, stream);
         var rows = Buyable(PerkCatalogue.Read(content), rarity, shop);
 

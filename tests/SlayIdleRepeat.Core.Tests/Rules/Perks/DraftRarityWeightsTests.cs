@@ -23,7 +23,7 @@ public sealed class DraftRarityWeightsTests
     [Fact]
     public void Stage_1_normal_matches_06_SS4_exactly()
     {
-        var table = DraftRarityWeights.For(stage: 1, isElite: false, isBoss: false);
+        var table = DraftRarityWeights.For(stage: 1, TileKind.Enemy);
 
         table.Count.ShouldBe(4);
         WeightOf(PerkRarity.Common, table).ShouldBe(62.0);
@@ -35,7 +35,7 @@ public sealed class DraftRarityWeightsTests
     [Fact]
     public void Stage_2_normal_matches_06_SS4_exactly()
     {
-        var table = DraftRarityWeights.For(stage: 2, isElite: false, isBoss: false);
+        var table = DraftRarityWeights.For(stage: 2, TileKind.Enemy);
 
         WeightOf(PerkRarity.Common, table).ShouldBe(48.0);
         WeightOf(PerkRarity.Rare, table).ShouldBe(36.0);
@@ -46,7 +46,7 @@ public sealed class DraftRarityWeightsTests
     [Fact]
     public void Stage_3_normal_matches_06_SS4_exactly()
     {
-        var table = DraftRarityWeights.For(stage: 3, isElite: false, isBoss: false);
+        var table = DraftRarityWeights.For(stage: 3, TileKind.Enemy);
 
         WeightOf(PerkRarity.Common, table).ShouldBe(34.0);
         WeightOf(PerkRarity.Rare, table).ShouldBe(40.0);
@@ -62,8 +62,8 @@ public sealed class DraftRarityWeightsTests
     [InlineData(3)]
     public void Elite_halves_Common_and_doubles_Legendary_leaving_Rare_and_Epic_at_the_stage_base(int stage)
     {
-        var normal = DraftRarityWeights.For(stage, isElite: false, isBoss: false);
-        var elite = DraftRarityWeights.For(stage, isElite: true, isBoss: false);
+        var normal = DraftRarityWeights.For(stage, TileKind.Enemy);
+        var elite = DraftRarityWeights.For(stage, TileKind.Elite);
 
         WeightOf(PerkRarity.Common, elite).ShouldBe(WeightOf(PerkRarity.Common, normal) / 2.0);
         WeightOf(PerkRarity.Legendary, elite).ShouldBe(WeightOf(PerkRarity.Legendary, normal) * 2.0);
@@ -115,6 +115,6 @@ public sealed class DraftRarityWeightsTests
     [InlineData(-1)]
     public void A_stage_outside_1_2_3_is_refused_when_not_a_boss_draw(int stage)
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => DraftRarityWeights.For(stage, isElite: false, isBoss: false));
+        Should.Throw<ArgumentOutOfRangeException>(() => DraftRarityWeights.For(stage, TileKind.Enemy));
     }
 }

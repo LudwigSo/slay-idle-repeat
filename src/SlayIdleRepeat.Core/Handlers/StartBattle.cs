@@ -45,7 +45,7 @@ internal static class StartBattle
 
         var kind = (TileKind)run.PendingTileKindValue;
 
-        if (kind is not (TileKind.Enemy or TileKind.Elite or TileKind.Boss))
+        if (kind is not (TileKind.Enemy or TileKind.Elite or TileKind.MiniBoss or TileKind.Boss))
         {
             return HandlerResult.Reject(RejectionReason.ILLEGAL_STATE);
         }

@@ -117,12 +117,13 @@
       }
     },
     "tile": {
-      "description": "All fourteen tile kinds by name. Required in full rather than as an open map: the run reports the tile it stands on as a bare integer, the enum that gives that integer a name is internal to the rules, and the client's own integer-to-name table is therefore a transcription. Requiring every member here is what makes a kind added to the game fail this document rather than render as a number.",
+      "description": "All fifteen tile kinds by name. Required in full rather than as an open map: the run reports the tile it stands on as a bare integer, the enum that gives that integer a name is internal to the rules, and the client's own integer-to-name table is therefore a transcription. Requiring every member here is what makes a kind added to the game fail this document rather than render as a number.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "enemy", "elite", "boss", "shrine", "curse", "treasure", "shop",
-        "campfire", "minigame", "event", "portal", "cache", "diceForge", "empty"
+        "campfire", "minigame", "event", "portal", "cache", "diceForge", "empty",
+        "miniBoss"
       ],
       "properties": {
         "enemy": { "$ref": "#/$defs/locKey" },
@@ -138,7 +139,8 @@
         "portal": { "$ref": "#/$defs/locKey" },
         "cache": { "$ref": "#/$defs/locKey" },
         "diceForge": { "$ref": "#/$defs/locKey" },
-        "empty": { "$ref": "#/$defs/locKey" }
+        "empty": { "$ref": "#/$defs/locKey" },
+        "miniBoss": { "$ref": "#/$defs/locKey" }
       }
     }
   }
