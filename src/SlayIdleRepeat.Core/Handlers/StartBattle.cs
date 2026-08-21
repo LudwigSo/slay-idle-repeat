@@ -23,7 +23,10 @@ namespace SlayIdleRepeat.Core.Handlers;
 /// work on every battle a player abandons and would still leave the confirming handler to re-derive it.
 /// </para>
 /// <para>
-/// A battle can only open against a pending Enemy/Elite/Boss tile. The phase gate that refuses a
+/// A battle can only open against a pending fight tile — Enemy, Elite, Mini-Boss or Boss. The set is
+/// spelled out at the gate below, and the client keeps its own copy of it: a kind added here and not
+/// there leaves a run pressing a control that is accepted and changes nothing, so
+/// <c>FightTileKindContractTests</c> compares the two by behaviour. The phase gate that refuses a
 /// second START_BATTLE while one is open lives in <c>GameRules.Execute</c>, so this handler does not
 /// re-check the phase itself.
 /// </para>
