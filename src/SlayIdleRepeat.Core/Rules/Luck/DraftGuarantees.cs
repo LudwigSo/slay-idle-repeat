@@ -44,7 +44,14 @@ internal readonly record struct DraftCounters(
 
 /// <summary>Everything about the run a <c>DRAFT</c> guarantee decides against, beyond the counters.</summary>
 /// <param name="Stage">The stage the battle that opened this draft belonged to: 1, 2 or 3.</param>
-/// <param name="IsBoss">Whether that battle was the Boss, which belongs to no stage.</param>
+/// <param name="IsBoss">
+/// Whether that battle was the Boss, which belongs to no stage. 🔒 What this selects is "the stage
+/// number cannot be compared", not "the fight was boss-tier": the only rule reading it substitutes
+/// it for a stage comparison. So a mini-boss draft leaves it FALSE — a mini-boss stands on the last
+/// node of stage 1 or of stage 2 and carries that stage's real number, and is read exactly like any
+/// other stage-1/2 draft. The boss no longer opens a draft at all, so today only a run persisted
+/// before that withdrawal can arrive here with this set.
+/// </param>
 /// <param name="OwnsSustainPerk">Whether the run already holds a perk in the Sustain category.</param>
 /// <param name="OwnsNonMaxedPerk">Whether the run holds at least one perk below its max tier.</param>
 internal readonly record struct DraftDemand(

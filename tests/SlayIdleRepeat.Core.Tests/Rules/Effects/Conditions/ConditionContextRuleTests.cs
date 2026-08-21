@@ -67,6 +67,77 @@ public sealed class ConditionContextRuleTests
         thrown.Message.ShouldContain("18 §9.3", Case.Sensitive);
     }
 
+    /// <summary>What the evaluator says when the subject it lacks is the run.</summary>
+    private const string NoRunState = "carries no run state";
+
+    /// <summary>
+    /// The run-state functions are <b>exactly</b> those eight, derived rather than transcribed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>This case exists because two places outside it transcribe that same set by hand</b> —
+    /// the theory above, and a filter in the Application tier that decides which perk rows are
+    /// withheld from the draft because no fight can evaluate them. A run-scoped function added to
+    /// the DSL and added to neither list is silent in both: the theory simply never asks about it,
+    /// and the withholding filter reports a catalogue clean while a new unplayable row sits in the
+    /// pool. So the set is read off the evaluator's own behaviour instead, by asking every function
+    /// the enum declares and collecting the ones that fail for want of a run.
+    /// </para>
+    /// <para>
+    /// ⚠️ <b>If this fails with a ninth name, the fix is not here.</b> Add the name to the list
+    /// below, to the theory above, and to
+    /// <c>Application.Tests</c>' <c>PerksDataTests.RunScopedConditionFunctions</c> — that last one is
+    /// what keeps an unplayable perk row out of the draft, and it is the one with no other guard.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void A_run_state_function_is_exactly_one_of_these_eight()
+    {
+        var declared = Enum.GetValues<ConditionFunction>();
+
+        declared.Length.ShouldBeGreaterThan(
+            8,
+            "floor: the sweep reads the enum, so an emptied or truncated vocabulary would make " +
+            "every claim below vacuously true");
+
+        var readsTheRun = new List<string>();
+
+        foreach (var function in declared)
+        {
+            // Every function is asked against the same run-less duel. Most answer, and the ones
+            // that throw for another reason — an absent status argument, say — are not collected:
+            // the discriminator is the missing SUBJECT, not the failure.
+            try
+            {
+                ConditionEvaluator.Read(function, ConditionArguments.None, EffectTestBattle.Duel());
+            }
+            catch (EffectContextException thrown)
+                when (thrown.Message.Contains(NoRunState, StringComparison.Ordinal))
+            {
+                readsTheRun.Add(function.ToString());
+            }
+            catch (EffectContextException)
+            {
+                // Absent for a different reason. Pinned by this class's other cases.
+            }
+        }
+
+        readsTheRun.ShouldBe(
+            [
+                nameof(ConditionFunction.PERK_COUNT),
+                nameof(ConditionFunction.DISTINCT_PERK_CATEGORIES),
+                nameof(ConditionFunction.PET_COUNT),
+                nameof(ConditionFunction.GOLD_HELD),
+                nameof(ConditionFunction.BATTLES_WON_THIS_RUN),
+                nameof(ConditionFunction.STAGE_INDEX),
+                nameof(ConditionFunction.CHAPTER),
+                nameof(ConditionFunction.TIER),
+            ],
+            ignoreOrder: true,
+            "a name here that is not in PerksDataTests.RunScopedConditionFunctions is a perk row " +
+            "the draft can offer and no fight can evaluate — see this case's remarks");
+    }
+
     /// <summary>
     /// A function keyed "by status id" has no answer without one — this is the failure that makes a
     /// missing argument visible instead of silently counting every status.

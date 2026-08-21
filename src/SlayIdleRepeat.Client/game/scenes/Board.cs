@@ -149,13 +149,14 @@ public partial class Board : Control
     private const string TrackFramePath = "%TrackFrame";
     private const string TrackPath = "%Track";
 
-    /// <summary>One node of the track, sized and shaped where every other control on this screen is.</summary>
+    /// <summary>The scene one node of the track is drawn from.</summary>
     /// <remarks>
-    /// 🔒 A FIXED size, carried by the scene rather than by a number here, and fixed rather than
-    /// divided: the row this fills draws the whole board, which is 43 nodes on the shipped chapters
-    /// and authored content on any other — so dividing one row between them would shrink each node as
-    /// the board grew and eventually draw a board too fine to read. A fixed size and a wrapping
-    /// container means a longer board takes another line instead.
+    /// 🔒 A scene rather than a rectangle built here, because a node now carries a MARK as well as a
+    /// colour, and its size and shape belong with it: the pip is a FIXED size, and fixed rather than
+    /// divided, because the row it fills draws the whole board — 43 nodes on the shipped chapters and
+    /// authored content on any other — so dividing one row between them would shrink each node as the
+    /// board grew and eventually draw a board too fine to read. A fixed size and a wrapping container
+    /// means a longer board takes another line instead.
     /// </remarks>
     private const string TrackNodeScenePath = "res://game/scenes/TrackNode.tscn";
 
@@ -760,11 +761,28 @@ public partial class Board : Control
 
             pip.Color = node.NodeId == standingOn ? TokenColour : ColourOf(node.Tile);
 
+            var gate = pip.GetNodeOrNull<Control>(TrackNodeGatePath);
+
+            if (gate is null)
+            {
+                // Named for the same reason the missing template is: a renamed or deleted child
+                // would otherwise be an unattributed null reference, and what is lost is not the
+                // pip but the only thing on the screen that says a node cannot be walked past.
+                GD.PushError(
+                    $"The board's node template '{TrackNodeScenePath}' carries no '" +
+                    TrackNodeGatePath + "' child, so no node can be marked as one the run may not " +
+                    "walk past. The track is drawn without the mark.");
+
+                track.AddChild(pip);
+
+                continue;
+            }
+
             // The mark comes off the tile kind the projection already carries. There is no flag
             // beside it saying the node cannot be walked past: a second field derived from this one
             // is a second thing to keep true, and the run's own movement rule is stated where the
             // stop happens rather than mirrored here.
-            pip.GetNode<Control>(TrackNodeGatePath).Visible = node.Tile == TileKind.MiniBoss;
+            gate.Visible = node.Tile == TileKind.MiniBoss;
 
             track.AddChild(pip);
         }

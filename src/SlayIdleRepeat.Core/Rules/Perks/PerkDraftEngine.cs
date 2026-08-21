@@ -97,14 +97,31 @@ internal static class PerkDraftEngine
     internal const int OptionCount = 3;
 
     /// <summary>
-    /// The pool tag a perk row carries to say the ordinary draft may offer it.
+    /// The pool tag a perk row carries to say the game may offer it.
     /// </summary>
     /// <remarks>
     /// Named here rather than read from tuning because it is a vocabulary token the catalogue and
-    /// this engine share, not a dial. A row without it is withheld from every draft — see
-    /// <see cref="Draftable"/>.
+    /// this engine share, not a dial. A row without it is withheld — see <see cref="IsOfferable"/>.
     /// </remarks>
     internal const string StandardPoolTag = "standard";
+
+    /// <summary>
+    /// Whether the game may hand this row to a player at all.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 <b>The rule is "a row the engine cannot evaluate is never offered", not "the draft skips
+    /// it".</b> A catalogue can legitimately hold a row whose effect reads state no fight
+    /// composition supplies yet; such a row is authored, schema-valid and unplayable — acquiring it
+    /// ends the run at the next battle. So it has to be withheld wherever the game hands a perk
+    /// over, and there are two such places: the draft, and the run shop's perk row. Both ask here,
+    /// because a rule stated at one of two doors is a rule with a door left open.
+    /// </remarks>
+    internal static bool IsOfferable(PerkCatalogueEntry perk)
+    {
+        ArgumentNullException.ThrowIfNull(perk);
+
+        return Contains(perk.PoolTags, StandardPoolTag);
+    }
 
     /// <summary>The weight a candidate carries before the Codex bias touches it.</summary>
     private const double UnbiasedWeight = 1.0;
@@ -376,12 +393,11 @@ internal static class PerkDraftEngine
     /// </summary>
     /// <remarks>
     /// <para>
-    /// 🔒 <b><see cref="StandardPoolTag"/> is a row's own statement that this draft may offer it.</b>
-    /// A catalogue can legitimately hold a row the engine is not yet able to honour — an effect whose
-    /// value reads state no fight composition supplies yet — and such a row is authored, schema-valid
-    /// and unplayable: offering it ends the run at the next battle. Withholding it is one tag on the
-    /// row rather than a branch in here, so a row becomes draftable again by being retagged on the
-    /// day the engine grows into it, with nothing to unpick in this file.
+    /// 🔒 <b><see cref="IsOfferable"/> is the row's own statement that it may be offered at all.</b>
+    /// Withholding is one tag on the row rather than a branch in here, so a row becomes draftable
+    /// again by being retagged on the day the engine grows into it, with nothing to unpick in this
+    /// file — and the run shop's perk row asks the same question, so a withheld row cannot be
+    /// reached through the other door.
     /// </para>
     /// <para>
     /// 🔒 <b><c>requires</c> is what makes a category's base perk a gate rather than a label.</b>
@@ -399,7 +415,7 @@ internal static class PerkDraftEngine
         PerkCatalogue catalogue, DraftedPerks owned) =>
         Matching(
             catalogue.All,
-            perk => Contains(perk.PoolTags, StandardPoolTag) &&
+            perk => IsOfferable(perk) &&
                 owned.TierOf(perk.Id) < perk.TierCount &&
                 AllOwned(perk.Requires, owned) &&
                 NoneOwned(perk.Excludes, owned));

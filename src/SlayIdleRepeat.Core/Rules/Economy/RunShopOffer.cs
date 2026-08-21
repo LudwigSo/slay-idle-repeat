@@ -238,9 +238,15 @@ internal static class RunShopOffer
             ShopPricing.Price(kind, key, rarity, shop.StageIndex, shop.ChapterId, tuning));
 
     /// <summary>
-    /// The catalogue rows of one rarity this run could still benefit from: everything it does not
-    /// already own at the top tier that perk authors.
+    /// The catalogue rows of one rarity this run could still benefit from: everything the game may
+    /// offer at all that the run does not already own at the top tier that perk authors.
     /// </summary>
+    /// <remarks>
+    /// 🔒 The offerable check is <see cref="PerkDraftEngine.IsOfferable"/>, the same question the
+    /// draft asks, and it is asked here for the same reason: a row the engine cannot evaluate ends
+    /// the run at the next battle whether it was drafted or bought. A shelf is a way to acquire a
+    /// perk, so it is a door the rule has to hold.
+    /// </remarks>
     private static IReadOnlyList<PerkCatalogueEntry> Buyable(
         PerkCatalogue catalogue, PerkRarity rarity, RunShopContext shop)
     {
@@ -248,7 +254,8 @@ internal static class RunShopOffer
 
         foreach (var row in catalogue.OfRarity(rarity))
         {
-            if (shop.OwnedPerkTiers.TierOf(row.Id) < row.TierCount)
+            if (PerkDraftEngine.IsOfferable(row) &&
+                shop.OwnedPerkTiers.TierOf(row.Id) < row.TierCount)
             {
                 rows.Add(row);
             }

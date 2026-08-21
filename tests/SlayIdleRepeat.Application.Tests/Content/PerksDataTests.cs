@@ -1,6 +1,7 @@
 ﻿using Shouldly;
 using SlayIdleRepeat.Application.Services.Content;
 using SlayIdleRepeat.Core.Content;
+using SlayIdleRepeat.Core.Content.Effects;
 using Xunit;
 
 namespace SlayIdleRepeat.Application.Tests.Content;
@@ -270,10 +271,27 @@ public sealed class PerksDataTests
     /// cannot be evaluated by any fight this build composes, so a row carrying one is authored,
     /// schema-valid and unplayable — taking it ends the run at the next battle.
     /// </summary>
+    /// <remarks>
+    /// 🔴 <b>A MAINTAINED list, and the maintenance is the risk.</b> Which functions read the run is
+    /// decided in <c>ConditionEvaluator</c>, not here, so a run-scoped function added to the DSL and
+    /// not added below leaves the equality above passing while a new unplayable row walks into the
+    /// draft pool — the set-equality's one blind spot. <b>Two guards close it, and neither is a
+    /// comment.</b> The names are <c>nameof</c> over the DSL's own enum, so RENAMING a function
+    /// breaks this build rather than silently emptying the list; and
+    /// <c>Core.Tests</c>' <c>A_run_state_function_is_exactly_one_of_these_eight</c> derives the set
+    /// from the evaluator's own behaviour and fails, naming this field, the moment a NINTH appears.
+    /// So add it here when that case tells you to.
+    /// </remarks>
     private static readonly string[] RunScopedConditionFunctions =
     {
-        "PERK_COUNT", "DISTINCT_PERK_CATEGORIES", "PET_COUNT", "GOLD_HELD", "BATTLES_WON_THIS_RUN",
-        "STAGE_INDEX", "CHAPTER", "TIER",
+        nameof(ConditionFunction.PERK_COUNT),
+        nameof(ConditionFunction.DISTINCT_PERK_CATEGORIES),
+        nameof(ConditionFunction.PET_COUNT),
+        nameof(ConditionFunction.GOLD_HELD),
+        nameof(ConditionFunction.BATTLES_WON_THIS_RUN),
+        nameof(ConditionFunction.STAGE_INDEX),
+        nameof(ConditionFunction.CHAPTER),
+        nameof(ConditionFunction.TIER),
     };
 
     /// <summary>

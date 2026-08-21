@@ -110,11 +110,11 @@
           },
 
           "poolTags": {
-            "description": "06 §5's worked example authors exactly one tag, 'standard' — the fresh-pool draw 06 §4 weights over. No other tag is named anywhere in 06, so 'standard' is the pool the draft draws from and the token every playable row carries; any OTHER token withholds the row from that draw, which is how a row the engine cannot yet evaluate stays out of the pool without a branch in the engine. Adding a tag is a data decision for the milestone that needs one.",
+            "description": "06 §5's worked example authors exactly one tag, 'standard' — the fresh-pool draw 06 §4 weights over. 'standard' is the pool the game offers from and the token every playable row carries; any OTHER token withholds the row from every offer, which is how a row the engine cannot yet evaluate stays out of the draft and off the shop shelf without a branch in either. 🔒 THE VOCABULARY IS CLOSED HERE, and it has to be: the token is load-bearing now, so a misspelled one would silently withhold a playable row and no schema keyword would say so. Adding a tag is a data decision for the milestone that needs one — one edit here and one on the row. 'needs_run_state' is the one withholding token today: a row whose effect value reads run-scoped state no fight composition supplies yet.",
             "type": "array",
             "minItems": 1,
             "uniqueItems": true,
-            "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" }
+            "items": { "type": "string", "enum": ["standard", "needs_run_state"] }
           }
         }
       }

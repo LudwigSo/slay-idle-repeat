@@ -168,23 +168,59 @@ public sealed class ChaptersDataTests
         chapterElites.ShouldBe(producerElites);
     }
 
+    /// <summary>Where the chapter documents live, as a path prefix rather than as two names.</summary>
+    private const string ChaptersDirectory = "content/chapters/";
+
     /// <summary>
-    /// A chapter names the two mini-bosses its run fights, one per stage gate. Each is an elite of
-    /// that chapter's own pool: a mini-boss is a predetermined elite, so an id from outside the pool
-    /// would name an elite this chapter's biome never otherwise presents.
+    /// How many chapter documents the shipped set holds today.
     /// </summary>
-    [Theory]
-    [InlineData(ChapterOne)]
-    [InlineData(ChapterTwo)]
-    public void Each_chapter_names_two_mini_bosses_drawn_from_its_own_elite_pool(string document)
+    /// <remarks>
+    /// 🔴 The floor under the sweep below, and the reason it is a sweep at all. A pass over a
+    /// directory says nothing when the directory came back empty: a renamed folder, a changed path
+    /// prefix or a loader that stopped carrying these documents would all leave the assertion
+    /// iterating nothing and reporting success. A chapter ADDED here should raise this number in the
+    /// same edit that authors it — that is the moment the new chapter's own ids get checked.
+    /// </remarks>
+    private const int ShippedChapterCount = 2;
+
+    /// <summary>
+    /// EVERY chapter names the two mini-bosses its run fights, one per stage gate. Each is an elite
+    /// of that chapter's own pool: a mini-boss is a predetermined elite, so an id from outside the
+    /// pool would name an elite this chapter's biome never otherwise presents.
+    /// </summary>
+    /// <remarks>
+    /// 🔒 Swept over the directory rather than stated per chapter. A rule spelled as one case per
+    /// document is a rule the next document is authored without — and the ids this one checks are
+    /// what a run puts in front of the player at both stage gates.
+    /// </remarks>
+    [Fact]
+    public void Every_chapter_names_two_mini_bosses_drawn_from_its_own_elite_pool()
     {
         var data = Data();
-        var miniBosses = data.Read($"{document}#/miniBossIds").Items.Select(i => i.AsText()).ToArray();
-        var elites = data.Read($"{document}#/elitePool").Items.Select(i => i.AsText()).ToArray();
 
-        miniBosses.Length.ShouldBe(2, "the last node of stage 1 and of stage 2, and no others");
-        miniBosses.ShouldBeUnique("two rows naming one elite is one mini-boss fought twice.");
-        miniBosses.ShouldBeSubsetOf(elites);
+        var documents = data.DocumentPaths
+            .Where(path => path.StartsWith(ChaptersDirectory, StringComparison.Ordinal))
+            .OrderBy(path => path, StringComparer.Ordinal)
+            .ToArray();
+
+        documents.Length.ShouldBe(
+            ShippedChapterCount,
+            "the sweep has to actually reach the chapter documents — an empty or mis-globbed " +
+            "directory would satisfy every assertion below without reading a single id");
+
+        foreach (var document in documents)
+        {
+            var miniBosses = data.Read($"{document}#/miniBossIds").Items.Select(i => i.AsText()).ToArray();
+            var elites = data.Read($"{document}#/elitePool").Items.Select(i => i.AsText()).ToArray();
+
+            miniBosses.Length.ShouldBe(
+                2, $"{document}: the last node of stage 1 and of stage 2, and no others");
+            miniBosses.ShouldBeUnique(
+                $"{document}: two rows naming one elite is one mini-boss fought twice.");
+            miniBosses.ShouldBeSubsetOf(
+                elites,
+                $"{document}: a mini-boss is a predetermined elite of this chapter's own pool.");
+        }
     }
 
     [Fact]
