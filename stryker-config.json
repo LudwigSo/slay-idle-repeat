@@ -18,7 +18,9 @@
       "string",
       "block",
       "regex",
-      "initializer"
-    ]
+      "initializer",
+      "linq"
+    ],
+    "break-on-initial-test-failure": true
   }
 }
