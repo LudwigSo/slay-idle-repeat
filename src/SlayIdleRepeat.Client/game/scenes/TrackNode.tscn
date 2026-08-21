@@ -1,12 +1,12 @@
 [gd_scene format=3]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gate_frame"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_gate_collar"]
 bg_color = Color(0, 0, 0, 0)
 border_width_left = 6
 border_width_top = 6
 border_width_right = 6
 border_width_bottom = 6
-border_color = Color(0.07, 0.07, 0.09, 1)
+border_color = Color(0.66, 0.67, 0.73, 1)
 shadow_color = Color(0, 0, 0, 0.45)
 shadow_size = 6
 shadow_offset = Vector2(0, 3)
@@ -15,7 +15,7 @@ shadow_offset = Vector2(0, 3)
 custom_minimum_size = Vector2(40, 40)
 mouse_filter = 2
 
-[node name="Gate" type="Panel" parent="."]
+[node name="Gate" type="PanelContainer" parent="."]
 visible = false
 mouse_filter = 2
 anchors_preset = 15
@@ -27,26 +27,24 @@ offset_right = 6.0
 offset_bottom = 6.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_gate_frame")
+theme_override_styles/panel = SubResource("StyleBoxFlat_gate_collar")
 
-[node name="LeftBar" type="ColorRect" parent="Gate"]
+[node name="Bars" type="HBoxContainer" parent="Gate"]
+layout_mode = 2
 mouse_filter = 2
-anchors_preset = -1
-anchor_left = 0.29
-anchor_top = 0.2
-anchor_right = 0.41
-anchor_bottom = 0.8
-grow_horizontal = 2
-grow_vertical = 2
+theme_override_constants/separation = 8
+alignment = 1
+
+[node name="LeftBar" type="ColorRect" parent="Gate/Bars"]
+custom_minimum_size = Vector2(8, 0)
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
 color = Color(0.07, 0.07, 0.09, 1)
 
-[node name="RightBar" type="ColorRect" parent="Gate"]
+[node name="RightBar" type="ColorRect" parent="Gate/Bars"]
+custom_minimum_size = Vector2(8, 0)
+layout_mode = 2
+size_flags_vertical = 3
 mouse_filter = 2
-anchors_preset = -1
-anchor_left = 0.59
-anchor_top = 0.2
-anchor_right = 0.71
-anchor_bottom = 0.8
-grow_horizontal = 2
-grow_vertical = 2
 color = Color(0.07, 0.07, 0.09, 1)

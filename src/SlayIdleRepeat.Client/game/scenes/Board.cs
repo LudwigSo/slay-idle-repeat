@@ -35,9 +35,10 @@ namespace SlayIdleRepeat.Client.Game.Scenes;
 /// table below, and the name of the one the run stands on is the only tile named in words. That is
 /// the honest limit of a screen with no icon set: the colours tell nodes apart and the caption says
 /// what the player is on. <b>One node is the exception, and it is an exception on purpose:</b> a
-/// node the run may not walk past carries the barred frame of <c>TrackNode.tscn</c> over its fill,
-/// because a rule the player cannot see coming may not be signalled by a colour — see
-/// <see cref="RenderTrack"/>. The die tumble, the dust puff and the floating result number the design
+/// node the run may not walk past wears the collar and bars of <c>TrackNode.tscn</c> — a light frame
+/// around its pip and two dark bars across it — because a rule the player cannot see coming may not
+/// be signalled by a colour. See <see cref="RenderTrack"/> and <see cref="TrackNodeGatePath"/>.
+/// The die tumble, the dust puff and the floating result number the design
 /// asks for are not built: they are procedural in-engine work by ruling, never a sprite sheet, and
 /// this task adds no asset row for them.
 /// </para>
@@ -160,7 +161,29 @@ public partial class Board : Control
     /// </remarks>
     private const string TrackNodeScenePath = "res://game/scenes/TrackNode.tscn";
 
-    /// <summary>The barred frame inside one track node, hidden on every node that may be walked past.</summary>
+    /// <summary>The gate mark on one track node, hidden on every node that may be walked past.</summary>
+    /// <remarks>
+    /// <para>
+    /// 🔴 <b>Each of its two channels is drawn against a different background, and that is what
+    /// decides their colours.</b> The collar sits in the gap BETWEEN pips, so it is read against the
+    /// screen's ground and is drawn in the quiet caption grey — the dark iron a gate wants is the
+    /// ground's own colour and would be invisible there. The bars cross the pip, so they are read
+    /// against the fill and are drawn dark. Neither is drawn in the fill itself, so the mark survives
+    /// the node the run is standing on being repainted in the token colour.
+    /// </para>
+    /// <para>
+    /// 🔒 <b>Square corners and a 6-unit stroke, where a panel of this screen would take a wide
+    /// radius and a heavier one.</b> This is the small-mark language the perk card's rarity gem
+    /// already uses, not the panel language: a rounded frame at 52 units across is a lozenge, and a
+    /// lozenge on a track whose pips ignore the mouse would read as a button the player can press.
+    /// </para>
+    /// <para>
+    /// 🔴 <b>The collar draws OUTSIDE its pip's rect</b> — 6 units on each side, into a container
+    /// separation of 8 — so that marking a node costs the row no width and the wrap stays where it
+    /// was. The cost is that clipping either the pip or the row cuts the collar off, which is why
+    /// <see cref="RenderTrack"/> pins the row's clipping rather than trusting the scene.
+    /// </para>
+    /// </remarks>
     private const string TrackNodeGatePath = "Gate";
     private const string StandingOnRowPath = "%StandingOnRow";
     private const string StandingOnLabelPath = "%StandingOnLabel";
@@ -706,12 +729,14 @@ public partial class Board : Control
     /// the caption below the track names that tile in words anyway.
     /// </para>
     /// <para>
-    /// 🔴 <b>A node the run may not walk past wears the barred frame, and that mark is not a
+    /// 🔴 <b>A node the run may not walk past wears the gate mark, and that mark is not a
     /// colour.</b> A roll that would carry over a mini-boss stops on it instead, so the player who
-    /// cannot see which node does that loses steps to a rule nothing on the screen stated. The frame
-    /// stands outside the pip and two bars cross it, which reads as a closed gate at pip size and
-    /// reads the same to a player who cannot separate the two reds this screen draws boss-tier
-    /// fights in — the accessibility rule is frame and mark, never colour on its own.
+    /// cannot see which node does that loses steps to a rule nothing on the screen stated. A light
+    /// collar stands around the pip and two dark bars cross it, which reads as a barred gate at pip
+    /// size and reads the same to a player who cannot separate the two reds this screen draws
+    /// boss-tier fights in — the accessibility rule is frame and mark, never colour on its own. The
+    /// boss keeps a plain pip on purpose: the mark has to tell the two APART, and the boss is the
+    /// terminus of the last row, which no other node can be mistaken for.
     /// </para>
     /// <para>
     /// ⚠️ Hidden rather than empty when the board could not be projected — a chapter this build does
@@ -752,6 +777,11 @@ public partial class Board : Control
         }
 
         track.Visible = true;
+
+        // Pinned here rather than left to the scene, because the gate mark is the one thing on this
+        // row that draws outside its own pip: a row that clipped its children would cut the collar
+        // off the top and bottom rows and leave the mark half there, with nothing to say so.
+        track.ClipContents = false;
 
         var standingOn = presenter.StandingOn?.NodeId;
 
